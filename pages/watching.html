@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Sauce for Zwift - Watching</title>
+        <link rel='stylesheet' href="common.css"/>
+        <style>
+            body {
+                background-color: #cc3900;
+            }
+
+            .entry {
+                display: flex;
+                flex-direction: column;
+                margin-top: 0.2rem;
+                padding: 1rem 0.5rem;
+                padding-bottom: 0.32rem;
+                position: relative;
+            }
+
+            .entry:not(:last-child) {
+                border-bottom: 1px solid #fff9;
+                margin-bottom: 0.5rem;
+            }
+
+            .entry.columns {
+                flex-direction: row;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .entry.no-heading {
+                padding-top: 0.2rem;
+            }
+
+            .entry .sub {
+                font-size: 0.6em;
+            }
+
+            .entry heading {
+                font-size: 0.45em;
+                display: block;
+                margin-bottom: 0.3em;
+            }
+
+            .entry > heading {
+                position: absolute;
+                top: 0;
+                left: 0;
+            }
+
+            .sub > heading {
+                font-size: 0.60em;
+                margin-left: -0.4em;
+                margin-top: -0.3em;
+            }
+
+            .entry .primary {
+                font-size: 1.8em;
+                font-weight: bold;
+                margin-top: -1.4rem;
+                display: flex;
+                flex-direction: column;
+                align-items: flex-end;
+                line-height: 1;
+            }
+
+            .primary abbr.unit {
+                font-size: 0.4em;
+                line-height: 1;
+                margin-top: -0.2em;
+            }
+
+            .entry .row {
+                display: flex;
+                align-items: baseline;
+                margin-bottom: 0.2em;
+            }
+
+            .row .key {
+                font-size: 0.60rem;
+                margin-right: 0.3em;
+                min-width: 6ch;
+                opacity: 0.88;
+            }
+
+            .value {
+                font-variant: tabular-nums;
+            }
+
+            abbr.unit {
+                margin-left: 0.2em;
+                font-size: 0.55em;
+                opacity: 0.82;
+            }
+
+            .power {
+                font-size: 1.8em;
+            }
+
+            .hr {
+                font-size: 1.5em;
+            }
+
+            .misc {
+                font-size: 1.7em;
+            }
+        </style>
+        <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';" />
+        <script src="watching.js" type="application/javascript" defer></script>
+    </head>
+    <body>
+        <div id="content">
+            <div class="entry power columns">
+                <heading>POWER:</heading>
+                <div class="sub">
+                    <div class="row avg">
+                        <div class="key">AVG:</div><div class="value"></div><abbr class="unit">w</abbr>
+                    </div>
+                    <div class="row max">
+                        <div class="key">MAX:</div><div class="value"></div><abbr class="unit">w</abbr>
+                    </div>
+                </div>
+                <div class="primary current">
+                    <span class="value"></span><abbr class="unit">watts</abbr>
+                </div>
+            </div>
+            <div class="entry hr columns">
+                <heading>HEART RATE:</heading>
+                <div class="sub">
+                    <div class="row avg">
+                        <div class="key">AVG:</div><div class="value"></div><abbr class="unit">bpm</abbr>
+                    </div>
+                    <div class="row max">
+                        <div class="key">MAX:</div><div class="value"></div><abbr class="unit">bpm</abbr>
+                    </div>
+                </div>
+                <div class="primary current">
+                    <span class="value"></span><abbr class="unit">bpm</abbr>
+                </div>
+            </div>
+            <div class="entry misc columns no-heading">
+                <div class="sub cadence">
+                    <heading>CADENCE:</heading>
+                    <div class="row current">
+                        <div class="key">CUR:</div><div class="value"></div><abbr class="unit">rpm</abbr>
+                    </div>
+                    <div class="row avg">
+                        <div class="key">AVG:</div><div class="value"></div><abbr class="unit">rpm</abbr>
+                    </div>
+                </div>
+                <div class="sub draft">
+                    <heading>DRAFTING:</heading>
+                    <div class="row current">
+                        <div class="key">CUR:</div><div class="value"></div><abbr class="unit">%</abbr>
+                    </div>
+                    <div class="row avg">
+                        <div class="key">AVG:</div><div class="value"></div><abbr class="unit">%</abbr>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </body>
+</html>
