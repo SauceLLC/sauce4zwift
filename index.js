@@ -51,6 +51,13 @@ async function sleep(ms) {
 }
 
 
+const worldTimeOffset = 1414016074335;  // ms since zwift started production.
+function worldTimeConv(wt) {
+    // TBD I think timesync helps us adjust the offset but I can't interpret it yet.
+    return new Date(Number(worldTimeOffset) + Number(wt));
+}
+
+
 function headingConv(microRads) {
     if (microRads < Math.PI * -1000000 || microRads > Math.PI * 3000000) {
         debugger;
@@ -107,42 +114,38 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     }
 
     processFlags1(bits) {
-        const b0_1 = bits & 0x3; // XXX no idea
-        bits >>= 2;
+        const b0_1 = bits & 0x3; // possibly bit 1 = bot and bit 0 = no power-meter/run?  XXX no idea
+        bits >>>= 2;
         const reverse = !!(bits & 0x1);
-        bits >>= 1;
+        bits >>>= 1;
         const reversing = !!(bits & 0x1);
-        bits >>= 1;
-        const b24_31 = bits >> 20;
-        bits &= (1 << 20) - 1;
-        const b4_23 = bits; // XXX no idea
-        // saw a time like transition from bits above 24.
+        bits >>>= 1;
+        const b4_23 = bits & (1 << 20) - 1; // XXX no idea
+        bits >>>= 20;
+        const rideons = bits;
         return {
             b0_1,
             reversing,
             reverse,
             b4_23,
-            b24_31,
+            rideons,
         };
     }
 
     processFlags2(bits) {
         const b0_3 = bits & 0xF;  // Some of these represent using a powerup.
         // b0_3: 15 = has powerup? 0b1111 0 = using/used powerup
-        bits >>= 4;
+        bits >>>= 4;
         const turning = {
             0: null,
             1: 'RIGHT',
             2: 'LEFT',
         }[bits & 0x3];
-        if (turning === undefined) {
-            console.error("Unexpected turning value:", bits & 0x3);
-        }
-        bits >>= 2;
-        const overlapping = bits & 0x1;
-        bits >>= 1;
-        const roadId = bits & 0xFFFF;  // XXX good chance this actually owns the next 8 bits.
-        bits >>= 16;
+        bits >>>= 2;
+        const overlapping = bits & 0x1;  // or near junction or recently on junction.  It's unclear.
+        bits >>>= 1;
+        const roadId = bits & 0xFFFF;
+        bits >>>= 16;
         const rem2 = bits; // XXX no idea
         return {
             b0_3,
@@ -240,9 +243,12 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 const now = Date.now();
                 const byRelLocation = [];
                 for (const [id, x] of this.states.entries()) {
-                    if (now - x.date > 10000) {
-                        console.warn("Stale entry:", x);
-                        this.states.delete(id);
+                    const age = now - worldTimeConv(x.worldTime);
+                    if (age > 15 * 1000) {
+                        if (age > 1800 * 1000) {
+                            console.warn("Cleanup of stale state:", x);
+                            this.states.delete(id);
+                        }
                         continue;
                     }
                     if ((watching.groupId && x.groupId !== watching.groupId) ||
