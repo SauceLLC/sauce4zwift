@@ -11,6 +11,8 @@ const path = require('path');
 const athleteCache = path.resolve(os.homedir(), '.zwiftAthleteCache.json');
 
 
+let _acLastTS = 0;
+let _acUpdates = 0;
 async function getAthleteCache() {
     let f;
     try {
@@ -23,14 +25,22 @@ async function getAthleteCache() {
     }
     const data = new Map(JSON.parse(await f.readFile()));
     await f.close();
+    _acLastTS = Date.now();
     return data;
 }
 
 
-async function setAthleteCache(data) {
+async function maybeSaveAthleteCache(data) {
+    if (Date.now() - _acLastTS < 30000 || _acUpdates < 100) {
+        return;
+    }
+    console.warn("Updating athlete cache:", _acUpdates);
+    _acLastTS = Date.now();
+    const serialized = JSON.stringify(Array.from(data));
+    _acUpdates = 0;
     const tmp = athleteCache + '.tmp';
     const f = await fs.open(tmp, 'w');
-    await f.writeFile(JSON.stringify(Array.from(data)));
+    await f.writeFile(serialized);
     await f.close();
     await fs.rename(tmp, athleteCache);
 }
@@ -76,8 +86,17 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     constructor(...args) {
         super(...args);
         this._stats = new Map();
+        this._roadId;
         this.on('incoming', this.onIncoming);
         this.on('outgoing', this.onOutgoing);
+        this.wakeup();  // set up wakeEvent
+    }
+
+    wakeup() {
+        if (this._wakeResolve) {
+            this._wakeResolve();
+        }
+        this.wakeEvent = new Promise(resolve => this._wakeResolve = resolve);
     }
 
     onIncoming(packet) {
@@ -85,6 +104,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             if (x.payload && x.payload.$type) {
                 if (x.payload.$type.name === 'PlayerEnteredWorld') {
                     this.athletes.set(x.payload.athleteId, x.payload.toJSON());
+                    _acUpdates++;
                 } else if (x.payload.$type.name === 'EventJoin') {
                     console.warn("Event Join:", x.payload);
                 } else if (x.payload.$type.name === 'EventLeave') {
@@ -109,8 +129,15 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         if (!packet.state) {
             return;
         }
-        this.watching = packet.state.watchingAthleteId;
         this.processState(packet.state);
+        const roadSig = '' + packet.state.roadId + packet.state.reverse;
+        if (this.watching !== packet.state.watchingAthleteId) {
+            this.watching = packet.state.watchingAthleteId;
+            this.wakeup();
+        } else if (this._roadSig !== roadSig) {
+            this.wakeup();
+        }
+        this._roadSig = roadSig;
     }
 
     processFlags1(bits) {
@@ -256,11 +283,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                         watching.roadId !== x.roadId) {
                         continue;
                     }
-                    byRelLocation.push({
-                        relDistance: distance(x, watching),
-                        relRoadLocation: watching.roadLocation - x.roadLocation,
-                        ...x,
-                    });
+                    byRelLocation.push({relRoadLocation: watching.roadLocation - x.roadLocation, ...x});
                 }
                 if (watching.reverse) {
                     byRelLocation.sort((a, b) => a.relRoadLocation - b.relRoadLocation);
@@ -271,22 +294,41 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 const nearby = [];
                 for (let i = Math.max(0, center - 8); i < Math.min(byRelLocation.length, center + 8); i++) {
                     const x = byRelLocation[i];
-                    const timeGap = x.relDistance / ((watching.speed || x.speed || 1) * 1000 / 3600);  // XXX Pretty naive
+                    const relDistance = distance(x, watching);
+                    const timeGap = relDistance / ((watching.speed || x.speed || 1) * 1000 / 3600);  // XXX Pretty naive
                     const athlete = this.athletes.get(x.id);
                     const name = athlete && `${athlete.firstName[0]}.${athlete.lastName}`;
                     console.debug('Nearby:', i - center, x.id, 'flags...', x.flags1.toString(16), x.flags2.toString(16),
                         name, JSON.stringify(x));
                     nearby.push({
-                        position: i - center, 
+                        position: i - center,
+                        relDistance,
                         timeGap,
                         athlete,
                         ...x
                     });
                 }
                 this.emit('nearby', nearby);
+
+                const groups = [];
+                let curGroup;
+                for (const x of byRelLocation) {
+                    if (!curGroup) {
+                        curGroup = [x];
+                    } else {
+                        const last = curGroup[curGroup.length - 1];
+                        const distBack = distance(x, last);
+                        if (distBack > 10) {
+                            groups.push(curGroup);
+                            curGroup = [];
+                        }
+                        curGroup.push(x);
+                    }
+                }
+                this.emit('groups', groups);
             }
-            await sleep(5000);
-            await setAthleteCache(this.athletes);
+            await Promise.race([sleep(5000), this.wakeEvent]);
+            await maybeSaveAthleteCache(this.athletes);
         }
     }
 }
@@ -325,7 +367,7 @@ function createWindow(monitor) {
     //win.setVisibleOnAllWorkspaces(true, {visibleOnFullScreen: true});
     //win.setFullScreenable(false);
     //win.maximize();
-    
+
     function winMonProxy(event, win) {
         const cb = data => win.webContents.send('proxy', {event, source: 'sauce4zwift', data});
         monitor.on(event, cb);
