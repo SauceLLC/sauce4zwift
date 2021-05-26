@@ -30,8 +30,7 @@ async function main() {
 
         pwrCurEl.textContent = cur.power != null ? cur.power.toLocaleString() : '-';
         hrCurEl.textContent = cur.heartrate != null ? cur.heartrate.toLocaleString() : '-';
-        const cadence = cur.cadenceUHz && cur.cadenceUHz / 1000000 * 60;
-        cadCurEl.textContent = cadence != null && Math.round(cadence).toLocaleString();
+        cadCurEl.textContent = cur.cadence != null && Math.round(cur.cadence).toLocaleString();
         draftCurEl.textContent = cur.draft != null ? cur.draft.toLocaleString() : '-';
 
         pwrAvgEl.textContent = Math.round(avgPower).toLocaleString();

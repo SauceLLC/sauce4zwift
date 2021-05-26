@@ -1,4 +1,6 @@
-const {app, BrowserWindow, ipcMain} = require('electron');
+/* global __dirname */
+
+const {app, BrowserWindow} = require('electron');
 const ZwiftPacketMonitor = require('@saucellc/zwift-packet-monitor');
 const util = require('util');
 const exec = util.promisify(require('child_process').exec);
@@ -104,8 +106,61 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         this.processState(packet.state);
     }
 
+    processFlags1(bits) {
+        const b0_1 = bits & 0x3; // XXX no idea
+        bits >>= 2;
+        const reverse = !!(bits & 0x1);
+        bits >>= 1;
+        const reversing = !!(bits & 0x1);
+        bits >>= 1;
+        const b24_31 = bits >> 20;
+        bits &= (1 << 20) - 1;
+        const b4_23 = bits; // XXX no idea
+        // saw a time like transition from bits above 24.
+        return {
+            b0_1,
+            reversing,
+            reverse,
+            b4_23,
+            b24_31,
+        };
+    }
+
+    processFlags2(bits) {
+        const b0_3 = bits & 0xF;  // Some of these represent using a powerup.
+        // b0_3: 15 = has powerup? 0b1111 0 = using/used powerup
+        bits >>= 4;
+        const turning = {
+            0: null,
+            1: 'RIGHT',
+            2: 'LEFT',
+        }[bits & 0x3];
+        if (turning === undefined) {
+            console.error("Unexpected turning value:", bits & 0x3);
+        }
+        bits >>= 2;
+        const overlapping = bits & 0x1;
+        bits >>= 1;
+        const roadId = bits & 0xFFFF;  // XXX good chance this actually owns the next 8 bits.
+        bits >>= 16;
+        const rem2 = bits; // XXX no idea
+        return {
+            b0_3,
+            turning,
+            roadId,
+            overlapping,
+            rem2,
+        };
+    }
+
     processState(state) {
-        state.heading = headingConv(state.heading);
+        // Move this to zwift-packet thing..
+        state.heading = headingConv(state.heading);  // degrees
+        state.speed = state.speed / 1000000;  // km/h
+        state.cadence = state.cadenceUHz ? state.cadenceUHz / 1000000 * 60 : null;  // rpm
+        delete state.cadenceUHz;
+        Object.assign(state, this.processFlags1(state.flags1));
+        Object.assign(state, this.processFlags2(state.flags2));
         this.states.set(state.id, state);
         if (!this._stats.has(state.id)) {
             this._stats.set(state.id, {
@@ -144,8 +199,8 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 stats.draftSum += state.draft * duration;
                 stats.draftDur += duration;
             }
-            if (state.cadenceUHz != null) {
-                stats.cadenceSum += state.cadenceUHz / 1000000 * 60 * duration;
+            if (state.cadence != null) {
+                stats.cadenceSum += state.cadence * duration;
                 stats.cadenceDur += duration;
             }
         }
@@ -178,50 +233,53 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 await sleep(100);
                 continue;
             }
-            const byRelPos = [];
-            const athlete = this.athletes.get(this.watching);
-            const state = this.states.get(this.watching);
-            if (state) {
+            const watching = this.states.get(this.watching);
+            if (watching) {
                 console.debug("Athletes:", this.athletes.size, "States:", this.states.size);
-                console.debug("Watching:", state.id);
-                const statePos = state.roadTime * ((state.flags1 & state.$type.getEnum('Flags1').REVERSE) ? -1 : 1);
+                console.debug("Watching:", watching.id);
                 const now = Date.now();
+                const byRelLocation = [];
                 for (const [id, x] of this.states.entries()) {
                     if (now - x.date > 10000) {
                         console.warn("Stale entry:", x);
                         this.states.delete(id);
                         continue;
                     }
-                    if (state.groupId && x.groupId !== state.groupId) {
+                    if ((watching.groupId && x.groupId !== watching.groupId) ||
+                        watching.reverse !== x.reverse ||
+                        watching.roadId !== x.roadId) {
                         continue;
                     }
-                    const dist = distance(x, state);
-                    const reverse = (x.flags1 & state.$type.getEnum('Flags1').REVERSE) ? -1 : 1;
-                    byRelPos.push({dist, relPos: statePos - (x.roadTime * reverse), state: x});
+                    byRelLocation.push({
+                        relDistance: distance(x, watching),
+                        relRoadLocation: watching.roadLocation - x.roadLocation,
+                        ...x,
+                    });
                 }
-                byRelPos.sort((a, b) => b.relPos - a.relPos);
-                const center = byRelPos.findIndex(x => x.state.id === this.watching);
+                if (watching.reverse) {
+                    byRelLocation.sort((a, b) => a.relRoadLocation - b.relRoadLocation);
+                } else {
+                    byRelLocation.sort((a, b) => b.relRoadLocation - a.relRoadLocation);
+                }
+                const center = byRelLocation.findIndex(x => x.id === watching.id);
                 const nearby = [];
-                for (let i = Math.max(0, center - 8); i < Math.min(byRelPos.length, center + 8); i++) {
-                    const x = byRelPos[i];
-                    const timeGap = x.dist / (state.speed / 1000 / 3600);
-                    const athlete = this.athletes.get(x.state.id);
+                for (let i = Math.max(0, center - 8); i < Math.min(byRelLocation.length, center + 8); i++) {
+                    const x = byRelLocation[i];
+                    const timeGap = x.relDistance / ((watching.speed || x.speed || 1) * 1000 / 3600);  // XXX Pretty naive
+                    const athlete = this.athletes.get(x.id);
                     const name = athlete && `${athlete.firstName[0]}.${athlete.lastName}`;
-                    console.debug('Nearby:', i - center, Math.round(x.dist), 'm', (x.state.speed / 1000000).toFixed(1), 'kph',
-                        'timegap:', Math.round(timeGap), 'relPos:', x.relPos, 'flags...', x.state.flags1.toString(16),
-                        x.state.flags2.toString(16), 'name:', name, headingConv(x.state.heading).toFixed(1));
+                    console.debug('Nearby:', i - center, x.id, 'flags...', x.flags1.toString(16), x.flags2.toString(16),
+                        name, JSON.stringify(x));
                     nearby.push({
                         position: i - center, 
-                        relDistance: x.dist,
-                        speed: x.state.speed / 1000000,
                         timeGap,
-                        name,
-                        roadTime: x.roadTime,
+                        athlete,
+                        ...x
                     });
                 }
                 this.emit('nearby', nearby);
             }
-            await sleep(2000);
+            await sleep(5000);
             await setAthleteCache(this.athletes);
         }
     }
@@ -253,7 +311,8 @@ function makeFloatingWindow(page, options={}) {
 
 function createWindow(monitor) {
     const watchingWin = makeFloatingWindow('watching.html', {width: 250, height: 238, x: 14, y: 60});
-    const nearbyWin = makeFloatingWindow('nearby.html', {width: 240, height: 600, x: 980, y: 318});
+    //const nearbyWin = makeFloatingWindow('nearby.html', {width: 240, height: 600, x: 980, y: 318});
+    const nearbyWin = makeFloatingWindow('nearby.html', {width: 500, height: 400, x: 780, y: 418});
 
     //app.dock.hide();
     //win.setAlwaysOnTop(true, "floating", 1);
