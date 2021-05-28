@@ -7,14 +7,39 @@
         <style>
             body {
                 font-size: 13px;
+                background-color: black;
+            }
+
+            table {
+                border-collapse: collapse;
+            }
+
+            table td, th {
+                padding: 0.3em;
+                text-align: left;
+            }
+
+            table tr.watching {
+                font-weight: bold;
+                background-color: white;
+                color: black;
             }
         </style>
         <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';" />
+        <script src="common.js" type="application/javascript" defer></script>
         <script src="groups.js" type="application/javascript" defer></script>
     </head>
     <body>
         <div id="content">
             <table>
+                <thead>
+                    <th>Pos</th>
+                    <th>Dist</th>
+                    <th>Time</th>
+                    <th>Athletes</th>
+                    <th>Power Avg</th>
+                    <th>Draft Avg</th>
+                </thead>
                 <tbody></tbody>
             </table>
         </div>

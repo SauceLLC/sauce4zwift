@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Sauce for Zwift - Chat</title>
+        <link rel='stylesheet' href="common.css"/>
+        <style>
+            body {
+                background: pink;
+                color: black;
+            }
+
+            #content {
+                display: flex;
+                flex-direction: column;
+            }
+
+            .entry {
+                padding: 0.5em 0 0.25em 0;
+                display: flex;
+                align-items: center;
+                font-size: 0.8em;
+            }
+
+            .entry .avatar {
+                flex: 0 0 auto;
+                width: 3em;
+                height: 3em;
+                border-radius: 50%;
+                overflow: hidden;
+                margin-right: 0.33em;
+            }
+
+            .entry .avatar img {
+                object-fit: contain;
+                width: 100%;
+                max-height: 100%;
+            }
+
+            .entry .content {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .entry .name {
+                font-size: 0.55em;
+            }
+
+            .timestamp {
+                font-size: 0.45em;
+                font-weight: bold;
+                font-variant: small-caps;
+                align-self: center;
+                padding-top: 1em;
+            }
+
+            .entry .message {
+                --message-hue: 0deg;
+                font-size: 0.8em;
+                color: purple;
+                border-radius: 0.5em;
+                background-color: hsla(var(--message-hue), 50%, 50%, 0.5);
+                padding: 0.8em;
+                white-space: pre-wrap;
+            }
+        </style>
+        <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';" />
+        <script src="common.js" type="application/javascript" defer></script>
+        <script src="chat.js" type="application/javascript" defer></script>
+    </head>
+    <body>
+        <div id="content"></div>
+    </body>
+</html>

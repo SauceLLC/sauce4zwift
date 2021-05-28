@@ -110,7 +110,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 } else if (x.payload.$type.name === 'EventLeave') {
                     console.warn("Event Leave:", x.payload);
                 } else if (x.payload.$type.name === 'ChatMessage') {
-                    console.warn("Chat:", x.payload.firstName, x.payload.lastName, ':', x.payload.message);
+                    this.emit('chat', {...x.payload, ts: x.ts});
                 } else if (x.payload.$type.name === 'RideOn') {
                     console.warn("RideOn:", x.payload);
                 }
@@ -323,7 +323,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                         }
                         curGroup.athletes.push(x);
                     }
-                    curGroup.watching = x.id === this.watching;
+                    curGroup.watching = curGroup.watching || x.id === this.watching;
                 }
                 if (curGroup && curGroup.athletes.length) {
                     groups.push(curGroup);
@@ -332,10 +332,14 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                     const x = groups[i];
                     x.power = x.athletes.reduce((agg, x) => agg + x.power, 0) / x.athletes.length;
                     x.draft = x.athletes.reduce((agg, x) => agg + x.draft, 0) / x.athletes.length;
-                    if (i < groups.length - 1) {
-                        const next = groups[i + 1];
-                        x.gap = distance(x.athletes[0], next.athletes[0]);
-                        x.timeGap = x.gap / ((next.athletes[0].speed || 1) * 1000 / 3600);  // XXX Pretty naive
+                    if (i) {
+                        const ahead = groups[i - 1];
+                        x.distGap = distance(x.athletes[0], ahead.athletes[0]);
+                        x.timeGap = x.distGap / ((x.athletes[0].speed || 1) * 1000 / 3600);  // XXX Pretty naive
+                        x.totDistGap = ahead.totDistGap + x.distGap;
+                        x.totTimeGap = ahead.totTimeGap + x.timeGap;
+                    } else {
+                        Object.assign(groups[0], {distGap: 0, timeGap: 0, totDistGap: 0, totTimeGap: 0});
                     }
                 }
                 this.emit('groups', groups);
@@ -375,6 +379,7 @@ function createWindow(monitor) {
     //const nearbyWin = makeFloatingWindow('nearby.html', {width: 240, height: 600, x: 980, y: 318});
     const nearbyWin = makeFloatingWindow('nearby.html', {width: 500, height: 400, x: 780, y: 418});
     const groupsWin = makeFloatingWindow('groups.html', {width: 500, height: 400, x: 270, y: 418});
+    const chatWin = makeFloatingWindow('chat.html', {width: 300, height: 400, x: 780, y: 100});
 
     //app.dock.hide();
     //win.setAlwaysOnTop(true, "floating", 1);
@@ -391,6 +396,7 @@ function createWindow(monitor) {
     winMonProxy('watching', watchingWin);
     winMonProxy('nearby', nearbyWin);
     winMonProxy('groups', groupsWin);
+    winMonProxy('chat', chatWin);
 }
 
 
