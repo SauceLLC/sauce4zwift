@@ -141,7 +141,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     }
 
     processFlags1(bits) {
-        const b0_1 = bits & 0x3; // possibly bit 1 = bot and bit 0 = no power-meter/run?  XXX no idea
+        const b0_1 = bits & 0x3; // XXX possibly bit 1 = bot and bit 0 = no power-meter/run?
         bits >>>= 2;
         const reverse = !!(bits & 0x1);
         bits >>>= 1;
@@ -273,7 +273,6 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                     const age = now - worldTimeConv(x.worldTime);
                     if (age > 15 * 1000) {
                         if (age > 1800 * 1000) {
-                            console.warn("Cleanup of stale state:", x);
                             this.states.delete(id);
                         }
                         continue;
@@ -314,15 +313,29 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 let curGroup;
                 for (const x of byRelLocation) {
                     if (!curGroup) {
-                        curGroup = [x];
+                        curGroup = {athletes: [x]};
                     } else {
-                        const last = curGroup[curGroup.length - 1];
-                        const distBack = distance(x, last);
-                        if (distBack > 10) {
+                        const last = curGroup.athletes[curGroup.athletes.length - 1];
+                        const gap = distance(x, last);
+                        if (gap > 15) {
                             groups.push(curGroup);
-                            curGroup = [];
+                            curGroup = {athletes: []};
                         }
-                        curGroup.push(x);
+                        curGroup.athletes.push(x);
+                    }
+                    curGroup.watching = x.id === this.watching;
+                }
+                if (curGroup && curGroup.athletes.length) {
+                    groups.push(curGroup);
+                }
+                for (let i = 0; i < groups.length; i++) {
+                    const x = groups[i];
+                    x.power = x.athletes.reduce((agg, x) => agg + x.power, 0) / x.athletes.length;
+                    x.draft = x.athletes.reduce((agg, x) => agg + x.draft, 0) / x.athletes.length;
+                    if (i < groups.length - 1) {
+                        const next = groups[i + 1];
+                        x.gap = distance(x.athletes[0], next.athletes[0]);
+                        x.timeGap = x.gap / ((next.athletes[0].speed || 1) * 1000 / 3600);  // XXX Pretty naive
                     }
                 }
                 this.emit('groups', groups);
@@ -361,6 +374,7 @@ function createWindow(monitor) {
     const watchingWin = makeFloatingWindow('watching.html', {width: 250, height: 238, x: 14, y: 60});
     //const nearbyWin = makeFloatingWindow('nearby.html', {width: 240, height: 600, x: 980, y: 318});
     const nearbyWin = makeFloatingWindow('nearby.html', {width: 500, height: 400, x: 780, y: 418});
+    const groupsWin = makeFloatingWindow('groups.html', {width: 500, height: 400, x: 270, y: 418});
 
     //app.dock.hide();
     //win.setAlwaysOnTop(true, "floating", 1);
@@ -374,8 +388,9 @@ function createWindow(monitor) {
         win.on('close', () => monitor.off(event, cb));
     }
 
-    winMonProxy('nearby', nearbyWin);
     winMonProxy('watching', watchingWin);
+    winMonProxy('nearby', nearbyWin);
+    winMonProxy('groups', groupsWin);
 }
 
 
