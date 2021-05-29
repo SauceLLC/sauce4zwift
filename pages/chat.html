@@ -5,17 +5,27 @@
         <title>Sauce for Zwift - Chat</title>
         <link rel='stylesheet' href="common.css"/>
         <style>
-            body {
+            html, body {
+                margin: 0;
+                height: 0;
+                width: 100%;
+                height: 100%;
                 background: transparent;
+            }
+
+            body {
                 color: black;
+                overflow-y: auto;
+                overscroll-behavior-y: contain;
+                scroll-snap-type: y proximity;
             }
 
             #content {
                 display: flex;
                 flex-direction: column;
-                overflow-y: scroll;
-                overscroll-behavior-y: contain;
-                scroll-snap-type: y proximity;
+                align-items: flex-start;
+                justify-content: flex-end;
+                min-height: 100%;
             }
 
             .entry {
@@ -32,6 +42,7 @@
 
             .entry:last-child {
                 scroll-snap-align: end;
+                scroll-margin-block-end: 5rem;
             }
 
             .entry .avatar {
