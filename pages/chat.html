@@ -6,7 +6,7 @@
         <link rel='stylesheet' href="common.css"/>
         <style>
             body {
-                background: pink;
+                background: transparent;
                 color: black;
             }
 
@@ -16,19 +16,25 @@
             }
 
             .entry {
-                padding: 0.5em 0 0.25em 0;
+                --message-hue: 0deg;
                 display: flex;
+                background-color: hsla(var(--message-hue), 80%, 40%, 0.6);
+                color: #fff;
                 align-items: center;
                 font-size: 0.8em;
+                margin-bottom: 0.6rem;
+                border-radius: 3em;
+                box-shadow: 1px 1px 5px 0 #0004;
             }
 
             .entry .avatar {
                 flex: 0 0 auto;
-                width: 3em;
-                height: 3em;
+                width: 2.8em;
+                height: 2.8em;
                 border-radius: 50%;
                 overflow: hidden;
                 margin-right: 0.33em;
+                border: 1px solid #0002;
             }
 
             .entry .avatar img {
@@ -40,12 +46,13 @@
             .entry .content {
                 display: flex;
                 flex-direction: column;
-                align-items: center;
-                justify-content: center;
             }
 
             .entry .name {
                 font-size: 0.55em;
+                padding: 0.6em 0;
+                font-weight: bold;
+                flex: 0 0 auto;
             }
 
             .timestamp {
@@ -53,17 +60,15 @@
                 font-weight: bold;
                 font-variant: small-caps;
                 align-self: center;
-                padding-top: 1em;
+                padding: 1em 4em;
             }
 
             .entry .message {
-                --message-hue: 0deg;
                 font-size: 0.8em;
-                color: purple;
-                border-radius: 0.5em;
-                background-color: hsla(var(--message-hue), 50%, 50%, 0.5);
-                padding: 0.8em;
                 white-space: pre-wrap;
+                flex: 1 1 100%;
+                margin-right: 1em;
+                margin-bottom: 1em;
             }
         </style>
         <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';" />

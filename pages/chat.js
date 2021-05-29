@@ -10,7 +10,7 @@ const relTime = new Intl.RelativeTimeFormat();
 
 function makeTimestamp() {
     const el = document.createElement('div');
-    el.classList.add('timestamp');
+    el.classList.add('timestamp', 'entry');
     el.innerText = relTime.format(-0, 'minute');
     el.dataset.ts = Date.now();
     return el;
@@ -64,8 +64,7 @@ async function main() {
             content.appendChild(makeTimestamp());
         }
         lastTimestamp = now;
-        entry.style.setProperty('--message-hue', athleteHue(chat.from));
-        const name = [chat.firstName, chat.lastName].filter(x => x).join(' ');
+        entry.style.setProperty('--message-hue', athleteHue(chat.from) + 'deg');
         entry.innerHTML = `
             <div class="avatar"><img src="${chat.avatar}"/></div>
             <div class="content">
@@ -73,7 +72,8 @@ async function main() {
                 <div class="message"></div>
             </div>
         `;
-        entry.querySelector('.name').textContent = chat.name;
+        entry.querySelector('.name').textContent =
+            [chat.firstName, chat.lastName].filter(x => x).join(' ');
         entry.querySelector('.message').textContent = chat.message;
         content.appendChild(entry);
     });
@@ -82,8 +82,8 @@ async function main() {
         event: 'chat',
         source: 'sauce4zwift',
         data: {
-            firstName: 'Justin',
-            lastName: 'Justin',
+            firstName: 'Text',
+            lastName: 'Guy',
             message: 'Testing 1 2 3',
             from: 11111,
             to: 0,
@@ -91,6 +91,21 @@ async function main() {
         }
     };
     dispatchEvent(testing);
+    const testing2 = new Event('message');
+    testing.data = {
+        event: 'chat',
+        source: 'sauce4zwift',
+        data: {
+            firstName: 'Foo',
+            lastName: 'Bar',
+            message: 'Foobiz 1 2 3',
+            from: 1213121,
+            to: 0,
+            avatar: 'https://i1.sndcdn.com/artworks-000218997483-xdgm10-t500x500.jpg',
+        }
+    };
+    dispatchEvent(testing);
+
 }
 
 addEventListener('DOMContentLoaded', () => main());
