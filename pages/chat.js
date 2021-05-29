@@ -45,6 +45,11 @@ async function main() {
             return;
         }
         const chat = ev.data.data;
+        const now = Date.now();
+        if (now - lastTimestamp > 60000) {
+            content.appendChild(makeTimestamp());
+        }
+        lastTimestamp = now;
         if (content.lastChild && Number(content.lastChild.dataset.from) === chat.from) {
             const msg = content.lastChild.querySelector('.message');
             msg.textContent += '\n' + chat.message;
@@ -59,11 +64,6 @@ async function main() {
         } else {
             entry.classList.add('public');
         }
-        const now = Date.now();
-        if (now - lastTimestamp > 60000) {
-            content.appendChild(makeTimestamp());
-        }
-        lastTimestamp = now;
         entry.style.setProperty('--message-hue', athleteHue(chat.from) + 'deg');
         entry.innerHTML = `
             <div class="avatar"><img src="${chat.avatar}"/></div>
@@ -91,21 +91,23 @@ async function main() {
         }
     };
     dispatchEvent(testing);
-    const testing2 = new Event('message');
-    testing.data = {
-        event: 'chat',
-        source: 'sauce4zwift',
-        data: {
-            firstName: 'Foo',
-            lastName: 'Bar',
-            message: 'Foobiz 1 2 3',
-            from: 1213121,
-            to: 0,
-            avatar: 'https://i1.sndcdn.com/artworks-000218997483-xdgm10-t500x500.jpg',
-        }
-    };
-    dispatchEvent(testing);
-
+    for (let i = 0; i < 100; i++) {
+        const testing2 = new Event('message');
+        testing.data = {
+            event: 'chat',
+            source: 'sauce4zwift',
+            data: {
+                firstName: 'Foo',
+                lastName: 'Bar',
+                message: 'Foobiz 1 2 3' + i,
+                from: 1213121 + i,
+                to: 0,
+                avatar: 'https://i1.sndcdn.com/artworks-000218997483-xdgm10-t500x500.jpg',
+            }
+        };
+        dispatchEvent(testing);
+        await sleep(1000);
+    }
 }
 
 addEventListener('DOMContentLoaded', () => main());

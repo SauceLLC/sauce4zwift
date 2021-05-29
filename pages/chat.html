@@ -13,6 +13,9 @@
             #content {
                 display: flex;
                 flex-direction: column;
+                overflow-y: scroll;
+                overscroll-behavior-y: contain;
+                scroll-snap-type: y proximity;
             }
 
             .entry {
@@ -23,8 +26,12 @@
                 align-items: center;
                 font-size: 0.8em;
                 margin-bottom: 0.6rem;
-                border-radius: 3em;
+                border-radius: 1.5em; /* must be >= half avatar */
                 box-shadow: 1px 1px 5px 0 #0004;
+            }
+
+            .entry:last-child {
+                scroll-snap-align: end;
             }
 
             .entry .avatar {
@@ -66,9 +73,10 @@
             .entry .message {
                 font-size: 0.8em;
                 white-space: pre-wrap;
+                word-break: break-word;
                 flex: 1 1 100%;
                 margin-right: 1em;
-                margin-bottom: 1em;
+                margin-bottom: 0.3em;
             }
         </style>
         <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';" />
