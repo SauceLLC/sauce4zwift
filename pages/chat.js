@@ -28,7 +28,7 @@ async function monitorTimestamps(content) {
         for (const x of content.querySelectorAll('.timestamp[data-ts]')) {
             x.innerText = relTime.format(Math.round((Number(x.dataset.ts) - now) / 60000), 'minute');
         }
-        await sleep(1000);
+        await sleep(30000);
     }
 }
 
@@ -91,7 +91,7 @@ async function main() {
         }
     };
     dispatchEvent(testing);
-    for (let i = 0; i < 100; i++) {
+    for (let i = 0; i < 100000; i++) {
         const testing2 = new Event('message');
         testing.data = {
             event: 'chat',
@@ -106,7 +106,7 @@ async function main() {
             }
         };
         dispatchEvent(testing);
-        await sleep(1000);
+        await sleep(100 * i);
     }
 }
 

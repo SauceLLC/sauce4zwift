@@ -2,6 +2,8 @@ html, body {
     margin: 0;
     width: 100%;
     height: 100%;
+    font-size: 7vw;
+    overflow: hidden;
 }
 
 html {
@@ -14,7 +16,6 @@ html {
 body {
     background: #ff5e0080;
     color: white;
-    font-size: 7vw;
     font-family: sans-serif;
 }
 
