@@ -7,8 +7,36 @@ const exec = util.promisify(require('child_process').exec);
 const fs = require('fs/promises');
 const os = require('os');
 const path = require('path');
+const net = require('net');
 
 const athleteCache = path.resolve(os.homedir(), '.zwiftAthleteCache.json');
+
+
+async function getLocalRoutedIP() {
+    const sock = net.createConnection(80, 'www.zwift.com');
+    return await new Promise((resolve, reject) => {
+        sock.on('connect', () => {
+            try {
+                resolve(sock.address().address);
+            } finally {
+                sock.end();
+            }
+        });
+        sock.on('error', reject);
+    });
+}
+
+
+async function getLocalRoutedIface() {
+    const ip = await getLocalRoutedIP();
+    for (const [iface, addrs] of Object.entries(os.networkInterfaces())) {
+        for (const x of addrs) {
+            if (x.address === ip) {
+                return iface;
+            }
+        }
+    }
+}
 
 
 let _acLastTS = 0;
@@ -43,16 +71,6 @@ async function maybeSaveAthleteCache(data) {
     await f.writeFile(serialized);
     await f.close();
     await fs.rename(tmp, athleteCache);
-}
-
-
-async function getPrimaryInterface() {
-    // XXX macos only.
-    const {stdout, stderr} = await exec('route get 0/0');
-    if (!stdout) {
-        throw new Error(stderr || 'route get failuere');
-    }
-    return stdout.match(/\sinterface: (.+?)$/m)[1];
 }
 
 
@@ -406,7 +424,7 @@ app.on('window-all-closed', () => {
 
 async function main() {
     // interface is cap interface name (can be device name or IP address)
-    const iface = await getPrimaryInterface();
+    const iface = await getLocalRoutedIface();
     console.info('Monitoring zwift data from:', iface);
     const monitor = new Sauce4ZwiftMonitor(iface);
     await monitor.start();
