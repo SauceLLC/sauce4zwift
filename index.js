@@ -374,12 +374,12 @@ function makeFloatingWindow(page, options={}) {
     const win = new BrowserWindow({
         width: 400,
         height: 300,
-        //transparent: true,
+        transparent: true,
         //frame: false,
-        //titleBarStyle: 'customButtonsOnHover',  // best so far  dragging is possible but difficult with top bar and wrong cursor
+        titleBarStyle: 'customButtonsOnHover',  // best so far  dragging is possible but difficult with top bar and wrong cursor
         x: windowOfft,
         y: windowOfft,
-        //alwaysOnTop: true,
+        alwaysOnTop: true,
         resizable: true,
         webPreferences: {
             nodeIntegration: false,
@@ -396,7 +396,7 @@ function createWindow(monitor) {
     const watchingWin = makeFloatingWindow('watching.html', {width: 250, height: 238, x: 14, y: 60});
     //const nearbyWin = makeFloatingWindow('nearby.html', {width: 500, height: 400, x: 780, y: 418});
     //const groupsWin = makeFloatingWindow('groups.html', {width: 500, height: 400, x: 270, y: 418});
-    const chatWin = makeFloatingWindow('chat.html', {width: 300, height: 400, x: 780, y: 100});
+    const chatWin = makeFloatingWindow('chat.html', {width: 280, height: 580, x: 280, y: 230});
 
     //app.dock.hide();
     //win.setAlwaysOnTop(true, "floating", 1);
@@ -411,8 +411,8 @@ function createWindow(monitor) {
     }
 
     winMonProxy('watching', watchingWin);
-    winMonProxy('nearby', nearbyWin);
-    winMonProxy('groups', groupsWin);
+    //winMonProxy('nearby', nearbyWin);
+    //winMonProxy('groups', groupsWin);
     winMonProxy('chat', chatWin);
 }
 
