@@ -128,7 +128,17 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 } else if (x.payload.$type.name === 'EventLeave') {
                     console.warn("Event Leave:", x.payload);
                 } else if (x.payload.$type.name === 'ChatMessage') {
-                    this.emit('chat', {...x.payload, ts: x.ts});
+                    const chat = x.payload;
+                    const watchingState = this.watching != null && this.states.get(this.watching);
+                    if (!watchingState || watchingState.groupId === chat.eventSubgroup) {
+                        console.warn("its good");
+                        const fromState = this.states.get(chat.from);
+                        const distGap = fromState ? distance(fromState, watchingState) : null;
+                        this.emit('chat', {...chat, ts: x.ts, distGap});
+                    } else {
+                        console.warn("skip it");
+                        debugger;
+                    }
                 } else if (x.payload.$type.name === 'RideOn') {
                     console.warn("RideOn:", x.payload);
                 }
