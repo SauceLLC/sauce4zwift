@@ -5,15 +5,16 @@
         <title>Sauce for Zwift - Chat</title>
         <link rel='stylesheet' href="common.css"/>
         <style>
-            html, body {
-                background: transparent;
-            }
-
             body {
                 color: black;
                 overflow-y: auto;
                 overscroll-behavior-y: contain;
                 scroll-snap-type: y proximity;
+                transition: background 200ms;
+            }
+
+            body:not(:hover) {
+                background: transparent;
             }
 
             #content {

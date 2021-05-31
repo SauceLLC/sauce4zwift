@@ -4,6 +4,7 @@ html, body {
     height: 100%;
     font-size: 7vw;
     overflow: hidden;
+    -webkit-app-region: drag;  /* Make entire window draggable */
 }
 
 html {

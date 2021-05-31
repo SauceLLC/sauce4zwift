@@ -1,13 +1,14 @@
 /* global __dirname */
 
-const {app, BrowserWindow} = require('electron');
-const ZwiftPacketMonitor = require('@saucellc/zwift-packet-monitor');
 const util = require('util');
 const exec = util.promisify(require('child_process').exec);
 const fs = require('fs/promises');
+const net = require('net');
 const os = require('os');
 const path = require('path');
-const net = require('net');
+const {app, BrowserWindow} = require('electron');
+const windowStateKeeper = require('electron-window-state');
+const ZwiftPacketMonitor = require('@saucellc/zwift-packet-monitor');
 
 const athleteCache = path.resolve(os.homedir(), '.zwiftAthleteCache.json');
 
@@ -39,22 +40,49 @@ async function getLocalRoutedIface() {
 }
 
 
-let _acLastTS = 0;
-let _acUpdates = 0;
-async function getAthleteCache() {
+function stateFile(id) {
+    return path.join(app.getPath('userData'), `state-${id}.json`);
+}
+
+
+async function loadState(id) {
     let f;
     try {
-        f = await fs.open(athleteCache);
+        f = await fs.open(stateFile(id));
     } catch(e) {
         if (e.code !== 'ENOENT') {
             throw e;
         }
-        return new Map();
+        return;
     }
-    const data = new Map(JSON.parse(await f.readFile()));
-    await f.close();
+    try {
+        return JSON.parse(await f.readFile());
+    } finally {
+        await f.close();
+    }
+}
+
+
+async function saveState(id, data) {
+    const file = stateFile(id);
+    const tmpFile = file + '.tmp';
+    const serialized = JSON.stringify(data);
+    const f = await fs.open(tmpFile, 'w');
+    try {
+        await f.writeFile(serialized);
+    } finally {
+        await f.close();
+    }
+    await fs.rename(tmpFile, file);
+}
+
+
+let _acLastTS = 0;
+let _acUpdates = 0;
+async function getAthleteCache() {
+    const state = await loadState('athlete-cache');
     _acLastTS = Date.now();
-    return data;
+    return new Map(state);
 }
 
 
@@ -62,15 +90,9 @@ async function maybeSaveAthleteCache(data) {
     if (Date.now() - _acLastTS < 30000 || _acUpdates < 100) {
         return;
     }
-    console.warn("Updating athlete cache:", _acUpdates);
     _acLastTS = Date.now();
-    const serialized = JSON.stringify(Array.from(data));
+    await saveState('athlete-cache', Array.from(data));
     _acUpdates = 0;
-    const tmp = athleteCache + '.tmp';
-    const f = await fs.open(tmp, 'w');
-    await f.writeFile(serialized);
-    await f.close();
-    await fs.rename(tmp, athleteCache);
 }
 
 
@@ -87,9 +109,6 @@ function worldTimeConv(wt) {
 
 
 function headingConv(microRads) {
-    if (microRads < Math.PI * -1000000 || microRads > Math.PI * 3000000) {
-        debugger;
-    }
     const halfCircle = 1000000 * Math.PI;
     return (((microRads + halfCircle) / (2 * halfCircle)) * 360) % 360;
 }
@@ -131,13 +150,11 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                     const chat = x.payload;
                     const watchingState = this.watching != null && this.states.get(this.watching);
                     if (!watchingState || watchingState.groupId === chat.eventSubgroup) {
-                        console.warn("its good");
                         const fromState = this.states.get(chat.from);
                         const distGap = fromState ? distance(fromState, watchingState) : null;
                         this.emit('chat', {...chat, ts: x.ts, distGap});
                     } else {
-                        console.warn("skip it");
-                        debugger;
+                        console.warn("skip it", x.payload.message, x.payload.eventSubgroup, watchingState.groupId);
                     }
                 } else if (x.payload.$type.name === 'RideOn') {
                     console.warn("RideOn:", x.payload);
@@ -325,8 +342,8 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                     const timeGap = relDistance / ((watching.speed || x.speed || 1) * 1000 / 3600);  // XXX Pretty naive
                     const athlete = this.athletes.get(x.id);
                     const name = athlete && `${athlete.firstName[0]}.${athlete.lastName}`;
-                    console.debug('Nearby:', i - center, x.id, 'flags...', x.flags1.toString(16), x.flags2.toString(16),
-                        name, JSON.stringify(x));
+                    //console.debug('Nearby:', i - center, x.id, 'flags...', x.flags1.toString(16), x.flags2.toString(16),
+                    //    name, JSON.stringify(x));
                     nearby.push({
                         position: i - center,
                         relDistance,
@@ -378,17 +395,27 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     }
 }
 
-let windowOfft = 0;
-function makeFloatingWindow(page, options={}) {
-    windowOfft += 100;
+
+async function getWindowState(page) {
+    const id = page.split('.')[0];
+    return await loadState(`window-${id}`);
+}
+
+
+async function setWindowState(page, data) {
+    const id = page.split('.')[0];
+    await saveState(`window-${id}`, data);
+}
+
+
+async function makeFloatingWindow(page, options={}) {
+    const savedState = (await getWindowState(page)) || {};
     const win = new BrowserWindow({
-        width: 400,
-        height: 300,
         transparent: true,
+
         //frame: false,
-        titleBarStyle: 'customButtonsOnHover',  // best so far  dragging is possible but difficult with top bar and wrong cursor
-        x: windowOfft,
-        y: windowOfft,
+        titleBarStyle: 'customButtonsOnHover',
+
         alwaysOnTop: true,
         resizable: true,
         webPreferences: {
@@ -396,23 +423,42 @@ function makeFloatingWindow(page, options={}) {
             preload: path.join(__dirname, 'pages', 'preload.js'),
         },
         ...options,
+        ...savedState,
     });
+    let saveStateTimeout;
+    function onPositionUpdate() {
+        Object.assign(savedState, win.getBounds());
+        clearTimeout(saveStateTimeout);
+        saveStateTimeout = setTimeout(() => setWindowState(page, savedState), 400);
+    }
+    function onHide(ev) {
+        savedState.hidden = true;
+        clearTimeout(saveStateTimeout);
+        saveStateTimeout = setTimeout(() => setWindowState(page, savedState), 400);
+    }
+    function onShow(ev) {
+        savedState.hidden = false;
+        clearTimeout(saveStateTimeout);
+        saveStateTimeout = setTimeout(() => setWindowState(page, savedState), 400);
+    }
+    win.on('move', onPositionUpdate);
+    win.on('resize', onPositionUpdate);
+    win.on('minimize', onHide);
+    win.on('closed', onHide);
+    win.on('restore', onShow);
+    if (savedState.hidden) {
+        win.minimize();  // TODO: make restoration UX so we can just skip load.
+    }
     win.loadFile(path.join('pages', page));
     return win;
 }
 
 
-function createWindow(monitor) {
-    const watchingWin = makeFloatingWindow('watching.html', {width: 250, height: 238, x: 14, y: 60});
-    //const nearbyWin = makeFloatingWindow('nearby.html', {width: 500, height: 400, x: 780, y: 418});
-    //const groupsWin = makeFloatingWindow('groups.html', {width: 500, height: 400, x: 270, y: 418});
-    const chatWin = makeFloatingWindow('chat.html', {width: 280, height: 580, x: 280, y: 230});
-
-    //app.dock.hide();
-    //win.setAlwaysOnTop(true, "floating", 1);
-    //win.setVisibleOnAllWorkspaces(true, {visibleOnFullScreen: true});
-    //win.setFullScreenable(false);
-    //win.maximize();
+async function createWindows(monitor) {
+    const watchingWin = await makeFloatingWindow('watching.html', {width: 250, height: 238, x: 14, y: 60});
+    const nearbyWin = await makeFloatingWindow('nearby.html', {width: 500, height: 400, x: 780, y: 418});
+    const groupsWin = await makeFloatingWindow('groups.html', {width: 500, height: 400, x: 270, y: 418});
+    const chatWin = await makeFloatingWindow('chat.html', {width: 280, height: 580, x: 280, y: 230});
 
     function winMonProxy(event, win) {
         const cb = data => win.webContents.send('proxy', {event, source: 'sauce4zwift', data});
@@ -421,8 +467,8 @@ function createWindow(monitor) {
     }
 
     winMonProxy('watching', watchingWin);
-    //winMonProxy('nearby', nearbyWin);
-    //winMonProxy('groups', groupsWin);
+    winMonProxy('nearby', nearbyWin);
+    winMonProxy('groups', groupsWin);
     winMonProxy('chat', chatWin);
 }
 
@@ -439,10 +485,10 @@ async function main() {
     const monitor = new Sauce4ZwiftMonitor(iface);
     await monitor.start();
     await app.whenReady();
-    createWindow(monitor);
-    app.on('activate', () => {
+    await createWindows(monitor);
+    app.on('activate', async () => {
         if (BrowserWindow.getAllWindows().length === 0) {
-            createWindow(monitor);
+            await createWindows(monitor);
         }
     });
 }
