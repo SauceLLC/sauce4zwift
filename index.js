@@ -6,11 +6,13 @@ const fs = require('fs/promises');
 const net = require('net');
 const os = require('os');
 const path = require('path');
-const {app, BrowserWindow} = require('electron');
+const menu = require('./menu');
+const {app, BrowserWindow, nativeImage} = require('electron');
 const windowStateKeeper = require('electron-window-state');
 const ZwiftPacketMonitor = require('@saucellc/zwift-packet-monitor');
 
 const athleteCache = path.resolve(os.homedir(), '.zwiftAthleteCache.json');
+const appIcon = nativeImage.createFromPath('pages/images/icon-512x512.png');
 
 
 async function getLocalRoutedIP() {
@@ -151,7 +153,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                     const watchingState = this.watching != null && this.states.get(this.watching);
                     if (!watchingState || watchingState.groupId === chat.eventSubgroup) {
                         const fromState = this.states.get(chat.from);
-                        const distGap = fromState ? distance(fromState, watchingState) : null;
+                        const distGap = (fromState && watchingState) ? distance(fromState, watchingState) : null;
                         this.emit('chat', {...chat, ts: x.ts, distGap});
                     } else {
                         console.warn("skip it", x.payload.message, x.payload.eventSubgroup, watchingState.groupId);
@@ -408,14 +410,13 @@ async function setWindowState(page, data) {
 }
 
 
-async function makeFloatingWindow(page, options={}) {
+async function makeFloatingWindow(page, title, options={}) {
     const savedState = (await getWindowState(page)) || {};
     const win = new BrowserWindow({
+        icon: appIcon,
         transparent: true,
-
-        //frame: false,
+        hasShadow: false,
         titleBarStyle: 'customButtonsOnHover',
-
         alwaysOnTop: true,
         resizable: true,
         webPreferences: {
@@ -431,18 +432,16 @@ async function makeFloatingWindow(page, options={}) {
         clearTimeout(saveStateTimeout);
         saveStateTimeout = setTimeout(() => setWindowState(page, savedState), 400);
     }
-    function onHide(ev) {
+    async function onHide(ev) {
         savedState.hidden = true;
-        clearTimeout(saveStateTimeout);
-        saveStateTimeout = setTimeout(() => setWindowState(page, savedState), 400);
+        await setWindowState(page, savedState);
     }
-    function onShow(ev) {
+    async function onShow(ev) {
         savedState.hidden = false;
-        clearTimeout(saveStateTimeout);
-        saveStateTimeout = setTimeout(() => setWindowState(page, savedState), 400);
+        await setWindowState(page, savedState);
     }
-    win.on('move', onPositionUpdate);
-    win.on('resize', onPositionUpdate);
+    win.on('moved', onPositionUpdate);
+    win.on('resized', onPositionUpdate);
     win.on('minimize', onHide);
     win.on('closed', onHide);
     win.on('restore', onShow);
@@ -472,6 +471,10 @@ async function createWindows(monitor) {
     winMonProxy('chat', chatWin);
 }
 
+if (app.dock) {
+    console.warn("set app icon");
+    app.dock.setIcon(appIcon);
+}
 
 app.on('window-all-closed', () => {
     app.quit();
@@ -485,6 +488,7 @@ async function main() {
     const monitor = new Sauce4ZwiftMonitor(iface);
     await monitor.start();
     await app.whenReady();
+    menu.setAppMenu();
     await createWindows(monitor);
     app.on('activate', async () => {
         if (BrowserWindow.getAllWindows().length === 0) {

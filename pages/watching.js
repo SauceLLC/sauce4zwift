@@ -11,6 +11,15 @@ async function main() {
     const draftAvgEl = content.querySelector('.draft .avg .value');
     const pwrMaxEl = content.querySelector('.power .max .value');
     const hrMaxEl = content.querySelector('.hr .max .value');
+    content.querySelector('.power .current').addEventListener('click', ev => {
+        console.log("click");
+    });
+    content.querySelector('.power .current').addEventListener('dblclick', ev => {
+        console.log("dblclick");
+    });
+    content.querySelector('.power .current').addEventListener('contextmenu', ev => {
+        console.log("right click");
+    });
     addEventListener('message', ev => {
         if (!ev.data || ev.data.source !== 'sauce4zwift') {
             return;

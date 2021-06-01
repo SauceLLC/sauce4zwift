@@ -4,9 +4,12 @@
     'use strict';
 
     self.sauce = (self.sauce || {});
+    const L = (sauce.locale = {});
 
 
-    sauce.humanDuration = function(elapsed, options={}) {
+    L.thinSpace = '\u202f';
+
+    L.humanDuration = function(elapsed, options={}) {
         const min = 60;
         const hour = min * 60;
         const day = hour * 24;
@@ -42,18 +45,18 @@
                 const suffix = options.html ? `<abbr class="unit">${key}</abbr>` : key;
                 let val;
                 if (options.digits && units[units.length - 1][1] === period) {
-                    val = sauce.humanNumber(elapsed / period, options.digits);
+                    val = L.humanNumber(elapsed / period, options.digits);
                 } else {
-                    val = sauce.humanNumber(Math.floor(elapsed / period));
+                    val = L.humanNumber(Math.floor(elapsed / period));
                 }
-                stack.push(`${val}${short ? '' : ' '}${suffix}`);
+                stack.push(`${val}${L.thinSpace}${suffix}`);
                 elapsed %= period;
             }
         }
         return stack.slice(0, 2).join(', ');
     }
 
-    sauce.humanNumber = function(value, precision=0) {
+    L.humanNumber = function(value, precision=0) {
         if (value == null || value === '') {
             return '';
         }
@@ -70,4 +73,16 @@
             return Number(n.toFixed(precision)).toLocaleString();
         }
     }
+
+
+    L.humanDistance = function(value, precision) {
+        if (value > 1000) {
+            if (precision == null) {
+                precision = value > 50000 ? 0 : 1;
+            }
+            return `${L.humanNumber(value / 1000, precision)}${L.thinSpace}km`;
+        } else {
+            return `${L.humanNumber(value, precision)}${L.thinSpace}m`;
+        }
+    };
 })();

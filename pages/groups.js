@@ -22,11 +22,11 @@ async function main() {
             const distGap = x.totDistGap - centerDistGap;
             tRows.push([
                 i,
-                distGap ? (Math.round(distGap).toLocaleString() + 'm') : '-',
-                timeGap ? ((timeGap > 0 ? '+' : '-') + sauce.humanDuration(Math.abs(timeGap), {short: true})) : '-',
+                distGap ? sauce.locale.humanDistance(distGap) : '-',
+                timeGap ? ((timeGap > 0 ? '+' : '-') + sauce.locale.humanDuration(Math.abs(timeGap), {short: true})) : '-',
                 x.athletes.length.toLocaleString(),
-                Math.round(x.power) + 'w',
-                Math.round(x.draft) + '%',
+                Math.round(x.power) + sauce.locale.thinSpace + 'w',
+                Math.round(x.draft) + sauce.locale.thinSpace + '%',
             ]);
         }
         tBody.innerHTML = `<tr>${tRows.map((x, i) => `

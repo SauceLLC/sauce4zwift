@@ -14,9 +14,9 @@ async function main() {
             tRows.push([
                 x.id,
                 x.position,
-                Math.round(x.relDistance) + 'm',
-                Math.round(x.timeGap) + 's',
-                (x.roadLocation / 10000).toFixed(1) + '%',
+                sauce.locale.humanDistance(x.relDistance),
+                sauce.locale.humanDuration(x.timeGap),
+                (x.roadLocation / 10000).toFixed(1) + sauce.locale.thinSpace + '%',
                 'roadid: ' + x.roadId,
                 x.overlapping,
                 x.athlete && `${x.athlete.firstName[0]}.${x.athlete.lastName}`,
