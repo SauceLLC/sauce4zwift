@@ -8,7 +8,6 @@ const os = require('os');
 const path = require('path');
 const menu = require('./menu');
 const {app, BrowserWindow, nativeImage} = require('electron');
-const windowStateKeeper = require('electron-window-state');
 const ZwiftPacketMonitor = require('@saucellc/zwift-packet-monitor');
 
 const athleteCache = path.resolve(os.homedir(), '.zwiftAthleteCache.json');
