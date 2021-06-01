@@ -11,7 +11,7 @@ const {app, BrowserWindow, nativeImage} = require('electron');
 const ZwiftPacketMonitor = require('@saucellc/zwift-packet-monitor');
 
 const athleteCache = path.resolve(os.homedir(), '.zwiftAthleteCache.json');
-const appIcon = nativeImage.createFromPath('pages/images/icon-512x512.png');
+const appIcon = nativeImage.createFromPath(path.join(__dirname, 'build/images/app-icon.icos'));
 
 
 async function getLocalRoutedIP() {
@@ -471,7 +471,6 @@ async function createWindows(monitor) {
 }
 
 if (app.dock) {
-    console.warn("set app icon");
     app.dock.setIcon(appIcon);
 }
 
