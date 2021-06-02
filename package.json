@@ -1,5 +1,5 @@
 {
-  "name": "Sauce for Zwift™",
+  "name": "sauce4zwift",
   "version": "0.0.1",
   "description": "Overlay for Zwift",
   "main": "src/main.js",
