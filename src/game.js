@@ -4,6 +4,7 @@ const net = require('net');
 const os = require('os');
 const state = require('./state');
 const sudo = require('sudo-prompt');
+const cap = require('cap');
 const {dialog} = require('electron');
 const ZwiftPacketMonitor = require('@saucellc/zwift-packet-monitor');
 
@@ -25,10 +26,10 @@ async function getLocalRoutedIP() {
 
 async function getLocalRoutedIface() {
     const ip = await getLocalRoutedIP();
-    for (const [iface, addrs] of Object.entries(os.networkInterfaces())) {
-        for (const x of addrs) {
-            if (x.address === ip) {
-                return iface;
+    for (const xDevice of cap.Cap.deviceList()) {
+        for (const xAddr of addresses) {
+            if (xAddr.addr === ip) {
+                return xDevice.name;
             }
         }
     }
