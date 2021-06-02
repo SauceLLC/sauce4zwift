@@ -1,5 +1,8 @@
+/* global __dirname */
+
 const path = require('path');
 const fs = require('fs/promises');
+const zlib = require('zlib');
 const {app} = require('electron');
 
 
@@ -17,7 +20,16 @@ async function loadState(id, defaultFile) {
         if (e.code !== 'ENOENT') {
             throw e;
         } else if (defaultFile) {
-            f = await fs.open(path.join(__dirname, defaultFile));
+            const f = await fs.open(path.join(__dirname, defaultFile));
+            try {
+                let data = await f.readFile();
+                if (defaultFile.endsWith('.gz')) {
+                    data = zlib.gunzipSync(data);
+                }
+                return JSON.parse(data);
+            } finally {
+                await f.close();
+            }
         } else {
             return;
         }

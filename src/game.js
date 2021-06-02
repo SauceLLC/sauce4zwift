@@ -1,4 +1,4 @@
-/* global __dirname */
+/* global */
 
 const net = require('net');
 const os = require('os');
@@ -38,7 +38,7 @@ async function getLocalRoutedIface() {
 let _acLastTS = 0;
 let _acUpdates = 0;
 async function getAthleteCache() {
-    const data = await state.load('athlete-cache', '../.athlete-cache-seed.json');
+    const data = await state.load('athlete-cache', '../.athlete-cache-seed.json.gz');
     _acLastTS = Date.now();
     return new Map(data);
 }
@@ -306,7 +306,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                     const relDistance = distance(x, watching);
                     const timeGap = relDistance / ((watching.speed || x.speed || 1) * 1000 / 3600);  // XXX Pretty naive
                     const athlete = this.athletes.get(x.id);
-                    const name = athlete && `${athlete.firstName[0]}.${athlete.lastName}`;
+                    //const name = athlete && `${athlete.firstName[0]}.${athlete.lastName}`;
                     //console.debug('Nearby:', i - center, x.id, 'flags...', x.flags1.toString(16), x.flags2.toString(16),
                     //    name, JSON.stringify(x));
                     nearby.push({

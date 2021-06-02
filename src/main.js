@@ -106,7 +106,7 @@ async function main() {
                 throw e;
             }
         } catch(e) {
-            await dialog.showErrorBox('Error trying monitor game traffic', '' + e);
+            await dialog.showErrorBox('Startup Error', '' + e);
             app.quit();
             return;
         }

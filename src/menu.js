@@ -1,4 +1,5 @@
-const {BrowserWindow, Menu, app, shell, dialog} = require('electron');
+const process = require('process');
+const {BrowserWindow, Menu, app, shell} = require('electron');
 
 const template = [{
     label: 'Edit',
