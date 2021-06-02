@@ -98,15 +98,18 @@ async function main() {
     try {
         await monitor.start();
     } catch(e) {
-        if (e.message.match(/permission denied/i)) {
-            await game.getCapturePermission();
-            await monitor.start();  // Try once more
-        } else {
+        try {
+            if (e.message.match(/permission denied/i)) {
+                await game.getCapturePermission();
+                await monitor.start();  // Try once more
+            } else {
+                throw e;
+            }
+        } catch(e) {
             await dialog.showErrorBox('Error trying monitor game traffic', '' + e);
-            throw e;
+            app.quit();
+            return;
         }
-        await game.getCapturePermission();
-        await monitor.start();  // Try once more
     }
     await createWindows(monitor);
     app.on('activate', async () => {
