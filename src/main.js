@@ -104,6 +104,7 @@ async function main() {
                 await game.getCapturePermission();
                 await monitor.start();  // Try once more
             } else {
+                debugger; // Find the error windows throws when pcap is needed.
                 throw e;
             }
         } catch(e) {

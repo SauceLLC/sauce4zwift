@@ -31,20 +31,16 @@
       "packagerConfig": {
         "icon": "build/images/app-icon"
       },
-      "makers": [
-        {
-          "name": "@electron-forge/maker-squirrel",
-          "config": {
-            "name": "sauce4zwift"
-          }
-        },
-        {
-          "name": "@electron-forge/maker-zip",
-          "platforms": [
-            "darwin"
-          ]
-        }
-      ]
+      "makers": [{
+        "name": "@electron-forge/maker-dmg",
+        "platforms": ["darwin", "mas"]
+      }, {
+        "name": "@electron-forge/maker-pkg",
+        "platforms": ["darwin", "mas"]
+      }, {
+        "name": "@electron-forge/maker-squirrel",
+        "platforms": ["win32"]
+      }]
     }
   }
 }

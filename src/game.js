@@ -365,7 +365,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
 async function getCapturePermission() {
     if (os.platform() === 'darwin') {
         await new Promise((resolve, reject) => {
-            sudo.exec(`chown ${os.userInfo().uid} /dev/bpf0`, {name: 'Sauce for Zwift'},
+            sudo.exec(`chown ${os.userInfo().uid} /dev/bpf*`, {name: 'Sauce for Zwift'},
                 (e, stdout, stderr) => {
                     if (stderr) {
                         console.warn(stderr);
