@@ -27,12 +27,16 @@ async function makeFloatingWindow(page, options={}) {
         icon: appIcon,
         transparent: true,
         hasShadow: false,
-        titleBarStyle: 'customButtonsOnHover',
+        frame: false,
+        roundedCornders: false,  // macos only, so we use page style instead.
+        //titleBarStyle: 'customButtonsOnHover',
+        titleBarStyle: 'hiddenInset',
+        thickFrame: false, // windows only
         alwaysOnTop: true,
         resizable: true,
         webPreferences: {
             nodeIntegration: false,
-            preload: path.join(__dirname, 'pages', 'preload.js'),
+            preload: path.join(__dirname, '../pages/preload.js'),
         },
         ...options,
         ...savedState,

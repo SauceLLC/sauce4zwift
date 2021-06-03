@@ -4,7 +4,6 @@ html, body {
     height: 100%;
     font-size: 7vw;
     overflow: hidden;
-    -webkit-app-region: drag;  /* Make entire window draggable */
 }
 
 html {
@@ -14,10 +13,17 @@ html {
     box-sizing: inherit;
 }
 
+html {
+    padding: 3px; /* Required in windows to allow resize handles */
+    background-color: rgba(127, 127, 127, 0.002); /* Using full transparency breaks on windows */
+}
+
 body {
-    background: #ff5e0080;
+    background-color: #ff5e0080;
     color: white;
     font-family: sans-serif;
+    -webkit-app-region: drag;
+    border-radius: 0.5rem;
 }
 
 #content {

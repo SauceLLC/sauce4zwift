@@ -27,7 +27,7 @@ async function getLocalRoutedIP() {
 async function getLocalRoutedIface() {
     const ip = await getLocalRoutedIP();
     for (const xDevice of cap.Cap.deviceList()) {
-        for (const xAddr of addresses) {
+        for (const xAddr of xDevice.addresses) {
             if (xAddr.addr === ip) {
                 return xDevice.name;
             }
