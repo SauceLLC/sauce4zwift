@@ -32,7 +32,7 @@ async function makeFloatingWindow(page, options={}) {
         resizable: true,
         webPreferences: {
             nodeIntegration: false,
-            preload: path.join(__dirname, 'pages', 'preload.js'),
+            preload: path.join(__dirname, '../pages/preload.js'),
         },
         ...options,
         ...savedState,
