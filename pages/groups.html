@@ -6,23 +6,49 @@
         <link rel='stylesheet' href="common.css"/>
         <style>
             body {
-                font-size: 13px;
                 background-color: black;
             }
 
-            table {
-                border-collapse: collapse;
+            #content {
+                height: 100%;
+                align-items: center;
+                justify-content: center;
             }
 
-            table td, th {
-                padding: 0.3em;
-                text-align: left;
-            }
-
-            table tr.watching {
-                font-weight: bold;
-                background-color: white;
+            .bubble {
+                flex: 0 0 auto;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                white-space: pre-wrap;
+                border-radius: 50%;
+                background: white;
+                border: 1px solid red;
+                font-size: 0.5em;
                 color: black;
+                --size: calc(2rem + (var(--athletes) / var(--total-athletes) * 4rem));
+                width: var(--size);
+                height: var(--size);
+                order: var(--rel-pos);
+                overflow: hidden;
+            }
+
+            .bubble.hidden {
+                display: none;
+            }
+            .bubble.hidden + .line {
+                display: none;
+            }
+
+            .bubble.watching {
+                background: darkred;
+                color: white;
+            }
+
+            .line {
+                order: var(--rel-pos);
+                border-left: 1px solid pink;
+                height: calc((100% - 24rem) * (var(--abs-gap) / var(--total-gap)));;
             }
         </style>
         <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';" />
@@ -30,18 +56,6 @@
         <script src="groups.js" type="application/javascript" defer></script>
     </head>
     <body>
-        <div id="content">
-            <table>
-                <thead>
-                    <th>Pos</th>
-                    <th>Dist</th>
-                    <th>Time</th>
-                    <th>Athletes</th>
-                    <th>Power Avg</th>
-                    <th>Draft Avg</th>
-                </thead>
-                <tbody></tbody>
-            </table>
-        </div>
+        <div id="content"></div>
     </body>
 </html>

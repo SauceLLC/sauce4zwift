@@ -1,4 +1,4 @@
-/* global sauce */
+/* global */
 
 
 function athleteHue(id) {

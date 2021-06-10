@@ -54,7 +54,7 @@
             }
         }
         return stack.slice(0, 2).join(', ');
-    }
+    };
 
     L.humanNumber = function(value, precision=0) {
         if (value == null || value === '') {
@@ -72,7 +72,7 @@
         } else {
             return Number(n.toFixed(precision)).toLocaleString();
         }
-    }
+    };
 
 
     L.humanDistance = function(value, precision) {

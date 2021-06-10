@@ -1,3 +1,5 @@
+/* global sauce */
+
 async function main() {
     const content = document.querySelector('#content');
     const tBody = content.querySelector('table tbody');
