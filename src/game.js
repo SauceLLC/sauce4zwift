@@ -328,7 +328,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                     } else {
                         const last = curGroup.athletes[curGroup.athletes.length - 1];
                         const gap = distance(x, last);
-                        if (gap > 15) {
+                        if (gap > 25) {
                             groups.push(curGroup);
                             curGroup = {athletes: []};
                         }
@@ -355,7 +355,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 }
                 this.emit('groups', groups);
             }
-            await Promise.race([sleep(5000), this.wakeEvent]);
+            await Promise.race([sleep(1000), this.wakeEvent]);
             await maybeSaveAthleteCache(this.athletes);
         }
     }

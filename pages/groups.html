@@ -6,7 +6,10 @@
         <link rel='stylesheet' href="common.css"/>
         <style>
             body {
-                background-color: black;
+                background-color: #0006;
+                background-color: #000;
+                background-color: #0000;
+                padding: 1em;
             }
 
             #content {
@@ -15,40 +18,92 @@
                 justify-content: center;
             }
 
-            .bubble {
-                flex: 0 0 auto;
+            .group {
                 display: flex;
                 align-items: center;
-                justify-content: center;
-                white-space: pre-wrap;
-                border-radius: 50%;
-                background: white;
-                border: 1px solid red;
-                font-size: 0.5em;
-                color: black;
-                --size: calc(2rem + (var(--athletes) / var(--total-athletes) * 4rem));
+                margin: 0.4em;
+                flex: 0 0 auto;
+                position: relative;
+                --size: calc(2rem + (var(--athletes) / var(--total-athletes) * 6rem));
                 width: var(--size);
                 height: var(--size);
                 order: var(--rel-pos);
+                transition-property: width, height, opacity, visibility;
+                transition-duration: 4s;
+            }
+
+            .group .bubble {
+                display: flex;
                 overflow: hidden;
+                align-items: center;
+                justify-content: center;
+                text-align: center;
+                white-space: pre-wrap;
+                border-radius: 50%;
+                background: white;
+                font-size: 1.1em;
+                color: black;
+                width: 100%;
+                height: 100%;
+                box-shadow: 0 0 0 0.4rem #666a, 0.03rem 0.03rem 0.4em 0 #0004;
+
             }
 
-            .bubble.hidden {
-                display: none;
+            .group.hidden {
+                opacity: 0;
+                width: 0;
+                height: 0;
+                visibility: hidden;
             }
-            .bubble.hidden + .line {
-                display: none;
+            .group.hidden + .gap {
+                opacity: 0;
+                flex-grow: 0;
+                visibility: hidden;
             }
 
-            .bubble.watching {
-                background: darkred;
+            .group.watching .bubble {
+                background: #00aaff;
                 color: white;
             }
 
-            .line {
+            .group .desc {
+                display: flex;
+                align-items: center;
+                position: absolute;
+                font-size: 0.65em;
+                left: calc(100% + 0.2em);
+                white-space: nowrap;
+            }
+
+            .group .desc:not(:empty)::before {
+                display: block;
+                margin-right: 0.2rem;
+                content: ' ― ';
+                color: #aaa;
+            }
+
+            .gap {
+                position: relative;
                 order: var(--rel-pos);
-                border-left: 1px solid pink;
-                height: calc((100% - 24rem) * (var(--abs-gap) / var(--total-gap)));;
+                border-right-style: solid;
+                border-right-width: calc(0.08rem + 0.15rem * min(1, var(--outer-gap) / 600));
+                border-right-color: hsl(calc(70deg + 50deg * min(var(--outer-gap) / 300, 1) * var(--gap-sign)), 100%, 50%);
+                flex: calc(var(--inner-gap) / var(--total-gap)) 1 0;
+                transition-property: flex, opacity, visibility;
+                transition-duration: 4s;
+            }
+
+            .gap .desc {
+                position: absolute;
+                font-size: 0.8em;
+                top: calc(50% - 0.65em);
+                right: 0.2em;
+                white-space: nowrap;
+            }
+
+            .gap .desc:not(:empty)::after {
+                content: ' ― ';
+                color: #aaa;
             }
         </style>
         <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';" />
