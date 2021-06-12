@@ -6,16 +6,19 @@
         <link rel='stylesheet' href="common.css"/>
         <style>
             body {
-                background-color: #0006;
-                background-color: #000;
                 background-color: #0000;
-                padding: 1em;
+                padding: 0.4em;
+            }
+
+            body:hover {
+                background-color: #0009;
             }
 
             #content {
                 height: 100%;
                 align-items: center;
                 justify-content: center;
+                padding-right: 2rem;  /* Need more space for absolute pos desc on right. */
             }
 
             .group {
@@ -24,12 +27,16 @@
                 margin: 0.4em;
                 flex: 0 0 auto;
                 position: relative;
-                --size: calc(2rem + (var(--athletes) / var(--total-athletes) * 6rem));
+                --size: calc(1.2rem + (var(--athletes) / max(20, var(--total-athletes)) * 6.8rem));
                 width: var(--size);
                 height: var(--size);
                 order: var(--rel-pos);
                 transition-property: width, height, opacity, visibility;
                 transition-duration: 4s;
+            }
+
+            .group:not(.hidden) {
+                margin: 0.4em;
             }
 
             .group .bubble {
@@ -40,13 +47,12 @@
                 text-align: center;
                 white-space: pre-wrap;
                 border-radius: 50%;
-                background: white;
+                background: linear-gradient(to bottom, #fffc, #fffc, #fffa);
                 font-size: 1.1em;
                 color: black;
                 width: 100%;
                 height: 100%;
                 box-shadow: 0 0 0 0.4rem #666a, 0.03rem 0.03rem 0.4em 0 #0004;
-
             }
 
             .group.hidden {
@@ -63,6 +69,7 @@
 
             .group.watching .bubble {
                 background: #00aaff;
+                background: linear-gradient(to bottom, #0afc, #0afc, #0afa);
                 color: white;
             }
 
@@ -70,9 +77,13 @@
                 display: flex;
                 align-items: center;
                 position: absolute;
-                font-size: 0.65em;
+                font-size: 0.80em;
                 left: calc(100% + 0.2em);
                 white-space: nowrap;
+            }
+
+            .desc {
+                text-shadow: 0 0 1px #000a, 0 0 3px #000a;
             }
 
             .group .desc:not(:empty)::before {

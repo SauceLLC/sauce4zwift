@@ -66,9 +66,9 @@ async function makeFloatingWindow(page, options={}) {
 
 
 async function createWindows(monitor) {
-    const watchingWin = await makeFloatingWindow('watching.html', {width: 250, height: 238, x: 14, y: 60});
-    const nearbyWin = await makeFloatingWindow('nearby.html', {width: 500, height: 400, x: 780, y: 418});
-    const groupsWin = await makeFloatingWindow('groups.html', {width: 500, height: 400, x: 270, y: 418});
+    const watchingWin = await makeFloatingWindow('watching.html', {width: 260, height: 260, x: 8, y: 54});
+    //const nearbyWin = await makeFloatingWindow('nearby.html', {width: 500, height: 400, x: 780, y: 418});
+    const groupsWin = await makeFloatingWindow('groups.html', {width: 235, height: 650, x: 960, y: 418});
     const chatWin = await makeFloatingWindow('chat.html', {width: 280, height: 580, x: 280, y: 230});
 
     function winMonProxy(event, win) {
@@ -78,7 +78,7 @@ async function createWindows(monitor) {
     }
 
     winMonProxy('watching', watchingWin);
-    winMonProxy('nearby', nearbyWin);
+    //winMonProxy('nearby', nearbyWin);
     winMonProxy('groups', groupsWin);
     winMonProxy('chat', chatWin);
 }
