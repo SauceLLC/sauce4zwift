@@ -14,6 +14,7 @@
   "license": "MIT",
   "dependencies": {
     "@saucellc/zwift-packet-monitor": "https://github.com/SauceLLC/zwift-packet-monitor.git",
+    "electron-builder": "22.11.7",
     "sudo-prompt": "9.2.1"
   },
   "devDependencies": {
