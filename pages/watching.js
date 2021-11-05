@@ -1,4 +1,13 @@
 
+function humanNumber(num, fallback='-') {
+    if (num != null) {
+        return Math.round(num).toLocaleString();
+    } else {
+        return fallback;
+    }
+}
+
+
 async function main() {
     const content = document.querySelector('#content');
     const pwrCurEl = content.querySelector('.power .current .value');
@@ -30,25 +39,19 @@ async function main() {
         const watching = ev.data.data;
         const stats = watching.stats;
         const cur = watching.state;
-        const avgPower = (stats.powerSum / stats.powerDur) || 0;
-        const avgHR = (stats.hrSum / stats.hrDur) || 0;
-        const avgDraft = (stats.draftSum / stats.draftDur) || 0;
-        const avgCad = (stats.cadenceSum / stats.cadenceDur) || 0;
-        const maxPower = stats.powerMax;
-        const maxHR = stats.hrMax;
 
-        pwrCurEl.textContent = cur.power != null ? cur.power.toLocaleString() : '-';
-        hrCurEl.textContent = cur.heartrate != null ? cur.heartrate.toLocaleString() : '-';
-        cadCurEl.textContent = cur.cadence != null && Math.round(cur.cadence).toLocaleString();
-        draftCurEl.textContent = cur.draft != null ? cur.draft.toLocaleString() : '-';
+        pwrCurEl.textContent = humanNumber(cur.power || null);
+        hrCurEl.textContent = humanNumber(cur.heartrate || null);
+        cadCurEl.textContent = humanNumber(cur.cadence || null);
+        draftCurEl.textContent = humanNumber(cur.draft || null);
 
-        pwrAvgEl.textContent = Math.round(avgPower).toLocaleString();
-        hrAvgEl.textContent = Math.round(avgHR).toLocaleString();
-        cadAvgEl.textContent = Math.round(avgCad).toLocaleString();
-        draftAvgEl.textContent = Math.round(avgDraft).toLocaleString();
+        pwrAvgEl.textContent = humanNumber((stats.powerSum / stats.powerDur) || null);
+        hrAvgEl.textContent = humanNumber((stats.hrSum / stats.hrDur) || null);
+        cadAvgEl.textContent = humanNumber((stats.cadenceSum / stats.cadenceDur) || null);
+        draftAvgEl.textContent = humanNumber((stats.draftSum / stats.draftDur) || null);
 
-        pwrMaxEl.textContent = maxPower != null ? maxPower.toLocaleString() : '-';
-        hrMaxEl.textContent = maxHR != null ? maxHR.toLocaleString() : '-';
+        pwrMaxEl.textContent = humanNumber(stats.powerMax || null);
+        hrMaxEl.textContent = humanNumber(stats.hrMax || null);
     });
 }
 

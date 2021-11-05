@@ -276,8 +276,8 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             }
             const watching = this.states.get(this.watching);
             if (watching) {
-                console.debug("Athletes:", this.athletes.size, "States:", this.states.size);
-                console.debug("Watching:", watching.id);
+                //console.debug("Athletes:", this.athletes.size, "States:", this.states.size);
+                //console.debug("Watching:", watching.id);
                 const now = Date.now();
                 const byRelLocation = [];
                 for (const [id, x] of this.states.entries()) {
