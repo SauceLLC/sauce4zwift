@@ -6,9 +6,7 @@ exports.default = async function notarizing(context) {
   if (electronPlatformName !== 'darwin') {
     return;
   }
-
   const appName = context.packager.appInfo.productFilename;
-
   return await notarize({
     appBundleId: 'io.saucellc.sauce4zwift',
     appPath: `${appOutDir}/${appName}.app`,
