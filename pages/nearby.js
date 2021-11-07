@@ -14,7 +14,7 @@ async function main() {
         const tRows = [];
         for (const x of nearby) {
             tRows.push([
-                x.id,
+                x.athleteId,
                 x.position,
                 sauce.locale.humanDistance(x.relDistance),
                 sauce.locale.humanDuration(x.timeGap),

@@ -90,6 +90,8 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         super(...args);
         this._stats = new Map();
         this._roadId;
+        this.athleteId = null;
+        this.watching = null;
         this.on('incoming', this.onIncoming);
         this.on('outgoing', this.onOutgoing);
         this.wakeup();  // set up wakeEvent
@@ -102,7 +104,17 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         this.wakeEvent = new Promise(resolve => this._wakeResolve = resolve);
     }
 
+    maybeLearnAthleteId(packet) {
+        if (this.athleteId === null && packet.athleteId != null) {
+            this.athleteId = packet.athleteId;
+            if (this.watching == null) {
+                this.watching = this.athleteId;
+            }
+        }
+    }
+
     onIncoming(packet) {
+        this.maybeLearnAthleteId(packet);
         for (const x of packet.playerUpdates) {
             if (x.payload && x.payload.$type) {
                 if (x.payload.$type.name === 'PlayerEnteredWorld') {
@@ -127,23 +139,22 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 }
             }
         }
-        if (!this.watching) {
-            // Fallback for when we are just watching or not hooked up with power.
-            this.watching = packet.athleteId;
-        }
         for (const x of packet.playerStates) {
             this.processState(x);
         }
     }
 
     onOutgoing(packet) {
+        this.maybeLearnAthleteId(packet);
         if (!packet.state) {
             return;
         }
         this.processState(packet.state);
         const roadSig = '' + packet.state.roadId + packet.state.reverse;
-        if (this.watching !== packet.state.watchingAthleteId) {
-            this.watching = packet.state.watchingAthleteId;
+        const watching = packet.state.watchingAthleteId;
+        if (watching != null && this.watching !== watching) {
+            this.watching = watching;
+            console.debug("Now watching:", watching);
             this.wakeup();
         } else if (this._roadSig !== roadSig) {
             this.wakeup();
@@ -202,9 +213,9 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         delete state.cadenceUHz;
         Object.assign(state, this.processFlags1(state.flags1));
         Object.assign(state, this.processFlags2(state.flags2));
-        this.states.set(state.id, state);
-        if (!this._stats.has(state.id)) {
-            this._stats.set(state.id, {
+        this.states.set(state.athleteId, state);
+        if (!this._stats.has(state.athleteId)) {
+            this._stats.set(state.athleteId, {
                 powerSum: 0,
                 powerDur: 0,
                 powerMax: 0,
@@ -218,7 +229,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 worldTime: 0,
             });
         }
-        const stats = this._stats.get(state.id);
+        const stats = this._stats.get(state.athleteId);
         const duration = stats.worldTime ? state.worldTime.toNumber() - stats.worldTime : 0;
         stats.worldTime = state.worldTime.toNumber();
         if (duration && state.speed) {
@@ -245,7 +256,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 stats.cadenceDur += duration;
             }
         }
-        if (this.watching === state.id) {
+        if (this.watching === state.athleteId) {
             this.emit('watching', {state, stats});
         }
     }
@@ -270,21 +281,21 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
 
     async nearbyProcessor() {
         while (this._active) {
-            if (!this.watching) {
+            if (this.watching == null) {
                 await sleep(100);
                 continue;
             }
             const watching = this.states.get(this.watching);
             if (watching) {
                 //console.debug("Athletes:", this.athletes.size, "States:", this.states.size);
-                //console.debug("Watching:", watching.id);
+                //console.debug("Watching:", watching.athleteId);
                 const now = Date.now();
                 const byRelLocation = [];
-                for (const [id, x] of this.states.entries()) {
+                for (const [k, x] of this.states.entries()) {
                     const age = now - worldTimeConv(x.worldTime);
                     if (age > 15 * 1000) {
                         if (age > 1800 * 1000) {
-                            this.states.delete(id);
+                            this.states.delete(k);
                         }
                         continue;
                     }
@@ -300,15 +311,15 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 } else {
                     byRelLocation.sort((a, b) => b.relRoadLocation - a.relRoadLocation);
                 }
-                const center = byRelLocation.findIndex(x => x.id === watching.id);
+                const center = byRelLocation.findIndex(x => x.athleteId === watching.athleteId);
                 const nearby = [];
                 for (let i = Math.max(0, center - 8); i < Math.min(byRelLocation.length, center + 8); i++) {
                     const x = byRelLocation[i];
                     const relDistance = distance(x, watching);
                     const timeGap = relDistance / ((watching.speed || x.speed || 1) * 1000 / 3600);  // XXX Pretty naive
-                    const athlete = this.athletes.get(x.id);
+                    const athlete = this.athletes.get(x.athleteId);
                     //const name = athlete && `${athlete.firstName[0]}.${athlete.lastName}`;
-                    //console.debug('Nearby:', i - center, x.id, 'flags...', x.flags1.toString(16), x.flags2.toString(16),
+                    //console.debug('Nearby:', i - center, x.athleteId, 'flags...', x.flags1.toString(16), x.flags2.toString(16),
                     //    name, JSON.stringify(x));
                     nearby.push({
                         position: i - center,
@@ -334,7 +345,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                         }
                         curGroup.athletes.push(x);
                     }
-                    curGroup.watching = curGroup.watching || x.id === this.watching;
+                    curGroup.watching = curGroup.watching || x.athleteId === this.watching;
                 }
                 if (curGroup && curGroup.athletes.length) {
                     groups.push(curGroup);
