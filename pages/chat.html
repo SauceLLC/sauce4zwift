@@ -8,22 +8,14 @@
         <style>
             body {
                 color: black;
-                overflow-y: auto;
-                overscroll-behavior-y: contain;
-                scroll-snap-type: y proximity;
-                transition: background 200ms;
-            }
-
-            body:not(:hover) {
-                background: transparent;
             }
 
             #content {
                 align-items: flex-start;
-                justify-content: flex-end;
-                min-height: 100%;
-                padding: 0.1rem;
-                padding-right: 0.25rem; /* Let's hide the scrollbar eventually */
+                padding: 0.2rem;
+                overflow-y: auto;
+                overscroll-behavior-y: contain;
+                scroll-snap-type: y proximity;
             }
 
             .entry {
@@ -37,16 +29,19 @@
                 border-radius: 1.5em; /* must be >= half avatar */
                 box-shadow: 1px 1px 5px 0 #0004;
             }
+            .entry:first-child {
+                /* https://bugs.chromium.org/p/chromium/issues/detail?id=411624 */
+                margin-top: auto;  /* Shift to bottom when unscrolled */
+            }
+            .entry:last-child {
+                scroll-snap-align: end;
+                scroll-margin-block-end: 1rem;
+            }
 
             .entry.fadeout {
                 opacity: 0;
                 transition: opacity 15s;
                 transition-delay: 300s;
-            }
-
-            .entry:last-child {
-                scroll-snap-align: end;
-                scroll-margin-block-end: 0.5rem;
             }
 
             .entry .avatar {
@@ -103,7 +98,8 @@
         <script src="common.js" type="application/javascript" defer></script>
         <script src="chat.js" type="application/javascript" defer></script>
     </head>
-    <body>
+    <body class="transparent-bg">
+        <div id="titlebar">Chat - Sauce for Zwift</div>
         <div id="content"></div>
     </body>
 </html>

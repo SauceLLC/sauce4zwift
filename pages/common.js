@@ -85,4 +85,9 @@
             return `${L.humanNumber(value, precision)}${L.thinSpace}m`;
         }
     };
+
+    window.addEventListener('focus', () =>
+        void document.documentElement.classList.add('hovering'));
+    window.addEventListener('blur', () =>
+        void document.documentElement.classList.remove('hovering'));
 })();

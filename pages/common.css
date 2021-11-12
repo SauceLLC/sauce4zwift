@@ -1,5 +1,28 @@
 @import url('https://fonts.googleapis.com/css2?family=Jost:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
 
+html:not(:hover) ::-webkit-scrollbar {
+    display: none;
+}
+::-webkit-scrollbar {
+    width: 0.5rem;
+    height: 0.5rem;
+}
+::-webkit-scrollbar-track {
+    margin: 0.22rem;
+    border-radius: 1rem;
+    background-color: #1114;
+}
+::-webkit-scrollbar-thumb {
+    border-radius: 1rem;
+    background-color: #eeec;
+}
+::-webkit-scrollbar-thumb:hover {
+    background-color: #eee;
+}
+::-webkit-scrollbar-corner {
+    background-color: transparent;
+}
+
 html, body {
     margin: 0;
     width: 100%;
@@ -21,14 +44,38 @@ html {
 }
 
 body {
+    display: flex;
+    flex-direction: column;
     background-color: #ff5e0080;
     color: white;
     font-family: 'Jost', sans-serif;
-    -webkit-app-region: drag;
     border-radius: 0.5rem;
+}
+body.transparent-bg {
+    transition: background 200ms;
+}
+html:not(.hovering) #titlebar {
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+html:not(.hovering) body.transparent-bg {
+    background: transparent;
+}
+
+#titlebar {
+    -webkit-app-region: drag;
+    background-image: linear-gradient(to top, #00000030, #741010 0.2312143rem, #5d0000);
+    color: white;
+    overflow: hidden;
+    padding: 0.5em;
+    flex: 0 0 auto;
+    max-height: 3em;
+    transition: max-height 200ms, padding 200ms;
 }
 
 #content {
+    flex: 1 1 auto;
     display: flex;
     flex-direction: column;
 }

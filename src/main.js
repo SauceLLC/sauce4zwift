@@ -28,9 +28,12 @@ async function makeFloatingWindow(page, options={}) {
         transparent: true,
         hasShadow: false,
         frame: false,
-        roundedCornders: false,  // macos only, so we use page style instead.
+        roundedCorners: false,  // macos only, we use page style instead.
         alwaysOnTop: true,
         resizable: true,
+        maximizable: false,
+        fullscreenable: false,
+        fullscreenable: false,
         webPreferences: {
             nodeIntegration: false,
             preload: path.join(__dirname, '../pages/preload.js'),
