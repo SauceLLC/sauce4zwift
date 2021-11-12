@@ -88,7 +88,7 @@ async function main() {
         entry.querySelector('.message').textContent = chat.message;
         addContentEntry(entry);
     });
-    /*
+    ///*
     const testing = new Event('message');
     testing.data = {
         event: 'chat',
@@ -103,7 +103,7 @@ async function main() {
         }
     };
     dispatchEvent(testing);
-    for (let i = 0; i < 200; i++) {
+    for (let i = 0; i < 2000; i++) {
         const testing2 = new Event('message');
         testing.data = {
             event: 'chat',
@@ -118,8 +118,8 @@ async function main() {
             }
         };
         dispatchEvent(testing);
-        await sleep(4 * i);
-    }*/
+        await sleep(100 * i);
+    }//*/
 }
 
 addEventListener('DOMContentLoaded', () => main());
