@@ -54,18 +54,18 @@ body {
 body.transparent-bg {
     transition: background 200ms;
 }
-html:not(.hovering) #titlebar {
+html:not(.active) #titlebar {
     max-height: 0;
     padding-top: 0;
     padding-bottom: 0;
 }
-html:not(.hovering) body.transparent-bg {
+html:not(:hover):not(.active) body.transparent-bg {
     background: transparent;
 }
 
 #titlebar {
     -webkit-app-region: drag;
-    background-image: linear-gradient(to top, #00000030, #741010 0.2312143rem, #5d0000);
+    background-image: linear-gradient(to top, #870707, #9b0f0f 0.2rem, #a20a0a);
     color: white;
     overflow: hidden;
     padding: 0.5em;

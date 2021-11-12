@@ -86,8 +86,9 @@
         }
     };
 
+    // Need a mech that works on windows when using -webkit-app-region: drag;
     window.addEventListener('focus', () =>
-        void document.documentElement.classList.add('hovering'));
+        void document.documentElement.classList.add('active'));
     window.addEventListener('blur', () =>
-        void document.documentElement.classList.remove('hovering'));
+        void document.documentElement.classList.remove('active'));
 })();
