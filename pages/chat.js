@@ -36,20 +36,44 @@ async function monitorTimestamps(content) {
 async function main() {
     const content = document.querySelector('#content');
     let lastTimestamp = 0;
+    const nearby = new Map();
     monitorTimestamps(content);  // bg okay
+
+
+    function getLastEntry() {
+        const entries = content.querySelectorAll(':scope > .entry');
+        return entries[entries.length - 1];
+    }
+
 
     function addContentEntry(el) {
         content.appendChild(el);
         void el.offsetLeft; // force layout/reflow so we can trigger animation.
         el.addEventListener('transitionend', () => el.remove());
-        el.classList.add('fadeout');
+        el.classList.add('fadeout', 'slideout');
     }
+
+
+    function processNearby(data) {
+        for (const x of data) {
+            if (!nearby.has(x.athleteId)) {
+                nearby.set(x.athleteId, {});
+            }
+            const entry = nearby.get(x.athleteId);
+            entry.power = x.power;
+            entry.timeGap = x.timeGap;
+        }
+    }
+
 
     addEventListener('message', ev => {
         if (!ev.data || ev.data.source !== 'sauce4zwift') {
             return;
         }
-        if (ev.data.event !== 'chat') {
+        if (ev.data.event === 'nearby') {
+            processNearby(ev.data.data);
+            return;
+        } else if (ev.data.event !== 'chat') {
             return;
         }
         const chat = ev.data.data;
@@ -58,12 +82,13 @@ async function main() {
             addContentEntry(makeTimestamp());
         }
         lastTimestamp = now;
-        if (content.lastChild && Number(content.lastChild.dataset.from) === chat.from) {
-            content.lastChild.classList.remove('fadeout');
-            const msg = content.lastChild.querySelector('.message');
+        const lastEntry = getLastEntry();
+        if (lastEntry && Number(lastEntry.dataset.from) === chat.from) {
+            lastEntry.classList.remove('fadeout');
+            const msg = lastEntry.querySelector('.message');
             msg.textContent += '\n' + chat.message;
-            void content.lastChild.offsetLeft;  // force reflow
-            content.lastChild.classList.add('fadeout');
+            void lastEntry.offsetLeft;  // force reflow
+            lastEntry.classList.add('fadeout');
             return;
         }
         const entry = document.createElement('div');
@@ -76,10 +101,16 @@ async function main() {
             entry.classList.add('public');
         }
         entry.style.setProperty('--message-hue', athleteHue(chat.from) + 'deg');
+        const stats = nearby.get(chat.from);
+        let details = '';
+        if (stats) {
+            details = `${relTime.format(Math.round(stats.timeGap), 'second')}, ${stats.power.toLocaleString()}w`;
+        }
         entry.innerHTML = `
             <div class="avatar"><img src="${chat.avatar || 'images/blankavatar.png'}"/></div>
             <div class="content">
                 <div class="name"></div>
+                <div class="details">${details}</div>
                 <div class="message"></div>
             </div>
         `;
@@ -97,14 +128,13 @@ async function main() {
             firstName: 'Text',
             lastName: 'Guy',
             message: 'Testing 1 2 3',
-            from: 11111,
+            from: null,
             to: 0,
             avatar: 'https://i1.sndcdn.com/artworks-000218997483-xdgm10-t500x500.jpg',
         }
     };
     dispatchEvent(testing);
     for (let i = 0; i < 2000; i++) {
-        const testing2 = new Event('message');
         testing.data = {
             event: 'chat',
             source: 'sauce4zwift',
@@ -112,13 +142,13 @@ async function main() {
                 firstName: 'Foo',
                 lastName: 'Bar',
                 message: 1000000 * i,
-                from: 1213121 + (Math.random() < 0.1 ? Math.round(360 * Math.random()) : 0),
+                from: Array.from(nearby.keys())[Math.floor(Math.random() * nearby.size)],
                 to: 0,
                 avatar: 'https://i1.sndcdn.com/artworks-000218997483-xdgm10-t500x500.jpg',
             }
         };
         dispatchEvent(testing);
-        await sleep(100 * i);
+        await sleep(500 * i);
     }//*/
 }
 

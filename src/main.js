@@ -74,16 +74,18 @@ async function createWindows(monitor) {
     const groupsWin = await makeFloatingWindow('groups.html', {width: 235, height: 650, x: 960, y: 418});
     const chatWin = await makeFloatingWindow('chat.html', {width: 280, height: 580, x: 280, y: 230});
 
-    function winMonProxy(event, win) {
-        const cb = data => win.webContents.send('proxy', {event, source: 'sauce4zwift', data});
-        monitor.on(event, cb);
-        win.on('close', () => monitor.off(event, cb));
+    function winMonProxy(win, ...events) {
+        for (const event of events) {
+            const cb = data => win.webContents.send('proxy', {event, source: 'sauce4zwift', data});
+            monitor.on(event, cb);
+            win.on('close', () => monitor.off(event, cb));
+        }
     }
 
-    winMonProxy('watching', watchingWin);
-    //winMonProxy('nearby', nearbyWin);
-    winMonProxy('groups', groupsWin);
-    winMonProxy('chat', chatWin);
+    winMonProxy(watchingWin, 'watching');
+    //winMonProxy(nearbyWin, 'nearby');
+    winMonProxy(groupsWin, 'groups');
+    winMonProxy(chatWin, 'chat', 'nearby');
 }
 
 if (app.dock) {

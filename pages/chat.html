@@ -44,6 +44,18 @@
                 transition-delay: 300s;
             }
 
+            .timestamp {
+                font-size: 0.45em;
+                font-weight: bold;
+                font-variant: small-caps;
+                padding: 0.5em;
+                align-self: stretch;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin: 1em;
+            }
+
             .entry .avatar {
                 flex: 0 0 auto;
                 width: 2.8em;
@@ -67,22 +79,15 @@
 
             .entry .name {
                 font-size: 0.55em;
-                padding: 0.6em 0;
+                padding: 0.6em 1rem 0 0;
                 font-weight: bold;
                 flex: 0 0 auto;
-                margin-right: 1rem;
             }
 
-            .timestamp {
-                font-size: 0.45em;
-                font-weight: bold;
-                font-variant: small-caps;
-                padding: 0.5em;
-                align-self: stretch;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                margin: 1em;
+            .entry .details {
+                font-size: 0.55em;
+                padding: 0.3em 0.5rem 1em 0;
+                flex: 0 0 auto;
             }
 
             .entry .message {
@@ -98,6 +103,7 @@
         <script src="common.js" type="application/javascript" defer></script>
         <script src="chat.js" type="application/javascript" defer></script>
     </head>
+    <!--<body class="transparent-bg">-->
     <body class="transparent-bg">
         <div id="titlebar">Chat - Sauce for Zwift</div>
         <div id="content"></div>
