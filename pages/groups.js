@@ -25,9 +25,9 @@ async function main() {
             return;
         }
         const centerDistGap = center.totDistGap;
-        const centerTimeGap = center.totTimeGap;
+        const centerTimeGap = center.totRealGap;
         const totAthletes = groups.reduce((agg, x) => agg + x.athletes.length, 0);
-        const totGap = Math.round(groups[groups.length - 1].totTimeGap - groups[0].totTimeGap);
+        const totGap = Math.round(groups[groups.length - 1].totRealGap - groups[0].totRealGap);
         content.style.setProperty('--total-athletes', totAthletes);
         content.style.setProperty('--total-gap', totGap);
         const active = new Set();
@@ -59,8 +59,8 @@ async function main() {
             }
             const group = groupEls.get(relPos);
             const timeGap = Math.round(relPos < 0 ?
-                x.totTimeGap - centerTimeGap :
-                i < groups.length ? groups[i].totTimeGap - centerTimeGap : 0);
+                x.totRealGap - centerTimeGap :
+                i < groups.length ? groups[i].totRealGap - centerTimeGap : 0);
             const sign = timeGap < 0 ? -1 : 1;
             group.classList.toggle('watching', !!x.watching);
             group.style.setProperty('--athletes', x.athletes.length);
@@ -70,8 +70,7 @@ async function main() {
                 //Math.round(x.draft) + sauce.locale.thinSpace + '% draft',
             ].join('<br/>');
             const gap = group.nextSibling;
-            const innerGap = Math.round(i < groups.length ? groups[i].totTimeGap - x.totTimeGap : 0) * sign;
-            console.log(innerGap, timeGap);
+            const innerGap = Math.round(i < groups.length ? groups[i].totRealGap - x.totRealGap : 0) * sign;
             gap.style.setProperty('--inner-gap', Math.abs(innerGap));
             gap.style.setProperty('--outer-gap', Math.abs(timeGap));
             gap.style.setProperty('--gap-sign', timeGap > 0 ? 1 : -1);

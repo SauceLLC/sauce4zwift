@@ -308,6 +308,33 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         }
     }
 
+    realGap(a, b) {
+        if (this._roadSig(a) !== this._roadSig(b)) {
+            return null;
+        }
+        let hist;
+        let refLocation;
+        if (a.reverse) {
+            [a, b] = [b, a];
+        }
+        if (a.roadLocation < b.roadLocation) {
+            refLocation = a.roadLocation;
+            hist = this._roadLocationHistory.get(b.athleteId);
+        } else {
+            refLocation = b.roadLocation;
+            hist = this._roadLocationHistory.get(a.athleteId);
+        }
+        if (!hist) {
+            return null;
+        }
+        for (const {ts, location} of hist.timeline) {
+            if (location > refLocation) {
+                // console.info(Math.floor((Date.now() - ts) / 1000), a.roadLocation / b.roadLocation);
+                return (Date.now() - ts) / 1000;
+            }
+        }
+    }
+
     async nearbyProcessor() {
         while (this._active) {
             if (this.watching == null) {
@@ -344,7 +371,6 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                     const x = byRelLocation[i];
                     const sign = i <= center ? 1 : -1;
                     const relDistance = distance(x, watching) * sign;
-                    const timeGap = relDistance / ((watching.speed || x.speed || 1) * 1000 / 3600);  // XXX Pretty naive
                     //const athlete = this.athletes.get(x.athleteId);
                     //const name = athlete && `${athlete.firstName[0]}.${athlete.lastName}`;
                     //console.debug('Nearby:', i - center, x.athleteId, 'flags...', x.flags1.toString(16), x.flags2.toString(16),
@@ -352,7 +378,8 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                     nearby.push({
                         position: i - center,
                         relDistance,
-                        timeGap,
+                        timeGap: relDistance / ((watching.speed || x.speed || 1) * 1000 / 3600),  // XXX Pretty naive
+                        realGap: this.realGap(watching, x),
                         //athlete,
                         ...x
                     });
@@ -386,10 +413,12 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                         const ahead = groups[i - 1];
                         x.distGap = distance(x.athletes[0], ahead.athletes[0]);
                         x.timeGap = x.distGap / ((x.athletes[0].speed || 1) * 1000 / 3600);  // XXX Pretty naive
+                        x.realGap = this.realGap(x.athletes[0], ahead.athletes[0]);
                         x.totDistGap = ahead.totDistGap + x.distGap;
                         x.totTimeGap = ahead.totTimeGap + x.timeGap;
+                        x.totRealGap = ahead.totRealGap + x.realGap;
                     } else {
-                        Object.assign(groups[0], {distGap: 0, timeGap: 0, totDistGap: 0, totTimeGap: 0});
+                        Object.assign(groups[0], {distGap: 0, timeGap: 0, realGap: 0, totDistGap: 0, totTimeGap: 0, totRealGap: 0});
                     }
                 }
                 this.emit('groups', groups);
