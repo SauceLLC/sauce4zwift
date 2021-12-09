@@ -61,7 +61,7 @@ async function main() {
             const timeGap = Math.round(relPos < 0 ?
                 x.totTimeGap - centerTimeGap :
                 i < groups.length ? groups[i].totTimeGap - centerTimeGap : 0);
-            const distGap = Math.round(x.totDistGap - centerDistGap);
+            const sign = timeGap < 0 ? -1 : 1;
             group.classList.toggle('watching', !!x.watching);
             group.style.setProperty('--athletes', x.athletes.length);
             group.querySelector('.bubble').textContent = x.athletes.length.toLocaleString();
@@ -70,12 +70,13 @@ async function main() {
                 //Math.round(x.draft) + sauce.locale.thinSpace + '% draft',
             ].join('<br/>');
             const gap = group.nextSibling;
-            const innerGap = Math.round(i < groups.length ? groups[i].totTimeGap - x.totTimeGap : 0);
+            const innerGap = Math.round(i < groups.length ? groups[i].totTimeGap - x.totTimeGap : 0) * sign;
+            console.log(innerGap, timeGap);
             gap.style.setProperty('--inner-gap', Math.abs(innerGap));
             gap.style.setProperty('--outer-gap', Math.abs(timeGap));
             gap.style.setProperty('--gap-sign', timeGap > 0 ? 1 : -1);
             gap.querySelector('.desc').textContent = innerGap ?
-                (innerGap > 0 ? '+' : '-') + sauce.locale.humanDuration(Math.abs(innerGap), {short: true}) :
+                (innerGap > 0 ? '+' : '-') + sauce.locale.humanDuration(Math.abs(timeGap), {short: true}) :
                 '';
         }
         for (const [pos, x] of groupEls.entries()) {

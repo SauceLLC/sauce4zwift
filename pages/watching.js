@@ -38,12 +38,11 @@ async function main() {
         }
         const watching = ev.data.data;
         const stats = watching.stats;
-        const cur = watching.state;
 
-        pwrCurEl.textContent = humanNumber(cur.power || null);
-        hrCurEl.textContent = humanNumber(cur.heartrate || null);
-        cadCurEl.textContent = humanNumber(cur.cadence || null);
-        draftCurEl.textContent = humanNumber(cur.draft || null);
+        pwrCurEl.textContent = humanNumber(watching.power || null);
+        hrCurEl.textContent = humanNumber(watching.heartrate || null);
+        cadCurEl.textContent = humanNumber(watching.cadence || null);
+        draftCurEl.textContent = humanNumber(watching.draft || null);
 
         pwrAvgEl.textContent = humanNumber((stats.powerSum / stats.powerDur) || null);
         hrAvgEl.textContent = humanNumber((stats.hrSum / stats.hrDur) || null);

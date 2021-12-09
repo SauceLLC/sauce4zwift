@@ -58,6 +58,7 @@ async function main() {
         for (const x of data) {
             if (!nearby.has(x.athleteId)) {
                 nearby.set(x.athleteId, {});
+                console.warn("nearby size", nearby.size);
             }
             const entry = nearby.get(x.athleteId);
             entry.power = x.power;
@@ -119,22 +120,9 @@ async function main() {
         entry.querySelector('.message').textContent = chat.message;
         addContentEntry(entry);
     });
-    ///*
     const testing = new Event('message');
-    testing.data = {
-        event: 'chat',
-        source: 'sauce4zwift',
-        data: {
-            firstName: 'Text',
-            lastName: 'Guy',
-            message: 'Testing 1 2 3',
-            from: null,
-            to: 0,
-            avatar: 'https://i1.sndcdn.com/artworks-000218997483-xdgm10-t500x500.jpg',
-        }
-    };
     dispatchEvent(testing);
-    for (let i = 0; i < 2000; i++) {
+    for (let i = 0; i < 0; i++) {
         testing.data = {
             event: 'chat',
             source: 'sauce4zwift',
@@ -148,8 +136,8 @@ async function main() {
             }
         };
         dispatchEvent(testing);
-        await sleep(500 * i);
-    }//*/
+        await sleep(1000 * i);
+    }
 }
 
 addEventListener('DOMContentLoaded', () => main());
