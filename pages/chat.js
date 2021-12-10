@@ -26,6 +26,11 @@ async function liveDataTask(content) {
 }
 
 
+function humanDuration(t) {
+    return sauce.locale.humanDuration(t, {short: true, seperator: ' '});
+}
+
+
 function liveDataFormatter(athlete) {
     const state = nearby.get(athlete);
     if (!state) {
@@ -36,14 +41,9 @@ function liveDataFormatter(athlete) {
         state.stats.power30s != null ? Math.round(state.stats.power30s).toLocaleString() + 'w' : null,
         state.heartrate ? state.heartrate.toLocaleString() + 'bpm' : null,
     ];
-    if (state.realGap - state.timeGap > 30) {
-        console.error("prob houston", state.realGap, state.timeGap, state);
-    } else {
-        console.info(state.realGap, state.timeGap);
-    }
-    const gap = state.realGap;
-    if (gap != null && Math.abs(gap) > 2) {
-        items.push(sauce.locale.humanDuration(Math.abs(gap), {short: true}) + (gap > 0 ? ' behind' : ' ahead'));
+    const gap = state.realGap != null ? state.realGap : state.estGap;
+    if (gap != null) {
+        items.push(humanDuration(Math.abs(gap)) + (gap > 0 ? ' behind' : ' ahead'));
     }
     return items.filter(x => x != null).join(', ');
 }
@@ -58,7 +58,7 @@ function gapLiveFormatter(athlete) {
     if (gap == null || Math.abs(gap) < 2) {
         return '';
     }
-    return sauce.locale.humanDuration(Math.abs(gap), {short: true}) + (gap > 0 ? ' behind' : ' ahead');
+    return humanDuration(Math.abs(gap)) + (gap > 0 ? ' behind' : ' ahead');
 }
 
 

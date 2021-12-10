@@ -53,7 +53,7 @@
                 elapsed %= period;
             }
         }
-        return stack.slice(0, 2).join(', ');
+        return stack.slice(0, 2).join(options.seperator || ', ');
     };
 
     L.humanNumber = function(value, precision=0) {

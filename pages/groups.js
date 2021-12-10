@@ -73,7 +73,7 @@ async function main() {
             const isReal = x.realGap != null;
             gapEl.classList.toggle('real', isReal);
             gapEl.classList.toggle('alone', !innerGap);
-            const dur = innerGap && sauce.locale.humanDuration(Math.abs(gap), {short: true});
+            const dur = innerGap && sauce.locale.humanDuration(Math.abs(gap), {short: true, seperator: ' '});
             gapEl.querySelector('.desc').textContent = dur ? (innerGap > 0 ? '+' : '-') + dur : '';
         }
         for (const [pos, x] of groupEls.entries()) {

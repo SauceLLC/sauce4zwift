@@ -44,6 +44,7 @@ html {
 }
 
 body {
+    position: relative;
     display: flex;
     flex-direction: column;
     background-color: #ff5e0080;
@@ -65,11 +66,15 @@ html:not(:hover):not(.active) body.transparent-bg {
 
 #titlebar {
     -webkit-app-region: drag;
-    background-image: linear-gradient(to top, #870707, #9b0f0f 0.2rem, #a20a0a);
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 100;
+    width: 100%;
+    background-image: linear-gradient(to top, #222, #292929ed 0.2rem, #333);
     color: white;
     overflow: hidden;
     padding: 0.5em;
-    flex: 0 0 auto;
     max-height: 3em;
     transition: max-height 200ms, padding 200ms;
 }
