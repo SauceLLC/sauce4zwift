@@ -77,20 +77,23 @@
                 flex-direction: column;
             }
 
-            .entry .name {
-                font-size: 0.55em;
+            .entry .header {
+                font-size: 0.6em;
                 padding: 0.6em 1rem 0 0;
-                font-weight: bold;
                 flex: 0 0 auto;
             }
 
-            .entry .details {
+            .entry .header .name {
+                font-weight: bold;
+            }
+
+            .entry .content > .live {
                 font-size: 0.55em;
                 padding: 0.3em 0.5rem 1em 0;
                 flex: 0 0 auto;
             }
 
-            .entry .details:empty {
+            .entry .content > .live:empty {
                 padding-bottom: 0.2em;
             }
 

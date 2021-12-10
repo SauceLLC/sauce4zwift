@@ -24,10 +24,9 @@ async function main() {
         if (!center) {
             return;
         }
-        const centerDistGap = center.totDistGap;
-        const centerTimeGap = center.totRealGap;
+        const centerGap = center.totGap;
         const totAthletes = groups.reduce((agg, x) => agg + x.athletes.length, 0);
-        const totGap = Math.round(groups[groups.length - 1].totRealGap - groups[0].totRealGap);
+        const totGap = Math.round(groups[groups.length - 1].totGap - groups[0].totGap);
         content.style.setProperty('--total-athletes', totAthletes);
         content.style.setProperty('--total-gap', totGap);
         const active = new Set();
@@ -39,44 +38,43 @@ async function main() {
                 const group = document.createElement('div');
                 group.classList.add('group');
                 group.style.setProperty('--rel-pos', relPos);
-                const bubble = document.createElement('div');
-                bubble.classList.add('bubble');
-                const bubbleDesc = document.createElement('div');
-                bubbleDesc.classList.add('desc');
-                group.appendChild(bubble);
-                group.appendChild(bubbleDesc);
-
+                group.innerHTML = `
+                    <div class="bubble"></div>
+                    <div class="desc"></div>
+                `;
                 const gap = document.createElement('div');
                 gap.classList.add('gap');
                 gap.style.setProperty('--rel-pos', relPos);
-                const gapDesc = document.createElement('div');
-                gapDesc.classList.add('desc');
-                gap.appendChild(gapDesc);
-
-                groupEls.set(relPos, group);
+                gap.innerHTML = `
+                    <div class="desc"></div>
+                    <div class="est" title="Estimated gap">(est)</div>
+                `;
                 content.appendChild(group);
                 content.appendChild(gap);
+                groupEls.set(relPos, group);
             }
             const group = groupEls.get(relPos);
-            const timeGap = Math.round(relPos < 0 ?
-                x.totRealGap - centerTimeGap :
-                i < groups.length ? groups[i].totRealGap - centerTimeGap : 0);
-            const sign = timeGap < 0 ? -1 : 1;
+            const gap = Math.round(relPos < 0 ?
+                x.totGap - centerGap :
+                i < groups.length ? groups[i].totGap - centerGap : 0);
+            const sign = gap < 0 ? -1 : 1;
             group.classList.toggle('watching', !!x.watching);
             group.style.setProperty('--athletes', x.athletes.length);
             group.querySelector('.bubble').textContent = x.athletes.length.toLocaleString();
             group.querySelector('.desc').innerHTML = [
-                Math.round(x.power) + sauce.locale.thinSpace + 'w',
-                //Math.round(x.draft) + sauce.locale.thinSpace + '% draft',
+                Math.round(x.power).toLocaleString() + sauce.locale.thinSpace + 'w',
+                Math.round(x.speed).toLocaleString() + sauce.locale.thinSpace + 'kph',
             ].join('<br/>');
-            const gap = group.nextSibling;
-            const innerGap = Math.round(i < groups.length ? groups[i].totRealGap - x.totRealGap : 0) * sign;
-            gap.style.setProperty('--inner-gap', Math.abs(innerGap));
-            gap.style.setProperty('--outer-gap', Math.abs(timeGap));
-            gap.style.setProperty('--gap-sign', timeGap > 0 ? 1 : -1);
-            gap.querySelector('.desc').textContent = innerGap ?
-                (innerGap > 0 ? '+' : '-') + sauce.locale.humanDuration(Math.abs(timeGap), {short: true}) :
-                '';
+            const gapEl = group.nextSibling;
+            const innerGap = Math.round(i < groups.length ? groups[i].totGap - x.totGap : 0) * sign;
+            gapEl.style.setProperty('--inner-gap', Math.abs(innerGap));
+            gapEl.style.setProperty('--outer-gap', Math.abs(gap));
+            gapEl.style.setProperty('--gap-sign', gap > 0 ? 1 : -1);
+            const isReal = x.realGap != null;
+            gapEl.classList.toggle('real', isReal);
+            gapEl.classList.toggle('alone', !innerGap);
+            const dur = innerGap && sauce.locale.humanDuration(Math.abs(gap), {short: true});
+            gapEl.querySelector('.desc').textContent = dur ? (innerGap > 0 ? '+' : '-') + dur : '';
         }
         for (const [pos, x] of groupEls.entries()) {
             x.classList.toggle('hidden', !active.has(pos));

@@ -16,7 +16,6 @@ async function main() {
             tRows.push([
                 x.athleteId,
                 x.position,
-                sauce.locale.humanDistance(x.relDistance),
                 sauce.locale.humanDuration(x.timeGap),
                 (x.roadLocation / 10000).toFixed(1) + sauce.locale.thinSpace + '%',
                 'roadid: ' + x.roadId,

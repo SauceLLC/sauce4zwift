@@ -73,8 +73,14 @@ function headingConv(microRads) {
 }
 
 
-function distance(a, b) {
+function crowDistance(a, b) {
     return Math.sqrt((b.x - a.x) ** 2 + (b.y - a.y) ** 2) / 100;  // roughly meters
+}
+
+
+function estGap(a, b) {
+	const dist = crowDistance(a, b);
+    return dist / ((a.speed || b.speed || 1) * 1000 / 3600);
 }
 
 
@@ -89,7 +95,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     constructor(...args) {
         super(...args);
         this._stats = new Map();
-        this._roadLocationHistory = new Map();
+        this._roadHistory = new Map();
         this._roadId;
         this.athleteId = null;
         this.watching = null;
@@ -127,14 +133,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                     console.warn("Event Leave:", x.payload);
                 } else if (x.payload.$type.name === 'ChatMessage') {
                     const chat = x.payload;
-                    const watchingState = this.watching != null && this.states.get(this.watching);
-                    if (!watchingState || watchingState.groupId === chat.eventSubgroup) {
-                        const fromState = this.states.get(chat.from);
-                        const distGap = (fromState && watchingState) ? distance(fromState, watchingState) : null;
-                        this.emit('chat', {...chat, ts: x.ts, distGap});
-                    } else {
-                        console.warn("skip it", x.payload.message, x.payload.eventSubgroup, watchingState.groupId);
-                    }
+                    this.emit('chat', {...x.payload, ts: x.ts});
                 } else if (x.payload.$type.name === 'RideOn') {
                     console.warn("RideOn:", x.payload);
                 }
@@ -215,17 +214,20 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     }
 
     _roadSig(state) {
-        return [state.roadId, state.reverse, state.groupId].join();
+        return [state.roadId, state.reverse].join();
     }
 
     processState(state) {
         // Move this to zwift-packet thing..
+        Object.assign(state, this.processFlags1(state.flags1));
+        Object.assign(state, this.processFlags2(state.flags2));
+        state.ts = +worldTimeConv(state.worldTime);
         state.heading = headingConv(state.heading);  // degrees
         state.speed = state.speed / 1000000;  // km/h
         state.cadence = state.cadenceUHz ? state.cadenceUHz / 1000000 * 60 : null;  // rpm
         delete state.cadenceUHz;
-        Object.assign(state, this.processFlags1(state.flags1));
-        Object.assign(state, this.processFlags2(state.flags2));
+        const roadCompletion = state.roadLocation;
+        state.roadCompletion = !state.reverse ? 1000000 - roadCompletion : roadCompletion;
         this.states.set(state.athleteId, state);
         if (!this._stats.has(state.athleteId)) {
             this._stats.set(state.athleteId, {
@@ -243,19 +245,29 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 worldTime: 0,
             });
         }
-        if (!this._roadLocationHistory.has(state.athleteId)) {
-            this._roadLocationHistory.set(state.athleteId, {
+        if (!this._roadHistory.has(state.athleteId)) {
+            this._roadHistory.set(state.athleteId, {
                 sig: this._roadSig(state),
                 timeline: [],
+                prevSig: null,
+                prevTimeline: null,
             });
         }
-        const roadLoc = this._roadLocationHistory.get(state.athleteId);
+        const roadLoc = this._roadHistory.get(state.athleteId);
         const curRoadSig = this._roadSig(state);
         if (curRoadSig !== roadLoc.sig) {
+            roadLoc.prevSig = roadLoc.sig;
+            roadLoc.prevTimeline = roadLoc.timeline;
             roadLoc.sig = curRoadSig;
-            roadLoc.timeline.length = 0;
+            roadLoc.timeline = [];
         }
-        roadLoc.timeline.push({ts: Date.now(), location: state.roadLocation});
+        const last = roadLoc.timeline[roadLoc.timeline.length - 1];
+        if (last && state.roadCompletion < last.roadCompletion) {
+			// This can happen when lapping a single road segment or if your avatar
+			// Is stopped and sort of wiggling backwards. For safety we just nuke hist.
+			roadLoc.timeline.length = 0;
+        }
+		roadLoc.timeline.push({ts: state.ts, roadCompletion: state.roadCompletion});
         const stats = this._stats.get(state.athleteId);
         const duration = stats.worldTime ? state.worldTime.toNumber() - stats.worldTime : 0;
         stats.worldTime = state.worldTime.toNumber();
@@ -309,30 +321,53 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     }
 
     realGap(a, b) {
-        if (this._roadSig(a) !== this._roadSig(b)) {
-            return null;
-        }
-        let hist;
-        let refLocation;
-        if (a.reverse) {
-            [a, b] = [b, a];
-        }
-        if (a.roadLocation < b.roadLocation) {
-            refLocation = a.roadLocation;
-            hist = this._roadLocationHistory.get(b.athleteId);
+        const aSig = this._roadSig(a);
+        const bSig = this._roadSig(b);
+        let leaderTimeline;
+        let trailing;
+        if (aSig === bSig) {
+            if (a.roadCompletion > b.roadCompletion) {
+                leaderTimeline = this._roadHistory.get(a.athleteId).timeline;
+                trailing = b;
+            } else if (a.roadCompletion < b.roadCompletion) {
+                leaderTimeline = this._roadHistory.get(b.athleteId).timeline;
+                trailing = a;
+            }
         } else {
-            refLocation = b.roadLocation;
-            hist = this._roadLocationHistory.get(a.athleteId);
-        }
-        if (!hist) {
-            return null;
-        }
-        for (const {ts, location} of hist.timeline) {
-            if (location > refLocation) {
-                // console.info(Math.floor((Date.now() - ts) / 1000), a.roadLocation / b.roadLocation);
-                return (Date.now() - ts) / 1000;
+            const aHist = this._roadHistory.get(a.athleteId);
+            if (aHist.prevSig === bSig) {
+				debugger;
+                leaderTimeline = aHist.prevTimeline;
+                trailing = b;
+            } else {
+                const bHist = this._roadHistory.get(a.athleteId);
+                if (bHist.prevSig === aSig) {
+					debugger;
+                    leaderTimeline = bHist.prevTimeline;
+                    trailing = a;
+                }
             }
         }
+        if (!trailing == null || !leaderTimeline) {
+            return null;
+        }
+        let prev;
+        // TODO: Use binary search.
+        for (const x of Array.from(leaderTimeline).reverse()) {  // newest to oldest...
+            if (x.roadCompletion <= trailing.roadCompletion) {
+                let offt = 0;
+                if (prev) {
+                    const dist = prev.roadCompletion - x.roadCompletion;
+                    const time = prev.ts - x.ts;
+                    offt = (trailing.roadCompletion - x.roadCompletion) / dist * time;
+                } else {
+					console.error("Unexpected order configuration");
+                }
+                return Math.abs((trailing.ts - x.ts - offt) / 1000);
+            }
+            prev = x;
+        }
+        return null;
     }
 
     async nearbyProcessor() {
@@ -346,9 +381,9 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 //console.debug("Athletes:", this.athletes.size, "States:", this.states.size);
                 //console.debug("Watching:", watching.athleteId);
                 const now = Date.now();
-                const byRelLocation = [];
+                const byRelCompletion = [];
                 for (const [k, x] of this.states.entries()) {
-                    const age = now - worldTimeConv(x.worldTime);
+                    const age = now - x.ts;
                     if (age > 15 * 1000 || !x.speed) {
                         if (age > 1800 * 1000) {
                             this.states.delete(k);
@@ -358,46 +393,39 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                     if (this._watchingRoadSig !== this._roadSig(x)) {
                         continue;
                     }
-                    byRelLocation.push({relRoadLocation: watching.roadLocation - x.roadLocation, ...x});
+                    byRelCompletion.push({relRoadCompletion: watching.roadCompletion - x.roadCompletion, ...x});
                 }
-                if (watching.reverse) {
-                    byRelLocation.sort((a, b) => a.relRoadLocation - b.relRoadLocation);
-                } else {
-                    byRelLocation.sort((a, b) => b.relRoadLocation - a.relRoadLocation);
-                }
-                const center = byRelLocation.findIndex(x => x.athleteId === watching.athleteId);
+                byRelCompletion.sort((a, b) => a.relRoadCompletion - b.relRoadCompletion);
+                const center = byRelCompletion.findIndex(x => x.athleteId === watching.athleteId);
                 const nearby = [];
-                for (let i = Math.max(0, center - 8); i < Math.min(byRelLocation.length, center + 8); i++) {
-                    const x = byRelLocation[i];
-                    const sign = i <= center ? 1 : -1;
-                    const relDistance = distance(x, watching) * sign;
-                    //const athlete = this.athletes.get(x.athleteId);
-                    //const name = athlete && `${athlete.firstName[0]}.${athlete.lastName}`;
-                    //console.debug('Nearby:', i - center, x.athleteId, 'flags...', x.flags1.toString(16), x.flags2.toString(16),
-                    //    name, JSON.stringify(x));
+                for (let i = 0; i < byRelCompletion.length; i++) {
+                    const x = byRelCompletion[i];
                     nearby.push({
                         position: i - center,
-                        relDistance,
-                        timeGap: relDistance / ((watching.speed || x.speed || 1) * 1000 / 3600),  // XXX Pretty naive
+                        estGap: estGap(watching, x),
                         realGap: this.realGap(watching, x),
-                        //athlete,
                         ...x
                     });
+                    //const [xxx] = nearby.slice(-1);
+                    //console.debug('Nearby:', center - i, Math.round(xxx.estGap), xxx.realGap && Math.round(xxx.realGap));
                 }
+                //console.debug('');
                 this.emit('nearby', nearby);
 
                 const groups = [];
                 let curGroup;
-                for (const x of byRelLocation) {
+                for (const x of byRelCompletion) {
                     if (!curGroup) {
                         curGroup = {athletes: [x]};
                     } else {
                         const last = curGroup.athletes[curGroup.athletes.length - 1];
-                        const gap = distance(x, last);
-                        if (gap > 25) {
+                        const gap = this.realGap(last, x) || estGap(last, x)
+                        if (gap > 2) {
                             groups.push(curGroup);
                             curGroup = {athletes: []};
-                        }
+                        } else if (gap < 0) {
+							debugger;
+						}
                         curGroup.athletes.push(x);
                     }
                     curGroup.watching = curGroup.watching || x.athleteId === this.watching;
@@ -409,22 +437,20 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                     const x = groups[i];
                     x.power = x.athletes.reduce((agg, x) => agg + x.power, 0) / x.athletes.length;
                     x.draft = x.athletes.reduce((agg, x) => agg + x.draft, 0) / x.athletes.length;
+                    x.speed = x.athletes.reduce((agg, x) => agg + x.speed, 0) / x.athletes.length; // XXX use median i think
                     if (i) {
                         const ahead = groups[i - 1];
-                        x.distGap = distance(x.athletes[0], ahead.athletes[0]);
-                        x.timeGap = x.distGap / ((x.athletes[0].speed || 1) * 1000 / 3600);  // XXX Pretty naive
-                        x.realGap = this.realGap(x.athletes[0], ahead.athletes[0]);
-                        x.totDistGap = ahead.totDistGap + x.distGap;
-                        x.totTimeGap = ahead.totTimeGap + x.timeGap;
-                        x.totRealGap = ahead.totRealGap + x.realGap;
+						const nextAthlete = ahead.athletes[ahead.athletes.length - 1];
+                        x.estGap = estGap(nextAthlete, x.athletes[0]);
+                        x.realGap = this.realGap(nextAthlete, x.athletes[0]);
+                        x.totGap = ahead.totGap + (x.realGap != null ? x.realGap : x.estGap);
                     } else {
-                        Object.assign(groups[0], {distGap: 0, timeGap: 0, realGap: 0, totDistGap: 0, totTimeGap: 0, totRealGap: 0});
+                        Object.assign(groups[0], {totGap: 0});
                     }
                 }
                 this.emit('groups', groups);
             }
             await Promise.race([sleep(1000), this.wakeEvent]);
-            //await maybeSaveAthleteCache(this.athletes);
         }
     }
 }

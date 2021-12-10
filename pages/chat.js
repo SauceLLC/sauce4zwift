@@ -1,19 +1,12 @@
 /* global */
 
+const nearby = new Map();
+const relTime = new Intl.RelativeTimeFormat(undefined, {
+});
+
 
 function athleteHue(id) {
     return id % 360;
-}
-
-
-const relTime = new Intl.RelativeTimeFormat();
-
-function makeTimestamp() {
-    const el = document.createElement('div');
-    el.classList.add('timestamp', 'entry');
-    el.innerText = relTime.format(-0, 'minute');
-    el.dataset.ts = Date.now();
-    return el;
 }
 
 
@@ -22,22 +15,56 @@ async function sleep(ms) {
 }
 
 
-async function monitorTimestamps(content) {
+async function liveDataTask(content) {
     while (true) {
-        const now = Date.now();
-        for (const x of content.querySelectorAll('.timestamp[data-ts]')) {
-            x.innerText = relTime.format(Math.round((Number(x.dataset.ts) - now) / 60000), 'minute');
+        for (const x of content.querySelectorAll('.live')) {
+            const athlete = x.closest('[data-from]').dataset.from;
+            x.innerText = liveDataFormatter(Number(athlete));
         }
-        await sleep(15000);
+        await sleep(1000);
     }
+}
+
+
+function liveDataFormatter(athlete) {
+    const state = nearby.get(athlete);
+    if (!state) {
+        return '';
+    }
+
+    const items = [
+        state.stats.power30s != null ? Math.round(state.stats.power30s).toLocaleString() + 'w' : null,
+        state.heartrate ? state.heartrate.toLocaleString() + 'bpm' : null,
+    ];
+    if (state.realGap - state.timeGap > 30) {
+        console.error("prob houston", state.realGap, state.timeGap, state);
+    } else {
+        console.info(state.realGap, state.timeGap);
+    }
+    const gap = state.realGap;
+    if (gap != null && Math.abs(gap) > 2) {
+        items.push(sauce.locale.humanDuration(Math.abs(gap), {short: true}) + (gap > 0 ? ' behind' : ' ahead'));
+    }
+    return items.filter(x => x != null).join(', ');
+}
+
+
+function gapLiveFormatter(athlete) {
+    const state = nearby.get(athlete);
+    if (!state) {
+        return '';
+    }
+    const gap = state.realGap;
+    if (gap == null || Math.abs(gap) < 2) {
+        return '';
+    }
+    return sauce.locale.humanDuration(Math.abs(gap), {short: true}) + (gap > 0 ? ' behind' : ' ahead');
 }
 
 
 async function main() {
     const content = document.querySelector('#content');
-    let lastTimestamp = 0;
-    const nearby = new Map();
-    monitorTimestamps(content);  // bg okay
+    liveDataTask(content);  // bg okay
 
 
     function getLastEntry() {
@@ -54,35 +81,19 @@ async function main() {
     }
 
 
-    function processNearby(data) {
-        for (const x of data) {
-            if (!nearby.has(x.athleteId)) {
-                nearby.set(x.athleteId, {});
-                console.warn("nearby size", nearby.size);
-            }
-            const entry = nearby.get(x.athleteId);
-            entry.power = x.power;
-            entry.timeGap = x.timeGap;
-        }
-    }
-
-
     addEventListener('message', ev => {
         if (!ev.data || ev.data.source !== 'sauce4zwift') {
             return;
         }
         if (ev.data.event === 'nearby') {
-            processNearby(ev.data.data);
+            for (const x of ev.data.data) {
+                nearby.set(x.athleteId, x);
+            }
             return;
         } else if (ev.data.event !== 'chat') {
             return;
         }
         const chat = ev.data.data;
-        const now = Date.now();
-        if (now - lastTimestamp > 60000) {
-            addContentEntry(makeTimestamp());
-        }
-        lastTimestamp = now;
         const lastEntry = getLastEntry();
         if (lastEntry && Number(lastEntry.dataset.from) === chat.from) {
             lastEntry.classList.remove('fadeout');
@@ -102,21 +113,16 @@ async function main() {
             entry.classList.add('public');
         }
         entry.style.setProperty('--message-hue', athleteHue(chat.from) + 'deg');
-        const stats = nearby.get(chat.from);
-        let details = '';
-        if (stats) {
-            details = `${relTime.format(Math.round(stats.timeGap), 'second')}, ${stats.power.toLocaleString()}w`;
-        }
         entry.innerHTML = `
             <div class="avatar"><img src="${chat.avatar || 'images/blankavatar.png'}"/></div>
             <div class="content">
-                <div class="name"></div>
-                <div class="details">${details}</div>
+                <div class="header"><span class="name"></span></div>
+                <div class="live">${liveDataFormatter(chat.from)}</div>
                 <div class="message"></div>
             </div>
         `;
-        entry.querySelector('.name').textContent =
-            [chat.firstName, chat.lastName].filter(x => x).join(' ');
+        const name = [chat.firstName, chat.lastName].filter(x => x).join(' ');
+        entry.querySelector('.name').textContent = name;  // sanitize
         entry.querySelector('.message').textContent = chat.message;
         addContentEntry(entry);
     });
