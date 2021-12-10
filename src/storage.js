@@ -6,16 +6,16 @@ const zlib = require('zlib');
 const {app} = require('electron');
 
 
-async function stateFile(id) {
+async function getFilePath(id) {
     await app.whenReady();
-    return path.join(app.getPath('userData'), `state-${id}.json`);
+    return path.join(app.getPath('userData'), `storage-${id}.json`);
 }
 
 
-async function loadState(id, defaultFile) {
+async function load(id, defaultFile) {
     let f;
     try {
-        f = await fs.open(await stateFile(id));
+        f = await fs.open(await getFilePath(id));
     } catch(e) {
         if (e.code !== 'ENOENT') {
             throw e;
@@ -42,8 +42,8 @@ async function loadState(id, defaultFile) {
 }
 
 
-async function saveState(id, data) {
-    const file = await stateFile(id);
+async function save(id, data) {
+    const file = await getFilePath(id);
     const tmpFile = file + '.tmp';
     const serialized = JSON.stringify(data);
     const f = await fs.open(tmpFile, 'w');
@@ -57,6 +57,6 @@ async function saveState(id, data) {
 
 
 module.exports = {
-    load: loadState,
-    save: saveState,
+    load,
+    save,
 };

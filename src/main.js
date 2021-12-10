@@ -1,7 +1,7 @@
 /* global __dirname */
 
 const path = require('path');
-const state = require('./state');
+const storage = require('./storage');
 const menu = require('./menu');
 const game = require('./game');
 const {app, BrowserWindow, nativeImage, dialog} = require('electron');
@@ -11,13 +11,13 @@ const appIcon = nativeImage.createFromPath(path.join(__dirname, 'build/images/ap
 
 async function getWindowState(page) {
     const id = page.split('.')[0];
-    return await state.load(`window-${id}`);
+    return await storage.load(`window-${id}`);
 }
 
 
 async function setWindowState(page, data) {
     const id = page.split('.')[0];
-    await state.save(`window-${id}`, data);
+    await storage.save(`window-${id}`, data);
 }
 
 

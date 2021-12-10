@@ -2,7 +2,7 @@
 
 const net = require('net');
 const os = require('os');
-const state = require('./state');
+const storage = require('./storage');
 const sudo = require('sudo-prompt');
 const cap = require('cap');
 const {dialog} = require('electron');
@@ -39,7 +39,7 @@ async function getLocalRoutedIface() {
 let _acLastTS = 0;
 let _acUpdates = 0;
 async function getAthleteCache() {
-    const data = await state.load('athlete-cache', '../.athlete-cache-seed.json.gz');
+    const data = await storage.load('athlete-cache', '../.athlete-cache-seed.json.gz');
     _acLastTS = Date.now();
     return new Map(data);
 }
@@ -50,7 +50,7 @@ async function maybeSaveAthleteCache(data) {
         return;
     }
     _acLastTS = Date.now();
-    await state.save('athlete-cache', Array.from(data));
+    await storage.save('athlete-cache', Array.from(data));
     _acUpdates = 0;
 }
 
@@ -125,7 +125,10 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         for (const x of packet.playerUpdates) {
             if (x.payload && x.payload.$type) {
                 if (x.payload.$type.name === 'PlayerEnteredWorld') {
-                    //this.athletes.set(x.payload.athleteId, x.payload.toJSON());
+                    this.athletes.set(x.payload.athleteId, {
+                        name: [x.payload.firstName, x.payload.lastName].filter(x => x),
+                        weight: x.payload.weight / 1000,
+                    });
                     _acUpdates++;
                 } else if (x.payload.$type.name === 'EventJoin') {
                     console.warn("Event Join:", x.payload);
@@ -304,7 +307,14 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
 
     async start() {
         this._active = true;
-        //this.athletes = await getAthleteCache();
+        const s = Date.now();
+        debugger;
+        this.athletes = await getAthleteCache();
+        for (const [k, v] of this.athletes.entries()) {
+            this.athletes.set(k, {name: [v.firstName, v.lastName].filter(x=>x), weight: v.weight / 1000});
+        }
+        await storage.save('athlete-cache2', Array.from(this.athletes));
+        console.info('storage load', Date.now() - s);
         this.states = new Map();
         super.start();
         this._nearbyJob = this.nearbyProcessor();
@@ -378,8 +388,6 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             }
             const watching = this.states.get(this.watching);
             if (watching) {
-                //console.debug("Athletes:", this.athletes.size, "States:", this.states.size);
-                //console.debug("Watching:", watching.athleteId);
                 const now = Date.now();
                 const byRelCompletion = [];
                 for (const [k, x] of this.states.entries()) {
@@ -451,6 +459,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 this.emit('groups', groups);
             }
             await Promise.race([sleep(1000), this.wakeEvent]);
+            maybeSaveAthleteCache(this.athletes);  // bg okay
         }
     }
 }
