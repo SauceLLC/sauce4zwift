@@ -15,7 +15,6 @@ async function main() {
         for (const x of nearby) {
             tRows.push([
                 x.athleteId,
-                x.position,
                 sauce.locale.humanDuration(x.timeGap),
                 (x.roadLocation / 10000).toFixed(1) + sauce.locale.thinSpace + '%',
                 'roadid: ' + x.roadId,

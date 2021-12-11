@@ -8,6 +8,8 @@ const cap = require('cap');
 const {dialog} = require('electron');
 const ZwiftPacketMonitor = require('@saucellc/zwift-packet-monitor');
 
+const athleteCacheLabel = 'athlete-cache';
+
 
 async function getLocalRoutedIP() {
     const sock = net.createConnection(80, 'www.zwift.com');
@@ -39,7 +41,7 @@ async function getLocalRoutedIface() {
 let _acLastTS = 0;
 let _acUpdates = 0;
 async function getAthleteCache() {
-    const data = await storage.load('athlete-cache', '../.athlete-cache-seed.json.gz');
+    const data = await storage.load(athleteCacheLabel);
     _acLastTS = Date.now();
     return new Map(data);
 }
@@ -50,7 +52,7 @@ async function maybeSaveAthleteCache(data) {
         return;
     }
     _acLastTS = Date.now();
-    await storage.save('athlete-cache', Array.from(data));
+    await storage.save(athleteCacheLabel, Array.from(data));
     _acUpdates = 0;
 }
 
@@ -79,7 +81,7 @@ function crowDistance(a, b) {
 
 
 function estGap(a, b) {
-	const dist = crowDistance(a, b);
+    const dist = crowDistance(a, b);
     return dist / ((a.speed || b.speed || 1) * 1000 / 3600);
 }
 
@@ -120,25 +122,34 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         }
     }
 
+    updateAthlete(id, fName, lName, weight) {
+        const d = this.athletes.get(id) || {};
+        d.name = (fName || lName) ? [fName, lName].filter(x => x) : d.name;
+        d.weight = weight != null ? weight : d.weight;
+        this.athletes.set(id, d);
+        _acUpdates++;
+        maybeSaveAthleteCache(this.athletes);  // bg okay
+    }
+
     onIncoming(packet) {
         this.maybeLearnAthleteId(packet);
         for (const x of packet.playerUpdates) {
             if (x.payload && x.payload.$type) {
-                if (x.payload.$type.name === 'PlayerEnteredWorld') {
-                    this.athletes.set(x.payload.athleteId, {
-                        name: [x.payload.firstName, x.payload.lastName].filter(x => x),
-                        weight: x.payload.weight / 1000,
-                    });
-                    _acUpdates++;
-                } else if (x.payload.$type.name === 'EventJoin') {
-                    console.warn("Event Join:", x.payload);
-                } else if (x.payload.$type.name === 'EventLeave') {
-                    console.warn("Event Leave:", x.payload);
-                } else if (x.payload.$type.name === 'ChatMessage') {
-                    const chat = x.payload;
-                    this.emit('chat', {...x.payload, ts: x.ts});
+                const p = x.payload;
+                if (p.$type.name === 'PlayerEnteredWorld') {
+                    this.updateAthlete(p.athleteId, p.firstName, p.lastName, p.weight / 1000);
+                } else if (p.$type.name === 'EventJoin') {
+                    console.debug("Event Join:", p);
+                } else if (p.$type.name === 'EventLeave') {
+                    console.debug("Event Leave:", p);
+                } else if (p.$type.name === 'ChatMessage') {
+                    this.emit('chat', {...p, ts: x.ts});
+                    this.updateAthlete(p.from, p.firstName, p.lastName);
+                    console.debug("RideOn:", p);
                 } else if (x.payload.$type.name === 'RideOn') {
-                    console.warn("RideOn:", x.payload);
+                    this.emit('rideon', {...p, ts: x.ts});
+                    this.updateAthlete(p.from, p.firstName, p.lastName);
+                    console.debug("RideOn:", p);
                 }
             }
         }
@@ -266,11 +277,11 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         }
         const last = roadLoc.timeline[roadLoc.timeline.length - 1];
         if (last && state.roadCompletion < last.roadCompletion) {
-			// This can happen when lapping a single road segment or if your avatar
-			// Is stopped and sort of wiggling backwards. For safety we just nuke hist.
-			roadLoc.timeline.length = 0;
+            // This can happen when lapping a single road segment or if your avatar
+            // Is stopped and sort of wiggling backwards. For safety we just nuke hist.
+            roadLoc.timeline.length = 0;
         }
-		roadLoc.timeline.push({ts: state.ts, roadCompletion: state.roadCompletion});
+        roadLoc.timeline.push({ts: state.ts, roadCompletion: state.roadCompletion});
         const stats = this._stats.get(state.athleteId);
         const duration = stats.worldTime ? state.worldTime.toNumber() - stats.worldTime : 0;
         stats.worldTime = state.worldTime.toNumber();
@@ -307,14 +318,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
 
     async start() {
         this._active = true;
-        const s = Date.now();
-        debugger;
         this.athletes = await getAthleteCache();
-        for (const [k, v] of this.athletes.entries()) {
-            this.athletes.set(k, {name: [v.firstName, v.lastName].filter(x=>x), weight: v.weight / 1000});
-        }
-        await storage.save('athlete-cache2', Array.from(this.athletes));
-        console.info('storage load', Date.now() - s);
         this.states = new Map();
         super.start();
         this._nearbyJob = this.nearbyProcessor();
@@ -335,6 +339,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         const bSig = this._roadSig(b);
         let leaderTimeline;
         let trailing;
+        let xxx;
         if (aSig === bSig) {
             if (a.roadCompletion > b.roadCompletion) {
                 leaderTimeline = this._roadHistory.get(a.athleteId).timeline;
@@ -346,13 +351,11 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         } else {
             const aHist = this._roadHistory.get(a.athleteId);
             if (aHist.prevSig === bSig) {
-				debugger;
                 leaderTimeline = aHist.prevTimeline;
                 trailing = b;
             } else {
                 const bHist = this._roadHistory.get(a.athleteId);
                 if (bHist.prevSig === aSig) {
-					debugger;
                     leaderTimeline = bHist.prevTimeline;
                     trailing = a;
                 }
@@ -370,8 +373,6 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                     const dist = prev.roadCompletion - x.roadCompletion;
                     const time = prev.ts - x.ts;
                     offt = (trailing.roadCompletion - x.roadCompletion) / dist * time;
-                } else {
-					console.error("Unexpected order configuration");
                 }
                 return Math.abs((trailing.ts - x.ts - offt) / 1000);
             }
@@ -380,87 +381,130 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         return null;
     }
 
+    isFirstLeadingSecond(a, b) {
+        const aSig = this._roadSig(a);
+        const bSig = this._roadSig(b);
+        if (aSig === bSig) {
+            return a.roadCompletion > b.roadCompletion;
+        } else {
+            const aHist = this._roadHistory.get(a.athleteId);
+            if (aHist.prevSig === bSig) {
+                return true;
+            } else {
+                const bHist = this._roadHistory.get(a.athleteId);
+                if (bHist.prevSig === aSig) {
+                    return false;
+                }
+            }
+        }
+    }
+
+    gcStates() {
+        const now = Date.now();
+        for (const [k, x] of this.states.entries()) {
+            const age = now - x.ts;
+            if (age > 30 * 1000) {
+                this.states.delete(k);
+            }
+        }
+    }
+
     async nearbyProcessor() {
+        let errBackoff = 1000;
         while (this._active) {
             if (this.watching == null) {
                 await sleep(100);
                 continue;
             }
-            const watching = this.states.get(this.watching);
-            if (watching) {
-                const now = Date.now();
-                const byRelCompletion = [];
-                for (const [k, x] of this.states.entries()) {
-                    const age = now - x.ts;
-                    if (age > 15 * 1000 || !x.speed) {
-                        if (age > 1800 * 1000) {
-                            this.states.delete(k);
-                        }
-                        continue;
-                    }
-                    if (this._watchingRoadSig !== this._roadSig(x)) {
-                        continue;
-                    }
-                    byRelCompletion.push({relRoadCompletion: watching.roadCompletion - x.roadCompletion, ...x});
-                }
-                byRelCompletion.sort((a, b) => a.relRoadCompletion - b.relRoadCompletion);
-                const center = byRelCompletion.findIndex(x => x.athleteId === watching.athleteId);
-                const nearby = [];
-                for (let i = 0; i < byRelCompletion.length; i++) {
-                    const x = byRelCompletion[i];
-                    nearby.push({
-                        position: i - center,
-                        estGap: estGap(watching, x),
-                        realGap: this.realGap(watching, x),
-                        ...x
-                    });
-                    //const [xxx] = nearby.slice(-1);
-                    //console.debug('Nearby:', center - i, Math.round(xxx.estGap), xxx.realGap && Math.round(xxx.realGap));
-                }
-                //console.debug('');
-                this.emit('nearby', nearby);
-
-                const groups = [];
-                let curGroup;
-                for (const x of byRelCompletion) {
-                    if (!curGroup) {
-                        curGroup = {athletes: [x]};
-                    } else {
-                        const last = curGroup.athletes[curGroup.athletes.length - 1];
-                        const gap = this.realGap(last, x) || estGap(last, x)
-                        if (gap > 2) {
-                            groups.push(curGroup);
-                            curGroup = {athletes: []};
-                        } else if (gap < 0) {
-							debugger;
-						}
-                        curGroup.athletes.push(x);
-                    }
-                    curGroup.watching = curGroup.watching || x.athleteId === this.watching;
-                }
-                if (curGroup && curGroup.athletes.length) {
-                    groups.push(curGroup);
-                }
-                for (let i = 0; i < groups.length; i++) {
-                    const x = groups[i];
-                    x.power = x.athletes.reduce((agg, x) => agg + x.power, 0) / x.athletes.length;
-                    x.draft = x.athletes.reduce((agg, x) => agg + x.draft, 0) / x.athletes.length;
-                    x.speed = x.athletes.reduce((agg, x) => agg + x.speed, 0) / x.athletes.length; // XXX use median i think
-                    if (i) {
-                        const ahead = groups[i - 1];
-						const nextAthlete = ahead.athletes[ahead.athletes.length - 1];
-                        x.estGap = estGap(nextAthlete, x.athletes[0]);
-                        x.realGap = this.realGap(nextAthlete, x.athletes[0]);
-                        x.totGap = ahead.totGap + (x.realGap != null ? x.realGap : x.estGap);
-                    } else {
-                        Object.assign(groups[0], {totGap: 0});
-                    }
-                }
-                this.emit('groups', groups);
+            try {
+                await this._nearbyProcessor();
+            } catch(e) {
+                console.error("Unexpected processor error:", e);
+                await sleep(errBackoff *= 2);
             }
-            await Promise.race([sleep(1000), this.wakeEvent]);
-            maybeSaveAthleteCache(this.athletes);  // bg okay
         }
+    }
+
+    async _nearbyProcessor() {
+        this.gcStates();
+        const watching = this.states.get(this.watching);
+        if (watching) {
+            const nearby = [];
+            for (const [k, x] of this.states.entries()) {
+                if (!x.speed && k !== this.watching) {
+                    continue;
+                }
+                const leading = this.isFirstLeadingSecond(watching, x);
+                if (leading == null) {
+                    if (k === this.watching) {
+                        debugger;
+                    } else {
+                        continue;
+                    }
+                }
+                const sign = leading ? 1 : -1;
+                let gap = this.realGap(watching, x);
+                let isGapEst = gap == null;
+                if (isGapEst) {
+                    gap = estGap(watching, x);
+                }
+                nearby.push({
+                    gap: gap * sign,
+                    isGapEst,
+                    athlete: this.athletes.get(k),
+                    ...x
+                });
+            }
+            nearby.sort((a, b) => a.gap - b.gap);
+            this.emit('nearby', nearby);
+
+            const groups = [];
+            let curGroup;
+            for (const x of nearby) {
+                if (!curGroup) {
+                    curGroup = {athletes: [x]};
+                } else {
+                    const last = curGroup.athletes[curGroup.athletes.length - 1];
+                    const gap = Math.abs(last.gap - x.gap);
+                    if (gap > 2) {
+                        groups.push(curGroup);
+                        curGroup = {athletes: []};
+                    }
+                    curGroup.athletes.push(x);
+                }
+                curGroup.watching = curGroup.watching || x.athleteId === this.watching;
+            }
+            if (curGroup && curGroup.athletes.length) {
+                groups.push(curGroup);
+            }
+            const watchingIdx = groups.findIndex(x => x.watching);
+            if (watchingIdx === -1) {
+                debugger; // Bug
+            }
+            const watchingHead = groups[watchingIdx].athletes[0];
+            const watchingTail = groups[watchingIdx].athletes.slice(-1)[0];
+            for (let i = 0; i < groups.length; i++) {
+                const x = groups[i];
+                x.power = x.athletes.reduce((agg, x) => agg + x.power, 0) / x.athletes.length;
+                x.draft = x.athletes.reduce((agg, x) => agg + x.draft, 0) / x.athletes.length;
+                x.speed = x.athletes.reduce((agg, x) => agg + x.speed, 0) / x.athletes.length; // XXX use median i think
+                if (watchingIdx !== i) {
+                    const a = watchingIdx < i ? watchingHead : watchingTail;
+                    const b = watchingIdx < i ? x.athletes.slice(-1)[0] : x.athletes[0];
+                    let gap = this.realGap(a, b);
+                    x.isGapEst = gap == null;
+                    if (x.isGapEst) {
+                        gap = estGap(a, b);
+                    }
+                    x.gap = gap * (watchingIdx < i ? 1 : -1);
+                } else {
+                    x.gap = null;
+                    x.isGapEst = false;
+                }
+            }
+            this.emit('groups', groups);
+        }
+        await Promise.race([sleep(1000), this.wakeEvent]);
     }
 }
 

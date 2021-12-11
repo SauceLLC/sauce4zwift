@@ -41,24 +41,11 @@ function liveDataFormatter(athlete) {
         state.stats.power30s != null ? Math.round(state.stats.power30s).toLocaleString() + 'w' : null,
         state.heartrate ? state.heartrate.toLocaleString() + 'bpm' : null,
     ];
-    const gap = state.realGap != null ? state.realGap : state.estGap;
+    const gap = state.gap;
     if (gap != null) {
         items.push(humanDuration(Math.abs(gap)) + (gap > 0 ? ' behind' : ' ahead'));
     }
     return items.filter(x => x != null).join(', ');
-}
-
-
-function gapLiveFormatter(athlete) {
-    const state = nearby.get(athlete);
-    if (!state) {
-        return '';
-    }
-    const gap = state.realGap;
-    if (gap == null || Math.abs(gap) < 2) {
-        return '';
-    }
-    return humanDuration(Math.abs(gap)) + (gap > 0 ? ' behind' : ' ahead');
 }
 
 
