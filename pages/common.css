@@ -55,7 +55,9 @@ body {
 body.transparent-bg {
     transition: background 200ms;
 }
-html:not(.active) #titlebar {
+html:not(.active) #titlebar,
+html.active #hintbar,
+html:not(:hover) #hintbar {
     max-height: 0;
     padding-top: 0;
     padding-bottom: 0;
@@ -71,12 +73,30 @@ html:not(:hover):not(.active) body.transparent-bg {
     left: 0;
     z-index: 100;
     width: 100%;
-    background-image: linear-gradient(to top, #222, #292929ed 0.2rem, #333);
+    background-image: linear-gradient(to top, #222, #333e 0.2rem, #333);
     color: white;
     overflow: hidden;
     padding: 0.5em;
     max-height: 3em;
     transition: max-height 200ms, padding 200ms;
+}
+
+#hintbar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    z-index: 100;
+    width: 100%;
+    background-image: linear-gradient(to top, #2228, #3338 0.2rem, #3338);
+    color: white;
+    overflow: hidden;
+    padding: 0.35em;
+    font-size: 0.68em;
+    max-height: 1.5em;
+    transition: max-height 200ms, padding 200ms;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 #content {

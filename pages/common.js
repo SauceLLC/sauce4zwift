@@ -87,8 +87,8 @@
     };
 
     // Need a mech that works on windows when using -webkit-app-region: drag;
-    window.addEventListener('focus', () =>
-        void document.documentElement.classList.add('active'));
+    window.addEventListener('dblclick', () =>
+        void document.documentElement.classList.toggle('active'));
     window.addEventListener('blur', () =>
         void document.documentElement.classList.remove('active'));
 })();

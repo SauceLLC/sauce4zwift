@@ -1,6 +1,6 @@
 
 function humanNumber(num, fallback='-') {
-    if (num != null) {
+    if (num != null && !isNaN(num)) {
         return Math.round(num).toLocaleString();
     } else {
         return fallback;
@@ -39,15 +39,15 @@ async function main() {
         const watching = ev.data.data;
         const stats = watching.stats;
 
-        pwrCurEl.textContent = humanNumber(watching.power || null);
+        pwrCurEl.textContent = humanNumber(watching.power);
         hrCurEl.textContent = humanNumber(watching.heartrate || null);
-        cadCurEl.textContent = humanNumber(watching.cadence || null);
-        draftCurEl.textContent = humanNumber(watching.draft || null);
+        cadCurEl.textContent = humanNumber(watching.cadence);
+        draftCurEl.textContent = humanNumber(watching.draft);
 
-        pwrAvgEl.textContent = humanNumber((stats.powerSum / stats.powerDur) || null);
-        hrAvgEl.textContent = humanNumber((stats.hrSum / stats.hrDur) || null);
-        cadAvgEl.textContent = humanNumber((stats.cadenceSum / stats.cadenceDur) || null);
-        draftAvgEl.textContent = humanNumber((stats.draftSum / stats.draftDur) || null);
+        pwrAvgEl.textContent = humanNumber(stats.powerSum / stats.powerDur);
+        hrAvgEl.textContent = humanNumber(stats.hrSum / stats.hrDur);
+        cadAvgEl.textContent = humanNumber(stats.cadenceSum / stats.cadenceDur);
+        draftAvgEl.textContent = humanNumber(stats.draftSum / stats.draftDur);
 
         pwrMaxEl.textContent = humanNumber(stats.powerMax || null);
         hrMaxEl.textContent = humanNumber(stats.hrMax || null);
