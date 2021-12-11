@@ -1,8 +1,6 @@
-/* global */
+/* global sauce */
 
 const nearby = new Map();
-const relTime = new Intl.RelativeTimeFormat(undefined, {
-});
 
 
 function athleteHue(id) {
@@ -68,19 +66,13 @@ async function main() {
     }
 
 
-    addEventListener('message', ev => {
-        if (!ev.data || ev.data.source !== 'sauce4zwift') {
-            return;
+    document.addEventListener('nearby', ev => {
+        for (const x of ev.detail) {
+            nearby.set(x.athleteId, x);
         }
-        if (ev.data.event === 'nearby') {
-            for (const x of ev.data.data) {
-                nearby.set(x.athleteId, x);
-            }
-            return;
-        } else if (ev.data.event !== 'chat') {
-            return;
-        }
-        const chat = ev.data.data;
+    });
+    document.addEventListener('chat', ev => {
+        const chat = ev.detail;
         const lastEntry = getLastEntry();
         if (lastEntry && Number(lastEntry.dataset.from) === chat.from) {
             lastEntry.classList.remove('fadeout');
@@ -113,22 +105,15 @@ async function main() {
         entry.querySelector('.message').textContent = chat.message;
         addContentEntry(entry);
     });
-    const testing = new Event('message');
-    dispatchEvent(testing);
-    for (let i = 0; i < 0; i++) {
-        testing.data = {
-            event: 'chat',
-            source: 'sauce4zwift',
-            data: {
-                firstName: 'Foo',
-                lastName: 'Bar',
-                message: 1000000 * i,
-                from: Array.from(nearby.keys())[Math.floor(Math.random() * nearby.size)],
-                to: 0,
-                avatar: 'https://i1.sndcdn.com/artworks-000218997483-xdgm10-t500x500.jpg',
-            }
-        };
-        dispatchEvent(testing);
+    for (let i = 0; i < 10; i++) {
+        document.dispatchEvent(new CustomEvent('chat', {detail: {
+            firstName: 'Foo',
+            lastName: 'Bar',
+            message: 1000000 * i,
+            from: Array.from(nearby.keys())[Math.floor(Math.random() * nearby.size)] || 0,
+            to: 0,
+            avatar: 'images/blankavatar.png',
+        }}));
         await sleep(1000 * i);
     }
 }

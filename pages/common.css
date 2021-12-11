@@ -1,5 +1,18 @@
 @import url('https://fonts.googleapis.com/css2?family=Jost:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
 
+html {
+    box-sizing: border-box;
+}
+*,
+*::before,
+*::after {
+    box-sizing: inherit;
+}
+
+img {
+    display: block;
+}
+
 html:not(:hover) ::-webkit-scrollbar {
     display: none;
 }
@@ -77,8 +90,40 @@ html:not(:hover):not(.active) body.transparent-bg {
     color: white;
     overflow: hidden;
     padding: 0.5em;
-    max-height: 3em;
+    max-height: 3rem;
     transition: max-height 200ms, padding 200ms;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    user-select: none;
+}
+
+#titlebar header {
+    font-size: 0.8em;
+}
+
+#titlebar .buttons {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#titlebar .button {
+    padding-left: 0.4em;
+}
+
+#titlebar .button img {
+    height: 0.85em;
+    filter: invert(1);
+    opacity: 0.8;
+    transition: opacity 200ms;
+    cursor: pointer;
+}
+#titlebar .button img:hover {
+    opacity: 1;
+}
+#titlebar .button img:active {
+    filter: invert(0.5);
 }
 
 #hintbar {
@@ -97,6 +142,7 @@ html:not(:hover):not(.active) body.transparent-bg {
     display: flex;
     align-items: center;
     justify-content: center;
+    user-select: none;
 }
 
 #content {

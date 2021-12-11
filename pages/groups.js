@@ -3,14 +3,8 @@
 async function main() {
     const content = document.querySelector('#content');
     const groupEls = new Map();
-    addEventListener('message', ev => {
-        if (!ev.data || ev.data.source !== 'sauce4zwift') {
-            return;
-        }
-        if (ev.data.event !== 'groups') {
-            return;
-        }
-        let groups = ev.data.data;
+    document.addEventListener('groups', ev => {
+        let groups = ev.detail;
         if (!groups.length) {
             return;
         }

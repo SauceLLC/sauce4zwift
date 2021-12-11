@@ -29,14 +29,8 @@ async function main() {
     content.querySelector('.power .current').addEventListener('contextmenu', ev => {
         console.log("right click");
     });
-    addEventListener('message', ev => {
-        if (!ev.data || ev.data.source !== 'sauce4zwift') {
-            return;
-        }
-        if (ev.data.event !== 'watching') {
-            return;
-        }
-        const watching = ev.data.data;
+    document.addEventListener('watching', ev => {
+        const watching = ev.detail;
         const stats = watching.stats;
 
         pwrCurEl.textContent = humanNumber(watching.power);

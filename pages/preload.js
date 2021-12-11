@@ -1,5 +1,10 @@
 const {ipcRenderer} = require('electron');
 
-ipcRenderer.on('proxy', (_, data) => {
-    postMessage(data);
-});
+
+// Electron -> Browser Window
+ipcRenderer.on('browser-message', (_, o) =>
+    void document.dispatchEvent(new CustomEvent(o.name, {detail: o.data})));
+
+// Browser Window -> Electron
+document.addEventListener('electron-message', ev =>
+    void ipcRenderer.send(ev.detail.name, ev.detail.data));

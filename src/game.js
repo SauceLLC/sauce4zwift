@@ -339,7 +339,6 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         const bSig = this._roadSig(b);
         let leaderTimeline;
         let trailing;
-        let xxx;
         if (aSig === bSig) {
             if (a.roadCompletion > b.roadCompletion) {
                 leaderTimeline = this._roadHistory.get(a.athleteId).timeline;

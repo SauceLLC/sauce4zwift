@@ -4,7 +4,7 @@ const path = require('path');
 const storage = require('./storage');
 const menu = require('./menu');
 const game = require('./game');
-const {app, BrowserWindow, nativeImage, dialog} = require('electron');
+const {app, BrowserWindow, ipcMain, nativeImage, dialog} = require('electron');
 
 const appIcon = nativeImage.createFromPath(path.join(__dirname, 'build/images/app-icon.icos'));
 
@@ -33,9 +33,11 @@ async function makeFloatingWindow(page, options={}) {
         resizable: true,
         maximizable: false,
         fullscreenable: false,
-        fullscreenable: false,
         webPreferences: {
             nodeIntegration: false,
+            contextIsolation: true,
+            sandbox: true,
+            enableRemoteModule: false,
             preload: path.join(__dirname, '../pages/preload.js'),
         },
         ...options,
@@ -55,6 +57,14 @@ async function makeFloatingWindow(page, options={}) {
         savedState.hidden = false;
         await setWindowState(page, savedState);
     }
+    function onWindowMessage(name, callback) {
+        ipcMain.on(name, (ev, ...args) => {
+            if (ev.sender === win.webContents) {
+                callback(ev, ...args);
+            }
+        });
+    }
+    onWindowMessage('close', () => win.hide());
     win.on('moved', onPositionUpdate);
     win.on('resized', onPositionUpdate);
     win.on('minimize', onHide);
@@ -75,10 +85,10 @@ async function createWindows(monitor) {
     const chatWin = await makeFloatingWindow('chat.html', {width: 280, height: 580, x: 280, y: 230});
 
     function winMonProxy(win, ...events) {
-        for (const event of events) {
-            const cb = data => win.webContents.send('proxy', {event, source: 'sauce4zwift', data});
-            monitor.on(event, cb);
-            win.on('close', () => monitor.off(event, cb));
+        for (const name of events) {
+            const cb = data => win.webContents.send('browser-message', {name, data});
+            monitor.on(name, cb);
+            win.on('close', () => monitor.off(name, cb));
         }
     }
 
