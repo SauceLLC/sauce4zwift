@@ -87,6 +87,7 @@
     };
 
     // Need a mech that works on windows when using -webkit-app-region: drag;
+    // XXX make sure this plays nice on windows.  Did not test before last commit
     window.addEventListener('dblclick', () =>
         void document.documentElement.classList.toggle('active'));
     window.addEventListener('blur', () =>
