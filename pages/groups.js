@@ -34,14 +34,20 @@ async function main() {
                 group.style.setProperty('--rel-pos', relPos);
                 group.innerHTML = `
                     <div class="bubble"></div>
-                    <div class="desc"></div>
+                    <div class="desc">
+                        <div class="lines"></div>
+                    </div>
                 `;
                 const gap = document.createElement('div');
                 gap.classList.add('gap');
                 gap.style.setProperty('--rel-pos', relPos);
                 gap.innerHTML = `
-                    <div class="desc"></div>
-                    <div class="est" title="Estimated gap">(est)</div>
+                    <div class="desc">
+                        <div class="lines">
+                            <div class="line time"></div>
+                            <div class="line minor est" title="Estimated gap">(est)</div>
+                        </div>
+                    </div>
                 `;
                 content.appendChild(group);
                 content.appendChild(gap);
@@ -59,10 +65,10 @@ async function main() {
                 bubble = x.athletes.length.toLocaleString();
             }
             group.querySelector('.bubble').textContent = bubble;
-            group.querySelector('.desc').innerHTML = [
+            group.querySelector('.desc .lines').innerHTML = [
                 Math.round(x.power).toLocaleString() + sauce.locale.thinSpace + 'w',
                 Math.round(x.speed).toLocaleString() + sauce.locale.thinSpace + 'kph',
-            ].join('<br/>');
+            ].map((x, i) => `<div class="line ${i ? 'minor' : ''}">${x}</div>`).join('');
             const gapEl = group.nextSibling;
             const innerGap = next ? Math.round(next.gap - x.gap) : 0;
             gapEl.style.setProperty('--inner-gap', innerGap);
@@ -71,7 +77,7 @@ async function main() {
             gapEl.classList.toggle('real', !!next && !next.isGapEst);
             gapEl.classList.toggle('alone', !innerGap);
             const dur = innerGap && sauce.locale.humanDuration(Math.abs(gap), {short: true, seperator: ' '});
-            gapEl.querySelector('.desc').textContent = dur ? (gap > 0 ? '+' : '-') + dur : '';
+            gapEl.querySelector('.desc .line.time').textContent = dur ? (gap > 0 ? '+' : '-') + dur : '';
         }
         for (const [pos, x] of groupEls.entries()) {
             x.classList.toggle('hidden', !active.has(pos));

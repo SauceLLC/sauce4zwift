@@ -39,12 +39,12 @@
                 white-space: pre-wrap;
                 border-radius: 50%;
                 background: linear-gradient(to bottom, #fffc, #fffc, #fffa);
-                font-size: calc(0.45 * var(--size));
+                font-size: calc(0.4em + (0.20 * var(--size)));
                 font-family: sans-serif;
                 color: black;
                 width: 100%;
                 height: 100%;
-                box-shadow: 0 0 0 0.4rem #666a, 0.03rem 0.03rem 0.4em 0 #0004;
+                box-shadow: 0 0 0 0.4rem #666a, 0.03rem 0.03rem 0.4rem 0 #0004;
             }
 
             .group.hidden {
@@ -66,24 +66,64 @@
                 color: white;
             }
 
-            .group .desc {
-                display: inline-flex;
+            .desc {
+                display: flex;
                 align-items: center;
                 position: absolute;
                 font-size: 0.80em;
-                left: calc(100% + 0.4rem);
-                white-space: nowrap;
             }
 
-            .desc {
+            .group .desc {
+                /* bubble + shadow + desc-pad */
+                left: calc(100% + 0.4rem + 0.2rem);
+            }
+
+            .desc .lines {
+                display: flex;
+                flex-direction: column;
+            }
+            .group .desc .lines {
+                align-items: flex-start;
+            }
+            .gap .desc .lines {
+                align-items: flex-end;
+            }
+
+            .desc .lines .line {
+                white-space: nowrap;
                 text-shadow: 0 0 1px #000a, 0 0 3px #000a;
             }
+            .desc .lines .line.minor {
+                font-size: 0.80em;
+                opacity: 0.8;
+                line-height: 1.2;
+            }
 
-            .group .desc:not(:empty)::before {
-                display: block;
-                margin-right: 0.2rem;
+            .group .desc::before,
+            .gap .desc::after {
                 content: ' ― ';
                 color: #aaa;
+            }
+            .group .desc::before {
+                margin-right: 0.2rem;
+            }
+           .gap .desc::after {
+                margin-left: 0.2rem;
+            }
+
+            .gap .desc {
+                top: calc(50% - 0.65rem);
+                right: 0.2rem;
+            }
+
+            .gap.real .line.est,
+            .gap.alone {
+                display: none;
+            }
+
+            .gap .line.est {
+                font-size: 0.55em;
+                font-style: italic;
             }
 
             .gap {
@@ -96,43 +136,19 @@
                 transition-property: flex, opacity, visibility;
                 transition-duration: 4s;
             }
-
-            .gap.real .est,
-            .gap.alone .est {
-                display: none;
-            }
-
-            .gap .desc {
-                top: calc(50% - 0.65rem);
-                font-size: 0.8em;
-                right: 0.2rem;
-            }
-
-            .gap .est {
-                top: calc(50% + 0.3rem);
-                font-size: 0.55em;
-                font-style: italic;
-                right: 1.5rem;
-                opacity: 0.8;
-            }
-
-            .gap .desc,
-            .gap .est {
-                position: absolute;
-                white-space: nowrap;
-            }
-
-            .gap .desc:not(:empty)::after {
-                content: ' ― ';
-                color: #aaa;
-            }
         </style>
         <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';" />
         <script src="common.js" type="application/javascript" defer></script>
         <script src="groups.js" type="application/javascript" defer></script>
     </head>
     <body class="transparent-bg">
-        <div id="titlebar">Groups - Sauce for Zwift</div>
+        <div id="titlebar">
+            <header>Groups - Sauce for Zwift</header>
+            <div class="buttons">
+                <div class="button options" data-url="watching-options.html"><img src="images/fa/cog-duotone.svg"/></div>
+                <div class="button close"><img src="images/fa/window-close-light.svg"/></div>
+            </div>
+        </div>
         <div id="content"></div>
         <div id="hintbar">Double click for options</div>
     </body>
