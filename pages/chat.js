@@ -108,6 +108,7 @@ async function main() {
     sauce.subscribe('chat', onChatMessage);
 
     // TESTING
+    /*
     for (let i = 0; i < 10; i++) {
         onChatMessage({
             firstName: 'Foo',
@@ -119,6 +120,7 @@ async function main() {
         });
         await sleep(1000 * i);
     }
+    */
 }
 
 addEventListener('DOMContentLoaded', () => main());

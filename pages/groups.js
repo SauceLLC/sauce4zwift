@@ -70,6 +70,7 @@ async function main() {
             ].map((x, i) => `<div class="line ${i ? 'minor' : ''}">${x}</div>`).join('');
             const gapEl = group.nextSibling;
             const innerGap = next ? Math.round(next.gap - x.gap) : 0;
+            console.warn(innerGap, Math.round(x.innerGap));
             gapEl.style.setProperty('--inner-gap', innerGap);
             gapEl.style.setProperty('--outer-gap', Math.abs(gap));
             gapEl.style.setProperty('--gap-sign', gap > 0 ? 1 : -1);

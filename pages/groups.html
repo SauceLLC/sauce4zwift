@@ -54,11 +54,15 @@
                 visibility: hidden;
             }
             .group.hidden + .gap,
-            .group.hidden + .est {
+            .gap.alone {
                 opacity: 0;
                 flex-grow: 0;
                 visibility: hidden;
             }
+            .gap.real .line.est {
+                display: none;
+            }
+
 
             .group.watching .bubble {
                 background: #00aaff;
@@ -112,13 +116,9 @@
             }
 
             .gap .desc {
-                top: calc(50% - 0.65rem);
+                top: 0;
+                height: 100%;
                 right: 0.2rem;
-            }
-
-            .gap.real .line.est,
-            .gap.alone {
-                display: none;
             }
 
             .gap .line.est {

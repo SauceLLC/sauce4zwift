@@ -464,8 +464,9 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                     curGroup = {athletes: [x]};
                 } else {
                     const last = curGroup.athletes.at(-1);
-                    const gap = Math.abs(last.gap - x.gap);
+                    const gap = x.gap - last.gap;
                     if (gap > 2) {
+                        curGroup.innerGap = gap;
                         groups.push(curGroup);
                         curGroup = {athletes: []};
                     }
@@ -480,22 +481,18 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             if (watchingIdx === -1) {
                 debugger; // Bug
             }
-            const watchingHead = groups[watchingIdx].athletes[0];
-            const watchingTail = groups[watchingIdx].athletes.at(-1);
             for (let i = 0; i < groups.length; i++) {
                 const x = groups[i];
                 x.power = x.athletes.reduce((agg, x) => agg + x.power, 0) / x.athletes.length;
                 x.draft = x.athletes.reduce((agg, x) => agg + x.draft, 0) / x.athletes.length;
                 x.speed = x.athletes.reduce((agg, x) => agg + x.speed, 0) / x.athletes.length; // XXX use median i think
                 if (watchingIdx !== i) {
-                    const a = watchingIdx < i ? watchingTail : watchingHead;
-                    const b = watchingIdx < i ? x.athletes[0] : x.athletes.at(-1);
-                    let gap = this.realGap(a, b);
-                    x.isGapEst = gap == null;
-                    if (x.isGapEst) {
-                        gap = estGap(a, b);
+                    const edge = watchingIdx < i ? x.athletes[0] : x.athletes.at(-1);
+                    x.isGapEst = edge.isGapEst; // XXX  deprecate
+                    x.gap = edge.gap; // XXX  deprecate
+                    if (i < groups.length - 1 && x.gap - groups[i + 1] < 2) {
+                        debugger;
                     }
-                    x.gap = gap * (watchingIdx < i ? 1 : -1);
                 } else {
                     x.gap = 0;
                     x.isGapEst = false;
