@@ -66,13 +66,7 @@ async function main() {
     }
 
 
-    document.addEventListener('nearby', ev => {
-        for (const x of ev.detail) {
-            nearby.set(x.athleteId, x);
-        }
-    });
-    document.addEventListener('chat', ev => {
-        const chat = ev.detail;
+    function onChatMessage(chat) {
         const lastEntry = getLastEntry();
         if (lastEntry && Number(lastEntry.dataset.from) === chat.from) {
             lastEntry.classList.remove('fadeout');
@@ -104,16 +98,25 @@ async function main() {
         entry.querySelector('.name').textContent = name;  // sanitize
         entry.querySelector('.message').textContent = chat.message;
         addContentEntry(entry);
+    }
+
+    sauce.subscribe('nearby', nearby => {
+        for (const x of nearby) {
+            nearby.set(x.athleteId, x);
+        }
     });
+    sauce.subscribe('chat', onChatMessage);
+
+    // TESTING
     for (let i = 0; i < 10; i++) {
-        document.dispatchEvent(new CustomEvent('chat', {detail: {
+        onChatMessage({
             firstName: 'Foo',
             lastName: 'Bar',
             message: 1000000 * i,
             from: Array.from(nearby.keys())[Math.floor(Math.random() * nearby.size)] || 0,
             to: 0,
             avatar: 'images/blankavatar.png',
-        }}));
+        });
         await sleep(1000 * i);
     }
 }

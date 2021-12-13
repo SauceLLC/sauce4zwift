@@ -275,7 +275,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             roadLoc.sig = curRoadSig;
             roadLoc.timeline = [];
         }
-        const last = roadLoc.timeline[roadLoc.timeline.length - 1];
+        const last = roadLoc.timeline.at(-1);
         if (last && state.roadCompletion < last.roadCompletion) {
             // This can happen when lapping a single road segment or if your avatar
             // Is stopped and sort of wiggling backwards. For safety we just nuke hist.
@@ -463,7 +463,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 if (!curGroup) {
                     curGroup = {athletes: [x]};
                 } else {
-                    const last = curGroup.athletes[curGroup.athletes.length - 1];
+                    const last = curGroup.athletes.at(-1);
                     const gap = Math.abs(last.gap - x.gap);
                     if (gap > 2) {
                         groups.push(curGroup);
@@ -481,15 +481,15 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 debugger; // Bug
             }
             const watchingHead = groups[watchingIdx].athletes[0];
-            const watchingTail = groups[watchingIdx].athletes.slice(-1)[0];
+            const watchingTail = groups[watchingIdx].athletes.at(-1);
             for (let i = 0; i < groups.length; i++) {
                 const x = groups[i];
                 x.power = x.athletes.reduce((agg, x) => agg + x.power, 0) / x.athletes.length;
                 x.draft = x.athletes.reduce((agg, x) => agg + x.draft, 0) / x.athletes.length;
                 x.speed = x.athletes.reduce((agg, x) => agg + x.speed, 0) / x.athletes.length; // XXX use median i think
                 if (watchingIdx !== i) {
-                    const a = watchingIdx < i ? watchingHead : watchingTail;
-                    const b = watchingIdx < i ? x.athletes.slice(-1)[0] : x.athletes[0];
+                    const a = watchingIdx < i ? watchingTail : watchingHead;
+                    const b = watchingIdx < i ? x.athletes[0] : x.athletes.at(-1);
                     let gap = this.realGap(a, b);
                     x.isGapEst = gap == null;
                     if (x.isGapEst) {
@@ -497,7 +497,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                     }
                     x.gap = gap * (watchingIdx < i ? 1 : -1);
                 } else {
-                    x.gap = null;
+                    x.gap = 0;
                     x.isGapEst = false;
                 }
             }

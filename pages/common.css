@@ -2,6 +2,7 @@
 
 html {
     box-sizing: border-box;
+    user-select: none;
 }
 *,
 *::before,
@@ -80,7 +81,6 @@ html:not(:hover):not(.active) body.transparent-bg {
 }
 
 #titlebar {
-    -webkit-app-region: drag;
     position: absolute;
     top: 0;
     left: 0;
@@ -94,18 +94,29 @@ html:not(:hover):not(.active) body.transparent-bg {
     transition: max-height 200ms, padding 200ms;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    user-select: none;
+}
+html.options #titlebar {
+    position: relative;
+}
+
+#titlebar .button.move {
+    -webkit-app-region: drag;
+    padding: 0 0.4em 0 0;
 }
 
 #titlebar header {
+    -webkit-app-region: drag;
     font-size: 0.8em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 #titlebar .buttons {
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-end;
+    flex: 1 0 auto;
 }
 
 #titlebar .button {

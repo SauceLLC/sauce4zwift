@@ -3,8 +3,7 @@
 async function main() {
     const content = document.querySelector('#content');
     const groupEls = new Map();
-    document.addEventListener('groups', ev => {
-        let groups = ev.detail;
+    sauce.subscribe('groups', groups => {
         if (!groups.length) {
             return;
         }

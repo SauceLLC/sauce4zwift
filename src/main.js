@@ -7,6 +7,16 @@ const game = require('./game');
 const {app, BrowserWindow, ipcMain, nativeImage, dialog} = require('electron');
 
 const appIcon = nativeImage.createFromPath(path.join(__dirname, 'build/images/app-icon.icos'));
+const windows = new Map();
+
+
+if (Array.prototype.at) {
+    console.warn("Node supports Array.at now, remove this.");
+} else {
+    Array.prototype.at = function(i) {
+        return i < 0 ? this[this.length + i] : this[i];
+    };
+}
 
 
 async function getWindowState(page) {
@@ -43,6 +53,7 @@ async function makeFloatingWindow(page, options={}) {
         ...options,
         ...savedState,
     });
+    windows.set(win.webContents, win);
     let saveStateTimeout;
     function onPositionUpdate() {
         Object.assign(savedState, win.getBounds());
@@ -79,23 +90,11 @@ async function makeFloatingWindow(page, options={}) {
 
 
 async function createWindows(monitor) {
-    const watchingWin = await makeFloatingWindow('watching.html', {width: 260, height: 260, x: 8, y: 54});
-    //const nearbyWin = await makeFloatingWindow('nearby.html', {width: 500, height: 400, x: 780, y: 418});
-    const groupsWin = await makeFloatingWindow('groups.html', {width: 235, height: 650, x: 960, y: 418});
-    const chatWin = await makeFloatingWindow('chat.html', {width: 280, height: 580, x: 280, y: 230});
-
-    function winMonProxy(win, ...events) {
-        for (const name of events) {
-            const cb = data => win.webContents.send('browser-message', {name, data});
-            monitor.on(name, cb);
-            win.on('close', () => monitor.off(name, cb));
-        }
-    }
-
-    winMonProxy(watchingWin, 'watching');
-    //winMonProxy(nearbyWin, 'nearby');
-    winMonProxy(groupsWin, 'groups');
-    winMonProxy(chatWin, 'chat', 'nearby');
+    await Promise.all([
+        makeFloatingWindow('watching.html', {width: 260, height: 260, x: 8, y: 54}),
+        makeFloatingWindow('groups.html', {width: 235, height: 650, x: 960, y: 418}),
+        makeFloatingWindow('chat.html', {width: 280, height: 580, x: 280, y: 230}),
+    ]);
 }
 
 if (app.dock) {
@@ -128,6 +127,39 @@ async function main() {
             return;
         }
     }
+    ipcMain.on('subscribe', (ev, {event, domEvent}) => {
+        const win = windows.get(ev.sender);
+        const cb = data => win.webContents.send('browser-message', {domEvent, data});
+        const enableEvents = ['responsive', 'show', 'restore'];
+        const disableEvents = ['unresponsive', 'hide', 'minimize', 'close'];
+        function enable() {
+            console.debug("Enable subscription:", event, domEvent);
+            monitor.on(event, cb);
+        }
+        function disable() {
+            console.debug("Disable subscription:", event, domEvent);
+            monitor.off(event, cb);
+        }
+        function shutdown() {
+            console.debug("Shutdown subscription:", event, domEvent);
+            monitor.off(event, cb);
+            for (const x of enableEvents) {
+                win.off(x, enable);
+            }
+            for (const x of disableEvents) {
+                win.off(x, disable);
+            }
+        }
+        enable('init');
+        win.webContents.once('destroyed', shutdown);
+        win.webContents.once('did-start-loading', shutdown);
+        for (const x of enableEvents) {
+            win.on(x, enable);
+        }
+        for (const x of disableEvents) {
+            win.on(x, disable);
+        }
+    });
     await createWindows(monitor);
     app.on('activate', async () => {
         if (BrowserWindow.getAllWindows().length === 0) {

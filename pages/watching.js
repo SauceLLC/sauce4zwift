@@ -1,3 +1,4 @@
+/* global sauce */
 
 function humanNumber(num, fallback='-') {
     if (num != null && !isNaN(num)) {
@@ -29,8 +30,7 @@ async function main() {
     content.querySelector('.power .current').addEventListener('contextmenu', ev => {
         console.log("right click");
     });
-    document.addEventListener('watching', ev => {
-        const watching = ev.detail;
+    sauce.subscribe('watching', watching => {
         const stats = watching.stats;
 
         pwrCurEl.textContent = humanNumber(watching.power);

@@ -94,20 +94,27 @@
         document.dispatchEvent(new CustomEvent('electron-message', {detail: {name, data}}));
     };
 
-    // Need a mech that works on windows when using -webkit-app-region: drag;
-    // XXX make sure this plays nice on windows.  Did not test before last commit
-    window.addEventListener('dblclick', () =>
-        void document.documentElement.classList.toggle('active'));
-    window.addEventListener('blur', () =>
-        void document.documentElement.classList.remove('active'));
+    let subId = 1;
+    sauce.subscribe = function(event, callback) {
+        const domEvent = `sauce-${event}-${subId++}`;
+        document.addEventListener(domEvent, ev => void callback(ev.detail));
+        sauce.electronTrigger('subscribe', {event, domEvent});
+    };
+
     addEventListener('DOMContentLoaded', () => {
+        const html = document.documentElement;
+        if (!html.classList.contains('options')) {
+            window.addEventListener('dblclick', () =>
+                void document.documentElement.classList.toggle('active'));
+            window.addEventListener('blur', () =>
+                void document.documentElement.classList.remove('active'));
+        }
         const close = document.querySelector('#titlebar .button.close');
         if (close) {
             close.addEventListener('click', ev => (void sauce.closeWindow()));
         }
-        const options = document.querySelector('#titlebar .button.options');
-        if (options) {
-            options.addEventListener('click', ev => location.assign(options.dataset.url));
+        for (const el of document.querySelectorAll('.button[data-url]')) {
+            el.addEventListener('click', ev => location.assign(el.dataset.url));
         }
     });
 })();
