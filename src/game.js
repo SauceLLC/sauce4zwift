@@ -488,8 +488,8 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 x.speed = x.athletes.reduce((agg, x) => agg + x.speed, 0) / x.athletes.length; // XXX use median i think
                 if (watchingIdx !== i) {
                     const edge = watchingIdx < i ? x.athletes[0] : x.athletes.at(-1);
-                    x.isGapEst = edge.isGapEst; // XXX  deprecate
-                    x.gap = edge.gap; // XXX  deprecate
+                    x.isGapEst = edge.isGapEst;
+                    x.gap = edge.gap;
                     if (i < groups.length - 1 && x.gap - groups[i + 1] < 2) {
                         debugger;
                     }

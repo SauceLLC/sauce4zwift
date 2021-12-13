@@ -54,6 +54,21 @@ async function makeFloatingWindow(page, options={}) {
         ...savedState,
     });
     windows.set(win.webContents, win);
+    win.webContents.on('new-window', (ev, url) => {
+        ev.preventDefault();
+        const newWin = new BrowserWindow({
+            resizable: true,
+            maximizable: true,
+            fullscreenable: true,
+            webPreferences: {
+                nodeIntegration: false,
+                contextIsolation: true,
+                sandbox: true,
+                enableRemoteModule: false,
+            }
+        });
+        newWin.loadURL(url);
+    });
     let saveStateTimeout;
     function onPositionUpdate() {
         Object.assign(savedState, win.getBounds());

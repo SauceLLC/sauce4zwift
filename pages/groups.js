@@ -53,7 +53,6 @@ async function main() {
                 groupEls.set(relPos, group);
             }
             const group = groupEls.get(relPos);
-            const gap = relPos < 0 ? +x.gap : next ? +next.gap : 0;
             group.classList.toggle('watching', !!x.watching);
             group.style.setProperty('--athletes', x.athletes.length);
             let bubble;
@@ -69,8 +68,8 @@ async function main() {
                 Math.round(x.speed).toLocaleString() + sauce.locale.thinSpace + 'kph',
             ].map((x, i) => `<div class="line ${i ? 'minor' : ''}">${x}</div>`).join('');
             const gapEl = group.nextSibling;
-            const innerGap = next ? Math.round(next.gap - x.gap) : 0;
-            console.warn(innerGap, Math.round(x.innerGap));
+            const innerGap = next ? Math.round(x.innerGap) : 0;
+            const gap = relPos < 0 ? x.gap : next ? next.gap : 0;
             gapEl.style.setProperty('--inner-gap', innerGap);
             gapEl.style.setProperty('--outer-gap', Math.abs(gap));
             gapEl.style.setProperty('--gap-sign', gap > 0 ? 1 : -1);
@@ -79,6 +78,7 @@ async function main() {
             const dur = innerGap && sauce.locale.humanDuration(Math.abs(gap), {short: true, seperator: ' '});
             gapEl.querySelector('.desc .line.time').textContent = dur ? (gap > 0 ? '+' : '-') + dur : '';
         }
+        console.info("");
         for (const [pos, x] of groupEls.entries()) {
             x.classList.toggle('hidden', !active.has(pos));
         }

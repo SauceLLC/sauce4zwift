@@ -87,7 +87,7 @@ async function main() {
         }
         entry.style.setProperty('--message-hue', athleteHue(chat.from) + 'deg');
         entry.innerHTML = `
-            <div class="avatar"><img src="${chat.avatar || 'images/blankavatar.png'}"/></div>
+            <a href="${chat.avatar}" target="_blank" class="avatar"><img src="${chat.avatar || 'images/blankavatar.png'}"/></a>
             <div class="content">
                 <div class="header"><span class="name"></span></div>
                 <div class="live">${liveDataFormatter(chat.from)}</div>
@@ -100,27 +100,25 @@ async function main() {
         addContentEntry(entry);
     }
 
-    sauce.subscribe('nearby', nearby => {
-        for (const x of nearby) {
+    sauce.subscribe('nearby', data => {
+        for (const x of data) {
             nearby.set(x.athleteId, x);
         }
     });
     sauce.subscribe('chat', onChatMessage);
 
     // TESTING
-    /*
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 0; i++) {
         onChatMessage({
             firstName: 'Foo',
             lastName: 'Bar',
             message: 1000000 * i,
-            from: Array.from(nearby.keys())[Math.floor(Math.random() * nearby.size)] || 0,
+            from: Array.from(nearby.keys())[Math.floor(Math.random() * nearby.size / 10)] || 0,
             to: 0,
             avatar: 'images/blankavatar.png',
         });
         await sleep(1000 * i);
     }
-    */
 }
 
 addEventListener('DOMContentLoaded', () => main());
