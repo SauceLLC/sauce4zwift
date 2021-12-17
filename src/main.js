@@ -48,11 +48,15 @@ async function makeFloatingWindow(page, options={}) {
             contextIsolation: true,
             sandbox: true,
             enableRemoteModule: false,
+            //webSecurity: false,
             preload: path.join(__dirname, '../pages/preload.js'),
         },
         ...options,
         ...savedState,
     });
+    win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    callback({responseHeaders: Object.fromEntries(Object.entries(details.responseHeaders).filter(header => !/x-frame-options/i.test(header[0])))});
+});
     windows.set(win.webContents, win);
     win.webContents.on('new-window', (ev, url) => {
         ev.preventDefault();
