@@ -11,6 +11,12 @@ const ZwiftPacketMonitor = require('@saucellc/zwift-packet-monitor');
 const athleteCacheLabel = 'athlete-cache';
 
 
+const _refTS = Date.now();
+function ts() {
+    return (Date.now() - _refTS) / 1000;
+}
+
+
 async function getLocalRoutedIP() {
     const sock = net.createConnection(80, 'www.zwift.com');
     return await new Promise((resolve, reject) => {
@@ -245,6 +251,10 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         this.states.set(state.athleteId, state);
         if (!this._stats.has(state.athleteId)) {
             this._stats.set(state.athleteId, {
+                streams: {
+                    watts: [],
+                    time: [],
+                },
                 power30s: 0,
                 powerSum: 0,
                 powerDur: 0,
@@ -285,6 +295,8 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         const stats = this._stats.get(state.athleteId);
         const duration = stats.worldTime ? state.worldTime.toNumber() - stats.worldTime : 0;
         stats.worldTime = state.worldTime.toNumber();
+        stats.streams.time.push(ts());
+        stats.streams.watts.push(state.power);
         if (duration && state.speed) {
             if (state.power != null) {
                 stats.power30s = (stats.power30s * 29 + state.power) / 30,
