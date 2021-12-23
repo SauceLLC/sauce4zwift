@@ -7,6 +7,7 @@ const sudo = require('sudo-prompt');
 const cap = require('cap');
 const {dialog} = require('electron');
 const ZwiftPacketMonitor = require('@saucellc/zwift-packet-monitor');
+const sauce = require('./shared/base.js');
 
 const athleteCacheLabel = 'athlete-cache';
 
