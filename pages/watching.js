@@ -21,19 +21,20 @@ async function main() {
     const draftAvgEl = content.querySelector('.draft .avg .value');
     const pwrMaxEl = content.querySelector('.power .max .value');
     const hrMaxEl = content.querySelector('.hr .max .value');
+    let powerSelections = [
+        x => Math.round(x.power) + ' c',
+        x => Math.round(x.stats.peak5s) + ' 5s',
+        x => Math.round(x.stats.peak30s) + ' 30s',
+    ];
+    let powerFunc = powerSelections[0];
     content.querySelector('.power .current').addEventListener('click', ev => {
-        console.log("click");
-    });
-    content.querySelector('.power .current').addEventListener('dblclick', ev => {
-        console.log("dblclick");
-    });
-    content.querySelector('.power .current').addEventListener('contextmenu', ev => {
-        console.log("right click");
+        powerFunc = powerSelections[(powerSelections.indexOf(powerFunc) + 1) % powerSelections.length];
     });
     sauce.subscribe('watching', watching => {
         const stats = watching.stats;
 
-        pwrCurEl.textContent = humanNumber(watching.power);
+        //pwrCurEl.textContent = humanNumber(watching.power);
+        pwrCurEl.textContent = powerFunc(watching);
         hrCurEl.textContent = humanNumber(watching.heartrate || null);
         cadCurEl.textContent = humanNumber(watching.cadence);
         draftCurEl.textContent = humanNumber(watching.draft);

@@ -7,7 +7,7 @@ const sudo = require('sudo-prompt');
 const cap = require('cap');
 const {dialog} = require('electron');
 const ZwiftPacketMonitor = require('@saucellc/zwift-packet-monitor');
-const sauce = require('./shared/base.js');
+const sauce = require('../shared/lib.js');
 
 const athleteCacheLabel = 'athlete-cache';
 
@@ -298,6 +298,10 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         stats.worldTime = state.worldTime.toNumber();
         stats.streams.time.push(ts());
         stats.streams.watts.push(state.power);
+        try {
+            stats.peak5s = (new sauce.power.peakPower(5, stats.streams.time, stats.streams.watts)).avg();
+            stats.peak30s = (new sauce.power.peakPower(30, stats.streams.time, stats.streams.watts)).avg();
+        } catch(e) {}
         if (duration && state.speed) {
             if (state.power != null) {
                 stats.power30s = (stats.power30s * 29 + state.power) / 30,

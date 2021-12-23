@@ -1,5 +1,13 @@
 /* global sauce */
 
+let sauce;
+try {
+    sauce = require('./base.js');
+    module.exports = sauce;
+} catch(e) {
+    sauce = self.sauce;
+}
+
 sauce.ns('data', function() {
     'use strict';
 

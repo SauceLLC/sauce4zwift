@@ -1,12 +1,20 @@
-/* global sauce */
+/* global */
 
-(function() {
+let isNode;
+try {
+    module, global, require;
+    isNode = true;
+} catch(e) {
+    isNode = false;
+}
+
+(function(ns) {
     'use strict';
 
-    self.sauce = self.sauce || {};
+    const pendingAsyncExports = [];
 
     function buildPath(path) {
-        let offt = self;
+        let offt = ns;
         for (const x of path) {
             if (!offt[x]) {
                 offt[x] = {};
@@ -16,14 +24,13 @@
         return offt;
     }
 
-
-    sauce.ns = function(ns, callback, options={}) {
-        const offt = buildPath(`sauce.${ns}`.split('.'));
+    ns.ns = function(ns, callback, options={}) {
+        const offt = buildPath(ns.split('.'));
         const assignments = callback && callback(offt);
         if (assignments instanceof Promise) {
             assignments.then(x => Object.assign(offt, x));
             if (options.hasAsyncExports) {
-                sauce._pendingAsyncExports.push(assignments);
+                pendingAsyncExports.push(assignments);
             }
         } else if (assignments) {
             Object.assign(offt, assignments);
@@ -33,7 +40,7 @@
 
 
     const _maxTimeout = 0x7fffffff;  // `setTimeout` max valid value.
-    sauce.sleep = async function(ms) {
+    ns.sleep = async function(ms) {
         while (ms > _maxTimeout) {
             // Support sleeping longer than the javascript max setTimeout...
             await new Promise(resolve => setTimeout(resolve, _maxTimeout));
@@ -44,7 +51,7 @@
 
 
     /* Only use for non-async callbacks */
-    sauce.debounced = function(scheduler, callback) {
+    ns.debounced = function(scheduler, callback) {
         let nextPending;
         const wrap = function() {
             const waiting = !!nextPending;
@@ -67,13 +74,13 @@
     };
 
 
-    sauce.formatInputDate = function(ts) {
+    ns.formatInputDate = function(ts) {
         // Return a input[type="date"] compliant value from a ms timestamp.
         return ts ? (new Date(ts)).toISOString().split('T')[0] : '';
     };
 
 
-    sauce.blobToArrayBuffer = async function(blob) {
+    ns.blobToArrayBuffer = async function(blob) {
         const reader = new FileReader();
         const done = new Promise((resolve, reject) => {
             reader.addEventListener('load', resolve);
@@ -85,7 +92,7 @@
     };
 
 
-    sauce.LRUCache = class LRUCache extends Map {
+    ns.LRUCache = class LRUCache extends Map {
         constructor(capacity) {
             super();
             this._capacity = capacity;
@@ -136,4 +143,4 @@
             super.clear();
         }
     };
-})();
+})(isNode ? this : (this.sauce = {}));
