@@ -13,7 +13,7 @@ const athleteCacheLabel = 'athlete-cache';
 
 
 const _refTS = Date.now();
-function ts() {
+function monoTime() {
     return (Date.now() - _refTS) / 1000;
 }
 
@@ -238,6 +238,9 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         return [state.roadId, state.reverse].join();
     }
 
+    rollingPowerAvg(athleteId, period) {
+    }
+
     processState(state) {
         // Move this to zwift-packet thing..
         Object.assign(state, this.processFlags1(state.flags1));
@@ -251,12 +254,15 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         state.roadCompletion = !state.reverse ? 1000000 - roadCompletion : roadCompletion;
         this.states.set(state.athleteId, state);
         if (!this._stats.has(state.athleteId)) {
+            const rp = new sauce.power.RollingPower(null, {idealGap: null, maxGap: 30});
+            const periods = [5, 10, 30, 60, 120, 300, 1200, 3600];
             this._stats.set(state.athleteId, {
-                streams: {
-                    watts: [],
-                    time: [],
-                },
-                power30s: 0,
+                _firstTS: state.ts,
+                _rp: rp,
+                _powerPeriods: new Map(periods.map(x => [x, {
+                    roll: rp.clone({period: x}),
+                    peak: {avg: 0, ts:0}
+                }])),
                 powerSum: 0,
                 powerDur: 0,
                 powerMax: 0,
@@ -294,17 +300,33 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         }
         roadLoc.timeline.push({ts: state.ts, roadCompletion: state.roadCompletion});
         const stats = this._stats.get(state.athleteId);
-        const duration = stats.worldTime ? state.worldTime.toNumber() - stats.worldTime : 0;
-        stats.worldTime = state.worldTime.toNumber();
-        stats.streams.time.push(ts());
-        stats.streams.watts.push(state.power);
-        try {
-            stats.peak5s = (new sauce.power.peakPower(5, stats.streams.time, stats.streams.watts)).avg();
-            stats.peak30s = (new sauce.power.peakPower(30, stats.streams.time, stats.streams.watts)).avg();
-        } catch(e) {}
+        const duration = stats._lastTS ? state.ts - stats._lastTS : 0;
+        stats._lastTS = state.ts;
+        if (this.watching === state.athleteId) {
+            try {
+                //console.log(duration, Math.round((monoTime() - stats.streams.time.at(-1)) * 1000), state.power);
+            } catch(e) {}
+        }
         if (duration && state.speed) {
+            // Support runs. XXX
             if (state.power != null) {
-                stats.power30s = (stats.power30s * 29 + state.power) / 30,
+
+                //state.power = 100 * Math.ceil(monoTime() / 30);
+
+                stats._rp.add((state.ts - stats._firstTS) / 1000, state.power);
+                for (const [p, {roll, peak}] of stats._powerPeriods.entries()) {
+                    roll.resize();
+                    if (roll.full() && roll.avg() >= peak.avg) {
+                        peak.avg = roll.avg();
+                        peak.ts = Date.now();
+                        stats[`peakPower${p}s`] = peak;
+                    }
+                }
+                stats.power5s = stats._rp.slice(-5).avg();
+                stats.power30s = stats._rp.slice(-30).avg();
+                if (this.watching === state.athleteId) {
+                    //console.log(stats.power5s, stats.power30s, state.power, Math.round(monoTime()));
+                }
                 stats.powerSum += state.power * duration;
                 stats.powerDur += duration;
                 if (state.power > stats.powerMax) {
@@ -328,8 +350,11 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             }
         }
         state.stats = stats;
-        if (this.watching === state.athleteId) {
-            this.emit('watching', state);
+        if (this.watching === state.athleteId && duration) { // XXX why is duration only sometimes 0, bug ?
+            this.emit('watching', {
+                ...state, 
+                stats: Object.fromEntries(Object.entries(stats).filter(([k]) => !k.startsWith('_')))
+            });
         }
     }
 

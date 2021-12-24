@@ -249,8 +249,8 @@ sauce.ns('data', function() {
             this._length = 0;
         }
 
-        clone() {
-            const instance = new this.constructor(this.period);
+        clone(options={}) {
+            const instance = new this.constructor(options.period || this.period);
             instance._times = this._times;
             instance._values = this._values;
             instance._offt = this._offt;
@@ -260,11 +260,16 @@ sauce.ns('data', function() {
 
         slice(startTime, endTime) {
             const clone = this.clone();
+            if (startTime < 0) {
+                startTime = clone.lastTime() + startTime;
+            }
             while (clone.firstTime() < startTime) {
                 clone.shift();
             }
-            while (clone.lastTime() > endTime) {
-                clone.pop();
+            if (endTime != null) {
+                while (clone.lastTime() > endTime) {
+                    clone.pop();
+                }
             }
             return clone;
         }
@@ -309,17 +314,27 @@ sauce.ns('data', function() {
         }
 
         add(ts, value) {
-            this._values.push(this.addValue(value, ts));
             this._times.push(ts);
-            this._length++;
-            while (this.full({offt: 1})) {
-                this.shift();
-            }
+            this._values.push(value);
+            this.resize(1);
             return value;
         }
 
-        addValue(value) {
-            return value;
+        resize(size) {
+            const length = size ? this._length + size : this._values.length;
+            if (length > this._values.length) {
+                throw new Error('resize underflow');
+            }
+            for (let i = this._length; i < length; i++) {
+                this.processValue(this._values[i], this._times[i]);
+            }
+            this._length = length;
+            while (this.full({offt: 1})) {
+                this.shift();
+            }
+        }
+
+        processValue(value) {
         }
 
         shiftValue() {
@@ -414,12 +429,11 @@ sauce.ns('data', function() {
             }
         }
 
-        addValue(value, ts) {
+        processValue(value, ts) {
             this._sum += value;
             if (this._ignoreZeros && !value) {
                 this._zeros++;
             }
-            return value;
         }
 
         shiftValue(value) {
@@ -436,8 +450,8 @@ sauce.ns('data', function() {
             }
         }
 
-        clone() {
-            const instance = super.clone();
+        clone(...args) {
+            const instance = super.clone(...args);
             instance._sum = this._sum;
             instance._ignoreZeros = this._ignoreZeros;
             instance._zeros = this._zeros;
@@ -665,13 +679,13 @@ sauce.ns('power', function() {
 
 
     class RollingPower extends sauce.data.RollingBase {
-        constructor(period, options={}) {
+        constructor(period, options={idealGap: 1, breakGap: 3600}) {
             super(period);
             this._joules = 0;
             this._gapPadCount = 0;
-            this.idealGap = options.idealGap || 1;
-            this.maxGap = options.maxGap && Math.max(options.maxGap, this.idealGap);
-            this.breakGap = options.breakGap || 3600;
+            this.idealGap = options.idealGap;
+            this.maxGap = options.maxGap;
+            this.breakGap = options.breakGap;
             this._active = options.active;
             if (options.inlineNP) {
                 const sampleRate = 1 / this.idealGap;
@@ -705,30 +719,31 @@ sauce.ns('power', function() {
             if (this._length) {
                 const prevTS = this._times[this._length - 1];
                 const gap = ts - prevTS;
-                if (gap > this.maxGap) {
+                if (this.maxGap && gap > this.maxGap) {
                     const zeroPad = new sauce.data.Zero();
+                    let idealGap = this.idealGap;
+                    if (!idealGap) {
+                        const gaps = sauce.data.recommendedTimeGaps(this.times());
+                        idealGap = gaps.ideal;
+                    }
                     if (gap > this.breakGap) {
                         // Handle massive gaps between time stamps seen by Garmin devices glitching.
                         // Note, to play nice with elapsed time based rolling avgs, we include the
                         // max number of zero pads on either end of the gap.
-                        const bookEndTime = Math.floor(this.breakGap / 2) - this.idealGap;
-                        for (let i = this.idealGap; i < bookEndTime; i += this.idealGap) {
-                            this._gapPadCount++;
+                        const bookEndTime = Math.floor(this.breakGap / 2) - idealGap;
+                        for (let i = idealGap; i < bookEndTime; i += idealGap) {
                             super.add(prevTS + i, zeroPad);
                         }
                         super.add(prevTS + bookEndTime, new sauce.data.Break(gap - (bookEndTime * 2)));
-                        this._gapPadCount++;
-                        for (let i = gap - bookEndTime; i < gap; i += this.idealGap) {
-                            this._gapPadCount++;
+                        for (let i = gap - bookEndTime; i < gap; i += idealGap) {
                             super.add(prevTS + i, zeroPad);
                         }
                     } else {
-                        for (let i = this.idealGap; i < gap; i += this.idealGap) {
-                            this._gapPadCount++;
+                        for (let i = idealGap; i < gap; i += idealGap) {
                             super.add(prevTS + i, zeroPad);
                         }
                     }
-                } else if (gap > this.idealGap) {
+                } else if (this.idealGap && gap > this.idealGap) {
                     for (let i = this.idealGap; i < gap; i += this.idealGap) {
                         super.add(prevTS + i, new sauce.data.Pad(value));
                     }
@@ -737,10 +752,16 @@ sauce.ns('power', function() {
             return super.add(ts, value);
         }
 
-        addValue(value, ts) {
+        processValue(value, ts) {
             const i = this._length;
-            const gap = i ? ts - this._times[i - 1] : 0;
+            const gap = i ? Math.max(0, ts - this._times[i - 1]) : 0;
             this._joules += value * gap;
+            if (this._joules < 0) {
+                console.warn("Negative energy", this._joules);
+            }
+            if (value instanceof sauce.data.Zero) {
+                this._gapPadCount++;
+            }
             if (this._inlineNP) {
                 const state = this._inlineNP;
                 const saved = {};
@@ -794,12 +815,10 @@ sauce.ns('power', function() {
                 }
                 state.saved.push(saved);
             }
-            return value;
         }
 
         shiftValue(value) {
-            const isGapPad = value instanceof sauce.data.Zero;
-            if (isGapPad) {
+            if (value instanceof sauce.data.Zero) {
                 this._gapPadCount--;
             }
             const i = this._offt - 1;
@@ -834,7 +853,7 @@ sauce.ns('power', function() {
         active(options={}) {
             const count = this.size() - (options.offt || 0) - this._gapPadCount;
             // Subtract the first record as it doesn't indicate a time quanta, just the start ref.
-            return (count - 1) * this.idealGap;
+            return (count - 1) * (this.idealGap || 1);
         }
 
         full(options={}) {
@@ -873,8 +892,8 @@ sauce.ns('power', function() {
             return this._joules / 1000;
         }
 
-        clone() {
-            const instance = super.clone();
+        clone(...args) {
+            const instance = super.clone(...args);
             instance.idealGap = this.idealGap;
             instance.maxGap = this.maxGap;
             instance.breakGap = this.breakGap;
@@ -1960,6 +1979,16 @@ sauce.ns('perf', function() {
         return _makeExpWeightedCalc(size)(data, seed);
     }
 
+    function makeExpWeightedAccumulator(fixedSize, seed=0) {
+        let v = seed;
+        const fixedC = fixedSize ? 1 - Math.exp(-1 / fixedSize) : null;
+        return function(x, size) {
+            const c = size ? (1 - Math.exp(-1 / size)) : fixedC;
+            v = (v * (1 - c)) + (x * c);
+            return v;
+        };
+    }
+
 
     return {
         calcTRIMP,
@@ -1969,6 +1998,7 @@ sauce.ns('perf', function() {
         calcCTL,
         calcATL,
         expWeightedAvg,
+        makeExpWeightedAccumulator,
     };
 });
 
