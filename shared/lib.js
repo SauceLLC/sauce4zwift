@@ -326,7 +326,7 @@ sauce.ns('data', function() {
                 throw new Error('resize underflow');
             }
             for (let i = this._length; i < length; i++) {
-                this.processValue(this._values[i], this._times[i]);
+                this.processIndex(i);
             }
             this._length = length;
             while (this.full({offt: 1})) {
@@ -334,7 +334,7 @@ sauce.ns('data', function() {
             }
         }
 
-        processValue(value) {
+        processIndex(index) {
         }
 
         shiftValue() {
@@ -429,7 +429,8 @@ sauce.ns('data', function() {
             }
         }
 
-        processValue(value, ts) {
+        processIndex(i) {
+            const value = this._values[i];
             this._sum += value;
             if (this._ignoreZeros && !value) {
                 this._zeros++;
@@ -724,7 +725,7 @@ sauce.ns('power', function() {
                     let idealGap = this.idealGap;
                     if (!idealGap) {
                         const gaps = sauce.data.recommendedTimeGaps(this.times());
-                        idealGap = gaps.ideal;
+                        idealGap = gaps.ideal || 1;
                     }
                     if (gap > this.breakGap) {
                         // Handle massive gaps between time stamps seen by Garmin devices glitching.
@@ -752,11 +753,15 @@ sauce.ns('power', function() {
             return super.add(ts, value);
         }
 
-        processValue(value, ts) {
-            const i = this._length;
+        processIndex(i) {
+            const ts = this._times[i];
+            const value = this._values[i];
             const gap = i ? Math.max(0, ts - this._times[i - 1]) : 0;
+            if (value * gap > 1000) {
+                console.warn("big value", value, gap);
+            }
             this._joules += value * gap;
-            if (this._joules < 0) {
+            if (this._joules < -1) {
                 console.warn("Negative energy", this._joules);
             }
             if (value instanceof sauce.data.Zero) {
@@ -850,10 +855,22 @@ sauce.ns('power', function() {
             return this._joules / this.elapsed();
         }
 
-        active(options={}) {
+        activeOld(options={}) {
             const count = this.size() - (options.offt || 0) - this._gapPadCount;
             // Subtract the first record as it doesn't indicate a time quanta, just the start ref.
             return (count - 1) * (this.idealGap || 1);
+        }
+
+        active() {
+            let s = 0;
+            for (let i = this._offt; i < this._length; i++) {
+                if (this._values[i] instanceof sauce.data.Zero) {
+                    continue;
+                }
+                const gap = i ? this._times[i] - this._times[i - 1] : this.idealGap || 1;
+                s += gap;
+            }
+            return s;
         }
 
         full(options={}) {

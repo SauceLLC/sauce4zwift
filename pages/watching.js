@@ -9,8 +9,15 @@ function humanNumber(num, fallback='-') {
 }
 
 
-function rotateField(fields, cur) {
-    return fields[(fields.indexOf(cur) + 1) % fields.length];
+function rotateField(label, fields, cur) {
+    let i;
+    if (!cur) {
+        i = localStorage.getItem(label);
+    } else {
+        i = fields.indexOf(cur) + 1;
+        localStorage.setItem(label, i);
+    }
+    return fields[i % fields.length];
 }
 
 
@@ -20,12 +27,13 @@ function makePeakField(period) {
             const o = x.stats[`peakPower${period}s`];
             return o && o.avg;
         },
-        label: x => { 
+        label: x => {
             const label = `peak ${sauce.locale.humanDuration(period, {short: true})}`;
-            if (!x.stats.peakPower5s) {
+            const o = x.stats[`peakPower${period}s`];
+            if (!o) {
                 return label;
             }
-            const ago = (Date.now() - x.stats.peakPower5s.ts) / 1000;
+            const ago = (Date.now() - o.ts) / 1000;
             return `${label}<br/><small>${sauce.locale.humanDuration(ago)} ago</small>`;
         }
     };
@@ -49,6 +57,15 @@ async function main() {
         value: x => x.power,
         label: () => 'watts',
     }, {
+        value: x => x.stats.powerAvg,
+        label: () => 'Roll eAVG',
+    }, {
+        value: x => x.stats.powerAvgActive,
+        label: () => 'Roll aAVG',
+    }, {
+        value: x => x.stats.powerNP,
+        label: () => 'NP',
+    }, {
         value: x => x.stats.power5s,
         label: () => '5s watts',
     }, {
@@ -63,9 +80,9 @@ async function main() {
         makePeakField(1200),
         makePeakField(3600),
     ];
-    let powerField = powerFields[0];
+    let powerField = rotateField('power', powerFields);
     content.querySelector('.power .current').addEventListener('click', ev => {
-        powerField = rotateField(powerFields, powerField);
+        powerField = rotateField('power', powerFields, powerField);
     });
     sauce.subscribe('watching', watching => {
         const stats = watching.stats;
