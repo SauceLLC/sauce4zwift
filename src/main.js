@@ -5,6 +5,7 @@ const storage = require('./storage');
 const menu = require('./menu');
 const game = require('./game');
 const {app, BrowserWindow, ipcMain, nativeImage, dialog} = require('electron');
+let screen;
 
 const appIcon = nativeImage.createFromPath(path.join(__dirname, 'build/images/app-icon.icos'));
 const windows = new Map();
@@ -52,13 +53,14 @@ async function makeFloatingWindow(page, options={}) {
         ...state,
     });
     if (options.relWidth != null || options.relHeight != null ||
-        options.relX != null || options.relY != null) {
-        win.maximize();
-        const [sWidth, sHeight] = win.getSize();
+        options.relX != null || options.relY != null || options.x < 0 || options.y < 0) {
+        const {width: sWidth, height: sHeight} = screen.getPrimaryDisplay().size;
         const width = options.width == null ? Math.round(options.relWidth * sWidth) : options.width;
         const height = options.height == null ? Math.round(options.relHeight * sHeight) : options.height;
-        const x = options.x == null ? Math.round(options.relX * sWidth) : options.x;
-        const y = options.y == null ? Math.round(options.relY * sHeight) : options.y;
+        const x = options.x == null ? Math.round(options.relX * sWidth) :
+            options.x < 0 ? sWidth + options.x - width : options.x;
+        const y = options.y == null ? Math.round(options.relY * sHeight) :
+            options.y < 0 ? sHeight + options.y - height : options.y;
         win.setSize(width, height);
         win.setPosition(x, y, false);
     }
@@ -127,11 +129,14 @@ async function makeFloatingWindow(page, options={}) {
 
 async function createWindows(monitor) {
     await clearWindowState('overview.html'); // XXX TESTING
+    await clearWindowState('watching.html'); // XXX TESTING
+    await clearWindowState('groups.html'); // XXX TESTING
+    await clearWindowState('chat.html'); // XXX TESTING
     await Promise.all([
-        makeFloatingWindow('watching.html', {width: 260, height: 260, x: 8, y: 54}),
-        makeFloatingWindow('groups.html', {width: 235, height: 650, x: 960, y: 418}),
-        makeFloatingWindow('chat.html', {width: 280, height: 580, x: 280, y: 230}),
-        makeFloatingWindow('overview.html', {relWidth: 0.8, height: 40, relX: 0.1, y: 0, hideable: false}),
+        makeFloatingWindow('watching.html', {width: 260, height: 260, x: 8, y: 64}),
+        makeFloatingWindow('groups.html', {width: 235, height: 650, x: -280, y: -10}),
+        makeFloatingWindow('chat.html', {width: 280, height: 580, x: 320, y: 230}),
+        makeFloatingWindow('overview.html', {relWidth: 0.6, height: 40, relX: 0.2, y: 0, hideable: false}),
     ]);
 }
 
@@ -146,6 +151,8 @@ app.on('window-all-closed', () => {
 
 async function main() {
     await app.whenReady();
+    ({screen} = require('electron'));  // Must come after ready.
+
     menu.setAppMenu();
     const monitor = await game.Sauce4ZwiftMonitor.factory();
     try {
