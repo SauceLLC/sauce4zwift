@@ -1,21 +1,14 @@
 /* global sauce */
 
-function humanNumber(num, fallback='-') {
-    if (num != null && !isNaN(num)) {
-        return Math.round(num).toLocaleString();
-    } else {
-        return fallback;
-    }
-}
+const L = sauce.locale;
 
-
-function rotateField(label, fields, cur, defIndex) {
+function rotateField(id, fields, cur, defIndex) {
     let i;
     if (!cur) {
-        i = localStorage.getItem(label) || defIndex;
+        i = localStorage.getItem(id) || defIndex;
     } else {
         i = fields.indexOf(cur) + 1;
-        localStorage.setItem(label, i);
+        localStorage.setItem(id, i);
     }
     return fields[i % fields.length];
 }
@@ -25,7 +18,7 @@ function makePeakField(period) {
     return {
         value: x => {
             const o = x.stats[`peakPower${period}s`];
-            return o && o.avg;
+            return L.humanNumber(o && o.avg);
         },
         label: x => {
             const label = `peak ${sauce.locale.humanDuration(period, {short: true})}`;
@@ -43,12 +36,6 @@ function makePeakField(period) {
 
 async function main() {
     const content = document.querySelector('#content');
-    const pwrMainValueEl = content.querySelector('.power .main .value');
-    const pwrMainLabelEl = content.querySelector('.power .main .label');
-    const pwrUpperValueEl = content.querySelector('.power .upper .value');
-    const pwrUpperKeylEl = content.querySelector('.power .upper .key');
-    const pwrLowerValueEl = content.querySelector('.power .lower .value');
-    const pwrLowerKeyEl = content.querySelector('.power .lower .key');
     const hrCurEl = content.querySelector('.hr .current .value');
     const cadCurEl = content.querySelector('.cadence .current .value');
     const draftCurEl = content.querySelector('.draft .current .value');
@@ -56,82 +43,82 @@ async function main() {
     const cadAvgEl = content.querySelector('.cadence .avg .value');
     const draftAvgEl = content.querySelector('.draft .avg .value');
     const hrMaxEl = content.querySelector('.hr .max .value');
-    const powerFields = [{
-        value: x => x.power,
-        label: () => 'watts',
-        key: () => 'Watts',
-    }, {
-        value: x => x.stats.powerMax,
-        label: () => 'max',
-        key: () => 'Max',
-    }, {
-        value: x => x.stats.powerAvg,
-        label: () => 'avg (elapsed)',
-        key: () => 'eAvg',
-    }, {
-        value: x => x.stats.powerAvgActive,
-        label: () => 'avg (active)',
-        key: () => 'aAvg',
-    }, {
-        value: x => x.stats.powerNP,
-        label: () => 'np',
-        key: () => 'NP',
-    }, {
-        value: x => x.stats.power5s,
-        label: () => '5s watts',
-        key: () => '5s',
-    }, {
-        value: x => x.stats.power30s,
-        label: () => '30s watts',
-        key: () => '30s',
-    },
-        makePeakField(5),
-        makePeakField(60),
-        makePeakField(300),
-    ];
-    let lastDraw = 0;
-    let powerFieldMain = rotateField('power-main', powerFields, null, 0);
-    content.querySelector('.power .main').addEventListener('click', ev => {
-        powerFieldMain = rotateField('power-main', powerFields, powerFieldMain);
-        lastDraw = 0;
-    });
-    let powerFieldLower = rotateField('power-lower', powerFields, null, 1);
-    content.querySelector('.power .lower').addEventListener('click', ev => {
-        powerFieldLower = rotateField('power-lower', powerFields, powerFieldLower);
-        lastDraw = 0;
-    });
-    let powerFieldUpper = rotateField('power-upper', powerFields, null, 2);
-    content.querySelector('.power .upper').addEventListener('click', ev => {
-        powerFieldUpper = rotateField('power-upper', powerFields, powerFieldUpper);
-        lastDraw = 0;
-    });
-
-
+    const powerSpec = {
+        mapping: [{
+            id: 'power-main',
+            default: 0
+        }, {
+            id: 'power-lower',
+            default: 1
+        }, {
+            id: 'power-upper',
+            default: 2
+        }],
+        fields: [{
+            value: x => L.humanNumber(x.power),
+            label: () => 'watts',
+            key: () => 'Watts',
+        }, {
+            value: x => L.humanNumber(x.stats.powerMax),
+            label: () => 'max',
+            key: () => 'Max',
+        }, {
+            value: x => L.humanNumber(x.stats.powerAvg),
+            label: () => 'avg',
+            key: () => 'Avg',
+        }, {
+            value: x => L.humanNumber(x.stats.powerNP),
+            label: () => 'np',
+            key: () => 'NP',
+        }, {
+            value: x => L.humanNumber(x.stats.power5s),
+            label: () => '5s watts',
+            key: () => '5s',
+        }, {
+            value: x => L.humanNumber(x.stats.power30s),
+            label: () => '30s watts',
+            key: () => '30s',
+        },
+            makePeakField(5),
+            makePeakField(60),
+            makePeakField(300),
+        ],
+    };
+    const renderers = [];
+    for (const x of powerSpec.mapping) {
+        const el = content.querySelector(`[data-field="${x.id}"]`);
+        const valueEl = el.querySelector('.value');
+        const labelEl = el.querySelector('.label');
+        const keyEl = el.querySelector('.key');
+        let f = rotateField(x.id, powerSpec.fields, null, x.default);
+        el.addEventListener('click', ev => void (f = rotateField(x.id, powerSpec.fields, f)));
+        renderers.push(x => {
+            if (valueEl) {
+                valueEl.innerHTML = f.value(x);
+            }
+            if (labelEl) {
+                labelEl.innerHTML = f.label(x);
+            }
+            if (keyEl) {
+                keyEl.innerHTML = f.key(x);
+            }
+        });
+    }
     sauce.subscribe('watching', watching => {
-        const ts = Date.now();
-        const sinceLast = ts - lastDraw;
-        if (sinceLast < 700) {
-            return;
-        }
-        lastDraw = ts;
         const stats = watching.stats;
+        for (const cb of renderers) {
+            cb(watching);
+        }
 
-        pwrMainValueEl.textContent = humanNumber(powerFieldMain.value(watching));
-        pwrMainLabelEl.innerHTML = powerFieldMain.label(watching);
-        pwrUpperValueEl.textContent = humanNumber(powerFieldUpper.value(watching));
-        pwrUpperKeylEl.innerHTML = powerFieldUpper.key(watching);
-        pwrLowerValueEl.textContent = humanNumber(powerFieldLower.value(watching));
-        pwrLowerKeyEl.innerHTML = powerFieldLower.key(watching);
+        hrCurEl.textContent = L.humanNumber(watching.heartrate || null);
+        cadCurEl.textContent = L.humanNumber(watching.cadence);
+        draftCurEl.textContent = L.humanNumber(watching.draft);
 
-        hrCurEl.textContent = humanNumber(watching.heartrate || null);
-        cadCurEl.textContent = humanNumber(watching.cadence);
-        draftCurEl.textContent = humanNumber(watching.draft);
+        hrAvgEl.textContent = L.humanNumber(stats.hrSum / stats.hrDur);
+        cadAvgEl.textContent = L.humanNumber(stats.cadenceSum / stats.cadenceDur);
+        draftAvgEl.textContent = L.humanNumber(stats.draftSum / stats.draftDur);
 
-        hrAvgEl.textContent = humanNumber(stats.hrSum / stats.hrDur);
-        cadAvgEl.textContent = humanNumber(stats.cadenceSum / stats.cadenceDur);
-        draftAvgEl.textContent = humanNumber(stats.draftSum / stats.draftDur);
-
-        hrMaxEl.textContent = humanNumber(stats.hrMax || null);
+        hrMaxEl.textContent = L.humanNumber(stats.hrMax || null);
     });
 }
 

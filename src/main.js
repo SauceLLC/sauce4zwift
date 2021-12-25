@@ -10,15 +10,6 @@ const appIcon = nativeImage.createFromPath(path.join(__dirname, 'build/images/ap
 const windows = new Map();
 
 
-if (Array.prototype.at) {
-    console.warn("Node supports Array.at now, remove this.");
-} else {
-    Array.prototype.at = function(i) {
-        return i < 0 ? this[this.length + i] : this[i];
-    };
-}
-
-
 async function getWindowState(page) {
     const id = page.split('.')[0];
     return await storage.load(`window-${id}`);
@@ -31,8 +22,14 @@ async function setWindowState(page, data) {
 }
 
 
+async function clearWindowState(page) {
+    const id = page.split('.')[0];
+    await storage.save(`window-${id}`, {});
+}
+
+
 async function makeFloatingWindow(page, options={}) {
-    const savedState = (await getWindowState(page)) || {};
+    const state = (await getWindowState(page)) || {};
     const win = new BrowserWindow({
         icon: appIcon,
         transparent: true,
@@ -43,22 +40,38 @@ async function makeFloatingWindow(page, options={}) {
         resizable: true,
         maximizable: false,
         fullscreenable: false,
+        show: false,
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
             sandbox: true,
             enableRemoteModule: false,
-            //webSecurity: false,
             preload: path.join(__dirname, '../pages/preload.js'),
         },
         ...options,
-        ...savedState,
+        ...state,
     });
+    if (options.relWidth != null || options.relHeight != null ||
+        options.relX != null || options.relY != null) {
+        win.maximize();
+        const [sWidth, sHeight] = win.getSize();
+        const width = options.width == null ? Math.round(options.relWidth * sWidth) : options.width;
+        const height = options.height == null ? Math.round(options.relHeight * sHeight) : options.height;
+        const x = options.x == null ? Math.round(options.relX * sWidth) : options.x;
+        const y = options.y == null ? Math.round(options.relY * sHeight) : options.y;
+        win.setSize(width, height);
+        win.setPosition(x, y, false);
+    }
+    // Allow iframes to work for any site..
     win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
-    callback({responseHeaders: Object.fromEntries(Object.entries(details.responseHeaders).filter(header => !/x-frame-options/i.test(header[0])))});
-});
-    windows.set(win.webContents, win);
+        callback({
+            responseHeaders: Object.fromEntries(Object.entries(details.responseHeaders)
+                .filter(header => !/x-frame-options/i.test(header[0])))
+        });
+    });
+    windows.set(win.webContents, {win, state, options});
     win.webContents.on('new-window', (ev, url) => {
+        debugger; // ded? XXX
         ev.preventDefault();
         const newWin = new BrowserWindow({
             resizable: true,
@@ -75,17 +88,17 @@ async function makeFloatingWindow(page, options={}) {
     });
     let saveStateTimeout;
     function onPositionUpdate() {
-        Object.assign(savedState, win.getBounds());
+        Object.assign(state, win.getBounds());
         clearTimeout(saveStateTimeout);
-        saveStateTimeout = setTimeout(() => setWindowState(page, savedState), 400);
+        saveStateTimeout = setTimeout(() => setWindowState(page, state), 200);
     }
     async function onHide(ev) {
-        savedState.hidden = true;
-        await setWindowState(page, savedState);
+        state.hidden = true;
+        await setWindowState(page, state);
     }
     async function onShow(ev) {
-        savedState.hidden = false;
-        await setWindowState(page, savedState);
+        state.hidden = false;
+        await setWindowState(page, state);
     }
     function onWindowMessage(name, callback) {
         ipcMain.on(name, (ev, ...args) => {
@@ -94,25 +107,31 @@ async function makeFloatingWindow(page, options={}) {
             }
         });
     }
-    onWindowMessage('close', () => win.hide());
+    if (options.show !== false) {
+        if (state.hidden) {
+            win.minimize();
+        } else {
+            win.show();
+        }
+    }
+    onWindowMessage('close', () => win.minimize());
     win.on('moved', onPositionUpdate);
     win.on('resized', onPositionUpdate);
     win.on('minimize', onHide);
     win.on('closed', onHide);
     win.on('restore', onShow);
-    if (savedState.hidden) {
-        win.minimize();  // TODO: make restoration UX so we can just skip load.
-    }
     win.loadFile(path.join('pages', page));
     return win;
 }
 
 
 async function createWindows(monitor) {
+    await clearWindowState('overview.html'); // XXX TESTING
     await Promise.all([
         makeFloatingWindow('watching.html', {width: 260, height: 260, x: 8, y: 54}),
         makeFloatingWindow('groups.html', {width: 235, height: 650, x: 960, y: 418}),
         makeFloatingWindow('chat.html', {width: 280, height: 580, x: 280, y: 230}),
+        makeFloatingWindow('overview.html', {relWidth: 0.8, height: 40, relX: 0.1, y: 0, hideable: false}),
     ]);
 }
 
@@ -147,7 +166,7 @@ async function main() {
         }
     }
     ipcMain.on('subscribe', (ev, {event, domEvent}) => {
-        const win = windows.get(ev.sender);
+        const win = windows.get(ev.sender).win;
         const cb = data => win.webContents.send('browser-message', {domEvent, data});
         const enableEvents = ['responsive', 'show', 'restore'];
         const disableEvents = ['unresponsive', 'hide', 'minimize', 'close'];
@@ -179,6 +198,22 @@ async function main() {
             win.on(x, disable);
         }
     });
+    ipcMain.on('hideAllWindows', ev => {
+        for (const {win, state, options} of windows.values()) {
+            if (options.hideable !== false && !state.hidden) {
+                win.hide();
+            }
+        }
+    });
+    ipcMain.on('showAllWindows', ev => {
+        for (const {win, state, options} of windows.values()) {
+            if (options.hideable !== false && !state.hidden) {
+                win.show();
+            }
+        }
+    });
+    ipcMain.on('quit', ev => app.quit());
+
     await createWindows(monitor);
     app.on('activate', async () => {
         if (BrowserWindow.getAllWindows().length === 0) {

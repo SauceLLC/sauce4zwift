@@ -130,8 +130,8 @@
     </head>
     <body>
         <div id="titlebar">
-            <div class="button move"><img src="images/fa/arrows-alt.svg"/></div>
-            <header>Watching - Sauce for Zwift</header>
+            <div class="button move app-drag"><img src="images/fa/arrows-alt.svg"/></div>
+            <header class="app-drag">Watching - Sauce for Zwift</header>
             <div class="buttons">
                 <div class="button options" data-url="watching-options.html"><img src="images/fa/cog-duotone.svg"/></div>
                 <div class="button close"><img src="images/fa/window-close-light.svg"/></div>
@@ -141,14 +141,14 @@
             <div class="entry power columns">
                 <heading>⚡ POWER:</heading>
                 <div class="sub">
-                    <div class="row upper">
+                    <div class="row" data-field="power-upper">
                         <div class="key">AVG:</div><div class="value"></div><abbr class="unit">w</abbr>
                     </div>
-                    <div class="row lower">
+                    <div class="row" data-field="power-lower">
                         <div class="key">MAX:</div><div class="value"></div><abbr class="unit">w</abbr>
                     </div>
                 </div>
-                <div class="primary main">
+                <div class="primary" data-field="power-main">
                     <span class="value"></span><abbr class="label unit">watts</abbr>
                 </div>
             </div>

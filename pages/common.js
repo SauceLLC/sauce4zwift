@@ -58,12 +58,12 @@
 
     L.humanNumber = function(value, precision=0) {
         if (value == null || value === '') {
-            return '';
+            return '-';
         }
         const n = Number(value);
         if (isNaN(n)) {
             console.warn("Value is not a number:", value);
-            return value;
+            return '-';
         }
         if (precision === null) {
             return n.toLocaleString();

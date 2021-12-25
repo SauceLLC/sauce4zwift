@@ -12,12 +12,6 @@ const sauce = require('../shared/lib.js');
 const athleteCacheLabel = 'athlete-cache';
 
 
-const _refTS = Date.now();
-function monoTime() {
-    return (Date.now() - _refTS) / 1000;
-}
-
-
 async function getLocalRoutedIP() {
     const sock = net.createConnection(80, 'www.zwift.com');
     return await new Promise((resolve, reject) => {
@@ -259,8 +253,6 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                     roll: rp.clone({period: x}),
                     peak: {avg: 0, ts:0}
                 }])),
-                powerSum: 0,
-                powerDur: 0,
                 powerMax: 0,
                 hrSum: 0,
                 hrDur: 0,
@@ -269,7 +261,6 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 draftDur: 0,
                 cadenceSum: 0,
                 cadenceDur: 0,
-                worldTime: 0,
             });
         }
         if (!this._roadHistory.has(state.athleteId)) {
@@ -298,11 +289,6 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         const stats = this._stats.get(state.athleteId);
         const duration = stats._lastTS ? state.ts - stats._lastTS : 0;
         stats._lastTS = state.ts;
-        if (this.watching === state.athleteId) {
-            try {
-                //console.log(duration, Math.round((monoTime() - stats.streams.time.at(-1)) * 1000), state.power);
-            } catch(e) {}
-        }
         if (duration && state.speed) {
             // Support runs. XXX
             if (state.power != null) {
@@ -324,14 +310,8 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 }
                 stats.power5s = rp.slice(-5).avg();
                 stats.power30s = rp.slice(-30).avg();
-                stats.powerAvg = rp.avg();
-                stats.powerAvgActive = (rp.kj() * 1000) / rp.active();
+                stats.powerAvg = (rp.kj() * 1000) / rp.active();
                 stats.powerNP = rp.np({force: true});
-                if (this.watching === state.athleteId) {
-                    //console.log(stats.power5s, stats.power30s, state.power, Math.round(monoTime()));
-                }
-                stats.powerSum += state.power * duration;
-                stats.powerDur += duration;
                 if (state.power > stats.powerMax) {
                     stats.powerMax = state.power;
                 }

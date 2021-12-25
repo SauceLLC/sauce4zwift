@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html class="nopad">
+    <head>
+        <meta charset="UTF-8">
+        <title>Sauce for Zwift</title>
+        <link rel='stylesheet' href="common.css"/>
+        <style>
+            html, body {
+                padding: 0;
+                font-size: clamp(12px, calc(14px + 10vh), 24px);
+            }
+
+            body {
+                background-color: #cc3900;
+            }
+
+            #content {
+                display: flex;
+                flex-direction: row;
+                align-items: center;
+                overflow: hidden;
+                flex: 1 1 100%;
+                padding: 0.1em 0.4em;
+            }
+
+            #content .button.move {
+                padding: 0.2em 0.4em 0.2em 0.2em;
+            }
+
+            #content .button.move img {
+                height: 1em;
+                filter: invert(1);
+            }
+
+            .fields {
+                margin: 0 2em;
+                display: flex;
+            }
+
+            .field {
+                margin-right: 1em;
+                display: flex;
+                align-items: baseline;
+            }
+
+            .field .key {
+                font-weight: 500;
+                font-size: 1em;
+            }
+            .field .key::after {
+                content: ':';
+            }
+
+            .field .value {
+                font-size: 1.2em;
+                font-variant: tabular-nums;
+                margin-left: 0.2em;
+            }
+
+            .field .unit {
+                margin-left: 0.2em;
+                font-size: 0.75em;
+                opacity: 0.82;
+                vertical-align: baseline;
+            }
+
+            .controls {
+                flex: 1 0;
+                display: flex;
+                justify-content: flex-end;
+                align-items: center;
+            }
+
+            html:not(.hidden) .controls .button.show {
+                display: none;
+            }
+            html.hidden .controls .button.hide {
+                display: none;
+            }
+
+            .controls .button {
+                margin-right: 0.5em;
+            }
+
+            .controls .button img {
+                height: 1.5em;
+                filter: invert(1);
+            }
+        </style>
+        <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';" />
+        <script src="base.js" type="application/javascript" defer></script>
+        <script src="lib.js" type="application/javascript" defer></script>
+        <script src="common.js" type="application/javascript" defer></script>
+        <script src="overview.js" type="application/javascript" defer></script>
+    </head>
+    <body>
+        <div id="content">
+            <div class="button move app-drag"><img src="images/fa/arrows-alt.svg"/></div>
+            <header class="app-drag">Overview - Sauce for Zwift</header>
+            <div class="fields">
+                <div class="field" data-field="social">
+                    <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
+                </div>
+                <div class="field" data-field="energy">
+                    <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
+                </div>
+                <div class="field" data-field="speed">
+                    <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
+                </div>
+            </div>
+            <div class="controls">
+                <div class="button options" data-url="watching-options.html"><img src="images/fa/cog-duotone.svg"/></div>
+                <div class="button hide" title="Hide the overlay windows"><img src="images/fa/compress-alt-duotone.svg"/></div>
+                <div class="button show" title="Show the overlay windows"><img src="images/fa/expand-alt-duotone.svg"/></div>
+                <div class="button quit"><img src="images/fa/window-close-light.svg"/></div>
+            </div>
+        </div>
+    </body>
+</html>
