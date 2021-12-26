@@ -149,7 +149,7 @@ if (app.dock) {
 }
 
 app.on('window-all-closed', () => {
-    app.quit();
+    app.exit(0);
 });
 
 
@@ -172,7 +172,7 @@ async function main() {
             }
         } catch(e) {
             await dialog.showErrorBox('Startup Error', '' + e);
-            app.quit();
+            app.exit(0);
             return;
         }
     }
@@ -225,7 +225,7 @@ async function main() {
             }
         }
     });
-    ipcMain.on('quit', ev => app.quit());
+    ipcMain.on('quit', ev => app.exit(0));
 
     await createWindows(monitor);
     app.on('activate', async () => {
