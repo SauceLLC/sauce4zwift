@@ -128,15 +128,19 @@ async function makeFloatingWindow(page, options={}) {
 
 
 async function createWindows(monitor) {
-    await clearWindowState('overview.html'); // XXX TESTING
-    await clearWindowState('watching.html'); // XXX TESTING
-    await clearWindowState('groups.html'); // XXX TESTING
-    await clearWindowState('chat.html'); // XXX TESTING
+    //await clearWindowState('overview.html'); // XXX TESTING
+    //await clearWindowState('watching.html'); // XXX TESTING
+    //await clearWindowState('groups.html'); // XXX TESTING
+    //await clearWindowState('chat.html'); // XXX TESTING
     await Promise.all([
-        makeFloatingWindow('watching.html', {width: 260, height: 260, x: 8, y: 64}),
-        makeFloatingWindow('groups.html', {width: 235, height: 650, x: -280, y: -10}),
-        makeFloatingWindow('chat.html', {width: 280, height: 580, x: 320, y: 230}),
-        makeFloatingWindow('overview.html', {relWidth: 0.6, height: 40, relX: 0.2, y: 0, hideable: false}),
+        makeFloatingWindow('watching.html',
+            {width: 260, height: 260, x: 8, y: 64}),
+        makeFloatingWindow('groups.html',
+            {width: 235, height: 650, x: -280, y: -10}),
+        makeFloatingWindow('chat.html',
+            {width: 280, height: 580, x: 320, y: 230}),
+        makeFloatingWindow('overview.html',
+            {relWidth: 0.6, height: 40, relX: 0.2, y: 0, hideable: false}),
     ]);
 }
 
@@ -175,8 +179,8 @@ async function main() {
     ipcMain.on('subscribe', (ev, {event, domEvent}) => {
         const win = windows.get(ev.sender).win;
         const cb = data => win.webContents.send('browser-message', {domEvent, data});
-        const enableEvents = ['responsive', 'show', 'restore'];
-        const disableEvents = ['unresponsive', 'hide', 'minimize', 'close'];
+        const enableEvents = ['responsive', 'show'];
+        const disableEvents = ['unresponsive', 'hide', 'close'];
         function enable() {
             console.debug("Enable subscription:", event, domEvent);
             monitor.on(event, cb);
@@ -195,7 +199,9 @@ async function main() {
                 win.off(x, disable);
             }
         }
-        enable('init');
+        if (win.isVisible()) {
+            enable();
+        }
         win.webContents.once('destroyed', shutdown);
         win.webContents.once('did-start-loading', shutdown);
         for (const x of enableEvents) {
@@ -223,6 +229,7 @@ async function main() {
 
     await createWindows(monitor);
     app.on('activate', async () => {
+        // Clicking on the app icon..
         if (BrowserWindow.getAllWindows().length === 0) {
             await createWindows(monitor);
         }

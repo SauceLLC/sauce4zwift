@@ -40,25 +40,33 @@
             .field {
                 margin-right: 1em;
                 display: flex;
-                align-items: baseline;
+                align-items: center;
             }
 
             .field .key {
                 font-weight: 500;
-                font-size: 1em;
+                display: inline-flex;
+                align-items: center;
             }
             .field .key::after {
                 content: ':';
             }
 
+            .field .key small {
+                padding-left: 0.25em;
+                margin-bottom: 0.1em;
+                font-variant: unicase;
+                font-weight: normal;
+            }
+
             .field .value {
-                font-size: 1.2em;
                 font-variant: tabular-nums;
                 margin-left: 0.2em;
             }
 
             .field .unit {
                 margin-left: 0.2em;
+                margin-top: 0.25em;
                 font-size: 0.75em;
                 opacity: 0.82;
                 vertical-align: baseline;
@@ -88,8 +96,8 @@
             }
         </style>
         <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';" />
-        <script src="base.js" type="application/javascript" defer></script>
-        <script src="lib.js" type="application/javascript" defer></script>
+        <script src="../shared/base.js" type="application/javascript" defer></script>
+        <script src="../shared/lib.js" type="application/javascript" defer></script>
         <script src="common.js" type="application/javascript" defer></script>
         <script src="overview.js" type="application/javascript" defer></script>
     </head>
@@ -109,9 +117,9 @@
                 </div>
             </div>
             <div class="controls">
-                <div class="button options" data-url="watching-options.html"><img src="images/fa/cog-duotone.svg"/></div>
-                <div class="button hide" title="Hide the overlay windows"><img src="images/fa/compress-alt-duotone.svg"/></div>
-                <div class="button show" title="Show the overlay windows"><img src="images/fa/expand-alt-duotone.svg"/></div>
+                <div class="button options" data-url="overview-options.html"><img src="images/fa/cog-duotone.svg"/></div>
+                <div class="button hide" title="Hide All"><img src="images/fa/compress-alt-duotone.svg"/></div>
+                <div class="button show" title="Show All"><img src="images/fa/expand-alt-duotone.svg"/></div>
                 <div class="button quit"><img src="images/fa/window-close-light.svg"/></div>
             </div>
         </div>

@@ -117,4 +117,89 @@
             el.addEventListener('click', ev => location.assign(el.dataset.url));
         }
     });
+
+    sauce.Renderer = class Renderer {
+        constructor(contentEl, options={}) {
+            this._contentEl = contentEl;
+            this._callbacks = [];
+            this._data;
+            this._nextRender;
+            this.options = options;
+            this.page = location.pathname.split('/').at(-1);
+        }
+
+        addCallback(cb) {
+            this._callbacks.push(cb);
+        }
+
+        setData(data) {
+            this._data = data;
+        }
+
+        addRotatingFields(spec) {
+            for (const x of spec.mapping) {
+                const el = this._contentEl.querySelector(`[data-field="${x.id}"]`);
+                const valueEl = el.querySelector('.value');
+                const labelEl = el.querySelector('.label');
+                const keyEl = el.querySelector('.key');
+                const unitEl = el.querySelector('.unit');
+                const storageKey = `${this.page}-${x.id}`;
+                let idx = localStorage.getItem(storageKey) || x.default;
+                let f = spec.fields[idx] || spec.fields[0];
+                el.addEventListener('click', ev => {
+                    idx = (spec.fields.indexOf(f) + 1) % spec.fields.length;
+                    localStorage.setItem(storageKey, idx);
+                    f = spec.fields[idx];
+                    this.render({force: true});
+                });
+                this.addCallback(x => {
+                    if (valueEl) {
+                        valueEl.innerHTML = f.value ? f.value(x) : '';
+                    }
+                    if (labelEl) {
+                        labelEl.innerHTML = f.label ? f.label(x) : '';
+                    }
+                    if (keyEl) {
+                        keyEl.innerHTML = f.key ? f.key(x) : '';
+                    }
+                    if (unitEl) {
+                        unitEl.innerHTML = f.unit ? f.unit(x) : '';
+                    }
+                });
+            }
+        }
+
+        render(options={}) {
+            if (!options.force && this.options.fps) {
+                const age = performance.now() - (this._lastRender || -Infinity);
+                const frameTime = 1000 / this.options.fps;
+                if (age < frameTime) {
+                    if (!this._scheduledRender) {
+                        this._scheduledRender = setTimeout(() => {
+                            this._scheduledRender = null;
+                            this.render(); 
+                        }, Math.ceil(frameTime - age));
+                    }
+                    return;
+                }
+            }
+            if (!this._nextRender) {
+                if (this._scheduledRender) {
+                    clearTimeout(this._scheduledRender);
+                    this._scheduledRender = null;
+                }
+                this._nextRender = new Promise(resolve => {
+                    requestAnimationFrame(() => {
+                        this._lastRender = performance.now();
+                        this._nextRender = null;
+                        for (const cb of this._callbacks) {
+                            cb(this._data);
+                        }
+                        resolve();
+                    });
+                });
+            }
+            return this._nextRender;
+        }
+    };
 })();
