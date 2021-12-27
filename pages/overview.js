@@ -3,6 +3,10 @@
 const L = sauce.locale;
 
 
+function shortDuration(x) {
+    return L.humanDuration(x, {short: true});
+}
+
 async function main() {
     const content = document.querySelector('#content');
     const renderer = new sauce.Renderer(content, {fps: 1});
@@ -21,7 +25,7 @@ async function main() {
             value: x => L.humanNumber(x.rideons),
             key: () => 'Ride Ons',
         }, {
-            value: x => L.humanNumber(x.joules / 100),
+            value: x => L.humanNumber(x.kj),
             key: () => 'Energy',
             unit: () => 'kJ',
         }, {
@@ -41,11 +45,11 @@ async function main() {
             key: () => 'NP',
         }, {
             value: x => L.humanNumber(x.stats.power5s),
-            key: () => 'Power <small>(5s)</small>',
+            key: () => `Power <small>(${shortDuration(5)})</small>`,
             unit: () => 'w',
         }, {
             value: x => L.humanNumber(x.stats.power30s),
-            key: () => 'Power <small>(30s)</small>',
+            key: () => `Power <small>(${shortDuration(30)})</small>`,
             unit: () => 'w',
         }],
     });

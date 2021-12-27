@@ -236,6 +236,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         Object.assign(state, this.processFlags1(state.flags1));
         Object.assign(state, this.processFlags2(state.flags2));
         state.ts = +worldTimeConv(state.worldTime);
+        state.kj = state.mwHours / 1000 / (1000 / 3600);
         state.heading = headingConv(state.heading);  // degrees
         state.speed = state.speed / 1000000;  // km/h
         state.cadence = state.cadenceUHz ? state.cadenceUHz / 1000000 * 60 : null;  // rpm
@@ -243,9 +244,9 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         const roadCompletion = state.roadLocation;
         state.roadCompletion = !state.reverse ? 1000000 - roadCompletion : roadCompletion;
         this.states.set(state.athleteId, state);
+        const periods = [5, 30, 60, 300, 1200];
         if (!this._stats.has(state.athleteId)) {
             const rp = new sauce.power.RollingPower(null, {idealGap: 0.200, maxGap: 10});
-            const periods = [5, 10, 30, 60, 120, 300, 1200, 3600];
             this._stats.set(state.athleteId, {
                 _firstTS: state.ts,
                 _rp: rp,
@@ -308,8 +309,9 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                         }
                     }
                 }
-                stats.power5s = rp.slice(-5).avg();
-                stats.power30s = rp.slice(-30).avg();
+                for (const x in periods) {
+                    stats[`power${x}s`] = rp.slice(-x).avg();
+                }
                 stats.powerAvg = (rp.kj() * 1000) / rp.active();
                 stats.powerNP = rp.np({force: true});
                 if (state.power > stats.powerMax) {

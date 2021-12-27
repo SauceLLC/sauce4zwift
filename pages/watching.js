@@ -2,6 +2,10 @@
 
 const L = sauce.locale;
 
+function shortDuration(x) {
+    return L.humanDuration(x, {short: true});
+}
+
 
 function makePeakField(period) {
     return {
@@ -10,15 +14,15 @@ function makePeakField(period) {
             return L.humanNumber(o && o.avg);
         },
         label: x => {
-            const label = `peak ${sauce.locale.humanDuration(period, {short: true})}`;
+            const label = `peak ${shortDuration(period)}`;
             const o = x.stats[`peakPower${period}s`];
             if (!o) {
                 return label;
             }
             const ago = (Date.now() - o.ts) / 1000;
-            return `${label}<br/><small>${sauce.locale.humanDuration(ago)} ago</small>`;
+            return `${label}<br/><small>${shortDuration(ago)} ago</small>`;
         },
-        key: () => `Peak ${sauce.locale.humanDuration(period, {short: true})}`,
+        key: () => `Peak ${shortDuration(period)}`,
         unit: () => 'w',
     };
 }
@@ -27,6 +31,13 @@ function makePeakField(period) {
 async function main() {
     const content = document.querySelector('#content');
     const renderer = new sauce.Renderer(content, {fps: 1});
+    const durations = {
+        5: shortDuration(5),
+        30: shortDuration(30),
+        60: shortDuration(60),
+        300: shortDuration(300),
+        1200: shortDuration(1200),
+    };
     renderer.addRotatingFields({
         mapping: [{
             id: 'power-main',
@@ -43,36 +54,45 @@ async function main() {
             label: () => 'watts',
             key: () => 'Watts',
             unit: () => 'w',
-            unitLong: () => 'watts',
         }, {
             value: x => L.humanNumber(x.stats.powerMax),
             label: () => 'max',
             key: () => 'Max',
             unit: () => 'w',
-            unitLong: () => 'max',
         }, {
             value: x => L.humanNumber(x.stats.powerAvg),
             label: () => 'avg',
             key: () => 'Avg',
             unit: () => 'w',
-            unitLong: () => 'avg',
         }, {
             value: x => L.humanNumber(x.stats.powerNP),
             label: () => 'np',
             key: () => 'NP',
-            unitLong: () => 'np',
         }, {
             value: x => L.humanNumber(x.stats.power5s),
-            label: () => '5s watts',
-            key: () => '5s',
+            label: () => durations[5] + ' watts',
+            key: () => durations[5],
             unit: () => 'w',
-            unitLong: () => '5s watts',
         }, {
             value: x => L.humanNumber(x.stats.power30s),
-            label: () => '30s watts',
-            key: () => '30s',
+            label: () => durations[30] + ' watts',
+            key: () => durations[30],
             unit: () => 'w',
-            unitLong: () => '30s watts',
+        }, {
+            value: x => L.humanNumber(x.stats.power60s),
+            label: () => durations[60] + ' watts',
+            key: () => durations[60],
+            unit: () => 'w',
+        }, {
+            value: x => L.humanNumber(x.stats.power300s),
+            label: () => durations[300] + ' watts',
+            key: () => durations[300],
+            unit: () => 'w',
+        }, {
+            value: x => L.humanNumber(x.stats.power1200s),
+            label: () => durations[1200] + ' watts',
+            key: () => durations[1200],
+            unit: () => 'w',
         },
             makePeakField(5),
             makePeakField(60),
