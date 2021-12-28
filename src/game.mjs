@@ -6,7 +6,7 @@ import storage from './storage.mjs';
 import sudo from 'sudo-prompt';
 import cap from 'cap';
 import ZwiftPacketMonitor from '@saucellc/zwift-packet-monitor';
-import sauce from '../shared/lib.js';
+import {power} from '../shared/sauce/index.mjs';
 
 const athleteCacheLabel = 'athlete-cache';
 

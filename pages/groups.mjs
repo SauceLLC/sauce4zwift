@@ -1,4 +1,5 @@
 /* global sauce */
+import sauce from '../shared/base.mjs';
 
 async function main() {
     const content = document.querySelector('#content');

@@ -5,7 +5,8 @@
 
     self.sauce = (self.sauce || {});
     const L = (sauce.locale = {});
-
+    const html = document.documentElement;
+    const isElectron = html.classList.contains('is-electron');
 
     L.thinSpace = '\u202f';
 
@@ -86,31 +87,74 @@
         }
     };
 
-    sauce.closeWindow = function() {
-        sauce.electronTrigger('close');
-    };
+    if (isElectron) {
+        sauce.closeWindow = function() {
+            sauce.electronTrigger('close');
+        };
 
-    sauce.electronTrigger = function(name, data) {
-        document.dispatchEvent(new CustomEvent('electron-message', {detail: {name, data}}));
-    };
+        sauce.electronTrigger = function(name, data) {
+            document.dispatchEvent(new CustomEvent('electron-message', {detail: {name, data}}));
+        };
 
-    let subId = 1;
-    sauce.subscribe = function(event, callback) {
-        const domEvent = `sauce-${event}-${subId++}`;
-        document.addEventListener(domEvent, ev => void callback(ev.detail));
-        sauce.electronTrigger('subscribe', {event, domEvent});
-    };
+        let subId = 1;
+        sauce.subscribe = function(event, callback) {
+            const domEvent = `sauce-${event}-${subId++}`;
+            document.addEventListener(domEvent, ev => void callback(ev.detail));
+            sauce.electronTrigger('subscribe', {event, domEvent});
+        };
+    } else {
+        const pendingRequests = new Map();
+        const subs = new Map();
+        let uidInc = 1;
+
+        sauce.closeWindow = function() {
+            console.warn("XXX unlikely");
+            window.close(); // XXX probably won't work
+        };
+
+        let errBackoff = 1000;
+        let wsp;
+        async function connectWebSocket() {
+            const ws = new WebSocket('ws://localhost:1080/api/ws');
+            ws.addEventListener('message', ev => {
+                debugger;
+            });
+            ws.addEventListener('close', ev => {
+                wsp = sauce.sleep(errBackoff *= 1.2).then(connectWebSocket).then(ws => {
+                    debugger; // XXX rebuild existing subs
+                    return ws;
+                });
+            });
+            return await new Promise((resolve, reject) => {
+                ws.addEventListener('error', ev => {
+                    debugger;
+                    reject(ev.error);
+                });
+                ws.addEventListener('open', () => resolve(ws));
+                setTimeout(() => reject(new Error('Timeout')), 5000);
+            });
+        }
+        wsp = connectWebSocket();
+
+        sauce.subscribe = async function(event, callback) {
+            const ws = await wsp;
+            const uid = uidInc++;
+            ws.send('asdf');
+        };
+    }
 
     addEventListener('DOMContentLoaded', () => {
-        window.addEventListener('contextmenu', () =>
-            void document.documentElement.classList.toggle('options-mode'));
-        window.addEventListener('blur', () =>
-            void document.documentElement.classList.remove('options-mode'));
-        window.addEventListener('click', ev => {
-            if (!ev.target.closest('#titlebar')) {
-                document.documentElement.classList.remove('options-mode');
-            }
-        });
+        if (!html.classList.contains('options-mode')) {
+            window.addEventListener('contextmenu', () =>
+                void html.classList.toggle('options-mode'));
+            window.addEventListener('blur', () =>
+                void html.classList.remove('options-mode'));
+            window.addEventListener('click', ev => {
+                if (!ev.target.closest('#titlebar')) {
+                    html.classList.remove('options-mode');
+                }
+            });
+        }
         const close = document.querySelector('#titlebar .button.close');
         if (close) {
             close.addEventListener('click', ev => (void sauce.closeWindow()));

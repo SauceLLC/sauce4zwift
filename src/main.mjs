@@ -3,6 +3,7 @@ import {fileURLToPath} from 'node:url';
 import storage from './storage.mjs';
 import menu from './menu.mjs';
 import game from './game.mjs';
+import webServer from './webserver.mjs';
 
 const {app, BrowserWindow, ipcMain, nativeImage, dialog} = electron;
 
@@ -177,6 +178,7 @@ async function main() {
             return;
         }
     }
+    await webServer.start(monitor);
     ipcMain.on('subscribe', (ev, {event, domEvent}) => {
         const win = windows.get(ev.sender).win;
         const cb = data => win.webContents.send('browser-message', {domEvent, data});

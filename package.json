@@ -18,8 +18,8 @@
   "dependencies": {
     "@saucellc/zwift-packet-monitor": "https://github.com/SauceLLC/zwift-packet-monitor.git#18ebcc5bb0ffcdb5946fe267f9990e2e334572de",
     "express": "4.17.2",
-    "sudo-prompt": "9.2.1",
-    "ws": "8.4.0"
+    "express-ws": "5.0.2",
+    "sudo-prompt": "9.2.1"
   },
   "devDependencies": {
     "electron": "^16",
