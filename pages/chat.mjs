@@ -1,4 +1,6 @@
-/* global sauce */
+
+import sauce from '../shared/sauce/index.mjs';
+import common from './common.mjs';
 
 const nearby = new Map();
 
@@ -8,24 +10,19 @@ function athleteHue(id) {
 }
 
 
-async function sleep(ms) {
-    await new Promise(resolve => setTimeout(resolve, ms));
-}
-
-
 async function liveDataTask(content) {
     while (true) {
         for (const x of content.querySelectorAll('.live')) {
             const athlete = x.closest('[data-from]').dataset.from;
             x.innerText = liveDataFormatter(Number(athlete));
         }
-        await sleep(1000);
+        await sauce.sleep(1000);
     }
 }
 
 
 function humanDuration(t) {
-    return sauce.locale.humanDuration(t, {short: true, seperator: ' '});
+    return sauce.locale.human.duration(t, {short: true, seperator: ' '});
 }
 
 
@@ -48,6 +45,7 @@ function liveDataFormatter(athlete) {
 
 
 async function main() {
+    common.initInteractionListeners();
     const content = document.querySelector('#content');
     liveDataTask(content);  // bg okay
 
@@ -100,12 +98,12 @@ async function main() {
         addContentEntry(entry);
     }
 
-    sauce.subscribe('nearby', data => {
+    common.subscribe('nearby', data => {
         for (const x of data) {
             nearby.set(x.athleteId, x);
         }
     });
-    sauce.subscribe('chat', onChatMessage);
+    common.subscribe('chat', onChatMessage);
 
     // TESTING
     for (let i = 0; i < 0; i++) {
@@ -117,7 +115,7 @@ async function main() {
             to: 0,
             avatar: 'images/blankavatar.png',
         });
-        await sleep(1000 * i);
+        await sauce.sleep(1000 * i);
     }
 }
 

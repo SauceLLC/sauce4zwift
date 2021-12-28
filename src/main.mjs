@@ -74,7 +74,7 @@ async function makeFloatingWindow(page, options={}) {
     });
     windows.set(win.webContents, {win, state, options});
     win.webContents.on('new-window', (ev, url) => {
-        debugger; // ded? XXX
+        // Popups...
         ev.preventDefault();
         const newWin = new BrowserWindow({
             resizable: true,

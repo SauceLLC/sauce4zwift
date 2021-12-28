@@ -1,9 +1,11 @@
-/* global sauce */
+import sauce from '../shared/sauce/index.mjs';
+import common from './common.mjs';
 
 const L = sauce.locale;
+const H = L.human;
 
 function shortDuration(x) {
-    return L.humanDuration(x, {short: true});
+    return H.duration(x, {short: true});
 }
 
 
@@ -11,7 +13,7 @@ function makePeakField(period) {
     return {
         value: x => {
             const o = x.stats[`peakPower${period}s`];
-            return L.humanNumber(o && o.avg);
+            return H.number(o && o.avg);
         },
         label: x => {
             const label = `peak ${shortDuration(period)}`;
@@ -29,8 +31,9 @@ function makePeakField(period) {
 
 
 async function main() {
+    common.initInteractionListeners();
     const content = document.querySelector('#content');
-    const renderer = new sauce.Renderer(content, {fps: 1});
+    const renderer = new common.Renderer(content, {fps: 1});
     const durations = {
         5: shortDuration(5),
         30: shortDuration(30),
@@ -50,46 +53,46 @@ async function main() {
             default: 2
         }],
         fields: [{
-            value: x => L.humanNumber(x.power),
+            value: x => H.number(x.power),
             label: () => 'watts',
             key: () => 'Watts',
             unit: () => 'w',
         }, {
-            value: x => L.humanNumber(x.stats.powerMax),
+            value: x => H.number(x.stats.powerMax),
             label: () => 'max',
             key: () => 'Max',
             unit: () => 'w',
         }, {
-            value: x => L.humanNumber(x.stats.powerAvg),
+            value: x => H.number(x.stats.powerAvg),
             label: () => 'avg',
             key: () => 'Avg',
             unit: () => 'w',
         }, {
-            value: x => L.humanNumber(x.stats.powerNP),
+            value: x => H.number(x.stats.powerNP),
             label: () => 'np',
             key: () => 'NP',
         }, {
-            value: x => L.humanNumber(x.stats.power5s),
+            value: x => H.number(x.stats.power5s),
             label: () => durations[5] + ' watts',
             key: () => durations[5],
             unit: () => 'w',
         }, {
-            value: x => L.humanNumber(x.stats.power30s),
+            value: x => H.number(x.stats.power30s),
             label: () => durations[30] + ' watts',
             key: () => durations[30],
             unit: () => 'w',
         }, {
-            value: x => L.humanNumber(x.stats.power60s),
+            value: x => H.number(x.stats.power60s),
             label: () => durations[60] + ' watts',
             key: () => durations[60],
             unit: () => 'w',
         }, {
-            value: x => L.humanNumber(x.stats.power300s),
+            value: x => H.number(x.stats.power300s),
             label: () => durations[300] + ' watts',
             key: () => durations[300],
             unit: () => 'w',
         }, {
-            value: x => L.humanNumber(x.stats.power1200s),
+            value: x => H.number(x.stats.power1200s),
             label: () => durations[1200] + ' watts',
             key: () => durations[1200],
             unit: () => 'w',
@@ -112,20 +115,20 @@ async function main() {
     renderer.addCallback(watching => {
         // legacy stuff...
         const stats = watching.stats;
-        hrCurEl.textContent = L.humanNumber(watching.heartrate || null);
-        hrCurEl.textContent = L.humanNumber(watching.heartrate || null);
-        cadCurEl.textContent = L.humanNumber(watching.cadence);
-        draftCurEl.textContent = L.humanNumber(watching.draft);
+        hrCurEl.textContent = H.number(watching.heartrate || null);
+        hrCurEl.textContent = H.number(watching.heartrate || null);
+        cadCurEl.textContent = H.number(watching.cadence);
+        draftCurEl.textContent = H.number(watching.draft);
 
-        hrAvgEl.textContent = L.humanNumber(stats.hrSum / stats.hrDur);
-        cadAvgEl.textContent = L.humanNumber(stats.cadenceSum / stats.cadenceDur);
-        draftAvgEl.textContent = L.humanNumber(stats.draftSum / stats.draftDur);
+        hrAvgEl.textContent = H.number(stats.hrSum / stats.hrDur);
+        cadAvgEl.textContent = H.number(stats.cadenceSum / stats.cadenceDur);
+        draftAvgEl.textContent = H.number(stats.draftSum / stats.draftDur);
 
-        hrMaxEl.textContent = L.humanNumber(stats.hrMax || null);
+        hrMaxEl.textContent = H.number(stats.hrMax || null);
     });
 
     let athleteId;
-    sauce.subscribe('watching', watching => {
+    common.subscribe('watching', watching => {
         const force = watching.athleteId !== athleteId;
         athleteId = watching.athleteId;
         renderer.setData(watching);

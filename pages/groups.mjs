@@ -1,10 +1,15 @@
-/* global sauce */
-import sauce from '../shared/sauce/base.mjs';
+import sauce from '../shared/sauce/index.mjs';
+import common from './common.mjs';
+
+const L = sauce.locale;
+const H = L.human;
+
 
 async function main() {
+    common.initInteractionListeners();
     const content = document.querySelector('#content');
     const groupEls = new Map();
-    sauce.subscribe('groups', groups => {
+    common.subscribe('groups', groups => {
         if (!groups.length) {
             return;
         }
@@ -65,8 +70,8 @@ async function main() {
             }
             group.querySelector('.bubble').textContent = bubble;
             group.querySelector('.desc .lines').innerHTML = [
-                Math.round(x.power).toLocaleString() + sauce.locale.thinSpace + 'w',
-                Math.round(x.speed).toLocaleString() + sauce.locale.thinSpace + 'kph',
+                Math.round(x.power).toLocaleString() + 'w',
+                Math.round(x.speed).toLocaleString() + 'kph',
             ].map((x, i) => `<div class="line ${i ? 'minor' : ''}">${x}</div>`).join('');
             const gapEl = group.nextSibling;
             const innerGap = next ? Math.round(x.innerGap) : 0;
@@ -76,7 +81,7 @@ async function main() {
             gapEl.style.setProperty('--gap-sign', gap > 0 ? 1 : -1);
             gapEl.classList.toggle('real', !!next && !next.isGapEst);
             gapEl.classList.toggle('alone', !innerGap);
-            const dur = innerGap && sauce.locale.humanDuration(Math.abs(gap), {short: true, seperator: ' '});
+            const dur = innerGap && H.duration(Math.abs(gap), {short: true, seperator: ' '});
             gapEl.querySelector('.desc .line.time').textContent = dur ? (gap > 0 ? '+' : '-') + dur : '';
         }
         console.info("");
