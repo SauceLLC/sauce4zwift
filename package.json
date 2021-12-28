@@ -3,7 +3,7 @@
   "productName": "Sauce for Zwift™",
   "version": "0.0.2",
   "description": "Overlay for Zwift™",
-  "main": "src/main.js",
+  "main": "src/loader.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "electron .",
@@ -17,7 +17,9 @@
   "license": "MIT",
   "dependencies": {
     "@saucellc/zwift-packet-monitor": "https://github.com/SauceLLC/zwift-packet-monitor.git#18ebcc5bb0ffcdb5946fe267f9990e2e334572de",
-    "sudo-prompt": "9.2.1"
+    "express": "4.17.2",
+    "sudo-prompt": "9.2.1",
+    "ws": "8.4.0"
   },
   "devDependencies": {
     "electron": "^16",

@@ -102,7 +102,6 @@
     };
 
     addEventListener('DOMContentLoaded', () => {
-        const html = document.documentElement;
         window.addEventListener('contextmenu', () =>
             void document.documentElement.classList.toggle('options-mode'));
         window.addEventListener('blur', () =>

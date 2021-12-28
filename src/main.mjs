@@ -1,13 +1,13 @@
-/* global __dirname */
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+import storage from './storage.mjs';
+import menu from './menu.mjs';
+import game from './game.mjs';
 
-const path = require('path');
-const storage = require('./storage');
-const menu = require('./menu');
-const game = require('./game');
-const {app, BrowserWindow, ipcMain, nativeImage, dialog} = require('electron');
-let screen;
+const {app, BrowserWindow, ipcMain, nativeImage, dialog} = electron;
 
-const appIcon = nativeImage.createFromPath(path.join(__dirname, 'build/images/app-icon.icos'));
+const wd = path.dirname(fileURLToPath(import.meta.url));
+const appIcon = nativeImage.createFromPath(path.join(wd, 'build/images/app-icon.icos'));
 const windows = new Map();
 
 
@@ -47,14 +47,14 @@ async function makeFloatingWindow(page, options={}) {
             contextIsolation: true,
             sandbox: true,
             enableRemoteModule: false,
-            preload: path.join(__dirname, '../pages/preload.js'),
+            preload: path.join(wd, '../pages/preload.js'),
         },
         ...options,
         ...state,
     });
     if (options.relWidth != null || options.relHeight != null ||
         options.relX != null || options.relY != null || options.x < 0 || options.y < 0) {
-        const {width: sWidth, height: sHeight} = screen.getPrimaryDisplay().size;
+        const {width: sWidth, height: sHeight} = electron.screen.getPrimaryDisplay().size;
         const width = options.width == null ? Math.round(options.relWidth * sWidth) : options.width;
         const height = options.height == null ? Math.round(options.relHeight * sHeight) : options.height;
         const x = options.x == null ? Math.round(options.relX * sWidth) :
@@ -157,7 +157,6 @@ app.on('window-all-closed', () => {
 
 async function main() {
     await app.whenReady();
-    ({screen} = require('electron'));  // Must come after ready.
 
     menu.setAppMenu();
     const monitor = await game.Sauce4ZwiftMonitor.factory();

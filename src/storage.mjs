@@ -1,14 +1,15 @@
-/* global __dirname */
 
-const path = require('path');
-const fs = require('fs/promises');
-const zlib = require('zlib');
-const {app} = require('electron');
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+import fs from 'node:fs/promises';
+import zlib from 'zlib';
+
+const wd = path.dirname(fileURLToPath(import.meta.url));
 
 
 async function getFilePath(id) {
-    await app.whenReady();
-    return path.join(app.getPath('userData'), `storage-${id}.json`);
+    await electron.app.whenReady();
+    return path.join(electron.app.getPath('userData'), `storage-${id}.json`);
 }
 
 
@@ -20,7 +21,7 @@ async function load(id, defaultFile) {
         if (e.code !== 'ENOENT') {
             throw e;
         } else if (defaultFile) {
-            const f = await fs.open(path.join(__dirname, defaultFile));
+            const f = await fs.open(path.join(wd, defaultFile));
             try {
                 let data = await f.readFile();
                 if (defaultFile.endsWith('.gz')) {
@@ -55,8 +56,4 @@ async function save(id, data) {
     await fs.rename(tmpFile, file);
 }
 
-
-module.exports = {
-    load,
-    save,
-};
+export default {load, save};

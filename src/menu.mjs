@@ -1,5 +1,6 @@
-const process = require('process');
-const {BrowserWindow, Menu, app, shell} = require('electron');
+import process from 'node:process';
+
+const {BrowserWindow, Menu, app, shell} = electron;
 
 const template = [{
     label: 'Edit',
@@ -136,10 +137,11 @@ if (process.platform === 'darwin') {
     });
 }
 
+debugger;
 const menu = Menu.buildFromTemplate(template);
 
 function setAppMenu() {
     Menu.setApplicationMenu(menu);
 }
 
-module.exports = {setAppMenu};
+export default {setAppMenu};

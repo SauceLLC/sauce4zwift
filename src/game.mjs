@@ -1,13 +1,12 @@
 /* global */
 
-const net = require('net');
-const os = require('os');
-const storage = require('./storage');
-const sudo = require('sudo-prompt');
-const cap = require('cap');
-const {dialog} = require('electron');
-const ZwiftPacketMonitor = require('@saucellc/zwift-packet-monitor');
-const sauce = require('../shared/lib.js');
+import net from 'node:net';
+import os from 'node:os';
+import storage from './storage.mjs';
+import sudo from 'sudo-prompt';
+import cap from 'cap';
+import ZwiftPacketMonitor from '@saucellc/zwift-packet-monitor';
+import sauce from '../shared/lib.js';
 
 const athleteCacheLabel = 'athlete-cache';
 
@@ -549,7 +548,7 @@ async function getCapturePermission() {
                 });
         });
     } else {
-        await dialog.showErrorBox(
+        await electron.dialog.showErrorBox(
             'Network capture permission requried to continue',
             'Sauce extends Zwift by capturing the game data sent over the network ' +
             'For MacOS this requires read permission on the "/dev/bpf0" file.  ' +
@@ -560,7 +559,7 @@ async function getCapturePermission() {
 }
 
 
-module.exports = {
+export default {
     Sauce4ZwiftMonitor,
     getCapturePermission,
 };
