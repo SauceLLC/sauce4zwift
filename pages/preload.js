@@ -7,5 +7,3 @@ ipcRenderer.on('browser-message', (_, o) =>
 // Browser Window -> Electron
 document.addEventListener('electron-message', ev =>
     void ipcRenderer.send(ev.detail.name, ev.detail.data));
-
-document.documentElement.classList.add('is-electron-window');

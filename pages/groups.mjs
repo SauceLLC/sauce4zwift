@@ -1,5 +1,5 @@
 /* global sauce */
-import sauce from '../shared/base.mjs';
+import sauce from '../shared/sauce/base.mjs';
 
 async function main() {
     const content = document.querySelector('#content');

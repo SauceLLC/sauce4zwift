@@ -117,7 +117,7 @@ class LRUCache extends Map {
     }
 }
 
-export defaults = {
+export default {
     sleep,
     debounced,
     formatInputDate, // XXX really?  remove or move

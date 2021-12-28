@@ -6,7 +6,7 @@ import storage from './storage.mjs';
 import sudo from 'sudo-prompt';
 import cap from 'cap';
 import ZwiftPacketMonitor from '@saucellc/zwift-packet-monitor';
-import {power} from '../shared/sauce/index.mjs';
+import power from '../shared/sauce/power.mjs';
 
 const athleteCacheLabel = 'athlete-cache';
 
@@ -245,7 +245,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         this.states.set(state.athleteId, state);
         const periods = [5, 30, 60, 300, 1200];
         if (!this._stats.has(state.athleteId)) {
-            const rp = new sauce.power.RollingPower(null, {idealGap: 0.200, maxGap: 10});
+            const rp = new power.RollingPower(null, {idealGap: 0.200, maxGap: 10});
             this._stats.set(state.athleteId, {
                 _firstTS: state.ts,
                 _rp: rp,

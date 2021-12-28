@@ -6,7 +6,7 @@
     self.sauce = (self.sauce || {});
     const L = (sauce.locale = {});
     const html = document.documentElement;
-    const isElectron = html.classList.contains('is-electron');
+    const isElectron = location.pathname.startsWith('/');
 
     L.thinSpace = '\u202f';
 

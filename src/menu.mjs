@@ -137,7 +137,6 @@ if (process.platform === 'darwin') {
     });
 }
 
-debugger;
 const menu = Menu.buildFromTemplate(template);
 
 function setAppMenu() {
