@@ -336,10 +336,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         state.stats = stats;
         if (this.watching === state.athleteId) { // XXX why is duration only sometimes 0, bug ?
             //console.warn('adsf', duration, state.power, from);
-            this.emit('watching', {
-                ...state,
-                stats: Object.fromEntries(Object.entries(stats).filter(([k]) => !k.startsWith('_')))
-            });
+            this.emit('watching', this.cleanState(state));
         }
     }
 
@@ -451,8 +448,21 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         }
     }
 
+    _cleanPrivate(o) {
+        return Object.fromEntries(Object.entries(o).filter(([k]) => !k.startsWith('_')));
+    }
+
+    cleanState(raw) {
+        const clean = this._cleanPrivate(raw);
+        if (clean.stats) {
+            clean.stats = this._cleanPrivate(clean.stats);
+        }
+        return clean;
+    }
+
     async _nearbyProcessor() {
         this.gcStates();
+        const cleanState = this.cleanState.bind(this);
         const watching = this.states.get(this.watching);
         if (watching) {
             const nearby = [];
@@ -482,7 +492,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 });
             }
             nearby.sort((a, b) => a.gap - b.gap);
-            this.emit('nearby', nearby);
+            this.emit('nearby', nearby.map(cleanState));
 
             const groups = [];
             let curGroup;
@@ -525,7 +535,8 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                     x.isGapEst = false;
                 }
             }
-            this.emit('groups', groups);
+            this.emit('groups', groups.map(g =>
+                (g.athletes = g.athletes.map(cleanState), g)));
         }
         await Promise.race([sleep(1000), this.wakeEvent]);
     }
