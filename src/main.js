@@ -122,21 +122,23 @@ async function makeFloatingWindow(page, options={}) {
     win.on('minimize', onHide);
     win.on('closed', onHide);
     win.on('restore', onShow);
-    win.loadFile(path.join('pages', page));
+    win.loadFile(path.join('pages', page), {search: options.search});
     return win;
 }
 
 
 async function createWindows(monitor) {
-    //await clearWindowState('overview.html'); // XXX TESTING
-    //await clearWindowState('watching.html'); // XXX TESTING
-    //await clearWindowState('groups.html'); // XXX TESTING
-    //await clearWindowState('chat.html'); // XXX TESTING
+    await clearWindowState('overview.html'); // XXX TESTING
+    await clearWindowState('watching.html'); // XXX TESTING
+    await clearWindowState('groups.html'); // XXX TESTING
+    await clearWindowState('chat.html'); // XXX TESTING
     await Promise.all([
         makeFloatingWindow('watching.html',
             {width: 260, height: 260, x: 8, y: 64}),
         makeFloatingWindow('groups.html',
-            {width: 235, height: 650, x: -280, y: -10}),
+            {width: 235, height: 650, x: -280, y: -10, search: 'no-anim'}),
+        makeFloatingWindow('groups.html',
+            {width: 235, height: 650, x: -580, y: -10}),
         makeFloatingWindow('chat.html',
             {width: 280, height: 580, x: 320, y: 230}),
         makeFloatingWindow('overview.html',

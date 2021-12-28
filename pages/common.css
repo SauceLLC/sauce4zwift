@@ -62,14 +62,14 @@ body {
 body.transparent-bg {
     transition: background 200ms;
 }
-html:not(.active) #titlebar,
-html.active #hintbar,
+html:not(.options-mode) #titlebar,
+html.options-mode #hintbar,
 html:not(:hover) #hintbar {
     max-height: 0;
     padding-top: 0;
     padding-bottom: 0;
 }
-html:not(:hover):not(.active) body.transparent-bg {
+html:not(:hover):not(.options-mode) body.transparent-bg {
     background: transparent;
 }
 
@@ -153,6 +153,9 @@ html.options #titlebar {
     align-items: center;
     justify-content: center;
     user-select: none;
+}
+#hintbar span::after {
+    content: 'Right click for options';
 }
 
 #content {

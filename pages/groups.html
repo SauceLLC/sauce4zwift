@@ -4,6 +4,12 @@
         <meta charset="UTF-8">
         <title>Groups - Sauce for Zwift</title>
         <link rel='stylesheet' href="common.css"/>
+        <script>
+            // XXX testing
+            if (location.search.includes('no-anim')) {
+                document.documentElement.classList.toggle('no-transition');
+            }
+        </script>
         <style>
             #content {
                 padding: 0.4em;
@@ -24,6 +30,9 @@
                 order: var(--rel-pos);
                 transition-property: width, height, opacity, visibility, font;
                 transition-duration: 2s;
+            }
+            .no-transition .group {
+                transition: initial;
             }
 
             .group:not(.hidden) {
@@ -136,6 +145,9 @@
                 transition-property: flex, opacity, visibility;
                 transition-duration: 4s;
             }
+            .no-transition .gap {
+                transition: initial;
+            }
         </style>
         <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';" />
         <script src="common.js" type="application/javascript" defer></script>
@@ -151,6 +163,6 @@
             </div>
         </div>
         <div id="content"></div>
-        <div id="hintbar">Double click for options</div>
+        <div id="hintbar"><span/></div>
     </body>
 </html>

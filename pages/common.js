@@ -103,12 +103,15 @@
 
     addEventListener('DOMContentLoaded', () => {
         const html = document.documentElement;
-        if (!html.classList.contains('options')) {
-            window.addEventListener('dblclick', () =>
-                void document.documentElement.classList.toggle('active'));
-            window.addEventListener('blur', () =>
-                void document.documentElement.classList.remove('active'));
-        }
+        window.addEventListener('contextmenu', () =>
+            void document.documentElement.classList.toggle('options-mode'));
+        window.addEventListener('blur', () =>
+            void document.documentElement.classList.remove('options-mode'));
+        window.addEventListener('click', ev => {
+            if (!ev.target.closest('#titlebar')) {
+                document.documentElement.classList.remove('options-mode');
+            }
+        });
         const close = document.querySelector('#titlebar .button.close');
         if (close) {
             close.addEventListener('click', ev => (void sauce.closeWindow()));
@@ -177,7 +180,7 @@
                     if (!this._scheduledRender) {
                         this._scheduledRender = setTimeout(() => {
                             this._scheduledRender = null;
-                            this.render(); 
+                            this.render();
                         }, Math.ceil(frameTime - age));
                     }
                     return;
