@@ -13,7 +13,7 @@ function buildPath(path) {
 }
 
 const _maxTimeout = 0x7fffffff;  // `setTimeout` max valid value.
-async function sleep(ms) {
+export async function sleep(ms) {
     while (ms > _maxTimeout) {
         // Support sleeping longer than the javascript max setTimeout...
         await new Promise(resolve => setTimeout(resolve, _maxTimeout));
@@ -24,7 +24,7 @@ async function sleep(ms) {
 
 
 /* Only use for non-async callbacks */
-function debounced(scheduler, callback) {
+export function debounced(scheduler, callback) {
     let nextPending;
     const wrap = function() {
         const waiting = !!nextPending;
@@ -47,13 +47,13 @@ function debounced(scheduler, callback) {
 }
 
 
-function formatInputDate(ts) {
+export function formatInputDate(ts) {
     // Return a input[type="date"] compliant value from a ms timestamp.
     return ts ? (new Date(ts)).toISOString().split('T')[0] : '';
 }
 
 
-async function blobToArrayBuffer(blob) {
+export async function blobToArrayBuffer(blob) {
     const reader = new FileReader();
     const done = new Promise((resolve, reject) => {
         reader.addEventListener('load', resolve);
@@ -65,7 +65,7 @@ async function blobToArrayBuffer(blob) {
 }
 
 
-class LRUCache extends Map {
+export class LRUCache extends Map {
     constructor(capacity) {
         super();
         this._capacity = capacity;
@@ -120,6 +120,7 @@ class LRUCache extends Map {
 export default {
     sleep,
     debounced,
-    formatInputDate, // XXX really?  remove or move
+    formatInputDate,
+    blobToArrayBuffer,
     LRUCache,
 };
