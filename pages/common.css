@@ -43,7 +43,6 @@ html, body {
     height: 100%;
     font-size: clamp(10px, 7vw, 30px);
     overflow: hidden;
-    color: #eee;
 }
 
 html {
