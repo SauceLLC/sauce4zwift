@@ -43,34 +43,49 @@ html, body {
     height: 100%;
     font-size: clamp(10px, 7vw, 30px);
     overflow: hidden;
+    color: #eee;
 }
 
 html {
+    --aspect-ratio: 9 / 16;
     padding: 3px; /* Required in windows to allow resize handles */
     background-color: rgba(127, 127, 127, 0.002); /* Using full transparency breaks on windows */
+}
+html.use-aspect-ratio {
+    font-size: clamp(10px, 8vw, calc(var(--aspect-ratio) * 8 * 1vh));
+}
+html.browser-mode {
+    background-color: black;
 }
 
 body {
     position: relative;
     display: flex;
     flex-direction: column;
-    background-color: #ff5e0080;
     color: white;
     font-family: 'Jost', sans-serif;
-    border-radius: 0.5rem;
+    border-radius: 0.3rem;
 }
 body.transparent-bg {
     transition: background 200ms;
 }
-html:not(.options-mode) #titlebar,
+html body {
+    background-image: linear-gradient(135deg, #db0000de, transparent),
+                      linear-gradient(315deg, #020e64d1, transparent);
+}
+html:not(.browser-mode) body:not(.transparent-bg) {
+    background-color: #000;
+}
+html:not(.browser-mode):not(:hover) body.transparent-bg {
+    background: transparent;
+}
+
+html:not(.options-mode):not(.options-page) #titlebar,
 html.options-mode #hintbar,
 html:not(:hover) #hintbar {
     max-height: 0;
     padding-top: 0;
     padding-bottom: 0;
-}
-html:not(:hover):not(.options-mode) body.transparent-bg {
-    background: transparent;
 }
 
 #titlebar {
@@ -88,7 +103,7 @@ html:not(:hover):not(.options-mode) body.transparent-bg {
     display: flex;
     align-items: center;
 }
-html.options #titlebar {
+html.options-page #titlebar {
     position: relative;
 }
 

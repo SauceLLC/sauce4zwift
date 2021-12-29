@@ -288,7 +288,6 @@ function humanNumber(value, precision=0) {
     }
     const n = Number(value);
     if (isNaN(n)) {
-        console.warn("Value is not a number:", value);
         return '-';
     }
     if (precision === null) {

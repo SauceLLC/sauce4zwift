@@ -1,9 +1,16 @@
 <!DOCTYPE html>
 <html>
     <head>
-        <meta charset="UTF-8">
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+        <meta name="apple-mobile-web-app-capable" content="yes"/>
+        <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
+
         <title>Chat - Sauce for Zwift</title>
-        <link id="favicon" rel="shortcut icon" href="images/favicon-chat.png"/>
+
+        <link rel="manifest" href="/pages/chat-manifest.json"/>
+        <link id="favicon" rel="shortcut icon" href="/pages/images/favicon.png"/>
+
         <link rel='stylesheet' href="common.css"/>
         <style>
             body {
@@ -26,7 +33,7 @@
                 align-items: center;
                 font-size: 0.8em;
                 margin-bottom: 0.6rem;
-                border-radius: 1.5em; /* must be >= half avatar */
+                border-radius: 0.33em;
                 box-shadow: 1px 1px 5px 0 #0004;
             }
             .entry:first-child {
@@ -62,7 +69,7 @@
                 height: 3em;
                 border-radius: 50%;
                 overflow: hidden;
-                margin-right: 0.33em;
+                margin: 0 0.33em;
                 box-shadow: 0 0 0 1px #0002;
             }
 
@@ -112,7 +119,7 @@
     <body class="transparent-bg">
         <div id="titlebar">
             <div class="button move app-drag"><img src="images/fa/arrows-alt.svg"/></div>
-            <header classs="app-drag">Chat - Sauce for Zwift</header>
+            <header class="app-drag">Chat - Sauce for Zwift</header>
             <div class="buttons">
                 <div class="button options" data-url="chat-options.html"><img src="images/fa/cog-duotone.svg"/></div>
                 <div class="button close"><img src="images/fa/window-close-light.svg"/></div>

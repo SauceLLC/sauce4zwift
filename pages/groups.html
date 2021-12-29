@@ -1,16 +1,22 @@
 <!DOCTYPE html>
-<html>
+<html class="use-aspect-ratio">
     <head>
-        <meta charset="UTF-8">
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+        <meta name="apple-mobile-web-app-capable" content="yes"/>
+        <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
+
         <title>Groups - Sauce for Zwift</title>
+
+        <link rel="manifest" href="/pages/groups-manifest.json"/>
+        <link id="favicon" rel="shortcut icon" href="/pages/images/favicon.png"/>
         <link rel='stylesheet' href="common.css"/>
-        <script>
-            // XXX testing
-            if (location.search.includes('no-anim')) {
-                document.documentElement.classList.toggle('no-transition');
-            }
-        </script>
+
         <style>
+            html {
+                --aspect-ratio: 3 / 8;
+            }
+
             #content {
                 padding: 0.4em;
                 align-items: center;

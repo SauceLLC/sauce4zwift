@@ -1,5 +1,6 @@
+import {sleep} from '../shared/sauce/base.mjs';
 
-const isElectron = location.pathname.startsWith('/');  // XXX use better test
+const isElectron = location.protocol === 'file:';
 
 let closeWindow;
 let electronTrigger;
@@ -20,8 +21,9 @@ if (isElectron) {
         electronTrigger('subscribe', {event, domEvent});
     };
 } else {
-    const pendingRequests = new Map();
-    const subs = new Map();
+    document.documentElement.classList.add('browser-mode');
+    const respHandlers = new Map();
+    const subs = [];
     let uidInc = 1;
 
     closeWindow = function() {
@@ -32,39 +34,80 @@ if (isElectron) {
     let errBackoff = 1000;
     let wsp;
     async function connectWebSocket() {
-        const ws = new WebSocket('ws://localhost:1080/api/ws');
+        const ws = new WebSocket(`ws://${location.host}/api/ws`);
         ws.addEventListener('message', ev => {
-            debugger;
+            const envelope = JSON.parse(ev.data);
+            const {resolve, reject} = respHandlers.get(envelope.uid);
+            if (!resolve) {
+                console.error("Websocket Protocol Error:", envelope.error || envelope.data);
+                return;
+            }
+            if (envelope.type === 'response') {
+                respHandlers.delete(envelope.uid);
+            }
+            if (envelope.success) {
+                resolve(envelope.data);
+            } else {
+                reject(new Error(envelope.error));
+            }
         });
         ws.addEventListener('close', ev => {
-            wsp = sleep(errBackoff *= 1.2).then(connectWebSocket).then(ws => {
-                debugger; // XXX rebuild existing subs
-                return ws;
-            });
+            console.warn('WebSocket connection issue: retry in', (errBackoff / 1000).toFixed(1), 's');
+            wsp = sleep(errBackoff *= 1.1).then(connectWebSocket);
         });
-        return await new Promise((resolve, reject) => {
-            ws.addEventListener('error', ev => {
-                debugger;
-                reject(ev.error);
+        const tO = setTimeout(() => ws.close(), 5000);
+        ws.addEventListener('error', ev => {
+            clearTimeout(tO);
+        });
+        return await new Promise(resolve => {
+            ws.addEventListener('open', () => {
+                console.debug("WebSocket connected");
+                clearTimeout(tO);
+                for (const {event, callback} of subs) {
+                    _subscribe(ws, event, callback);
+                }
+                resolve(ws);
             });
-            ws.addEventListener('open', () => resolve(ws));
-            setTimeout(() => reject(new Error('Timeout')), 5000);
         });
     }
     wsp = connectWebSocket();
 
     subscribe = async function(event, callback) {
         const ws = await wsp;
-        const uid = uidInc++;
-        ws.send('asdf');
+        await _subscribe(ws, event, callback);
+        subs.push({event, callback});
     };
+
+
+    function _subscribe(ws, event, callback) {
+        const uid = uidInc++;
+        const subId = uidInc++;
+        let resolve, reject;
+        const p = new Promise((_resolve, _reject) => (resolve = _resolve, reject = _reject));
+        respHandlers.set(uid, {resolve, reject});
+        respHandlers.set(subId, {resolve: callback, reject: e => console.error(e)});
+        ws.send(JSON.stringify({
+            type: 'request',
+            uid,
+            data: {
+                method: 'subscribe',
+                arg: {
+                    event,
+                    subId,
+                }
+            }
+        }));
+        return p;
+    }
 }
 
 function initInteractionListeners() {
     const html = document.documentElement;
     if (!html.classList.contains('options-mode')) {
-        window.addEventListener('contextmenu', () =>
-            void html.classList.toggle('options-mode'));
+        window.addEventListener('contextmenu', ev => {
+            ev.preventDefault();
+            void html.classList.toggle('options-mode');
+        });
         window.addEventListener('blur', () =>
             void html.classList.remove('options-mode'));
         window.addEventListener('click', ev => {

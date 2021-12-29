@@ -57,19 +57,16 @@ async function start(monitor) {
         setHeaders: res => res.setHeader('Cache-Control', cacheDisabled)
     }));
     router.ws('/api/ws', (ws, req) => {
-        let subIdInc = 1;
-        console.info("client connection", ws, req);
         const subs = new Map();
         ws.on('message', wrapWebSocketMessage(ws, (type, {method, arg}) => {
             if (type !== 'request') {
                 throw new TypeError('Invalid type');
             }
             if (method === 'subscribe') {
-                const event = arg;
+                const {event, subId} = arg;
                 if (!event) {
                     throw new TypeError('"event" arg required');
                 }
-                const subId = subIdInc++;
                 const cb = data => {
                     ws.send(JSON.stringify({
                         success: true,
@@ -80,7 +77,7 @@ async function start(monitor) {
                 };
                 subs.set(subId, {event, cb});
                 monitor.on(event, cb);
-                return subId;
+                return;
             } else if (method === 'unsubscribe') {
                 const subId = arg;
                 if (!subId) {
@@ -89,6 +86,7 @@ async function start(monitor) {
                 const {event, cb} = subs.get(subId);
                 subs.delete(subId);
                 monitor.off(event, cb);
+                return;
             } else {
                 throw new TypeError('Invalid "method"');
             }

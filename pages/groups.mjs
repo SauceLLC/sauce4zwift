@@ -84,7 +84,6 @@ async function main() {
             const dur = innerGap && H.duration(Math.abs(gap), {short: true, seperator: ' '});
             gapEl.querySelector('.desc .line.time').textContent = dur ? (gap > 0 ? '+' : '-') + dur : '';
         }
-        console.info("");
         for (const [pos, x] of groupEls.entries()) {
             x.classList.toggle('hidden', !active.has(pos));
         }

@@ -123,7 +123,7 @@ async function makeFloatingWindow(page, options={}) {
     win.on('minimize', onHide);
     win.on('closed', onHide);
     win.on('restore', onShow);
-    win.loadFile(path.join('pages', page), {search: options.search});
+    win.loadFile(path.join('pages', page));
     return win;
 }
 
