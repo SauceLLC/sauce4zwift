@@ -20,7 +20,7 @@
             #content {
                 padding: 0.4em;
                 align-items: center;
-                justify-content: center;
+                justify-content: space-between;
                 padding-right: 2rem;  /* Need more space for absolute pos desc on right. */
             }
 
@@ -146,9 +146,9 @@
                 border-right-style: solid;
                 border-right-width: calc(0.08rem + 0.15rem * min(1, var(--outer-gap) / 600));
                 border-right-color: hsl(calc(70deg + 50deg * min(var(--outer-gap) / 300, 1) * var(--gap-sign)), 100%, 50%);
-                flex: calc(var(--inner-gap) / var(--total-gap)) 1 0;
+                flex: var(--inner-gap) 1 0;
                 transition-property: flex, opacity, visibility;
-                transition-duration: 4s;
+                transition-duration: 2s;
             }
             .no-transition .gap {
                 transition: initial;
