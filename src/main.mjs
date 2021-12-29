@@ -129,17 +129,15 @@ async function makeFloatingWindow(page, options={}) {
 
 
 async function createWindows(monitor) {
-    await clearWindowState('overview.html'); // XXX TESTING
-    await clearWindowState('watching.html'); // XXX TESTING
-    await clearWindowState('groups.html'); // XXX TESTING
-    await clearWindowState('chat.html'); // XXX TESTING
+    //await clearWindowState('overview.html'); // XXX TESTING
+    //await clearWindowState('watching.html'); // XXX TESTING
+    //await clearWindowState('groups.html'); // XXX TESTING
+    //await clearWindowState('chat.html'); // XXX TESTING
     await Promise.all([
         makeFloatingWindow('watching.html',
             {width: 260, height: 260, x: 8, y: 64}),
         makeFloatingWindow('groups.html',
-            {width: 235, height: 650, x: -280, y: -10, search: 'no-anim'}),
-        makeFloatingWindow('groups.html',
-            {width: 235, height: 650, x: -580, y: -10}),
+            {width: 235, height: 650, x: -280, y: -10}),
         makeFloatingWindow('chat.html',
             {width: 280, height: 580, x: 320, y: 230}),
         makeFloatingWindow('overview.html',
