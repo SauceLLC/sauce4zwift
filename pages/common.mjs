@@ -161,9 +161,8 @@ class Renderer {
                 this.render({force: true});
             });
             this.addCallback(x => {
-                if (valueEl) {
-                    valueEl.innerHTML = f.value ? f.value(x) : '';
-                }
+                const value = f.value(x);
+                valueEl.innerHTML = value;
                 if (labelEl) {
                     labelEl.innerHTML = f.label ? f.label(x) : '';
                 }
@@ -171,7 +170,7 @@ class Renderer {
                     keyEl.innerHTML = f.key ? f.key(x) : '';
                 }
                 if (unitEl) {
-                    unitEl.innerHTML = f.unit ? f.unit(x) : '';
+                    unitEl.innerHTML = (value != null && value !== '-' && f.unit) ? f.unit(x) : '';
                 }
             });
         }

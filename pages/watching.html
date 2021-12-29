@@ -58,11 +58,6 @@
                 display: block;
             }
 
-            heading::first-letter {
-                font-size: 1.2em;
-                line-height: 0;
-            }
-
             .entry > heading {
                 position: absolute;
                 top: 0;
@@ -75,6 +70,7 @@
             }
 
             .entry .primary {
+                position: relative;
                 font-size: 1.65em;
                 font-weight: bold;
                 margin-top: -1.2rem;
@@ -82,6 +78,23 @@
                 flex-direction: column;
                 align-items: flex-end;
                 line-height: 1;
+            }
+
+            .entry .fg {
+                z-index: 1;
+            }
+
+            .entry .bg {
+                position: absolute;
+                height: 130%;
+                right: 0;
+                top: -10%;
+                display: flex;
+                min-width: 100%;
+                justify-content: center;
+            }
+            .entry .bg img {
+                height: 100%;
             }
 
             .primary .label {
@@ -124,6 +137,12 @@
                 opacity: 0.82;
             }
 
+            .entry {
+                background-repeat: no-repeat;
+                background-position-x: center;
+                background-origin: content-box;
+            }
+
             .power {
                 font-size: 1.7em;
             }
@@ -150,7 +169,7 @@
         </div>
         <div id="content">
             <div class="entry power columns">
-                <heading>⚡ POWER:</heading>
+                <heading>POWER:</heading>
                 <div class="sub">
                     <div class="row" data-field="power-upper">
                         <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
@@ -160,40 +179,52 @@
                     </div>
                 </div>
                 <div class="primary" data-field="power-main">
-                    <span class="value"></span><div class="label"></div>
+                    <div class="bg">
+                        <img src="images/fa/bolt-duotone.svg"/>
+                    </div>
+                    <div class="fg">
+                        <div class="value"></div>
+                        <div class="label"></div>
+                    </div>
                 </div>
             </div>
             <div class="entry hr columns">
-                <heading>❤️ HEART RATE:</heading>
+                <heading>HEART RATE:</heading>
                 <div class="sub">
                     <div class="row avg">
-                        <div class="key">AVG</div><div class="value"></div><abbr class="unit">bpm</abbr>
+                        <div class="key">Avg</div><div class="value"></div><abbr class="unit">bpm</abbr>
                     </div>
                     <div class="row max">
-                        <div class="key">MAX</div><div class="value"></div><abbr class="unit">bpm</abbr>
+                        <div class="key">Max</div><div class="value"></div><abbr class="unit">bpm</abbr>
                     </div>
                 </div>
                 <div class="primary current">
-                    <span class="value"></span><div class="label">bpm</div>
+                    <div class="bg">
+                        <img src="images/fa/heartbeat-duotone.svg"/>
+                    </div>
+                    <div class="fg">
+                        <div class="value"></div>
+                        <div class="label">bpm</div>
+                    </div>
                 </div>
             </div>
             <div class="entry misc columns no-heading">
                 <div class="sub cadence">
-                    <heading>↻ CADENCE:</heading>
+                    <heading>CADENCE:</heading>
                     <div class="row current">
-                        <div class="key">CUR</div><div class="value"></div><abbr class="unit">rpm</abbr>
+                        <div class="key">Current</div><div class="value"></div><abbr class="unit">rpm</abbr>
                     </div>
                     <div class="row avg">
-                        <div class="key">AVG</div><div class="value"></div><abbr class="unit">rpm</abbr>
+                        <div class="key">Avg</div><div class="value"></div><abbr class="unit">rpm</abbr>
                     </div>
                 </div>
                 <div class="sub draft">
-                    <heading>💨 DRAFT:</heading>
+                    <heading>DRAFT:</heading>
                     <div class="row current">
-                        <div class="key">CUR</div><div class="value"></div><abbr class="unit">%</abbr>
+                        <div class="key">Cur</div><div class="value"></div><abbr class="unit">%</abbr>
                     </div>
                     <div class="row avg">
-                        <div class="key">AVG</div><div class="value"></div><abbr class="unit">%</abbr>
+                        <div class="key">Avg</div><div class="value"></div><abbr class="unit">%</abbr>
                     </div>
                 </div>
             </div>
