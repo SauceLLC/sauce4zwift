@@ -53,8 +53,9 @@ async function makeFloatingWindow(page, options={}) {
         ...options,
         ...state,
     });
-    if (options.relWidth != null || options.relHeight != null ||
-        options.relX != null || options.relY != null || options.x < 0 || options.y < 0) {
+    const hasPosition = state.x != null && state.y != null && state.width && state.height;
+    if (!hasPosition && (options.relWidth != null || options.relHeight != null ||
+        options.relX != null || options.relY != null || options.x < 0 || options.y < 0)) {
         const {width: sWidth, height: sHeight} = electron.screen.getPrimaryDisplay().size;
         const width = options.width == null ? Math.round(options.relWidth * sWidth) : options.width;
         const height = options.height == null ? Math.round(options.relHeight * sHeight) : options.height;
