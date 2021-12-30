@@ -308,7 +308,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                         }
                     }
                 }
-                for (const x in periods) {
+                for (const x of periods) {
                     stats[`power${x}s`] = rp.slice(-x).avg();
                 }
                 stats.powerAvg = (rp.kj() * 1000) / rp.active();
