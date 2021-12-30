@@ -31,24 +31,25 @@
                 background-color: hsla(var(--message-hue), 80%, 40%, 0.7);
                 color: #fff;
                 align-items: center;
-                font-size: 0.8em;
+                font-size: 0.85em;
                 margin-bottom: 0.6rem;
                 border-radius: 0.33em;
                 box-shadow: 1px 1px 5px 0 #0004;
+                max-height: 0;
             }
-            .entry:first-child {
+            #content > *:first-child {
                 /* https://bugs.chromium.org/p/chromium/issues/detail?id=411624 */
                 margin-top: auto;  /* Shift to bottom when unscrolled */
             }
-            .entry:last-child {
+            #content > :last-child {
                 scroll-snap-align: end;
                 scroll-margin-block-end: 1rem;
             }
 
             .entry.fadeout {
                 opacity: 0;
-                transition: opacity 5s;
-                transition-delay: 120s;
+                transition: opacity var(--fadeout-time) var(--cleanup-time), max-height 1s 0s;
+                max-height: 100vh;
             }
 
             .timestamp {
@@ -69,7 +70,7 @@
                 height: 3em;
                 border-radius: 50%;
                 overflow: hidden;
-                margin: 0 0.33em;
+                margin: 0.33em;
                 box-shadow: 0 0 0 1px #0002;
             }
 
@@ -86,7 +87,7 @@
 
             .entry .header {
                 font-size: 0.6em;
-                padding: 0.6em 1rem 0 0;
+                padding: 0.6em 0.3rem 0 0;
                 flex: 0 0 auto;
             }
 
@@ -95,8 +96,8 @@
             }
 
             .entry .content > .live {
-                font-size: 0.55em;
-                padding: 0.3em 0.5rem 1em 0;
+                font-size: 0.6em;
+                padding: 0.1em 0.3rem 0.4em 0;
                 flex: 0 0 auto;
             }
 

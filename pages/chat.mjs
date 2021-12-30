@@ -58,9 +58,13 @@ async function main() {
 
     function addContentEntry(el) {
         content.appendChild(el);
+        const fadeoutTime = 3;
+        const cleanupTime = 120;
+        el.style.setProperty('--fadeout-time', `${fadeoutTime}s`);
+        el.style.setProperty('--cleanup-time', `${cleanupTime}s`);
         void el.offsetLeft; // force layout/reflow so we can trigger animation.
-        el.addEventListener('transitionend', () => el.remove());
-        el.classList.add('fadeout', 'slideout');
+        setTimeout(() => el.remove(), (fadeoutTime + cleanupTime) * 1000);
+        el.classList.add('fadeout');
     }
 
 
@@ -106,7 +110,7 @@ async function main() {
     common.subscribe('chat', onChatMessage);
 
     // TESTING
-    for (let i = 0; i < 0; i++) {
+    for (let i = 1; i < 100; i++) {
         onChatMessage({
             firstName: 'Foo',
             lastName: 'Bar',
@@ -115,7 +119,7 @@ async function main() {
             to: 0,
             avatar: 'images/blankavatar.png',
         });
-        await sauce.sleep(1000 * i);
+        await sauce.sleep(4000 * i);
     }
 }
 
