@@ -110,7 +110,7 @@ async function main() {
     common.subscribe('chat', onChatMessage);
 
     // TESTING
-    for (let i = 1; i < 100; i++) {
+    for (let i = 1; i < 1; i++) {
         onChatMessage({
             firstName: 'Foo',
             lastName: 'Bar',
