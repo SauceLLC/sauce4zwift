@@ -115,20 +115,21 @@ async function main() {
     });
     common.subscribe('chat', onChatMessage);
 
-    // TESTING
-    for (let i = 1; i < 100; i++) {
-        //const from = Array.from(nearby.keys())[0] || 0; // [Math.floor(Math.random() * nearby.size / 2)] || 0;
-        const from = Array.from(nearby.keys())[Math.floor(Math.random() * nearby.size / 10)] || 0;
-        onChatMessage({
-            firstName: 'Foo',
-            lastName: 'Bar ' + from,
-            message: Array.from(Array(i)).map(() => 'I am a teapot short and stout.').join('\n'),
-            from,
-            to: 0,
-            avatar: 'images/blankavatar.png',
-        });
-        await sauce.sleep(1000 * i);
-        //await sauce.sleep(200);
+    if (location.search.includes('testing')) {
+        for (let i = 1; i < 100; i++) {
+            //const from = Array.from(nearby.keys())[0] || 0; // [Math.floor(Math.random() * nearby.size / 2)] || 0;
+            const from = Array.from(nearby.keys())[Math.floor(Math.random() * nearby.size / 10)] || 0;
+            onChatMessage({
+                firstName: 'Foo',
+                lastName: 'Bar ' + from,
+                message: Array.from(Array(i)).map(() => 'I am a teapot short and stout.').join('\n'),
+                from,
+                to: 0,
+                avatar: 'images/blankavatar.png',
+            });
+            await sauce.sleep(1000 * i);
+            //await sauce.sleep(200);
+        }
     }
 }
 
