@@ -21,21 +21,23 @@
                 align-items: flex-start;
                 padding: 0.2rem;
                 overflow-y: auto;
-                overscroll-behavior-y: contain;
                 scroll-snap-type: y proximity;
             }
 
             .entry {
                 --message-hue: 0deg;
+                flex: 0 0 auto;
                 display: flex;
                 background-color: hsla(var(--message-hue), 80%, 40%, 0.7);
                 color: #fff;
-                align-items: center;
+                align-items: flex-start;  /* workaround a scroll issue with large content */
                 font-size: 0.85em;
                 margin-bottom: 0.6rem;
                 border-radius: 0.33em;
                 box-shadow: 1px 1px 5px 0 #0004;
                 max-height: 0;
+                transition: opacity var(--fadeout-time) var(--cleanup-time), max-height 1s 0s;
+                overflow: hidden;
             }
             #content > *:first-child {
                 /* https://bugs.chromium.org/p/chromium/issues/detail?id=411624 */
@@ -48,8 +50,10 @@
 
             .entry.fadeout {
                 opacity: 0;
-                transition: opacity var(--fadeout-time) var(--cleanup-time), max-height 1s 0s;
-                max-height: 100vh;
+            }
+
+            .entry.slidein {
+                max-height: calc(100vh - 1.5rem);
             }
 
             .timestamp {
@@ -66,6 +70,7 @@
 
             .entry .avatar {
                 flex: 0 0 auto;
+                align-self: center;
                 width: 3em;
                 height: 3em;
                 border-radius: 50%;
@@ -83,6 +88,7 @@
             .entry .content {
                 display: flex;
                 flex-direction: column;
+                max-height: 100%;
             }
 
             .entry .header {
@@ -96,6 +102,7 @@
             }
 
             .entry .content > .live {
+                min-width: 24ch;
                 font-size: 0.6em;
                 padding: 0.1em 0.3rem 0.4em 0;
                 flex: 0 0 auto;
@@ -106,12 +113,20 @@
             }
 
             .entry .message {
+                margin-right: 0.3rem;
+                margin-bottom: 0.3rem;
+                overflow-y: auto;
+                scroll-snap-type: y proximity;
+            }
+
+            .entry .message > .chunk {
                 font-size: 0.8em;
                 white-space: pre-wrap;
                 word-break: break-word;
-                flex: 1 1 100%;
-                margin-right: 1em;
-                margin-bottom: 0.5em;
+            }
+            .entry .message > .chunk:last-child {
+                scroll-snap-align: end;
+                scroll-margin-block-end: 1rem;
             }
         </style>
         <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';" />

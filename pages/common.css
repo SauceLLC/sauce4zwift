@@ -14,7 +14,7 @@ img {
     display: block;
 }
 
-html:not(:hover) ::-webkit-scrollbar {
+*:not(:hover)::-webkit-scrollbar {
     display: none;
 }
 ::-webkit-scrollbar {

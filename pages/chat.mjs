@@ -58,24 +58,29 @@ async function main() {
 
     function addContentEntry(el) {
         content.appendChild(el);
-        const fadeoutTime = 3;
-        const cleanupTime = 120;
+        const fadeoutTime = 5;
+        const cleanupTime = 1200000;
         el.style.setProperty('--fadeout-time', `${fadeoutTime}s`);
         el.style.setProperty('--cleanup-time', `${cleanupTime}s`);
         void el.offsetLeft; // force layout/reflow so we can trigger animation.
-        setTimeout(() => el.remove(), (fadeoutTime + cleanupTime) * 1000);
-        el.classList.add('fadeout');
+        el.classList.add('fadeout', 'slidein');
+        let to;
+        el._resetCleanup = () => {
+            clearTimeout(to);
+            to = setTimeout(() => el.remove(), (fadeoutTime + cleanupTime) * 1000);
+        };
+        el._resetCleanup();
     }
 
 
     function onChatMessage(chat) {
         const lastEntry = getLastEntry();
         if (lastEntry && Number(lastEntry.dataset.from) === chat.from) {
-            lastEntry.classList.remove('fadeout');
-            const msg = lastEntry.querySelector('.message');
-            msg.textContent += '\n' + chat.message;
-            void lastEntry.offsetLeft;  // force reflow
-            lastEntry.classList.add('fadeout');
+            const chunk = document.createElement('div');
+            chunk.classList.add('chunk');
+            chunk.textContent = chat.message;
+            lastEntry.querySelector('.message').appendChild(chunk);
+            lastEntry._resetCleanup();
             return;
         }
         const entry = document.createElement('div');
@@ -93,12 +98,13 @@ async function main() {
             <div class="content">
                 <div class="header"><span class="name"></span></div>
                 <div class="live">${liveDataFormatter(chat.from)}</div>
-                <div class="message"></div>
+                <div class="message"><div class="chunk"></div></div>
             </div>
         `;
         const name = [chat.firstName, chat.lastName].filter(x => x).join(' ');
-        entry.querySelector('.name').textContent = name;  // sanitize
-        entry.querySelector('.message').textContent = chat.message;
+        // Sanitize with `textContent`.  Don't use ^^^ string interpolation.
+        entry.querySelector('.name').textContent = name;
+        entry.querySelector('.message .chunk').textContent = chat.message;
         addContentEntry(entry);
     }
 
@@ -110,16 +116,19 @@ async function main() {
     common.subscribe('chat', onChatMessage);
 
     // TESTING
-    for (let i = 1; i < 1; i++) {
+    for (let i = 1; i < 100; i++) {
+        //const from = Array.from(nearby.keys())[0] || 0; // [Math.floor(Math.random() * nearby.size / 2)] || 0;
+        const from = Array.from(nearby.keys())[Math.floor(Math.random() * nearby.size / 10)] || 0;
         onChatMessage({
             firstName: 'Foo',
-            lastName: 'Bar',
-            message: 1000000 * i,
-            from: Array.from(nearby.keys())[Math.floor(Math.random() * nearby.size / 10)] || 0,
+            lastName: 'Bar ' + from,
+            message: Array.from(Array(i)).map(() => 'I am a teapot short and stout.').join('\n'),
+            from,
             to: 0,
             avatar: 'images/blankavatar.png',
         });
-        await sauce.sleep(4000 * i);
+        await sauce.sleep(1000 * i);
+        //await sauce.sleep(200);
     }
 }
 
