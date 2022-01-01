@@ -103,14 +103,6 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         this.watching = null;
         this.on('incoming', this.onIncoming);
         this.on('outgoing', this.onOutgoing);
-        this.wakeup();  // set up wakeEvent
-    }
-
-    wakeup() {
-        if (this._wakeResolve) {
-            this._wakeResolve();
-        }
-        this.wakeEvent = new Promise(resolve => this._wakeResolve = resolve);
     }
 
     maybeLearnAthleteId(packet) {
@@ -168,21 +160,12 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         }
         this.processState(state, from);
         const watching = state.watchingAthleteId;
-        let shouldWakeup;
         if (watching != null && this.watching !== watching) {
             this.watching = watching;
             console.debug("Now watching:", watching);
-            console.warn("should wake", 'watching change');
-            shouldWakeup = true;
         }
         if (state.athleteId === this.watching) {
             this._watchingRoadSig = this._roadSig(state);
-            console.warn("should wake", 'outgoing from self LIKELY');
-            shouldWakeup = true;
-        }
-        if (shouldWakeup) {
-            // XXX Pretty sure there is a bug in here.  I'm seeing nearby and group events WAY too frequent.
-            this.wakeup();
         }
     }
 
@@ -437,16 +420,34 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
 
     async nearbyProcessor() {
         let errBackoff = 1000;
+        let start = Date.now();
+        let count = 0;
+        console.log('goal', start % 1000);
         while (this._active) {
             if (this.watching == null) {
                 await sleep(100);
+                let start = Date.now();
+                let count = 0;
                 continue;
             }
             try {
                 await this._nearbyProcessor();
+                count += 1;
+                const now = Date.now();
+                let schedSleep = (count * 1000) - (now - start);
+                if (schedSleep < 0) {
+                    // Backlogged, by try to maintain the same beat.
+                    //console.warn('backlog', schedSleep);
+                    count += Math.ceil(-schedSleep / 1000);
+                    schedSleep = 1000 - (-schedSleep % 1000);
+                }
+                await sleep(schedSleep);
+                //console.info(schedSleep);
             } catch(e) {
                 console.error("Unexpected processor error:", e);
                 await sleep(errBackoff *= 2);
+                let start = Date.now();
+                let count = 0;
             }
         }
     }
@@ -467,81 +468,81 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         this.gcStates();
         const cleanState = this.cleanState.bind(this);
         const watching = this.states.get(this.watching);
-        if (watching) {
-            const nearby = [];
-            for (const [k, x] of this.states.entries()) {
-                if (!x.speed && k !== this.watching) {
+        if (!watching) {
+            return;
+        }
+        const nearby = [];
+        for (const [k, x] of this.states.entries()) {
+            if (!x.speed && k !== this.watching) {
+                continue;
+            }
+            const leading = this.isFirstLeadingSecond(watching, x);
+            if (leading == null) {
+                if (k === this.watching) {
+                    debugger;
+                } else {
                     continue;
                 }
-                const leading = this.isFirstLeadingSecond(watching, x);
-                if (leading == null) {
-                    if (k === this.watching) {
-                        debugger;
-                    } else {
-                        continue;
-                    }
-                }
-                const sign = leading ? 1 : -1;
-                let gap = this.realGap(watching, x);
-                let isGapEst = gap == null;
-                if (isGapEst) {
-                    gap = estGap(watching, x);
-                }
-                nearby.push({
-                    gap: gap * sign,
-                    isGapEst,
-                    athlete: this.athletes.get(k),
-                    ...x
-                });
             }
-            nearby.sort((a, b) => a.gap - b.gap);
-            this.emit('nearby', nearby.map(cleanState));
-
-            const groups = [];
-            let curGroup;
-            for (const x of nearby) {
-                if (!curGroup) {
-                    curGroup = {athletes: [x]};
-                } else {
-                    const last = curGroup.athletes.at(-1);
-                    const gap = x.gap - last.gap;
-                    if (gap > 2) {
-                        curGroup.innerGap = gap;
-                        groups.push(curGroup);
-                        curGroup = {athletes: []};
-                    }
-                    curGroup.athletes.push(x);
-                }
-                curGroup.watching = curGroup.watching || x.athleteId === this.watching;
+            const sign = leading ? 1 : -1;
+            let gap = this.realGap(watching, x);
+            let isGapEst = gap == null;
+            if (isGapEst) {
+                gap = estGap(watching, x);
             }
-            if (curGroup && curGroup.athletes.length) {
-                groups.push(curGroup);
-            }
-            const watchingIdx = groups.findIndex(x => x.watching);
-            if (watchingIdx === -1) {
-                debugger; // Bug
-            }
-            for (let i = 0; i < groups.length; i++) {
-                const x = groups[i];
-                x.power = x.athletes.reduce((agg, x) => agg + x.power, 0) / x.athletes.length;
-                x.draft = x.athletes.reduce((agg, x) => agg + x.draft, 0) / x.athletes.length;
-                x.speed = x.athletes.reduce((agg, x) => agg + x.speed, 0) / x.athletes.length; // XXX use median i think
-                if (watchingIdx !== i) {
-                    const edge = watchingIdx < i ? x.athletes[0] : x.athletes.at(-1);
-                    x.isGapEst = edge.isGapEst;
-                    x.gap = edge.gap;
-                    if (i < groups.length - 1 && x.gap - groups[i + 1] < 2) {
-                        debugger;
-                    }
-                } else {
-                    x.gap = 0;
-                    x.isGapEst = false;
-                }
-            }
-            this.emit('groups', groups.map(g =>
-                (g.athletes = g.athletes.map(cleanState), g)));
+            nearby.push({
+                gap: gap * sign,
+                isGapEst,
+                athlete: this.athletes.get(k),
+                ...x
+            });
         }
-        await Promise.race([sleep(1000), this.wakeEvent]);
+        nearby.sort((a, b) => a.gap - b.gap);
+        this.emit('nearby', nearby.map(cleanState));
+
+        const groups = [];
+        let curGroup;
+        for (const x of nearby) {
+            if (!curGroup) {
+                curGroup = {athletes: [x]};
+            } else {
+                const last = curGroup.athletes.at(-1);
+                const gap = x.gap - last.gap;
+                if (gap > 2) {
+                    curGroup.innerGap = gap;
+                    groups.push(curGroup);
+                    curGroup = {athletes: []};
+                }
+                curGroup.athletes.push(x);
+            }
+            curGroup.watching = curGroup.watching || x.athleteId === this.watching;
+        }
+        if (curGroup && curGroup.athletes.length) {
+            groups.push(curGroup);
+        }
+        const watchingIdx = groups.findIndex(x => x.watching);
+        if (watchingIdx === -1) {
+            debugger; // Bug
+        }
+        for (let i = 0; i < groups.length; i++) {
+            const x = groups[i];
+            x.power = x.athletes.reduce((agg, x) => agg + x.power, 0) / x.athletes.length;
+            x.draft = x.athletes.reduce((agg, x) => agg + x.draft, 0) / x.athletes.length;
+            x.speed = x.athletes.reduce((agg, x) => agg + x.speed, 0) / x.athletes.length; // XXX use median i think
+            if (watchingIdx !== i) {
+                const edge = watchingIdx < i ? x.athletes[0] : x.athletes.at(-1);
+                x.isGapEst = edge.isGapEst;
+                x.gap = edge.gap;
+                if (i < groups.length - 1 && x.gap - groups[i + 1] < 2) {
+                    debugger;
+                }
+            } else {
+                x.gap = 0;
+                x.isGapEst = false;
+            }
+        }
+        this.emit('groups', groups.map(g =>
+            (g.athletes = g.athletes.map(cleanState), g)));
     }
 }
 
