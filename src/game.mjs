@@ -179,6 +179,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             shouldWakeup = true;
         }
         if (shouldWakeup) {
+            // XXX Pretty sure there is a bug in here.  I'm seeing nearby and group events WAY too frequent.
             this.wakeup();
         }
     }
