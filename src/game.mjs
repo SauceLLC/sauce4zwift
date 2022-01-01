@@ -172,10 +172,12 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         if (watching != null && this.watching !== watching) {
             this.watching = watching;
             console.debug("Now watching:", watching);
+            console.warn("should wake", 'watching change');
             shouldWakeup = true;
         }
         if (state.athleteId === this.watching) {
             this._watchingRoadSig = this._roadSig(state);
+            console.warn("should wake", 'outgoing from self LIKELY');
             shouldWakeup = true;
         }
         if (shouldWakeup) {
