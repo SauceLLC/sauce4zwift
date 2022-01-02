@@ -17,7 +17,8 @@ async function main() {
         tbody.innerHTML = nearby.map(x => [
             x.athleteId, x.power, num(x.stats.power5s), num(x.stats.power30s),
             num(x.stats.powerAvg), num(x.stats.powerNP), x.stats.powerMax,
-            num(x.stats.peakPower5s.avg), num(x.stats.peakPower30s.avg)
+            num(x.stats.peakPower5s && x.stats.peakPower5s.avg),
+            num(x.stats.peakPower30s && x.stats.peakPower30s.avg)
         ].map(x => `<td>${x}</td>`).join('')).map(x => `<tr>${x}</tr>`).join('');
     });
 }
