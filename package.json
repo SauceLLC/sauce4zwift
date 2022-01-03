@@ -16,7 +16,7 @@
   "author": "Sauce, LLC",
   "license": "MIT",
   "dependencies": {
-    "@saucellc/zwift-packet-monitor": "https://github.com/SauceLLC/zwift-packet-monitor.git#02b6f142119",
+    "@saucellc/zwift-packet-monitor": "https://github.com/SauceLLC/zwift-packet-monitor.git#5a0b1ee7f644e0",
     "express": "4.17.2",
     "express-ws": "5.0.2",
     "sudo-prompt": "9.2.1"

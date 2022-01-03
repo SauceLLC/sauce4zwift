@@ -1,9 +1,6 @@
 
-const metersPerMile = 1609.344;
-const msgCache = new Map();
-const warned = new Set();
+//const metersPerMile = 1609.344;
 
-let initialized;
 const hdUnits = {
     year: 'year',
     weak: 'weak',
@@ -24,40 +21,11 @@ const hdUnits = {
 };
 
 
-function warnOnce(msg) {
-    if (!warned.has(msg)) {
-        warned.add(msg);
-        console.warn(msg);
-    }
-}
-
-
-function isRoughlyEqual(a, b, sameness) {
+/*function isRoughlyEqual(a, b, sameness) {
     sameness = sameness || 0.01;
     const delta = Math.abs(a - b);
     return delta < sameness;
-}
-
-
-function getPaceFormatter(options) {
-    let f;
-    if (options.type) {
-        f = {
-            swim: ns.swimPaceFormatter,
-            speed: ns.speedFormatter,
-            pace: ns.paceFormatter
-        }[options.type];
-    } else if (options.activityType) {
-        f = {
-            swim: ns.swimPaceFormatter,
-            ride: ns.speedFormatter,
-            workout: ns.speedFormatter,
-            ski: ns.speedFormatter,
-            run: ns.paceFormatter,
-        }[options.activityType];
-    }
-    return f || ns.paceFormatter;
-}
+}*/
 
 
 function humanDuration(elapsed, options={}) {
@@ -108,24 +76,6 @@ function humanDuration(elapsed, options={}) {
 }
 
 
-function humanRaceDistance(value) {
-    let label;
-    if (value < 1000) {
-        label = `${value} m`;
-    } else {
-        const miles = value / metersPerMile;
-        if (isRoughlyEqual(miles, 13.1) ||
-            isRoughlyEqual(miles, 26.2) ||
-            isRoughlyEqual(miles, Math.round(miles))) {
-            label = ns.imperialDistanceFormatter.formatShort(value);
-        } else {
-            label = ns.metricDistanceFormatter.formatShort(value);
-        }
-    }
-    return label.replace(/\.0 /, ' ');
-}
-
-
 function humanRelTime(date, options={}) {
     if (!(date instanceof Date)) {
         date = new Date(date);
@@ -149,12 +99,7 @@ function humanRelTime(date, options={}) {
 
 
 function humanWeight(kg) {
-    return humanNumber(ns.weightFormatter.convert(kg), 1);
-}
-
-
-function humanTimer(seconds) {
-    return ns.timeFormatter.display(seconds);
+    return humanNumber(kg, 1);
 }
 
 
@@ -239,48 +184,6 @@ function humanDayOfWeek(sunOfft, options={}) {
 }
 
 
-function humanDistance(meters, precision=1, options={}) {
-    if (options.html) {
-        const save = ns.distanceFormatter.precision;
-        ns.distanceFormatter.precision = precision;
-        try {
-            return ns.distanceFormatter.abbreviated(meters, precision);
-        } finally {
-            ns.distanceFormatter.precision = save;
-        }
-    } else if (options.suffix) {
-        return ns.distanceFormatter.formatShort(meters, precision);
-    } else {
-        return ns.distanceFormatter.format(meters, precision);
-    }
-}
-
-
-function humanPace(raw, options={}) {
-    const mps = options.velocity ? raw : 1 / raw;
-    const formatter = getPaceFormatter(options);
-    const minPace = 0.1;  // About 4.5 hours / mile
-    const precision = options.precision;
-    if (options.suffix) {
-        if (options.html) {
-            if (mps < minPace) {
-                return '<abbr class="unit short" title="Stopped">-</abbr>';
-            }
-            return formatter.abbreviated(mps);
-        } else {
-            if (mps < minPace) {
-                return '-';
-            }
-            return formatter.formatShort(mps, precision);
-        }
-    } else {
-        if (mps < minPace) {
-            return '-';
-        }
-        return formatter.format(mps, precision);
-    }
-}
-
 
 function humanNumber(value, precision=0) {
     if (value == null || value === '') {
@@ -300,50 +203,26 @@ function humanNumber(value, precision=0) {
 }
 
 
-function humanElevation(meters, options={}) {
-    if (options.html) {
-        return ns.elevationFormatter.abbreviated(meters);
-    } else if (options.suffix) {
-        if (options.longSuffix) {
-            return ns.elevationFormatter.formatLong(meters);
-        } else {
-            return ns.elevationFormatter.formatShort(meters);
-        }
-    } else {
-        return ns.elevationFormatter.format(meters);
-    }
-}
-
-
-function humanStride(meters) {
-    const metric = ns.weightFormatter.unitSystem === 'metric';
-    if (metric) {
-        return humanNumber(meters, 2);
-    } else {
-        const feet = meters / metersPerMile * 5280;
-        return humanNumber(feet, 1);
-    }
-}
-
-
 function weightUnconvert(localeWeight) {
-    return ns.weightFormatter.unitSystem === 'metric' ? localeWeight : localeWeight / 2.20462;
+    throw new Error("TBD");
+    //return ns.weightFormatter.unitSystem === 'metric' ? localeWeight : localeWeight / 2.20462;
 }
 
 
 function elevationUnconvert(localeEl) {
-    return ns.elevationFormatter.unitSystem === 'metric' ? localeEl : localeEl * 0.3048;
+    throw new Error("TBD");
+    //return ns.elevationFormatter.unitSystem === 'metric' ? localeEl : localeEl * 0.3048;
 }
 
 
 function velocityUnconvert(localeV, options={}) {
-    const f = getPaceFormatter(options);
-    return (f.unitSystem === 'metric' ? localeV * 1000 : localeV * metersPerMile) / 3600;
+    throw new Error("TBD");
 }
 
 
 function distanceUnconvert(localeDist) {
-    return ns.distanceFormatter.unitSystem === 'metric' ? localeDist * 1000 : localeDist * metersPerMile;
+    throw new Error("TBD");
+    //return ns.distanceFormatter.unitSystem === 'metric' ? localeDist * 1000 : localeDist * metersPerMile;
 }
 
 
@@ -356,16 +235,14 @@ export default {
         duration: humanDuration,
         relTime: humanRelTime,
         weight: humanWeight,
-        elevation: humanElevation,
+        //elevation: humanElevation,
         number: humanNumber,
-        pace: humanPace,
+        //pace: humanPace,
         dayOfWeek: humanDayOfWeek,
-        distance: humanDistance,
-        raceDistance: humanRaceDistance,
-        timer: humanTimer,
+        //distance: humanDistance,
         date: humanDate,
         datetime: humanDateTime,
         time: humanTime,
-        stride: humanStride,
+        //stride: humanStride,
     },
 };

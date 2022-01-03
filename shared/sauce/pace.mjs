@@ -1,4 +1,3 @@
-/* global sauce */
 
 import {RollingBase} from './data.mjs';
 

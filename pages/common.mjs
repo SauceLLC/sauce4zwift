@@ -31,9 +31,9 @@ if (isElectron) {
         window.close(); // XXX probably won't work
     };
 
-    let errBackoff = 100;
+    let errBackoff = 500;
     let wsp;
-    async function connectWebSocket() {
+    const connectWebSocket = async function() {
         const ws = new WebSocket(`ws://${location.host}/api/ws`);
         ws.addEventListener('message', ev => {
             const envelope = JSON.parse(ev.data);
@@ -63,7 +63,7 @@ if (isElectron) {
         return await new Promise(resolve => {
             ws.addEventListener('open', () => {
                 console.debug("WebSocket connected");
-                errBackoff = 100;
+                errBackoff = 500;
                 clearTimeout(tO);
                 for (const {event, callback} of subs) {
                     _subscribe(ws, event, callback);
@@ -71,7 +71,7 @@ if (isElectron) {
                 resolve(ws);
             });
         });
-    }
+    };
     wsp = connectWebSocket();
 
     subscribe = async function(event, callback) {
@@ -80,8 +80,7 @@ if (isElectron) {
         subs.push({event, callback});
     };
 
-
-    function _subscribe(ws, event, callback) {
+    const _subscribe = function(ws, event, callback) {
         const uid = uidInc++;
         const subId = uidInc++;
         let resolve, reject;
@@ -100,7 +99,7 @@ if (isElectron) {
             }
         }));
         return p;
-    }
+    };
 }
 
 function initInteractionListeners() {

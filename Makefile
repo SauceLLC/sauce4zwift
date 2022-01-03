@@ -8,4 +8,6 @@ node_modules/.build: package.json
 
 
 lint:
-	./node_modules/.bin/eslint src pages/*.js
+	./node_modules/.bin/eslint src
+	./node_modules/.bin/eslint --ext .mjs --config .eslintrc.modules.json src shared pages
+

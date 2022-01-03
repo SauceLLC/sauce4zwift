@@ -1,6 +1,8 @@
 import sauce from '../shared/sauce/index.mjs';
 import common from './common.mjs';
 
+window.sauce = sauce;
+
 const L = sauce.locale;
 const H = L.human;
 
@@ -9,16 +11,16 @@ function shortDuration(x) {
 }
 
 
-function makePeakField(period) {
+function makePeakPowerField(period) {
     return {
         value: x => {
-            const o = x.stats[`peakPower${period}s`];
+            const o = x.stats.power.peaks[period];
             return H.number(o && o.avg);
         },
         label: x => {
             const label = `peak ${shortDuration(period)}`;
-            const o = x.stats[`peakPower${period}s`];
-            if (!o) {
+            const o = x.stats.power.peaks[period];
+            if (!o.ts) {
                 return label;
             }
             const ago = (Date.now() - o.ts) / 1000;
@@ -30,17 +32,21 @@ function makePeakField(period) {
 }
 
 
+function makeSmoothPowerField(period) {
+    const duration = shortDuration(period);
+    return {
+        value: x => H.number(x.stats.power.smooth[period]),
+        label: () => duration + ' watts',
+        key: () => duration,
+        unit: () => 'w',
+    };
+}
+
+
 async function main() {
     common.initInteractionListeners();
     const content = document.querySelector('#content');
     const renderer = new common.Renderer(content, {fps: 1});
-    const durations = {
-        5: shortDuration(5),
-        30: shortDuration(30),
-        60: shortDuration(60),
-        300: shortDuration(300),
-        1200: shortDuration(1200),
-    };
     renderer.addRotatingFields({
         mapping: [{
             id: 'power-main',
@@ -58,48 +64,28 @@ async function main() {
             key: () => 'Watts',
             unit: () => 'w',
         }, {
-            value: x => H.number(x.stats.powerMax),
+            value: x => H.number(x.stats.power.max),
             label: () => 'max',
             key: () => 'Max',
             unit: () => 'w',
         }, {
-            value: x => H.number(x.stats.powerAvg),
+            value: x => H.number(x.stats.power.avg),
             label: () => 'avg',
             key: () => 'Avg',
             unit: () => 'w',
         }, {
-            value: x => H.number(x.stats.powerNP),
+            value: x => H.number(x.stats.power.np),
             label: () => 'np',
             key: () => 'NP',
-        }, {
-            value: x => H.number(x.stats.power5s),
-            label: () => durations[5] + ' watts',
-            key: () => durations[5],
-            unit: () => 'w',
-        }, {
-            value: x => H.number(x.stats.power30s),
-            label: () => durations[30] + ' watts',
-            key: () => durations[30],
-            unit: () => 'w',
-        }, {
-            value: x => H.number(x.stats.power60s),
-            label: () => durations[60] + ' watts',
-            key: () => durations[60],
-            unit: () => 'w',
-        }, {
-            value: x => H.number(x.stats.power300s),
-            label: () => durations[300] + ' watts',
-            key: () => durations[300],
-            unit: () => 'w',
-        }, {
-            value: x => H.number(x.stats.power1200s),
-            label: () => durations[1200] + ' watts',
-            key: () => durations[1200],
-            unit: () => 'w',
         },
-            makePeakField(5),
-            makePeakField(60),
-            makePeakField(300),
+            makeSmoothPowerField(5),
+            makeSmoothPowerField(60),
+            makeSmoothPowerField(300),
+            makeSmoothPowerField(1200),
+            makePeakPowerField(5),
+            makePeakPowerField(60),
+            makePeakPowerField(300),
+            makePeakPowerField(1200),
         ],
     });
 
@@ -120,11 +106,11 @@ async function main() {
         cadCurEl.textContent = H.number(watching.cadence);
         draftCurEl.textContent = H.number(watching.draft);
 
-        hrAvgEl.textContent = H.number(stats.hrSum / stats.hrDur);
-        cadAvgEl.textContent = H.number(stats.cadenceSum / stats.cadenceDur);
-        draftAvgEl.textContent = H.number(stats.draftSum / stats.draftDur);
+        hrAvgEl.textContent = H.number(stats.hr.avg);
+        cadAvgEl.textContent = H.number(stats.cadence.avg);
+        draftAvgEl.textContent = H.number(stats.draft.avg);
 
-        hrMaxEl.textContent = H.number(stats.hrMax || null);
+        hrMaxEl.textContent = H.number(stats.hr.max || null);
     });
 
     let athleteId;

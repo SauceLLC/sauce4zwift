@@ -152,14 +152,9 @@ function rank(duration, p, wp, weight, gender) {
 
 
 class RollingPower extends data.RollingBase {
-    constructor(period, options={idealGap: 1, breakGap: 3600}) {
-        super(period);
+    constructor(period, options={}) {
+        super(period, options);
         this._joules = 0;
-        this._gapPadCount = 0;
-        this.idealGap = options.idealGap;
-        this.maxGap = options.maxGap;
-        this.breakGap = options.breakGap;
-        this._active = options.active;
         if (options.inlineNP) {
             const sampleRate = 1 / this.idealGap;
             const rollSize = Math.round(30 * sampleRate);
@@ -170,6 +165,7 @@ class RollingPower extends data.RollingBase {
                 roll: new Array(rollSize),
                 rollSum: 0,
                 total: 0,
+                gapPadCount: 0,
             };
         }
         if (options.inlineXP) {
@@ -188,56 +184,13 @@ class RollingPower extends data.RollingBase {
         }
     }
 
-    add(ts, value) {
-        if (this._length) {
-            const prevTS = this._times[this._length - 1];
-            const gap = ts - prevTS;
-            if (this.maxGap && gap > this.maxGap) {
-                const zeroPad = new data.Zero();
-                let idealGap = this.idealGap;
-                if (!idealGap) {
-                    const gaps = data.recommendedTimeGaps(this.times());
-                    idealGap = gaps.ideal || 1;
-                }
-                if (gap > this.breakGap) {
-                    // Handle massive gaps between time stamps seen by Garmin devices glitching.
-                    // Note, to play nice with elapsed time based rolling avgs, we include the
-                    // max number of zero pads on either end of the gap.
-                    const bookEndTime = Math.floor(this.breakGap / 2) - idealGap;
-                    for (let i = idealGap; i < bookEndTime; i += idealGap) {
-                        super.add(prevTS + i, zeroPad);
-                    }
-                    super.add(prevTS + bookEndTime, new data.Break(gap - (bookEndTime * 2)));
-                    for (let i = gap - bookEndTime; i < gap; i += idealGap) {
-                        super.add(prevTS + i, zeroPad);
-                    }
-                } else {
-                    for (let i = idealGap; i < gap; i += idealGap) {
-                        super.add(prevTS + i, zeroPad);
-                    }
-                }
-            } else if (this.idealGap && gap > this.idealGap) {
-                for (let i = this.idealGap; i < gap; i += this.idealGap) {
-                    super.add(prevTS + i, new data.Pad(value));
-                }
-            }
-        }
-        return super.add(ts, value);
-    }
-
     processIndex(i) {
         const ts = this._times[i];
         const value = this._values[i];
         const gap = i ? Math.max(0, ts - this._times[i - 1]) : 0;
-        if (value * gap > 1000) {
-            console.warn("big value", value, gap);
-        }
         this._joules += value * gap;
         if (this._joules < -1) {
             console.warn("Negative energy", this._joules);
-        }
-        if (value instanceof data.Zero) {
-            this._gapPadCount++;
         }
         if (this._inlineNP) {
             const state = this._inlineNP;
@@ -247,6 +200,7 @@ class RollingPower extends data.RollingBase {
                 // Drain the rolling buffer but don't increment the counter.
                 state.rollSum -= state.roll[slot] || 0;
                 state.roll[slot] = 0;
+                state.gapPadCount++;
             } else {
                 state.rollSum += value;
                 state.rollSum -= state.roll[slot] || 0;
@@ -292,19 +246,20 @@ class RollingPower extends data.RollingBase {
             }
             state.saved.push(saved);
         }
+        super.processIndex(i);
     }
 
-    shiftValue(value) {
-        if (value instanceof data.Zero) {
-            this._gapPadCount--;
-        }
-        const i = this._offt - 1;
+    shiftValue(value, i) {
+        super.shiftValue(value, i);
         const gap = this._length > 1 ? this._times[i + 1] - this._times[i] : 0;
         this._joules -= this._values[i + 1] * gap;
         if (this._inlineNP) {
             const state = this._inlineNP;
             const saved = state.saved[i];
             state.total -= saved.value || 0;
+            if (value instanceof data.Zero) {
+                state.gapPadCount--;
+            }
         }
         if (this._inlineXP) {
             const state = this._inlineXP;
@@ -315,42 +270,17 @@ class RollingPower extends data.RollingBase {
         }
     }
 
-    popValue(value, popIndex) {
-        const gap = popIndex >= 1 ? this._times[popIndex] - this._times[popIndex - 1] : 0;
+    popValue(value, i) {
+        const gap = i ? this._times[i] - this._times[i - 1] : 0;
         this._joules -= value * gap;
         if (this._inlineNP || this._inlineXP) {
             throw new Error("Unsupported");
         }
+        super.popValue(value, i);
     }
 
-    avg() {
-        return this._joules / this.elapsed();
-    }
-
-    activeOld(options={}) {
-        const count = this.size() - (options.offt || 0) - this._gapPadCount;
-        // Subtract the first record as it doesn't indicate a time quanta, just the start ref.
-        return (count - 1) * (this.idealGap || 1);
-    }
-
-    active() {
-        let s = 0;
-        for (let i = this._offt; i < this._length; i++) {
-            if (this._values[i] instanceof data.Zero) {
-                continue;
-            }
-            const gap = i ? this._times[i] - this._times[i - 1] : this.idealGap || 1;
-            s += gap;
-        }
-        return s;
-    }
-
-    full(options={}) {
-        if (this._active || options.active) {
-            return this.active(options) >= this.period;
-        } else {
-            return super.full(options);
-        }
+    avgOLD(options={}) {
+        return this._joules / (options.active ? this.active() : this.elapsed());
     }
 
     np(options={}) {
@@ -359,7 +289,7 @@ class RollingPower extends data.RollingBase {
                 return;
             }
             const state = this._inlineNP;
-            return (state.total / (this.size() - this._gapPadCount)) ** 0.25;
+            return (state.total / (this.size() - state.gapPadCount)) ** 0.25;
         } else {
             return calcNP(this.values(), 1 / this.idealGap, options);
         }
@@ -383,12 +313,7 @@ class RollingPower extends data.RollingBase {
 
     clone(...args) {
         const instance = super.clone(...args);
-        instance.idealGap = this.idealGap;
-        instance.maxGap = this.maxGap;
-        instance.breakGap = this.breakGap;
         instance._joules = this._joules;
-        instance._gapPadCount = this._gapPadCount;
-        instance._active = this._active;
         if (this._inlineNP) {
             this._copyInlineState('_inlineNP', instance);
         }
@@ -685,7 +610,7 @@ function cyclingPowerVelocitySearchMultiPosition(riders, positions, args) {
     }));
     const estAvg = field => data.sum(positions.map((x, i) => x.pct * estimates[i][field]));
     if (Math.abs(estAvg('watts') - args.power) > 0.01) {
-        report.error(new Error('velocity from perf search seed is invalid'));
+        throw new Error('velocity from perf search seed is invalid');
     }
     return {
         gForce: estAvg('gForce'),

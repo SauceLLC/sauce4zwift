@@ -1,3 +1,5 @@
+/* global electron */
+
 import process from 'node:process';
 
 const {BrowserWindow, Menu, app, shell} = electron;

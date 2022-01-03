@@ -228,22 +228,40 @@ class Break extends Zero {
 
 
 class RollingBase {
-    constructor(period, options) {
-        options = options || {};
+    constructor(period, options={}) {
         this.period = period || undefined;
+        this.idealGap = options.idealGap !== undefined ? options.idealGap : 1;
+        this.breakGap = options.breakGap !== undefined ? options.breakGap : 3600;
+        this.maxGap = options.maxGap;
+        this._active = options.active;
+        this._ignoreZeros = options.ignoreZeros;
         this._times = [];
         this._values = [];
         this._offt = 0;
         this._length = 0;
+        this._activeAcc = 0;
+        this._valuesAcc = 0;
     }
 
     clone(options={}) {
         const instance = new this.constructor(options.period || this.period);
+        instance.idealGap = this.idealGap;
+        instance.breakGap = this.breakGap;
+        instance.maxGap = this.maxGap;
+        instance._active = this._active;
+        instance._ignoreZeros = this._ignoreZeros;
         instance._times = this._times;
         instance._values = this._values;
         instance._offt = this._offt;
         instance._length = this._length;
+        instance._activeAcc = this._activeAcc;
+        instance._valuesAcc = this._valuesAcc;
         return instance;
+    }
+
+    avg(options={}) {
+        const active = options.active != null ? options.active : this._active;
+        return this._valuesAcc / (active ? this.active() : this.elapsed());
     }
 
     slice(startTime, endTime) {
@@ -291,8 +309,7 @@ class RollingBase {
         return leader;
     }
 
-    elapsed(options) {
-        options = options || {};
+    elapsed(options={}) {
         const len = this._length;
         const offt = (options.offt || 0) + this._offt;
         if (len - offt <= 1) {
@@ -301,11 +318,95 @@ class RollingBase {
         return this._times[len - 1] - this._times[offt];
     }
 
+    active(options={}) {
+        let adj = 0;
+        if (options.offt) {
+            const lim = Math.min(this._length, this._offt + options.offt);
+            for (let i = this._offt; i < lim; i++) {
+                if (this._isActiveValue(this._values[i])) {
+                    const gap = i ? this._times[i] - this._times[i - 1] : 0;
+                    adj += gap;
+                }
+            }
+        }
+        return this._activeAcc - adj;
+    }
+
+    _isActiveValue(value) {
+        return !!(value || ((value instanceof Zero) && !this._ignoreZeros));
+    }
+
     add(ts, value) {
+        if (this._length) {
+            const prevTS = this._times[this._length - 1];
+            const gap = ts - prevTS;
+            if (this.maxGap && gap > this.maxGap) {
+                const zeroPad = new Zero();
+                let idealGap = this.idealGap;
+                if (!idealGap) {
+                    const gaps = recommendedTimeGaps(this.times());
+                    idealGap = gaps.ideal || 1;
+                }
+                if (gap > this.breakGap) {
+                    // Handle massive gaps between time stamps seen by Garmin devices glitching.
+                    // Note, to play nice with elapsed time based rolling avgs, we include the
+                    // max number of zero pads on either end of the gap.
+                    const bookEndTime = Math.floor(this.breakGap / 2) - idealGap;
+                    for (let i = idealGap; i < bookEndTime; i += idealGap) {
+                        this._add(prevTS + i, zeroPad);
+                    }
+                    this._add(prevTS + bookEndTime, new Break(gap - (bookEndTime * 2)));
+                    for (let i = gap - bookEndTime; i < gap; i += idealGap) {
+                        this._add(prevTS + i, zeroPad);
+                    }
+                } else {
+                    for (let i = idealGap; i < gap; i += idealGap) {
+                        this._add(prevTS + i, zeroPad);
+                    }
+                }
+            } else if (this.idealGap && gap > this.idealGap) {
+                for (let i = this.idealGap; i < gap; i += this.idealGap) {
+                    this._add(prevTS + i, new Pad(value));
+                }
+            }
+        }
+        return this._add(ts, value);
+    }
+
+    _add(ts, value) {
         this._times.push(ts);
         this._values.push(value);
         this.resize(1);
         return value;
+    }
+
+    processIndex(i) {
+        const value = this._values[i];
+        if (this._isActiveValue(value)) {
+            const gap = i ? this._times[i] - this._times[i - 1] : 0;
+            this._activeAcc += gap;
+            this._valuesAcc += value * gap;
+        }
+    }
+
+    shiftValue(value, i) {
+        if (this._isActiveValue(value)) {
+            // XXX write test that shifts to zero len and validate activeAcc is 0
+            //const gap = this._length > 1 ? this._times[i + 1] - this._times[i] : 0;
+            const gap = i ? this._times[i] - this._times[i - 1] : 0;
+            this._activeAcc -= gap;
+            this._valuesAcc -= value * gap;
+        }
+    }
+
+    popValue(value, i) {
+        debugger;  // XXX just want to see it once.
+        if (this._isActiveValue(value)) {
+            // XXX write test that pops to zero len and validate activeAcc is 0
+            const gap = i ? this._times[i] - this._times[i - 1] : 0;
+            this._activeAcc -= gap;
+            this._valuesAcc -= value * gap;
+        }
     }
 
     resize(size) {
@@ -317,18 +418,11 @@ class RollingBase {
             this.processIndex(i);
         }
         this._length = length;
-        while (this.full({offt: 1})) {
-            this.shift();
+        if (this.period) {
+            while (this.full({offt: 1})) {
+                this.shift();
+            }
         }
-    }
-
-    processIndex(index) {
-    }
-
-    shiftValue() {
-    }
-
-    popValue() {
     }
 
     firstTime(options) {
@@ -384,7 +478,11 @@ class RollingBase {
     }
 
     shift() {
-        this.shiftValue(this._values[this._offt++]);
+        const i = this._offt++;
+        if (this._offt >= this._values.length) {
+            debugger;
+        }
+        this.shiftValue(this._values[i], i);
     }
 
     pop() {
@@ -395,64 +493,9 @@ class RollingBase {
 
     full(options={}) {
         const offt = options.offt;
-        return this.elapsed({offt}) >= this.period;
-    }
-}
-
-
-class RollingAverage extends RollingBase {
-    constructor(period, options) {
-        super(period);
-        options = options || {};
-        this._ignoreZeros = options.ignoreZeros;
-        if (this._ignoreZeros) {
-            this._zeros = 0;
-        }
-        this._sum = 0;
-    }
-
-    avg(options) {
-        options = options || {};
-        if (options.active) {
-            // XXX this is wrong.  active != ignore zeros  It means ignore gaps we zero padded.
-            const count = (this._length - this._offt - (this._zeros || 0));
-            return count ? this._sum / count : 0;
-        } else {
-            if (this._ignoreZeros) {
-                throw new TypeError("Elasped avg unsupported when ignoreZeros=true");
-            }
-            return (this._sum - this._values[this._offt]) / this.elapsed();
-        }
-    }
-
-    processIndex(i) {
-        const value = this._values[i];
-        this._sum += value;
-        if (this._ignoreZeros && !value) {
-            this._zeros++;
-        }
-    }
-
-    shiftValue(value) {
-        this._sum -= value;
-        if (this._ignoreZeros && !value) {
-            this._zeros--;
-        }
-    }
-
-    popValue(value) {
-        this._sum -= value;
-        if (this._ignoreZeros && !value) {
-            this._zeros--;
-        }
-    }
-
-    clone(...args) {
-        const instance = super.clone(...args);
-        instance._sum = this._sum;
-        instance._ignoreZeros = this._ignoreZeros;
-        instance._zeros = this._zeros;
-        return instance;
+        const active = options.active != null ? options.active : this._active;
+        const time = active ? this.active({offt}) : this.elapsed({offt});
+        return time >= this.period;
     }
 }
 
@@ -464,7 +507,7 @@ function peakAverage(period, timeStream, valuesStream, options) {
     options = options || {};
     const active = options.active;
     const ignoreZeros = options.ignoreZeros;
-    const roll = new RollingAverage(period, {ignoreZeros});
+    const roll = new RollingBase(period, {ignoreZeros});
     return roll.importReduce(timeStream, valuesStream,
         (cur, lead) => cur.avg({active}) >= lead.avg({active}));
 }
@@ -472,7 +515,7 @@ function peakAverage(period, timeStream, valuesStream, options) {
 
 function smooth(period, valuesStream) {
     const values = [];
-    const roll = new RollingAverage(period);
+    const roll = new RollingBase(period);
     for (let i = 0; i < valuesStream.length; i++) {
         const v = valuesStream[i];
         if (i < period - 1) {
@@ -511,7 +554,6 @@ export default {
     recommendedTimeGaps,
     range,
     RollingBase,
-    RollingAverage,
     Break,
     Zero,
     Pad,

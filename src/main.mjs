@@ -1,3 +1,5 @@
+/* global electron */
+
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import storage from './storage.mjs';

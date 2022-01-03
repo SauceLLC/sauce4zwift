@@ -2,9 +2,8 @@ import express from 'express';
 import expressWebSocketPatch from 'express-ws';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import fs from 'node:fs';
-import os from 'node:os';
 import process from 'node:process';
+
 
 let _rejectCount = 0;
 process.on('unhandledrejection', ev => {
@@ -39,14 +38,13 @@ function wrapWebSocketMessage(ws, callback) {
                 error: e.message,
             }));
         }
-    }
+    };
 }
 
 async function start(monitor) {
     const app = express();
     expressWebSocketPatch(app);
     const cacheDisabled = 'no-cache, no-store, must-revalidate';
-    const cacheEnabled = 'public, max-age=31536000, s-maxage=900';
     const router = express.Router();
     router.use('/pages/', express.static(`${wd}/../pages`, {
         cacheControl: true,
@@ -98,12 +96,7 @@ async function start(monitor) {
             subs.clear();
         });
     });
-    /*router.get('/api/subscribe', (req, res, next) => {
-        console.log('client subscribe');
-        res.setHeader('content-type': 'application/json');
-        res.end(JSON.stringify({success: true}));
-    });*/
-
+    router.use('/', express.static(`${wd}/../pages/index.html`));
     router.all('*', (req, res) => res.status(404).send(`File Not Found: "${req.path}"\n`));
     app.use(router);
     app.listen(PORT);

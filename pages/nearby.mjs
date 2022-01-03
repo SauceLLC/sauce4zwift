@@ -15,10 +15,12 @@ async function main() {
         nearby.sort((a, b) => a.athleteId - b.athleteId);
         const num = H.number;
         tbody.innerHTML = nearby.map(x => [
-            x.athleteId, x.power, num(x.stats.power5s), num(x.stats.power30s),
-            num(x.stats.powerAvg), num(x.stats.powerNP), x.stats.powerMax,
-            num(x.stats.peakPower5s && x.stats.peakPower5s.avg),
-            num(x.stats.peakPower30s && x.stats.peakPower30s.avg)
+            x.athleteId, x.power, num(x.stats.power.smooth['5']), num(x.stats.power.smooth['30']),
+            num(x.stats.power.avg), num(x.stats.power.np), x.stats.power.max,
+            num(x.stats.power.peaks['5'].avg),
+            num(x.stats.power.peaks['30'].avg),
+            num(x.speed), num(x.stats.speed.avg), num(x.stats.speed.smooth['30']), num(x.stats.speed.peaks['30'].avg),
+            num(x.heartrate), num(x.stats.hr.avg), num(x.stats.hr.smooth['30']), num(x.stats.hr.peaks['30'].avg),
         ].map(x => `<td>${x}</td>`).join('')).map(x => `<tr>${x}</tr>`).join('');
     });
 }

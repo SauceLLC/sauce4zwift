@@ -1,4 +1,3 @@
-/* global sauce */
 
 import sauce from '../shared/sauce/index.mjs';
 import common from './common.mjs';

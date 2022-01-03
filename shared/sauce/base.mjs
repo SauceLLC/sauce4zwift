@@ -1,17 +1,4 @@
 
-const pendingAsyncExports = [];
-
-function buildPath(path) {
-    let offt = ns;
-    for (const x of path) {
-        if (!offt[x]) {
-            offt[x] = {};
-        }
-        offt = offt[x];
-    }
-    return offt;
-}
-
 const _maxTimeout = 0x7fffffff;  // `setTimeout` max valid value.
 export async function sleep(ms) {
     while (ms > _maxTimeout) {
