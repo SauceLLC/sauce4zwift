@@ -31,7 +31,7 @@ if (isElectron) {
         window.close(); // XXX probably won't work
     };
 
-    let errBackoff = 1000;
+    let errBackoff = 100;
     let wsp;
     async function connectWebSocket() {
         const ws = new WebSocket(`ws://${location.host}/api/ws`);
@@ -52,8 +52,9 @@ if (isElectron) {
             }
         });
         ws.addEventListener('close', ev => {
+            errBackoff = Math.min(errBackoff * 1.1, 60000);
             console.warn('WebSocket connection issue: retry in', (errBackoff / 1000).toFixed(1), 's');
-            wsp = sleep(errBackoff *= 1.1).then(connectWebSocket);
+            wsp = sleep(errBackoff).then(connectWebSocket);
         });
         const tO = setTimeout(() => ws.close(), 5000);
         ws.addEventListener('error', ev => {
@@ -62,6 +63,7 @@ if (isElectron) {
         return await new Promise(resolve => {
             ws.addEventListener('open', () => {
                 console.debug("WebSocket connected");
+                errBackoff = 100;
                 clearTimeout(tO);
                 for (const {event, callback} of subs) {
                     _subscribe(ws, event, callback);
