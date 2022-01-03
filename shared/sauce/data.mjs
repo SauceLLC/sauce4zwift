@@ -369,6 +369,14 @@ class RollingBase {
         return this._times.slice(this._offt, this._length);
     }
 
+    timeAt(i) {
+        return this._times[i < 0 ? this._length + i : this._offt + i];
+    }
+
+    valueAt(i) {
+        return this._values[i < 0 ? this._length + i : this._offt + i];
+    }
+
     *entries() {
         for (let i = this._offt; i < this._length; i++) {
             yield [this._times[i], this._values[i]];

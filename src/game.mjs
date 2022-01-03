@@ -96,6 +96,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
 
     constructor(...args) {
         super(...args);
+        this.setMaxListeners(50);
         this._stats = new Map();
         this._roadHistory = new Map();
         this._roadId;
@@ -145,7 +146,9 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             }
         }
         for (const x of packet.playerStates) {
-            this.processState(x, from);
+            if (this.processState(x, from) === false) {
+                continue;
+            }
             if (x.athleteId === this.watching) {
                 this._watchingRoadSig = this._roadSig(x);
             }
@@ -158,7 +161,9 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         if (!state) {
             return;
         }
-        this.processState(state, from);
+        if (this.processState(state, from) === false) {
+            return;
+        }
         const watching = state.watchingAthleteId;
         if (watching != null && this.watching !== watching) {
             this.watching = watching;
@@ -217,10 +222,15 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     }
 
     processState(state, from) {
+        state.ts = +worldTimeConv(state.worldTime);
+        const prevState = this.states.get(state.athleteId);
+        if (prevState && prevState.ts > state.ts) {
+            console.warn("Dropping stale packet", state.ts - prevState.ts);
+            return false;
+        }
         // Move this to zwift-packet thing..
         Object.assign(state, this.processFlags1(state.flags1));
         Object.assign(state, this.processFlags2(state.flags2));
-        state.ts = +worldTimeConv(state.worldTime);
         state.kj = state.mwHours / 1000 / (1000 / 3600);
         state.heading = headingConv(state.heading);  // degrees
         state.speed = state.speed / 1000000;  // km/h
@@ -279,13 +289,19 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             // Support runs. XXX
             if (state.power != null) {
                 const rp = stats._rp;
-                rp.add((state.ts - stats._firstTS) / 1000, state.power);
+                const time = (state.ts - stats._firstTS) / 1000;
+                const prevTime = rp.timeAt(-1);
+                if (prevTime && time < prevTime) {
+                    debugger;
+                    console.error("unexpected");
+                }
+                rp.add(time, state.power);
                 for (const [p, {roll, peak}] of stats._powerPeriods.entries()) {
                     roll.resize();
                     if (roll.full()) {
                         const avg = Math.round(roll.avg());
                         if (avg >= peak.avg) {
-                            if (avg > 1500) {
+                            if (avg > 2000) {
                                 debugger;
                             }
                             peak.avg = avg;
@@ -420,34 +436,20 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
 
     async nearbyProcessor() {
         let errBackoff = 1000;
-        let start = Date.now();
-        let count = 0;
-        console.log('goal', start % 1000);
+        const target = Date.now() % 1000;
         while (this._active) {
             if (this.watching == null) {
                 await sleep(100);
-                let start = Date.now();
-                let count = 0;
                 continue;
             }
             try {
                 await this._nearbyProcessor();
-                count += 1;
-                const now = Date.now();
-                let schedSleep = (count * 1000) - (now - start);
-                if (schedSleep < 0) {
-                    // Backlogged, by try to maintain the same beat.
-                    //console.warn('backlog', schedSleep);
-                    count += Math.ceil(-schedSleep / 1000);
-                    schedSleep = 1000 - (-schedSleep % 1000);
-                }
+                const offt = Date.now() % 1000;
+                const schedSleep = 1000 - (offt - target);
                 await sleep(schedSleep);
-                //console.info(schedSleep);
             } catch(e) {
                 console.error("Unexpected processor error:", e);
                 await sleep(errBackoff *= 2);
-                let start = Date.now();
-                let count = 0;
             }
         }
     }
