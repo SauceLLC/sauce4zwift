@@ -151,10 +151,9 @@ function rank(duration, p, wp, weight, gender) {
 }
 
 
-class RollingPower extends data.RollingBase {
+class RollingPower extends data.RollingAverage {
     constructor(period, options={}) {
         super(period, options);
-        this._joules = 0;
         if (options.inlineNP) {
             const sampleRate = 1 / this.idealGap;
             const rollSize = Math.round(30 * sampleRate);
@@ -185,13 +184,7 @@ class RollingPower extends data.RollingBase {
     }
 
     processIndex(i) {
-        const ts = this._times[i];
         const value = this._values[i];
-        const gap = i ? Math.max(0, ts - this._times[i - 1]) : 0;
-        this._joules += value * gap;
-        if (this._joules < -1) {
-            console.warn("Negative energy", this._joules);
-        }
         if (this._inlineNP) {
             const state = this._inlineNP;
             const saved = {};
@@ -251,8 +244,6 @@ class RollingPower extends data.RollingBase {
 
     shiftValue(value, i) {
         super.shiftValue(value, i);
-        const gap = this._length > 1 ? this._times[i + 1] - this._times[i] : 0;
-        this._joules -= this._values[i + 1] * gap;
         if (this._inlineNP) {
             const state = this._inlineNP;
             const saved = state.saved[i];
@@ -271,16 +262,10 @@ class RollingPower extends data.RollingBase {
     }
 
     popValue(value, i) {
-        const gap = i ? this._times[i] - this._times[i - 1] : 0;
-        this._joules -= value * gap;
         if (this._inlineNP || this._inlineXP) {
             throw new Error("Unsupported");
         }
         super.popValue(value, i);
-    }
-
-    avgOLD(options={}) {
-        return this._joules / (options.active ? this.active() : this.elapsed());
     }
 
     np(options={}) {
@@ -307,8 +292,8 @@ class RollingPower extends data.RollingBase {
         }
     }
 
-    kj() {
-        return this._joules / 1000;
+    joules() {
+        return this._valuesAcc;
     }
 
     clone(...args) {

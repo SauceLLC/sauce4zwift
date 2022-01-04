@@ -227,7 +227,7 @@ class Break extends Zero {
 }
 
 
-class RollingBase {
+class RollingAverage {
     constructor(period, options={}) {
         this.period = period || undefined;
         this.idealGap = options.idealGap !== undefined ? options.idealGap : 1;
@@ -333,7 +333,7 @@ class RollingBase {
     }
 
     _isActiveValue(value) {
-        return !!(value || ((value instanceof Zero) && !this._ignoreZeros));
+        return !!(value || (!this._ignoreZeros && !(value instanceof Zero)));
     }
 
     add(ts, value) {
@@ -507,28 +507,14 @@ function peakAverage(period, timeStream, valuesStream, options) {
     options = options || {};
     const active = options.active;
     const ignoreZeros = options.ignoreZeros;
-    const roll = new RollingBase(period, {ignoreZeros});
+    const roll = new RollingAverage(period, {ignoreZeros});
     return roll.importReduce(timeStream, valuesStream,
         (cur, lead) => cur.avg({active}) >= lead.avg({active}));
 }
 
 
-function smooth(period, valuesStream) {
-    const values = [];
-    const roll = new RollingBase(period);
-    for (let i = 0; i < valuesStream.length; i++) {
-        const v = valuesStream[i];
-        if (i < period - 1) {
-            // soften the leading edge by unweighting the first values.
-            const weighted = valuesStream.slice(i, period - 1);
-            weighted.push(v);
-            roll.add(i, avg(weighted));
-        } else {
-            roll.add(i, v);
-        }
-        values.push(roll.avg({active: true}));
-    }
-    return values;
+function smooth(period, rawValues) {
+    return rawValues.map((_, i) => avg(rawValues.slice(i, i + period)));
 }
 
 
@@ -553,7 +539,7 @@ export default {
     activeTime,
     recommendedTimeGaps,
     range,
-    RollingBase,
+    RollingAverage,
     Break,
     Zero,
     Pad,
