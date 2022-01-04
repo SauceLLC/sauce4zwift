@@ -300,13 +300,13 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             const defOptions = {idealGap: 0.200, maxGap: 10};
             this._rolls.set(state.athleteId, {
                 power: new RollingPeaks(sauce.power.RollingPower, ts, periods, defOptions),
-                speed: new RollingPeaks(sauce.data.RollingBase, ts, periods,
+                speed: new RollingPeaks(sauce.data.RollingAverage, ts, periods,
                     {...defOptions, active: true, ignoreZeros: true}),
-                hr: new RollingPeaks(sauce.data.RollingBase, ts, periods,
+                hr: new RollingPeaks(sauce.data.RollingAverage, ts, periods,
                     {...defOptions, active: true, ignoreZeros: true}),
-                cadence: new RollingPeaks(sauce.data.RollingBase, ts, [],
+                cadence: new RollingPeaks(sauce.data.RollingAverage, ts, [],
                     {...defOptions, active: true, ignoreZeros: true}),
-                draft: new RollingPeaks(sauce.data.RollingBase, ts, [],
+                draft: new RollingPeaks(sauce.data.RollingAverage, ts, [],
                     {...defOptions, active: true}),
             });
         }

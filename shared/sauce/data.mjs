@@ -333,7 +333,11 @@ class RollingAverage {
     }
 
     _isActiveValue(value) {
-        return !!(value || (!this._ignoreZeros && !(value instanceof Zero)));
+        return !!(
+            value != null &&
+            !isNaN(value) &&
+            (value != 0 || (!this._ignoreZeros && !(value instanceof Zero)))
+        );
     }
 
     add(ts, value) {
@@ -391,18 +395,14 @@ class RollingAverage {
 
     shiftValue(value, i) {
         if (this._isActiveValue(value)) {
-            // XXX write test that shifts to zero len and validate activeAcc is 0
-            //const gap = this._length > 1 ? this._times[i + 1] - this._times[i] : 0;
-            const gap = i ? this._times[i] - this._times[i - 1] : 0;
+            const gap = i < this._length ? this._times[i + 1] - this._times[i] : 0;
             this._activeAcc -= gap;
             this._valuesAcc -= value * gap;
         }
     }
 
     popValue(value, i) {
-        debugger;  // XXX just want to see it once.
         if (this._isActiveValue(value)) {
-            // XXX write test that pops to zero len and validate activeAcc is 0
             const gap = i ? this._times[i] - this._times[i - 1] : 0;
             this._activeAcc -= gap;
             this._valuesAcc -= value * gap;
