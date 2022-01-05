@@ -312,7 +312,7 @@ class RollingAverage {
     elapsed(options={}) {
         const len = this._length;
         const offt = (options.offt || 0) + this._offt;
-        if (len - offt <= 1) {
+        if (len - offt === 0) {
             return 0;
         }
         return this._times[len - 1] - this._times[offt];
@@ -384,7 +384,7 @@ class RollingAverage {
         return value;
     }
 
-    processIndex(i) {
+    processAdd(i) {
         const value = this._values[i];
         if (this._isActiveValue(value)) {
             const gap = i ? this._times[i] - this._times[i - 1] : 0;
@@ -393,7 +393,12 @@ class RollingAverage {
         }
     }
 
-    shiftValue(value, i) {
+    processShift(i) {
+        // Somewhat counterintuitively we care about the value and index after the one
+        // being shifted off because index 0 is always just a reference point and our
+        // new state will have the `this._offt + 1` as the new ref point whose value
+        // and gap are no longer in consideration.
+        const value = i < this._length ? this._values[i + 1] : null;
         if (this._isActiveValue(value)) {
             const gap = i < this._length ? this._times[i + 1] - this._times[i] : 0;
             this._activeAcc -= gap;
@@ -401,7 +406,8 @@ class RollingAverage {
         }
     }
 
-    popValue(value, i) {
+    processPop(i) {
+        const value = i >= this._offt ? this._values[i] : null;
         if (this._isActiveValue(value)) {
             const gap = i ? this._times[i] - this._times[i - 1] : 0;
             this._activeAcc -= gap;
@@ -415,7 +421,7 @@ class RollingAverage {
             throw new Error('resize underflow');
         }
         for (let i = this._length; i < length; i++) {
-            this.processIndex(i);
+            this.processAdd(i);
         }
         this._length = length;
         if (this.period) {
@@ -464,11 +470,13 @@ class RollingAverage {
     }
 
     timeAt(i) {
-        return this._times[i < 0 ? this._length + i : this._offt + i];
+        const idx = i < 0 ? this._length + i : this._offt + i;
+        return idx < this._length && idx >= this._offt ? this._times[idx] : undefined;
     }
 
     valueAt(i) {
-        return this._values[i < 0 ? this._length + i : this._offt + i];
+        const idx = i < 0 ? this._length + i : this._offt + i;
+        return idx < this._length && idx >= this._offt ? this._values[idx] : undefined;
     }
 
     *entries() {
@@ -478,17 +486,11 @@ class RollingAverage {
     }
 
     shift() {
-        const i = this._offt++;
-        if (this._offt >= this._values.length) {
-            debugger;
-        }
-        this.shiftValue(this._values[i], i);
+        this.processShift(this._offt++);
     }
 
     pop() {
-        this._length--;
-        const value = this._values[this._length];
-        this.popValue(value, this._length);
+        this.processPop(--this._length);
     }
 
     full(options={}) {
@@ -514,7 +516,38 @@ function peakAverage(period, timeStream, valuesStream, options) {
 
 
 function smooth(period, rawValues) {
-    return rawValues.map((_, i) => avg(rawValues.slice(i, i + period)));
+    const len = rawValues.length;
+    if (period >= len) {
+        throw new Error("smooth period must be less than values length");
+    }
+    const sValues = new Array(len);
+    let sIndex = 0;
+    const lead = Math.ceil(period / 2);
+    const trail = Math.floor(period / 2);
+    const buf = rawValues.slice(0, lead);
+    let t = sauce.data.sum(buf);
+    // Smooth leading edge with filling buf of period -> period / 2;
+    for (let i = lead; i < period; i++) {
+        const x = rawValues[i];
+        buf.push(x);
+        t += x;
+        sValues[sIndex++] = t / i;
+    }
+    for (let i = period; i < len; i++) {
+        const offt = i % period;
+        t -= buf[offt];
+        t += (buf[offt] = rawValues[i]);
+        sValues[sIndex++] = t / period;
+    }
+    // Smooth trailing edge with draining buf of period -> period / 2;
+    for (let i = len; i < len + (period - trail); i++) {
+        t -= buf[i % period];
+        sValues[sIndex++] = t / (period - 1 - (i - len));
+    }
+    if (sValues.length !== len) {
+        debugger;
+    }
+    return sValues;
 }
 
 

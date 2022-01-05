@@ -183,7 +183,7 @@ class RollingPower extends data.RollingAverage {
         }
     }
 
-    processIndex(i) {
+    processAdd(i) {
         const value = this._values[i];
         if (this._inlineNP) {
             const state = this._inlineNP;
@@ -239,16 +239,16 @@ class RollingPower extends data.RollingAverage {
             }
             state.saved.push(saved);
         }
-        super.processIndex(i);
+        super.processAdd(i);
     }
 
-    shiftValue(value, i) {
-        super.shiftValue(value, i);
+    processShift(i) {
+        super.processShift(i);
         if (this._inlineNP) {
             const state = this._inlineNP;
             const saved = state.saved[i];
             state.total -= saved.value || 0;
-            if (value instanceof data.Zero) {
+            if (this._values[i] instanceof data.Zero) {
                 state.gapPadCount--;
             }
         }
@@ -261,11 +261,11 @@ class RollingPower extends data.RollingAverage {
         }
     }
 
-    popValue(value, i) {
+    processPop(i) {
         if (this._inlineNP || this._inlineXP) {
             throw new Error("Unsupported");
         }
-        super.popValue(value, i);
+        super.processPop(i);
     }
 
     np(options={}) {
