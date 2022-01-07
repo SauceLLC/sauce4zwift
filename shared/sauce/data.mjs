@@ -525,7 +525,7 @@ function smooth(period, rawValues) {
     const lead = Math.ceil(period / 2);
     const trail = Math.floor(period / 2);
     const buf = rawValues.slice(0, lead);
-    let t = sauce.data.sum(buf);
+    let t = sum(buf);
     // Smooth leading edge with filling buf of period -> period / 2;
     for (let i = lead; i < period; i++) {
         const x = rawValues[i];
