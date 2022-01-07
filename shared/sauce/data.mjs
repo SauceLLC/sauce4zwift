@@ -230,8 +230,7 @@ class Break extends Zero {
 class RollingAverage {
     constructor(period, options={}) {
         this.period = period || undefined;
-        this.idealGap = options.idealGap !== undefined ? options.idealGap : 1;
-        this.breakGap = options.breakGap !== undefined ? options.breakGap : 3600;
+        this.idealGap = options.idealGap;
         this.maxGap = options.maxGap;
         this._active = options.active;
         this._ignoreZeros = options.ignoreZeros;
@@ -246,7 +245,6 @@ class RollingAverage {
     clone(options={}) {
         const instance = new this.constructor(options.period || this.period);
         instance.idealGap = this.idealGap;
-        instance.breakGap = this.breakGap;
         instance.maxGap = this.maxGap;
         instance._active = this._active;
         instance._ignoreZeros = this._ignoreZeros;
@@ -319,17 +317,18 @@ class RollingAverage {
     }
 
     active(options={}) {
-        let adj = 0;
+        let t = this._activeAcc;
+        const predicate = options.predicate || 0;
         if (options.offt) {
             const lim = Math.min(this._length, this._offt + options.offt);
-            for (let i = this._offt; i < lim; i++) {
-                if (this._isActiveValue(this._values[i])) {
-                    const gap = i ? this._times[i] - this._times[i - 1] : 0;
-                    adj += gap;
+            for (let i = this._offt; i < lim && t >= predicate; i++) {
+                if (this._isActiveValue(this._values[i + 1])) {
+                    const gap = this._times[i + 1] - this._times[i];
+                    t -= gap;
                 }
             }
         }
-        return this._activeAcc - adj;
+        return t;
     }
 
     _isActiveValue(value) {
@@ -346,16 +345,13 @@ class RollingAverage {
             const gap = ts - prevTS;
             if (this.maxGap && gap > this.maxGap) {
                 const zeroPad = new Zero();
-                let idealGap = this.idealGap;
-                if (!idealGap) {
-                    const gaps = recommendedTimeGaps(this.times());
-                    idealGap = gaps.ideal || 1;
-                }
-                if (gap > this.breakGap) {
+                const idealGap = this.idealGap || Math.min(1, gap / 2);
+                const breakGap = 3600;
+                if (gap > breakGap) {
                     // Handle massive gaps between time stamps seen by Garmin devices glitching.
                     // Note, to play nice with elapsed time based rolling avgs, we include the
                     // max number of zero pads on either end of the gap.
-                    const bookEndTime = Math.floor(this.breakGap / 2) - idealGap;
+                    const bookEndTime = Math.floor(breakGap / 2) - idealGap;
                     for (let i = idealGap; i < bookEndTime; i += idealGap) {
                         this._add(prevTS + i, zeroPad);
                     }
@@ -496,22 +492,46 @@ class RollingAverage {
     full(options={}) {
         const offt = options.offt;
         const active = options.active != null ? options.active : this._active;
-        const time = active ? this.active({offt}) : this.elapsed({offt});
+        const fn = active ? this.active : this.elapsed;
+        const time = fn.call(this, {offt, predicate: this.period});
         return time >= this.period;
     }
 }
 
 
-function peakAverage(period, timeStream, valuesStream, options) {
+function correctedRollingAverage(timeStream, period, options={}) {
     if (timeStream.length < 2 || timeStream[timeStream.length - 1] < period) {
         return;
     }
-    options = options || {};
-    const active = options.active;
-    const ignoreZeros = options.ignoreZeros;
-    const roll = new RollingAverage(period, {ignoreZeros});
-    return roll.importReduce(timeStream, valuesStream,
-        (cur, lead) => cur.avg({active}) >= lead.avg({active}));
+    if (options.idealGap === undefined || options.maxGap === undefined) {
+        const {ideal, max} = recommendedTimeGaps(timeStream);
+        if (options.idealGap === undefined) {
+            options.idealGap = ideal;
+        }
+        if (options.maxGap === undefined) {
+            options.maxGap = max;
+        }
+    }
+    return new RollingAverage(period, options);
+}
+
+
+function correctedAverage(timeStream, valuesStream, options) {
+    const roll = correctedRollingAverage(timeStream, null, options);
+    if (!roll) {
+        return;
+    }
+    roll.importData(timeStream, valuesStream);
+    return roll;
+}
+
+
+function peakAverage(period, timeStream, valuesStream, options) {
+    const roll = correctedRollingAverage(timeStream, period, options);
+    if (!roll) {
+        return;
+    }
+    return roll.importReduce(timeStream, valuesStream, (cur, lead) => cur.avg() >= lead.avg());
 }
 
 
