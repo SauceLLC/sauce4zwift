@@ -2,6 +2,8 @@
 
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import net from 'node:net';
+import cap from 'cap';
 import storage from './storage.mjs';
 import menu from './menu.mjs';
 import game from './game.mjs';
@@ -12,6 +14,32 @@ const {app, BrowserWindow, ipcMain, nativeImage, dialog} = electron;
 const wd = path.dirname(fileURLToPath(import.meta.url));
 const appIcon = nativeImage.createFromPath(path.join(wd, 'build/images/app-icon.icos'));
 const windows = new Map();
+
+
+async function getLocalRoutedIP() {
+    const sock = net.createConnection(80, 'www.zwift.com');
+    return await new Promise((resolve, reject) => {
+        sock.on('connect', () => {
+            try {
+                resolve(sock.address().address);
+            } finally {
+                sock.end();
+            }
+        });
+        sock.on('error', reject);
+    });
+}
+
+
+function getLocalRoutedIface(ip) {
+    for (const xDevice of cap.Cap.deviceList()) {
+        for (const xAddr of xDevice.addresses) {
+            if (xAddr.addr === ip) {
+                return xDevice.name;
+            }
+        }
+    }
+}
 
 
 async function getWindowState(page) {
@@ -132,6 +160,7 @@ async function makeFloatingWindow(page, options={}) {
 
 
 async function createWindows(monitor) {
+    void clearWindowState;  // delint while unused
     //await clearWindowState('overview.html'); // XXX TESTING
     //await clearWindowState('watching.html'); // XXX TESTING
     //await clearWindowState('groups.html'); // XXX TESTING
@@ -146,7 +175,7 @@ async function createWindows(monitor) {
         makeFloatingWindow('overview.html',
             {relWidth: 0.6, height: 40, relX: 0.2, y: 0, hideable: false}),
         makeFloatingWindow('nearby.html',
-            {width: 800, height: 400, x: 20, y: 20}),
+            {width: 800, height: 400, x: 20, y: 20, alwaysOnTop: false}),
     ]);
 }
 
@@ -163,7 +192,9 @@ async function main() {
     await app.whenReady();
 
     menu.setAppMenu();
-    const monitor = await game.Sauce4ZwiftMonitor.factory();
+    const ip = await getLocalRoutedIP();
+    const iface = getLocalRoutedIface(ip);
+    const monitor = new game.Sauce4ZwiftMonitor(iface);
     try {
         await monitor.start();
     } catch(e) {
@@ -181,7 +212,9 @@ async function main() {
             return;
         }
     }
-    await webServer.start(monitor);
+    const webPort = 1080;
+    webServer.start(monitor, webPort);
+    console.info(`Web server started at: http://${ip}:${webPort}/`);
     ipcMain.on('subscribe', (ev, {event, domEvent}) => {
         const win = windows.get(ev.sender).win;
         const cb = data => win.webContents.send('browser-message', {domEvent, data});

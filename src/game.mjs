@@ -1,41 +1,12 @@
 /* global electron */
 
-import net from 'node:net';
 import os from 'node:os';
 import storage from './storage.mjs';
 import sudo from 'sudo-prompt';
-import cap from 'cap';
 import ZwiftPacketMonitor from '@saucellc/zwift-packet-monitor';
 import sauce from '../shared/sauce/index.mjs';
 
 const athleteCacheLabel = 'athlete-cache';
-
-
-async function getLocalRoutedIP() {
-    const sock = net.createConnection(80, 'www.zwift.com');
-    return await new Promise((resolve, reject) => {
-        sock.on('connect', () => {
-            try {
-                resolve(sock.address().address);
-            } finally {
-                sock.end();
-            }
-        });
-        sock.on('error', reject);
-    });
-}
-
-
-async function getLocalRoutedIface() {
-    const ip = await getLocalRoutedIP();
-    for (const xDevice of cap.Cap.deviceList()) {
-        for (const xAddr of xDevice.addresses) {
-            if (xAddr.addr === ip) {
-                return xDevice.name;
-            }
-        }
-    }
-}
 
 
 let _acLastTS = 0;
@@ -139,9 +110,7 @@ class RollingPeaks {
 class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
 
     static async factory(...args) {
-        const iface = await getLocalRoutedIface();
-        console.info('Monitoring zwift data from:', iface);
-        return new this(iface, ...args);
+        return new this(...args);
     }
 
     constructor(...args) {

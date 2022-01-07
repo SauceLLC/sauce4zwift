@@ -2,20 +2,8 @@ import express from 'express';
 import expressWebSocketPatch from 'express-ws';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import process from 'node:process';
-
-
-let _rejectCount = 0;
-process.on('unhandledrejection', ev => {
-    console.error(ev);
-    if (_rejectCount++ > 100) {
-        console.error("Reject count too high, killing process.");
-        process.exit(1);
-    }
-});
 
 const wd = path.dirname(fileURLToPath(import.meta.url));
-const PORT = Number(process.env.PORT) || 1080;
 
 
 function wrapWebSocketMessage(ws, callback) {
@@ -41,7 +29,8 @@ function wrapWebSocketMessage(ws, callback) {
     };
 }
 
-async function start(monitor) {
+
+function start(monitor, port) {
     const app = express();
     expressWebSocketPatch(app);
     const cacheDisabled = 'no-cache, no-store, must-revalidate';
@@ -99,7 +88,7 @@ async function start(monitor) {
     });
     router.all('*', (req, res) => res.status(404).send(`File Not Found: "${req.path}"\n`));
     app.use(router);
-    app.listen(PORT);
+    app.listen(port);
 }
 
 export default {start};
