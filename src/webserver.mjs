@@ -46,6 +46,7 @@ async function start(monitor) {
     expressWebSocketPatch(app);
     const cacheDisabled = 'no-cache, no-store, must-revalidate';
     const router = express.Router();
+    router.use('/', express.static(`${wd}/../pages`, {index: 'index.html'}));
     router.use('/pages/', express.static(`${wd}/../pages`, {
         cacheControl: true,
         setHeaders: res => res.setHeader('Cache-Control', cacheDisabled)
@@ -96,7 +97,6 @@ async function start(monitor) {
             subs.clear();
         });
     });
-    router.use('/', express.static(`${wd}/../pages/index.html`));
     router.all('*', (req, res) => res.status(404).send(`File Not Found: "${req.path}"\n`));
     app.use(router);
     app.listen(PORT);

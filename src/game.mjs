@@ -88,8 +88,9 @@ function estGap(a, b) {
 
 class RollingPeaks {
     constructor(Klass, firstTS, periods, options={}) {
+        const defOptions = {idealGap: 0.200, maxGap: 10, active: true};
         this._firstTS = firstTS;
-        this.roll = new Klass(null, options);
+        this.roll = new Klass(null, {...defOptions, ...options});
         this.periodized = new Map(periods.map(period => [period, {
             roll: this.roll.clone({period}),
             peak: null,
@@ -125,7 +126,7 @@ class RollingPeaks {
             smooth[p] = roll.avg();
         }
         return {
-            avg: this.roll.avg({active: true}),
+            avg: this.roll.avg(),
             max: this.max,
             peaks,
             smooth,
@@ -297,17 +298,12 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         if (!this._rolls.has(state.athleteId)) {
             const periods = [5, 30, 60, 300, 1200];
             const ts = state.ts;
-            const defOptions = {idealGap: 0.200, maxGap: 10};
             this._rolls.set(state.athleteId, {
-                power: new RollingPeaks(sauce.power.RollingPower, ts, periods, defOptions),
-                speed: new RollingPeaks(sauce.data.RollingAverage, ts, periods,
-                    {...defOptions, active: true, ignoreZeros: true}),
-                hr: new RollingPeaks(sauce.data.RollingAverage, ts, periods,
-                    {...defOptions, active: true, ignoreZeros: true}),
-                cadence: new RollingPeaks(sauce.data.RollingAverage, ts, [],
-                    {...defOptions, active: true, ignoreZeros: true}),
-                draft: new RollingPeaks(sauce.data.RollingAverage, ts, [],
-                    {...defOptions, active: true}),
+                power: new RollingPeaks(sauce.power.RollingPower, ts, periods),
+                speed: new RollingPeaks(sauce.data.RollingAverage, ts, periods, {ignoreZeros: true}),
+                hr: new RollingPeaks(sauce.data.RollingAverage, ts, periods, {ignoreZeros: true}),
+                cadence: new RollingPeaks(sauce.data.RollingAverage, ts, [], {ignoreZeros: true}),
+                draft: new RollingPeaks(sauce.data.RollingAverage, ts, []);
             });
         }
         if (!this._roadHistory.has(state.athleteId)) {
@@ -507,6 +503,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 gap: gap * sign,
                 isGapEst,
                 athlete: this.athletes.get(k),
+                watching: this.watching === k,
                 ...x
             });
         }

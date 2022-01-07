@@ -12,13 +12,14 @@ function shortDuration(x) {
 
 
 function makePeakPowerField(period) {
+    const duration = shortDuration(period);
     return {
         value: x => {
             const o = x.stats.power.peaks[period];
             return H.number(o && o.avg);
         },
         label: x => {
-            const label = `peak ${shortDuration(period)}`;
+            const label = `peak ${duration}`;
             const o = x.stats.power.peaks[period];
             if (!o.ts) {
                 return label;
@@ -26,7 +27,7 @@ function makePeakPowerField(period) {
             const ago = (Date.now() - o.ts) / 1000;
             return `${label}<br/><small>${shortDuration(ago)} ago</small>`;
         },
-        key: () => `Peak ${shortDuration(period)}`,
+        key: () => `Peak ${duration}`,
         unit: () => 'w',
     };
 }
@@ -43,6 +44,17 @@ function makeSmoothPowerField(period) {
 }
 
 
+function makeSmoothHRField(period) {
+    const duration = shortDuration(period);
+    return {
+        value: x => H.number(x.stats.hr.smooth[period]),
+        label: () => duration + ' bpm',
+        key: () => duration,
+        unit: () => 'bpm',
+    };
+}
+
+
 async function main() {
     common.initInteractionListeners();
     const content = document.querySelector('#content');
@@ -52,10 +64,10 @@ async function main() {
             id: 'power-main',
             default: 0
         }, {
-            id: 'power-lower',
+            id: 'power-upper',
             default: 1
         }, {
-            id: 'power-upper',
+            id: 'power-lower',
             default: 2
         }],
         fields: [{
@@ -64,14 +76,14 @@ async function main() {
             key: () => 'Watts',
             unit: () => 'w',
         }, {
-            value: x => H.number(x.stats.power.max),
-            label: () => 'max',
-            key: () => 'Max',
-            unit: () => 'w',
-        }, {
             value: x => H.number(x.stats.power.avg),
             label: () => 'avg',
             key: () => 'Avg',
+            unit: () => 'w',
+        }, {
+            value: x => H.number(x.stats.power.max),
+            label: () => 'max',
+            key: () => 'Max',
             unit: () => 'w',
         }, {
             value: x => H.number(x.stats.power.np),
@@ -89,28 +101,74 @@ async function main() {
         ],
     });
 
+    renderer.addRotatingFields({
+        mapping: [{
+            id: 'hr-main',
+            default: 0
+        }, {
+            id: 'hr-upper',
+            default: 1
+        }, {
+            id: 'hr-lower',
+            default: 2
+        }],
+        fields: [{
+            value: x => H.number(x.heartrate),
+            label: () => 'bpm',
+            key: () => 'Current',
+            unit: () => 'bpm',
+        }, {
+            value: x => H.number(x.stats.hr.avg),
+            label: () => 'avg',
+            key: () => 'Avg',
+            unit: () => 'bpm',
+        }, {
+            value: x => H.number(x.stats.hr.max),
+            label: () => 'max',
+            key: () => 'Max',
+            unit: () => 'bpm',
+        },
+            makeSmoothHRField(5),
+            makeSmoothHRField(60),
+            makeSmoothHRField(300),
+        ],
+    });
+
+    renderer.addRotatingFields({
+        mapping: [{
+            id: 'cadence-upper',
+            default: 0
+        }, {
+            id: 'cadence-lower',
+            default: 1
+        }],
+        fields: [{
+            value: x => H.number(x.cadence),
+            label: () => 'Cadence',
+            key: () => 'Current',
+            unit: () => 'rpm',
+        }, {
+            value: x => H.number(x.stats.cadence.avg),
+            label: () => 'avg',
+            key: () => 'Avg',
+            unit: () => 'rpm',
+        }, {
+            value: x => H.number(x.stats.cadence.max),
+            label: () => 'max',
+            key: () => 'Max',
+            unit: () => 'rpm',
+        }],
+    });
+
     // legacy
-    const hrCurEl = content.querySelector('.hr .current .value');
-    const cadCurEl = content.querySelector('.cadence .current .value');
     const draftCurEl = content.querySelector('.draft .current .value');
-    const hrAvgEl = content.querySelector('.hr .avg .value');
-    const cadAvgEl = content.querySelector('.cadence .avg .value');
     const draftAvgEl = content.querySelector('.draft .avg .value');
-    const hrMaxEl = content.querySelector('.hr .max .value');
 
     renderer.addCallback(watching => {
         // legacy stuff...
         const stats = watching.stats;
-        hrCurEl.textContent = H.number(watching.heartrate || null);
-        hrCurEl.textContent = H.number(watching.heartrate || null);
-        cadCurEl.textContent = H.number(watching.cadence);
         draftCurEl.textContent = H.number(watching.draft);
-
-        hrAvgEl.textContent = H.number(stats.hr.avg);
-        cadAvgEl.textContent = H.number(stats.cadence.avg);
         draftAvgEl.textContent = H.number(stats.draft.avg);
-
-        hrMaxEl.textContent = H.number(stats.hr.max || null);
     });
 
     let athleteId;

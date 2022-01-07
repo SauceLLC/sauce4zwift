@@ -34,28 +34,73 @@ async function main() {
             key: () => 'Energy',
             unit: () => 'kJ',
         }, {
-            value: x => H.number(x.speed), // XXX need backend support
+            value: x => H.number(x.stats.speed.avg),
             key: () => 'Speed <small>(avg)</small>',
             unit: () => 'kph',
         }, {
-            value: x => H.number(x.stats.powerMax),
+            value: x => H.number(x.speed),
+            key: () => 'Speed',
+            unit: () => 'kph',
+        }, {
+            value: x => H.number(x.stats.speed.smooth[60]),
+            key: () => `Speed <small>(${shortDuration(60)})</small>`,
+            unit: () => 'kph',
+        }, {
+            value: x => H.number(x.stats.hr.avg),
+            key: () => 'HR <small>(avg)</small>',
+            unit: () => 'bpm',
+        }, {
+            value: x => H.number(x.heartrate),
+            key: () => 'HR',
+            unit: () => 'bpm',
+        }, {
+            value: x => H.number(x.stats.hr.smooth[60]),
+            key: () => `HR <small>(${shortDuration(60)})</small>`,
+            unit: () => 'bpm',
+        }, {
+            value: x => H.number(x.stats.power.max),
             key: () => 'Power <small>(max)</small>',
             unit: () => 'w',
         }, {
-            value: x => H.number(x.stats.powerAvg),
+            value: x => H.number(x.stats.power.avg),
             key: () => 'Power <small>(avg)</small>',
             unit: () => 'w',
         }, {
-            value: x => H.number(x.stats.powerNP),
+            value: x => H.number(x.stats.power.np),
             key: () => 'NP',
         }, {
-            value: x => H.number(x.stats.power5s),
+            value: x => H.number(x.stats.power.smooth[5]),
             key: () => `Power <small>(${shortDuration(5)})</small>`,
             unit: () => 'w',
         }, {
-            value: x => H.number(x.stats.power30s),
-            key: () => `Power <small>(${shortDuration(30)})</small>`,
+            value: x => H.number(x.stats.power.smooth[60]),
+            key: () => `Power <small>(${shortDuration(60)})</small>`,
             unit: () => 'w',
+        }, {
+            value: x => H.number(x.stats.power.smooth[300]),
+            key: () => `Power <small>(${shortDuration(300)})</small>`,
+            unit: () => 'w',
+        }, {
+            value: x => H.number(x.stats.power.smooth[1200]),
+            key: () => `Power <small>(${shortDuration(1200)})</small>`,
+            unit: () => 'w',
+        }, {
+            value: x => H.number(x.stats.power.peaks[5].avg),
+            key: () => `Peak Power <small>(${shortDuration(5)})</small>`,
+            unit: () => 'w',
+        }, {
+            value: x => H.number(x.stats.power.peaks[60].avg),
+            key: () => `Peak Power <small>(${shortDuration(60)})</small>`,
+            unit: () => 'w',
+        }, {
+            value: x => H.number(x.stats.power.peaks[300].avg),
+            key: () => `Peak Power <small>(${shortDuration(300)})</small>`,
+            unit: () => 'w',
+        }, {
+            value: x => H.number(x.stats.power.peaks[1200].avg),
+            key: () => `Peak Power <small>(${shortDuration(1200)})</small>`,
+            unit: () => 'w',
+
         }],
     });
 

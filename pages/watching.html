@@ -191,14 +191,14 @@
             <div class="entry hr columns">
                 <heading>HEART RATE:</heading>
                 <div class="sub">
-                    <div class="row avg">
+                    <div class="row avg" data-field="hr-upper">
                         <div class="key">Avg</div><div class="value"></div><abbr class="unit">bpm</abbr>
                     </div>
-                    <div class="row max">
+                    <div class="row max" data-field="hr-lower">
                         <div class="key">Max</div><div class="value"></div><abbr class="unit">bpm</abbr>
                     </div>
                 </div>
-                <div class="primary current">
+                <div class="primary current" data-field="hr-main">
                     <div class="bg">
                         <img src="images/fa/heartbeat-duotone.svg"/>
                     </div>
@@ -211,17 +211,17 @@
             <div class="entry misc columns no-heading">
                 <div class="sub cadence">
                     <heading>CADENCE:</heading>
-                    <div class="row current">
+                    <div class="row current" data-field="cadence-upper">
                         <div class="key">Current</div><div class="value"></div><abbr class="unit">rpm</abbr>
                     </div>
-                    <div class="row avg">
+                    <div class="row avg" data-field="cadence-lower">
                         <div class="key">Avg</div><div class="value"></div><abbr class="unit">rpm</abbr>
                     </div>
                 </div>
                 <div class="sub draft">
                     <heading>DRAFT:</heading>
                     <div class="row current">
-                        <div class="key">Cur</div><div class="value"></div><abbr class="unit">%</abbr>
+                        <div class="key">Current</div><div class="value"></div><abbr class="unit">%</abbr>
                     </div>
                     <div class="row avg">
                         <div class="key">Avg</div><div class="value"></div><abbr class="unit">%</abbr>
