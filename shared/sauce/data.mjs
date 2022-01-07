@@ -597,6 +597,7 @@ export default {
     Zero,
     Pad,
     peakAverage,
+    correctedAverage,
     smooth,
     overlap,
 };
