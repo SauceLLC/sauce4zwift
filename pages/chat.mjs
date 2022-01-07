@@ -33,7 +33,7 @@ function liveDataFormatter(athlete) {
     }
 
     const items = [
-        state.stats.power30s != null ? Math.round(state.stats.power30s).toLocaleString() + 'w' : null,
+        state.stats.power.smooth[30] != null ? Math.round(state.stats.power.smooth[30]).toLocaleString() + 'w' : null,
         state.heartrate ? state.heartrate.toLocaleString() + 'bpm' : null,
     ];
     const gap = state.gap;
