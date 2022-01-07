@@ -113,7 +113,7 @@ async function main() {
             default: 2
         }],
         fields: [{
-            value: x => H.number(x.heartrate),
+            value: x => H.number(x.heartrate || null),
             label: () => 'bpm',
             key: () => 'Current',
             unit: () => 'bpm',
@@ -123,7 +123,7 @@ async function main() {
             key: () => 'Avg',
             unit: () => 'bpm',
         }, {
-            value: x => H.number(x.stats.hr.max),
+            value: x => H.number(x.stats.hr.max || null),
             label: () => 'max',
             key: () => 'Max',
             unit: () => 'bpm',
@@ -153,7 +153,7 @@ async function main() {
             key: () => 'Avg',
             unit: () => 'rpm',
         }, {
-            value: x => H.number(x.stats.cadence.max),
+            value: x => H.number(x.stats.cadence.max || null),
             label: () => 'max',
             key: () => 'Max',
             unit: () => 'rpm',

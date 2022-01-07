@@ -303,7 +303,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 speed: new RollingPeaks(sauce.data.RollingAverage, ts, periods, {ignoreZeros: true}),
                 hr: new RollingPeaks(sauce.data.RollingAverage, ts, periods, {ignoreZeros: true}),
                 cadence: new RollingPeaks(sauce.data.RollingAverage, ts, [], {ignoreZeros: true}),
-                draft: new RollingPeaks(sauce.data.RollingAverage, ts, []);
+                draft: new RollingPeaks(sauce.data.RollingAverage, ts, []),
             });
         }
         if (!this._roadHistory.has(state.athleteId)) {
