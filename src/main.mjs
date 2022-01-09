@@ -161,7 +161,7 @@ async function makeFloatingWindow(page, options={}) {
 
 async function createWindows(monitor) {
     void clearWindowState;  // delint while unused
-    //await clearWindowState('overview.html'); // XXX TESTING
+    await clearWindowState('overview.html'); // XXX TESTING
     //await clearWindowState('watching.html'); // XXX TESTING
     //await clearWindowState('groups.html'); // XXX TESTING
     //await clearWindowState('chat.html'); // XXX TESTING
