@@ -214,7 +214,7 @@ async function main() {
     }
     const webPort = 1080;
     webServer.start(monitor, webPort);
-    console.info(`Web server started at: http://${ip}:${webPort}/`);
+    console.info(`\nWeb server started at: http://${ip}:${webPort}/\n`);
     ipcMain.on('subscribe', (ev, {event, domEvent}) => {
         const win = windows.get(ev.sender).win;
         const cb = data => win.webContents.send('browser-message', {domEvent, data});
