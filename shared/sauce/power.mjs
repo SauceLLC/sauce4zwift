@@ -187,7 +187,7 @@ class RollingPower extends data.RollingAverage {
         const value = this._values[i];
         if (this._inlineNP) {
             const state = this._inlineNP;
-            const saved = {};
+            let save;
             const slot = i % state.rollSize;
             if (value instanceof data.Zero) {
                 // Drain the rolling buffer but don't increment the counter.
@@ -201,17 +201,17 @@ class RollingPower extends data.RollingAverage {
                 const npa = state.rollSum / Math.min(state.rollSize, i + 1 - this._offt);
                 const qnpa = npa * npa * npa * npa;  // unrolled for perf
                 state.total += qnpa;
-                saved.value = qnpa;
+                save = qnpa;
             }
-            state.saved.push(saved);
+            state.saved.push(save);
         }
         if (this._inlineXP) {
             const state = this._inlineXP;
-            const saved = {};
+            const save = {};
             if (value instanceof data.Zero) {
                 if (value instanceof data.Break) {
                     state.breakPadding += value.pad;
-                    saved.breakPadding = value.pad;
+                    save.breakPadding = value.pad;
                 }
             } else {
                 const epsilon = 0.1;
@@ -234,10 +234,10 @@ class RollingPower extends data.RollingAverage {
                 state.total += qw;
                 count++;
                 state.count += count;
-                saved.value = qw;
-                saved.count = count;
+                save.value = qw;
+                save.count = count;
             }
-            state.saved.push(saved);
+            state.saved.push(save);
         }
         super.processAdd(i);
     }
@@ -246,18 +246,18 @@ class RollingPower extends data.RollingAverage {
         super.processShift(i);
         if (this._inlineNP) {
             const state = this._inlineNP;
-            const saved = state.saved[i];
-            state.total -= saved.value || 0;
+            const save = state.saved[i];
+            state.total -= save || 0;
             if (this._values[i] instanceof data.Zero) {
                 state.gapPadCount--;
             }
         }
         if (this._inlineXP) {
             const state = this._inlineXP;
-            const saved = state.saved[i];
-            state.total -= saved.value || 0;
-            state.count -= saved.count || 0;
-            state.breakPadding -= saved.breakPadding || 0;
+            const save = state.saved[i];
+            state.total -= save.value || 0;
+            state.count -= save.count || 0;
+            state.breakPadding -= save.breakPadding || 0;
         }
     }
 
@@ -276,7 +276,9 @@ class RollingPower extends data.RollingAverage {
             const state = this._inlineNP;
             return (state.total / (this.size() - state.gapPadCount)) ** 0.25;
         } else {
-            return calcNP(this.values(), 1 / this.idealGap, options);
+            const leadinIdx = Math.max(0, this._offt - 60);
+            const leadin = this._values.slice(leadinIdx, this._offt);
+            return calcNP(this.values(), 1 / this.idealGap, {leadin, ...options});
         }
     }
 
@@ -288,7 +290,9 @@ class RollingPower extends data.RollingAverage {
             const state = this._inlineXP;
             return (state.total / state.count) ** 0.25;
         } else {
-            return calcXP(this.values(), 1 / this.idealGap, options);
+            const leadinIdx = Math.max(0, this._offt - 50);
+            const leadin = this._values.slice(leadinIdx, this._offt);
+            return calcXP(this.values(), 1 / this.idealGap, {leadin, ...options});
         }
     }
 
@@ -296,23 +300,24 @@ class RollingPower extends data.RollingAverage {
         return this._valuesAcc;
     }
 
-    clone(...args) {
-        const instance = super.clone(...args);
-        instance._joules = this._joules;
-        if (this._inlineNP) {
+    clone(options={}) {
+        const instance = super.clone(options);
+        if (this._inlineNP && options.inlineNP !== false) {
             this._copyInlineState('_inlineNP', instance);
         }
-        if (this._inlineXP) {
+        if (this._inlineXP && options.inlineXP !== false) {
             this._copyInlineState('_inlineXP', instance);
         }
         return instance;
     }
 
     _copyInlineState(key, target) {
-        const saved = this[key].saved;
-        target[key] = {...this[key]};
-        const offt = saved.length - target._length;
-        target[key].saved = saved.slice(offt);
+        const src = this[key];
+        target[key] = {
+            ...src,
+            saved: Array.from(src.saved),
+            roll: src.roll && Array.from(src.roll),
+        };
     }
 }
 
@@ -334,52 +339,55 @@ function correctedRollingPower(timeStream, period, options={}) {
 }
 
 
-function peakPower(period, timeStream, wattsStream, options) {
+function peakPower(period, timeStream, wattsStream, options={}) {
     const roll = correctedRollingPower(timeStream, period, options);
     if (!roll) {
         return;
     }
-    return roll.importReduce(timeStream, wattsStream, (cur, lead) => cur.avg() >= lead.avg());
+    return roll.importReduce(timeStream, wattsStream, options.activeStream,
+        (cur, lead) => cur.avg() >= lead.avg(), {inlineXP: false, inlineNP: false});
 }
 
 
-function peakNP(period, timeStream, wattsStream, options) {
+function peakNP(period, timeStream, wattsStream, options={}) {
     const roll = correctedRollingPower(timeStream, period,
         {inlineNP: true, active: true, ...options});
     if (!roll) {
         return;
     }
-    return roll.importReduce(timeStream, wattsStream, (cur, lead) => cur.np() >= lead.np());
+    return roll.importReduce(timeStream, wattsStream, options.activeStream,
+        (cur, lead) => cur.np() >= lead.np(), {inlineXP: false, inlineNP: false});
 }
 
 
-function peakXP(period, timeStream, wattsStream, options) {
+function peakXP(period, timeStream, wattsStream, options={}) {
     const roll = correctedRollingPower(timeStream, period,
         {inlineXP: true, active: true, ...options});
     if (!roll) {
         return;
     }
-    return roll.importReduce(timeStream, wattsStream, (cur, lead) => cur.xp() >= lead.xp());
+    return roll.importReduce(timeStream, wattsStream, options.activeStream,
+        (cur, lead) => cur.xp() >= lead.xp(), {inlineXP: false, inlineNP: false});
 }
 
 
-function correctedPower(timeStream, wattsStream, options) {
+function correctedPower(timeStream, wattsStream, options={}) {
     const roll = correctedRollingPower(timeStream, null, options);
     if (!roll) {
         return;
     }
-    roll.importData(timeStream, wattsStream);
+    roll.importData(timeStream, wattsStream, options.activeStream);
     return roll;
 }
 
 
-function calcNP(stream, sampleRate, options={}) {
+function calcNP(data, sampleRate, options={}) {
     /* Coggan doesn't recommend NP for less than 20 mins, but we're outlaws
      * and we go as low as 5 mins now! (10-08-2020) */
     sampleRate = sampleRate || 1;
     if (!options.force) {
-        const elapsed = stream.length / sampleRate;
-        if (!stream || elapsed < npMinTime) {
+        const elapsed = data.length / sampleRate;
+        if (!data || elapsed < npMinTime) {
             return;
         }
     }
@@ -389,45 +397,59 @@ function calcNP(stream, sampleRate, options={}) {
         return;
     }
     const rolling = new Array(rollingSize);
-    let total = 0;
     let count = 0;
+    let total = 0;
+    let leadinTotal = 0;
     let breakPadding = 0;
+    const leadin = options.leadin || [];
+    const stream = leadin.concat(data);
     for (let i = 0, sum = 0, len = stream.length; i < len; i++) {
         const index = i % rollingSize;
-        const watts = stream[i];
+        const entry = stream[i];
+        const watts = +entry;  // Unlocks some optimizations.
         // Drain the rolling buffer but don't increment the counter for gaps...
-        if (watts instanceof data.Break) {
-            for (let j = 0; j < Math.min(rollingSize, watts.pad); j++) {
-                const rollIndex = (index + j) % rollingSize;
-                sum -= rolling[rollIndex] || 0;
-                rolling[rollIndex] = 0;
+        if (!watts) {
+            if (entry instanceof data.Break) {
+                for (let j = 0; j < Math.min(rollingSize, entry.pad); j++) {
+                    const rollIndex = (index + j) % rollingSize;
+                    sum -= rolling[rollIndex] || 0;
+                    rolling[rollIndex] = 0;
+                }
+                breakPadding += entry.pad;
+                continue;
+            } else if (entry instanceof data.Zero) {
+                sum -= rolling[index] || 0;
+                rolling[index] = 0;
+                continue;
             }
-            breakPadding += watts.pad;
-            continue;
-        } else if (watts instanceof data.Zero) {
-            sum -= rolling[index] || 0;
-            rolling[index] = 0;
-            continue;
+        } else {
+            sum += watts;
         }
-        sum += watts;
         sum -= rolling[index] || 0;
         rolling[index] = watts;
-        const avg = sum / Math.min(rollingSize, i + 1 + breakPadding);
-        total += avg * avg * avg * avg;  // About 100 x faster than Math.pow and **
+        const rollUsedSize = i + 1 + breakPadding;
+        const avg = sum / (rollingSize < rollUsedSize ? rollingSize : rollUsedSize);
+        const qavg = avg * avg * avg * avg;  // About 100 x faster than Math.pow and **
+        total += qavg;
+        if (i < leadin.length) {
+            leadinTotal += qavg;
+        }
         count++;
     }
+    count -= leadin.length;
+    total -= leadinTotal;
     return (total / count) ** 0.25;
 }
 
 
-function calcXP(stream, sampleRate, options={}) {
+function calcXP(data, sampleRate, options={}) {
     /* See: https://perfprostudio.com/BETA/Studio/scr/BikeScore.htm
      * xPower is more accurate version of NP that better correlates to how
      * humans recover from oxygen debt. */
     sampleRate = sampleRate || 1;
     if (!options.force) {
-        const elapsed = stream.length / sampleRate;
-        if (!stream || elapsed < xpMinTime) {
+        const elapsed = data.length / sampleRate;
+        if (!data || elapsed < xpMinTime) {
             return;
         }
     }
@@ -439,14 +461,18 @@ function calcXP(stream, sampleRate, options={}) {
     const sampleWeight = sampleInterval / (samplesPerWindow + sampleInterval);
     let prevTime = 0;
     let weighted = 0;
-    let total = 0;
     let count = 0;
+    let total = 0;
+    let leadinTotal = 0;
     let breakPadding = 0;
+    const leadin = options.leadin || [];
+    const stream = leadin.concat(data);
     for (let i = 0, len = stream.length; i < len; i++) {
-        const watts = stream[i];
-        if (watts instanceof data.Zero) {
-            if (watts instanceof data.Break) {
-                breakPadding += watts.pad;
+        const entry = stream[i];
+        const watts = +entry;  // Unlocks some optimizations.
+        if (!watts && (entry instanceof data.Zero)) {
+            if (entry instanceof data.Break) {
+                breakPadding += entry.pad;
             }
             continue; // Skip Zero pads so after the inner while loop can attenuate on its terms.
         }
@@ -460,9 +486,15 @@ function calcXP(stream, sampleRate, options={}) {
         weighted *= attenuation;
         weighted += sampleWeight * watts;
         prevTime = time;
-        total += weighted * weighted * weighted * weighted;  // unrolled for perf
+        const qw = weighted * weighted * weighted * weighted;  // unrolled for perf
+        total += qw;
+        if (i < leadin.length) {
+            leadinTotal += qw;
+        }
         count++;
     }
+    count -= leadin.length;
+    total -= leadinTotal;
     return count ? (total / count) ** 0.25 : 0;
 }
 

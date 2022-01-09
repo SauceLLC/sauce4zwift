@@ -243,11 +243,14 @@ class RollingAverage {
     }
 
     clone(options={}) {
-        const instance = new this.constructor(options.period || this.period);
-        instance.idealGap = this.idealGap;
-        instance.maxGap = this.maxGap;
-        instance._active = this._active;
-        instance._ignoreZeros = this._ignoreZeros;
+        const period = options.period != null ? options.period : this.period;
+        const instance = new this.constructor(period, {
+            idealGap: this.idealGap,
+            maxGap: this.maxGap,
+            active: this._active,
+            ignoreZeros: this._ignoreZeros,
+            ...options,
+        });
         instance._times = this._times;
         instance._values = this._values;
         instance._offt = this._offt;
@@ -278,30 +281,30 @@ class RollingAverage {
         return clone;
     }
 
-    *_importIter(times, values) {
+    *_importIter(times, values, active) {
         if (times.length !== values.length) {
             throw new TypeError("times and values not same length");
         }
         for (let i = 0; i < times.length; i++) {
-            yield this.add(times[i], values[i]);
+            yield this.add(times[i], values[i], active && active[i]);
         }
     }
 
-    importData(times, values) {
+    importData(times, values, active) {
         if (times.length !== values.length) {
             throw new TypeError("times and values not same length");
         }
         for (let i = 0; i < times.length; i++) {
-            this.add(times[i], values[i]);
+            this.add(times[i], values[i], active && active[i]);
         }
     }
 
-    importReduce(times, values, comparator) {
+    importReduce(times, values, active, comparator, cloneOptions) {
         let leader;
-        for (const x of this._importIter(times, values)) {
+        for (const x of this._importIter(times, values, active)) {
             void x;
             if (this.full() && (!leader || comparator(this, leader))) {
-                leader = this.clone();
+                leader = this.clone(cloneOptions);
             }
         }
         return leader;
@@ -339,11 +342,11 @@ class RollingAverage {
         );
     }
 
-    add(ts, value) {
+    add(ts, value, active) {
         if (this._length) {
             const prevTS = this._times[this._length - 1];
             const gap = ts - prevTS;
-            if (this.maxGap && gap > this.maxGap) {
+            if ((active == null && (this.maxGap && gap > this.maxGap)) || active === false) {
                 const zeroPad = new Zero();
                 const idealGap = this.idealGap || Math.min(1, gap / 2);
                 const breakGap = 3600;
@@ -418,11 +421,11 @@ class RollingAverage {
         }
         for (let i = this._length; i < length; i++) {
             this.processAdd(i);
-        }
-        this._length = length;
-        if (this.period) {
-            while (this.full({offt: 1})) {
-                this.shift();
+            this._length++;
+            if (this.period) {
+                while (this.full({offt: 1})) {
+                    this.shift();
+                }
             }
         }
     }
@@ -516,22 +519,23 @@ function correctedRollingAverage(timeStream, period, options={}) {
 }
 
 
-function correctedAverage(timeStream, valuesStream, options) {
+function correctedAverage(timeStream, valuesStream, options={}) {
     const roll = correctedRollingAverage(timeStream, null, options);
     if (!roll) {
         return;
     }
-    roll.importData(timeStream, valuesStream);
+    roll.importData(timeStream, valuesStream, options.activeStream);
     return roll;
 }
 
 
-function peakAverage(period, timeStream, valuesStream, options) {
+function peakAverage(period, timeStream, valuesStream, options={}) {
     const roll = correctedRollingAverage(timeStream, period, options);
     if (!roll) {
         return;
     }
-    return roll.importReduce(timeStream, valuesStream, (cur, lead) => cur.avg() >= lead.avg());
+    return roll.importReduce(timeStream, valuesStream, options.activeStream,
+        (cur, lead) => cur.avg() >= lead.avg());
 }
 
 
