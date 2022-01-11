@@ -3,26 +3,121 @@ import common from './common.mjs';
 
 const L = sauce.locale;
 const H = L.human;
+const num = H.number;
 
+function spd(v) {
+    return v ? `${num(v)}<small>kph</small>` : v == null ? '-' : v;
+}
+
+function pwr(v) {
+    return v ? `${num(v)}<small>w</small>`: v == null ? '-' : v;v
+}
+
+function hr(v) {
+    return v ? `${num(v)}<small>bpm</small>` : '-';;
+}
 
 async function main() {
     common.initInteractionListeners();
-    const tbody = document.querySelector('#content table tbody');
+
+    const fields = {
+        'ID': x => x.athleteId,
+
+        'Gap': x => `${num(x.gap)}s`,
+
+        'Pwr': x => pwr(x.power),
+        '5s Pwr': x => pwr(x.stats.power.smooth['5']),
+        '1m Pwr': x => pwr(x.stats.power.smooth['60']),
+        '5m Pwr': x => pwr(x.stats.power.smooth['300']),
+        'Avg Pwr': x => pwr(x.stats.power.avg),
+        'NP Pwr': x => pwr(x.stats.power.np),
+        'Max Pwr': x => pwr(x.stats.power.max),
+        '5s Peak Pwr': x => pwr(x.stats.power.peaks[5].avg),
+        '1m Peak Pwr': x => pwr(x.stats.power.peaks[60].avg),
+        '5m Peak Pwr': x => pwr(x.stats.power.peaks[300].avg),
+
+        'Spd': x => spd(x.speed),
+        '1m Spd': x => spd(x.stats.speed.smooth[60]),
+        'Avg Spd': x => spd(x.stats.speed.avg),
+        '1m Peak Spd': x => spd(x.stats.speed.peaks[60].avg),
+
+        'HR': x => hr(x.heartrate),
+        '1m HR': x => hr(x.stats.hr.smooth[60]),
+        'Avg HR': x => hr(x.stats.hr.avg),
+        '1m Peak HR': x => hr(x.stats.hr.peaks[60].avg),
+    };
+
+    const table = document.querySelector('#content table');
+    const tbody = table.querySelector('tbody');
+    const theadRow = table.querySelector('thead tr');
+    theadRow.innerHTML = Object.keys(fields).map((x, i) => `<td data-id="${i}">${x}</td>`).join('');
+ 
+    let hiRow;
+    tbody.addEventListener('dblclick', ev => {
+        const row = ev.target.closest('tr');
+        if (row) {
+            const oldHi = tbody.querySelector('tr.hi');
+            if (oldHi) {
+                oldHi.classList.remove('hi');
+            }
+            row.classList.add('hi');
+            hiRow = Number(row.dataset.id);
+        }
+    });
+
+    let hiCol;
+    theadRow.addEventListener('dblclick', ev => {
+        const col = ev.target.closest('td');
+        if (col) {
+            for (const td of table.querySelectorAll('td.hi')) {
+                td.classList.remove('hi');
+            }
+            hiCol = Number(col.dataset.id);
+            for (const td of table.querySelectorAll(`td[data-id="${hiCol}"]`)) {
+                td.classList.add('hi');
+            }
+        }
+    });
+
+    let nextAnimFrame;
+    let frames = 0;
     common.subscribe('nearby', nearby => {
         if (!nearby.length) {
             return;
         }
-        nearby.sort((a, b) => a.athleteId - b.athleteId);
-        nearby.sort((a, b) => a.watching ? -1 : 0);
-        const num = H.number;
-        tbody.innerHTML = nearby.map(x => [
-            x.athleteId, x.power, num(x.stats.power.smooth['5']), num(x.stats.power.smooth['30']),
-            num(x.stats.power.avg), num(x.stats.power.np), x.stats.power.max,
-            num(x.stats.power.peaks[5].avg),
-            num(x.stats.power.peaks[30].avg),
-            num(x.speed), num(x.stats.speed.avg), num(x.stats.speed.smooth[30]), num(x.stats.speed.peaks[30].avg),
-            num(x.heartrate), num(x.stats.hr.avg), num(x.stats.hr.smooth[30]), num(x.stats.hr.peaks[30].avg),
-        ].map(x => `<td>${x}</td>`).join('')).map(x => `<tr>${x}</tr>`).join('');
+        nearby.sort((a, b) => a.gap - b.gap);
+        const html = nearby.map(x => {
+            const classes = [];
+            if (x.watching) {
+                classes.push('watching');
+            }
+            if ((x.watching && !hiRow) || x.athleteId === hiRow) {
+                classes.push('hi');
+            }
+            return `
+                <tr data-id="${x.athleteId}" class="${classes.join(' ')}">
+                    ${Object.values(fields).map((fmt, i) =>
+                        `<td data-id="${i}" class="${hiCol === i ? 'hi' : ''}">${fmt(x)}</td>`
+                    ).join('')}
+                </tr>
+            `;
+        }).join('\n');
+        if (nextAnimFrame) {
+            cancelAnimationFrame(nextAnimFrame);
+            console.log("drop frame");
+        }
+        nextAnimFrame = requestAnimationFrame(() => {
+            nextAnimFrame = null;
+            tbody.innerHTML = html;
+            if (!frames++) {
+                queueMicrotask(() => {
+                    const w = document.querySelector('tr.watching');
+                    if (w) {
+                        w.scrollIntoView({block: 'center'});
+                    }
+                });
+            }
+        });
     });
 }
 
