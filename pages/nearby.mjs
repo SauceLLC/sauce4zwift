@@ -17,6 +17,10 @@ function hr(v) {
     return v ? `${num(v)}<small>bpm</small>` : '-';;
 }
 
+function clearSelection() {
+    window.getSelection().empty();
+}
+
 async function main() {
     common.initInteractionListeners();
 
@@ -56,12 +60,14 @@ async function main() {
     tbody.addEventListener('dblclick', ev => {
         const row = ev.target.closest('tr');
         if (row) {
+            clearSelection();
+            hiRow = Number(row.dataset.id);
             const oldHi = tbody.querySelector('tr.hi');
             if (oldHi) {
                 oldHi.classList.remove('hi');
             }
-            row.classList.add('hi');
-            hiRow = Number(row.dataset.id);
+            row.scrollIntoView({block: 'center'});  // forces smooth
+            setTimeout(() => row.classList.add('hi'), 200); // smooth scroll hack.
         }
     });
 
@@ -69,20 +75,23 @@ async function main() {
     theadRow.addEventListener('dblclick', ev => {
         const col = ev.target.closest('td');
         if (col) {
+            clearSelection();
+            hiCol = Number(col.dataset.id);
             for (const td of table.querySelectorAll('td.hi')) {
                 td.classList.remove('hi');
             }
-            hiCol = Number(col.dataset.id);
             for (const td of table.querySelectorAll(`td[data-id="${hiCol}"]`)) {
                 td.classList.add('hi');
             }
         }
     });
+    let pause;
+    document.addEventListener('selectionchange', ev => pause = !!getSelection().toString());
 
     let nextAnimFrame;
     let frames = 0;
-    common.subscribe('nearby', nearby => {
-        if (!nearby.length) {
+    common.subscribe('nearby', async nearby => {
+        if (!nearby.length || pause || document.hidden) {
             return;
         }
         nearby.sort((a, b) => a.gap - b.gap);
