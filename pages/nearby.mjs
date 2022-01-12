@@ -53,17 +53,14 @@ const fields = [
 export function main() {
     common.initInteractionListeners();
 
-    const enFields = fields.filter(x => {
-        const userEn = common.storage.get(`nearby-fields-${x.id}`);
-        return userEn != null ? userEn : x.defaultEn;
-    });
-    let sortBy = common.storage.get('nearby-sortBy') || 'gap';
+    const enFields = fields.filter(x => common.storage.get(`nearby-fields-${x.id}`, x.defaultEn));
+    let sortBy = common.storage.get('nearby-sort-by', 'gap');
     const isFieldAvail = !!enFields.find(x => x.id === sortBy);
     if (!isFieldAvail) {
         sortBy = enFields[0].id;
     }
     
-    let sortByDir = 1;
+    let sortByDir = common.storage.get('nearby-sort-dir', 1);
     let hiRow;
 
     const table = document.querySelector('#content table');
@@ -92,9 +89,10 @@ export function main() {
             const id = col.dataset.id;
             if (id === sortBy) {
                 sortByDir = -sortByDir;
+                common.storage.set('nearby-sort-dir', sortByDir);
             }
             sortBy = id;
-            common.storage.set(`nearby-sortBy`, id);
+            common.storage.set(`nearby-sort-by`, id);
             for (const td of table.querySelectorAll('td.hi')) {
                 td.classList.remove('hi');
             }

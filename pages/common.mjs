@@ -213,13 +213,9 @@ class Renderer {
 
 
 const storage = {
-    get: k => {
+    get: (k, def) => {
         const v = localStorage.getItem(k);
-        if (typeof v === 'string') {
-            return JSON.parse(v);
-        } else {
-            return null;
-        }
+        return (typeof v === 'string') ? JSON.parse(v) : def;
     },
     set: (k, v) => localStorage.setItem(k, JSON.stringify(v)),
 };
