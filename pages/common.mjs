@@ -211,10 +211,25 @@ class Renderer {
     }
 }
 
+
+const storage = {
+    get: k => {
+        const v = localStorage.getItem(k);
+        if (typeof v === 'string') {
+            return JSON.parse(v);
+        } else {
+            return null;
+        }
+    },
+    set: (k, v) => localStorage.setItem(k, JSON.stringify(v)),
+};
+
+
 export default {
     closeWindow,
     electronTrigger,
     subscribe,
     initInteractionListeners,
     Renderer,
+    storage,
 };

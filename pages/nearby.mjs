@@ -21,46 +21,56 @@ function clearSelection() {
     window.getSelection().empty();
 }
 
-async function main() {
+
+const fields = [
+    {id: 'id', defaultEn: true, label: 'ID', get: x => x.athleteId, fmt: x => x},
+
+    {id: 'gap', defaultEn: true, label: 'Gap', get: x => x.gap, fmt: x => `${num(x)}s`},
+
+    {id: 'pwr-cur', defaultEn: true, label: 'Pwr', get: x => x.power, fmt: pwr},
+    {id: 'pwr-5s', defaultEn: true, label: '5s Pwr', get: x => x.stats.power.smooth['5'], fmt: pwr},
+    {id: 'pwr-60s', defaultEn: true, label: '1m Pwr', get: x => x.stats.power.smooth['60'], fmt: pwr},
+    {id: 'pwr-300s', defaultEn: true, label: '5m Pwr', get: x => x.stats.power.smooth['300'], fmt: pwr},
+    {id: 'pwr-avg', defaultEn: true, label: 'Avg Pwr', get: x => x.stats.power.avg, fmt: pwr},
+    {id: 'pwr-np', defaultEn: true, label: 'NP Pwr', get: x => x.stats.power.np, fmt: pwr},
+    {id: 'pwr-max', defaultEn: true, label: 'Max Pwr', get: x => x.stats.power.max, fmt: pwr},
+    {id: 'pwr-p5s', defaultEn: true, label: '5s Peak Pwr', get: x => x.stats.power.peaks[5].avg, fmt: pwr},
+    {id: 'pwr-p60s', defaultEn: true, label: '1m Peak Pwr', get: x => x.stats.power.peaks[60].avg, fmt: pwr},
+    {id: 'pwr-p300s', defaultEn: true, label: '5m Peak Pwr', get: x => x.stats.power.peaks[300].avg, fmt: pwr},
+
+    {id: 'spd-cur', defaultEn: true, label: 'Spd', get: x => x.speed, fmt: spd},
+    {id: 'spd-60s', defaultEn: true, label: '1m Spd', get: x => x.stats.speed.smooth[60], fmt: spd},
+    {id: 'spd-avg', defaultEn: true, label: 'Avg Spd', get: x => x.stats.speed.avg, fmt: spd},
+    {id: 'spd-p60s', defaultEn: true, label: '1m Peak Spd', get: x => x.stats.speed.peaks[60].avg, fmt: spd},
+
+    {id: 'hr-cur', defaultEn: true, label: 'HR', get: x => x.heartrate, fmt: hr},
+    {id: 'hr-60s', defaultEn: true, label: '1m HR', get: x => x.stats.hr.smooth[60], fmt: hr},
+    {id: 'hr-avg', defaultEn: true, label: 'Avg HR', get: x => x.stats.hr.avg, fmt: hr},
+    {id: 'hr-p60s', defaultEn: true, label: '1m Peak HR', get: x => x.stats.hr.peaks[60].avg, fmt: hr},
+];
+
+
+export function main() {
     common.initInteractionListeners();
 
-    const fields = {
-        'ID': {get: x => x.athleteId, fmt: x => x},
-
-        'Gap': {get: x => x.gap, fmt: x => `${num(x)}s`},
-
-        'Pwr': {get: x => x.power, fmt: pwr},
-        '5s Pwr': {get: x => x.stats.power.smooth['5'], fmt: pwr},
-        '1m Pwr': {get: x => x.stats.power.smooth['60'], fmt: pwr},
-        '5m Pwr': {get: x => x.stats.power.smooth['300'], fmt: pwr},
-        'Avg Pwr': {get: x => x.stats.power.avg, fmt: pwr},
-        'NP Pwr': {get: x => x.stats.power.np, fmt: pwr},
-        'Max Pwr': {get: x => x.stats.power.max, fmt: pwr},
-        '5s Peak Pwr': {get: x => x.stats.power.peaks[5].avg, fmt: pwr},
-        '1m Peak Pwr': {get: x => x.stats.power.peaks[60].avg, fmt: pwr},
-        '5m Peak Pwr': {get: x => x.stats.power.peaks[300].avg, fmt: pwr},
-
-        'Spd': {get: x => x.speed, fmt: spd},
-        '1m Spd': {get: x => x.stats.speed.smooth[60], fmt: spd},
-        'Avg Spd': {get: x => x.stats.speed.avg, fmt: spd},
-        '1m Peak Spd': {get: x => x.stats.speed.peaks[60].avg, fmt: spd},
-
-        'HR': {get: x => x.heartrate, fmt: hr},
-        '1m HR': {get: x => x.stats.hr.smooth[60], fmt: hr},
-        'Avg HR': {get: x => x.stats.hr.avg, fmt: hr},
-        '1m Peak HR': {get: x => x.stats.hr.peaks[60].avg, fmt: hr},
-    };
-
-    let sortByCol = 1;
+    const enFields = fields.filter(x => {
+        const userEn = common.storage.get(`nearby-fields-${x.id}`);
+        return userEn != null ? userEn : x.defaultEn;
+    });
+    let sortBy = common.storage.get('nearby-sortBy') || 'gap';
+    const isFieldAvail = !!enFields.find(x => x.id === sortBy);
+    if (!isFieldAvail) {
+        sortBy = enFields[0].id;
+    }
+    
     let sortByDir = 1;
-    let hiCol = sortByCol;
     let hiRow;
 
     const table = document.querySelector('#content table');
     const tbody = table.querySelector('tbody');
     const theadRow = table.querySelector('thead tr');
-    theadRow.innerHTML = Object.keys(fields).map((x, i) =>
-        `<td data-id="${i}" class="${hiCol === i ? 'hi' : ''}">${x}</td>`).join('');
+    theadRow.innerHTML = enFields.map(x =>
+        `<td data-id="${x.id}" class="${sortBy === x.id ? 'hi' : ''}">${x.label}</td>`).join('');
  
     tbody.addEventListener('dblclick', ev => {
         const row = ev.target.closest('tr');
@@ -79,15 +89,16 @@ async function main() {
     theadRow.addEventListener('click', ev => {
         const col = ev.target.closest('td');
         if (col) {
-            const id = Number(col.dataset.id);
-            if (id === sortByCol) {
+            const id = col.dataset.id;
+            if (id === sortBy) {
                 sortByDir = -sortByDir;
             }
-            hiCol = sortByCol = id;
+            sortBy = id;
+            common.storage.set(`nearby-sortBy`, id);
             for (const td of table.querySelectorAll('td.hi')) {
                 td.classList.remove('hi');
             }
-            for (const td of table.querySelectorAll(`td[data-id="${hiCol}"]`)) {
+            for (const td of table.querySelectorAll(`td[data-id="${sortBy}"]`)) {
                 td.classList.add('hi');
             }
             render();
@@ -104,7 +115,7 @@ async function main() {
         if (!nearby.length || pause || document.hidden) {
             return;
         }
-        const sortFn = Object.values(fields)[sortByCol].get;
+        const sortFn = enFields.find(x => x.id === sortBy).get;
         nearby.sort((a, b) => (sortFn(a) - sortFn(b)) * sortByDir);
         const html = nearby.map(x => {
             const classes = [];
@@ -116,8 +127,8 @@ async function main() {
             }
             return `
                 <tr data-id="${x.athleteId}" class="${classes.join(' ')}">
-                    ${Object.values(fields).map(({get, fmt}, i) =>
-                        `<td data-id="${i}" class="${hiCol === i ? 'hi' : ''}">${fmt(get(x))}</td>`
+                    ${enFields.map(({id, get, fmt}) =>
+                        `<td data-id="${id}" class="${sortBy === id ? 'hi' : ''}">${fmt(get(x))}</td>`
                     ).join('')}
                 </tr>
             `;
@@ -145,4 +156,20 @@ async function main() {
     });
 }
 
-addEventListener('DOMContentLoaded', () => main());
+
+export function options() {
+    common.initInteractionListeners();
+    const form = document.querySelector('form');
+    form.addEventListener('input', ev => {
+        const id = ev.target.name;
+        common.storage.set(`nearby-fields-${id}`, ev.target.checked);
+    });
+    const fieldsHtml = fields.map(x => {
+        let en = common.storage.get(`nearby-fields-${x.id}`);
+        if (en == null) {
+            en = x.defaultEn;
+        }
+        return `<label>${x.label}<input type="checkbox" name="${x.id}" ${en ? 'checked' : ''}/></label>`;
+    }).join('');
+    form.innerHTML = fieldsHtml;
+}

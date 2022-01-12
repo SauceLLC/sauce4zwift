@@ -94,13 +94,17 @@
             }
         </style>
         <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';" />
-        <script src="nearby.mjs" type="module"></script>
+        <script type="module">
+            import {main} from './nearby.mjs';
+            document.addEventListener('DOMContentLoaded', main);
+        </script>
     </head>
     <body class="">
         <div id="titlebar">
             <div class="button move app-drag"><img src="images/fa/arrows-alt.svg"/></div>
             <header class="app-drag">Nearby - Sauce for Zwift</header>
             <div class="buttons">
+                <div class="button options" data-url="nearby-options.html"><img src="images/fa/cog-duotone.svg"/></div>
                 <div class="button close"><img src="images/fa/window-close-light.svg"/></div>
             </div>
         </div>

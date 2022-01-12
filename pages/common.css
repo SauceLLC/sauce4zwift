@@ -57,6 +57,21 @@ html.browser-mode {
     background-color: black;
 }
 
+#options {
+    font-size: 16px;
+    padding: 1em;
+}
+
+form {
+    padding: 0.2em 1em;
+    display: flex;
+    flex-direction: column;
+}
+
+label input {
+    margin-left: 0.5em;
+}
+
 body {
     position: relative;
     display: flex;
@@ -89,7 +104,7 @@ html:not(:hover) #hintbar {
 
 #titlebar,
 #hintbar {
-    font-size: 16px; /* same size on all windows */
+    font-size: 18px; /* same size on all windows */
 }
 
 #titlebar {
