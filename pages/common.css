@@ -87,6 +87,11 @@ html:not(:hover) #hintbar {
     padding-bottom: 0;
 }
 
+#titlebar,
+#hintbar {
+    font-size: 16px; /* same size on all windows */
+}
+
 #titlebar {
     position: absolute;
     top: 0;
