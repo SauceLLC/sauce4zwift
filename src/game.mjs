@@ -59,7 +59,12 @@ function estGap(a, b) {
 
 class RollingPeaks {
     constructor(Klass, firstTS, periods, options={}) {
-        const defOptions = {idealGap: 0.200, maxGap: 10, active: true};
+        const defOptions = {
+            idealGap: 0.200,
+            maxGap: 10,
+            active: true,
+            allowPadBounds: true
+        };
         this._firstTS = firstTS;
         this.roll = new Klass(null, {...defOptions, ...options});
         this.periodized = new Map(periods.map(period => [period, {
