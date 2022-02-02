@@ -24,11 +24,21 @@
                 align-items: center;
                 overflow: hidden;
                 flex: 1 1 100%;
-                padding: 0.1em 0.4em;
+                padding: 0.1em 0.6em;
             }
 
+            html:not(:hover) #content .button.move {
+                font-size: 0;
+            }
+            html:hover #content .button.move {
+                font-size: 1em;
+            }
             #content .button.move {
-                padding: 0.2em 0.4em 0.2em 0.2em;
+                padding-top: 0.2em;
+                padding-bottom: 0.2em;
+                padding-right: 0.4em;
+                transition: font-size 200ms;
+                overflow: hidden;
             }
 
             #content .button.move img {
@@ -90,7 +100,7 @@
                 display: none;
             }
 
-            .controls .button {
+            .controls .button:not(:last-child) {
                 margin-right: 0.5em;
             }
 
@@ -118,7 +128,6 @@
                 </div>
             </div>
             <div class="controls">
-                <div class="button options" data-url="overview-options.html"><img src="images/fa/cog-duotone.svg"/></div>
                 <div class="button hide" title="Hide All"><img src="images/fa/eye-slash-light.svg"/></div>
                 <div class="button show" title="Show All"><img src="images/fa/eye-light.svg"/></div>
                 <div class="button quit"><img src="images/fa/window-close-light.svg"/></div>

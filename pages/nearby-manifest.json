@@ -1,0 +1,27 @@
+{
+    "short_name": "Nearby",
+    "name": "Sauce for Zwift™ - Nearby",
+    "background_color": "black",
+    "theme_color": "black",
+    "description": "Sauce for Zwift - Nearby Raw Data",
+    "start_url": "/pages/nearby.html",
+    "display": "standalone",
+    "orientation": "any",
+    "icons": [{
+        "src": "/pages/images/icon256.png",
+        "sizes": "256x256",
+        "type": "image/png"
+    }, {
+        "src": "/pages/images/icon128.png",
+        "sizes": "128x128",
+        "type": "image/png"
+    }, {
+        "src": "/pages/images/icon64.png",
+        "sizes": "64x64",
+        "type": "image/png"
+    }, {
+        "src": "/pages/images/icon32.png",
+        "sizes": "32x32",
+        "type": "image/png"
+    }]
+}

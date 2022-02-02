@@ -1,5 +1,6 @@
 
-import data from './data.mjs';
+import _data from './data.mjs';
+const sauce = {data: _data}; // better web compat for now.
 
 /* Based on Andy Coggan's power profile. */
 const rankConstants = {
@@ -151,7 +152,7 @@ function rank(duration, p, wp, weight, gender) {
 }
 
 
-class RollingPower extends data.RollingAverage {
+class RollingPower extends sauce.data.RollingAverage {
     constructor(period, options={}) {
         super(period, options);
         if (options.inlineNP) {
@@ -189,7 +190,7 @@ class RollingPower extends data.RollingAverage {
             const state = this._inlineNP;
             let save;
             const slot = i % state.rollSize;
-            if (value instanceof data.Zero) {
+            if (value instanceof sauce.data.Zero) {
                 // Drain the rolling buffer but don't increment the counter.
                 state.rollSum -= state.roll[slot] || 0;
                 state.roll[slot] = 0;
@@ -208,8 +209,8 @@ class RollingPower extends data.RollingAverage {
         if (this._inlineXP) {
             const state = this._inlineXP;
             const save = {};
-            if (value instanceof data.Zero) {
-                if (value instanceof data.Break) {
+            if (value instanceof sauce.data.Zero) {
+                if (value instanceof sauce.data.Break) {
                     state.breakPadding += value.pad;
                     save.breakPadding = value.pad;
                 }
@@ -248,7 +249,7 @@ class RollingPower extends data.RollingAverage {
             const state = this._inlineNP;
             const save = state.saved[i];
             state.total -= save || 0;
-            if (this._values[i] instanceof data.Zero) {
+            if (this._values[i] instanceof sauce.data.Zero) {
                 state.gapPadCount--;
             }
         }
@@ -327,7 +328,7 @@ function correctedRollingPower(timeStream, period, options={}) {
         return;
     }
     if (options.idealGap == null || options.maxGap == null) {
-        const gaps = data.recommendedTimeGaps(timeStream);
+        const gaps = sauce.data.recommendedTimeGaps(timeStream);
         if (options.idealGap == null) {
             options.idealGap = gaps.ideal;
         }
@@ -409,7 +410,7 @@ function calcNP(data, sampleRate, options={}) {
         const watts = +entry;  // Unlocks some optimizations.
         // Drain the rolling buffer but don't increment the counter for gaps...
         if (!watts) {
-            if (entry instanceof data.Break) {
+            if (entry instanceof sauce.data.Break) {
                 for (let j = 0; j < Math.min(rollingSize, entry.pad); j++) {
                     const rollIndex = (index + j) % rollingSize;
                     sum -= rolling[rollIndex] || 0;
@@ -417,7 +418,7 @@ function calcNP(data, sampleRate, options={}) {
                 }
                 breakPadding += entry.pad;
                 continue;
-            } else if (entry instanceof data.Zero) {
+            } else if (entry instanceof sauce.data.Zero) {
                 sum -= rolling[index] || 0;
                 rolling[index] = 0;
                 continue;
@@ -470,8 +471,8 @@ function calcXP(data, sampleRate, options={}) {
     for (let i = 0, len = stream.length; i < len; i++) {
         const entry = stream[i];
         const watts = +entry;  // Unlocks some optimizations.
-        if (!watts && (entry instanceof data.Zero)) {
-            if (entry instanceof data.Break) {
+        if (!watts && (entry instanceof sauce.data.Zero)) {
+            if (entry instanceof sauce.data.Break) {
                 breakPadding += entry.pad;
             }
             continue; // Skip Zero pads so after the inner while loop can attenuate on its terms.
@@ -613,7 +614,7 @@ function cyclingDraftDragReduction(riders, position) {
 
 function cyclingPowerVelocitySearchMultiPosition(riders, positions, args) {
     const reductions = positions.map(x => cyclingDraftDragReduction(riders, x.position));
-    const avgCda = data.sum(reductions.map((x, i) => x * positions[i].pct)) * args.cda;
+    const avgCda = sauce.data.sum(reductions.map((x, i) => x * positions[i].pct)) * args.cda;
     const seedEst = cyclingPowerFastestVelocitySearch({...args, cda: avgCda});
     if (!seedEst) {
         return;
@@ -625,7 +626,7 @@ function cyclingPowerVelocitySearchMultiPosition(riders, positions, args) {
         cda: x * args.cda,
         velocity,
     }));
-    const estAvg = field => data.sum(positions.map((x, i) => x.pct * estimates[i][field]));
+    const estAvg = field => sauce.data.sum(positions.map((x, i) => x.pct * estimates[i][field]));
     if (Math.abs(estAvg('watts') - args.power) > 0.01) {
         throw new Error('velocity from perf search seed is invalid');
     }
@@ -669,7 +670,7 @@ function cyclingPowerVelocitySearch({power, ...args}) {
         for (let fuse = 0; fuse < 100; fuse++) {
             const results = [];
             const step = Math.max((end - start) / sampleSize, epsilon / sampleSize);
-            for (const v of data.range(start, end + step, step)) {
+            for (const v of sauce.data.range(start, end + step, step)) {
                 const est = cyclingPowerEstimate({velocity: v, ...args});
                 results.push([v, est]);
             }
@@ -679,8 +680,8 @@ function cyclingPowerVelocitySearch({power, ...args}) {
             if (velocities.length === 0) {
                 throw new Error("Emnty Range");
             }
-            start = data.min(velocities);
-            end = data.max(velocities);
+            start = sauce.data.min(velocities);
+            end = sauce.data.max(velocities);
             if (velocities.length === 1 ||
                 (Math.abs(start - lastStart) < epsilon && Math.abs(end - lastEnd) < epsilon)) {
                 // When multiple solution are in a single range it's possible to be too course
@@ -715,7 +716,7 @@ function cyclingPowerVelocitySearch({power, ...args}) {
     function findLocalRanges(velocities) {
         // Search for high energy matches based on stddev outliers. Returns an array
         // of ranges with lower and upper bounds that can be further narrowed.
-        const stddev = data.stddev(velocities);
+        const stddev = sauce.data.stddev(velocities);
         const groups = new Map();
         for (const v of velocities) {
             let added = false;
@@ -731,7 +732,7 @@ function cyclingPowerVelocitySearch({power, ...args}) {
             }
         }
         return Array.from(groups.values()).filter(x => x.length > 1).map(x =>
-            [data.min(x), data.max(x)]);
+            [sauce.data.min(x), sauce.data.max(x)]);
     }
 
     const matches = [];
@@ -784,7 +785,7 @@ function _wPrimeCorrectedPower(wattsStream, timeStream) {
 function calcWPrimeBalIntegralStatic(wattsStream, timeStream, cp, wPrime) {
     let sum = 0;
     const wPrimeBal = [];
-    const belowCPAvg = data.avg(wattsStream.filter(x => x != null && x < cp)) || 0;
+    const belowCPAvg = sauce.data.avg(wattsStream.filter(x => x != null && x < cp)) || 0;
     const deltaCP = cp - belowCPAvg;
     const tau = 546 * Math.E ** (-0.01 * deltaCP) + 316;
     let prevTime = timeStream[0] - 1; // Somewhat arbitrary.  Alt would be to discard idx 0.
@@ -817,7 +818,7 @@ function calcWPrimeBalDifferential(wattsStream, timeStream, cp, wPrime) {
     const epsilon = 0.000001;
     let wBal = wPrime;
     for (const p of powerRoll.values()) {
-        if (p instanceof data.Break) {
+        if (p instanceof sauce.data.Break) {
             // Refill wBal while we have a break.
             for (let j = 0; j < p.pad; j++) {
                 wBal += cp * (wPrime - wBal) / wPrime;
@@ -833,7 +834,7 @@ function calcWPrimeBalDifferential(wattsStream, timeStream, cp, wPrime) {
         if (wBal > wPrime) {
             debugger;  // XXX shouldn't be possible.
         }
-        if (!(p instanceof data.Pad)) {
+        if (!(p instanceof sauce.data.Pad)) {
             // Our output stream should align with the input stream, not the corrected
             // one used for calculations, so skip pad based values.
             wPrimeBal.push(Math.round(wBal));
@@ -854,8 +855,8 @@ function calcPwHrDecouplingFromRoll(powerRoll, hrStream) {
     if (!np1 || !np2) {
         return;
     }
-    const firstHalfRatio = np1 / data.avg(hrStream.slice(0, midHRIndex));
-    const secondHalfRatio = np2 / data.avg(hrStream.slice(midHRIndex));
+    const firstHalfRatio = np1 / sauce.data.avg(hrStream.slice(0, midHRIndex));
+    const secondHalfRatio = np2 / sauce.data.avg(hrStream.slice(midHRIndex));
     const r = (firstHalfRatio - secondHalfRatio) / firstHalfRatio;
     if (isNaN(r)) {
         debugger;

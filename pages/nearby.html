@@ -8,66 +8,109 @@
 
         <title>Nearby - Sauce for Zwift</title>
 
+        <link rel="manifest" href="/pages/nearby-manifest.json"/>
         <link id="favicon" rel="shortcut icon" href="/pages/images/favicon.png"/>
         <link rel='stylesheet' href="common.css"/>
 
         <style>
+            html {
+                user-select: initial;
+            }
+
             html, body {
                 font-size: 14px;
+            }
+
+            table {
+                border-collapse: collapse;
             }
 
             table thead {
                 position: sticky;
                 top: 0;
-                background-color: black;
+                background-image: linear-gradient(to bottom, #0f1751, #941a1a);
+                user-select: none;
             }
 
-            table th, table td {
+            table tr,
+            table td {
+                transition: background 200ms;
+            }
+
+            table td {
                 text-align: left;
+                padding: 0.2em 0.2em;
+            }
+            table thead td {
+                padding-top: 0.5em;
+                padding-bottom: 0.5em;
+                font-weight: normal;
+                font-variant: all-small-caps;
+            }
+            table td:first-child {
+                padding-left: 0.6em;
+            }
+            table td:last-child {
+                padding-right: 0.6em;
+            }
+            table td {
+                font-variant: tabular-nums;
+                cursor: pointer;
+            }
+
+            table tr.watching {
+                scroll-snap-align: center;
+                background-color: #0009 !important;
+                color: white !important;
+            }
+            table thead td:hover {
+                background-color: #9355;
+            }
+            table tbody tr:hover {
+                background-color: #0355;
+            }
+            table tr.hi {
+                scroll-snap-align: center;
+                background-color: #035a;
+            }
+            table td.hi {
+                background-color: #a35a;
+            }
+            table tr.watching td {
+                padding-top: 0.5em;
+                padding-bottom: 0.5em;
             }
 
             #content {
-                padding: 0.4em;
+                scroll-behavior: smooth;
+                scroll-snap-type: y proximity;
+                padding: 0;
                 overflow: auto;
                 position: relative;
             }
+
+            ::-webkit-scrollbar {
+                display: none !important;
+            }
         </style>
         <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';" />
-        <script src="nearby.mjs" type="module"></script>
+        <script type="module">
+            import {main} from './nearby.mjs';
+            document.addEventListener('DOMContentLoaded', main);
+        </script>
     </head>
     <body class="">
         <div id="titlebar">
             <div class="button move app-drag"><img src="images/fa/arrows-alt.svg"/></div>
             <header class="app-drag">Nearby - Sauce for Zwift</header>
             <div class="buttons">
+                <div class="button options" data-url="nearby-options.html"><img src="images/fa/cog-duotone.svg"/></div>
                 <div class="button close"><img src="images/fa/window-close-light.svg"/></div>
             </div>
         </div>
         <div id="content">
             <table>
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Cur</th>
-                        <th>5s</th>
-                        <th>30s</th>
-                        <th>AVG</th>
-                        <th>NP</th>
-                        <th>Max</th>
-                        <th>CP5s</th>
-                        <th>CP30s</th>
-
-                        <th>Spd</th>
-                        <th>Spd avg</th>
-                        <th>Spd 30s</th>
-                        <th>Spd cp30s</th>
-
-                        <th>HR</th>
-                        <th>HR avg</th>
-                        <th>HR 30s</th>
-                        <th>HR cp30s</th>
-                    </tr>
-                </thead>
+                <thead><tr></tr></thead>
                 <tbody></tbody>
             </table>
         </div>
