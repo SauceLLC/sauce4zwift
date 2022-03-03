@@ -176,7 +176,7 @@ async function createWindows(monitor) {
             {relWidth: 0.6, height: 40, relX: 0.2, y: 0, hideable: false}),
         makeFloatingWindow('nearby.html',
             {width: 800, height: 400, x: 20, y: 20, alwaysOnTop: false, frame: true,
-             maximizable: true, fullscreenable: true, transparent: false, menuBarVisible: false}),
+             maximizable: true, fullscreenable: true, transparent: false, autoHideMenuBar: true})
     ]);
 }
 
