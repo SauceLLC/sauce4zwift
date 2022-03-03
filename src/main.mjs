@@ -161,7 +161,7 @@ async function makeFloatingWindow(page, options={}) {
 
 async function createWindows(monitor) {
     void clearWindowState;  // delint while unused
-    await clearWindowState('overview.html'); // XXX TESTING
+    //await clearWindowState('overview.html'); // XXX TESTING
     //await clearWindowState('watching.html'); // XXX TESTING
     //await clearWindowState('groups.html'); // XXX TESTING
     //await clearWindowState('chat.html'); // XXX TESTING
@@ -175,7 +175,8 @@ async function createWindows(monitor) {
         makeFloatingWindow('overview.html',
             {relWidth: 0.6, height: 40, relX: 0.2, y: 0, hideable: false}),
         makeFloatingWindow('nearby.html',
-            {width: 800, height: 400, x: 20, y: 20, alwaysOnTop: false}),
+            {width: 800, height: 400, x: 20, y: 20, alwaysOnTop: false, frame: true,
+             maximizable: true, fullscreenable: true, transparent: false}),
     ]);
 }
 

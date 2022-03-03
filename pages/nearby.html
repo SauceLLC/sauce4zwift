@@ -15,6 +15,11 @@
         <style>
             html {
                 user-select: initial;
+                padding: 0;
+            }
+
+            body {
+                border-radius: 0;
             }
 
             html, body {
@@ -23,13 +28,13 @@
 
             table {
                 border-collapse: collapse;
+                user-select: none;
             }
 
             table thead {
                 position: sticky;
                 top: 0;
                 background-image: linear-gradient(to bottom, #0f1751, #941a1a);
-                user-select: none;
             }
 
             table tr,
@@ -66,7 +71,7 @@
             table thead td:hover {
                 background-color: #9355;
             }
-            table tbody tr:hover {
+            table tbody tr:not(.hi):hover {
                 background-color: #0355;
             }
             table tr.hi {
@@ -101,11 +106,9 @@
     </head>
     <body class="">
         <div id="titlebar">
-            <div class="button move app-drag"><img src="images/fa/arrows-alt.svg"/></div>
-            <header class="app-drag">Nearby - Sauce for Zwift</header>
+            <header class="">Nearby - Sauce for Zwift</header>
             <div class="buttons">
                 <div class="button options" data-url="nearby-options.html"><img src="images/fa/cog-duotone.svg"/></div>
-                <div class="button close"><img src="images/fa/window-close-light.svg"/></div>
             </div>
         </div>
         <div id="content">

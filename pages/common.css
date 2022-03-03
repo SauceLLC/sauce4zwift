@@ -108,6 +108,7 @@ html:not(:hover) #hintbar {
 }
 
 #titlebar {
+    flex: 0 0 auto;
     position: absolute;
     top: 0;
     left: 0;
