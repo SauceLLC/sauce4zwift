@@ -171,7 +171,7 @@ function activeTime(timeStream, activeStream) {
 }
 
 
-let _timeGapsCache = new Map();
+let _timeGapsCache = new WeakMap();
 function recommendedTimeGaps(timeStream) {
     const hash = `${timeStream.length}-${timeStream[0]}-${timeStream[timeStream.length - 1]}`;
     if (!_timeGapsCache.has(timeStream) || _timeGapsCache.get(timeStream).hash !== hash) {
@@ -225,6 +225,8 @@ class Break extends Zero {
         this.pad = pad;
     }
 }
+
+const ZERO = new Zero();
 
 
 class RollingAverage {
@@ -281,15 +283,6 @@ class RollingAverage {
         return clone;
     }
 
-    *_importIter(times, values, active) {
-        if (times.length !== values.length) {
-            throw new TypeError("times and values not same length");
-        }
-        for (let i = 0; i < times.length; i++) {
-            yield this.add(times[i], values[i], active && active[i]);
-        }
-    }
-
     importData(times, values, active) {
         if (times.length !== values.length) {
             throw new TypeError("times and values not same length");
@@ -299,15 +292,26 @@ class RollingAverage {
         }
     }
 
-    importReduce(times, values, active, comparator, cloneOptions) {
-        let leader;
-        for (const x of this._importIter(times, values, active)) {
-            void x;
-            if (this.full() && (!leader || comparator(this, leader))) {
-                leader = this.clone(cloneOptions);
+    importReduce(times, values, active, getter, comparator, cloneOptions) {
+        if (times.length !== values.length) {
+            throw new TypeError("times and values not same length");
+        }
+        let leadValue;
+        let leadRoll;
+        for (let i = 0; i < times.length; i++) {
+            this.add(times[i], values[i], active && active[i]);
+            if (this.full()) {
+                const value = getter(this);
+                if (leadValue !== undefined) {
+                    if (!comparator(value, leadValue)) {
+                        continue;
+                    }
+                }
+                leadValue = value;
+                leadRoll = this.clone(cloneOptions);
             }
         }
-        return leader;
+        return leadRoll;
     }
 
     elapsed(options={}) {
@@ -336,9 +340,11 @@ class RollingAverage {
 
     _isActiveValue(value) {
         return !!(
-            value != null &&
-            !isNaN(value) &&
-            (value != 0 || (!this._ignoreZeros && !(value instanceof Zero)))
+            +value || (
+                value != null &&
+                !Number.isNaN(value) &&
+                (!this._ignoreZeros && !(value instanceof Zero))
+            )
         );
     }
 
@@ -347,7 +353,6 @@ class RollingAverage {
             const prevTS = this._times[this._length - 1];
             const gap = ts - prevTS;
             if ((active == null && (this.maxGap && gap > this.maxGap)) || active === false) {
-                const zeroPad = new Zero();
                 const idealGap = this.idealGap || Math.min(1, gap / 2);
                 const breakGap = 3600;
                 if (gap > breakGap) {
@@ -356,15 +361,15 @@ class RollingAverage {
                     // max number of zero pads on either end of the gap.
                     const bookEndTime = Math.floor(breakGap / 2) - idealGap;
                     for (let i = idealGap; i < bookEndTime; i += idealGap) {
-                        this._add(prevTS + i, zeroPad);
+                        this._add(prevTS + i, ZERO);
                     }
                     this._add(prevTS + bookEndTime, new Break(gap - (bookEndTime * 2)));
                     for (let i = gap - bookEndTime; i < gap; i += idealGap) {
-                        this._add(prevTS + i, zeroPad);
+                        this._add(prevTS + i, ZERO);
                     }
                 } else {
                     for (let i = idealGap; i < gap; i += idealGap) {
-                        this._add(prevTS + i, zeroPad);
+                        this._add(prevTS + i, ZERO);
                     }
                 }
             } else if (this.idealGap && gap > this.idealGap) {
@@ -534,8 +539,8 @@ function peakAverage(period, timeStream, valuesStream, options={}) {
     if (!roll) {
         return;
     }
-    return roll.importReduce(timeStream, valuesStream, options.activeStream,
-        (cur, lead) => cur.avg() >= lead.avg());
+    return roll.importReduce(timeStream, valuesStream, options.activeStream, x => x.avg(),
+        (cur, lead) => cur >= lead);
 }
 
 
@@ -555,7 +560,7 @@ function smooth(period, rawValues) {
         const x = rawValues[i];
         buf.push(x);
         t += x;
-        sValues[sIndex++] = t / i;
+        sValues[sIndex++] = t / (i + 1);
     }
     for (let i = period; i < len; i++) {
         const offt = i % period;

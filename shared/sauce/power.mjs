@@ -327,13 +327,13 @@ function correctedRollingPower(timeStream, period, options={}) {
     if (timeStream.length < 2 || timeStream[timeStream.length - 1] < period) {
         return;
     }
-    if (options.idealGap == null || options.maxGap == null) {
-        const gaps = sauce.data.recommendedTimeGaps(timeStream);
-        if (options.idealGap == null) {
-            options.idealGap = gaps.ideal;
+    if (options.idealGap === undefined || options.maxGap === undefined) {
+        const {ideal, max} = sauce.data.recommendedTimeGaps(timeStream);
+        if (options.idealGap === undefined) {
+            options.idealGap = ideal;
         }
-        if (options.maxGap == null) {
-            options.maxGap = gaps.max;
+        if (options.maxGap === undefined) {
+            options.maxGap = max;
         }
     }
     return new RollingPower(period, options);
@@ -345,8 +345,8 @@ function peakPower(period, timeStream, wattsStream, options={}) {
     if (!roll) {
         return;
     }
-    return roll.importReduce(timeStream, wattsStream, options.activeStream,
-        (cur, lead) => cur.avg() >= lead.avg(), {inlineXP: false, inlineNP: false});
+    return roll.importReduce(timeStream, wattsStream, options.activeStream, x => x.avg(),
+        (cur, lead) => cur >= lead);
 }
 
 
@@ -356,8 +356,8 @@ function peakNP(period, timeStream, wattsStream, options={}) {
     if (!roll) {
         return;
     }
-    return roll.importReduce(timeStream, wattsStream, options.activeStream,
-        (cur, lead) => cur.np() >= lead.np(), {inlineXP: false, inlineNP: false});
+    return roll.importReduce(timeStream, wattsStream, options.activeStream, x => x.np(),
+        (cur, lead) => cur >= lead, {inlineNP: false});
 }
 
 
@@ -367,8 +367,8 @@ function peakXP(period, timeStream, wattsStream, options={}) {
     if (!roll) {
         return;
     }
-    return roll.importReduce(timeStream, wattsStream, options.activeStream,
-        (cur, lead) => cur.xp() >= lead.xp(), {inlineXP: false, inlineNP: false});
+    return roll.importReduce(timeStream, wattsStream, options.activeStream, x => x.xp(),
+        (cur, lead) => cur >= lead, {inlineXP: false});
 }
 
 
