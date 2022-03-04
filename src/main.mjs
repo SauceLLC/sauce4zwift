@@ -3,10 +3,8 @@
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import net from 'node:net';
-import cap from 'cap';
 import storage from './storage.mjs';
 import menu from './menu.mjs';
-import game from './game.mjs';
 import webServer from './webserver.mjs';
 
 const {app, BrowserWindow, ipcMain, nativeImage, dialog} = electron;
@@ -16,29 +14,8 @@ const appIcon = nativeImage.createFromPath(path.join(wd, 'build/images/app-icon.
 const windows = new Map();
 
 
-async function getLocalRoutedIP() {
-    const sock = net.createConnection(80, 'www.zwift.com');
-    return await new Promise((resolve, reject) => {
-        sock.on('connect', () => {
-            try {
-                resolve(sock.address().address);
-            } finally {
-                sock.end();
-            }
-        });
-        sock.on('error', reject);
-    });
-}
-
-
-function getLocalRoutedIface(ip) {
-    for (const xDevice of cap.Cap.deviceList()) {
-        for (const xAddr of xDevice.addresses) {
-            if (xAddr.addr === ip) {
-                return xDevice.name;
-            }
-        }
-    }
+async function sleep(ms) {
+    await new Promise(resolve => setTimeout(resolve, ms));
 }
 
 
@@ -193,9 +170,41 @@ async function main() {
     await app.whenReady();
 
     menu.setAppMenu();
+    let game;
+    let installPrompt;
+    while (true) {
+        try {
+            game = await import('./game.mjs');
+        } catch(e) {
+            if (e.message.includes('The specified module could not be found.') &&
+                e.message.includes('cap.node')) {
+                if (!installPrompt) {
+                    installPrompt = new BrowserWindow({
+                        width: 400,
+                        height: 400,
+                        center: true,
+                        maximizable: false,
+                        fullscreenable: false,
+                        autoHideMenuBar: true
+                    });
+                    installPrompt.webContents.on('new-window', (ev, url) => {
+                        ev.preventDefault();
+                        electron.shell.openExternal(url);
+                    });
+                    installPrompt.loadFile(path.join('pages', 'npcap-install.html'));
+                }
+                await sleep(1000);
+                console.count("nope");
+            } else {
+                await dialog.showErrorBox('Startup Error', '' + e);
+                app.exit(1);
+                return;
+            }
+        }
+    }
     const ip = await getLocalRoutedIP();
     const iface = getLocalRoutedIface(ip);
-    const monitor = new game.Sauce4ZwiftMonitor(iface);
+    const monitor = await game.Sauce4ZwiftMonitor.factory();
     try {
         await monitor.start();
     } catch(e) {

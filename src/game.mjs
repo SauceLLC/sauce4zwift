@@ -3,6 +3,7 @@
 import os from 'node:os';
 import storage from './storage.mjs';
 import sudo from 'sudo-prompt';
+import cap from 'cap';
 import ZwiftPacketMonitor from '@saucellc/zwift-packet-monitor';
 import sauce from '../shared/sauce/index.mjs';
 
@@ -107,10 +108,38 @@ class RollingPeaks {
 }
 
 
+async function getLocalRoutedIP() {
+    const sock = net.createConnection(80, 'www.zwift.com');
+    return await new Promise((resolve, reject) => {
+        sock.on('connect', () => {
+            try {
+                resolve(sock.address().address);
+            } finally {
+                sock.end();
+            }
+        });
+        sock.on('error', reject);
+    });
+}
+
+
+function getLocalRoutedIface(ip) {
+    for (const xDevice of cap.Cap.deviceList()) {
+        for (const xAddr of xDevice.addresses) {
+            if (xAddr.addr === ip) {
+                return xDevice.name;
+            }
+        }
+    }
+}
+
+
 class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
 
-    static async factory(...args) {
-        return new this(...args);
+    static async factory() {
+        const ip = await getLocalRoutedIP();
+        const iface = getLocalRoutedIface(ip);
+        return new this(iface);
     }
 
     constructor(...args) {
