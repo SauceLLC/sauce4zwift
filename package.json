@@ -17,6 +17,7 @@
   "license": "UNLICENSED",
   "dependencies": {
     "@saucellc/zwift-packet-monitor": "https://github.com/SauceLLC/zwift-packet-monitor.git#5a0b1ee7f644e0",
+    "electron-updater": "4.6.5",
     "express": "4.17.3",
     "express-ws": "5.0.2",
     "sudo-prompt": "9.2.1"
@@ -29,8 +30,11 @@
   },
   "build": {
     "appId": "io.saucellc.sauce4zwift",
-    "asar": false,
-    "compression": "deflate",
+    "publish": [{
+      "provider": "github",
+      "owner": "SauceLLC",
+      "repo": "sauce4zwift-releases"
+    }],
     "mac": {
       "target": {
         "target": "zip"

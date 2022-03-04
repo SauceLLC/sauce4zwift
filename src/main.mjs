@@ -5,8 +5,11 @@ import {fileURLToPath} from 'node:url';
 import storage from './storage.mjs';
 import menu from './menu.mjs';
 import webServer from './webserver.mjs';
+import electronUpdater from 'electron-updater';
 
 const {app, BrowserWindow, ipcMain, nativeImage, dialog} = electron;
+
+electronUpdater.autoUpdater.checkForUpdatesAndNotify();
 
 const wd = path.dirname(fileURLToPath(import.meta.url));
 const appIcon = nativeImage.createFromPath(path.join(wd, 'build/images/app-icon.icos'));
