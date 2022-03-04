@@ -1,6 +1,7 @@
 /* global electron */
 
 import os from 'node:os';
+import net from 'node:net';
 import storage from './storage.mjs';
 import sudo from 'sudo-prompt';
 import cap from 'cap';
@@ -139,11 +140,12 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     static async factory() {
         const ip = await getLocalRoutedIP();
         const iface = getLocalRoutedIface(ip);
-        return new this(iface);
+        return new this(iface, ip);
     }
 
-    constructor(...args) {
-        super(...args);
+    constructor(iface, ip) {
+        super(iface);
+        this.ip = ip;
         this.setMaxListeners(50);
         this._rolls = new Map();
         this._roadHistory = new Map();

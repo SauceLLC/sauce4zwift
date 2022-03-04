@@ -2,7 +2,6 @@
 
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import net from 'node:net';
 import storage from './storage.mjs';
 import menu from './menu.mjs';
 import webServer from './webserver.mjs';
@@ -33,12 +32,12 @@ async function setWindowState(page, data) {
 
 async function clearWindowState(page) {
     const id = page.split('.')[0];
-    await storage.save(`window-${id}`, {});
+    await storage.save(`window-${id}`, null);
 }
 
 
-async function makeFloatingWindow(page, options={}) {
-    const state = (await getWindowState(page)) || {};
+async function makeFloatingWindow(page, options={}, defaultState={}) {
+    const state = (await getWindowState(page)) || defaultState;
     const win = new BrowserWindow({
         icon: appIcon,
         transparent: true,
@@ -142,6 +141,7 @@ async function createWindows(monitor) {
     //await clearWindowState('watching.html'); // XXX TESTING
     //await clearWindowState('groups.html'); // XXX TESTING
     //await clearWindowState('chat.html'); // XXX TESTING
+    //await clearWindowState('nearby.html'); // XXX TESTING
     await Promise.all([
         makeFloatingWindow('watching.html',
             {width: 260, height: 260, x: 8, y: 64}),
@@ -153,7 +153,8 @@ async function createWindows(monitor) {
             {relWidth: 0.6, height: 40, relX: 0.2, y: 0, hideable: false}),
         makeFloatingWindow('nearby.html',
             {width: 800, height: 400, x: 20, y: 20, alwaysOnTop: false, frame: true,
-             maximizable: true, fullscreenable: true, transparent: false, autoHideMenuBar: true})
+             maximizable: true, fullscreenable: true, transparent: false, autoHideMenuBar: true},
+            {hidden: true})
     ]);
 }
 
@@ -171,39 +172,37 @@ async function main() {
 
     menu.setAppMenu();
     let game;
-    let installPrompt;
-    while (true) {
-        try {
-            game = await import('./game.mjs');
-        } catch(e) {
-            if (e.message.includes('The specified module could not be found.') &&
-                e.message.includes('cap.node')) {
-                if (!installPrompt) {
-                    installPrompt = new BrowserWindow({
-                        width: 400,
-                        height: 400,
-                        center: true,
-                        maximizable: false,
-                        fullscreenable: false,
-                        autoHideMenuBar: true
-                    });
-                    installPrompt.webContents.on('new-window', (ev, url) => {
-                        ev.preventDefault();
-                        electron.shell.openExternal(url);
-                    });
-                    installPrompt.loadFile(path.join('pages', 'npcap-install.html'));
+    try {
+        game = (await import('./game.mjs')).default;
+    } catch(e) {
+        if (e.message.includes('The specified module could not be found.') &&
+            e.message.includes('cap.node')) {
+            electron.shell.beep();
+            const installPrompt = new BrowserWindow({
+                width: 400,
+                height: 400,
+                center: true,
+                maximizable: false,
+                fullscreenable: false,
+                autoHideMenuBar: true
+            });
+            installPrompt.webContents.on('new-window', (ev, url) => {
+                ev.preventDefault();
+                if (url === 'sauce://restart') {
+                    app.relaunch();
+                    app.exit(0);
+                } else {
+                    electron.shell.openExternal(url);
                 }
-                await sleep(1000);
-                console.count("nope");
-            } else {
-                await dialog.showErrorBox('Startup Error', '' + e);
-                app.exit(1);
-                return;
-            }
+            });
+            installPrompt.loadFile(path.join('pages', 'npcap-install.html'));
+            return;
+        } else {
+            await dialog.showErrorBox('Startup Error', '' + e);
+            app.exit(1);
         }
+        return;
     }
-    const ip = await getLocalRoutedIP();
-    const iface = getLocalRoutedIface(ip);
     const monitor = await game.Sauce4ZwiftMonitor.factory();
     try {
         await monitor.start();
@@ -224,7 +223,7 @@ async function main() {
     }
     const webPort = 1080;
     webServer.start(monitor, webPort);
-    console.info(`\nWeb server started at: http://${ip}:${webPort}/\n`);
+    console.info(`\nWeb server started at: http://${monitor.ip}:${webPort}/\n`);
     ipcMain.on('subscribe', (ev, {event, domEvent}) => {
         const win = windows.get(ev.sender).win;
         const cb = data => win.webContents.send('browser-message', {domEvent, data});
