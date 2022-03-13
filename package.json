@@ -47,7 +47,7 @@
     "mac": {
       "target": {
         "target": "zip",
-        "arch": ["x64", "arm64"]
+        "arch": ["arm64"]
       },
       "category": "public.app-category.healthcare-fitness",
       "identity": "Sauce, LLC (7P47F44SKP)",
