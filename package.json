@@ -34,11 +34,7 @@
     "artifactName": "sauce4zwift-${version}.${ext}",
     "files": ["!Makefile", "!README.md", "!.*"],
     "asar": true,
-    "extraResources": [{
-      "from": ".",
-      "to": "app",
-      "filter": ["src/*.mjs", "shared", "pages"]
-    }],
+    "extraResources": ["src/*.mjs", "shared", "pages"],
     "publish": [{
       "provider": "github",
       "owner": "SauceLLC",
