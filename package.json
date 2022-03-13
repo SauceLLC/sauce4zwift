@@ -33,8 +33,7 @@
     "appId": "io.saucellc.sauce4zwift",
     "artifactName": "sauce4zwift-${version}.${ext}",
     "files": ["!Makefile", "!README.md", "!.*"],
-    "asar": true,
-    "extraResources": ["src/*.mjs", "shared", "pages"],
+    "asar": false,
     "publish": [{
       "provider": "github",
       "owner": "SauceLLC",

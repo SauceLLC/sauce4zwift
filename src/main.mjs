@@ -3,9 +3,9 @@ import {fileURLToPath} from 'node:url';
 import storage from './storage.mjs';
 import menu from './menu.mjs';
 import webServer from './webserver.mjs';
-import updater from 'electron-updater';
 import {createRequire} from 'node:module';
 const require = createRequire(import.meta.url)
+const {autoUpdater} = require('electron-updater');
 const {app, BrowserWindow, ipcMain, nativeImage, dialog, screen, shell} = require('electron');
 
 
@@ -173,7 +173,7 @@ async function main() {
     await app.whenReady();
     menu.setAppMenu();
     try {
-        await updater.autoUpdater.checkForUpdatesAndNotify();
+        await autoUpdater.checkForUpdatesAndNotify();
     } catch(e) {
         console.warn("auto update error:", e);
     }
