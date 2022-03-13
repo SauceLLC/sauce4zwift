@@ -1,9 +1,10 @@
-/* global electron */
-
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import fs from 'node:fs/promises';
 import zlib from 'zlib';
+import {createRequire} from 'node:module';
+const require = createRequire(import.meta.url)
+const electron = require('electron');
 
 const wd = path.dirname(fileURLToPath(import.meta.url));
 

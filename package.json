@@ -1,11 +1,11 @@
 {
   "name": "sauce4zwift",
   "productName": "Sauce for Zwift™",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Overlay for Zwift™",
-  "main": "src/loader.js",
+  "type": "module",
+  "main": "src/loader.cjs",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "start": "electron .",
     "start-debug-brk": "electron --inspect-brk .",
     "start-debug": "electron --inspect .",
@@ -32,6 +32,13 @@
   "build": {
     "appId": "io.saucellc.sauce4zwift",
     "artifactName": "sauce4zwift-${version}.${ext}",
+    "files": ["!Makefile", "!README.md", "!.*"],
+    "asar": true,
+    "extraResources": [{
+      "from": ".",
+      "to": "app",
+      "filter": ["src/*.mjs", "shared", "pages"]
+    }],
     "publish": [{
       "provider": "github",
       "owner": "SauceLLC",
@@ -39,7 +46,8 @@
     }],
     "mac": {
       "target": {
-        "target": "zip"
+        "target": "zip",
+        "arch": ["x64", "arm64"]
       },
       "category": "public.app-category.healthcare-fitness",
       "identity": "Sauce, LLC (7P47F44SKP)",
@@ -48,6 +56,6 @@
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist"
     },
-    "afterSign": "build/scripts/notarize.js"
+    "afterSign": "build/scripts/notarize.cjs"
   }
 }

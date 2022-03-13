@@ -1,8 +1,9 @@
-/* global electron */
-
 import process from 'node:process';
+import {createRequire} from 'node:module';
+const require = createRequire(import.meta.url)
+const {BrowserWindow, Menu, app, shell} = require('electron');
 
-const {BrowserWindow, Menu, app, shell} = electron;
+
 
 const template = [{
     label: 'Edit',

@@ -1,18 +1,17 @@
-/* global electron */
-
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import storage from './storage.mjs';
 import menu from './menu.mjs';
 import webServer from './webserver.mjs';
-import electronUpdater from 'electron-updater';
+import updater from 'electron-updater';
+import {createRequire} from 'node:module';
+const require = createRequire(import.meta.url)
+const {app, BrowserWindow, ipcMain, nativeImage, dialog, screen, shell} = require('electron');
 
-const {app, BrowserWindow, ipcMain, nativeImage, dialog} = electron;
 
-electronUpdater.autoUpdater.checkForUpdatesAndNotify();
-
-const wd = path.dirname(fileURLToPath(import.meta.url));
-const appIcon = nativeImage.createFromPath(path.join(wd, 'build/images/app-icon.icos'));
+const WD = path.dirname(fileURLToPath(import.meta.url));
+const PAGES = path.join(WD, '../pages');
+const appIcon = nativeImage.createFromPath(path.join(WD, 'build/images/app-icon.icos'));
 const windows = new Map();
 
 
@@ -57,7 +56,7 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
             contextIsolation: true,
             sandbox: true,
             enableRemoteModule: false,
-            preload: path.join(wd, '../pages/preload.js'),
+            preload: path.join(PAGES, 'preload.js'),
         },
         ...options,
         ...state,
@@ -65,7 +64,7 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
     const hasPosition = state.x != null && state.y != null && state.width && state.height;
     if (!hasPosition && (options.relWidth != null || options.relHeight != null ||
         options.relX != null || options.relY != null || options.x < 0 || options.y < 0)) {
-        const {width: sWidth, height: sHeight} = electron.screen.getPrimaryDisplay().size;
+        const {width: sWidth, height: sHeight} = screen.getPrimaryDisplay().size;
         const width = options.width == null ? Math.round(options.relWidth * sWidth) : options.width;
         const height = options.height == null ? Math.round(options.relHeight * sHeight) : options.height;
         const x = options.x == null ? Math.round(options.relX * sWidth) :
@@ -133,7 +132,7 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
     win.on('minimize', onHide);
     win.on('closed', onHide);
     win.on('restore', onShow);
-    win.loadFile(path.join('pages', page));
+    win.loadFile(path.join(PAGES, page));
     return win;
 }
 
@@ -172,15 +171,19 @@ app.on('window-all-closed', () => {
 
 async function main() {
     await app.whenReady();
-
     menu.setAppMenu();
+    try {
+        await updater.autoUpdater.checkForUpdatesAndNotify();
+    } catch(e) {
+        console.warn("auto update error:", e);
+    }
     let game;
     try {
         game = (await import('./game.mjs')).default;
     } catch(e) {
         if (e.message.includes('The specified module could not be found.') &&
             e.message.includes('cap.node')) {
-            electron.shell.beep();
+            shell.beep();
             const installPrompt = new BrowserWindow({
                 width: 400,
                 height: 400,
@@ -195,10 +198,10 @@ async function main() {
                     app.relaunch();
                     app.exit(0);
                 } else {
-                    electron.shell.openExternal(url);
+                    shell.openExternal(url);
                 }
             });
-            installPrompt.loadFile(path.join('pages', 'npcap-install.html'));
+            installPrompt.loadFile(path.join(PAGES, 'npcap-install.html'));
             return;
         } else {
             await dialog.showErrorBox('Startup Error', '' + e);
