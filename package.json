@@ -42,7 +42,7 @@
         "target": "zip"
       },
       "category": "public.app-category.healthcare-fitness",
-      "identity": "Justin Mayfield (HY662K34YZ)",
+      "identity": "Sauce, LLC (7P47F44SKP)",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
