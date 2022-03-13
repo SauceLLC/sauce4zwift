@@ -3,6 +3,12 @@ default: run
 run: node_modules/.build
 	npm start
 
+run-debug: node_modules/.build
+	npm run start-debug
+
+run-debug-brk: node_modules/.build
+	npm run start-debug-brk
+
 run-mac: node_modules/.build
 	./dist/mac-arm64/Sauce\ for\ Zwift™.app/Contents/MacOS/Sauce\ for\ Zwift™
 

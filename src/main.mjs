@@ -2,17 +2,30 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import storage from './storage.mjs';
 import menu from './menu.mjs';
+import Sentry from '@sentry/node';
 import webServer from './webserver.mjs';
+import crypto from 'node:crypto';
 import {createRequire} from 'node:module';
 const require = createRequire(import.meta.url)
+const pkg = require('../package.json');
 const {autoUpdater} = require('electron-updater');
 const {app, BrowserWindow, ipcMain, nativeImage, dialog, screen, shell} = require('electron');
 
+Sentry.init({dsn: "https://df855be3c7174dc89f374ef0efaa6a92@o1166536.ingest.sentry.io/6257001"});
+Sentry.setTag('version', pkg.version);
+storage.load(`sentry-uuid`).then(async id => {
+    if (!id) {
+        // It's just an anonymous value to distinguish errors and feedback
+        id = crypto.randomBytes(16).toString("hex");
+    }
+    Sentry.setUser({id});
+});
 
 const WD = path.dirname(fileURLToPath(import.meta.url));
 const PAGES = path.join(WD, '../pages');
 const appIcon = nativeImage.createFromPath(path.join(WD, 'build/images/app-icon.icos'));
 const windows = new Map();
+let appQuiting = false;
 
 
 async function sleep(ms) {
@@ -105,6 +118,9 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
         saveStateTimeout = setTimeout(() => setWindowState(page, state), 200);
     }
     async function onHide(ev) {
+        if (appQuiting) {
+            return;
+        }
         state.hidden = true;
         await setWindowState(page, state);
     }
@@ -171,12 +187,12 @@ app.on('window-all-closed', () => {
 
 async function main() {
     await app.whenReady();
+    app.on('before-quit', () => {
+        appQuiting = true;
+        Sentry.flush();
+    });
     menu.setAppMenu();
-    try {
-        await autoUpdater.checkForUpdatesAndNotify();
-    } catch(e) {
-        console.warn("auto update error:", e);
-    }
+    autoUpdater.checkForUpdatesAndNotify().catch(Sentry.captureException);
     let game;
     try {
         game = (await import('./game.mjs')).default;
@@ -279,7 +295,10 @@ async function main() {
             }
         }
     });
-    ipcMain.on('quit', ev => app.exit(0));
+    ipcMain.on('quit', () => {
+        appQuiting = true;
+        app.exit(0);
+    });
 
     await createWindows(monitor);
     app.on('activate', async () => {
