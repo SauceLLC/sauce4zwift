@@ -11,6 +11,7 @@
     "start-debug": "electron --inspect .",
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
+    "publish": "electron-builder -p always",
     "postinstall": "electron-builder install-app-deps"
   },
   "author": "Sauce, LLC",
@@ -30,6 +31,7 @@
   },
   "build": {
     "appId": "io.saucellc.sauce4zwift",
+    "artifactName": "sauce4zwift-${version}.${ext}",
     "publish": [{
       "provider": "github",
       "owner": "SauceLLC",
@@ -38,14 +40,14 @@
     "mac": {
       "target": {
         "target": "zip"
-      }
-    },
-    "mas": {
+      },
       "category": "public.app-category.healthcare-fitness",
-      "provisioningProfile": "../../Documents/Sauce_LLC.provisionprofile",
-      "identity": "Sauce, LLC (7P47F44SKP)",
+      "identity": "Justin Mayfield (HY662K34YZ)",
       "hardenedRuntime": true,
-      "gatekeeperAssess": false
-    }
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
+    },
+    "afterSign": "build/scripts/notarize.js"
   }
 }

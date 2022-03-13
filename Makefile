@@ -1,4 +1,7 @@
-all: node_modules/.build
+default: run
+
+
+run: node_modules/.build
 	npm start
 	
 
@@ -11,3 +14,6 @@ lint:
 	./node_modules/.bin/eslint src
 	./node_modules/.bin/eslint --ext .mjs --config .eslintrc.modules.json src shared pages
 
+
+publish:
+	npm run publish
