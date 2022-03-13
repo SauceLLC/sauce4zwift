@@ -19,3 +19,8 @@ publish:
 
 pack:
 	SKIP_NOTARIZE=1 npm run pack
+
+build:
+	SKIP_NOTARIZE=1 npm run build
+
+.PHONY: build pack publish lint
