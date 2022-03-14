@@ -1,4 +1,4 @@
-default: run
+default: build
 
 run: node_modules/.build
 	npm start
@@ -20,13 +20,13 @@ lint:
 	./node_modules/.bin/eslint src
 	./node_modules/.bin/eslint --ext .mjs --config .eslintrc.modules.json src shared pages
 
-publish:
+publish: node_modules/.build
 	SKIP_NOTARIZE=1 npm run publish
 
-pack:
+pack: node_modules/.build
 	SKIP_NOTARIZE=1 npm run pack
 
-build:
+build: node_modules/.build
 	SKIP_NOTARIZE=1 npm run build
 
 .PHONY: build pack publish lint

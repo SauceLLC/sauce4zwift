@@ -13,10 +13,11 @@ const {app, BrowserWindow, ipcMain, nativeImage, dialog, screen, shell} = requir
 
 Sentry.init({dsn: "https://df855be3c7174dc89f374ef0efaa6a92@o1166536.ingest.sentry.io/6257001"});
 Sentry.setTag('version', pkg.version);
-storage.load(`sentry-uuid`).then(async id => {
+storage.load(`sentry-id`).then(async id => {
     if (!id) {
         // It's just an anonymous value to distinguish errors and feedback
         id = crypto.randomBytes(16).toString("hex");
+        await storage.save(`sentry-id`, id);
     }
     Sentry.setUser({id});
 });
