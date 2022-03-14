@@ -1,7 +1,7 @@
 {
   "name": "sauce4zwift",
   "productName": "Sauce for Zwift™",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "Overlay for Zwift™",
   "main": "src/loader.js",
   "scripts": {
