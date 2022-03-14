@@ -21,7 +21,7 @@ lint:
 	./node_modules/.bin/eslint --ext .mjs --config .eslintrc.modules.json src shared pages
 
 publish: node_modules/.build
-	SKIP_NOTARIZE=1 npm run publish
+	npm run publish
 
 pack: node_modules/.build
 	SKIP_NOTARIZE=1 npm run pack
