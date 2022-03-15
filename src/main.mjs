@@ -324,7 +324,6 @@ async function main() {
     });
     web.setMonitor(monitor);
     await createWindows(monitor);
-    await web.setConfig({port: 1080, localhost: true, enabled: true});
     await web.start();
 }
 
