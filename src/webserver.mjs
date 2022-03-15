@@ -1,9 +1,22 @@
 import express from 'express';
+import storage from './storage.mjs';
 import expressWebSocketPatch from 'express-ws';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import http from 'node:http';
 
-const wd = path.dirname(fileURLToPath(import.meta.url));
+const WD = path.dirname(fileURLToPath(import.meta.url));
+let app;
+let server;
+let starting;
+let stopping;
+let running;
+let monitor;
+
+
+async function sleep(ms) {
+    await new Promise(resolve => setTimeout(resolve, ms));
+}
 
 
 function wrapWebSocketMessage(ws, callback) {
@@ -30,17 +43,96 @@ function wrapWebSocketMessage(ws, callback) {
 }
 
 
-function start(monitor, port) {
-    const app = express();
-    expressWebSocketPatch(app);
+export async function getConfig() {
+    return (await storage.load('webserver-config')) || {
+        enabled: false,
+        port: 1080,
+    };
+}
+
+
+export async function setConfig(config) {
+    await storage.save('webserver-config', config);
+}
+
+
+export async function restart(monitor) {
+    if (starting) {
+        await stop();
+    }
+    start();
+}
+
+
+export function setMonitor(m) {
+    monitor = m;
+}
+
+
+export async function stop() {
+    if (stopping || starting) {
+        throw new Error("Invalid state");
+    }
+    stopping = true;
+    const s = server;
+    server = null;
+    app = null;
+    try {
+        if (s) {
+            await closeServer(s);
+        }
+    } finally {
+        stopping = false;
+    }
+    running = false;
+}
+
+
+async function closeServer(s) {
+    await new Promise((resolve, reject) => s.close(e => e ? reject(e) : resolve()));
+}
+
+
+export async function start() {
+    if (starting || starting || running) {
+        throw new Error("Invalid state");
+    }
+    starting = true;
+    try {
+        await _start();
+    } catch(e) {
+        const s = server;
+        server = null;
+        app = null;
+        if (s) {
+            running = await closeServer(s);
+        }
+        throw e;
+    } finally {
+        starting = false;
+    }
+}
+
+
+async function _start() {
+    const config = await getConfig();
+    if (!config.enabled) {
+        console.debug("Web server disabled");
+        return false;
+    }
+    app = express();
+    server = http.createServer(app);
+    const webSocketServer = expressWebSocketPatch(app, server).getWss();
+    // workaround https://github.com/websockets/ws/issues/2023
+    webSocketServer.on('error', () => void 0);
     const cacheDisabled = 'no-cache, no-store, must-revalidate';
     const router = express.Router();
-    router.use('/', express.static(`${wd}/../pages`, {index: 'index.html'}));
-    router.use('/pages/', express.static(`${wd}/../pages`, {
+    router.use('/', express.static(`${WD}/../pages`, {index: 'index.html'}));
+    router.use('/pages/', express.static(`${WD}/../pages`, {
         cacheControl: true,
         setHeaders: res => res.setHeader('Cache-Control', cacheDisabled)
     }));
-    router.use('/shared/', express.static(`${wd}/../shared`, {
+    router.use('/shared/', express.static(`${WD}/../shared`, {
         cacheControl: true,
         setHeaders: res => res.setHeader('Cache-Control', cacheDisabled)
     }));
@@ -88,7 +180,32 @@ function start(monitor, port) {
     });
     router.all('*', (req, res) => res.status(404).send(`File Not Found: "${req.path}"\n`));
     app.use(router);
-    app.listen(port);
+    let retries = 0;
+    while (retries < 20) {
+        let res, rej;
+        try {
+            await new Promise((_res, _rej) => {
+                res = _res;
+                rej = _rej;
+                server.on('listening', res);
+                server.on('error', rej);
+                server.listen(config.port);
+            });
+            console.info(`\nWeb server started at: http://${monitor.ip}:${config.port}/\n`);
+            return;
+        } catch(e) {
+            if (e.code === 'EADDRINUSE') {
+                console.warn('Web server port not available, will retry...');
+                server.close();
+                await sleep(1000 * ++retries);
+            } else {
+                throw e;
+            }
+        } finally {
+            server.off('listening', res);
+            server.off('error', rej);
+        }
+    }
+    console.error(`Web server failed to startup at: http://${monitor.ip}:${config.port}/`);
+    return true;
 }
-
-export default {start};

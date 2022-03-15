@@ -3,7 +3,7 @@ import {fileURLToPath} from 'node:url';
 import storage from './storage.mjs';
 import menu from './menu.mjs';
 import Sentry from '@sentry/node';
-import webServer from './webserver.mjs';
+import * as web from './webserver.mjs';
 import crypto from 'node:crypto';
 import {createRequire} from 'node:module';
 const require = createRequire(import.meta.url)
@@ -11,7 +11,22 @@ const pkg = require('../package.json');
 const {autoUpdater} = require('electron-updater');
 const {app, BrowserWindow, ipcMain, nativeImage, dialog, screen, shell} = require('electron');
 
-Sentry.init({dsn: "https://df855be3c7174dc89f374ef0efaa6a92@o1166536.ingest.sentry.io/6257001"});
+Error.stackTraceLimit = 100;
+
+Sentry.init({
+    dsn: "https://df855be3c7174dc89f374ef0efaa6a92@o1166536.ingest.sentry.io/6257001",
+    // Sentry changes the uncaught exc behavior to exit the process.  I think that's a bug
+    // but this is the only workaround for now.
+    integrations: data => data.filter(x => x.name !== 'OnUncaughtException'),
+});
+// No idea, just copied from https://github.com/getsentry/sentry-javascript/issues/1661
+global.process.on('uncaughtException', e => {
+    const hub = Sentry.getCurrentHub();
+    hub.withScope(async scope => {
+        scope.setLevel('fatal');
+        hub.captureException(e, {originalException: e});
+    });
+});
 Sentry.setTag('version', pkg.version);
 storage.load(`sentry-id`).then(async id => {
     if (!id) {
@@ -212,6 +227,7 @@ async function main() {
             installPrompt.webContents.on('new-window', (ev, url) => {
                 ev.preventDefault();
                 if (url === 'sauce://restart') {
+                    appQuiting = true;
                     app.relaunch();
                     app.exit(0);
                 } else {
@@ -222,6 +238,7 @@ async function main() {
             return;
         } else {
             await dialog.showErrorBox('Startup Error', '' + e);
+            appQuiting = true;
             app.exit(1);
         }
         return;
@@ -240,13 +257,12 @@ async function main() {
             }
         } catch(e) {
             await dialog.showErrorBox('Startup Error', '' + e);
-            app.exit(0);
+            Sentry.captureException(e);
+            appQuiting = true;
+            setTimeout(() => app.exit(0), 1000);
             return;
         }
     }
-    const webPort = 1080;
-    webServer.start(monitor, webPort);
-    console.info(`\nWeb server started at: http://${monitor.ip}:${webPort}/\n`);
     ipcMain.on('subscribe', (ev, {event, domEvent}) => {
         const win = windows.get(ev.sender).win;
         const cb = data => win.webContents.send('browser-message', {domEvent, data});
@@ -300,14 +316,16 @@ async function main() {
         appQuiting = true;
         app.exit(0);
     });
-
-    await createWindows(monitor);
     app.on('activate', async () => {
         // Clicking on the app icon..
         if (BrowserWindow.getAllWindows().length === 0) {
             await createWindows(monitor);
         }
     });
+    web.setMonitor(monitor);
+    await createWindows(monitor);
+    await web.setConfig({port: 1080, localhost: true, enabled: true});
+    await web.start();
 }
 
 main();

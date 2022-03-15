@@ -576,8 +576,7 @@ async function getCapturePermission() {
         await electron.dialog.showErrorBox(
             'Network capture permission requried to continue',
             'Sauce extends Zwift by capturing the game data sent over the network ' +
-            'For MacOS this requires read permission on the "/dev/bpf0" file.  ' +
-            'On Windows it requires you to eat a pumpkin (I dunno).  Go fix up your computer now'
+            'For MacOS this requires read permission on the "/dev/bpf0" file.'
         );
         throw new Error("libpcap permission required");
     }
