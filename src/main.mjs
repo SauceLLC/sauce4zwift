@@ -13,6 +13,12 @@ const {app, BrowserWindow, ipcMain, nativeImage, dialog, screen, shell} = requir
 
 Error.stackTraceLimit = 100;
 
+// Use non-electron naming for windows updater.
+// https://github.com/electron-userland/electron-builder/issues/2700
+console.log(pkg.build.appId);
+app.setAppUserModelId(pkg.build.appId);
+
+
 Sentry.init({
     dsn: "https://df855be3c7174dc89f374ef0efaa6a92@o1166536.ingest.sentry.io/6257001",
     // Sentry changes the uncaught exc behavior to exit the process.  I think that's a bug

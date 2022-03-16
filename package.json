@@ -1,8 +1,11 @@
 {
   "name": "sauce4zwift",
   "productName": "Sauce for Zwift™",
-  "version": "0.0.7",
-  "description": "Overlay for Zwift™",
+  "version": "0.0.9",
+  "description": "Overlay widgets and advanced instrumentation for the serious Zwifter.",
+  "homepage": "https://saucellc.io",
+  "author": "Sauce, LLC",
+  "license": "UNLICENSED",
   "main": "src/loader.js",
   "scripts": {
     "start": "electron .",
@@ -13,8 +16,6 @@
     "publish": "electron-builder build -p always",
     "postinstall": "electron-builder install-app-deps"
   },
-  "author": "Sauce, LLC",
-  "license": "UNLICENSED",
   "dependencies": {
     "@saucellc/zwift-packet-monitor": "https://github.com/SauceLLC/zwift-packet-monitor.git#5a0b1ee7f644e0",
     "@sentry/node": "6.18.2",
