@@ -42,6 +42,14 @@ function worldTimeConv(wt) {
 }
 
 
+function highPrecTimeConv(ts) {
+    // As seen on payload timestamps.
+    const dv = new DataView(new Uint32Array([ts.low, ts.high]).buffer);
+    const ns = dv.getBigUint64(0, /*le*/ true);
+    return +`${ns / 1000n}.${ns % 1000n}`; // Lossless conv to ms
+}
+
+
 function headingConv(microRads) {
     const halfCircle = 1000000 * Math.PI;
     return (((microRads + halfCircle) / (2 * halfCircle)) * 360) % 360;
@@ -150,6 +158,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         this._rolls = new Map();
         this._roadHistory = new Map();
         this._roadId;
+        this._chatDeDup = [];
         this.athleteId = null;
         this.watching = null;
         this.on('incoming', this.onIncoming);
@@ -174,10 +183,20 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         maybeSaveAthleteCache(this.athletes);  // bg okay
     }
 
-    onIncoming(packet, from) {
+    onIncoming(...args) {
+        try {
+            this._onIncoming(...args);
+        } catch(e) {
+            console.error("Incoming packet error:", e);
+            throw e;
+        }
+    }
+
+    _onIncoming(packet, from) {
         this.maybeLearnAthleteId(packet);
         for (const x of packet.playerUpdates) {
             if (x.payload && x.payload.$type) {
+                const ts = highPrecTimeConv(x.ts);
                 const p = x.payload;
                 if (p.$type.name === 'PlayerEnteredWorld') {
                     this.updateAthlete(p.athleteId, p.firstName, p.lastName, p.weight / 1000);
@@ -186,10 +205,23 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 } else if (p.$type.name === 'EventLeave') {
                     console.debug("Event Leave:", p);
                 } else if (p.$type.name === 'ChatMessage') {
-                    this.emit('chat', {...p, ts: x.ts});
+                    let dedup;
+                    for (const [t, from] of this._chatDeDup) {
+                        if (t === ts && from === p.from) {
+                            dedup = true;
+                            break;
+                        }
+                    }
+                    if (dedup) {
+                        console.warn("Deduping chat message:", ts, p.from);
+                        continue;
+                    }
+                    this._chatDeDup.unshift([ts, p.from]);
+                    this._chatDeDup.length = Math.min(10, this._chatDeDup.length);
+                    this.emit('chat', {...p, ts});
                     this.updateAthlete(p.from, p.firstName, p.lastName);
                 } else if (x.payload.$type.name === 'RideOn') {
-                    this.emit('rideon', {...p, ts: x.ts});
+                    this.emit('rideon', {...p, ts});
                     this.updateAthlete(p.from, p.firstName, p.lastName);
                     console.debug("RideOn:", p);
                 }
@@ -205,7 +237,16 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         }
     }
 
-    onOutgoing(packet, from) {
+    onOutgoing(...args) {
+        try {
+            this._onOutgoing(...args);
+        } catch(e) {
+            console.error("Outgoing packet error:", e);
+            throw e;
+        }
+    }
+
+    _onOutgoing(packet, from) {
         this.maybeLearnAthleteId(packet);
         const state = packet.state;
         if (!state) {
