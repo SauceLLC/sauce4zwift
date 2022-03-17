@@ -53,7 +53,7 @@
       "target": {
         "target": "zip",
         "arch": [
-          "arm64"
+          "universal"
         ]
       },
       "category": "public.app-category.healthcare-fitness",
