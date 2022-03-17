@@ -6,7 +6,7 @@ import Sentry from '@sentry/node';
 import * as web from './webserver.mjs';
 import crypto from 'node:crypto';
 import {createRequire} from 'node:module';
-const require = createRequire(import.meta.url)
+const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 const {autoUpdater} = require('electron-updater');
 const {app, BrowserWindow, ipcMain, nativeImage, dialog, screen, shell} = require('electron');
@@ -48,11 +48,6 @@ const PAGES = path.join(WD, '../pages');
 const appIcon = nativeImage.createFromPath(path.join(WD, 'build/images/app-icon.icos'));
 const windows = new Map();
 let appQuiting = false;
-
-
-async function sleep(ms) {
-    await new Promise(resolve => setTimeout(resolve, ms));
-}
 
 
 async function getWindowState(page) {

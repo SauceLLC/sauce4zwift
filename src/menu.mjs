@@ -1,6 +1,6 @@
 import process from 'node:process';
 import {createRequire} from 'node:module';
-const require = createRequire(import.meta.url)
+const require = createRequire(import.meta.url);
 const {BrowserWindow, Menu, app, shell} = require('electron');
 
 
