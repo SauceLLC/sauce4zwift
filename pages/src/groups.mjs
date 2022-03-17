@@ -19,7 +19,9 @@ export async function main() {
             return;
         }
         let centerIdx = groups.findIndex(x => x.watching);
-        groups = groups.slice(centerIdx - (options.maxAhead || 3), centerIdx + (options.maxBehind || 3) + 1);
+        groups = groups.slice(
+            Math.max(0, centerIdx - (options.maxAhead || 3)),
+            centerIdx + (options.maxBehind || 3) + 1);
         centerIdx = groups.findIndex(x => x.watching);
         const center = groups[centerIdx];
         if (!center) {
@@ -64,17 +66,30 @@ export async function main() {
             groupEl.classList.toggle('watching', !!group.watching);
             groupEl.style.setProperty('--athletes', group.athletes.length);
             let bubble;
+            let power;
+            const lines = [];
             if (group.athletes.length === 1 && group.athletes[0].athlete) {
                 const n = group.athletes[0].athlete.name;
                 bubble = n.map(x => x[0].toUpperCase()).join('').substr(0, 2);
             } else {
                 bubble = group.athletes.length.toLocaleString();
+                let max = -Infinity;
+                for (const x of group.athletes) {
+                    const p = x.stats.power.smooth[5];
+                    if (p > max) {
+                        max = p;
+                    }
+                }
+                if (max / group.power > 2) {
+                    lines.push(`<div class="line">${Math.round(max).toLocaleString()}w (ATTACK!)</div>`);
+                }
             }
             groupEl.querySelector('.bubble').textContent = bubble;
-            groupEl.querySelector('.desc .lines').innerHTML = [
+            lines.push(...[
                 Math.round(group.power).toLocaleString() + 'w',
                 Math.round(group.speed).toLocaleString() + 'kph',
-            ].map((x, i) => `<div class="line ${i ? 'minor' : ''}">${x}</div>`).join('');
+            ].map((x, i) => `<div class="line ${i ? 'minor' : ''}">${x}</div>`));
+            groupEl.querySelector('.desc .lines').innerHTML = lines.join('');
             const gapEl = groupEl.nextSibling;
             const innerGap = next ? Math.round(group.innerGap) : 0;
             const gap = relPos < 0 ? group.gap : next ? next.gap : 0;
