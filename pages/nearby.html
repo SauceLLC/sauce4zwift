@@ -64,7 +64,6 @@
             }
 
             table tr.watching {
-                scroll-snap-align: center;
                 background-color: #0009 !important;
                 color: white !important;
             }
@@ -75,7 +74,6 @@
                 background-color: #0355;
             }
             table tr.hi {
-                scroll-snap-align: center;
                 background-color: #035a;
             }
             table td.hi {
@@ -88,7 +86,6 @@
 
             #content {
                 scroll-behavior: smooth;
-                scroll-snap-type: y proximity;
                 padding: 0;
                 overflow: auto;
                 position: relative;
@@ -96,6 +93,14 @@
 
             ::-webkit-scrollbar {
                 display: none !important;
+            }
+
+            html.autoscroll table tr.watching,
+            html.autoscroll table tr.hi {
+                scroll-snap-align: center;
+            }
+            html.autoscroll #content {
+                scroll-snap-type: y proximity;
             }
         </style>
         <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';" />

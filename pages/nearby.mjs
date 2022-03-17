@@ -24,7 +24,8 @@ function clearSelection() {
 
 const fields = [
     {id: 'id', defaultEn: true, label: 'ID', get: x => x.athleteId, fmt: x => x},
-    {id: 'name', defaultEn: true, label: 'Name', get: x => x.name, fmt: x => x},
+    {id: 'name', defaultEn: true, label: 'Name', get: x => x.athlete && x.athlete.fullname || null, fmt: x => x || '-'},
+    {id: 'weight', defaultEn: true, label: 'Weight', get: x => x.athlete && x.athlete.weight || null, fmt: x => x ? `${x.toFixed(1)}<small>kg</small>` : '-'},
 
     {id: 'gap', defaultEn: true, label: 'Gap', get: x => x.gap, fmt: x => `${num(x)}s`},
 
@@ -34,7 +35,7 @@ const fields = [
     {id: 'pwr-300s', defaultEn: false, label: '5m Pwr', get: x => x.stats.power.smooth['300'], fmt: pwr},
     {id: 'pwr-avg', defaultEn: true, label: 'Avg Pwr', get: x => x.stats.power.avg, fmt: pwr},
     {id: 'pwr-np', defaultEn: true, label: 'NP Pwr', get: x => x.stats.power.np, fmt: pwr},
-    {id: 'pwr-max', defaultEn: true, label: 'Max Pwr', get: x => x.stats.power.max, fmt: pwr},
+    {id: 'pwr-max', defaultEn: true, label: 'Max Pwr', get: x => x.stats.power.max || null, fmt: pwr},
     {id: 'pwr-p5s', defaultEn: true, label: '5s Peak Pwr', get: x => x.stats.power.peaks[5].avg, fmt: pwr},
     {id: 'pwr-p60s', defaultEn: true, label: '1m Peak Pwr', get: x => x.stats.power.peaks[60].avg, fmt: pwr},
     {id: 'pwr-p300s', defaultEn: false, label: '5m Peak Pwr', get: x => x.stats.power.peaks[300].avg, fmt: pwr},
@@ -44,7 +45,7 @@ const fields = [
     {id: 'spd-avg', defaultEn: true, label: 'Avg Spd', get: x => x.stats.speed.avg, fmt: spd},
     {id: 'spd-p60s', defaultEn: false, label: '1m Peak Spd', get: x => x.stats.speed.peaks[60].avg, fmt: spd},
 
-    {id: 'hr-cur', defaultEn: true, label: 'HR', get: x => x.heartrate, fmt: hr},
+    {id: 'hr-cur', defaultEn: true, label: 'HR', get: x => x.heartrate || null, fmt: hr},
     {id: 'hr-60s', defaultEn: false, label: '1m HR', get: x => x.stats.hr.smooth[60], fmt: hr},
     {id: 'hr-avg', defaultEn: true, label: 'Avg HR', get: x => x.stats.hr.avg, fmt: hr},
     {id: 'hr-p60s', defaultEn: false, label: '1m Peak HR', get: x => x.stats.hr.peaks[60].avg, fmt: hr},
@@ -68,6 +69,7 @@ function setOptions(options) {
 export function main() {
     common.initInteractionListeners();
     const options = getOptions();
+    document.documentElement.classList.toggle('autoscroll', options.autoscroll);
     const enFields = fields.filter(x => options.fields[x.id]);
     let sortBy = common.storage.get('nearby-sort-by', 'gap');
     const isFieldAvail = !!enFields.find(x => x.id === sortBy);
@@ -132,8 +134,18 @@ export function main() {
         if (!nearby.length || pause || document.hidden) {
             return;
         }
-        const sortFn = enFields.find(x => x.id === sortBy).get;
-        nearby.sort((a, b) => (sortFn(a) - sortFn(b)) * sortByDir);
+        const get = enFields.find(x => x.id === sortBy).get;
+        nearby.sort((a, b) => {
+            const av = get(a);
+            const bv = get(b);
+            if (av == bv) {
+                return 0;
+            } else if (av == null || bv == null) {
+                return av == null ? 1 : -1;
+            } else {
+                return (av < bv ? 1 : -1) * sortByDir;
+            }
+        });
         const html = nearby.map(x => {
             const classes = [];
             if (x.watching) {
@@ -172,11 +184,8 @@ export function main() {
         nearby = _nearby;
         const elapsed = Date.now() - lastRefresh;
         if (elapsed >= refresh) {
-            console.log("render", elapsed, refresh);
             lastRefresh = Date.now();
             render();
-        } else {
-            console.log("skip", elapsed);
         }
     });
 }

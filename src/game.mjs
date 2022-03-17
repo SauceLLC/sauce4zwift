@@ -15,6 +15,19 @@ let _acLastTS = 0;
 let _acUpdates = 0;
 async function getAthleteCache() {
     const data = await storage.load(athleteCacheLabel);
+    if (data) {
+        // migrate to new format.
+        for (const [,x] of data) {
+            if (x.name) {
+                if (!x.fullname) {
+                    x.fullname = x.name.join(' ');
+                } else {
+                    // Already migrated
+                    break;
+                }
+            }
+        }
+    }
     _acLastTS = Date.now();
     return new Map(data);
 }
@@ -176,8 +189,8 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
 
     updateAthlete(id, fName, lName, weight) {
         const d = this.athletes.get(id) || {};
-        d.name = (fName || lName) ? [fName, lName].filter(x => x) : d.name;
-        d.weight = weight != null ? weight : d.weight;
+        d.name = (fName || lName) ? [fName, lName].filter(x => x).join(' ') : d.name;
+        d.weight = weight || d.weight;
         this.athletes.set(id, d);
         _acUpdates++;
         maybeSaveAthleteCache(this.athletes);  // bg okay
