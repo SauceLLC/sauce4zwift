@@ -44,15 +44,15 @@ function wrapWebSocketMessage(ws, callback) {
 
 
 export async function getConfig() {
-    return (await storage.load('webserver-config')) || {
-        enabled: false,
+    return (await storage.load('webserver-config.v2')) || {
+        enabled: true,
         port: 1080,
     };
 }
 
 
 export async function setConfig(config) {
-    await storage.save('webserver-config', config);
+    await storage.save('webserver-config.v2', config);
 }
 
 

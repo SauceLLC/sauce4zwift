@@ -3,18 +3,17 @@ default: build
 PACKAGES := node_modules/.build
 BUILD := .build
 
-MODS := $(shell pwd)/node_modules
+MODS := $(CURDIR)/node_modules
 NPATH := $(MODS)/.bin
-TOOLPATH := $(shell pwd)/tools/bin
+TOOLPATH := $(CURDIR)/tools/bin
 PAGES_SRC := $(shell find pages type f 2>/dev/null)
-
 
 $(PACKAGES): package.json
 	npm install
-	touch $@
+	touch $@ || type nul > $@
 
 $(BUILD): $(PAGES_SRC) $(PACKAGES) sass Makefile .git/index
-	touch $@
+	touch $@ || type nul > $@
 
 run: $(BUILD)
 	npm start
@@ -26,8 +25,8 @@ run-debug-brk: $(BUILD)
 	npm run start-debug-brk
 
 lint:
-	./node_modules/.bin/eslint src shared pages/src
-	./node_modules/.bin/eslint --ext .mjs --config .eslintrc.modules.json src shared pages/src
+	$(NPATH)/eslint src pages/src
+	$(NPATH)/eslint --ext .mjs --config .eslintrc.modules.json src shared pages/src
 
 publish: $(BUILD)
 	npm run publish
@@ -39,10 +38,10 @@ build: $(BUILD)
 	SKIP_NOTARIZE=1 npm run build
 
 sass:
-	$(TOOLPATH)/sassrender
+	$(NPATH)/sass pages/scss:pages/css
 
 sass-watch:
-	$(TOOLPATH)/sassrender --watch
+	$(NPATH)/sass pages/scss:pages/css --watch
 
 lint-watch:
 	$(TOOLPATH)/lintwatch

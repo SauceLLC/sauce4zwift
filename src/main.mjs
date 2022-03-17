@@ -15,8 +15,7 @@ Error.stackTraceLimit = 100;
 
 // Use non-electron naming for windows updater.
 // https://github.com/electron-userland/electron-builder/issues/2700
-console.log(pkg.build.appId);
-app.setAppUserModelId(pkg.build.appId);
+app.setAppUserModelId('io.saucellc.sauce4zwift'); // must match build.appId for windows
 
 
 Sentry.init({
