@@ -12,7 +12,10 @@
         <link id="favicon" rel="shortcut icon" href="/pages/images/favicon.png"/>
         <link rel='stylesheet' href="common.css"/>
 
-        <script src="chat-options.mjs" type="module"></script>
+        <script type="module">
+            import {options} from './chat.mjs';
+            document.addEventListener('DOMContentLoaded', options);
+        </script>
     </head>
     <body>
         <div id="titlebar">
@@ -22,9 +25,9 @@
                 <div class="button options" data-url="chat.html"><img src="images/fa/cog-duotone.svg"/></div>
             </div>
         </div>
-        <div id="content">
+        <div id="options">
             <form>
-                <label>Show NP <input type="checkbox" name="show_np"/></label>
+                <label>Message cleanup:<input type="number" min="0" step="1" name="cleanup"/> <small>(seconds)</small></label>
             </form>
         </div>
     </body>

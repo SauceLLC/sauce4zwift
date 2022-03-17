@@ -60,16 +60,28 @@ html.browser-mode {
 #options {
     font-size: 16px;
     padding: 1em;
+    overflow: auto;
 }
 
 form {
-    padding: 0.2em 1em;
+    padding: 0.5em 0.5em;
     display: flex;
     flex-direction: column;
 }
 
+input {
+    padding: 0.2em 0.2em;
+    border-radius: 0.28em;
+    font-size: 0.9em;
+}
+
+input[type="number"] {
+    width: 8ch;
+}
+
 label input {
     margin-left: 0.5em;
+    margin-bottom: 0.5em;
 }
 
 body {

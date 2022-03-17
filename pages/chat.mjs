@@ -31,7 +31,6 @@ function liveDataFormatter(athlete) {
     if (!state) {
         return '';
     }
-
     const items = [
         state.stats.power.smooth[30] != null ? Math.round(state.stats.power.smooth[30]).toLocaleString() + 'w' : null,
         state.heartrate ? state.heartrate.toLocaleString() + 'bpm' : null,
@@ -44,10 +43,13 @@ function liveDataFormatter(athlete) {
 }
 
 
-async function main() {
+export async function main() {
     common.initInteractionListeners();
     const content = document.querySelector('#content');
     liveDataTask(content);  // bg okay
+    const options = common.storage.get('chat-options', {
+        cleanup: 120,
+    });
 
 
     function getLastEntry() {
@@ -59,28 +61,36 @@ async function main() {
     function addContentEntry(el) {
         content.appendChild(el);
         const fadeoutTime = 5;
-        const cleanupTime = 1200000;
+        const cleanupTime = options.cleanup;
         el.style.setProperty('--fadeout-time', `${fadeoutTime}s`);
         el.style.setProperty('--cleanup-time', `${cleanupTime}s`);
         void el.offsetLeft; // force layout/reflow so we can trigger animation.
-        el.classList.add('fadeout', 'slidein');
+        el.classList.add('slidein');
         let to;
-        el._resetCleanup = () => {
-            clearTimeout(to);
-            to = setTimeout(() => el.remove(), (fadeoutTime + cleanupTime) * 1000);
-        };
-        el._resetCleanup();
+        if (cleanupTime) {
+            el._resetCleanup = () => {
+                clearTimeout(to);
+                el.classList.remove('fadeout');
+                void el.offsetLeft; // force layout/reflow so we can trigger animation.
+                el.classList.add('fadeout');
+                to = setTimeout(() => el.remove(), (fadeoutTime + cleanupTime) * 1000);
+            };
+            el._resetCleanup();
+        }
     }
 
 
     function onChatMessage(chat) {
+        console.debug(chat);
         const lastEntry = getLastEntry();
         if (lastEntry && Number(lastEntry.dataset.from) === chat.from) {
             const chunk = document.createElement('div');
             chunk.classList.add('chunk');
             chunk.textContent = chat.message;
             lastEntry.querySelector('.message').appendChild(chunk);
-            lastEntry._resetCleanup();
+            if (lastEntry._resetCleanup) {
+                lastEntry._resetCleanup();
+            }
             return;
         }
         const entry = document.createElement('div');
@@ -117,20 +127,22 @@ async function main() {
 
     if (location.search.includes('testing')) {
         for (let i = 1; i < 100; i++) {
-            //const from = Array.from(nearby.keys())[0] || 0; // [Math.floor(Math.random() * nearby.size / 2)] || 0;
             const from = Array.from(nearby.keys())[Math.floor(Math.random() * nearby.size / 10)] || 0;
             onChatMessage({
                 firstName: 'Foo',
                 lastName: 'Bar ' + from,
-                message: Array.from(Array(i)).map(() => 'I am a teapot short and stout.').join('\n'),
+                message: 'I am a teapot short and stout.',
                 from,
                 to: 0,
                 avatar: 'images/blankavatar.png',
             });
             await sauce.sleep(1000 * i);
-            //await sauce.sleep(200);
         }
     }
 }
 
-addEventListener('DOMContentLoaded', () => main());
+
+export function options() {
+    common.initInteractionListeners();
+    common.initOptionsForm('form', 'chat-options');
+}

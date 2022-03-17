@@ -217,10 +217,43 @@ class Renderer {
 const storage = {
     get: (k, def) => {
         const v = localStorage.getItem(k);
-        return (typeof v === 'string') ? JSON.parse(v) : def;
+        if (typeof v !== 'string') {
+            if (def !== undefined) {
+                storage.set(k, def);
+            }
+            return def;
+        } else {
+            return JSON.parse(v);
+        }
     },
     set: (k, v) => localStorage.setItem(k, JSON.stringify(v)),
 };
+
+
+function initOptionsForm(selector, optionsKey) {
+    const options = storage.get(optionsKey) || {};
+    const form = document.querySelector(selector);
+    for (const el of form.querySelectorAll('input')) {
+        const val = options[el.name];
+        if (el.type === 'checkbox') {
+            el.checked = val;
+        } else {
+            el.value = val == null ? '' : val;
+        }
+        el.addEventListener('input', ev => {
+            const val = (({
+                number: () => el.value ? Number(el.value) : undefined,
+                checkbox: () => el.checked,
+            }[el.type]) || (() => el.value || undefined))();
+            if (val === undefined) {
+                delete options[el.name];
+            } else {
+                options[el.name] = val;
+            }
+            storage.set(optionsKey, options);
+        });
+    }
+}
 
 
 export default {
@@ -230,4 +263,5 @@ export default {
     initInteractionListeners,
     Renderer,
     storage,
+    initOptionsForm,
 };
