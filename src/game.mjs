@@ -189,7 +189,8 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
 
     updateAthlete(id, fName, lName, weight) {
         const d = this.athletes.get(id) || {};
-        d.name = (fName || lName) ? [fName, lName].filter(x => x).join(' ') : d.name;
+        d.name = (fName || lName) ? [fName, lName].filter(x => x) : d.name;
+        d.fullname = d.name && d.name.join(' ');
         d.weight = weight || d.weight;
         this.athletes.set(id, d);
         _acUpdates++;

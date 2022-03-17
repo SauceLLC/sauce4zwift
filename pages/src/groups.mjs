@@ -7,6 +7,11 @@ const H = L.human;
 
 export async function main() {
     common.initInteractionListeners();
+    const options = common.storage.get('groups-options', {
+        detectAttacks: true,
+        maxAhead: 3,
+        maxBehind: 3,
+    });
     const content = document.querySelector('#content');
     const groupEls = new Map();
     common.subscribe('groups', groups => {
@@ -14,10 +19,7 @@ export async function main() {
             return;
         }
         let centerIdx = groups.findIndex(x => x.watching);
-        const behindCount = (groups.length - 1) - centerIdx;
-        const adjacent = 3;
-        const firstIndex = Math.max(0, centerIdx - adjacent - (behindCount < adjacent ? adjacent - behindCount : 0));
-        groups = groups.filter((x, i) => i >= firstIndex && i - firstIndex <= (adjacent * 2));
+        groups = groups.slice(centerIdx - (options.maxAhead || 3), centerIdx + (options.maxBehind || 3) + 1);
         centerIdx = groups.findIndex(x => x.watching);
         const center = groups[centerIdx];
         if (!center) {
@@ -28,7 +30,7 @@ export async function main() {
         content.style.setProperty('--total-athletes', totAthletes);
         content.style.setProperty('--total-gap', totGap);
         const active = new Set();
-        for (const [i, x] of groups.entries()) {
+        for (const [i, group] of groups.entries()) {
             // NOTE: gap measurement is always to the next group or null.
             const next = groups[i + 1];
             const relPos = i - centerIdx;
@@ -58,24 +60,24 @@ export async function main() {
                 content.appendChild(gap);
                 groupEls.set(relPos, group);
             }
-            const group = groupEls.get(relPos);
-            group.classList.toggle('watching', !!x.watching);
-            group.style.setProperty('--athletes', x.athletes.length);
+            const groupEl = groupEls.get(relPos);
+            groupEl.classList.toggle('watching', !!group.watching);
+            groupEl.style.setProperty('--athletes', group.athletes.length);
             let bubble;
-            if (x.athletes.length === 1 && x.athletes[0].athlete) {
-                const n = x.athletes[0].athlete.name;
+            if (group.athletes.length === 1 && group.athletes[0].athlete) {
+                const n = group.athletes[0].athlete.name;
                 bubble = n.map(x => x[0].toUpperCase()).join('').substr(0, 2);
             } else {
-                bubble = x.athletes.length.toLocaleString();
+                bubble = group.athletes.length.toLocaleString();
             }
-            group.querySelector('.bubble').textContent = bubble;
-            group.querySelector('.desc .lines').innerHTML = [
-                Math.round(x.power).toLocaleString() + 'w',
-                Math.round(x.speed).toLocaleString() + 'kph',
+            groupEl.querySelector('.bubble').textContent = bubble;
+            groupEl.querySelector('.desc .lines').innerHTML = [
+                Math.round(group.power).toLocaleString() + 'w',
+                Math.round(group.speed).toLocaleString() + 'kph',
             ].map((x, i) => `<div class="line ${i ? 'minor' : ''}">${x}</div>`).join('');
-            const gapEl = group.nextSibling;
-            const innerGap = next ? Math.round(x.innerGap) : 0;
-            const gap = relPos < 0 ? x.gap : next ? next.gap : 0;
+            const gapEl = groupEl.nextSibling;
+            const innerGap = next ? Math.round(group.innerGap) : 0;
+            const gap = relPos < 0 ? group.gap : next ? next.gap : 0;
             gapEl.style.setProperty('--inner-gap', innerGap);
             gapEl.style.setProperty('--outer-gap', Math.abs(gap));
             gapEl.style.setProperty('--gap-sign', gap > 0 ? 1 : -1);
