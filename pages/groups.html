@@ -8,9 +8,14 @@
 
         <title>Groups - Sauce for Zwift</title>
 
-        <link rel="manifest" href="/pages/groups-manifest.json"/>
-        <link id="favicon" rel="shortcut icon" href="/pages/images/favicon.png"/>
-        <link rel='stylesheet' href="common.css"/>
+        <script type="module">
+            import {main} from './src/groups.mjs';
+            document.addEventListener('DOMContentLoaded', main);
+        </script>
+
+        <link rel="manifest" href="groups-manifest.json"/>
+        <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
+        <link rel='stylesheet' href="css/common.css"/>
 
         <style>
             html {
@@ -154,8 +159,6 @@
                 transition: initial;
             }
         </style>
-        <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';" />
-        <script src="groups.mjs" type="module" defer></script>
     </head>
     <body class="transparent-bg">
         <div id="titlebar">

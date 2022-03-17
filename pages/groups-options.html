@@ -8,11 +8,15 @@
 
         <title>Groups Options - Sauce for Zwift</title>
 
-        <link rel="manifest" href="/pages/groups-manifest.json"/>
-        <link id="favicon" rel="shortcut icon" href="/pages/images/favicon.png"/>
+        <script type="module">
+            import {options} from './src/groups.mjs';
+            document.addEventListener('DOMContentLoaded', options);
+        </script>
 
-        <link rel='stylesheet' href="common.css"/>
-        <script src="groups-options.mjs" type="module"></script>
+        <link rel="manifest" href="groups-manifest.json"/>
+        <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
+
+        <link rel='stylesheet' href="css/common.css"/>
     </head>
     <body>
         <div id="titlebar">

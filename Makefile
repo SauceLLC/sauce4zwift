@@ -1,32 +1,50 @@
 default: build
 
-run: node_modules/.build
-	npm start
+PACKAGES := node_modules/.build
+BUILD := .build
 
-run-debug: node_modules/.build
-	npm run start-debug
+MODS := $(shell pwd)/node_modules
+NPATH := $(MODS)/.bin
+TOOLPATH := $(shell pwd)/tools/bin
+PAGES_SRC := $(shell find pages type f 2>/dev/null)
 
-run-debug-brk: node_modules/.build
-	npm run start-debug-brk
 
-run-mac: node_modules/.build
-	./dist/mac-arm64/Sauce\ for\ Zwift™.app/Contents/MacOS/Sauce\ for\ Zwift™
-
-node_modules/.build: package.json
+$(PACKAGES): package.json
 	npm install
 	touch $@
 
-lint:
-	./node_modules/.bin/eslint src
-	./node_modules/.bin/eslint --ext .mjs --config .eslintrc.modules.json src shared pages
+$(BUILD): $(PAGES_SRC) $(PACKAGES) sass Makefile .git/index
+	touch $@
 
-publish: node_modules/.build
+run: $(BUILD)
+	npm start
+
+run-debug: $(BUILD)
+	npm run start-debug
+
+run-debug-brk: $(BUILD)
+	npm run start-debug-brk
+
+lint:
+	./node_modules/.bin/eslint src shared pages/src
+	./node_modules/.bin/eslint --ext .mjs --config .eslintrc.modules.json src shared pages/src
+
+publish: $(BUILD)
 	npm run publish
 
-pack: node_modules/.build
+pack: $(BUILD)
 	SKIP_NOTARIZE=1 npm run pack
 
-build: node_modules/.build
+build: $(BUILD)
 	SKIP_NOTARIZE=1 npm run build
 
-.PHONY: build pack publish lint
+sass:
+	$(TOOLPATH)/sassrender
+
+sass-watch:
+	$(TOOLPATH)/sassrender --watch
+
+lint-watch:
+	$(TOOLPATH)/lintwatch
+
+.PHONY: build pack publish lint sass

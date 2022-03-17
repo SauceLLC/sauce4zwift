@@ -1,5 +1,4 @@
-
-import sauce from '../shared/sauce/index.mjs';
+import sauce from '../../shared/sauce/index.mjs';
 import common from './common.mjs';
 
 const L = sauce.locale;
@@ -11,7 +10,7 @@ function shortDuration(x) {
 }
 
 
-async function main() {
+export async function main() {
     common.initInteractionListeners();
     const content = document.querySelector('#content');
     const renderer = new common.Renderer(content, {fps: 1});
@@ -127,4 +126,8 @@ async function main() {
     });
 }
 
-addEventListener('DOMContentLoaded', () => main());
+
+export function options() {
+    common.initInteractionListeners();
+    common.initOptionsForm('form', 'overview-options');
+}

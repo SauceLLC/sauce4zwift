@@ -86,7 +86,7 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
             contextIsolation: true,
             sandbox: true,
             enableRemoteModule: false,
-            preload: path.join(PAGES, 'preload.js'),
+            preload: path.join(PAGES, 'src/preload.js'),
         },
         ...options,
         ...state,

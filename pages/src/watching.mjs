@@ -1,10 +1,9 @@
-import sauce from '../shared/sauce/index.mjs';
+import sauce from '../../shared/sauce/index.mjs';
 import common from './common.mjs';
-
-window.sauce = sauce;
 
 const L = sauce.locale;
 const H = L.human;
+
 
 function shortDuration(x) {
     return H.duration(x, {short: true});
@@ -55,7 +54,7 @@ function makeSmoothHRField(period) {
 }
 
 
-async function main() {
+export async function main() {
     common.initInteractionListeners();
     const content = document.querySelector('#content');
     const renderer = new common.Renderer(content, {fps: 1});
@@ -180,4 +179,8 @@ async function main() {
     });
 }
 
-addEventListener('DOMContentLoaded', main);
+
+export function options() {
+    common.initInteractionListeners();
+    common.initOptionsForm('form', 'watching-options');
+}

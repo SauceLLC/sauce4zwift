@@ -1,6 +1,6 @@
 /*global Sentry*/
 
-import {sleep} from '../shared/sauce/base.mjs';
+import {sleep} from '../../shared/sauce/base.mjs';
 import './sentry.js';
 Sentry.init({dsn: "https://df855be3c7174dc89f374ef0efaa6a92@o1166536.ingest.sentry.io/6257001"});
 

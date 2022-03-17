@@ -8,9 +8,14 @@
 
         <title>Nearby - Sauce for Zwift</title>
 
-        <link rel="manifest" href="/pages/nearby-manifest.json"/>
-        <link id="favicon" rel="shortcut icon" href="/pages/images/favicon.png"/>
-        <link rel='stylesheet' href="common.css"/>
+        <script type="module">
+            import {main} from './src/nearby.mjs';
+            document.addEventListener('DOMContentLoaded', main);
+        </script>
+
+        <link rel="manifest" href="nearby-manifest.json"/>
+        <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
+        <link rel='stylesheet' href="css/common.css"/>
 
         <style>
             html {
@@ -103,11 +108,6 @@
                 scroll-snap-type: y proximity;
             }
         </style>
-        <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';" />
-        <script type="module">
-            import {main} from './nearby.mjs';
-            document.addEventListener('DOMContentLoaded', main);
-        </script>
     </head>
     <body class="">
         <div id="titlebar">

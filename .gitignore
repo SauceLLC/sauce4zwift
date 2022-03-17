@@ -107,3 +107,6 @@ dist
 out
 
 .DS_Store
+
+pages/css
+.build

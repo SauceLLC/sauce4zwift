@@ -8,11 +8,14 @@
 
         <title>Watching Options - Sauce for Zwift</title>
 
-        <link rel="manifest" href="/pages/watching-manifest.json"/>
-        <link id="favicon" rel="shortcut icon" href="/pages/images/favicon.png"/>
-        <link rel='stylesheet' href="common.css"/>
+        <script type="module">
+            import {options} from './src/watching.mjs';
+            document.addEventListener('DOMContentLoaded', options);
+        </script>
 
-        <script src="watching-options.mjs" type="module"></script>
+        <link rel="manifest" href="watching-manifest.json"/>
+        <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
+        <link rel='stylesheet' href="css/common.css"/>
     </head>
     <body>
         <div id="titlebar">

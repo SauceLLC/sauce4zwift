@@ -25,11 +25,12 @@
     "sudo-prompt": "9.2.1"
   },
   "devDependencies": {
+    "@sentry/browser": "6.18.2",
     "electron": "17.1.0",
     "electron-builder": "22.14.13",
     "electron-notarize": "1.1.1",
-    "@sentry/browser": "6.18.2",
-    "eslint": "8.10.0"
+    "eslint": "8.10.0",
+    "sass": "1.49.9"
   },
   "build": {
     "appId": "io.saucellc.sauce4zwift",

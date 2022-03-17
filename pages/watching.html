@@ -8,9 +8,14 @@
 
         <title>Watching - Sauce for Zwift</title>
 
-        <link rel="manifest" href="/pages/watching-manifest.json"/>
-        <link id="favicon" rel="shortcut icon" href="/pages/images/favicon.png"/>
-        <link rel='stylesheet' href="common.css"/>
+        <script type="module">
+            import {main} from './src/watching.mjs';
+            document.addEventListener('DOMContentLoaded', main);
+        </script>
+
+        <link rel="manifest" href="watching-manifest.json"/>
+        <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
+        <link rel='stylesheet' href="css/common.css"/>
 
         <style>
             html {
@@ -155,8 +160,6 @@
                 font-size: 1.3em;
             }
         </style>
-        <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';" />
-        <script src="watching.mjs" type="module"></script>
     </head>
     <body>
         <div id="titlebar">

@@ -1,5 +1,4 @@
-
-import sauce from '../shared/sauce/index.mjs';
+import sauce from '../../shared/sauce/index.mjs';
 import common from './common.mjs';
 
 const nearby = new Map();
