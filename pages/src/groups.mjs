@@ -71,6 +71,7 @@ export async function main() {
             if (group.athletes.length === 1 && group.athletes[0].athlete) {
                 const n = group.athletes[0].athlete.name;
                 bubble = n.map(x => x[0].toUpperCase()).join('').substr(0, 2);
+                groupEl.classList.remove('attn', 'attack');
             } else {
                 bubble = group.athletes.length.toLocaleString();
                 let max = -Infinity;
@@ -80,8 +81,11 @@ export async function main() {
                         max = p;
                     }
                 }
-                if (max / group.power > 2) {
-                    lines.push(`<div class="line">${Math.round(max).toLocaleString()}w (ATTACK!)</div>`);
+                if (max > 400 && (max / group.power) > 2) {
+                    groupEl.classList.add('attn', 'attack');
+                    lines.push(`<div class="line attn">${Math.round(max).toLocaleString()}w <small>Attacker!</small></div>`);
+                } else {
+                    groupEl.classList.remove('attn', 'attack');
                 }
             }
             groupEl.querySelector('.bubble').textContent = bubble;
