@@ -9,7 +9,7 @@ html {
     padding-right: 2.5rem;  /* Need more space for absolute pos desc on right. */
 }
 
-.group {
+.position {
     display: flex;
     align-items: center;
     flex: 0 0 auto;
@@ -41,6 +41,7 @@ html {
     .bubble {
         display: flex;
         overflow: hidden;
+        cursor: pointer;
         align-items: center;
         justify-content: center;
         text-align: center;
@@ -53,24 +54,29 @@ html {
         width: 100%;
         height: 100%;
         box-shadow: 0 0 0 0.4rem var(--rim-color), 0.03rem 0.03rem 0.4rem 0 var(--rim-border-color);
+
+        img {
+            max-width: 100%;
+            max-height: 100%;
+        }
     }
 
 }
-.no-transition .group {
+.no-transition .position {
     transition: initial;
 }
 
-.group:not(.hidden) {
+.position:not(.hidden) {
     margin: 0.4em;
 }
 
-.group.hidden {
+.position.hidden {
     opacity: 0;
     width: 0;
     height: 0;
     visibility: hidden;
 }
-.group.hidden + .gap,
+.position.hidden + .gap,
 .gap.alone {
     opacity: 0;
     flex-grow: 0;
@@ -80,8 +86,6 @@ html {
     display: none;
 }
 
-
-
 .desc {
     display: flex;
     align-items: center;
@@ -89,7 +93,7 @@ html {
     font-size: 0.80em;
 }
 
-.group .desc {
+.position .desc {
     /* bubble + shadow + desc-pad */
     left: calc(100% + 0.4rem + 0.2rem);
 }
@@ -99,7 +103,7 @@ html {
     display: flex;
     flex-direction: column;
 }
-.group .desc .lines {
+.position .desc .lines {
     align-items: flex-start;
 }
 .gap .desc .lines {
@@ -124,13 +128,13 @@ html {
     line-height: 1.2;
 }
 
-.group .desc::before,
+.position .desc::before,
 .gap .desc::after {
     content: '―';
     color: #aaaa;
     margin: 0 0.2rem;
 }
-.group .desc::before {
+.position .desc::before {
     font-size: 0.5rem;
 }
 .gap .desc::after {

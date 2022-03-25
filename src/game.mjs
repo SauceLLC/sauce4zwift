@@ -187,11 +187,11 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         }
     }
 
-    updateAthlete(id, fName, lName, weight) {
+    updateAthlete(id, fName, lName, extra={}) {
         const d = this.athletes.get(id) || {};
         d.name = (fName || lName) ? [fName, lName].filter(x => x) : d.name;
         d.fullname = d.name && d.name.join(' ');
-        d.weight = weight || d.weight;
+        Object.assign(d, extra);
         this.athletes.set(id, d);
         _acUpdates++;
         maybeSaveAthleteCache(this.athletes);  // bg okay
@@ -213,7 +213,8 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 const ts = highPrecTimeConv(x.ts);
                 const p = x.payload;
                 if (p.$type.name === 'PlayerEnteredWorld') {
-                    this.updateAthlete(p.athleteId, p.firstName, p.lastName, p.weight / 1000);
+                    const extra = p.weight ? {weight: p.weight / 1000} : undefined;
+                    this.updateAthlete(p.athleteId, p.firstName, p.lastName, extra);
                 } else if (p.$type.name === 'EventJoin') {
                     console.debug("Event Join:", p);
                 } else if (p.$type.name === 'EventLeave') {
@@ -233,7 +234,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                     this._chatDeDup.unshift([ts, p.from]);
                     this._chatDeDup.length = Math.min(10, this._chatDeDup.length);
                     this.emit('chat', {...p, ts});
-                    this.updateAthlete(p.from, p.firstName, p.lastName);
+                    this.updateAthlete(p.from, p.firstName, p.lastName, {avatar: p.avatar});
                 } else if (x.payload.$type.name === 'RideOn') {
                     this.emit('rideon', {...p, ts});
                     this.updateAthlete(p.from, p.firstName, p.lastName);

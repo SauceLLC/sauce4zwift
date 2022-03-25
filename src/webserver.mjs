@@ -126,8 +126,13 @@ async function _start() {
     // workaround https://github.com/websockets/ws/issues/2023
     webSocketServer.on('error', () => void 0);
     const cacheDisabled = 'no-cache, no-store, must-revalidate';
+    const cacheEnabled = 'public, max-age=3600, s-maxage=900';
     const router = express.Router();
     router.use('/', express.static(`${WD}/../pages`, {index: 'index.html'}));
+    router.use('/pages/images', express.static(`${WD}/../pages/images`, {
+        cacheControl: true,
+        setHeaders: res => res.setHeader('Cache-Control', cacheEnabled)
+    }));
     router.use('/pages/', express.static(`${WD}/../pages`, {
         cacheControl: true,
         setHeaders: res => res.setHeader('Cache-Control', cacheDisabled)
