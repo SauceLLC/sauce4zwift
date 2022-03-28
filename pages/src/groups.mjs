@@ -9,6 +9,7 @@ let settings;
 let zoomedPosition;
 let curGroups;
 const positions = new Map();
+const optionsKey = 'groups-options-v2';
 
 
 function getOrCreatePosition(relPos) {
@@ -102,9 +103,25 @@ function renderZoomed(groups) {
             bubble.textContent = label;
         }
 
-        const lines = [`<div class="line ${attacker ? 'attn' : ''}">${Math.round(athlete.power).toLocaleString()}w</div>`];
-        if (athlete.heartrate) {
-            lines.push(`<div class="line minor">${Math.round(athlete.heartrate).toLocaleString()}bpm</div>`);
+        const lines = [`<div class="line ${attacker ? 'attn' : ''}">${H.number(athlete.power)}w</div>`];
+        const minorField = settings.zoomedSecondaryField || 'heartrate';
+        if (minorField === 'heartrate') {
+            if (athlete.heartrate) {
+                lines.push(`<div class="line minor">${H.number(athlete.heartrate)}<small>bpm</small></div>`);
+            }
+        } else if (minorField === 'draft') {
+            if (athlete.draft != null) {
+                lines.push(`<div class="line minor">${H.number(athlete.draft)}<small>% (draft)</small></div>`);
+            }
+        } else if (minorField === 'speed') {
+            if (athlete.speed != null) {
+                lines.push(`<div class="line minor">${H.number(athlete.speed)}<small>kph</small></div>`);
+            }
+        } else if (minorField === 'power-60s') {
+            const p = athlete.stats.power.smooth[60];
+            if (p != null) {
+                lines.push(`<div class="line minor">${H.number(p)}w (1m)</div>`);
+            }
         }
         posEl.querySelector('.desc .lines').innerHTML = lines.join('');
         const gapEl = posEl.nextSibling;
@@ -154,7 +171,7 @@ function renderGroups(groups) {
             label = n.map(x => x[0].toUpperCase()).join('').substr(0, 2);
             groupEl.classList.remove('attn', 'attack');
         } else {
-            label = group.athletes.length.toLocaleString();
+            label = H.number(group.athletes.length);
             let max = -Infinity;
             for (const x of group.athletes) {
                 const p = x.stats.power.smooth[5];
@@ -164,16 +181,38 @@ function renderGroups(groups) {
             }
             if (max > 400 && (max / group.power) > 2) {
                 groupEl.classList.add('attn', 'attack');
-                lines.push(`<div class="line attn">${Math.round(max).toLocaleString()}w <small>Attacker!</small></div>`);
+                lines.push(`<div class="line attn">${H.number(max)}<small>w Attacker!</small></div>`);
             } else {
                 groupEl.classList.remove('attn', 'attack');
             }
         }
         groupEl.querySelector('.bubble').textContent = label;
-        lines.push(...[
-            Math.round(group.power).toLocaleString() + 'w',
-            Math.round(group.speed).toLocaleString() + 'kph',
-        ].map((x, i) => `<div class="line ${i ? 'minor' : ''}">${x}</div>`));
+        lines.push(`<div class="line">${H.number(group.power)}<small>w</small></div>`);
+        const minorField = settings.groupsSecondaryField || 'speed';
+        if (minorField === 'heartrate') {
+            if (group.heartrate) {
+                lines.push(`<div class="line minor">${H.number(group.heartrate)}<small>bpm</small></div>`);
+            }
+        } else if (minorField === 'draft') {
+            if (group.draft != null) {
+                lines.push(`<div class="line minor">${H.number(group.draft)}<small>% (draft)</small></div>`);
+            }
+        } else if (minorField === 'speed') {
+            if (group.speed != null) {
+                lines.push(`<div class="line minor">${H.number(group.speed)}<small>kph</small></div>`);
+            }
+        } else if (minorField === 'power-highest') {
+            const highest = sauce.data.max(group.athletes.map(x => x.power));
+            if (highest != null) {
+                lines.push(`<div class="line minor">${H.number(highest)}w (highest)</div>`);
+            }
+        } else if (minorField === 'power-median') {
+            const med = sauce.data.median(group.athletes.map(x => x.power));
+            if (med != null) {
+                lines.push(`<div class="line minor">${H.number(med)}w (median)</div>`);
+            }
+        }
+
         groupEl.querySelector('.desc .lines').innerHTML = lines.join('');
         const gapEl = groupEl.nextSibling;
         const innerGap = next ? Math.round(group.innerGap) : 0;
@@ -194,10 +233,12 @@ function renderGroups(groups) {
 
 export async function main() {
     common.initInteractionListeners();
-    settings = common.storage.get('groups-options', {
+    settings = common.storage.get(optionsKey, {
         detectAttacks: true,
-        maxAhead: 3,
-        maxBehind: 3,
+        maxAhead: 4,
+        maxBehind: 2,
+        groupsSecondaryField: 'speed',
+        zoomedSecondaryField: 'draft',
     });
     common.subscribe('groups', groups => {
         if (!groups.length) {
@@ -215,5 +256,5 @@ export async function main() {
 
 export function options() {
     common.initInteractionListeners();
-    common.initOptionsForm('form', 'groups-options');
+    common.initOptionsForm('form', optionsKey);
 }

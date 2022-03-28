@@ -69,10 +69,17 @@ form {
     flex-direction: column;
 }
 
-input {
+input, select {
     padding: 0.2em 0.2em;
     border-radius: 0.28em;
     font-size: 0.9em;
+    background-color: #fcfcfc;
+    outline-color: #08f;
+    border-style: solid;
+
+    &:focus {
+        outline-style: solid;
+    }
 }
 
 input[type="number"] {

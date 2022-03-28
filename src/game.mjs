@@ -589,9 +589,10 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         }
         for (let i = 0; i < groups.length; i++) {
             const x = groups[i];
-            x.power = x.athletes.reduce((agg, x) => agg + x.power, 0) / x.athletes.length;
-            x.draft = x.athletes.reduce((agg, x) => agg + x.draft, 0) / x.athletes.length;
-            x.speed = x.athletes.reduce((agg, x) => agg + x.speed, 0) / x.athletes.length; // XXX use median i think
+            x.power = sauce.data.avg(x.athletes.map(x => x.power));
+            x.draft = sauce.data.avg(x.athletes.map(x => x.draft));
+            x.speed = sauce.data.median(x.athletes.map(x => x.speed));
+            x.heartrate = sauce.data.avg(x.athletes.map(x => x.heartrate).filter(x => x));
             if (watchingIdx !== i) {
                 const edge = watchingIdx < i ? x.athletes[0] : x.athletes.at(-1);
                 x.isGapEst = edge.isGapEst;

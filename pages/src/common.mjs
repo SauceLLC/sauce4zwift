@@ -298,6 +298,19 @@ function initOptionsForm(selector, optionsKey) {
             storage.set(optionsKey, options);
         });
     }
+    for (const el of form.querySelectorAll('select')) {
+        const val = options[el.name];
+        el.value = val == null ? '' : val;
+        el.addEventListener('change', ev => {
+            const val = el.value || undefined;
+            if (val === undefined) {
+                delete options[el.name];
+            } else {
+                options[el.name] = val;
+            }
+            storage.set(optionsKey, options);
+        });
+    }
 }
 
 
