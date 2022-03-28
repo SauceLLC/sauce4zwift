@@ -1,0 +1,114 @@
+html {
+    user-select: initial;
+    padding: 0;
+}
+
+body {
+    border-radius: 0;
+}
+
+html, body {
+    font-size: 14px;
+}
+
+table {
+    border-collapse: collapse;
+    user-select: none;
+
+    thead {
+        position: sticky;
+        z-index: 100;
+        top: 0;
+        background-image: linear-gradient(to bottom, #0f1751, #941a1a);
+
+        td {
+            padding-top: 0.5em;
+            padding-bottom: 0.5em;
+            font-weight: normal;
+            font-variant: all-small-caps;
+
+            &:hover {
+                background-color: #9355;
+            }
+        }
+    }
+
+    tr,
+    td {
+        transition: background 200ms;
+    }
+
+    td {
+        text-align: left;
+        padding: 0.2em 0.2em;
+        font-variant: tabular-nums;
+        cursor: pointer;
+    }
+    td:first-child {
+        padding-left: 0.6em;
+    }
+    td:last-child {
+        padding-right: 0.6em;
+    }
+
+    tr.watching {
+        background-color: #0009 !important;
+        color: white !important;
+        td {
+            padding-top: 0.5em;
+            padding-bottom: 0.5em;
+        }
+    }
+    tbody tr:not(.hi):hover {
+        background-color: #0355;
+    }
+    tr.hi {
+        background-color: #035a;
+    }
+    td.hi {
+        background-color: #a35a;
+    }
+
+    td .edit-link {
+        transition: max-width 200ms, margin 200ms;
+        max-width: 0;
+        margin-right: 0;
+        display: inline-block;
+        overflow: hidden;
+
+        &:hover img {
+            opacity: 1;
+        }
+
+        img {
+            opacity: 0.7;
+            filter: invert(1);
+            height: 0.8em;
+        }
+    }
+
+    td:hover .edit-link {
+        max-width: 2em;
+        margin-right: 0.2em;
+    }
+}
+
+#content {
+    scroll-behavior: smooth;
+    padding: 0;
+    overflow: auto;
+    position: relative;
+}
+
+::-webkit-scrollbar {
+    display: none !important;
+}
+
+html.autoscroll table tr.watching,
+html.autoscroll table tr.hi {
+    scroll-snap-align: center;
+}
+html.autoscroll #content {
+    scroll-snap-type: y proximity;
+}
+

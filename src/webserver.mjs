@@ -1,5 +1,6 @@
 import express from 'express';
 import storage from './storage.mjs';
+import * as rpc from './rpc.mjs';
 import expressWebSocketPatch from 'express-ws';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -121,6 +122,7 @@ async function _start() {
         return false;
     }
     app = express();
+    app.use(express.json());
     server = http.createServer(app);
     const webSocketServer = expressWebSocketPatch(app, server).getWss();
     // workaround https://github.com/websockets/ws/issues/2023
@@ -141,6 +143,10 @@ async function _start() {
         cacheControl: true,
         setHeaders: res => res.setHeader('Cache-Control', cacheDisabled)
     }));
+    router.post('/api/rpc', async (req, res) => {
+        const {name, args} = req.body;
+        res.json(await rpc.invoke(name, ...args));
+    });
     router.ws('/api/ws', (ws, req) => {
         const subs = new Map();
         ws.on('message', wrapWebSocketMessage(ws, (type, {method, arg}) => {

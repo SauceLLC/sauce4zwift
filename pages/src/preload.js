@@ -7,3 +7,21 @@ ipcRenderer.on('browser-message', (_, o) =>
 // Browser Window -> Electron
 document.addEventListener('electron-message', ev =>
     void ipcRenderer.send(ev.detail.name, ev.detail.data));
+
+// Browser Window -> Electron RPC
+document.addEventListener('electron-rpc', async ev => {
+    let resp;
+    try {
+        resp = await ipcRenderer.invoke('__rpc__', ev.detail.name, ...ev.detail.args);
+    } catch(e) {
+        resp = {
+            success: false,
+            error: {
+                name: e.name,
+                message: e.message,
+                stack: e.stack,
+            }
+        };
+    }
+    document.dispatchEvent(new CustomEvent(ev.detail.domEvent, {detail: resp}));
+});

@@ -16,98 +16,7 @@
         <link rel="manifest" href="nearby-manifest.json"/>
         <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
         <link rel='stylesheet' href="css/common.css"/>
-
-        <style>
-            html {
-                user-select: initial;
-                padding: 0;
-            }
-
-            body {
-                border-radius: 0;
-            }
-
-            html, body {
-                font-size: 14px;
-            }
-
-            table {
-                border-collapse: collapse;
-                user-select: none;
-            }
-
-            table thead {
-                position: sticky;
-                top: 0;
-                background-image: linear-gradient(to bottom, #0f1751, #941a1a);
-            }
-
-            table tr,
-            table td {
-                transition: background 200ms;
-            }
-
-            table td {
-                text-align: left;
-                padding: 0.2em 0.2em;
-            }
-            table thead td {
-                padding-top: 0.5em;
-                padding-bottom: 0.5em;
-                font-weight: normal;
-                font-variant: all-small-caps;
-            }
-            table td:first-child {
-                padding-left: 0.6em;
-            }
-            table td:last-child {
-                padding-right: 0.6em;
-            }
-            table td {
-                font-variant: tabular-nums;
-                cursor: pointer;
-            }
-
-            table tr.watching {
-                background-color: #0009 !important;
-                color: white !important;
-            }
-            table thead td:hover {
-                background-color: #9355;
-            }
-            table tbody tr:not(.hi):hover {
-                background-color: #0355;
-            }
-            table tr.hi {
-                background-color: #035a;
-            }
-            table td.hi {
-                background-color: #a35a;
-            }
-            table tr.watching td {
-                padding-top: 0.5em;
-                padding-bottom: 0.5em;
-            }
-
-            #content {
-                scroll-behavior: smooth;
-                padding: 0;
-                overflow: auto;
-                position: relative;
-            }
-
-            ::-webkit-scrollbar {
-                display: none !important;
-            }
-
-            html.autoscroll table tr.watching,
-            html.autoscroll table tr.hi {
-                scroll-snap-align: center;
-            }
-            html.autoscroll #content {
-                scroll-snap-type: y proximity;
-            }
-        </style>
+        <link rel='stylesheet' href="css/nearby.css"/>
     </head>
     <body class="">
         <div id="titlebar">
@@ -123,5 +32,14 @@
             </table>
         </div>
         <div id="hintbar"><span/></div>
+        <dialog id="edit-name-dialog">
+            <form method="dialog">
+                <label>Name: <input type="text" autocomplete="off" placeholder="Athlete name" name="name"/></label>
+                <menu>
+                    <button value="cancel">Cancel</button>
+                    <button value="save">Save</button>
+                </menu>
+            </form>
+        </dialog>
     </body>
 </html>

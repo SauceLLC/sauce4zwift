@@ -9,6 +9,16 @@ const isElectron = location.protocol === 'file:';
 let closeWindow;
 let electronTrigger;
 let subscribe;
+let rpc;
+
+
+function makeRPCError(errResp) {
+    const e = new Error(`${errResp.error.name}: ${errResp.error.message}`);
+    e.stack = errResp.error.stack; // XXX merge with local stack too.
+    return e;
+}
+
+
 if (isElectron) {
     electronTrigger = function(name, data) {
         document.dispatchEvent(new CustomEvent('electron-message', {detail: {name, data}}));
@@ -18,11 +28,27 @@ if (isElectron) {
         electronTrigger('close');
     };
 
-    let subId = 1;
+    let evId = 1;
     subscribe = function(event, callback) {
-        const domEvent = `sauce-${event}-${subId++}`;
+        const domEvent = `sauce-${event}-${evId++}`;
         document.addEventListener(domEvent, ev => void callback(ev.detail));
         electronTrigger('subscribe', {event, domEvent});
+    };
+
+    rpc = async function(name, ...args) {
+        const domEvent = `sauce-${name}-${evId++}`;
+        const resp = new Promise((resolve, reject) => {
+            document.addEventListener(domEvent, ev => {
+                const resp = ev.detail;
+                if (resp.success) {
+                    resolve(resp.value);
+                } else {
+                    reject(makeRPCError(resp));
+                }
+            }, {once: true});
+        });
+        document.dispatchEvent(new CustomEvent('electron-rpc', {detail: {domEvent, name, args}}));
+        return await resp;
     };
 } else {
     document.documentElement.classList.add('browser-mode');
@@ -82,6 +108,23 @@ if (isElectron) {
         const ws = await wsp;
         await _subscribe(ws, event, callback);
         subs.push({event, callback});
+    };
+
+    rpc = async function(name, ...args) {
+        const r = await fetch('/api/rpc', {
+            method: 'POST',
+            headers: {"content-type": 'application/json'},
+            body: JSON.stringify({
+                name,
+                args
+            })
+        });
+        const resp = await r.json();
+        if (resp.success) {
+            return resp.value;
+        } else {
+            throw makeRPCError(resp);
+        }
     };
 
     const _subscribe = function(ws, event, callback) {
@@ -262,8 +305,12 @@ export default {
     closeWindow,
     electronTrigger,
     subscribe,
+    rpc,
     initInteractionListeners,
     Renderer,
     storage,
     initOptionsForm,
 };
+
+
+window.rpc = rpc;

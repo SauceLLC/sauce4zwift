@@ -24,7 +24,16 @@ function clearSelection() {
 
 const fields = [
     {id: 'id', defaultEn: true, label: 'ID', get: x => x.athleteId, fmt: x => x},
-    {id: 'name', defaultEn: true, label: 'Name', get: x => x.athlete && x.athlete.fullname || null, fmt: x => x || '-'},
+    {
+        id: 'name',
+        defaultEn: true,
+        label: 'Name',
+        get: x => x.athlete && x.athlete.fullname || null,
+        sanitize: true,
+        fmt: x =>
+            `<a class="edit-link" title="Manually edit name"><img src="images/fa/edit-duotone.svg"/></a>` +
+            `<span class="value">${x || '-'}</span>`,
+    },
     {id: 'weight', defaultEn: true, label: 'Weight', get: x => x.athlete && x.athlete.weight || null, fmt: x => x ? `${x.toFixed(1)}<small>kg</small>` : '-'},
 
     {id: 'gap', defaultEn: true, label: 'Gap', get: x => x.gap, fmt: x => `${num(x)}s`},
@@ -124,12 +133,31 @@ export function main() {
         }
     });
 
+    tbody.addEventListener('click', ev => {
+        if (ev.target.closest('.edit-link')) {
+            ev.stopPropagation();
+            const id = Number(ev.target.closest('tr').dataset.id);
+            const dialog = document.getElementById('edit-name-dialog');
+            const input = dialog.querySelector('input[name="name"]');
+            const value = ev.target.closest('td').querySelector('.value').textContent;
+            input.value = (value && value !== '-') ? value : '';
+            dialog.addEventListener('close', async ev => {
+                if (dialog.returnValue === 'save') {
+                    const [first, ...lasts] = input.value.split(' ').filter(x => x);
+                    await common.rpc('updateAthlete', id, first, lasts.length ? lasts.join(' ') : null);
+                }
+            }, {once: true});
+            dialog.showModal();
+        }
+    });
+
     let pause;
     document.addEventListener('selectionchange', ev => pause = !!getSelection().toString());
 
     let nextAnimFrame;
     let frames = 0;
     let nearby;
+    const sanitizeEl = document.createElement('span');
     function render() {
         if (!nearby.length || pause || document.hidden) {
             return;
@@ -156,9 +184,14 @@ export function main() {
             }
             return `
                 <tr data-id="${x.athleteId}" class="${classes.join(' ')}">
-                    ${enFields.map(({id, get, fmt}) =>
-                        `<td data-id="${id}" class="${sortBy === id ? 'hi' : ''}">${fmt(get(x))}</td>`
-                    ).join('')}
+                    ${enFields.map(({id, get, fmt, sanitize}) => {
+                        let value = get(x);
+                        if (sanitize && value) {
+                            sanitizeEl.textContent = value;
+                            value = sanitizeEl.innerHTML;
+                        }
+                        return `<td data-id="${id}" class="${sortBy === id ? 'hi' : ''}">${fmt(value)}</td>`;
+                    }).join('')}
                 </tr>
             `;
         }).join('\n');

@@ -3,6 +3,7 @@
 import os from 'node:os';
 import net from 'node:net';
 import storage from './storage.mjs';
+import * as rpc from './rpc.mjs';
 import sudo from 'sudo-prompt';
 import cap from 'cap';
 import ZwiftPacketMonitor from '@saucellc/zwift-packet-monitor';
@@ -11,35 +12,17 @@ import sauce from '../shared/sauce/index.mjs';
 const athleteCacheLabel = 'athlete-cache';
 
 
-let _acLastTS = 0;
-let _acUpdates = 0;
 async function getAthleteCache() {
     const data = await storage.load(athleteCacheLabel);
-    if (data) {
-        // migrate to new format.
-        for (const [,x] of data) {
-            if (x.name) {
-                if (!x.fullname) {
-                    x.fullname = x.name.join(' ');
-                } else {
-                    // Already migrated
-                    break;
-                }
-            }
-        }
-    }
-    _acLastTS = Date.now();
-    return new Map(data);
+    console.log(data.slice(0, 10));
+    return new Map(data || undefined);
 }
 
 
-async function maybeSaveAthleteCache(data) {
-    if (Date.now() - _acLastTS < 30000 || _acUpdates < 100) {
-        return;
-    }
-    _acLastTS = Date.now();
-    await storage.save(athleteCacheLabel, Array.from(data));
-    _acUpdates = 0;
+let _saveAthleteTimeout;
+function queueSaveAthleteCache(data) {
+    clearTimeout(_saveAthleteTimeout);
+    _saveAthleteTimeout = setTimeout(() => storage.save(athleteCacheLabel, Array.from(data)), 5000);
 }
 
 
@@ -176,6 +159,9 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         this.watching = null;
         this.on('incoming', this.onIncoming);
         this.on('outgoing', this.onOutgoing);
+        rpc.register('updateAthlete', this.updateAthlete.bind(this));
+        rpc.register('startLap', this.startLap.bind(this));
+        rpc.register('resetStats', this.resetStats.bind(this));
     }
 
     maybeLearnAthleteId(packet) {
@@ -187,14 +173,25 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         }
     }
 
+    startLap() {
+        throw new Error("TBD");
+    }
+
+    resetStats() {
+        throw new Error("TBD");
+    }
+
     updateAthlete(id, fName, lName, extra={}) {
         const d = this.athletes.get(id) || {};
+        if (fName && fName.length === 1 && d.name && d.name[0] && d.name[0].length > 1 && d.name[0][0] === fName) {
+            fName = d.name[0];  // Update is just the first initial but we know the full name already.
+        }
         d.name = (fName || lName) ? [fName, lName].filter(x => x) : d.name;
         d.fullname = d.name && d.name.join(' ');
         Object.assign(d, extra);
         this.athletes.set(id, d);
-        _acUpdates++;
-        maybeSaveAthleteCache(this.athletes);  // bg okay
+        queueSaveAthleteCache(this.athletes);
+        return d;
     }
 
     onIncoming(...args) {
