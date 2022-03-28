@@ -7,6 +7,7 @@ const H = L.human;
 
 let settings;
 let zoomedPosition;
+let curGroups;
 const positions = new Map();
 
 
@@ -39,8 +40,10 @@ function getOrCreatePosition(relPos) {
         el.addEventListener('click', ev => {
             if (zoomedPosition == null) {
                 zoomedPosition = Number(ev.currentTarget.style.getPropertyValue('--rel-pos'));
+                renderZoomed(curGroups);
             } else {
                 zoomedPosition = null;
+                renderGroups(curGroups);
             }
         });
     }
@@ -200,6 +203,7 @@ export async function main() {
         if (!groups.length) {
             return;
         }
+        curGroups = groups;
         if (zoomedPosition != null) {
             renderZoomed(groups);
         } else {

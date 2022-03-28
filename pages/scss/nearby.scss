@@ -17,7 +17,7 @@ table {
 
     thead {
         position: sticky;
-        z-index: 100;
+        z-index: 1;
         top: 0;
         background-image: linear-gradient(to bottom, #0f1751, #941a1a);
 
@@ -43,6 +43,27 @@ table {
         padding: 0.2em 0.2em;
         font-variant: tabular-nums;
         cursor: pointer;
+
+        a.avatar {
+            display: inline-block;
+            border: 1px solid #333;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 1.5px solid transparent;
+            transition: border 100ms;
+            vertical-align: middle;
+            margin: -0.4em 0 -0.24em;
+
+            &:hover {
+                border-color: #08ec;
+            }
+
+            img {
+                height: 1.7em;
+                width: 1.7em;
+                object-fit: cover;
+            }
+        }
     }
     td:first-child {
         padding-left: 0.6em;
@@ -70,26 +91,22 @@ table {
     }
 
     td .edit-link {
-        transition: max-width 200ms, margin 200ms;
-        max-width: 0;
-        margin-right: 0;
+        transition: opacity 200ms;
         display: inline-block;
-        overflow: hidden;
 
         &:hover img {
-            opacity: 1;
+            opacity: 1 !important;
         }
 
         img {
-            opacity: 0.7;
+            opacity: 0;
             filter: invert(1);
             height: 0.8em;
         }
     }
 
-    td:hover .edit-link {
-        max-width: 2em;
-        margin-right: 0.2em;
+    tr:hover .edit-link img {
+        opacity: 0.7;
     }
 }
 

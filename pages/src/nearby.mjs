@@ -5,36 +5,45 @@ const L = sauce.locale;
 const H = L.human;
 const num = H.number;
 
+let athleteData = new Map();
+
+
 function spd(v) {
     return v ? `${num(v)}<small>kph</small>` : v == null ? '-' : v;
 }
+
 
 function pwr(v) {
     return v ? `${num(v)}<small>w</small>`: v == null ? '-' : v;
 }
 
+
 function hr(v) {
     return v ? `${num(v)}<small>bpm</small>` : '-';
 }
+
 
 function clearSelection() {
     window.getSelection().empty();
 }
 
 
+function getAthleteValue(x, key) {
+    const a = athleteData.get(x.athleteId);
+    return a && a[key];
+}
+
+
 const fields = [
     {id: 'id', defaultEn: true, label: 'ID', get: x => x.athleteId, fmt: x => x},
-    {
-        id: 'name',
-        defaultEn: true,
-        label: 'Name',
-        get: x => x.athlete && x.athlete.fullname || null,
-        sanitize: true,
-        fmt: x =>
-            `<a class="edit-link" title="Manually edit name"><img src="images/fa/edit-duotone.svg"/></a>` +
-            `<span class="value">${x || '-'}</span>`,
-    },
-    {id: 'weight', defaultEn: true, label: 'Weight', get: x => x.athlete && x.athlete.weight || null, fmt: x => x ? `${x.toFixed(1)}<small>kg</small>` : '-'},
+    {id: 'avatar', defaultEn: true, label: '😎', get: x => getAthleteValue(x, 'avatar'),
+     fmt: x => x ? `<a href="${x}" class="avatar" target="_blank"><img src="${x}"/></a>` : ''},
+    {id: 'name', defaultEn: true, label: 'Name', get: x => getAthleteValue(x, 'fullname'),
+     sanitize: true, fmt: x => x || '-'},
+    {id: 'weight', defaultEn: true, label: 'Weight', get: x => getAthleteValue(x, 'weight'),
+     fmt: x => x ? `${num(x, 1)}<small>kg</small>` : '-'},
+    {id: 'ftp', defaultEn: false, label: 'FTP', get: x => getAthleteValue(x, 'ftp'), fmt: pwr},
+    {id: 'tss', defaultEn: true, label: 'TSS', get: x => x.stats.tss, fmt: num},
 
     {id: 'gap', defaultEn: true, label: 'Gap', get: x => x.gap, fmt: x => `${num(x)}s`},
 
@@ -92,7 +101,7 @@ export function main() {
     const table = document.querySelector('#content table');
     const tbody = table.querySelector('tbody');
     const theadRow = table.querySelector('thead tr');
-    theadRow.innerHTML = enFields.map(x =>
+    theadRow.innerHTML = '<td/>' + enFields.map(x =>
         `<td data-id="${x.id}" class="${sortBy === x.id ? 'hi' : ''}">${x.label}</td>`).join('');
  
     tbody.addEventListener('dblclick', ev => {
@@ -137,29 +146,41 @@ export function main() {
         if (ev.target.closest('.edit-link')) {
             ev.stopPropagation();
             const id = Number(ev.target.closest('tr').dataset.id);
+            const ath = athleteData.get(id) || {};
             const dialog = document.getElementById('edit-name-dialog');
-            const input = dialog.querySelector('input[name="name"]');
-            const value = ev.target.closest('td').querySelector('.value').textContent;
-            input.value = (value && value !== '-') ? value : '';
+            const nameInput = dialog.querySelector('input[name="name"]');
+            nameInput.value = ath.fullname || '';
+            const weightInput = dialog.querySelector('input[name="weight"]');
+            weightInput.value = ath.weight || '';
+            const ftpInput = dialog.querySelector('input[name="ftp"]');
+            ftpInput.value = ath.ftp || '';
+            const avatarInput = dialog.querySelector('input[name="avatar"]');
+            avatarInput.value = ath.avatar || '';
             dialog.addEventListener('close', async ev => {
                 if (dialog.returnValue === 'save') {
-                    const [first, ...lasts] = input.value.split(' ').filter(x => x);
-                    await common.rpc('updateAthlete', id, first, lasts.length ? lasts.join(' ') : null);
+                    const [first, ...lasts] = nameInput.value.split(' ').filter(x => x);
+                    const last = lasts.length ? lasts.join(' ') : null;
+                    const extra = {
+                        weight: Number(weightInput.value) || null,
+                        ftp: Number(ftpInput.value) || null,
+                        avatar: avatarInput.value || null,
+                    };
+                    const updated = await common.rpc('updateAthlete', id, first, last, extra);
+                    athleteData.set(id, updated);
+                    console.log(id, updated);
+                    render();
                 }
             }, {once: true});
             dialog.showModal();
         }
     });
 
-    let pause;
-    document.addEventListener('selectionchange', ev => pause = !!getSelection().toString());
-
     let nextAnimFrame;
     let frames = 0;
     let nearby;
     const sanitizeEl = document.createElement('span');
     function render() {
-        if (!nearby.length || pause || document.hidden) {
+        if (!nearby.length || document.hidden) {
             return;
         }
         const get = enFields.find(x => x.id === sortBy).get;
@@ -184,6 +205,10 @@ export function main() {
             }
             return `
                 <tr data-id="${x.athleteId}" class="${classes.join(' ')}">
+                    <td>
+                        <a class="edit-link" title="Manually edit athlete">
+                        <img src="images/fa/edit-duotone.svg"/></a>
+                    </td>
                     ${enFields.map(({id, get, fmt, sanitize}) => {
                         let value = get(x);
                         if (sanitize && value) {
@@ -215,6 +240,7 @@ export function main() {
     const refresh = (options.refreshInterval || 1) * 1000 - 100; // within 100ms is fine.
     common.subscribe('nearby', _nearby => {
         nearby = _nearby;
+        athleteData = new Map(nearby.filter(x => x.athlete).map(x => [x.athleteId, x.athlete]));
         const elapsed = Date.now() - lastRefresh;
         if (elapsed >= refresh) {
             lastRefresh = Date.now();
