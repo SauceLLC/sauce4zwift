@@ -56,8 +56,9 @@ html {
         box-shadow: 0 0 0 0.4rem var(--rim-color), 0.03rem 0.03rem 0.4rem 0 var(--rim-border-color);
 
         img {
-            max-width: 100%;
-            max-height: 100%;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
         }
     }
 
@@ -67,7 +68,7 @@ html {
 }
 
 .position:not(.hidden) {
-    margin: 0.4em;
+    margin: 0.4rem;  // Match box-shadow of bubble
 }
 
 .position.hidden {
