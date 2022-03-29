@@ -2,8 +2,10 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import storage from './storage.mjs';
 import menu from './menu.mjs';
+import * as rpc from './rpc.mjs';
 import Sentry from '@sentry/node';
 import * as web from './webserver.mjs';
+import sauce from '../shared/sauce/index.mjs';
 import crypto from 'node:crypto';
 import {createRequire} from 'node:module';
 const require = createRequire(import.meta.url);
@@ -11,18 +13,19 @@ const pkg = require('../package.json');
 const {autoUpdater} = require('electron-updater');
 const {app, BrowserWindow, ipcMain, nativeImage, dialog, screen, shell} = require('electron');
 
-Error.stackTraceLimit = 100;
+Error.stackTraceLimit = 50;
 
 // Use non-electron naming for windows updater.
 // https://github.com/electron-userland/electron-builder/issues/2700
 app.setAppUserModelId('io.saucellc.sauce4zwift'); // must match build.appId for windows
-
 
 Sentry.init({
     dsn: "https://df855be3c7174dc89f374ef0efaa6a92@o1166536.ingest.sentry.io/6257001",
     // Sentry changes the uncaught exc behavior to exit the process.  I think that's a bug
     // but this is the only workaround for now.
     integrations: data => data.filter(x => x.name !== 'OnUncaughtException'),
+    beforeSend: sauce.beforeSentrySend,
+    beforeBreadcrumb: sauce.beforeSentryBreadcrumb,
 });
 // No idea, just copied from https://github.com/getsentry/sentry-javascript/issues/1661
 global.process.on('uncaughtException', e => {
@@ -33,6 +36,7 @@ global.process.on('uncaughtException', e => {
     });
 });
 Sentry.setTag('version', pkg.version);
+let sentryAnonId;
 storage.load(`sentry-id`).then(async id => {
     if (!id) {
         // It's just an anonymous value to distinguish errors and feedback
@@ -40,7 +44,11 @@ storage.load(`sentry-id`).then(async id => {
         await storage.save(`sentry-id`, id);
     }
     Sentry.setUser({id});
+    sentryAnonId = id;
 });
+
+rpc.register('getVersion', () => pkg.version);
+rpc.register('getSentryAnonId', () => sentryAnonId);
 
 const WD = path.dirname(fileURLToPath(import.meta.url));
 const PAGES = path.join(WD, '../pages');

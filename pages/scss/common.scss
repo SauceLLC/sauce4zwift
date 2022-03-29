@@ -41,7 +41,6 @@ html, body {
     margin: 0;
     width: 100%;
     height: 100%;
-    font-size: clamp(10px, 7vw, 30px);
     overflow: hidden;
 }
 
@@ -49,12 +48,15 @@ html {
     --aspect-ratio: 9 / 16;
     padding: 3px; /* Required in windows to allow resize handles */
     background-color: rgba(127, 127, 127, 0.002); /* Using full transparency breaks on windows */
-}
-html.use-aspect-ratio {
-    font-size: clamp(10px, 8vw, calc(var(--aspect-ratio) * 8 * 1vh));
-}
-html.browser-mode {
-    background-color: black;
+    font-size: clamp(10px, 7vw, 30px);
+
+    &.use-aspect-ratio {
+        font-size: clamp(10px, 8vw, calc(var(--aspect-ratio) * 8 * 1vh));
+    }
+
+    &.browser-mode {
+        background-color: black;
+    }
 }
 
 #options {

@@ -1,8 +1,12 @@
 /*global Sentry*/
 
-import {sleep} from '../../shared/sauce/base.mjs';
+import {sleep, beforeSentrySend, beforeSentryBreadcrumb} from '../../shared/sauce/base.mjs';
 import './sentry.js';
-Sentry.init({dsn: "https://df855be3c7174dc89f374ef0efaa6a92@o1166536.ingest.sentry.io/6257001"});
+Sentry.init({
+    dsn: "https://df855be3c7174dc89f374ef0efaa6a92@o1166536.ingest.sentry.io/6257001",
+    beforeSend: beforeSentrySend,
+    beforeBreadcrumb: beforeSentryBreadcrumb,
+});
 
 const isElectron = location.protocol === 'file:';
 
@@ -326,4 +330,7 @@ export default {
 };
 
 
-window.rpc = rpc;
+rpc('getVersion').then(v => Sentry.setTag('version', v));
+rpc('getSentryAnonId').then(id => Sentry.setUser({id}));
+
+window.rpc = rpc; // XXX DEBUG

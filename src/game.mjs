@@ -14,7 +14,6 @@ const athleteCacheLabel = 'athlete-cache';
 
 async function getAthleteCache() {
     const data = await storage.load(athleteCacheLabel);
-    console.log(data.slice(0, 10));
     return new Map(data || undefined);
 }
 

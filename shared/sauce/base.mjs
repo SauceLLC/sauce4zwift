@@ -104,10 +104,42 @@ export class LRUCache extends Map {
     }
 }
 
+
+function scrubSensitive(m) {
+    return m && m
+        .replace(/(\/users\/).*?\//i, '$1***/')
+        .replace(/(?:[0-9]{1,3}\.){3}[0-9]{1,3}/, '*.*.*.*');
+}
+
+
+export function beforeSentrySend(event) {
+    if (event.exception && event.exception.values) {
+        for (const exc of event.exception.values) {
+            if (exc.stacktrace && exc.stacktrace.frames) {
+                for (const f of exc.stacktrace.frames) {
+                    if (f.filename) {
+                        f.filename = scrubSensitive(f.filename);
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+export function beforeSentryBreadcrumb(event) {
+    if (event.message) {
+        event.message = scrubSensitive(event.message);
+    }
+}
+
+
 export default {
     sleep,
     debounced,
     formatInputDate,
     blobToArrayBuffer,
     LRUCache,
+    beforeSentrySend,
+    beforeSentryBreadcrumb,
 };

@@ -101,7 +101,7 @@ export function main() {
     const table = document.querySelector('#content table');
     const tbody = table.querySelector('tbody');
     const theadRow = table.querySelector('thead tr');
-    theadRow.innerHTML = '<td/>' + enFields.map(x =>
+    theadRow.innerHTML = '<td></td>' + enFields.map(x =>
         `<td data-id="${x.id}" class="${sortBy === x.id ? 'hi' : ''}">${x.label}</td>`).join('');
  
     tbody.addEventListener('dblclick', ev => {
