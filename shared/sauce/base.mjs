@@ -108,29 +108,47 @@ export class LRUCache extends Map {
 function scrubSensitive(m) {
     return m && m
         .replace(/(\/users\/).*?\//i, '$1***/')
-        .replace(/(?:[0-9]{1,3}\.){3}[0-9]{1,3}/, '*.*.*.*');
+        .replace(/(?:[0-9]{1,3}\.){3}[0-9]{1,3}/, '*.*.*.*')
+        .replace(/http:\/\/.*?:1080\//, 'http://<anonymous>:1080/');
 }
 
 
-export function beforeSentrySend(event) {
-    if (event.exception && event.exception.values) {
-        for (const exc of event.exception.values) {
-            if (exc.stacktrace && exc.stacktrace.frames) {
-                for (const f of exc.stacktrace.frames) {
-                    if (f.filename) {
-                        f.filename = scrubSensitive(f.filename);
+export function beforeSentrySend(result) {
+    try {
+        if (result.exception && result.exception.values) {
+            for (const exc of result.exception.values) {
+                if (exc.stacktrace && exc.stacktrace.frames) {
+                    for (const f of exc.stacktrace.frames) {
+                        if (f.filename) {
+                            f.filename = scrubSensitive(f.filename);
+                        }
                     }
                 }
             }
         }
-    }
-}
-
-
-export function beforeSentryBreadcrumb(event) {
-    if (event.message) {
-        event.message = scrubSensitive(event.message);
-    }
+        if (result.request) {
+            const r = result.request;
+            if (r.url) {
+                r.url = scrubSensitive(r.url);
+            }
+            if (r.headers) {
+                for (const [k, v] of Object.entries(r.headers)) {
+                    r.headers[k] = scrubSensitive(r.headers[k]);
+                }
+            }
+        }
+        if (result.breadcrumbs) {
+            for (const x of result.breadcrumbs) {
+                if (x.message) {
+                    x.message = scrubSensitive(x.message);
+                }
+                if (x.category === 'console' && x.data && x.data.arguments) {
+                    delete x.data.arguments;
+                }
+            }
+        }
+    } catch(e) {/*no-pragma*/}
+    return result;
 }
 
 
@@ -141,5 +159,4 @@ export default {
     blobToArrayBuffer,
     LRUCache,
     beforeSentrySend,
-    beforeSentryBreadcrumb,
 };

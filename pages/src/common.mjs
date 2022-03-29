@@ -1,11 +1,10 @@
 /*global Sentry*/
 
-import {sleep, beforeSentrySend, beforeSentryBreadcrumb} from '../../shared/sauce/base.mjs';
+import {sleep, beforeSentrySend} from '../../shared/sauce/base.mjs';
 import './sentry.js';
 Sentry.init({
     dsn: "https://df855be3c7174dc89f374ef0efaa6a92@o1166536.ingest.sentry.io/6257001",
     beforeSend: beforeSentrySend,
-    beforeBreadcrumb: beforeSentryBreadcrumb,
 });
 
 const isElectron = location.protocol === 'file:';

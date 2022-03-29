@@ -25,7 +25,6 @@ Sentry.init({
     // but this is the only workaround for now.
     integrations: data => data.filter(x => x.name !== 'OnUncaughtException'),
     beforeSend: sauce.beforeSentrySend,
-    beforeBreadcrumb: sauce.beforeSentryBreadcrumb,
 });
 // No idea, just copied from https://github.com/getsentry/sentry-javascript/issues/1661
 global.process.on('uncaughtException', e => {
