@@ -10,10 +10,10 @@ PAGES_SRC := $(shell find pages type f 2>/dev/null)
 
 $(PACKAGES): package.json
 	npm install
-	cat .empty > $@
+	touch $@ || type nul > $@
 
 $(BUILD): $(PAGES_SRC) $(PACKAGES) sass Makefile .git/index
-	cat .empty > $@
+	touch $@ || type nul > $@
 
 run: $(BUILD)
 	npm start
