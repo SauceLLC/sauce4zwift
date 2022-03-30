@@ -11,8 +11,8 @@
     "start": "electron .",
     "start-debug-brk": "electron --inspect-brk .",
     "start-debug": "electron --inspect .",
-    "pack": "electron-builder --dir",
-    "build": "electron-builder build",
+    "unpacked": "electron-builder --dir",
+    "build": "electron-builder build -p never",
     "publish": "electron-builder build -p always",
     "postinstall": "electron-builder install-app-deps"
   },

@@ -28,14 +28,14 @@ lint:
 	$(NPATH)/eslint src pages/src
 	$(NPATH)/eslint --ext .mjs --config .eslintrc.modules.json src shared pages/src
 
-publish: $(BUILD)
-	npm run publish
-
-pack: $(BUILD)
+unpacked: $(BUILD)
 	SKIP_NOTARIZE=1 npm run pack
 
 build: $(BUILD)
 	SKIP_NOTARIZE=1 npm run build
+
+publish: $(BUILD)
+	npm run publish
 
 sass:
 	$(NPATH)/sass pages/scss:pages/css
