@@ -323,13 +323,6 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         return [state.roadId, state.reverse].join();
     }
 
-    attachPeriodRolls(roll) {
-        roll.periods = new Map(this.statPeriods.map(x => [x, {
-            roll: roll.clone({period: x}),
-            peak: {avg: 0, ts:0}
-        }]));
-    }
-
     processState(state, from) {
         state.ts = +worldTimeConv(state._worldTime);
         const prevState = this.states.get(state.athleteId);

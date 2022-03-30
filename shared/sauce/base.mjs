@@ -133,7 +133,7 @@ export function beforeSentrySend(result) {
             }
             if (r.headers) {
                 for (const [k, v] of Object.entries(r.headers)) {
-                    r.headers[k] = scrubSensitive(r.headers[k]);
+                    r.headers[k] = scrubSensitive(v);
                 }
             }
         }
