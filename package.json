@@ -49,6 +49,9 @@
         "repo": "sauce4zwift-releases"
       }
     ],
+    "win": {
+      "certificateFile": "../../Documents/sauce-code-signing-bundle.pfx"
+    },
     "mac": {
       "target": {
         "target": "zip",
