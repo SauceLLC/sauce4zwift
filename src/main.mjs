@@ -216,9 +216,10 @@ async function main() {
     });
     menu.setAppMenu();
     autoUpdater.checkForUpdatesAndNotify().catch(Sentry.captureException);
-    let game;
+    let mon;
     try {
-        game = (await import('./game.mjs')).default;
+        //mon = (await import('./garmin_live_track.mjs')).default;
+        mon = (await import('./game.mjs')).default;
     } catch(e) {
         if (e.message.includes('The specified module could not be found.') &&
             e.message.includes('cap.node')) {
@@ -250,13 +251,13 @@ async function main() {
         }
         return;
     }
-    const monitor = await game.Sauce4ZwiftMonitor.factory();
+    const monitor = await mon.Sauce4ZwiftMonitor.factory();
     try {
         await monitor.start();
     } catch(e) {
         try {
             if (e.message.match(/permission denied/i)) {
-                await game.getCapturePermission();
+                await mon.getCapturePermission();
                 await monitor.start();  // Try once more
             } else {
                 debugger; // Find the error windows throws when pcap is needed.

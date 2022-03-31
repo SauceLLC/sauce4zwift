@@ -22,6 +22,7 @@
     "electron-updater": "4.6.5",
     "express": "4.17.3",
     "express-ws": "5.0.2",
+    "node-fetch": "3.2.3",
     "sudo-prompt": "9.2.1"
   },
   "devDependencies": {
