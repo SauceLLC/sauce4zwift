@@ -1,0 +1,139 @@
+html {
+    --aspect-ratio: 94 / 100;
+}
+
+.entry {
+    display: flex;
+    flex-direction: column;
+    margin: 0.2rem 0.5rem 0;
+    padding: 1rem 0.5rem 0.6rem;
+    position: relative;
+    background-repeat: no-repeat;
+    background-position-x: center;
+    background-origin: content-box;
+
+    &:not(:last-child) {
+        border-bottom: 1px solid #fff9;
+    }
+
+    &:first-child {
+        margin-top: 0.5rem;
+    }
+
+    &:last-child {
+        margin-bottom: 0;
+    }
+
+    &.columns {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    &.no-heading {
+        padding-top: 0.2rem;
+    }
+
+    .sub {
+        font-size: 0.6em;
+    }
+
+    heading {
+        font-size: 0.7rem;
+        font-weight: 500;
+        opacity: 0.88;
+        display: block;
+    }
+
+    > heading {
+        position: absolute;
+        top: 0;
+        left: 0;
+    }
+
+    .primary {
+        position: relative;
+        font-size: 1.65em;
+        font-weight: bold;
+        margin-top: -1.2rem;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        line-height: 1;
+    }
+
+    .fg {
+        z-index: 1;
+    }
+
+    .bg {
+        position: absolute;
+        height: calc(100% + 0.6rem); /* tied to parent margins/pad */
+        right: 0;
+        top: -0.15rem; /* tied to parent margins/pad */
+        display: flex;
+        min-width: 100%;
+        justify-content: center;
+
+        img {
+            height: 100%;
+        }
+    }
+
+    .row {
+        display: flex;
+        align-items: baseline;
+    }
+}
+
+.sub > heading {
+    margin-left: -0.4em;
+    margin-top: -0.3em;
+}
+
+.primary .label {
+    font-size: 0.25em;
+    line-height: 1;
+    margin-top: -0.2em;
+    margin-right: 0.2rem;
+    opacity: 0.82;
+    text-align: right;
+}
+
+.primary .label small {
+    font-size: 0.5em;
+    text-align: right;
+}
+
+.row .key {
+    font-size: 0.60rem;
+    margin-right: 0.3em;
+    min-width: 7ch;
+    opacity: 0.88;
+
+    &::after {
+        content: ':';
+    }
+}
+
+.value {
+    font-variant: tabular-nums;
+}
+
+abbr.unit {
+    margin-left: 0.2em;
+    font-size: 0.55em;
+    opacity: 0.82;
+}
+
+.power {
+    font-size: 1.7em;
+}
+
+.hr {
+    font-size: 1.3em;
+}
+
+.misc {
+    font-size: 1.3em;
+}
