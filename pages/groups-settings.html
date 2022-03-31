@@ -8,21 +8,19 @@
 
         <title>Groups Settings - Sauce for Zwift</title>
 
+        <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
+        <link rel='stylesheet' href="css/common.css"/>
+
         <script type="module">
             import {settingsMain} from './src/groups.mjs';
             document.addEventListener('DOMContentLoaded', settingsMain);
         </script>
-
-        <link rel="manifest" href="groups-manifest.json"/>
-        <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
-
-        <link rel='stylesheet' href="css/common.css"/>
     </head>
     <body>
         <div id="titlebar">
-            <header class="app-drag">Groups Settings</header>
+            <header>Groups Settings</header>
         </div>
-        <div id="content">
+        <div id="settings">
             <form>
                 <label>Groups ahead: <input type="number" min="1" max="10" step="1" name="maxAhead"/></label>
                 <label>Groups behind: <input type="number" min="1" max="10" step="1" name="maxBehind"/></label>

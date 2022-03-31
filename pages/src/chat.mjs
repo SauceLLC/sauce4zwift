@@ -47,8 +47,10 @@ export async function main() {
     common.initInteractionListeners({settingsKey});
     const content = document.querySelector('#content');
     liveDataTask(content);  // bg okay
-    const settings = common.storage.get(settingsKey, {
+    let settings = common.storage.get(settingsKey, {
         cleanup: 120,
+    });
+    document.addEventListener('settings-updated', () => {
     });
 
 

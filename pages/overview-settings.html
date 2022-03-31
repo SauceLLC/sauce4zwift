@@ -8,24 +8,19 @@
 
         <title>Overview Settings - Sauce for Zwift</title>
 
+        <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
+        <link rel='stylesheet' href="css/common.css"/>
+
         <script type="module">
             import {settingsMain} from './src/overview.mjs';
             document.addEventListener('DOMContentLoaded', settingsMain);
         </script>
-
-        <link rel="manifest" href="overview-manifest.json"/>
-        <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
-        <link rel='stylesheet' href="css/common.css"/>
     </head>
     <body>
         <div id="titlebar">
-            <div class="button move app-drag"><img src="images/fa/arrows-alt.svg"/></div>
-            <header class="app-drag">Overview Settings</header>
-            <div class="buttons">
-                <div class="button settings" data-url="overview.html"><img src="images/fa/cog-duotone.svg"/></div>
-            </div>
+            <header>Overview Settings</header>
         </div>
-        <div id="content">
+        <div id="settings">
             <form>
                 <label>Show NP <input type="checkbox" name="show_np"/></label>
             </form>

@@ -285,7 +285,20 @@ const storage = {
             return JSON.parse(v);
         }
     },
-    set: (k, v) => localStorage.setItem(k, JSON.stringify(v)),
+    set: (k, v) => {
+        if (v === undefined) {
+            localStorage.removeItem(k);
+        } else {
+            const json = JSON.stringify(v);
+            if (typeof json !== 'string') {
+                throw new TypeError('Non JSON serializable value');
+            }
+            localStorage.setItem(k, json);
+        }
+    },
+    delete: k => {
+        localStorage.removeItem(k);
+    }
 };
 
 
@@ -346,5 +359,6 @@ export default {
 
 rpc('getVersion').then(v => Sentry.setTag('version', v));
 rpc('getSentryAnonId').then(id => Sentry.setUser({id}));
+rpc('getVersion').then(v => console.warn('version', v))
 
 window.rpc = rpc; // XXX DEBUG

@@ -8,32 +8,17 @@
 
         <title>Nearby Settings - Sauce for Zwift</title>
 
+        <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
+        <link rel='stylesheet' href="css/common.css"/>
+
         <script type="module">
             import {settingsMain} from './src/nearby.mjs';
             document.addEventListener('DOMContentLoaded', settingsMain);
         </script>
-
-        <link rel="manifest" href="nearby-manifest.json"/>
-        <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
-
-        <link rel='stylesheet' href="css/common.css"/>
-
-        <style>
-            html {
-                padding: 0;
-            }
-
-            body {
-                border-radius: 0;
-            }
-        </style>
     </head>
     <body>
         <div id="titlebar">
-            <header class="">Nearby Settings</header>
-            <div class="buttons">
-                <div class="button settings" data-url="nearby.html"><img src="images/fa/cog-duotone.svg"/></div>
-            </div>
+            <header>Nearby Settings</header>
         </div>
         <div id="settings">
             <b>Fields:</b>
