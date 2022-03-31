@@ -4,6 +4,7 @@ import common from './common.mjs';
 const L = sauce.locale;
 const H = L.human;
 const num = H.number;
+const settingsKey = 'nearby-settings-v1';
 
 let athleteData = new Map();
 
@@ -70,25 +71,15 @@ const fields = [
 ];
 
 
-function getOptions() {
-    return common.storage.get('nearby-options', {
+export function main() {
+    common.initInteractionListeners({settingsKey});
+    const settings = common.storage.get(settingsKey, {
         fields: Object.fromEntries(fields.map(x => [x.id, x.defaultEn])),
         autoscroll: true,
         refreshInterval: 1,
     });
-}
-
-
-function setOptions(options) {
-    return common.storage.set('nearby-options', options);
-}
-
-
-export function main() {
-    common.initInteractionListeners();
-    const options = getOptions();
-    document.documentElement.classList.toggle('autoscroll', options.autoscroll);
-    const enFields = fields.filter(x => options.fields[x.id]);
+    document.documentElement.classList.toggle('autoscroll', settings.autoscroll);
+    const enFields = fields.filter(x => settings.fields[x.id]);
     let sortBy = common.storage.get('nearby-sort-by', 'gap');
     const isFieldAvail = !!enFields.find(x => x.id === sortBy);
     if (!isFieldAvail) {
@@ -113,7 +104,7 @@ export function main() {
             if (oldHi) {
                 oldHi.classList.remove('hi');
             }
-            if (options.autoscroll) {
+            if (settings.autoscroll) {
                 row.scrollIntoView({block: 'center'});  // forces smooth
                 setTimeout(() => row.classList.add('hi'), 200); // smooth scroll hack.
             } else {
@@ -226,7 +217,7 @@ export function main() {
         nextAnimFrame = requestAnimationFrame(() => {
             nextAnimFrame = null;
             tbody.innerHTML = html;
-            if (!frames++ && options.autoscroll) {
+            if (!frames++ && settings.autoscroll) {
                 queueMicrotask(() => {
                     const w = document.querySelector('tr.watching');
                     if (w) {
@@ -237,7 +228,7 @@ export function main() {
         });
     }
     let lastRefresh = 0;
-    const refresh = (options.refreshInterval || 1) * 1000 - 100; // within 100ms is fine.
+    const refresh = (settings.refreshInterval || 1) * 1000 - 100; // within 100ms is fine.
     common.subscribe('nearby', _nearby => {
         nearby = _nearby;
         athleteData = new Map(nearby.filter(x => x.athlete).map(x => [x.athleteId, x.athlete]));
@@ -250,18 +241,18 @@ export function main() {
 }
 
 
-export function options() {
+export function settingsMain() {
     common.initInteractionListeners();
-    const options = getOptions();
+    const settings = common.storage.get(settingsKey);
     const form = document.querySelector('form#fields');
     form.addEventListener('input', ev => {
         const id = ev.target.name;
-        options.fields[id] = ev.target.checked;
-        setOptions(options);
+        settings.fields[id] = ev.target.checked;
+        common.storage.set(settingsKey, settings);
     });
     const fieldsHtml = fields.map(x => {
-        return `<label>${x.label}<input type="checkbox" name="${x.id}" ${options.fields[x.id] ? 'checked' : ''}/></label>`;
+        return `<label>${x.label}<input type="checkbox" name="${x.id}" ${settings.fields[x.id] ? 'checked' : ''}/></label>`;
     }).join('');
     form.innerHTML = fieldsHtml;
-    common.initOptionsForm('form#options', 'nearby-options');
+    common.initSettingsForm('form#options', {settingsKey});
 }

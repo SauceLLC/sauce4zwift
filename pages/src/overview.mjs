@@ -3,6 +3,7 @@ import common from './common.mjs';
 
 const L = sauce.locale;
 const H = L.human;
+const settingsKey = 'overview-settings-v1';
 
 
 function shortDuration(x) {
@@ -11,7 +12,7 @@ function shortDuration(x) {
 
 
 export async function main() {
-    common.initInteractionListeners();
+    common.initInteractionListeners({settingsKey});
     const content = document.querySelector('#content');
     const renderer = new common.Renderer(content, {fps: 1});
     renderer.addRotatingFields({
@@ -127,7 +128,7 @@ export async function main() {
 }
 
 
-export function options() {
+export function settingsMain() {
     common.initInteractionListeners();
-    common.initOptionsForm('form', 'overview-options');
+    common.initSettingsForm('form', {settingsKey});
 }

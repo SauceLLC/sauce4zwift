@@ -33,6 +33,7 @@ global.process.on('uncaughtException', e => {
         scope.setLevel('fatal');
         hub.captureException(e, {originalException: e});
     });
+    console.error('Uncaught (but reported)', e);
 });
 Sentry.setTag('version', pkg.version);
 let sentryAnonId;
@@ -125,6 +126,7 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
             resizable: true,
             maximizable: true,
             fullscreenable: true,
+            show: false,
             webPreferences: {
                 nodeIntegration: false,
                 contextIsolation: true,
@@ -132,7 +134,18 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
                 enableRemoteModule: false,
             }
         });
+        const q = new URLSearchParams((new URL(url)).search);
+        const wHint = Number(q.get('widthHint'));
+        const hHint = Number(q.get('heightHint'));
+        if (wHint || hHint) {
+            const {width: sWidth, height: sHeight} = screen.getPrimaryDisplay().size;
+            const width = Math.round(sWidth * (wHint || 0.5));
+            const height = Math.round(sHeight * (hHint || 0.5));
+            newWin.setSize(width, height);
+            newWin.setPosition(Math.round((sWidth - width) / 2), Math.round((sHeight - height) / 2));  // centered
+        }
         newWin.loadURL(url);
+        newWin.show();
     });
     let saveStateTimeout;
     function onPositionUpdate() {
@@ -260,7 +273,6 @@ async function main() {
                 await mon.getCapturePermission();
                 await monitor.start();  // Try once more
             } else {
-                debugger; // Find the error windows throws when pcap is needed.
                 throw e;
             }
         } catch(e) {

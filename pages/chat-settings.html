@@ -1,31 +1,31 @@
 <!DOCTYPE html>
-<html class="options-page">
+<html class="settings-page">
     <head>
         <meta charset="utf-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
         <meta name="apple-mobile-web-app-capable" content="yes"/>
         <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
 
-        <title>Chat Options - Sauce for Zwift</title>
+        <title>Chat Settings - Sauce for Zwift</title>
 
         <link rel="manifest" href="chat-manifest.json"/>
         <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
         <link rel='stylesheet' href="css/common.css"/>
 
         <script type="module">
-            import {options} from './src/chat.mjs';
-            document.addEventListener('DOMContentLoaded', options);
+            import {settingsMain} from './src/chat.mjs';
+            document.addEventListener('DOMContentLoaded', settingsMain);
         </script>
     </head>
     <body>
         <div id="titlebar">
             <div class="button move app-drag"><img src="images/fa/arrows-alt.svg"/></div>
-            <header class="app-drag">Chat Options</header>
+            <header class="app-drag">Chat Settings</header>
             <div class="buttons">
-                <div class="button options" data-url="chat.html"><img src="images/fa/cog-duotone.svg"/></div>
+                <div class="button settings" data-url="chat.html"><img src="images/fa/cog-duotone.svg"/></div>
             </div>
         </div>
-        <div id="options">
+        <div id="settings">
             <form>
                 <label>Message cleanup:<input type="number" min="0" step="1" name="cleanup"/> <small>(seconds)</small></label>
             </form>

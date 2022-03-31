@@ -1,16 +1,16 @@
 <!DOCTYPE html>
-<html class="options-page">
+<html class="settings-page">
     <head>
         <meta charset="utf-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
         <meta name="apple-mobile-web-app-capable" content="yes"/>
         <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
 
-        <title>Nearby Options - Sauce for Zwift</title>
+        <title>Nearby Settings - Sauce for Zwift</title>
 
         <script type="module">
-            import {options} from './src/nearby.mjs';
-            document.addEventListener('DOMContentLoaded', options);
+            import {settingsMain} from './src/nearby.mjs';
+            document.addEventListener('DOMContentLoaded', settingsMain);
         </script>
 
         <link rel="manifest" href="nearby-manifest.json"/>
@@ -30,12 +30,12 @@
     </head>
     <body>
         <div id="titlebar">
-            <header class="">Nearby Options</header>
+            <header class="">Nearby Settings</header>
             <div class="buttons">
-                <div class="button options" data-url="nearby.html"><img src="images/fa/cog-duotone.svg"/></div>
+                <div class="button settings" data-url="nearby.html"><img src="images/fa/cog-duotone.svg"/></div>
             </div>
         </div>
-        <div id="options">
+        <div id="settings">
             <b>Fields:</b>
             <form id="fields"></form>
             <b>General:</b>

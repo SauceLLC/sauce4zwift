@@ -1,16 +1,16 @@
 <!DOCTYPE html>
-<html class="options-page">
+<html class="settings-page">
     <head>
         <meta charset="utf-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
         <meta name="apple-mobile-web-app-capable" content="yes"/>
         <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
 
-        <title>Groups Options - Sauce for Zwift</title>
+        <title>Groups Settings - Sauce for Zwift</title>
 
         <script type="module">
-            import {options} from './src/groups.mjs';
-            document.addEventListener('DOMContentLoaded', options);
+            import {settingsMain} from './src/groups.mjs';
+            document.addEventListener('DOMContentLoaded', settingsMain);
         </script>
 
         <link rel="manifest" href="groups-manifest.json"/>
@@ -20,11 +20,7 @@
     </head>
     <body>
         <div id="titlebar">
-            <div class="button move app-drag"><img src="images/fa/arrows-alt.svg"/></div>
-            <header class="app-drag">Groups Options</header>
-            <div class="buttons">
-                <div class="button options" data-url="groups.html"><img src="images/fa/cog-duotone.svg"/></div>
-            </div>
+            <header class="app-drag">Groups Settings</header>
         </div>
         <div id="content">
             <form>
@@ -40,7 +36,7 @@
                         <option value="power-median">Median Power</option>
                     </select>
                 </label>
-                <label>Groups Secondary Field:
+                <label>Zoomed Secondary Field:
                     <select name="zoomedSecondaryField">
                         <option value="speed">Speed</option>
                         <option value="draft">Draft</option>

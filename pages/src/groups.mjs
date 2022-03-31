@@ -9,7 +9,7 @@ let settings;
 let zoomedPosition;
 let curGroups;
 const positions = new Map();
-const optionsKey = 'groups-options-v2';
+const settingsKey = 'groups-settings-v2';
 
 
 function getOrCreatePosition(relPos) {
@@ -41,14 +41,22 @@ function getOrCreatePosition(relPos) {
         el.addEventListener('click', ev => {
             if (zoomedPosition == null) {
                 zoomedPosition = Number(ev.currentTarget.style.getPropertyValue('--rel-pos'));
-                renderZoomed(curGroups);
             } else {
                 zoomedPosition = null;
-                renderGroups(curGroups);
             }
+            render();
         });
     }
     return positions.get(relPos);
+}
+
+
+function render() {
+    if (zoomedPosition != null) {
+        renderZoomed(curGroups);
+    } else {
+        renderGroups(curGroups);
+    }
 }
 
 
@@ -232,29 +240,29 @@ function renderGroups(groups) {
 
 
 export async function main() {
-    common.initInteractionListeners();
-    settings = common.storage.get(optionsKey, {
+    common.initInteractionListeners({settingsKey});
+    settings = common.storage.get(settingsKey, {
         detectAttacks: true,
         maxAhead: 4,
         maxBehind: 2,
         groupsSecondaryField: 'speed',
         zoomedSecondaryField: 'draft',
     });
+    document.addEventListener('settings-updated', () => {
+        settings = common.storage.get(settingsKey);
+        render();
+    });
     common.subscribe('groups', groups => {
         if (!groups.length) {
             return;
         }
         curGroups = groups;
-        if (zoomedPosition != null) {
-            renderZoomed(groups);
-        } else {
-            renderGroups(groups);
-        }
+        render();
     });
 }
 
 
-export function options() {
+export function settingsMain() {
     common.initInteractionListeners();
-    common.initOptionsForm('form', optionsKey);
+    common.initSettingsForm('form', {settingsKey});
 }

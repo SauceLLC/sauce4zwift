@@ -1,0 +1,96 @@
+html {
+    padding: 0;
+    font-size: clamp(12px, calc(14px + 10vh), 24px);
+}
+
+#content {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    overflow: hidden;
+    flex: 1 1 100%;
+    padding: 0.1em 0.6em;
+}
+
+html:not(:hover) #content .button.move {
+    font-size: 0;
+}
+html:hover #content .button.move {
+    font-size: 1em;
+}
+#content .button.move {
+    padding-top: 0.2em;
+    padding-bottom: 0.2em;
+    padding-right: 0.4em;
+    transition: font-size 200ms;
+    overflow: hidden;
+
+    img {
+        height: 1em;
+        filter: invert(1);
+    }
+}
+
+.fields {
+    margin: 0 2em;
+    display: flex;
+}
+
+.field {
+    margin-right: 1em;
+    display: flex;
+    align-items: center;
+
+    .key {
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+
+        &::after {
+            content: ':';
+        }
+
+        small {
+            padding-left: 0.25em;
+            margin-bottom: 0.1em;
+            font-variant: unicase;
+            font-weight: normal;
+        }
+    }
+
+    .value {
+        font-variant: tabular-nums;
+        margin-left: 0.2em;
+    }
+
+    .unit {
+        margin-left: 0.2em;
+        margin-top: 0.25em;
+        font-size: 0.75em;
+        opacity: 0.82;
+        vertical-align: baseline;
+    }
+}
+
+.controls {
+    flex: 1 0;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+
+    .button img {
+        height: 1.5em;
+        filter: invert(1);
+    }
+
+    .button:not(:last-child) {
+        margin-right: 0.5em;
+    }
+}
+
+html:not(.hidden) .controls .button.show {
+    display: none;
+}
+html.hidden .controls .button.hide {
+    display: none;
+}

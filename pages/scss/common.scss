@@ -14,6 +14,10 @@ img {
     display: block;
 }
 
+a {
+    color: inherit;
+}
+
 *:not(:hover)::-webkit-scrollbar {
     display: none;
 }
@@ -57,9 +61,22 @@ html {
     &.browser-mode {
         background-color: black;
     }
+
+    &.settings-page {
+        padding: 0;
+        font-size: 18px;
+
+        body {
+            border-radius: 0;
+        }
+
+        #content {
+            overflow: auto;
+        }
+    }
 }
 
-#options {
+#settings {
     font-size: 16px;
     padding: 1em;
     overflow: auto;
@@ -88,9 +105,8 @@ input[type="number"] {
     width: 8ch;
 }
 
-label input {
-    margin-left: 0.5em;
-    margin-bottom: 0.5em;
+form label {
+    margin-bottom: 0.4em;
 }
 
 body {
@@ -115,8 +131,8 @@ html:not(.browser-mode):not(:hover) body.transparent-bg {
     background: transparent;
 }
 
-html:not(.options-mode):not(.options-page) #titlebar,
-html.options-mode #hintbar,
+html:not(.settings-mode):not(.settings-page) #titlebar,
+html.settings-mode #hintbar,
 html:not(:hover) #hintbar {
     max-height: 0;
     padding-top: 0;
@@ -144,7 +160,7 @@ html:not(:hover) #hintbar {
     display: flex;
     align-items: center;
 }
-html.options-page #titlebar {
+html.settings-page #titlebar {
     position: relative;
 }
 
@@ -211,7 +227,7 @@ html.options-page #titlebar {
     user-select: none;
 }
 #hintbar span::after {
-    content: 'Right click for options';
+    content: 'Right click for settings';
 }
 
 #content {

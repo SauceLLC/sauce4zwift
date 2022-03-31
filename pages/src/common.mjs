@@ -23,6 +23,7 @@ function makeRPCError(errResp) {
 
 
 if (isElectron) {
+    document.documentElement.classList.add('electron-mode');
     electronTrigger = function(name, data) {
         document.dispatchEvent(new CustomEvent('electron-message', {detail: {name, data}}));
     };
@@ -152,18 +153,18 @@ if (isElectron) {
     };
 }
 
-function initInteractionListeners() {
+function initInteractionListeners(options={}) {
     const html = document.documentElement;
-    if (!html.classList.contains('options-mode')) {
+    if (!html.classList.contains('settings-mode')) {
         window.addEventListener('contextmenu', ev => {
             ev.preventDefault();
-            void html.classList.toggle('options-mode');
+            void html.classList.toggle('settings-mode');
         });
         window.addEventListener('blur', () =>
-            void html.classList.remove('options-mode'));
+            void html.classList.remove('settings-mode'));
         window.addEventListener('click', ev => {
             if (!ev.target.closest('#titlebar')) {
-                html.classList.remove('options-mode');
+                html.classList.remove('settings-mode');
             }
         });
     }
@@ -173,6 +174,16 @@ function initInteractionListeners() {
     }
     for (const el of document.querySelectorAll('.button[data-url]')) {
         el.addEventListener('click', ev => location.assign(el.dataset.url));
+    }
+    for (const el of document.querySelectorAll('.button[data-ext-url]')) {
+        el.addEventListener('click', ev => window.open(el.dataset.extUrl, '_blank', 'popup,width=999,height=333'));
+    }
+    if (options.settingsKey) {
+        window.addEventListener('storage', ev => {
+            if (ev.key === options.settingsKey) {
+                document.dispatchEvent(new Event('settings-updated'));
+            }
+        });
     }
 }
 
@@ -278,11 +289,15 @@ const storage = {
 };
 
 
-function initOptionsForm(selector, optionsKey) {
-    const options = storage.get(optionsKey) || {};
+function initSettingsForm(selector, options={}) {
+    const settingsKey = options.settingsKey;
+    if (!settingsKey) {
+        throw new TypeError('settingsKey required');
+    }
+    const data = storage.get(settingsKey) || {};
     const form = document.querySelector(selector);
     for (const el of form.querySelectorAll('input')) {
-        const val = options[el.name];
+        const val = data[el.name];
         if (el.type === 'checkbox') {
             el.checked = val;
         } else {
@@ -294,24 +309,24 @@ function initOptionsForm(selector, optionsKey) {
                 checkbox: () => el.checked,
             }[el.type]) || (() => el.value || undefined))();
             if (val === undefined) {
-                delete options[el.name];
+                delete data[el.name];
             } else {
-                options[el.name] = val;
+                data[el.name] = val;
             }
-            storage.set(optionsKey, options);
+            storage.set(settingsKey, data);
         });
     }
     for (const el of form.querySelectorAll('select')) {
-        const val = options[el.name];
+        const val = data[el.name];
         el.value = val == null ? '' : val;
         el.addEventListener('change', ev => {
             const val = el.value || undefined;
             if (val === undefined) {
-                delete options[el.name];
+                delete data[el.name];
             } else {
-                options[el.name] = val;
+                data[el.name] = val;
             }
-            storage.set(optionsKey, options);
+            storage.set(settingsKey, data);
         });
     }
 }
@@ -325,7 +340,7 @@ export default {
     initInteractionListeners,
     Renderer,
     storage,
-    initOptionsForm,
+    initSettingsForm,
 };
 
 

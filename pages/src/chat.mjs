@@ -2,6 +2,7 @@ import sauce from '../../shared/sauce/index.mjs';
 import common from './common.mjs';
 
 const nearby = new Map();
+const settingsKey = 'chat-settings-v1';
 
 
 function athleteHue(id) {
@@ -43,10 +44,10 @@ function liveDataFormatter(athlete) {
 
 
 export async function main() {
-    common.initInteractionListeners();
+    common.initInteractionListeners({settingsKey});
     const content = document.querySelector('#content');
     liveDataTask(content);  // bg okay
-    const options = common.storage.get('chat-options', {
+    const settings = common.storage.get(settingsKey, {
         cleanup: 120,
     });
 
@@ -60,7 +61,7 @@ export async function main() {
     function addContentEntry(el) {
         content.appendChild(el);
         const fadeoutTime = 5;
-        const cleanupTime = options.cleanup;
+        const cleanupTime = settings.cleanup;
         el.style.setProperty('--fadeout-time', `${fadeoutTime}s`);
         el.style.setProperty('--cleanup-time', `${cleanupTime}s`);
         void el.offsetLeft; // force layout/reflow so we can trigger animation.
@@ -141,7 +142,7 @@ export async function main() {
 }
 
 
-export function options() {
+export function settingsMain() {
     common.initInteractionListeners();
-    common.initOptionsForm('form', 'chat-options');
+    common.initSettingsForm('form', {settingsKey});
 }
