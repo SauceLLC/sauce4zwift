@@ -2,6 +2,14 @@ html {
     --aspect-ratio: 94 / 100;
 }
 
+#content {
+    > .screen {
+        &.hidden {
+            display: none;
+        }
+    }
+}
+
 .entry {
     display: flex;
     flex-direction: column;
@@ -136,4 +144,15 @@ abbr.unit {
 
 .misc {
     font-size: 1.3em;
+}
+
+#hintbar {
+    .buttons {
+        .button.reset {
+            img {
+                height: 0.9em;
+                margin: 0.15em 0;
+            }
+        }
+    }
 }

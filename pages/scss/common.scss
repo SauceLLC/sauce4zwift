@@ -218,20 +218,58 @@ html.settings-page #titlebar {
     left: 0;
     z-index: 100;
     width: 100%;
-    background-image: linear-gradient(to top, #2228, #3338 0.2rem, #3338);
+    background-image: linear-gradient(to top, #2228, #333c 0.2rem, #333e);
     color: white;
     overflow: hidden;
-    padding: 0.35em;
     font-size: 0.68em;
-    max-height: 1.5em;
+    max-height: 5em;
     transition: max-height 200ms, padding 200ms;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: center;
     user-select: none;
-}
-#hintbar span::after {
-    content: 'Right click for settings';
+
+    .buttons {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex: 1 0 auto;
+        background: #3a00a2;
+        overflow: hidden;
+    }
+
+    .button {
+        padding: 0.7em;
+        flex: 1 1 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        &:hover {
+            background: #0003;
+        }
+
+        &:active {
+            background: #0005;
+            filter: invert(0);
+        }
+
+        img {
+            height: 1.2em;
+            filter: invert(1);
+        }
+    }
+
+    .hint {
+        padding-bottom: 0.16em;
+
+        &::after {
+            content: 'Right click for settings';
+            font-variant: all-small-caps;
+        }
+    }
 }
 
 #content {
