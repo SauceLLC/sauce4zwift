@@ -16,11 +16,16 @@ function shortDuration(x) {
 export async function main() {
     common.initInteractionListeners({settingsKey});
     let lastData;
+    let autoHideTimeout;
     settings = common.storage.get(settingsKey, {
         numFields: 3,
         autoHideWindows: true,
     });
     document.addEventListener('settings-updated', ev => {
+        if (settings.autoHideWindows !== ev.data.autoHideWindows) {
+            location.reload();  // Avoid state machine complications.
+            return;
+        }
         settings = ev.data;
         if (renderer) {
             renderer.stop();
@@ -33,18 +38,44 @@ export async function main() {
         }
     });
     document.querySelector('.button.show').addEventListener('click', () => {
+        autoHidden = false;
         common.electronTrigger('showAllWindows');
-        document.documentElement.classList.toggle('hidden');
+        document.documentElement.classList.remove('hidden', 'auto-hidden');
     });
     document.querySelector('.button.hide').addEventListener('click', () => {
+        autoHidden = false;
         common.electronTrigger('hideAllWindows');
-        document.documentElement.classList.toggle('hidden');
+        document.documentElement.classList.remove('auto-hidden');
+        document.documentElement.classList.add('hidden');
     });
     document.querySelector('.button.quit').addEventListener('click', () => {
         common.electronTrigger('quit');
     });
+
+    let autoHidden;
+    function autoHide() {
+        autoHidden = true;
+        document.documentElement.classList.add('auto-hidden', 'hidden');
+        console.debug("Auto hidding windows");
+        common.electronTrigger('hideAllWindows');
+    }
+    function autoShow() {
+        autoHidden = false;
+        document.documentElement.classList.remove('auto-hidden', 'hidden');
+        console.debug("Auto showing windows");
+        common.electronTrigger('showAllWindows');
+    }
+    const autoHideWait = 2000;
     let lastUpdate = 0;
+    autoHideTimeout = settings.autoHideWindows && setTimeout(autoHide, autoHideWait);
     common.subscribe('watching', watching => {
+        if (settings.autoHideWindows && (watching.speed || watching.cadence || watching.power)) {
+            clearTimeout(autoHideTimeout);
+            if (autoHidden) {
+                autoShow();
+            }
+            autoHideTimeout = setTimeout(autoHide, autoHideWait);
+        }
         lastData = watching;
         renderer.setData(watching);
         const ts = Date.now();
