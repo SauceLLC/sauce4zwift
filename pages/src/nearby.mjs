@@ -5,8 +5,14 @@ const L = sauce.locale;
 const H = L.human;
 const num = H.number;
 const settingsKey = 'nearby-settings-v1';
-
+let settings;
 let athleteData = new Map();
+let nearbyData;
+let hiRow;
+let enFields;
+let sortBy;
+let sortByDir;
+let tbody;
 
 
 function spd(v) {
@@ -73,28 +79,50 @@ const fields = [
 
 export function main() {
     common.initInteractionListeners({settingsKey});
-    const settings = common.storage.get(settingsKey, {
+    let refresh;
+    const setRefresh = () => refresh = (settings.refreshInterval || 1) * 1000 - 100; // within 100ms is fine.
+    document.addEventListener('settings-updated', ev => {
+        settings = ev.data;
+        setRefresh();
+        render();
+        if (nearbyData) {
+            renderData(nearbyData);
+        }
+    });
+    settings = common.storage.get(settingsKey, {
         fields: Object.fromEntries(fields.map(x => [x.id, x.defaultEn])),
         autoscroll: true,
         refreshInterval: 1,
     });
+    render();
+    refresh = setRefresh();
+    let lastRefresh = 0;
+    common.subscribe('nearby', data => {
+        nearbyData = data;
+        athleteData = new Map(data.filter(x => x.athlete).map(x => [x.athleteId, x.athlete]));
+        const elapsed = Date.now() - lastRefresh;
+        if (elapsed >= refresh) {
+            lastRefresh = Date.now();
+            renderData(data);
+        }
+    });
+}
+
+
+function render() {
     document.documentElement.classList.toggle('autoscroll', settings.autoscroll);
-    const enFields = fields.filter(x => settings.fields[x.id]);
-    let sortBy = common.storage.get('nearby-sort-by', 'gap');
+    enFields = fields.filter(x => settings.fields[x.id]);
+    sortBy = common.storage.get('nearby-sort-by', 'gap');
     const isFieldAvail = !!enFields.find(x => x.id === sortBy);
     if (!isFieldAvail) {
         sortBy = enFields[0].id;
     }
-    
-    let sortByDir = common.storage.get('nearby-sort-dir', 1);
-    let hiRow;
-
+    sortByDir = common.storage.get('nearby-sort-dir', 1);
     const table = document.querySelector('#content table');
-    const tbody = table.querySelector('tbody');
+    tbody = table.querySelector('tbody');
     const theadRow = table.querySelector('thead tr');
     theadRow.innerHTML = '<td></td>' + enFields.map(x =>
         `<td data-id="${x.id}" class="${sortBy === x.id ? 'hi' : ''}">${x.label}</td>`).join('');
- 
     tbody.addEventListener('dblclick', ev => {
         const row = ev.target.closest('tr');
         if (row) {
@@ -112,7 +140,6 @@ export function main() {
             }
         }
     });
-
     theadRow.addEventListener('click', ev => {
         const col = ev.target.closest('td');
         if (col) {
@@ -129,10 +156,9 @@ export function main() {
             for (const td of table.querySelectorAll(`td[data-id="${sortBy}"]`)) {
                 td.classList.add('hi');
             }
-            render();
+            renderData(nearbyData);
         }
     });
-
     tbody.addEventListener('click', ev => {
         if (ev.target.closest('.edit-link')) {
             ev.stopPropagation();
@@ -158,84 +184,73 @@ export function main() {
                     };
                     const updated = await common.rpc('updateAthlete', id, first, last, extra);
                     athleteData.set(id, updated);
-                    console.log(id, updated);
-                    render();
+                    console.info(id, updated);
+                    renderData(nearbyData);
                 }
             }, {once: true});
             dialog.showModal();
         }
     });
+}
 
-    let nextAnimFrame;
-    let frames = 0;
-    let nearby;
-    const sanitizeEl = document.createElement('span');
-    function render() {
-        if (!nearby.length || document.hidden) {
-            return;
-        }
-        const get = enFields.find(x => x.id === sortBy).get;
-        nearby.sort((a, b) => {
-            const av = get(a);
-            const bv = get(b);
-            if (av == bv) {
-                return 0;
-            } else if (av == null || bv == null) {
-                return av == null ? 1 : -1;
-            } else {
-                return (av < bv ? 1 : -1) * sortByDir;
-            }
-        });
-        const html = nearby.map(x => {
-            const classes = [];
-            if (x.watching) {
-                classes.push('watching');
-            }
-            if ((x.watching && !hiRow) || x.athleteId === hiRow) {
-                classes.push('hi');
-            }
-            return `
-                <tr data-id="${x.athleteId}" class="${classes.join(' ')}">
-                    <td>
-                        <a class="edit-link" title="Manually edit athlete">
-                        <img src="images/fa/edit-duotone.svg"/></a>
-                    </td>
-                    ${enFields.map(({id, get, fmt, sanitize}) => {
-                        let value = get(x);
-                        if (sanitize && value) {
-                            sanitizeEl.textContent = value;
-                            value = sanitizeEl.innerHTML;
-                        }
-                        return `<td data-id="${id}" class="${sortBy === id ? 'hi' : ''}">${fmt(value)}</td>`;
-                    }).join('')}
-                </tr>
-            `;
-        }).join('\n');
-        if (nextAnimFrame) {
-            cancelAnimationFrame(nextAnimFrame);
-        }
-        nextAnimFrame = requestAnimationFrame(() => {
-            nextAnimFrame = null;
-            tbody.innerHTML = html;
-            if (!frames++ && settings.autoscroll) {
-                queueMicrotask(() => {
-                    const w = document.querySelector('tr.watching');
-                    if (w) {
-                        w.scrollIntoView({block: 'center'});
-                    }
-                });
-            }
-        });
+
+let nextAnimFrame;
+let frames = 0;
+const sanitizeEl = document.createElement('span');
+function renderData(data) {
+    if (!data.length || document.hidden) {
+        return;
     }
-    let lastRefresh = 0;
-    const refresh = (settings.refreshInterval || 1) * 1000 - 100; // within 100ms is fine.
-    common.subscribe('nearby', _nearby => {
-        nearby = _nearby;
-        athleteData = new Map(nearby.filter(x => x.athlete).map(x => [x.athleteId, x.athlete]));
-        const elapsed = Date.now() - lastRefresh;
-        if (elapsed >= refresh) {
-            lastRefresh = Date.now();
-            render();
+    const get = enFields.find(x => x.id === sortBy).get;
+    data.sort((a, b) => {
+        const av = get(a);
+        const bv = get(b);
+        if (av == bv) {
+            return 0;
+        } else if (av == null || bv == null) {
+            return av == null ? 1 : -1;
+        } else {
+            return (av < bv ? 1 : -1) * sortByDir;
+        }
+    });
+    const html = data.map(x => {
+        const classes = [];
+        if (x.watching) {
+            classes.push('watching');
+        }
+        if ((x.watching && !hiRow) || x.athleteId === hiRow) {
+            classes.push('hi');
+        }
+        return `
+            <tr data-id="${x.athleteId}" class="${classes.join(' ')}">
+                <td>
+                    <a class="edit-link" title="Manually edit athlete">
+                    <img src="images/fa/edit-duotone.svg"/></a>
+                </td>
+                ${enFields.map(({id, get, fmt, sanitize}) => {
+                    let value = get(x);
+                    if (sanitize && value) {
+                        sanitizeEl.textContent = value;
+                        value = sanitizeEl.innerHTML;
+                    }
+                    return `<td data-id="${id}" class="${sortBy === id ? 'hi' : ''}">${fmt(value)}</td>`;
+                }).join('')}
+            </tr>
+        `;
+    }).join('\n');
+    if (nextAnimFrame) {
+        cancelAnimationFrame(nextAnimFrame);
+    }
+    nextAnimFrame = requestAnimationFrame(() => {
+        nextAnimFrame = null;
+        tbody.innerHTML = html;
+        if (!frames++ && settings.autoscroll) {
+            queueMicrotask(() => {
+                const w = document.querySelector('tr.watching');
+                if (w) {
+                    w.scrollIntoView({block: 'center'});
+                }
+            });
         }
     });
 }

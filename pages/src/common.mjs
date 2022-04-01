@@ -181,7 +181,9 @@ function initInteractionListeners(options={}) {
     if (options.settingsKey) {
         window.addEventListener('storage', ev => {
             if (ev.key === options.settingsKey) {
-                document.dispatchEvent(new Event('settings-updated'));
+                const event = new Event('settings-updated');
+                event.data = JSON.parse(ev.newValue);
+                document.dispatchEvent(event);
             }
         });
     }
@@ -359,6 +361,5 @@ export default {
 
 rpc('getVersion').then(v => Sentry.setTag('version', v));
 rpc('getSentryAnonId').then(id => Sentry.setUser({id}));
-rpc('getVersion').then(v => console.warn('version', v))
 
 window.rpc = rpc; // XXX DEBUG
