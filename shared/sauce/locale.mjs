@@ -135,6 +135,19 @@ function humanTime(date, options={}) {
 }
 
 
+function humanTimer(elapsed, options={}) {
+    if (!elapsed) {
+        return '-';
+    }
+    const endSlice = options.ms ? 12 : 8;
+    let s = (new Date(elapsed * 1000)).toISOString().substr(11, endSlice);
+    if (!options.full) {
+        s = s.replace(/^00:/, '');
+    }
+    return s;
+}
+
+
 const _intlDateTimeFormats = {
     'long': new Intl.DateTimeFormat([], {
         year: 'numeric', month: 'long', day: 'numeric',
@@ -243,6 +256,7 @@ export default {
         date: humanDate,
         datetime: humanDateTime,
         time: humanTime,
+        timer: humanTimer,
         //stride: humanStride,
     },
 };
