@@ -22,7 +22,9 @@
         </div>
         <div id="settings">
             <form>
-                <label>Show NP <input type="checkbox" name="show_np"/></label>
+                <label>Data fields: <input type="number" min="0" max="10" step="1" name="numFields"/></label>
+                <label title="When no data is detected automatically hide windows"
+                       class="electron-only">Auto hide windows: <input type="checkbox" name="autoHideWindows"/></label>
             </form>
         </div>
     </body>

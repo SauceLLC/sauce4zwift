@@ -4,6 +4,8 @@ import common from './common.mjs';
 const L = sauce.locale;
 const H = L.human;
 const settingsKey = 'overview-settings-v1';
+let settings;
+let renderer;
 
 
 function shortDuration(x) {
@@ -13,19 +15,64 @@ function shortDuration(x) {
 
 export async function main() {
     common.initInteractionListeners({settingsKey});
+    let lastData;
+    settings = common.storage.get(settingsKey, {
+        numFields: 3,
+        autoHideWindows: true,
+    });
+    document.addEventListener('settings-updated', ev => {
+        settings = ev.data;
+        if (renderer) {
+            renderer.stop();
+            renderer = null;
+        }
+        render();
+        if (lastData) {
+            renderer.setData(lastData);
+            renderer.render();
+        }
+    });
+    document.querySelector('.button.show').addEventListener('click', () => {
+        common.electronTrigger('showAllWindows');
+        document.documentElement.classList.toggle('hidden');
+    });
+    document.querySelector('.button.hide').addEventListener('click', () => {
+        common.electronTrigger('hideAllWindows');
+        document.documentElement.classList.toggle('hidden');
+    });
+    document.querySelector('.button.quit').addEventListener('click', () => {
+        common.electronTrigger('quit');
+    });
+    let lastUpdate = 0;
+    common.subscribe('watching', watching => {
+        lastData = watching;
+        renderer.setData(watching);
+        const ts = Date.now();
+        if (ts - lastUpdate > 500) {
+            lastUpdate = ts;
+            renderer.render();
+        }
+    });
+    render();
+}
+
+
+function render() {
+    const fields = document.querySelector('.fields');
+    const mapping = [];
+    fields.innerHTML = '';
+    for (let i = 0; i < settings.numFields; i++) {
+        fields.insertAdjacentHTML('beforeend', `
+            <div class="field" data-field="${i}">
+                <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
+            </div>
+        `);
+        mapping.push({id: i, default: i});
+    }
     const content = document.querySelector('#content');
-    const renderer = new common.Renderer(content, {fps: 1});
+    renderer = new common.Renderer(content, {fps: 1});
     renderer.addRotatingFields({
-        mapping: [{
-            id: 'social',
-            default: 0
-        }, {
-            id: 'energy',
-            default: 1
-        }, {
-            id: 'speed',
-            default: 2
-        }],
+        mapping,
         fields: [{
             value: x => H.number(x.rideons),
             key: () => 'Ride Ons',
@@ -100,30 +147,7 @@ export async function main() {
             value: x => H.number(x.stats.power.peaks[1200].avg),
             key: () => `Peak Power <small>(${shortDuration(1200)})</small>`,
             unit: () => 'w',
-
         }],
-    });
-
-    content.querySelector('.button.show').addEventListener('click', () => {
-        common.electronTrigger('showAllWindows');
-        document.documentElement.classList.toggle('hidden');
-    });
-    content.querySelector('.button.hide').addEventListener('click', () => {
-        common.electronTrigger('hideAllWindows');
-        document.documentElement.classList.toggle('hidden');
-    });
-    content.querySelector('.button.quit').addEventListener('click', () => {
-        common.electronTrigger('quit');
-    });
- 
-    let lastUpdate = 0;
-    common.subscribe('watching', watching => {
-        renderer.setData(watching);
-        const ts = Date.now();
-        if (ts - lastUpdate > 500) {
-            lastUpdate = ts;
-            renderer.render();
-        }
     });
 }
 

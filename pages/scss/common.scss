@@ -10,6 +10,10 @@ html {
     box-sizing: inherit;
 }
 
+html:not(.electron-mode) .electron-only {
+    display: none;
+}
+
 img {
     display: block;
 }
@@ -164,7 +168,7 @@ html.settings-page #titlebar {
     position: relative;
 }
 
-.app-drag {
+.electron-mode .app-drag {
     -webkit-app-region: drag;
     cursor: move !important;
 }

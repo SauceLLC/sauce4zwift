@@ -196,8 +196,14 @@ class Renderer {
         this._callbacks = [];
         this._data;
         this._nextRender;
+        this.stopping = false;
         this.options = options;
         this.page = location.pathname.split('/').at(-1);
+    }
+
+    stop() {
+        this.stopping = true;
+        clearTimeout(this._scheduledRender);
     }
 
     addCallback(cb) {
@@ -261,6 +267,10 @@ class Renderer {
             }
             this._nextRender = new Promise(resolve => {
                 requestAnimationFrame(() => {
+                    if (this.stopping) {
+                        resolve();
+                        return;
+                    }
                     this._lastRender = performance.now();
                     this._nextRender = null;
                     for (const cb of this._callbacks) {
