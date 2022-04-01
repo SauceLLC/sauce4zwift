@@ -56,8 +56,8 @@ function crowDistance(a, b) {
 }
 
 
-function estGap(a, b) {
-    const dist = crowDistance(a, b);
+function estGap(a, b, dist) {
+    dist = dist !== undefined ? dist : crowDistance(a, b);
     return dist / ((a.speed || b.speed || 1) * 1000 / 3600);
 }
 
@@ -150,7 +150,9 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         super(iface);
         this.ip = ip;
         this.setMaxListeners(50);
+        this._startTimes = new Map();
         this._rolls = new Map();
+        this._laps = [this._rolls];
         this._roadHistory = new Map();
         this._roadId;
         this._chatDeDup = [];
@@ -160,6 +162,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         this.on('outgoing', this.onOutgoing);
         rpc.register('updateAthlete', this.updateAthlete.bind(this));
         rpc.register('startLap', this.startLap.bind(this));
+        rpc.register('getLaps', this.getLaps.bind(this));
         rpc.register('resetStats', this.resetStats.bind(this));
     }
 
@@ -173,11 +176,25 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     }
 
     startLap() {
-        throw new Error("TBD");
+        console.debug("User requested lap start");
+        const lap = new Map();
+        this._laps.push(lap);
+        const now = Date.now();
+        for (const x of this._rolls) {
+            x.end = now;
+        }
+        this._rolls = lap;
+    }
+
+    getLaps(athleteId) {
+        athleteId = athleteId || this.watching;
+        return this._laps.map(x => this.getStats(x));
     }
 
     resetStats() {
-        throw new Error("TBD");
+        console.debug("User requested stats reset");
+        this._rolls.clear();
+        this._startTimes.clear();
     }
 
     updateAthlete(id, fName, lName, extra={}) {
@@ -323,8 +340,22 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         return [state.roadId, state.reverse].join();
     }
 
+    getStats(rolls) {
+        const end = rolls.end || Date.now();
+        return {
+            lapTime: (end - rolls.start) / 1000,
+            elapsedTime: (end - this._startTimes.get(rolls.athleteId)) / 1000,
+            power: rolls.power.getStats({np: rolls.power.roll.np({force: true})}),
+            speed: rolls.speed.getStats(),
+            hr: rolls.hr.getStats(),
+            draft: rolls.draft.getStats(),
+            cadence: rolls.cadence.getStats(),
+        };
+    }
+
     processState(state, from) {
         state.ts = +worldTimeConv(state._worldTime);
+        state.joinTime = +worldTimeConv(state._joinTime);
         const prevState = this.states.get(state.athleteId);
         if (prevState && prevState.ts > state.ts) {
             console.warn("Dropping stale packet", state.ts - prevState.ts);
@@ -337,19 +368,26 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         state.heading = headingConv(state._heading);  // degrees
         state.speed = state._speed / 1000000;  // km/h
         state.cadence = state._cadenceUHz ? state._cadenceUHz / 1000000 * 60 : null;  // rpm
+        state.distance = state._distance / 100;  // cm -> meters
         const roadCompletion = state.roadLocation;
         state.roadCompletion = !state.reverse ? 1000000 - roadCompletion : roadCompletion;
         this.states.set(state.athleteId, state);
         if (!this._rolls.has(state.athleteId)) {
             const periods = [5, 30, 60, 300, 1200];
             const ts = state.ts;
+            const now = Date.now();
             this._rolls.set(state.athleteId, {
+                start: now,
+                athleteId: state.athleteId,
                 power: new RollingPeaks(sauce.power.RollingPower, ts, periods),
                 speed: new RollingPeaks(sauce.data.RollingAverage, ts, periods, {ignoreZeros: true}),
                 hr: new RollingPeaks(sauce.data.RollingAverage, ts, periods, {ignoreZeros: true}),
                 cadence: new RollingPeaks(sauce.data.RollingAverage, ts, [], {ignoreZeros: true}),
                 draft: new RollingPeaks(sauce.data.RollingAverage, ts, []),
             });
+            if (!this._startTimes.has(state.athleteId)) {
+                this._startTimes.set(state.athleteId, now);
+            }
         }
         if (!this._roadHistory.has(state.athleteId)) {
             this._roadHistory.set(state.athleteId, {
@@ -390,13 +428,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         if (state.cadence != null) {
             rolls.cadence.add(state.ts, state.cadence);
         }
-        state.stats = {
-            power: rolls.power.getStats({np: rolls.power.roll.np({force: true})}),
-            speed: rolls.speed.getStats(),
-            hr: rolls.hr.getStats(),
-            draft: rolls.draft.getStats(),
-            cadence: rolls.cadence.getStats(),
-        };
+        state.stats = this.getStats(rolls);
         if (this.watching === state.athleteId) {
             this.emit('watching', this.cleanState(state));
         }
@@ -541,10 +573,12 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             const sign = leading ? 1 : -1;
             let gap = this.realGap(watching, x);
             let isGapEst = gap == null;
+            const gapDistance = crowDistance(watching, x);
             if (isGapEst) {
-                gap = estGap(watching, x);
+                gap = estGap(watching, x, gapDistance);
             }
             nearby.push({
+                gapDistance,
                 gap: gap * sign,
                 isGapEst,
                 athlete: this.athletes.get(k),
@@ -620,7 +654,7 @@ async function getCapturePermission() {
         });
     } else {
         await electron.dialog.showErrorBox(
-            'Network capture permission requried to continue',
+            'Network capture permission required to continue',
             'Sauce extends Zwift by capturing the game data sent over the network ' +
             'For MacOS this requires read permission on the "/dev/bpf0" file.'
         );
