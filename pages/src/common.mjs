@@ -197,8 +197,8 @@ class Renderer {
         this._data;
         this._nextRender;
         this.stopping = false;
-        this.options = options;
-        this.page = location.pathname.split('/').at(-1);
+        this.fps = options.fps || 1;
+        this.id = options.id || location.pathname.split('/').at(-1);
     }
 
     stop() {
@@ -221,7 +221,7 @@ class Renderer {
             const labelEl = el.querySelector('.label');
             const keyEl = el.querySelector('.key');
             const unitEl = el.querySelector('.unit');
-            const storageKey = `${this.page}-${x.id}`;
+            const storageKey = `${this.id}-${x.id}`;
             let idx = localStorage.getItem(storageKey) || x.default;
             let f = spec.fields[idx] || spec.fields[0];
             el.addEventListener('click', ev => {
@@ -231,8 +231,8 @@ class Renderer {
                 this.render({force: true});
             });
             this.addCallback(x => {
-                const value = f.value(x);
-                valueEl.innerHTML = value;
+                const value = x !== undefined ? f.value(x) : undefined;
+                valueEl.innerHTML = value != null ? value : '';
                 if (labelEl) {
                     labelEl.innerHTML = f.label ? f.label(x) : '';
                 }
@@ -247,9 +247,9 @@ class Renderer {
     }
 
     render(options={}) {
-        if (!options.force && this.options.fps) {
+        if (!options.force && this.fps) {
             const age = performance.now() - (this._lastRender || -Infinity);
-            const frameTime = 1000 / this.options.fps;
+            const frameTime = 1000 / this.fps;
             if (age < frameTime) {
                 if (!this._scheduledRender) {
                     this._scheduledRender = setTimeout(() => {
@@ -366,6 +366,7 @@ export default {
     Renderer,
     storage,
     initSettingsForm,
+    isElectron,
 };
 
 

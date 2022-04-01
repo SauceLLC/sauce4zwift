@@ -19,7 +19,7 @@ export async function main() {
     let autoHideTimeout;
     settings = common.storage.get(settingsKey, {
         numFields: 3,
-        autoHideWindows: true,
+        autoHideWindows: common.isElectron ? true : false,
     });
     document.addEventListener('settings-updated', ev => {
         if (settings.autoHideWindows !== ev.data.autoHideWindows) {
@@ -34,23 +34,28 @@ export async function main() {
         render();
         if (lastData) {
             renderer.setData(lastData);
-            renderer.render();
         }
+        renderer.render();
     });
     document.querySelector('.button.show').addEventListener('click', () => {
-        autoHidden = false;
-        common.electronTrigger('showAllWindows');
-        document.documentElement.classList.remove('hidden', 'auto-hidden');
+        document.documentElement.classList.remove('hidden');
+        if (common.isElectron) {
+            document.documentElement.classList.remove('auto-hidden');
+            autoHidden = false;
+            common.electronTrigger('showAllWindows');
+        }
     });
     document.querySelector('.button.hide').addEventListener('click', () => {
-        autoHidden = false;
-        common.electronTrigger('hideAllWindows');
-        document.documentElement.classList.remove('auto-hidden');
         document.documentElement.classList.add('hidden');
+        if (common.isElectron) {
+            document.documentElement.classList.remove('auto-hidden');
+            autoHidden = false;
+            common.electronTrigger('hideAllWindows');
+        }
     });
-    document.querySelector('.button.quit').addEventListener('click', () => {
-        common.electronTrigger('quit');
-    });
+    if (common.isElectron) {
+        document.querySelector('.button.quit').addEventListener('click', () => common.electronTrigger('quit'));
+    }
 
     let autoHidden;
     function autoHide() {
@@ -59,17 +64,21 @@ export async function main() {
         console.debug("Auto hidding windows");
         common.electronTrigger('hideAllWindows');
     }
+
     function autoShow() {
         autoHidden = false;
         document.documentElement.classList.remove('auto-hidden', 'hidden');
         console.debug("Auto showing windows");
         common.electronTrigger('showAllWindows');
     }
-    const autoHideWait = 2000;
+
+    const autoHideWait = 2500;
+    if (common.isElectron && settings.autoHideWindows) {
+        autoHideTimeout = setTimeout(autoHide, autoHideWait);
+    }
     let lastUpdate = 0;
-    autoHideTimeout = settings.autoHideWindows && setTimeout(autoHide, autoHideWait);
     common.subscribe('watching', watching => {
-        if (settings.autoHideWindows && (watching.speed || watching.cadence || watching.power)) {
+        if (common.isElectron && settings.autoHideWindows && (watching.speed || watching.cadence || watching.power)) {
             clearTimeout(autoHideTimeout);
             if (autoHidden) {
                 autoShow();
@@ -85,6 +94,7 @@ export async function main() {
         }
     });
     render();
+    renderer.render();
 }
 
 
