@@ -50,7 +50,21 @@ export async function main() {
     let settings = common.storage.get(settingsKey, {
         cleanup: 120,
     });
-    document.addEventListener('settings-updated', () => {
+    const fadeoutTime = 5;
+    content.style.setProperty('--fadeout-time', `${fadeoutTime}s`);
+    if (settings.cleanup) {
+        content.style.setProperty('--cleanup-time', `${settings.cleanup}s`);
+    }
+    document.addEventListener('settings-updated', ev => {
+        settings = ev.data;
+        if (settings.cleanup) {
+            content.style.setProperty('--cleanup-time', `${settings.cleanup}s`);
+        } else {
+            content.style.removeProperty('--cleanup-time');
+        }
+        for (const el of document.querySelectorAll('.entry')) {
+            el._resetCleanup();
+        }
     });
 
 
@@ -62,28 +76,23 @@ export async function main() {
 
     function addContentEntry(el) {
         content.appendChild(el);
-        const fadeoutTime = 5;
-        const cleanupTime = settings.cleanup;
-        el.style.setProperty('--fadeout-time', `${fadeoutTime}s`);
-        el.style.setProperty('--cleanup-time', `${cleanupTime}s`);
         void el.offsetLeft; // force layout/reflow so we can trigger animation.
         el.classList.add('slidein');
         let to;
-        if (cleanupTime) {
-            el._resetCleanup = () => {
-                clearTimeout(to);
-                el.classList.remove('fadeout');
-                void el.offsetLeft; // force layout/reflow so we can trigger animation.
+        el._resetCleanup = () => {
+            clearTimeout(to);
+            el.classList.remove('fadeout');
+            void el.offsetLeft; // force layout/reflow so we can trigger animation.
+            if (settings.cleanup) {
                 el.classList.add('fadeout');
-                to = setTimeout(() => el.remove(), (fadeoutTime + cleanupTime) * 1000);
-            };
-            el._resetCleanup();
-        }
+                to = setTimeout(() => el.remove(), (fadeoutTime + settings.cleanup) * 1000);
+            }
+        };
+        el._resetCleanup();
     }
 
 
     function onChatMessage(chat) {
-        console.debug(chat);
         const lastEntry = getLastEntry();
         if (lastEntry && Number(lastEntry.dataset.from) === chat.from) {
             const chunk = document.createElement('div');
