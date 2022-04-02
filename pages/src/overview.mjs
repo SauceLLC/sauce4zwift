@@ -6,6 +6,8 @@ const H = L.human;
 const settingsKey = 'overview-settings-v1';
 let settings;
 let renderer;
+let imperial = !!common.storage.get('/imperialUnits');
+L.setImperial(imperial);
 
 
 function shortDuration(x) {
@@ -20,6 +22,13 @@ export async function main() {
     settings = common.storage.get(settingsKey, {
         numFields: 3,
         autoHideWindows: common.isElectron ? true : false,
+    });
+    document.addEventListener('global-settings-updated', ev => {
+        if (ev.data.key === '/imperialUnits') {
+            imperial = ev.data.data;
+            L.setImperial(imperial);
+            renderer.render();
+        }
     });
     document.addEventListener('settings-updated', ev => {
         if (settings.autoHideWindows !== ev.data.autoHideWindows) {
@@ -108,13 +117,19 @@ function render() {
                 <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
             </div>
         `);
-        mapping.push({id: i, default: i});
+        mapping.push({id: i, default: i + 1});
     }
     const content = document.querySelector('#content');
-    renderer = new common.Renderer(content, {fps: 1});
+    renderer = new common.Renderer(content);
     renderer.addRotatingFields({
         mapping,
         fields: [{
+            value: x => H.timer(x.stats.lapTime),
+            key: () => 'Lap Time',
+        }, {
+            value: x => H.timer(x.stats.elapsedTime),
+            key: () => 'Time',
+        }, {
             value: x => H.number(x.rideons),
             key: () => 'Ride Ons',
         }, {
@@ -122,17 +137,17 @@ function render() {
             key: () => 'Energy',
             unit: () => 'kJ',
         }, {
-            value: x => H.number(x.stats.speed.avg),
+            value: x => H.pace(x.stats.speed.avg),
             key: () => 'Speed <small>(avg)</small>',
-            unit: () => 'kph',
+            unit: () => imperial ? 'mph' : 'kph',
         }, {
-            value: x => H.number(x.speed),
+            value: x => H.pace(x.speed),
             key: () => 'Speed',
-            unit: () => 'kph',
+            unit: () => imperial ? 'mph' : 'kph',
         }, {
-            value: x => H.number(x.stats.speed.smooth[60]),
+            value: x => H.pace(x.stats.speed.smooth[60]),
             key: () => `Speed <small>(${shortDuration(60)})</small>`,
-            unit: () => 'kph',
+            unit: () => imperial ? 'mph' : 'kph',
         }, {
             value: x => H.number(x.stats.hr.avg),
             key: () => 'HR <small>(avg)</small>',

@@ -184,6 +184,13 @@ function initInteractionListeners(options={}) {
                 const event = new Event('settings-updated');
                 event.data = JSON.parse(ev.newValue);
                 document.dispatchEvent(event);
+            } else if (ev.key.startsWith('/')) {
+                const event = new Event('global-settings-updated');
+                event.data = {
+                    key: ev.key,
+                    data: JSON.parse(ev.newValue)
+                };
+                document.dispatchEvent(event);
             }
         });
     }
@@ -196,6 +203,7 @@ class Renderer {
         this._callbacks = [];
         this._data;
         this._nextRender;
+        this._lastRenderTime = 0;
         this.stopping = false;
         this.fps = options.fps || 1;
         this.id = options.id || location.pathname.split('/').at(-1);
@@ -249,13 +257,13 @@ class Renderer {
     render(options={}) {
         if (!options.force && this.fps) {
             const age = performance.now() - (this._lastRender || -Infinity);
-            const frameTime = 1000 / this.fps;
-            if (age < frameTime) {
+            const minAge = 1000 / this.fps;
+            if (age < minAge - this._lastRenderTime) {
                 if (!this._scheduledRender) {
                     this._scheduledRender = setTimeout(() => {
                         this._scheduledRender = null;
                         this.render();
-                    }, Math.ceil(frameTime - age));
+                    }, Math.ceil(minAge - age));
                 }
                 return;
             }
@@ -266,16 +274,23 @@ class Renderer {
                 this._scheduledRender = null;
             }
             this._nextRender = new Promise(resolve => {
+                const start = performance.now();
                 requestAnimationFrame(() => {
                     if (this.stopping) {
                         resolve();
                         return;
                     }
-                    this._lastRender = performance.now();
-                    this._nextRender = null;
                     for (const cb of this._callbacks) {
-                        cb(this._data);
+                        try {
+                            cb(this._data);
+                        } catch(e) {
+                            console.error(e);
+                            Sentry.captureException(e);
+                        }
                     }
+                    this._lastRender = performance.now();
+                    this._lastRenderTime = this._lastRender - start;
+                    this._nextRender = null;
                     resolve();
                 });
             });
@@ -322,7 +337,9 @@ function initSettingsForm(selector, options={}) {
     const data = storage.get(settingsKey) || {};
     const form = document.querySelector(selector);
     for (const el of form.querySelectorAll('input')) {
-        const val = data[el.name];
+        const isGlobal = el.name.startsWith('/');
+        const name = el.name;
+        const val = isGlobal ? storage.get(name) : data[name];
         if (el.type === 'checkbox') {
             el.checked = val;
         } else {
@@ -333,25 +350,43 @@ function initSettingsForm(selector, options={}) {
                 number: () => el.value ? Number(el.value) : undefined,
                 checkbox: () => el.checked,
             }[el.type]) || (() => el.value || undefined))();
-            if (val === undefined) {
-                delete data[el.name];
+            if (isGlobal) {
+                if (val === undefined) {
+                    storage.delete(name);
+                } else {
+                    storage.set(name, val);
+                }
             } else {
-                data[el.name] = val;
+                if (val === undefined) {
+                    delete data[name];
+                } else {
+                    data[name] = val;
+                }
+                storage.set(settingsKey, data);
             }
-            storage.set(settingsKey, data);
         });
     }
     for (const el of form.querySelectorAll('select')) {
-        const val = data[el.name];
+        const isGlobal = el.name.startsWith('/');
+        const name = el.name;
+        const val = isGlobal ? storage.get(name) : data[name];
         el.value = val == null ? '' : val;
         el.addEventListener('change', ev => {
             const val = el.value || undefined;
-            if (val === undefined) {
-                delete data[el.name];
+            if (isGlobal) {
+                if (val === undefined) {
+                    storage.delete(name);
+                } else {
+                    storage.set(name, val);
+                }
             } else {
-                data[el.name] = val;
+                if (val === undefined) {
+                    delete data[name];
+                } else {
+                    data[name] = val;
+                }
+                storage.set(settingsKey, data);
             }
-            storage.set(settingsKey, data);
         });
     }
 }

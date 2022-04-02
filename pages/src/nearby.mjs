@@ -5,6 +5,8 @@ const L = sauce.locale;
 const H = L.human;
 const num = H.number;
 const settingsKey = 'nearby-settings-v1';
+let imperial = common.storage.get('/imperialUnits');
+L.setImperial(imperial);
 let settings;
 let athleteData = new Map();
 let nearbyData;
@@ -16,7 +18,14 @@ let tbody;
 
 
 function spd(v) {
-    return v ? `${num(v)}<small>kph</small>` : v == null ? '-' : v;
+    const unit = imperial ? 'mph' : 'kph';
+    return v ? `${H.pace(v, {precision: 0})}<small>${unit}</small>` : v == null ? '-' : v;
+}
+
+
+function weight(kg) {
+    const unit = imperial ? 'lbs' : 'kg';
+    return kg ? `${H.weight(kg)}<small>${unit}</small>` : kg == null ? '-' : kg;
 }
 
 
@@ -48,7 +57,7 @@ const fields = [
     {id: 'name', defaultEn: true, label: 'Name', get: x => getAthleteValue(x, 'fullname'),
      sanitize: true, fmt: x => x || '-'},
     {id: 'weight', defaultEn: true, label: 'Weight', get: x => getAthleteValue(x, 'weight'),
-     fmt: x => x ? `${num(x, 1)}<small>kg</small>` : '-'},
+     fmt: weight},
     {id: 'ftp', defaultEn: false, label: 'FTP', get: x => getAthleteValue(x, 'ftp'), fmt: pwr},
     {id: 'tss', defaultEn: true, label: 'TSS', get: x => x.stats.tss, fmt: num},
 
@@ -87,6 +96,11 @@ export function main() {
         render();
         if (nearbyData) {
             renderData(nearbyData);
+        }
+    });
+    document.addEventListener('global-settings-updated', ev => {
+        if (ev.data.key === '/imperialUnits') {
+            L.setImperial(imperial = ev.data.data);
         }
     });
     settings = common.storage.get(settingsKey, {

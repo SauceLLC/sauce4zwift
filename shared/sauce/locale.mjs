@@ -1,5 +1,13 @@
 
-//const metersPerMile = 1609.344;
+let imperial = false;
+function setImperial(en) {
+    imperial = en;
+}
+
+
+const metersPerMile = 1609.344;
+const metersPerFoot = 0.3048;
+const kgsPerLbs = 2.20462;
 
 const hdUnits = {
     year: 'year',
@@ -64,7 +72,7 @@ function humanDuration(elapsed, options={}) {
             const suffix = options.html ? `<abbr class="unit">${unit}</abbr>` : unit;
             let val;
             if (options.digits && units[units.length - 1][1] === period) {
-                val = humanNumber(elapsed / period, options.digits);
+                val = humanNumber(elapsed / period, {precision: options.digits});
             } else {
                 val = humanNumber(Math.floor(elapsed / period));
             }
@@ -95,11 +103,6 @@ function humanRelTime(date, options={}) {
             return hdUnits.now;
         }
     }
-}
-
-
-function humanWeight(kg) {
-    return humanNumber(kg, 1);
 }
 
 
@@ -136,9 +139,7 @@ function humanTime(date, options={}) {
 
 
 function humanTimer(elapsed, options={}) {
-    if (!elapsed) {
-        return '-';
-    }
+    elapsed = elapsed || 0;
     const endSlice = options.ms ? 12 : 8;
     let s = (new Date(elapsed * 1000)).toISOString().substr(11, endSlice);
     if (!options.full) {
@@ -197,8 +198,10 @@ function humanDayOfWeek(sunOfft, options={}) {
 }
 
 
-
-function humanNumber(value, precision=0) {
+function humanNumber(value, options={}) {
+    if (typeof options === 'number') {
+        throw new TypeError("Legacy humanNumber usage");
+    }
     if (value == null || value === '') {
         return '-';
     }
@@ -206,25 +209,56 @@ function humanNumber(value, precision=0) {
     if (isNaN(n)) {
         return '-';
     }
-    if (precision === null) {
+    const prec = options.precision;
+    if (prec === null) {
         return n.toLocaleString();
-    } else if (precision === 0) {
+    } else if (!prec) {
         return Math.round(n).toLocaleString();
     } else {
-        return Number(n.toFixed(precision)).toLocaleString();
+        if (options.fixed) {
+            const fmtr = new Intl.NumberFormat(undefined, {
+                maximumFractionDigits: prec,
+                minimumFractionDigits: prec
+            });
+            return fmtr.format(n);
+        } else {
+            // Will convert 1.0 -> 1
+            return Number(n.toFixed(prec)).toLocaleString();
+        }
     }
 }
 
 
+function humanPace(kph, options={}) {
+    return humanNumber(imperial ? kph * 1000 / metersPerMile : kph,
+        {fixed: true, precision: 1, ...options});
+}
+
+
+function humanDistance(meters, options={}) {
+    return humanNumber(imperial ? meters / metersPerMile : meters / 1000,
+        {fixed: true, precision: 1, ...options});
+}
+
+
+function humanWeight(kg, options={}) {
+    return humanNumber(imperial ? kg * kgsPerLbs : kg,
+        {precision: 1, ...options});
+}
+
+
+function humanElevation(meters, options={}) {
+    return humanNumber(imperial ? meters * metersPerFoot : meters, options);
+}
+
+
 function weightUnconvert(localeWeight) {
-    throw new Error("TBD");
-    //return ns.weightFormatter.unitSystem === 'metric' ? localeWeight : localeWeight / 2.20462;
+    return imperial ? localeWeight / kgsPerLbs : localeWeight;
 }
 
 
 function elevationUnconvert(localeEl) {
-    throw new Error("TBD");
-    //return ns.elevationFormatter.unitSystem === 'metric' ? localeEl : localeEl * 0.3048;
+    return imperial ? localeEl * metersPerFoot : localeEl;
 }
 
 
@@ -234,12 +268,12 @@ function velocityUnconvert(localeV, options={}) {
 
 
 function distanceUnconvert(localeDist) {
-    throw new Error("TBD");
-    //return ns.distanceFormatter.unitSystem === 'metric' ? localeDist * 1000 : localeDist * metersPerMile;
+    return imperial ? localeDist * metersPerMile : localeDist * 1000;
 }
 
 
 export default {
+    setImperial,
     weightUnconvert,
     elevationUnconvert,
     velocityUnconvert,
@@ -248,11 +282,11 @@ export default {
         duration: humanDuration,
         relTime: humanRelTime,
         weight: humanWeight,
-        //elevation: humanElevation,
+        elevation: humanElevation,
         number: humanNumber,
-        //pace: humanPace,
+        pace: humanPace,
+        distance: humanDistance,
         dayOfWeek: humanDayOfWeek,
-        //distance: humanDistance,
         date: humanDate,
         datetime: humanDateTime,
         time: humanTime,

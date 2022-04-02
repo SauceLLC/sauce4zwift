@@ -3,13 +3,13 @@ import common from './common.mjs';
 
 const L = sauce.locale;
 const H = L.human;
-
-
+const positions = new Map();
+const settingsKey = 'groups-settings-v2';
+let imperial = common.storage.get('/imperialUnits');
+L.setImperial(imperial);
 let settings;
 let zoomedPosition;
 let curGroups;
-const positions = new Map();
-const settingsKey = 'groups-settings-v2';
 
 
 function getOrCreatePosition(relPos) {
@@ -123,7 +123,8 @@ function renderZoomed(groups) {
             }
         } else if (minorField === 'speed') {
             if (athlete.speed != null) {
-                lines.push(`<div class="line minor">${H.number(athlete.speed)}<small>kph</small></div>`);
+                const unit = imperial ? 'mph' : 'kph';
+                lines.push(`<div class="line minor">${H.pace(athlete.speed, {precision: 0})}<small>${unit}</small></div>`);
             }
         } else if (minorField === 'power-60s') {
             const p = athlete.stats.power.smooth[60];
@@ -207,7 +208,8 @@ function renderGroups(groups) {
             }
         } else if (minorField === 'speed') {
             if (group.speed != null) {
-                lines.push(`<div class="line minor">${H.number(group.speed)}<small>kph</small></div>`);
+                const unit = imperial ? 'mph' : 'kph';
+                lines.push(`<div class="line minor">${H.pace(group.speed, {precision: 0})}<small>${unit}</small></div>`);
             }
         } else if (minorField === 'power-highest') {
             const highest = sauce.data.max(group.athletes.map(x => x.power));
@@ -251,6 +253,11 @@ export async function main() {
     document.addEventListener('settings-updated', () => {
         settings = common.storage.get(settingsKey);
         render();
+    });
+    document.addEventListener('global-settings-updated', ev => {
+        if (ev.data.key === '/imperialUnits') {
+            L.setImperial(imperial = ev.data.data);
+        }
     });
     common.subscribe('groups', groups => {
         if (!groups.length) {
