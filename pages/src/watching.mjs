@@ -66,11 +66,14 @@ export async function main() {
     const content = document.querySelector('#content');
     const renderers = [];
     const screenTpl = document.querySelector('template#screen');
-    for (let i = 0; i < settings.numScreens; i++) {
+    let curScreen;
+    for (let i = 1; i <= settings.numScreens; i++) {
         const screen = screenTpl.content.cloneNode(true).querySelector('.screen');
         screen.dataset.id = i;
-        if (i !== 0) {
+        if (i !== 1) {
             screen.classList.add('hidden');
+        } else {
+            curScreen = screen;
         }
         content.appendChild(screen);
         const renderer = new common.Renderer(screen, {id: `watching-screen-${i}`, fps: 2});
@@ -183,9 +186,29 @@ export async function main() {
             draftAvgEl.textContent = H.number(stats.draft.avg);
         });
     }
-    document.querySelector('.buttons .button.prev-screen').addEventListener('click', ev => {
+    const prevBtn = document.querySelector('.buttons .button.prev-screen');
+    const nextBtn = document.querySelector('.buttons .button.next-screen');
+    prevBtn.classList.add('disabled');
+    if (settings.numScreens === 1) {
+        nextBtn.setAttribute('disabled', 'disabled');
+    }
+    prevBtn.addEventListener('click', ev => {
+        curScreen.classList.add('hidden');
+        curScreen = curScreen.previousElementSibling;
+        curScreen.classList.remove('hidden');
+        nextBtn.classList.remove('disabled');
+        if (Number(curScreen.dataset.id) === 1) {
+            prevBtn.classList.add('disabled');
+        }
     });
-    document.querySelector('.buttons .button.next-screen').addEventListener('click', ev => {
+    nextBtn.addEventListener('click', ev => {
+        curScreen.classList.add('hidden');
+        curScreen = curScreen.nextElementSibling;
+        curScreen.classList.remove('hidden');
+        prevBtn.classList.remove('disabled');
+        if (settings.numScreens === Number(curScreen.dataset.id)) {
+            nextBtn.classList.add('disabled');
+        }
     });
     document.querySelector('.buttons .button.reset').addEventListener('click', ev => {
         common.rpc('resetStats');
@@ -202,7 +225,6 @@ export async function main() {
     document.addEventListener('settings-updated', ev => {
         location.reload();
     });
-
     let athleteId;
     common.subscribe('watching', watching => {
         const force = watching.athleteId !== athleteId;

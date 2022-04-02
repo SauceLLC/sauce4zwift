@@ -148,10 +148,17 @@ abbr.unit {
 
 #hintbar {
     .buttons {
-        .button.reset {
-            img {
-                height: 0.9em;
-                margin: 0.15em 0;
+        .button {
+            &.disabled {
+                pointer-events: none;
+                opacity: 0.2;
+            }
+
+            &.reset {
+                img {
+                    height: 0.9em;
+                    margin: 0.15em 0;
+                }
             }
         }
     }
