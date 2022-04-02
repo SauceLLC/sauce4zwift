@@ -63,9 +63,9 @@ function estGap(a, b, dist) {
 
 
 class RollingPeaks {
-    constructor(Klass, firstTS, periods, options={}) {
+    constructor(Klass, periods, options={}) {
         const defOptions = {idealGap: 0.200, maxGap: 10, active: true};
-        this._firstTS = firstTS;
+        this._firstTS = null;
         this.roll = new Klass(null, {...defOptions, ...options});
         this.periodized = new Map(periods.map(period => [period, {
             roll: this.roll.clone({period}),
@@ -77,6 +77,9 @@ class RollingPeaks {
     add(ts, value) {
         // XXX Perhaps we should have a aggregation buffer here so
         // we don't accumulate a bunch of repetitive data.
+        if (this._firstTS === null) {
+            this._firstTS = ts;
+        }
         const time = (ts - this._firstTS) / 1000;
         this.roll.add(time, value);
         if (value > this.max) {
@@ -150,9 +153,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         super(iface);
         this.ip = ip;
         this.setMaxListeners(50);
-        this._startTimes = new Map();
         this._rolls = new Map();
-        this._laps = [this._rolls];
         this._roadHistory = new Map();
         this._roadId;
         this._chatDeDup = [];
@@ -177,24 +178,23 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
 
     startLap() {
         console.debug("User requested lap start");
-        const lap = new Map();
-        this._laps.push(lap);
         const now = Date.now();
-        for (const x of this._rolls) {
-            x.end = now;
+        for (const roll of this._rolls.values()) {
+            roll.laps.at(-1).end = now;
+            roll.laps.push({
+                start: now,
+                ...this.makeRollingPeaks()
+            });
         }
-        this._rolls = lap;
     }
 
     getLaps(athleteId) {
-        athleteId = athleteId || this.watching;
-        return this._laps.map(x => this.getStats(x));
+        throw new Error("RETHINK XXX");
     }
 
     resetStats() {
         console.debug("User requested stats reset");
         this._rolls.clear();
-        this._startTimes.clear();
     }
 
     updateAthlete(id, fName, lName, extra={}) {
@@ -343,13 +343,23 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     getStats(rolls) {
         const end = rolls.end || Date.now();
         return {
-            lapTime: (end - rolls.start) / 1000,
-            elapsedTime: (end - this._startTimes.get(rolls.athleteId)) / 1000,
+            elapsed: (end - rolls.start) / 1000,
             power: rolls.power.getStats({np: rolls.power.roll.np({force: true})}),
             speed: rolls.speed.getStats(),
             hr: rolls.hr.getStats(),
             draft: rolls.draft.getStats(),
             cadence: rolls.cadence.getStats(),
+        };
+    }
+
+    makeRollingPeaks() {
+        const periods = [5, 30, 60, 300, 1200];
+        return {
+            power: new RollingPeaks(sauce.power.RollingPower, periods),
+            speed: new RollingPeaks(sauce.data.RollingAverage, periods, {ignoreZeros: true}),
+            hr: new RollingPeaks(sauce.data.RollingAverage, periods, {ignoreZeros: true}),
+            cadence: new RollingPeaks(sauce.data.RollingAverage, [], {ignoreZeros: true}),
+            draft: new RollingPeaks(sauce.data.RollingAverage, []),
         };
     }
 
@@ -373,21 +383,14 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         state.roadCompletion = !state.reverse ? 1000000 - roadCompletion : roadCompletion;
         this.states.set(state.athleteId, state);
         if (!this._rolls.has(state.athleteId)) {
-            const periods = [5, 30, 60, 300, 1200];
-            const ts = state.ts;
-            const now = Date.now();
+            const rollingPeaks = this.makeRollingPeaks();
+            const start = Date.now();
             this._rolls.set(state.athleteId, {
-                start: now,
+                start,
                 athleteId: state.athleteId,
-                power: new RollingPeaks(sauce.power.RollingPower, ts, periods),
-                speed: new RollingPeaks(sauce.data.RollingAverage, ts, periods, {ignoreZeros: true}),
-                hr: new RollingPeaks(sauce.data.RollingAverage, ts, periods, {ignoreZeros: true}),
-                cadence: new RollingPeaks(sauce.data.RollingAverage, ts, [], {ignoreZeros: true}),
-                draft: new RollingPeaks(sauce.data.RollingAverage, ts, []),
+                laps: [{start, ...rollingPeaks}],
+                ...rollingPeaks,
             });
-            if (!this._startTimes.has(state.athleteId)) {
-                this._startTimes.set(state.athleteId, now);
-            }
         }
         if (!this._roadHistory.has(state.athleteId)) {
             this._roadHistory.set(state.athleteId, {
@@ -413,22 +416,29 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         }
         roadLoc.timeline.push({ts: state.ts, roadCompletion: state.roadCompletion});
         const rolls = this._rolls.get(state.athleteId);
+        const curLap = rolls.laps.at(-1);
         if (state.power != null) {
             rolls.power.add(state.ts, state.power);
+            curLap.power.add(state.ts, state.power);
         }
         if (state.speed != null) {
             rolls.speed.add(state.ts, state.speed);
+            curLap.speed.add(state.ts, state.speed);
         }
         if (state.heartrate != null) {
             rolls.hr.add(state.ts, state.heartrate);
+            curLap.hr.add(state.ts, state.heartrate);
         }
         if (state.draft != null) {
             rolls.draft.add(state.ts, state.draft);
+            curLap.draft.add(state.ts, state.draft);
         }
         if (state.cadence != null) {
             rolls.cadence.add(state.ts, state.cadence);
+            curLap.cadence.add(state.ts, state.cadence);
         }
         state.stats = this.getStats(rolls);
+        state.laps = rolls.laps.map(x => this.getStats(x));
         if (this.watching === state.athleteId) {
             this.emit('watching', this.cleanState(state));
         }

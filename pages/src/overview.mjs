@@ -124,10 +124,10 @@ function render() {
     renderer.addRotatingFields({
         mapping,
         fields: [{
-            value: x => H.timer(x.stats.lapTime),
+            value: x => H.timer(x.laps.at(-1).elapsed),
             key: () => 'Lap Time',
         }, {
-            value: x => H.timer(x.stats.elapsedTime),
+            value: x => H.timer(x.stats.elapsed),
             key: () => 'Time',
         }, {
             value: x => H.number(x.rideons),
