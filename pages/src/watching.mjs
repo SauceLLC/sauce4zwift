@@ -3,7 +3,7 @@ import common from './common.mjs';
 
 const L = sauce.locale;
 const H = L.human;
-const settingsKey = 'watching-settings-v1';
+const settingsKey = 'watching-settings-v2';
 let settings;
 let imperial = !!common.storage.get('/imperialUnits');
 L.setImperial(imperial);
@@ -62,6 +62,7 @@ export async function main() {
     common.initInteractionListeners({settingsKey});
     settings = common.storage.get(settingsKey, {
         numScreens: 2,
+        lockedFields: false,
     });
     const content = document.querySelector('#content');
     const renderers = [];
@@ -76,7 +77,11 @@ export async function main() {
             curScreen = screen;
         }
         content.appendChild(screen);
-        const renderer = new common.Renderer(screen, {id: `watching-screen-${i}`, fps: 2});
+        const renderer = new common.Renderer(screen, {
+            id: `watching-screen-${i}`,
+            fps: 2,
+            locked: settings.lockedFields,
+        });
         renderers.push(renderer);
         renderer.addRotatingFields({
             mapping: [{
@@ -190,7 +195,7 @@ export async function main() {
     const nextBtn = document.querySelector('.buttons .button.next-screen');
     prevBtn.classList.add('disabled');
     if (settings.numScreens === 1) {
-        nextBtn.setAttribute('disabled', 'disabled');
+        nextBtn.classList.add('disabled');
     }
     prevBtn.addEventListener('click', ev => {
         curScreen.classList.add('hidden');

@@ -204,9 +204,14 @@ class Renderer {
         this._data;
         this._nextRender;
         this._lastRenderTime = 0;
+        this.locked = !!options.locked;
         this.stopping = false;
         this.fps = options.fps || 1;
         this.id = options.id || location.pathname.split('/').at(-1);
+    }
+
+    setLocked(locked) {
+        this.locked = locked;
     }
 
     stop() {
@@ -233,6 +238,9 @@ class Renderer {
             let idx = localStorage.getItem(storageKey) || x.default;
             let f = spec.fields[idx] || spec.fields[0];
             el.addEventListener('click', ev => {
+                if (this.locked) {
+                    return;
+                }
                 idx = (spec.fields.indexOf(f) + 1) % spec.fields.length;
                 localStorage.setItem(storageKey, idx);
                 f = spec.fields[idx];
