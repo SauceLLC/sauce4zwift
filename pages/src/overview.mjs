@@ -208,7 +208,8 @@ function render() {
 }
 
 
-export function settingsMain() {
+export async function settingsMain() {
     common.initInteractionListeners();
-    common.initSettingsForm('form', {settingsKey});
+    const version = await common.rpc('getVersion');
+    common.initSettingsForm('form', {settingsKey, extraData: {version}});
 }

@@ -22,10 +22,20 @@
         </div>
         <div id="settings">
             <form>
-                <label>Groups ahead: <input type="number" min="1" max="10" step="1" name="maxAhead"/></label>
-                <label>Groups behind: <input type="number" min="1" max="10" step="1" name="maxBehind"/></label>
-                <label>Detect attacks: <input type="checkbox" name="detectAttacks"/></label>
-                <label>Groups Secondary Field:
+                <label>
+                    <key>Groups ahead:</key>
+                    <input type="number" min="1" max="10" step="1" name="maxAhead"/>
+                </label>
+                <label>
+                    <key>Groups behind:</key>
+                    <input type="number" min="1" max="10" step="1" name="maxBehind"/>
+                </label>
+                <label>
+                    <key>Detect attacks:</key>
+                    <input type="checkbox" name="detectAttacks"/>
+                </label>
+                <label>
+                    <key>Extra groups field:</key>
                     <select name="groupsSecondaryField">
                         <option value="speed">Speed</option>
                         <option value="draft">Draft</option>
@@ -34,7 +44,7 @@
                         <option value="power-median">Median Power</option>
                     </select>
                 </label>
-                <label>Zoomed Secondary Field:
+                <label><key>Extra zoomed field:</key>
                     <select name="zoomedSecondaryField">
                         <option value="speed">Speed</option>
                         <option value="draft">Draft</option>

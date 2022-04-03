@@ -279,9 +279,12 @@ export function settingsMain() {
         settings.fields[id] = ev.target.checked;
         common.storage.set(settingsKey, settings);
     });
-    const fieldsHtml = fields.map(x => {
-        return `<label>${x.label}<input type="checkbox" name="${x.id}" ${settings.fields[x.id] ? 'checked' : ''}/></label>`;
-    }).join('');
+    const fieldsHtml = fields.map(x => `
+        <label>
+            <key>${x.label}</key>
+            <input type="checkbox" name="${x.id}" ${settings.fields[x.id] ? 'checked' : ''}/>
+        </label>
+    `).join('');
     form.innerHTML = fieldsHtml;
     common.initSettingsForm('form#options', {settingsKey});
 }

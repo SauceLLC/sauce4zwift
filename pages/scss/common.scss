@@ -111,6 +111,19 @@ input[type="number"] {
 
 form label {
     margin-bottom: 0.4em;
+
+    key {
+        display: inline-block;
+        margin-right: 0.4em;
+        min-width: 16ch;
+
+        + input[type="checkbox"] {
+            margin-left: 1px;
+        }
+        + span {
+            margin-left: 2px;
+        }
+    }
 }
 
 body {
@@ -294,6 +307,7 @@ dialog {
 
     form {
         padding: 1em 1em 0 1em;
+        font-variant-numeric: tabular-nums;
     }
 
     footer {

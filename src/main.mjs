@@ -132,6 +132,7 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
                 contextIsolation: true,
                 sandbox: true,
                 enableRemoteModule: false,
+                preload: path.join(PAGES, 'src/preload.js'),
             }
         });
         const q = new URLSearchParams((new URL(url)).search);

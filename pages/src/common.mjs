@@ -339,14 +339,20 @@ const storage = {
 
 function initSettingsForm(selector, options={}) {
     const settingsKey = options.settingsKey;
+    const extraData = options.extraData;
     if (!settingsKey) {
         throw new TypeError('settingsKey required');
     }
-    const data = storage.get(settingsKey) || {};
+    const data = {...extraData, ...(storage.get(settingsKey) || {})};
     const form = document.querySelector(selector);
+    for (const el of form.querySelectorAll('.display-field[name]')) {
+        const name = el.getAttribute('name');
+        const val = name.startsWith('/') ? storage.get(name) : data[name];
+        el.textContent = val;
+    }
     for (const el of form.querySelectorAll('input')) {
-        const isGlobal = el.name.startsWith('/');
         const name = el.name;
+        const isGlobal = name.startsWith('/');
         const val = isGlobal ? storage.get(name) : data[name];
         if (el.type === 'checkbox') {
             el.checked = val;
