@@ -3,9 +3,7 @@ import common from './common.mjs';
 
 const L = sauce.locale;
 const H = L.human;
-const settingsKey = 'overview-settings-v1';
-let settings;
-let renderer;
+const settingsKey = 'overview-settings-v2';
 let imperial = !!common.storage.get('/imperialUnits');
 L.setImperial(imperial);
 
@@ -19,10 +17,12 @@ export async function main() {
     common.initInteractionListeners({settingsKey});
     let lastData;
     let autoHideTimeout;
-    settings = common.storage.get(settingsKey, {
+    let settings = common.storage.get(settingsKey, {
         numFields: 3,
+        lockedFields: false,
         autoHideWindows: common.isElectron ? true : false,
     });
+    let renderer = buildLayout(settings);
     document.addEventListener('global-settings-updated', ev => {
         if (ev.data.key === '/imperialUnits') {
             imperial = ev.data.data;
@@ -40,7 +40,7 @@ export async function main() {
             renderer.stop();
             renderer = null;
         }
-        render();
+        renderer = buildLayout(settings);
         if (lastData) {
             renderer.setData(lastData);
         }
@@ -102,12 +102,11 @@ export async function main() {
             renderer.render();
         }
     });
-    render();
     renderer.render();
 }
 
 
-function render() {
+function buildLayout(settings) {
     const fields = document.querySelector('.fields');
     const mapping = [];
     fields.innerHTML = '';
@@ -120,7 +119,7 @@ function render() {
         mapping.push({id: i, default: i + 1});
     }
     const content = document.querySelector('#content');
-    renderer = new common.Renderer(content);
+    const renderer = new common.Renderer(content, {locked: settings.lockedFields});
     renderer.addRotatingFields({
         mapping,
         fields: [{
@@ -205,6 +204,7 @@ function render() {
             unit: () => 'w',
         }],
     });
+    return renderer;
 }
 
 

@@ -30,6 +30,17 @@ table {
             &:hover {
                 background-color: #9355;
             }
+
+            &[data-id="avatar"] {
+                text-align: center;
+
+                img.fa {
+                    filter: invert(0.9);
+                    width: 1.2em;
+                    margin-bottom: -0.3em;
+                    display: inline-block;
+                }
+            }
         }
     }
 
@@ -44,24 +55,28 @@ table {
         font-variant: tabular-nums;
         cursor: pointer;
 
-        a.avatar {
-            display: inline-block;
-            border: 1px solid #333;
-            border-radius: 50%;
-            overflow: hidden;
-            border: 1.5px solid transparent;
-            transition: border 100ms;
-            vertical-align: middle;
-            margin: -0.4em 0 -0.24em;
+        &[data-id="avatar"] {
+            text-align: center;
 
-            &:hover {
-                border-color: #08ec;
-            }
+            a.avatar {
+                display: inline-block;
+                border: 1px solid #333;
+                border-radius: 50%;
+                overflow: hidden;
+                border: 1.5px solid transparent;
+                transition: border 100ms;
+                vertical-align: middle;
+                margin: -0.4em 0 -0.24em;
 
-            img {
-                height: 1.7em;
-                width: 1.7em;
-                object-fit: cover;
+                &:hover {
+                    border-color: #08ec;
+                }
+
+                img {
+                    height: 1.7em;
+                    width: 1.7em;
+                    object-fit: cover;
+                }
             }
         }
     }

@@ -20,23 +20,25 @@
     </head>
     <body>
         <div id="titlebar">
-            <div class="button move app-drag electron-only"><img src="images/fa/arrows-alt.svg"/></div>
-            <header class="app-drag">Watching - Sauce for Zwift</header>
-            <div class="buttons">
-                <a class="button" href="watching-settings.html?widthHint=0.25&heightHint=0.25"
-                   target="watching-settings"><img src="images/fa/cog-duotone.svg"/></a>
-                <div class="button close electron-only"><img src="images/fa/window-close-light.svg"/></div>
+            <header>
+                <div class="button move app-drag electron-only"><img src="images/fa/arrows-alt.svg"/></div>
+                <div class="title app-drag">Watching - Sauce for Zwift</div>
+                <div class="buttons">
+                    <a class="button" href="watching-settings.html?widthHint=0.25&heightHint=0.25"
+                       target="watching-settings"><img src="images/fa/cog-duotone.svg"/></a>
+                    <div class="button close electron-only"><img src="images/fa/window-close-light.svg"/></div>
+                </div>
+            </header>
+            <div class="button-bar">
+                <div class="button prev-screen" title="Previous screen"><img src="images/fa/caret-left-regular.svg"/></div>
+                <div class="button reset" title="Reset"><img src="images/fa/undo-regular.svg"/></div>
+                <div class="button lap" title="Lap"><img src="images/fa/stopwatch-regular.svg"/></div>
+                <div class="button next-screen" title="Next screen"><img src="images/fa/caret-right-regular.svg"/></div>
             </div>
         </div>
         <div id="content"></div>
         <div id="hintbar">
             <div class="hint"></div>
-            <div class="buttons">
-                <div class="button prev-screen" title="Previous screen"><img src="images/fa/caret-left-regular.svg"/></div>
-                <div class="button reset" title="Reset"><img src="images/fa/redo-solid.svg"/></div>
-                <div class="button lap" title="Lap"><img src="images/fa/stopwatch-duotone.svg"/></div>
-                <div class="button next-screen" title="Next screen"><img src="images/fa/caret-right-regular.svg"/></div>
-            </div>
         </div>
     </body>
     <template id="screen">

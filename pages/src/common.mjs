@@ -205,6 +205,7 @@ class Renderer {
         this._nextRender;
         this._lastRenderTime = 0;
         this.locked = !!options.locked;
+        contentEl.classList.toggle('unlocked', !this.locked);
         this.stopping = false;
         this.fps = options.fps || 1;
         this.id = options.id || location.pathname.split('/').at(-1);
@@ -212,6 +213,7 @@ class Renderer {
 
     setLocked(locked) {
         this.locked = locked;
+        this._contentEl.classList.toggle('unlocked', !this.locked);
     }
 
     stop() {

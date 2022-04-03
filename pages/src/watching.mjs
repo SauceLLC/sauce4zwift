@@ -191,8 +191,8 @@ export async function main() {
             draftAvgEl.textContent = H.number(stats.draft.avg);
         });
     }
-    const prevBtn = document.querySelector('.buttons .button.prev-screen');
-    const nextBtn = document.querySelector('.buttons .button.next-screen');
+    const prevBtn = document.querySelector('.button-bar .button.prev-screen');
+    const nextBtn = document.querySelector('.button-bar .button.next-screen');
     prevBtn.classList.add('disabled');
     if (settings.numScreens === 1) {
         nextBtn.classList.add('disabled');
@@ -215,10 +215,10 @@ export async function main() {
             nextBtn.classList.add('disabled');
         }
     });
-    document.querySelector('.buttons .button.reset').addEventListener('click', ev => {
+    document.querySelector('.button-bar .button.reset').addEventListener('click', ev => {
         common.rpc('resetStats');
     });
-    document.querySelector('.buttons .button.lap').addEventListener('click', ev => {
+    document.querySelector('.button-bar .button.lap').addEventListener('click', ev => {
         common.rpc('startLap');
     });
     document.addEventListener('global-settings-updated', ev => {
