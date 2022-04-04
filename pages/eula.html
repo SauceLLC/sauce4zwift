@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html class="">
+    <head>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+        <meta name="apple-mobile-web-app-capable" content="yes"/>
+        <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
+
+        <title>Legal Junk - Sauce for Zwift</title>
+
+        <link rel="manifest" href="nearby-manifest.json"/>
+        <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
+        <link rel='stylesheet' href="css/common.css"/>
+
+        <style>
+            html {
+                padding: 0;
+            }
+
+            body {
+                border-radius: 0;
+                padding: 2em;
+            }
+
+            html, body {
+                font-size: 15px;
+            }
+
+            iframe {
+                border-collapse: collapse;
+                border: none;
+                box-shadow: 1px 1px 4px 0 #000a;
+                background: white;
+                display: block;
+                padding: 1em;
+                overflow: auto;
+                position: relative;
+                border-radius: 0.3em;
+            }
+
+            form {
+                margin-top: 1em;
+                width: 100%;
+                display: flex;
+                flex-direction: row;
+                align-items: center;
+                justify-content: center;
+            }
+
+            input {
+                padding: 0.4em 1em;
+                min-width: 14ch;
+                display: block;
+                margin: 0 0.5em;
+                border: none;
+                cursor: pointer;
+                background-color: #aaa;
+            }
+
+            input[name="agree"] {
+                background-color: #6c6;
+                border: none;
+            }
+        </style>
+
+        <script type="module">
+            import common from './src/common.mjs';
+
+            function main() {
+                document.querySelector('input[name="agree"]').addEventListener('click', async ev => {
+                    ev.preventDefault();
+                    await common.rpc('eulaConsent', true);
+                });
+                document.querySelector('input[name="decline"]').addEventListener('click', async ev => {
+                    ev.preventDefault();
+                    await common.rpc('eulaConsent', false);
+                });
+            }
+
+            document.addEventListener('DOMContentLoaded', main);
+        </script>
+    </head>
+    <body class="">
+        <h2>Obligatory legal stuff...</h2>
+        <p>Click "I Agree" if you consent to all this mumbo jumbo.</p>
+        <iframe id="content" src="https://saucellc.io/legal/sauce4zwift-eula.html"></iframe>
+        <form>
+            <input type="button" name="decline" value="I Decline"/>
+            <input type="button" name="agree" value ="I Agree"/>
+        </form>
+    </body>
+</html>               

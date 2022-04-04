@@ -370,3 +370,11 @@ dialog {
 .unlocked [data-field] {
     cursor: pointer;
 }
+
+footer {
+    padding: 1em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8em;
+}

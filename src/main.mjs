@@ -12,6 +12,7 @@ const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 const {autoUpdater} = require('electron-updater');
 const {app, BrowserWindow, ipcMain, nativeImage, dialog, screen, shell} = require('electron');
+let started;
 
 Error.stackTraceLimit = 50;
 
@@ -218,7 +219,9 @@ if (app.dock) {
 }
 
 app.on('window-all-closed', () => {
-    app.exit(0);
+    if (started) {
+        app.exit(0);
+    }
 });
 
 
@@ -229,6 +232,38 @@ async function main() {
         Sentry.flush();
     });
     menu.setAppMenu();
+    if (!await storage.load(`eula-consent`)) {
+        const eulaWin = new BrowserWindow({
+            width: 800,
+            height: 600,
+            center: true,
+            maximizable: false,
+            fullscreenable: false,
+            autoHideMenuBar: true,
+            webPreferences: {
+                nodeIntegration: false,
+                contextIsolation: true,
+                sandbox: true,
+                enableRemoteModule: false,
+                preload: path.join(PAGES, 'src/preload.js'),
+            },
+        });
+        const consent = new Promise(resolve => {
+            rpc.register('eulaConsent', async agree => {
+                if (agree === true) {
+                    await storage.save(`eula-consent`, true);
+                    resolve();
+                } else {
+                    console.warn("User does not agree to EULA");
+                    appQuiting = true;
+                    app.exit(0);
+                }
+            });
+        });
+        eulaWin.loadFile(path.join(PAGES, 'eula.html'));
+        await consent;
+        eulaWin.close();
+    }
     autoUpdater.checkForUpdatesAndNotify().catch(Sentry.captureException);
     let mon;
     try {
@@ -346,6 +381,7 @@ async function main() {
     web.setMonitor(monitor);
     await createWindows(monitor);
     await web.start();
+    started = true;
 }
 
 main();
