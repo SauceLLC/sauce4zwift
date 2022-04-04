@@ -14,23 +14,25 @@ function shortDuration(x) {
 }
 
 
-function makePeakPowerField(period) {
+function makePeakPowerField(period, lap) {
     const duration = shortDuration(period);
     return {
         value: x => {
-            const o = x.stats.power.peaks[period];
+            const data = lap ? x.laps.at(-1) : x.stats;
+            const o = data.power.peaks[period];
             return H.number(o && o.avg);
         },
         label: x => {
-            const label = `peak ${duration}`;
-            const o = x.stats.power.peaks[period];
+            const label = `peak ${duration}${lap ? '<small> (lap)</small>' : ''}`;
+            const data = lap ? x.laps.at(-1) : x.stats;
+            const o = data.power.peaks[period];
             if (!o.ts) {
                 return label;
             }
             const ago = (Date.now() - o.ts) / 1000;
             return `${label}<br/><small>${shortDuration(ago)} ago</small>`;
         },
-        key: () => `Peak ${duration}`,
+        key: () => lap ? `Peak ${duration}<tiny> (lap)</tiny>` : `Peak ${duration}`,
         unit: () => 'w',
     };
 }
@@ -122,6 +124,25 @@ export async function main() {
                 makePeakPowerField(60),
                 makePeakPowerField(300),
                 makePeakPowerField(1200),
+            {
+                value: x => H.number(x.laps.at(-1).power.avg),
+                label: () => 'lap avg',
+                key: () => 'Lap Avg',
+                unit: () => 'w',
+            }, {
+                value: x => H.number(x.laps.at(-1).power.max),
+                label: () => 'lap max',
+                key: () => 'Lap Max',
+                unit: () => 'w',
+            }, {
+                value: x => H.number(x.laps.at(-1).power.np),
+                label: () => 'lap np',
+                key: () => 'Lap NP',
+            },
+                makePeakPowerField(5, true),
+                makePeakPowerField(60, true),
+                makePeakPowerField(300, true),
+                makePeakPowerField(1200, true),
             ],
         });
         renderer.addRotatingFields({

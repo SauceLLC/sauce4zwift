@@ -122,6 +122,11 @@ html {
     &::after {
         content: ':';
     }
+
+    tiny {
+        display: inline;
+        font-size: 0.6em;
+    }
 }
 
 .value {
