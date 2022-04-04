@@ -371,10 +371,16 @@ dialog {
     cursor: pointer;
 }
 
-footer {
+footer.legal {
+    flex: 1 0 auto;
     padding: 1em;
+    font-size: 12px;
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     justify-content: center;
-    font-size: 0.8em;
+    opacity: 0.5;
+
+    > * {
+        padding: 0 0.5em;
+    }
 }
