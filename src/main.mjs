@@ -2,6 +2,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import storage from './storage.mjs';
 import menu from './menu.mjs';
+import * as patreon from './patreon.mjs';
 import * as rpc from './rpc.mjs';
 import Sentry from '@sentry/node';
 import * as web from './webserver.mjs';
@@ -124,6 +125,7 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
         // Popups...
         ev.preventDefault();
         const newWin = new BrowserWindow({
+            icon: appIcon,
             resizable: true,
             maximizable: true,
             fullscreenable: true,
@@ -225,6 +227,25 @@ app.on('window-all-closed', () => {
 });
 
 
+function makeCaptiveWindow(options={}, webPrefs={}) {
+    return new BrowserWindow({
+        icon: appIcon,
+        center: true,
+        maximizable: false,
+        fullscreenable: false,
+        autoHideMenuBar: true,
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            sandbox: true,
+            enableRemoteModule: false,
+            ...webPrefs,
+        },
+        ...options
+    });
+}
+
+
 async function main() {
     await app.whenReady();
     app.on('before-quit', () => {
@@ -233,20 +254,8 @@ async function main() {
     });
     menu.setAppMenu();
     if (!await storage.load(`eula-consent`)) {
-        const eulaWin = new BrowserWindow({
-            width: 800,
-            height: 600,
-            center: true,
-            maximizable: false,
-            fullscreenable: false,
-            autoHideMenuBar: true,
-            webPreferences: {
-                nodeIntegration: false,
-                contextIsolation: true,
-                sandbox: true,
-                enableRemoteModule: false,
-                preload: path.join(PAGES, 'src/preload.js'),
-            },
+        const eulaWin = makeCaptiveWindow({width: 800, height: 600}, {
+            preload: path.join(PAGES, 'src/preload.js'),
         });
         const consent = new Promise(resolve => {
             rpc.register('eulaConsent', async agree => {
@@ -264,6 +273,32 @@ async function main() {
         await consent;
         eulaWin.close();
     }
+    const patron = await storage.load('patron');
+    if (false && (!patron || patron.level < 10)) {
+        const patronWin = makeCaptiveWindow({width: 400, height: 700}, {
+            preload: path.join(PAGES, 'src/patron-link-preload.js'),
+        });
+        const linked = new Promise(resolve => {
+            ipcMain.on('patreon-auth-code', async (ev, code) => {
+                debugger;
+                const isMember = code && await patreon.link(code);
+                const membership = isMember !== false && await patreon.getMembership();
+                debugger;
+                /*if (agree === true) {
+                    await storage.save(`patron-link`, true);
+                    resolve();
+                } else {
+                    console.warn("User does not agree to EULA");
+                    appQuiting = true;
+                    app.exit(0);
+                }*/
+            });
+        });
+        patronWin.loadFile(path.join(PAGES, 'patron.html'));
+        await linked;
+        patronWin.close();
+    }
+
     autoUpdater.checkForUpdatesAndNotify().catch(Sentry.captureException);
     let mon;
     try {
@@ -273,14 +308,7 @@ async function main() {
         if (e.message.includes('The specified module could not be found.') &&
             e.message.includes('cap.node')) {
             shell.beep();
-            const installPrompt = new BrowserWindow({
-                width: 400,
-                height: 400,
-                center: true,
-                maximizable: false,
-                fullscreenable: false,
-                autoHideMenuBar: true
-            });
+            const installPrompt = makeCaptiveWindow({width: 400, height: 400});
             installPrompt.webContents.on('new-window', (ev, url) => {
                 ev.preventDefault();
                 if (url === 'sauce://restart') {
