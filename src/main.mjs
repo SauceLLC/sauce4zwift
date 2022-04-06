@@ -12,8 +12,8 @@ import {createRequire} from 'node:module';
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 const {autoUpdater} = require('electron-updater');
-const {app, BrowserWindow, ipcMain, nativeImage, dialog, screen, shell} = require('electron');
-let started;
+const {app, BrowserWindow, ipcMain, nativeImage, dialog, screen,
+       shell, session} = require('electron');
 
 Error.stackTraceLimit = 50;
 
@@ -52,11 +52,12 @@ storage.load(`sentry-id`).then(async id => {
 rpc.register('getVersion', () => pkg.version);
 rpc.register('getSentryAnonId', () => sentryAnonId);
 
-const WD = path.dirname(fileURLToPath(import.meta.url));
-const PAGES = path.join(WD, '../pages');
-const appIcon = nativeImage.createFromPath(path.join(WD, 'build/images/app-icon.icos'));
+const pagePath = path.join(app.getAppPath(), 'pages');
+const appIcon = nativeImage.createFromPath(path.join(app.getAppPath(),
+    'build/images/app-icon.icos'));
 const windows = new Map();
 let appQuiting = false;
+let started;
 
 
 async function getWindowState(page) {
@@ -91,11 +92,8 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
         fullscreenable: false,
         show: false,
         webPreferences: {
-            nodeIntegration: false,
-            contextIsolation: true,
             sandbox: true,
-            enableRemoteModule: false,
-            preload: path.join(PAGES, 'src/preload.js'),
+            preload: path.join(pagePath, 'src/preload.js'),
         },
         ...options,
         ...state,
@@ -113,13 +111,6 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
         win.setSize(width, height);
         win.setPosition(x, y, false);
     }
-    // Allow iframes to work for any site..
-    win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
-        callback({
-            responseHeaders: Object.fromEntries(Object.entries(details.responseHeaders)
-                .filter(header => !/x-frame-options/i.test(header[0])))
-        });
-    });
     windows.set(win.webContents, {win, state, options});
     win.webContents.on('new-window', (ev, url) => {
         // Popups...
@@ -131,11 +122,8 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
             fullscreenable: true,
             show: false,
             webPreferences: {
-                nodeIntegration: false,
-                contextIsolation: true,
                 sandbox: true,
-                enableRemoteModule: false,
-                preload: path.join(PAGES, 'src/preload.js'),
+                preload: path.join(pagePath, 'src/preload.js'),
             }
         });
         const q = new URLSearchParams((new URL(url)).search);
@@ -188,7 +176,7 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
     win.on('minimize', onHide);
     win.on('closed', onHide);
     win.on('restore', onShow);
-    win.loadFile(path.join(PAGES, page));
+    win.loadFile(path.join(pagePath, page));
     return win;
 }
 
@@ -235,14 +223,66 @@ function makeCaptiveWindow(options={}, webPrefs={}) {
         fullscreenable: false,
         autoHideMenuBar: true,
         webPreferences: {
-            nodeIntegration: false,
-            contextIsolation: true,
             sandbox: true,
-            enableRemoteModule: false,
             ...webPrefs,
         },
         ...options
     });
+}
+
+
+async function eulaConsent() {
+    if (await storage.load(`eula-consent`)) {
+        return;
+    }
+    const win = makeCaptiveWindow({width: 800, height: 600}, {
+        preload: path.join(pagePath, 'src/preload.js'),
+    });
+    const consent = new Promise(resolve => {
+        rpc.register('eulaConsent', async agree => {
+            if (agree === true) {
+                await storage.save(`eula-consent`, true);
+                resolve();
+            } else {
+                console.warn("User does not agree to EULA");
+                appQuiting = true;
+                app.exit(0);
+            }
+        });
+    });
+    win.loadFile(path.join(pagePath, 'eula.html'));
+    await consent;
+    win.close();
+}
+
+
+async function patronLink() {
+    const patron = await storage.load('patron');
+    if (patron && patron.level >= 10) {
+        return;
+    }
+    const win = makeCaptiveWindow({width: 400, height: 700}, {
+        preload: path.join(pagePath, 'src/patron-link-preload.js'),
+    });
+    const linked = new Promise(resolve => {
+        ipcMain.on('patreon-auth-code', async (ev, code) => {
+            debugger;
+            const isMember = code && await patreon.link(code);
+            const membership = isMember !== false && await patreon.getMembership();
+            debugger;
+            /*if (agree === true) {
+                await storage.save(`patron-link`, true);
+                resolve();
+            } else {
+                console.warn("User does not agree to EULA");
+                appQuiting = true;
+                app.exit(0);
+            }*/
+        });
+    });
+    win.loadFile(path.join(pagePath, 'patron.html'));
+    await linked;
+    win.close();
 }
 
 
@@ -253,52 +293,8 @@ async function main() {
         Sentry.flush();
     });
     menu.setAppMenu();
-    if (!await storage.load(`eula-consent`)) {
-        const eulaWin = makeCaptiveWindow({width: 800, height: 600}, {
-            preload: path.join(PAGES, 'src/preload.js'),
-        });
-        const consent = new Promise(resolve => {
-            rpc.register('eulaConsent', async agree => {
-                if (agree === true) {
-                    await storage.save(`eula-consent`, true);
-                    resolve();
-                } else {
-                    console.warn("User does not agree to EULA");
-                    appQuiting = true;
-                    app.exit(0);
-                }
-            });
-        });
-        eulaWin.loadFile(path.join(PAGES, 'eula.html'));
-        await consent;
-        eulaWin.close();
-    }
-    const patron = await storage.load('patron');
-    if (false && (!patron || patron.level < 10)) {
-        const patronWin = makeCaptiveWindow({width: 400, height: 700}, {
-            preload: path.join(PAGES, 'src/patron-link-preload.js'),
-        });
-        const linked = new Promise(resolve => {
-            ipcMain.on('patreon-auth-code', async (ev, code) => {
-                debugger;
-                const isMember = code && await patreon.link(code);
-                const membership = isMember !== false && await patreon.getMembership();
-                debugger;
-                /*if (agree === true) {
-                    await storage.save(`patron-link`, true);
-                    resolve();
-                } else {
-                    console.warn("User does not agree to EULA");
-                    appQuiting = true;
-                    app.exit(0);
-                }*/
-            });
-        });
-        patronWin.loadFile(path.join(PAGES, 'patron.html'));
-        await linked;
-        patronWin.close();
-    }
-
+    await eulaConsent();
+    await patronLink();
     autoUpdater.checkForUpdatesAndNotify().catch(Sentry.captureException);
     let mon;
     try {
@@ -319,7 +315,7 @@ async function main() {
                     shell.openExternal(url);
                 }
             });
-            installPrompt.loadFile(path.join(PAGES, 'npcap-install.html'));
+            installPrompt.loadFile(path.join(pagePath, 'npcap-install.html'));
             return;
         } else {
             await dialog.showErrorBox('Startup Error', '' + e);
