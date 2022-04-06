@@ -98,6 +98,9 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
         ...options,
         ...state,
     });
+    if (options.sauceRemoveMenuBar) {
+        win.removeMenu();
+    }
     const hasPosition = state.x != null && state.y != null && state.width && state.height;
     if (!hasPosition && (options.relWidth != null || options.relHeight != null ||
         options.relX != null || options.relY != null || options.x < 0 || options.y < 0)) {
@@ -199,7 +202,7 @@ async function createWindows(monitor) {
             {relWidth: 0.6, height: 40, relX: 0.2, y: 0, hideable: false}),
         makeFloatingWindow('nearby.html',
             {width: 800, height: 400, x: 20, y: 20, alwaysOnTop: false, frame: true,
-             maximizable: true, fullscreenable: true, transparent: false, autoHideMenuBar: true},
+             maximizable: true, fullscreenable: true, transparent: false, sauceRemoveMenuBar: true},
             {hidden: true})
     ]);
 }
@@ -216,18 +219,19 @@ app.on('window-all-closed', () => {
 
 
 function makeCaptiveWindow(options={}, webPrefs={}) {
-    return new BrowserWindow({
+    const win = new BrowserWindow({
         icon: appIcon,
         center: true,
         maximizable: false,
         fullscreenable: false,
-        autoHideMenuBar: true,
         webPreferences: {
             sandbox: true,
             ...webPrefs,
         },
         ...options
     });
+    win.removeMenu();
+    return win;
 }
 
 
@@ -257,6 +261,7 @@ async function eulaConsent() {
 
 
 async function patronLink() {
+    return;
     const patron = await storage.load('patron');
     if (patron && patron.level >= 10) {
         return;
