@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+        <meta name="apple-mobile-web-app-capable" content="yes"/>
+        <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
+
+        <title>Link with Patreon - Sauce for Zwift</title>
+
+        <link rel="manifest" href="nearby-manifest.json"/>
+        <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
+        <link rel="stylesheet" href="css/common.css"/>
+
+        <style>
+            html {
+                padding: 0;
+            }
+
+            body {
+                border-radius: 0;
+                padding: 2em;
+            }
+
+            html, body {
+                font-size: 15px;
+            }
+        </style>
+
+        <script type="module">
+            import common from './src/common.mjs';
+
+            function main() {
+            }
+            document.addEventListener('DOMContentLoaded', main);
+        </script>
+    </head>
+
+    <body>
+        <h2>Hi! To use Sauce for Zwift you need to be a <i>Sauce Member</i> on our Patreon.  You can sign-up and/or activate this computer by clicking: <a class="patron-link">Link with Patreon</a></h2>
+    </body>
+</html>
