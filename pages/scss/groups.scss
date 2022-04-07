@@ -96,7 +96,10 @@ html {
 
 .position .desc {
     /* bubble + shadow + desc-pad */
-    left: calc(100% + 0.4rem + 0.2rem);
+    $left: calc(100% + 0.4rem + 0.2rem);
+    left: $left;
+    /* viewport-width - content-right-margin - $left */
+    max-width: calc(100vw - 2.5rem - $left);
 }
 
 
