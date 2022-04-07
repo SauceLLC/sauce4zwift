@@ -1,5 +1,4 @@
 import path from 'node:path';
-import {fileURLToPath} from 'node:url';
 import storage from './storage.mjs';
 import menu from './menu.mjs';
 import * as patreon from './patreon.mjs';
@@ -12,8 +11,7 @@ import {createRequire} from 'node:module';
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 const {autoUpdater} = require('electron-updater');
-const {app, BrowserWindow, ipcMain, nativeImage, dialog, screen,
-       shell, session} = require('electron');
+const {app, BrowserWindow, ipcMain, nativeImage, dialog, screen, shell} = require('electron');
 
 Error.stackTraceLimit = 50;
 
@@ -237,57 +235,68 @@ function makeCaptiveWindow(options={}, webPrefs={}) {
 
 async function eulaConsent() {
     if (await storage.load(`eula-consent`)) {
-        return;
+        return true;
     }
     const win = makeCaptiveWindow({width: 800, height: 600}, {
         preload: path.join(pagePath, 'src/preload.js'),
     });
-    const consent = new Promise(resolve => {
+    const consenting = new Promise(resolve => {
         rpc.register('eulaConsent', async agree => {
             if (agree === true) {
                 await storage.save(`eula-consent`, true);
-                resolve();
+                resolve(true);
             } else {
                 console.warn("User does not agree to EULA");
-                appQuiting = true;
-                app.exit(0);
+                resolve(false);
             }
         });
     });
     win.loadFile(path.join(pagePath, 'eula.html'));
-    await consent;
+    const consent = await consenting;
     win.close();
+    return consent;
 }
 
 
 async function patronLink() {
-    return;
-    const patron = await storage.load('patron');
-    if (patron && patron.level >= 10) {
-        return;
+    let membership = await storage.load('patron-membership');
+    if (membership && membership.patronLevel >= 10) {
+        // XXX Implment refresh once in a while.
+        return true;
     }
     const win = makeCaptiveWindow({width: 400, height: 700}, {
         preload: path.join(pagePath, 'src/patron-link-preload.js'),
     });
-    const linked = new Promise(resolve => {
-        ipcMain.on('patreon-auth-code', async (ev, code) => {
-            debugger;
-            const isMember = code && await patreon.link(code);
-            const membership = isMember !== false && await patreon.getMembership();
-            debugger;
-            /*if (agree === true) {
-                await storage.save(`patron-link`, true);
-                resolve();
-            } else {
-                console.warn("User does not agree to EULA");
-                appQuiting = true;
-                app.exit(0);
-            }*/
-        });
+    const ua = win.webContents.userAgent;
+    // Prevent Patreon's datedome.co bot service from blocking us.
+    win.webContents.userAgent = ua.replace(/ SauceforZwift.*? /, ' ').replace(/ Electron\/.*? /, ' ');
+    win.webContents.on('new-window', (ev, url) => {
+        if (url.endsWith('external')) {
+            ev.preventDefault();
+            shell.openExternal(url);
+        }
+    });
+    const codePromise = new Promise(resolve => {
+        ipcMain.on('patreon-auth-code', (ev, code) => resolve({code}));
+        ipcMain.on('patreon-special-token', (ev, token) => resolve({token}));
     });
     win.loadFile(path.join(pagePath, 'patron.html'));
-    await linked;
-    win.close();
+    const {code, token} = await codePromise;
+    if (token) {
+        membership = await patreon.getLegacyMembership(token);
+    } else {
+        const isAuthed = code && await patreon.link(code);
+        membership = isAuthed && await patreon.getMembership();
+    }
+    if (membership && membership.patronLevel >= 10) {
+        await storage.save('patron-membership', membership);
+        win.close();
+        return true;
+    } else {
+        win.loadFile(path.join(pagePath, 'non-patron.html'));
+        await new Promise(resolve => win.on('closed', resolve));
+        return false;
+    }
 }
 
 
@@ -298,8 +307,18 @@ async function main() {
         Sentry.flush();
     });
     menu.setAppMenu();
-    await eulaConsent();
-    await patronLink();
+    try {
+        if (!await eulaConsent() || !await patronLink()) {
+            appQuiting = true;
+            app.exit(0);
+            return;
+        }
+    } catch(e) {
+        await dialog.showErrorBox('EULA or Patreon Link Error', '' + e);
+        appQuiting = true;
+        app.exit(1);
+        return;
+    }
     autoUpdater.checkForUpdatesAndNotify().catch(Sentry.captureException);
     let mon;
     try {

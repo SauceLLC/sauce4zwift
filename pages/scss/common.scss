@@ -379,8 +379,13 @@ footer.legal {
     align-items: flex-end;
     justify-content: center;
     opacity: 0.5;
+    width: 100%;
 
     > * {
         padding: 0 0.5em;
+    }
+
+    a:not(:hover) {
+        text-decoration: none;
     }
 }

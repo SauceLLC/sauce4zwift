@@ -4,39 +4,172 @@
         <meta charset="utf-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
         <meta name="apple-mobile-web-app-capable" content="yes"/>
-        <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
+        <meta http-equiv="Content-Security-Policy" content="script-src 'self' https://www.youtube.com 'unsafe-inline';"/>
 
-        <title>Link with Patreon - Sauce for Zwift</title>
+        <title>Link with Patreon - Sauce for Zwift™</title>
 
-        <link rel="manifest" href="nearby-manifest.json"/>
         <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
         <link rel="stylesheet" href="css/common.css"/>
 
         <style>
             html {
                 padding: 0;
+                font-size: 16px;
+            }
+
+            html.ahahah #ahahah {
+                position: fixed;
+                z-index: 1000;
+                visibility: visible;
+                opacity: 1;
+                margin: -100px 0;
+                width: 100%;
+                height: calc(100% + 200px);
+            }
+            #ahahah {
+                z-index: -1000;
+                visibility: hidden;
+                opacity: 0;
+                width: 0;
+                height: 0;
+                pointer-events: none;
+                transition: opacity 1s, visibility 1s;
+                transition-delay: 1s;
             }
 
             body {
                 border-radius: 0;
                 padding: 2em;
+                display: flex;
+                align-items: center;
+                flex-direction: column;
             }
 
-            html, body {
-                font-size: 15px;
+            img.logo {
+                height: 120px;
+                transform: rotate(-20deg);
+                margin-right: 2em;
+            }
+
+            body > header {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            body > main {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                flex-direction: column;
+            }
+
+            .big-button { 
+                border-radius: 0.3em;
+                padding: 0.4em 1em;
+                margin-top: 1em;
+                margin-bottom: 1em;
+                border: none;
+                font-size: 18px;
+                opacity: 0.88;
+                background-color: #fffc;
+                outline: none; 
+                cursor: pointer;
+                user-select: none;
+                transition: 200ms opacity, 100ms box-shadow;
+            }
+            .big-button:hover {
+                opacity: 1;
+                box-shadow: 1px 1px 0 4px #0004;
+            }
+
+            h4, h5 {
+                margin-top: 1em;
+                margin-bottom: 0.5em;
+            }
+
+            .net {
+                position: fixed;
+                right: 1.2em;
+                bottom: 1.2em;
+                opacity: 0.6;
+                font-size: 12px;
+                text-decoration: none;
             }
         </style>
 
         <script type="module">
             import common from './src/common.mjs';
 
-            function main() {
+            async function main() {
+                const audioCtx = new AudioContext();
+                const danceAB = await (await fetch('sounds/dance.ogg')).arrayBuffer();
+                let buffer;
+                audioCtx.decodeAudioData(danceAB, _buffer => buffer = _buffer);
+                let audioSrc;
+                const link = document.querySelector('.patron-link');
+                link.addEventListener('click', ev => {
+                    const btn = ev.currentTarget;
+                    if (audioSrc) {
+                        audioSrc.stop();
+                        btn.classList.remove('pressed');
+                        btn.offsetLeft;
+                    }
+                    audioSrc = audioCtx.createBufferSource();
+                    audioSrc.buffer = buffer;
+                    audioSrc.connect(audioCtx.destination);
+                    audioSrc.addEventListener('ended', ev => {
+                        if (ev.currentTarget === audioSrc) {
+                            link.dispatchEvent(new Event('danced'));
+                            document.dispatchEvent(new Event('danced'));
+                        }
+                    });
+                    audioSrc.start(0);
+                    ev.preventDefault();
+                    requestAnimationFrame(() => btn.classList.add('pressed'));
+                });
+
+                let yt;
+                window.onYouTubePlayerAPIReady = function() {
+                    yt = new YT.Player('ahahah', {
+                        videoId: 'g_vZasFzMN4',
+                        playerVars: {
+                            cc_load_policy: 0,
+                            controls: 0,
+                            disablekb: 1,
+                            enablejsapi: 1,
+                            fs: 0,
+                            iv_load_policy: 3, // don't show
+                            modestbranding: 1,
+                            rel: 0,
+                        }
+                    });
+                }
+                const script = document.createElement('script');
+                script.src = "https://www.youtube.com/player_api";
+                document.querySelector('head').append(script);
+                document.addEventListener('ahahah', () => yt.playVideo());
             }
             document.addEventListener('DOMContentLoaded', main);
         </script>
     </head>
 
     <body>
-        <h2>Hi! To use Sauce for Zwift you need to be a <i>Sauce Member</i> on our Patreon.  You can sign-up and/or activate this computer by clicking: <a class="patron-link">Link with Patreon</a></h2>
+        <header>
+            <img class="logo" src="images/logo_vert_120x320.png"/>
+            <h3>Greetings Zwifter!</h3>
+        </header>
+        <main>
+            <h4>To use Sauce for Zwift™ you need to be a <i>Sauce Member</i> on <a href="https://www.patreon.com/bePatron?u=32064618&external" target="_blank" class="external">our Patreon</a>.</h4>
+
+            <h4>Without this support I will become financially derelict and swiftly banished from society. 😞</h4>
+
+            <h4>You can prevent my ruin and make the world an ever so slightly better place by becoming a Patreon Sauce Member...</h4>
+            <button class="big-button patron-link">Link with Patreon</button>
+
+            <h5>Oh, and if you're already a member, use that same link 👆 to activate this computer.</h5>
+        </main>
+        <a class="net" href="javascript:void(0)">π</a>
+        <div id="ahahah"></div>
     </body>
 </html>
