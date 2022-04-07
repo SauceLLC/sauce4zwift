@@ -6,7 +6,7 @@
         <meta name="apple-mobile-web-app-capable" content="yes"/>
         <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
 
-        <title>Overview Settings - Sauce for Zwift</title>
+        <title>Overview Settings - Sauce for Zwift™</title>
 
         <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
         <link rel='stylesheet' href="css/common.css"/>
@@ -18,7 +18,7 @@
     </head>
     <body>
         <div id="titlebar">
-            <header>Overview Settings</header>
+            <header><div class="title">Overview Settings</div></header>
         </div>
         <div id="settings">
             <form>
@@ -29,6 +29,10 @@
                 <label>
                     <key>Data fields:</key>
                     <input type="number" min="0" max="10" step="1" name="numFields"/>
+                </label>
+                <label title="Prevent fields from rotating on click">
+                    <key>Lock fields:</key>
+                    <input type="checkbox" name="lockedFields"/>
                 </label>
                 <label>
                     <key>Imperial Units:</key>
@@ -41,5 +45,12 @@
                 </label>
             </form>
         </div>
+        <footer class="legal">
+            <a href="https://saucellc.io/legal/sauce4zwift-terms.html" target="_blank">Terms and Conditions</a>
+            |
+            <a href="https://saucellc.io/legal/sauce4zwift-privacy.html" target="_blank">Privacy Policy</a>
+            |
+            <a href="mailto://support@saucellc.io">Support</a>
+        </footer>
     </body>
 </html>

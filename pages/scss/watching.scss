@@ -122,6 +122,11 @@ html {
     &::after {
         content: ':';
     }
+
+    tiny {
+        display: inline;
+        font-size: 0.6em;
+    }
 }
 
 .value {
@@ -146,20 +151,7 @@ abbr.unit {
     font-size: 1.3em;
 }
 
-#hintbar {
-    .buttons {
-        .button {
-            &.disabled {
-                pointer-events: none;
-                opacity: 0.2;
-            }
-
-            &.reset {
-                img {
-                    height: 0.9em;
-                    margin: 0.15em 0;
-                }
-            }
-        }
-    }
+#titlebar .button-bar .button.reset img {
+    height: 0.9em;
+    margin: 0.15em 0;
 }

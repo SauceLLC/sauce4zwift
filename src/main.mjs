@@ -1,7 +1,7 @@
 import path from 'node:path';
-import {fileURLToPath} from 'node:url';
 import storage from './storage.mjs';
 import menu from './menu.mjs';
+import * as patreon from './patreon.mjs';
 import * as rpc from './rpc.mjs';
 import Sentry from '@sentry/node';
 import * as web from './webserver.mjs';
@@ -50,11 +50,12 @@ storage.load(`sentry-id`).then(async id => {
 rpc.register('getVersion', () => pkg.version);
 rpc.register('getSentryAnonId', () => sentryAnonId);
 
-const WD = path.dirname(fileURLToPath(import.meta.url));
-const PAGES = path.join(WD, '../pages');
-const appIcon = nativeImage.createFromPath(path.join(WD, 'build/images/app-icon.icos'));
+const pagePath = path.join(app.getAppPath(), 'pages');
+const appIcon = nativeImage.createFromPath(path.join(app.getAppPath(),
+    'build/images/app-icon.icos'));
 const windows = new Map();
 let appQuiting = false;
+let started;
 
 
 async function getWindowState(page) {
@@ -89,15 +90,15 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
         fullscreenable: false,
         show: false,
         webPreferences: {
-            nodeIntegration: false,
-            contextIsolation: true,
             sandbox: true,
-            enableRemoteModule: false,
-            preload: path.join(PAGES, 'src/preload.js'),
+            preload: path.join(pagePath, 'src/preload.js'),
         },
         ...options,
         ...state,
     });
+    if (options.sauceRemoveMenuBar) {
+        win.removeMenu();
+    }
     const hasPosition = state.x != null && state.y != null && state.width && state.height;
     if (!hasPosition && (options.relWidth != null || options.relHeight != null ||
         options.relX != null || options.relY != null || options.x < 0 || options.y < 0)) {
@@ -111,28 +112,19 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
         win.setSize(width, height);
         win.setPosition(x, y, false);
     }
-    // Allow iframes to work for any site..
-    win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
-        callback({
-            responseHeaders: Object.fromEntries(Object.entries(details.responseHeaders)
-                .filter(header => !/x-frame-options/i.test(header[0])))
-        });
-    });
     windows.set(win.webContents, {win, state, options});
     win.webContents.on('new-window', (ev, url) => {
         // Popups...
         ev.preventDefault();
         const newWin = new BrowserWindow({
+            icon: appIcon,
             resizable: true,
             maximizable: true,
             fullscreenable: true,
             show: false,
             webPreferences: {
-                nodeIntegration: false,
-                contextIsolation: true,
                 sandbox: true,
-                enableRemoteModule: false,
-                preload: path.join(PAGES, 'src/preload.js'),
+                preload: path.join(pagePath, 'src/preload.js'),
             }
         });
         const q = new URLSearchParams((new URL(url)).search);
@@ -185,7 +177,7 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
     win.on('minimize', onHide);
     win.on('closed', onHide);
     win.on('restore', onShow);
-    win.loadFile(path.join(PAGES, page));
+    win.loadFile(path.join(pagePath, page));
     return win;
 }
 
@@ -208,7 +200,7 @@ async function createWindows(monitor) {
             {relWidth: 0.6, height: 40, relX: 0.2, y: 0, hideable: false}),
         makeFloatingWindow('nearby.html',
             {width: 800, height: 400, x: 20, y: 20, alwaysOnTop: false, frame: true,
-             maximizable: true, fullscreenable: true, transparent: false, autoHideMenuBar: true},
+             maximizable: true, fullscreenable: true, transparent: false, sauceRemoveMenuBar: true},
             {hidden: true})
     ]);
 }
@@ -218,8 +210,94 @@ if (app.dock) {
 }
 
 app.on('window-all-closed', () => {
-    app.exit(0);
+    if (started) {
+        app.exit(0);
+    }
 });
+
+
+function makeCaptiveWindow(options={}, webPrefs={}) {
+    const win = new BrowserWindow({
+        icon: appIcon,
+        center: true,
+        maximizable: false,
+        fullscreenable: false,
+        webPreferences: {
+            sandbox: true,
+            ...webPrefs,
+        },
+        ...options
+    });
+    win.removeMenu();
+    return win;
+}
+
+
+async function eulaConsent() {
+    if (await storage.load(`eula-consent`)) {
+        return true;
+    }
+    const win = makeCaptiveWindow({width: 800, height: 600}, {
+        preload: path.join(pagePath, 'src/preload.js'),
+    });
+    const consenting = new Promise(resolve => {
+        rpc.register('eulaConsent', async agree => {
+            if (agree === true) {
+                await storage.save(`eula-consent`, true);
+                resolve(true);
+            } else {
+                console.warn("User does not agree to EULA");
+                resolve(false);
+            }
+        });
+    });
+    win.loadFile(path.join(pagePath, 'eula.html'));
+    const consent = await consenting;
+    win.close();
+    return consent;
+}
+
+
+async function patronLink() {
+    let membership = await storage.load('patron-membership');
+    if (membership && membership.patronLevel >= 10) {
+        // XXX Implment refresh once in a while.
+        return true;
+    }
+    const win = makeCaptiveWindow({width: 400, height: 700}, {
+        preload: path.join(pagePath, 'src/patron-link-preload.js'),
+    });
+    const ua = win.webContents.userAgent;
+    // Prevent Patreon's datedome.co bot service from blocking us.
+    win.webContents.userAgent = ua.replace(/ SauceforZwift.*? /, ' ').replace(/ Electron\/.*? /, ' ');
+    win.webContents.on('new-window', (ev, url) => {
+        if (url.endsWith('external')) {
+            ev.preventDefault();
+            shell.openExternal(url);
+        }
+    });
+    const codePromise = new Promise(resolve => {
+        ipcMain.on('patreon-auth-code', (ev, code) => resolve({code}));
+        ipcMain.on('patreon-special-token', (ev, token) => resolve({token}));
+    });
+    win.loadFile(path.join(pagePath, 'patron.html'));
+    const {code, token} = await codePromise;
+    if (token) {
+        membership = await patreon.getLegacyMembership(token);
+    } else {
+        const isAuthed = code && await patreon.link(code);
+        membership = isAuthed && await patreon.getMembership();
+    }
+    if (membership && membership.patronLevel >= 10) {
+        await storage.save('patron-membership', membership);
+        win.close();
+        return true;
+    } else {
+        win.loadFile(path.join(pagePath, 'non-patron.html'));
+        await new Promise(resolve => win.on('closed', resolve));
+        return false;
+    }
+}
 
 
 async function main() {
@@ -229,6 +307,18 @@ async function main() {
         Sentry.flush();
     });
     menu.setAppMenu();
+    try {
+        if (!await eulaConsent() || !await patronLink()) {
+            appQuiting = true;
+            app.exit(0);
+            return;
+        }
+    } catch(e) {
+        await dialog.showErrorBox('EULA or Patreon Link Error', '' + e);
+        appQuiting = true;
+        app.exit(1);
+        return;
+    }
     autoUpdater.checkForUpdatesAndNotify().catch(Sentry.captureException);
     let mon;
     try {
@@ -238,14 +328,7 @@ async function main() {
         if (e.message.includes('The specified module could not be found.') &&
             e.message.includes('cap.node')) {
             shell.beep();
-            const installPrompt = new BrowserWindow({
-                width: 400,
-                height: 400,
-                center: true,
-                maximizable: false,
-                fullscreenable: false,
-                autoHideMenuBar: true
-            });
+            const installPrompt = makeCaptiveWindow({width: 400, height: 400});
             installPrompt.webContents.on('new-window', (ev, url) => {
                 ev.preventDefault();
                 if (url === 'sauce://restart') {
@@ -256,7 +339,7 @@ async function main() {
                     shell.openExternal(url);
                 }
             });
-            installPrompt.loadFile(path.join(PAGES, 'npcap-install.html'));
+            installPrompt.loadFile(path.join(pagePath, 'npcap-install.html'));
             return;
         } else {
             await dialog.showErrorBox('Startup Error', '' + e);
@@ -346,6 +429,7 @@ async function main() {
     web.setMonitor(monitor);
     await createWindows(monitor);
     await web.start();
+    started = true;
 }
 
 main();

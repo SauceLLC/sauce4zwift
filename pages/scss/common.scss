@@ -123,6 +123,11 @@ form label {
         + span {
             margin-left: 2px;
         }
+
+        img.fa {
+            filter: invert(0.9);
+            width: 1em;
+        }
     }
 }
 
@@ -163,19 +168,98 @@ html:not(:hover) #hintbar {
 
 #titlebar {
     flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
     position: absolute;
     top: 0;
     left: 0;
     z-index: 100;
     width: 100%;
-    background-image: linear-gradient(to top, #222, #333e 0.2rem, #333);
     color: white;
     overflow: hidden;
-    padding: 0.5em;
-    max-height: 3rem;
+    max-height: 6em;
     transition: max-height 200ms, padding 200ms;
-    display: flex;
-    align-items: center;
+    box-shadow: 0 1px 5px #0009;
+
+    .button {
+        img {
+            height: 0.85em;
+            filter: invert(1);
+        }
+
+        &.disabled {
+            pointer-events: none;
+            opacity: 0.2;
+        }
+    }
+
+    header {
+        flex: 0 0 auto;
+        max-width: 100%;
+        display: flex;
+        align-items: center;
+        padding: 0.5em;
+        background-image: linear-gradient(to top, #222, #333);
+
+        .title {
+            font-size: 0.8em;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .button.move {
+            padding: 0 0.4em 0 0;
+        }
+
+        .buttons {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            flex: 1 0 auto;
+
+            .button {
+                padding-left: 0.4em;
+
+                img {
+                    height: 0.85em;
+                    filter: invert(1);
+                }
+            }
+        }
+    }
+
+    .button-bar {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex: 1 0 auto;
+        background-image: linear-gradient(135deg, #1d0050de, #2b0078de);
+        overflow: hidden;
+
+        .button {
+            padding: 1em 0.6em;
+            flex: 1 1 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            &:hover {
+                background: #0003;
+            }
+
+            &:active {
+                background: #0005;
+                filter: invert(0);
+            }
+
+            img {
+                height: 1.2em;
+                filter: invert(1);
+            }
+        }
+    }
 }
 html.settings-page #titlebar {
     position: relative;
@@ -184,24 +268,6 @@ html.settings-page #titlebar {
 .electron-mode .app-drag {
     -webkit-app-region: drag;
     cursor: move !important;
-}
-
-#titlebar .button.move {
-    padding: 0 0.4em 0 0;
-}
-
-#titlebar header {
-    font-size: 0.8em;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-#titlebar .buttons {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    flex: 1 0 auto;
 }
 
 .button {
@@ -216,70 +282,28 @@ html.settings-page #titlebar {
     filter: invert(0.5);
 }
 
-#titlebar .button {
-    padding-left: 0.4em;
-}
-
-#titlebar .button img {
-    height: 0.85em;
-    filter: invert(1);
-}
-
 #hintbar {
     position: absolute;
     bottom: 0;
     left: 0;
     z-index: 100;
     width: 100%;
-    background-image: linear-gradient(to top, #2228, #333c 0.2rem, #333e);
+    background-image: linear-gradient(to top, #2228, #333c 0.2em, #333e);
     color: white;
     overflow: hidden;
-    font-size: 0.68em;
-    max-height: 5em;
+    max-height: 2em;
     transition: max-height 200ms, padding 200ms;
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
     justify-content: center;
     user-select: none;
 
-    .buttons {
-        width: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        flex: 1 0 auto;
-        background: #3a00a2;
-        overflow: hidden;
-    }
-
-    .button {
-        padding: 0.7em;
-        flex: 1 1 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-
-        &:hover {
-            background: #0003;
-        }
-
-        &:active {
-            background: #0005;
-            filter: invert(0);
-        }
-
-        img {
-            height: 1.2em;
-            filter: invert(1);
-        }
-    }
-
     .hint {
+        font-size: 0.72em;
         padding-bottom: 0.16em;
 
         &::after {
-            content: 'Right click for settings';
+            content: 'Right click for controls';
             font-variant: all-small-caps;
         }
     }
@@ -340,5 +364,28 @@ dialog {
         &:active {
             box-shadow: inset 0 0 5px #0006;
         }
+    }
+}
+
+.unlocked [data-field] {
+    cursor: pointer;
+}
+
+footer.legal {
+    flex: 1 0 auto;
+    padding: 1em;
+    font-size: 12px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    opacity: 0.5;
+    width: 100%;
+
+    > * {
+        padding: 0 0.5em;
+    }
+
+    a:not(:hover) {
+        text-decoration: none;
     }
 }

@@ -4,7 +4,7 @@ import common from './common.mjs';
 const L = sauce.locale;
 const H = L.human;
 const num = H.number;
-const settingsKey = 'nearby-settings-v1';
+const settingsKey = 'nearby-settings-v2';
 let imperial = common.storage.get('/imperialUnits');
 L.setImperial(imperial);
 let settings;
@@ -51,15 +51,15 @@ function getAthleteValue(x, key) {
 
 
 const fields = [
-    {id: 'id', defaultEn: true, label: 'ID', get: x => x.athleteId, fmt: x => x},
-    {id: 'avatar', defaultEn: true, label: '😎', get: x => getAthleteValue(x, 'avatar'),
+    {id: 'avatar', defaultEn: true, label: '<img class="fa" src="images/fa/user-circle-solid.svg"/>',
+     get: x => getAthleteValue(x, 'avatar'),
      fmt: x => x ? `<a href="${x}" class="avatar" target="_blank"><img src="${x}"/></a>` : ''},
     {id: 'name', defaultEn: true, label: 'Name', get: x => getAthleteValue(x, 'fullname'),
      sanitize: true, fmt: x => x || '-'},
-    {id: 'weight', defaultEn: true, label: 'Weight', get: x => getAthleteValue(x, 'weight'),
-     fmt: weight},
+    {id: 'id', defaultEn: true, label: 'ID', get: x => x.athleteId, fmt: x => x},
+    {id: 'weight', defaultEn: true, label: 'Weight', get: x => getAthleteValue(x, 'weight'), fmt: weight},
     {id: 'ftp', defaultEn: false, label: 'FTP', get: x => getAthleteValue(x, 'ftp'), fmt: pwr},
-    {id: 'tss', defaultEn: true, label: 'TSS', get: x => x.stats.tss, fmt: num},
+    {id: 'tss', defaultEn: false, label: 'TSS', get: x => x.stats.tss, fmt: num},
 
     {id: 'gap', defaultEn: true, label: 'Gap', get: x => x.gap, fmt: x => `${num(x)}s`},
 

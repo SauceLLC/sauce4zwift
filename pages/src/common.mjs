@@ -5,6 +5,7 @@ import './sentry.js';
 Sentry.init({
     dsn: "https://df855be3c7174dc89f374ef0efaa6a92@o1166536.ingest.sentry.io/6257001",
     beforeSend: beforeSentrySend,
+    integrations: arr => arr.filter(x => !['Breadcrumbs', 'TryCatch'].includes(x.name)),
 });
 
 const isElectron = location.protocol === 'file:';
@@ -205,6 +206,7 @@ class Renderer {
         this._nextRender;
         this._lastRenderTime = 0;
         this.locked = !!options.locked;
+        contentEl.classList.toggle('unlocked', !this.locked);
         this.stopping = false;
         this.fps = options.fps || 1;
         this.id = options.id || location.pathname.split('/').at(-1);
@@ -212,6 +214,7 @@ class Renderer {
 
     setLocked(locked) {
         this.locked = locked;
+        this._contentEl.classList.toggle('unlocked', !this.locked);
     }
 
     stop() {

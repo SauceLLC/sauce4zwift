@@ -6,7 +6,7 @@
         <meta name="apple-mobile-web-app-capable" content="yes"/>
         <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
 
-        <title>Groups Settings - Sauce for Zwift</title>
+        <title>Groups Settings - Sauce for Zwift™</title>
 
         <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
         <link rel='stylesheet' href="css/common.css"/>
@@ -18,7 +18,7 @@
     </head>
     <body>
         <div id="titlebar">
-            <header>Groups Settings</header>
+            <header><div class="title">Groups Settings</div></header>
         </div>
         <div id="settings">
             <form>
@@ -33,6 +33,16 @@
                 <label>
                     <key>Detect attacks:</key>
                     <input type="checkbox" name="detectAttacks"/>
+                </label>
+                <label>
+                    <key>Extra groups field:</key>
+                    <select name="groupsSecondaryField">
+                        <option value="speed">Speed</option>
+                        <option value="draft">Draft</option>
+                        <option value="heartrate">Heart Rate</option>
+                        <option value="power-highest">Highest Power</option>
+                        <option value="power-median">Median Power</option>
+                    </select>
                 </label>
                 <label>
                     <key>Extra groups field:</key>
