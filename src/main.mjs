@@ -47,14 +47,6 @@ storage.load(`sentry-id`).then(async id => {
     sentryAnonId = id;
 });
 
-rpc.register('getVersion', () => pkg.version);
-rpc.register('getSentryAnonId', () => sentryAnonId);
-rpc.register('openExternalLink', url => shell.openExternal(url));
-rpc.register('restart', () => {
-    appQuiting = true;
-    app.relaunch();
-    app.exit(0);
-});
 
 const pagePath = path.join(app.getAppPath(), 'pages');
 const appIcon = nativeImage.createFromPath(path.join(app.getAppPath(),
@@ -62,6 +54,33 @@ const appIcon = nativeImage.createFromPath(path.join(app.getAppPath(),
 const windows = new Map();
 let appQuiting = false;
 let started;
+
+rpc.register('getVersion', () => pkg.version);
+rpc.register('getSentryAnonId', () => sentryAnonId);
+rpc.register('openExternalLink', url => shell.openExternal(url));
+rpc.register('restart', () => {
+    appQuiting = true;
+    app.relaunch();
+    app.quit();
+});
+rpc.register('quit', () => {
+    appQuiting = true;
+    app.quit();
+});
+rpc.register('hideAllWindows', () => {
+    for (const {win, state, options} of windows.values()) {
+        if (options.hideable !== false && !state.hidden) {
+            win.hide();
+        }
+    }
+});
+rpc.register('showAllWindows', () => {
+    for (const {win, state, options} of windows.values()) {
+        if (options.hideable !== false && !state.hidden) {
+            win.show();
+        }
+    }
+});
 
 
 async function getWindowState(page) {
@@ -153,7 +172,7 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
         saveStateTimeout = setTimeout(() => setWindowState(page, state), 200);
     }
     async function onHide(ev) {
-        if (appQuiting) {
+        if (appQuiting || options.hideable === false) {
             return;
         }
         state.hidden = true;
@@ -217,7 +236,7 @@ if (app.dock) {
 
 app.on('window-all-closed', () => {
     if (started) {
-        app.exit(0);
+        app.quit();
     }
 });
 
@@ -270,32 +289,34 @@ async function patronLink() {
         // XXX Implment refresh once in a while.
         return true;
     }
-    const win = makeCaptiveWindow({width: 400, height: 700}, {
+    const win = makeCaptiveWindow({width: 400, height: 720}, {
         preload: path.join(pagePath, 'src/patron-link-preload.js'),
     });
     const ua = win.webContents.userAgent;
     // Prevent Patreon's datedome.co bot service from blocking us.
     win.webContents.userAgent = ua.replace(/ SauceforZwift.*? /, ' ').replace(/ Electron\/.*? /, ' ');
-    const codePromise = new Promise(resolve => {
-        ipcMain.on('patreon-auth-code', (ev, code) => resolve({code}));
-        ipcMain.on('patreon-special-token', (ev, token) => resolve({token}));
-    });
+    let resolve;
+    ipcMain.on('patreon-auth-code', (ev, code) => resolve({code}));
+    ipcMain.on('patreon-special-token', (ev, token) => resolve({token}));
+    win.on('closed', () => resolve({closed: true}));
     win.loadFile(path.join(pagePath, 'patron.html'));
-    const {code, token} = await codePromise;
-    if (token) {
-        membership = await patreon.getLegacyMembership(token);
-    } else {
-        const isAuthed = code && await patreon.link(code);
-        membership = isAuthed && await patreon.getMembership();
-    }
-    if (membership && membership.patronLevel >= 10) {
-        await storage.save('patron-membership', membership);
-        win.close();
-        return true;
-    } else {
-        win.loadFile(path.join(pagePath, 'non-patron.html'));
-        await new Promise(resolve => win.on('closed', resolve));
-        return false;
+    while (true) {
+        const {code, token, closed} = await new Promise(_resolve => resolve = _resolve);
+        if (closed) {
+            return false;
+        } else if (token) {
+            membership = await patreon.getLegacyMembership(token);
+        } else {
+            const isAuthed = code && await patreon.link(code);
+            membership = isAuthed && await patreon.getMembership();
+        }
+        if (membership && membership.patronLevel >= 10) {
+            await storage.save('patron-membership', membership);
+            win.close();
+            return true;
+        } else {
+            win.loadFile(path.join(pagePath, 'non-patron.html'));
+        }
     }
 }
 
@@ -310,7 +331,7 @@ async function main() {
     try {
         if (!await eulaConsent() || !await patronLink()) {
             appQuiting = true;
-            app.exit(0);
+            app.quit();
             return;
         }
     } catch(e) {
@@ -352,7 +373,7 @@ async function main() {
             await dialog.showErrorBox('Startup Error', '' + e);
             Sentry.captureException(e);
             appQuiting = true;
-            setTimeout(() => app.exit(0), 1000);
+            setTimeout(() => app.exit(1), 1000);
             return;
         }
     }
@@ -390,24 +411,6 @@ async function main() {
         for (const x of disableEvents) {
             win.on(x, disable);
         }
-    });
-    ipcMain.on('hideAllWindows', ev => {
-        for (const {win, state, options} of windows.values()) {
-            if (options.hideable !== false && !state.hidden) {
-                win.hide();
-            }
-        }
-    });
-    ipcMain.on('showAllWindows', ev => {
-        for (const {win, state, options} of windows.values()) {
-            if (options.hideable !== false && !state.hidden) {
-                win.show();
-            }
-        }
-    });
-    ipcMain.on('quit', () => {
-        appQuiting = true;
-        app.exit(0);
     });
     app.on('activate', async () => {
         // Clicking on the app icon..

@@ -418,7 +418,6 @@ function initSettingsForm(selector, options={}) {
 
 export default {
     closeWindow,
-    electronTrigger,
     subscribe,
     rpc,
     initInteractionListeners,

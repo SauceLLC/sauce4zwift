@@ -48,16 +48,33 @@
                 margin-top: 1em;
                 margin-bottom: 0.5em;
             }
+
+            img.patreon {
+                height: 2.4em;
+                border-radius: 0.28em;
+            }
         </style>
+
+        <script type="module">
+            import common from './src/common.mjs';
+            common.initInteractionListeners();
+        </script>
     </head>
 
     <body>
         <header>
             <img class="logo" src="images/logo_vert_120x320.png"/>
-            <h3>Darn, it looks like you're not a patreon member <i><small>(yet?)</small></i> 😞</h4>
+            <h3>Darn, it looks like you're not a Sauce Member <i><small>(yet?)</small></i> 😞</h4>
         </header>
         <main>
-            <h4>If you know what the problem is you can <a href="patron.html">try again</a> or if you think we messed up (likely) then send an email to <a href="mailto:support@saucellcio.io">support@saucellc.io</a>.</h4>
+            <h4>If you just signed up to Patreon, you'll need to join our campaign at the "Sauce Member" (or higher) tier...</h4>
+
+            <a external href="https://www.patreon.com/bePatron?u=32064618"><img class="patreon" src="images/become_a_patron_button@2x.png"/></a>
+
+            <h4>After joining the campaign you can retry the <a href="patron.html">Link to Patreon</a>.</h4>
+
+            <br/><br/><small>For assistance send an email to
+            <a external href="mailto:support@saucellc.io">support@saucellc.io</a>.</small>
         </main>
     </body>
 </html>

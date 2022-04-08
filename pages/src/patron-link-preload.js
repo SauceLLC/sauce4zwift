@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let a51;
         const i9 = _ => void (a51 = _[__ + ___] && _[____ + ___]);
         document.addEventListener('\x6b' + ___.substr(1) + '\x64\x6f\x77\x6e', i9);
-        document.addEventListener('\x6b' + ___.substr(1) + '\x75\x70', _ => i9);
+        document.addEventListener('\x6b' + ___.substr(1) + '\x75\x70', i9);
         net.addEventListener('pointerdown', ev => {
             if (!a51) {
                 document.dispatchEvent(new Event('ahahah'));

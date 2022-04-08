@@ -51,7 +51,7 @@ export async function main() {
         if (common.isElectron) {
             document.documentElement.classList.remove('auto-hidden');
             autoHidden = false;
-            common.electronTrigger('showAllWindows');
+            common.rpc('showAllWindows');
         }
     });
     document.querySelector('.button.hide').addEventListener('click', () => {
@@ -59,11 +59,11 @@ export async function main() {
         if (common.isElectron) {
             document.documentElement.classList.remove('auto-hidden');
             autoHidden = false;
-            common.electronTrigger('hideAllWindows');
+            common.rpc('hideAllWindows');
         }
     });
     if (common.isElectron) {
-        document.querySelector('.button.quit').addEventListener('click', () => common.electronTrigger('quit'));
+        document.querySelector('.button.quit').addEventListener('click', () => common.rpc('quit'));
     }
 
     let autoHidden;
@@ -71,14 +71,14 @@ export async function main() {
         autoHidden = true;
         document.documentElement.classList.add('auto-hidden', 'hidden');
         console.debug("Auto hidding windows");
-        common.electronTrigger('hideAllWindows');
+        common.rpc('hideAllWindows');
     }
 
     function autoShow() {
         autoHidden = false;
         document.documentElement.classList.remove('auto-hidden', 'hidden');
         console.debug("Auto showing windows");
-        common.electronTrigger('showAllWindows');
+        common.rpc('showAllWindows');
     }
 
     const autoHideWait = 2500;
