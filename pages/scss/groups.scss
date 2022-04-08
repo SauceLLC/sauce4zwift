@@ -1,27 +1,32 @@
+$shadow-size: 0.4rem;
+$html-pad: 3px;
+$content-pad: 0.4rem;
+$content-right-pad: 2.5rem;
+
 html {
     --aspect-ratio: 3 / 8;
 }
 
 #content {
-    padding: 0.4em;
+    padding: $content-pad;
     align-items: center;
     justify-content: center;
-    padding-right: 2.5rem;  /* Need more space for absolute pos desc on right. */
+    padding-right: $content-right-pad;  /* Need more space for absolute pos desc on right. */
 }
 
 .position {
-    display: flex;
-    align-items: center;
-    flex: 0 0 auto;
-    position: relative;
-    --size: calc(1.2rem + (var(--athletes) / max(20, var(--total-athletes)) * 6rem));
-    width: var(--size);
-    height: var(--size);
-    order: var(--rel-pos);
-    transition-property: width, height, opacity, visibility, font;
-    transition-duration: 2s;
     --rim-color: #666a;
     --rim-border-color: #0004;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 100%;
+    position: relative;
+    transition-property: opacity, visibility;
+    transition-duration: 2s;
+    --size: calc(1.2rem + (var(--athletes) / max(20, var(--total-athletes)) * 6rem));
+    order: var(--rel-pos);
 
     &.watching {
         .bubble {
@@ -31,14 +36,17 @@ html {
     }
 
     &.attn {
-        &.attack {
-            --rim-color: #ff35008f;
-            --rim-border-color: #fff;
-            --attn-line-color: #fb0;
-        }
+        --rim-color: #ff35008f;
+        --rim-border-color: #fff;
+        --attn-line-color: #fb0;
     }
 
     .bubble {
+        margin: $shadow-size; // XXX try this and see if we don't need to animation margin
+        width: var(--size);
+        height: var(--size);
+        transition-property: margin, width, height, font;
+        transition-duration: 2s;
         display: flex;
         overflow: hidden;
         cursor: pointer;
@@ -51,9 +59,7 @@ html {
         font-size: calc(0.4em + (0.20 * var(--size)));
         font-family: sans-serif;
         color: black;
-        width: 100%;
-        height: 100%;
-        box-shadow: 0 0 0 0.4rem var(--rim-color), 0.03rem 0.03rem 0.4rem 0 var(--rim-border-color);
+        box-shadow: 0 0 0 $shadow-size var(--rim-color), 0.03rem 0.03rem $shadow-size 0 var(--rim-border-color);
 
         img {
             width: 100%;
@@ -67,15 +73,15 @@ html {
     transition: initial;
 }
 
-.position:not(.hidden) {
-    margin: 0.4rem;  // Match box-shadow of bubble
-}
-
 .position.hidden {
     opacity: 0;
-    width: 0;
-    height: 0;
     visibility: hidden;
+
+    .bubble {
+        width: 0;
+        height: 0;
+        margin: 0;
+    }
 }
 .position.hidden + .gap,
 .gap.alone {
@@ -95,27 +101,32 @@ html {
 }
 
 .position .desc {
-    /* bubble + shadow + desc-pad */
-    $left: calc(100% + 0.4rem + 0.2rem);
-    left: $left;
-    /* viewport-width - content-right-margin - $left */
-    max-width: calc(100vw - 2.5rem - $left);
+    $desc-pad: 0.2rem;
+    left: calc(50% + (var(--size) / 2) + $shadow-size + $desc-pad);
+    width: calc(50% - (var(--size) / 2) + $content-right-pad - $shadow-size - $desc-pad);
 }
 
 
 .desc .lines {
     display: flex;
     flex-direction: column;
+    overflow: hidden;
 }
 .position .desc .lines {
     align-items: flex-start;
 }
 .gap .desc .lines {
     align-items: flex-end;
+
+    .line {
+        text-align: right;
+    }
 }
 
 .desc .lines .line {
-    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
     text-shadow: 0 0 1px #000a, 0 0 3px #000a;
 
     &.attn {
@@ -141,32 +152,37 @@ html {
 .position .desc::before {
     font-size: 0.5rem;
 }
-.gap .desc::after {
-    padding: 0 0.2em;
-}
-
-.gap .desc {
-    top: 0;
-    height: 100%;
-    right: 0.2rem;
-}
-
-.gap .line.est {
-    font-size: 0.55em;
-    font-style: italic;
-}
 
 .gap {
+    $border-width: calc(0.08rem + 0.15rem * min(1, var(--outer-gap) / 600));
     position: relative;
     order: var(--rel-pos);
     border-right-style: solid;
-    border-right-width: calc(0.08rem + 0.15rem * min(1, var(--outer-gap) / 600));
+    border-right-width: $border-width;
     border-right-color: hsl(calc(70deg + 50deg * min(var(--outer-gap) / 300, 1) * var(--gap-sign)), 100%, 50%);
     flex: var(--inner-gap) 1 0;
     transition-property: flex, opacity, visibility;
     transition-duration: 2s;
+
+    .desc {
+        $pad: 0.2rem;
+        top: 0;
+        height: 100%;
+        right: $pad;
+        width: calc(50vw - ($html-pad * 2) - $pad - $border-width - ($content-right-pad / 2) + $content-pad);
+        justify-content: flex-end;
+
+        &::after {
+            padding: 0 0.2em;
+        }
+    }
+
+    .line.est {
+        font-size: 0.55em;
+        font-style: italic;
+    }
 }
+
 .no-transition .gap {
     transition: initial;
 }
-

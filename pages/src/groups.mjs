@@ -4,7 +4,7 @@ import common from './common.mjs';
 const L = sauce.locale;
 const H = L.human;
 const positions = new Map();
-const settingsKey = 'groups-settings-v2';
+const settingsKey = 'groups-settings-v3';
 let imperial = common.storage.get('/imperialUnits');
 L.setImperial(imperial);
 let settings;
@@ -62,16 +62,14 @@ function render() {
 
 function renderZoomed(groups) {
     let centerIdx = groups.findIndex(x => x.watching);
-    groups = groups.slice(
-        Math.max(0, centerIdx - (settings.maxAhead || 3)),
-        centerIdx + (settings.maxBehind || 3) + 1);
-    centerIdx = groups.findIndex(x => x.watching);
-    const center = groups[centerIdx];
-    if (!center) {
+    const idx = Math.max(0, Math.min(centerIdx + zoomedPosition, groups.length - 1));
+    const group = groups[idx];
+    if (!group) {
+        console.warn("XXX Unexpected missing group");
         return;
     }
-    const group = groups[centerIdx + zoomedPosition];
     const athletes = group.athletes;
+    centerIdx = Math.max(0, athletes.findIndex(x => x.watching));
     const totAthletes = athletes.length;
     const totGap = Math.round(athletes[athletes.length - 1].gap - athletes[0].gap);
     const content = document.querySelector('#content');
@@ -134,14 +132,27 @@ function renderZoomed(groups) {
         }
         posEl.querySelector('.desc .lines').innerHTML = lines.join('');
         const gapEl = posEl.nextSibling;
-        const gap = next ? Number((next.gap - athlete.gap).toFixed(1)) : 0;
+        const gapField = settings.zoomedGapField || 'distance';
+        let gap;
+        if (gapField === 'time') {
+            gap = next ? Number((next.gap - athlete.gap).toFixed(1)) : 0;
+        } else {
+            gap = next ? Number((next.gapDistance - athlete.gapDistance).toFixed(1)) : 0;
+        }
+        gap = Math.abs(gap);
         gapEl.style.setProperty('--inner-gap', gap);
-        gapEl.style.setProperty('--outer-gap', Math.abs(gap));
-        gapEl.style.setProperty('--gap-sign', gap > 0 ? 1 : -1);
-        gapEl.classList.toggle('real', !!next && !next.isGapEst);
+        gapEl.style.setProperty('--outer-gap', gap);
+        gapEl.style.setProperty('--gap-sign', -1);
         gapEl.classList.toggle('alone', !gap);
-        const dur = gap && gap.toFixed(1) + 's';
-        gapEl.querySelector('.desc .line.time').textContent = dur ? (gap > 0 ? '+' : '-') + dur : '';
+        let dur;
+        if (gapField === 'time') {
+            dur = gap && H.number(gap, {precision: 1}) + 's';
+            gapEl.classList.toggle('real', !!next && !next.isGapEst);
+        } else {
+            dur = gap && (H.number(gap * (imperial ? 3.28084 : 1)) + (imperial ? 'ft' : 'm'));
+            gapEl.classList.toggle('real', true);
+        }
+        gapEl.querySelector('.desc .line.time').textContent = dur ? dur : '';
     }
     for (const [pos, x] of positions.entries()) {
         x.classList.toggle('hidden', !active.has(pos));
@@ -155,8 +166,7 @@ function renderGroups(groups) {
         Math.max(0, centerIdx - (settings.maxAhead || 3)),
         centerIdx + (settings.maxBehind || 3) + 1);
     centerIdx = groups.findIndex(x => x.watching);
-    const center = groups[centerIdx];
-    if (!center) {
+    if (centerIdx === -1) {
         return;
     }
     const totAthletes = groups.reduce((agg, x) => agg + x.athletes.length, 0);
@@ -188,7 +198,7 @@ function renderGroups(groups) {
                     max = p;
                 }
             }
-            if (max > 400 && (max / group.power) > 2) {
+            if (group.athletes.length > 1 && max > 400 && (max / group.power) > 2) {
                 groupEl.classList.add('attn', 'attack');
                 lines.push(`<div class="line attn">${H.number(max)}<small>w Attacker!</small></div>`);
             } else {
@@ -249,6 +259,7 @@ export async function main() {
         maxBehind: 2,
         groupsSecondaryField: 'speed',
         zoomedSecondaryField: 'draft',
+        zoomedGapField: 'distance',
     });
     document.addEventListener('settings-updated', () => {
         settings = common.storage.get(settingsKey);
