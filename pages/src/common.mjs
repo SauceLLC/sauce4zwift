@@ -195,6 +195,13 @@ function initInteractionListeners(options={}) {
             }
         });
     }
+    document.documentElement.addEventListener('click', async ev => {
+        const link = ev.target.closest('a[external][href]');
+        if (link) {
+            ev.preventDefault();
+            await rpc('openExternalLink', link.href);
+        }
+    });
 }
 
 

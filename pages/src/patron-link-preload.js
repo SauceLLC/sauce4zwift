@@ -1,5 +1,23 @@
 const {ipcRenderer} = require('electron');
 
+// Browser Window -> Electron RPC
+document.addEventListener('electron-rpc', async ev => {
+    let resp;
+    try {
+        resp = await ipcRenderer.invoke('__rpc__', ev.detail.name, ...ev.detail.args);
+    } catch(e) {
+        resp = {
+            success: false,
+            error: {
+                name: e.name,
+                message: e.message,
+                stack: e.stack,
+            }
+        };
+    }
+    document.dispatchEvent(new CustomEvent(ev.detail.domEvent, {detail: resp}));
+});
+
 document.addEventListener('DOMContentLoaded', () => {
     // Step 1 page.
     const link = document.querySelector('.patron-link');

@@ -8,7 +8,6 @@
 
         <title>Need install of Npcap - Sauce for Zwift™</title>
 
-        <link rel="manifest" href="nearby-manifest.json"/>
         <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
         <link rel='stylesheet' href="css/common.css"/>
 
@@ -35,20 +34,50 @@
                 overflow: auto;
                 position: relative;
             }
+
+            button {
+                border-radius: 0.3em;
+                margin: 0 0.2em;
+                padding: 0.4em;
+                border: none;
+                opacity: 0.88;
+                background-color: #fffe;
+                outline: none;
+                cursor: pointer;
+                user-select: none;
+                transition: 200ms opacity, 100ms box-shadow;
+            }
+            button:hover {
+                opacity: 1;
+                box-shadow: 1px 1px 4px 0 #0004;
+            }
+            button:active {
+                box-shadow: inset 0 0 10px 0 #0009;
+            }
         </style>
+
+        <script type="module">
+            import common from './src/common.mjs';
+
+            function main() {
+                common.initInteractionListeners();
+                document.querySelector('button.restart').addEventListener('click', () => common.rpc('restart'));
+            }
+            document.addEventListener('DOMContentLoaded', main);
+        </script>
     </head>
     <body class="">
         <div id="content">
-            You're <b>almost</b> there!  We just need you to install Npcap first. 
+            You're <b>almost</b> there!  We just need you to install the free version of Npcap first.
             This is how Sauce for Zwift™ monitors the Zwift data stream to make dreams
             a reality and unicorns dance the night away...<br/><br/>
-            <a href="https://nmap.org/npcap#download" target="_blank">Npcap downloads page</a>
+            <a external href="https://nmap.org/npcap#download">Npcap downloads page</a>
             <br/><br/>
             <i><small>Hint: look for the link that says something like "Npcap 1.60 installer for Windows..."</small></i>
             <br/><br/>
-            Once Npcap is installed <a href="sauce://restart" target="_blank">Restart Sauce for Zwift™</a>
+            After Npcap is installed <button class="restart">Restart Sauce for Zwift™</button>
             <br/><br/><small>For assistance send an email to
-            <a href="mailto:support@saucellc.io" target="_blank">support@saucellc.io</a>.</small>
+            <a external href="mailto:support@saucellc.io">support@saucellc.io</a>.</small>
         </div>
     </body>
-</html>               
+</html>

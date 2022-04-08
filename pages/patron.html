@@ -72,7 +72,7 @@
                 border: none;
                 font-size: 18px;
                 opacity: 0.88;
-                background-color: #fffc;
+                background-color: #fffe;
                 outline: none; 
                 cursor: pointer;
                 user-select: none;
@@ -80,7 +80,10 @@
             }
             .big-button:hover {
                 opacity: 1;
-                box-shadow: 1px 1px 0 4px #0004;
+                box-shadow: 1px 1px 4px 0 #0004;
+            }
+            .big-button:active {
+                box-shadow: inset 0 0 10px 0 #0009;
             }
 
             h4, h5 {
@@ -102,6 +105,7 @@
             import common from './src/common.mjs';
 
             async function main() {
+                common.initInteractionListeners();
                 const audioCtx = new AudioContext();
                 const danceAB = await (await fetch('sounds/dance.ogg')).arrayBuffer();
                 let buffer;
@@ -160,7 +164,7 @@
             <h3>Greetings Zwifter!</h3>
         </header>
         <main>
-            <h4>To use Sauce for Zwift™ you need to be a <i>Sauce Member</i> on <a href="https://www.patreon.com/bePatron?u=32064618&external" target="_blank" class="external">our Patreon</a>.</h4>
+            <h4>To use Sauce for Zwift™ you need to be a <i>Sauce Member</i> on <a external href="https://www.patreon.com/bePatron?u=32064618">our Patreon</a>.</h4>
 
             <h4>Without this support I will become financially derelict and swiftly banished from society. 😞</h4>
 
@@ -168,6 +172,9 @@
             <button class="big-button patron-link">Link with Patreon</button>
 
             <h5>Oh, and if you're already a member, use that same link 👆 to activate this computer.</h5>
+
+            <br/><br/><small>For assistance send an email to
+            <a external href="mailto:support@saucellc.io">support@saucellc.io</a>.</small>
         </main>
         <a class="net" href="javascript:void(0)">π</a>
         <div id="ahahah"></div>

@@ -49,6 +49,12 @@ storage.load(`sentry-id`).then(async id => {
 
 rpc.register('getVersion', () => pkg.version);
 rpc.register('getSentryAnonId', () => sentryAnonId);
+rpc.register('openExternalLink', url => shell.openExternal(url));
+rpc.register('restart', () => {
+    appQuiting = true;
+    app.relaunch();
+    app.exit(0);
+});
 
 const pagePath = path.join(app.getAppPath(), 'pages');
 const appIcon = nativeImage.createFromPath(path.join(app.getAppPath(),
@@ -224,6 +230,8 @@ function makeCaptiveWindow(options={}, webPrefs={}) {
         fullscreenable: false,
         webPreferences: {
             sandbox: true,
+            devTools: !app.isPackaged,
+            preload: path.join(pagePath, 'src/preload.js'),
             ...webPrefs,
         },
         ...options
@@ -237,9 +245,7 @@ async function eulaConsent() {
     if (await storage.load(`eula-consent`)) {
         return true;
     }
-    const win = makeCaptiveWindow({width: 800, height: 600}, {
-        preload: path.join(pagePath, 'src/preload.js'),
-    });
+    const win = makeCaptiveWindow({width: 800, height: 600});
     const consenting = new Promise(resolve => {
         rpc.register('eulaConsent', async agree => {
             if (agree === true) {
@@ -270,12 +276,6 @@ async function patronLink() {
     const ua = win.webContents.userAgent;
     // Prevent Patreon's datedome.co bot service from blocking us.
     win.webContents.userAgent = ua.replace(/ SauceforZwift.*? /, ' ').replace(/ Electron\/.*? /, ' ');
-    win.webContents.on('new-window', (ev, url) => {
-        if (url.endsWith('external')) {
-            ev.preventDefault();
-            shell.openExternal(url);
-        }
-    });
     const codePromise = new Promise(resolve => {
         ipcMain.on('patreon-auth-code', (ev, code) => resolve({code}));
         ipcMain.on('patreon-special-token', (ev, token) => resolve({token}));
@@ -325,20 +325,9 @@ async function main() {
         //mon = (await import('./garmin_live_track.mjs')).default;
         mon = (await import('./game.mjs')).default;
     } catch(e) {
-        if (e.message.includes('The specified module could not be found.') &&
-            e.message.includes('cap.node')) {
+        if (e.message.includes('cap.node')) {
             shell.beep();
             const installPrompt = makeCaptiveWindow({width: 400, height: 400});
-            installPrompt.webContents.on('new-window', (ev, url) => {
-                ev.preventDefault();
-                if (url === 'sauce://restart') {
-                    appQuiting = true;
-                    app.relaunch();
-                    app.exit(0);
-                } else {
-                    shell.openExternal(url);
-                }
-            });
             installPrompt.loadFile(path.join(pagePath, 'npcap-install.html'));
             return;
         } else {
