@@ -289,6 +289,7 @@ async function eulaConsent() {
         return true;
     }
     const win = makeCaptiveWindow({width: 800, height: 600});
+    let closed;
     const consenting = new Promise(resolve => {
         rpc.register('eulaConsent', async agree => {
             if (agree === true) {
@@ -299,11 +300,13 @@ async function eulaConsent() {
                 resolve(false);
             }
         });
-        win.on('close', resolve(false));
+        win.on('closed', () => (closed = true, resolve(false)));
     });
     win.loadFile(path.join(pagePath, 'eula.html'));
     const consent = await consenting;
-    win.close();
+    if (!closed) {
+        win.close();
+    }
     return consent;
 }
 
@@ -364,9 +367,10 @@ async function zwiftLogin() {
     const needLoginPromise = new Promise(resolve => {
         ipcMain.on('zwift-login-required', (ev, needLogin) => resolve(needLogin));
     });
+    let closed;
     const tokensPromise = new Promise(resolve => {
         ipcMain.on('zwift-tokens', (ev, tokens) => resolve(tokens));
-        win.on('closed', () => resolve(false));
+        win.on('closed', () => (closed = true, resolve(false)));
     });
     win.loadURL(`https://www.zwift.com/sign-in`); //?redirect=...
     if (await needLoginPromise) {
@@ -381,7 +385,9 @@ async function zwiftLogin() {
     } else {
         console.info("Zwift login failed");
     }
-    win.close();
+    if (!closed) {
+        win.close();
+    }
     await storage.save('zwift-tokens', tokens);
 }
 

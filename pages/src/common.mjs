@@ -400,11 +400,12 @@ async function initSettingsForm(selector, options={}) {
     if (!settingsKey) {
         throw new TypeError('settingsKey required');
     }
-    const data = {...extraData, ...(storage.get(settingsKey) || {})};
+    const storageData = storage.get(settingsKey) || {};
+    const allData = {...storageData, ...extraData};
     const storageIface = {
         get: name => {
             const isGlobal = name.startsWith('/');
-            return isGlobal ? storage.get(name) : data[name];
+            return isGlobal ? storage.get(name) : allData[name];
         },
         set: (name, value) => {
             const isGlobal = name.startsWith('/');
@@ -416,81 +417,17 @@ async function initSettingsForm(selector, options={}) {
                 }
             } else {
                 if (value === undefined) {
-                    delete data[name];
+                    delete storageData[name];
                 } else {
-                    data[name] = value;
+                    storageData[name] = value;
                 }
-                storage.set(settingsKey, data);
+                storage.set(settingsKey, storageData);
             }
         },
     };
     await bindFormData(selector, storageIface);
 }
  
-/*
-    const data = {...extraData, ...(storage.get(settingsKey) || {})};
-    const form = document.querySelector(selector);
-    for (const el of form.querySelectorAll('.display-field[name]')) {
-        const name = el.getAttribute('name');
-        const val = name.startsWith('/') ? storage.get(name) : data[name];
-        el.textContent = val;
-    }
-    for (const el of form.querySelectorAll('input')) {
-        const name = el.name;
-        const isGlobal = name.startsWith('/');
-        const val = isGlobal ? storage.get(name) : data[name];
-        if (el.type === 'checkbox') {
-            el.checked = val;
-        } else {
-            el.value = val == null ? '' : val;
-        }
-        el.addEventListener('input', ev => {
-            const val = (({
-                number: () => el.value ? Number(el.value) : undefined,
-                checkbox: () => el.checked,
-            }[el.type]) || (() => el.value || undefined))();
-            if (isGlobal) {
-                if (val === undefined) {
-                    storage.delete(name);
-                } else {
-                    storage.set(name, val);
-                }
-            } else {
-                if (val === undefined) {
-                    delete data[name];
-                } else {
-                    data[name] = val;
-                }
-                storage.set(settingsKey, data);
-            }
-        });
-    }
-    for (const el of form.querySelectorAll('select')) {
-        const isGlobal = el.name.startsWith('/');
-        const name = el.name;
-        const val = isGlobal ? storage.get(name) : data[name];
-        el.value = val == null ? '' : val;
-        el.addEventListener('change', ev => {
-            const val = el.value || undefined;
-            if (isGlobal) {
-                if (val === undefined) {
-                    storage.delete(name);
-                } else {
-                    storage.set(name, val);
-                }
-            } else {
-                if (val === undefined) {
-                    delete data[name];
-                } else {
-                    data[name] = val;
-                }
-                storage.set(settingsKey, data);
-            }
-        });
-    }
-}
-*/
-
 
 export default {
     closeWindow,

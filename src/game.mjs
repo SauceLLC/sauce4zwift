@@ -402,11 +402,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             const zwiftLogin = await getAppSetting('zwiftLogin');
             this.zwiftTokens = zwiftLogin && await storage.load('zwift-tokens');
         }
-        if (!this.zwiftTokens) {
-            this._pendingProfileFetches.length = 0;
-            return;
-        }
-        while (this._pendingProfileFetches.length) {
+        while (this.zwiftTokens && this._pendingProfileFetches.length) {
             const [, id] = this._pendingProfileFetches.shift();
             const data = this.athletes.get(id);
             if (data && data.ts && (Date.now() - data.ts) < (86400 * 1000)) {
@@ -414,7 +410,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             }
             try {
                 const p = await this._fetchProfile(id, this.zwiftTokens.accessToken);
-                const info = this.updateAthlete(id, p.firstName, p.lastName, {
+                this.updateAthlete(id, p.firstName, p.lastName, {
                     ftp: p.ftp,
                     avatar: p.imageSrcLarge || p.imageSrc,
                     weight: p.weight / 1000,
@@ -423,14 +419,15 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                     level: Math.floor(p.achievementLevel / 100),
                     createdOn: p.createdOn ? +(new Date(p.createdOn)) : undefined,
                 });
-                console.debug("Athlete Info:", info);
                 setTimeout(() => this.profileFetchIds.delete(id), 3600 * 1000);
             } catch(e) {
                 console.error("Zwift API error:", e);
                 this.updateAthlete(id);  // Update TS
             }
-            await sauce.sleep(1000 + 1000 * Math.random());  // Slow it down while we don't know how robust it is, look for bulk EP.
+            // Slow it down until we are learned XXX
+            await sauce.sleep(1000 + 1000 * Math.random());
         }
+        this._pendingProfileFetches.length = 0;
     }
 
     async _fetchProfile(id, token) {

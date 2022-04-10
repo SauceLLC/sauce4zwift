@@ -29,7 +29,7 @@ lint:
 	$(NPATH)/eslint --ext .mjs --config .eslintrc.modules.json src shared pages/src
 
 unpacked: $(BUILD)
-	SKIP_NOTARIZE=1 npm run pack
+	SKIP_NOTARIZE=1 npm run unpacked
 
 build: $(BUILD)
 	SKIP_NOTARIZE=1 npm run build
