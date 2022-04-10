@@ -2,11 +2,6 @@
 
 import {sleep, beforeSentrySend} from '../../shared/sauce/base.mjs';
 import './sentry.js';
-Sentry.init({
-    dsn: "https://df855be3c7174dc89f374ef0efaa6a92@o1166536.ingest.sentry.io/6257001",
-    beforeSend: beforeSentrySend,
-    integrations: arr => arr.filter(x => !['Breadcrumbs', 'TryCatch'].includes(x.name)),
-});
 
 const isElectron = location.protocol === 'file:';
 
@@ -444,5 +439,17 @@ export default {
 
 rpc('getVersion').then(v => Sentry.setTag('version', v));
 rpc('getSentryAnonId').then(id => Sentry.setUser({id}));
+rpc('appIsPackaged').then(packaged => {
+    if (packaged) {
+        console.log("start sentry");
+        Sentry.init({
+            dsn: "https://df855be3c7174dc89f374ef0efaa6a92@o1166536.ingest.sentry.io/6257001",
+            beforeSend: beforeSentrySend,
+            integrations: arr => arr.filter(x => !['Breadcrumbs', 'TryCatch'].includes(x.name)),
+        });
+    } else {
+        console.debug("Sentry disabled for unpackaged app");
+    }
+});
 
 window.rpc = rpc; // XXX DEBUG

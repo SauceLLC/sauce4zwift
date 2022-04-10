@@ -31,7 +31,7 @@ async function load(id, defaultFile) {
 
 async function save(id, data) {
     const file = await getFilePath(id);
-    const tmpFile = file + '.tmp';
+    const tmpFile = file + `.tmp.${Date.now()}.${Math.round(Math.random() * 10000000)}`;
     const serialized = JSON.stringify(data);
     const f = await fs.open(tmpFile, 'w');
     try {

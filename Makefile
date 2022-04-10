@@ -25,7 +25,7 @@ run-debug-brk: $(BUILD)
 	npm run start-debug-brk
 
 lint:
-	$(NPATH)/eslint src pages/src
+	$(NPATH)/eslint src
 	$(NPATH)/eslint --ext .mjs --config .eslintrc.modules.json src shared pages/src
 
 unpacked: $(BUILD)

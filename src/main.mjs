@@ -19,41 +19,46 @@ Error.stackTraceLimit = 50;
 // https://github.com/electron-userland/electron-builder/issues/2700
 app.setAppUserModelId('io.saucellc.sauce4zwift'); // must match build.appId for windows
 
-Sentry.init({
-    dsn: "https://df855be3c7174dc89f374ef0efaa6a92@o1166536.ingest.sentry.io/6257001",
-    // Sentry changes the uncaught exc behavior to exit the process.  I think that's a bug
-    // but this is the only workaround for now.
-    integrations: data => data.filter(x => x.name !== 'OnUncaughtException'),
-    beforeSend: sauce.beforeSentrySend,
-});
-// No idea, just copied from https://github.com/getsentry/sentry-javascript/issues/1661
-global.process.on('uncaughtException', e => {
-    const hub = Sentry.getCurrentHub();
-    hub.withScope(async scope => {
-        scope.setLevel('fatal');
-        hub.captureException(e, {originalException: e});
-    });
-    console.error('Uncaught (but reported)', e);
-});
-Sentry.setTag('version', pkg.version);
 let sentryAnonId;
-storage.load(`sentry-id`).then(async id => {
-    if (!id) {
-        // It's just an anonymous value to distinguish errors and feedback
-        id = crypto.randomBytes(16).toString("hex");
-        await storage.save(`sentry-id`, id);
-    }
-    Sentry.setUser({id});
-    sentryAnonId = id;
-});
+if (app.isPackaged) {
+    Sentry.init({
+        dsn: "https://df855be3c7174dc89f374ef0efaa6a92@o1166536.ingest.sentry.io/6257001",
+        // Sentry changes the uncaught exc behavior to exit the process.  I think that's a bug
+        // but this is the only workaround for now.
+        integrations: data => data.filter(x => x.name !== 'OnUncaughtException'),
+        beforeSend: sauce.beforeSentrySend,
+    });
+    // No idea, just copied from https://github.com/getsentry/sentry-javascript/issues/1661
+    global.process.on('uncaughtException', e => {
+        const hub = Sentry.getCurrentHub();
+        hub.withScope(async scope => {
+            scope.setLevel('fatal');
+            hub.captureException(e, {originalException: e});
+        });
+        console.error('Uncaught (but reported)', e);
+    });
+    Sentry.setTag('version', pkg.version);
+    storage.load(`sentry-id`).then(async id => {
+        if (!id) {
+            // It's just an anonymous value to distinguish errors and feedback
+            id = crypto.randomBytes(16).toString("hex");
+            await storage.save(`sentry-id`, id);
+        }
+        Sentry.setUser({id});
+        sentryAnonId = id;
+    });
+} else {
+    console.info("Sentry disabled for unpackaged app");
+}
 
 const appSettingDefaults = {
     zwiftLogin: false,
 };
 
 const appSettingsKey = 'app-settings';
-const pagePath = path.join(app.getAppPath(), 'pages');
-const appIcon = nativeImage.createFromPath(path.join(app.getAppPath(),
+const appPath = app.getAppPath();
+const pagePath = path.join(appPath, 'pages');
+const appIcon = nativeImage.createFromPath(path.join(appPath,
     'build/images/app-icon.icos'));
 const windows = new Map();
 let appQuiting = false;
@@ -80,6 +85,7 @@ export async function setAppSetting(key, value) {
 
 rpc.register('getAppSetting', getAppSetting);
 rpc.register('setAppSetting', setAppSetting);
+rpc.register('appIsPackaged', () => app.isPackaged);
 rpc.register('getVersion', () => pkg.version);
 rpc.register('getSentryAnonId', () => sentryAnonId);
 rpc.register('openExternalLink', url => shell.openExternal(url));
@@ -92,16 +98,18 @@ rpc.register('quit', () => {
     appQuiting = true;
     app.quit();
 });
-rpc.register('hideAllWindows', () => {
+rpc.register('hideAllWindows', (options={}) => {
+    const autoHide = options.autoHide;
     for (const {win, state, options} of windows.values()) {
-        if (options.hideable !== false && !state.hidden) {
+        if (options.hideable !== false && !state.hidden && (options.autoHide !== false || !autoHide)) {
             win.hide();
         }
     }
 });
-rpc.register('showAllWindows', () => {
+rpc.register('showAllWindows', (options={}) => {
+    const autoHide = options.autoHide;
     for (const {win, state, options} of windows.values()) {
-        if (options.hideable !== false && !state.hidden) {
+        if (options.hideable !== false && !state.hidden && (options.autoHide !== false || !autoHide)) {
             win.show();
         }
     }
@@ -141,7 +149,8 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
         show: false,
         webPreferences: {
             sandbox: true,
-            preload: path.join(pagePath, 'src', 'preload.js'),
+            devTools: !app.isPackaged,
+            preload: path.join(appPath, 'src', 'preload', 'common.js'),
         },
         ...options,
         ...state,
@@ -171,8 +180,9 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
             fullscreenable: true,
             show: false,
             webPreferences: {
+                devTools: !app.isPackaged,
                 sandbox: true,
-                preload: path.join(pagePath, 'src', 'preload.js'),
+                preload: path.join(appPath, 'src', 'preload', 'common.js'),
             }
         });
         newWin.removeMenu();
@@ -249,7 +259,7 @@ async function createWindows(monitor) {
             {relWidth: 0.6, height: 40, relX: 0.2, y: 0, hideable: false}),
         makeFloatingWindow('nearby.html',
             {width: 800, height: 400, x: 20, y: 20, alwaysOnTop: false, frame: true,
-             maximizable: true, fullscreenable: true, transparent: false},
+             maximizable: true, fullscreenable: true, transparent: false, autoHide: false},
             {hidden: true})
     ]);
 }
@@ -274,7 +284,7 @@ function makeCaptiveWindow(options={}, webPrefs={}) {
         webPreferences: {
             sandbox: true,
             devTools: !app.isPackaged,
-            preload: path.join(pagePath, 'src', 'preload.js'),
+            preload: path.join(appPath, 'src', 'preload', 'common.js'),
             ...webPrefs,
         },
         ...options
@@ -325,7 +335,7 @@ async function patronLink() {
         return true;
     }
     const win = makeCaptiveWindow({width: 400, height: 720}, {
-        preload: path.join(pagePath, 'src', 'patron-link-preload.js'),
+        preload: path.join(appPath, 'src', 'preload', 'patron-link.js'),
     });
     scrubUA(win);
     let resolve;
@@ -355,13 +365,16 @@ async function patronLink() {
 
 
 async function zwiftLogin() {
+    if (!app.isPackaged) {
+        return; // let it timeout for testing, but also avoid relentless logins
+    }
     const win = makeCaptiveWindow({
         width: 400,
         height: 700,
         show: false,
         backgroundThrottling: false,
     }, {
-        preload: path.join(pagePath, 'src', 'zwift-login-preload.js')
+        preload: path.join(appPath, 'src', 'preload', 'zwift-login.js'),
     });
     scrubUA(win);
     const needLoginPromise = new Promise(resolve => {

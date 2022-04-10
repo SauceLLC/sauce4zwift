@@ -71,14 +71,14 @@ export async function main() {
         autoHidden = true;
         document.documentElement.classList.add('auto-hidden', 'hidden');
         console.debug("Auto hidding windows");
-        common.rpc('hideAllWindows');
+        common.rpc('hideAllWindows', {autoHide: true});
     }
 
     function autoShow() {
         autoHidden = false;
         document.documentElement.classList.remove('auto-hidden', 'hidden');
         console.debug("Auto showing windows");
-        common.rpc('showAllWindows');
+        common.rpc('showAllWindows', {autoHide: true});
     }
 
     const autoHideWait = 2500;
