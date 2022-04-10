@@ -24,10 +24,7 @@ html {
     padding: 0.1em 0.6em;
 }
 
-html:not(:hover) #content .button.move {
-    font-size: 0;
-}
-html:hover #content .button.move {
+html #content .button.move {
     font-size: 1em;
 }
 #content .button.move {

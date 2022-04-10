@@ -173,6 +173,9 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
         win.setSize(width, height);
         win.setPosition(x, y, false);
     }
+    if (win.isAlwaysOnTop()) {
+        win.setAlwaysOnTop(true, 'screen-saver');  // Fix borderless mode apps
+    }
     windows.set(win.webContents, {win, state, options});
     win.webContents.on('new-window', (ev, url) => {
         // Popups...
