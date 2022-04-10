@@ -1,4 +1,5 @@
 import path from 'node:path';
+import {fileURLToPath} from 'node:url';
 import storage from './storage.mjs';
 import menu from './menu.mjs';
 import * as patreon from './patreon.mjs';
@@ -56,7 +57,10 @@ const appSettingDefaults = {
 };
 
 const appSettingsKey = 'app-settings';
-const appPath = app.getAppPath();
+// NEVER use app.getAppPath() it uses asar for universal builds
+const appPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+console.warn(appPath);
+console.warn(appPath);
 const pagePath = path.join(appPath, 'pages');
 const appIcon = nativeImage.createFromPath(path.join(appPath,
     'build/images/app-icon.icos'));
