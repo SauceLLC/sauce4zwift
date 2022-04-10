@@ -19,23 +19,23 @@ let tbody;
 
 function spd(v) {
     const unit = imperial ? 'mph' : 'kph';
-    return v ? `${H.pace(v, {precision: 0})}<small>${unit}</small>` : v == null ? '-' : v;
+    return v ? `${H.pace(v, {precision: 0})}<small>${unit}</small>` : v !== 0 ? '-' : 0;
 }
 
 
-function weight(kg) {
+function weight(v) {
     const unit = imperial ? 'lbs' : 'kg';
-    return kg ? `${H.weight(kg, {precision: 0})}<small>${unit}</small>` : kg == null ? '-' : kg;
+    return v ? `${H.weight(v, {precision: 0})}<small>${unit}</small>` : v !== 0 ? '-' : 0;
 }
 
 
 function pwr(v) {
-    return v ? `${num(v)}<small>w</small>`: v == null ? '-' : v;
+    return v ? `${num(v)}<small>w</small>`: v !== 0 ? '-' : 0;
 }
 
 
 function wkg(v) {
-    return v ? `${num(v, {precision: 1})}<small>w/kg</small>`: '-';
+    return v ? `${num(v, {precision: 1})}<small>w/kg</small>`: v !== 0 ? '-' : 0;
 }
 
 
@@ -67,7 +67,7 @@ const fields = [
     {id: 'ftp', defaultEn: false, label: 'FTP', get: x => getAthleteValue(x, 'ftp'), fmt: pwr},
     {id: 'tss', defaultEn: false, label: 'TSS', get: x => x.stats.power.tss, fmt: num},
 
-    {id: 'gap', defaultEn: true, label: 'Gap', get: x => x.gap, fmt: x => `${num(x)}s`},
+    {id: 'gap', defaultEn: true, label: 'Gap', get: x => x.gap === -0 ? 0 : x.gap, fmt: x => `${num(x)}s`},
 
     {id: 'pwr-cur', defaultEn: true, label: 'Pwr', get: x => x.power, fmt: pwr},
     {id: 'wkg-cur', defaultEn: true, label: 'W/kg', get: x => x.power / (x.athlete && x.athlete.weight), fmt: wkg},
