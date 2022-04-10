@@ -1,12 +1,8 @@
 import path from 'node:path';
-import {fileURLToPath} from 'node:url';
 import fs from 'node:fs/promises';
-import zlib from 'zlib';
 import {createRequire} from 'node:module';
 const require = createRequire(import.meta.url);
 const electron = require('electron');
-
-const wd = path.dirname(fileURLToPath(import.meta.url));
 
 
 async function getFilePath(id) {
@@ -20,22 +16,10 @@ async function load(id, defaultFile) {
     try {
         f = await fs.open(await getFilePath(id));
     } catch(e) {
-        if (e.code !== 'ENOENT') {
-            throw e;
-        } else if (defaultFile) {
-            const f = await fs.open(path.join(wd, defaultFile));
-            try {
-                let data = await f.readFile();
-                if (defaultFile.endsWith('.gz')) {
-                    data = zlib.gunzipSync(data);
-                }
-                return JSON.parse(data);
-            } finally {
-                await f.close();
-            }
-        } else {
+        if (e.code === 'ENOENT') {
             return;
         }
+        throw e;
     }
     try {
         return JSON.parse(await f.readFile());
