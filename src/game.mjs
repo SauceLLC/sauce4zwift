@@ -8,6 +8,8 @@ import sudo from 'sudo-prompt';
 import cap from 'cap';
 import ZwiftPacketMonitor from '@saucellc/zwift-packet-monitor';
 import sauce from '../shared/sauce/index.mjs';
+import fetch from 'node-fetch';
+import {getAppSetting} from './main.mjs';
 
 const athleteCacheLabel = 'athlete-cache';
 
@@ -19,9 +21,20 @@ async function getAthleteCache() {
 
 
 let _saveAthleteTimeout;
+let _saveAthleteData;
 function queueSaveAthleteCache(data) {
-    clearTimeout(_saveAthleteTimeout);
-    _saveAthleteTimeout = setTimeout(() => storage.save(athleteCacheLabel, Array.from(data)), 5000);
+    _saveAthleteData = data;
+    if (!_saveAthleteTimeout) {
+        _saveAthleteTimeout = setTimeout(async () => {
+            _saveAthleteTimeout = null;
+            if (!_saveAthleteData) {
+                return;
+            }
+            const saving = Array.from(_saveAthleteData);
+            _saveAthleteData = null;
+            await storage.save(athleteCacheLabel, saving);
+        }, 5000);
+    }
 }
 
 
@@ -159,6 +172,8 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         this._chatDeDup = [];
         this.athleteId = null;
         this.watching = null;
+        this.profileFetchIds = new Set();
+        this._pendingProfileFetches = [];
         this.on('incoming', this.onIncoming);
         this.on('outgoing', this.onOutgoing);
         rpc.register('updateAthlete', this.updateAthlete.bind(this));
@@ -199,6 +214,9 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
 
     updateAthlete(id, fName, lName, extra={}) {
         const d = this.athletes.get(id) || {};
+        if (!d.ts) {
+            d.ts = Date.now();
+        }
         if (fName && fName.length === 1 && d.name && d.name[0] && d.name[0].length > 1 && d.name[0][0] === fName) {
             fName = d.name[0];  // Update is just the first initial but we know the full name already.
         }
@@ -361,6 +379,73 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             cadence: new RollingPeaks(sauce.data.RollingAverage, [], {ignoreZeros: true}),
             draft: new RollingPeaks(sauce.data.RollingAverage, []),
         };
+    }
+
+    maybeUpdateAthleteFromProfile(gap, id) {
+        if (this.profileFetchIds.has(id)) {
+            return;
+        }
+        this.profileFetchIds.add(id);
+        this._pendingProfileFetches.push([gap, id]);
+        this._pendingProfileFetches.sort((a, b) => a[0] - b[0]);
+        if (!this._athleteProfileUpdater) {
+            this._athleteProfileUpdater = this.runAthleteProfileUpdater().finally(() =>
+                this._athleteProfileUpdater = null);
+        }
+    }
+
+    async runAthleteProfileUpdater() {
+        if (this.zwiftTokens === undefined) {
+            const zwiftLogin = await getAppSetting('zwiftLogin');
+            this.zwiftTokens = zwiftLogin && await storage.load('zwift-tokens');
+        }
+        if (!this.zwiftTokens) {
+            this._pendingProfileFetches.length = 0;
+            return;
+        }
+        while (this._pendingProfileFetches.length) {
+            const [, id] = this._pendingProfileFetches.shift();
+            const data = this.athletes.get(id);
+            if (data && data.ts && (Date.now() - data.ts) < (86400 * 1000)) {
+                continue;
+            }
+            try {
+                const p = await this._fetchProfile(id, this.zwiftTokens.accessToken);
+                const info = this.updateAthlete(id, p.firstName, p.lastName, {
+                    ftp: p.ftp,
+                    avatar: p.imageSrcLarge || p.imageSrc,
+                    weight: p.weight / 1000,
+                    height: p.height / 10,
+                    age: p.age,
+                    level: Math.floor(p.achievementLevel / 100),
+                    createdOn: p.createdOn ? +(new Date(p.createdOn)) : undefined,
+                });
+                console.debug("Athlete Info:", info);
+                setTimeout(() => this.profileFetchIds.delete(id), 3600 * 1000);
+            } catch(e) {
+                console.error("Zwift API error:", e);
+                this.updateAthlete(id);  // Update TS
+            }
+            await sauce.sleep(1000 + 1000 * Math.random());  // Slow it down while we don't know how robust it is, look for bulk EP.
+        }
+    }
+
+    async _fetchProfile(id, token) {
+        const r = await fetch(`https://us-or-rly101.zwift.com/api/profiles/${id}`, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Zwift-Api-Version': '2.5',
+                'Authority': 'us-or-rly101.zwift.com',
+                'Accept': 'application/json',
+                'Accept-Language': 'en-US,en;q=0.9,und;q=0.8',
+                'User-Agent': 'CNL/3.18.0 (Windows 10; Windows 10.0.19044) zwift/1.0.100641 curl/7.78.0-DEV',
+            }
+        });
+        if (!r.ok) {
+            await storage.delete('zwift-tokens');
+            throw new Error(`[${r.status}]: ${await r.text()}`);
+        }
+        return await r.json();
     }
 
     processState(state, from) {
@@ -599,6 +684,12 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         nearby.sort((a, b) => a.gap - b.gap);
         this.emit('nearby', nearby.map(cleanState));
 
+        const centerIdx = nearby.findIndex(x => x.watching);
+        const veryNear = nearby.slice(Math.max(0, centerIdx - 20), centerIdx + 20);
+        veryNear.sort((a, b) => Math.abs(a.gap) - Math.abs(b.gap));
+        for (const x of veryNear) {
+            this.maybeUpdateAthleteFromProfile(Math.abs(x.gap), x.athleteId);
+        }
         const groups = [];
         let curGroup;
         for (const x of nearby) {

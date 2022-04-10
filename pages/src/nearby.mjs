@@ -25,7 +25,7 @@ function spd(v) {
 
 function weight(kg) {
     const unit = imperial ? 'lbs' : 'kg';
-    return kg ? `${H.weight(kg)}<small>${unit}</small>` : kg == null ? '-' : kg;
+    return kg ? `${H.weight(kg, {precision: 0})}<small>${unit}</small>` : kg == null ? '-' : kg;
 }
 
 
@@ -57,7 +57,7 @@ const fields = [
     {id: 'name', defaultEn: true, label: 'Name', get: x => getAthleteValue(x, 'fullname'),
      sanitize: true, fmt: x => x || '-'},
     {id: 'id', defaultEn: true, label: 'ID', get: x => x.athleteId,
-     fmt: x => `<a title="Open in ZwiftPower" external href="https://zwiftpower.com/profile.php?z=${x}">${x}</a>`},
+     fmt: x => `<a title="Open in ZwiftPower" external target="_blank" href="https://zwiftpower.com/profile.php?z=${x}">${x}</a>`},
     {id: 'weight', defaultEn: true, label: 'Weight', get: x => getAthleteValue(x, 'weight'), fmt: weight},
     {id: 'ftp', defaultEn: false, label: 'FTP', get: x => getAthleteValue(x, 'ftp'), fmt: pwr},
     {id: 'tss', defaultEn: false, label: 'TSS', get: x => x.stats.tss, fmt: num},
@@ -271,7 +271,7 @@ function renderData(data) {
 }
 
 
-export function settingsMain() {
+export async function settingsMain() {
     common.initInteractionListeners();
     const settings = common.storage.get(settingsKey);
     const form = document.querySelector('form#fields');
@@ -287,5 +287,5 @@ export function settingsMain() {
         </label>
     `).join('');
     form.innerHTML = fieldsHtml;
-    common.initSettingsForm('form#options', {settingsKey});
+    await common.initSettingsForm('form#options', {settingsKey});
 }

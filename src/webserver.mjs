@@ -137,7 +137,10 @@ async function _start() {
     }));
     router.use('/pages/', express.static(`${WD}/../pages`, {
         cacheControl: true,
-        setHeaders: res => res.setHeader('Cache-Control', cacheDisabled)
+        setHeaders: res => {
+            res.setHeader('Cache-Control', cacheDisabled);
+            res.setHeader('Access-Control-Allow-Origin', '*');
+        }
     }));
     router.use('/shared/', express.static(`${WD}/../shared`, {
         cacheControl: true,

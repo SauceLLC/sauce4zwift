@@ -55,6 +55,13 @@ if (isElectron) {
         document.dispatchEvent(new CustomEvent('electron-rpc', {detail: {domEvent, name, args}}));
         return await resp;
     };
+    document.documentElement.addEventListener('click', async ev => {
+        const link = ev.target.closest('a[external][href]');
+        if (link) {
+            ev.preventDefault();
+            await rpc('openExternalLink', link.href);
+        }
+    });
 } else {
     document.documentElement.classList.add('browser-mode');
     const respHandlers = new Map();
@@ -195,13 +202,6 @@ function initInteractionListeners(options={}) {
             }
         });
     }
-    document.documentElement.addEventListener('click', async ev => {
-        const link = ev.target.closest('a[external][href]');
-        if (link) {
-            ev.preventDefault();
-            await rpc('openExternalLink', link.href);
-        }
-    });
 }
 
 
@@ -347,12 +347,87 @@ const storage = {
 };
 
 
-function initSettingsForm(selector, options={}) {
+async function bindFormData(selector, storageIface, options={}) {
+    const form = document.querySelector(selector);
+    for (const el of form.querySelectorAll('.display-field[name]')) {
+        const name = el.getAttribute('name');
+        el.textContent = await storageIface.get(name);
+    }
+    for (const el of form.querySelectorAll('input')) {
+        const name = el.name;
+        const val = await storageIface.get(name);
+        if (el.type === 'checkbox') {
+            el.checked = val;
+        } else {
+            el.value = val == null ? '' : val;
+        }
+        el.addEventListener('input', async ev => {
+            const val = (({
+                number: () => el.value ? Number(el.value) : undefined,
+                checkbox: () => el.checked,
+            }[el.type]) || (() => el.value || undefined))();
+            await storageIface.set(name, val);
+        });
+    }
+    for (const el of form.querySelectorAll('select')) {
+        const name = el.name;
+        const val = await storageIface.get(name);
+        el.value = val == null ? '' : val;
+        el.addEventListener('change', async ev => {
+            const val = el.value || undefined;
+            await storageIface.set(name, val);
+        });
+    }
+}
+
+
+async function initAppSettingsForm(selector, options={}) {
+    const storageIface = {
+        get: async name => {
+            return await rpc('getAppSetting', name);
+        },
+        set: async (name, value) => {
+            return await rpc('setAppSetting', name, value);
+        },
+    };
+    await bindFormData(selector, storageIface);
+}
+
+
+async function initSettingsForm(selector, options={}) {
     const settingsKey = options.settingsKey;
     const extraData = options.extraData;
     if (!settingsKey) {
         throw new TypeError('settingsKey required');
     }
+    const data = {...extraData, ...(storage.get(settingsKey) || {})};
+    const storageIface = {
+        get: name => {
+            const isGlobal = name.startsWith('/');
+            return isGlobal ? storage.get(name) : data[name];
+        },
+        set: (name, value) => {
+            const isGlobal = name.startsWith('/');
+            if (isGlobal) {
+                if (value === undefined) {
+                    storage.delete(name);
+                } else {
+                    storage.set(name, value);
+                }
+            } else {
+                if (value === undefined) {
+                    delete data[name];
+                } else {
+                    data[name] = value;
+                }
+                storage.set(settingsKey, data);
+            }
+        },
+    };
+    await bindFormData(selector, storageIface);
+}
+ 
+/*
     const data = {...extraData, ...(storage.get(settingsKey) || {})};
     const form = document.querySelector(selector);
     for (const el of form.querySelectorAll('.display-field[name]')) {
@@ -414,6 +489,7 @@ function initSettingsForm(selector, options={}) {
         });
     }
 }
+*/
 
 
 export default {
@@ -423,6 +499,7 @@ export default {
     initInteractionListeners,
     Renderer,
     storage,
+    initAppSettingsForm,
     initSettingsForm,
     isElectron,
 };

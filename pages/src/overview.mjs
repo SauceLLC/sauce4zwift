@@ -211,5 +211,6 @@ function buildLayout(settings) {
 export async function settingsMain() {
     common.initInteractionListeners();
     const version = await common.rpc('getVersion');
-    common.initSettingsForm('form', {settingsKey, extraData: {version}});
+    await common.initAppSettingsForm('form.app-settings');
+    await common.initSettingsForm('form.settings', {settingsKey, extraData: {version}});
 }

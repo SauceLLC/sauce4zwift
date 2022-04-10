@@ -47,7 +47,11 @@ storage.load(`sentry-id`).then(async id => {
     sentryAnonId = id;
 });
 
+const appSettingDefaults = {
+    zwiftLogin: false,
+};
 
+const appSettingsKey = 'app-settings';
 const pagePath = path.join(app.getAppPath(), 'pages');
 const appIcon = nativeImage.createFromPath(path.join(app.getAppPath(),
     'build/images/app-icon.icos'));
@@ -55,6 +59,27 @@ const windows = new Map();
 let appQuiting = false;
 let started;
 
+
+let _appSettings;
+export async function getAppSetting(key) {
+    if (!_appSettings) {
+        _appSettings = (await storage.load(appSettingsKey)) || {...appSettingDefaults};
+    }
+    return _appSettings[key];
+}
+
+
+export async function setAppSetting(key, value) {
+    if (!_appSettings) {
+        _appSettings = (await storage.load(appSettingsKey)) || {...appSettingDefaults};
+    }
+    _appSettings[key] = value;
+    await storage.save(appSettingsKey, _appSettings);
+}
+
+
+rpc.register('getAppSetting', getAppSetting);
+rpc.register('setAppSetting', setAppSetting);
 rpc.register('getVersion', () => pkg.version);
 rpc.register('getSentryAnonId', () => sentryAnonId);
 rpc.register('openExternalLink', url => shell.openExternal(url));
@@ -116,7 +141,7 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
         show: false,
         webPreferences: {
             sandbox: true,
-            preload: path.join(pagePath, 'src/preload.js'),
+            preload: path.join(pagePath, 'src', 'preload.js'),
         },
         ...options,
         ...state,
@@ -149,7 +174,7 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
             show: false,
             webPreferences: {
                 sandbox: true,
-                preload: path.join(pagePath, 'src/preload.js'),
+                preload: path.join(pagePath, 'src', 'preload.js'),
             }
         });
         const q = new URLSearchParams((new URL(url)).search);
@@ -250,7 +275,7 @@ function makeCaptiveWindow(options={}, webPrefs={}) {
         webPreferences: {
             sandbox: true,
             devTools: !app.isPackaged,
-            preload: path.join(pagePath, 'src/preload.js'),
+            preload: path.join(pagePath, 'src', 'preload.js'),
             ...webPrefs,
         },
         ...options
@@ -275,11 +300,19 @@ async function eulaConsent() {
                 resolve(false);
             }
         });
+        win.on('close', resolve(false));
     });
     win.loadFile(path.join(pagePath, 'eula.html'));
     const consent = await consenting;
     win.close();
     return consent;
+}
+
+
+function scrubUA(win) {
+    // Prevent Patreon's datedome.co bot service from blocking us.
+    const ua = win.webContents.userAgent;
+    win.webContents.userAgent = ua.replace(/ SauceforZwift.*? /, ' ').replace(/ Electron\/.*? /, ' ');
 }
 
 
@@ -290,11 +323,9 @@ async function patronLink() {
         return true;
     }
     const win = makeCaptiveWindow({width: 400, height: 720}, {
-        preload: path.join(pagePath, 'src/patron-link-preload.js'),
+        preload: path.join(pagePath, 'src', 'patron-link-preload.js'),
     });
-    const ua = win.webContents.userAgent;
-    // Prevent Patreon's datedome.co bot service from blocking us.
-    win.webContents.userAgent = ua.replace(/ SauceforZwift.*? /, ' ').replace(/ Electron\/.*? /, ' ');
+    scrubUA(win);
     let resolve;
     ipcMain.on('patreon-auth-code', (ev, code) => resolve({code}));
     ipcMain.on('patreon-special-token', (ev, token) => resolve({token}));
@@ -321,6 +352,41 @@ async function patronLink() {
 }
 
 
+async function zwiftLogin() {
+    const win = makeCaptiveWindow({
+        width: 400,
+        height: 700,
+        show: false,
+        backgroundThrottling: false,
+    }, {
+        preload: path.join(pagePath, 'src', 'zwift-login-preload.js')
+    });
+    scrubUA(win);
+    const needLoginPromise = new Promise(resolve => {
+        ipcMain.on('zwift-login-required', (ev, needLogin) => resolve(needLogin));
+    });
+    const tokensPromise = new Promise(resolve => {
+        ipcMain.on('zwift-tokens', (ev, tokens) => resolve(tokens));
+        win.on('closed', () => resolve(false));
+    });
+    win.loadURL(`https://www.zwift.com/sign-in`); //?redirect=...
+    if (await needLoginPromise) {
+        console.info("Login to Zwift required...");
+        win.show();
+    } else {
+        console.info("Zwift tokens refreshing...");
+    }
+    const tokens = await tokensPromise;
+    if (tokens) {
+        console.info("Zwift tokens acquired");
+    } else {
+        console.info("Zwift login failed");
+    }
+    win.close();
+    await storage.save('zwift-tokens', tokens);
+}
+
+
 async function main() {
     await app.whenReady();
     app.on('before-quit', () => {
@@ -339,6 +405,9 @@ async function main() {
         appQuiting = true;
         app.exit(1);
         return;
+    }
+    if (await getAppSetting('zwiftLogin')) {
+        await zwiftLogin();
     }
     autoUpdater.checkForUpdatesAndNotify().catch(Sentry.captureException);
     let mon;

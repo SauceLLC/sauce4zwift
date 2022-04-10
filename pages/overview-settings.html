@@ -21,7 +21,15 @@
             <header><div class="title">Overview Settings</div></header>
         </div>
         <div id="settings">
-            <form>
+            <form class="app-settings">
+                <label title="Login to zwift to get meta data like name and weight">
+                    <key>Login to Zwift:</key>
+                    <input type="checkbox" name="zwiftLogin"/>
+                    <small>Restart required</small>
+                </label>
+            </form>
+
+            <form class="settings">
                 <label>
                     <key>Version:</key>
                     <span class="display-field" name="version"></span>

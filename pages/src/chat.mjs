@@ -153,7 +153,7 @@ export async function main() {
 }
 
 
-export function settingsMain() {
+export async function settingsMain() {
     common.initInteractionListeners();
-    common.initSettingsForm('form', {settingsKey});
+    await common.initSettingsForm('form', {settingsKey});
 }
