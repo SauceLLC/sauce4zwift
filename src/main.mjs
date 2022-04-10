@@ -146,9 +146,7 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
         ...options,
         ...state,
     });
-    if (options.sauceRemoveMenuBar) {
-        win.removeMenu();
-    }
+    win.removeMenu();
     const hasPosition = state.x != null && state.y != null && state.width && state.height;
     if (!hasPosition && (options.relWidth != null || options.relHeight != null ||
         options.relX != null || options.relY != null || options.x < 0 || options.y < 0)) {
@@ -177,6 +175,7 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
                 preload: path.join(pagePath, 'src', 'preload.js'),
             }
         });
+        newWin.removeMenu();
         const q = new URLSearchParams((new URL(url)).search);
         const wHint = Number(q.get('widthHint'));
         const hHint = Number(q.get('heightHint'));
@@ -250,7 +249,7 @@ async function createWindows(monitor) {
             {relWidth: 0.6, height: 40, relX: 0.2, y: 0, hideable: false}),
         makeFloatingWindow('nearby.html',
             {width: 800, height: 400, x: 20, y: 20, alwaysOnTop: false, frame: true,
-             maximizable: true, fullscreenable: true, transparent: false, sauceRemoveMenuBar: true},
+             maximizable: true, fullscreenable: true, transparent: false},
             {hidden: true})
     ]);
 }
