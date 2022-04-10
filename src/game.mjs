@@ -358,11 +358,14 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         return [state.roadId, state.reverse].join();
     }
 
-    getStats(rolls) {
+    getStats(rolls, athlete) {
         const end = rolls.end || Date.now();
+        const elapsed = (end - rolls.start) / 1000;
+        const np = rolls.power.roll.np({force: true});
+        const tss = np && athlete && athlete.ftp ? sauce.power.calcTSS(np, rolls.power.roll.active(), athlete.ftp) : undefined;
         return {
-            elapsed: (end - rolls.start) / 1000,
-            power: rolls.power.getStats({np: rolls.power.roll.np({force: true})}),
+            elapsed,
+            power: rolls.power.getStats({np, tss}),
             speed: rolls.speed.getStats(),
             hr: rolls.hr.getStats(),
             draft: rolls.draft.getStats(),
@@ -522,8 +525,9 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             rolls.cadence.add(state.ts, state.cadence);
             curLap.cadence.add(state.ts, state.cadence);
         }
-        state.stats = this.getStats(rolls);
-        state.laps = rolls.laps.map(x => this.getStats(x));
+        state.athlete = this.athletes.get(state.athleteId);
+        state.stats = this.getStats(rolls, state.athlete);
+        state.laps = rolls.laps.map(x => this.getStats(x, state.athlete));
         if (this.watching === state.athleteId) {
             this.emit('watching', this.cleanState(state));
         }
@@ -676,7 +680,6 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 gapDistance,
                 gap: gap * sign,
                 isGapEst,
-                athlete: this.athletes.get(k),
                 watching: this.watching === k,
                 ...x
             });
@@ -690,6 +693,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         for (const x of veryNear) {
             this.maybeUpdateAthleteFromProfile(Math.abs(x.gap), x.athleteId);
         }
+
         const groups = [];
         let curGroup;
         for (const x of nearby) {

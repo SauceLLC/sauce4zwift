@@ -14,25 +14,34 @@ function shortDuration(x) {
 }
 
 
+function humanWkg(v, athlete) {
+    return H.number(v / (athlete && athlete.weight), {precision: 1, fixed: 1});
+}
+
+
 function makePeakPowerField(period, lap) {
     const duration = shortDuration(period);
+    const lapLabel = {
+        '-1': 'lap',
+        '-2': 'last lap',
+    }[lap];
     return {
         value: x => {
-            const data = lap ? x.laps.at(-1) : x.stats;
-            const o = data.power.peaks[period];
+            const data = lap ? x.laps.at(lap) : x.stats;
+            const o = data && data.power.peaks[period];
             return H.number(o && o.avg);
         },
         label: x => {
-            const label = `peak ${duration}${lap ? '<small> (lap)</small>' : ''}`;
-            const data = lap ? x.laps.at(-1) : x.stats;
-            const o = data.power.peaks[period];
-            if (!o.ts) {
+            const label = `peak ${duration}${lapLabel ? `<small> (${lapLabel})</small>` : ''}`;
+            const data = lap ? x.laps.at(lap) : x.stats;
+            const o = data && data.power.peaks[period];
+            if (!(o && o.ts)) {
                 return label;
             }
             const ago = (Date.now() - o.ts) / 1000;
             return `${label}<br/><small>${shortDuration(ago)} ago</small>`;
         },
-        key: () => lap ? `Peak ${duration}<tiny> (lap)</tiny>` : `Peak ${duration}`,
+        key: () => lap ? `Peak ${duration}<tiny> (${lapLabel})</tiny>` : `Peak ${duration}`,
         unit: () => 'w',
     };
 }
@@ -112,9 +121,17 @@ export async function main() {
                 key: () => 'Max',
                 unit: () => 'w',
             }, {
+                value: x => humanWkg(x.power, x.athlete),
+                label: () => 'w/kg',
+                key: () => 'W/kg',
+            }, {
                 value: x => H.number(x.stats.power.np),
                 label: () => 'np',
                 key: () => 'NP',
+            }, {
+                value: x => H.number(x.stats.power.tss),
+                label: () => 'tss',
+                key: () => 'TSS',
             },
                 makeSmoothPowerField(5),
                 makeSmoothPowerField(60),
@@ -130,19 +147,58 @@ export async function main() {
                 key: () => 'Lap Avg',
                 unit: () => 'w',
             }, {
+                value: x => humanWkg(x.laps.at(-1).power.avg, x.athlete),
+                label: () => 'lap avg w/kg',
+                key: () => 'Lap Avg',
+                unit: () => 'w/kg',
+            }, {
                 value: x => H.number(x.laps.at(-1).power.max),
                 label: () => 'lap max',
                 key: () => 'Lap Max',
                 unit: () => 'w',
             }, {
+                value: x => humanWkg(x.laps.at(-1).power.max, x.athlete),
+                label: () => 'lap max w/kg',
+                key: () => 'Lap Max',
+                unit: () => 'w/kg',
+            }, {
                 value: x => H.number(x.laps.at(-1).power.np),
                 label: () => 'lap np',
                 key: () => 'Lap NP',
             },
-                makePeakPowerField(5, true),
-                makePeakPowerField(60, true),
-                makePeakPowerField(300, true),
-                makePeakPowerField(1200, true),
+                makePeakPowerField(5, -1),
+                makePeakPowerField(60, -1),
+                makePeakPowerField(300, -1),
+                makePeakPowerField(1200, -1),
+            {
+                value: x => H.number(x.laps.length > 1 && x.laps.at(-2).power.avg),
+                label: () => 'last lap avg',
+                key: () => 'Last Lap Avg',
+                unit: () => 'w',
+           }, {
+                value: x => humanWkg(x.laps.length > 1 && x.laps.at(-2).power.avg, x.athlete),
+                label: () => 'last lap avg w/kg',
+                key: () => 'Last Lap Avg',
+                unit: () => 'w/kg',
+            }, {
+                value: x => H.number(x.laps.length > 1 && x.laps.at(-2).power.max),
+                label: () => 'last lap max',
+                key: () => 'Last Lap Max',
+                unit: () => 'w',
+            }, {
+                value: x => humanWkg(x.laps.length > 1 && x.laps.at(-2).power.max, x.athlete),
+                label: () => 'last lap max w/kg',
+                key: () => 'Last Lap Max',
+                unit: () => 'w/kg',
+            }, {
+                value: x => H.number(x.laps.length > 1 && x.laps.at(-2).power.np),
+                label: () => 'last lap np',
+                key: () => 'Last Lap NP',
+            },
+                makePeakPowerField(5, -2),
+                makePeakPowerField(60, -2),
+                makePeakPowerField(300, -2),
+                makePeakPowerField(1200, -2),
             ],
         });
         renderer.addRotatingFields({

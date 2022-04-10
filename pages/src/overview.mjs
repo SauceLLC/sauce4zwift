@@ -136,6 +136,17 @@ function buildLayout(settings) {
             key: () => 'Energy',
             unit: () => 'kJ',
         }, {
+            value: x => H.number(x.stats.power.tss),
+            key: () => 'TSS',
+        }, {
+            value: x => H.weight(x.athlete && x.athlete.weight),
+            key: () => 'Weight',
+            unit: () => imperial ? 'lbs' : 'kg',
+        }, {
+            value: x => H.number(x.athlete && x.athlete.ftp),
+            key: () => 'FTP',
+            unit: () => 'w'
+        }, {
             value: x => H.pace(x.stats.speed.avg),
             key: () => 'Speed <small>(avg)</small>',
             unit: () => imperial ? 'mph' : 'kph',

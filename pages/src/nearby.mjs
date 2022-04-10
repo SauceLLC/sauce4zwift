@@ -34,6 +34,11 @@ function pwr(v) {
 }
 
 
+function wkg(v) {
+    return v ? `${num(v, {precision: 1})}<small>w/kg</small>`: '-';
+}
+
+
 function hr(v) {
     return v ? `${num(v)}<small>bpm</small>` : '-';
 }
@@ -58,22 +63,32 @@ const fields = [
      sanitize: true, fmt: x => x || '-'},
     {id: 'id', defaultEn: true, label: 'ID', get: x => x.athleteId,
      fmt: x => `<a title="Open in ZwiftPower" external target="_blank" href="https://zwiftpower.com/profile.php?z=${x}">${x}</a>`},
-    {id: 'weight', defaultEn: true, label: 'Weight', get: x => getAthleteValue(x, 'weight'), fmt: weight},
+    {id: 'weight', defaultEn: false, label: 'Weight', get: x => getAthleteValue(x, 'weight'), fmt: weight},
     {id: 'ftp', defaultEn: false, label: 'FTP', get: x => getAthleteValue(x, 'ftp'), fmt: pwr},
-    {id: 'tss', defaultEn: false, label: 'TSS', get: x => x.stats.tss, fmt: num},
+    {id: 'tss', defaultEn: false, label: 'TSS', get: x => x.stats.power.tss, fmt: num},
 
     {id: 'gap', defaultEn: true, label: 'Gap', get: x => x.gap, fmt: x => `${num(x)}s`},
 
     {id: 'pwr-cur', defaultEn: true, label: 'Pwr', get: x => x.power, fmt: pwr},
-    {id: 'pwr-5s', defaultEn: true, label: '5s Pwr', get: x => x.stats.power.smooth['5'], fmt: pwr},
-    {id: 'pwr-60s', defaultEn: true, label: '1m Pwr', get: x => x.stats.power.smooth['60'], fmt: pwr},
+    {id: 'wkg-cur', defaultEn: true, label: 'W/kg', get: x => x.power / (x.athlete && x.athlete.weight), fmt: wkg},
+    {id: 'pwr-5s', defaultEn: false, label: '5s Pwr', get: x => x.stats.power.smooth['5'], fmt: pwr},
+    {id: 'wkg-5s', defaultEn: false, label: '5s W/kg', get: x => x.stats.power.smooth['5'] / (x.athlete && x.athlete.weight), fmt: wkg},
+    {id: 'pwr-60s', defaultEn: false, label: '1m Pwr', get: x => x.stats.power.smooth['60'], fmt: pwr},
+    {id: 'wkg-60s', defaultEn: false, label: '1m W/kg', get: x => x.stats.power.smooth['60'] / (x.athlete && x.athlete.weight), fmt: wkg},
     {id: 'pwr-300s', defaultEn: false, label: '5m Pwr', get: x => x.stats.power.smooth['300'], fmt: pwr},
+    {id: 'wkg-300s', defaultEn: false, label: '5m W/kg', get: x => x.stats.power.smooth['300'] / (x.athlete && x.athlete.weight), fmt: wkg},
     {id: 'pwr-avg', defaultEn: true, label: 'Avg Pwr', get: x => x.stats.power.avg, fmt: pwr},
-    {id: 'pwr-np', defaultEn: true, label: 'NP Pwr', get: x => x.stats.power.np, fmt: pwr},
+    {id: 'wkg-avg', defaultEn: false, label: 'Avg W/kg', get: x => x.stats.power.avg / (x.athlete && x.athlete.weight), fmt: wkg},
+    {id: 'pwr-np', defaultEn: true, label: 'NP', get: x => x.stats.power.np, fmt: pwr},
+    {id: 'wkg-np', defaultEn: false, label: 'NP W/kg', get: x => x.stats.power.np / (x.athlete && x.athlete.weight), fmt: wkg},
     {id: 'pwr-max', defaultEn: true, label: 'Max Pwr', get: x => x.stats.power.max || null, fmt: pwr},
-    {id: 'pwr-p5s', defaultEn: true, label: '5s Peak Pwr', get: x => x.stats.power.peaks[5].avg, fmt: pwr},
-    {id: 'pwr-p60s', defaultEn: true, label: '1m Peak Pwr', get: x => x.stats.power.peaks[60].avg, fmt: pwr},
-    {id: 'pwr-p300s', defaultEn: false, label: '5m Peak Pwr', get: x => x.stats.power.peaks[300].avg, fmt: pwr},
+    {id: 'wkg-max', defaultEn: false, label: 'Max W/kg', get: x => (x.stats.power.max || null) / (x.athlete && x.athlete.weight), fmt: wkg},
+    {id: 'pwr-p5s', defaultEn: false, label: '5s Peak Pwr', get: x => x.stats.power.peaks[5].avg, fmt: pwr},
+    {id: 'wkg-p5s', defaultEn: false, label: '5s Peak W/kg', get: x => x.stats.power.peaks[5].avg / (x.athlete && x.athlete.weight), fmt: wkg},
+    {id: 'pwr-p60s', defaultEn: false, label: '1m Peak Pwr', get: x => x.stats.power.peaks[60].avg, fmt: pwr},
+    {id: 'wkg-p60s', defaultEn: false, label: '1m Peak W/kg', get: x => x.stats.power.peaks[60].avg / (x.athlete && x.athlete.weight), fmt: wkg},
+    {id: 'pwr-p300s', defaultEn: true, label: '5m Peak Pwr', get: x => x.stats.power.peaks[300].avg, fmt: pwr},
+    {id: 'wkg-p300s', defaultEn: false, label: '5m Peak W/kg', get: x => x.stats.power.peaks[300].avg / (x.athlete && x.athlete.weight), fmt: wkg},
 
     {id: 'spd-cur', defaultEn: true, label: 'Spd', get: x => x.speed, fmt: spd},
     {id: 'spd-60s', defaultEn: false, label: '1m Spd', get: x => x.stats.speed.smooth[60], fmt: spd},
