@@ -3,22 +3,6 @@ import {createRequire} from 'node:module';
 const require = createRequire(import.meta.url);
 const {BrowserWindow, Menu, app, shell} = require('electron');
 
-const devTools = !app.isPackaged ? {
-    label: 'Toggle Developer Tools',
-    accelerator: (() => {
-        if (process.platform === 'darwin') {
-            return 'Alt+Command+I';
-        } else {
-            return 'Ctrl+Shift+I';
-        }
-    })(),
-    click: (item, focusedWindow) => {
-        if (focusedWindow) {
-            focusedWindow.toggleDevTools();
-        }
-    }
-} : null;
-
 
 const template = [{
     label: 'Edit',
@@ -70,13 +54,7 @@ const template = [{
         }
     }, !app.isPackaged ? {
         label: 'Toggle Developer Tools',
-        accelerator: (() => {
-            if (process.platform === 'darwin') {
-                return 'Alt+Command+I';
-            } else {
-                return 'Ctrl+Shift+I';
-            }
-        })(),
+        accelerator: process.platform === 'darwin' ? 'Alt+Command+I' : 'Ctrl+Shift+I',
         click: (item, focusedWindow) => {
             if (focusedWindow) {
                 focusedWindow.toggleDevTools();

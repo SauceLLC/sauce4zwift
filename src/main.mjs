@@ -1,4 +1,5 @@
 import path from 'node:path';
+import fs from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import storage from './storage.mjs';
 import menu from './menu.mjs';
@@ -59,8 +60,6 @@ const appSettingDefaults = {
 const appSettingsKey = 'app-settings';
 // NEVER use app.getAppPath() it uses asar for universal builds
 const appPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-console.warn(appPath);
-console.warn(appPath);
 const pagePath = path.join(appPath, 'pages');
 const appIcon = nativeImage.createFromPath(path.join(appPath,
     'build/images/app-icon.icos'));
@@ -84,8 +83,20 @@ export async function setAppSetting(key, value) {
     }
     _appSettings[key] = value;
     await storage.save(appSettingsKey, _appSettings);
+    app.emit('app-setting-change', key, value);
 }
 
+app.on('app-setting-change', async (key, value) => {
+    if (key === 'disableGPU') {
+        const disableGPUFile = path.join(app.getPath('userData'), 'disabled-gpu');
+        console.log("disalbasdf", value);
+        if (value) {
+            await (await fs.open(disableGPUFile, 'w')).close();
+        } else {
+            await fs.unlink(disableGPUFile);
+        }
+    }
+});
 
 rpc.register('getAppSetting', getAppSetting);
 rpc.register('setAppSetting', setAppSetting);
@@ -117,6 +128,8 @@ rpc.register('showAllWindows', (options={}) => {
             win.show();
         }
     }
+});
+rpc.register('disableGPU', async disable => {
 });
 
 
@@ -159,7 +172,9 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
         ...options,
         ...state,
     });
-    win.removeMenu();
+    if (app.isPackaged) {
+        win.removeMenu();
+    }
     const hasPosition = state.x != null && state.y != null && state.width && state.height;
     if (!hasPosition && (options.relWidth != null || options.relHeight != null ||
         options.relX != null || options.relY != null || options.x < 0 || options.y < 0)) {
@@ -187,12 +202,14 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
             fullscreenable: true,
             show: false,
             webPreferences: {
-                devTools: !app.isPackaged,
                 sandbox: true,
+                devTools: !app.isPackaged,
                 preload: path.join(appPath, 'src', 'preload', 'common.js'),
             }
         });
-        newWin.removeMenu();
+        if (app.isPackaged) {
+            newWin.removeMenu();
+        }
         const q = new URLSearchParams((new URL(url)).search);
         const wHint = Number(q.get('widthHint'));
         const hHint = Number(q.get('heightHint'));
@@ -296,7 +313,9 @@ function makeCaptiveWindow(options={}, webPrefs={}) {
         },
         ...options
     });
-    win.removeMenu();
+    if (app.isPackaged) {
+        win.removeMenu();
+    }
     return win;
 }
 
@@ -372,7 +391,7 @@ async function patronLink() {
 
 
 async function zwiftLogin() {
-    if (!app.isPackaged) {
+    if (!app.isPackaged && !await storage.load('zwift-tokens')) {
         return; // let it timeout for testing, but also avoid relentless logins
     }
     const win = makeCaptiveWindow({
@@ -392,7 +411,7 @@ async function zwiftLogin() {
         ipcMain.on('zwift-tokens', (ev, tokens) => resolve(tokens));
         win.on('closed', () => (closed = true, resolve(false)));
     });
-    win.loadURL(`https://www.zwift.com/sign-in`); //?redirect=...
+    win.loadURL(`https://www.zwift.com/sign-in`);
     if (await needLoginPromise) {
         console.info("Login to Zwift required...");
         win.show();
