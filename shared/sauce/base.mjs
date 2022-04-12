@@ -107,7 +107,7 @@ export class LRUCache extends Map {
 
 function scrubSensitive(m) {
     return m && m
-        .replace(/(\/users\/).*?\//i, '$1***/')
+        .replace(/([\/\\]users[\/\\]).*?([\/\\])/i, '$1***$2/')
         .replace(/(?:[0-9]{1,3}\.){3}[0-9]{1,3}/, '*.*.*.*')
         .replace(/http:\/\/.*?:1080\//, 'http://<anonymous>:1080/');
 }
