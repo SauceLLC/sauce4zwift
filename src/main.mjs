@@ -89,7 +89,6 @@ export async function setAppSetting(key, value) {
 app.on('app-setting-change', async (key, value) => {
     if (key === 'disableGPU') {
         const disableGPUFile = path.join(app.getPath('userData'), 'disabled-gpu');
-        console.log("disalbasdf", value);
         if (value) {
             await (await fs.open(disableGPUFile, 'w')).close();
         } else {
