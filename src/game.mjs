@@ -374,7 +374,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     }
 
     makeRollingPeaks() {
-        const periods = [5, 30, 60, 300, 1200];
+        const periods = [5, 15, 60, 300, 1200];
         return {
             power: new RollingPeaks(sauce.power.RollingPower, periods),
             speed: new RollingPeaks(sauce.data.RollingAverage, periods, {ignoreZeros: true}),

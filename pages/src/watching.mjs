@@ -134,10 +134,12 @@ export async function main() {
                 key: () => 'TSS',
             },
                 makeSmoothPowerField(5),
+                makeSmoothPowerField(15),
                 makeSmoothPowerField(60),
                 makeSmoothPowerField(300),
                 makeSmoothPowerField(1200),
                 makePeakPowerField(5),
+                makePeakPowerField(15),
                 makePeakPowerField(60),
                 makePeakPowerField(300),
                 makePeakPowerField(1200),
@@ -167,6 +169,7 @@ export async function main() {
                 key: () => 'Lap NP',
             },
                 makePeakPowerField(5, -1),
+                makePeakPowerField(15, -1),
                 makePeakPowerField(60, -1),
                 makePeakPowerField(300, -1),
                 makePeakPowerField(1200, -1),
@@ -196,6 +199,7 @@ export async function main() {
                 key: () => 'Last Lap NP',
             },
                 makePeakPowerField(5, -2),
+                makePeakPowerField(15, -2),
                 makePeakPowerField(60, -2),
                 makePeakPowerField(300, -2),
                 makePeakPowerField(1200, -2),
@@ -229,8 +233,10 @@ export async function main() {
                 unit: () => 'bpm',
             },
                 makeSmoothHRField(5),
+                makeSmoothHRField(15),
                 makeSmoothHRField(60),
                 makeSmoothHRField(300),
+                makeSmoothHRField(1200),
             ],
         });
         renderer.addRotatingFields({
@@ -258,14 +264,30 @@ export async function main() {
                 unit: () => 'rpm',
             }],
         });
-        // legacy
-        const draftCurEl = screen.querySelector('.draft .current .value');
-        const draftAvgEl = screen.querySelector('.draft .avg .value');
-        renderer.addCallback(watching => {
-            // legacy stuff...
-            const stats = watching.stats;
-            draftCurEl.textContent = H.number(watching.draft);
-            draftAvgEl.textContent = H.number(stats.draft.avg);
+        renderer.addRotatingFields({
+            mapping: [{
+                id: 'draft-upper',
+                default: 0
+            }, {
+                id: 'draft-lower',
+                default: 1
+            }],
+            fields: [{
+                value: x => H.number(x.draft),
+                label: () => 'Draft',
+                key: () => 'Current',
+                unit: () => '%',
+            }, {
+                value: x => H.number(x.stats.draft.avg),
+                label: () => 'avg',
+                key: () => 'Avg',
+                unit: () => '%',
+            }, {
+                value: x => H.number(x.stats.draft.max || null),
+                label: () => 'max',
+                key: () => 'Max',
+                unit: () => '%',
+            }],
         });
     }
     const prevBtn = document.querySelector('.button-bar .button.prev-screen');

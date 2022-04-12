@@ -147,43 +147,40 @@ function buildLayout(settings) {
             key: () => 'FTP',
             unit: () => 'w'
         }, {
-            value: x => H.pace(x.stats.speed.avg),
-            key: () => 'Speed <small>(avg)</small>',
-            unit: () => imperial ? 'mph' : 'kph',
-        }, {
             value: x => H.pace(x.speed),
             key: () => 'Speed',
+            unit: () => imperial ? 'mph' : 'kph',
+        }, {
+            value: x => H.pace(x.stats.speed.avg),
+            key: () => 'Speed <small>(avg)</small>',
             unit: () => imperial ? 'mph' : 'kph',
         }, {
             value: x => H.pace(x.stats.speed.smooth[60]),
             key: () => `Speed <small>(${shortDuration(60)})</small>`,
             unit: () => imperial ? 'mph' : 'kph',
         }, {
-            value: x => H.number(x.stats.hr.avg),
-            key: () => 'HR <small>(avg)</small>',
-            unit: () => 'bpm',
-        }, {
             value: x => H.number(x.heartrate),
             key: () => 'HR',
+            unit: () => 'bpm',
+        }, {
+            value: x => H.number(x.stats.hr.avg),
+            key: () => 'HR <small>(avg)</small>',
             unit: () => 'bpm',
         }, {
             value: x => H.number(x.stats.hr.smooth[60]),
             key: () => `HR <small>(${shortDuration(60)})</small>`,
             unit: () => 'bpm',
         }, {
-            value: x => H.number(x.stats.power.max),
-            key: () => 'Power <small>(max)</small>',
+            value: x => H.number(x.power),
+            key: () => `Power`,
             unit: () => 'w',
-        }, {
-            value: x => H.number(x.stats.power.avg),
-            key: () => 'Power <small>(avg)</small>',
-            unit: () => 'w',
-        }, {
-            value: x => H.number(x.stats.power.np),
-            key: () => 'NP',
         }, {
             value: x => H.number(x.stats.power.smooth[5]),
             key: () => `Power <small>(${shortDuration(5)})</small>`,
+            unit: () => 'w',
+        }, {
+            value: x => H.number(x.stats.power.smooth[15]),
+            key: () => `Power <small>(${shortDuration(15)})</small>`,
             unit: () => 'w',
         }, {
             value: x => H.number(x.stats.power.smooth[60]),
@@ -202,6 +199,10 @@ function buildLayout(settings) {
             key: () => `Peak Power <small>(${shortDuration(5)})</small>`,
             unit: () => 'w',
         }, {
+            value: x => H.number(x.stats.power.peaks[15].avg),
+            key: () => `Peak Power <small>(${shortDuration(15)})</small>`,
+            unit: () => 'w',
+        }, {
             value: x => H.number(x.stats.power.peaks[60].avg),
             key: () => `Peak Power <small>(${shortDuration(60)})</small>`,
             unit: () => 'w',
@@ -212,6 +213,17 @@ function buildLayout(settings) {
         }, {
             value: x => H.number(x.stats.power.peaks[1200].avg),
             key: () => `Peak Power <small>(${shortDuration(1200)})</small>`,
+            unit: () => 'w',
+        }, {
+            value: x => H.number(x.stats.power.avg),
+            key: () => 'Power <small>(avg)</small>',
+            unit: () => 'w',
+        }, {
+            value: x => H.number(x.stats.power.np),
+            key: () => 'NP',
+        }, {
+            value: x => H.number(x.stats.power.max),
+            key: () => 'Power <small>(max)</small>',
             unit: () => 'w',
         }],
     });

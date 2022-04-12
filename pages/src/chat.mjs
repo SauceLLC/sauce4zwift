@@ -32,7 +32,7 @@ function liveDataFormatter(athlete) {
         return '';
     }
     const items = [
-        state.stats.power.smooth[30] != null ? Math.round(state.stats.power.smooth[30]).toLocaleString() + 'w' : null,
+        state.stats.power.smooth[15] != null ? Math.round(state.stats.power.smooth[15]).toLocaleString() + 'w' : null,
         state.heartrate ? state.heartrate.toLocaleString() + 'bpm' : null,
     ];
     const gap = state.gap;
