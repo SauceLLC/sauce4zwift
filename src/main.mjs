@@ -482,7 +482,10 @@ async function main() {
         try {
             if (e.message.match(/permission denied/i)) {
                 await mon.getCapturePermission();
-                await monitor.start();  // Try once more
+                appQuiting = true;
+                app.relaunch();
+                app.quit();
+                return;
             } else {
                 throw e;
             }
