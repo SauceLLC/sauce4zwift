@@ -61,6 +61,9 @@ function render() {
 
 
 function renderZoomed(groups) {
+    if (!groups) {
+        return;
+    }
     let centerIdx = groups.findIndex(x => x.watching);
     const idx = Math.max(0, Math.min(centerIdx + zoomedPosition, groups.length - 1));
     const group = groups[idx];
@@ -161,6 +164,9 @@ function renderZoomed(groups) {
 
 
 function renderGroups(groups) {
+    if (!groups) {
+        return;
+    }
     let centerIdx = groups.findIndex(x => x.watching);
     groups = groups.slice(
         Math.max(0, centerIdx - (settings.maxAhead || 3)),
