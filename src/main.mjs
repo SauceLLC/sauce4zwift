@@ -191,6 +191,7 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
         win.setAlwaysOnTop(true, 'screen-saver');  // Fix borderless mode apps
     }
     windows.set(win.webContents, {win, state, options});
+    let closed;
     win.webContents.on('new-window', (ev, url) => {
         // Popups...
         ev.preventDefault();
@@ -241,7 +242,7 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
     }
     function onWindowMessage(name, callback) {
         ipcMain.on(name, (ev, ...args) => {
-            if (ev.sender === win.webContents) {
+            if (!closed && ev.sender === win.webContents) {
                 callback(ev, ...args);
             }
         });
@@ -257,7 +258,11 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
     win.on('moved', onPositionUpdate);
     win.on('resized', onPositionUpdate);
     win.on('minimize', onHide);
-    win.on('closed', onHide);
+    win.on('closed', () => {
+        closed = true;
+        windows.delete(win);
+        onHide();
+    });
     win.on('restore', onShow);
     win.loadFile(path.join(pagePath, page));
     return win;
