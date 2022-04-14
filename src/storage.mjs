@@ -34,18 +34,15 @@ let save;
 if (brokenRename) {
     const pendingSaves = new Map();
     save = async function(id, data) {
-        console.warn("queue Saving", id);
         const file = getFilePath(id);
         const serialized = JSON.stringify(data);
         const pending = pendingSaves.get(id) || Promise.resolve();
         const saving = pending.finally(async () => {
-            console.warn("start save", id);
             const f = await fs.open(file, 'w');
             try {
                 await f.writeFile(serialized);
             } finally {
                 await f.close();
-                console.warn("end save", id);
             }
         });
         pendingSaves.set(id, saving);
