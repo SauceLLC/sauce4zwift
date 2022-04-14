@@ -22,8 +22,8 @@ function humanWkg(v, athlete) {
 function makePeakPowerField(period, lap) {
     const duration = shortDuration(period);
     const lapLabel = {
-        '-1': 'lap',
-        '-2': 'last lap',
+        '-1': 'Lap',
+        '-2': 'Last Lap',
     }[lap];
     return {
         value: x => {
@@ -186,27 +186,27 @@ export async function main() {
             {
                 value: x => H.number(x && x.laps && x.laps.length > 1 && x.laps.at(-2).power.avg),
                 label: () => ['last lap', 'avg'],
-                key: () => 'Last Lap Avg',
+                key: () => 'Last Lap',
                 unit: () => 'w',
             }, {
                 value: x => humanWkg(x && x.laps && x.laps.length > 1 && x.laps.at(-2).power.avg, x && x.athlete),
                 label: () => ['last lap', 'avg w/kg'],
-                key: () => 'Last Lap Avg',
+                key: () => 'Last Lap',
                 unit: () => 'w/kg',
             }, {
                 value: x => H.number(x && x.laps && x.laps.length > 1 && x.laps.at(-2).power.max),
                 label: () => ['last lap', 'max'],
-                key: () => 'Last Lap Max',
+                key: () => '<small>Last Lap Max</small>',
                 unit: () => 'w',
             }, {
                 value: x => humanWkg(x && x.laps && x.laps.length > 1 && x.laps.at(-2).power.max, x && x.athlete),
                 label: () => ['last lap', 'max w/kg'],
-                key: () => 'Last Lap Max',
+                key: () => '<small>Last Lap Max</small>',
                 unit: () => 'w/kg',
             }, {
                 value: x => H.number(x && x.laps && x.laps.length > 1 && x.laps.at(-2).power.np),
                 label: () => ['last lap', 'np'],
-                key: () => 'Last Lap NP',
+                key: () => '<small>Last Lap NP</small>',
             },
                 makePeakPowerField(5, -2),
                 makePeakPowerField(15, -2),
@@ -260,12 +260,12 @@ export async function main() {
             }, {
                 value: x => H.number(x && x.laps && x.laps.length > 1 && x.laps.at(-2).hr.avg || null), // XXX check if null is req
                 label: () => ['last lap', 'avg'],
-                key: () => 'Last Lap Avg',
+                key: () => 'Last Lap',
                 unit: () => 'bpm',
             }, {
                 value: x => H.number(x && x.laps && x.laps.at(-1).hr.max || null), // XXX check if null is req
                 label: () => ['last lap', 'max'],
-                key: () => 'Last Lap Max',
+                key: () => '<small>Last Lap Max</small>',
                 unit: () => 'bpm',
             }],
         });
@@ -305,12 +305,12 @@ export async function main() {
             }, {
                 value: x => H.number(x && x.laps && x.laps.length > 1 && x.laps.at(-2).cadence.avg || null), // XXX check if null is req
                 label: () => ['last lap', 'avg'],
-                key: () => 'Last Lap Avg',
+                key: () => 'Last Lap',
                 unit: () => 'rpm',
             }, {
                 value: x => H.number(x && x.laps && x.laps.at(-1).cadence.max || null), // XXX check if null is req
                 label: () => ['last lap', 'max'],
-                key: () => 'Last Lap Max',
+                key: () => '<small>Last Lap Max</small>',
                 unit: () => 'rpm',
             }],
         });
@@ -350,12 +350,12 @@ export async function main() {
             }, {
                 value: x => H.number(x && x.laps && x.laps.length > 1 && x.laps.at(-2).draft.avg),
                 label: () => ['last lap', 'avg'],
-                key: () => 'Last Lap Avg',
+                key: () => 'Last Lap',
                 unit: () => '%',
             }, {
                 value: x => H.number(x && x.laps && x.laps.length > 1 && x.laps.at(-2).draft.max),
                 label: () => ['last lap', 'max'],
-                key: () => 'Last Lap Max',
+                key: () => '<small>Last Lap Max</small>',
                 unit: () => '%',
             }],
         });

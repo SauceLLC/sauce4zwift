@@ -120,8 +120,9 @@ html {
     font-size: 0.60rem;
     margin-right: 0.3em;
     text-align: right;
-    min-width: 7ch;
+    min-width: 8ch;
     opacity: 0.88;
+    position: relative;
 
     &::after {
         content: ':';
@@ -129,8 +130,11 @@ html {
     }
 
     tiny {
-        display: inline;
-        font-size: 0.6em;
+        display: block;
+        font-size: 0.65em;
+        position: absolute;
+        right: 0.5em;
+        top: 90%;
     }
 }
 
