@@ -94,6 +94,7 @@ export async function main() {
             curScreen = screen;
         }
         content.appendChild(screen);
+        screen.querySelector('.page-title').textContent = `${i}`;
         const renderer = new common.Renderer(screen, {
             id: `watching-screen-${i}`,
             fps: 2,
@@ -112,7 +113,7 @@ export async function main() {
                 default: 2
             }],
             fields: [{
-                value: x => H.number(x.power * 10),
+                value: x => H.number(x.power),
                 label: () => 'watts',
                 key: () => 'Watts',
                 unit: () => 'w',
@@ -303,6 +304,9 @@ export async function main() {
         nextBtn.classList.add('disabled');
     }
     prevBtn.addEventListener('click', ev => {
+        if (!curScreen.previousElementSibling) {
+            return;
+        }
         curScreen.classList.add('hidden');
         curScreen = curScreen.previousElementSibling;
         curScreen.classList.remove('hidden');
@@ -312,6 +316,9 @@ export async function main() {
         }
     });
     nextBtn.addEventListener('click', ev => {
+        if (!curScreen.nextElementSibling) {
+            return;
+        }
         curScreen.classList.add('hidden');
         curScreen = curScreen.nextElementSibling;
         curScreen.classList.remove('hidden');
@@ -320,12 +327,31 @@ export async function main() {
             nextBtn.classList.add('disabled');
         }
     });
-    document.querySelector('.button-bar .button.reset').addEventListener('click', ev => {
+    const resetBtn = document.querySelector('.button-bar .button.reset');
+    resetBtn.addEventListener('click', ev => {
         common.rpc('resetStats');
     });
-    document.querySelector('.button-bar .button.lap').addEventListener('click', ev => {
+    const lapBtn = document.querySelector('.button-bar .button.lap');
+    lapBtn.addEventListener('click', ev => {
         common.rpc('startLap');
     });
+    document.addEventListener('keydown', ev => {
+        if (ev.ctrlKey && ev.shiftKey) {
+            if (ev.key === 'ArrowRight') {
+                ev.preventDefault();
+                nextBtn.click();
+            } else if (ev.key === 'ArrowLeft') {
+                ev.preventDefault();
+                prevBtn.click();
+            } else if (ev.key === 'L') {
+                ev.preventDefault();
+                lapBtn.click();
+            } else if (ev.key === 'R') {
+                ev.preventDefault();
+                resetBtn.click();
+            }
+        }
+    }, {capture: true});
     document.addEventListener('global-settings-updated', ev => {
         if (ev.data.key === '/imperialUnits') {
             imperial = ev.data.data;

@@ -215,7 +215,7 @@ class Renderer {
         this.fields = new Map();
         this.onKeyDownBound = this.onKeyDown.bind(this);
         if (!this.locked) {
-            document.addEventListener('keyup', this.onKeyDownBound);
+            document.addEventListener('keydown', this.onKeyDownBound);
         }
     }
 
