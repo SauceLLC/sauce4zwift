@@ -187,7 +187,7 @@ function renderGroups(groups) {
         const lines = [];
         if (group.athletes.length === 1 && group.athletes[0].athlete) {
             const n = group.athletes[0].athlete.name;
-            label = n.map(x => x[0].toUpperCase()).join('').substr(0, 2);
+            label = n ? n.map(x => x[0].toUpperCase()).join('').substr(0, 2) : '1';
             groupEl.classList.remove('attn', 'attack');
         } else {
             label = H.number(group.athletes.length);

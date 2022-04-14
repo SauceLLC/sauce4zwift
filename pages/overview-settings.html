@@ -41,8 +41,12 @@
                     <span class="display-field" name="version"></span>
                 </label>
                 <label>
-                    <key>Data fields:</key>
-                    <input type="number" min="0" max="10" step="1" name="numFields"/>
+                    <key>Left fields:</key>
+                    <input type="number" min="0" max="10" step="1" name="leftFields"/>
+                </label>
+                <label>
+                    <key>Right fields:</key>
+                    <input type="number" min="0" max="10" step="1" name="rightFields"/>
                 </label>
                 <label title="Prevent fields from rotating on click">
                     <key>Lock fields:</key>
@@ -56,6 +60,10 @@
                        class="electron-only">
                     <key>Auto hide windows:</key>
                     <input type="checkbox" name="autoHideWindows"/>
+                </label>
+                <label title="Use this to respect the notch on a MacBookPro or avoid overlap with the Zwift HUD">
+                    <key>Center gap size:</key>
+                    <input type="number" name="centerGapSize" min="0" max="1000" step="1"/>
                 </label>
             </form>
         </div>

@@ -3,7 +3,8 @@ import common from './common.mjs';
 
 const L = sauce.locale;
 const H = L.human;
-const settingsKey = 'overview-settings-v2';
+const settingsKey = 'overview-settings-v3';
+let settings;
 let imperial = !!common.storage.get('/imperialUnits');
 L.setImperial(imperial);
 
@@ -17,11 +18,14 @@ export async function main() {
     common.initInteractionListeners({settingsKey});
     let lastData;
     let autoHideTimeout;
-    let settings = common.storage.get(settingsKey, {
-        numFields: 3,
+    settings = common.storage.get(settingsKey, {
+        leftFields: 2,
+        rightFields: 2,
         lockedFields: false,
         autoHideWindows: common.isElectron ? true : false,
+        centerGapSize: 0,
     });
+    document.documentElement.style.setProperty('--center-gap-size', settings.centerGapSize + 'px');
     let renderer = buildLayout(settings);
     document.addEventListener('global-settings-updated', ev => {
         if (ev.data.key === '/imperialUnits') {
@@ -35,12 +39,18 @@ export async function main() {
             location.reload();  // Avoid state machine complications.
             return;
         }
+        const oldCenterGap = settings.centerGapSize;
         settings = ev.data;
+        if (settings.centerGapSize !== oldCenterGap) {
+            document.documentElement.style.setProperty('--center-gap-size', settings.centerGapSize + 'px');
+            renderer.render({force: true});
+            return;
+        }
         if (renderer) {
             renderer.stop();
             renderer = null;
         }
-        renderer = buildLayout(settings);
+        renderer = buildLayout();
         if (lastData) {
             renderer.setData(lastData);
         }
@@ -87,7 +97,8 @@ export async function main() {
     }
     let lastUpdate = 0;
     common.subscribe('watching', watching => {
-        if (common.isElectron && settings.autoHideWindows && (watching.speed || watching.cadence || watching.power)) {
+        if (common.isElectron && settings.autoHideWindows &&
+            (watching.speed || watching.cadence || watching.power)) {
             clearTimeout(autoHideTimeout);
             if (autoHidden) {
                 autoShow();
@@ -106,127 +117,131 @@ export async function main() {
 }
 
 
-function buildLayout(settings) {
-    const fields = document.querySelector('.fields');
-    const mapping = [];
-    fields.innerHTML = '';
-    for (let i = 0; i < settings.numFields; i++) {
-        fields.insertAdjacentHTML('beforeend', `
-            <div class="field" data-field="${i}">
-                <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
-            </div>
-        `);
-        mapping.push({id: i, default: i + 1});
-    }
+function buildLayout() {
     const content = document.querySelector('#content');
     const renderer = new common.Renderer(content, {locked: settings.lockedFields});
-    renderer.addRotatingFields({
-        mapping,
-        fields: [{
-            value: x => H.timer(x.laps.at(-1).elapsed),
-            key: () => 'Lap Time',
-        }, {
-            value: x => H.timer(x.stats.elapsed),
-            key: () => 'Time',
-        }, {
-            value: x => H.number(x.rideons),
-            key: () => 'Ride Ons',
-        }, {
-            value: x => H.number(x.kj),
-            key: () => 'Energy',
-            unit: () => 'kJ',
-        }, {
-            value: x => H.number(x.stats.power.tss),
-            key: () => 'TSS',
-        }, {
-            value: x => H.weight(x.athlete && x.athlete.weight),
-            key: () => 'Weight',
-            unit: () => imperial ? 'lbs' : 'kg',
-        }, {
-            value: x => H.number(x.athlete && x.athlete.ftp),
-            key: () => 'FTP',
-            unit: () => 'w'
-        }, {
-            value: x => H.pace(x.speed),
-            key: () => 'Speed',
-            unit: () => imperial ? 'mph' : 'kph',
-        }, {
-            value: x => H.pace(x.stats.speed.avg),
-            key: () => 'Speed <small>(avg)</small>',
-            unit: () => imperial ? 'mph' : 'kph',
-        }, {
-            value: x => H.pace(x.stats.speed.smooth[60]),
-            key: () => `Speed <small>(${shortDuration(60)})</small>`,
-            unit: () => imperial ? 'mph' : 'kph',
-        }, {
-            value: x => H.number(x.heartrate),
-            key: () => 'HR',
-            unit: () => 'bpm',
-        }, {
-            value: x => H.number(x.stats.hr.avg),
-            key: () => 'HR <small>(avg)</small>',
-            unit: () => 'bpm',
-        }, {
-            value: x => H.number(x.stats.hr.smooth[60]),
-            key: () => `HR <small>(${shortDuration(60)})</small>`,
-            unit: () => 'bpm',
-        }, {
-            value: x => H.number(x.power),
-            key: () => `Power`,
-            unit: () => 'w',
-        }, {
-            value: x => H.number(x.stats.power.smooth[5]),
-            key: () => `Power <small>(${shortDuration(5)})</small>`,
-            unit: () => 'w',
-        }, {
-            value: x => H.number(x.stats.power.smooth[15]),
-            key: () => `Power <small>(${shortDuration(15)})</small>`,
-            unit: () => 'w',
-        }, {
-            value: x => H.number(x.stats.power.smooth[60]),
-            key: () => `Power <small>(${shortDuration(60)})</small>`,
-            unit: () => 'w',
-        }, {
-            value: x => H.number(x.stats.power.smooth[300]),
-            key: () => `Power <small>(${shortDuration(300)})</small>`,
-            unit: () => 'w',
-        }, {
-            value: x => H.number(x.stats.power.smooth[1200]),
-            key: () => `Power <small>(${shortDuration(1200)})</small>`,
-            unit: () => 'w',
-        }, {
-            value: x => H.number(x.stats.power.peaks[5].avg),
-            key: () => `Peak Power <small>(${shortDuration(5)})</small>`,
-            unit: () => 'w',
-        }, {
-            value: x => H.number(x.stats.power.peaks[15].avg),
-            key: () => `Peak Power <small>(${shortDuration(15)})</small>`,
-            unit: () => 'w',
-        }, {
-            value: x => H.number(x.stats.power.peaks[60].avg),
-            key: () => `Peak Power <small>(${shortDuration(60)})</small>`,
-            unit: () => 'w',
-        }, {
-            value: x => H.number(x.stats.power.peaks[300].avg),
-            key: () => `Peak Power <small>(${shortDuration(300)})</small>`,
-            unit: () => 'w',
-        }, {
-            value: x => H.number(x.stats.power.peaks[1200].avg),
-            key: () => `Peak Power <small>(${shortDuration(1200)})</small>`,
-            unit: () => 'w',
-        }, {
-            value: x => H.number(x.stats.power.avg),
-            key: () => 'Power <small>(avg)</small>',
-            unit: () => 'w',
-        }, {
-            value: x => H.number(x.stats.power.np),
-            key: () => 'NP',
-        }, {
-            value: x => H.number(x.stats.power.max),
-            key: () => 'Power <small>(max)</small>',
-            unit: () => 'w',
-        }],
-    });
+    let count = 1;
+    for (const side of ['left', 'right']) {
+        const fields = document.querySelector(`.fields.${side}`);
+        const mapping = [];
+        fields.innerHTML = '';
+        for (let i = 0; i < settings[`${side}Fields`]; i++) {
+            const id = `${side}-${i}`;
+            fields.insertAdjacentHTML('beforeend', `
+                <div class="field" data-field="${id}">
+                    <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
+                </div>
+            `);
+            mapping.push({id, default: count++});
+        }
+        renderer.addRotatingFields({
+            mapping,
+            fields: [{
+                value: x => H.timer(x.laps.at(-1).elapsed),
+                key: () => 'Lap Time',
+            }, {
+                value: x => H.timer(x.stats.elapsed),
+                key: () => 'Time',
+            }, {
+                value: x => H.number(x.rideons),
+                key: () => 'Ride Ons',
+            }, {
+                value: x => H.number(x.kj),
+                key: () => 'Energy',
+                unit: () => 'kJ',
+            }, {
+                value: x => H.number(x.stats.power.tss),
+                key: () => 'TSS',
+            }, {
+                value: x => H.weight(x.athlete && x.athlete.weight),
+                key: () => 'Weight',
+                unit: () => imperial ? 'lbs' : 'kg',
+            }, {
+                value: x => H.number(x.athlete && x.athlete.ftp),
+                key: () => 'FTP',
+                unit: () => 'w'
+            }, {
+                value: x => H.pace(x.speed),
+                key: () => 'Speed',
+                unit: () => imperial ? 'mph' : 'kph',
+            }, {
+                value: x => H.pace(x.stats.speed.avg),
+                key: () => 'Speed <small>(avg)</small>',
+                unit: () => imperial ? 'mph' : 'kph',
+            }, {
+                value: x => H.pace(x.stats.speed.smooth[60]),
+                key: () => `Speed <small>(${shortDuration(60)})</small>`,
+                unit: () => imperial ? 'mph' : 'kph',
+            }, {
+                value: x => H.number(x.heartrate),
+                key: () => 'HR',
+                unit: () => 'bpm',
+            }, {
+                value: x => H.number(x.stats.hr.avg),
+                key: () => 'HR <small>(avg)</small>',
+                unit: () => 'bpm',
+            }, {
+                value: x => H.number(x.stats.hr.smooth[60]),
+                key: () => `HR <small>(${shortDuration(60)})</small>`,
+                unit: () => 'bpm',
+            }, {
+                value: x => H.number(x.power),
+                key: () => `Power`,
+                unit: () => 'w',
+            }, {
+                value: x => H.number(x.stats.power.smooth[5]),
+                key: () => `Power <small>(${shortDuration(5)})</small>`,
+                unit: () => 'w',
+            }, {
+                value: x => H.number(x.stats.power.smooth[15]),
+                key: () => `Power <small>(${shortDuration(15)})</small>`,
+                unit: () => 'w',
+            }, {
+                value: x => H.number(x.stats.power.smooth[60]),
+                key: () => `Power <small>(${shortDuration(60)})</small>`,
+                unit: () => 'w',
+            }, {
+                value: x => H.number(x.stats.power.smooth[300]),
+                key: () => `Power <small>(${shortDuration(300)})</small>`,
+                unit: () => 'w',
+            }, {
+                value: x => H.number(x.stats.power.smooth[1200]),
+                key: () => `Power <small>(${shortDuration(1200)})</small>`,
+                unit: () => 'w',
+            }, {
+                value: x => H.number(x.stats.power.peaks[5].avg),
+                key: () => `Peak Power <small>(${shortDuration(5)})</small>`,
+                unit: () => 'w',
+            }, {
+                value: x => H.number(x.stats.power.peaks[15].avg),
+                key: () => `Peak Power <small>(${shortDuration(15)})</small>`,
+                unit: () => 'w',
+            }, {
+                value: x => H.number(x.stats.power.peaks[60].avg),
+                key: () => `Peak Power <small>(${shortDuration(60)})</small>`,
+                unit: () => 'w',
+            }, {
+                value: x => H.number(x.stats.power.peaks[300].avg),
+                key: () => `Peak Power <small>(${shortDuration(300)})</small>`,
+                unit: () => 'w',
+            }, {
+                value: x => H.number(x.stats.power.peaks[1200].avg),
+                key: () => `Peak Power <small>(${shortDuration(1200)})</small>`,
+                unit: () => 'w',
+            }, {
+                value: x => H.number(x.stats.power.avg),
+                key: () => 'Power <small>(avg)</small>',
+                unit: () => 'w',
+            }, {
+                value: x => H.number(x.stats.power.np),
+                key: () => 'NP',
+            }, {
+                value: x => H.number(x.stats.power.max),
+                key: () => 'Power <small>(max)</small>',
+                unit: () => 'w',
+            }],
+        });
+    }
     return renderer;
 }
 

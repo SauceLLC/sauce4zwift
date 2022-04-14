@@ -14,7 +14,7 @@ html {
     display: flex;
     flex-direction: column;
     margin: 0.2rem 0.5rem 0;
-    padding: 1rem 0.5rem 0.6rem;
+    padding: 0 0 0.6rem;
     position: relative;
     background-repeat: no-repeat;
     background-position-x: center;
@@ -36,6 +36,10 @@ html {
         flex-direction: row;
         justify-content: space-between;
         align-items: center;
+        background-repeat: no-repeat;
+        background-position: right 1ch center;
+        background-origin: border-box;
+        background-size: auto 90%;
     }
 
     &.no-heading {
@@ -44,6 +48,8 @@ html {
 
     .sub {
         font-size: 0.6em;
+        display: flex;
+        flex-direction: column;
     }
 
     heading {
@@ -53,38 +59,36 @@ html {
         display: block;
     }
 
-    > heading {
-        position: absolute;
-        top: 0;
-        left: 0;
-    }
-
     .primary {
         position: relative;
         font-size: 1.65em;
         font-weight: bold;
-        margin-top: -1.2rem;
         display: flex;
         flex-direction: column;
         align-items: flex-end;
         line-height: 1;
-    }
 
-    .fg {
-        z-index: 1;
-    }
+        .label,
+        .sub-label {
+            font-size: 0.25em;
+            line-height: 1;
+            margin-top: -0.2em;
+            margin-right: 0.2rem;
+            opacity: 0.82;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
 
-    .bg {
-        position: absolute;
-        height: calc(100% + 0.6rem); /* tied to parent margins/pad */
-        right: 0;
-        top: -0.15rem; /* tied to parent margins/pad */
-        display: flex;
-        min-width: 100%;
-        justify-content: center;
+        small {
+            font-size: 0.5em;
+            text-align: right;
+        }
 
-        img {
-            height: 100%;
+        .sub-label {
+            font-size: 0.15em;
+            opacity: 0.7;
+            margin-top: 1em;
+            line-height: 0;
         }
     }
 
@@ -94,33 +98,16 @@ html {
     }
 }
 
-.sub > heading {
-    margin-left: -0.4em;
-    margin-top: -0.3em;
-}
-
-.primary .label {
-    font-size: 0.25em;
-    line-height: 1;
-    margin-top: -0.2em;
-    margin-right: 0.2rem;
-    opacity: 0.82;
-    text-align: right;
-}
-
-.primary .label small {
-    font-size: 0.5em;
-    text-align: right;
-}
-
 .row .key {
     font-size: 0.60rem;
     margin-right: 0.3em;
+    text-align: right;
     min-width: 7ch;
     opacity: 0.88;
 
     &::after {
         content: ':';
+        opacity: 0.86;
     }
 
     tiny {
@@ -131,6 +118,18 @@ html {
 
 .value {
     font-variant: tabular-nums;
+    text-align: right;
+    min-width: 3ch;
+    text-overflow: clip;
+    overflow: hidden;
+
+    &:empty {
+        text-align: center;
+
+        &::after {
+            content: '...';
+        }
+    }
 }
 
 abbr.unit {
@@ -141,10 +140,12 @@ abbr.unit {
 
 .power {
     font-size: 1.7em;
+    background-image: url(../images/fa/bolt-duotone.svg);
 }
 
 .hr {
     font-size: 1.3em;
+    background-image: url(../images/fa/heartbeat-duotone.svg);
 }
 
 .misc {

@@ -44,8 +44,8 @@
     <template id="screen">
         <div class="screen">
             <div class="entry power columns">
-                <heading>POWER:</heading>
                 <div class="sub">
+                    <heading>POWER:</heading>
                     <div class="row" data-field="power-upper">
                         <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
                     </div>
@@ -53,53 +53,45 @@
                         <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
                     </div>
                 </div>
-                <div class="primary" data-field="power-main">
-                    <div class="bg">
-                        <img src="images/fa/bolt-duotone.svg"/>
-                    </div>
-                    <div class="fg">
-                        <div class="value"></div>
-                        <div class="label"></div>
-                    </div>
+                <div class="primary top" data-field="power-main">
+                    <div class="value">-</div>
+                    <div class="label"></div>
+                    <div class="sub-label"></div>
                 </div>
             </div>
             <div class="entry hr columns">
-                <heading>HEART RATE:</heading>
                 <div class="sub">
+                    <heading>HEART RATE:</heading>
                     <div class="row avg" data-field="hr-upper">
-                        <div class="key">Avg</div><div class="value"></div><abbr class="unit">bpm</abbr>
+                        <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
                     </div>
                     <div class="row max" data-field="hr-lower">
-                        <div class="key">Max</div><div class="value"></div><abbr class="unit">bpm</abbr>
+                        <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
                     </div>
                 </div>
                 <div class="primary current" data-field="hr-main">
-                    <div class="bg">
-                        <img src="images/fa/heartbeat-duotone.svg"/>
-                    </div>
-                    <div class="fg">
-                        <div class="value"></div>
-                        <div class="label">bpm</div>
-                    </div>
+                    <div class="value">-</div>
+                    <div class="label"></div>
+                    <div class="sub-label"></div>
                 </div>
             </div>
             <div class="entry misc columns no-heading">
                 <div class="sub cadence">
                     <heading>CADENCE:</heading>
                     <div class="row current" data-field="cadence-upper">
-                        <div class="key">Current</div><div class="value"></div><abbr class="unit">rpm</abbr>
+                        <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
                     </div>
                     <div class="row avg" data-field="cadence-lower">
-                        <div class="key">Avg</div><div class="value"></div><abbr class="unit">rpm</abbr>
+                        <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
                     </div>
                 </div>
                 <div class="sub draft">
                     <heading>DRAFT:</heading>
-                    <div class="row current">
-                        <div class="key">Current</div><div class="value"></div><abbr class="unit">%</abbr>
+                    <div class="row current" data-field="draft-upper">
+                        <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
                     </div>
-                    <div class="row avg">
-                        <div class="key">Avg</div><div class="value"></div><abbr class="unit">%</abbr>
+                    <div class="row avg" data-field="draft-lower">
+                        <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
                     </div>
                 </div>
             </div>

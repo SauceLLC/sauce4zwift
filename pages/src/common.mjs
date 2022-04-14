@@ -212,16 +212,38 @@ class Renderer {
         this.stopping = false;
         this.fps = options.fps || 1;
         this.id = options.id || location.pathname.split('/').at(-1);
+        this.fields = new Map();
+        this.onKeyDownBound = this.onKeyDown.bind(this);
+        if (!this.locked) {
+            document.addEventListener('keyup', this.onKeyDownBound);
+        }
     }
 
     setLocked(locked) {
         this.locked = locked;
+        if (locked) {
+            document.removeEventListener('keydown', this.onKeyDownBound);
+        }
         this._contentEl.classList.toggle('unlocked', !this.locked);
     }
 
     stop() {
         this.stopping = true;
+        if (!this.locked) {
+            document.removeEventListener('keydown', this.onKeyDownBound);
+        }
         clearTimeout(this._scheduledRender);
+    }
+
+    onKeyDown(ev) {
+        if (this.locked || !document.activeElement || !this._contentEl.contains(document.activeElement)) {
+            return;
+        }
+        const dir = {ArrowRight: 1, ArrowLeft: -1}[ev.key];
+        const id = document.activeElement.dataset.field;
+        if (dir && id) {
+            this.rotateField(id, dir);
+        }
     }
 
     addCallback(cb) {
@@ -232,38 +254,39 @@ class Renderer {
         this._data = data;
     }
 
+    rotateField(id, dir=1) {
+        if (this.locked) {
+            return;
+        }
+        const field = this.fields.get(id);
+        let idx = (field.available.indexOf(field.active) + dir) % field.available.length;
+        if (idx < 0) {
+            idx = field.available.length - 1;
+        }
+        localStorage.setItem(field.storageKey, idx);
+        field.active = field.available[idx];
+        console.debug('Switching field', id, field.active);
+        this.render({force: true});
+    }
+
     addRotatingFields(spec) {
         for (const x of spec.mapping) {
+            const id = x.id;
             const el = this._contentEl.querySelector(`[data-field="${x.id}"]`);
-            const valueEl = el.querySelector('.value');
-            const labelEl = el.querySelector('.label');
-            const keyEl = el.querySelector('.key');
-            const unitEl = el.querySelector('.unit');
-            const storageKey = `${this.id}-${x.id}`;
-            let idx = localStorage.getItem(storageKey) || x.default;
-            let f = spec.fields[idx] || spec.fields[0];
-            el.addEventListener('click', ev => {
-                if (this.locked) {
-                    return;
-                }
-                idx = (spec.fields.indexOf(f) + 1) % spec.fields.length;
-                localStorage.setItem(storageKey, idx);
-                f = spec.fields[idx];
-                this.render({force: true});
+            const storageKey = `${this.id}-${id}`;
+            this.fields.set(id, {
+                id,
+                storageKey,
+                available: spec.fields,
+                active: spec.fields[localStorage.getItem(storageKey) || x.default] || spec.fields[0],
+                valueEl: el.querySelector('.value'),
+                labelEl: el.querySelector('.label'),
+                subLabelEl: el.querySelector('.sub-label'),
+                keyEl: el.querySelector('.key'),
+                unitEl: el.querySelector('.unit'),
             });
-            this.addCallback(x => {
-                const value = x !== undefined ? f.value(x) : undefined;
-                valueEl.innerHTML = value != null ? value : '';
-                if (labelEl) {
-                    labelEl.innerHTML = f.label ? f.label(x) : '';
-                }
-                if (keyEl) {
-                    keyEl.innerHTML = f.key ? f.key(x) : '';
-                }
-                if (unitEl) {
-                    unitEl.innerHTML = (value != null && value !== '-' && f.unit) ? f.unit(x) : '';
-                }
-            });
+            el.setAttribute('tabindex', 0);
+            el.addEventListener('click', ev => this.rotateField(id));
         }
     }
 
@@ -292,6 +315,29 @@ class Renderer {
                     if (this.stopping) {
                         resolve();
                         return;
+                    }
+                    for (const field of this.fields.values()) {
+                        const value = this._data !== undefined ? field.active.value(this._data) : undefined;
+                        field.valueEl.innerHTML = value != null ? value : '';
+                        if (field.labelEl) {
+                            const labels = field.active.label ? field.active.label(this._data) : '';
+                            if (Array.isArray(labels)) {
+                                field.labelEl.innerHTML = labels[0];
+                                if (field.subLabelEl) {
+                                    field.subLabelEl.innerHTML = labels.length > 1 ? labels[1] : '';
+                                }
+                            } else {
+                                field.labelEl.innerHTML = labels;
+                            }
+                        }
+                        if (field.keyEl) {
+                            field.keyEl.innerHTML = field.active.key ? field.active.key(this._data) : '';
+                        }
+                        if (field.unitEl) {
+                            field.unitEl.innerHTML = (value != null && value !== '-' && field.active.unit) ?
+                                field.active.unit(this._data) : '';
+                        }
+
                     }
                     for (const cb of this._callbacks) {
                         try {

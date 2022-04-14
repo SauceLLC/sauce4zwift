@@ -44,6 +44,9 @@ sass-watch:
 	$(NPATH)/sass pages/scss:pages/css --watch
 
 lint-watch:
-	$(TOOLPATH)/lintwatch
+	while true ; do \
+		$(MAKE) lint; \
+		sleep 2; \
+	done
 
 .PHONY: build pack publish lint sass
