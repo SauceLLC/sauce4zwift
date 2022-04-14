@@ -242,7 +242,6 @@ function buildLayout() {
             }],
         });
     }
-    renderer.render();
     return renderer;
 }
 

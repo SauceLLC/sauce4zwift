@@ -241,7 +241,7 @@ let nextAnimFrame;
 let frames = 0;
 const sanitizeEl = document.createElement('span');
 function renderData(data) {
-    if (!data.length || document.hidden) {
+    if (!data || !data.length || document.hidden) {
         return;
     }
     const get = enFields.find(x => x.id === sortBy).get;
