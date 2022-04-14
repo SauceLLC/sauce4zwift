@@ -18,6 +18,20 @@ function makeRPCError(errResp) {
 }
 
 
+// Sentry is supposed to throttle, but I'm seeing thousands of events in some cases so I doubt it.
+const _capturedErrors = new Set();
+export function captureErrorOnce(e) {
+    const sig = [e.name, e.message, e.stack].join();
+    if (_capturedErrors.has(sig)) {
+        console.warn('Sentry error capture (throttled):', e);
+        return;
+    }
+    _capturedErrors.add(sig);
+    console.error('Sentry error capture:', e);
+    Sentry.captureException(e);
+}
+
+
 if (isElectron) {
     document.documentElement.classList.add('electron-mode');
     electronTrigger = function(name, data) {
@@ -265,7 +279,7 @@ class Renderer {
         }
         localStorage.setItem(field.storageKey, idx);
         field.active = field.available[idx];
-        console.debug('Switching field', id, field.active);
+        console.debug('Switching field', id, idx);
         this.render({force: true});
     }
 
@@ -309,18 +323,28 @@ class Renderer {
                 clearTimeout(this._scheduledRender);
                 this._scheduledRender = null;
             }
+            const start = performance.now();
             this._nextRender = new Promise(resolve => {
-                const start = performance.now();
                 requestAnimationFrame(() => {
                     if (this.stopping) {
                         resolve();
                         return;
                     }
                     for (const field of this.fields.values()) {
-                        const value = this._data !== undefined ? field.active.value(this._data) : undefined;
-                        field.valueEl.innerHTML = value != null ? value : '';
+                        let value = '';
+                        try {
+                            value = field.active.value(this._data);
+                        } catch(e) {
+                            captureErrorOnce(e);
+                        }
+                        field.valueEl.innerHTML = value != null && !Number.isNaN(value) ? value : '';
                         if (field.labelEl) {
-                            const labels = field.active.label ? field.active.label(this._data) : '';
+                            let labels = '';
+                            try {
+                                labels = field.active.label ? field.active.label(this._data) : '';
+                            } catch(e) {
+                                captureErrorOnce(e);
+                            }
                             if (Array.isArray(labels)) {
                                 field.labelEl.innerHTML = labels[0];
                                 if (field.subLabelEl) {
@@ -328,30 +352,42 @@ class Renderer {
                                 }
                             } else {
                                 field.labelEl.innerHTML = labels;
+                                field.subLabelEl.innerHTML = '';
                             }
                         }
                         if (field.keyEl) {
-                            field.keyEl.innerHTML = field.active.key ? field.active.key(this._data) : '';
+                            let key = '';
+                            try {
+                                key = field.active.key ? field.active.key(this._data) : '';
+                            } catch(e) {
+                                captureErrorOnce(e);
+                            }
+                            field.keyEl.innerHTML = key;
                         }
                         if (field.unitEl) {
-                            field.unitEl.innerHTML = (value != null && value !== '-' && field.active.unit) ?
-                                field.active.unit(this._data) : '';
+                            let unit = '';
+                            try {
+                                unit = (value != null && value !== '-' && field.active.unit) ?
+                                    field.active.unit(this._data) : '';
+                            } catch(e) {
+                                captureErrorOnce(e);
+                            }
+                            field.unitEl.innerHTML = unit;
                         }
-
                     }
                     for (const cb of this._callbacks) {
                         try {
                             cb(this._data);
                         } catch(e) {
-                            console.error(e);
-                            Sentry.captureException(e);
+                            captureErrorOnce(e);
                         }
                     }
-                    this._lastRender = performance.now();
-                    this._lastRenderTime = this._lastRender - start;
-                    this._nextRender = null;
                     resolve();
                 });
+            }).finally(() => {
+                this._lastRender = performance.now();
+                this._lastRenderTime = this._lastRender - start;
+                this._nextRender = null;
             });
         }
         return this._nextRender;

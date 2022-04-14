@@ -85,10 +85,9 @@ html {
 
         .label,
         .sub-label {
-            font-size: 0.25em;
+            font-size: 0.55rem;
             line-height: 1;
-            margin-top: -0.2em;
-            margin-right: 0.2rem;
+            margin-right: 0.3rem;
             opacity: 0.82;
             text-align: right;
             font-variant-numeric: tabular-nums;
@@ -100,10 +99,14 @@ html {
         }
 
         .sub-label {
-            font-size: 0.15em;
+            font-size: 0.45rem;
             opacity: 0.7;
             margin-top: 1em;
             line-height: 0;
+
+            &:empty {
+                margin: 0;
+            }
         }
     }
 
