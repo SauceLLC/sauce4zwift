@@ -278,6 +278,9 @@ async function createWindows(monitor) {
     //await clearWindowState('groups.html'); // XXX TESTING
     //await clearWindowState('chat.html'); // XXX TESTING
     //await clearWindowState('nearby.html'); // XXX TESTING
+    const nearbyOverlayMode = await getAppSetting('nearbyOverlayMode');
+    const nearbyOptions = nearbyOverlayMode ? {transparent: false} : {alwaysOnTop: false,
+        frame: true, maximizable: true, fullscreenable: true, autoHide: false};
     await Promise.all([
         makeFloatingWindow('watching.html',
             {width: 260, height: 260, x: 8, y: 64}),
@@ -287,9 +290,7 @@ async function createWindows(monitor) {
             {width: 280, height: 580, x: 320, y: 230}),
         makeFloatingWindow('overview.html',
             {relWidth: 0.6, height: 40, relX: 0.2, y: 0, hideable: false}),
-        makeFloatingWindow('nearby.html',
-            {width: 800, height: 400, x: 20, y: 20, alwaysOnTop: false, frame: true,
-             maximizable: true, fullscreenable: true, transparent: false, autoHide: false},
+        makeFloatingWindow('nearby.html', {width: 800, height: 400, x: 20, y: 20, ...nearbyOptions},
             {hidden: true})
     ]);
 }
