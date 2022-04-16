@@ -1,5 +1,5 @@
 import express from 'express';
-import storage from './storage.mjs';
+import * as storage from './storage.mjs';
 import * as rpc from './rpc.mjs';
 import expressWebSocketPatch from 'express-ws';
 import path from 'node:path';

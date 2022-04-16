@@ -1,13 +1,19 @@
 import path from 'node:path';
+import fs from 'node:fs/promises';
 import sqlite3 from 'sqlite3';
 import {createRequire} from 'node:module';
 const require = createRequire(import.meta.url);
 const {app} = require('electron');
 
 
+function getFilename(name) {
+    return path.join(app.getPath('userData'), name + '.sqlite');
+}
+
+
 export class SqliteDatabase {
     constructor(name, {tables}) {
-        const filename = path.join(app.getPath('userData'), name + '.sqlite');
+        const filename = getFilename(name);
         this.ready = new Promise((resolve, reject) => {
             this._db = new sqlite3.Database(filename, e => {
                 if (e) {
@@ -101,4 +107,10 @@ export class SqliteDatabase {
             const stmt = this._db.exec(...args, e => (e && reject(e) || resolve(stmt)));
         });
     }
+}
+
+
+export async function deleteDatabase(name) {
+    const filename = getFilename(name);
+    await fs.rm(filename, {force: true});
 }

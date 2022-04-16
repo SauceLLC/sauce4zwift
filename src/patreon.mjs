@@ -1,4 +1,4 @@
-import storage from './storage.mjs';
+import * as storage from './storage.mjs';
 import Sentry from '@sentry/node';
 import fetch from 'node-fetch';
 

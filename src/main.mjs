@@ -1,7 +1,7 @@
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
-import storage from './storage.mjs';
+import * as storage from './storage.mjs';
 import menu from './menu.mjs';
 import * as patreon from './patreon.mjs';
 import * as rpc from './rpc.mjs';
@@ -15,6 +15,7 @@ const pkg = require('../package.json');
 const {autoUpdater} = require('electron-updater');
 const {app, BrowserWindow, ipcMain, nativeImage, dialog, screen, shell} = require('electron');
 
+const storageInit = storage.init();
 Error.stackTraceLimit = 50;
 
 // Use non-electron naming for windows updater.
@@ -40,7 +41,8 @@ if (app.isPackaged) {
         console.error('Uncaught (but reported)', e);
     });
     Sentry.setTag('version', pkg.version);
-    storage.load(`sentry-id`).then(async id => {
+    storageInit.then(async () => {
+        let id = await storage.load(`sentry-id`);
         if (!id) {
             // It's just an anonymous value to distinguish errors and feedback
             id = crypto.randomBytes(16).toString("hex");
@@ -437,6 +439,14 @@ async function zwiftLogin() {
 
 async function main() {
     await app.whenReady();
+    try {
+        await storageInit;
+    } catch(e) {
+        Sentry.captureException(e);
+        console.error('Storage DB might be corrupt, reseting', e);
+        await storage.reset();
+        await storage.init();
+    }
     app.on('before-quit', () => {
         appQuiting = true;
         Sentry.flush();

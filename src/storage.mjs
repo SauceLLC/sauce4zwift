@@ -1,6 +1,6 @@
 import path from 'node:path';
 import fs from 'node:fs/promises';
-import {SqliteDatabase} from './db.mjs';
+import {SqliteDatabase, deleteDatabase} from './db.mjs';
 import {createRequire} from 'node:module';
 const require = createRequire(import.meta.url);
 const {app} = require('electron');
@@ -13,7 +13,16 @@ function getFilePath(id) {
 }
 
 
-async function initDatabase() {
+export async function reset() {
+    db = null;
+    await deleteDatabase('storage');
+}
+
+
+export async function init() {
+    if (db) {
+        return db;
+    }
     db = await SqliteDatabase.factory('storage', {
         tables: {
             store: {
@@ -26,9 +35,9 @@ async function initDatabase() {
 }
 
 
-async function load(id) {
+export async function load(id) {
     if (!db) {
-        db = await initDatabase();
+        throw new Error("Must call init() first");
     }
     const r = await db.get('SELECT data from store WHERE id = ?;', [id]);
     if (!r) {
@@ -59,13 +68,10 @@ async function load(id) {
 }
 
 
-async function save(id, data) {
+export async function save(id, data) {
     if (!db) {
-        db = await initDatabase();
+        throw new Error("Must call init() first");
     }
     await db.run('INSERT OR REPLACE INTO store (id, data) VALUES(?, ?);',
         [id, JSON.stringify(data)]);
 }
-
-
-export default {load, save};

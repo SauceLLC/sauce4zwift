@@ -1,7 +1,7 @@
 import os from 'node:os';
 import net from 'node:net';
-import {SqliteDatabase} from './db.mjs';
-import storage from './storage.mjs';
+import {SqliteDatabase, deleteDatabase} from './db.mjs';
+import * as storage from './storage.mjs';
 import * as rpc from './rpc.mjs';
 import sudo from 'sudo-prompt';
 import cap from 'cap';
@@ -428,7 +428,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 await this.updateAthlete(id);  // Update TS
             }
             // Slow it down until we are learned XXX
-            await sauce.sleep(1000 + 1000 * Math.random());
+            await sauce.sleep(500 + 1000 * Math.random());
         }
         this._pendingProfileFetches.length = 0;
     }
@@ -537,14 +537,14 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         this._active = true;
         this.states = new Map();
         this.athletesCache = new Map();
-        this.athletesDB = await SqliteDatabase.factory('athletes', {
-            tables: {
-                athletes: {
-                    id: 'INTEGER PRIMARY KEY',
-                    data: 'TEXT',
-                }
-            }
-        });
+        const dbName = 'athletes';
+        try {
+            this.athletesDB = await this.initDatabase(dbName);
+        } catch(e) {
+            console.error('Reseting athlete cache', e);
+            await deleteDatabase(dbName);
+            this.athletesDB = await this.initDatabase(dbName);
+        }
         super.start();
         this._nearbyJob = this.nearbyProcessor();
     }
@@ -557,6 +557,17 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         } finally {
             this._nearybyJob = null;
         }
+    }
+
+    async initDatabase(name) {
+        return await SqliteDatabase.factory(name, {
+            tables: {
+                athletes: {
+                    id: 'INTEGER PRIMARY KEY',
+                    data: 'TEXT',
+                }
+            }
+        });
     }
 
     realGap(a, b) {
