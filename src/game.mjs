@@ -1,7 +1,6 @@
-/* global electron */
-
 import os from 'node:os';
 import net from 'node:net';
+import {SqliteDatabase} from './db.mjs';
 import storage from './storage.mjs';
 import * as rpc from './rpc.mjs';
 import sudo from 'sudo-prompt';
@@ -10,32 +9,9 @@ import ZwiftPacketMonitor from '@saucellc/zwift-packet-monitor';
 import sauce from '../shared/sauce/index.mjs';
 import fetch from 'node-fetch';
 import {getAppSetting} from './main.mjs';
-
-const athleteCacheLabel = 'athlete-cache';
-
-
-async function getAthleteCache() {
-    const data = await storage.load(athleteCacheLabel);
-    return new Map(data || undefined);
-}
-
-
-let _saveAthleteTimeout;
-let _saveAthleteData;
-function queueSaveAthleteCache(data) {
-    _saveAthleteData = data;
-    if (!_saveAthleteTimeout) {
-        _saveAthleteTimeout = setTimeout(async () => {
-            _saveAthleteTimeout = null;
-            if (!_saveAthleteData) {
-                return;
-            }
-            const saving = Array.from(_saveAthleteData);
-            _saveAthleteData = null;
-            await storage.save(athleteCacheLabel, saving);
-        }, 5000);
-    }
-}
+import {createRequire} from 'node:module';
+const require = createRequire(import.meta.url);
+const electron = require('electron');
 
 
 async function sleep(ms) {
@@ -212,20 +188,47 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         this._rolls.clear();
     }
 
-    updateAthlete(id, fName, lName, extra={}) {
-        const d = this.athletes.get(id) || {};
-        if (!d.ts) {
-            d.ts = Date.now();
-        }
+    async updateAthlete(id, fName, lName, extra={}) {
+        const d = (await this.loadAthlete(id)) || {};
+        d.updated = Date.now();
         if (fName && fName.length === 1 && d.name && d.name[0] && d.name[0].length > 1 && d.name[0][0] === fName) {
             fName = d.name[0];  // Update is just the first initial but we know the full name already.
         }
         d.name = (fName || lName) ? [fName, lName].filter(x => x) : d.name;
         d.fullname = d.name && d.name.join(' ');
         Object.assign(d, extra);
-        this.athletes.set(id, d);
-        queueSaveAthleteCache(this.athletes);
+        await this.saveAthlete(id, d);
         return d;
+    }
+
+    getAthleteOrLazyLoad(id) {
+        const a = this.athletesCache.get(id);
+        if (a === undefined) {
+            this.loadAthlete(id); // bg okay
+            this.athletesCache.set(id, null);
+        }
+        return a;
+    }
+
+    async loadAthlete(id) {
+        const a = this.athletesCache.get(id);
+        if (a !== undefined) {
+            return a;
+        }
+        const r = await this.athletesDB.get('SELECT data FROM athletes WHERE id = ?;', [id]);
+        if (r) {
+            const data = JSON.parse(r.data);
+            this.athletesCache.set(id, data);
+            return data;
+        } else {
+            this.athletesCache.set(id, null);
+        }
+    }
+
+    async saveAthlete(id, data) {
+        this.athletesCache.set(id, data);
+        await this.athletesDB.run('INSERT OR REPLACE INTO athletes (id, data) VALUES(?, ?);',
+            [id, JSON.stringify(data)]);
     }
 
     onIncoming(...args) {
@@ -245,7 +248,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 const p = x.payload;
                 if (p.$type.name === 'PlayerEnteredWorld') {
                     const extra = p.weight ? {weight: p.weight / 1000} : undefined;
-                    this.updateAthlete(p.athleteId, p.firstName, p.lastName, extra);
+                    this.updateAthlete(p.athleteId, p.firstName, p.lastName, extra); // bg okay
                 } else if (p.$type.name === 'EventJoin') {
                     console.debug("Event Join:", p);
                 } else if (p.$type.name === 'EventLeave') {
@@ -265,10 +268,10 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                     this._chatDeDup.unshift([ts, p.from]);
                     this._chatDeDup.length = Math.min(10, this._chatDeDup.length);
                     this.emit('chat', {...p, ts});
-                    this.updateAthlete(p.from, p.firstName, p.lastName, {avatar: p.avatar});
+                    this.updateAthlete(p.from, p.firstName, p.lastName, {avatar: p.avatar}); // bg okay
                 } else if (x.payload.$type.name === 'RideOn') {
                     this.emit('rideon', {...p, ts});
-                    this.updateAthlete(p.from, p.firstName, p.lastName);
+                    this.updateAthlete(p.from, p.firstName, p.lastName); // bg okay
                     console.debug("RideOn:", p);
                 }
             }
@@ -404,13 +407,13 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         }
         while (this.zwiftTokens && this._pendingProfileFetches.length) {
             const [, id] = this._pendingProfileFetches.shift();
-            const data = this.athletes.get(id);
-            if (data && data.ts && (Date.now() - data.ts) < (86400 * 1000)) {
+            const data = await this.loadAthlete(id);
+            if (data && data.updated && (Date.now() - data.updated) < (86400 * 1000)) {
                 continue;
             }
             try {
                 const p = await this._fetchProfile(id, this.zwiftTokens.accessToken);
-                this.updateAthlete(id, p.firstName, p.lastName, {
+                await this.updateAthlete(id, p.firstName, p.lastName, {
                     ftp: p.ftp,
                     avatar: p.imageSrcLarge || p.imageSrc,
                     weight: p.weight / 1000,
@@ -422,7 +425,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 setTimeout(() => this.profileFetchIds.delete(id), 3600 * 1000);
             } catch(e) {
                 console.error("Zwift API error:", e);
-                this.updateAthlete(id);  // Update TS
+                await this.updateAthlete(id);  // Update TS
             }
             // Slow it down until we are learned XXX
             await sauce.sleep(1000 + 1000 * Math.random());
@@ -522,7 +525,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             rolls.cadence.add(state.ts, state.cadence);
             curLap.cadence.add(state.ts, state.cadence);
         }
-        state.athlete = this.athletes.get(state.athleteId);
+        state.athlete = this.getAthleteOrLazyLoad(state.athleteId);
         state.stats = this.getStats(rolls, state.athlete);
         state.laps = rolls.laps.map(x => this.getStats(x, state.athlete));
         if (this.watching === state.athleteId) {
@@ -532,8 +535,16 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
 
     async start() {
         this._active = true;
-        this.athletes = await getAthleteCache();
         this.states = new Map();
+        this.athletesCache = new Map();
+        this.athletesDB = await SqliteDatabase.factory('athletes', {
+            tables: {
+                athletes: {
+                    id: 'INTEGER PRIMARY KEY',
+                    data: 'TEXT',
+                }
+            }
+        });
         super.start();
         this._nearbyJob = this.nearbyProcessor();
     }

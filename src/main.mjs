@@ -395,7 +395,7 @@ async function patronLink() {
 
 
 async function zwiftLogin() {
-    if (!app.isPackaged && !await storage.load('zwift-tokens')) {
+    if (!app.isPackaged && await storage.load('zwift-tokens')) {
         return; // let it timeout for testing, but also avoid relentless logins
     }
     const win = makeCaptiveWindow({
