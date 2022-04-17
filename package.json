@@ -19,11 +19,11 @@
   "dependencies": {
     "@saucellc/zwift-packet-monitor": "https://github.com/SauceLLC/zwift-packet-monitor.git#5e408168e",
     "@sentry/node": "6.19.3",
+    "better-sqlite3": "7.5.1",
     "electron-updater": "4.6.5",
     "express": "4.17.3",
     "express-ws": "5.0.2",
     "node-fetch": "3.2.3",
-    "sqlite3": "5.0.3",
     "sudo-prompt": "9.2.1"
   },
   "devDependencies": {
@@ -39,13 +39,17 @@
     "artifactName": "sauce4zwift-${version}.${ext}",
     "buildDependenciesFromSource": true,
     "files": [
-      "!Makefile",
-      "!README.md",
+      "!**/Makefile",
+      "!**/README.md",
+      "!*.js.map",
       "!.*",
+      "!tools",
       "!pages/scss",
-      "!**/sqlite3/build-tmp-napi-v*",
-      "!**/sqlite3/build",
-      "!**/sqlite3/src"
+      "!**/better-sqlite3/build/Release/*.a",
+      "!**/better-sqlite3/build/Release/obj",
+      "!**/better-sqlite3/build/deps",
+      "!**/better-sqlite3/deps",
+      "!**/better-sqlite3/src"
     ],
     "asar": false,
     "publish": [
@@ -72,7 +76,6 @@
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist"
     },
-    "afterSign": "build/scripts/notarize.js",
-    "beforeBuild": "build/scripts/beforeBuild.js"
+    "afterSign": "build/scripts/notarize.js"
   }
 }

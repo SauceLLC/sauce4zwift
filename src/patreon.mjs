@@ -20,7 +20,7 @@ async function _api(res, options) {
 
 
 export async function link(code) {
-    await storage.save('patreon-auth', null);
+    storage.save('patreon-auth', null);
     let auth;
     try {
         auth = await _api('/patreon/auth', {
@@ -35,13 +35,13 @@ export async function link(code) {
         }
         return false;
     }
-    await storage.save('patreon-auth', auth);
+    storage.save('patreon-auth', auth);
     return true;
 }
 
 
 export async function getMembership(options={}) {
-    const auth = await storage.load('patreon-auth');
+    const auth = storage.load('patreon-auth');
     if (!auth) {
         throw new TypeError('Patreon link not established');
     }
@@ -54,7 +54,7 @@ export async function getMembership(options={}) {
     });
     if (!r.ok) { 
         if ([401, 403].includes(r.status)) {
-            await storage.save('patreon-auth', null);
+            storage.save('patreon-auth', null);
         } else if (r.status !== 404) {
             throw new Error('Failed to get patreon membership: ' + r.status);
         }

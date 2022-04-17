@@ -15,12 +15,19 @@ const pkg = require('../package.json');
 const {autoUpdater} = require('electron-updater');
 const {app, BrowserWindow, ipcMain, nativeImage, dialog, screen, shell} = require('electron');
 
-const storageInit = storage.init();
-Error.stackTraceLimit = 50;
+let appQuiting = false;
+let started;
 
-// Use non-electron naming for windows updater.
-// https://github.com/electron-userland/electron-builder/issues/2700
-app.setAppUserModelId('io.saucellc.sauce4zwift'); // must match build.appId for windows
+try {
+    storage.load(0);
+} catch(e) {
+    appQuiting = true;
+    console.error('Storage error:', e);
+    Promise.all([
+        storage.reset(),
+        dialog.showErrorBox('Storage error. Reseting database...', '' + e)
+    ]).then(() => app.exit(1));
+}
 
 let sentryAnonId;
 if (app.isPackaged) {
@@ -41,16 +48,14 @@ if (app.isPackaged) {
         console.error('Uncaught (but reported)', e);
     });
     Sentry.setTag('version', pkg.version);
-    storageInit.then(async () => {
-        let id = await storage.load(`sentry-id`);
-        if (!id) {
-            // It's just an anonymous value to distinguish errors and feedback
-            id = crypto.randomBytes(16).toString("hex");
-            await storage.save(`sentry-id`, id);
-        }
-        Sentry.setUser({id});
-        sentryAnonId = id;
-    });
+    let id = storage.load('sentry-id');
+    if (!id) {
+        // It's just an anonymous value to distinguish errors and feedback
+        id = crypto.randomBytes(16).toString("hex");
+        storage.save('sentry-id', id);
+    }
+    Sentry.setUser({id});
+    sentryAnonId = id;
 } else {
     console.info("Sentry disabled for unpackaged app");
 }
@@ -66,25 +71,27 @@ const pagePath = path.join(appPath, 'pages');
 const appIcon = nativeImage.createFromPath(path.join(appPath,
     'build/images/app-icon.icos'));
 const windows = new Map();
-let appQuiting = false;
-let started;
+// Use non-electron naming for windows updater.
+// https://github.com/electron-userland/electron-builder/issues/2700
+app.setAppUserModelId('io.saucellc.sauce4zwift'); // must match build.appId for windows
+
 
 
 let _appSettings;
-export async function getAppSetting(key) {
+export function getAppSetting(key) {
     if (!_appSettings) {
-        _appSettings = (await storage.load(appSettingsKey)) || {...appSettingDefaults};
+        _appSettings = storage.load(appSettingsKey) || {...appSettingDefaults};
     }
     return _appSettings[key];
 }
 
 
-export async function setAppSetting(key, value) {
+export function setAppSetting(key, value) {
     if (!_appSettings) {
-        _appSettings = (await storage.load(appSettingsKey)) || {...appSettingDefaults};
+        _appSettings = storage.load(appSettingsKey) || {...appSettingDefaults};
     }
     _appSettings[key] = value;
-    await storage.save(appSettingsKey, _appSettings);
+    storage.save(appSettingsKey, _appSettings);
     app.emit('app-setting-change', key, value);
 }
 
@@ -134,26 +141,26 @@ rpc.register('disableGPU', async disable => {
 });
 
 
-async function getWindowState(page) {
+function getWindowState(page) {
     const id = page.split('.')[0];
-    return await storage.load(`window-${id}`);
+    return storage.load(`window-${id}`);
 }
 
 
-async function setWindowState(page, data) {
+function setWindowState(page, data) {
     const id = page.split('.')[0];
-    await storage.save(`window-${id}`, data);
+    storage.save(`window-${id}`, data);
 }
 
 
-async function clearWindowState(page) {
+function clearWindowState(page) {
     const id = page.split('.')[0];
-    await storage.save(`window-${id}`, null);
+    storage.save(`window-${id}`, null);
 }
 
 
 async function makeFloatingWindow(page, options={}, defaultState={}) {
-    const state = (await getWindowState(page)) || defaultState;
+    const state = getWindowState(page) || defaultState;
     const win = new BrowserWindow({
         icon: appIcon,
         transparent: true,
@@ -231,16 +238,16 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
         clearTimeout(saveStateTimeout);
         saveStateTimeout = setTimeout(() => setWindowState(page, state), 200);
     }
-    async function onHide(ev) {
+    function onHide(ev) {
         if (appQuiting || options.hideable === false) {
             return;
         }
         state.hidden = true;
-        await setWindowState(page, state);
+        setWindowState(page, state);
     }
-    async function onShow(ev) {
+    function onShow(ev) {
         state.hidden = false;
-        await setWindowState(page, state);
+        setWindowState(page, state);
     }
     function onWindowMessage(name, callback) {
         ipcMain.on(name, (ev, ...args) => {
@@ -273,26 +280,19 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
 
 async function createWindows(monitor) {
     void clearWindowState;  // delint while unused
-    //await clearWindowState('overview.html'); // XXX TESTING
-    //await clearWindowState('watching.html'); // XXX TESTING
-    //await clearWindowState('groups.html'); // XXX TESTING
-    //await clearWindowState('chat.html'); // XXX TESTING
-    //await clearWindowState('nearby.html'); // XXX TESTING
-    const nearbyOverlayMode = await getAppSetting('nearbyOverlayMode');
+    //clearWindowState('overview.html'); // XXX TESTING
+    //clearWindowState('watching.html'); // XXX TESTING
+    //clearWindowState('groups.html'); // XXX TESTING
+    //clearWindowState('chat.html'); // XXX TESTING
+    //clearWindowState('nearby.html'); // XXX TESTING
+    const nearbyOverlayMode = getAppSetting('nearbyOverlayMode');
     const nearbyOptions = nearbyOverlayMode ? {transparent: false} : {alwaysOnTop: false,
         frame: true, maximizable: true, fullscreenable: true, autoHide: false};
-    await Promise.all([
-        makeFloatingWindow('watching.html',
-            {width: 260, height: 260, x: 8, y: 64}),
-        makeFloatingWindow('groups.html',
-            {width: 235, height: 650, x: -280, y: -10}),
-        makeFloatingWindow('chat.html',
-            {width: 280, height: 580, x: 320, y: 230}),
-        makeFloatingWindow('overview.html',
-            {relWidth: 0.6, height: 40, relX: 0.2, y: 0, hideable: false}),
-        makeFloatingWindow('nearby.html', {width: 800, height: 400, x: 20, y: 20, ...nearbyOptions},
-            {hidden: true})
-    ]);
+    makeFloatingWindow('watching.html', {width: 260, height: 260, x: 8, y: 64});
+    makeFloatingWindow('groups.html', {width: 235, height: 650, x: -280, y: -10});
+    makeFloatingWindow('chat.html', {width: 280, height: 580, x: 320, y: 230});
+    makeFloatingWindow('overview.html', {relWidth: 0.6, height: 40, relX: 0.2, y: 0, hideable: false});
+    makeFloatingWindow('nearby.html', {width: 800, height: 400, x: 20, y: 20, ...nearbyOptions}, {hidden: true});
 }
 
 if (app.dock) {
@@ -328,7 +328,7 @@ function makeCaptiveWindow(options={}, webPrefs={}) {
 
 
 async function eulaConsent() {
-    if (await storage.load(`eula-consent`)) {
+    if (storage.load('eula-consent')) {
         return true;
     }
     const win = makeCaptiveWindow({width: 800, height: 600});
@@ -336,7 +336,7 @@ async function eulaConsent() {
     const consenting = new Promise(resolve => {
         rpc.register('eulaConsent', async agree => {
             if (agree === true) {
-                await storage.save(`eula-consent`, true);
+                storage.save('eula-consent', true);
                 resolve(true);
             } else {
                 console.warn("User does not agree to EULA");
@@ -362,7 +362,7 @@ function scrubUA(win) {
 
 
 async function patronLink() {
-    let membership = await storage.load('patron-membership');
+    let membership = storage.load('patron-membership');
     if (membership && membership.patronLevel >= 10) {
         // XXX Implment refresh once in a while.
         return true;
@@ -387,7 +387,7 @@ async function patronLink() {
             membership = isAuthed && await patreon.getMembership();
         }
         if (membership && membership.patronLevel >= 10) {
-            await storage.save('patron-membership', membership);
+            storage.save('patron-membership', membership);
             win.close();
             return true;
         } else {
@@ -398,7 +398,7 @@ async function patronLink() {
 
 
 async function zwiftLogin() {
-    if (!app.isPackaged && await storage.load('zwift-tokens')) {
+    if (!app.isPackaged && storage.load('zwift-tokens')) {
         return; // let it timeout for testing, but also avoid relentless logins
     }
     const win = makeCaptiveWindow({
@@ -434,20 +434,12 @@ async function zwiftLogin() {
     if (!closed) {
         win.close();
     }
-    await storage.save('zwift-tokens', tokens);
+    storage.save('zwift-tokens', tokens);
 }
 
 
 async function main() {
     await app.whenReady();
-    try {
-        await storageInit;
-    } catch(e) {
-        Sentry.captureException(e);
-        console.error('Storage DB might be corrupt, reseting', e);
-        await storage.reset();
-        await storage.init();
-    }
     app.on('before-quit', () => {
         appQuiting = true;
         Sentry.flush();
@@ -465,7 +457,7 @@ async function main() {
         app.exit(1);
         return;
     }
-    if (await getAppSetting('zwiftLogin')) {
+    if (getAppSetting('zwiftLogin')) {
         await zwiftLogin();
     }
     autoUpdater.checkForUpdatesAndNotify().catch(Sentry.captureException);
@@ -555,4 +547,6 @@ async function main() {
     started = true;
 }
 
-main();
+if (!appQuiting) {
+    main();
+}

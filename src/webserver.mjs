@@ -44,16 +44,16 @@ function wrapWebSocketMessage(ws, callback) {
 }
 
 
-export async function getConfig() {
-    return (await storage.load('webserver-config.v2')) || {
+export function getConfig() {
+    return storage.load('webserver-config.v2') || {
         enabled: true,
         port: 1080,
     };
 }
 
 
-export async function setConfig(config) {
-    await storage.save('webserver-config.v2', config);
+export function setConfig(config) {
+    storage.save('webserver-config.v2', config);
 }
 
 
@@ -116,7 +116,7 @@ export async function start() {
 
 
 async function _start() {
-    const config = await getConfig();
+    const config = getConfig();
     if (!config.enabled) {
         console.debug("Web server disabled");
         return false;

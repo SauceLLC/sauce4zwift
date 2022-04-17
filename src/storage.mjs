@@ -1,29 +1,18 @@
-import path from 'node:path';
-import fs from 'node:fs/promises';
 import {SqliteDatabase, deleteDatabase} from './db.mjs';
-import {createRequire} from 'node:module';
-const require = createRequire(import.meta.url);
-const {app} = require('electron');
-
-let db;
-
-
-function getFilePath(id) {
-    return path.join(app.getPath('userData'), `storage-${id}.json`);
-}
 
 
 export async function reset() {
-    db = null;
+    _db = null;
     await deleteDatabase('storage');
 }
 
 
-export async function init() {
-    if (db) {
-        return db;
+let _db;
+function getDB() {
+    if (_db) {
+        return _db;
     }
-    db = await SqliteDatabase.factory('storage', {
+    _db = new SqliteDatabase('storage', {
         tables: {
             store: {
                 id: 'TEXT PRIMARY KEY',
@@ -31,47 +20,24 @@ export async function init() {
             }
         }
     });
-    return db;
+    return _db;
 }
 
 
-export async function load(id) {
-    if (!db) {
-        throw new Error("Must call init() first");
-    }
-    const r = await db.get('SELECT data from store WHERE id = ?;', [id]);
-    if (!r) {
-        let f;
-        try {
-            f = await fs.open(getFilePath(id));
-        } catch(e) {
-            if (e.code === 'ENOENT') {
-                return;
-            }
-            throw e;
-        }
-        let legacyData;
-        try {
-            legacyData = JSON.parse(await f.readFile());
-        } catch(e) {
-            console.error("Ignoring legacy data load fail:", e);
-        } finally {
-            await f.close();
-        }
-        if (legacyData) {
-            await db.run('REPLACE INTO store (id, data) VALUES(?, ?);',
-                [id, JSON.stringify(legacyData)]);
-            return legacyData;
-        }
-    }
+export function load(id) {
+    const db = getDB();
+    const r = db.prepare('SELECT data from store WHERE id = ?').get(id);
     return r ? JSON.parse(r.data) : undefined;
 }
 
 
-export async function save(id, data) {
-    if (!db) {
-        throw new Error("Must call init() first");
-    }
-    await db.run('INSERT OR REPLACE INTO store (id, data) VALUES(?, ?);',
-        [id, JSON.stringify(data)]);
+export function save(id, data) {
+    const db = getDB();
+    db.prepare('INSERT OR REPLACE INTO store (id, data) VALUES(?, ?)').run(id, JSON.stringify(data));
+}
+
+
+export function remove(id) {
+    const db = getDB();
+    db.prepare('DELETE FROM store WHERE id = ?').run(id);
 }

@@ -1,6 +1,9 @@
+Error.stackTraceLimit = 50;
+
 const path = require('node:path');
 const fs = require('node:fs');
-const {app} = require('electron');
+const {app, dialog} = require('electron');
+
 
 const disableGPUFile = path.join(app.getPath('userData'), 'disabled-gpu');
 if (fs.existsSync(disableGPUFile)) {
@@ -11,5 +14,10 @@ if (fs.existsSync(disableGPUFile)) {
 }
 
 (async () => {
-    await import('./main.mjs');
+    try {
+        await import('./main.mjs');
+    } catch(e) {
+        await dialog.showErrorBox('Early Startup Error', '' + e);
+        app.exit(1);
+    }
 })();

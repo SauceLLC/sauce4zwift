@@ -46,7 +46,7 @@ sass-watch:
 lint-watch:
 	while true ; do \
 		$(MAKE) lint; \
-		sleep 2; \
+		sleep 5; \
 	done
 
 .PHONY: build pack publish lint sass
