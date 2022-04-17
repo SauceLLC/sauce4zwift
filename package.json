@@ -41,7 +41,8 @@
     "files": [
       "!**/Makefile",
       "!**/README.md",
-      "!*.js.map",
+      "!**/*.js.map",
+      "!**/*.css.map",
       "!.*",
       "!tools",
       "!pages/scss",

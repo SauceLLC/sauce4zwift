@@ -153,12 +153,6 @@ function setWindowState(page, data) {
 }
 
 
-function clearWindowState(page) {
-    const id = page.split('.')[0];
-    storage.save(`window-${id}`, null);
-}
-
-
 async function makeFloatingWindow(page, options={}, defaultState={}) {
     const state = getWindowState(page) || defaultState;
     const win = new BrowserWindow({
@@ -204,6 +198,7 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
     win.webContents.on('new-window', (ev, url) => {
         // Popups...
         ev.preventDefault();
+        const q = new URLSearchParams((new URL(url)).search);
         const newWin = new BrowserWindow({
             icon: appIcon,
             resizable: true,
@@ -216,10 +211,12 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
                 preload: path.join(appPath, 'src', 'preload', 'common.js'),
             }
         });
+        if (win.isAlwaysOnTop()) {
+            newWin.setAlwaysOnTop(true, 'screen-saver'); // use same setting as parent.
+        }
         if (app.isPackaged) {
             newWin.removeMenu();
         }
-        const q = new URLSearchParams((new URL(url)).search);
         const wHint = Number(q.get('widthHint'));
         const hHint = Number(q.get('heightHint'));
         if (wHint || hHint) {
@@ -279,15 +276,9 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
 
 
 async function createWindows(monitor) {
-    void clearWindowState;  // delint while unused
-    //clearWindowState('overview.html'); // XXX TESTING
-    //clearWindowState('watching.html'); // XXX TESTING
-    //clearWindowState('groups.html'); // XXX TESTING
-    //clearWindowState('chat.html'); // XXX TESTING
-    //clearWindowState('nearby.html'); // XXX TESTING
     const nearbyOverlayMode = getAppSetting('nearbyOverlayMode');
-    const nearbyOptions = nearbyOverlayMode ? {transparent: false} : {alwaysOnTop: false,
-        frame: true, maximizable: true, fullscreenable: true, autoHide: false};
+    const nearbyOptions = nearbyOverlayMode ? {} : {alwaysOnTop: false,
+        transparent: false, frame: true, maximizable: true, fullscreenable: true, autoHide: false};
     makeFloatingWindow('watching.html', {width: 260, height: 260, x: 8, y: 64});
     makeFloatingWindow('groups.html', {width: 235, height: 650, x: -280, y: -10});
     makeFloatingWindow('chat.html', {width: 280, height: 580, x: 320, y: 230});
