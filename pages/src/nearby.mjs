@@ -5,9 +5,11 @@ const L = sauce.locale;
 const H = L.human;
 const num = H.number;
 const settingsKey = 'nearby-settings-v2';
+const fieldsKey = 'nearby-fields-v2';
 let imperial = common.storage.get('/imperialUnits');
 L.setImperial(imperial);
 let settings;
+let fieldStates;
 let athleteData = new Map();
 let nearbyData;
 let hiRow;
@@ -132,24 +134,43 @@ export function main() {
     const setRefresh = () => refresh = (settings.refreshInterval || 1) * 1000 - 100; // within 100ms is fine.
     document.addEventListener('settings-updated', ev => {
         settings = ev.data;
-        common.rpc('setAppSetting', 'nearbyOverlayMode', settings.overlayMode);
+        if (common.isElectron && typeof settings.overlayMode === 'boolean') {
+            common.rpc('setAppSetting', 'nearbyOverlayMode', settings.overlayMode);
+            document.documentElement.classList.toggle('overlay-mode', settings.overlayMode);
+        }
         setRefresh();
         render();
         if (nearbyData) {
             renderData(nearbyData);
         }
     });
+    window.addEventListener('storage', ev => {
+        if (ev.key === fieldsKey) {
+            fieldStates = JSON.parse(ev.newValue);
+            render();
+            if (nearbyData) {
+                renderData(nearbyData);
+            }
+        }
+    });
+
     document.addEventListener('global-settings-updated', ev => {
         if (ev.data.key === '/imperialUnits') {
             L.setImperial(imperial = ev.data.data);
         }
     });
     settings = common.storage.get(settingsKey, {
-        fields: Object.fromEntries(fields.map(x => [x.id, x.defaultEn])),
         autoscroll: true,
         refreshInterval: 1,
         overlayMode: false,
     });
+    fieldStates = common.storage.get(fieldsKey, Object.fromEntries(fields.map(x => [x.id, x.defaultEn])));
+    if (common.isElectron) {
+        common.rpc('getAppSetting', 'nearbyOverlayMode').then(en => {
+            settings.overlayMode = en;
+            document.documentElement.classList.toggle('overlay-mode', en);
+        });
+    }
     render();
     refresh = setRefresh();
     let lastRefresh = 0;
@@ -167,7 +188,7 @@ export function main() {
 
 function render() {
     document.documentElement.classList.toggle('autoscroll', settings.autoscroll);
-    enFields = fields.filter(x => settings.fields[x.id]);
+    enFields = fields.filter(x => fieldStates[x.id]);
     sortBy = common.storage.get('nearby-sort-by', 'gap');
     const isFieldAvail = !!enFields.find(x => x.id === sortBy);
     if (!isFieldAvail) {
@@ -314,17 +335,17 @@ function renderData(data) {
 
 export async function settingsMain() {
     common.initInteractionListeners();
-    const settings = common.storage.get(settingsKey);
+    fieldStates = common.storage.get(fieldsKey);
     const form = document.querySelector('form#fields');
     form.addEventListener('input', ev => {
         const id = ev.target.name;
-        settings.fields[id] = ev.target.checked;
-        common.storage.set(settingsKey, settings);
+        fieldStates[id] = ev.target.checked;
+        common.storage.set(fieldsKey, fieldStates);
     });
     const fieldsHtml = fields.map(x => `
         <label>
             <key>${x.label}</key>
-            <input type="checkbox" name="${x.id}" ${settings.fields[x.id] ? 'checked' : ''}/>
+            <input type="checkbox" name="${x.id}" ${fieldStates[x.id] ? 'checked' : ''}/>
         </label>
     `).join('');
     form.innerHTML = fieldsHtml;
