@@ -37,11 +37,15 @@
   "build": {
     "appId": "io.saucellc.sauce4zwift",
     "artifactName": "sauce4zwift-${version}.${ext}",
+    "buildDependenciesFromSource": true,
     "files": [
       "!Makefile",
       "!README.md",
       "!.*",
-      "!pages/scss"
+      "!pages/scss",
+      "!**/sqlite3/build-tmp-napi-v*",
+      "!**/sqlite3/build",
+      "!**/sqlite3/src"
     ],
     "asar": false,
     "publish": [
@@ -68,6 +72,7 @@
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist"
     },
-    "afterSign": "build/scripts/notarize.js"
+    "afterSign": "build/scripts/notarize.js",
+    "beforeBuild": "build/scripts/beforeBuild.js"
   }
 }
