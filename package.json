@@ -20,7 +20,7 @@
     "@saucellc/zwift-packet-monitor": "https://github.com/SauceLLC/zwift-packet-monitor.git#5e408168e",
     "@sentry/node": "6.19.3",
     "better-sqlite3": "7.5.1",
-    "electron-updater": "4.6.5",
+    "electron-updater": "5.0.2",
     "express": "4.17.3",
     "express-ws": "5.0.2",
     "node-fetch": "3.2.3",
@@ -28,9 +28,9 @@
   },
   "devDependencies": {
     "@sentry/browser": "6.19.3",
-    "electron": "17.1.0",
-    "electron-builder": "22.14.13",
-    "electron-notarize": "1.1.1",
+    "electron": "18.0.3",
+    "electron-builder": "23.0.4",
+    "electron-notarize": "1.2.1",
     "eslint": "8.10.0",
     "sass": "1.49.10"
   },
