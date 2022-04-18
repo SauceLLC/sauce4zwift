@@ -460,6 +460,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         });
         if (!r.ok) {
             storage.remove('zwift-tokens');
+            this.zwiftTokens = null;
             throw new Error(`[${r.status}]: ${await r.text()}`);
         }
         return await r.json();

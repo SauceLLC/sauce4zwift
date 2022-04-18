@@ -167,8 +167,11 @@ export function main() {
     fieldStates = common.storage.get(fieldsKey, Object.fromEntries(fields.map(x => [x.id, x.defaultEn])));
     if (common.isElectron) {
         common.rpc('getAppSetting', 'nearbyOverlayMode').then(en => {
-            settings.overlayMode = en;
-            document.documentElement.classList.toggle('overlay-mode', en);
+            if (settings.overlayMode !== en) {
+                settings.overlayMode = en;
+                common.storage.set(settingsKey, settings);
+                document.documentElement.classList.toggle('overlay-mode', en);
+            }
         });
     }
     render();
