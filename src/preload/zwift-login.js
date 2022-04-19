@@ -1,20 +1,29 @@
 const {ipcRenderer} = require('electron');
 
-document.addEventListener('DOMContentLoaded', () => {
-    try {
-        const jsTokens = document.documentElement.textContent.match(
-            /window\.ZPageData\.sessionTokens=({.*?});/);
-        let hasTokens = false;
-        if (jsTokens && jsTokens[1]) {
-            const parse = new Function(`return ${jsTokens[1]}`);
-            const tokens = parse();
-            if (tokens && tokens.accessToken && tokens.refreshToken) {
-                hasTokens = true;
-                ipcRenderer.send('zwift-tokens', tokens);
-            }
-        } 
-        ipcRenderer.send('zwift-login-required', !hasTokens);
-    } catch(e) {
-        debugger;
+function siteScript() {
+    const start = Date.now();
+    const check = () => {
+        if (window.ZPageData) {
+            document.dispatchEvent(new CustomEvent('sauce-access-token',
+                {detail: window.ZPageData.sessionTokens.accessToken}));
+        } else if (Date.now() - start > 5000) {
+            document.dispatchEvent(new CustomEvent('sauce-access-token'));
+        } else {
+            setTimeout(check, 200);
+        }
+    };
+    check();
+}
+
+document.addEventListener('sauce-access-token', ev => {
+    ipcRenderer.send('zwift-login-required', !ev.detail);
+    if (ev.detail) {
+        ipcRenderer.send('zwift-token', ev.detail);
     }
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    const script = document.createElement('script');
+    script.innerHTML = siteScript.toString() + '\nsiteScript()';
+    document.head.appendChild(script);
 });

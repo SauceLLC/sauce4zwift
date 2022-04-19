@@ -137,8 +137,6 @@ rpc.register('showAllWindows', (options={}) => {
         }
     }
 });
-rpc.register('disableGPU', async disable => {
-});
 
 
 function getWindowState(page) {
@@ -211,9 +209,6 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
                 preload: path.join(appPath, 'src', 'preload', 'common.js'),
             }
         });
-        if (win.isAlwaysOnTop()) {
-            newWin.setAlwaysOnTop(true, 'screen-saver'); // use same setting as parent.
-        }
         if (app.isPackaged) {
             newWin.removeMenu();
         }
@@ -389,7 +384,7 @@ async function patronLink() {
 
 
 async function zwiftLogin() {
-    if (!app.isPackaged && storage.load('zwift-tokens')) {
+    if (!app.isPackaged && storage.load('zwift-token')) {
         return; // let it timeout for testing, but also avoid relentless logins
     }
     const win = makeCaptiveWindow({
@@ -405,8 +400,8 @@ async function zwiftLogin() {
         ipcMain.on('zwift-login-required', (ev, needLogin) => resolve(needLogin));
     });
     let closed;
-    const tokensPromise = new Promise(resolve => {
-        ipcMain.on('zwift-tokens', (ev, tokens) => resolve(tokens));
+    const tokenPromise = new Promise(resolve => {
+        ipcMain.on('zwift-token', (ev, token) => resolve(token));
         win.on('closed', () => (closed = true, resolve(false)));
     });
     win.loadURL(`https://www.zwift.com/sign-in`);
@@ -414,18 +409,18 @@ async function zwiftLogin() {
         console.info("Login to Zwift required...");
         win.show();
     } else {
-        console.info("Zwift tokens refreshing...");
+        console.info("Zwift token refreshing...");
     }
-    const tokens = await tokensPromise;
-    if (tokens) {
-        console.info("Zwift tokens acquired");
+    const token = await tokenPromise;
+    if (token) {
+        console.info("Zwift token acquired");
     } else {
         console.info("Zwift login failed");
     }
     if (!closed) {
         win.close();
     }
-    storage.save('zwift-tokens', tokens);
+    storage.save('zwift-token', token);
 }
 
 

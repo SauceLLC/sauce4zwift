@@ -415,18 +415,18 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     }
 
     async runAthleteProfileUpdater() {
-        if (this.zwiftTokens === undefined) {
-            const zwiftLogin = await getAppSetting('zwiftLogin');
-            this.zwiftTokens = zwiftLogin && storage.load('zwift-tokens');
+        if (this.zwiftToken === undefined) {
+            const zwiftLogin = getAppSetting('zwiftLogin');
+            this.zwiftToken = zwiftLogin && storage.load('zwift-token');
         }
-        while (this.zwiftTokens && this._pendingProfileFetches.length) {
+        while (this.zwiftToken && this._pendingProfileFetches.length) {
             const [, id] = this._pendingProfileFetches.shift();
             const data = this.loadAthlete(id);
             if (data && data.updated && (Date.now() - data.updated) < (86400 * 1000)) {
                 continue;
             }
             try {
-                const p = await this._fetchProfile(id, this.zwiftTokens.accessToken);
+                const p = await this._fetchProfile(id, this.zwiftToken);
                 this.updateAthlete(id, p.firstName, p.lastName, {
                     ftp: p.ftp,
                     avatar: p.imageSrcLarge || p.imageSrc,
@@ -459,8 +459,8 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             }
         });
         if (!r.ok) {
-            storage.remove('zwift-tokens');
-            this.zwiftTokens = null;
+            storage.remove('zwift-token');
+            this.zwiftToken = null;
             throw new Error(`[${r.status}]: ${await r.text()}`);
         }
         return await r.json();
