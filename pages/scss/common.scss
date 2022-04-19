@@ -112,6 +112,10 @@ input[type="number"] {
 form label {
     margin-bottom: 0.4em;
 
+    &.disabled {
+        opacity: 0.4;
+    }
+
     key {
         display: inline-block;
         margin-right: 0.4em;

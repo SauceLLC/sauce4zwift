@@ -44,7 +44,8 @@
                         <option value="power-median">Median Power</option>
                     </select>
                 </label>
-                <label><key>Extra zoomed field:</key>
+                <label>
+                    <key>Extra zoomed field:</key>
                     <select name="zoomedSecondaryField">
                         <option value="speed">Speed</option>
                         <option value="draft">Draft</option>
@@ -52,11 +53,20 @@
                         <option value="power-60s">1m Power</option>
                     </select>
                 </label>
-                <label><key>Zoomed gap field:</key>
+                <label>
+                    <key>Zoomed gap field:</key>
                     <select name="zoomedGapField">
                         <option value="time">Time</option>
                         <option value="distance">Distance</option>
                     </select>
+                </label>
+                <label title="Mostly useful for streamers using OBS window capture mode">
+                    <key>Solid background:</key>
+                    <input type="checkbox" name="solidBackground"/>
+                </label>
+                <label>
+                    <key>Background color:</key>
+                    <input type="color" name="backgroundColor" data-depends-on="!solidBackground"/>
                 </label>
             </form>
         </div>

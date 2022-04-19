@@ -2,7 +2,7 @@ import sauce from '../../shared/sauce/index.mjs';
 import common from './common.mjs';
 
 const nearby = new Map();
-const settingsKey = 'chat-settings-v1';
+const settingsKey = 'chat-settings-v2';
 
 
 function athleteHue(id) {
@@ -43,18 +43,32 @@ function liveDataFormatter(athlete) {
 }
 
 
+function setBackground({solidBackground, backgroundColor}) {
+    const doc = document.documentElement;
+    doc.classList.toggle('solid-background', solidBackground);
+    if (solidBackground) {
+        doc.style.setProperty('--background-color', backgroundColor);
+    } else {
+        doc.style.removeProperty('--background-color');
+    }
+}
+
+
 export async function main() {
     common.initInteractionListeners({settingsKey});
     const content = document.querySelector('#content');
     liveDataTask(content);  // bg okay
     let settings = common.storage.get(settingsKey, {
         cleanup: 120,
+        solidBackground: false,
+        backgroundColor: '#00ff00',
     });
     const fadeoutTime = 5;
     content.style.setProperty('--fadeout-time', `${fadeoutTime}s`);
     if (settings.cleanup) {
         content.style.setProperty('--cleanup-time', `${settings.cleanup}s`);
     }
+    setBackground(settings);
     document.addEventListener('settings-updated', ev => {
         settings = ev.data;
         if (settings.cleanup) {
@@ -62,6 +76,7 @@ export async function main() {
         } else {
             content.style.removeProperty('--cleanup-time');
         }
+        setBackground(settings);
         for (const el of document.querySelectorAll('.entry')) {
             el._resetCleanup();
         }

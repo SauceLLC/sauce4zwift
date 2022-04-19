@@ -438,11 +438,28 @@ async function bindFormData(selector, storageIface, options={}) {
         } else {
             el.value = val == null ? '' : val;
         }
+        const dependsOn = el.dataset.dependsOn;
+        if (dependsOn) {
+            const depEl = form.querySelector(`[name="${dependsOn.replace(/^!/, '')}"]`);
+            el.disabled = dependsOn.startsWith('!') ? !depEl.checked : depEl.checked;
+            el.closest('label').classList.toggle('disabled', el.disabled);
+            if (!depEl.dependants) {
+                depEl.dependants = [];
+            }
+            depEl.dependants.push(el);
+        }
         el.addEventListener('input', async ev => {
             const val = (({
                 number: () => el.value ? Number(el.value) : undefined,
                 checkbox: () => el.checked,
             }[el.type]) || (() => el.value || undefined))();
+            if (el.dependants) {
+                for (const x of el.dependants) {
+                    const d = x.dataset.dependsOn;
+                    x.disabled = d.startsWith('!') ? !el.checked : el.checked;
+                    x.closest('label').classList.toggle('disabled', x.disabled);
+                }
+            }
             await storageIface.set(name, val);
         });
     }

@@ -1,3 +1,14 @@
+
+html {
+    &.solid-background {
+        background: var(--background-color);
+
+        body {
+            background: transparent;
+        }
+    }
+}
+
 body {
     color: black;
 }

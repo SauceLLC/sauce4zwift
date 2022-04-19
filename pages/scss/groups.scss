@@ -5,6 +5,14 @@ $content-right-pad: 2.5rem;
 
 html {
     --aspect-ratio: 3 / 8;
+
+    &.solid-background {
+        background: var(--background-color);
+
+        body {
+            background: transparent;
+        }
+    }
 }
 
 #content {

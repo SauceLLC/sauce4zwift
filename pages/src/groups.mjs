@@ -4,7 +4,7 @@ import common from './common.mjs';
 const L = sauce.locale;
 const H = L.human;
 const positions = new Map();
-const settingsKey = 'groups-settings-v3';
+const settingsKey = 'groups-settings-v4';
 let imperial = common.storage.get('/imperialUnits');
 L.setImperial(imperial);
 let settings;
@@ -257,6 +257,17 @@ function renderGroups(groups) {
 }
 
 
+function setBackground({solidBackground, backgroundColor}) {
+    const doc = document.documentElement;
+    doc.classList.toggle('solid-background', solidBackground);
+    if (solidBackground) {
+        doc.style.setProperty('--background-color', backgroundColor);
+    } else {
+        doc.style.removeProperty('--background-color');
+    }
+}
+
+
 export async function main() {
     common.initInteractionListeners({settingsKey});
     settings = common.storage.get(settingsKey, {
@@ -266,9 +277,13 @@ export async function main() {
         groupsSecondaryField: 'speed',
         zoomedSecondaryField: 'draft',
         zoomedGapField: 'distance',
+        solidBackground: false,
+        backgroundColor: '#00ff00',
     });
+    setBackground(settings);
     document.addEventListener('settings-updated', () => {
         settings = common.storage.get(settingsKey);
+        setBackground(settings);
         render();
     });
     document.addEventListener('global-settings-updated', ev => {
