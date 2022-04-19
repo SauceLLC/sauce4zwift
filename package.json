@@ -45,6 +45,7 @@
       "!**/*.css.map",
       "!.*",
       "!tools",
+      "!assets",
       "!pages/scss",
       "!**/better-sqlite3/build/Release/*.a",
       "!**/better-sqlite3/build/Release/obj",
