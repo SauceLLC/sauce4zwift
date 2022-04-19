@@ -26,13 +26,14 @@
                     <key>Message cleanup:</key>
                     <input type="number" min="0" step="1" name="cleanup"/> <small>(seconds)</small>
                 </label>
-                <label title="Mostly useful for streamers using OBS window capture mode">
+                <label title="Mostly useful for streamers using OBS window and browser sources">
                     <key>Solid background:</key>
                     <input type="checkbox" name="solidBackground"/>
                 </label>
                 <label>
                     <key>Background color:</key>
                     <input type="color" name="backgroundColor" data-depends-on="!solidBackground"/>
+                    <input type="text" name="backgroundColor" data-depends-on="!solidBackground" size="7"/>
                 </label>
             </form>
         </div>

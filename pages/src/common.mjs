@@ -430,8 +430,13 @@ async function bindFormData(selector, storageIface, options={}) {
         const name = el.getAttribute('name');
         el.textContent = await storageIface.get(name);
     }
+    const fieldConnections = new Map();
     for (const el of form.querySelectorAll('input')) {
         const name = el.name;
+        if (!fieldConnections.has(name)) {
+            fieldConnections.set(name, new Set());
+        }
+        fieldConnections.get(name).add(el);
         const val = await storageIface.get(name);
         if (el.type === 'checkbox') {
             el.checked = val;
@@ -453,6 +458,12 @@ async function bindFormData(selector, storageIface, options={}) {
                 number: () => el.value ? Number(el.value) : undefined,
                 checkbox: () => el.checked,
             }[el.type]) || (() => el.value || undefined))();
+            for (const x of fieldConnections.get(el.name)) {
+                if (!Object.is(x, el)) {
+                    x.value = el.value;
+                    x.checked = el.checked;
+                }
+            }
             if (el.dependants) {
                 for (const x of el.dependants) {
                     const d = x.dataset.dependsOn;
