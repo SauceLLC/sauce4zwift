@@ -1,5 +1,4 @@
 import express from 'express';
-import * as storage from './storage.mjs';
 import * as rpc from './rpc.mjs';
 import expressWebSocketPatch from 'express-ws';
 import path from 'node:path';
@@ -44,19 +43,6 @@ function wrapWebSocketMessage(ws, callback) {
 }
 
 
-export function getConfig() {
-    return storage.load('webserver-config.v2') || {
-        enabled: true,
-        port: 1080,
-    };
-}
-
-
-export function setConfig(config) {
-    storage.save('webserver-config.v2', config);
-}
-
-
 export async function restart(monitor) {
     if (starting) {
         await stop();
@@ -94,13 +80,13 @@ async function closeServer(s) {
 }
 
 
-export async function start() {
+export async function start(port) {
     if (starting || starting || running) {
         throw new Error("Invalid state");
     }
     starting = true;
     try {
-        await _start();
+        await _start(port);
     } catch(e) {
         const s = server;
         server = null;
@@ -115,12 +101,7 @@ export async function start() {
 }
 
 
-async function _start() {
-    const config = getConfig();
-    if (!config.enabled) {
-        console.debug("Web server disabled");
-        return false;
-    }
+async function _start(port) {
     app = express();
     app.use(express.json());
     server = http.createServer(app);
@@ -203,9 +184,9 @@ async function _start() {
                 rej = _rej;
                 server.on('listening', res);
                 server.on('error', rej);
-                server.listen(config.port);
+                server.listen(port);
             });
-            console.info(`\nWeb server started at: http://${monitor.ip}:${config.port}/\n`);
+            console.info(`\nWeb server started at: http://${monitor.ip}:${port}/\n`);
             return;
         } catch(e) {
             if (e.code === 'EADDRINUSE') {
@@ -220,6 +201,6 @@ async function _start() {
             server.off('error', rej);
         }
     }
-    console.error(`Web server failed to startup at: http://${monitor.ip}:${config.port}/`);
+    console.error(`Web server failed to startup at: http://${monitor.ip}:${port}/`);
     return true;
 }

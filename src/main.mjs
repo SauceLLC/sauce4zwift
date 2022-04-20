@@ -6,7 +6,7 @@ import menu from './menu.mjs';
 import * as patreon from './patreon.mjs';
 import * as rpc from './rpc.mjs';
 import Sentry from '@sentry/node';
-import * as web from './webserver.mjs';
+import * as webServer from './webserver.mjs';
 import sauce from '../shared/sauce/index.mjs';
 import crypto from 'node:crypto';
 import {createRequire} from 'node:module';
@@ -62,6 +62,8 @@ if (app.isPackaged) {
 
 const appSettingDefaults = {
     zwiftLogin: false,
+    webServerEnabled: true,
+    webServerPort: 1080,
 };
 
 const appSettingsKey = 'app-settings';
@@ -82,6 +84,19 @@ export function getAppSetting(key) {
     if (!_appSettings) {
         _appSettings = storage.load(appSettingsKey) || {...appSettingDefaults};
     }
+    // migrate legacy... remove after a couple releases past 0.5.1 XXX
+    let migrated;
+    for (const [k, v] of Object.entries(appSettingDefaults)) {
+        if (!Object.prototype.hasOwnProperty.call(_appSettings, k)) {
+            console.debug("Migrating app setting:", k, v);
+            _appSettings[k] = v;
+            migrated = true;
+        }
+    }
+    if (migrated) {
+        storage.save(appSettingsKey, _appSettings);
+    }
+    // /XXX
     return _appSettings[key];
 }
 
@@ -110,6 +125,7 @@ rpc.register('getAppSetting', getAppSetting);
 rpc.register('setAppSetting', setAppSetting);
 rpc.register('appIsPackaged', () => app.isPackaged);
 rpc.register('getVersion', () => pkg.version);
+rpc.register('getMonitorIP', () => pkg.version);
 rpc.register('getSentryAnonId', () => sentryAnonId);
 rpc.register('openExternalLink', url => shell.openExternal(url));
 rpc.register('restart', () => {
@@ -465,6 +481,7 @@ async function main() {
         return;
     }
     const monitor = await mon.Sauce4ZwiftMonitor.factory();
+    rpc.register('getMonitorIP', () => monitor.ip);
     try {
         await monitor.start();
     } catch(e) {
@@ -527,9 +544,11 @@ async function main() {
             await createWindows(monitor);
         }
     });
-    web.setMonitor(monitor);
     await createWindows(monitor);
-    await web.start();
+    if (_appSettings.webServerEnabled) {
+        webServer.setMonitor(monitor);
+        await webServer.start(_appSettings.webServerPort);
+    }
     started = true;
 }
 

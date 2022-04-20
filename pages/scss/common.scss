@@ -119,6 +119,16 @@ form label {
         opacity: 0.4;
     }
 
+    &.edited::after {
+        content: 'Restart Required';
+        font-variant: all-small-caps;
+        display: inline-block;
+        font-size: 0.9em;
+        margin-left: 0.2em;
+        color: #e5d82b;
+        font-weight: 500;
+    }
+
     key {
         display: inline-block;
         margin-right: 0.4em;

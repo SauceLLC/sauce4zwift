@@ -249,6 +249,12 @@ function buildLayout() {
 export async function settingsMain() {
     common.initInteractionListeners();
     const version = await common.rpc('getVersion');
-    await common.initAppSettingsForm('form.app-settings');
+    let webServerURL;
+    if (await common.rpc('getAppSetting', 'webServerEnabled')) {
+        const ip = await common.rpc('getMonitorIP');
+        const port = await common.rpc('getAppSetting', 'webServerPort');
+        webServerURL = `http://${ip}:${port}`;
+    }
+    await common.initAppSettingsForm('form.app-settings', {extraData: {webServerURL}});
     await common.initSettingsForm('form.settings', {settingsKey, extraData: {version}});
 }

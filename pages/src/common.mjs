@@ -428,7 +428,11 @@ async function bindFormData(selector, storageIface, options={}) {
     const form = document.querySelector(selector);
     for (const el of form.querySelectorAll('.display-field[name]')) {
         const name = el.getAttribute('name');
-        el.textContent = await storageIface.get(name);
+        const val = await storageIface.get(name);
+        el.textContent = val;
+        if (el.hasAttribute('href')) {
+            el.href = val;
+        }
     }
     const fieldConnections = new Map();
     for (const el of form.querySelectorAll('input')) {
@@ -443,21 +447,14 @@ async function bindFormData(selector, storageIface, options={}) {
         } else {
             el.value = val == null ? '' : val;
         }
-        const dependsOn = el.dataset.dependsOn;
-        if (dependsOn) {
-            const depEl = form.querySelector(`[name="${dependsOn.replace(/^!/, '')}"]`);
-            el.disabled = dependsOn.startsWith('!') ? !depEl.checked : depEl.checked;
-            el.closest('label').classList.toggle('disabled', el.disabled);
-            if (!depEl.dependants) {
-                depEl.dependants = [];
-            }
-            depEl.dependants.push(el);
-        }
         el.addEventListener('input', async ev => {
             const val = (({
                 number: () => el.value ? Number(el.value) : undefined,
                 checkbox: () => el.checked,
             }[el.type]) || (() => el.value || undefined))();
+            if (el.hasAttribute('restart-required')) {
+                el.closest('label').classList.add('edited');
+            }
             for (const x of fieldConnections.get(el.name)) {
                 if (!Object.is(x, el)) {
                     x.value = el.value;
@@ -467,7 +464,7 @@ async function bindFormData(selector, storageIface, options={}) {
             if (el.dependants) {
                 for (const x of el.dependants) {
                     const d = x.dataset.dependsOn;
-                    x.disabled = d.startsWith('!') ? !el.checked : el.checked;
+                    x.disabled = d.startsWith('!') ? el.checked : !el.checked;
                     x.closest('label').classList.toggle('disabled', x.disabled);
                 }
             }
@@ -483,12 +480,26 @@ async function bindFormData(selector, storageIface, options={}) {
             await storageIface.set(name, val);
         });
     }
+    for (const el of form.querySelectorAll('[data-depends-on]')) {
+        const dependsOn = el.dataset.dependsOn;
+        const depEl = form.querySelector(`[name="${dependsOn.replace(/^!/, '')}"]`);
+        el.disabled = dependsOn.startsWith('!') ? depEl.checked : !depEl.checked;
+        el.closest('label').classList.toggle('disabled', el.disabled);
+        if (!depEl.dependants) {
+            depEl.dependants = [];
+        }
+        depEl.dependants.push(el);
+    }
 }
 
 
 async function initAppSettingsForm(selector, options={}) {
+    const extraData = options.extraData;
     const storageIface = {
         get: async name => {
+            if (extraData && Object.prototype.hasOwnProperty.call(extraData, name)) {
+                return extraData[name];
+            }
             return await rpc('getAppSetting', name);
         },
         set: async (name, value) => {

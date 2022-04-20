@@ -24,14 +24,24 @@
             <form class="app-settings">
                 <label title="Login to zwift to get meta data like name and weight">
                     <key>Login to Zwift:</key>
-                    <input type="checkbox" name="zwiftLogin"/>
-                    <small>Restart required</small>
+                    <input type="checkbox" name="zwiftLogin" restart-required/>
                 </label>
                 <label title="If you're seeing a black background on the Chat and Groups windows use this."
                        class="electron-only">
                     <key>Disable GPU:</key>
-                    <input type="checkbox" name="disableGPU"/>
-                    <small>Restart required</small>
+                    <input type="checkbox" name="disableGPU" restart-required/>
+                </label>
+                <label>
+                    <key>Enable Web Server:</key>
+                    <input type="checkbox" name="webServerEnabled" restart-required/>
+                </label>
+                <label>
+                    <key>Web Server Port:</key>
+                    <input data-depends-on="webServerEnabled" type="number" size="5" name="webServerPort" restart-required/>
+                </label>
+                <label>
+                    <key>Web Server URL:</key>
+                    <a href external target="_blank" class="display-field" name="webServerURL" data-depends-on="webServerEnabled"></a>
                 </label>
             </form>
 
