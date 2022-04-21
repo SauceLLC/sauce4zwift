@@ -89,12 +89,14 @@ function renderZoomed(groups) {
         posEl.style.setProperty('--athletes', 1);
         let label;
         let avatar;
+        let fLast;
         if (athlete.athlete) {
             const a = athlete.athlete;
-            if (a.avatar) {
-                avatar = `<img src="${a.avatar}"/>`;
-            } else if (a.name) {
+            if (a.name) {
                 label = a.name.map(x => x[0].toUpperCase()).join('').substr(0, 2);
+            }
+            if (a.name) {
+                fLast = `${a.name[0].trim().substr(0, 1)}.${a.name[1].trim()}`;
             }
         } else {
             avatar = `<img src="images/blankavatar.png"/>`;
@@ -121,6 +123,9 @@ function renderZoomed(groups) {
         } else if (minorField === 'draft') {
             if (athlete.draft != null) {
                 lines.push(`<div class="line minor">${H.number(athlete.draft)}<small>% (draft)</small></div>`);
+                if (fLast) {
+                    lines.push(`<div class="line minor">${fLast}</div>`);
+                }
             }
         } else if (minorField === 'speed') {
             if (athlete.speed != null) {
