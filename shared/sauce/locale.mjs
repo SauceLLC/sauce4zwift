@@ -205,26 +205,35 @@ function humanNumber(value, options={}) {
     if (value == null || value === '') {
         return '-';
     }
-    const n = Number(value);
+    let n = Number(value);
     if (isNaN(n)) {
         return '-';
     }
     const prec = options.precision;
-    if (prec === null) {
-        return n.toLocaleString();
-    } else if (!prec) {
-        return Math.round(n).toLocaleString();
-    } else {
-        if (options.fixed) {
-            const fmtr = new Intl.NumberFormat(undefined, {
-                maximumFractionDigits: prec,
-                minimumFractionDigits: prec
-            });
-            return fmtr.format(n);
-        } else {
+    if (prec !== null) {
+        if (!prec) {
+            n = Math.round(n);
+        } else if (!options.fixed) {
             // Will convert 1.0 -> 1
-            return Number(n.toFixed(prec)).toLocaleString();
+            if (n < 0) {
+                // Work around wonky toFixed spec that rounds down for negatives
+                n = -Number((-n).toFixed(prec));
+            } else {
+                n = Number(n.toFixed(prec));
+            }
         }
+    }
+    if (Object.is(n, -0)) {
+        n = 0;
+    }
+    if (options.fixed) {
+        const fmtr = new Intl.NumberFormat(undefined, {
+            maximumFractionDigits: prec,
+            minimumFractionDigits: prec
+        });
+        return fmtr.format(n);
+    } else {
+        return n.toLocaleString();
     }
 }
 
