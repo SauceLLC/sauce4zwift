@@ -37,7 +37,8 @@ function pwr(v) {
 
 
 function wkg(v) {
-    return v ? `${num(v, {precision: 1})}<small>w/kg</small>`: v !== 0 ? '-' : 0;
+    v = v === Infinity ? null : v;
+    return v ? `${num(v, {precision: 1, fixed: true})}<small>w/kg</small>`: v !== 0 ? '-' : 0;
 }
 
 
@@ -80,7 +81,7 @@ const fields = [
     {id: 'ftp', defaultEn: false, label: 'FTP', get: x => getAthleteValue(x, 'ftp'), fmt: pwr},
     {id: 'tss', defaultEn: false, label: 'TSS', get: x => x.stats.power.tss, fmt: num},
 
-    {id: 'gap', defaultEn: true, label: 'Gap', get: x => Object.is(x.gap, -0) ? 0 : x.gap, fmt: x => `${num(x)}s`},
+    {id: 'gap', defaultEn: true, label: 'Gap', get: x => x.gap, fmt: x => `${num(x)}s`},
 
     {id: 'pwr-cur', defaultEn: true, label: 'Pwr', get: x => x.power, fmt: pwr},
     {id: 'wkg-cur', defaultEn: true, label: 'W/kg', get: x => x.power / (x.athlete && x.athlete.weight), fmt: wkg},
