@@ -15,7 +15,38 @@ html {
     }
 }
 
-#content {
+#meta {
+    margin-top: $content-pad;
+    padding: 0.30em 0.4em 0.55em;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8em;
+    font-weight: bold;
+    font-variant-caps: all-small-caps;
+    font-variant-numeric: tabular-nums;
+    background: #1119;
+    border-radius: 4em;
+    margin-right: $content-right-pad;
+    margin-left: $content-pad;
+
+    .group::after {
+        counter-reset: t var(--group);
+        content: counter(t);
+    }
+
+    .total-athletes::before {
+        counter-reset: t var(--total-athletes);
+        content: counter(t);
+    }
+}
+
+#container {
+    display: flex;
+    flex: 1 1 100%;
+    flex-direction: column;
+    position: relative;
     padding: $content-pad;
     align-items: center;
     justify-content: center;
@@ -134,6 +165,7 @@ html {
 .desc .lines .line {
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
     max-width: 100%;
     text-shadow: 0 0 1px #000a, 0 0 3px #000a;
 

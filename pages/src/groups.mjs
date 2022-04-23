@@ -10,6 +10,9 @@ L.setImperial(imperial);
 let settings;
 let zoomedPosition;
 let curGroups;
+let contentEl;
+let metaEl;
+let containerEl;
 
 
 function getOrCreatePosition(relPos) {
@@ -34,9 +37,8 @@ function getOrCreatePosition(relPos) {
                 </div>
             </div>
         `;
-        const content = document.querySelector('#content');
-        content.appendChild(el);
-        content.appendChild(gap);
+        containerEl.appendChild(el);
+        containerEl.appendChild(gap);
         positions.set(relPos, el);
         el.addEventListener('click', ev => {
             if (zoomedPosition == null) {
@@ -75,9 +77,10 @@ function renderZoomed(groups) {
     centerIdx = Math.max(0, athletes.findIndex(x => x.watching));
     const totAthletes = athletes.length;
     const totGap = Math.round(athletes[athletes.length - 1].gap - athletes[0].gap);
-    const content = document.querySelector('#content');
-    content.style.setProperty('--total-athletes', totAthletes);
-    content.style.setProperty('--total-gap', totGap);
+    contentEl.style.setProperty('--total-athletes', totAthletes);
+    contentEl.style.setProperty('--total-gap', totGap);
+    const athletesLabel = totAthletes === 1 ? 'Athlete' : 'Athletes';
+    metaEl.textContent = `Group ${zoomedPosition}, ${totAthletes} ${athletesLabel}`;
     const active = new Set();
     for (const [i, athlete] of athletes.entries()) {
         // NOTE: gap measurement is always to the next athlete or null.
@@ -88,18 +91,19 @@ function renderZoomed(groups) {
         posEl.classList.toggle('watching', !!athlete.watching);
         posEl.style.setProperty('--athletes', 1);
         let label;
-        let avatar;
+        let avatar = 'images/blankavatar.png';
         let fLast;
         if (athlete.athlete) {
             const a = athlete.athlete;
             if (a.name) {
-                label = a.name.map(x => x[0].toUpperCase()).join('').substr(0, 2);
-            }
-            if (a.name) {
                 fLast = `${a.name[0].trim().substr(0, 1)}.${a.name[1].trim()}`;
+                // Only use avatar if we have fLast to avoid a nameless bubble
+                if (a.avatar) {
+                    avatar = a.avatar;
+                } else {
+                    label = a.name.map(x => x[0].toUpperCase()).join('').substr(0, 2);
+                }
             }
-        } else {
-            avatar = `<img src="images/blankavatar.png"/>`;
         }
         const attacker = athlete.power > 400 && (athlete.power / group.power) > 2;
         if (attacker) {
@@ -108,12 +112,11 @@ function renderZoomed(groups) {
             posEl.classList.remove('attn', 'attack');
         }
         const bubble = posEl.querySelector('.bubble');
-        if (avatar) {
-            bubble.innerHTML = avatar;
-        } else {
+        if (label) {
             bubble.textContent = label;
+        } else {
+            bubble.innerHTML = `<img src="${avatar}"/>`;
         }
-
         const lines = [`<div class="line ${attacker ? 'attn' : ''}">${H.number(athlete.power)}w</div>`];
         const minorField = settings.zoomedSecondaryField || 'heartrate';
         if (minorField === 'heartrate') {
@@ -182,9 +185,10 @@ function renderGroups(groups) {
     }
     const totAthletes = groups.reduce((agg, x) => agg + x.athletes.length, 0);
     const totGap = Math.round(groups[groups.length - 1].gap - groups[0].gap);
-    const content = document.querySelector('#content');
-    content.style.setProperty('--total-athletes', totAthletes);
-    content.style.setProperty('--total-gap', totGap);
+    contentEl.style.setProperty('--total-athletes', totAthletes);
+    contentEl.style.setProperty('--total-gap', totGap);
+    const athletesLabel = totAthletes === 1 ? 'Athlete' : 'Athletes';
+    metaEl.textContent = `${totAthletes} ${athletesLabel}`;
     const active = new Set();
     for (const [i, group] of groups.entries()) {
         // NOTE: gap measurement is always to the next group or null.
@@ -275,6 +279,9 @@ function setBackground({solidBackground, backgroundColor}) {
 
 export async function main() {
     common.initInteractionListeners({settingsKey});
+    contentEl = document.querySelector('#content');
+    metaEl = document.querySelector('#meta');
+    containerEl = document.querySelector('#container');
     settings = common.storage.get(settingsKey, {
         detectAttacks: true,
         maxAhead: 4,
