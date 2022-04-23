@@ -278,6 +278,8 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                     if (dedup) {
                         console.warn("Deduping chat message:", ts, p.from);
                         continue;
+                    } else {
+                        console.debug(ts, p.from, p);
                     }
                     this._chatDeDup.unshift([ts, p.from]);
                     this._chatDeDup.length = Math.min(10, this._chatDeDup.length);
@@ -393,7 +395,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     makeRollingPeaks() {
         const periods = [5, 15, 60, 300, 1200];
         return {
-            power: new RollingPeaks(sauce.power.RollingPower, periods),
+            power: new RollingPeaks(sauce.power.RollingPower, periods, {inlineNP: true}),
             speed: new RollingPeaks(sauce.data.RollingAverage, periods, {ignoreZeros: true}),
             hr: new RollingPeaks(sauce.data.RollingAverage, periods, {ignoreZeros: true}),
             cadence: new RollingPeaks(sauce.data.RollingAverage, [], {ignoreZeros: true}),
