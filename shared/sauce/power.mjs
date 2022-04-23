@@ -164,8 +164,8 @@ class RollingPower extends sauce.data.RollingAverage {
                 slot: 0,
                 roll: new Array(rollSize),
                 rollSum: 0,
+                count: 0,
                 total: 0,
-                gapPadCount: 0,
             };
         }
         if (options.inlineXP) {
@@ -194,15 +194,18 @@ class RollingPower extends sauce.data.RollingAverage {
                 // Drain the rolling buffer but don't increment the counter.
                 state.rollSum -= state.roll[slot] || 0;
                 state.roll[slot] = 0;
-                state.gapPadCount++;
             } else {
                 state.rollSum += value;
                 state.rollSum -= state.roll[slot] || 0;
                 state.roll[slot] = value;
-                const npa = state.rollSum / Math.min(state.rollSize, i + 1 - this._offt);
-                const qnpa = npa * npa * npa * npa;  // unrolled for perf
-                state.total += qnpa;
-                save = qnpa;
+                const size = i + 1 - this._offt;
+                if (size >= state.rollSize) {
+                    const npa = state.rollSum / state.rollSize;
+                    const qnpa = npa * npa * npa * npa;  // unrolled for perf
+                    state.total += qnpa;
+                    state.count++;
+                    save = qnpa;
+                }
             }
             state.saved.push(save);
         }
@@ -249,9 +252,7 @@ class RollingPower extends sauce.data.RollingAverage {
             const state = this._inlineNP;
             const save = state.saved[i];
             state.total -= save || 0;
-            if (this._values[i] instanceof sauce.data.Zero) {
-                state.gapPadCount--;
-            }
+            state.count -= save !== undefined && !(this._values[i] instanceof sauce.data.Zero) ? 1 : 0;
         }
         if (this._inlineXP) {
             const state = this._inlineXP;
@@ -275,11 +276,9 @@ class RollingPower extends sauce.data.RollingAverage {
                 return;
             }
             const state = this._inlineNP;
-            return (state.total / (this.size() - state.gapPadCount)) ** 0.25;
+            return state.count ? (state.total / state.count) ** 0.25 : undefined;
         } else {
-            const leadinIdx = Math.max(0, this._offt - 60);
-            const leadin = this._values.slice(leadinIdx, this._offt);
-            return calcNP(this.values(), 1 / this.idealGap, {leadin, ...options});
+            return calcNP(this.values(), 1 / this.idealGap, options);
         }
     }
 
@@ -289,11 +288,9 @@ class RollingPower extends sauce.data.RollingAverage {
                 return;
             }
             const state = this._inlineXP;
-            return (state.total / state.count) ** 0.25;
+            return state.count ? (state.total / state.count) ** 0.25 : undefined;
         } else {
-            const leadinIdx = Math.max(0, this._offt - 50);
-            const leadin = this._values.slice(leadinIdx, this._offt);
-            return calcXP(this.values(), 1 / this.idealGap, {leadin, ...options});
+            return calcXP(this.values(), 1 / this.idealGap, options);
         }
     }
 
@@ -400,13 +397,10 @@ function calcNP(data, sampleRate, options={}) {
     const rolling = new Array(rollingSize);
     let count = 0;
     let total = 0;
-    let leadinTotal = 0;
     let breakPadding = 0;
-    const leadin = options.leadin || [];
-    const stream = leadin.concat(data);
-    for (let i = 0, sum = 0, len = stream.length; i < len; i++) {
+    for (let i = 0, sum = 0, len = data.length; i < len; i++) {
         const index = i % rollingSize;
-        const entry = stream[i];
+        const entry = data[i];
         const watts = +entry;  // Unlocks some optimizations.
         // Drain the rolling buffer but don't increment the counter for gaps...
         if (!watts) {
@@ -428,18 +422,14 @@ function calcNP(data, sampleRate, options={}) {
         }
         sum -= rolling[index] || 0;
         rolling[index] = watts;
-        const rollUsedSize = i + 1 + breakPadding;
-        const avg = sum / (rollingSize < rollUsedSize ? rollingSize : rollUsedSize);
-        const qavg = avg * avg * avg * avg;  // About 100 x faster than Math.pow and **
-        total += qavg;
-        if (i < leadin.length) {
-            leadinTotal += qavg;
+        if (i + 1 + breakPadding >= rollingSize) {
+            const avg = sum / rollingSize;
+            const qavg = avg * avg * avg * avg;  // About 100 x faster than Math.pow and **
+            total += qavg;
+            count++;
         }
-        count++;
     }
-    count -= leadin.length;
-    total -= leadinTotal;
-    return (total / count) ** 0.25;
+    return count ? (total / count) ** 0.25 : undefined;
 }
 
 
@@ -464,12 +454,9 @@ function calcXP(data, sampleRate, options={}) {
     let weighted = 0;
     let count = 0;
     let total = 0;
-    let leadinTotal = 0;
     let breakPadding = 0;
-    const leadin = options.leadin || [];
-    const stream = leadin.concat(data);
-    for (let i = 0, len = stream.length; i < len; i++) {
-        const entry = stream[i];
+    for (let i = 0, len = data.length; i < len; i++) {
+        const entry = data[i];
         const watts = +entry;  // Unlocks some optimizations.
         if (!watts && (entry instanceof sauce.data.Zero)) {
             if (entry instanceof sauce.data.Break) {
@@ -489,13 +476,8 @@ function calcXP(data, sampleRate, options={}) {
         prevTime = time;
         const qw = weighted * weighted * weighted * weighted;  // unrolled for perf
         total += qw;
-        if (i < leadin.length) {
-            leadinTotal += qw;
-        }
         count++;
     }
-    count -= leadin.length;
-    total -= leadinTotal;
     return count ? (total / count) ** 0.25 : 0;
 }
 
