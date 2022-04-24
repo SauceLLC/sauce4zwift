@@ -67,7 +67,8 @@ function renderZoomed(groups) {
         return;
     }
     let centerIdx = groups.findIndex(x => x.watching);
-    const idx = Math.max(0, Math.min(centerIdx + zoomedPosition, groups.length - 1));
+    const pos = zoomedPosition;
+    const idx = Math.max(0, Math.min(centerIdx + pos, groups.length - 1));
     const group = groups[idx];
     if (!group) {
         console.warn("XXX Unexpected missing group");
@@ -80,7 +81,11 @@ function renderZoomed(groups) {
     contentEl.style.setProperty('--total-athletes', totAthletes);
     contentEl.style.setProperty('--total-gap', totGap);
     const athletesLabel = totAthletes === 1 ? 'Athlete' : 'Athletes';
-    metaEl.textContent = `Group ${zoomedPosition}, ${totAthletes} ${athletesLabel}`;
+    const groupLabel = pos ? `${Math.abs(pos)} ${pos > 0 ? 'Behind' : 'Ahead'}` : 'Your Group'
+    metaEl.innerHTML = [
+        `${groupLabel}, ${totAthletes} ${athletesLabel}`,
+        `${H.power(group.power, {suffix: true, html: true})}, ${H.pace(group.speed, {precision: 0, suffix: true, html: true})}`
+    ].map(x => `<div class="line">${x}</div>`).join('');
     const active = new Set();
     for (const [i, athlete] of athletes.entries()) {
         // NOTE: gap measurement is always to the next athlete or null.

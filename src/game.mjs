@@ -14,6 +14,15 @@ const require = createRequire(import.meta.url);
 const electron = require('electron');
 
 
+const powerUpEnum = {
+    0: 'FEATHER',
+    1: 'DRAFT',
+    4: 'BURRITO',
+    5: 'AERO',
+    6: 'GHOST',
+};
+
+
 let _db;
 function getDB() {
     if (_db) {
@@ -331,27 +340,33 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     }
 
     processFlags1(bits) {
-        const _b0_1 = bits & 0x3; // XXX possibly bit 1 = bot and bit 0 = no power-meter/run?
-        bits >>>= 2;
+        const powerMeter = !!(bits & 0x1);
+        bits >>>= 1;
+        const companionApp = !!(bits & 0x1);
+        bits >>>= 1;
         const reverse = !!(bits & 0x1);
         bits >>>= 1;
         const reversing = !!(bits & 0x1);
         bits >>>= 1;
-        const _b4_23 = bits & (1 << 20) - 1; // XXX no idea
-        bits >>>= 20;
+        const _b4_15 = bits & (1 << 12) - 1; // XXX no idea
+        bits >>>= 12;
+        const course = bits & 0xff;
+        bits >>>= 8;
         const rideons = bits;
         return {
-            _b0_1,
+            powerMeter,
+            companionApp,
             reversing,
             reverse,
-            _b4_23,
+            _b4_15,
+            course,
             rideons,
         };
     }
 
     processFlags2(bits) {
-        const _b0_3 = bits & 0xF;  // Some of these represent using a powerup.
-        // b0_3: 15 = has powerup? 0b1111 0 = using/used powerup
+        const powerUping = bits & 0xF;
+        // b0_3: 15 = Not active, otherwise enum
         bits >>>= 4;
         const turning = {
             0: null,
@@ -365,7 +380,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         bits >>>= 16;
         const _rem2 = bits; // XXX no idea
         return {
-            _b0_3,
+            activePowerUp: powerUping === 0xF ? false : powerUpEnum[powerUping],
             turning,
             roadId,
             overlapping,

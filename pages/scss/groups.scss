@@ -19,7 +19,7 @@ html {
     margin-top: $content-pad;
     padding: 0.30em 0.4em 0.55em;
     display: flex;
-    flex-direction: row;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     font-size: 0.8em;
@@ -30,6 +30,14 @@ html {
     border-radius: 4em;
     margin-right: $content-right-pad;
     margin-left: $content-pad;
+
+    abbr.unit {
+        font-size: 0.72em;
+        margin-left: 0.1em;
+    }
+
+    .line {
+    }
 
     .group::after {
         counter-reset: t var(--group);

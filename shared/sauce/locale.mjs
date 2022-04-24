@@ -238,9 +238,17 @@ function humanNumber(value, options={}) {
 }
 
 
+function humanPower(p, options={}) {
+    const suffix = options.suffix ? options.html ? `<abbr class="unit">w</abbr>` : 'w' : '';
+    return humanNumber(p, options) + suffix;
+}
+
+
 function humanPace(kph, options={}) {
+    const unit = imperial ? 'mph' : 'kph';
+    const suffix = options.suffix ? options.html ? `<abbr class="unit">${unit}</abbr>` : unit : '';
     return humanNumber(imperial ? kph * 1000 / metersPerMile : kph,
-        {fixed: true, precision: 1, ...options});
+        {fixed: true, precision: 1, ...options}) + suffix;
 }
 
 
@@ -251,8 +259,10 @@ function humanDistance(meters, options={}) {
 
 
 function humanWeight(kg, options={}) {
+    const unit = imperial ? 'lbs' : 'kg';
+    const suffix = options.suffix ? options.html ? `<abbr class="unit">${unit}</abbr>` : unit : '';
     return humanNumber(imperial ? kg * kgsPerLbs : kg,
-        {precision: 1, ...options});
+        {precision: 1, ...options}) + suffix;
 }
 
 
@@ -294,6 +304,7 @@ export default {
         elevation: humanElevation,
         number: humanNumber,
         pace: humanPace,
+        power: humanPower,
         distance: humanDistance,
         dayOfWeek: humanDayOfWeek,
         date: humanDate,
