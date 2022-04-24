@@ -77,16 +77,23 @@ function renderZoomed(groups) {
     const athletes = group.athletes;
     centerIdx = Math.max(0, athletes.findIndex(x => x.watching));
     const totAthletes = athletes.length;
-    const totGap = Math.round(athletes[athletes.length - 1].gap - athletes[0].gap);
+    const gapField = settings.zoomedGapField || 'distance';
+    const gapProp = gapField === 'distance' ? 'gapDistance' : 'gap';
+    const totGap = athletes[athletes.length - 1][gapProp] - athletes[0][gapProp];
+    // Keep total flex-grow < 1 for tight groups.  I.e. prevent 100% height usage when small
+    const flexFactor = gapField === 'distance' ? 0.15 : 0.333;
     contentEl.style.setProperty('--total-athletes', totAthletes);
-    contentEl.style.setProperty('--total-gap', totGap);
+    contentEl.style.setProperty('--total-gap', totGap * flexFactor);
     const athletesLabel = totAthletes === 1 ? 'Athlete' : 'Athletes';
-    const groupLabel = pos ? `${Math.abs(pos)} ${pos > 0 ? 'Behind' : 'Ahead'}` : 'Your Group'
+    const groupLabel = pos ? `${H.place(Math.abs(pos))} ${pos > 0 ? 'behind' : 'ahead'}` : 'Your Group';
+    const powerLabel = H.power(group.power, {suffix: true, html: true});
+    const speedLabel = H.pace(group.speed, {precision: 0, suffix: true, html: true});
     metaEl.innerHTML = [
         `${groupLabel}, ${totAthletes} ${athletesLabel}`,
-        `${H.power(group.power, {suffix: true, html: true})}, ${H.pace(group.speed, {precision: 0, suffix: true, html: true})}`
+        `${powerLabel}, ${speedLabel}`,
     ].map(x => `<div class="line">${x}</div>`).join('');
     const active = new Set();
+    const bikeLength = 2;  // meters
     for (const [i, athlete] of athletes.entries()) {
         // NOTE: gap measurement is always to the next athlete or null.
         const next = athletes[i + 1];
@@ -148,16 +155,9 @@ function renderZoomed(groups) {
         }
         posEl.querySelector('.desc .lines').innerHTML = lines.join('');
         const gapEl = posEl.nextSibling;
-        const gapField = settings.zoomedGapField || 'distance';
-        let gap;
-        if (gapField === 'time') {
-            gap = next ? Number((next.gap - athlete.gap).toFixed(1)) : 0;
-        } else {
-            gap = next ? Number((next.gapDistance - athlete.gapDistance).toFixed(1)) : 0;
-        }
-        gap = Math.abs(gap);
-        gapEl.style.setProperty('--inner-gap', gap);
-        gapEl.style.setProperty('--outer-gap', gap);
+        const gap = next ? Math.abs(next[gapProp] - athlete[gapProp]) : 0;
+        gapEl.style.setProperty('--inner-gap', Math.max(0, gap - bikeLength) * flexFactor);
+        gapEl.style.setProperty('--outer-gap', gap * flexFactor);
         gapEl.style.setProperty('--gap-sign', -1);
         gapEl.classList.toggle('alone', !gap);
         let dur;
@@ -165,7 +165,7 @@ function renderZoomed(groups) {
             dur = gap && H.number(gap, {precision: 1}) + 's';
             gapEl.classList.toggle('real', !!next && !next.isGapEst);
         } else {
-            dur = gap && (H.number(gap * (imperial ? 3.28084 : 1)) + (imperial ? 'ft' : 'm'));
+            dur = gap && (H.number(Math.max(0, gap - bikeLength) * (imperial ? 3.28084 : 1)) + (imperial ? 'ft' : 'm'));
             gapEl.classList.toggle('real', true);
         }
         gapEl.querySelector('.desc .line.time').textContent = dur ? dur : '';
@@ -189,7 +189,7 @@ function renderGroups(groups) {
         return;
     }
     const totAthletes = groups.reduce((agg, x) => agg + x.athletes.length, 0);
-    const totGap = Math.round(groups[groups.length - 1].gap - groups[0].gap);
+    const totGap = groups[groups.length - 1].gap - groups[0].gap;
     contentEl.style.setProperty('--total-athletes', totAthletes);
     contentEl.style.setProperty('--total-gap', totGap);
     const athletesLabel = totAthletes === 1 ? 'Athlete' : 'Athletes';
@@ -255,7 +255,7 @@ function renderGroups(groups) {
 
         groupEl.querySelector('.desc .lines').innerHTML = lines.join('');
         const gapEl = groupEl.nextSibling;
-        const innerGap = next ? Math.round(group.innerGap) : 0;
+        const innerGap = next ? group.innerGap : 0;
         const gap = relPos < 0 ? group.gap : next ? next.gap : 0;
         gapEl.style.setProperty('--inner-gap', innerGap);
         gapEl.style.setProperty('--outer-gap', Math.abs(gap));

@@ -271,6 +271,19 @@ function humanElevation(meters, options={}) {
 }
 
 
+const placePluralRules = new Intl.PluralRules('en-US', {type: 'ordinal'});
+const placeSuffixes = {
+    one: 'st',
+    two: 'nd',
+    few: 'rd',
+    other: 'th',
+};
+function humanPlace(p) {
+    const suffix = placeSuffixes[placePluralRules.select(p)];
+    return `${p}${suffix}`;
+}
+
+
 function weightUnconvert(localeWeight) {
     return imperial ? localeWeight / kgsPerLbs : localeWeight;
 }
@@ -305,6 +318,7 @@ export default {
         number: humanNumber,
         pace: humanPace,
         power: humanPower,
+        place: humanPlace,
         distance: humanDistance,
         dayOfWeek: humanDayOfWeek,
         date: humanDate,

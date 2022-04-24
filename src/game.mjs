@@ -717,7 +717,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 gap = estGap(watching, x, gapDistance);
             }
             nearby.push({
-                gapDistance,
+                gapDistance: gapDistance * sign,
                 gap: gap * sign,
                 isGapEst,
                 watching: this.watching === k,

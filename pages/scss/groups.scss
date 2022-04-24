@@ -17,36 +17,23 @@ html {
 
 #meta {
     margin-top: $content-pad;
-    padding: 0.30em 0.4em 0.55em;
+    padding: 0.30em 0.5em 0.55em;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    font-size: 0.8em;
+    font-size: 0.86em;
     font-weight: bold;
     font-variant-caps: all-small-caps;
     font-variant-numeric: tabular-nums;
-    background: #1119;
+    background: #111b;
     border-radius: 4em;
     margin-right: $content-right-pad;
     margin-left: $content-pad;
 
     abbr.unit {
         font-size: 0.72em;
-        margin-left: 0.1em;
-    }
-
-    .line {
-    }
-
-    .group::after {
-        counter-reset: t var(--group);
-        content: counter(t);
-    }
-
-    .total-athletes::before {
-        counter-reset: t var(--total-athletes);
-        content: counter(t);
+        margin-left: 0.08em;
     }
 }
 
@@ -71,13 +58,13 @@ html {
     width: 100%;
     position: relative;
     transition-property: opacity, visibility;
-    transition-duration: 2s;
-    --size: calc(1.2rem + (var(--athletes) / max(20, var(--total-athletes)) * 6rem));
+    transition-duration: 1s;
+    --size: calc(1.5rem + (var(--athletes) / max(10, var(--total-athletes)) * 4.5rem));
     order: var(--rel-pos);
 
     &.watching {
         .bubble {
-            background: radial-gradient(#0af, #0afa, #333a);
+            background: radial-gradient(#0af, #09ea, #333a);
             color: white;
         }
     }
@@ -94,6 +81,7 @@ html {
         height: var(--size);
         transition-property: margin, width, height, font;
         transition-duration: 2s;
+        transition-timing-function: ease-in-out;
         display: flex;
         overflow: hidden;
         cursor: pointer;
@@ -173,9 +161,17 @@ html {
 .desc .lines .line {
     overflow: hidden;
     text-overflow: ellipsis;
+    font-variant-numeric: tabular-nums;
     white-space: nowrap;
     max-width: 100%;
-    text-shadow: 0 0 1px #000a, 0 0 3px #000a;
+    padding: 0 1.5px; // for text-shadow and subpixel rendering.
+    line-height: 1.05;
+    text-shadow:
+        0 0 1px #000,
+        0 0 1px #000,
+        0 0 1px #000,
+        0 0 1px #000,
+        0 0 1px #000;
 
     &.attn {
         margin-bottom: 0;
@@ -187,8 +183,8 @@ html {
 }
 .desc .lines .line.minor {
     font-size: 0.80em;
-    opacity: 0.8;
-    line-height: 1.2;
+    opacity: 0.88;
+    line-height: normal;
 }
 
 .position .desc::before,
@@ -197,7 +193,9 @@ html {
     color: #aaaa;
     margin: 0 0.2rem;
 }
-.position .desc::before {
+
+.desc::before,
+.desc::after {
     font-size: 0.5rem;
 }
 
@@ -210,23 +208,26 @@ html {
     border-right-color: hsl(calc(70deg + 50deg * min(var(--outer-gap) / 300, 1) * var(--gap-sign)), 100%, 50%);
     flex: var(--inner-gap) 1 0;
     transition-property: flex, opacity, visibility;
-    transition-duration: 2s;
+    transition-duration: 4s, 1s, 1s;
 
     .desc {
-        $pad: 0.2rem;
+        $pad: 0.1rem;
         top: 0;
         height: 100%;
         right: $pad;
         width: calc(50vw - ($html-pad * 2) - $pad - $border-width - ($content-right-pad / 2) + $content-pad);
         justify-content: flex-end;
+        transition: font 1s;
+        font-size: min(0.92em, max(0.7em, var(--inner-gap) / var(--total-gap) * 3em));
 
         &::after {
-            padding: 0 0.2em;
+            transition: padding 1s;
+            padding: 0 min(0.6rem, max(0px, 0.1rem / (var(--inner-gap) / var(--total-gap))));
         }
     }
 
     .line.est {
-        font-size: 0.55em;
+        font-size: min(0.65em, 0.9rem) !important;
         font-style: italic;
     }
 }
