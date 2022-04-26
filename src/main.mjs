@@ -5,9 +5,10 @@ import * as storage from './storage.mjs';
 import menu from './menu.mjs';
 import * as patreon from './patreon.mjs';
 import * as rpc from './rpc.mjs';
-import Sentry from '@sentry/node';
+import * as Sentry from '@sentry/node';
+import {Dedupe} from '@sentry/integrations';
 import * as webServer from './webserver.mjs';
-import sauce from '../shared/sauce/index.mjs';
+import {beforeSentrySend, setSentry} from '../shared/sentry-util.mjs';
 import crypto from 'node:crypto';
 import {createRequire} from 'node:module';
 const require = createRequire(import.meta.url);
@@ -31,12 +32,13 @@ try {
 
 let sentryAnonId;
 if (app.isPackaged) {
+    setSentry(Sentry);
     Sentry.init({
         dsn: "https://df855be3c7174dc89f374ef0efaa6a92@o1166536.ingest.sentry.io/6257001",
         // Sentry changes the uncaught exc behavior to exit the process.  I think that's a bug
         // but this is the only workaround for now.
-        integrations: data => data.filter(x => x.name !== 'OnUncaughtException'),
-        beforeSend: sauce.beforeSentrySend,
+        integrations: data => [new Dedupe(), ...data.filter(x => x.name !== 'OnUncaughtException')],
+        beforeSend: beforeSentrySend,
     });
     // No idea, just copied from https://github.com/getsentry/sentry-javascript/issues/1661
     global.process.on('uncaughtException', e => {

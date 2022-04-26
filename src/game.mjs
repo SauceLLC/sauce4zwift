@@ -10,6 +10,7 @@ import sauce from '../shared/sauce/index.mjs';
 import fetch from 'node-fetch';
 import {getAppSetting} from './main.mjs';
 import {createRequire} from 'node:module';
+import {captureExceptionOnce} from '../shared/sentry-util.mjs';
 const require = createRequire(import.meta.url);
 const electron = require('electron');
 
@@ -258,8 +259,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         try {
             this._onIncoming(...args);
         } catch(e) {
-            console.error("Incoming packet error:", e);
-            throw e;
+            captureExceptionOnce(e);
         }
     }
 
@@ -315,8 +315,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         try {
             this._onOutgoing(...args);
         } catch(e) {
-            console.error("Outgoing packet error:", e);
-            throw e;
+            captureExceptionOnce(e);
         }
     }
 
@@ -572,7 +571,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         try {
             this.athletesDB = getDB();
         } catch(e) {
-            console.error('Reseting athlete cache', e);
+            captureExceptionOnce(e);
             await resetDB();
             this.athletesDB = getDB();
         }
@@ -679,7 +678,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 const schedSleep = 1000 - (offt - target);
                 await sleep(schedSleep);
             } catch(e) {
-                console.error("Unexpected processor error:", e);
+                captureExceptionOnce(e);
                 await sleep(errBackoff *= 2);
             }
         }
