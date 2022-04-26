@@ -14,6 +14,73 @@ html:not(.electron-mode) .electron-only {
     display: none;
 }
 
+[data-tooltip] {
+    &::after {
+        content: '';
+        pointer-events: none;
+        position: absolute;
+        visibility: hidden;
+        opacity: 0;
+        transition: visibility 400ms, opacity 400ms;
+        transition-delay: 800ms;
+        border-radius: 4px;
+        background: #fffe;
+        color: black;
+        font-size: 14px;
+        max-width: calc(80vw);
+    }
+    &[data-tooltip-fixed-top]::after {
+        position: fixed;
+        top: 0;
+    }
+    &[data-tooltip-fixed-top-right]::after {
+        position: fixed;
+        top: 0;
+        right: 0;
+    }
+    &[data-tooltip-fixed-top-left]::after {
+        position: fixed;
+        top: 0;
+        left: 0;
+    }
+    &[data-tooltip-left],
+    &[data-tooltip-right],
+    &[data-tooltip-below],
+    &[data-tooltip-above] {
+        position: relative;
+
+        &::after {
+            margin: 0 !important;
+        }
+    }
+
+    &[data-tooltip-below]::after {
+        top: 100%;
+    }
+    &[data-tooltip-above]::after {
+        bottom: 100%;
+    }
+    &[data-tooltip-left]::after {
+        right: 100%;
+        top: 0;
+    }
+    &[data-tooltip-right]::after {
+        left: 100%;
+        top: 0;
+    }
+
+    &:hover:not(:focus)::after {
+        width: max-content;
+        display: block;
+        z-index: 100000000;
+        visibility: visible;
+        opacity: 1;
+        content: attr(data-tooltip);
+        padding: 6px 12px;
+        margin: 4px;
+    }
+}
+
 img {
     display: block;
 }
@@ -265,14 +332,14 @@ html:not(:hover) #hintbar {
             display: flex;
             align-items: center;
             justify-content: center;
+            transition: opacity 200ms, background 200ms;
 
             &:hover {
                 background: #0003;
             }
 
             &:active {
-                background: #0005;
-                filter: invert(0);
+                background: #0008;
             }
 
             img {
@@ -295,12 +362,18 @@ html.settings-page #titlebar {
     cursor: pointer;
     opacity: 0.8;
     transition: opacity 200ms;
+
+    img {
+        transition: opacity 200ms;
+    }
 }
 .button:hover {
     opacity: 1;
 }
 .button:active {
-    filter: invert(0.5);
+    img {
+        opacity: 0.6;
+    }
 }
 
 #hintbar {

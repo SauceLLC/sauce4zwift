@@ -22,16 +22,16 @@
         </div>
         <div id="settings">
             <form class="app-settings">
-                <label title="Login to zwift to get meta data like name and weight">
+                <label data-tooltip-below data-tooltip="Login to zwift to get meta data like name and weight">
                     <key>Login to Zwift:</key>
                     <input type="checkbox" name="zwiftLogin" restart-required/>
                 </label>
-                <label title="If you're seeing a black background on the Chat and Groups windows use this."
-                       class="electron-only">
+                <label data-tooltip="If you're seeing a black background on the Chat and Groups windows use this"
+                       data-tooltip-below class="electron-only">
                     <key>Disable GPU:</key>
                     <input type="checkbox" name="disableGPU" restart-required/>
                 </label>
-                <label>
+                <label data-tooltip-below data-tooltip="Access Sauce for Zwift from any browser on your network">
                     <key>Enable Web Server:</key>
                     <input type="checkbox" name="webServerEnabled" restart-required/>
                 </label>
@@ -58,7 +58,7 @@
                     <key>Right fields:</key>
                     <input type="number" min="0" max="10" step="1" name="rightFields"/>
                 </label>
-                <label title="Prevent fields from rotating on click">
+                <label data-tooltip-above data-tooltip="Prevent fields from rotating on click">
                     <key>Lock fields:</key>
                     <input type="checkbox" name="lockedFields"/>
                 </label>
@@ -66,12 +66,12 @@
                     <key>Imperial Units:</key>
                     <input type="checkbox" name="/imperialUnits"/>
                 </label>
-                <label title="When no data is detected automatically hide windows"
+                <label data-tooltip-above data-tooltip="When no data is detected automatically hide windows"
                        class="electron-only">
                     <key>Auto hide windows:</key>
                     <input type="checkbox" name="autoHideWindows"/>
                 </label>
-                <label title="Use this to respect the notch on a MacBookPro or avoid overlap with the Zwift HUD">
+                <label data-tooltip-above data-tooltip="Use this to respect the notch on a MacBookPro or avoid overlap with the Zwift HUD">
                     <key>Center gap size:</key>
                     <input type="number" name="centerGapSize" min="0" max="1000" step="1"/>
                 </label>

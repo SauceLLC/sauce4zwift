@@ -4,7 +4,7 @@ import common from './common.mjs';
 const L = sauce.locale;
 const H = L.human;
 const positions = new Map();
-const settingsKey = 'groups-settings-v4';
+const settingsKey = 'groups-settings-v5';
 let imperial = common.storage.get('/imperialUnits');
 L.setImperial(imperial);
 let settings;
@@ -21,8 +21,11 @@ function getOrCreatePosition(relPos) {
         el.classList.add('position');
         el.style.setProperty('--rel-pos', relPos);
         el.innerHTML = `
+            <div class="desc left empty">
+                <div class="lines"></div>
+            </div>
             <div class="bubble"></div>
-            <div class="desc">
+            <div class="desc right empty">
                 <div class="lines"></div>
             </div>
         `;
@@ -39,7 +42,18 @@ function getOrCreatePosition(relPos) {
         `;
         containerEl.appendChild(el);
         containerEl.appendChild(gap);
-        positions.set(relPos, el);
+        positions.set(relPos, {
+            el,
+            leftDesc: el.querySelector('.desc.left'),
+            leftLines: el.querySelector('.desc.left .lines'),
+            rightDesc: el.querySelector('.desc.right'),
+            rightLines: el.querySelector('.desc.right .lines'),
+            bubble: el.querySelector('.bubble'),
+            gap: {
+                el: gap,
+                leftLine: gap.querySelector('.lines .line.time'),
+            },
+        });
         el.addEventListener('click', ev => {
             if (zoomedPosition == null) {
                 zoomedPosition = Number(ev.currentTarget.style.getPropertyValue('--rel-pos'));
@@ -99,9 +113,9 @@ function renderZoomed(groups) {
         const next = athletes[i + 1];
         const relPos = i - centerIdx;
         active.add(relPos);
-        const posEl = getOrCreatePosition(relPos);
-        posEl.classList.toggle('watching', !!athlete.watching);
-        posEl.style.setProperty('--athletes', 1);
+        const pos = getOrCreatePosition(relPos);
+        pos.el.classList.toggle('watching', !!athlete.watching);
+        pos.el.style.setProperty('--athletes', 1);
         let label;
         let avatar = 'images/blankavatar.png';
         let fLast;
@@ -117,61 +131,65 @@ function renderZoomed(groups) {
                 }
             }
         }
+        if (label) {
+            pos.bubble.textContent = label;
+        } else {
+            pos.bubble.innerHTML = `<img src="${avatar}"/>`;
+        }
+        const leftLines = [];
+        if (fLast) {
+            leftLines.push(`<div class="line minor">${fLast}</div>`);
+        }
         const attacker = athlete.power > 400 && (athlete.power / group.power) > 2;
         if (attacker) {
-            posEl.classList.add('attn', 'attack');
+            pos.el.classList.add('attn', 'attack');
+            leftLines.push(`<div class="line minor attn">Attacking!</div>`);
         } else {
-            posEl.classList.remove('attn', 'attack');
+            pos.el.classList.remove('attn', 'attack');
         }
-        const bubble = posEl.querySelector('.bubble');
-        if (label) {
-            bubble.textContent = label;
-        } else {
-            bubble.innerHTML = `<img src="${avatar}"/>`;
-        }
-        const lines = [`<div class="line ${attacker ? 'attn' : ''}">${H.number(athlete.power)}w</div>`];
+        const rightLines = [`<div class="line">${H.power(athlete.power, {html: true})}w</div>`];
         const minorField = settings.zoomedSecondaryField || 'heartrate';
         if (minorField === 'heartrate') {
             if (athlete.heartrate) {
-                lines.push(`<div class="line minor">${H.number(athlete.heartrate)}<small>bpm</small></div>`);
+                rightLines.push(`<div class="line minor">${H.number(athlete.heartrate)}<abbr class="unit">bpm</abbr></div>`);
             }
         } else if (minorField === 'draft') {
             if (athlete.draft != null) {
-                lines.push(`<div class="line minor">${H.number(athlete.draft)}<small>% (draft)</small></div>`);
-                if (fLast) {
-                    lines.push(`<div class="line minor">${fLast}</div>`);
-                }
+                rightLines.push(`<div class="line minor">${H.number(athlete.draft)}<abbr class="unit">% (draft)</abbr></div>`);
             }
         } else if (minorField === 'speed') {
             if (athlete.speed != null) {
                 const unit = imperial ? 'mph' : 'kph';
-                lines.push(`<div class="line minor">${H.pace(athlete.speed, {precision: 0})}<small>${unit}</small></div>`);
+                rightLines.push(`<div class="line minor">${H.pace(athlete.speed, {precision: 0})}<abbr class="unit">${unit}</abbr></div>`);
             }
         } else if (minorField === 'power-60s') {
             const p = athlete.stats.power.smooth[60];
             if (p != null) {
-                lines.push(`<div class="line minor">${H.number(p)}w (1m)</div>`);
+                rightLines.push(`<div class="line minor">${H.power(p, {suffix: true, html: true})} ` +
+                    `<abbr class="unit">(1m)</abbr></div>`);
             }
         }
-        posEl.querySelector('.desc .lines').innerHTML = lines.join('');
-        const gapEl = posEl.nextSibling;
+        pos.leftLines.innerHTML = leftLines.join('');
+        pos.leftDesc.classList.toggle('empty', !leftLines.length);
+        pos.rightLines.innerHTML = rightLines.join('');
+        pos.rightDesc.classList.toggle('empty', !rightLines.length);
         const gap = next ? Math.abs(next[gapProp] - athlete[gapProp]) : 0;
-        gapEl.style.setProperty('--inner-gap', Math.max(0, gap - bikeLength) * flexFactor);
-        gapEl.style.setProperty('--outer-gap', gap * flexFactor);
-        gapEl.style.setProperty('--gap-sign', -1);
-        gapEl.classList.toggle('alone', !gap);
+        pos.gap.el.style.setProperty('--inner-gap', Math.max(0, gap - bikeLength) * flexFactor);
+        pos.gap.el.style.setProperty('--outer-gap', gap * flexFactor);
+        pos.gap.el.style.setProperty('--gap-sign', -1);
+        pos.gap.el.classList.toggle('alone', !gap);
         let dur;
         if (gapField === 'time') {
             dur = gap && H.number(gap, {precision: 1}) + 's';
-            gapEl.classList.toggle('real', !!next && !next.isGapEst);
+            pos.gap.el.classList.toggle('real', !!next && !next.isGapEst);
         } else {
             dur = gap && (H.number(Math.max(0, gap - bikeLength) * (imperial ? 3.28084 : 1)) + (imperial ? 'ft' : 'm'));
-            gapEl.classList.toggle('real', true);
+            pos.gap.el.classList.toggle('real', true);
         }
-        gapEl.querySelector('.desc .line.time').textContent = dur ? dur : '';
+        pos.gap.leftLine.textContent = dur ? dur : '';
     }
-    for (const [pos, x] of positions.entries()) {
-        x.classList.toggle('hidden', !active.has(pos));
+    for (const [i, {el}] of positions.entries()) {
+        el.classList.toggle('hidden', !active.has(i));
     }
 }
 
@@ -193,22 +211,23 @@ function renderGroups(groups) {
     contentEl.style.setProperty('--total-athletes', totAthletes);
     contentEl.style.setProperty('--total-gap', totGap);
     const athletesLabel = totAthletes === 1 ? 'Athlete' : 'Athletes';
-    metaEl.textContent = `${totAthletes} ${athletesLabel}`;
+    metaEl.innerHTML = `<div class="line">${totAthletes} ${athletesLabel}</div>`;
     const active = new Set();
     for (const [i, group] of groups.entries()) {
         // NOTE: gap measurement is always to the next group or null.
         const next = groups[i + 1];
         const relPos = i - centerIdx;
         active.add(relPos);
-        const groupEl = getOrCreatePosition(relPos);
-        groupEl.classList.toggle('watching', !!group.watching);
-        groupEl.style.setProperty('--athletes', group.athletes.length);
+        const pos = getOrCreatePosition(relPos);
+        pos.el.classList.toggle('watching', !!group.watching);
+        pos.el.style.setProperty('--athletes', group.athletes.length);
         let label;
-        const lines = [];
+        const leftLines = [];
+        const rightLines = [];
         if (group.athletes.length === 1 && group.athletes[0].athlete) {
             const n = group.athletes[0].athlete.name;
             label = n ? n.map(x => x[0].toUpperCase()).join('').substr(0, 2) : '1';
-            groupEl.classList.remove('attn', 'attack');
+            pos.el.classList.remove('attn', 'attack');
         } else {
             label = H.number(group.athletes.length);
             let max = -Infinity;
@@ -218,55 +237,60 @@ function renderGroups(groups) {
                     max = p;
                 }
             }
-            if (group.athletes.length > 1 && max > 400 && (max / group.power) > 2) {
-                groupEl.classList.add('attn', 'attack');
-                lines.push(`<div class="line attn">${H.number(max)}<small>w Attacker!</small></div>`);
+            const attacker = group.athletes.length > 1 && max > 400 && (max / group.power) > 2;
+            if (attacker) {
+                pos.el.classList.add('attn', 'attack');
+                leftLines.push(`<div class="line attn">Attacker!</div>`);
+                leftLines.push(`<div class="line minor attn">${H.power(max, {suffix: true, html: true})}</div>`);
             } else {
-                groupEl.classList.remove('attn', 'attack');
+                pos.el.classList.remove('attn', 'attack');
             }
         }
-        groupEl.querySelector('.bubble').textContent = label;
-        lines.push(`<div class="line">${H.number(group.power)}<small>w</small></div>`);
+        pos.bubble.textContent = label;
+        rightLines.push(`<div class="line">${H.power(group.power, {suffix: true, html: true})}</div>`);
         const minorField = settings.groupsSecondaryField || 'speed';
         if (minorField === 'heartrate') {
             if (group.heartrate) {
-                lines.push(`<div class="line minor">${H.number(group.heartrate)}<small>bpm</small></div>`);
+                rightLines.push(`<div class="line minor">${H.number(group.heartrate)}<abbr class="unit">bpm</abbr></div>`);
             }
         } else if (minorField === 'draft') {
             if (group.draft != null) {
-                lines.push(`<div class="line minor">${H.number(group.draft)}<small>% (draft)</small></div>`);
+                rightLines.push(`<div class="line minor">${H.number(group.draft)}<abbr class="unit">% (draft)</abbr></div>`);
             }
         } else if (minorField === 'speed') {
             if (group.speed != null) {
                 const unit = imperial ? 'mph' : 'kph';
-                lines.push(`<div class="line minor">${H.pace(group.speed, {precision: 0})}<small>${unit}</small></div>`);
+                rightLines.push(`<div class="line minor">${H.pace(group.speed, {precision: 0})}<abbr class="unit">${unit}</abbr></div>`);
             }
         } else if (minorField === 'power-highest') {
             const highest = sauce.data.max(group.athletes.map(x => x.power));
             if (highest != null) {
-                lines.push(`<div class="line minor">${H.number(highest)}w (highest)</div>`);
+                rightLines.push(`<div class="line minor">${H.power(highest, {suffix: true, html: true})} ` +
+                    `<abbr class="unit">(highest)</abbr></div>`);
             }
         } else if (minorField === 'power-median') {
             const med = sauce.data.median(group.athletes.map(x => x.power));
             if (med != null) {
-                lines.push(`<div class="line minor">${H.number(med)}w (median)</div>`);
+                rightLines.push(`<div class="line minor">${H.power(med, {suffix: true, html: true})} ` +
+                    `<abbr class="unit">(median)</abbr></div>`);
             }
         }
-
-        groupEl.querySelector('.desc .lines').innerHTML = lines.join('');
-        const gapEl = groupEl.nextSibling;
+        pos.leftLines.innerHTML = leftLines.join('');
+        pos.leftDesc.classList.toggle('empty', !leftLines.length);
+        pos.rightLines.innerHTML = rightLines.join('');
+        pos.rightDesc.classList.toggle('empty', !rightLines.length);
         const innerGap = next ? group.innerGap : 0;
         const gap = relPos < 0 ? group.gap : next ? next.gap : 0;
-        gapEl.style.setProperty('--inner-gap', innerGap);
-        gapEl.style.setProperty('--outer-gap', Math.abs(gap));
-        gapEl.style.setProperty('--gap-sign', gap > 0 ? 1 : -1);
-        gapEl.classList.toggle('real', !!next && !next.isGapEst);
-        gapEl.classList.toggle('alone', !innerGap);
+        pos.gap.el.style.setProperty('--inner-gap', innerGap);
+        pos.gap.el.style.setProperty('--outer-gap', Math.abs(gap));
+        pos.gap.el.style.setProperty('--gap-sign', gap > 0 ? 1 : -1);
+        pos.gap.el.classList.toggle('real', !!next && !next.isGapEst);
+        pos.gap.el.classList.toggle('alone', !innerGap);
         const dur = innerGap && H.duration(Math.abs(gap), {short: true, seperator: ' '});
-        gapEl.querySelector('.desc .line.time').textContent = dur ? (gap > 0 ? '+' : '-') + dur : '';
+        pos.gap.leftLine.textContent = dur ? (gap > 0 ? '+' : '-') + dur : '';
     }
-    for (const [pos, x] of positions.entries()) {
-        x.classList.toggle('hidden', !active.has(pos));
+    for (const [i, {el}] of positions.entries()) {
+        el.classList.toggle('hidden', !active.has(i));
     }
 }
 
@@ -296,6 +320,7 @@ export async function main() {
         zoomedGapField: 'distance',
         solidBackground: false,
         backgroundColor: '#00ff00',
+        refreshInterval: 1,
     });
     setBackground(settings);
     document.addEventListener('settings-updated', () => {
@@ -308,12 +333,17 @@ export async function main() {
             L.setImperial(imperial = ev.data.data);
         }
     });
+    let ts = 0;
     common.subscribe('groups', groups => {
         if (!groups.length) {
             return;
         }
         curGroups = groups;
-        render();
+        const now = Date.now();
+        if (now - ts > (settings.refreshInterval * 1000 - 100)) {
+            ts = now;
+            render();
+        }
     });
 }
 
