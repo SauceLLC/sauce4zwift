@@ -18,7 +18,8 @@
   },
   "dependencies": {
     "@saucellc/zwift-packet-monitor": "https://github.com/SauceLLC/zwift-packet-monitor.git#5e408168e",
-    "@sentry/node": "6.19.3",
+    "@sentry/node": "6.19.6",
+    "@sentry/integrations": "6.19.6",
     "better-sqlite3": "7.5.1",
     "electron-updater": "5.0.2",
     "express": "4.17.3",
@@ -27,7 +28,7 @@
     "sudo-prompt": "9.2.1"
   },
   "devDependencies": {
-    "@sentry/browser": "6.19.3",
+    "@sentry/browser": "6.19.6",
     "electron": "18.0.3",
     "electron-builder": "23.0.4",
     "electron-notarize": "1.2.1",
