@@ -1,6 +1,7 @@
 /*global Sentry*/
 
-import {sleep, beforeSentrySend} from '../../shared/sauce/base.mjs';
+import {sleep} from '../../shared/sauce/base.mjs';
+import {beforeSentrySend, captureExceptionOnce, setSentry} from '../../shared/sentry-util.mjs';
 import './sentry.js';
 
 const isElectron = location.protocol === 'file:';
@@ -15,20 +16,6 @@ function makeRPCError(errResp) {
     const e = new Error(`${errResp.error.name}: ${errResp.error.message}`);
     e.stack = errResp.error.stack; // XXX merge with local stack too.
     return e;
-}
-
-
-// Sentry is supposed to throttle, but I'm seeing thousands of events in some cases so I doubt it.
-const _capturedErrors = new Set();
-export function captureErrorOnce(e) {
-    const sig = [e.name, e.message, e.stack].join();
-    if (_capturedErrors.has(sig)) {
-        console.warn('Sentry error capture (throttled):', e);
-        return;
-    }
-    _capturedErrors.add(sig);
-    console.error('Sentry error capture:', e);
-    Sentry.captureException(e);
 }
 
 
@@ -335,7 +322,7 @@ class Renderer {
                         try {
                             value = field.active.value(this._data);
                         } catch(e) {
-                            captureErrorOnce(e);
+                            captureExceptionOnce(e);
                         }
                         field.valueEl.innerHTML = value != null && !Number.isNaN(value) ? value : '';
                         if (field.labelEl) {
@@ -343,7 +330,7 @@ class Renderer {
                             try {
                                 labels = field.active.label ? field.active.label(this._data) : '';
                             } catch(e) {
-                                captureErrorOnce(e);
+                                captureExceptionOnce(e);
                             }
                             if (Array.isArray(labels)) {
                                 field.labelEl.innerHTML = labels[0];
@@ -360,7 +347,7 @@ class Renderer {
                             try {
                                 key = field.active.key ? field.active.key(this._data) : '';
                             } catch(e) {
-                                captureErrorOnce(e);
+                                captureExceptionOnce(e);
                             }
                             field.keyEl.innerHTML = key;
                         }
@@ -370,7 +357,7 @@ class Renderer {
                                 unit = (value != null && value !== '-' && field.active.unit) ?
                                     field.active.unit(this._data) : '';
                             } catch(e) {
-                                captureErrorOnce(e);
+                                captureExceptionOnce(e);
                             }
                             field.unitEl.innerHTML = unit;
                         }
@@ -379,7 +366,7 @@ class Renderer {
                         try {
                             cb(this._data);
                         } catch(e) {
-                            captureErrorOnce(e);
+                            captureExceptionOnce(e);
                         }
                     }
                     resolve();
@@ -562,6 +549,7 @@ rpc('getVersion').then(v => Sentry.setTag('version', v));
 rpc('getSentryAnonId').then(id => Sentry.setUser({id}));
 rpc('appIsPackaged').then(packaged => {
     if (packaged) {
+        setSentry(Sentry);
         Sentry.init({
             dsn: "https://df855be3c7174dc89f374ef0efaa6a92@o1166536.ingest.sentry.io/6257001",
             beforeSend: beforeSentrySend,
