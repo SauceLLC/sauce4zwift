@@ -99,7 +99,6 @@ function renderZoomed(groups) {
         return;
     }
     const athletes = group.athletes.slice(0, settings.maxZoomed);
-    centerIdx = 0; // XXX obsolete?
     const totAthletes = athletes.length;
     const gapField = settings.zoomedGapField || 'distance';
     const gapProp = gapField === 'distance' ? 'gapDistance' : 'gap';
@@ -119,18 +118,16 @@ function renderZoomed(groups) {
     for (const [i, athlete] of athletes.entries()) {
         // NOTE: gap measurement is always to the next athlete or null.
         const next = athletes[i + 1];
-        const relPos = i - centerIdx;
-        active.add(relPos);
-        const pos = getOrCreatePosition(relPos);
-        pos.el.dataset.tooltip = `Position: ${relPos}\nClick bubble to zoom out`;
-        if (relPos >= athletes.length / 2) {
-            pos.el.dataset.tooltipAbove = 1;
-            delete pos.el.dataset.tooltipBelow;
+        active.add(i);
+        const pos = getOrCreatePosition(i);
+        pos.el.dataset.tooltip = `Position: ${i}\nClick bubble to zoom out`;
+        if (i >= athletes.length / 2) {
+            pos.el.setAttribute('data-tooltip-above', '');
+            pos.el.removeAttribute('data-tooltip-below');
         } else {
-            pos.el.dataset.tooltipBelow = 1;
-            delete pos.el.dataset.tooltipAbove;
+            pos.el.setAttribute('data-tooltip-below', '');
+            pos.el.removeAttribute('data-tooltip-above');
         }
-        pos.el.dataset.tooltipAbove = 1;
         pos.el.classList.toggle('watching', !!athlete.watching);
         pos.el.style.setProperty('--athletes', 1);
         let label;
@@ -237,12 +234,12 @@ function renderGroups(groups) {
         active.add(relPos);
         const pos = getOrCreatePosition(relPos);
         pos.el.dataset.tooltip = `Group: ${relPos}\nClick bubble to zoom in`;
-        if (relPos >= groups.length / 2) {
-            pos.el.dataset.tooltipAbove = 1;
-            delete pos.el.dataset.tooltipBelow;
+        if (i >= groups.length / 2) {
+            pos.el.setAttribute('data-tooltip-above', '');
+            pos.el.removeAttribute('data-tooltip-below');
         } else {
-            pos.el.dataset.tooltipBelow = 1;
-            delete pos.el.dataset.tooltipAbove;
+            pos.el.setAttribute('data-tooltip-below', '');
+            pos.el.removeAttribute('data-tooltip-above');
         }
         pos.el.classList.toggle('watching', !!group.watching);
         pos.el.style.setProperty('--athletes', group.athletes.length);
