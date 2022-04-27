@@ -4,7 +4,6 @@ import {SqliteDatabase, deleteDatabase} from './db.mjs';
 import * as storage from './storage.mjs';
 import * as rpc from './rpc.mjs';
 import sudo from 'sudo-prompt';
-import cap from 'cap';
 import ZwiftPacketMonitor from '@saucellc/zwift-packet-monitor';
 import sauce from '../shared/sauce/index.mjs';
 import fetch from 'node-fetch';
@@ -13,6 +12,19 @@ import {createRequire} from 'node:module';
 import {captureExceptionOnce} from '../shared/sentry-util.mjs';
 const require = createRequire(import.meta.url);
 const electron = require('electron');
+
+
+export let npcapMissing = false;
+
+let cap;
+try {
+    cap = require('cap');
+} catch(e) {
+    if (e.message.includes('cap.node')) {
+        console.warn("npcap not installed");
+        npcapMissing = true;
+    }
+}
 
 
 const powerUpEnum = {
@@ -163,7 +175,7 @@ function getLocalRoutedIface(ip) {
 }
 
 
-class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
+export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
 
     static async factory() {
         const ip = await getLocalRoutedIP();
@@ -781,7 +793,7 @@ class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
 }
 
 
-async function getCapturePermission() {
+export async function getCapturePermission() {
     if (os.platform() === 'darwin') {
         await new Promise((resolve, reject) => {
             sudo.exec(`chown ${os.userInfo().uid} /dev/bpf*`, {name: 'Sauce for Zwift'},
@@ -805,9 +817,3 @@ async function getCapturePermission() {
         throw new Error("libpcap permission required");
     }
 }
-
-
-export default {
-    Sauce4ZwiftMonitor,
-    getCapturePermission,
-};
