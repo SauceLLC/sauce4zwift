@@ -525,6 +525,7 @@ async function main() {
             for (const [name, cb] of listeners) {
                 win.off(name, cb);
             }
+            activeSubs.clear();
         }
         if (win.isVisible() && !win.isMinimized()) {
             enable('startup');
