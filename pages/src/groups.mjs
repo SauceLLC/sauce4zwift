@@ -4,7 +4,7 @@ import common from './common.mjs';
 const L = sauce.locale;
 const H = L.human;
 const positions = new Map();
-const settingsKey = 'groups-settings-v5';
+const settingsKey = 'groups-settings-v6';
 let imperial = common.storage.get('/imperialUnits');
 L.setImperial(imperial);
 let settings;
@@ -13,6 +13,16 @@ let curGroups;
 let contentEl;
 let metaEl;
 let containerEl;
+
+
+function pwrFmt(p) {
+    return H.power(p, {suffix: true, html: true});
+}
+
+
+function spdFmt(s) {
+    return H.pace(s, {precision: 0, suffix: true, html: true});
+}
 
 
 function getOrCreatePosition(relPos) {
@@ -88,8 +98,8 @@ function renderZoomed(groups) {
         console.warn("XXX Unexpected missing group");
         return;
     }
-    const athletes = group.athletes;
-    centerIdx = Math.max(0, athletes.findIndex(x => x.watching));
+    const athletes = group.athletes.slice(0, settings.maxZoomed);
+    centerIdx = 0; // XXX obsolete?
     const totAthletes = athletes.length;
     const gapField = settings.zoomedGapField || 'distance';
     const gapProp = gapField === 'distance' ? 'gapDistance' : 'gap';
@@ -100,11 +110,9 @@ function renderZoomed(groups) {
     contentEl.style.setProperty('--total-gap', totGap * flexFactor);
     const athletesLabel = totAthletes === 1 ? 'Athlete' : 'Athletes';
     const groupLabel = pos ? `${H.place(Math.abs(pos))} ${pos > 0 ? 'behind' : 'ahead'}` : 'Your Group';
-    const powerLabel = H.power(group.power, {suffix: true, html: true});
-    const speedLabel = H.pace(group.speed, {precision: 0, suffix: true, html: true});
     metaEl.innerHTML = [
         `${groupLabel}, ${totAthletes} ${athletesLabel}`,
-        `${powerLabel}, ${speedLabel}`,
+        `${pwrFmt(group.power)}, ${spdFmt(group.speed)}`,
     ].map(x => `<div class="line">${x}</div>`).join('');
     const active = new Set();
     const bikeLength = 2;  // meters
@@ -114,6 +122,15 @@ function renderZoomed(groups) {
         const relPos = i - centerIdx;
         active.add(relPos);
         const pos = getOrCreatePosition(relPos);
+        pos.el.dataset.tooltip = `Position: ${relPos}\nClick bubble to zoom out`;
+        if (relPos >= athletes.length / 2) {
+            pos.el.dataset.tooltipAbove = 1;
+            delete pos.el.dataset.tooltipBelow;
+        } else {
+            pos.el.dataset.tooltipBelow = 1;
+            delete pos.el.dataset.tooltipAbove;
+        }
+        pos.el.dataset.tooltipAbove = 1;
         pos.el.classList.toggle('watching', !!athlete.watching);
         pos.el.style.setProperty('--athletes', 1);
         let label;
@@ -147,7 +164,7 @@ function renderZoomed(groups) {
         } else {
             pos.el.classList.remove('attn', 'attack');
         }
-        const rightLines = [`<div class="line">${H.power(athlete.power, {html: true})}w</div>`];
+        const rightLines = [`<div class="line">${pwrFmt(athlete.power)}</div>`];
         const minorField = settings.zoomedSecondaryField || 'heartrate';
         if (minorField === 'heartrate') {
             if (athlete.heartrate) {
@@ -165,7 +182,7 @@ function renderZoomed(groups) {
         } else if (minorField === 'power-60s') {
             const p = athlete.stats.power.smooth[60];
             if (p != null) {
-                rightLines.push(`<div class="line minor">${H.power(p, {suffix: true, html: true})} ` +
+                rightLines.push(`<div class="line minor">${pwrFmt(p)} ` +
                     `<abbr class="unit">(1m)</abbr></div>`);
             }
         }
@@ -219,6 +236,14 @@ function renderGroups(groups) {
         const relPos = i - centerIdx;
         active.add(relPos);
         const pos = getOrCreatePosition(relPos);
+        pos.el.dataset.tooltip = `Group: ${relPos}\nClick bubble to zoom in`;
+        if (relPos >= groups.length / 2) {
+            pos.el.dataset.tooltipAbove = 1;
+            delete pos.el.dataset.tooltipBelow;
+        } else {
+            pos.el.dataset.tooltipBelow = 1;
+            delete pos.el.dataset.tooltipAbove;
+        }
         pos.el.classList.toggle('watching', !!group.watching);
         pos.el.style.setProperty('--athletes', group.athletes.length);
         let label;
@@ -241,13 +266,13 @@ function renderGroups(groups) {
             if (attacker) {
                 pos.el.classList.add('attn', 'attack');
                 leftLines.push(`<div class="line attn">Attacker!</div>`);
-                leftLines.push(`<div class="line minor attn">${H.power(max, {suffix: true, html: true})}</div>`);
+                leftLines.push(`<div class="line minor attn">${pwrFmt(max)}</div>`);
             } else {
                 pos.el.classList.remove('attn', 'attack');
             }
         }
         pos.bubble.textContent = label;
-        rightLines.push(`<div class="line">${H.power(group.power, {suffix: true, html: true})}</div>`);
+        rightLines.push(`<div class="line">${pwrFmt(group.power)}</div>`);
         const minorField = settings.groupsSecondaryField || 'speed';
         if (minorField === 'heartrate') {
             if (group.heartrate) {
@@ -265,13 +290,13 @@ function renderGroups(groups) {
         } else if (minorField === 'power-highest') {
             const highest = sauce.data.max(group.athletes.map(x => x.power));
             if (highest != null) {
-                rightLines.push(`<div class="line minor">${H.power(highest, {suffix: true, html: true})} ` +
+                rightLines.push(`<div class="line minor">${pwrFmt(highest)} ` +
                     `<abbr class="unit">(highest)</abbr></div>`);
             }
         } else if (minorField === 'power-median') {
             const med = sauce.data.median(group.athletes.map(x => x.power));
             if (med != null) {
-                rightLines.push(`<div class="line minor">${H.power(med, {suffix: true, html: true})} ` +
+                rightLines.push(`<div class="line minor">${pwrFmt(med)} ` +
                     `<abbr class="unit">(median)</abbr></div>`);
             }
         }
@@ -315,6 +340,7 @@ export async function main() {
         detectAttacks: true,
         maxAhead: 4,
         maxBehind: 2,
+        maxZoomed: 10,
         groupsSecondaryField: 'speed',
         zoomedSecondaryField: 'draft',
         zoomedGapField: 'distance',

@@ -76,6 +76,7 @@ html:not(.electron-mode) .electron-only {
         visibility: visible;
         opacity: 1;
         content: attr(data-tooltip);
+        white-space: pre-wrap;
         padding: 6px 12px;
         margin: 4px;
     }

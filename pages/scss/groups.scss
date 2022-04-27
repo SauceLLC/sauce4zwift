@@ -65,7 +65,7 @@ html {
     position: relative;
     transition-property: opacity, visibility;
     transition-duration: 1s;
-    --size: calc(1.5rem + (var(--athletes) / max(10, var(--total-athletes)) * 4rem));
+    --size: calc(1.5rem + (var(--athletes) / max(10, var(--total-athletes)) * 3.5rem));
     order: var(--rel-pos);
 
     &.watching {
