@@ -14,6 +14,10 @@ html {
     }
 }
 
+html.settings-mode #meta.app-drag {
+    -webkit-app-region: initial;
+}
+
 #meta {
     margin-top: $content-pad;
     padding: 0.30em 0.5em 0.55em;
