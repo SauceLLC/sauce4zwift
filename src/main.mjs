@@ -80,7 +80,6 @@ const windows = new Map();
 app.setAppUserModelId('io.saucellc.sauce4zwift'); // must match build.appId for windows
 
 
-
 let _appSettings;
 export function getAppSetting(key) {
     if (!_appSettings) {
@@ -169,9 +168,9 @@ function setWindowState(page, data) {
 }
 
 
-async function makeFloatingWindow(page, options={}, defaultState={}) {
+function makeFloatingWindow(page, options={}, defaultState={}) {
     const state = getWindowState(page) || defaultState;
-    const win = new BrowserWindow({
+    const winOptions = {
         icon: appIcon,
         transparent: true,
         hasShadow: false,
@@ -189,7 +188,8 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
         },
         ...options,
         ...state,
-    });
+    };
+    const win = new BrowserWindow(winOptions);
     if (app.isPackaged) {
         win.removeMenu();
     }
@@ -206,10 +206,10 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
         win.setSize(width, height);
         win.setPosition(x, y, false);
     }
-    if (win.isAlwaysOnTop()) {
-        win.setAlwaysOnTop(true, 'screen-saver');  // Fix borderless mode apps
+    if (winOptions.alwaysOnTop) {
+        win.setAlwaysOnTop(true, 'screen-saver');
     }
-    windows.set(win.webContents, {win, state, options});
+    windows.set(win.webContents, {win, state, options, activeSubs: new Set()});
     let closed;
     win.webContents.on('new-window', (ev, url) => {
         // Popups...
@@ -266,13 +266,6 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
             }
         });
     }
-    if (options.show !== false) {
-        if (state.hidden) {
-            win.minimize();
-        } else {
-            win.show();
-        }
-    }
     onWindowMessage('close', () => win.minimize());
     win.on('moved', onPositionUpdate);
     win.on('resized', onPositionUpdate);
@@ -284,6 +277,13 @@ async function makeFloatingWindow(page, options={}, defaultState={}) {
     });
     win.on('restore', onShow);
     win.loadFile(path.join(pagePath, page));
+    if (options.show !== false) {
+        if (state.hidden) {
+            win.minimize();
+        } else {
+            win.show();
+        }
+    }
     return win;
 }
 
@@ -292,10 +292,10 @@ async function createWindows(monitor) {
     const nearbyOverlayMode = getAppSetting('nearbyOverlayMode');
     const nearbyOptions = nearbyOverlayMode ? {} : {alwaysOnTop: false,
         transparent: false, frame: true, maximizable: true, fullscreenable: true, autoHide: false};
+    makeFloatingWindow('overview.html', {relWidth: 0.6, height: 40, relX: 0.2, y: 0, hideable: false});
     makeFloatingWindow('watching.html', {width: 260, height: 260, x: 8, y: 64});
     makeFloatingWindow('groups.html', {width: 235, height: 650, x: -280, y: -10});
     makeFloatingWindow('chat.html', {width: 280, height: 580, x: 320, y: 230});
-    makeFloatingWindow('overview.html', {relWidth: 0.6, height: 40, relX: 0.2, y: 0, hideable: false});
     makeFloatingWindow('nearby.html', {width: 800, height: 400, x: 20, y: 20, ...nearbyOptions}, {hidden: true});
 }
 
@@ -506,38 +506,51 @@ async function main() {
         }
     }
     ipcMain.on('subscribe', (ev, {event, domEvent}) => {
-        const win = windows.get(ev.sender).win;
-        const cb = data => win.webContents.send('browser-message', {domEvent, data});
-        const enableEvents = ['responsive', 'show'];
-        const disableEvents = ['unresponsive', 'hide', 'close'];
-        function enable() {
-            console.debug("Enable subscription:", event, domEvent);
-            monitor.on(event, cb);
+        const {win, activeSubs} = windows.get(ev.sender);
+        const sendMessage = data => win.webContents.send('browser-message', {domEvent, data});
+        // NOTE: MacOS emits show/hide AND restore/minimize but Windows only does restore/minimize
+        const enableEvents = ['responsive', 'show', 'restore'];
+        const disableEvents = ['unresponsive', 'hide', 'minimize', 'close'];
+        const listeners = [];
+        function enable(source) {
+            if (!activeSubs.has(event)) {
+                console.debug("Enable subscription:", event, domEvent, source);
+                monitor.on(event, sendMessage);
+                activeSubs.add(event);
+            } else {
+                console.debug("Debounced enable:", event, domEvent, source);
+            }
         }
-        function disable() {
-            console.debug("Disable subscription:", event, domEvent);
-            monitor.off(event, cb);
+        function disable(source) {
+            if (activeSubs.has(event)) {
+                console.debug("Disable subscription:", event, domEvent, source);
+                monitor.off(event, sendMessage);
+                activeSubs.delete(event);
+            } else {
+                console.debug("Debounced disable:", event, domEvent, source);
+            }
         }
         function shutdown() {
             console.debug("Shutdown subscription:", event, domEvent);
-            monitor.off(event, cb);
-            for (const x of enableEvents) {
-                win.off(x, enable);
-            }
-            for (const x of disableEvents) {
-                win.off(x, disable);
+            monitor.off(event, sendMessage);
+            for (const [name, cb] of listeners) {
+                win.off(name, cb);
             }
         }
-        if (win.isVisible()) {
-            enable();
+        if (win.isVisible() && !win.isMinimized()) {
+            enable('startup');
         }
         win.webContents.once('destroyed', shutdown);
         win.webContents.once('did-start-loading', shutdown);
         for (const x of enableEvents) {
-            win.on(x, enable);
+            const cb = ev => enable(x, ev);
+            win.on(x, cb);
+            listeners.push([x, cb]);
         }
         for (const x of disableEvents) {
-            win.on(x, disable);
+            const cb = ev => disable(x, ev);
+            win.on(x, cb);
+            listeners.push([x, cb]);
         }
     });
     app.on('activate', async () => {
