@@ -187,7 +187,7 @@ form label {
         opacity: 0.4;
     }
 
-    &.edited::after {
+    &.edited .restart-required::after {
         content: 'Restart Required';
         font-variant: all-small-caps;
         display: inline-block;

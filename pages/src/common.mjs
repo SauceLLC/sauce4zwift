@@ -439,9 +439,7 @@ async function bindFormData(selector, storageIface, options={}) {
                 number: () => el.value ? Number(el.value) : undefined,
                 checkbox: () => el.checked,
             }[el.type]) || (() => el.value || undefined))();
-            if (el.hasAttribute('restart-required')) {
-                el.closest('label').classList.add('edited');
-            }
+            el.closest('label').classList.add('edited');
             for (const x of fieldConnections.get(el.name)) {
                 if (!Object.is(x, el)) {
                     x.value = el.value;

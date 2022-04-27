@@ -24,16 +24,19 @@
             <form class="app-settings">
                 <label data-tooltip-below data-tooltip="Login to zwift to get meta data like name and weight">
                     <key>Login to Zwift:</key>
-                    <input type="checkbox" name="zwiftLogin" restart-required/>
+                    <input type="checkbox" name="zwiftLogin"/>
+                    <span class="restart-required"></span>
                 </label>
                 <label data-tooltip="If you're seeing a black background on the Chat and Groups windows use this"
                        data-tooltip-below class="electron-only">
                     <key>Disable GPU:</key>
-                    <input type="checkbox" name="disableGPU" restart-required/>
+                    <input type="checkbox" name="disableGPU"/>
+                    <span class="restart-required"></span>
                 </label>
                 <label data-tooltip-below data-tooltip="Access Sauce for Zwift from any browser on your network">
                     <key>Enable Web Server:</key>
-                    <input type="checkbox" name="webServerEnabled" restart-required/>
+                    <input type="checkbox" name="webServerEnabled"/>
+                    <span class="restart-required"></span>
                 </label>
                 <label>
                     <key>Web Server Port:</key>
