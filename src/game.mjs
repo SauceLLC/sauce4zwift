@@ -16,7 +16,7 @@ const electron = require('electron');
 export let npcapMissing = false;
 
 let cap;
-let ZwiftPacketMonitor
+let ZwiftPacketMonitor;
 try {
     cap = require('cap');
     ZwiftPacketMonitor = require('@saucellc/zwift-packet-monitor');
