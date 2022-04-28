@@ -86,19 +86,6 @@ export function getAppSetting(key) {
     if (!_appSettings) {
         _appSettings = storage.load(appSettingsKey) || {...appSettingDefaults};
     }
-    // migrate legacy... remove after a couple releases past 0.5.1 XXX
-    let migrated;
-    for (const [k, v] of Object.entries(appSettingDefaults)) {
-        if (!Object.prototype.hasOwnProperty.call(_appSettings, k)) {
-            console.debug("Migrating app setting:", k, v);
-            _appSettings[k] = v;
-            migrated = true;
-        }
-    }
-    if (migrated) {
-        storage.save(appSettingsKey, _appSettings);
-    }
-    // /XXX
     return _appSettings[key];
 }
 
@@ -289,7 +276,7 @@ function makeFloatingWindow(page, options={}, defaultState={}) {
 }
 
 
-async function createWindows(monitor) {
+function createWindows(monitor) {
     const nearbyOverlayMode = getAppSetting('nearbyOverlayMode');
     const nearbyOptions = nearbyOverlayMode ? {} : {alwaysOnTop: false,
         transparent: false, frame: true, maximizable: true, fullscreenable: true, autoHide: false};
@@ -356,6 +343,21 @@ async function eulaConsent() {
         win.close();
     }
     return consent;
+}
+
+
+function maybeShowReleaseNotes() {
+    const lastVersion = getAppSetting('lastVersion');
+    if (lastVersion === pkg.version) {
+        return;
+    }
+    if (!lastVersion) {
+        setAppSetting('lastVersion', pkg.version);
+        return;
+    }
+    const win = makeCaptiveWindow({width: 500, height: 600});
+    win.loadFile(path.join(pagePath, 'release-notes.html'));
+    win.on('closed', () => setAppSetting('lastVersion', pkg.version));
 }
 
 
@@ -463,6 +465,7 @@ async function main() {
         electron.app.exit(1);
         return;
     }
+    maybeShowReleaseNotes();
     if (getAppSetting('zwiftLogin')) {
         await zwiftLogin();
     }
@@ -548,10 +551,10 @@ async function main() {
     electron.app.on('activate', async () => {
         // Clicking on the app icon..
         if (electron.BrowserWindow.getAllWindows().length === 0) {
-            await createWindows(monitor);
+            createWindows(monitor);
         }
     });
-    await createWindows(monitor);
+    createWindows(monitor);
     if (_appSettings.webServerEnabled) {
         webServer.setMonitor(monitor);
         await webServer.start(_appSettings.webServerPort);

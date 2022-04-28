@@ -37,7 +37,7 @@ export async function invoke(name, ...args) {
 
 async function _invoke(name, ...args) {
     if (!handlers.has(name)) {
-        throw new Error('Invalid handler name');
+        throw new Error('Invalid handler name: ' + name);
     } else {
         const fn = handlers.get(name);
         return await fn(...args);

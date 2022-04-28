@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+        <meta name="apple-mobile-web-app-capable" content="yes"/>
+        <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
+
+        <title>What's New - Sauce for Zwift™</title>
+
+        <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
+        <link rel="stylesheet" href="css/common.css"/>
+
+        <style>
+            html {
+                padding: 0;
+                font-size: 16px;
+            }
+
+            html:not(.updated) .update-only {
+                display: none;
+            }
+
+            html.updated .not-update {
+                display: none;
+            }
+
+            body {
+                border-radius: 0;
+                padding: 2em;
+                display: flex;
+                align-items: center;
+                flex-direction: column;
+                overflow: auto;
+            }
+
+            img.logo {
+                height: 120px;
+                transform: rotate(-20deg);
+                margin-right: 2em;
+            }
+
+            body > header {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            body > main {
+                display: flex;
+                justify-content: center;
+                flex-direction: column;
+            }
+
+            h4, h5 {
+                margin-top: 1em;
+                margin-bottom: 0.5em;
+            }
+
+            section.notes header {
+                font-size: 1.4em;
+                font-variant-numeric: tabular-nums;
+                color: #ff4400;
+                text-shadow:
+                    0 0 1px #000,
+                    0 0 1px #000,
+                    0 0 1px #000,
+                    0 0 1px #000;
+                display: flex;
+                justify-content: space-between;
+            }
+        </style>
+
+        <script type="module">
+            import common from './src/common.mjs';
+
+            const notesPromise = fetch('https://saucellc.io/products/sauce4zwift/release_notes.json').then(r => r.json());
+            //const notesPromise = fetch('https://saucellc.io/release_notes.json').then(r => r.json());
+
+
+            function fakeSHU(version) {
+                return Number(version.split('.').map(x => x.padStart(2, '0')).join(''));
+            }
+
+
+            function notesToHTML(notes) {
+                const html = [];
+                for (const x of notes) {
+                    if (typeof x === 'string') {
+                        html.push(`<li>${x}</li>`);
+                    } else {
+                        html.push(`<li>${x.html}</li>`);
+                        if (x.children && x.children.length) {
+                            html.push(`<ul>${notesToHTML(x.children)}</ul>`);
+                        }
+                    }
+                }
+                return html.join('');
+            }
+
+
+            async function main() {
+                const [lastVersion, version] = await Promise.all([
+                    common.rpc('getAppSetting', 'lastVersion'),
+                    common.rpc('getVersion'),
+                ]);
+                if (lastVersion !== version) {
+                    document.querySelector('.from-version').textContent = fakeSHU(lastVersion);
+                    document.querySelector('.to-version').textContent = fakeSHU(version);
+                    document.documentElement.classList.add('updated');
+                }
+                let notes = await notesPromise;
+                const frag = document.createDocumentFragment();
+                for (const x of notes.reverse()) {
+                    if (x.private) {
+                        continue;
+                    }
+                    const release = document.createElement('release');
+                    release.id = x.version;
+                    release.innerHTML = `
+                        <header>
+                            <div class="version">v${x.version}</div>
+                            <div class="date">${new Date(x.ts).toLocaleDateString()}</div>
+                        </header>
+                        <ul class="notes">${notesToHTML(x.notes)}</ul>
+                    `;
+                    frag.appendChild(release);
+                }
+                document.querySelector('section.notes').appendChild(frag);
+            }
+            document.addEventListener('DOMContentLoaded', main);
+        </script>
+    </head>
+
+    <body>
+        <header>
+            <img class="logo" src="images/logo_vert_120x320.png"/>
+            <div>
+                <h1 class="update-only">Sauce Updated!</h1>
+                <h4 class="update-only">Sauce's heat level just upgraded from <span class="from-version"></span> scovilles to <span class="to-version"></span>! Oh my!!! 🌶️🔥</h4>
+                <h1 class="not-update">Sauce Changelog</h1>
+            </div>
+        </header>
+        <main>
+            <h3>What's New...</h3>
+            <section class="notes"></section>
+        </main>
+    </body>
+</html>
