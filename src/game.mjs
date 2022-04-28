@@ -4,7 +4,6 @@ import {SqliteDatabase, deleteDatabase} from './db.mjs';
 import * as storage from './storage.mjs';
 import * as rpc from './rpc.mjs';
 import sudo from 'sudo-prompt';
-import ZwiftPacketMonitor from '@saucellc/zwift-packet-monitor';
 import sauce from '../shared/sauce/index.mjs';
 import fetch from 'node-fetch';
 import {getAppSetting} from './main.mjs';
@@ -17,12 +16,17 @@ const electron = require('electron');
 export let npcapMissing = false;
 
 let cap;
+let ZwiftPacketMonitor
 try {
     cap = require('cap');
+    ZwiftPacketMonitor = require('@saucellc/zwift-packet-monitor');
 } catch(e) {
     if (e.message.includes('cap.node')) {
         console.warn("npcap not installed");
         npcapMissing = true;
+        ZwiftPacketMonitor = Object;
+    } else {
+        throw e;
     }
 }
 
