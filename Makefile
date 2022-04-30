@@ -15,6 +15,8 @@ $(PACKAGES): package.json
 $(BUILD): $(PAGES_SRC) $(PACKAGES) sass webdeps Makefile .git/index
 	touch $@ || type nul > $@
 
+build: $(BUILD)
+
 run: $(BUILD)
 	npm start
 
@@ -31,14 +33,14 @@ lint:
 unpacked: $(BUILD)
 	SKIP_NOTARIZE=1 npm run unpacked
 
-build: $(BUILD)
+packed: $(BUILD)
 	SKIP_NOTARIZE=1 npm run build
 
 publish: $(BUILD)
 	npm run publish
 
 webdeps:
-	cp node_modules/billboard.js/dist/billboard.pkgd.min.js pages/deps/src/billboard.mjs
+	cp node_modules/billboard.js/dist/billboard.pkgd.min.js pages/deps/src/billboard.js
 	cp node_modules/billboard.js/dist/billboard.css pages/deps/css/
 	cp node_modules/billboard.js/dist/theme/* pages/deps/css/
 
@@ -54,4 +56,9 @@ lint-watch:
 		sleep 5; \
 	done
 
-.PHONY: build pack publish lint sass webdeps
+clean:
+	rm -rf pages/deps/src/*
+	rm -rf pages/deps/css/*
+	rm $(BUILD)
+
+.PHONY: build pack publish lint sass webdeps clean
