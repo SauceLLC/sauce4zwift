@@ -12,7 +12,7 @@ $(PACKAGES): package.json
 	npm install
 	touch $@ || type nul > $@
 
-$(BUILD): $(PAGES_SRC) $(PACKAGES) sass Makefile .git/index
+$(BUILD): $(PAGES_SRC) $(PACKAGES) sass webdeps Makefile .git/index
 	touch $@ || type nul > $@
 
 run: $(BUILD)
@@ -37,6 +37,11 @@ build: $(BUILD)
 publish: $(BUILD)
 	npm run publish
 
+webdeps:
+	cp node_modules/billboard.js/dist/billboard.pkgd.min.js pages/deps/src/billboard.mjs
+	cp node_modules/billboard.js/dist/billboard.css pages/deps/css/
+	cp node_modules/billboard.js/dist/theme/* pages/deps/css/
+
 sass:
 	$(NPATH)/sass pages/scss:pages/css
 
@@ -49,4 +54,4 @@ lint-watch:
 		sleep 5; \
 	done
 
-.PHONY: build pack publish lint sass
+.PHONY: build pack publish lint sass webdeps
