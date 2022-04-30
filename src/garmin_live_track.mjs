@@ -58,25 +58,26 @@ class RollingPeaks {
 }
 
 
-class Sauce4ZwiftMonitor extends EventEmitter {
-    static async factory() {
-        return new this('127.0.0.1');
+export class Sauce4ZwiftMonitor extends EventEmitter {
+    static async factory(session) {
+        return new this('127.0.0.1', session);
     }
 
-    constructor(ip) {
+    constructor(ip, session) {
         super();
         this.ip = ip;
+        this.session = session;
         this.setMaxListeners(50);
         this._rolls = new Map();
         this.athleteId = null;
         this.watching = -1;
-        this.monitorGarminLiveTrack('743af309-32ea-4611-870d-204c16d3540f');
+        this.monitorGarminLiveTrack();
     }
 
-    async monitorGarminLiveTrack(session) {
+    async monitorGarminLiveTrack() {
         let from = 0;
         while (true) {
-            const r = await fetch(`https://livetrack.garmin.com/services/session/${session}/trackpoints?from=${from}`);
+            const r = await fetch(`https://livetrack.garmin.com/services/session/${this.session}/trackpoints?from=${from}`);
             if (!r.ok) {
                 throw new Error('http error: ' + r.status);
             }
@@ -154,9 +155,3 @@ class Sauce4ZwiftMonitor extends EventEmitter {
         return Object.fromEntries(Object.entries(raw).filter(([k]) => !k.startsWith('_')));
     }
 }
-
-
-export default {
-    Sauce4ZwiftMonitor,
-    getCapturePermission: () => void 0,
-};

@@ -475,7 +475,14 @@ async function main() {
         installPrompt.loadFile(path.join(pagePath, 'npcap-install.html'));
         return;
     }
-    const monitor = await game.Sauce4ZwiftMonitor.factory();
+    let monitor;
+    if (process.argv.includes('--garmin-live-track')) {
+        const session = process.argv.find((x, i) => i && process.argv[i - 1] == '--garmin-live-track');
+        const garminLiveTrack = await import('./garmin_live_track.mjs');
+        monitor = await garminLiveTrack.Sauce4ZwiftMonitor.factory(session);
+    } else {
+        monitor = await game.Sauce4ZwiftMonitor.factory();
+    }
     rpc.register('getMonitorIP', () => monitor.ip);
     try {
         await monitor.start();
