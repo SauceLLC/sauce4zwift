@@ -42,7 +42,6 @@ publish: $(BUILD)
 webdeps:
 	cp node_modules/billboard.js/dist/billboard.pkgd.min.js pages/deps/src/billboard.js
 	cp node_modules/billboard.js/dist/billboard.css pages/deps/css/
-	cp node_modules/billboard.js/dist/theme/* pages/deps/css/
 
 sass:
 	$(NPATH)/sass pages/scss:pages/css
@@ -57,8 +56,9 @@ lint-watch:
 	done
 
 clean:
-	rm -rf pages/deps/src/*
-	rm -rf pages/deps/css/*
+	rm -rf pages/deps/src
+	rm -rf pages/deps/css
+	mkdir -p pages/deps/src pages/deps/css
 	rm $(BUILD)
 
 .PHONY: build pack publish lint sass webdeps clean

@@ -1,3 +1,4 @@
+/* global bb */
 import sauce from '../../shared/sauce/index.mjs';
 import common from './common.mjs';
 
@@ -359,6 +360,125 @@ export async function main() {
                 unit: () => '%',
             }],
         });
+        const chartData = {
+            pace: [],
+            hr: [],
+            power: [],
+        };
+        const scalePlugin = new MultiScalePlugin({
+            scales: [{
+                id: 'power',
+                origin: 'y',
+                domain: [0, 700],
+            }, {
+                id: 'hr',
+                origin: 'y',
+                domain: [0, 200],
+            }, {
+                id: 'pace',
+                origin: 'y',
+                domain: [0, 100],
+            }],
+        });
+        const chart = bb.generate({
+            plugins: [scalePlugin],
+            data: {
+                columns: [['pace'], ['hr'], ['power']],
+                type: 'area',
+                colors: {
+                    power: '#46f',
+                    hr: '#e22',
+                    pace: '#4e3',
+                },
+                names: {
+                    power: 'Power',
+                    hr: 'HR',
+                    pace: 'Pace',
+                },
+                order: 'asc',
+            },
+            area: {
+                linearGradient: true,
+            },
+            point: {
+                focus: {
+                    only: true,
+                },
+            },
+            legend: {
+                show: true,
+                position: 'left',
+                padding: 0,
+            },
+            axis: {
+                x: {
+                    tick: {
+                        outer: false,
+                        show: false,
+                        text: {
+                            show: false,
+                        },
+                    },
+                },
+                y: {
+                    tick: {
+                        outer: false,
+                        show: false,
+                        text: {
+                            show: false,
+                        },
+                    },
+                },
+            },
+            tooltip: {
+                format: {
+                    value: (value, ratio, id) => {
+                        const func = {
+                            power: x => H.power(x, {suffix: true}),
+                            hr: x => H.number(x) + 'bpm',
+                            pace: x => H.pace(x, {precision: 0, suffix: true}),
+                        }[id];
+                        return func(value);
+                    },
+                },
+            },
+            padding: {
+                left: 0,
+                right: 2,
+                bottom: -10,
+            },
+            bindto: screen.querySelector('.chart-holder'),
+        });
+        let lastRender = 0;
+        renderer.addCallback((data) => {
+            const now = Date.now();
+            if (now - lastRender < 900) {
+                //return;
+            }
+            lastRender = now;
+            if (data) {
+                chartData.power.push(data.power || 0);
+                chartData.hr.push(data.heartrate || 0);
+                chartData.pace.push(data.speed || 0);
+                if (chartData.power.length > 60) {
+                    chartData.power.shift();
+                    chartData.hr.shift();
+                    chartData.pace.shift();
+                }
+            }
+            chart.load({
+                columns: Object.entries(chartData).map(([k, data]) => [k, ...data]),
+            });
+            const maxPower = sauce.data.max(chartData.power);
+            const maxPIndex = chartData.power.indexOf(maxPower);
+            scalePlugin.setDomain('power', [0, Math.max((maxPower + 100), 700)]); 
+            scalePlugin.setDomain('hr', [0, Math.max((sauce.data.max(chartData.hr) + 10), 200)]); 
+            scalePlugin.setDomain('pace', [0, Math.max((sauce.data.max(chartData.pace) + 10), 100)]); 
+            chart.xgrids(maxPIndex !== -1 ? [{
+                value: maxPIndex,
+                text: `Max: ${H.power(chartData.power[maxPIndex], {suffix: true})}`,
+            }] : []);
+        });
         renderer.render();
     }
     const prevBtn = document.querySelector('.button-bar .button.prev-screen');
@@ -434,6 +554,63 @@ export async function main() {
             x.render({force});
         }
     });
+}
+
+
+class MultiScalePlugin {
+	constructor({scales}) {
+		this.$$ = undefined;
+        this.scalesConfig = scales;
+        this.scales = new Map();
+	}
+
+	$beforeInit() {
+        const updateScales = this.$$.updateScales;
+        this.$$.updateScales = this.updateScales.bind(this, updateScales);
+        const getYScaleById = this.$$.getYScaleById;
+        this.$$.getYScaleById = this.getYScaleById.bind(this, getYScaleById);
+    }
+
+	$init() { }
+
+	$afterInit() { }
+
+    setDomain(id, domain) {
+        if (this.scales.has(id)) {
+            this.scales.get(id).domain(domain);
+        } else {
+            console.warn("early bird");
+        }
+    }
+
+    updateScales(superFn, ...args) {
+        superFn.call(this.$$, ...args);
+        this.scales.clear();
+        for (const x of this.scalesConfig) {
+            const originScale = this.$$.scale[x.origin];
+            const scale = originScale.copy();
+            if (x.domain) {
+                scale.domain(x.domain);
+            }
+            this.scales.set(x.id, scale);
+        }
+    }
+
+    getYScaleById(superFn, id, isSub) {
+        if (this.scales.has(id)) {
+            return this.scales.get(id);
+        } else {
+            return superFn.call(this.$$, id, isSub);
+        }
+    }
+
+	$redraw(context, transitionDuration) { }
+
+	$willDestroy() {
+        for (const key of Object.keys(this)) {
+			delete this[key];
+		}
+	}
 }
 
 

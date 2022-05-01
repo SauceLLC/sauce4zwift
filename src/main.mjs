@@ -480,9 +480,10 @@ async function main() {
     if (process.argv.includes('--garmin-live-track')) {
         const session = process.argv.find((x, i) => i && process.argv[i - 1] == '--garmin-live-track');
         const garminLiveTrack = await import('./garmin_live_track.mjs');
-        monitor = await garminLiveTrack.Sauce4ZwiftMonitor.factory(session);
+        monitor = await garminLiveTrack.Sauce4ZwiftMonitor.factory({session});
     } else {
-        monitor = await game.Sauce4ZwiftMonitor.factory();
+        const fakeData = process.argv.includes('--fake-data');
+        monitor = await game.Sauce4ZwiftMonitor.factory({fakeData});
     }
     rpc.register('getMonitorIP', () => monitor.ip);
     try {

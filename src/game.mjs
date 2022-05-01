@@ -181,15 +181,16 @@ function getLocalRoutedIface(ip) {
 
 export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
 
-    static async factory() {
+    static async factory({fakeData}={}) {
         const ip = await getLocalRoutedIP();
         const iface = getLocalRoutedIface(ip);
-        return new this(iface, ip);
+        return new this(iface, ip, fakeData);
     }
 
-    constructor(iface, ip) {
+    constructor(iface, ip, fakeData) {
         super(iface);
         this.ip = ip;
+        this._useFakeData = fakeData
         this.setMaxListeners(50);
         this._rolls = new Map();
         this._roadHistory = new Map();
@@ -513,6 +514,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         state.heading = headingConv(state._heading);  // degrees
         state.speed = state._speed / 1000000;  // km/h
         state.cadence = state._cadenceUHz ? state._cadenceUHz / 1000000 * 60 : null;  // rpm
+    //console.debug("Wait why do we have two distances?", state._distance, state.distance);
         state.distance = state._distance / 100;  // cm -> meters
         const roadCompletion = state.roadLocation;
         state.roadCompletion = !state.reverse ? 1000000 - roadCompletion : roadCompletion;
@@ -592,7 +594,11 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             this.athletesDB = getDB();
         }
         this.getAthleteStmt = this.athletesDB.prepare('SELECT data FROM athletes WHERE id = ?');
-        super.start();
+        if (!this._useFakeData) {
+            super.start();
+        } else {
+            this._fakeDataGenerator();
+        }
         this._nearbyJob = this.nearbyProcessor();
     }
 
@@ -603,6 +609,32 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             await this._nearbyJob;
         } finally {
             this._nearybyJob = null;
+        }
+    }
+
+    async _fakeDataGenerator() {
+        const IncomingPacket = ZwiftPacketMonitor.IncomingPacket;
+        const OutgoingPacket = ZwiftPacketMonitor.OutgoingPacket;
+        while (this._active) {
+            try {
+                const packet = OutgoingPacket.fromObject({
+                    athleteId: -1,
+                    worldTime: Date.now() - worldTimeOffset,
+                    state: {
+                        athleteId: -1,
+                        _worldTime: Date.now() - worldTimeOffset,
+                        watchingAthleteId: -1,
+                        power: Math.round(250 + 250 * Math.sin(Date.now() / 10000)),
+                        heartrate: Math.round(150 + 50 * Math.cos(Date.now() / 10000)),
+                        _speed: Math.round(30 + 25 * Math.sin(Date.now() / 15000)) * 1000000,
+                        _cadenceUHz: Math.round(50 + 50 * Math.sin(Date.now() / 15000)) / 60 * 1000000,
+                    }
+                });
+                this.onOutgoing(packet);
+            } catch(e) {
+                debugger;
+            }
+            await sleep(200);
         }
     }
 
