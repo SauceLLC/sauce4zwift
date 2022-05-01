@@ -99,18 +99,54 @@
             }
 
 
+            function bigIntVersion(v) {
+                const ints = v.split('.').map(BigInt);
+                if (ints.length > 4) {
+                    throw new TypeError("Invalid version format: " + v);
+                }
+                let n = BigInt(0);
+                const bits = 10;  // 1024 max revisions for each.
+                for (let i = 0; i < ints.length; i++) {
+                    const x = ints[i];
+                    if (x > 1 << bits) {
+                        throw new TypeError("Invalid version element: " + x);
+                    }
+                    n |= ints[i] << BigInt((3 - i) * bits);
+                }
+                return n;
+            }
+
+
             async function main() {
                 const [lastVersion, version] = await Promise.all([
                     common.rpc('getAppSetting', 'lastVersion'),
                     common.rpc('getVersion'),
                 ]);
-                if (lastVersion !== version) {
+                const updated = lastVersion !== version;
+                if (updated) {
                     document.querySelector('.from-version').textContent = fakeSHU(lastVersion);
                     document.querySelector('.to-version').textContent = fakeSHU(version);
                     document.documentElement.classList.add('updated');
                 }
                 let notes = await notesPromise;
+                if (updated) {
+                    const prevBigVer = bigIntVersion(lastVersion);
+                    notes = notes.filter(x => bigIntVersion(x.version) > prevBigVer);
+                }
                 const frag = document.createDocumentFragment();
+                if (!notes.length) {
+                    notes.push({
+                        version,
+                        ts: Date.now(),
+                        notes: [{
+                            html: "<b>Absolutely nothing!!!</b>",
+                            children: [
+                                "Apparantly updates so incredibly important that Justin didn't bother to " +
+                                "create release notes for this version.  Carry on, nothing to see here..."
+                            ]
+                        }]
+                    });
+                }
                 for (const x of notes.reverse()) {
                     if (x.private) {
                         continue;
