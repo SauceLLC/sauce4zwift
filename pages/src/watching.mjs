@@ -453,7 +453,7 @@ export async function main() {
         renderer.addCallback((data) => {
             const now = Date.now();
             if (now - lastRender < 900) {
-                //return;
+                return;
             }
             lastRender = now;
             if (data) {

@@ -190,7 +190,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     constructor(iface, ip, fakeData) {
         super(iface);
         this.ip = ip;
-        this._useFakeData = fakeData
+        this._useFakeData = fakeData;
         this.setMaxListeners(50);
         this._rolls = new Map();
         this._roadHistory = new Map();
@@ -613,7 +613,6 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     }
 
     async _fakeDataGenerator() {
-        const IncomingPacket = ZwiftPacketMonitor.IncomingPacket;
         const OutgoingPacket = ZwiftPacketMonitor.OutgoingPacket;
         while (this._active) {
             try {
