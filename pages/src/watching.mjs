@@ -365,6 +365,8 @@ export async function main() {
             hr: [],
             power: [],
         };
+        const hiddenKey = `watching-hidden-graph-p${i}`;
+        const hidden = new Set(common.storage.get(hiddenKey, []));
         const scalePlugin = new MultiScalePlugin({
             scales: [{
                 id: 'power',
@@ -373,29 +375,31 @@ export async function main() {
             }, {
                 id: 'hr',
                 origin: 'y',
-                domain: [0, 200],
+                domain: [80, 200],
             }, {
                 id: 'pace',
                 origin: 'y',
                 domain: [0, 100],
             }],
         });
+        const names = {
+            power: 'Power',
+            hr: 'HR',
+            pace: 'Pace',
+        };
+        const colors = {
+            power: '#46f',
+            hr: '#e22',
+            pace: '#4e3',
+        };
         const chart = bb.generate({
             plugins: [scalePlugin],
             data: {
                 columns: [['pace'], ['hr'], ['power']],
+                hide: Array.from(hidden),
                 type: 'area',
-                colors: {
-                    power: '#46f',
-                    hr: '#e22',
-                    pace: '#4e3',
-                },
-                names: {
-                    power: 'Power',
-                    hr: 'HR',
-                    pace: 'Pace',
-                },
-                order: 'asc',
+                names,
+                colors,
             },
             area: {
                 linearGradient: true,
@@ -406,9 +410,8 @@ export async function main() {
                 },
             },
             legend: {
-                show: true,
-                position: 'left',
-                padding: 0,
+                show: false,
+                hide: true,
             },
             axis: {
                 x: {
@@ -421,6 +424,7 @@ export async function main() {
                     },
                 },
                 y: {
+                    show: false,
                     tick: {
                         outer: false,
                         show: false,
@@ -445,9 +449,31 @@ export async function main() {
             padding: {
                 left: 0,
                 right: 2,
-                bottom: -10,
+                bottom: -20,
             },
             bindto: screen.querySelector('.chart-holder'),
+        });
+        const legend = screen.querySelector('.s-chart-legend');
+        legend.innerHTML = Object.entries(names).map(([id, name]) => `
+            <div class="s-legend-item ${hidden.has(id) ? 'hidden' : ''}" data-id="${id}">
+                <div class="color" style="background-color: ${colors[id]};"></div>
+                <div class="label">${name}</div>
+            </div>
+        `).join('\n');
+        legend.addEventListener('click', ev => {
+            const item = ev.target.closest('.s-legend-item[data-id]');
+            if (!item) {
+                return;
+            }
+            const id = item.dataset.id;
+            chart.toggle(id);
+            item.classList.toggle('hidden');
+            if (hidden.has(id)) {
+                hidden.delete(id);
+            } else {
+                hidden.add(id);
+            }
+            common.storage.set(hiddenKey, Array.from(hidden));
         });
         let lastRender = 0;
         renderer.addCallback((data) => {
@@ -471,9 +497,12 @@ export async function main() {
             });
             const maxPower = sauce.data.max(chartData.power);
             const maxPIndex = chartData.power.indexOf(maxPower);
-            scalePlugin.setDomain('power', [0, Math.max((maxPower + 100), 700)]); 
-            scalePlugin.setDomain('hr', [0, Math.max((sauce.data.max(chartData.hr) + 10), 200)]); 
-            scalePlugin.setDomain('pace', [0, Math.max((sauce.data.max(chartData.pace) + 10), 100)]); 
+            scalePlugin.setDomain('power', [0, Math.max((maxPower + 100), 700)]);
+            scalePlugin.setDomain('hr', [
+                Math.min(80, sauce.data.min(chartData.hr)),
+                Math.max((sauce.data.max(chartData.hr) + 10), 200)
+            ]);
+            scalePlugin.setDomain('pace', [0, Math.max((sauce.data.max(chartData.pace) + 10), 100)]);
             chart.xgrids(maxPIndex !== -1 ? [{
                 value: maxPIndex,
                 text: `Max: ${H.power(chartData.power[maxPIndex], {suffix: true})}`,
