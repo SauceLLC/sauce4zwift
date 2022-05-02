@@ -511,19 +511,23 @@ async function main() {
         const {win, activeSubs} = windows.get(ev.sender);
         const sendMessage = data => win.webContents.send('browser-message', {domEvent, data});
         // NOTE: MacOS emits show/hide AND restore/minimize but Windows only does restore/minimize
-        const enableEvents = ['responsive', 'show', 'restore'];
+        const resumeEvents = ['responsive', 'show', 'restore'];
         const disableEvents = ['unresponsive', 'hide', 'minimize', 'close'];
         const listeners = [];
-        function enable(source) {
+        function resume(source) {
             if (!activeSubs.has(event)) {
-                console.debug("Enable subscription:", event, domEvent, source);
+                if (source) {
+                    console.debug("Resume subscription:", event, domEvent, source);
+                } else {
+                    console.debug("Startup subscription:", event, domEvent);
+                }
                 monitor.on(event, sendMessage);
                 activeSubs.add(event);
             }
         }
-        function disable(source) {
+        function suspend(source) {
             if (activeSubs.has(event)) {
-                console.debug("Disable subscription:", event, domEvent, source);
+                console.debug("Suspending subscription:", event, domEvent, source);
                 monitor.off(event, sendMessage);
                 activeSubs.delete(event);
             }
@@ -540,19 +544,19 @@ async function main() {
             activeSubs.clear();
         }
         if (win.isVisible() && !win.isMinimized()) {
-            enable('startup');
+            resume();
         }
         const shutdownEvents = ['destroyed', 'did-start-loading'];
         for (const x of shutdownEvents) {
             win.webContents.once(x, shutdown);
         }
-        for (const x of enableEvents) {
-            const cb = ev => enable(x, ev);
+        for (const x of resumeEvents) {
+            const cb = ev => resume(x, ev);
             win.on(x, cb);
             listeners.push([x, cb]);
         }
         for (const x of disableEvents) {
-            const cb = ev => disable(x, ev);
+            const cb = ev => suspend(x, ev);
             win.on(x, cb);
             listeners.push([x, cb]);
         }
