@@ -28,7 +28,7 @@ function successReply(value) {
 
 export async function invoke(name, ...args) {
     try {
-        return successReply(await _invoke(name, ...args));
+        return successReply(await _invoke.call(this, name, ...args));
     } catch(e) {
         return errorReply(e);
     }
@@ -40,7 +40,7 @@ async function _invoke(name, ...args) {
         throw new Error('Invalid handler name: ' + name);
     } else {
         const fn = handlers.get(name);
-        return await fn(...args);
+        return await fn.call(this, ...args);
     }
 }
 
@@ -51,5 +51,5 @@ export function register(name, fn) {
 
 
 app.whenReady().then(() => {
-    ipcMain.handle('__rpc__', (ev, name, ...args) => invoke(name, ...args));
+    ipcMain.handle('__rpc__', (ev, name, ...args) => invoke.call(ev.sender, name, ...args));
 });

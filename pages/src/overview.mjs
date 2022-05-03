@@ -1,5 +1,5 @@
 import sauce from '../../shared/sauce/index.mjs';
-import common from './common.mjs';
+import * as common from './common.mjs';
 
 const L = sauce.locale;
 const H = L.human;
@@ -22,7 +22,7 @@ export async function main() {
         leftFields: 2,
         rightFields: 2,
         lockedFields: false,
-        autoHideWindows: common.isElectron ? true : false,
+        autoHideWindows: window.isElectron ? true : false,
         centerGapSize: 0,
     });
     document.documentElement.style.setProperty('--center-gap-size', settings.centerGapSize + 'px');
@@ -58,7 +58,7 @@ export async function main() {
     });
     document.querySelector('.button.show').addEventListener('click', () => {
         document.documentElement.classList.remove('hidden');
-        if (common.isElectron) {
+        if (window.isElectron) {
             document.documentElement.classList.remove('auto-hidden');
             autoHidden = false;
             common.rpc('showAllWindows');
@@ -66,13 +66,13 @@ export async function main() {
     });
     document.querySelector('.button.hide').addEventListener('click', () => {
         document.documentElement.classList.add('hidden');
-        if (common.isElectron) {
+        if (window.isElectron) {
             document.documentElement.classList.remove('auto-hidden');
             autoHidden = false;
             common.rpc('hideAllWindows');
         }
     });
-    if (common.isElectron) {
+    if (window.isElectron) {
         document.querySelector('.button.quit').addEventListener('click', () => common.rpc('quit'));
     }
 
@@ -92,12 +92,12 @@ export async function main() {
     }
 
     const autoHideWait = 2500;
-    if (common.isElectron && settings.autoHideWindows) {
+    if (window.isElectron && settings.autoHideWindows) {
         autoHideTimeout = setTimeout(autoHide, autoHideWait);
     }
     let lastUpdate = 0;
     common.subscribe('watching', watching => {
-        if (common.isElectron && settings.autoHideWindows &&
+        if (window.isElectron && settings.autoHideWindows &&
             (watching.speed || watching.cadence || watching.power)) {
             clearTimeout(autoHideTimeout);
             if (autoHidden) {

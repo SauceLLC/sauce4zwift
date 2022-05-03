@@ -1,5 +1,5 @@
 import sauce from '../../shared/sauce/index.mjs';
-import common from './common.mjs';
+import * as common from './common.mjs';
 
 const nearby = new Map();
 const settingsKey = 'chat-settings-v2';

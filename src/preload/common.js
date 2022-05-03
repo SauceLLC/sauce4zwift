@@ -1,4 +1,4 @@
-const {ipcRenderer} = require('electron');
+const {ipcRenderer, contextBridge} = require('electron');
 
 // Electron -> Browser Window
 ipcRenderer.on('browser-message', (_, o) =>
@@ -25,3 +25,7 @@ document.addEventListener('electron-rpc', async ev => {
     }
     document.dispatchEvent(new CustomEvent(ev.detail.domEvent, {detail: resp}));
 });
+
+const context = ipcRenderer.sendSync('getWindowContextSync');
+contextBridge.exposeInMainWorld('electron', {context});
+contextBridge.exposeInMainWorld('isElectron', true);

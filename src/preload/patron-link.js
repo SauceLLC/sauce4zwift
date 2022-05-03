@@ -1,4 +1,4 @@
-const {ipcRenderer} = require('electron');
+const {ipcRenderer, contextBridge} = require('electron');
 
 // Browser Window -> Electron RPC
 document.addEventListener('electron-rpc', async ev => {
@@ -66,3 +66,6 @@ document.addEventListener('DOMContentLoaded', () => {
 // proper internal page immediately.
 document.addEventListener('patreon-auth-code', ev =>
     void ipcRenderer.send('patreon-auth-code', ev.detail));
+
+contextBridge.exposeInMainWorld('isElectron', true);
+contextBridge.exposeInMainWorld('electron', {context: {id: 'patron-link', type: null}});

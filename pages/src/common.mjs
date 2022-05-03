@@ -4,13 +4,10 @@ import {sleep} from '../../shared/sauce/base.mjs';
 import {beforeSentrySend, captureExceptionOnce, setSentry} from '../../shared/sentry-util.mjs';
 import './sentry.js';
 
-const isElectron = location.protocol === 'file:';
+export let subscribe;
+export let rpc;
 
-let closeWindow;
-let electronTrigger;
-let subscribe;
-let rpc;
-
+let windowID;
 
 function makeRPCError(errResp) {
     const e = new Error(`${errResp.error.name}: ${errResp.error.message}`);
@@ -19,21 +16,18 @@ function makeRPCError(errResp) {
 }
 
 
-if (isElectron) {
+if (window.isElectron) {
+    windowID = window.electron.context.id;
     document.documentElement.classList.add('electron-mode');
-    electronTrigger = function(name, data) {
+    const sendToElectron = function(name, data) {
         document.dispatchEvent(new CustomEvent('electron-message', {detail: {name, data}}));
-    };
-
-    closeWindow = function() {
-        electronTrigger('close');
     };
 
     let evId = 1;
     subscribe = function(event, callback) {
         const domEvent = `sauce-${event}-${evId++}`;
         document.addEventListener(domEvent, ev => void callback(ev.detail));
-        electronTrigger('subscribe', {event, domEvent});
+        sendToElectron('subscribe', {event, domEvent});
     };
 
     rpc = async function(name, ...args) {
@@ -59,15 +53,11 @@ if (isElectron) {
         }
     });
 } else {
+    windowID = new URLSearchParams(location.search).get('id') || 'browser-def-id';
     document.documentElement.classList.add('browser-mode');
     const respHandlers = new Map();
     const subs = [];
     let uidInc = 1;
-
-    closeWindow = function() {
-        console.warn("XXX unlikely");
-        window.close(); // XXX probably won't work
-    };
 
     let errBackoff = 500;
     let wsp;
@@ -157,7 +147,8 @@ if (isElectron) {
     };
 }
 
-function initInteractionListeners(options={}) {
+
+export function initInteractionListeners(options={}) {
     const html = document.documentElement;
     if (!html.classList.contains('settings-mode')) {
         window.addEventListener('contextmenu', ev => {
@@ -174,7 +165,7 @@ function initInteractionListeners(options={}) {
     }
     const close = document.querySelector('#titlebar .button.close');
     if (close) {
-        close.addEventListener('click', ev => (void closeWindow()));
+        close.addEventListener('click', ev => rpc('closeWindow'));
     }
     for (const el of document.querySelectorAll('.button[data-url]')) {
         el.addEventListener('click', ev => location.assign(el.dataset.url));
@@ -184,7 +175,7 @@ function initInteractionListeners(options={}) {
     }
     if (options.settingsKey) {
         window.addEventListener('storage', ev => {
-            if (ev.key === options.settingsKey) {
+            if (ev.key === storagePrefix + options.settingsKey) {
                 const event = new Event('settings-updated');
                 event.data = JSON.parse(ev.newValue);
                 document.dispatchEvent(event);
@@ -201,7 +192,7 @@ function initInteractionListeners(options={}) {
 }
 
 
-class Renderer {
+export class Renderer {
     constructor(contentEl, options={}) {
         this._contentEl = contentEl;
         this._callbacks = [];
@@ -264,7 +255,7 @@ class Renderer {
         if (idx < 0) {
             idx = field.available.length - 1;
         }
-        localStorage.setItem(field.storageKey, idx);
+        storage.set(field.storageKey, idx);
         field.active = field.available[idx];
         console.debug('Switching field', id, idx);
         this.render({force: true});
@@ -279,7 +270,7 @@ class Renderer {
                 id,
                 storageKey,
                 available: spec.fields,
-                active: spec.fields[localStorage.getItem(storageKey) || x.default] || spec.fields[0],
+                active: spec.fields[storage.get(storageKey) || x.default] || spec.fields[0],
                 valueEl: el.querySelector('.value'),
                 labelEl: el.querySelector('.label'),
                 subLabelEl: el.querySelector('.sub-label'),
@@ -382,9 +373,10 @@ class Renderer {
 }
 
 
-const storage = {
+const storagePrefix = `${windowID}-`;
+export const storage = {
     get: (k, def) => {
-        const v = localStorage.getItem(k);
+        const v = localStorage.getItem(storagePrefix + k);
         if (typeof v !== 'string') {
             if (def !== undefined) {
                 storage.set(k, def);
@@ -396,17 +388,17 @@ const storage = {
     },
     set: (k, v) => {
         if (v === undefined) {
-            localStorage.removeItem(k);
+            localStorage.removeItem(storagePrefix + k);
         } else {
             const json = JSON.stringify(v);
             if (typeof json !== 'string') {
                 throw new TypeError('Non JSON serializable value');
             }
-            localStorage.setItem(k, json);
+            localStorage.setItem(storagePrefix + k, json);
         }
     },
     delete: k => {
-        localStorage.removeItem(k);
+        localStorage.removeItem(storagePrefix + k);
     }
 };
 
@@ -478,7 +470,7 @@ async function bindFormData(selector, storageIface, options={}) {
 }
 
 
-async function initAppSettingsForm(selector, options={}) {
+export async function initAppSettingsForm(selector, options={}) {
     const extraData = options.extraData;
     const storageIface = {
         get: async name => {
@@ -495,7 +487,7 @@ async function initAppSettingsForm(selector, options={}) {
 }
 
 
-async function initSettingsForm(selector, options={}) {
+export async function initSettingsForm(selector, options={}) {
     const settingsKey = options.settingsKey;
     const extraData = options.extraData;
     if (!settingsKey) {
@@ -529,19 +521,6 @@ async function initSettingsForm(selector, options={}) {
     await bindFormData(selector, storageIface);
 }
  
-
-export default {
-    closeWindow,
-    subscribe,
-    rpc,
-    initInteractionListeners,
-    Renderer,
-    storage,
-    initAppSettingsForm,
-    initSettingsForm,
-    isElectron,
-};
-
 
 rpc('getVersion').then(v => Sentry.setTag('version', v));
 rpc('getSentryAnonId').then(id => Sentry.setUser({id}));

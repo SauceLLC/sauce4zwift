@@ -72,7 +72,7 @@
         </style>
 
         <script type="module">
-            import common from './src/common.mjs';
+            import * as common from './src/common.mjs';
 
             const notesPromise = fetch('https://saucellc.io/products/sauce4zwift/release_notes.json').then(r => r.json());
             //const notesPromise = fetch('https://saucellc.io/release_notes.json').then(r => r.json());

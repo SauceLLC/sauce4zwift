@@ -70,36 +70,73 @@ const appSettingDefaults = {
     webServerPort: 1080,
 };
 
+const windowManifests = [{
+    type: 'overview',
+    page: 'overview.html',
+    private: true,
+    options: {relWidth: 0.6, height: 40, relX: 0.2, y: 0},
+    hideable: false,
+}, {
+    type: 'watching',
+    page: 'watching.html',
+    options: {relWidth: 0.18, aspectRatio: 1},
+}, {
+    type: 'groups',
+    page: 'groups.html',
+    options: {relWidth: 0.15, relHeight: 0.65},
+}, {
+    type: 'chat',
+    page: 'chat.html',
+    options: {relWidth: 0.18, aspectRatio: 2},
+}, {
+    type: 'nearby',
+    page: 'nearby.html',
+    options: {width: 800, height: 400, center: true},
+    overlay: false,
+}];
+rpc.register('getWindowManifests', () => windowManifests);
+
+const defaultWindows = [{
+    id: 'default-overview-1',
+    type: 'overview',
+}, {
+    id: 'default-watching-1',
+    type: 'watching',
+    options: {x: 8, y: 64},
+}, {
+    id: 'default-groups-1',
+    type: 'groups',
+    options: {x: -280, y: -10},
+}, {
+    id: 'default-chat-1',
+    type: 'chat',
+    options: {x: 320, y: 230},
+}];
+
 const appSettingsKey = 'app-settings';
 // NEVER use app.getAppPath() it uses asar for universal builds
 const appPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const pagePath = path.join(appPath, 'pages');
 const appIcon = electron.nativeImage.createFromPath(path.join(appPath,
     'build/images/app-icon.icos'));
-const windows = new Map();
+const activeWindows = new Map();
 // Use non-electron naming for windows updater.
 // https://github.com/electron-userland/electron-builder/issues/2700
 electron.app.setAppUserModelId('io.saucellc.sauce4zwift'); // must match build.appId for windows
-
-
-let _appSettings;
-export function getAppSetting(key) {
-    if (!_appSettings) {
-        _appSettings = storage.load(appSettingsKey) || {...appSettingDefaults};
-    }
-    return _appSettings[key];
+if (electron.app.dock) {
+    electron.app.dock.setIcon(appIcon);
 }
-
-
-export function setAppSetting(key, value) {
-    if (!_appSettings) {
-        _appSettings = storage.load(appSettingsKey) || {...appSettingDefaults};
+electron.app.on('window-all-closed', () => {
+    if (started) {
+        electron.app.quit();
     }
-    _appSettings[key] = value;
-    storage.save(appSettingsKey, _appSettings);
-    electron.app.emit('app-setting-change', key, value);
-}
-
+});
+electron.app.on('activate', async () => {
+    // Clicking on the app icon..
+    if (electron.BrowserWindow.getAllWindows().length === 0) {
+        openAllWindows();
+    }
+});
 electron.app.on('app-setting-change', async (key, value) => {
     if (key === 'disableGPU') {
         const disableGPUFile = path.join(electron.app.getPath('userData'), 'disabled-gpu');
@@ -110,9 +147,53 @@ electron.app.on('app-setting-change', async (key, value) => {
         }
     }
 });
+electron.app.on('before-quit', () => {
+    appQuiting = true;
+    Sentry.flush();
+});
+electron.ipcMain.on('getWindowContextSync', ev => {
+    let returnValue = {
+        id: null,
+        type: null,
+    };
+    try {
+        const o = activeWindows.get(ev.sender);
+        if (o) {
+            returnValue = {
+                id: o.spec.id,
+                type: o.spec.type,
+            };
+        }
+    } finally {
+        ev.returnValue = returnValue; // MUST set otherwise page blocks.
+    }
+});
 
+
+let _appSettings;
+export function getAppSetting(key, def) {
+    if (!_appSettings) {
+        _appSettings = storage.load(appSettingsKey) || {...appSettingDefaults};
+    }
+    if (!Object.prototype.hasOwnProperty.call(_appSettings, key) && def !== undefined) {
+        _appSettings[key] = def;
+        storage.save(appSettingsKey, _appSettings);
+    }
+    return _appSettings[key];
+}
 rpc.register('getAppSetting', getAppSetting);
+
+
+export function setAppSetting(key, value) {
+    if (!_appSettings) {
+        _appSettings = storage.load(appSettingsKey) || {...appSettingDefaults};
+    }
+    _appSettings[key] = value;
+    storage.save(appSettingsKey, _appSettings);
+    electron.app.emit('app-setting-change', key, value);
+}
 rpc.register('setAppSetting', setAppSetting);
+
 rpc.register('appIsPackaged', () => electron.app.isPackaged);
 rpc.register('getVersion', () => pkg.version);
 rpc.register('getMonitorIP', () => pkg.version);
@@ -127,89 +208,179 @@ rpc.register('quit', () => {
     appQuiting = true;
     electron.app.quit();
 });
-rpc.register('hideAllWindows', (options={}) => {
-    const autoHide = options.autoHide;
-    for (const {win, state, options} of windows.values()) {
-        if (options.hideable !== false && !state.hidden && (options.autoHide !== false || !autoHide)) {
+rpc.register('hideAllWindows', () => {
+    for (const {win, spec} of activeWindows.values()) {
+        if (spec.hideable !== false && spec.overlay !== false) {
             win.hide();
         }
     }
 });
-rpc.register('showAllWindows', (options={}) => {
-    const autoHide = options.autoHide;
-    for (const {win, state, options} of windows.values()) {
-        if (options.hideable !== false && !state.hidden && (options.autoHide !== false || !autoHide)) {
+rpc.register('showAllWindows', () => {
+    for (const {win, spec} of activeWindows.values()) {
+        if (spec.hideable !== false && spec.overlay !== false) {
             win.show();
         }
     }
 });
+rpc.register('closeWindow', function() {
+    const {win, spec} = activeWindows.get(this);
+    console.debug('Window close requested:', spec.id);
+    win.close();
+});
+rpc.register('minimizeWindow', function() {
+    const {win, spec} = activeWindows.get(this);
+    console.debug('Window close requested:', spec.id);
+    win.minimize();
+});
 
 
-function getWindowState(page) {
-    const id = page.split('.')[0];
-    return storage.load(`window-${id}`);
+
+let _windows;
+function getWindows() {
+    if (!_windows) {
+        _windows = storage.load('windows');
+        if (!_windows) {
+            _windows = {};
+            for (const x of defaultWindows) {
+                createWindow(x);
+            }
+        }
+    }
+    return _windows;
+}
+rpc.register('getWindows', getWindows);
+
+
+function setWindows(wins) {
+    _windows = wins;
+    storage.save('windows', _windows);
 }
 
 
-function setWindowState(page, data) {
-    const id = page.split('.')[0];
-    storage.save(`window-${id}`, data);
+function getWindow(id) {
+    return getWindows()[id];
 }
+rpc.register('getWindow', getWindow);
 
 
-function makeFloatingWindow(page, options={}, defaultState={}) {
-    const state = getWindowState(page) || defaultState;
-    const winOptions = {
-        icon: appIcon,
+function setWindow(id, data) {
+    const wins = getWindows();
+    wins[id] = data;
+    setWindows(wins);
+}
+rpc.register('setWindow', setWindow);
+
+
+function updateWindow(id, updates) {
+    const w = getWindow(id);
+    Object.assign(w, updates);
+    setWindow(id, w);
+    return w;
+}
+rpc.register('updateWindow', updateWindow);
+
+
+function removeWindow(id) {
+    const wins = getWindows();
+    delete wins[id];
+    setWindows(wins);
+}
+rpc.register('removeWindow', removeWindow);
+
+
+function createWindow({id, type, options, ...state}) {
+    id = id || `user-${type}-${Date.now()}-${Math.round(Math.random() * 1000)}`;
+    const manifest = windowManifests.find(x => x.type === type);
+    setWindow(id, {
+        ...manifest,
+        id,
+        type,
+        options: {...manifest.options, ...options},
+        ...state,
+    });
+    return id;
+}
+rpc.register('createWindow', createWindow);
+
+
+function openWindow(id) {
+    return _openWindow(id, getWindow(id));
+}
+rpc.register('openWindow', openWindow);
+
+
+function _openWindow(id, spec) {
+    const overlayOptions = {
         transparent: true,
         hasShadow: false,
         frame: false,
         roundedCorners: false,  // macos only, we use page style instead.
         alwaysOnTop: true,
-        resizable: true,
         maximizable: false,
         fullscreenable: false,
+    };
+    console.debug("Making window:", id, spec.type);
+    const win = new electron.BrowserWindow({
+        icon: appIcon,
         show: false,
         webPreferences: {
             sandbox: true,
             devTools: !electron.app.isPackaged,
             preload: path.join(appPath, 'src', 'preload', 'common.js'),
         },
-        ...options,
-        ...state,
-    };
-    const win = new electron.BrowserWindow(winOptions);
+        ...(spec.overlay !== false ? overlayOptions : {}),
+        ...spec.options,
+        ...spec.position,
+    });
     if (electron.app.isPackaged) {
         win.removeMenu();
     }
-    const hasPosition = state.x != null && state.y != null && state.width && state.height;
-    if (!hasPosition && (options.relWidth != null || options.relHeight != null ||
-        options.relX != null || options.relY != null || options.x < 0 || options.y < 0)) {
-        const {width: sWidth, height: sHeight} = electron.screen.getPrimaryDisplay().size;
-        const width = options.width == null ? Math.round(options.relWidth * sWidth) : options.width;
-        const height = options.height == null ? Math.round(options.relHeight * sHeight) : options.height;
-        const x = options.x == null ? Math.round(options.relX * sWidth) :
-            options.x < 0 ? sWidth + options.x - width : options.x;
-        const y = options.y == null ? Math.round(options.relY * sHeight) :
-            options.y < 0 ? sHeight + options.y - height : options.y;
+    const opts = spec.options;
+    if (!spec.position && (opts.relWidth != null || opts.relHeight != null ||
+        opts.relX != null || opts.relY != null || opts.x < 0 || opts.y < 0)) {
+        const {width: sWidth, height: sHeight} = electron.screen.getPrimaryDisplay().size; // XXX
+        const width = opts.width != null ?
+            opts.width :
+            Math.round(opts.relWidth * sWidth);
+        const height = opts.height != null ?
+            opts.height :
+            opts.aspectRatio != null ?
+                Math.round(width * opts.aspectRatio) :
+                Math.round(opts.relHeight * sHeight);
+        const x = opts.x == null ?
+            Math.round(opts.relX * sWidth) :
+            opts.x < 0 ?
+                sWidth + opts.x - width :
+                opts.x;
+        const y = opts.y == null ?
+            Math.round(opts.relY * sHeight) :
+            opts.y < 0 ?
+                sHeight + opts.y - height :
+                opts.y;
         win.setSize(width, height);
         win.setPosition(x, y, false);
     }
-    if (winOptions.alwaysOnTop) {
+    if (spec.options.alwaysOnTop) {
         win.setAlwaysOnTop(true, 'screen-saver');
     }
-    windows.set(win.webContents, {win, state, options, activeSubs: new Set()});
-    let closed;
+    activeWindows.set(win.webContents, {win, spec, activeSubs: new Set()});
     win.webContents.on('new-window', (ev, url) => {
         // Popups...
         ev.preventDefault();
         const q = new URLSearchParams((new URL(url)).search);
+        const wHint = Number(q.get('widthHint'));
+        const hHint = Number(q.get('heightHint'));
+        let width, height;
+        if (wHint || hHint) {
+            const {width: sWidth, height: sHeight} = electron.screen.getPrimaryDisplay().size;
+            width = Math.round(sWidth * (wHint || 0.5));
+            height = Math.round(sHeight * (hHint || 0.5));
+        }
         const newWin = new electron.BrowserWindow({
             icon: appIcon,
-            resizable: true,
-            maximizable: true,
-            fullscreenable: true,
             show: false,
+            width,
+            height,
             webPreferences: {
                 sandbox: true,
                 devTools: !electron.app.isPackaged,
@@ -219,84 +390,36 @@ function makeFloatingWindow(page, options={}, defaultState={}) {
         if (electron.app.isPackaged) {
             newWin.removeMenu();
         }
-        const wHint = Number(q.get('widthHint'));
-        const hHint = Number(q.get('heightHint'));
-        if (wHint || hHint) {
-            const {width: sWidth, height: sHeight} = electron.screen.getPrimaryDisplay().size;
-            const width = Math.round(sWidth * (wHint || 0.5));
-            const height = Math.round(sHeight * (hHint || 0.5));
-            newWin.setSize(width, height);
-            newWin.setPosition(Math.round((sWidth - width) / 2), Math.round((sHeight - height) / 2));  // centered
-        }
         newWin.loadURL(url);
         newWin.show();
     });
     let saveStateTimeout;
     function onPositionUpdate() {
-        Object.assign(state, win.getBounds());
+        const position = win.getBounds();
         clearTimeout(saveStateTimeout);
-        saveStateTimeout = setTimeout(() => setWindowState(page, state), 200);
+        saveStateTimeout = setTimeout(() => updateWindow(id, {position}), 200);
     }
-    function onHide(ev) {
-        if (appQuiting || options.hideable === false) {
-            return;
-        }
-        state.hidden = true;
-        setWindowState(page, state);
-    }
-    function onShow(ev) {
-        state.hidden = false;
-        setWindowState(page, state);
-    }
-    function onWindowMessage(name, callback) {
-        electron.ipcMain.on(name, (ev, ...args) => {
-            if (!closed && ev.sender === win.webContents) {
-                callback(ev, ...args);
-            }
-        });
-    }
-    onWindowMessage('close', () => win.minimize());
     win.on('moved', onPositionUpdate);
     win.on('resized', onPositionUpdate);
-    win.on('minimize', onHide);
     win.on('closed', () => {
-        closed = true;
-        windows.delete(win);
-        onHide();
-    });
-    win.on('restore', onShow);
-    win.loadFile(path.join(pagePath, page));
-    if (options.show !== false) {
-        if (state.hidden) {
-            win.minimize();
-        } else {
-            win.show();
+        activeWindows.delete(win);
+        if (!appQuiting) {
+            updateWindow(id, {closed: true});
         }
-    }
+    });
+    win.loadFile(path.join(pagePath, spec.page));
+    win.show();
     return win;
 }
 
 
-function createWindows(monitor) {
-    const nearbyOverlayMode = getAppSetting('nearbyOverlayMode');
-    const nearbyOptions = nearbyOverlayMode ? {} : {alwaysOnTop: false,
-        transparent: false, frame: true, maximizable: true, fullscreenable: true, autoHide: false};
-    makeFloatingWindow('overview.html', {relWidth: 0.6, height: 40, relX: 0.2, y: 0, hideable: false});
-    makeFloatingWindow('watching.html', {width: 260, height: 260, x: 8, y: 64});
-    makeFloatingWindow('groups.html', {width: 235, height: 650, x: -280, y: -10});
-    makeFloatingWindow('chat.html', {width: 280, height: 580, x: 320, y: 230});
-    makeFloatingWindow('nearby.html', {width: 800, height: 400, x: 20, y: 20, ...nearbyOptions}, {hidden: true});
-}
-
-if (electron.app.dock) {
-    electron.app.dock.setIcon(appIcon);
-}
-
-electron.app.on('window-all-closed', () => {
-    if (started) {
-        electron.app.quit();
+function openAllWindows() {
+    for (const [id, spec] of Object.entries(getWindows())) {
+        if (!spec.closed) {
+            _openWindow(id, spec);
+        }
     }
-});
+}
 
 
 function makeCaptiveWindow(options={}, webPrefs={}) {
@@ -448,10 +571,6 @@ async function zwiftLogin() {
 
 async function main() {
     await electron.app.whenReady();
-    electron.app.on('before-quit', () => {
-        appQuiting = true;
-        Sentry.flush();
-    });
     menu.setAppMenu();
     autoUpdater.checkForUpdatesAndNotify().catch(Sentry.captureException);
     try {
@@ -508,11 +627,12 @@ async function main() {
         }
     }
     electron.ipcMain.on('subscribe', (ev, {event, domEvent}) => {
-        const {win, activeSubs} = windows.get(ev.sender);
+        const {win, activeSubs} = activeWindows.get(ev.sender);
         const sendMessage = data => win.webContents.send('browser-message', {domEvent, data});
         // NOTE: MacOS emits show/hide AND restore/minimize but Windows only does restore/minimize
         const resumeEvents = ['responsive', 'show', 'restore'];
-        const disableEvents = ['unresponsive', 'hide', 'minimize', 'close'];
+        const suspendEvents = ['unresponsive', 'hide', 'minimize'];
+        const shutdownEvents = ['destroyed', 'did-start-loading'];
         const listeners = [];
         function resume(source) {
             if (!activeSubs.has(event)) {
@@ -534,10 +654,10 @@ async function main() {
         }
         function shutdown() {
             console.debug("Shutdown subscription:", event, domEvent);
+            monitor.off(event, sendMessage);
             for (const x of shutdownEvents) {
                 win.webContents.off(x, shutdown);
             }
-            monitor.off(event, sendMessage);
             for (const [name, cb] of listeners) {
                 win.off(name, cb);
             }
@@ -546,7 +666,6 @@ async function main() {
         if (win.isVisible() && !win.isMinimized()) {
             resume();
         }
-        const shutdownEvents = ['destroyed', 'did-start-loading'];
         for (const x of shutdownEvents) {
             win.webContents.once(x, shutdown);
         }
@@ -555,19 +674,13 @@ async function main() {
             win.on(x, cb);
             listeners.push([x, cb]);
         }
-        for (const x of disableEvents) {
+        for (const x of suspendEvents) {
             const cb = ev => suspend(x, ev);
             win.on(x, cb);
             listeners.push([x, cb]);
         }
     });
-    electron.app.on('activate', async () => {
-        // Clicking on the app icon..
-        if (electron.BrowserWindow.getAllWindows().length === 0) {
-            createWindows(monitor);
-        }
-    });
-    createWindows(monitor);
+    openAllWindows();
     if (_appSettings.webServerEnabled) {
         webServer.setMonitor(monitor);
         await webServer.start(_appSettings.webServerPort);

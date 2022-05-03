@@ -1,5 +1,5 @@
 import sauce from '../../shared/sauce/index.mjs';
-import common from './common.mjs';
+import * as common from './common.mjs';
 
 const L = sauce.locale;
 const H = L.human;

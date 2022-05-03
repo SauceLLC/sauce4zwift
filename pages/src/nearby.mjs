@@ -1,5 +1,5 @@
 import sauce from '../../shared/sauce/index.mjs';
-import common from './common.mjs';
+import * as common from './common.mjs';
 
 const L = sauce.locale;
 const H = L.human;
@@ -135,8 +135,8 @@ export function main() {
     const setRefresh = () => refresh = (settings.refreshInterval || 1) * 1000 - 100; // within 100ms is fine.
     document.addEventListener('settings-updated', ev => {
         settings = ev.data;
-        if (common.isElectron && typeof settings.overlayMode === 'boolean') {
-            common.rpc('setAppSetting', 'nearbyOverlayMode', settings.overlayMode);
+        if (window.isElectron && typeof settings.overlayMode === 'boolean') {
+            common.rpc('updateWindow', window.context.id, {overlay: settings.overlayMode});
             document.documentElement.classList.toggle('overlay-mode', settings.overlayMode);
         }
         setRefresh();
@@ -166,12 +166,12 @@ export function main() {
         overlayMode: false,
     });
     fieldStates = common.storage.get(fieldsKey, Object.fromEntries(fields.map(x => [x.id, x.defaultEn])));
-    if (common.isElectron) {
-        common.rpc('getAppSetting', 'nearbyOverlayMode').then(en => {
-            if (settings.overlayMode !== en) {
-                settings.overlayMode = en;
+    if (window.isElectron) {
+        common.rpc('getWindow', window.electron.context.id).then(({overlay}) => {
+            if (settings.overlayMode !== overlay) {
+                settings.overlayMode = overlay;
                 common.storage.set(settingsKey, settings);
-                document.documentElement.classList.toggle('overlay-mode', en);
+                document.documentElement.classList.toggle('overlay-mode', overlay);
             }
         });
     }
