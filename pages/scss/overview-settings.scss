@@ -1,0 +1,73 @@
+#settings {
+    padding-top: 0;
+
+    > *:not(:last-child) {
+        border-bottom: 1px solid #fff2;
+    }
+
+    .title {
+        font-size: 1.1em;
+        padding: 0.4em 0;
+        font-variant: all-small-caps;
+        font-weight: bold;
+    }
+}
+
+#windows {
+    font-size: 16px;
+
+    table {
+        width: 100%;
+        border-radius: 0.28em;
+        background: #0003;
+        margin-bottom: 1em;
+        border-collapse: collapse;
+        font-size: 0.9em;
+
+        thead tr {
+            th {
+                text-align: left;
+                font-weight: bold;
+                font-size: 0.9em;
+            }
+        }
+
+        tbody tr:nth-child(odd) {
+            background-color: #0003;
+        }
+
+        td, th {
+            padding: 0.3em 1em;
+
+            &.btn {
+                padding-left: 0.2em;
+                padding-right: 0.2em;
+            }
+        }
+
+        a.link {
+            opacity: 0.6;
+            transition: opacity 100ms;
+            margin: 0 0.4em;
+            display: inline-block;
+            cursor: pointer;
+
+            &:hover {
+                opacity: 1;
+            }
+
+            > img {
+                height: 1em;
+                filter: invert(1);
+            }
+        }
+    }
+
+    .add-new {
+        input[type="button"] {
+            padding: 0.2em 2em;
+        }
+    }
+
+
+}
