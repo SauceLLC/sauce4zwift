@@ -134,7 +134,7 @@ export function main() {
     common.initInteractionListeners();
     let refresh;
     const setRefresh = () => refresh = (settings.refreshInterval || 1) * 1000 - 100; // within 100ms is fine.
-    common.storage.addEventListener('update', ev => {
+    common.storage.addEventListener('update', async ev => {
         if (ev.data.key === fieldsKey) {
             fieldStates = ev.data.value;
         } else if (ev.data.key === settingsKey) {
@@ -144,8 +144,10 @@ export function main() {
                 common.rpc('setWindowOpacity', window.electron.context.id, 1 - (settings.transparency / 100));
             }
             if (window.isElectron && typeof settings.overlayMode === 'boolean') {
-                common.rpc('updateWindow', window.electron.context.id, {overlay: settings.overlayMode});
-                document.documentElement.classList.toggle('overlay-mode', settings.overlayMode);
+                await common.rpc('updateWindow', window.electron.context.id, {overlay: settings.overlayMode});
+                if (settings.overlayMode !== oldSettings.overlayMode) {
+                    await common.rpc('reopenWindow', window.electron.context.id);
+                }
             }
         } else {
             return;

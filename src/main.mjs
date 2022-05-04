@@ -373,6 +373,16 @@ function openWindow(id) {
 rpc.register('openWindow', openWindow);
 
 
+function reopenWindow(id) {
+    const win = getActiveWindow(id);
+    if (win) {
+        win.close();
+    }
+    openWindow(id);
+}
+rpc.register('reopenWindow', reopenWindow);
+
+
 function _openWindow(id, spec) {
     const overlayOptions = {
         transparent: true,
