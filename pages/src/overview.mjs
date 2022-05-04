@@ -35,7 +35,7 @@ export async function main() {
         }
     });
     common.storage.addEventListener('update', ev => {
-        if (ev.key !== settingsKey) {
+        if (ev.data.key !== settingsKey) {
             return;
         }
         if (settings.autoHideWindows !== ev.data.value.autoHideWindows) {

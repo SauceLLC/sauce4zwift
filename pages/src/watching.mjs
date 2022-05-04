@@ -567,7 +567,7 @@ export async function main() {
     }, {capture: true});
     document.addEventListener('global-settings-updated', ev => {
         if (ev.data.key === '/imperialUnits') {
-            imperial = ev.data.data;
+            imperial = ev.data.value;
             L.setImperial(imperial);
         }
     });
