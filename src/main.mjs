@@ -77,6 +77,7 @@ const windowManifests = [{
     prettyDesc: 'Main top window for overall control and stats.',
     private: true,
     options: {relWidth: 0.6, height: 40, relX: 0.2, y: 0},
+    webPreferences: {backgroundThrottling: false}, // XXX Doesn't appear to work
     hideable: false,
 }, {
     type: 'watching',
@@ -346,7 +347,7 @@ function createWindow({id, type, options, ...state}) {
         ...manifest,
         id,
         type,
-        options: {...manifest.options, ...options},
+        options,
         ...state,
     });
     return id;
@@ -384,6 +385,7 @@ rpc.register('reopenWindow', reopenWindow);
 
 
 function _openWindow(id, spec) {
+    console.debug("Making window:", id, spec.type);
     const overlayOptions = {
         transparent: true,
         hasShadow: false,
@@ -393,7 +395,15 @@ function _openWindow(id, spec) {
         maximizable: false,
         fullscreenable: false,
     };
-    console.debug("Making window:", id, spec.type);
+    const manifest = windowManifests.find(x => x.type === spec.type);
+    // Order of options is crucial...
+    const options = {
+        ...(spec.overlay !== false ? overlayOptions : {}),
+        ...manifest.options,
+        ...spec.options,
+        ...spec.position,
+        opacity: spec.opacity,
+    };
     const win = new electron.BrowserWindow({
         icon: appIcon,
         show: false,
@@ -401,37 +411,36 @@ function _openWindow(id, spec) {
             sandbox: true,
             devTools: !electron.app.isPackaged,
             preload: path.join(appPath, 'src', 'preload', 'common.js'),
+            webgl: false,
+            ...manifest.webPreferences,
+            ...spec.webPreferences,
         },
-        opacity: spec.opacity,
-        ...(spec.overlay !== false ? overlayOptions : {}),
-        ...spec.options,
-        ...spec.position,
+        ...options,
     });
     if (electron.app.isPackaged) {
         win.removeMenu();
     }
-    const opts = spec.options;
-    if (!spec.position && (opts.relWidth != null || opts.relHeight != null ||
-        opts.relX != null || opts.relY != null || opts.x < 0 || opts.y < 0)) {
+    if (!spec.position && (options.relWidth != null || options.relHeight != null ||
+        options.relX != null || options.relY != null || options.x < 0 || options.y < 0)) {
         const {width: sWidth, height: sHeight} = electron.screen.getPrimaryDisplay().size; // XXX
-        const width = opts.width != null ?
-            opts.width :
-            Math.round(opts.relWidth * sWidth);
-        const height = opts.height != null ?
-            opts.height :
-            opts.aspectRatio != null ?
-                Math.round(width * opts.aspectRatio) :
-                Math.round(opts.relHeight * sHeight);
-        const x = opts.x == null ?
-            (opts.relX ? Math.round(opts.relX * sWidth) : null) :
-            opts.x < 0 ?
-                sWidth + opts.x - width :
-                opts.x;
-        const y = opts.y == null ?
-            (opts.relY ? Math.round(opts.relY * sHeight) : null) :
-            opts.y < 0 ?
-                sHeight + opts.y - height :
-                opts.y;
+        const width = options.width != null ?
+            options.width :
+            Math.round(options.relWidth * sWidth);
+        const height = options.height != null ?
+            options.height :
+            options.aspectRatio != null ?
+                Math.round(width * options.aspectRatio) :
+                Math.round(options.relHeight * sHeight);
+        const x = options.x == null ?
+            (options.relX ? Math.round(options.relX * sWidth) : null) :
+            options.x < 0 ?
+                sWidth + options.x - width :
+                options.x;
+        const y = options.y == null ?
+            (options.relY ? Math.round(options.relY * sHeight) : null) :
+            options.y < 0 ?
+                sHeight + options.y - height :
+                options.y;
         win.setSize(width, height);
         if (x != null && y != null) {
             win.setPosition(x, y, false);
@@ -619,7 +628,6 @@ async function zwiftLogin() {
         width: 400,
         height: 700,
         show: false,
-        backgroundThrottling: false,
     }, {
         preload: path.join(appPath, 'src', 'preload', 'zwift-login.js'),
     });
@@ -709,8 +717,8 @@ async function main() {
             return;
         }
     }
-    electron.ipcMain.on('subscribe', (ev, {event, domEvent}) => {
-        const {win, activeSubs} = activeWindows.get(ev.sender);
+    electron.ipcMain.on('subscribe', (ev, {event, domEvent, persistent}) => {
+        const {win, activeSubs, spec} = activeWindows.get(ev.sender);
         const sendMessage = data => win.webContents.send('browser-message', {domEvent, data});
         // NOTE: MacOS emits show/hide AND restore/minimize but Windows only does restore/minimize
         const resumeEvents = ['responsive', 'show', 'restore'];
@@ -720,9 +728,9 @@ async function main() {
         function resume(source) {
             if (!activeSubs.has(event)) {
                 if (source) {
-                    console.debug("Resume subscription:", event, domEvent, source);
+                    console.debug("Resume subscription:", event, spec.id, source);
                 } else {
-                    console.debug("Startup subscription:", event, domEvent);
+                    console.debug("Startup subscription:", event, spec.id);
                 }
                 monitor.on(event, sendMessage);
                 activeSubs.add(event);
@@ -730,13 +738,13 @@ async function main() {
         }
         function suspend(source) {
             if (activeSubs.has(event)) {
-                console.debug("Suspending subscription:", event, domEvent, source);
+                console.debug("Suspending subscription:", event, spec.id, source);
                 monitor.off(event, sendMessage);
                 activeSubs.delete(event);
             }
         }
         function shutdown() {
-            console.debug("Shutdown subscription:", event, domEvent);
+            console.debug("Shutdown subscription:", event, spec.id);
             monitor.off(event, sendMessage);
             for (const x of shutdownEvents) {
                 win.webContents.off(x, shutdown);
@@ -746,21 +754,23 @@ async function main() {
             }
             activeSubs.clear();
         }
-        if (win.isVisible() && !win.isMinimized()) {
+        if (persistent || (win.isVisible() && !win.isMinimized())) {
             resume();
         }
         for (const x of shutdownEvents) {
             win.webContents.once(x, shutdown);
         }
-        for (const x of resumeEvents) {
-            const cb = ev => resume(x, ev);
-            win.on(x, cb);
-            listeners.push([x, cb]);
-        }
-        for (const x of suspendEvents) {
-            const cb = ev => suspend(x, ev);
-            win.on(x, cb);
-            listeners.push([x, cb]);
+        if (!persistent) {
+            for (const x of resumeEvents) {
+                const cb = ev => resume(x, ev);
+                win.on(x, cb);
+                listeners.push([x, cb]);
+            }
+            for (const x of suspendEvents) {
+                const cb = ev => suspend(x, ev);
+                win.on(x, cb);
+                listeners.push([x, cb]);
+            }
         }
     });
     openAllWindows();

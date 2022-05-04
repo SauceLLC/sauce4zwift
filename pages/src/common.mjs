@@ -24,10 +24,10 @@ if (window.isElectron) {
     };
 
     let evId = 1;
-    subscribe = function(event, callback) {
+    subscribe = function(event, callback, options={}) {
         const domEvent = `sauce-${event}-${evId++}`;
         document.addEventListener(domEvent, ev => void callback(ev.detail));
-        sendToElectron('subscribe', {event, domEvent});
+        sendToElectron('subscribe', {event, domEvent, ...options});
     };
 
     rpc = async function(name, ...args) {

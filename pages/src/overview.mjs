@@ -115,7 +115,7 @@ export async function main() {
             lastUpdate = ts;
             renderer.render();
         }
-    });
+    }, {persistent: true});  // Prevent autohide when offscreen
     renderer.render();
 }
 
