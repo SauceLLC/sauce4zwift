@@ -329,7 +329,7 @@ function setBackground({solidBackground, backgroundColor}) {
 
 
 export async function main() {
-    common.initInteractionListeners({settingsKey});
+    common.initInteractionListeners();
     contentEl = document.querySelector('#content');
     metaEl = document.querySelector('#meta');
     containerEl = document.querySelector('#container');
@@ -346,14 +346,17 @@ export async function main() {
         refreshInterval: 1,
     });
     setBackground(settings);
-    document.addEventListener('settings-updated', () => {
-        settings = common.storage.get(settingsKey);
+    common.storage.addEventListener('update', ev => {
+        if (ev.data.key !== settingsKey) {
+            return;
+        }
+        settings = ev.data.value;
         setBackground(settings);
         render();
     });
-    document.addEventListener('global-settings-updated', ev => {
+    common.storage.addEventListener('globalupdate', ev => {
         if (ev.data.key === '/imperialUnits') {
-            L.setImperial(imperial = ev.data.data);
+            L.setImperial(imperial = ev.data.value);
         }
     });
     let ts = 0;

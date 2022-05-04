@@ -73,24 +73,34 @@ const appSettingDefaults = {
 const windowManifests = [{
     type: 'overview',
     page: 'overview.html',
+    prettyName: 'Overview',
+    prettyDesc: 'Main top window for overall control and stats.',
     private: true,
     options: {relWidth: 0.6, height: 40, relX: 0.2, y: 0},
     hideable: false,
 }, {
     type: 'watching',
     page: 'watching.html',
+    prettyName: 'Currently Watching',
+    prettyDesc: 'Replacement window for stats of the athlete being watched.',
     options: {relWidth: 0.18, aspectRatio: 1},
 }, {
     type: 'groups',
     page: 'groups.html',
+    prettyName: 'Groups',
+    prettyDesc: 'A zoomable view of groups of athletes.',
     options: {relWidth: 0.15, relHeight: 0.65},
 }, {
     type: 'chat',
     page: 'chat.html',
+    prettyName: 'Chat',
+    prettyDesc: 'Chat dialog from nearby athletes.',
     options: {relWidth: 0.18, aspectRatio: 2},
 }, {
     type: 'nearby',
     page: 'nearby.html',
+    prettyName: 'Nearby Athletes',
+    prettyDesc: 'A sortable data table of nearby athletes.',
     options: {width: 800, height: 400, center: true},
     overlay: false,
 }];
@@ -120,6 +130,7 @@ const pagePath = path.join(appPath, 'pages');
 const appIcon = electron.nativeImage.createFromPath(path.join(appPath,
     'build/images/app-icon.icos'));
 const activeWindows = new Map();
+const subWindows = new WeakMap();
 // Use non-electron naming for windows updater.
 // https://github.com/electron-userland/electron-builder/issues/2700
 electron.app.setAppUserModelId('io.saucellc.sauce4zwift'); // must match build.appId for windows
@@ -157,7 +168,7 @@ electron.ipcMain.on('getWindowContextSync', ev => {
         type: null,
     };
     try {
-        const o = activeWindows.get(ev.sender);
+        const o = activeWindows.get(ev.sender) || subWindows.get(ev.sender);
         if (o) {
             returnValue = {
                 id: o.spec.id,
@@ -271,6 +282,18 @@ function setWindow(id, data) {
 rpc.register('setWindow', setWindow);
 
 
+function setWindowOpacity(id, opacity) {
+    updateWindow(id, {opacity});
+    for (const w of activeWindows.values()) {
+        if (w.spec.id === id) {
+            w.win.setOpacity(opacity);
+            break;
+        }
+    }
+}
+rpc.register('setWindowOpacity', setWindowOpacity);
+
+
 function updateWindow(id, updates) {
     const w = getWindow(id);
     Object.assign(w, updates);
@@ -328,6 +351,7 @@ function _openWindow(id, spec) {
             devTools: !electron.app.isPackaged,
             preload: path.join(appPath, 'src', 'preload', 'common.js'),
         },
+        opacity: spec.opacity,
         ...(spec.overlay !== false ? overlayOptions : {}),
         ...spec.options,
         ...spec.position,
@@ -387,6 +411,7 @@ function _openWindow(id, spec) {
                 preload: path.join(appPath, 'src', 'preload', 'common.js'),
             }
         });
+        subWindows.set(newWin.webContents, {spec});
         if (electron.app.isPackaged) {
             newWin.removeMenu();
         }

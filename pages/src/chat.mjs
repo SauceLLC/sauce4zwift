@@ -55,7 +55,7 @@ function setBackground({solidBackground, backgroundColor}) {
 
 
 export async function main() {
-    common.initInteractionListeners({settingsKey});
+    common.initInteractionListeners();
     const content = document.querySelector('#content');
     liveDataTask(content);  // bg okay
     let settings = common.storage.get(settingsKey, {
@@ -69,8 +69,11 @@ export async function main() {
         content.style.setProperty('--cleanup-time', `${settings.cleanup}s`);
     }
     setBackground(settings);
-    document.addEventListener('settings-updated', ev => {
-        settings = ev.data;
+    common.storage.addEventListener('update', ev => {
+        if (ev.data.key !== settingsKey) {
+            return;
+        }
+        settings = ev.data.value;
         if (settings.cleanup) {
             content.style.setProperty('--cleanup-time', `${settings.cleanup}s`);
         } else {

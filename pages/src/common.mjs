@@ -148,7 +148,7 @@ if (window.isElectron) {
 }
 
 
-export function initInteractionListeners(options={}) {
+export function initInteractionListeners() {
     const html = document.documentElement;
     if (!html.classList.contains('settings-mode')) {
         window.addEventListener('contextmenu', ev => {
@@ -172,22 +172,6 @@ export function initInteractionListeners(options={}) {
     }
     for (const el of document.querySelectorAll('.button[data-ext-url]')) {
         el.addEventListener('click', ev => window.open(el.dataset.extUrl, '_blank', 'popup,width=999,height=333'));
-    }
-    if (options.settingsKey) {
-        window.addEventListener('storage', ev => {
-            if (ev.key === storagePrefix + options.settingsKey) {
-                const event = new Event('settings-updated');
-                event.data = JSON.parse(ev.newValue);
-                document.dispatchEvent(event);
-            } else if (ev.key.startsWith('/')) {
-                const event = new Event('global-settings-updated');
-                event.data = {
-                    key: ev.key,
-                    data: JSON.parse(ev.newValue)
-                };
-                document.dispatchEvent(event);
-            }
-        });
     }
 }
 
@@ -373,34 +357,66 @@ export class Renderer {
 }
 
 
-const storagePrefix = `${windowID}-`;
-export const storage = {
-    get: (k, def) => {
-        const v = localStorage.getItem(storagePrefix + k);
-        if (typeof v !== 'string') {
+class LocalStorage extends EventTarget {
+    constructor() {
+        super();
+        this.prefix = `${windowID}-`;
+        window.addEventListener('storage', this._onStorage.bind(this));
+    }
+
+    _onStorage(ev) {
+        let evName;
+        let key;
+        if (ev.key.startsWith(this.prefix)) {
+            evName = 'update';
+            key = ev.key.substr(this.prefix.length);
+        } else if (ev.key[0] === '/') {
+            evName = 'globalupdate';
+            key = ev.key;
+        }
+        if (evName) {
+            const event = new Event(evName);
+            event.data = {key, value: JSON.parse(ev.newValue)};
+            this.dispatchEvent(event);
+        }
+    }
+
+    get(key, def) {
+        key = key[0] === '/' ? key : this.prefix + key;
+        const value = localStorage.getItem(key);
+        if (typeof value !== 'string') {
             if (def !== undefined) {
-                storage.set(k, def);
+                this._set(key, def);
             }
             return def;
         } else {
-            return JSON.parse(v);
+            return JSON.parse(value);
         }
-    },
-    set: (k, v) => {
-        if (v === undefined) {
-            localStorage.removeItem(storagePrefix + k);
-        } else {
-            const json = JSON.stringify(v);
-            if (typeof json !== 'string') {
-                throw new TypeError('Non JSON serializable value');
-            }
-            localStorage.setItem(storagePrefix + k, json);
-        }
-    },
-    delete: k => {
-        localStorage.removeItem(storagePrefix + k);
     }
-};
+
+    set(key, value) {
+        key = key[0] === '/' ? key : this.prefix + key;
+        if (value === undefined) {
+            localStorage.removeItem(key);
+        } else {
+            this._set(key, value);
+        }
+    }
+
+    _set(fqKey, value) {
+        const json = JSON.stringify(value);
+        if (typeof json !== 'string') {
+            throw new TypeError('Non JSON serializable value');
+        }
+        localStorage.setItem(fqKey, json);
+    }
+
+    delete(key) {
+        key = key[0] === '/' ? key : this.prefix + key;
+        localStorage.removeItem(key);
+    }
+}
+export const storage = new LocalStorage();
 
 
 async function bindFormData(selector, storageIface, options={}) {
@@ -427,10 +443,13 @@ async function bindFormData(selector, storageIface, options={}) {
             el.value = val == null ? '' : val;
         }
         el.addEventListener('input', async ev => {
+            const baseType = {
+                range: 'number',
+            }[el.type] || el.type;
             const val = (({
                 number: () => el.value ? Number(el.value) : undefined,
                 checkbox: () => el.checked,
-            }[el.type]) || (() => el.value || undefined))();
+            }[baseType]) || (() => el.value || undefined))();
             el.closest('label').classList.add('edited');
             for (const x of fieldConnections.get(el.name)) {
                 if (!Object.is(x, el)) {

@@ -8,6 +8,14 @@ html:not(.overlay-mode) {
     body {
         border-radius: 0;
     }
+
+    header .button.move {
+        display: none;
+    }
+
+    header .app-drag {
+        cursor: initial !important;
+    }
 }
 
 html, body {
@@ -69,7 +77,6 @@ table {
                 border: 1.5px solid transparent;
                 transition: border 100ms;
                 vertical-align: middle;
-                margin: -0.4em 0 -0.24em;
 
                 &:hover {
                     border-color: #08ec;
@@ -90,6 +97,9 @@ table {
         padding-right: 0.6em;
     }
 
+    tr.hidden {
+        display: none;
+    }
     tr.watching {
         background-color: #0009 !important;
         color: white !important;
@@ -133,17 +143,17 @@ table {
     padding: 0;
     overflow: auto;
     position: relative;
+
+    font-size: calc(var(--font-scale) * 1em);
 }
 
 ::-webkit-scrollbar {
     display: none !important;
 }
 
-html.autoscroll table tr.watching,
-html.autoscroll table tr.hi {
+html.autoscroll table tr.watching {
     scroll-snap-align: center;
 }
 html.autoscroll #content {
     scroll-snap-type: y proximity;
 }
-

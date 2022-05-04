@@ -6,10 +6,11 @@
         <meta name="apple-mobile-web-app-capable" content="yes"/>
         <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
 
-        <title>Overview Settings - Sauce for Zwift™</title>
+        <title>Settings / Management - Sauce for Zwift™</title>
 
         <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
-        <link rel='stylesheet' href="css/common.css"/>
+        <link rel="stylesheet" href="css/common.css"/>
+        <link rel="stylesheet" href="css/overview-settings.css"/>
 
         <script type="module">
             import {settingsMain} from './src/overview.mjs';
@@ -18,10 +19,11 @@
     </head>
     <body>
         <div id="titlebar">
-            <header><div class="title">Overview Settings</div></header>
+            <header><div class="title">Settings / Management</div></header>
         </div>
         <div id="settings">
             <form class="app-settings">
+                <div class="title">App Settings</div>
                 <label data-tooltip-below data-tooltip="Login to zwift to get meta data like name and weight">
                     <key>Login to Zwift:</key>
                     <input type="checkbox" name="zwiftLogin"/>
@@ -49,6 +51,7 @@
             </form>
 
             <form class="settings">
+                <div class="title">Window Settings</div>
                 <label>
                     <key>Version:</key>
                     <span class="display-field" name="version"></span>
@@ -79,7 +82,21 @@
                     <input type="number" name="centerGapSize" min="0" max="1000" step="1"/>
                 </label>
             </form>
+
+            <div id="windows">
+                <div class="title">Active Windows</div>
+                <table class="active-windows">
+                    <thead><tr><th>Name</th><th>State</th><th></th><th></th></tr></thead>
+                    <tbody></tbody>
+                </table>
+                <div class="add-new">
+                    <div class="title">Add a new window</div>
+                    <select name="type"></select>
+                    <input type="button" value="Create"/>
+                </div>
+            </div>
         </div>
+
         <footer class="legal">
             <a href="https://saucellc.io/legal/sauce4zwift-terms.html" target="_blank">Terms and Conditions</a>
             |

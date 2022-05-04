@@ -15,7 +15,7 @@ function shortDuration(x) {
 
 
 export async function main() {
-    common.initInteractionListeners({settingsKey});
+    common.initInteractionListeners();
     let lastData;
     let autoHideTimeout;
     settings = common.storage.get(settingsKey, {
@@ -27,20 +27,23 @@ export async function main() {
     });
     document.documentElement.style.setProperty('--center-gap-size', settings.centerGapSize + 'px');
     let renderer = buildLayout(settings);
-    document.addEventListener('global-settings-updated', ev => {
+    common.storage.addEventListener('globalupdate', ev => {
         if (ev.data.key === '/imperialUnits') {
-            imperial = ev.data.data;
+            imperial = ev.data.value;
             L.setImperial(imperial);
             renderer.render();
         }
     });
-    document.addEventListener('settings-updated', ev => {
-        if (settings.autoHideWindows !== ev.data.autoHideWindows) {
+    common.storage.addEventListener('update', ev => {
+        if (ev.key !== settingsKey) {
+            return;
+        }
+        if (settings.autoHideWindows !== ev.data.value.autoHideWindows) {
             location.reload();  // Avoid state machine complications.
             return;
         }
         const oldCenterGap = settings.centerGapSize;
-        settings = ev.data;
+        settings = ev.data.value;
         if (settings.centerGapSize !== oldCenterGap) {
             document.documentElement.style.setProperty('--center-gap-size', settings.centerGapSize + 'px');
             renderer.render({force: true});
@@ -246,10 +249,31 @@ function buildLayout() {
 }
 
 
+function renderWindowsPanel(windows, manifests) {
+    const el = document.querySelector('#windows');
+    const descs = Object.fromEntries(manifests.map(x => [x.type, x]));
+    const restoreLink = `<a class="link restore"><img src="images/fa/plus-square-duotone.svg"></a>`;
+    el.querySelector('table.active-windows tbody').innerHTML = Object.values(windows).map(x => `
+        <tr class="active-window ${x.closed ? 'closed' : ''}">
+            <td data-tooltip="${descs[x.type].prettyDesc}">${descs[x.type].prettyName}</td>
+            <td>${x.closed ? 'Closed' : 'Active'}</td>
+            <td class="btn">${x.closed ? restoreLink : ''}</td>
+            <td class="btn"><a class="link delete"><img src="images/fa/window-close-regular.svg"></a></td>
+        </tr>
+    `).join('\n');
+    el.querySelector('.add-new select').innerHTML = manifests.map(x =>
+        `<option title="${x.prettyDesc}" value="${x.type}">${x.prettyName}</option>`).join('');
+}
+
+
+
 export async function settingsMain() {
     common.initInteractionListeners();
     const version = await common.rpc('getVersion');
     let webServerURL;
+    const windows = await common.rpc('getWindows');
+    const manifests = await common.rpc('getWindowManifests');
+    renderWindowsPanel(windows, manifests);
     if (await common.rpc('getAppSetting', 'webServerEnabled')) {
         const ip = await common.rpc('getMonitorIP');
         const port = await common.rpc('getAppSetting', 'webServerPort');

@@ -4,7 +4,7 @@ import * as common from './common.mjs';
 const L = sauce.locale;
 const H = L.human;
 const num = H.number;
-const settingsKey = 'nearby-settings-v2';
+const settingsKey = 'nearby-settings-v3';
 const fieldsKey = 'nearby-fields-v2';
 let imperial = common.storage.get('/imperialUnits');
 L.setImperial(imperial);
@@ -17,6 +17,7 @@ let enFields;
 let sortBy;
 let sortByDir;
 let tbody;
+let mainRow;
 
 
 function spd(v) {
@@ -76,7 +77,7 @@ const fields = [
     {id: 'initials', defaultEn: false, label: 'Initials', get: x => getAthleteInitials(x),
      sanitize: true, fmt: x => x || '-'},
     {id: 'id', defaultEn: true, label: 'ID', get: x => x.athleteId,
-     fmt: x => `<a title="Open in ZwiftPower" external target="_blank" href="https://zwiftpower.com/profile.php?z=${x}">${x}</a>`},
+     fmt: x => `<a title="Open in ZwiftPower" external="" target="_blank" href="https://zwiftpower.com/profile.php?z=${x}">${x}</a>`},
     {id: 'weight', defaultEn: false, label: 'Weight', get: x => getAthleteValue(x, 'weight'), fmt: weight},
     {id: 'ftp', defaultEn: false, label: 'FTP', get: x => getAthleteValue(x, 'ftp'), fmt: pwr},
     {id: 'tss', defaultEn: false, label: 'TSS', get: x => x.stats.power.tss, fmt: num},
@@ -130,14 +131,24 @@ const fields = [
 
 
 export function main() {
-    common.initInteractionListeners({settingsKey});
+    common.initInteractionListeners();
     let refresh;
     const setRefresh = () => refresh = (settings.refreshInterval || 1) * 1000 - 100; // within 100ms is fine.
-    document.addEventListener('settings-updated', ev => {
-        settings = ev.data;
-        if (window.isElectron && typeof settings.overlayMode === 'boolean') {
-            common.rpc('updateWindow', window.context.id, {overlay: settings.overlayMode});
-            document.documentElement.classList.toggle('overlay-mode', settings.overlayMode);
+    common.storage.addEventListener('update', ev => {
+        if (ev.data.key === fieldsKey) {
+            fieldStates = ev.data.value;
+        } else if (ev.data.key === settingsKey) {
+            const oldSettings = settings;
+            settings = ev.data.value;
+            if (oldSettings.transparency !== settings.transparency) {
+                common.rpc('setWindowOpacity', window.electron.context.id, 1 - (settings.transparency / 100));
+            }
+            if (window.isElectron && typeof settings.overlayMode === 'boolean') {
+                common.rpc('updateWindow', window.electron.context.id, {overlay: settings.overlayMode});
+                document.documentElement.classList.toggle('overlay-mode', settings.overlayMode);
+            }
+        } else {
+            return;
         }
         setRefresh();
         render();
@@ -145,26 +156,18 @@ export function main() {
             renderData(nearbyData);
         }
     });
-    window.addEventListener('storage', ev => {
-        if (ev.key === fieldsKey) {
-            fieldStates = JSON.parse(ev.newValue);
-            render();
-            if (nearbyData) {
-                renderData(nearbyData);
-            }
-        }
-    });
-
-    document.addEventListener('global-settings-updated', ev => {
+    common.storage.addEventListener('globalupdate', ev => {
         if (ev.data.key === '/imperialUnits') {
-            L.setImperial(imperial = ev.data.data);
+            L.setImperial(imperial = ev.data.value);
         }
     });
     settings = common.storage.get(settingsKey, {
         autoscroll: true,
         refreshInterval: 1,
         overlayMode: false,
+        fontScale: 1,
     });
+    document.documentElement.classList.toggle('overlay-mode', settings.overlayMode);
     fieldStates = common.storage.get(fieldsKey, Object.fromEntries(fields.map(x => [x.id, x.defaultEn])));
     if (window.isElectron) {
         common.rpc('getWindow', window.electron.context.id).then(({overlay}) => {
@@ -192,6 +195,7 @@ export function main() {
 
 function render() {
     document.documentElement.classList.toggle('autoscroll', settings.autoscroll);
+    document.documentElement.style.setProperty('--font-scale', settings.fontScale || 1);
     enFields = fields.filter(x => fieldStates[x.id]);
     sortBy = common.storage.get('nearby-sort-by', 'gap');
     const isFieldAvail = !!enFields.find(x => x.id === sortBy);
@@ -204,6 +208,10 @@ function render() {
     const theadRow = table.querySelector('thead tr');
     theadRow.innerHTML = '<td></td>' + enFields.map(x =>
         `<td data-id="${x.id}" class="${sortBy === x.id ? 'hi' : ''}">${x.label}</td>`).join('');
+    mainRow = makeTableRow();
+    mainRow.classList.add('watching');
+    tbody.innerHTML = '';
+    tbody.appendChild(mainRow);
     tbody.addEventListener('dblclick', ev => {
         const row = ev.target.closest('tr');
         if (row) {
@@ -275,6 +283,52 @@ function render() {
 }
 
 
+function makeTableRow() {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td>
+            <a class="edit-link" title="Manually edit athlete">
+            <img src="images/fa/edit-duotone.svg"/></a>
+        </td>
+        ${enFields.map(({id}) => `<td data-id="${id}"></td>`).join('')}
+    `;
+    return tr;
+}
+
+
+function gentleClassToggle(el, cls, force) {
+    const has = el.classList.contains(cls);
+    if (has && !force) {
+        el.classList.remove(cls);
+    } else if (!has && force) {
+        el.classList.add(cls);
+    }
+}
+
+
+function updateTableRow(row, info) {
+    gentleClassToggle(row, 'hi', info.athleteId === hiRow);
+    if (row.dataset.id !== '' + info.athleteId) {
+        row.dataset.id = info.athleteId;
+    }
+    const tds = row.querySelectorAll('td');
+    for (const [i, {id, get, fmt, sanitize}] of enFields.entries()) {
+        let value = get(info);
+        if (sanitize && value) {
+            sanitizeEl.textContent = value;
+            value = sanitizeEl.innerHTML;
+        }
+        const html = '' + fmt(value);
+        const td = tds[i + 1];
+        if (td._html !== html) {
+            td.innerHTML = (td._html = html);
+        }
+        gentleClassToggle(td, 'hi', sortBy === id);
+    }
+    gentleClassToggle(row, 'hidden', false);
+}
+
+
 let nextAnimFrame;
 let frames = 0;
 const sanitizeEl = document.createElement('span');
@@ -294,44 +348,34 @@ function renderData(data) {
             return (av < bv ? 1 : -1) * sortByDir;
         }
     });
-    const html = data.map(x => {
-        const classes = [];
-        if (x.watching) {
-            classes.push('watching');
-        }
-        if ((x.watching && !hiRow) || x.athleteId === hiRow) {
-            classes.push('hi');
-        }
-        return `
-            <tr data-id="${x.athleteId}" class="${classes.join(' ')}">
-                <td>
-                    <a class="edit-link" title="Manually edit athlete">
-                    <img src="images/fa/edit-duotone.svg"/></a>
-                </td>
-                ${enFields.map(({id, get, fmt, sanitize}) => {
-                    let value = get(x);
-                    if (sanitize && value) {
-                        sanitizeEl.textContent = value;
-                        value = sanitizeEl.innerHTML;
-                    }
-                    return `<td data-id="${id}" class="${sortBy === id ? 'hi' : ''}">${fmt(value)}</td>`;
-                }).join('')}
-            </tr>
-        `;
-    }).join('\n');
     if (nextAnimFrame) {
         cancelAnimationFrame(nextAnimFrame);
     }
     nextAnimFrame = requestAnimationFrame(() => {
         nextAnimFrame = null;
-        tbody.innerHTML = html;
+        const centerIdx = data.findIndex(x => x.watching);
+        let row = mainRow;
+        for (let i = centerIdx; i >= 0; i--) {
+            updateTableRow(row, data[i]);
+            if (i) {
+                row = row.previousElementSibling || row.insertAdjacentElement('beforebegin', makeTableRow());
+            }
+        }
+        while (row.previousElementSibling) {
+            gentleClassToggle(row = row.previousElementSibling, 'hidden', true);
+        }
+        row = mainRow.nextElementSibling || mainRow.insertAdjacentElement('afterend', makeTableRow());
+        for (let i = centerIdx + 1; i < data.length; i++) {
+            updateTableRow(row, data[i]);
+            if (i < data.length - 1) {
+                row = row.nextElementSibling || row.insertAdjacentElement('afterend', makeTableRow());
+            }
+        }
+        while (row.nextElementSibling) {
+            gentleClassToggle(row = row.nextElementSibling, 'hidden', true);
+        }
         if (!frames++ && settings.autoscroll) {
-            queueMicrotask(() => {
-                const w = document.querySelector('tr.watching');
-                if (w) {
-                    w.scrollIntoView({block: 'center'});
-                }
-            });
+            queueMicrotask(() => mainRow.scrollIntoView({block: 'center'}));
         }
     });
 }
