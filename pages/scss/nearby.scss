@@ -9,8 +9,8 @@ html:not(.overlay-mode) {
         border-radius: 0;
     }
 
-    header .button.move {
-        display: none;
+    .overlay-only {
+        display: none !important;
     }
 
     header .app-drag {

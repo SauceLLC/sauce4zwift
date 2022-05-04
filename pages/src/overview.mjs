@@ -249,20 +249,23 @@ function buildLayout() {
 }
 
 
-function renderWindowsPanel(windows, manifests) {
+async function renderWindowsPanel() {
+    const windows = Object.values(await common.rpc('getWindows')).filter(x => !x.private);
+    const manifests = await common.rpc('getWindowManifests');
     const el = document.querySelector('#windows');
     const descs = Object.fromEntries(manifests.map(x => [x.type, x]));
     const restoreLink = `<a class="link restore"><img src="images/fa/plus-square-duotone.svg"></a>`;
-    el.querySelector('table.active-windows tbody').innerHTML = Object.values(windows).map(x => `
-        <tr class="active-window ${x.closed ? 'closed' : ''}">
+    el.querySelector('table.active-windows tbody').innerHTML = windows.map(x => `
+        <tr data-id="${x.id}" class="active-window ${x.closed ? 'closed' : ''}">
             <td data-tooltip="${descs[x.type].prettyDesc}">${descs[x.type].prettyName}</td>
             <td>${x.closed ? 'Closed' : 'Active'}</td>
             <td class="btn">${x.closed ? restoreLink : ''}</td>
             <td class="btn"><a class="link delete"><img src="images/fa/window-close-regular.svg"></a></td>
         </tr>
     `).join('\n');
-    el.querySelector('.add-new select').innerHTML = manifests.map(x =>
+    el.querySelector('.add-new select').innerHTML = manifests.filter(x => !x.private).map(x =>
         `<option title="${x.prettyDesc}" value="${x.type}">${x.prettyName}</option>`).join('');
+    return el;
 }
 
 
@@ -271,9 +274,31 @@ export async function settingsMain() {
     common.initInteractionListeners();
     const version = await common.rpc('getVersion');
     let webServerURL;
-    const windows = await common.rpc('getWindows');
-    const manifests = await common.rpc('getWindowManifests');
-    renderWindowsPanel(windows, manifests);
+    const winsEl = await renderWindowsPanel();
+    winsEl.querySelector('table').addEventListener('click', async ev => {
+        const id = ev.target.closest('[data-id]').dataset.id;
+        const link = ev.target.closest('a.link');
+        if (link) {
+            if (link.classList.contains('restore')) {
+                await common.rpc('openWindow', id);
+            } else if (link.classList.contains('delete')) {
+                await common.rpc('removeWindow', id);
+            }
+            return;
+        }
+        const row = ev.target.closest('tr');
+        if (row) {
+            await common.rpc('focusWindow', id);
+        }
+    });
+    winsEl.querySelector('.add-new input[type="button"]').addEventListener('click', async ev => {
+        ev.preventDefault();
+        const type = ev.currentTarget.closest('.add-new').querySelector('select').value;
+        const id = await common.rpc('createWindow', {type});
+        await common.rpc('openWindow', id);
+    });
+    document.addEventListener('windows-updated', renderWindowsPanel);
+    await common.rpc('listenForWindowUpdates', 'windows-updated');
     if (await common.rpc('getAppSetting', 'webServerEnabled')) {
         const ip = await common.rpc('getMonitorIP');
         const port = await common.rpc('getAppSetting', 'webServerPort');

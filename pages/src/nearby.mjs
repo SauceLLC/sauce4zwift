@@ -166,6 +166,7 @@ export function main() {
         refreshInterval: 1,
         overlayMode: false,
         fontScale: 1,
+        transparency: 0,
     });
     document.documentElement.classList.toggle('overlay-mode', settings.overlayMode);
     fieldStates = common.storage.get(fieldsKey, Object.fromEntries(fields.map(x => [x.id, x.defaultEn])));

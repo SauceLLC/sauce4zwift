@@ -131,6 +131,7 @@ const appIcon = electron.nativeImage.createFromPath(path.join(appPath,
     'build/images/app-icon.icos'));
 const activeWindows = new Map();
 const subWindows = new WeakMap();
+const windowsUpdateListeners = new Map();
 // Use non-electron naming for windows updater.
 // https://github.com/electron-userland/electron-builder/issues/2700
 electron.app.setAppUserModelId('io.saucellc.sauce4zwift'); // must match build.appId for windows
@@ -245,6 +246,14 @@ rpc.register('minimizeWindow', function() {
 });
 
 
+function getActiveWindow(id) {
+    for (const w of activeWindows.values()) {
+        if (w.spec.id === id) {
+            return w.win;
+        }
+    }
+}
+
 
 let _windows;
 function getWindows() {
@@ -262,9 +271,26 @@ function getWindows() {
 rpc.register('getWindows', getWindows);
 
 
+rpc.register('listenForWindowUpdates', function(domEvent) {
+    windowsUpdateListeners.set(new WeakRef(this), domEvent);
+});
+
+
+let _windowsUpdatedTimeout;
 function setWindows(wins) {
     _windows = wins;
     storage.save('windows', _windows);
+    clearTimeout(_windowsUpdatedTimeout);
+    _windowsUpdatedTimeout = setTimeout(() => {
+        for (const [ref, domEvent] of windowsUpdateListeners.entries()) {
+            const sender = ref.deref();
+            if (!sender || sender.isDestroyed()) {
+                windowsUpdateListeners.delete(ref);
+            } else {
+                sender.send('browser-message', {domEvent});
+            }
+        }
+    }, 200);
 }
 
 
@@ -284,11 +310,9 @@ rpc.register('setWindow', setWindow);
 
 function setWindowOpacity(id, opacity) {
     updateWindow(id, {opacity});
-    for (const w of activeWindows.values()) {
-        if (w.spec.id === id) {
-            w.win.setOpacity(opacity);
-            break;
-        }
+    const win = getActiveWindow(id);
+    if (win) {
+        win.setOpacity(opacity);
     }
 }
 rpc.register('setWindowOpacity', setWindowOpacity);
@@ -304,6 +328,10 @@ rpc.register('updateWindow', updateWindow);
 
 
 function removeWindow(id) {
+    const win = getActiveWindow(id);
+    if (win) {
+        win.close();
+    }
     const wins = getWindows();
     delete wins[id];
     setWindows(wins);
@@ -326,8 +354,21 @@ function createWindow({id, type, options, ...state}) {
 rpc.register('createWindow', createWindow);
 
 
+function focusWindow(id) {
+    const win = getActiveWindow(id);
+    if (win) {
+        win.focus();
+    }
+}
+rpc.register('focusWindow', focusWindow);
+
+
 function openWindow(id) {
-    return _openWindow(id, getWindow(id));
+    const spec = getWindow(id);
+    if (spec.closed) {
+        updateWindow(id, {closed: false});
+    }
+    _openWindow(id, spec);
 }
 rpc.register('openWindow', openWindow);
 
@@ -372,23 +413,26 @@ function _openWindow(id, spec) {
                 Math.round(width * opts.aspectRatio) :
                 Math.round(opts.relHeight * sHeight);
         const x = opts.x == null ?
-            Math.round(opts.relX * sWidth) :
+            (opts.relX ? Math.round(opts.relX * sWidth) : null) :
             opts.x < 0 ?
                 sWidth + opts.x - width :
                 opts.x;
         const y = opts.y == null ?
-            Math.round(opts.relY * sHeight) :
+            (opts.relY ? Math.round(opts.relY * sHeight) : null) :
             opts.y < 0 ?
                 sHeight + opts.y - height :
                 opts.y;
         win.setSize(width, height);
-        win.setPosition(x, y, false);
+        if (x != null && y != null) {
+            win.setPosition(x, y, false);
+        }
     }
-    if (spec.options.alwaysOnTop) {
+    if (spec.overlay !== false) {
         win.setAlwaysOnTop(true, 'screen-saver');
     }
-    activeWindows.set(win.webContents, {win, spec, activeSubs: new Set()});
-    win.webContents.on('new-window', (ev, url) => {
+    const webContents = win.webContents;  // Save to prevent electron from killing us.
+    activeWindows.set(webContents, {win, spec, activeSubs: new Set()});
+    webContents.on('new-window', (ev, url) => {
         // Popups...
         ev.preventDefault();
         const q = new URLSearchParams((new URL(url)).search);
@@ -405,12 +449,16 @@ function _openWindow(id, spec) {
             show: false,
             width,
             height,
+            alwaysOnTop: spec.overlay !== false,
             webPreferences: {
                 sandbox: true,
                 devTools: !electron.app.isPackaged,
                 preload: path.join(appPath, 'src', 'preload', 'common.js'),
             }
         });
+        if (spec.overlay !== false) {
+            newWin.setAlwaysOnTop(true, 'screen-saver');
+        }
         subWindows.set(newWin.webContents, {spec});
         if (electron.app.isPackaged) {
             newWin.removeMenu();
@@ -426,8 +474,8 @@ function _openWindow(id, spec) {
     }
     win.on('moved', onPositionUpdate);
     win.on('resized', onPositionUpdate);
-    win.on('closed', () => {
-        activeWindows.delete(win);
+    win.on('close', () => {
+        activeWindows.delete(webContents);
         if (!appQuiting) {
             updateWindow(id, {closed: true});
         }
