@@ -245,9 +245,28 @@ rpc.register('minimizeWindow', function() {
     console.debug('Window close requested:', spec.id);
     win.minimize();
 });
-rpc.register('getAppMetrics', () => electron.app.getAppMetrics());
 rpc.register('getGPUFeatureStatus', () => electron.app.getGPUFeatureStatus());
 rpc.register('getGPUInfo', () => electron.app.getGPUInfo('complete'));
+let _appMetricsPromise;
+let _lastAppMetricsTS = 0;
+function _getAppMetrics(reentrant) {
+    return new Promise(resolve => setTimeout(() => {
+        if (reentrant !== true) {
+            // Schedule one more in anticipation of pollers
+            _appMetricsPromise = _getAppMetrics(true);
+        } else {
+            _appMetricsPromise = null;
+        }
+        _lastAppMetricsTS = Date.now();
+        resolve(electron.app.getAppMetrics());
+    }, 1000 - (Date.now() - _lastAppMetricsTS)));
+}
+rpc.register('pollAppMetrics', async () => {
+    if (!_appMetricsPromise) {
+        _appMetricsPromise = _getAppMetrics();
+    }
+    return await _appMetricsPromise;
+});
 
 
 function getActiveWindow(id) {
