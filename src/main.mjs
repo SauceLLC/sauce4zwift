@@ -245,6 +245,9 @@ rpc.register('minimizeWindow', function() {
     console.debug('Window close requested:', spec.id);
     win.minimize();
 });
+rpc.register('getAppMetrics', () => electron.app.getAppMetrics());
+rpc.register('getGPUFeatureStatus', () => electron.app.getGPUFeatureStatus());
+rpc.register('getGPUInfo', () => electron.app.getGPUInfo('complete'));
 
 
 function getActiveWindow(id) {

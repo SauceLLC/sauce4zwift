@@ -4,6 +4,25 @@ import * as common from './common.mjs';
 const nearby = new Map();
 const settingsKey = 'chat-settings-v2';
 
+const idleCallback = window.requestIdleCallback || (cb => setTimeout(cb, 0));
+
+// GC for nearby states...
+setInterval(() => {
+    idleCallback(() => {
+        const now = Date.now();
+        let i = 0;
+        for (const [k, {ts}] of nearby.entries()) {
+            if (now - ts > 300 * 1000) {
+                i++;
+                nearby.delete(k);
+            }
+        }
+        if (i) {
+            console.debug(`Garbage collected ${i} nearby states`);
+        }
+    });
+}, 3000);
+
 
 function athleteHue(id) {
     return id % 360;
@@ -152,7 +171,7 @@ export async function main() {
             nearby.set(x.athleteId, x);
         }
     });
-    common.subscribe('chat', onChatMessage);
+    common.subscribe('chat', onChatMessage, {persistent: true});
 
     if (location.search.includes('testing')) {
         for (let i = 1; i < 100; i++) {
