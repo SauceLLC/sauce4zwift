@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+        <meta name="apple-mobile-web-app-capable" content="yes"/>
+        <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
+
+        <title>Stats for Nerds - Sauce for Zwift™</title>
+
+        <script defer src="deps/src/billboard.js"></script>
+        <script type="module">
+            import {main} from './src/stats-for-nerds.mjs';
+            document.addEventListener('DOMContentLoaded', main);
+        </script>
+
+        <link rel="manifest" href="stats-for-nerds-manifest.json"/>
+        <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
+        <link rel="stylesheet" href="deps/css/billboard.css"/>
+        <link rel="stylesheet" href="css/common.css"/>
+        <link rel="stylesheet" href="css/stats-for-nerds.css"/>
+    </head>
+    <body>
+        <div id="titlebar">
+            <header>
+                <div class="title app-drag">Stats for Nerds - Sauce for Zwift™</div>
+            </header>
+        </div>
+        <div id="content"></div>
+    </body>
+</html>

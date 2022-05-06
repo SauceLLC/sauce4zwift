@@ -1,0 +1,13 @@
+@import 'billboard-theme';
+
+html {
+    font-size: 14px;
+}
+
+#content {
+    overflow: auto;
+
+    .chart {
+        flex: 0 0 140px;
+    }
+}
