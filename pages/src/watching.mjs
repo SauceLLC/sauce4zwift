@@ -1,4 +1,3 @@
-/* global bb */
 import sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
 
@@ -80,7 +79,8 @@ function makeSmoothHRField(period) {
 
 
 export async function main() {
-    common.initInteractionListeners({settingsKey});
+    common.initInteractionListeners();
+    const charts = await import('./charts.mjs');
     settings = common.storage.get(settingsKey, {
         numScreens: 2,
         lockedFields: false,
@@ -365,9 +365,8 @@ export async function main() {
             hr: [],
             power: [],
         };
-        const hiddenKey = `watching-hidden-graph-p${i}`;
-        const hidden = new Set(common.storage.get(hiddenKey, []));
-        const scalePlugin = new MultiScalePlugin({
+        const chart = new charts.Chart({
+            hiddenStorageKey: `watching-hidden-graph-p${i}`,
             scales: [{
                 id: 'power',
                 origin: 'y',
@@ -381,25 +380,19 @@ export async function main() {
                 origin: 'y',
                 domain: [0, 100],
             }],
-        });
-        const names = {
-            power: 'Power',
-            hr: 'HR',
-            pace: 'Pace',
-        };
-        const colors = {
-            power: '#46f',
-            hr: '#e22',
-            pace: '#4e3',
-        };
-        const chart = bb.generate({
-            plugins: [scalePlugin],
+            names: {
+                power: 'Power',
+                hr: 'HR',
+                pace: 'Pace',
+            },
+            colors: {
+                power: '#46f',
+                hr: '#e22',
+                pace: '#4e3',
+            },
             data: {
                 columns: [['pace'], ['hr'], ['power']],
-                hide: Array.from(hidden),
                 type: 'area',
-                names,
-                colors,
             },
             area: {
                 linearGradient: true,
@@ -409,10 +402,7 @@ export async function main() {
                     only: true,
                 },
             },
-            legend: {
-                show: false,
-                hide: true,
-            },
+            htmlLegendEl: screen.querySelector('.s-chart-legend'),
             axis: {
                 x: {
                     tick: {
@@ -453,28 +443,6 @@ export async function main() {
             },
             bindto: screen.querySelector('.chart-holder'),
         });
-        const legend = screen.querySelector('.s-chart-legend');
-        legend.innerHTML = Object.entries(names).map(([id, name]) => `
-            <div class="s-legend-item ${hidden.has(id) ? 'hidden' : ''}" data-id="${id}">
-                <div class="color" style="background-color: ${colors[id]};"></div>
-                <div class="label">${name}</div>
-            </div>
-        `).join('\n');
-        legend.addEventListener('click', ev => {
-            const item = ev.target.closest('.s-legend-item[data-id]');
-            if (!item) {
-                return;
-            }
-            const id = item.dataset.id;
-            chart.toggle(id);
-            item.classList.toggle('hidden');
-            if (hidden.has(id)) {
-                hidden.delete(id);
-            } else {
-                hidden.add(id);
-            }
-            common.storage.set(hiddenKey, Array.from(hidden));
-        });
         let lastRender = 0;
         renderer.addCallback((data) => {
             const now = Date.now();
@@ -497,12 +465,12 @@ export async function main() {
             });
             const maxPower = sauce.data.max(chartData.power);
             const maxPIndex = chartData.power.indexOf(maxPower);
-            scalePlugin.setDomain('power', [0, Math.max((maxPower + 100), 700)]);
-            scalePlugin.setDomain('hr', [
+            chart.setScaleDomain('power', [0, Math.max((maxPower + 100), 700)]);
+            chart.setScaleDomain('hr', [
                 Math.min(80, sauce.data.min(chartData.hr)),
                 Math.max((sauce.data.max(chartData.hr) + 10), 200)
             ]);
-            scalePlugin.setDomain('pace', [0, Math.max((sauce.data.max(chartData.pace) + 10), 100)]);
+            chart.setScaleDomain('pace', [0, Math.max((sauce.data.max(chartData.pace) + 10), 100)]);
             chart.xgrids(maxPIndex !== -1 ? [{
                 value: maxPIndex,
                 text: `Max: ${H.power(chartData.power[maxPIndex], {suffix: true})}`,
@@ -565,13 +533,13 @@ export async function main() {
             }
         }
     }, {capture: true});
-    document.addEventListener('global-settings-updated', ev => {
+    common.storage.addEventListener('globalupdate', ev => {
         if (ev.data.key === '/imperialUnits') {
             imperial = ev.data.value;
             L.setImperial(imperial);
         }
     });
-    document.addEventListener('settings-updated', ev => {
+    common.storage.addEventListener('update', ev => {
         location.reload();
     });
     let athleteId;
@@ -583,63 +551,6 @@ export async function main() {
             x.render({force});
         }
     });
-}
-
-
-class MultiScalePlugin {
-	constructor({scales}) {
-		this.$$ = undefined;
-        this.scalesConfig = scales;
-        this.scales = new Map();
-	}
-
-	$beforeInit() {
-        const updateScales = this.$$.updateScales;
-        this.$$.updateScales = this.updateScales.bind(this, updateScales);
-        const getYScaleById = this.$$.getYScaleById;
-        this.$$.getYScaleById = this.getYScaleById.bind(this, getYScaleById);
-    }
-
-	$init() { }
-
-	$afterInit() { }
-
-    setDomain(id, domain) {
-        if (this.scales.has(id)) {
-            this.scales.get(id).domain(domain);
-        } else {
-            console.warn("early bird");
-        }
-    }
-
-    updateScales(superFn, ...args) {
-        superFn.call(this.$$, ...args);
-        this.scales.clear();
-        for (const x of this.scalesConfig) {
-            const originScale = this.$$.scale[x.origin];
-            const scale = originScale.copy();
-            if (x.domain) {
-                scale.domain(x.domain);
-            }
-            this.scales.set(x.id, scale);
-        }
-    }
-
-    getYScaleById(superFn, id, isSub) {
-        if (this.scales.has(id)) {
-            return this.scales.get(id);
-        } else {
-            return superFn.call(this.$$, id, isSub);
-        }
-    }
-
-	$redraw(context, transitionDuration) { }
-
-	$willDestroy() {
-        for (const key of Object.keys(this)) {
-			delete this[key];
-		}
-	}
 }
 
 
