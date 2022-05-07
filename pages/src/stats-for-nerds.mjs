@@ -9,7 +9,7 @@ const H = L.human;
 function makeMetricChart(proc, bindto) {
     const chart = new charts.Chart({
         title: {
-            text: `${proc.name || proc.type}: ${proc.pid}`,
+            text: `${proc.name || proc.type}, PID: ${proc.pid}`,
         },
         names: {
             cpu: 'CPU',
@@ -19,24 +19,39 @@ function makeMetricChart(proc, bindto) {
             cpu: '#ccc',
             mem: '#22e',
         },
-        /*scales: [{
-            id: 'cpu',
-            origin: 'y',
-            domain: [0, 100],
-        }, {
-            id: 'mem',
-            origin: 'y2',
-        }],*/
         data: {
             columns: [['cpu'], ['mem']],
             type: 'area',
             axes: {
                 cpu: 'y',
                 mem: 'y2',
-            }
+            },
         },
         area: {
             linearGradient: true,
+            /*
+            linearGradient: {
+                x: [0, 0],
+                y: [1, 0],
+                stops: [[ // offset, stop-color, opacity
+                    0,
+                    id => id === 'cpu' ? '#fff' : '#00f',
+                    0.1
+                ], [
+                    0.5,
+                    id => id === 'cpu' ? '#fff' : '#00f',
+                    0.8
+                ], [
+                    0.5,
+                    id => id === 'cpu' ? '#f00' : '#0f0',
+                    0.8
+                ], [
+                    1,
+                    id => id === 'cpu' ? '#f00' : '#0f0',
+                    1 
+                ]]
+            }
+            */
         },
         point: {
             focus: {
@@ -62,6 +77,10 @@ function makeMetricChart(proc, bindto) {
                 max: 100,
                 show: true,
                 padding: 0,
+                label: {
+                    text: 'CPU',
+                    position: 'outside-middle',
+                },
                 tick: {
                     culling: {
                         max: 4,
@@ -77,7 +96,7 @@ function makeMetricChart(proc, bindto) {
                 padding: 0,
                 label: {
                     text: 'Memory',
-                    position: 'inner-middle',
+                    position: 'outside-middle',
                 },
                 tick: {
                     culling: {
@@ -127,22 +146,31 @@ export async function main() {
             }
             unused.delete(x.pid);
             const {chart} = charts.get(x.pid);
-            //console.info(x.pid, x.cpu.percentCPUUsage, x.memory.workingSetSize);
+            const cpu = x.cpu.percentCPUUsage * 10;  // XXX why is it 10x off?
+            const mem = x.memory.workingSetSize / 1024;  // MB
+            const maxRanges = chart.axis.max();
+            if (cpu > maxRanges.y) {
+                chart.axis.max({y: Math.ceil(cpu)});
+            }
+            if (mem > maxRanges.y2) {
+                const y2Max = Math.round((mem + 20) / 10) * 10;
+                chart.axis.max({y2: y2Max});
+                // convert ygrid line for 200MB to y axis domain. :(
+                const yMax = chart.axis.max().y;
+                chart.ygrids([{value: yMax * (200 / y2Max)}]);
+            }
             chart.load({
                 columns: [
-                    ['cpu', x.cpu.percentCPUUsage * 10],
+                    ['cpu', x.cpu.percentCPUUsage * 10], // XXX No idea why, but cpu is 10x what it should be
                     ['mem', x.memory.workingSetSize / 1024],
                 ],
                 append: true,
             });
         }
         for (const pid of unused) {
-            const {chart, el} = charts.get(pid);
+            const {el} = charts.get(pid);
             charts.delete(pid);
             el.remove();
         }
     }
-    document.addEventListener('settings-updated', ev => {
-        location.reload();
-    });
 }
