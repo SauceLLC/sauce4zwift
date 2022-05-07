@@ -100,9 +100,11 @@ if (window.isElectron) {
             });
         });
     };
-    wsp = connectWebSocket();
 
     subscribe = async function(event, callback) {
+        if (!wsp) {
+            wsp = connectWebSocket();
+        }
         const ws = await wsp;
         await _subscribe(ws, event, callback);
         subs.push({event, callback});
