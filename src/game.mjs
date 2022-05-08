@@ -614,25 +614,27 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
 
     async _fakeDataGenerator() {
         const OutgoingPacket = ZwiftPacketMonitor.OutgoingPacket;
+        let c = 1;
+        let watching = -50;
         while (this._active) {
-            try {
+            for (let i = 1; i < 100; i++) {
                 const packet = OutgoingPacket.fromObject({
-                    athleteId: -1,
+                    athleteId: -i,
                     worldTime: Date.now() - worldTimeOffset,
                     state: {
-                        athleteId: -1,
+                        athleteId: -i,
                         _worldTime: Date.now() - worldTimeOffset,
-                        watchingAthleteId: -1,
-                        power: Math.round(250 + 250 * Math.sin(Date.now() / 10000)),
-                        heartrate: Math.round(150 + 50 * Math.cos(Date.now() / 10000)),
-                        _speed: Math.round(30 + 25 * Math.sin(Date.now() / 15000)) * 1000000,
-                        _cadenceUHz: Math.round(50 + 50 * Math.sin(Date.now() / 15000)) / 60 * 1000000,
+                        watchingAthleteId: watching,
+                        power: Math.round(250 + 250 * Math.sin(i * 10 + Date.now() / 10000)),
+                        heartrate: Math.round(150 + 50 * Math.cos(i * 10 + Date.now() / 10000)),
+                        _speed: Math.round(30 + 25 * Math.sin(i * 10 + Date.now() / 15000)) * 1000000,
+                        _cadenceUHz: Math.round(50 + 50 * Math.sin(i * 10 + Date.now() / 15000)) / 60 * 1000000,
+                        roadLocation: 1000000 - ((c + (Math.round(i ** 1.8 / 200) * 200)) % 1000000),
                     }
                 });
                 this.onOutgoing(packet);
-            } catch(e) {
-                debugger;
             }
+            c = (c + 1) % 1000000;
             await sleep(200);
         }
     }
