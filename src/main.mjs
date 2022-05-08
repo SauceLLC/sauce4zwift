@@ -267,6 +267,24 @@ rpc.register('pollAppMetrics', async () => {
     }
     return await _appMetricsPromise;
 });
+rpc.register('getWindowSpecForPID', pid => {
+    for (const x of electron.BrowserWindow.getAllWindows()) {
+        let wc;
+        try {
+            wc = x.webContents;
+        } catch(e) {
+            continue;
+        }
+        if (wc.getOSProcessId() !== pid) {
+            continue;
+        }
+        if (activeWindows.has(wc)) {
+            return activeWindows.get(wc).spec;
+        } else if (subWindows.has(wc)) {
+            return subWindows.get(wc).spec;
+        }
+    }
+});
 
 
 function getActiveWindow(id) {
