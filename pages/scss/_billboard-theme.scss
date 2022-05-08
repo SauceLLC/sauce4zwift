@@ -27,6 +27,10 @@ html .bb {
         }
     }
 
+    .bb-gauge-value {
+        fill: currentColor;
+    }
+
     line.bb-legend-item-tile {
         clip-path: circle(66%);
     }

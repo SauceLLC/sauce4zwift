@@ -5,9 +5,27 @@ html {
 }
 
 #content {
+    padding: 1em;
     overflow: auto;
 
-    .chart {
-        flex: 0 0 140px;
+    .chart-holder {
+        flex: 0 0 auto;
+        //display: flex;
+        position: relative;
+        height: 160px;
+
+        .chart {
+            padding: 0;
+            margin: 0;
+            height: 100px;
+
+            &.line {
+                flex: 0.8 1;
+            }
+
+            &.gauge {
+                flex: 0.2 1;
+            }
+        }
     }
 }

@@ -6,10 +6,18 @@ const L = sauce.locale;
 const H = L.human;
 
 
-function makeMetricChart(proc, bindto) {
-    const chart = new charts.Chart({
+async function makeMetricCharts(proc, el) {
+    const decodedNames = {
+        Browser: 'Backend Service', // node
+        GPU: 'GPU Bridge', // not GPU usage but the proc that proxies GPU ops.
+        Tab: 'Window',
+    };
+    const spec = await common.rpc('getWindowSpecForPID', proc.pid);
+    const lineEl = document.createElement('div');
+    lineEl.classList.add('chart', 'line');
+    const lineChart = new charts.Chart({
         title: {
-            text: `${proc.name || proc.type}, PID: ${proc.pid}`,
+            text: `${spec ? spec.prettyName : ''} ${decodedNames[proc.type] || proc.name || proc.type}, PID: ${proc.pid}`,
         },
         names: {
             cpu: 'CPU',
@@ -29,29 +37,6 @@ function makeMetricChart(proc, bindto) {
         },
         area: {
             linearGradient: true,
-            /*
-            linearGradient: {
-                x: [0, 0],
-                y: [1, 0],
-                stops: [[ // offset, stop-color, opacity
-                    0,
-                    id => id === 'cpu' ? '#fff' : '#00f',
-                    0.1
-                ], [
-                    0.5,
-                    id => id === 'cpu' ? '#fff' : '#00f',
-                    0.8
-                ], [
-                    0.5,
-                    id => id === 'cpu' ? '#f00' : '#0f0',
-                    0.8
-                ], [
-                    1,
-                    id => id === 'cpu' ? '#f00' : '#0f0',
-                    1 
-                ]]
-            }
-            */
         },
         point: {
             focus: {
@@ -92,7 +77,7 @@ function makeMetricChart(proc, bindto) {
             y2: {
                 show: true,
                 min: 0,
-                max: 200,
+                max: 1024,
                 padding: 0,
                 label: {
                     text: 'Memory',
@@ -120,56 +105,156 @@ function makeMetricChart(proc, bindto) {
         },
         padding: {
             top: 10,
+            bottom: 0,
         },
-        bindto
+        bindto: lineEl,
     });
-    return chart;
+    const gaugeEl = document.createElement('div');
+    gaugeEl.classList.add('chart',  'gauge');
+    const gaugeChart = new charts.Chart({
+        names: {
+            cpu: 'CPU',
+            mem: 'Memory',
+        },
+        color: {
+            pattern: [
+                "#60B044",
+                "#F6C600",
+                "#F97600",
+                "#FF0000",
+            ],
+            threshold: {
+                values: [
+                    25,
+                    50,
+                    75,
+                    100,
+                ]
+            }
+        },
+        colors: {
+            cpu: '#ccc',
+            mem: '#22e',
+        },
+        data: {
+            columns: [['cpu', 0]],
+            type: 'gauge',
+        },
+        legend: {
+            show: false,
+            hide: true,
+        },
+        axis: {
+            x: {
+                tick: {
+                    outer: false,
+                    show: false,
+                    text: {
+                        show: false,
+                    },
+                },
+            },
+            y: {
+                min: 0,
+                max: 100,
+                show: true,
+                padding: 0,
+                label: {
+                    text: 'CPU',
+                    position: 'outside-middle',
+                },
+                tick: {
+                    culling: {
+                        max: 4,
+                    },
+                    count: 7,
+                    format: x => H.number(x) + '%',
+                },
+            },
+            y2: {
+                show: true,
+                min: 0,
+                max: 1024,
+                padding: 0,
+                label: {
+                    text: 'Memory',
+                    position: 'outside-middle',
+                },
+                tick: {
+                    culling: {
+                        max: 4,
+                    },
+                    format: x => H.number(x) + 'MB',
+                    count: 7,
+                },
+            },
+        },
+        tooltip: {
+            format: {
+                value: (value, ratio, id) => {
+                    const func = {
+                        cpu: x => H.number(x) + '%',
+                        mem: x => H.number(x) + 'MB',
+                    }[id];
+                    return func(value);
+                },
+            },
+        },
+        bindto: gaugeEl,
+    });
+    el.appendChild(lineEl);
+    el.appendChild(gaugeEl);
+    return {
+        line: lineChart,
+        gauge: gaugeChart,
+    };
 }
 
 
 export async function main() {
     common.initInteractionListeners();
     const content = document.querySelector('#content');
-    const charts = new Map();
+    const allCharts = new Map();
     while (true) {
         const metrics = await common.rpc('pollAppMetrics');
-        const unused = new Set(charts.keys());
+        const unused = new Set(allCharts.keys());
         for (const x of metrics) {
-            if (!charts.has(x.pid)) {
+            if (!allCharts.has(x.pid)) {
                 const el = document.createElement('div');
-                el.classList.add('chart');
+                el.classList.add('chart-holder');
                 content.appendChild(el);
-                charts.set(x.pid, {
-                    chart: makeMetricChart(x, el),
+                allCharts.set(x.pid, {
+                    charts: await makeMetricCharts(x, el),
                     el,
                 });
             }
             unused.delete(x.pid);
-            const {chart} = charts.get(x.pid);
+            const {charts} = allCharts.get(x.pid);
             const cpu = x.cpu.percentCPUUsage * 10;  // XXX why is it 10x off?
             const mem = x.memory.workingSetSize / 1024;  // MB
-            const maxRanges = chart.axis.max();
+            const maxRanges = charts.line.axis.max();
             if (cpu > maxRanges.y) {
-                chart.axis.max({y: Math.ceil(cpu)});
+                charts.line.axis.max({y: Math.ceil(cpu)});
             }
             if (mem > maxRanges.y2) {
                 const y2Max = Math.round((mem + 20) / 10) * 10;
-                chart.axis.max({y2: y2Max});
+                charts.line.axis.max({y2: y2Max});
                 // convert ygrid line for 200MB to y axis domain. :(
-                const yMax = chart.axis.max().y;
-                chart.ygrids([{value: yMax * (200 / y2Max)}]);
+                const yMax = charts.line.axis.max().y;
+                charts.line.ygrids([{value: yMax * (200 / y2Max)}]);
             }
-            chart.load({
+            charts.line.load({
                 columns: [
-                    ['cpu', x.cpu.percentCPUUsage * 10], // XXX No idea why, but cpu is 10x what it should be
-                    ['mem', x.memory.workingSetSize / 1024],
+                    ['cpu', cpu],
+                    ['mem', mem],
                 ],
                 append: true,
             });
+            charts.gauge.load({columns: [['cpu', cpu]]});
         }
         for (const pid of unused) {
-            const {el} = charts.get(pid);
-            charts.delete(pid);
+            const {el} = allCharts.get(pid);
+            allCharts.delete(pid);
             el.remove();
         }
     }
