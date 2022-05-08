@@ -56,13 +56,7 @@ publish: $(BUILD)
 	npm run publish
 
 webdeps:
-ifndef WINBLOWS
-	cp node_modules/billboard.js/dist/billboard.pkgd.min.js pages/deps/src/billboard.js
-	cp node_modules/billboard.js/dist/billboard.css pages/deps/css/
-else
-	cp node_modules/billboard.js/dist/billboard.pkgd.min.js pages/deps/src/billboard.js
-	cp node_modules/billboard.js/dist/billboard.css pages/deps/css/
-endif
+	cp node_modules/echarts/dist/echarts.esm.min.js pages/deps/src/echarts.mjs
 
 sass:
 	$(NPATH)/sass pages/scss:pages/css
