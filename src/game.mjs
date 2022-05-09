@@ -615,9 +615,9 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     async _fakeDataGenerator() {
         const OutgoingPacket = ZwiftPacketMonitor.OutgoingPacket;
         let c = 1;
-        let watching = -50;
+        let watching = -500;
         while (this._active) {
-            for (let i = 1; i < 100; i++) {
+            for (let i = 1; i < 1000; i++) {
                 const packet = OutgoingPacket.fromObject({
                     athleteId: -i,
                     worldTime: Date.now() - worldTimeOffset,
