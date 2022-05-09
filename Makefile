@@ -56,7 +56,7 @@ publish: $(BUILD)
 	npm run publish
 
 webdeps:
-	cp node_modules/echarts/dist/echarts.esm.min.js pages/deps/src/echarts.mjs
+	cp node_modules/echarts/dist/echarts.esm.js pages/deps/src/echarts.mjs
 
 sass:
 	$(NPATH)/sass pages/scss:pages/css
