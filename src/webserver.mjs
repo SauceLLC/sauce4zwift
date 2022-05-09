@@ -129,7 +129,7 @@ async function _start(port) {
     }));
     router.post('/api/rpc', async (req, res) => {
         const {name, args} = req.body;
-        res.json(await rpc.invoke(name, ...args));
+        res.json(await rpc.invoke.call(null, name, ...args));
     });
     router.ws('/api/ws', (ws, req) => {
         const subs = new Map();

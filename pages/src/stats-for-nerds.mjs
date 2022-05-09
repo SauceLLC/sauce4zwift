@@ -96,8 +96,8 @@ export async function main() {
             }
             unused.delete(x.pid);
             const {charts, datas} = allCharts.get(x.pid);
-            const cpu = x.cpu.percentCPUUsage * 10;  // XXX why is it 10x off?
-            const mem = x.memory.workingSetSize / 1024;  // MB
+            const cpu = Math.round(x.cpu.percentCPUUsage * 10);  // XXX why is it 10x off?
+            const mem = Number((x.memory.workingSetSize / 1024).toFixed(1));  // MB
             datas.cpu.push(cpu);
             datas.cpu.shift();
             datas.mem.push(mem);

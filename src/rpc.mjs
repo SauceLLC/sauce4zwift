@@ -51,5 +51,5 @@ export function register(name, fn) {
 
 
 app.whenReady().then(() => {
-    ipcMain.handle('__rpc__', (ev, name, ...args) => invoke.call(ev.sender, name, ...args));
+    ipcMain.handle('__rpc__', async (ev, name, ...args) => JSON.stringify(await invoke.call(ev.sender, name, ...args)));
 });

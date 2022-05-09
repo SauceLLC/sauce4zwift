@@ -313,7 +313,12 @@ rpc.register('getWindows', getWindows);
 
 
 rpc.register('listenForWindowUpdates', function(domEvent) {
-    windowsUpdateListeners.set(new WeakRef(this), domEvent);
+    if (this) {
+        windowsUpdateListeners.set(new WeakRef(this), domEvent);
+    } else {
+        // XXX Doesn't work for web clients, but I think we could proxy to the webServer
+        console.warn("listenForWindowUpdates is only supported on electron");
+    }
 });
 
 
@@ -759,7 +764,9 @@ async function main() {
     }
     electron.ipcMain.on('subscribe', (ev, {event, domEvent, persistent}) => {
         const {win, activeSubs, spec} = activeWindows.get(ev.sender);
-        const sendMessage = data => win.webContents.send('browser-message', {domEvent, data});
+        // NOTE: Electron webContents.send is incredibly hard ON CPU and GC for deep objects.  Using JSON is
+        // a massive win for CPU and memory.
+        const sendMessage = data => win.webContents.send('browser-message', {domEvent, json: JSON.stringify(data)});
         // NOTE: MacOS emits show/hide AND restore/minimize but Windows only does restore/minimize
         const resumeEvents = ['responsive', 'show', 'restore'];
         const suspendEvents = ['unresponsive', 'hide', 'minimize'];

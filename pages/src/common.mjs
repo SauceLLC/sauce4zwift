@@ -26,7 +26,7 @@ if (window.isElectron) {
     let evId = 1;
     subscribe = function(event, callback, options={}) {
         const domEvent = `sauce-${event}-${evId++}`;
-        document.addEventListener(domEvent, ev => void callback(ev.detail));
+        document.addEventListener(domEvent, ev => void callback(JSON.parse(ev.detail)));
         sendToElectron('subscribe', {event, domEvent, ...options});
     };
 
@@ -34,11 +34,11 @@ if (window.isElectron) {
         const domEvent = `sauce-${name}-${evId++}`;
         const resp = new Promise((resolve, reject) => {
             document.addEventListener(domEvent, ev => {
-                const resp = ev.detail;
-                if (resp.success) {
-                    resolve(resp.value);
+                const r = JSON.parse(ev.detail);
+                if (r.success) {
+                    resolve(r.value);
                 } else {
-                    reject(makeRPCError(resp));
+                    reject(makeRPCError(r));
                 }
             }, {once: true});
         });
@@ -111,7 +111,7 @@ if (window.isElectron) {
     };
 
     rpc = async function(name, ...args) {
-        const r = await fetch('/api/rpc', {
+        const f = await fetch('/api/rpc', {
             method: 'POST',
             headers: {"content-type": 'application/json'},
             body: JSON.stringify({
@@ -119,11 +119,11 @@ if (window.isElectron) {
                 args
             })
         });
-        const resp = await r.json();
-        if (resp.success) {
-            return resp.value;
+        const r = await f.json();
+        if (r.success) {
+            return r.value;
         } else {
-            throw makeRPCError(resp);
+            throw makeRPCError(r);
         }
     };
 
