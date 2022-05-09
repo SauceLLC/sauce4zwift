@@ -1,4 +1,3 @@
-@import 'billboard-theme';
 
 html {
     font-size: 14px;
@@ -10,21 +9,20 @@ html {
 
     .chart-holder {
         flex: 0 0 auto;
-        //display: flex;
+        display: flex;
         position: relative;
         height: 160px;
 
         .chart {
             padding: 0;
             margin: 0;
-            height: 100px;
 
             &.line {
-                flex: 0.8 1;
+                flex: 1 1 auto;
             }
 
             &.gauge {
-                flex: 0.2 1;
+                flex: 0 0 200px;
             }
         }
     }
