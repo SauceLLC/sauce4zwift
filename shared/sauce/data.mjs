@@ -226,6 +226,17 @@ class Break extends Zero {
     }
 }
 
+const _padCache = new Map();
+function getSoftPad(n) {
+    // To save mem we just keep a cache of all the pad objects and return a ref
+    // to the cached object when the reference number is close to that value.
+    const sig = Math.round(n * 10);
+    if (!_padCache.has(sig)) {
+        _padCache.set(sig, new Pad(sig / 10));
+    }
+    return _padCache.get(sig);
+}
+
 const ZERO = new Zero();
 
 
@@ -372,9 +383,9 @@ class RollingAverage {
                         this._add(prevTS + i, ZERO);
                     }
                 }
-            } else if (this.idealGap && gap > this.idealGap) {
+            } else if (this.idealGap && gap > (this.idealGap * 2)) {
                 for (let i = this.idealGap; i < gap; i += this.idealGap) {
-                    this._add(prevTS + i, new Pad(value));
+                    this._add(prevTS + i, getSoftPad(value));
                 }
             }
         }
