@@ -40,7 +40,10 @@ async function makeMetricCharts(proc, el) {
         tooltip: {
             trigger: 'axis'
         },
-        xAxis: [{show: false}],
+        xAxis: [{
+            show: false,
+            data: Array.from(new Array(300)).map((x, i) => i),
+        }],
         yAxis: [{show: false}, {show: false}],
         series: [{
             type: 'line',
@@ -77,6 +80,7 @@ export async function main() {
     common.initInteractionListeners();
     const content = document.querySelector('#content');
     const allCharts = new Map();
+    let iter = 0;
     while (true) {
         const metrics = await common.rpc('pollAppMetrics');
         const unused = new Set(allCharts.keys());
@@ -103,14 +107,18 @@ export async function main() {
             datas.mem.push(mem);
             datas.mem.shift();
             charts.line.setOption({
+                xAxis: [{
+                    data: datas.cpu.map((_, i) => iter + i),
+                }],
                 series: [{
-                    data: datas.cpu.map((x, i) => [i, x]),
+                    data: datas.cpu,
                 }, {
-                    data: datas.mem.map((x, i) => [i, x]),
+                    data: datas.mem,
                 }]
             });
             charts.gauge.setOption({series: [{data: [{value: Math.round(cpu)}]}]});
         }
+        iter++;
         for (const pid of unused) {
             const {el} = allCharts.get(pid);
             allCharts.delete(pid);
