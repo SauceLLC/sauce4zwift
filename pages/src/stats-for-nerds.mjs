@@ -1,8 +1,13 @@
 import sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
 import * as echarts from '../deps/src/echarts.mjs';
+import {theme} from './echarts-sauce-theme.mjs';
+
+echarts.registerTheme('sauce', theme);
 
 const L = sauce.locale;
+const H = L.human;
+const maxLen = 300;
 
 
 async function makeMetricCharts(proc, el) {
@@ -18,7 +23,9 @@ async function makeMetricCharts(proc, el) {
     gaugeEl.classList.add('chart',  'gauge');
     el.appendChild(lineEl);
     el.appendChild(gaugeEl);
-    const lineChart = echarts.init(lineEl);
+    const lineChart = echarts.init(lineEl, 'sauce', {
+        renderer: location.search.includes('svg') ? 'svg' : 'canvas',
+    });
     const options = {
         visualMap: [{
             show: false,
@@ -28,34 +35,62 @@ async function makeMetricCharts(proc, el) {
             max: 100
         }],
         grid: {
-            top: 40,
-            left: 0,
-            right: 0,
-            bottom: 0,
+            top: 20,
+            left: 20,
+            right: 20,
+            bottom: 14,
         },
         title: [{
             left: 'left',
             text: `${spec ? spec.prettyName : ''} ${decodedNames[proc.type] || proc.name || proc.type}, PID: ${proc.pid}`,
         }],
         tooltip: {
-            trigger: 'axis'
+            trigger: 'axis',
+            confine: true,
+            valueFormatter: H.number
+            //formatter: '{a} {b} {c} {d}',
         },
         xAxis: [{
             show: false,
-            data: Array.from(new Array(300)).map((x, i) => i),
+            data: Array.from(new Array(maxLen)).map((x, i) => i),
         }],
-        yAxis: [{show: false}, {show: false}],
+        yAxis: [{
+            show: false,
+            name: 'CPU',
+            min: 0,
+            max: x => Math.max(100, x.max),
+            axisLabel: {
+                align: 'left',
+                formatter: '{value}%',
+            }
+        }, {
+            show: false,
+            min: 0,
+            max: x => Math.max(1024, x.max),
+        }],
         series: [{
+            id: 'cpu',
+            name: 'CPU',
             type: 'line',
             showSymbol: false,
+            tooltip: {
+                valueFormatter: x => H.number(x) + '%'
+            },
         }, {
+            id: 'mem',
+            name: 'Memory',
             type: 'line',
             showSymbol: false,
             yAxisIndex: 1,
+            tooltip: {
+                valueFormatter: x => H.number(x) + 'MB'
+            },
         }]
     };
     lineChart.setOption(options);
-    const gaugeChart = new echarts.init(gaugeEl);
+    const gaugeChart = new echarts.init(gaugeEl, 'sauce', {
+        renderer: location.search.includes('svg') ? 'svg' : 'canvas',
+    });
     gaugeChart.setOption({
         series: [{
             name: 'CPU',
@@ -67,7 +102,7 @@ async function makeMetricCharts(proc, el) {
                 value: 0,
                 name: 'CPU'
             }]
-        }]
+        }],
     });
     return {
         line: lineChart,
@@ -80,9 +115,21 @@ export async function main() {
     common.initInteractionListeners();
     const content = document.querySelector('#content');
     const allCharts = new Map();
+    addEventListener('resize', () => {
+        for (const {charts} of allCharts.values()) {
+            charts.line.resize();
+            charts.gauge.resize();
+        }
+    });
     let iter = 0;
     while (true) {
-        const metrics = await common.rpc('pollAppMetrics');
+        const metrics = await common.rpc('pollAppMetrics').catch(e => {
+            console.warn("Failed to get metrics:", e);
+            return sauce.sleep(1000);
+        });
+        if (!metrics) {
+            continue;
+        }
         const unused = new Set(allCharts.keys());
         for (const x of metrics) {
             if (!allCharts.has(x.pid)) {
@@ -92,10 +139,10 @@ export async function main() {
                 allCharts.set(x.pid, {
                     charts: await makeMetricCharts(x, el),
                     datas: {
-                        cpu: Array.from(new Array(300)).map(() => 0),
-                        mem: Array.from(new Array(300)).map(() => 0),
+                        cpu: [...sauce.data.range(maxLen - 10)].map(i => 25 + Math.sin(i / 3) * 25),
+                        mem: [...sauce.data.range(maxLen - 10)].map(i => 150 + Math.cos(i / 10) * 100),
+                        count: maxLen - 10, // Match ^^^
                     },
-                    el,
                 });
             }
             unused.delete(x.pid);
@@ -103,26 +150,50 @@ export async function main() {
             const cpu = Math.round(x.cpu.percentCPUUsage * 10);  // XXX why is it 10x off?
             const mem = Number((x.memory.workingSetSize / 1024).toFixed(1));  // MB
             datas.cpu.push(cpu);
-            datas.cpu.shift();
             datas.mem.push(mem);
-            datas.mem.shift();
+            datas.count++;
+            while (datas.cpu.length > maxLen) {
+                datas.cpu.shift();
+                datas.mem.shift();
+            }
             charts.line.setOption({
                 xAxis: [{
-                    data: datas.cpu.map((_, i) => iter + i),
+                    data: [...sauce.data.range(maxLen)].map(i =>
+                        (datas.count > maxLen ? datas.count - maxLen : 0) + i)
                 }],
                 series: [{
                     data: datas.cpu,
                 }, {
                     data: datas.mem,
+                    markLine: {
+                        inside: true,
+                        symbol: 'none',
+                        data: [{
+                            name: 'Max',
+                            xAxis: datas.mem.indexOf(sauce.data.max(datas.mem)),
+                            label: {
+                                position: 'insideEndTop',
+                                formatter: x => `${H.number(datas.mem[x.value])}MB`
+                            },
+                            emphasis: {
+                                disabled: true,
+                            },
+                        }],
+                    },
                 }]
             });
             charts.gauge.setOption({series: [{data: [{value: Math.round(cpu)}]}]});
         }
         iter++;
         for (const pid of unused) {
-            const {el} = allCharts.get(pid);
+            const {charts, el} = allCharts.get(pid);
             allCharts.delete(pid);
+            charts.line.dispose();
+            charts.gauge.dispose();
             el.remove();
+        }
+        if (location.search.includes('slow')) {
+            await sauce.sleep(iter * 1000);
         }
     }
 }
