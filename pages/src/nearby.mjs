@@ -165,7 +165,7 @@ export function main() {
     });
     settings = common.storage.get(settingsKey, {
         autoscroll: true,
-        refreshInterval: 1,
+        refreshInterval: 2,
         overlayMode: false,
         fontScale: 1,
         transparency: 0,
