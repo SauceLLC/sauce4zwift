@@ -259,7 +259,7 @@ function _getAppMetrics(reentrant) {
         }
         _lastAppMetricsTS = Date.now();
         resolve(electron.app.getAppMetrics());
-    }, 1000 - (Date.now() - _lastAppMetricsTS)));
+    }, 2000 - (Date.now() - _lastAppMetricsTS)));
 }
 rpc.register('pollAppMetrics', async () => {
     if (!_appMetricsPromise) {

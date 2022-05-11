@@ -266,10 +266,14 @@ class RollingAverage {
         });
         instance._times = this._times;
         instance._values = this._values;
-        instance._offt = this._offt;
         instance._length = this._length;
-        instance._activeAcc = this._activeAcc;
-        instance._valuesAcc = this._valuesAcc;
+        if (options.reset) {
+            instance._offt = this._length;
+        } else {
+            instance._offt = this._offt;
+            instance._activeAcc = this._activeAcc;
+            instance._valuesAcc = this._valuesAcc;
+        }
         return instance;
     }
 

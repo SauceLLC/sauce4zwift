@@ -3,7 +3,6 @@ import net from 'node:net';
 import {SqliteDatabase, deleteDatabase} from './db.mjs';
 import * as storage from './storage.mjs';
 import * as rpc from './rpc.mjs';
-import sudo from 'sudo-prompt';
 import sauce from '../shared/sauce/index.mjs';
 import fetch from 'node-fetch';
 import {getAppSetting} from './main.mjs';
@@ -11,7 +10,7 @@ import {createRequire} from 'node:module';
 import {captureExceptionOnce} from '../shared/sentry-util.mjs';
 const require = createRequire(import.meta.url);
 const electron = require('electron');
-
+const pkg = require('../package.json');
 
 export let npcapMissing = false;
 
@@ -100,29 +99,65 @@ function estGap(a, b, dist) {
 }
 
 
-class RollingPeaks {
+class DataCollector {
     constructor(Klass, periods, options={}) {
+        this.firstTS = null;
+        this._maxPower = 0;
+        if (options._cloning) {
+            return;
+        }
         const defOptions = {idealGap: 0.200, maxGap: 10, active: true};
-        this._firstTS = null;
         this.roll = new Klass(null, {...defOptions, ...options});
         this.periodized = new Map(periods.map(period => [period, {
             roll: this.roll.clone({period}),
             peak: null,
         }]));
-        this.max = 0;
+    }
+
+    clone({reset}={}) {
+        const instance = new this.constructor(null, null, {_cloning: true});
+        if (!reset) {
+            instance.firstTS = this.firstTS;
+            instance._maxPower = this._maxPower;
+        }
+        instance.roll = this.roll.clone({reset});
+        instance.periodized = new Map();
+        for (const [period, {roll, peak}] of this.periodized.entries()) {
+            instance.periodized.set(period, {
+                roll: roll.clone({reset}),
+                peak: reset ? null : peak,
+            });
+        }
+        return instance;
     }
 
     add(ts, value) {
         // XXX Perhaps we should have a aggregation buffer here so
         // we don't accumulate a bunch of repetitive data.
-        if (this._firstTS === null) {
-            this._firstTS = ts;
+        if (this.firstTS === null) {
+            this.firstTS = ts;
         }
-        const time = (ts - this._firstTS) / 1000;
+        const time = (ts - this.firstTS) / 1000;
         this.roll.add(time, value);
-        if (value > this.max) {
-            this.max = value;
+        if (value > this._maxPower) {
+            this._maxPower = value;
         }
+        this._resizePeriodized(ts);
+    }
+
+    resize(ts) {
+        if (this.firstTS === null) {
+            this.firstTS = ts;
+        }
+        this.roll.resize();
+        const value = this.roll.valueAt(-1);
+        if (value > this._maxPower) {
+            this._maxPower = value;
+        }
+        this._resizePeriodized(ts);
+    }
+
+    _resizePeriodized(ts) {
         for (const x of this.periodized.values()) {
             x.roll.resize();
             if (x.roll.full()) {
@@ -144,7 +179,7 @@ class RollingPeaks {
         }
         return {
             avg: this.roll.avg(),
-            max: this.max,
+            max: this._maxPower,
             peaks,
             smooth,
             ...extra,
@@ -192,7 +227,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         this.ip = ip;
         this._useFakeData = fakeData;
         this.setMaxListeners(50);
-        this._rolls = new Map();
+        this._athleteData = new Map();
         this._roadHistory = new Map();
         this._roadId;
         this._chatDeDup = [];
@@ -206,6 +241,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         rpc.register('startLap', this.startLap.bind(this));
         rpc.register('getLaps', this.getLaps.bind(this));
         rpc.register('resetStats', this.resetStats.bind(this));
+        rpc.register('exportFIT', this.exportFIT.bind(this));
     }
 
     maybeLearnAthleteId(packet) {
@@ -220,11 +256,13 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     startLap() {
         console.debug("User requested lap start");
         const now = Date.now();
-        for (const roll of this._rolls.values()) {
-            roll.laps.at(-1).end = now;
-            roll.laps.push({
+        for (const data of this._athleteData.values()) {
+            const lastLap = data.laps.at(-1);
+            lastLap.end = now;
+            Object.assign(lastLap, this.cloneDataCollectors(lastLap));
+            data.laps.push({
                 start: now,
-                ...this.makeRollingPeaks()
+                ...this.cloneDataCollectors(data, {reset: true}),
             });
         }
     }
@@ -235,7 +273,108 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
 
     resetStats() {
         console.debug("User requested stats reset");
-        this._rolls.clear();
+        this._athleteData.clear();
+    }
+
+    async exportFIT(athleteId) {
+        console.debug("Exporting FIT file for:", athleteId);
+        if (athleteId == null) {
+            throw new TypeError('athleteId required');
+        }
+        if (!this._athleteData.has(athleteId)) {
+            throw new TypeError('no data for athlete');
+        }
+        const fit = await import('jsfit');
+        const fitParser = new fit.FitParser();
+        fitParser.addMessage('file_id', {
+            type: 'activity',
+            manufacturer: 0,
+            product: 0,
+            time_created: new Date(),
+            serial_number: 0,
+            number: null,
+            product_name: 'Sauce for Zwift',
+        });
+        const [vmajor, vminor] = pkg.version.split('.');
+        fitParser.addMessage('file_creator', {
+            software_version: Number([vmajor.slice(0, 2),
+                vminor.slice(0, 2).padStart(2, '0')].join('')),
+            hardware_version: null,
+        });
+        const athlete = this.loadAthlete(athleteId);
+        if (athlete) {
+            fitParser.addMessage('user_profile', {
+                friendly_name: athlete.fullname,
+                gender: athlete.gender || 'male',
+                weight: athlete.weight || 0,
+                weight_setting: 'metric',
+            });
+        }
+        const recentPlayerState = this.states.get(athleteId);
+        const sport = {
+            0: 'cycling',
+            1: 'running',
+        }[recentPlayerState ? recentPlayerState.sport : 0] || 'generic';
+        const laps = this._athleteData.get(athleteId).laps;
+        fitParser.addMessage('event', {
+            event: 'timer',
+            event_type: 'start',
+            event_group: 0,
+            timestamp: laps[0].power.firstTS,
+            data: 'manual',
+        });
+        let lapNumber = 0;
+        for (const {power, speed, cadence, hr} of laps) {
+            const startTS = power.firstTS;
+            if ([speed, cadence, hr].some(x => x.roll.size() !== power.roll.size())) {
+                throw new Error("Assertion failure about roll sizes being equal");
+            }
+            for (let i = 0; i < power.roll.size(); i++) {
+                const record = {
+                    timestamp: startTS + (power.roll.timeAt(i) * 1000),
+                };
+                /*if (streams.latlng) {
+                    [record.position_lat, record.position_long] = streams.latlng[i];
+                }*/
+                /*if (streams.altitude) {
+                    record.altitude = streams.altitude[i];
+                }
+                if (streams.distance) {
+                    record.distance = streams.distance[i];
+                }*/
+                record.speed = speed.roll.valueAt(i) * 1000 / 3600;
+                record.heart_rate = +hr.roll.valueAt(i);
+                record.cadence = Math.round(cadence.roll.valueAt(i));
+                /*if (streams.temp) {
+                    record.temperature = streams.temp[i];
+                }*/
+                record.power = Math.round(power.roll.valueAt(i));
+                fitParser.addMessage('record', record);
+            }
+            const elapsed = power.roll.lastTime() - power.roll.firstTime();
+            const lap = {
+                message_index: lapNumber++,
+                lap_trigger: lapNumber === laps.length ? 'session_end' : 'manual',
+                event: 'lap',
+                event_type: 'stop',
+                sport,
+                timestamp: startTS + (power.roll.lastTime() * 1000),
+                start_time: startTS + (power.roll.firstTime() * 1000),
+                total_elapsed_time: elapsed,
+                total_timer_time: elapsed, // We can't really make a good assessment.
+            };
+            /*if (streams.latlng) {
+                lap.start_position_lat = streams.latlng[start][0];
+                lap.start_position_long = streams.latlng[start][1];
+                lap.end_position_lat = streams.latlng[end][0];
+                lap.end_position_long = streams.latlng[end][1];
+            }*/
+            /*if (streams.distance) {
+                lap.total_distance = streams.distance[end] - streams.distance[start];
+            }*/
+            fitParser.addMessage('lap', lap);
+        }
+        return Array.from(fitParser.encode());
     }
 
     updateAthlete(id, fName, lName, extra={}) {
@@ -408,29 +547,39 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         return [state.roadId, state.reverse].join();
     }
 
-    getStats(rolls, athlete) {
-        const end = rolls.end || Date.now();
-        const elapsed = (end - rolls.start) / 1000;
-        const np = rolls.power.roll.np({force: true});
-        const tss = np && athlete && athlete.ftp ? sauce.power.calcTSS(np, rolls.power.roll.active(), athlete.ftp) : undefined;
+    getStats(data, athlete) {
+        const end = data.end || Date.now();
+        const elapsed = (end - data.start) / 1000;
+        const np = data.power.roll.np({force: true});
+        const tss = np && athlete && athlete.ftp ? sauce.power.calcTSS(np, data.power.roll.active(), athlete.ftp) : undefined;
         return {
             elapsed,
-            power: rolls.power.getStats({np, tss}),
-            speed: rolls.speed.getStats(),
-            hr: rolls.hr.getStats(),
-            draft: rolls.draft.getStats(),
-            cadence: rolls.cadence.getStats(),
+            power: data.power.getStats({np, tss}),
+            speed: data.speed.getStats(),
+            hr: data.hr.getStats(),
+            draft: data.draft.getStats(),
+            cadence: data.cadence.getStats(),
         };
     }
 
-    makeRollingPeaks() {
+    makeDataCollectors() {
         const periods = [5, 15, 60, 300, 1200];
         return {
-            power: new RollingPeaks(sauce.power.RollingPower, periods, {inlineNP: true}),
-            speed: new RollingPeaks(sauce.data.RollingAverage, periods, {ignoreZeros: true}),
-            hr: new RollingPeaks(sauce.data.RollingAverage, periods, {ignoreZeros: true}),
-            cadence: new RollingPeaks(sauce.data.RollingAverage, [], {ignoreZeros: true}),
-            draft: new RollingPeaks(sauce.data.RollingAverage, []),
+            power: new DataCollector(sauce.power.RollingPower, periods, {inlineNP: true}),
+            speed: new DataCollector(sauce.data.RollingAverage, periods, {ignoreZeros: true}),
+            hr: new DataCollector(sauce.data.RollingAverage, periods, {ignoreZeros: true}),
+            cadence: new DataCollector(sauce.data.RollingAverage, [], {ignoreZeros: true}),
+            draft: new DataCollector(sauce.data.RollingAverage, []),
+        };
+    }
+
+    cloneDataCollectors(collectors, options={}) {
+        return {
+            power: collectors.power.clone(options),
+            speed: collectors.speed.clone(options),
+            hr: collectors.hr.clone(options),
+            cadence: collectors.cadence.clone(options),
+            draft: collectors.draft.clone(options),
         };
     }
 
@@ -465,6 +614,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                     avatar: p.imageSrcLarge || p.imageSrc,
                     weight: p.weight / 1000,
                     height: p.height / 10,
+                    gender: p.male === false ? 'female' : 'male',
                     age: p.age,
                     level: Math.floor(p.achievementLevel / 100),
                     createdOn: p.createdOn ? +(new Date(p.createdOn)) : undefined,
@@ -519,14 +669,14 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         const roadCompletion = state.roadLocation;
         state.roadCompletion = !state.reverse ? 1000000 - roadCompletion : roadCompletion;
         this.states.set(state.athleteId, state);
-        if (!this._rolls.has(state.athleteId)) {
-            const rollingPeaks = this.makeRollingPeaks();
+        if (!this._athleteData.has(state.athleteId)) {
+            const collectors = this.makeDataCollectors();
             const start = Date.now();
-            this._rolls.set(state.athleteId, {
+            this._athleteData.set(state.athleteId, {
                 start,
                 athleteId: state.athleteId,
-                laps: [{start, ...rollingPeaks}],
-                ...rollingPeaks,
+                laps: [{start, ...this.cloneDataCollectors(collectors, {reset: true})}],
+                ...collectors,
             });
         }
         if (!this._roadHistory.has(state.athleteId)) {
@@ -552,31 +702,31 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             roadLoc.timeline.length = 0;
         }
         roadLoc.timeline.push({ts: state.ts, roadCompletion: state.roadCompletion});
-        const rolls = this._rolls.get(state.athleteId);
-        const curLap = rolls.laps.at(-1);
+        const data = this._athleteData.get(state.athleteId);
+        const curLap = data.laps.at(-1);
         if (state.power != null) {
-            rolls.power.add(state.ts, state.power);
-            curLap.power.add(state.ts, state.power);
+            data.power.add(state.ts, state.power);
+            curLap.power.resize(state.ts);
         }
         if (state.speed != null) {
-            rolls.speed.add(state.ts, state.speed);
-            curLap.speed.add(state.ts, state.speed);
+            data.speed.add(state.ts, state.speed);
+            curLap.speed.resize(state.ts);
         }
         if (state.heartrate != null) {
-            rolls.hr.add(state.ts, state.heartrate);
-            curLap.hr.add(state.ts, state.heartrate);
+            data.hr.add(state.ts, state.heartrate);
+            curLap.hr.resize(state.ts);
         }
         if (state.draft != null) {
-            rolls.draft.add(state.ts, state.draft);
-            curLap.draft.add(state.ts, state.draft);
+            data.draft.add(state.ts, state.draft);
+            curLap.draft.resize(state.ts);
         }
         if (state.cadence != null) {
-            rolls.cadence.add(state.ts, state.cadence);
-            curLap.cadence.add(state.ts, state.cadence);
+            data.cadence.add(state.ts, state.cadence);
+            curLap.cadence.resize(state.ts);
         }
         state.athlete = this.loadAthlete(state.athleteId);
-        state.stats = this.getStats(rolls, state.athlete);
-        state.laps = rolls.laps.map(x => this.getStats(x, state.athlete));
+        state.stats = this.getStats(data, state.athlete);
+        state.laps = data.laps.map(x => this.getStats(x, state.athlete));
         if (this.watching === state.athleteId) {
             this.emit('watching', this.cleanState(state));
         }
@@ -832,6 +982,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
 
 export async function getCapturePermission() {
     if (os.platform() === 'darwin') {
+        const sudo = await import('sudo-prompt');
         await new Promise((resolve, reject) => {
             sudo.exec(`chown ${os.userInfo().uid} /dev/bpf*`, {name: 'Sauce for Zwift'},
                 (e, stdout, stderr) => {

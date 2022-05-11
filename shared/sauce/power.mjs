@@ -283,11 +283,13 @@ class RollingPower extends sauce.data.RollingAverage {
 
     clone(options={}) {
         const instance = super.clone(options);
-        if (this._inlineNP && options.inlineNP !== false) {
-            this._copyInlineState('_inlineNP', instance);
-        }
-        if (this._inlineXP && options.inlineXP !== false) {
-            this._copyInlineState('_inlineXP', instance);
+        if (!options.reset) {
+            if (this._inlineNP && options.inlineNP !== false) {
+                this._copyInlineState('_inlineNP', instance);
+            }
+            if (this._inlineXP && options.inlineXP !== false) {
+                this._copyInlineState('_inlineXP', instance);
+            }
         }
         return instance;
     }
