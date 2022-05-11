@@ -101,7 +101,6 @@ function estGap(a, b, dist) {
 
 class DataCollector {
     constructor(Klass, periods, options={}) {
-        this.firstTS = null;
         this._maxPower = 0;
         if (options._cloning) {
             return;
@@ -117,7 +116,6 @@ class DataCollector {
     clone({reset}={}) {
         const instance = new this.constructor(null, null, {_cloning: true});
         if (!reset) {
-            instance.firstTS = this.firstTS;
             instance._maxPower = this._maxPower;
         }
         instance.roll = this.roll.clone({reset});
@@ -131,50 +129,45 @@ class DataCollector {
         return instance;
     }
 
-    add(ts, value) {
+    add(time, value) {
         // XXX Perhaps we should have a aggregation buffer here so
         // we don't accumulate a bunch of repetitive data.
-        if (this.firstTS === null) {
-            this.firstTS = ts;
-        }
-        const time = (ts - this.firstTS) / 1000;
         this.roll.add(time, value);
         if (value > this._maxPower) {
             this._maxPower = value;
         }
-        this._resizePeriodized(ts);
+        this._resizePeriodized();
     }
 
-    resize(ts) {
-        if (this.firstTS === null) {
-            this.firstTS = ts;
-        }
+    resize() {
         this.roll.resize();
         const value = this.roll.valueAt(-1);
         if (value > this._maxPower) {
             this._maxPower = value;
         }
-        this._resizePeriodized(ts);
+        this._resizePeriodized();
     }
 
-    _resizePeriodized(ts) {
+    _resizePeriodized() {
         for (const x of this.periodized.values()) {
             x.roll.resize();
             if (x.roll.full()) {
                 const avg = x.roll.avg();
                 if (x.peak === null || avg >= x.peak.avg()) {
                     x.peak = x.roll.clone();
-                    x.peak.ts = ts;
                 }
             }
         }
     }
 
-    getStats(extra) {
+    getStats(tsOffset, extra) {
         const peaks = {};
         const smooth = {};
         for (const [p, {roll, peak}] of this.periodized.entries()) {
-            peaks[p] = {avg: peak ? peak.avg() : null, ts: peak ? peak.ts: null};
+            peaks[p] = {
+                avg: peak ? peak.avg() : null,
+                ts: peak ? tsOffset + (peak.lastTime() * 1000): null
+            };
             smooth[p] = roll.avg();
         }
         return {
@@ -315,39 +308,26 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             0: 'cycling',
             1: 'running',
         }[recentPlayerState ? recentPlayerState.sport : 0] || 'generic';
-        const laps = this._athleteData.get(athleteId).laps;
+        const {laps, tsOffset} = this._athleteData.get(athleteId);
         fitParser.addMessage('event', {
             event: 'timer',
             event_type: 'start',
             event_group: 0,
-            timestamp: laps[0].power.firstTS,
+            timestamp: tsOffset,
             data: 'manual',
         });
         let lapNumber = 0;
+        let lastTS;
         for (const {power, speed, cadence, hr} of laps) {
-            const startTS = power.firstTS;
             if ([speed, cadence, hr].some(x => x.roll.size() !== power.roll.size())) {
                 throw new Error("Assertion failure about roll sizes being equal");
             }
             for (let i = 0; i < power.roll.size(); i++) {
-                const record = {
-                    timestamp: startTS + (power.roll.timeAt(i) * 1000),
-                };
-                /*if (streams.latlng) {
-                    [record.position_lat, record.position_long] = streams.latlng[i];
-                }*/
-                /*if (streams.altitude) {
-                    record.altitude = streams.altitude[i];
-                }
-                if (streams.distance) {
-                    record.distance = streams.distance[i];
-                }*/
+                lastTS = tsOffset + (power.roll.timeAt(i) * 1000);
+                const record = {timestamp: lastTS};
                 record.speed = speed.roll.valueAt(i) * 1000 / 3600;
                 record.heart_rate = +hr.roll.valueAt(i);
                 record.cadence = Math.round(cadence.roll.valueAt(i));
-                /*if (streams.temp) {
-                    record.temperature = streams.temp[i];
-                }*/
                 record.power = Math.round(power.roll.valueAt(i));
                 fitParser.addMessage('record', record);
             }
@@ -358,22 +338,42 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 event: 'lap',
                 event_type: 'stop',
                 sport,
-                timestamp: startTS + (power.roll.lastTime() * 1000),
-                start_time: startTS + (power.roll.firstTime() * 1000),
+                timestamp: lastTS,
+                start_time: tsOffset + (power.roll.firstTime() * 1000),
                 total_elapsed_time: elapsed,
                 total_timer_time: elapsed, // We can't really make a good assessment.
             };
-            /*if (streams.latlng) {
-                lap.start_position_lat = streams.latlng[start][0];
-                lap.start_position_long = streams.latlng[start][1];
-                lap.end_position_lat = streams.latlng[end][0];
-                lap.end_position_long = streams.latlng[end][1];
-            }*/
-            /*if (streams.distance) {
-                lap.total_distance = streams.distance[end] - streams.distance[start];
-            }*/
             fitParser.addMessage('lap', lap);
         }
+        fitParser.addMessage('event', {
+            event: 'timer',
+            event_type: 'stop_all',
+            event_group: 0,
+            timestamp: lastTS,
+            data: 'manual',
+        });
+        const elapsed = (lastTS - tsOffset) / 1000;
+        fitParser.addMessage('session', {
+            timestamp: lastTS,
+            event: 'session',
+            event_type: 'stop',
+            start_time: tsOffset,
+            sport,
+            sub_sport: 'generic',
+            total_elapsed_time: elapsed,
+            total_timer_time: elapsed,  // We don't really know
+            first_lap_index: 0,
+            num_laps: laps.length,
+            trigger: 'activity_end',
+        });
+        fitParser.addMessage('activity', {
+            timestamp: lastTS,
+            total_timer_time: elapsed,  // We don't really know
+            num_sessions: 1,
+            type: 'manual',
+            event: 'activity',
+            event_type: 'stop',
+        });
         return Array.from(fitParser.encode());
     }
 
@@ -547,18 +547,20 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         return [state.roadId, state.reverse].join();
     }
 
-    getStats(data, athlete) {
+    getCollectorStats(data, athlete) {
         const end = data.end || Date.now();
         const elapsed = (end - data.start) / 1000;
         const np = data.power.roll.np({force: true});
-        const tss = np && athlete && athlete.ftp ? sauce.power.calcTSS(np, data.power.roll.active(), athlete.ftp) : undefined;
+        const tss = np && athlete && athlete.ftp ?
+            sauce.power.calcTSS(np, data.power.roll.active(), athlete.ftp) :
+            undefined;
         return {
             elapsed,
-            power: data.power.getStats({np, tss}),
-            speed: data.speed.getStats(),
-            hr: data.hr.getStats(),
-            draft: data.draft.getStats(),
-            cadence: data.cadence.getStats(),
+            power: data.power.getStats(data.tsOffset, {np, tss}),
+            speed: data.speed.getStats(data.tsOffset),
+            hr: data.hr.getStats(data.tsOffset),
+            draft: data.draft.getStats(data.tsOffset),
+            cadence: data.cadence.getStats(data.tsOffset),
         };
     }
 
@@ -705,29 +707,33 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         roadLoc.timeline.push({ts: state.ts, roadCompletion: state.roadCompletion});
         const data = this._athleteData.get(state.athleteId);
         const curLap = data.laps.at(-1);
+        if (data.tsOffset === undefined) {
+            data.tsOffset = state.ts;
+        }
+        const time = (state.ts - data.tsOffset) / 1000;
         if (state.power != null) {
-            data.power.add(state.ts, state.power);
-            curLap.power.resize(state.ts);
+            data.power.add(time, state.power);
+            curLap.power.resize(time);
         }
         if (state.speed != null) {
-            data.speed.add(state.ts, state.speed);
-            curLap.speed.resize(state.ts);
+            data.speed.add(time, state.speed);
+            curLap.speed.resize(time);
         }
         if (state.heartrate != null) {
-            data.hr.add(state.ts, state.heartrate);
-            curLap.hr.resize(state.ts);
+            data.hr.add(time, state.heartrate);
+            curLap.hr.resize(time);
         }
         if (state.draft != null) {
-            data.draft.add(state.ts, state.draft);
-            curLap.draft.resize(state.ts);
+            data.draft.add(time, state.draft);
+            curLap.draft.resize(time);
         }
         if (state.cadence != null) {
-            data.cadence.add(state.ts, state.cadence);
-            curLap.cadence.resize(state.ts);
+            data.cadence.add(time, state.cadence);
+            curLap.cadence.resize(time);
         }
         state.athlete = this.loadAthlete(state.athleteId);
-        state.stats = this.getStats(data, state.athlete);
-        state.laps = data.laps.map(x => this.getStats(x, state.athlete));
+        state.stats = this.getCollectorStats(data, state.athlete);
+        state.laps = data.laps.map(x => this.getCollectorStats(x, state.athlete));
         if (this.watching === state.athleteId) {
             this.emit('watching', this.cleanState(state));
         }
