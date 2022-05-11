@@ -13,7 +13,6 @@ document.addEventListener('electron-rpc', async ev => {
     let resp;
     try {
         resp = await ipcRenderer.invoke('__rpc__', ev.detail.name, ...ev.detail.args);
-        console.error(resp);
     } catch(e) {
         resp = JSON.stringify({
             success: false,

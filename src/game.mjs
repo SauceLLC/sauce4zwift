@@ -232,7 +232,6 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         this.on('outgoing', this.onOutgoing);
         rpc.register('updateAthlete', this.updateAthlete.bind(this));
         rpc.register('startLap', this.startLap.bind(this));
-        rpc.register('getLaps', this.getLaps.bind(this));
         rpc.register('resetStats', this.resetStats.bind(this));
         rpc.register('exportFIT', this.exportFIT.bind(this));
     }
@@ -258,10 +257,6 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 ...this.cloneDataCollectors(data, {reset: true}),
             });
         }
-    }
-
-    getLaps(athleteId) {
-        throw new Error("RETHINK XXX");
     }
 
     resetStats() {
@@ -665,7 +660,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         state.kj = state._mwHours / 1000 / (1000 / 3600);
         state.heading = headingConv(state._heading);  // degrees
         state.speed = state._speed / 1000000;  // km/h
-        state.cadence = state._cadenceUHz ? state._cadenceUHz / 1000000 * 60 : null;  // rpm
+        state.cadence = state._cadenceUHz ? state._cadenceUHz / 1000000 * 60 : 0;  // rpm
         // XXX there are two distance values, one probably includes lateral movement?
         // But we just use the more precise one and clobber the other.
         state.distance = state._distance / 100;  // cm -> meters
@@ -711,25 +706,20 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             data.tsOffset = state.ts;
         }
         const time = (state.ts - data.tsOffset) / 1000;
-        if (state.power != null) {
-            data.power.add(time, state.power);
-            curLap.power.resize(time);
-        }
-        if (state.speed != null) {
-            data.speed.add(time, state.speed);
-            curLap.speed.resize(time);
-        }
-        if (state.heartrate != null) {
-            data.hr.add(time, state.heartrate);
-            curLap.hr.resize(time);
-        }
-        if (state.draft != null) {
-            data.draft.add(time, state.draft);
-            curLap.draft.resize(time);
-        }
-        if (state.cadence != null) {
-            data.cadence.add(time, state.cadence);
-            curLap.cadence.resize(time);
+        data.power.add(time, state.power);
+        data.speed.add(time, state.speed);
+        data.hr.add(time, state.heartrate);
+        data.draft.add(time, state.draft);
+        data.cadence.add(time, state.cadence);
+        curLap.power.resize(time);
+        curLap.speed.resize(time);
+        curLap.hr.resize(time);
+        curLap.draft.resize(time);
+        curLap.cadence.resize(time);
+        if (state.power == null ||state.speed == null || state.heartrate == null ||
+            state.cadence == null || state.draft == null) {
+            console.error("Assertion failure");
+            debugger;
         }
         state.athlete = this.loadAthlete(state.athleteId);
         state.stats = this.getCollectorStats(data, state.athlete);
