@@ -66,6 +66,16 @@ table {
         font-variant: tabular-nums;
         cursor: pointer;
 
+        &:first-child { // buttons
+            white-space: nowrap;
+        }
+
+        &[data-id="name"] {
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            max-width: max(12ch, 20vw);
+        }
         &[data-id="avatar"] {
             text-align: center;
 
@@ -118,9 +128,12 @@ table {
         background-color: #a35a;
     }
 
-    td .edit-link {
+    td .link {
         transition: opacity 200ms;
         display: inline-block;
+        margin-right: 0.15em;
+        margin-top: -0.2em;
+        margin-bottom: -0.1em;
 
         &:hover img {
             opacity: 1 !important;
@@ -129,11 +142,11 @@ table {
         img {
             opacity: 0;
             filter: invert(1);
-            height: 0.8em;
+            height: 0.9em;
         }
     }
 
-    tr:hover .edit-link img {
+    tr:hover .link img {
         opacity: 0.7;
     }
 }
@@ -143,7 +156,6 @@ table {
     padding: 0;
     overflow: auto;
     position: relative;
-
     font-size: calc(var(--font-scale) * 1em);
 }
 

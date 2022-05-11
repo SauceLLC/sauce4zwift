@@ -399,7 +399,12 @@ export const theme = {
     },
     markLine: {
         lineStyle: {
-            color: '#fffa',
+            color: '#fffc',
+        },
+        label: {
+            fontWeight: 700,
+            fontSize: '0.76em',
+            color: '#fff',
         },
     },
     "markPoint": {

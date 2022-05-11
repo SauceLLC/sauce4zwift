@@ -138,6 +138,7 @@ export async function main() {
                 content.appendChild(el);
                 allCharts.set(x.pid, {
                     charts: await makeMetricCharts(x, el),
+                    el,
                     datas: {
                         cpu: [...sauce.data.range(maxLen - 10)].map(i => 25 + Math.sin(i / 3) * 25),
                         mem: [...sauce.data.range(maxLen - 10)].map(i => 150 + Math.cos(i / 10) * 100),
@@ -156,6 +157,7 @@ export async function main() {
                 datas.cpu.shift();
                 datas.mem.shift();
             }
+            const maxMemIndex = datas.mem.indexOf(sauce.data.max(datas.mem));
             charts.line.setOption({
                 xAxis: [{
                     data: [...sauce.data.range(maxLen)].map(i =>
@@ -166,13 +168,12 @@ export async function main() {
                 }, {
                     data: datas.mem,
                     markLine: {
-                        inside: true,
                         symbol: 'none',
                         data: [{
                             name: 'Max',
-                            xAxis: datas.mem.indexOf(sauce.data.max(datas.mem)),
+                            xAxis: maxMemIndex,
                             label: {
-                                position: 'insideEndTop',
+                                position: maxMemIndex > datas.mem.length / 2 ? 'insideEndTop' : 'insideEndBottom',
                                 formatter: x => `${H.number(datas.mem[x.value])}MB`
                             },
                             emphasis: {
