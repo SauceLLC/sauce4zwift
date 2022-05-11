@@ -26,13 +26,32 @@ async function makeMetricCharts(proc, el) {
     const lineChart = echarts.init(lineEl, 'sauce', {
         renderer: location.search.includes('svg') ? 'svg' : 'canvas',
     });
+    const cpuSoftCeil = 100;
+    const memSoftCeil = 1024;
     const options = {
         visualMap: [{
             show: false,
             type: 'continuous',
+            hoverLink: false,
+            seriesIndex: 1,
+            min: 0,
+            max: memSoftCeil,
+            z: 0,
+            inRange: {
+                color: ['#226', '#83a', '#e22'],
+                opacity: [0, 0.8],
+            },
+        }, {
+            show: false,
+            type: 'continuous',
+            hoverLink: false,
             seriesIndex: 0,
             min: 0,
-            max: 100
+            max: cpuSoftCeil,
+            inRange: {
+                color: ['#dbdb00', '#a600db'],
+                opacity: [0, 0.8],
+            },
         }],
         grid: {
             top: 20,
@@ -58,7 +77,7 @@ async function makeMetricCharts(proc, el) {
             show: false,
             name: 'CPU',
             min: 0,
-            max: x => Math.max(100, x.max),
+            max: x => Math.max(cpuSoftCeil, x.max),
             axisLabel: {
                 align: 'left',
                 formatter: '{value}%',
@@ -66,25 +85,29 @@ async function makeMetricCharts(proc, el) {
         }, {
             show: false,
             min: 0,
-            max: x => Math.max(1024, x.max),
+            max: x => Math.max(memSoftCeil, x.max),
         }],
         series: [{
             id: 'cpu',
             name: 'CPU',
             type: 'line',
             showSymbol: false,
+            emphasis: {disabled: true},
             tooltip: {
                 valueFormatter: x => H.number(x) + '%'
             },
+            areaStyle: {},
         }, {
             id: 'mem',
             name: 'Memory',
             type: 'line',
             showSymbol: false,
+            emphasis: {disabled: true},
             yAxisIndex: 1,
             tooltip: {
                 valueFormatter: x => H.number(x) + 'MB'
             },
+            areaStyle: {},
         }]
     };
     lineChart.setOption(options);
