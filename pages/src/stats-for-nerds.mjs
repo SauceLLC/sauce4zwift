@@ -38,8 +38,8 @@ async function makeMetricCharts(proc, el) {
             max: memSoftCeil,
             z: 0,
             inRange: {
-                color: ['#226', '#83a', '#e22'],
-                opacity: [0, 0.8],
+                color: ['#999', '#83a', '#e22'],
+                colorAlpha: [0.5, 0.9],
             },
         }, {
             show: false,
@@ -49,8 +49,8 @@ async function makeMetricCharts(proc, el) {
             min: 0,
             max: cpuSoftCeil,
             inRange: {
-                color: ['#dbdb00', '#a600db'],
-                opacity: [0, 0.8],
+                color: ['#fc0', '#f44'],
+                colorAlpha: [0.2, 0.9],
             },
         }],
         grid: {
