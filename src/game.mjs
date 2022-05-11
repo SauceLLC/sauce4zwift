@@ -664,7 +664,8 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         state.heading = headingConv(state._heading);  // degrees
         state.speed = state._speed / 1000000;  // km/h
         state.cadence = state._cadenceUHz ? state._cadenceUHz / 1000000 * 60 : null;  // rpm
-    //console.debug("Wait why do we have two distances?", state._distance, state.distance);
+        // XXX there are two distance values, one probably includes lateral movement?
+        // But we just use the more precise one and clobber the other.
         state.distance = state._distance / 100;  // cm -> meters
         const roadCompletion = state.roadLocation;
         state.roadCompletion = !state.reverse ? 1000000 - roadCompletion : roadCompletion;
