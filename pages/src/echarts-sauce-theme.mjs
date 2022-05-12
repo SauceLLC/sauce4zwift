@@ -98,7 +98,20 @@ export const theme = {
         "itemStyle": {
             "borderWidth": "0",
             "borderColor": "rgba(255,255,255,0.74)"
-        }
+        },
+        splitLine: {
+            lineStyle: {
+                color: '#fffa',
+            }
+        },
+        axisLabel: {
+            color: '#fffa',
+            fontSize: '0.6em',
+        },
+        detail: {
+            color: '#fffc',
+            fontSize: '2em',
+        },
     },
     "candlestick": {
         "itemStyle": {

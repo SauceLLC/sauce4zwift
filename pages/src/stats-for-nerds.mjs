@@ -118,8 +118,36 @@ async function makeMetricCharts(proc, el) {
         series: [{
             name: 'CPU',
             type: 'gauge',
+            startAngle: 200,
+            endAngle: 340,
+            itemStyle: {
+                color: '#fc3',
+            },
+            progress: {
+                show: true,
+                roundCap: true,
+                width: 10,
+            },
+            axisLine: {
+                roundCap: true,
+                lineStyle: {
+                    color: [[1, '#0004']],
+                    width: 10,
+                },
+            },
+            axisTick: {
+                show: false,
+            },
+            splitLine: {
+                show: false,
+            },
+            axisLabel: {
+                show: false,
+            },
             detail: {
-                formatter: '{value}%'
+                valueAnimation: true,
+                formatter: '{value}% CPU',
+                offsetCenter: [0, '70%'],
             },
             data: [{
                 value: 0,
