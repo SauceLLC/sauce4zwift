@@ -18,7 +18,32 @@
             body {
                 border-radius: 0;
                 padding: 1em;
+                overflow: auto;
+                font-size: 0.7em;
             }
+
+            .primary {
+                font-size: 1em;
+                display: flex;
+                flex-direction: column;
+            }
+
+            .misc {
+                font-size: 0.8em;
+                display: flex;
+                flex-direction: column;
+            }
+
+            .gauges {
+                display: flex;
+                flex-wrap: wrap;
+                font-size: 0.8em;
+            }
+            .gauges a {
+                display: inline-block;
+                padding-right: 0.5em;
+            }
+
             a {
                 margin-bottom: 0.3em;
             }
@@ -26,13 +51,28 @@
     </head>
     <body>
         <h2>Sauce for Zwift™</h2>
-        <b>Choose from one of the links below</b><br/>
-        <a href="/pages/overview.html">Overview</a>
-        <a href="/pages/watching.html">Currently Watching</a>
-        <a href="/pages/nearby.html">Nearby Athletes</a>
-        <a href="/pages/groups.html">Groups View</a>
-        <a href="/pages/chat.html">Chat Window</a>
-        <hr/>
-        <a href="/pages/stats-for-nerds.html">Stats for Nerds</a>
+        <b>Choose from one of the window types below...</b><br/>
+        <div class="primary">
+            <a href="/pages/overview.html">Overview</a>
+            <a href="/pages/watching.html">Currently Watching</a>
+            <a href="/pages/nearby.html">Nearby Athletes</a>
+            <a href="/pages/groups.html">Groups View</a>
+            <a href="/pages/chat.html">Chat Window</a>
+        </div>
+        <h3>Gauges/Charts</h3>
+        <div class="gauges">
+            <a href="/pages/gauges/power.html">Power Gauge</a>
+            <a href="/pages/gauges/hr.html">Heart Rate Gauge</a>
+            <a href="/pages/gauges/draft.html">Draft Gauge</a>
+        </div>
+        <div class="gauges">
+            <a href="/pages/charts/power.html">Power Chart</a>
+            <a href="/pages/charts/hr.html">Heart Rate Chart</a>
+            <a href="/pages/charts/draft.html">Draft Chart</a>
+        </div>
+        <h3>Misc</h3>
+        <div class="misc">
+            <a href="/pages/stats-for-nerds.html">Stats for Nerds</a>
+        </div>
     </body>
 </html>

@@ -8,7 +8,6 @@
 
         <title>Watching - Sauce for Zwift™</title>
 
-        <script defer src="deps/src/billboard.js"></script>
         <script type="module">
             import {main} from './src/watching.mjs';
             document.addEventListener('DOMContentLoaded', main);
@@ -16,7 +15,6 @@
 
         <link rel="manifest" href="watching-manifest.json"/>
         <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
-        <link rel="stylesheet" href="deps/css/billboard.css"/>
         <link rel="stylesheet" href="css/common.css"/>
         <link rel="stylesheet" href="css/watching.css"/>
     </head>
@@ -99,8 +97,8 @@
                 </div>
 
             </div>
-            <div class="entry no-heading">
-                <div class="chart-holder"></div>
+            <div class="entry no-heading no-side-margin">
+                <div class="chart-holder ec"></div>
                 <div class="s-chart-legend"></div>
             </div>
         </div>

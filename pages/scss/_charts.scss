@@ -1,0 +1,44 @@
+.s-chart-legend {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.8;
+    transition: opacity 100ms;
+    font-size: 0.9em;
+
+    &:hover {
+        opacity: 0.9;
+    }
+
+    div.s-legend-item {
+        font-size: 0.7em;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 0.25em;
+        cursor: pointer;
+
+        &.hidden {
+            opacity: 0.5;
+
+            .color {
+                background-color: #fff6 !important;
+                border-color: #fff;
+            }
+        }
+
+        &:hover {
+            text-decoration: underline;
+        }
+
+        .color {
+            border-radius: 50%;
+            width: 0.7em;
+            height: 0.7em;
+            overflow: hidden;
+            border: 1px solid #000a;
+            margin-right: 0.2em;
+            opacity: 0.82;
+        }
+    }
+}

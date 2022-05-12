@@ -41,17 +41,6 @@ export const theme = {
         "symbol": "emptyCircle",
         "smooth": false
     },
-    "radar": {
-        "itemStyle": {
-            "borderWidth": "0"
-        },
-        "lineStyle": {
-            "width": 2
-        },
-        "symbolSize": "6",
-        "symbol": "emptyCircle",
-        "smooth": false
-    },
     "bar": {
         "itemStyle": {
             "barBorderWidth": "0",
@@ -59,18 +48,6 @@ export const theme = {
         }
     },
     "pie": {
-        "itemStyle": {
-            "borderWidth": "0",
-            "borderColor": "rgba(255,255,255,0.74)"
-        }
-    },
-    "scatter": {
-        "itemStyle": {
-            "borderWidth": "0",
-            "borderColor": "rgba(255,255,255,0.74)"
-        }
-    },
-    "boxplot": {
         "itemStyle": {
             "borderWidth": "0",
             "borderColor": "rgba(255,255,255,0.74)"
@@ -146,46 +123,6 @@ export const theme = {
         ],
         "label": {
             "color": "#ffffff"
-        }
-    },
-    "map": {
-        "itemStyle": {
-            "areaColor": "#ddd",
-            "borderColor": "#eee",
-            "borderWidth": 0.5
-        },
-        "label": {
-            "color": "#c12e34"
-        },
-        "emphasis": {
-            "itemStyle": {
-                "areaColor": "#e6b600",
-                "borderColor": "#ddd",
-                "borderWidth": 1
-            },
-            "label": {
-                "color": "#c12e34"
-            }
-        }
-    },
-    "geo": {
-        "itemStyle": {
-            "areaColor": "#ddd",
-            "borderColor": "#eee",
-            "borderWidth": 0.5
-        },
-        "label": {
-            "color": "#c12e34"
-        },
-        "emphasis": {
-            "itemStyle": {
-                "areaColor": "#e6b600",
-                "borderColor": "#ddd",
-                "borderWidth": 1
-            },
-            "label": {
-                "color": "#c12e34"
-            }
         }
     },
     "categoryAxis": {
@@ -340,14 +277,11 @@ export const theme = {
     },
     "legend": {
         "textStyle": {
-            "color": "rgba(255,255,255,0.92)"
-        }
+            "color": "rgba(255,255,255,0.92)",
+        },
     },
     "tooltip": {
         padding: 4,
-        textStyle: {
-            fontSize: '0.8em',
-        },
         "axisPointer": {
             "lineStyle": {
                 "color": "rgba(255,255,255,0.68)",
@@ -416,8 +350,11 @@ export const theme = {
         },
         label: {
             fontWeight: 700,
+            distance: 2,
             fontSize: '0.76em',
             color: '#fff',
+            textShadowColor: '#000',
+            textShadowBlur: 2,
         },
     },
     "markPoint": {

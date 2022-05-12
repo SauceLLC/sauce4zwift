@@ -1,4 +1,4 @@
-@import 'billboard-theme';
+@import 'charts';
 
 html {
     --aspect-ratio: 94 / 100;
@@ -63,9 +63,14 @@ html {
         padding-top: 0.2rem;
     }
 
+    &.no-side-margin {
+        margin-left:0;
+        margin-right:0;
+    }
+
     .chart-holder {
-        font-size: 0.5rem;
-        height: 20vh;
+        font-size: 0.7rem;
+        height: 6em;
 
         .bb-tooltip {
             tr:first-child {

@@ -1,12 +1,39 @@
 import sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
+import * as charts from './charts.mjs';
+import * as echarts from '../deps/src/echarts.mjs';
+import {theme} from './echarts-sauce-theme.mjs';
+
+echarts.registerTheme('sauce', theme);
 
 const L = sauce.locale;
 const H = L.human;
 const settingsKey = 'watching-settings-v2';
+const maxLineChartLen = 60;
+const colors = {
+    power: '#46f',
+    hr: '#e22',
+    pace: '#4e3',
+};
+
 let settings;
 let imperial = !!common.storage.get('/imperialUnits');
 L.setImperial(imperial);
+
+const chartRefs = new Set();
+
+function resizeCharts() {
+    for (const r of chartRefs) {
+        const c = r.deref();
+        if (!c) {
+            chartRefs.delete(r);
+        } else {
+            c.resize();
+        }
+    }
+}
+
+addEventListener('resize', resizeCharts);
 
 
 function shortDuration(x) {
@@ -78,9 +105,133 @@ function makeSmoothHRField(period) {
 }
 
 
+function createStatHistoryChart(el, sIndex) {
+    const lineChart = echarts.init(el, 'sauce', {
+        renderer: location.search.includes('svg') ? 'svg' : 'canvas',
+    });
+    const powerSoftDomain = [0, 700];
+    const hrSoftDomain = [70, 190];
+    const paceSoftDomain = [0, 100];
+    const visualMapCommon = {
+        show: false,
+        type: 'continuous',
+        hoverLink: false,
+    };
+    const options = {
+        color: [colors.power, colors.hr, colors.pace],
+        visualMap: [{
+            ...visualMapCommon,
+            seriesIndex: 0,
+            min: powerSoftDomain[0],
+            max: powerSoftDomain[1],
+            inRange: {
+                colorAlpha: [0.4, 1],
+            },
+        }, {
+            ...visualMapCommon,
+            seriesIndex: 1,
+            min: hrSoftDomain[0],
+            max: hrSoftDomain[1],
+            inRange: {
+                colorAlpha: [0.1, 0.7],
+            },
+        }, {
+            ...visualMapCommon,
+            seriesIndex: 2,
+            min: paceSoftDomain[0],
+            max: paceSoftDomain[1],
+            inRange: {
+                colorAlpha: [0.1, 0.8],
+            },
+        }],
+        grid: {
+            top: 20,
+            left: 24,
+            right: 24,
+            bottom: 2,
+        },
+        legend: {
+            show: false, // need to enable actions.
+        },
+        tooltip: {
+            trigger: 'axis',
+        },
+        xAxis: [{
+            show: false,
+            data: Array.from(new Array(maxLineChartLen)).map((x, i) => i),
+        }],
+        yAxis: [{
+            show: false,
+            min: powerSoftDomain[0],
+            max: x => Math.max(powerSoftDomain[1], x.max),
+        }, {
+            show: false,
+            min: x => Math.min(hrSoftDomain[0], x.min),
+            max: x => Math.max(hrSoftDomain[1], x.max),
+        }, {
+            show: false,
+            min: x => Math.min(paceSoftDomain[0], x.min),
+            max: x => Math.max(paceSoftDomain[1], x.max),
+        }],
+        series: [{
+            id: 'power',
+            name: 'Power',
+            type: 'line',
+            z: 4,
+            showSymbol: false,
+            emphasis: {disabled: true},
+            tooltip: {
+                valueFormatter: x => H.power(x, {suffix: true}),
+            },
+            areaStyle: {},
+            lineStyle: {
+                color: colors.power,
+            }
+        }, {
+            id: 'hr',
+            name: 'HR',
+            type: 'line',
+            z: 3,
+            showSymbol: false,
+            emphasis: {disabled: true},
+            yAxisIndex: 1,
+            tooltip: {
+                valueFormatter: x => H.number(x) + 'bpm'
+            },
+            areaStyle: {},
+            lineStyle: {
+                color: colors.hr,
+            }
+        }, {
+            id: 'pace',
+            name: 'Pace',
+            type: 'line',
+            z: 2,
+            showSymbol: false,
+            emphasis: {disabled: true},
+            yAxisIndex: 2,
+            tooltip: {
+                valueFormatter: x => H.pace(x, {precision: 0, suffix: true}),
+            },
+            areaStyle: {},
+            lineStyle: {
+                color: colors.pace,
+            }
+        }]
+    };
+    lineChart.setOption(options);
+    new charts.SauceLegend({
+        el: el.nextElementSibling,
+        chart: lineChart,
+        hiddenStorageKey: `watching-hidden-graph-p${sIndex}`,
+    });
+    chartRefs.add(new WeakRef(lineChart));
+    return lineChart;
+}
+
+
 export async function main() {
     common.initInteractionListeners();
-    const charts = await import('./charts.mjs');
     settings = common.storage.get(settingsKey, {
         numScreens: 2,
         lockedFields: false,
@@ -89,18 +240,18 @@ export async function main() {
     const renderers = [];
     const screenTpl = document.querySelector('template#screen');
     let curScreen;
-    for (let i = 1; i <= settings.numScreens; i++) {
+    for (let sIndex = 1; sIndex <= settings.numScreens; sIndex++) {
         const screen = screenTpl.content.cloneNode(true).querySelector('.screen');
-        screen.dataset.id = i;
-        if (i !== 1) {
+        screen.dataset.id = sIndex;
+        if (sIndex !== 1) {
             screen.classList.add('hidden');
         } else {
             curScreen = screen;
         }
         content.appendChild(screen);
-        screen.querySelector('.page-title').textContent = `${i}`;
+        screen.querySelector('.page-title').textContent = `${sIndex}`;
         const renderer = new common.Renderer(screen, {
-            id: `watching-screen-${i}`,
+            id: `watching-screen-${sIndex}`,
             fps: 2,
             locked: settings.lockedFields,
         });
@@ -365,84 +516,8 @@ export async function main() {
             hr: [],
             power: [],
         };
-        const chart = new charts.Chart({
-            hiddenStorageKey: `watching-hidden-graph-p${i}`,
-            scales: [{
-                id: 'power',
-                origin: 'y',
-                domain: [0, 700],
-            }, {
-                id: 'hr',
-                origin: 'y',
-                domain: [80, 200],
-            }, {
-                id: 'pace',
-                origin: 'y',
-                domain: [0, 100],
-            }],
-            names: {
-                power: 'Power',
-                hr: 'HR',
-                pace: 'Pace',
-            },
-            colors: {
-                power: '#46f',
-                hr: '#e22',
-                pace: '#4e3',
-            },
-            data: {
-                columns: [['pace'], ['hr'], ['power']],
-                type: 'area',
-            },
-            area: {
-                linearGradient: true,
-            },
-            point: {
-                focus: {
-                    only: true,
-                },
-            },
-            htmlLegendEl: screen.querySelector('.s-chart-legend'),
-            axis: {
-                x: {
-                    tick: {
-                        outer: false,
-                        show: false,
-                        text: {
-                            show: false,
-                        },
-                    },
-                },
-                y: {
-                    show: false,
-                    tick: {
-                        outer: false,
-                        show: false,
-                        text: {
-                            show: false,
-                        },
-                    },
-                },
-            },
-            tooltip: {
-                format: {
-                    value: (value, ratio, id) => {
-                        const func = {
-                            power: x => H.power(x, {suffix: true}),
-                            hr: x => H.number(x) + 'bpm',
-                            pace: x => H.pace(x, {precision: 0, suffix: true}),
-                        }[id];
-                        return func(value);
-                    },
-                },
-            },
-            padding: {
-                left: 0,
-                right: 2,
-                bottom: -20,
-            },
-            bindto: screen.querySelector('.chart-holder'),
-        });
+        let dataCount = 0;
+        const lineChart = createStatHistoryChart(screen.querySelector('.chart-holder.ec'), sIndex);
         let lastRender = 0;
         renderer.addCallback((data) => {
             const now = Date.now();
@@ -454,27 +529,40 @@ export async function main() {
                 chartData.power.push(data.power || 0);
                 chartData.hr.push(data.heartrate || 0);
                 chartData.pace.push(data.speed || 0);
-                if (chartData.power.length > 60) {
+                if (chartData.power.length > maxLineChartLen) {
                     chartData.power.shift();
                     chartData.hr.shift();
                     chartData.pace.shift();
                 }
             }
-            chart.load({
-                columns: Object.entries(chartData).map(([k, data]) => [k, ...data]),
-            });
             const maxPower = sauce.data.max(chartData.power);
             const maxPIndex = chartData.power.indexOf(maxPower);
-            chart.setScaleDomain('power', [0, Math.max((maxPower + 100), 700)]);
-            chart.setScaleDomain('hr', [
-                Math.min(80, sauce.data.min(chartData.hr)),
-                Math.max((sauce.data.max(chartData.hr) + 10), 200)
-            ]);
-            chart.setScaleDomain('pace', [0, Math.max((sauce.data.max(chartData.pace) + 10), 100)]);
-            chart.xgrids(maxPIndex !== -1 ? [{
-                value: maxPIndex,
-                text: `Max: ${H.power(chartData.power[maxPIndex], {suffix: true})}`,
-            }] : []);
+            lineChart.setOption({
+                xAxis: [{
+                    data: [...sauce.data.range(maxLineChartLen)].map(i =>
+                        (dataCount > maxLineChartLen ? dataCount - maxLineChartLen : 0) + i),
+                }],
+                series: [{
+                    data: chartData.power,
+                    markLine: {
+                        symbol: 'none',
+                        data: [{
+                            name: 'Max',
+                            xAxis: maxPIndex,
+                            label: {
+                                formatter: x => H.power(chartData.power[x.value], {suffix: true})
+                            },
+                            emphasis: {
+                                disabled: true,
+                            },
+                        }],
+                    },
+                }, {
+                    data: chartData.hr,
+                }, {
+                    data: chartData.pace,
+                }]
+            });
         });
         renderer.render();
     }
@@ -492,6 +580,7 @@ export async function main() {
         curScreen = curScreen.previousElementSibling;
         curScreen.classList.remove('hidden');
         nextBtn.classList.remove('disabled');
+        resizeCharts();
         if (Number(curScreen.dataset.id) === 1) {
             prevBtn.classList.add('disabled');
         }
@@ -504,6 +593,7 @@ export async function main() {
         curScreen = curScreen.nextElementSibling;
         curScreen.classList.remove('hidden');
         prevBtn.classList.remove('disabled');
+        resizeCharts();
         if (settings.numScreens === Number(curScreen.dataset.id)) {
             nextBtn.classList.add('disabled');
         }
