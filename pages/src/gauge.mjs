@@ -12,6 +12,8 @@ const H = L.human;
 let imperial = !!common.storage.get('/imperialUnits');
 L.setImperial(imperial);
 
+const defaultAxisColorBands = [[1, '#3333']];
+
 const gaugeConfigs = {
     power: {
         name: 'Power',
@@ -20,6 +22,24 @@ const gaugeConfigs = {
         getValue: x => x.power,
         getLabel: H.number,
         detailFormatter: x => H.power(x, {suffix: true}),
+        axisColorBands: data => {
+            if (data.athlete && data.athlete.ftp) {
+                const zones = sauce.power.cogganZones(data.athlete.ftp);
+                console.log(data.athlete.ftp, zones);
+                const gMax = gaugeConfigs.power.domain[1];
+                return [
+                    [zones.z1 / gMax, '#444e'],
+                    [zones.z2 / gMax, '#00fe'],
+                    [zones.z3 / gMax, '#0f0e'],
+                    [zones.z4 / gMax, '#ff0e'],
+                    [zones.z5 / gMax, '#fa0e'],
+                    [zones.z6 / gMax, '#f00e'],
+                    [zones.z7 / gMax, '#80fe'],
+                ];
+            } else {
+                return defaultAxisColorBands;
+            }
+        }
     },
     hr: {
         name: 'Heart Rate',
@@ -99,16 +119,14 @@ export async function main(type) {
                 },
                 progress: {
                     show: true,
-                    roundCap: true,
                     width: 30 * relSize,
                     itemStyle: {
-                        color: config.color,
+                        color: '#0003', //config.color,
                     },
                 },
                 axisLine: {
-                    roundCap: true,
                     lineStyle: {
-                        color: [[1, '#0004']],
+                        color: defaultAxisColorBands,
                         width: 30 * relSize,
                     },
                 },
@@ -179,8 +197,8 @@ export async function main(type) {
                             textShadowBlur: 3 * relSize,
                         },
                         value: config.getValue(data)
-                    }]
-                }]
+                    }],
+                }],
             });
         }
     });
@@ -196,10 +214,21 @@ export async function main(type) {
     });
     let athleteId;
     common.subscribe('watching', watching => {
-        const force = watching.athleteId !== athleteId;
+        const newAthlete = watching.athleteId !== athleteId;
+        if (newAthlete && config.axisColorBands) {
+            gauge.setOption({
+                series: [{
+                    axisLine: {
+                        lineStyle: {
+                            color: config.axisColorBands(watching)
+                        }
+                    }
+                }]
+            });
+        }
         athleteId = watching.athleteId;
         renderer.setData(watching);
-        renderer.render({force});
+        renderer.render({force: newAthlete});
     });
 }
 
