@@ -1,5 +1,5 @@
 
-function calcTRIMP(duration, hrr, gender) {
+export function calcTRIMP(duration, hrr, gender) {
     const y = hrr * (gender === 'female' ? 1.67 : 1.92);
     return (duration / 60) * hrr * 0.64 * Math.exp(y);
 }
@@ -8,7 +8,7 @@ function calcTRIMP(duration, hrr, gender) {
 /* TRIMP based TSS, more accurate than hrTSS.
  * See: https://fellrnr.com/wiki/TRIMP
  */
-function tTSS(hrStream, timeStream, activeStream, ltHR, minHR, maxHR, gender) {
+export function tTSS(hrStream, timeStream, activeStream, ltHR, minHR, maxHR, gender) {
     let t = 0;
     let lastTime = timeStream[0];
     for (let i = 1; i < timeStream.length; i++) {
@@ -27,7 +27,7 @@ function tTSS(hrStream, timeStream, activeStream, ltHR, minHR, maxHR, gender) {
 }
 
 
-function estimateRestingHR(ftp) {
+export function estimateRestingHR(ftp) {
     // Use handwavy assumption that high FTP = low resting HR.
     const baselineW = 300;
     const baselineR = 50;
@@ -38,7 +38,7 @@ function estimateRestingHR(ftp) {
 }
 
 
-function estimateMaxHR(zones) {
+export function estimateMaxHR(zones) {
     // Estimate max from inner zone ranges.
     const avgRange = ((zones.z4 - zones.z3) + (zones.z3 - zones.z2)) / 2;
     return zones.z4 + avgRange;
@@ -62,14 +62,15 @@ function _makeExpWeightedCalc(size) {
     };
 }
 
-const calcCTL = _makeExpWeightedCalc(chronicTrainingLoadConstant);
-const calcATL = _makeExpWeightedCalc(acuteTrainingLoadConstant);
+export const calcCTL = _makeExpWeightedCalc(chronicTrainingLoadConstant);
+export const calcATL = _makeExpWeightedCalc(acuteTrainingLoadConstant);
 
-function expWeightedAvg(size, data, seed) {
+export function expWeightedAvg(size, data, seed) {
     return _makeExpWeightedCalc(size)(data, seed);
 }
 
-function makeExpWeightedAccumulator(fixedSize, seed=0) {
+
+export function makeExpWeightedAccumulator(fixedSize, seed=0) {
     let v = seed;
     const fixedC = fixedSize ? 1 - Math.exp(-1 / fixedSize) : null;
     return function(x, size) {
@@ -78,15 +79,3 @@ function makeExpWeightedAccumulator(fixedSize, seed=0) {
         return v;
     };
 }
-
-
-export default {
-    calcTRIMP,
-    tTSS,
-    estimateRestingHR,
-    estimateMaxHR,
-    calcCTL,
-    calcATL,
-    expWeightedAvg,
-    makeExpWeightedAccumulator,
-};

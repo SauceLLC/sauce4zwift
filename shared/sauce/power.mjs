@@ -1,6 +1,5 @@
-
-import _data from './data.mjs';
-const sauce = {data: _data}; // better web compat for now.
+import * as _data from './data.mjs';
+const sauce = {data: _data}; // Hack to make back porting less error prone XXX
 
 /* Based on Andy Coggan's power profile. */
 const rankConstants = {
@@ -89,7 +88,7 @@ function _rankScaler(duration, c) {
 }
 
 
-function rankRequirements(duration, gender) {
+export function rankRequirements(duration, gender) {
     const high = _rankScaler(duration, rankConstants[gender].high);
     const low = _rankScaler(duration, rankConstants[gender].low);
     return {high, low};
@@ -103,7 +102,7 @@ function rankWeightedRatio(duration) {
 }
 
 
-function rankLevel(duration, p, wp, weight, gender) {
+export function rankLevel(duration, p, wp, weight, gender) {
     const high = _rankScaler(duration, rankConstants[gender].high);
     const low = _rankScaler(duration, rankConstants[gender].low);
     const weightedRatio = (!wp || wp < p) ? 0 : rankWeightedRatio(duration);
@@ -118,7 +117,7 @@ function rankLevel(duration, p, wp, weight, gender) {
 }
 
 
-function rankBadge({level, weightedRatio, weightedPower, wKg}) {
+export function rankBadge({level, weightedRatio, weightedPower, wKg}) {
     const suffix = (document.documentElement.classList.contains('sauce-theme-dark')) ?
         '-darkbg.png' : '.png';
     let lastRankLevel = 1;
@@ -147,12 +146,12 @@ function rankBadge({level, weightedRatio, weightedPower, wKg}) {
 }
 
 
-function rank(duration, p, wp, weight, gender) {
+export function rank(duration, p, wp, weight, gender) {
     return rankBadge(rankLevel(duration, p, wp, weight, gender));
 }
 
 
-class RollingPower extends sauce.data.RollingAverage {
+export class RollingPower extends sauce.data.RollingAverage {
     constructor(period, options={}) {
         super(period, options);
         if (options.inlineNP) {
@@ -309,7 +308,7 @@ class RollingPower extends sauce.data.RollingAverage {
 }
 
 
-function correctedRollingPower(timeStream, period, options={}) {
+export function correctedRollingPower(timeStream, period, options={}) {
     if (timeStream.length < 2 || timeStream[timeStream.length - 1] < period) {
         return;
     }
@@ -326,7 +325,7 @@ function correctedRollingPower(timeStream, period, options={}) {
 }
 
 
-function peakPower(period, timeStream, wattsStream, options={}) {
+export function peakPower(period, timeStream, wattsStream, options={}) {
     const roll = correctedRollingPower(timeStream, period, options);
     if (!roll) {
         return;
@@ -336,7 +335,7 @@ function peakPower(period, timeStream, wattsStream, options={}) {
 }
 
 
-function peakNP(period, timeStream, wattsStream, options={}) {
+export function peakNP(period, timeStream, wattsStream, options={}) {
     const roll = correctedRollingPower(timeStream, period,
         {inlineNP: true, active: true, ...options});
     if (!roll) {
@@ -347,7 +346,7 @@ function peakNP(period, timeStream, wattsStream, options={}) {
 }
 
 
-function peakXP(period, timeStream, wattsStream, options={}) {
+export function peakXP(period, timeStream, wattsStream, options={}) {
     const roll = correctedRollingPower(timeStream, period,
         {inlineXP: true, active: true, ...options});
     if (!roll) {
@@ -358,7 +357,7 @@ function peakXP(period, timeStream, wattsStream, options={}) {
 }
 
 
-function correctedPower(timeStream, wattsStream, options={}) {
+export function correctedPower(timeStream, wattsStream, options={}) {
     const roll = correctedRollingPower(timeStream, null, options);
     if (!roll) {
         return;
@@ -368,7 +367,7 @@ function correctedPower(timeStream, wattsStream, options={}) {
 }
 
 
-function calcNP(data, sampleRate, options={}) {
+export function calcNP(data, sampleRate, options={}) {
     /* Coggan doesn't recommend NP for less than 20 mins, but we're outlaws
      * and we go as low as 5 mins now! (10-08-2020) */
     sampleRate = sampleRate || 1;
@@ -403,7 +402,7 @@ function calcNP(data, sampleRate, options={}) {
 }
 
 
-function calcXP(data, sampleRate, options={}) {
+export function calcXP(data, sampleRate, options={}) {
     /* See: https://perfprostudio.com/BETA/Studio/scr/BikeScore.htm
      * xPower is more accurate version of NP that better correlates to how
      * humans recover from oxygen debt. */
@@ -444,7 +443,7 @@ function calcXP(data, sampleRate, options={}) {
 }
 
 
-function calcTSS(power, duration, ftp) {
+export function calcTSS(power, duration, ftp) {
     const joules = power * duration;
     const ftpHourJoules = ftp * 3600;
     const intensity = power / ftp;
@@ -452,7 +451,7 @@ function calcTSS(power, duration, ftp) {
 }
 
 
-function seaLevelPower(power, el) {
+export function seaLevelPower(power, el) {
     // Based on research from Bassett, D.R. Jr., C.R. Kyle, L. Passfield, J.P. Broker, and E.R. Burke.
     // 31:1665-76, 1999.
     // Note we assume the athlete is acclimatized for simplicity.
@@ -497,7 +496,7 @@ function airDensity(el) {
 }
 
 
-function cyclingPowerEstimate({velocity, slope, weight, crr, cda, el=0, wind=0, loss=0.035}) {
+export function cyclingPowerEstimate({velocity, slope, weight, crr, cda, el=0, wind=0, loss=0.035}) {
     const invert = velocity < 0 ? -1 : 1;
     const Fg = gravityForce(slope, weight);
     const Fr = rollingResistanceForce(slope, weight, crr) * invert;
@@ -516,7 +515,7 @@ function cyclingPowerEstimate({velocity, slope, weight, crr, cda, el=0, wind=0, 
 }
 
 
-function cyclingDraftDragReduction(riders, position) {
+export function cyclingDraftDragReduction(riders, position) {
     /* Based on the wonderful work of:
      *    van Druenen, T., Blocken, B.
      *    Aerodynamic analysis of uphill drafting in cycling.
@@ -556,7 +555,7 @@ function cyclingDraftDragReduction(riders, position) {
 }
 
 
-function cyclingPowerVelocitySearchMultiPosition(riders, positions, args) {
+export function cyclingPowerVelocitySearchMultiPosition(riders, positions, args) {
     const reductions = positions.map(x => cyclingDraftDragReduction(riders, x.position));
     const avgCda = sauce.data.sum(reductions.map((x, i) => x * positions[i].pct)) * args.cda;
     const seedEst = cyclingPowerFastestVelocitySearch({...args, cda: avgCda});
@@ -589,7 +588,7 @@ function cyclingPowerVelocitySearchMultiPosition(riders, positions, args) {
 }
 
 
-function cyclingPowerVelocitySearch({power, ...args}) {
+export function cyclingPowerVelocitySearch({power, ...args}) {
     // Do not adjust without running test suite and tuning for 50% tollerance above failure
     const epsilon = 0.000001;
     const sampleSize = 300;
@@ -708,7 +707,7 @@ function cyclingPowerVelocitySearch({power, ...args}) {
 }
 
 
-function cyclingPowerFastestVelocitySearch(options) {
+export function cyclingPowerFastestVelocitySearch(options) {
     const velocities = cyclingPowerVelocitySearch(options).filter(x => x.velocity > 0);
     velocities.sort((a, b) => b.velocity - a.velocity);
     return velocities[0];
@@ -726,7 +725,7 @@ function _wPrimeCorrectedPower(wattsStream, timeStream) {
  * The fast impl of the Skiba W` integral algo.
  * See: http://markliversedge.blogspot.nl/2014/10/wbal-optimisation-by-mathematician.html
  */
-function calcWPrimeBalIntegralStatic(wattsStream, timeStream, cp, wPrime) {
+export function calcWPrimeBalIntegralStatic(wattsStream, timeStream, cp, wPrime) {
     let sum = 0;
     const wPrimeBal = [];
     const belowCPAvg = sauce.data.avg(wattsStream.filter(x => x != null && x < cp)) || 0;
@@ -756,7 +755,7 @@ function calcWPrimeBalIntegralStatic(wattsStream, timeStream, cp, wPrime) {
  * The differential algo for W'bal stream.  Aka Froncioni Skiba and Clarke.
  * See: http://markliversedge.blogspot.nl/2014/10/wbal-optimisation-by-mathematician.html
  */
-function calcWPrimeBalDifferential(wattsStream, timeStream, cp, wPrime) {
+export function calcWPrimeBalDifferential(wattsStream, timeStream, cp, wPrime) {
     const powerRoll = _wPrimeCorrectedPower(wattsStream, timeStream);
     const wPrimeBal = [];
     const epsilon = 0.000001;
@@ -788,7 +787,7 @@ function calcWPrimeBalDifferential(wattsStream, timeStream, cp, wPrime) {
 }
 
 
-function calcPwHrDecouplingFromRoll(powerRoll, hrStream) {
+export function calcPwHrDecouplingFromRoll(powerRoll, hrStream) {
     hrStream = hrStream.filter(x => x);  // exclude any null/invalid readings
     const times = powerRoll.times();
     const midPowerTime = times[Math.floor(times.length / 2)];
@@ -809,35 +808,20 @@ function calcPwHrDecouplingFromRoll(powerRoll, hrStream) {
 }
 
 
-function calcPwHrDecoupling(wattsStream, timeStream, hrStream) {
+export function calcPwHrDecoupling(wattsStream, timeStream, hrStream) {
     const powerRoll = correctedPower(timeStream, wattsStream);
     return calcPwHrDecouplingFromRoll(powerRoll, hrStream);
 }
 
 
-export default {
-    peakPower,
-    peakNP,
-    peakXP,
-    correctedPower,
-    correctedRollingPower,
-    calcNP,
-    calcXP,
-    calcTSS,
-    calcWPrimeBalIntegralStatic,
-    calcWPrimeBalDifferential,
-    calcPwHrDecouplingFromRoll,
-    calcPwHrDecoupling,
-    rank,
-    rankLevel,
-    rankBadge,
-    rankRequirements,
-    rankWeightedRatio,
-    seaLevelPower,
-    cyclingPowerEstimate,
-    cyclingPowerVelocitySearch,
-    cyclingPowerFastestVelocitySearch,
-    cyclingPowerVelocitySearchMultiPosition,
-    cyclingDraftDragReduction,
-    RollingPower,
-};
+export function cogganZones(ftp) {
+    return {
+        z1: ftp * 0.55, // Active Recovery
+        z2: ftp * 0.75, // Endurance
+        z3: ftp * 0.90, // Tempo
+        z4: ftp * 1.05, // Threshold
+        z5: ftp * 1.20, // V02Max
+        z6: ftp * 1.50, // Anaerobic
+        z7: Infinity,   // Neuromuscular
+    };
+}

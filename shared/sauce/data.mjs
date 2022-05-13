@@ -1,5 +1,5 @@
 
-function sum(data, offt) {
+export function sum(data, offt) {
     let total = 0;
     for (let i = offt || 0, len = data.length; i < len; i++) {
         total += data[i];
@@ -8,7 +8,7 @@ function sum(data, offt) {
 }
 
 
-function avg(data, offt) {
+export function avg(data, offt) {
     if (!data || !data.length) {
         return;
     }
@@ -16,7 +16,7 @@ function avg(data, offt) {
 }
 
 
-function max(data, options={}) {
+export function max(data, options={}) {
     // Avoid stack overflow by only use Math.max on small arrays
     if (!data || (!options.index && data.length < 65535)) {
         return Math.max.apply(null, data);
@@ -36,7 +36,7 @@ function max(data, options={}) {
 }
 
 
-function min(data, options={}) {
+export function min(data, options={}) {
     // Avoid stack overflow by only use Math.min on small arrays
     if (!data || (!options.index && data.length < 65535)) {
         return Math.min.apply(null, data);
@@ -56,7 +56,7 @@ function min(data, options={}) {
 }
 
 
-function mode(data) {
+export function mode(data) {
     // Calc math mode for a data array.
     if (!data || !data.length) {
         return;
@@ -77,7 +77,7 @@ function mode(data) {
 }
 
 
-function median(data) {
+export function median(data) {
     // Calc math median for a data array.
     if (!data || !data.length) {
         return;
@@ -93,14 +93,14 @@ function median(data) {
 }
 
 
-function stddev(data) {
+export function stddev(data) {
     const mean = avg(data);
     const variance = data.map(x => (mean - x) ** 2);
     return Math.sqrt(avg(variance));
 }
 
 
-function resample(inData, outLen, options={}) {
+export function resample(inData, outLen, options={}) {
     const smoothing = options.smoothing || 0.10;
     const inLen = inData.length;
     const step = inLen / outLen;
@@ -117,7 +117,7 @@ function resample(inData, outLen, options={}) {
 }
 
 
-function createActiveStream(streams, options={}) {
+export function createActiveStream(streams, options={}) {
     // Some broken time streams have enormous gaps.
     const maxImmobileGap = options.maxImmobileGap != null ? options.maxImmobileGap : 300;
     const useCadence = options.isTrainer || options.isSwim;
@@ -143,7 +143,7 @@ function createActiveStream(streams, options={}) {
 }
 
 
-function activeTime(timeStream, activeStream) {
+export function activeTime(timeStream, activeStream) {
     if (timeStream.length < 2) {
         return 0;
     }
@@ -172,7 +172,7 @@ function activeTime(timeStream, activeStream) {
 
 
 let _timeGapsCache = new WeakMap();
-function recommendedTimeGaps(timeStream) {
+export function recommendedTimeGaps(timeStream) {
     const hash = `${timeStream.length}-${timeStream[0]}-${timeStream[timeStream.length - 1]}`;
     if (!_timeGapsCache.has(timeStream) || _timeGapsCache.get(timeStream).hash !== hash) {
         const gaps = timeStream.map((x, i) => timeStream[i + 1] - x);
@@ -190,7 +190,7 @@ function recommendedTimeGaps(timeStream) {
 }
 
 
-function *range(startOrCount, stop, step) {
+export function *range(startOrCount, stop, step) {
     step = step || 1;
     let start;
     if (stop == null) {
@@ -213,13 +213,13 @@ function *range(startOrCount, stop, step) {
 }
 
 
-class Pad extends Number {}
+export class Pad extends Number {}
 
 
-class Zero extends Pad {}
+export class Zero extends Pad {}
 
 
-class Break extends Zero {
+export class Break extends Zero {
     constructor(pad) {
         super(0);
         this.pad = pad;
@@ -240,7 +240,7 @@ function getSoftPad(n) {
 const ZERO = new Zero();
 
 
-class RollingAverage {
+export class RollingAverage {
     constructor(period, options={}) {
         this.period = period || undefined;
         this.idealGap = options.idealGap;
@@ -522,7 +522,7 @@ class RollingAverage {
 }
 
 
-function correctedRollingAverage(timeStream, period, options={}) {
+export function correctedRollingAverage(timeStream, period, options={}) {
     if (timeStream.length < 2 || timeStream[timeStream.length - 1] < period) {
         return;
     }
@@ -539,7 +539,7 @@ function correctedRollingAverage(timeStream, period, options={}) {
 }
 
 
-function correctedAverage(timeStream, valuesStream, options={}) {
+export function correctedAverage(timeStream, valuesStream, options={}) {
     const roll = correctedRollingAverage(timeStream, null, options);
     if (!roll) {
         return;
@@ -549,7 +549,7 @@ function correctedAverage(timeStream, valuesStream, options={}) {
 }
 
 
-function peakAverage(period, timeStream, valuesStream, options={}) {
+export function peakAverage(period, timeStream, valuesStream, options={}) {
     const roll = correctedRollingAverage(timeStream, period, options);
     if (!roll) {
         return;
@@ -559,7 +559,7 @@ function peakAverage(period, timeStream, valuesStream, options={}) {
 }
 
 
-function smooth(period, rawValues) {
+export function smooth(period, rawValues) {
     const len = rawValues.length;
     if (period >= len) {
         throw new Error("smooth period must be less than values length");
@@ -595,33 +595,9 @@ function smooth(period, rawValues) {
 }
 
 
-function overlap([aStart, aEnd], [bStart, bEnd]) {
+export function overlap([aStart, aEnd], [bStart, bEnd]) {
     const interStart = Math.max(aStart, bStart);
     const interEnd = Math.min(aEnd, bEnd);
     const overlap = interEnd - interStart;
     return overlap < 0 ? null : overlap + 1;
 }
-
-
-export default {
-    sum,
-    avg,
-    min,
-    max,
-    mode,
-    median,
-    stddev,
-    resample,
-    createActiveStream,
-    activeTime,
-    recommendedTimeGaps,
-    range,
-    RollingAverage,
-    Break,
-    Zero,
-    Pad,
-    peakAverage,
-    correctedAverage,
-    smooth,
-    overlap,
-};

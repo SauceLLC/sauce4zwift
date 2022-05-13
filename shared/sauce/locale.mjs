@@ -1,6 +1,6 @@
 
 let imperial = false;
-function setImperial(en) {
+export function setImperial(en) {
     imperial = en;
 }
 
@@ -284,47 +284,40 @@ function humanPlace(p) {
 }
 
 
-function weightUnconvert(localeWeight) {
+export function weightUnconvert(localeWeight) {
     return imperial ? localeWeight / kgsPerLbs : localeWeight;
 }
 
 
-function elevationUnconvert(localeEl) {
+export function elevationUnconvert(localeEl) {
     return imperial ? localeEl * metersPerFoot : localeEl;
 }
 
 
-function velocityUnconvert(localeV, options={}) {
+export function velocityUnconvert(localeV, options={}) {
     throw new Error("TBD");
 }
 
 
-function distanceUnconvert(localeDist) {
+export function distanceUnconvert(localeDist) {
     return imperial ? localeDist * metersPerMile : localeDist * 1000;
 }
 
 
-export default {
-    setImperial,
-    weightUnconvert,
-    elevationUnconvert,
-    velocityUnconvert,
-    distanceUnconvert,
-    human: {
-        duration: humanDuration,
-        relTime: humanRelTime,
-        weight: humanWeight,
-        elevation: humanElevation,
-        number: humanNumber,
-        pace: humanPace,
-        power: humanPower,
-        place: humanPlace,
-        distance: humanDistance,
-        dayOfWeek: humanDayOfWeek,
-        date: humanDate,
-        datetime: humanDateTime,
-        time: humanTime,
-        timer: humanTimer,
-        //stride: humanStride,
-    },
+export const human = {
+    duration: humanDuration,
+    relTime: humanRelTime,
+    weight: humanWeight,
+    elevation: humanElevation,
+    number: humanNumber,
+    pace: humanPace,
+    power: humanPower,
+    place: humanPlace,
+    distance: humanDistance,
+    dayOfWeek: humanDayOfWeek,
+    date: humanDate,
+    datetime: humanDateTime,
+    time: humanTime,
+    timer: humanTimer,
+    //stride: humanStride,
 };

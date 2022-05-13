@@ -1,5 +1,5 @@
 
-function distance([latA, lngA], [latB, lngB]) {
+export function distance([latA, lngA], [latB, lngB]) {
     // haversine method (slow but accurate) - as the crow flies
     const rLatA = latA * Math.PI / 180;
     const rLatB = latB * Math.PI / 180;
@@ -27,7 +27,7 @@ function lngPad(lat, distance) {
 }
 
 
-function boundingBox(latlngStream, options={}) {
+export function boundingBox(latlngStream, options={}) {
     if (!latlngStream || !latlngStream.length) {
         return;
     }
@@ -62,14 +62,14 @@ function boundingBox(latlngStream, options={}) {
 }
 
 
-function inBounds(point, box) {
+export function inBounds(point, box) {
     // Assumes bbox is true swc and nec..
     return point[0] >= box.swc[0] && point[0] <= box.nec[0] &&
         point[1] >= box.swc[1] && point[1] <= box.nec[1];
 }
 
 
-function boundsOverlap(boxA, boxB) {
+export function boundsOverlap(boxA, boxB) {
     const yA = boxA.swc[0];
     const yB = boxB.swc[0];
     const hA = boxA.nec[0] - yA;
@@ -92,7 +92,7 @@ function boundsOverlap(boxA, boxB) {
 }
 
 
-class BDCC {
+export class BDCC {
     constructor(lat, lng) {
         const theta = lng * Math.PI / 180.0;
         const rlat = this.geocentricLatitude(lat * Math.PI / 180.0);
@@ -331,7 +331,7 @@ class BDCC {
 }
 
 
-function createVAMStream(timeStream, altStream) {
+export function createVAMStream(timeStream, altStream) {
     const vams = [0];
     for (let i = 1; i < timeStream.length; i++) {
         if (timeStream[i] === timeStream[i - 1]) {
@@ -347,7 +347,7 @@ function createVAMStream(timeStream, altStream) {
 }
 
 
-function altitudeChanges(stream) {
+export function altitudeChanges(stream) {
     let gain = 0;
     let loss = 0;
     if (stream && stream.length) {
@@ -363,14 +363,3 @@ function altitudeChanges(stream) {
     }
     return {gain, loss};
 }
-
-
-export default {
-    distance,
-    boundingBox,
-    boundsOverlap,
-    inBounds,
-    BDCC,
-    createVAMStream,
-    altitudeChanges
-};

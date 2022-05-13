@@ -1,8 +1,6 @@
-import base from './base.mjs';
-import data from './data.mjs';
-import power from './power.mjs';
-import geo from './geo.mjs';
-import perf from './perf.mjs';
-import locale from './locale.mjs';
-
-export default {...base, data, power, geo, perf, locale};
+export * from './base.mjs';
+export * as data from './data.mjs';
+export * as power from './power.mjs';
+export * as geo from './geo.mjs';
+export * as perf from './perf.mjs';
+export * as locale from './locale.mjs';

@@ -103,12 +103,3 @@ export class LRUCache extends Map {
         super.clear();
     }
 }
-
-
-export default {
-    sleep,
-    debounced,
-    formatInputDate,
-    blobToArrayBuffer,
-    LRUCache,
-};
