@@ -3,7 +3,7 @@ import net from 'node:net';
 import {SqliteDatabase, deleteDatabase} from './db.mjs';
 import * as storage from './storage.mjs';
 import * as rpc from './rpc.mjs';
-import sauce from '../shared/sauce/index.mjs';
+import * as sauce from '../shared/sauce/index.mjs';
 import fetch from 'node-fetch';
 import {getAppSetting} from './main.mjs';
 import {createRequire} from 'node:module';

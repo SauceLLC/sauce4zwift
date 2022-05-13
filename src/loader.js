@@ -17,6 +17,7 @@ if (fs.existsSync(disableGPUFile)) {
     try {
         await import('./main.mjs');
     } catch(e) {
+        console.error(e);
         await dialog.showErrorBox('Early Startup Error', '' + e);
         app.exit(1);
     }

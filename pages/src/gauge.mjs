@@ -1,4 +1,4 @@
-import sauce from '../../shared/sauce/index.mjs';
+import * as sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
 import * as echarts from '../deps/src/echarts.mjs';
 import {theme} from './echarts-sauce-theme.mjs';
