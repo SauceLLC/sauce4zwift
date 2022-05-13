@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html class="use-aspect-ratio">
+    <head>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+        <meta name="apple-mobile-web-app-capable" content="yes"/>
+        <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
+
+        <title>Gauge - Sauce for Zwift™</title>
+
+        <script type="module">
+            import {main} from './src/gauge.mjs';
+
+            const type = (new URLSearchParams(location.search)).get('t');
+            const title = {
+                power: 'Power Gauge',
+                hr: 'Heart Rate Gauge',
+                draft: 'Draft Gauge',
+            }[type];
+            document.title = `${title} - Sauce for Zwift™`;
+            document.addEventListener('DOMContentLoaded', () => {
+                document.querySelector('#titlebar header .title').textContent = title;
+                main(type);
+            });
+        </script>
+
+        <link rel="manifest" href="gauge-manifest.json"/>
+        <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
+        <link rel="stylesheet" href="css/common.css"/>
+        <link rel="stylesheet" href="css/gauge.css"/>
+    </head>
+    <body>
+        <div id="titlebar">
+            <header>
+                <div class="button move app-drag electron-only"><img src="images/fa/arrows-alt.svg"/></div>
+                <div class="title app-drag">Watching - Sauce for Zwift™</div>
+                <div class="buttons">
+                    <a class="button" href="watching-settings.html?widthHint=0.25&heightHint=0.25"
+                       target="watching-settings"><img src="images/fa/cog-duotone.svg"/></a>
+                    <div class="button close electron-only"><img src="images/fa/window-close-light.svg"/></div>
+                </div>
+            </header>
+        </div>
+        <div id="content">
+            <div class="gauge"></div>
+        </div>
+        <div id="hintbar">
+            <div class="hint"></div>
+        </div>
+    </body>
+</html>
