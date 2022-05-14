@@ -222,12 +222,11 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         this.setMaxListeners(50);
         this._athleteData = new Map();
         this._roadHistory = new Map();
-        this._roadId;
         this._chatDeDup = [];
         this.athleteId = null;
         this.watching = null;
-        this.profileFetchIds = new Set();
-        this._pendingProfileFetches = [];
+        this._profileFetchIds = new Set();
+        this._pendingProfileFetches = new Map();
         this.on('incoming', this.onIncoming);
         this.on('outgoing', this.onOutgoing);
         rpc.register('updateAthlete', this.updateAthlete.bind(this));
@@ -481,12 +480,17 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         }
         const watching = state.watchingAthleteId;
         if (watching != null && this.watching !== watching) {
-            this.watching = watching;
-            console.debug("Now watching:", watching);
+            this.setWatching(watching);
         }
         if (state.athleteId === this.watching) {
             this._watchingRoadSig = this._roadSig(state);
         }
+    }
+
+    setWatching(athleteId) {
+        console.debug("Now watching:", athleteId);
+        this.watching = athleteId;
+        this.clearPendingProfileFetches();
     }
 
     processFlags1(bits) {
@@ -580,51 +584,94 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         };
     }
 
-    maybeUpdateAthleteFromProfile(gap, id) {
-        if (this.profileFetchIds.has(id)) {
-            return;
+    maybeUpdateAthletesFromProfile(nearby) {
+        for (const {athleteId, gap} of nearby) {
+            if (this._profileFetchIds.has(athleteId)) {
+                continue;
+            }
+            this._profileFetchIds.add(athleteId);
+            this._pendingProfileFetches.set(athleteId, Math.abs(gap));
         }
-        this.profileFetchIds.add(id);
-        this._pendingProfileFetches.push([gap, id]);
-        this._pendingProfileFetches.sort((a, b) => a[0] - b[0]);
-        if (!this._athleteProfileUpdater) {
+        if (!this._athleteProfileUpdater && this._pendingProfileFetches.size) {
             this._athleteProfileUpdater = this.runAthleteProfileUpdater().finally(() =>
                 this._athleteProfileUpdater = null);
         }
     }
 
+    clearPendingProfileFetches() {
+        for (const id of this._pendingProfileFetches.keys()) {
+            this._profileFetchIds.delete(id);
+        }
+        this._pendingProfileFetches.clear();
+    }
+
     async runAthleteProfileUpdater() {
-        if (this.zwiftToken === undefined) {
+        if (this._useFakeData) {
+            this.zwiftToken = true;
+        } else if (this.zwiftToken === undefined) {
             const zwiftLogin = getAppSetting('zwiftLogin');
             this.zwiftToken = zwiftLogin && storage.load('zwift-token');
         }
-        while (this.zwiftToken && this._pendingProfileFetches.length) {
-            const [, id] = this._pendingProfileFetches.shift();
-            const data = this.loadAthlete(id);
-            if (data && data.updated && (Date.now() - data.updated) < (86400 * 1000)) {
+        while (this.zwiftToken && this._pendingProfileFetches.size) {
+            let minGap = Infinity;
+            let id;
+            for (const [xId, xGap] of this._pendingProfileFetches.entries()) {
+                if (xGap < minGap) {
+                    minGap = xGap;
+                    id = xId;
+                }
+            }
+            this._pendingProfileFetches.delete(id);
+            const state = this.states.get(id);
+            if (!state || this._watchingRoadSig !== this._roadSig(state)) {
+                console.debug("Skip profile update for athlete on different road");
+                this._profileFetchIds.delete(id);  // Allow immediate recheck
                 continue;
             }
-            try {
-                const p = await this._fetchProfile(id, this.zwiftToken);
-                this.updateAthlete(id, p.firstName, p.lastName, {
-                    ftp: p.ftp,
-                    avatar: p.imageSrcLarge || p.imageSrc,
-                    weight: p.weight / 1000,
-                    height: p.height / 10,
-                    gender: p.male === false ? 'female' : 'male',
-                    age: p.age,
-                    level: Math.floor(p.achievementLevel / 100),
-                    createdOn: p.createdOn ? +(new Date(p.createdOn)) : undefined,
+            // Allow lookup/cache-validation after 1 hour...
+            setTimeout(() => this._profileFetchIds.delete(id), 3600 * 1000);
+            const data = this.loadAthlete(id);
+            if (!this._useFakeData && data && data.updated && (Date.now() - data.updated) < (86400 * 1000)) {
+                continue;
+            }
+            console.debug("nearest unfetched athlete gap:", minGap, id);
+            if (this._useFakeData) {
+                const words = this.constructor.toString().replaceAll(/[^a-zA-Z ]/g, ' ').toLowerCase()
+                    .split(' ').filter(x => x);
+                const fName = words[Math.trunc(Math.random() * words.length)];
+                const lName = words[Math.trunc(Math.random() * words.length)];
+                this.updateAthlete(id, fName[0].toUpperCase() + fName.substr(1), lName[0].toUpperCase() + lName.substr(1), {
+                    ftp: Math.round(100 + Math.random() * 300),
+                    avatar: `https://gravatar.com/avatar/${Math.abs(id)}?s=400&d=robohash&r=x`,
+                    weight: Math.round(40 + Math.random() * 70),
+                    height: 178,
+                    gender: ['female', 'male'][Math.trunc(Math.random() * 2)],
+                    age: Math.round(18 + Math.random() * 60),
+                    level: Math.round(1 + Math.random() * 40),
+                    createdOn: undefined,
                 });
-                setTimeout(() => this.profileFetchIds.delete(id), 3600 * 1000);
-            } catch(e) {
-                console.error("Zwift API error:", e);
-                this.updateAthlete(id);  // Update TS
+            } else {
+                try {
+                    const p = await this._fetchProfile(id, this.zwiftToken);
+                    this.updateAthlete(id, p.firstName, p.lastName, {
+                        ftp: p.ftp,
+                        avatar: p.imageSrcLarge || p.imageSrc,
+                        weight: p.weight / 1000,
+                        height: p.height / 10,
+                        gender: p.male === false ? 'female' : 'male',
+                        age: p.age,
+                        level: Math.floor(p.achievementLevel / 100),
+                        createdOn: p.createdOn ? +(new Date(p.createdOn)) : undefined,
+                    });
+                } catch(e) {
+                    console.error("Zwift API error:", e);
+                    this.updateAthlete(id);  // Update TS
+                }
             }
             // Slow it down until we are learned XXX
             await sauce.sleep(500 + 1000 * Math.random());
         }
-        this._pendingProfileFetches.length = 0;
+        this._pendingProfileFetches.clear();
     }
 
     async _fetchProfile(id, token) {
@@ -921,13 +968,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         }
         nearby.sort((a, b) => a.gap - b.gap);
         this.emit('nearby', nearby.map(cleanState));
-
-        const centerIdx = nearby.findIndex(x => x.watching);
-        const veryNear = nearby.slice(Math.max(0, centerIdx - 20), centerIdx + 20);
-        veryNear.sort((a, b) => Math.abs(a.gap) - Math.abs(b.gap));
-        for (const x of veryNear) {
-            this.maybeUpdateAthleteFromProfile(Math.abs(x.gap), x.athleteId);
-        }
+        this.maybeUpdateAthletesFromProfile(nearby);
 
         const groups = [];
         let curGroup;
