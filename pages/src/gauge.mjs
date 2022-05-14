@@ -5,46 +5,70 @@ import {theme} from './echarts-sauce-theme.mjs';
 
 echarts.registerTheme('sauce', theme);
 
+const type = (new URLSearchParams(location.search)).get('t');
+const title = {
+    power: 'Power Gauge',
+    hr: 'Heart Rate Gauge',
+    draft: 'Draft Gauge',
+}[type];
+const commonDefaultSettings = {
+    refreshInterval: 1,
+    dataSmoothing: 0,
+    showAverage: false,
+    showMax: false,
+    currentLap: false,
+    boringMode: false,
+};
+
 const L = sauce.locale;
 const H = L.human;
-//const settingsKey = 'watching-settings-v2';
-//let settings;
+const settingsKey = `gauge-settings-v1-${type}`;
+let settings;
 let imperial = !!common.storage.get('/imperialUnits');
 L.setImperial(imperial);
 
 const defaultAxisColorBands = [[1, '#3333']];
+let axisColorBands = defaultAxisColorBands;
 
 const gaugeConfigs = {
     power: {
         name: 'Power',
-        color: '#46f',
-        domain: [0, 700],
-        getValue: x => x.power,
+        defaultSettings: {
+            min: 0,
+            max: 700,
+        },
+        color: '#339',
+        getValue: x => settings.dataSmoothing ? x.stats.power.smooth[settings.dataSmoothing] : x.power,
+        getAvgValue: x =>
+            (settings.currentLap ? x.stats.laps.at(-1).power : x.stats.power).avg,
+        getMaxValue: x =>
+            (settings.currentLap ? x.stats.laps.at(-1).power : x.stats.power).max,
         getLabel: H.number,
         detailFormatter: x => H.power(x, {suffix: true}),
         axisColorBands: data => {
             if (data.athlete && data.athlete.ftp) {
                 const zones = sauce.power.cogganZones(data.athlete.ftp);
-                console.log(data.athlete.ftp, zones);
-                const gMax = gaugeConfigs.power.domain[1];
+                const min = settings.min;
+                const delta = settings.max - min;
                 return [
-                    [zones.z1 / gMax, '#444e'],
-                    [zones.z2 / gMax, '#00fe'],
-                    [zones.z3 / gMax, '#0f0e'],
-                    [zones.z4 / gMax, '#ff0e'],
-                    [zones.z5 / gMax, '#fa0e'],
-                    [zones.z6 / gMax, '#f00e'],
-                    [zones.z7 / gMax, '#80fe'],
+                    [(zones.z1 - min) / delta, '#4443'],
+                    [(zones.z2 - min) / delta, '#44de'],
+                    [(zones.z3 - min) / delta, '#5b5e'],
+                    [(zones.z4 - min) / delta, '#dd3e'],
+                    [(zones.z5 - min) / delta, '#fa0e'],
+                    [(zones.z6 - min) / delta, '#b22e'],
+                    [(zones.z7 - min) / delta, '#407e'],
                 ];
-            } else {
-                return defaultAxisColorBands;
             }
-        }
+        },
     },
     hr: {
         name: 'Heart Rate',
         color: '#e22',
-        domain: [70, 190],
+        defaultSettings: {
+            min: 70,
+            max: 190,
+        },
         getValue: x => x.heartrate,
         getLabel: H.number,
         detailFormatter: x => H.number(x) + 'bpm',
@@ -52,7 +76,10 @@ const gaugeConfigs = {
     pace: {
         name: 'Pace',
         color: '#4e3',
-        domain: [0, 100],
+        defaultSettings: {
+            min: 0,
+            max: 100,
+        },
         getValue: x => x.speed,
         getLabel: H.number,
         detailFormatter: x => H.pace(x, {precision: 0, suffix: true}),
@@ -60,7 +87,10 @@ const gaugeConfigs = {
     draft: {
         name: 'Draft',
         color: '#46f',
-        domain: [0, 300],
+        defaultSettings: {
+            min: 0,
+            max: 300,
+        },
         getValue: x => x.draft,
         getLabel: H.number,
         detailFormatter: x => H.number(x) + '%'
@@ -68,66 +98,48 @@ const gaugeConfigs = {
 };
 
 
-export async function main(type) {
+export async function main() {
+    document.title = `${title} - Sauce for Zwift™`;
+    document.querySelector('#titlebar header .title').textContent = document.title;
+    common.addOpenSettingsParam('t', type);
     common.initInteractionListeners();
-    /*settings = common.storage.get(settingsKey, {
-        numScreens: 2,
-        lockedFields: false,
-    });*/
-    const content = document.querySelector('#content');
     const config = gaugeConfigs[type];
+    settings = common.storage.get(settingsKey, {...commonDefaultSettings, ...config.defaultSettings});
+    const content = document.querySelector('#content');
     const gauge = echarts.init(content.querySelector('.gauge'), 'sauce', {
         renderer: location.search.includes('svg') ? 'svg' : 'canvas',
     });
     let relSize;
     const initGauge = () => {
         // Can't use em for most things on gauges. :(
-        relSize = content.clientHeight / 600;
+        relSize = Math.min(content.clientHeight * 1.20, content.clientWidth) / 600;
         gauge.setOption({
-            grid: {
-                top: -200,
-                left: 0,
-                right: 0,
-                bottom: -200,
-            },
-            /*visualMap: [{
-                type: 'piecewise',
-                pieces: [{
-                    min: 0, max: 100
-                }, {
-                    min: 100, max: 200
-                }, {
-                    min: 200, max: 300
-                }, {
-                    min: 300
-                }],
-                inRange: {
-                    color: ['black', 'white', 'red', 'green']
-                }
-            }],*/
             series: [{
+                radius: '90%', // fill space
                 splitNumber: 7,
                 name: config.name,
                 type: 'gauge',
-                min: config.domain[0],
-                max: config.domain[1],
+                min: settings.min,
+                max: settings.max,
                 startAngle: 200,
                 endAngle: 340,
-                    color: [[0, 'green'], [0.2, config.color], [1, 'red']],
-                itemStyle: {
-                    color: [[0, 'green'], [0.2, config.color], [1, 'red']],
-                },
                 progress: {
                     show: true,
-                    width: 30 * relSize,
+                    width: 50 * relSize,
                     itemStyle: {
-                        color: '#0003', //config.color,
+                        color: '#fff8',
+                        shadowColor: '#fff',
+                        shadowBlur: 12 * relSize,
+                        borderWidth: 8 * relSize,
+                        borderColor: '#fff3',
                     },
                 },
                 axisLine: {
                     lineStyle: {
-                        color: defaultAxisColorBands,
-                        width: 30 * relSize,
+                        color: axisColorBands || defaultAxisColorBands,
+                        width: 50 * relSize,
+                        shadowColor: '#0007',
+                        shadowBlur: 8 * relSize,
                     },
                 },
                 axisTick: {
@@ -142,28 +154,30 @@ export async function main(type) {
                     }
                 },
                 axisLabel: {
-                    distance: 40 * relSize,
+                    distance: 60 * relSize,
                     fontSize: 18 * relSize,
                     formatter: config.getLabel,
                 },
-                pointer: {
-                    width: 6 * relSize,
+                pointer: settings.boringMode ? {
+                    // NOTE: Important that all are set so it's not an update
+                    icon: null,
+                    width: 20 * relSize,
+                    length: 180 * relSize,
+                    offsetCenter: [0, 0],
                     itemStyle: {
                         color: config.color,
-                        shadowColor: '#000a',
-                        shadowBlur: 3 * relSize,
+                        opacity: 0.9,
+                        shadowColor: '#0007',
+                        shadowBlur: 8 * relSize,
                     },
-                },
-                anchor: {
-                    show: true,
-                    showAbove: true,
-                    size: 25 * relSize,
+                } : {
+                    width: 90 * relSize,
+                    length: 240 * relSize,
+                    icon: 'image://./images/logo_vert_120x320.png',
+                    offsetCenter: [0, '25%'],
                     itemStyle: {
-                        borderWidth: 10 * relSize,
-                        borderColor: config.color,
-                        shadowColor: '#000a',
-                        shadowBlur: 3 * relSize,
-                    }
+                        opacity: 0.9,
+                    },
                 },
                 detail: {
                     valueAnimation: true,
@@ -176,65 +190,67 @@ export async function main(type) {
             }],
         });
     };
+    initGauge();
+    const renderer = new common.Renderer(content, {fps: 1});
+    let athleteId;
+    renderer.addCallback(data => {
+        const newAthlete = (data && data.athleteId || undefined) !== athleteId;
+        if (newAthlete) {
+            axisColorBands = null;
+            athleteId = data.athleteId;
+        }
+        const series = {};
+        if (!axisColorBands) {
+            axisColorBands = config.axisColorBands ? data && config.axisColorBands(data) : defaultAxisColorBands;
+            series.axisLine = {lineStyle: {color: axisColorBands || defaultAxisColorBands}};
+        }
+        if (data) {
+            series.data = [{
+                name: config.name,
+                title: {
+                    offsetCenter: [0, '-33%'],
+                    color: '#fff2',
+                    fontSize: 50 * relSize,
+                    fontWeight: 700,
+                    textShadowColor: '#000',
+                    textShadowBlur: 3 * relSize,
+                },
+                value: config.getValue(data),
+            }];
+        }
+        gauge.setOption({series: [series]});
+    });
     addEventListener('resize', () => {
         initGauge();
         gauge.resize();
     });
-    initGauge();
-    const renderer = new common.Renderer(content, {fps: 1});
-    renderer.addCallback(data => {
-        if (data) {
-            gauge.setOption({
-                series: [{
-                    data: [{
-                        name: config.name,
-                        title: {
-                            offsetCenter: [0, '-33%'],
-                            color: '#fff2',
-                            fontSize: 40 * relSize,
-                            fontWeight: 700,
-                            textShadowColor: '#000',
-                            textShadowBlur: 3 * relSize,
-                        },
-                        value: config.getValue(data)
-                    }],
-                }],
-            });
-        }
+    let reanimateTimeout;
+    common.storage.addEventListener('update', ev => {
+        settings = ev.data.value;
+        axisColorBands = null;
+        initGauge();
+        gauge.setOption({series: [{animation: false}]});
+        renderer.render({force: true});
+        clearTimeout(reanimateTimeout);
+        reanimateTimeout = setTimeout(() => gauge.setOption({series: [{animation: true}]}), 400);
     });
-    renderer.render();
     common.storage.addEventListener('globalupdate', ev => {
         if (ev.data.key === '/imperialUnits') {
             imperial = ev.data.value;
             L.setImperial(imperial);
         }
     });
-    common.storage.addEventListener('update', ev => {
-        location.reload();
-    });
-    let athleteId;
     common.subscribe('watching', watching => {
-        const newAthlete = watching.athleteId !== athleteId;
-        if (newAthlete && config.axisColorBands) {
-            gauge.setOption({
-                series: [{
-                    axisLine: {
-                        lineStyle: {
-                            color: config.axisColorBands(watching)
-                        }
-                    }
-                }]
-            });
-        }
-        athleteId = watching.athleteId;
         renderer.setData(watching);
-        renderer.render({force: newAthlete});
+        renderer.render();
     });
+    renderer.render();
 }
 
 
-/*
 export async function settingsMain() {
+    document.title = `${title} Settings - Sauce for Zwift™`;
+    document.querySelector('#titlebar header .title').textContent = document.title;
     common.initInteractionListeners();
     await common.initSettingsForm('form', {settingsKey});
-}*/
+}

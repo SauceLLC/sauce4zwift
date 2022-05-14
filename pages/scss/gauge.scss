@@ -1,8 +1,7 @@
 #content {
     .gauge {
-        height: 100%;
-        width: 100%;
-
+        flex-grow: 1;
+        margin-bottom: max(-20vw, -20vh);
         font-variant-numeric: tabular-nums;
     }
 }

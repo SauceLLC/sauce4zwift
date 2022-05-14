@@ -10,18 +10,7 @@
 
         <script type="module">
             import {main} from './src/gauge.mjs';
-
-            const type = (new URLSearchParams(location.search)).get('t');
-            const title = {
-                power: 'Power Gauge',
-                hr: 'Heart Rate Gauge',
-                draft: 'Draft Gauge',
-            }[type];
-            document.title = `${title} - Sauce for Zwift™`;
-            document.addEventListener('DOMContentLoaded', () => {
-                document.querySelector('#titlebar header .title').textContent = title;
-                main(type);
-            });
+            document.addEventListener('DOMContentLoaded', main);
         </script>
 
         <link rel="manifest" href="gauge-manifest.json"/>
@@ -33,10 +22,10 @@
         <div id="titlebar">
             <header>
                 <div class="button move app-drag electron-only"><img src="images/fa/arrows-alt.svg"/></div>
-                <div class="title app-drag">Watching - Sauce for Zwift™</div>
+                <div class="title app-drag">Gauge - Sauce for Zwift™</div>
                 <div class="buttons">
-                    <a class="button" href="watching-settings.html?widthHint=0.25&heightHint=0.25"
-                       target="watching-settings"><img src="images/fa/cog-duotone.svg"/></a>
+                    <a class="button open-settings" href="gauge-settings.html?widthHint=0.25&heightHint=0.25"
+                       target="gauge-settings"><img src="images/fa/cog-duotone.svg"/></a>
                     <div class="button close electron-only"><img src="images/fa/window-close-light.svg"/></div>
                 </div>
             </header>

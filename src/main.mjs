@@ -104,6 +104,13 @@ const windowManifests = [{
     prettyDesc: 'A sortable data table of nearby athletes.',
     options: {width: 800, height: 400, center: true},
     overlay: false,
+}, {
+    type: 'power-gauge',
+    pageURL: 'gauge.html?t=power',
+    prettyName: 'Power Gauge',
+    prettyDesc: 'Car style power (watts) gauge.',
+    options: {relWidth: 0.20, aspectRatio: 0.8},
+
 }];
 rpc.register('getWindowManifests', () => windowManifests);
 
@@ -544,7 +551,13 @@ function _openWindow(id, spec) {
             updateWindow(id, {closed: true});
         }
     });
-    win.loadFile(path.join(pagePath, spec.page));
+    if (spec.page) {
+        win.loadFile(path.join(pagePath, spec.page));
+    } else if (spec.pageURL) {
+        win.loadURL(`file://${path.join(pagePath, spec.pageURL)}`);
+    } else {
+        throw new TypeError("No page or pageURL defined");
+    }
     win.show();
     return win;
 }

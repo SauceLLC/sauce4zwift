@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html class="settings-page">
+    <head>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+        <meta name="apple-mobile-web-app-capable" content="yes"/>
+        <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
+
+        <title>Gauge Settings - Sauce for Zwift™</title>
+
+        <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
+        <link rel="stylesheet" href="css/common.css"/>
+
+        <script type="module">
+            import {settingsMain} from './src/gauge.mjs';
+            document.addEventListener('DOMContentLoaded', settingsMain);
+        </script>
+    </head>
+    <body>
+        <div id="titlebar">
+            <header><div class="title">Gauge Settings</div></header>
+        </div>
+        <div id="settings">
+            <form>
+                <label>
+                    <key>Min value:</key>
+                    <input type="number" min="0" step="1" name="min"/>
+                </label>
+                <label>
+                    <key>Max value:</key>
+                    <input type="number" min="0" step="1" name="max"/>
+                </label>
+                <label>
+                    <key>Refresh interval:</key>
+                    <input type="number" min="0.200" step="1" step="0.200" name="refreshInterval"/> <small>(seconds)</small>
+                </label>
+                <label>
+                    <key>Data smoothing:</key>
+                    <select data-type="number" name="dataSmoothing">
+                        <option value="0">None</option>
+                        <option value="5">5 seconds</option>
+                        <option value="15">15 seconds</option>
+                        <option value="60">1 minute</option>
+                        <option value="300">5 minutes</option>
+                        <option value="1200">20 minutes</option>
+                    </select>
+                </label>
+                <label>
+                    <key>Show average:</key>
+                    <input type="checkbox" name="showAverage"/>
+                </label>
+                <label>
+                    <key>Show max:</key>
+                    <input type="checkbox" name="showMax"/>
+                </label>
+                <label data-tooltip="Show lap average and max instead of whole activity">
+                    <key>Current lap avg/max:</key>
+                    <input type="checkbox" name="currentLap"/>
+                </label>
+                <label>
+                    <key>Boring mode:</key>
+                    <input type="checkbox" name="boringMode"/>
+                </label>
+            </form>
+        </div>
+    </body>
+</html>
