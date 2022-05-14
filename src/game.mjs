@@ -639,7 +639,6 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             if (!this._useFakeData && data && data.updated && (Date.now() - data.updated) < (86400 * 1000)) {
                 continue;
             }
-            console.debug("nearest unfetched athlete gap:", minGap, id);
             if (this._useFakeData) {
                 const words = this.constructor.toString().replaceAll(/[^a-zA-Z ]/g, ' ').toLowerCase()
                     .split(' ').filter(x => x);
@@ -953,11 +952,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             }
             const leading = this.isFirstLeadingSecond(watching, x);
             if (leading == null) {
-                if (k === this.watching) {
-                    debugger;
-                } else {
-                    continue;
-                }
+                continue;
             }
             const sign = leading ? 1 : -1;
             let gap = this.realGap(watching, x);
