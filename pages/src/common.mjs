@@ -150,6 +150,17 @@ if (window.isElectron) {
 }
 
 
+export function addOpenSettingsParam(key, value) {
+    for (const el of document.querySelectorAll('a.open-settings')) {
+        const url = new URL(el.href);
+        const q = new URLSearchParams(url.search);
+        q.set(key, value);
+        url.search = q;
+        el.href = url;
+    }
+}
+
+
 export function initInteractionListeners() {
     const html = document.documentElement;
     if (!html.classList.contains('settings-mode')) {
@@ -164,6 +175,9 @@ export function initInteractionListeners() {
                 html.classList.remove('settings-mode');
             }
         });
+    }
+    if (!window.isElectron) {
+        addOpenSettingsParam('id', windowID);
     }
     const close = document.querySelector('#titlebar .button.close');
     if (close) {
@@ -474,7 +488,12 @@ async function bindFormData(selector, storageIface, options={}) {
         const val = await storageIface.get(name);
         el.value = val == null ? '' : val;
         el.addEventListener('change', async ev => {
-            const val = el.value || undefined;
+            let val;
+            if (el.dataset.type === 'number') {
+                val = el.value ? Number(el.value) : undefined;
+            } else {
+                val = el.value || undefined;
+            }
             await storageIface.set(name, val);
         });
     }
