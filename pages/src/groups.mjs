@@ -12,6 +12,8 @@ let zoomedPosition;
 let curGroups;
 let contentEl;
 let metaEl;
+let aheadEl;
+let behindEl;
 let containerEl;
 
 
@@ -90,31 +92,43 @@ function renderZoomed(groups) {
     if (!groups) {
         return;
     }
-    let centerIdx = groups.findIndex(x => x.watching);
+    const groupCenterIdx = groups.findIndex(x => x.watching);
     const pos = zoomedPosition;
-    const idx = Math.max(0, Math.min(centerIdx + pos, groups.length - 1));
+    const idx = Math.max(0, Math.min(groupCenterIdx + pos, groups.length - 1));
     const group = groups[idx];
     if (!group) {
         console.warn("XXX Unexpected missing group");
         return;
     }
-    const athletes = group.athletes.slice(0, settings.maxZoomed);
-    const totAthletes = athletes.length;
+    const groupSize = group.athletes.length;
+    const watchingCenterIdx = pos === 0 ? group.athletes.findIndex(x => x.watching) : 0;
+    const ahead = Math.max(0, watchingCenterIdx - Math.ceil(settings.maxZoomed / 2));
+    const end = Math.min(group.athletes.length, ahead + settings.maxZoomed);
+    const behind = group.athletes.length - end;
+    const athletes = group.athletes.slice(ahead, end);
     const gapField = settings.zoomedGapField || 'distance';
     const gapProp = gapField === 'distance' ? 'gapDistance' : 'gap';
     const totGap = athletes[athletes.length - 1][gapProp] - athletes[0][gapProp];
     // Keep total flex-grow < 1 for tight groups.  I.e. prevent 100% height usage when small
-    const flexFactor = gapField === 'distance' ? 0.15 : 0.333;
-    contentEl.style.setProperty('--total-athletes', totAthletes);
+    const flexFactor = gapField === 'distance' ? 0.08 : 0.5;
+    contentEl.style.setProperty('--total-athletes', athletes.length);  // visual only
     contentEl.style.setProperty('--total-gap', totGap * flexFactor);
-    const athletesLabel = totAthletes === 1 ? 'Athlete' : 'Athletes';
+    const athletesLabel = groupSize === 1 ? 'Athlete' : 'Athletes';
     const groupLabel = pos ? `${H.place(Math.abs(pos))} ${pos > 0 ? 'behind' : 'ahead'}` : 'Your Group';
     metaEl.innerHTML = [
-        `${groupLabel}, ${totAthletes} ${athletesLabel}`,
+        `${groupLabel}, ${groupSize} ${athletesLabel}`,
         `${pwrFmt(group.power)}, ${spdFmt(group.speed)}`,
     ].map(x => `<div class="line">${x}</div>`).join('');
     const active = new Set();
     const bikeLength = 2;  // meters
+    aheadEl.classList.toggle('visible', !!ahead);
+    if (ahead) {
+        aheadEl.textContent = `+${ahead} ahead`;
+    }
+    behindEl.classList.toggle('visible', !!behind);
+    if (end < group.athletes.length) {
+        behindEl.textContent = `+${behind} behind`;
+    }
     for (const [i, athlete] of athletes.entries()) {
         // NOTE: gap measurement is always to the next athlete or null.
         const next = athletes[i + 1];
@@ -187,20 +201,23 @@ function renderZoomed(groups) {
         pos.leftDesc.classList.toggle('empty', !leftLines.length);
         pos.rightLines.innerHTML = rightLines.join('');
         pos.rightDesc.classList.toggle('empty', !rightLines.length);
-        const gap = next ? Math.abs(next[gapProp] - athlete[gapProp]) : 0;
-        pos.gap.el.style.setProperty('--inner-gap', Math.max(0, gap - bikeLength) * flexFactor);
+        let gap = next ? Math.abs(next[gapProp] - athlete[gapProp]) : 0;
+        if (gapField === 'distance') {
+            gap = Math.max(0, gap - bikeLength);
+        }
+        pos.gap.el.style.setProperty('--inner-gap', gap * flexFactor);
         pos.gap.el.style.setProperty('--outer-gap', gap * flexFactor);
         pos.gap.el.style.setProperty('--gap-sign', -1);
-        pos.gap.el.classList.toggle('alone', !gap);
         let dur;
+        pos.gap.el.classList.toggle('real', true);
         if (gapField === 'time') {
-            dur = gap && H.number(gap, {precision: 1}) + 's';
-            pos.gap.el.classList.toggle('real', !!next && !next.isGapEst);
+            dur = gap && gap >= 0.5 && H.number(gap, {precision: 1}) + 's';
         } else {
-            dur = gap && (H.number(Math.max(0, gap - bikeLength) * (imperial ? 3.28084 : 1)) + (imperial ? 'ft' : 'm'));
-            pos.gap.el.classList.toggle('real', true);
+            dur = gap && gap > bikeLength * 1.3 &&
+                (H.number(Math.max(0, gap) * (imperial ? 3.28084 : 1)) + (imperial ? 'ft' : 'm'));
         }
         pos.gap.leftLine.textContent = dur ? dur : '';
+        pos.gap.el.classList.toggle('alone', !dur);
     }
     for (const [i, {el}] of positions.entries()) {
         el.classList.toggle('hidden', !active.has(i));
@@ -227,6 +244,8 @@ function renderGroups(groups) {
     const athletesLabel = totAthletes === 1 ? 'Athlete' : 'Athletes';
     metaEl.innerHTML = `<div class="line">${totAthletes} ${athletesLabel}</div>`;
     const active = new Set();
+    aheadEl.classList.toggle('visible', false); // Maybe use someday
+    behindEl.classList.toggle('visible', false); // Maybe use someday
     for (const [i, group] of groups.entries()) {
         // NOTE: gap measurement is always to the next group or null.
         const next = groups[i + 1];
@@ -333,6 +352,8 @@ export async function main() {
     contentEl = document.querySelector('#content');
     metaEl = document.querySelector('#meta');
     containerEl = document.querySelector('#container');
+    aheadEl = document.querySelector('#ahead');
+    behindEl = document.querySelector('#behind');
     settings = common.storage.get(settingsKey, {
         detectAttacks: true,
         maxAhead: 4,

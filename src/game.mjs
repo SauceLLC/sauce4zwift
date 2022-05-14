@@ -44,11 +44,6 @@ function randInt(ceil=Number.MAX_SAFE_INTEGER) {
 }
 
 
-function chance(p) {
-    return Math.random() < p;
-}
-
-
 let _db;
 function getDB() {
     if (_db) {
@@ -817,16 +812,11 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     async _fakeDataGenerator() {
         const OutgoingPacket = ZwiftPacketMonitor.OutgoingPacket;
         let watching = -500;
-        const hz = 5;
         while (this._active) {
-            const attacking = chance(1 / (30 * hz));
-            const attackersMin = attacking ? randInt(1000 - 10) : null;
-            const attackersMax = attackersMin + 10;
             for (let i = 1; i < 1000; i++) {
                 const athleteId = -i;
                 const priorState = this.states.get(athleteId);
                 const roadId = priorState ? priorState.roadId : randInt(14);
-                const attackBonus = attacking && i >= attackersMin && i <= attackersMax ? randInt(1000) : 0;
                 const packet = OutgoingPacket.fromObject({
                     athleteId,
                     worldTime: Date.now() - worldTimeOffset,
@@ -839,8 +829,8 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                         _speed: Math.round(30 + 25 * Math.sin(i * 10 + Date.now() / 15000)) * 1000000,
                         _cadenceUHz: Math.round(50 + 50 * Math.sin(i * 10 + Date.now() / 15000)) / 60 * 1000000,
                         roadLocation: priorState ?
-                            (priorState.roadLocation + 100 + randInt(10) + attackBonus) % 1000000 :
-                            i * 100,
+                            (priorState.roadLocation + 100 + randInt(10)) % 1000000 :
+                            i * 10,
                         _flags1: 1 << 2, // reverse
                         _flags2: +roadId << 7,
                     }

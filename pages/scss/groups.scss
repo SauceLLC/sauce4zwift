@@ -48,6 +48,27 @@ html.settings-mode #meta.app-drag {
     }
 }
 
+#ahead,
+#behind {
+    padding: 0.30em 0.5em 0.55em;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.86em;
+    font-weight: bold;
+    font-variant-caps: all-small-caps;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+
+    &:not(.visible) {
+        display: none;
+    }
+}
+#behind {
+    order: 100000000;
+}
+
 #container {
     display: flex;
     flex: 1 1 100%;
