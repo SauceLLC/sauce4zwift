@@ -155,12 +155,9 @@ table {
     scroll-behavior: smooth;
     padding: 0;
     overflow: auto;
+    overflow: overlay; // chromium only
     position: relative;
     font-size: calc(var(--font-scale) * 1em);
-}
-
-::-webkit-scrollbar {
-    display: none !important;
 }
 
 html.autoscroll table tr.watching {

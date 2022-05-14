@@ -242,7 +242,7 @@ html:not(.browser-mode):not(:hover) body.transparent-bg {
     background: transparent;
 }
 
-html:not(.settings-mode):not(.settings-page) #titlebar,
+html:not(.settings-mode):not(.settings-page) #titlebar:not(.always-visible),
 html.settings-mode #hintbar,
 html:not(:hover) #hintbar {
     max-height: 0;
@@ -263,7 +263,6 @@ html:not(:hover) #hintbar {
     flex: 0 0 auto;
     display: flex;
     flex-direction: column;
-    position: absolute;
     top: 0;
     left: 0;
     z-index: 100;
@@ -273,6 +272,13 @@ html:not(:hover) #hintbar {
     max-height: 6em;
     transition: max-height 200ms, padding 200ms;
     box-shadow: 0 1px 5px #0009;
+
+    &:not(.always-visible) {
+        position: absolute;
+    }
+    .always-visible {
+        position: relative;
+    }
 
     .button {
         img {

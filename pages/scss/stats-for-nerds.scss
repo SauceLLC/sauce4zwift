@@ -3,18 +3,41 @@ html {
 }
 
 #content {
+    overflow: auto; // fallback
+    overflow: overlay; // Not in spec, but is perfect for chromium.
     padding: 1em;
-    overflow: auto;
+
+    section {
+        display: flex;
+
+        &.metrics {
+            .column {
+                flex: 1 1 0;
+            }
+        }
+
+        header {
+            font-weight: bold;
+            font-size: 1.1em;
+            padding-bottom: 1em;
+            margin-bottom: 1em;
+            border-bottom: 1px solid #aaa3;
+        }
+    }
 
     .chart-holder {
         flex: 0 0 auto;
         display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
         position: relative;
-        height: 100px;
 
         .chart {
+            min-width: 180px;
             padding: 0;
             margin: 0;
+            height: 100px;
 
             &.line {
                 flex: 1 1 auto;
