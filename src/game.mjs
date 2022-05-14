@@ -39,6 +39,16 @@ const powerUpEnum = {
 };
 
 
+function randInt(ceil=Number.MAX_SAFE_INTEGER) {
+    return Math.trunc(Math.random() * ceil);
+}
+
+
+function chance(p) {
+    return Math.random() < p;
+}
+
+
 let _db;
 function getDB() {
     if (_db) {
@@ -638,17 +648,15 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             if (this._useFakeData) {
                 const words = this.constructor.toString().replaceAll(/[^a-zA-Z ]/g, ' ').toLowerCase()
                     .split(' ').filter(x => x);
-                const fName = words[Math.trunc(Math.random() * words.length)];
-                const lName = words[Math.trunc(Math.random() * words.length)];
+                const fName = words[randInt(words.length)];
+                const lName = words[randInt(words.length)];
                 this.updateAthlete(id, fName[0].toUpperCase() + fName.substr(1), lName[0].toUpperCase() + lName.substr(1), {
-                    ftp: Math.round(100 + Math.random() * 300),
+                    ftp: Math.round(100 + randInt(300)),
                     avatar: `https://gravatar.com/avatar/${Math.abs(id)}?s=400&d=robohash&r=x`,
-                    weight: Math.round(40 + Math.random() * 70),
-                    height: 178,
-                    gender: ['female', 'male'][Math.trunc(Math.random() * 2)],
-                    age: Math.round(18 + Math.random() * 60),
-                    level: Math.round(1 + Math.random() * 40),
-                    createdOn: undefined,
+                    weight: Math.round(40 + randInt(70)),
+                    gender: ['female', 'male'][randInt(2)],
+                    age: Math.round(18 + randInt(60)),
+                    level: Math.round(1 + randInt(40)),
                 });
             } else {
                 try {
@@ -808,27 +816,37 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
 
     async _fakeDataGenerator() {
         const OutgoingPacket = ZwiftPacketMonitor.OutgoingPacket;
-        let c = 1;
         let watching = -500;
+        const hz = 5;
         while (this._active) {
+            const attacking = chance(1 / (30 * hz));
+            const attackersMin = attacking ? randInt(1000 - 10) : null;
+            const attackersMax = attackersMin + 10;
             for (let i = 1; i < 1000; i++) {
+                const athleteId = -i;
+                const priorState = this.states.get(athleteId);
+                const roadId = priorState ? priorState.roadId : randInt(14);
+                const attackBonus = attacking && i >= attackersMin && i <= attackersMax ? randInt(1000) : 0;
                 const packet = OutgoingPacket.fromObject({
-                    athleteId: -i,
+                    athleteId,
                     worldTime: Date.now() - worldTimeOffset,
                     state: {
-                        athleteId: -i,
+                        athleteId,
                         _worldTime: Date.now() - worldTimeOffset,
                         watchingAthleteId: watching,
                         power: Math.round(250 + 250 * Math.sin(i * 10 + Date.now() / 10000)),
                         heartrate: Math.round(150 + 50 * Math.cos(i * 10 + Date.now() / 10000)),
                         _speed: Math.round(30 + 25 * Math.sin(i * 10 + Date.now() / 15000)) * 1000000,
                         _cadenceUHz: Math.round(50 + 50 * Math.sin(i * 10 + Date.now() / 15000)) / 60 * 1000000,
-                        roadLocation: 1000000 - ((c + (Math.round(i ** 1.8 / 200) * 200)) % 1000000),
+                        roadLocation: priorState ?
+                            (priorState.roadLocation + 100 + randInt(10) + attackBonus) % 1000000 :
+                            i * 100,
+                        _flags1: 1 << 2, // reverse
+                        _flags2: +roadId << 7,
                     }
                 });
                 this.onOutgoing(packet);
             }
-            c = (c + 1) % 1000000;
             await sleep(200);
         }
     }
