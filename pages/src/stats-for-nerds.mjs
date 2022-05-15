@@ -222,8 +222,8 @@ async function makeMetricCharts(proc, el) {
 const debugFormatters = {
     uptime: x => H.timer(x.app.uptime),
     version: x => x.app.version,
-    os: x => `${x.sys.platform} ${x.sys.release} ${x.sys.version}`,
-    arch: x => `${x.sys.arch} ${x.sys.cpus[0].model}`,
+    os: x => `${x.sys.platform} ${x.sys.release}`,
+    arch: x => `${x.sys.arch}`,
     sysUptime: x => H.duration(x.sys.uptime),
     statesSize: x => H.number(x.game.statesSize),
     activeAthletesSize: x => H.number(x.game.activeAthletesSize),
