@@ -19,11 +19,46 @@
         <link rel="stylesheet" href="css/stats-for-nerds.css"/>
     </head>
     <body>
-        <div id="titlebar">
+        <div id="titlebar" class="always-visible">
             <header>
-                <div class="title app-drag">Stats for Nerds - Sauce for Zwift™</div>
+                <div class="title">Stats for Nerds - Sauce for Zwift™</div>
             </header>
         </div>
-        <div id="content"></div>
+        <div id="content">
+            <section class="debug-info">
+                <div class="column">
+                    <header>Application</header>
+                    <div class="entry"><key>Version</key><value data-id="version"/></div>
+                    <div class="entry"><key>Uptime</key><value data-id="uptime"/></div>
+                </div>
+                <div class="column">
+                    <header>System</header>
+                    <div class="entry"><key>OS</key><value data-id="os"/></div>
+                    <div class="entry"><key>Arch</key><value data-id="arch"/></div>
+                    <div class="entry"><key>Uptime</key><value data-id="sysUptime"/></div>
+                </div>
+                <div class="column">
+                    <header>Game</header>
+                    <div class="entry"><key>Active states</key><value data-id="statesSize"/></div>
+                    <div class="entry"><key>Active athletes</key><value data-id="activeAthletesSize"/></div>
+                    <div class="entry"><key>Data points</key><value data-id="activeAthleteDataPoints"/></div>
+                    <div class="entry"><key>States processed</key><value data-id="stateProcessCount"/></div>
+                    <div class="entry"><key>Profiles fetched</key><value data-id="profileFetchCount"/></div>
+                    <div class="entry"><key>Pending profile fetches</key><value data-id="pendingProfileFetches"/></div>
+                </div>
+                <div class="column">
+                    <header>Database</header>
+                    <div class="entry"><key>Athletes DB rows</key><value data-id="dbRowsAthletes"/></div>
+                    <div class="entry"><key>Settings DB rows</key><value data-id="dbRowsSettings"/></div>
+                    <div class="entry"><key>Athletes cached</key><value data-id="athletesCacheSize"/></div>
+                </div>
+            </section>
+            <section class="metrics">
+                <div class="column">
+                    <header>Processes</header>
+                    <div class="graphs"></div>
+                </div>
+            </section>
+        </div>
     </body>
 </html>

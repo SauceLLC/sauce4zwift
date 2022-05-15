@@ -238,10 +238,10 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         this._profileFetchCount = 0;
         this.on('incoming', this.onIncoming);
         this.on('outgoing', this.onOutgoing);
-        rpc.register(this.updateAthlete.bind(this));
-        rpc.register(this.startLap.bind(this));
-        rpc.register(this.resetStats.bind(this));
-        rpc.register(this.exportFIT.bind(this));
+        rpc.register(this.updateAthlete, {scope: this});
+        rpc.register(this.startLap, {scope: this});
+        rpc.register(this.resetStats, {scope: this});
+        rpc.register(this.exportFIT, {scope: this});
     }
 
     maybeLearnAthleteId(packet) {
@@ -1028,8 +1028,8 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             zwiftProfileFetchCount: this._profileFetchCount,
             stateProcessCount: this._stateProcessCount,
             statesSize: this.states.size,
-            athleteDataSize: this._athleteData.size,
-            athleteDataPointSize: Array.from(this._athleteData.values())
+            activeAthletesSize: this._athleteData.size,
+            activeAthleteDataPoints: Array.from(this._athleteData.values())
                 .map(x => x.power.roll.size() + x.speed.roll.size() + x.hr.roll.size() + x.hr.roll.size() + x.draft.roll.size())
                 .reduce((agg, c) => agg + c, 0),
             athletesCacheSize: this.athletesCache.size,

@@ -61,7 +61,7 @@
 
             function main() {
                 common.initInteractionListeners();
-                document.querySelector('button.restart').addEventListener('click', () => common.rpc('restart'));
+                document.querySelector('button.restart').addEventListener('click', () => common.rpc.restart());
             }
             document.addEventListener('DOMContentLoaded', main);
         </script>

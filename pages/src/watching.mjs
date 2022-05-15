@@ -600,11 +600,11 @@ export async function main() {
     });
     const resetBtn = document.querySelector('.button-bar .button.reset');
     resetBtn.addEventListener('click', ev => {
-        common.rpc('resetStats');
+        common.rpc.resetStats();
     });
     const lapBtn = document.querySelector('.button-bar .button.lap');
     lapBtn.addEventListener('click', ev => {
-        common.rpc('startLap');
+        common.rpc.startLap();
     });
     document.addEventListener('keydown', ev => {
         if (ev.ctrlKey && ev.shiftKey) {

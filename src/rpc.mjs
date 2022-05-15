@@ -39,8 +39,8 @@ async function _invoke(name, ...args) {
     if (!handlers.has(name)) {
         throw new Error('Invalid handler name: ' + name);
     } else {
-        const fn = handlers.get(name);
-        return await fn.call(this, ...args);
+        const {fn, scope} = handlers.get(name);
+        return await fn.call(scope || this, ...args);
     }
 }
 
@@ -50,7 +50,7 @@ export function register(fn, options={}) {
     if (!name) {
         throw new TypeError("Function name could not be inferred, use options.name");
     }
-    handlers.set(options.name || fn.name, fn);
+    handlers.set(options.name || fn.name, {fn, scope: options.scope});
 }
 
 

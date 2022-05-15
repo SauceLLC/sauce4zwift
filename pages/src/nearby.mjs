@@ -141,12 +141,12 @@ export function main() {
             const oldSettings = settings;
             settings = ev.data.value;
             if (oldSettings.transparency !== settings.transparency) {
-                common.rpc('setWindowOpacity', window.electron.context.id, 1 - (settings.transparency / 100));
+                common.rpc.setWindowOpacity(window.electron.context.id, 1 - (settings.transparency / 100));
             }
             if (window.isElectron && typeof settings.overlayMode === 'boolean') {
-                await common.rpc('updateWindow', window.electron.context.id, {overlay: settings.overlayMode});
+                await common.rpc.updateWindow(window.electron.context.id, {overlay: settings.overlayMode});
                 if (settings.overlayMode !== oldSettings.overlayMode) {
-                    await common.rpc('reopenWindow', window.electron.context.id);
+                    await common.rpc.reopenWindow(window.electron.context.id);
                 }
             }
         } else {
@@ -173,7 +173,7 @@ export function main() {
     document.documentElement.classList.toggle('overlay-mode', settings.overlayMode);
     fieldStates = common.storage.get(fieldsKey, Object.fromEntries(fields.map(x => [x.id, x.defaultEn])));
     if (window.isElectron) {
-        common.rpc('getWindow', window.electron.context.id).then(({overlay}) => {
+        common.rpc.getWindow(window.electron.context.id).then(({overlay}) => {
             if (settings.overlayMode !== overlay) {
                 settings.overlayMode = overlay;
                 common.storage.set(settingsKey, settings);
@@ -259,7 +259,7 @@ function render() {
             if (link.dataset.id === 'edit') {
                 showAthleteDialog(athleteId);
             } else if (link.dataset.id === 'export') {
-                const fitData = await common.rpc('exportFIT', athleteId);
+                const fitData = await common.rpc.exportFIT(athleteId);
                 const f = new File([new Uint8Array(fitData)], `${athleteId}.fit`, {type: 'application/binary'});
                 const l = document.createElement('a');
                 l.download = f.name;
@@ -301,7 +301,7 @@ function showAthleteDialog(id) {
                 ftp: Number(ftpInput.value) || null,
                 avatar: avatarInput.value || null,
             };
-            const updated = await common.rpc('updateAthlete', id, first, last, extra);
+            const updated = await common.rpc.updateAthlete(id, first, last, extra);
             athleteData.set(id, updated);
             console.info(id, updated);
             renderData(nearbyData);

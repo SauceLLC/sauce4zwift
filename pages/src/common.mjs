@@ -5,7 +5,7 @@ import {beforeSentrySend, captureExceptionOnce, setSentry} from '../../shared/se
 import './sentry.js';
 
 export let subscribe;
-export let rpc;
+let rpcCall;
 
 let windowID;
 
@@ -30,7 +30,7 @@ if (window.isElectron) {
         sendToElectron('subscribe', {event, domEvent, ...options});
     };
 
-    rpc = async function(name, ...args) {
+    rpcCall = async function(name, ...args) {
         const domEvent = `sauce-${name}-${evId++}`;
         const resp = new Promise((resolve, reject) => {
             document.addEventListener(domEvent, ev => {
@@ -49,7 +49,7 @@ if (window.isElectron) {
         const link = ev.target.closest('a[external][href]');
         if (link) {
             ev.preventDefault();
-            await rpc('openExternalLink', link.href);
+            await rpcCall('openExternalLink', link.href);
         }
     });
 } else {
@@ -110,7 +110,7 @@ if (window.isElectron) {
         subs.push({event, callback});
     };
 
-    rpc = async function(name, ...args) {
+    rpcCall = async function(name, ...args) {
         const f = await fetch('/api/rpc', {
             method: 'POST',
             headers: {"content-type": 'application/json'},
@@ -181,7 +181,7 @@ export function initInteractionListeners() {
     }
     const close = document.querySelector('#titlebar .button.close');
     if (close) {
-        close.addEventListener('click', ev => rpc('closeWindow'));
+        close.addEventListener('click', ev => rpcCall('closeWindow'));
     }
     for (const el of document.querySelectorAll('.button[data-url]')) {
         el.addEventListener('click', ev => location.assign(el.dataset.url));
@@ -517,10 +517,10 @@ export async function initAppSettingsForm(selector, options={}) {
             if (extraData && Object.prototype.hasOwnProperty.call(extraData, name)) {
                 return extraData[name];
             }
-            return await rpc('getAppSetting', name);
+            return await rpcCall('getAppSetting', name);
         },
         set: async (name, value) => {
-            return await rpc('setAppSetting', name, value);
+            return await rpcCall('setAppSetting', name, value);
         },
     };
     await bindFormData(selector, storageIface);
@@ -562,9 +562,9 @@ export async function initSettingsForm(selector, options={}) {
 }
  
 
-rpc('getVersion').then(v => Sentry.setTag('version', v));
-rpc('getSentryAnonId').then(id => Sentry.setUser({id}));
-rpc('appIsPackaged').then(packaged => {
+rpcCall('getVersion').then(v => Sentry.setTag('version', v));
+rpcCall('getSentryAnonId').then(id => Sentry.setUser({id}));
+rpcCall('appIsPackaged').then(packaged => {
     if (packaged) {
         setSentry(Sentry);
         Sentry.init({
@@ -575,6 +575,10 @@ rpc('appIsPackaged').then(packaged => {
     } else {
         console.debug("Sentry disabled for unpackaged app");
     }
+});
+
+export const rpc = new Proxy({}, {
+    get: (_, prop) => (...args) => rpcCall(prop, ...args)
 });
 
 window.rpc = rpc; // XXX DEBUG

@@ -64,7 +64,7 @@ export async function main() {
         if (window.isElectron) {
             document.documentElement.classList.remove('auto-hidden');
             autoHidden = false;
-            common.rpc('showAllWindows');
+            common.rpc.showAllWindows();
         }
     });
     document.querySelector('.button.hide').addEventListener('click', () => {
@@ -72,11 +72,11 @@ export async function main() {
         if (window.isElectron) {
             document.documentElement.classList.remove('auto-hidden');
             autoHidden = false;
-            common.rpc('hideAllWindows');
+            common.rpc.hideAllWindows();
         }
     });
     if (window.isElectron) {
-        document.querySelector('.button.quit').addEventListener('click', () => common.rpc('quit'));
+        document.querySelector('.button.quit').addEventListener('click', () => common.rpc.quit());
     }
 
     let autoHidden;
@@ -84,14 +84,14 @@ export async function main() {
         autoHidden = true;
         document.documentElement.classList.add('auto-hidden', 'hidden');
         console.debug("Auto hidding windows");
-        common.rpc('hideAllWindows', {autoHide: true});
+        common.rpc.hideAllWindows({autoHide: true});
     }
 
     function autoShow() {
         autoHidden = false;
         document.documentElement.classList.remove('auto-hidden', 'hidden');
         console.debug("Auto showing windows");
-        common.rpc('showAllWindows', {autoHide: true});
+        common.rpc.showAllWindows({autoHide: true});
     }
 
     const autoHideWait = 2500;
@@ -250,8 +250,8 @@ function buildLayout() {
 
 
 async function renderWindowsPanel() {
-    const windows = Object.values(await common.rpc('getWindows')).filter(x => !x.private);
-    const manifests = await common.rpc('getWindowManifests');
+    const windows = Object.values(await common.rpc.getWindows()).filter(x => !x.private);
+    const manifests = await common.rpc.getWindowManifests();
     const el = document.querySelector('#windows');
     const descs = Object.fromEntries(manifests.map(x => [x.type, x]));
     const restoreLink = `<a class="link restore"><img src="images/fa/plus-square-duotone.svg"></a>`;
@@ -272,7 +272,7 @@ async function renderWindowsPanel() {
 
 export async function settingsMain() {
     common.initInteractionListeners();
-    const version = await common.rpc('getVersion');
+    const version = await common.rpc.getVersion();
     let webServerURL;
     const winsEl = await renderWindowsPanel();
     winsEl.querySelector('table').addEventListener('click', async ev => {
@@ -280,28 +280,28 @@ export async function settingsMain() {
         const link = ev.target.closest('a.link');
         if (link) {
             if (link.classList.contains('restore')) {
-                await common.rpc('openWindow', id);
+                await common.rpc.openWindow(id);
             } else if (link.classList.contains('delete')) {
-                await common.rpc('removeWindow', id);
+                await common.rpc.removeWindow(id);
             }
             return;
         }
         const row = ev.target.closest('tr');
         if (row) {
-            await common.rpc('focusWindow', id);
+            await common.rpc.focusWindow(id);
         }
     });
     winsEl.querySelector('.add-new input[type="button"]').addEventListener('click', async ev => {
         ev.preventDefault();
         const type = ev.currentTarget.closest('.add-new').querySelector('select').value;
-        const id = await common.rpc('createWindow', {type});
-        await common.rpc('openWindow', id);
+        const id = await common.rpc.createWindow({type});
+        await common.rpc.openWindow(id);
     });
     document.addEventListener('windows-updated', renderWindowsPanel);
-    await common.rpc('listenForWindowUpdates', 'windows-updated');
-    if (await common.rpc('getAppSetting', 'webServerEnabled')) {
-        const ip = await common.rpc('getMonitorIP');
-        const port = await common.rpc('getAppSetting', 'webServerPort');
+    await common.rpc.listenForWindowUpdates('windows-updated');
+    if (await common.rpc.getAppSetting('webServerEnabled')) {
+        const ip = await common.rpc.getMonitorIP();
+        const port = await common.rpc.getAppSetting('webServerPort');
         webServerURL = `http://${ip}:${port}`;
     }
     await common.initAppSettingsForm('form.app-settings', {extraData: {webServerURL}});

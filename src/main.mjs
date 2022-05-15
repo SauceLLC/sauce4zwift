@@ -1,5 +1,6 @@
 import path from 'node:path';
 import process from 'node:process';
+import os from 'node:os';
 import fs from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import * as storage from './storage.mjs';
@@ -281,21 +282,28 @@ function getDebugInfo() {
         app: {
             version: pkg.version,
             uptime: process.uptime(),
-            platform: process.platform,
-            arch: process.arch,
             pid: process.pid,
             mem: process.memoryUsage(),
             cpu: process.cpuUsage(),
             cwd: process.cwd(),
         },
+        sys: {
+            arch: process.arch,
+            platform: os.platform(),
+            release: os.release(),
+            version: os.version(),
+            uptime: os.uptime(),
+            cpus: os.cpus(),
+        },
         game: gameMonitor.getDebugInfo(),
-        databases: Array.from(databases.entries()).map(([name, db]) => {
+        databases: [].concat(...Array.from(databases.entries()).map(([dbName, db]) => {
             const stats = db.prepare('SELECT * FROM sqlite_schema WHERE type = ? AND name NOT LIKE ?').all('table', 'sqlite_%');
             return stats.map(t => ({
-                name: t.name,
+                dbName,
+                tableName: t.name,
                 rows: db.prepare(`SELECT COUNT(*) as rows FROM ${t.name}`).get().rows,
             }));
-        }),
+        })),
     };
 }
 rpc.register(getDebugInfo);

@@ -119,8 +119,8 @@
 
             async function main() {
                 const [lastVersion, version] = await Promise.all([
-                    common.rpc('getAppSetting', 'lastVersion'),
-                    common.rpc('getVersion'),
+                    common.rpc.getAppSetting('lastVersion'),
+                    common.rpc.getVersion(),
                 ]);
                 const updated = lastVersion !== version;
                 if (updated) {

@@ -16,7 +16,7 @@ async function makeMetricCharts(proc, el) {
         GPU: 'GPU Bridge', // not GPU usage but the proc that proxies GPU ops.
         Tab: 'Window',
     };
-    const spec = await common.rpc('getWindowSpecForPID', proc.pid);
+    const spec = await common.rpc.getWindowSpecForPID(proc.pid);
     const lineEl = document.createElement('div');
     const gaugeEl = document.createElement('div');
     lineEl.classList.add('chart', 'line');
@@ -27,7 +27,7 @@ async function makeMetricCharts(proc, el) {
         renderer: location.search.includes('svg') ? 'svg' : 'canvas',
     });
     const cpuSoftCeil = 100;
-    const memSoftCeil = 1024;
+    const memSoftCeil = 2048;
     const options = {
         visualMap: [{
             show: false,
@@ -54,10 +54,10 @@ async function makeMetricCharts(proc, el) {
             },
         }],
         grid: {
-            top: 20,
-            left: 20,
-            right: 20,
-            bottom: 14,
+            top: 30,
+            left: 10,
+            right: 10,
+            bottom: 10,
         },
         title: [{
             left: 'left',
@@ -67,7 +67,6 @@ async function makeMetricCharts(proc, el) {
             trigger: 'axis',
             confine: true,
             valueFormatter: H.number
-            //formatter: '{a} {b} {c} {d}',
         },
         xAxis: [{
             show: false,
@@ -77,7 +76,7 @@ async function makeMetricCharts(proc, el) {
             show: false,
             name: 'CPU',
             min: 0,
-            max: x => Math.max(cpuSoftCeil, x.max),
+            max: x => Math.max(cpuSoftCeil, x.max || 0),
             axisLabel: {
                 align: 'left',
                 formatter: '{value}%',
@@ -85,7 +84,7 @@ async function makeMetricCharts(proc, el) {
         }, {
             show: false,
             min: 0,
-            max: x => Math.max(memSoftCeil, x.max),
+            max: x => Math.max(memSoftCeil, x.max || 0),
         }],
         series: [{
             id: 'cpu',
@@ -114,45 +113,103 @@ async function makeMetricCharts(proc, el) {
     const gaugeChart = new echarts.init(gaugeEl, 'sauce', {
         renderer: location.search.includes('svg') ? 'svg' : 'canvas',
     });
+    const commonGaugeSeries = {
+        type: 'gauge',
+        radius: '95%',
+        axisLine: {
+            roundCap: true,
+            lineStyle: {
+                color: [[1, '#777']],
+                width: 10,
+            },
+        },
+        progress: {
+            show: true,
+            roundCap: true,
+            width: 10,
+        },
+        pointer: {
+            length: 40,
+            width: 3,
+            itemStyle: {
+                icon: 'circle',
+            }
+        },
+        anchor: {
+            show: true,
+            showAbove: true,
+            size: 10,
+            itemStyle: {
+                color: '#aaa',
+                borderColor: '#000',
+                borderWidth: 3,
+            }
+        },
+        axisTick: {
+            show: false,
+        },
+        splitLine: {
+            show: false,
+        },
+        axisLabel: {
+            show: false,
+        },
+        data: [],
+    };
     gaugeChart.setOption({
+        visualMap: [{
+            show: false,
+            type: 'continuous',
+            hoverLink: false,
+            seriesIndex: 0,
+            min: 0,
+            max: cpuSoftCeil,
+            inRange: {
+                color: ['#fff', '#ff4', '#fc2', '#f44'],
+                colorAlpha: [0.5, 0.9],
+            },
+        }, {
+            show: false,
+            type: 'continuous',
+            hoverLink: false,
+            seriesIndex: 1,
+            min: 0,
+            max: memSoftCeil,
+            inRange: {
+                color: ['#33f', '#33f', '#50c', '#e22'],
+                colorAlpha: [0.5, 0.9],
+            }
+        }],
         series: [{
+            ...commonGaugeSeries,
             name: 'CPU',
-            type: 'gauge',
             startAngle: 200,
-            endAngle: 340,
+            endAngle: 40,
+            min: 0,
+            max: cpuSoftCeil,
+            center: ['30%', '60%'],
             itemStyle: {
                 color: '#fc3',
             },
-            progress: {
-                show: true,
-                roundCap: true,
-                width: 10,
+            detail: {
+                offsetCenter: [0, '50%'],
+                formatter: '{value}%',
             },
-            axisLine: {
-                roundCap: true,
-                lineStyle: {
-                    color: [[1, '#0004']],
-                    width: 10,
-                },
-            },
-            axisTick: {
-                show: false,
-            },
-            splitLine: {
-                show: false,
-            },
-            axisLabel: {
-                show: false,
+        }, {
+            ...commonGaugeSeries,
+            name: 'Memory',
+            startAngle: 200,
+            endAngle: 340,
+            min: 0,
+            max: memSoftCeil,
+            center: ['70%', '60%'],
+            itemStyle: {
+                color: '#33f',
             },
             detail: {
-                valueAnimation: true,
-                formatter: '{value}% CPU',
-                offsetCenter: [0, '70%'],
+                offsetCenter: [0, '50%'],
+                formatter: x => H.number(x) + 'MB',
             },
-            data: [{
-                value: 0,
-                name: 'CPU'
-            }]
         }],
     });
     return {
@@ -162,9 +219,28 @@ async function makeMetricCharts(proc, el) {
 }
 
 
+const debugFormatters = {
+    uptime: x => H.timer(x.app.uptime),
+    version: x => x.app.version,
+    os: x => `${x.sys.platform} ${x.sys.release} ${x.sys.version}`,
+    arch: x => `${x.sys.arch} ${x.sys.cpus[0].model}`,
+    sysUptime: x => H.duration(x.sys.uptime),
+    statesSize: x => H.number(x.game.statesSize),
+    activeAthletesSize: x => H.number(x.game.activeAthletesSize),
+    activeAthleteDataPoints: x => H.number(x.game.activeAthleteDataPoints),
+    athletesCacheSize: x => H.number(x.game.athletesCacheSize),
+    stateProcessCount: x => H.number(x.game.stateProcessCount),
+    profileFetchCount: x => H.number(x.game.zwiftProfileFetchCount),
+    pendingProfileFetches: x => H.number(x.game.pendingZwiftProfileFetches),
+    dbRowsAthletes: x => H.number(x.databases.find(x => x.tableName === 'athletes').rows),
+    dbRowsSettings: x => H.number(x.databases.find(x => x.tableName === 'store').rows),
+};
+
+
 export async function main() {
     common.initInteractionListeners();
-    const content = document.querySelector('#content');
+    const debugEl = document.querySelector('section.debug-info');
+    const graphsEl = document.querySelector('section.metrics .graphs');
     const allCharts = new Map();
     addEventListener('resize', () => {
         for (const {charts} of allCharts.values()) {
@@ -174,26 +250,34 @@ export async function main() {
     });
     let iter = 0;
     while (true) {
-        const metrics = await common.rpc('pollAppMetrics').catch(e => {
-            console.warn("Failed to get metrics:", e);
-            return sauce.sleep(1000);
-        });
-        if (!metrics) {
+        const metrics = await common.rpc.pollAppMetrics().catch(e =>
+            void console.warn("Failed to get metrics:", e));
+        const debugInfo = await common.rpc.getDebugInfo().catch(e =>
+            void console.warn("Failed to get debugInfo:", e));
+        if (!metrics || !debugInfo) {
+            await sauce.sleep(1000);
             continue;
+        }
+        for (const el of debugEl.querySelectorAll('value[data-id]')) {
+            console.log(el.dataset.id);
+            el.innerHTML = debugFormatters[el.dataset.id](debugInfo);
         }
         const unused = new Set(allCharts.keys());
         for (const x of metrics) {
             if (!allCharts.has(x.pid)) {
                 const el = document.createElement('div');
                 el.classList.add('chart-holder');
-                content.appendChild(el);
+                graphsEl.appendChild(el);
                 allCharts.set(x.pid, {
                     charts: await makeMetricCharts(x, el),
                     el,
                     datas: {
-                        cpu: [...sauce.data.range(maxLen - 10)].map(i => 25 + Math.sin(i / 3) * 25),
-                        mem: [...sauce.data.range(maxLen - 10)].map(i => 150 + Math.cos(i / 10) * 100),
-                        count: maxLen - 10, // Match ^^^
+                        //cpu: [...sauce.data.range(maxLen - 10)].map(i => 25 + Math.sin(i / 3) * 25),
+                        //mem: [...sauce.data.range(maxLen - 10)].map(i => 150 + Math.cos(i / 10) * 100),
+                        //count: maxLen - 10, // Match ^^^
+                        cpu: [],
+                        mem: [],
+                        count: 0,
                     },
                 });
             }
@@ -224,7 +308,7 @@ export async function main() {
                             name: 'Max',
                             xAxis: maxMemIndex,
                             label: {
-                                position: maxMemIndex > datas.mem.length / 2 ? 'insideEndTop' : 'insideEndBottom',
+                                position: maxMemIndex > maxLen / 2 ? 'insideEndTop' : 'insideEndBottom',
                                 formatter: x => `${H.number(datas.mem[x.value])}MB`
                             },
                             emphasis: {
@@ -234,7 +318,21 @@ export async function main() {
                     },
                 }]
             });
-            charts.gauge.setOption({series: [{data: [{value: Math.round(cpu)}]}]});
+            const gaugeTitle = {
+                offsetCenter: [0, '-40%'],
+                color: '#fffa',
+                fontSize: 12,
+                fontWeight: 700,
+                textShadowColor: '#000',
+                textShadowBlur: 3,
+            };
+            charts.gauge.setOption({
+                series: [{
+                    data: [{name: 'CPU', value: Math.round(cpu), title: gaugeTitle}],
+                }, {
+                    data: [{name: 'Mem', value: Math.round(mem), title: gaugeTitle}],
+                }]
+            });
         }
         iter++;
         for (const pid of unused) {

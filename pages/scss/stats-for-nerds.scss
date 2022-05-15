@@ -9,19 +9,54 @@ html {
 
     section {
         display: flex;
+        flex-wrap: wrap;
 
-        &.metrics {
-            .column {
-                flex: 1 1 0;
+        .column {
+            flex: 1 1 0;
+            min-width: 200px;
+            max-width: 100%;
+            overflow: hidden;
+
+            &:not(:last-child) {
+                padding-right: 1em;
             }
         }
 
         header {
             font-weight: bold;
             font-size: 1.1em;
-            padding-bottom: 1em;
-            margin-bottom: 1em;
-            border-bottom: 1px solid #aaa3;
+            padding-bottom: 0.5rem;
+            margin-bottom: 0.5rem;
+            border-bottom: 1px solid #aaa6;
+        }
+
+        &.debug-info {
+            .entry {
+                display: flex;
+                align-items: baseline;
+                
+                key, value {
+                    display: block;
+                }
+
+                key {
+                    flex: 0 0 auto;
+                    min-width: 10ch;
+                    margin-right: 1ch;
+                    font-weight: bold;
+                    font-size: 0.9em;
+
+                    &::after {
+                        content: ':'
+                    }
+                }
+
+                value {
+                    flex: 1 1 0;
+                    font-variant-numeric: tabular-nums;
+                    word-break: break-word;
+                }
+            }
         }
     }
 
@@ -34,13 +69,13 @@ html {
         position: relative;
 
         .chart {
-            min-width: 180px;
             padding: 0;
             margin: 0;
             height: 100px;
 
             &.line {
-                flex: 1 1 auto;
+                flex: 1 1 0;
+                min-width: 300px;
             }
 
             &.gauge {
