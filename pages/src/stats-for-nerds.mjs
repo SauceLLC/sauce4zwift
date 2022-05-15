@@ -7,7 +7,7 @@ echarts.registerTheme('sauce', theme);
 
 const L = sauce.locale;
 const H = L.human;
-const maxLen = 300;
+const maxLen = 150;
 
 
 async function makeMetricCharts(proc, el) {
@@ -259,7 +259,6 @@ export async function main() {
             continue;
         }
         for (const el of debugEl.querySelectorAll('value[data-id]')) {
-            console.log(el.dataset.id);
             el.innerHTML = debugFormatters[el.dataset.id](debugInfo);
         }
         const unused = new Set(allCharts.keys());
