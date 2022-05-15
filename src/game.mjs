@@ -787,6 +787,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         if (this.watching === state.athleteId) {
             const athlete = this.loadAthlete(state.athleteId);
             this.emit('watching', {
+                athleteId: state.athleteId,
                 athlete,
                 stats: this._getCollectorStats(ad, athlete),
                 laps: ad.laps.map(x => this._getCollectorStats(x, athlete)),
@@ -833,7 +834,8 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         while (this._active) {
             for (let i = 1; i < 1000; i++) {
                 const athleteId = -i;
-                const priorState = this._athleteData.get(athleteId).mostRecentState;
+                const ad = this._athleteData.get(athleteId);
+                const priorState = ad && ad.mostRecentState;
                 const roadId = priorState ? priorState.roadId : randInt(14);
                 const packet = OutgoingPacket.fromObject({
                     athleteId,
