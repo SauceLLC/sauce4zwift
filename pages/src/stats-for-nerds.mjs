@@ -225,16 +225,18 @@ const debugFormatters = {
     os: x => `${x.sys.platform} ${x.sys.release}`,
     arch: x => `${x.sys.arch}`,
     sysUptime: x => H.duration(x.sys.uptime),
-    statesSize: x => H.number(x.game.statesSize),
-    activeAthletesSize: x => H.number(x.game.activeAthletesSize),
-    activeAthleteDataPoints: x => H.number(x.game.activeAthleteDataPoints),
-    athletesCacheSize: x => H.number(x.game.athletesCacheSize),
-    stateProcessCount: x => H.number(x.game.stateProcessCount),
-    profileFetchCount: x => H.number(x.game.zwiftProfileFetchCount),
-    pendingProfileFetches: x => H.number(x.game.pendingZwiftProfileFetches),
+    gpu: x => x.sys.gpu.status.gpu_compositing,
     dbRowsAthletes: x => H.number(x.databases.find(x => x.tableName === 'athletes').rows),
     dbRowsSettings: x => H.number(x.databases.find(x => x.tableName === 'store').rows),
 };
+function defaultDebugFormatter(path) {
+    return data => {
+        for (const p of path.split('.')) {
+            data = data[p];
+        }
+        return H.number(data);
+    };
+}
 
 
 export async function main() {
@@ -259,7 +261,8 @@ export async function main() {
             continue;
         }
         for (const el of debugEl.querySelectorAll('value[data-id]')) {
-            el.innerHTML = debugFormatters[el.dataset.id](debugInfo);
+            const fmt = debugFormatters[el.dataset.id] || defaultDebugFormatter(el.dataset.id);
+            el.innerHTML = fmt(debugInfo);
         }
         const unused = new Set(allCharts.keys());
         for (const x of metrics) {
