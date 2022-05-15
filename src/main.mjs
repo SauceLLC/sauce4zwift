@@ -6,6 +6,7 @@ import * as storage from './storage.mjs';
 import menu from './menu.mjs';
 import * as patreon from './patreon.mjs';
 import * as rpc from './rpc.mjs';
+import {databases} from './db.mjs';
 import * as Sentry from '@sentry/node';
 import {Dedupe} from '@sentry/integrations';
 import * as webServer from './webserver.mjs';
@@ -20,6 +21,7 @@ const electron = require('electron');
 
 let appQuiting = false;
 let started;
+let gameMonitor;
 
 try {
     storage.load(0);
@@ -112,7 +114,7 @@ const windowManifests = [{
     options: {relWidth: 0.20, aspectRatio: 0.8},
 
 }];
-rpc.register('getWindowManifests', () => windowManifests);
+rpc.register(() => windowManifests, {name: 'getWindowManifests'});
 
 const defaultWindows = [{
     id: 'default-overview-1',
@@ -201,7 +203,7 @@ export function getAppSetting(key, def) {
     }
     return _appSettings[key];
 }
-rpc.register('getAppSetting', getAppSetting);
+rpc.register(getAppSetting);
 
 
 export function setAppSetting(key, value) {
@@ -212,48 +214,48 @@ export function setAppSetting(key, value) {
     storage.save(appSettingsKey, _appSettings);
     electron.app.emit('app-setting-change', key, value);
 }
-rpc.register('setAppSetting', setAppSetting);
+rpc.register(setAppSetting);
 
-rpc.register('appIsPackaged', () => electron.app.isPackaged);
-rpc.register('getVersion', () => pkg.version);
-rpc.register('getMonitorIP', () => pkg.version);
-rpc.register('getSentryAnonId', () => sentryAnonId);
-rpc.register('openExternalLink', url => electron.shell.openExternal(url));
-rpc.register('restart', () => {
+rpc.register(() => electron.app.isPackaged, {name: 'appIsPackaged'});
+rpc.register(() => pkg.version, {name: 'getVersion'});
+rpc.register(() => gameMonitor.ip, {name: 'getMonitorIP'});
+rpc.register(() => sentryAnonId, {name: 'getSentryAnonId'});
+rpc.register(url => electron.shell.openExternal(url), {name: 'openExternalLink'});
+rpc.register(() => {
     appQuiting = true;
     electron.app.relaunch();
     electron.app.quit();
-});
-rpc.register('quit', () => {
+}, {name: 'restart'});
+rpc.register(() => {
     appQuiting = true;
     electron.app.quit();
-});
-rpc.register('hideAllWindows', () => {
+}, {name: 'quit'});
+rpc.register(() => {
     for (const {win, spec} of activeWindows.values()) {
         if (spec.hideable !== false && spec.overlay !== false) {
             win.hide();
         }
     }
-});
-rpc.register('showAllWindows', () => {
+}, {name: 'hideAllWindows'});
+rpc.register(() => {
     for (const {win, spec} of activeWindows.values()) {
         if (spec.hideable !== false && spec.overlay !== false) {
             win.show();
         }
     }
-});
-rpc.register('closeWindow', function() {
+}, {name: 'showAllWindows'});
+rpc.register(function() {
     const {win, spec} = activeWindows.get(this);
     console.debug('Window close requested:', spec.id);
     win.close();
-});
-rpc.register('minimizeWindow', function() {
+}, {name: 'closeWindow'});
+rpc.register(function() {
     const {win, spec} = activeWindows.get(this);
     console.debug('Window close requested:', spec.id);
     win.minimize();
-});
-rpc.register('getGPUFeatureStatus', () => electron.app.getGPUFeatureStatus());
-rpc.register('getGPUInfo', () => electron.app.getGPUInfo('complete'));
+}, {name: 'minimizewindow'});
+rpc.register(() => electron.app.getGPUFeatureStatus(), {name: 'getGPUFeatureStatus'});
+rpc.register(() => electron.app.getGPUInfo('complete'), {name: 'getGPUInfo'});
 let _appMetricsPromise;
 let _lastAppMetricsTS = 0;
 function _getAppMetrics(reentrant) {
@@ -268,13 +270,36 @@ function _getAppMetrics(reentrant) {
         resolve(electron.app.getAppMetrics());
     }, 2000 - (Date.now() - _lastAppMetricsTS)));
 }
-rpc.register('pollAppMetrics', async () => {
+rpc.register(async () => {
     if (!_appMetricsPromise) {
         _appMetricsPromise = _getAppMetrics();
     }
     return await _appMetricsPromise;
-});
-rpc.register('getWindowSpecForPID', pid => {
+}, {name: 'pollAppMetrics'});
+function getDebugInfo() {
+    return {
+        app: {
+            version: pkg.version,
+            uptime: process.uptime(),
+            platform: process.platform,
+            arch: process.arch,
+            pid: process.pid,
+            mem: process.memoryUsage(),
+            cpu: process.cpuUsage(),
+            cwd: process.cwd(),
+        },
+        game: gameMonitor.getDebugInfo(),
+        databases: Array.from(databases.entries()).map(([name, db]) => {
+            const stats = db.prepare('SELECT * FROM sqlite_schema WHERE type = ? AND name NOT LIKE ?').all('table', 'sqlite_%');
+            return stats.map(t => ({
+                name: t.name,
+                rows: db.prepare(`SELECT COUNT(*) as rows FROM ${t.name}`).get().rows,
+            }));
+        }),
+    };
+}
+rpc.register(getDebugInfo);
+rpc.register(pid => {
     for (const x of electron.BrowserWindow.getAllWindows()) {
         let wc;
         try {
@@ -291,7 +316,7 @@ rpc.register('getWindowSpecForPID', pid => {
             return subWindows.get(wc).spec;
         }
     }
-});
+}, {name: 'getWindowSpecForPID'});
 
 
 function getActiveWindow(id) {
@@ -316,17 +341,17 @@ function getWindows() {
     }
     return _windows;
 }
-rpc.register('getWindows', getWindows);
+rpc.register(getWindows);
 
 
-rpc.register('listenForWindowUpdates', function(domEvent) {
+rpc.register(function(domEvent) {
     if (this) {
         windowsUpdateListeners.set(new WeakRef(this), domEvent);
     } else {
         // XXX Doesn't work for web clients, but I think we could proxy to the webServer
         console.warn("listenForWindowUpdates is only supported on electron");
     }
-});
+}, {name: 'listenForWindowUpdates'});
 
 
 let _windowsUpdatedTimeout;
@@ -350,7 +375,7 @@ function setWindows(wins) {
 function getWindow(id) {
     return getWindows()[id];
 }
-rpc.register('getWindow', getWindow);
+rpc.register(getWindow);
 
 
 function setWindow(id, data) {
@@ -358,7 +383,7 @@ function setWindow(id, data) {
     wins[id] = data;
     setWindows(wins);
 }
-rpc.register('setWindow', setWindow);
+rpc.register(setWindow);
 
 
 function setWindowOpacity(id, opacity) {
@@ -368,7 +393,7 @@ function setWindowOpacity(id, opacity) {
         win.setOpacity(opacity);
     }
 }
-rpc.register('setWindowOpacity', setWindowOpacity);
+rpc.register(setWindowOpacity);
 
 
 function updateWindow(id, updates) {
@@ -377,7 +402,7 @@ function updateWindow(id, updates) {
     setWindow(id, w);
     return w;
 }
-rpc.register('updateWindow', updateWindow);
+rpc.register(updateWindow);
 
 
 function removeWindow(id) {
@@ -389,7 +414,7 @@ function removeWindow(id) {
     delete wins[id];
     setWindows(wins);
 }
-rpc.register('removeWindow', removeWindow);
+rpc.register(removeWindow);
 
 
 function createWindow({id, type, options, ...state}) {
@@ -404,7 +429,7 @@ function createWindow({id, type, options, ...state}) {
     });
     return id;
 }
-rpc.register('createWindow', createWindow);
+rpc.register(createWindow);
 
 
 function focusWindow(id) {
@@ -413,7 +438,7 @@ function focusWindow(id) {
         win.focus();
     }
 }
-rpc.register('focusWindow', focusWindow);
+rpc.register(focusWindow);
 
 
 function openWindow(id) {
@@ -423,7 +448,7 @@ function openWindow(id) {
     }
     _openWindow(id, spec);
 }
-rpc.register('openWindow', openWindow);
+rpc.register(openWindow);
 
 
 function reopenWindow(id) {
@@ -433,7 +458,7 @@ function reopenWindow(id) {
     }
     openWindow(id);
 }
-rpc.register('reopenWindow', reopenWindow);
+rpc.register(reopenWindow);
 
 
 function _openWindow(id, spec) {
@@ -600,7 +625,7 @@ async function eulaConsent() {
     const win = makeCaptiveWindow({width: 800, height: 600});
     let closed;
     const consenting = new Promise(resolve => {
-        rpc.register('eulaConsent', async agree => {
+        rpc.register(async agree => {
             if (agree === true) {
                 storage.save('eula-consent', true);
                 resolve(true);
@@ -608,7 +633,7 @@ async function eulaConsent() {
                 console.warn("User does not agree to EULA");
                 resolve(false);
             }
-        });
+        }, {name: 'eulaConsent'});
         win.on('closed', () => (closed = true, resolve(false)));
     });
     win.loadFile(path.join(pagePath, 'eula.html'));
@@ -744,18 +769,16 @@ async function main() {
         installPrompt.loadFile(path.join(pagePath, 'npcap-install.html'));
         return;
     }
-    let monitor;
     if (process.argv.includes('--garmin-live-track')) {
         const session = process.argv.find((x, i) => i && process.argv[i - 1] == '--garmin-live-track');
         const garminLiveTrack = await import('./garmin_live_track.mjs');
-        monitor = await garminLiveTrack.Sauce4ZwiftMonitor.factory({session});
+        gameMonitor = await garminLiveTrack.Sauce4ZwiftMonitor.factory({session});
     } else {
         const fakeData = process.argv.includes('--fake-data');
-        monitor = await game.Sauce4ZwiftMonitor.factory({fakeData});
+        gameMonitor = await game.Sauce4ZwiftMonitor.factory({fakeData});
     }
-    rpc.register('getMonitorIP', () => monitor.ip);
     try {
-        await monitor.start();
+        await gameMonitor.start();
     } catch(e) {
         try {
             if (e.message.match(/permission denied/i)) {
@@ -792,20 +815,20 @@ async function main() {
                 } else {
                     console.debug("Startup subscription:", event, spec.id);
                 }
-                monitor.on(event, sendMessage);
+                gameMonitor.on(event, sendMessage);
                 activeSubs.add(event);
             }
         }
         function suspend(source) {
             if (activeSubs.has(event)) {
                 console.debug("Suspending subscription:", event, spec.id, source);
-                monitor.off(event, sendMessage);
+                gameMonitor.off(event, sendMessage);
                 activeSubs.delete(event);
             }
         }
         function shutdown() {
             console.debug("Shutdown subscription:", event, spec.id);
-            monitor.off(event, sendMessage);
+            gameMonitor.off(event, sendMessage);
             for (const x of shutdownEvents) {
                 win.webContents.off(x, shutdown);
             }
@@ -835,7 +858,7 @@ async function main() {
     });
     openAllWindows();
     if (_appSettings.webServerEnabled) {
-        webServer.setMonitor(monitor);
+        webServer.setMonitor(gameMonitor);
         await webServer.start(_appSettings.webServerPort);
     }
     started = true;

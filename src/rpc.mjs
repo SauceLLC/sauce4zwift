@@ -45,8 +45,12 @@ async function _invoke(name, ...args) {
 }
 
 
-export function register(name, fn) {
-    handlers.set(name, fn);
+export function register(fn, options={}) {
+    const name = options.name || fn.name;
+    if (!name) {
+        throw new TypeError("Function name could not be inferred, use options.name");
+    }
+    handlers.set(options.name || fn.name, fn);
 }
 
 

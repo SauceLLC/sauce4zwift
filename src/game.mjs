@@ -230,14 +230,18 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         this._chatDeDup = [];
         this.athleteId = null;
         this.watching = null;
+        this.states = new Map();
+        this.athletesCache = new Map();
+        this._stateProcessCount = 0;
         this._profileFetchIds = new Set();
         this._pendingProfileFetches = new Map();
+        this._profileFetchCount = 0;
         this.on('incoming', this.onIncoming);
         this.on('outgoing', this.onOutgoing);
-        rpc.register('updateAthlete', this.updateAthlete.bind(this));
-        rpc.register('startLap', this.startLap.bind(this));
-        rpc.register('resetStats', this.resetStats.bind(this));
-        rpc.register('exportFIT', this.exportFIT.bind(this));
+        rpc.register(this.updateAthlete.bind(this));
+        rpc.register(this.startLap.bind(this));
+        rpc.register(this.resetStats.bind(this));
+        rpc.register(this.exportFIT.bind(this));
     }
 
     maybeLearnAthleteId(packet) {
@@ -670,7 +674,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                     this.updateAthlete(id);  // Update TS
                 }
             }
-            // Slow it down until we are learned XXX
+            this._profileFetchCount++;
             await sauce.sleep(500 + 1000 * Math.random());
         }
         this._pendingProfileFetches.clear();
@@ -776,12 +780,11 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         if (this.watching === state.athleteId) {
             this.emit('watching', this.cleanState(state));
         }
+        this._stateProcessCount++;
     }
 
     async start() {
         this._active = true;
-        this.states = new Map();
-        this.athletesCache = new Map();
         try {
             this.athletesDB = getDB();
         } catch(e) {
@@ -1017,6 +1020,20 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         }
         this.emit('groups', groups.map(g =>
             (g.athletes = g.athletes.map(cleanState), g)));
+    }
+
+    getDebugInfo() {
+        return {
+            pendingZwiftProfileFetches: this._pendingProfileFetches.size,
+            zwiftProfileFetchCount: this._profileFetchCount,
+            stateProcessCount: this._stateProcessCount,
+            statesSize: this.states.size,
+            athleteDataSize: this._athleteData.size,
+            athleteDataPointSize: Array.from(this._athleteData.values())
+                .map(x => x.power.roll.size() + x.speed.roll.size() + x.hr.roll.size() + x.hr.roll.size() + x.draft.roll.size())
+                .reduce((agg, c) => agg + c, 0),
+            athletesCacheSize: this.athletesCache.size,
+        };
     }
 }
 
