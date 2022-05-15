@@ -84,8 +84,8 @@ const fields = [
 
     {id: 'gap', defaultEn: true, label: 'Gap', get: x => x.gap, fmt: x => `${num(x)}s`},
 
-    {id: 'pwr-cur', defaultEn: true, label: 'Pwr', get: x => x.power, fmt: pwr},
-    {id: 'wkg-cur', defaultEn: true, label: 'W/kg', get: x => x.power / (x.athlete && x.athlete.weight), fmt: wkg},
+    {id: 'pwr-cur', defaultEn: true, label: 'Pwr', get: x => x.state.power, fmt: pwr},
+    {id: 'wkg-cur', defaultEn: true, label: 'W/kg', get: x => x.state.power / (x.athlete && x.athlete.weight), fmt: wkg},
 
     {id: 'pwr-5s', defaultEn: false, label: '5s Pwr', get: x => x.stats.power.smooth[5], fmt: pwr},
     {id: 'wkg-5s', defaultEn: false, label: '5s W/kg', get: x => x.stats.power.smooth[5] / (x.athlete && x.athlete.weight), fmt: wkg},
@@ -118,15 +118,19 @@ const fields = [
     {id: 'pwr-p1200s', defaultEn: false, label: '20m Peak Pwr', get: x => x.stats.power.peaks[1200].avg, fmt: pwr},
     {id: 'wkg-p1200s', defaultEn: false, label: '20m Peak W/kg', get: x => x.stats.power.peaks[1200].avg / (x.athlete && x.athlete.weight), fmt: wkg},
 
-    {id: 'spd-cur', defaultEn: true, label: 'Spd', get: x => x.speed, fmt: spd},
+    {id: 'spd-cur', defaultEn: true, label: 'Spd', get: x => x.state.speed, fmt: spd},
     {id: 'spd-60s', defaultEn: false, label: '1m Spd', get: x => x.stats.speed.smooth[60], fmt: spd},
     {id: 'spd-avg', defaultEn: true, label: 'Avg Spd', get: x => x.stats.speed.avg, fmt: spd},
     {id: 'spd-p60s', defaultEn: false, label: '1m Peak Spd', get: x => x.stats.speed.peaks[60].avg, fmt: spd},
 
-    {id: 'hr-cur', defaultEn: true, label: 'HR', get: x => x.heartrate || null, fmt: hr},
+    {id: 'hr-cur', defaultEn: true, label: 'HR', get: x => x.state.heartrate || null, fmt: hr},
     {id: 'hr-60s', defaultEn: false, label: '1m HR', get: x => x.stats.hr.smooth[60], fmt: hr},
     {id: 'hr-avg', defaultEn: true, label: 'Avg HR', get: x => x.stats.hr.avg, fmt: hr},
     {id: 'hr-p60s', defaultEn: false, label: '1m Peak HR', get: x => x.stats.hr.peaks[60].avg, fmt: hr},
+
+    {id: 'rideons', defaultEn: false, label: 'Ride Ons', get: x => x.state.rideons, fmt: num},
+    {id: 'kj', defaultEn: false, label: 'Energy', get: x => x.state.kj, fmt: x => num(x) + 'kJ'},
+    {id: 'draft', defaultEn: false, label: 'Draft', get: x => x.state.draft, fmt: x => num(x) + '%'},
 ];
 
 

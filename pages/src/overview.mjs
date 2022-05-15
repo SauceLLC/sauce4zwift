@@ -101,7 +101,7 @@ export async function main() {
     let lastUpdate = 0;
     common.subscribe('watching', watching => {
         if (window.isElectron && settings.autoHideWindows &&
-            (watching.speed || watching.cadence || watching.power)) {
+            (watching.state.speed || watching.state.cadence || watching.state.power)) {
             clearTimeout(autoHideTimeout);
             if (autoHidden) {
                 autoShow();
@@ -146,10 +146,10 @@ function buildLayout() {
                 value: x => H.timer(x && x.stats && x.stats.elapsed),
                 key: () => 'Time',
             }, {
-                value: x => H.number(x && x.rideons),
+                value: x => H.number(x && x.state.rideons),
                 key: () => 'Ride Ons',
             }, {
-                value: x => H.number(x && x.kj),
+                value: x => H.number(x && x.state.kj),
                 key: () => 'Energy',
                 unit: () => 'kJ',
             }, {
@@ -164,7 +164,7 @@ function buildLayout() {
                 key: () => 'FTP',
                 unit: () => 'w'
             }, {
-                value: x => H.pace(x && x.speed),
+                value: x => H.pace(x && x.state.speed),
                 key: () => 'Speed',
                 unit: () => imperial ? 'mph' : 'kph',
             }, {
@@ -176,7 +176,7 @@ function buildLayout() {
                 key: () => `Speed <small>(${shortDuration(60)})</small>`,
                 unit: () => imperial ? 'mph' : 'kph',
             }, {
-                value: x => H.number(x && x.heartrate),
+                value: x => H.number(x && x.state.heartrate),
                 key: () => 'HR',
                 unit: () => 'bpm',
             }, {
@@ -188,7 +188,7 @@ function buildLayout() {
                 key: () => `HR <small>(${shortDuration(60)})</small>`,
                 unit: () => 'bpm',
             }, {
-                value: x => H.number(x && x.power),
+                value: x => H.number(x && x.state.power),
                 key: () => `Power`,
                 unit: () => 'w',
             }, {

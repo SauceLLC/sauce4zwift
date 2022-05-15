@@ -142,7 +142,7 @@ function renderZoomed(groups) {
             pos.el.setAttribute('data-tooltip-below', '');
             pos.el.removeAttribute('data-tooltip-above');
         }
-        pos.el.classList.toggle('watching', !!athlete.watching);
+        pos.el.classList.toggle('watching', !!athlete.state.watching);
         pos.el.style.setProperty('--athletes', 1);
         let label;
         let avatar = 'images/blankavatar.png';
@@ -168,27 +168,27 @@ function renderZoomed(groups) {
         if (fLast) {
             leftLines.push(`<div class="line minor">${fLast}</div>`);
         }
-        const attacker = athlete.power > 400 && (athlete.power / group.power) > 2;
+        const attacker = athlete.state.power > 400 && (athlete.state.power / group.power) > 2;
         if (attacker) {
             pos.el.classList.add('attn', 'attack');
             leftLines.push(`<div class="line minor attn">Attacking!</div>`);
         } else {
             pos.el.classList.remove('attn', 'attack');
         }
-        const rightLines = [`<div class="line">${pwrFmt(athlete.power)}</div>`];
+        const rightLines = [`<div class="line">${pwrFmt(athlete.state.power)}</div>`];
         const minorField = settings.zoomedSecondaryField || 'heartrate';
         if (minorField === 'heartrate') {
-            if (athlete.heartrate) {
-                rightLines.push(`<div class="line minor">${H.number(athlete.heartrate)}<abbr class="unit">bpm</abbr></div>`);
+            if (athlete.state.heartrate) {
+                rightLines.push(`<div class="line minor">${H.number(athlete.state.heartrate)}<abbr class="unit">bpm</abbr></div>`);
             }
         } else if (minorField === 'draft') {
-            if (athlete.draft != null) {
-                rightLines.push(`<div class="line minor">${H.number(athlete.draft)}<abbr class="unit">% (draft)</abbr></div>`);
+            if (athlete.state.draft != null) {
+                rightLines.push(`<div class="line minor">${H.number(athlete.state.draft)}<abbr class="unit">% (draft)</abbr></div>`);
             }
         } else if (minorField === 'speed') {
-            if (athlete.speed != null) {
+            if (athlete.state.speed != null) {
                 const unit = imperial ? 'mph' : 'kph';
-                rightLines.push(`<div class="line minor">${H.pace(athlete.speed, {precision: 0})}<abbr class="unit">${unit}</abbr></div>`);
+                rightLines.push(`<div class="line minor">${H.pace(athlete.state.speed, {precision: 0})}<abbr class="unit">${unit}</abbr></div>`);
             }
         } else if (minorField === 'power-60s') {
             const p = athlete.stats.power.smooth[60];
@@ -304,13 +304,13 @@ function renderGroups(groups) {
                 rightLines.push(`<div class="line minor">${H.pace(group.speed, {precision: 0})}<abbr class="unit">${unit}</abbr></div>`);
             }
         } else if (minorField === 'power-highest') {
-            const highest = sauce.data.max(group.athletes.map(x => x.power));
+            const highest = sauce.data.max(group.athletes.map(x => x.state.power));
             if (highest != null) {
                 rightLines.push(`<div class="line minor">${pwrFmt(highest)} ` +
                     `<abbr class="unit">(highest)</abbr></div>`);
             }
         } else if (minorField === 'power-median') {
-            const med = sauce.data.median(group.athletes.map(x => x.power));
+            const med = sauce.data.median(group.athletes.map(x => x.state.power));
             if (med != null) {
                 rightLines.push(`<div class="line minor">${pwrFmt(med)} ` +
                     `<abbr class="unit">(median)</abbr></div>`);

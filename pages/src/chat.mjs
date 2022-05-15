@@ -6,7 +6,7 @@ const settingsKey = 'chat-settings-v2';
 
 const idleCallback = window.requestIdleCallback || (cb => setTimeout(cb, 0));
 
-// GC for nearby states...
+// GC for nearby data...
 setInterval(() => {
     idleCallback(() => {
         const now = Date.now();
@@ -18,7 +18,7 @@ setInterval(() => {
             }
         }
         if (i) {
-            console.debug(`Garbage collected ${i} nearby states`);
+            console.debug(`Garbage collected ${i} nearby entries`);
         }
     });
 }, 3000);
@@ -46,15 +46,15 @@ function humanDuration(t) {
 
 
 function liveDataFormatter(athlete) {
-    const state = nearby.get(athlete);
-    if (!state) {
+    const data = nearby.get(athlete);
+    if (!data) {
         return '';
     }
     const items = [
-        state.stats.power.smooth[15] != null ? Math.round(state.stats.power.smooth[15]).toLocaleString() + 'w' : null,
-        state.heartrate ? state.heartrate.toLocaleString() + 'bpm' : null,
+        data.stats.power.smooth[15] != null ? Math.round(data.stats.power.smooth[15]).toLocaleString() + 'w' : null,
+        data.state.heartrate ? data.state.heartrate.toLocaleString() + 'bpm' : null,
     ];
-    const gap = state.gap;
+    const gap = data.gap;
     if (gap != null) {
         items.push(humanDuration(Math.abs(gap)) + (gap > 0 ? ' behind' : ' ahead'));
     }

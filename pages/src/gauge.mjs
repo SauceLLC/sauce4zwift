@@ -38,7 +38,7 @@ const gaugeConfigs = {
             max: 700,
         },
         color: '#339',
-        getValue: x => settings.dataSmoothing ? x.stats.power.smooth[settings.dataSmoothing] : x.power,
+        getValue: x => settings.dataSmoothing ? x.stats.power.smooth[settings.dataSmoothing] : x.state.power,
         getAvgValue: x =>
             (settings.currentLap ? x.stats.laps.at(-1).power : x.stats.power).avg,
         getMaxValue: x =>
@@ -69,7 +69,7 @@ const gaugeConfigs = {
             min: 70,
             max: 190,
         },
-        getValue: x => x.heartrate,
+        getValue: x => settings.dataSmoothing ? x.stats.hr.smooth[settings.dataSmoothing].avg : x.state.heartrate,
         getLabel: H.number,
         detailFormatter: x => H.number(x) + 'bpm',
     },
@@ -80,7 +80,7 @@ const gaugeConfigs = {
             min: 0,
             max: 100,
         },
-        getValue: x => x.speed,
+        getValue: x => settings.dataSmoothing ? x.stats.speed.smooth[settings.dataSmoothing].avg : x.state.speed,
         getLabel: H.number,
         detailFormatter: x => H.pace(x, {precision: 0, suffix: true}),
     },
@@ -91,7 +91,7 @@ const gaugeConfigs = {
             min: 0,
             max: 300,
         },
-        getValue: x => x.draft,
+        getValue: x => x.state.draft,
         getLabel: H.number,
         detailFormatter: x => H.number(x) + '%'
     },

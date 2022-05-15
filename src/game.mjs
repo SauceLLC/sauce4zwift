@@ -783,16 +783,15 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             console.error("Assertion failure");
             debugger;
         }
-        // XXX rethink this.. why load it for each state?  Perhaps just put it on the athlete data and if/when
-        // we emit a watching packet we can include it then, not at 5hz regardless of emit.
-        state.athlete = this.loadAthlete(state.athleteId);
-        // XXX remind me again why I ALWAYS have to run collector stats.
-        // Can't we just do this in emit(watching)?
-        state.stats = this._getCollectorStats(ad, state.athlete);
-        state.laps = ad.laps.map(x => this._getCollectorStats(x, state.athlete));
         ad.updated = performance.now();
         if (this.watching === state.athleteId) {
-            this.emit('watching', this.cleanState(state));
+            const athlete = this.loadAthlete(state.athleteId);
+            this.emit('watching', {
+                athlete,
+                stats: this._getCollectorStats(ad, athlete),
+                laps: ad.laps.map(x => this._getCollectorStats(x, athlete)),
+                state: this.cleanState(state),
+            });
         }
         this._stateProcessCount++;
     }
@@ -986,11 +985,21 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 gapDistance = gap = 0;
                 isGapEst = false;
             }
-            nearby.push({gapDistance, gap, isGapEst, watching, ...aData.mostRecentState});
-            // XXX couldn't we do the getStats shit here instead of for every single processState!?
+            const athlete = this.loadAthlete(aId);
+            nearby.push({
+                athleteId: aId,
+                gapDistance,
+                gap,
+                isGapEst,
+                watching,
+                athlete,
+                stats: this._getCollectorStats(aData, athlete),
+                laps: aData.laps.map(x => this._getCollectorStats(x, athlete)),
+                state: this.cleanState(aData.mostRecentState),
+            });
         }
         nearby.sort((a, b) => a.gap - b.gap);
-        this.emit('nearby', nearby.map(this.cleanState.bind(this)));
+        this.emit('nearby', nearby);
         this.maybeUpdateAthletesFromProfile(nearby);
 
         const groups = [];
@@ -1019,10 +1028,10 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         }
         for (let i = 0; i < groups.length; i++) {
             const x = groups[i];
-            x.power = sauce.data.avg(x.athletes.map(x => x.power));
-            x.draft = sauce.data.avg(x.athletes.map(x => x.draft));
-            x.speed = sauce.data.median(x.athletes.map(x => x.speed));
-            x.heartrate = sauce.data.avg(x.athletes.map(x => x.heartrate).filter(x => x));
+            x.power = sauce.data.avg(x.athletes.map(x => x.state.power));
+            x.draft = sauce.data.avg(x.athletes.map(x => x.state.draft));
+            x.speed = sauce.data.median(x.athletes.map(x => x.state.speed));
+            x.heartrate = sauce.data.avg(x.athletes.map(x => x.state.heartrate).filter(x => x));
             if (watchingIdx !== i) {
                 const edge = watchingIdx < i ? x.athletes[0] : x.athletes.at(-1);
                 x.isGapEst = edge.isGapEst;
@@ -1035,8 +1044,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 x.isGapEst = false;
             }
         }
-        this.emit('groups', groups.map(g =>
-            (g.athletes = g.athletes.map(this.cleanState.bind(this)), g)));
+        this.emit('groups', groups);
     }
 
     getDebugInfo() {

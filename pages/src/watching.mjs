@@ -268,7 +268,7 @@ export async function main() {
                 default: 2
             }],
             fields: [{
-                value: x => H.number(x && x.power),
+                value: x => H.number(x && x.state.power),
                 label: () => 'watts',
                 key: () => 'Watts',
                 unit: () => 'w',
@@ -283,7 +283,7 @@ export async function main() {
                 key: () => 'Max',
                 unit: () => 'w',
             }, {
-                value: x => humanWkg(x && x.power, x && x.athlete),
+                value: x => humanWkg(x && x.state.power, x && x.athlete),
                 label: () => 'w/kg',
                 key: () => 'W/kg',
             }, {
@@ -379,7 +379,7 @@ export async function main() {
                 default: 2
             }],
             fields: [{
-                value: x => H.number(x && x.heartrate || null),
+                value: x => H.number(x && x.state.heartrate || null),
                 label: () => 'bpm',
                 key: () => 'Current',
                 unit: () => 'bpm',
@@ -430,7 +430,7 @@ export async function main() {
                 default: 1
             }],
             fields: [{
-                value: x => H.number(x && x.cadence),
+                value: x => H.number(x && x.state.cadence),
                 label: () => 'Cadence',
                 key: () => 'Current',
                 unit: () => 'rpm',
@@ -475,7 +475,7 @@ export async function main() {
                 default: 1
             }],
             fields: [{
-                value: x => H.number(x && x.draft),
+                value: x => H.number(x && x.state.draft),
                 label: () => 'Draft',
                 key: () => 'Current',
                 unit: () => '%',
@@ -519,16 +519,16 @@ export async function main() {
         let dataCount = 0;
         const lineChart = createStatHistoryChart(screen.querySelector('.chart-holder.ec'), sIndex);
         let lastRender = 0;
-        renderer.addCallback((data) => {
+        renderer.addCallback(data => {
             const now = Date.now();
             if (now - lastRender < 900) {
                 return;
             }
             lastRender = now;
             if (data) {
-                chartData.power.push(data.power || 0);
-                chartData.hr.push(data.heartrate || 0);
-                chartData.pace.push(data.speed || 0);
+                chartData.power.push(data.state.power || 0);
+                chartData.hr.push(data.state.heartrate || 0);
+                chartData.pace.push(data.state.speed || 0);
                 if (chartData.power.length > maxLineChartLen) {
                     chartData.power.shift();
                     chartData.hr.shift();
