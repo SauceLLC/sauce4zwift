@@ -113,7 +113,24 @@ const windowManifests = [{
     prettyName: 'Power Gauge',
     prettyDesc: 'Car style power (watts) gauge.',
     options: {relWidth: 0.20, aspectRatio: 0.8},
-
+}, {
+    type: 'draft-gauge',
+    pageURL: 'gauge.html?t=draft',
+    prettyName: 'Draft Gauge',
+    prettyDesc: 'Car style draft (% power reduction) gauge.',
+    options: {relWidth: 0.20, aspectRatio: 0.8},
+}, {
+    type: 'pace-gauge',
+    pageURL: 'gauge.html?t=pace',
+    prettyName: 'Pace Gauge',
+    prettyDesc: 'Car style pace/speed gauge.',
+    options: {relWidth: 0.20, aspectRatio: 0.8},
+}, {
+    type: 'hr-gauge',
+    pageURL: 'gauge.html?t=hr',
+    prettyName: 'Heart Rate Gauge',
+    prettyDesc: 'Car style heart rate gauge.',
+    options: {relWidth: 0.20, aspectRatio: 0.8},
 }];
 rpc.register(() => windowManifests, {name: 'getWindowManifests'});
 
