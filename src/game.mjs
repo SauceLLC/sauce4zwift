@@ -226,11 +226,9 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         this._useFakeData = fakeData;
         this.setMaxListeners(50);
         this._athleteData = new Map();
-        this._roadHistory = new Map();
         this._chatDeDup = [];
         this.athleteId = null;
         this.watching = null;
-        this.states = new Map();
         this.athletesCache = new Map();
         this._stateProcessCount = 0;
         this._profileFetchIds = new Set();
@@ -255,7 +253,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
 
     startLap() {
         console.debug("User requested lap start");
-        const now = Date.now();
+        const now = performance.now();
         for (const data of this._athleteData.values()) {
             const lastLap = data.laps.at(-1);
             lastLap.end = now;
@@ -306,12 +304,11 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 weight_setting: 'metric',
             });
         }
-        const recentPlayerState = this.states.get(athleteId);
+        const {laps, tsOffset, mostRecentState} = this._athleteData.get(athleteId);
         const sport = {
             0: 'cycling',
             1: 'running',
-        }[recentPlayerState ? recentPlayerState.sport : 0] || 'generic';
-        const {laps, tsOffset} = this._athleteData.get(athleteId);
+        }[mostRecentState ? mostRecentState.sport : 0] || 'generic';
         fitParser.addMessage('event', {
             event: 'timer',
             event_type: 'start',
@@ -555,8 +552,8 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         return [state.roadId, state.reverse].join();
     }
 
-    getCollectorStats(data, athlete) {
-        const end = data.end || Date.now();
+    _getCollectorStats(data, athlete) {
+        const end = data.end || performance.now();
         const elapsed = (end - data.start) / 1000;
         const np = data.power.roll.np({force: true});
         const tss = np && athlete && athlete.ftp ?
@@ -631,9 +628,8 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 }
             }
             this._pendingProfileFetches.delete(id);
-            const state = this.states.get(id);
+            const state = this._athleteData.get(id).mostRecentState;
             if (!state || this._watchingRoadSig !== this._roadSig(state)) {
-                console.debug("Skip profile update for athlete on different road");
                 this._profileFetchIds.delete(id);  // Allow immediate recheck
                 continue;
             }
@@ -699,15 +695,52 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         return await r.json();
     }
 
+    _createAthleteData(athleteId, tsOffset) {
+        const periods = [5, 15, 60, 300, 1200];
+        const collectors = {
+            power: new DataCollector(sauce.power.RollingPower, periods, {inlineNP: true}),
+            speed: new DataCollector(sauce.data.RollingAverage, periods, {ignoreZeros: true}),
+            hr: new DataCollector(sauce.data.RollingAverage, periods, {ignoreZeros: true}),
+            cadence: new DataCollector(sauce.data.RollingAverage, [], {ignoreZeros: true}),
+            draft: new DataCollector(sauce.data.RollingAverage, []),
+        };
+        const start = performance.now();
+        return {
+            start,
+            tsOffset,
+            athleteId,
+            mostRecentState: null,
+            roadHistory: {
+                sig: null,
+                prevSig: null,
+                timeline: null,
+                prevTimeline: null,
+            },
+            laps: [{
+                start,
+                ...this.cloneDataCollectors(collectors, {reset: true})
+            }],
+            ...collectors,
+        };
+    }
+
     processState(state, from) {
         state.ts = +worldTimeConv(state._worldTime);
-        state.joinTime = +worldTimeConv(state._joinTime);
-        const prevState = this.states.get(state.athleteId);
-        if (prevState && prevState.ts > state.ts) {
-            console.warn("Dropping stale packet", state.ts - prevState.ts);
+        if (!this._athleteData.has(state.athleteId)) {
+            this._athleteData.set(state.athleteId, this._createAthleteData(state.athleteId, state.ts));
+        }
+        const ad = this._athleteData.get(state.athleteId);
+        if (ad.mostRecentState && ad.mostRecentState.ts > state.ts) {
+            // XXX  ^^^ I changed this to >= and found there are a lot of dup worldTime packets, sometimes with same data
+            // but also occasionally with different data that appears to actually be newer.  Possibly the server infra or even
+            // the player software is having some sort of clock drift event or resolution issue / latency / whatever that
+            // sends packets very quickly back to back with the same time stamp.  I'm not sure if zwift infra tries to correct
+            // these stamps or if they expect the clients to be perfect.
+            console.info("Dropping stale packet", state.ts - ad.mostRecentState.ts);
             return false;
         }
-        // Move this to zwift-packet thing..
+        // TBD: Move most of this to zwift-packet-monitor...
+        state.joinTime = +worldTimeConv(state._joinTime);
         Object.assign(state, this.processFlags1(state._flags1));
         Object.assign(state, this.processFlags2(state._flags2));
         state.kj = state._mwHours / 1000 / (1000 / 3600);
@@ -717,66 +750,47 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         // XXX there are two distance values, one probably includes lateral movement?
         // But we just use the more precise one and clobber the other.
         state.distance = state._distance / 100;  // cm -> meters
-        const roadCompletion = state.roadLocation;
-        state.roadCompletion = !state.reverse ? 1000000 - roadCompletion : roadCompletion;
-        this.states.set(state.athleteId, state);
-        if (!this._athleteData.has(state.athleteId)) {
-            const collectors = this.makeDataCollectors();
-            const start = Date.now();
-            this._athleteData.set(state.athleteId, {
-                start,
-                athleteId: state.athleteId,
-                laps: [{start, ...this.cloneDataCollectors(collectors, {reset: true})}],
-                ...collectors,
-            });
+        state.roadCompletion = !state.reverse ? 1000000 - state.roadLocation : state.roadLocation;
+        ad.mostRecentState = state;
+        const roadSig = this._roadSig(state);
+        if (roadSig !== ad.roadHistory.sig) {
+            ad.roadHistory.prevSig = ad.roadHistory.sig;
+            ad.roadHistory.prevTimeline = ad.roadHistory.timeline;
+            ad.roadHistory.sig = roadSig;
+            ad.roadHistory.timeline = [];
         }
-        if (!this._roadHistory.has(state.athleteId)) {
-            this._roadHistory.set(state.athleteId, {
-                sig: this._roadSig(state),
-                timeline: [],
-                prevSig: null,
-                prevTimeline: null,
-            });
-        }
-        const roadLoc = this._roadHistory.get(state.athleteId);
-        const curRoadSig = this._roadSig(state);
-        if (curRoadSig !== roadLoc.sig) {
-            roadLoc.prevSig = roadLoc.sig;
-            roadLoc.prevTimeline = roadLoc.timeline;
-            roadLoc.sig = curRoadSig;
-            roadLoc.timeline = [];
-        }
-        const last = roadLoc.timeline.at(-1);
+        const last = ad.roadHistory.timeline[ad.roadHistory.timeline.length - 1];
         if (last && state.roadCompletion < last.roadCompletion) {
             // This can happen when lapping a single road segment or if your avatar
             // Is stopped and sort of wiggling backwards. For safety we just nuke hist.
-            roadLoc.timeline.length = 0;
+            ad.roadHistory.timeline.length = 0;
         }
-        roadLoc.timeline.push({ts: state.ts, roadCompletion: state.roadCompletion});
-        const data = this._athleteData.get(state.athleteId);
-        const curLap = data.laps.at(-1);
-        if (data.tsOffset === undefined) {
-            data.tsOffset = state.ts;
-        }
-        const time = (state.ts - data.tsOffset) / 1000;
-        data.power.add(time, state.power);
-        data.speed.add(time, state.speed);
-        data.hr.add(time, state.heartrate);
-        data.draft.add(time, state.draft);
-        data.cadence.add(time, state.cadence);
+        ad.roadHistory.timeline.push({ts: state.ts, roadCompletion: state.roadCompletion});
+        const time = (state.ts - ad.tsOffset) / 1000;
+        ad.power.add(time, state.power);
+        ad.speed.add(time, state.speed);
+        ad.hr.add(time, state.heartrate);
+        ad.draft.add(time, state.draft);
+        ad.cadence.add(time, state.cadence);
+        const curLap = ad.laps[ad.laps.length - 1];
         curLap.power.resize(time);
         curLap.speed.resize(time);
         curLap.hr.resize(time);
         curLap.draft.resize(time);
         curLap.cadence.resize(time);
-        if (state.power == null ||state.speed == null || state.heartrate == null ||
+        if (state.power == null || state.speed == null || state.heartrate == null ||
             state.cadence == null || state.draft == null) {
             console.error("Assertion failure");
             debugger;
         }
+        // XXX rethink this.. why load it for each state?  Perhaps just put it on the athlete data and if/when
+        // we emit a watching packet we can include it then, not at 5hz regardless of emit.
         state.athlete = this.loadAthlete(state.athleteId);
-        state.stats = this.getCollectorStats(data, state.athlete);
-        state.laps = data.laps.map(x => this.getCollectorStats(x, state.athlete));
+        // XXX remind me again why I ALWAYS have to run collector stats.
+        // Can't we just do this in emit(watching)?
+        state.stats = this._getCollectorStats(ad, state.athlete);
+        state.laps = ad.laps.map(x => this._getCollectorStats(x, state.athlete));
+        ad.updated = performance.now();
         if (this.watching === state.athleteId) {
             this.emit('watching', this.cleanState(state));
         }
@@ -799,11 +813,14 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             this._fakeDataGenerator();
         }
         this._nearbyJob = this.nearbyProcessor();
+        this._gcInterval = setInterval(this.gcStates.bind(this), 32768);
     }
 
     async stop() {
         this._active = false;
         super.stop();
+        clearInterval(this._gcInterval);
+        this._gcInterval = null;
         try {
             await this._nearbyJob;
         } finally {
@@ -817,7 +834,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         while (this._active) {
             for (let i = 1; i < 1000; i++) {
                 const athleteId = -i;
-                const priorState = this.states.get(athleteId);
+                const priorState = this._athleteData.get(athleteId).mostRecentState;
                 const roadId = priorState ? priorState.roadId : randInt(14);
                 const packet = OutgoingPacket.fromObject({
                     athleteId,
@@ -844,45 +861,45 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     }
 
     realGap(a, b) {
-        const aSig = this._roadSig(a);
-        const bSig = this._roadSig(b);
+        const aSig = a.roadHistory.sig;
+        const bSig = b.roadHistory.sig;
         let leaderTimeline;
-        let trailing;
+        let trailingState;
         if (aSig === bSig) {
-            if (a.roadCompletion > b.roadCompletion) {
-                leaderTimeline = this._roadHistory.get(a.athleteId).timeline;
-                trailing = b;
-            } else if (a.roadCompletion < b.roadCompletion) {
-                leaderTimeline = this._roadHistory.get(b.athleteId).timeline;
-                trailing = a;
+            if (a.mostRecentState.roadCompletion > b.mostRecentState.roadCompletion) {
+                leaderTimeline = a.roadHistory.timeline;
+                trailingState = b.mostRecentState;
+            } else if (a.mostRecentState.roadCompletion < b.mostRecentState.roadCompletion) {
+                leaderTimeline = b.roadHistory.timeline;
+                trailingState = a.mostRecentState;
+            } else {
+                return 0;
             }
         } else {
-            const aHist = this._roadHistory.get(a.athleteId);
-            if (aHist.prevSig === bSig) {
-                leaderTimeline = aHist.prevTimeline;
-                trailing = b;
+            if (a.roadHistory.prevSig === bSig) {
+                leaderTimeline = a.roadHistory.prevTimeline;
+                trailingState = b.mostRecentState;
             } else {
-                const bHist = this._roadHistory.get(a.athleteId);
-                if (bHist.prevSig === aSig) {
-                    leaderTimeline = bHist.prevTimeline;
-                    trailing = a;
+                if (b.roadHistory.prevSig === aSig) {
+                    leaderTimeline = b.roadHistory.prevTimeline;
+                    trailingState = a.mostRecentState;
                 }
             }
         }
-        if (!trailing == null || !leaderTimeline) {
+        if (!trailingState) {
             return null;
         }
         let prev;
-        // TODO: Use binary search.
+        // TODO: Use binary search or at least use a normal for loop and walk backwards with out doing a reverse, and for of .geez guy
         for (const x of Array.from(leaderTimeline).reverse()) {  // newest to oldest...
-            if (x.roadCompletion <= trailing.roadCompletion) {
+            if (x.roadCompletion <= trailingState.roadCompletion) {
                 let offt = 0;
                 if (prev) {
                     const dist = prev.roadCompletion - x.roadCompletion;
                     const time = prev.ts - x.ts;
-                    offt = (trailing.roadCompletion - x.roadCompletion) / dist * time;
+                    offt = (trailingState.roadCompletion - x.roadCompletion) / dist * time;
                 }
-                return Math.abs((trailing.ts - x.ts - offt) / 1000);
+                return Math.abs((trailingState.ts - x.ts - offt) / 1000);
             }
             prev = x;
         }
@@ -890,17 +907,15 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     }
 
     isFirstLeadingSecond(a, b) {
-        const aSig = this._roadSig(a);
-        const bSig = this._roadSig(b);
+        const aSig = a.roadHistory.sig;
+        const bSig = b.roadHistory.sig;
         if (aSig === bSig) {
-            return a.roadCompletion > b.roadCompletion;
+            return a.mostRecentState.roadCompletion > b.mostRecentState.roadCompletion;
         } else {
-            const aHist = this._roadHistory.get(a.athleteId);
-            if (aHist.prevSig === bSig) {
+            if (a.roadHistory.prevSig === bSig) {
                 return true;
             } else {
-                const bHist = this._roadHistory.get(a.athleteId);
-                if (bHist.prevSig === aSig) {
+                if (b.roadHistory.prevSig === aSig) {
                     return false;
                 }
             }
@@ -908,18 +923,18 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     }
 
     gcStates() {
-        const now = Date.now();
-        for (const [k, x] of this.states.entries()) {
-            const age = now - x.ts;
-            if (age > 30 * 1000) {
-                this.states.delete(k);
+        const now = performance.now();
+        const expiration = now - 300 * 1000;
+        for (const [k, {updated}] of this._athleteData.entries()) {
+            if (updated < expiration) {
+                this._athleteData.delete(k);
             }
         }
     }
 
     async nearbyProcessor() {
         let errBackoff = 1000;
-        const target = Date.now() % 1000;
+        const target = performance.now() % 1000;
         while (this._active) {
             if (this.watching == null) {
                 await sleep(100);
@@ -927,7 +942,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             }
             try {
                 await this._nearbyProcessor();
-                const offt = Date.now() % 1000;
+                const offt = performance.now() % 1000;
                 const schedSleep = 1000 - (offt - target);
                 await sleep(schedSleep);
             } catch(e) {
@@ -942,38 +957,40 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     }
 
     async _nearbyProcessor() {
-        this.gcStates();
-        const cleanState = this.cleanState.bind(this);
-        const watching = this.states.get(this.watching);
-        if (!watching) {
+        const watchingData = this._athleteData.get(this.watching);
+        if (!watchingData) {
             return;
         }
         const nearby = [];
-        for (const [k, x] of this.states.entries()) {
-            if (!x.speed && k !== this.watching) {
-                continue;
+        for (const [aId, aData] of this._athleteData.entries()) {
+            if ((!aData.mostRecentState.speed || performance.now() - aData.updated > 10000) && aId !== this.watching) {
+                continue; // stopped or offline
             }
-            const leading = this.isFirstLeadingSecond(watching, x);
-            if (leading == null) {
-                continue;
+            let gapDistance, gap, isGapEst;
+            const watching = aId === this.watching;
+            if (!watching) {
+                const leading = this.isFirstLeadingSecond(watchingData, aData);
+                if (leading == null) {
+                    continue;  // Not on same road (usually reverse direction)
+                }
+                const sign = leading ? 1 : -1;
+                gap = this.realGap(watchingData, aData);
+                isGapEst = gap == null;
+                gapDistance = crowDistance(watchingData.mostRecentState, aData.mostRecentState);
+                if (isGapEst) {
+                    gap = estGap(watchingData.mostRecentState, aData.mostRecentState, gapDistance);
+                }
+                gap *= sign;
+                gapDistance *= sign;
+            } else {
+                gapDistance = gap = 0;
+                isGapEst = false;
             }
-            const sign = leading ? 1 : -1;
-            let gap = this.realGap(watching, x);
-            let isGapEst = gap == null;
-            const gapDistance = crowDistance(watching, x);
-            if (isGapEst) {
-                gap = estGap(watching, x, gapDistance);
-            }
-            nearby.push({
-                gapDistance: gapDistance * sign,
-                gap: gap * sign,
-                isGapEst,
-                watching: this.watching === k,
-                ...x
-            });
+            nearby.push({gapDistance, gap, isGapEst, watching, ...aData.mostRecentState});
+            // XXX couldn't we do the getStats shit here instead of for every single processState!?
         }
         nearby.sort((a, b) => a.gap - b.gap);
-        this.emit('nearby', nearby.map(cleanState));
+        this.emit('nearby', nearby.map(this.cleanState.bind(this)));
         this.maybeUpdateAthletesFromProfile(nearby);
 
         const groups = [];
@@ -1019,7 +1036,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             }
         }
         this.emit('groups', groups.map(g =>
-            (g.athletes = g.athletes.map(cleanState), g)));
+            (g.athletes = g.athletes.map(this.cleanState.bind(this)), g)));
     }
 
     getDebugInfo() {
@@ -1027,7 +1044,6 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             pendingZwiftProfileFetches: this._pendingProfileFetches.size,
             zwiftProfileFetchCount: this._profileFetchCount,
             stateProcessCount: this._stateProcessCount,
-            statesSize: this.states.size,
             activeAthletesSize: this._athleteData.size,
             activeAthleteDataPoints: Array.from(this._athleteData.values())
                 .map(x => x.power.roll.size() + x.speed.roll.size() + x.hr.roll.size() + x.hr.roll.size() + x.draft.roll.size())

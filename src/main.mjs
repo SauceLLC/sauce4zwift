@@ -277,7 +277,14 @@ rpc.register(async () => {
     }
     return await _appMetricsPromise;
 }, {name: 'pollAppMetrics'});
-function getDebugInfo() {
+let _gpuDebug;
+async function getDebugInfo() {
+    if (!_gpuDebug) {
+        _gpuDebug = {
+            info: await electron.app.getGPUInfo('complete'),
+            status: electron.app.getGPUFeatureStatus(),
+        };
+    }
     return {
         app: {
             version: pkg.version,
@@ -294,10 +301,15 @@ function getDebugInfo() {
             version: os.version(),
             uptime: os.uptime(),
             cpus: os.cpus(),
+            gpu: {
+                devices: _gpuDebug.info.gpuDevice,
+                status: _gpuDebug.status,
+            },
         },
         game: gameMonitor.getDebugInfo(),
         databases: [].concat(...Array.from(databases.entries()).map(([dbName, db]) => {
-            const stats = db.prepare('SELECT * FROM sqlite_schema WHERE type = ? AND name NOT LIKE ?').all('table', 'sqlite_%');
+            const stats = db.prepare('SELECT * FROM sqlite_schema WHERE type = ? AND name NOT LIKE ?')
+                .all('table', 'sqlite_%');
             return stats.map(t => ({
                 dbName,
                 tableName: t.name,
