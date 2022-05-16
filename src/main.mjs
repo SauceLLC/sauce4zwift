@@ -486,7 +486,7 @@ function highlightWindow(id) {
     const win = getActiveWindow(id);
     if (win) {
         win.focus();
-        win.webContents.send('browser-message', {domEvent: 'sauce-highlight'});
+        win.webContents.send('browser-message', {domEvent: 'sauce-highlight-window'});
     }
 }
 rpc.register(highlightWindow);

@@ -36,6 +36,13 @@
             background-color: #0003;
         }
 
+        tbody tr {
+            &:hover {
+                cursor: pointer;
+                background-color: #1119;
+            }
+        }
+
         td, th {
             padding: 0.3em 1em;
 

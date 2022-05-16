@@ -163,6 +163,11 @@ export function addOpenSettingsParam(key, value) {
 
 export function initInteractionListeners() {
     const html = document.documentElement;
+    document.addEventListener('sauce-highlight-window', () => {
+        html.classList.remove('highlight-window');
+        html.offsetWidth; // force layout
+        html.classList.add('highlight-window');
+    });
     if (!html.classList.contains('settings-mode')) {
         window.addEventListener('contextmenu', ev => {
             ev.preventDefault();
