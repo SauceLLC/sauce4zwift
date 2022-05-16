@@ -19,6 +19,7 @@ const commonDefaultSettings = {
     showMax: false,
     currentLap: false,
     boringMode: false,
+    gaugeTransparency: 0.8,
 };
 
 const L = sauce.locale;
@@ -103,6 +104,17 @@ const gaugeConfigs = {
 };
 
 
+function setBackground({solidBackground, backgroundColor}) {
+    const doc = document.documentElement;
+    doc.classList.toggle('solid-background', solidBackground);
+    if (solidBackground) {
+        doc.style.setProperty('--background-color', backgroundColor);
+    } else {
+        doc.style.removeProperty('--background-color');
+    }
+}
+
+
 export async function main() {
     document.title = `${title} - Sauce for Zwift™`;
     document.querySelector('#titlebar header .title').textContent = document.title;
@@ -110,6 +122,7 @@ export async function main() {
     common.initInteractionListeners();
     const config = gaugeConfigs[type];
     settings = common.storage.get(settingsKey, {...commonDefaultSettings, ...config.defaultSettings});
+    setBackground(settings);
     const content = document.querySelector('#content');
     const gauge = echarts.init(content.querySelector('.gauge'), 'sauce', {
         renderer: location.search.includes('svg') ? 'svg' : 'canvas',
@@ -157,7 +170,7 @@ export async function main() {
                             }],
                         },
                         lineWidth: 0,
-                        opacity: 0.8,
+                        opacity: 1 - (settings.Transparency / 100),
                     }
                 }]
             }],
@@ -288,6 +301,7 @@ export async function main() {
     let reanimateTimeout;
     common.storage.addEventListener('update', ev => {
         settings = ev.data.value;
+        setBackground(settings);
         renderer.fps = 1 / settings.refreshInterval;
         initGauge();
         gauge.setOption({series: [{animation: false}]});

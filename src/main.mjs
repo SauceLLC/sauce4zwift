@@ -262,7 +262,7 @@ rpc.register(() => {
 rpc.register(() => {
     for (const {win, spec} of activeWindows.values()) {
         if (spec.hideable !== false && spec.overlay !== false) {
-            win.show();
+            win.showInactive();
         }
     }
 }, {name: 'showAllWindows'});
@@ -482,13 +482,14 @@ function createWindow({id, type, options, ...state}) {
 rpc.register(createWindow);
 
 
-function focusWindow(id) {
+function highlightWindow(id) {
     const win = getActiveWindow(id);
     if (win) {
         win.focus();
+        win.webContents.send('browser-message', {domEvent: 'sauce-highlight'});
     }
 }
-rpc.register(focusWindow);
+rpc.register(highlightWindow);
 
 
 function openWindow(id) {

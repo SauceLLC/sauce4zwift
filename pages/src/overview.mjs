@@ -288,7 +288,7 @@ export async function settingsMain() {
         }
         const row = ev.target.closest('tr');
         if (row) {
-            await common.rpc.focusWindow(id);
+            await common.rpc.highlightWindow(id);
         }
     });
     winsEl.querySelector('.add-new input[type="button"]').addEventListener('click', async ev => {

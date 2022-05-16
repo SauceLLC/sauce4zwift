@@ -61,6 +61,20 @@
                     <key>Boring mode:</key>
                     <input type="checkbox" name="boringMode"/>
                 </label>
+                <label class="electron-only">
+                    <key>Transparency:</key>
+                    <input type="range" name="gaugeTransparency" min="0" max="100" step="1"/>
+                    <input type="text" name="gaugeTransparency" size="3"/>%
+                </label>
+                <label data-tooltip-above data-tooltip="Mostly useful for streamers using OBS window and browser sources">
+                    <key>Solid background:</key>
+                    <input type="checkbox" name="solidBackground"/>
+                </label>
+                <label>
+                    <key>Background color:</key>
+                    <input type="color" name="backgroundColor" data-depends-on="solidBackground"/>
+                    <input type="text" name="backgroundColor" data-depends-on="solidBackground" size="7"/>
+                </label>
             </form>
         </div>
     </body>
