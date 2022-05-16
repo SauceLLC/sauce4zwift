@@ -848,6 +848,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                         heartrate: Math.round(150 + 50 * Math.cos(i * 10 + Date.now() / 10000)),
                         _speed: Math.round(30 + 25 * Math.sin(i * 10 + Date.now() / 15000)) * 1000000,
                         _cadenceUHz: Math.round(50 + 50 * Math.sin(i * 10 + Date.now() / 15000)) / 60 * 1000000,
+                        draft: randInt(300),
                         roadLocation: priorState ?
                             (priorState.roadLocation + 100 + randInt(10)) % 1000000 :
                             i * 10,

@@ -27,8 +27,7 @@ let settings;
 let imperial = !!common.storage.get('/imperialUnits');
 L.setImperial(imperial);
 
-const defaultAxisColorBands = [[1, '#3333']];
-let axisColorBands = defaultAxisColorBands;
+const defaultAxisColorBands = [[1, '#6666']];
 
 const gaugeConfigs = {
     power: {
@@ -37,63 +36,67 @@ const gaugeConfigs = {
             min: 0,
             max: 700,
         },
-        color: '#339',
+        color: '#35e',
         getValue: x => settings.dataSmoothing ? x.stats.power.smooth[settings.dataSmoothing] : x.state.power,
         getAvgValue: x =>
             (settings.currentLap ? x.stats.laps.at(-1).power : x.stats.power).avg,
         getMaxValue: x =>
             (settings.currentLap ? x.stats.laps.at(-1).power : x.stats.power).max,
         getLabel: H.number,
-        detailFormatter: x => H.power(x, {suffix: true}),
+        detailFormatter: x => `{value|${H.power(x)}}\n{unit|watts}`,
         axisColorBands: data => {
             if (data.athlete && data.athlete.ftp) {
                 const zones = sauce.power.cogganZones(data.athlete.ftp);
                 const min = settings.min;
                 const delta = settings.max - min;
+                const p = gaugeConfigs.power.getValue(data);
                 return [
                     [(zones.z1 - min) / delta, '#4443'],
-                    [(zones.z2 - min) / delta, '#44de'],
-                    [(zones.z3 - min) / delta, '#5b5e'],
-                    [(zones.z4 - min) / delta, '#dd3e'],
-                    [(zones.z5 - min) / delta, '#fa0e'],
-                    [(zones.z6 - min) / delta, '#b22e'],
-                    [(zones.z7 - min) / delta, '#407e'],
+                    [(zones.z2 - min) / delta, p > zones.z1 ? '#44d' : '#44d3'],
+                    [(zones.z3 - min) / delta, p > zones.z2 ? '#5b5' : '#5b53'],
+                    [(zones.z4 - min) / delta, p > zones.z3 ? '#dd3' : '#dd33'],
+                    [(zones.z5 - min) / delta, p > zones.z4 ? '#fa0' : '#fa03'],
+                    [(zones.z6 - min) / delta, p > zones.z5 ? '#b22' : '#b223'],
+                    [(zones.z7 - min) / delta, p > zones.z6 ? '#407' : '#4073'],
                 ];
             }
         },
     },
     hr: {
         name: 'Heart Rate',
-        color: '#e22',
+        color: '#d22',
+        ticks: 8,
         defaultSettings: {
             min: 70,
             max: 190,
         },
         getValue: x => settings.dataSmoothing ? x.stats.hr.smooth[settings.dataSmoothing].avg : x.state.heartrate,
         getLabel: H.number,
-        detailFormatter: x => H.number(x) + 'bpm',
+        detailFormatter: x => `{value|${H.number(x)}}\n{unit|bpm}`,
     },
     pace: {
         name: 'Pace',
-        color: '#4e3',
+        color: '#4d4',
+        ticks: imperial ? 6 : 10,
         defaultSettings: {
             min: 0,
             max: 100,
         },
         getValue: x => settings.dataSmoothing ? x.stats.speed.smooth[settings.dataSmoothing].avg : x.state.speed,
-        getLabel: H.number,
-        detailFormatter: x => H.pace(x, {precision: 0, suffix: true}),
+        getLabel: x => H.pace(x, {precision: 0}),
+        detailFormatter: x => `{value|${H.pace(x, {precision: 0})}}\n{unit|${imperial ? 'mph' : 'kph'}}`,
     },
     draft: {
         name: 'Draft',
-        color: '#46f',
+        color: '#222',
+        ticks: 6,
         defaultSettings: {
             min: 0,
             max: 300,
         },
         getValue: x => x.state.draft,
         getLabel: H.number,
-        detailFormatter: x => H.number(x) + '%'
+        detailFormatter: x => `{value|${H.number(x)}}\n{unit|% boost}`,
     },
 };
 
@@ -114,30 +117,66 @@ export async function main() {
         // Can't use em for most things on gauges. :(
         relSize = Math.min(content.clientHeight * 1.20, content.clientWidth) / 600;
         gauge.setOption({
+            graphic: [{
+                elements: [{
+                    left: 'center',
+                    top: 'middle',
+                    type: 'circle',
+                    shape: {
+                        r: 270 * relSize,
+                    },
+                    style: {
+                        shadowColor: '#000a',
+                        shadowBlur: 5 * relSize,
+                        fill: {
+                            type: 'linear',
+                            x: 0,
+                            y: 0,
+                            x2: 0,
+                            y2: 1,
+                            colorStops: [{
+                                offset: 0,
+                                color: config.color + '4',
+                                color: 'black',
+                            }, {
+                                offset: 0.5,
+                                color: config.color + 'f',
+                            }, {
+                                offset: 0.75,
+                                color: config.color,
+                            }, {
+                                offset: 0.75,
+                                color: '#0000'
+                            }, {
+                                offset: 1,
+                                color: '#0000'
+                            }],
+                        },
+                        lineWidth: 0,
+                        opacity: 0.8,
+                    }
+                }]
+            }],
             series: [{
                 radius: '90%', // fill space
-                splitNumber: 7,
+                splitNumber: config.ticks || 7,
                 name: config.name,
                 type: 'gauge',
                 min: settings.min,
                 max: settings.max,
-                startAngle: 200,
-                endAngle: 340,
+                startAngle: 210,
+                endAngle: 330,
                 progress: {
                     show: true,
-                    width: 50 * relSize,
+                    width: 60 * relSize,
                     itemStyle: {
-                        color: '#fff8',
-                        shadowColor: '#fff',
-                        shadowBlur: 12 * relSize,
-                        borderWidth: 8 * relSize,
-                        borderColor: '#fff3',
+                        color: config.axisColorBands ? '#fff3' : config.color,
                     },
                 },
                 axisLine: {
                     lineStyle: {
-                        color: axisColorBands || defaultAxisColorBands,
-                        width: 50 * relSize,
+                        color: defaultAxisColorBands,
+                        width: 60 * relSize,
                         shadowColor: '#0007',
                         shadowBlur: 8 * relSize,
                     },
@@ -154,15 +193,17 @@ export async function main() {
                     }
                 },
                 axisLabel: {
-                    distance: 60 * relSize,
-                    fontSize: 18 * relSize,
+                    distance: 70 * relSize,
+                    fontSize: 20 * relSize,
                     formatter: config.getLabel,
+                    textShadowColor: '#000',
+                    textShadowBlur: 1 * relSize,
                 },
                 pointer: settings.boringMode ? {
                     // NOTE: Important that all are set so it's not an update
                     icon: null,
-                    width: 20 * relSize,
-                    length: 180 * relSize,
+                    width: 7 * relSize,
+                    length: 190 * relSize,
                     offsetCenter: [0, 0],
                     itemStyle: {
                         color: config.color,
@@ -171,48 +212,66 @@ export async function main() {
                         shadowBlur: 8 * relSize,
                     },
                 } : {
-                    width: 90 * relSize,
-                    length: 240 * relSize,
+                    width: 70 * relSize,
+                    length: 200 * relSize,
                     icon: 'image://./images/logo_vert_120x320.png',
-                    offsetCenter: [0, '25%'],
+                    offsetCenter: [0, '10%'],
                     itemStyle: {
                         opacity: 0.9,
                     },
                 },
+                anchor: settings.boringMode ? {
+                    show: true,
+                    showAbove: true,
+                    size: 25 * relSize,
+                    itemStyle: {
+                        color: '#aaa',
+                        borderColor: '#222',
+                        borderWidth: 5 * relSize,
+                    }
+                } : {
+                    show: false,
+                },
                 detail: {
                     valueAnimation: true,
                     formatter: config.detailFormatter,
-                    fontSize: 80 * relSize,
                     textShadowColor: '#000',
                     textShadowBlur: 3 * relSize,
-                    offsetCenter: [0, '50%'],
+                    offsetCenter: [0, '35%'],
+                    rich: {
+                        value: {
+                            color: '#fffc',
+                            fontSize: 76 * relSize,
+                            fontWeight: 'bold',
+                            align: 'center',
+                        },
+                        unit: {
+                            fontSize: 20 * relSize,
+                            color: '#fff8',
+                            verticalAlign: 'text-bottom',
+                            padding: [12 * relSize, 0, 0, 0],
+                        }
+                    }
                 },
             }],
         });
     };
     initGauge();
     const renderer = new common.Renderer(content, {fps: 1});
-    let athleteId;
     renderer.addCallback(data => {
-        const newAthlete = (data && data.athleteId || undefined) !== athleteId;
-        if (newAthlete) {
-            axisColorBands = null;
-            athleteId = data.athleteId;
-        }
-        const series = {};
-        if (!axisColorBands) {
-            axisColorBands = config.axisColorBands ? data && config.axisColorBands(data) : defaultAxisColorBands;
-            series.axisLine = {lineStyle: {color: axisColorBands || defaultAxisColorBands}};
-        }
+        const axisColorBands = config.axisColorBands ? data && config.axisColorBands(data) : defaultAxisColorBands;
+        const series = {
+            axisLine: {lineStyle: {color: axisColorBands || defaultAxisColorBands}}
+        };
         if (data) {
             series.data = [{
                 name: config.name,
                 title: {
-                    offsetCenter: [0, '-33%'],
-                    color: '#fff2',
+                    offsetCenter: [0, '-20%'],
+                    color: '#fff9',
                     fontSize: 50 * relSize,
                     fontWeight: 700,
-                    textShadowColor: '#000',
+                    textShadowColor: '#0009',
                     textShadowBlur: 3 * relSize,
                 },
                 value: config.getValue(data),
@@ -227,7 +286,6 @@ export async function main() {
     let reanimateTimeout;
     common.storage.addEventListener('update', ev => {
         settings = ev.data.value;
-        axisColorBands = null;
         initGauge();
         gauge.setOption({series: [{animation: false}]});
         renderer.render({force: true});
