@@ -89,7 +89,8 @@ const gaugeConfigs = {
     },
     draft: {
         name: 'Draft',
-        color: '#222',
+        //color: '#930',
+        color: '#a96',
         ticks: 6,
         defaultSettings: {
             min: 0,
@@ -118,6 +119,9 @@ export async function main() {
         // Can't use em for most things on gauges. :(
         relSize = Math.min(content.clientHeight * 1.20, content.clientWidth) / 600;
         gauge.setOption({
+            animationDurationUpdate: Math.max(200, Math.min(settings.refreshInterval * 1000, 1000)),
+            animationEasingUpdate: 'linear',
+            tooltip: {},
             graphic: [{
                 elements: [{
                     left: 'center',
