@@ -10,6 +10,7 @@ const title = {
     power: 'Power Gauge',
     hr: 'Heart Rate Gauge',
     draft: 'Draft Gauge',
+    pace: 'Pace Gauge',
 }[type];
 const commonDefaultSettings = {
     refreshInterval: 1,
@@ -76,7 +77,7 @@ const gaugeConfigs = {
     },
     pace: {
         name: 'Pace',
-        color: '#4d4',
+        color: '#3c5',
         ticks: imperial ? 6 : 10,
         defaultSettings: {
             min: 0,
@@ -136,8 +137,7 @@ export async function main() {
                             y2: 1,
                             colorStops: [{
                                 offset: 0,
-                                color: config.color + '4',
-                                color: 'black',
+                                color: '#000',
                             }, {
                                 offset: 0.5,
                                 color: config.color + 'f',
@@ -215,7 +215,7 @@ export async function main() {
                     width: 70 * relSize,
                     length: 200 * relSize,
                     icon: 'image://./images/logo_vert_120x320.png',
-                    offsetCenter: [0, '10%'],
+                    offsetCenter: [0, '5%'],
                     itemStyle: {
                         opacity: 0.9,
                     },
@@ -229,9 +229,7 @@ export async function main() {
                         borderColor: '#222',
                         borderWidth: 5 * relSize,
                     }
-                } : {
-                    show: false,
-                },
+                } : {show: false},
                 detail: {
                     valueAnimation: true,
                     formatter: config.detailFormatter,
@@ -240,14 +238,14 @@ export async function main() {
                     offsetCenter: [0, '35%'],
                     rich: {
                         value: {
-                            color: '#fffc',
+                            color: '#fffd',
                             fontSize: 76 * relSize,
                             fontWeight: 'bold',
                             align: 'center',
                         },
                         unit: {
                             fontSize: 20 * relSize,
-                            color: '#fff8',
+                            color: '#fff9',
                             verticalAlign: 'text-bottom',
                             padding: [12 * relSize, 0, 0, 0],
                         }
@@ -257,7 +255,7 @@ export async function main() {
         });
     };
     initGauge();
-    const renderer = new common.Renderer(content, {fps: 1});
+    const renderer = new common.Renderer(content, {fps: 1 / settings.refreshInterval});
     renderer.addCallback(data => {
         const axisColorBands = config.axisColorBands ? data && config.axisColorBands(data) : defaultAxisColorBands;
         const series = {
@@ -286,6 +284,7 @@ export async function main() {
     let reanimateTimeout;
     common.storage.addEventListener('update', ev => {
         settings = ev.data.value;
+        renderer.fps = 1 / settings.refreshInterval;
         initGauge();
         gauge.setOption({series: [{animation: false}]});
         renderer.render({force: true});

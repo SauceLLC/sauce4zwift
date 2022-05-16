@@ -110,25 +110,25 @@ const windowManifests = [{
 }, {
     type: 'power-gauge',
     pageURL: 'gauge.html?t=power',
-    prettyName: 'Power Gauge',
+    prettyName: 'Power Gauge [experiment]',
     prettyDesc: 'Car style power (watts) gauge.',
     options: {relWidth: 0.20, aspectRatio: 0.8},
 }, {
     type: 'draft-gauge',
     pageURL: 'gauge.html?t=draft',
-    prettyName: 'Draft Gauge',
+    prettyName: 'Draft Gauge [experiment]',
     prettyDesc: 'Car style draft (% power reduction) gauge.',
     options: {relWidth: 0.20, aspectRatio: 0.8},
 }, {
     type: 'pace-gauge',
     pageURL: 'gauge.html?t=pace',
-    prettyName: 'Pace Gauge',
+    prettyName: 'Pace Gauge [experiment]',
     prettyDesc: 'Car style pace/speed gauge.',
     options: {relWidth: 0.20, aspectRatio: 0.8},
 }, {
     type: 'hr-gauge',
     pageURL: 'gauge.html?t=hr',
-    prettyName: 'Heart Rate Gauge',
+    prettyName: 'Heart Rate Gauge [experiment]',
     prettyDesc: 'Car style heart rate gauge.',
     options: {relWidth: 0.20, aspectRatio: 0.8},
 }];
@@ -239,15 +239,18 @@ rpc.register(() => pkg.version, {name: 'getVersion'});
 rpc.register(() => gameMonitor.ip, {name: 'getMonitorIP'});
 rpc.register(() => sentryAnonId, {name: 'getSentryAnonId'});
 rpc.register(url => electron.shell.openExternal(url), {name: 'openExternalLink'});
+
 rpc.register(() => {
     appQuiting = true;
     electron.app.relaunch();
     electron.app.quit();
 }, {name: 'restart'});
+
 rpc.register(() => {
     appQuiting = true;
     electron.app.quit();
 }, {name: 'quit'});
+
 rpc.register(() => {
     for (const {win, spec} of activeWindows.values()) {
         if (spec.hideable !== false && spec.overlay !== false) {
@@ -255,6 +258,7 @@ rpc.register(() => {
         }
     }
 }, {name: 'hideAllWindows'});
+
 rpc.register(() => {
     for (const {win, spec} of activeWindows.values()) {
         if (spec.hideable !== false && spec.overlay !== false) {
@@ -262,18 +266,23 @@ rpc.register(() => {
         }
     }
 }, {name: 'showAllWindows'});
+
 rpc.register(function() {
     const {win, spec} = activeWindows.get(this);
     console.debug('Window close requested:', spec.id);
     win.close();
 }, {name: 'closeWindow'});
+
 rpc.register(function() {
     const {win, spec} = activeWindows.get(this);
     console.debug('Window close requested:', spec.id);
     win.minimize();
 }, {name: 'minimizewindow'});
+
 rpc.register(() => electron.app.getGPUFeatureStatus(), {name: 'getGPUFeatureStatus'});
+
 rpc.register(() => electron.app.getGPUInfo('complete'), {name: 'getGPUInfo'});
+
 let _appMetricsPromise;
 let _lastAppMetricsTS = 0;
 function _getAppMetrics(reentrant) {
@@ -288,12 +297,15 @@ function _getAppMetrics(reentrant) {
         resolve(electron.app.getAppMetrics());
     }, 2000 - (Date.now() - _lastAppMetricsTS)));
 }
+
 rpc.register(async () => {
     if (!_appMetricsPromise) {
         _appMetricsPromise = _getAppMetrics();
     }
     return await _appMetricsPromise;
 }, {name: 'pollAppMetrics'});
+
+
 let _gpuDebug;
 async function getDebugInfo() {
     if (!_gpuDebug) {
@@ -336,6 +348,7 @@ async function getDebugInfo() {
     };
 }
 rpc.register(getDebugInfo);
+
 rpc.register(pid => {
     for (const x of electron.BrowserWindow.getAllWindows()) {
         let wc;
