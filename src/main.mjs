@@ -325,7 +325,6 @@ async function getDebugInfo() {
         app: {
             version: pkg.version,
             uptime: process.uptime(),
-            pid: process.pid,
             mem: process.memoryUsage(),
             cpu: process.cpuUsage(),
             cwd: process.cwd(),
@@ -335,6 +334,8 @@ async function getDebugInfo() {
             platform: os.platform(),
             release: os.release(),
             version: os.version(),
+            productVersion: process.getSystemVersion(),
+            mem: process.getSystemMemoryInfo(),
             uptime: os.uptime(),
             cpus: os.cpus(),
             gpu: {
