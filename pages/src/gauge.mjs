@@ -19,7 +19,9 @@ const commonDefaultSettings = {
     showMax: false,
     currentLap: false,
     boringMode: false,
-    gaugeTransparency: 0.8,
+    gaugeTransparency: 20,
+    solidBackground: false,
+    backgroundColor: '#00ff00',
 };
 
 const L = sauce.locale;
@@ -169,7 +171,7 @@ export async function main() {
                             }],
                         },
                         lineWidth: 0,
-                        opacity: 1 - (settings.Transparency / 100),
+                        opacity: 1 - (settings.gaugeTransparency / 100),
                     }
                 }]
             }],
