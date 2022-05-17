@@ -586,7 +586,7 @@ function _openWindow(id, spec) {
         }
     }
     if (spec.overlay !== false) {
-        win.setAlwaysOnTop(true, 'screen-saver');
+        win.setAlwaysOnTop(true, 'pop-up-menu');
     }
     const webContents = win.webContents;  // Save to prevent electron from killing us.
     activeWindows.set(webContents, {win, spec, activeSubs: new Set()});
@@ -615,7 +615,7 @@ function _openWindow(id, spec) {
             }
         });
         if (spec.overlay !== false) {
-            newWin.setAlwaysOnTop(true, 'screen-saver');
+            newWin.setAlwaysOnTop(true, 'pop-up-menu');
         }
         subWindows.set(newWin.webContents, {spec});
         if (electron.app.isPackaged) {
