@@ -67,15 +67,15 @@ async function resetDB() {
 }
 
 
-async function sleep(ms) {
-    await new Promise(resolve => setTimeout(resolve, ms));
-}
-
-
 const worldTimeOffset = 1414016074335;  // ms since zwift started production.
 function worldTimeConv(wt) {
     // TBD I think timesync helps us adjust the offset but I can't interpret it yet.
     return new Date(Number(worldTimeOffset) + Number(wt));
+}
+
+
+function titleCase(s) {
+    return s[0].toUpperCase() + s.substr(1).toLowerCase();
 }
 
 
@@ -268,6 +268,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     resetStats() {
         console.debug("User requested stats reset");
         this._athleteData.clear();
+        this.clearPendingProfileFetches();
     }
 
     async exportFIT(athleteId) {
@@ -640,13 +641,15 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 continue;
             }
             if (this._useFakeData) {
-                const words = this.constructor.toString().replaceAll(/[^a-zA-Z ]/g, ' ').toLowerCase()
+                const words = this.constructor.toString().replaceAll(/[^a-zA-Z ]/g, ' ')
                     .split(' ').filter(x => x);
                 const fName = words[randInt(words.length)];
                 const lName = words[randInt(words.length)];
-                this.updateAthlete(id, fName[0].toUpperCase() + fName.substr(1), lName[0].toUpperCase() + lName.substr(1), {
+                this.updateAthlete(id, titleCase(fName), titleCase(lName), {
                     ftp: Math.round(100 + randInt(300)),
-                    avatar: `https://gravatar.com/avatar/${Math.abs(id)}?s=400&d=robohash&r=x`,
+                    avatar: Math.random() > 0.25 ?
+                        `https://gravatar.com/avatar/${Math.abs(id)}?s=400&d=robohash&r=x` :
+                        undefined,
                     weight: Math.round(40 + randInt(70)),
                     gender: ['female', 'male'][randInt(2)],
                     age: Math.round(18 + randInt(60)),
@@ -830,13 +833,16 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
 
     async _fakeDataGenerator() {
         const OutgoingPacket = ZwiftPacketMonitor.OutgoingPacket;
-        let watching = -500;
+        const athleteCount = 10000;
+        let watching = -Math.trunc(athleteCount / 2);
+        let iters = 1;
+        const hz = 5;
         while (this._active) {
-            for (let i = 1; i < 1000; i++) {
+            for (let i = 1; i < athleteCount; i++) {
                 const athleteId = -i;
                 const ad = this._athleteData.get(athleteId);
                 const priorState = ad && ad.mostRecentState;
-                const roadId = priorState ? priorState.roadId : randInt(14);
+                const roadId = priorState ? priorState.roadId : randInt(30);
                 const packet = OutgoingPacket.fromObject({
                     athleteId,
                     worldTime: Date.now() - worldTimeOffset,
@@ -858,7 +864,10 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 });
                 this.onOutgoing(packet);
             }
-            await sleep(200);
+            if (iters++ % (hz * 60) === 0) {
+                watching = -Math.trunc(Math.random() * athleteCount);
+            }
+            await sauce.sleep(200);
         }
     }
 
@@ -939,17 +948,17 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         const target = performance.now() % 1000;
         while (this._active) {
             if (this.watching == null) {
-                await sleep(100);
+                await sauce.sleep(100);
                 continue;
             }
             try {
                 await this._nearbyProcessor();
                 const offt = performance.now() % 1000;
                 const schedSleep = 1000 - (offt - target);
-                await sleep(schedSleep);
+                await sauce.sleep(schedSleep);
             } catch(e) {
                 captureExceptionOnce(e);
-                await sleep(errBackoff *= 2);
+                await sauce.sleep(errBackoff *= 2);
             }
         }
     }
