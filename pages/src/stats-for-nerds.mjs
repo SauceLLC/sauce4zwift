@@ -8,6 +8,7 @@ echarts.registerTheme('sauce', theme);
 const L = sauce.locale;
 const H = L.human;
 const maxLen = 150;
+const MB = 1024 * 1024;
 
 
 async function makeMetricCharts(proc, el) {
@@ -219,15 +220,26 @@ async function makeMetricCharts(proc, el) {
 }
 
 
+const friendlyPlatforms = {
+    win32: 'Windows',
+    darwin: 'macOS',
+    linux: 'Linux',
+};
+
+
+const unit = x => `<abbr class="unit">${x}</abbr>`;
 const debugFormatters = {
     uptime: x => H.timer(x.app.uptime),
     version: x => x.app.version,
-    os: x => `${x.sys.platform} ${x.sys.release}`,
+    appCPU: x => H.number((x.app.cpu.user + x.app.cpu.system) / 1000000 / x.app.uptime * 100) + unit('%'),
+    appMemHeap: x => H.number(x.app.mem.heapTotal / MB) + unit('MB'),
+    os: x => `${friendlyPlatforms[x.sys.platform]} ${x.sys.productVersion}`,
     arch: x => `${x.sys.arch}`,
-    sysUptime: x => H.duration(x.sys.uptime),
+    sysUptime: x => H.duration(x.sys.uptime, {short: true}),
+    sysMem: x => H.number(x.sys.mem.total / 1024 / 1024) + unit('GB'),
     gpu: x => x.sys.gpu.status.gpu_compositing,
-    dbRowsAthletes: x => H.number(x.databases.find(x => x.tableName === 'athletes').rows),
-    dbRowsSettings: x => H.number(x.databases.find(x => x.tableName === 'store').rows),
+    dbRowsAthletes: x => H.number(x.databases.find(x => x.tableName === 'athletes').rows) + unit('rows'),
+    dbRowsSettings: x => H.number(x.databases.find(x => x.tableName === 'store').rows) + unit('rows'),
 };
 function defaultDebugFormatter(path) {
     return data => {

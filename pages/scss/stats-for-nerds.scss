@@ -11,6 +11,11 @@ html {
         display: flex;
         flex-wrap: wrap;
 
+        &:not(:last-child) {
+            padding-bottom: 1em;
+            margin-bottom: 1em;
+        }
+
         .column {
             flex: 1 1 0;
             min-width: 200px;
@@ -34,20 +39,36 @@ html {
             .entry {
                 display: flex;
                 align-items: baseline;
+                color: #ddd;
                 
                 key, value {
                     display: block;
                 }
 
+                abbr.unit {
+                    font-size: 0.8em;
+                    padding-left: 0.2em;
+                    opacity: 0.8em;
+                }
+
                 key {
                     flex: 0 0 auto;
-                    min-width: 10ch;
+                    min-width: 12ch;
                     margin-right: 1ch;
                     font-weight: bold;
                     font-size: 0.9em;
 
                     &::after {
                         content: ':'
+                    }
+
+                    &.indent {
+
+                        &::before {
+                            padding: 0 0.2em;
+                            content: '●';
+                            opacity: 0.8;
+                        }
                     }
                 }
 
