@@ -164,6 +164,7 @@ html {
 
         #content {
             overflow: auto;
+            overflow: overlay;
         }
     }
 }
@@ -172,6 +173,7 @@ html {
     font-size: 16px;
     padding: 1em;
     overflow: auto;
+    overflow: overlay;
 }
 
 form {

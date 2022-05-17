@@ -105,7 +105,7 @@ const windowManifests = [{
     page: 'nearby.html',
     prettyName: 'Nearby Athletes',
     prettyDesc: 'A sortable data table of nearby athletes.',
-    options: {width: 800, height: 400, center: true},
+    options: {width: 800, height: 400},
     overlay: false,
 }, {
     type: 'power-gauge',
@@ -131,6 +131,13 @@ const windowManifests = [{
     prettyName: 'Heart Rate Gauge [experiment]',
     prettyDesc: 'Car style heart rate gauge.',
     options: {relWidth: 0.20, aspectRatio: 0.8},
+}, {
+    type: 'stats-for-nerds',
+    page: 'stats-for-nerds.html',
+    prettyName: 'Stats for Nerds',
+    prettyDesc: 'Debug info (cpu/mem) about Sauce.',
+    options: {width: 900, height: 600},
+    overlay: false,
 }];
 rpc.register(() => windowManifests, {name: 'getWindowManifests'});
 
@@ -485,7 +492,11 @@ rpc.register(createWindow);
 function highlightWindow(id) {
     const win = getActiveWindow(id);
     if (win) {
-        win.focus();
+        if (!win.isVisible() || win.isMinimized()) {
+            win.show();
+        } else {
+            win.focus();
+        }
         win.webContents.send('browser-message', {domEvent: 'sauce-highlight-window'});
     }
 }
