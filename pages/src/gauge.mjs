@@ -29,7 +29,7 @@ let settings;
 let imperial = !!common.storage.get('/imperialUnits');
 L.setImperial(imperial);
 
-const defaultAxisColorBands = [[1, '#6666']];
+const defaultAxisColorBands = [[1, '#0008']];
 
 const gaugeConfigs = {
     power: {
@@ -53,8 +53,8 @@ const gaugeConfigs = {
                 const delta = settings.max - min;
                 const p = gaugeConfigs.power.getValue(data);
                 return [
-                    [(zones.z1 - min) / delta, '#4443'],
-                    [(zones.z2 - min) / delta, p > zones.z1 ? '#44d' : '#44d3'],
+                    [(zones.z1 - min) / delta, '#444d'],
+                    [(zones.z2 - min) / delta, p > zones.z1 ? '#24d' : '#24d3'],
                     [(zones.z3 - min) / delta, p > zones.z2 ? '#5b5' : '#5b53'],
                     [(zones.z4 - min) / delta, p > zones.z3 ? '#dd3' : '#dd33'],
                     [(zones.z5 - min) / delta, p > zones.z4 ? '#fa0' : '#fa03'],
@@ -78,7 +78,7 @@ const gaugeConfigs = {
     },
     pace: {
         name: 'Pace',
-        color: '#3c5',
+        color: '#273',
         ticks: imperial ? 6 : 10,
         defaultSettings: {
             min: 0,
@@ -90,8 +90,7 @@ const gaugeConfigs = {
     },
     draft: {
         name: 'Draft',
-        //color: '#930',
-        color: '#a96',
+        color: '#930',
         ticks: 6,
         defaultSettings: {
             min: 0,
@@ -187,7 +186,7 @@ export async function main() {
                     show: true,
                     width: 60 * relSize,
                     itemStyle: {
-                        color: config.axisColorBands ? '#fff3' : config.color,
+                        color: config.axisColorBands ? '#fff3' : config.color + '4',
                     },
                 },
                 axisLine: {
@@ -225,6 +224,8 @@ export async function main() {
                     itemStyle: {
                         color: config.color,
                         opacity: 0.9,
+                        borderColor: '#000',
+                        borderWidth: 2 * relSize,
                         shadowColor: '#0007',
                         shadowBlur: 8 * relSize,
                     },
@@ -232,7 +233,7 @@ export async function main() {
                     width: 70 * relSize,
                     length: 200 * relSize,
                     icon: 'image://./images/logo_vert_120x320.png',
-                    offsetCenter: [0, '5%'],
+                    offsetCenter: [0, '10%'],
                     itemStyle: {
                         opacity: 0.9,
                     },
@@ -252,19 +253,18 @@ export async function main() {
                     formatter: config.detailFormatter,
                     textShadowColor: '#000',
                     textShadowBlur: 3 * relSize,
-                    offsetCenter: [0, '35%'],
+                    offsetCenter: [0, '33%'],
                     rich: {
                         value: {
                             color: '#fffd',
-                            fontSize: 76 * relSize,
+                            fontSize: 80 * relSize,
                             fontWeight: 'bold',
-                            align: 'center',
+                            lineHeight: 60 * relSize,
                         },
                         unit: {
                             fontSize: 20 * relSize,
                             color: '#fff9',
-                            verticalAlign: 'text-bottom',
-                            padding: [12 * relSize, 0, 0, 0],
+                            lineHeight: 16 * relSize,
                         }
                     }
                 },
@@ -297,6 +297,7 @@ export async function main() {
     addEventListener('resize', () => {
         initGauge();
         gauge.resize();
+        renderer.render({force: true});
     });
     let reanimateTimeout;
     common.storage.addEventListener('update', ev => {
