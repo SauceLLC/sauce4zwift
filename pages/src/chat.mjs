@@ -173,13 +173,21 @@ export async function main() {
     });
     common.subscribe('chat', onChatMessage, {persistent: true});
 
-    if (location.search.includes('testing')) {
+    if (location.search.includes('test')) {
+        const wordsURL = 'https://raw.githubusercontent.com/mayfield/mad-libs-json/master/words.json';
+        const w = await (await fetch(wordsURL)).json();
+        const _ = arr => arr[Math.floor(Math.random() * arr.length)];
+        const phrases = [
+            () => `I ${_(w.verbPast)} through a ${_(w.noun)} in the ${_(w.noun)} and found ${_(w.number)} ${_(w.nounPlural)}.`,
+            () => `${_(w.celebrityM)} is a ${_(w.adv)} ${_(w.adj)} ${_(w.noun)}.`,
+            () => `My ${_(w.bodyPart)} has ${_(w.verbPast)} to ${_(w.place)}.`,
+        ];
         for (let i = 1; i < 100; i++) {
             const from = Array.from(nearby.keys())[Math.floor(Math.random() * nearby.size / 10)] || 0;
             onChatMessage({
-                firstName: 'Foo',
-                lastName: 'Bar ' + from,
-                message: 'I am a teapot short and stout.',
+                firstName: _([...w.celebrityF, ...w.celebrityM]),
+                lastName: '',
+                message: _(phrases)(),
                 from,
                 to: 0,
                 avatar: 'images/blankavatar.png',
