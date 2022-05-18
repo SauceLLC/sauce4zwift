@@ -5,7 +5,7 @@ import {theme} from './echarts-sauce-theme.mjs';
 
 echarts.registerTheme('sauce', theme);
 
-const type = (new URLSearchParams(location.search)).get('t');
+const type = (new URLSearchParams(location.search)).get('t') || 'power';
 const title = {
     power: 'Power Gauge',
     hr: 'Heart Rate Gauge',
