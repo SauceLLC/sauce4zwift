@@ -110,7 +110,11 @@ class DataCollector {
         if (options._cloning) {
             return;
         }
-        const defOptions = {idealGap: 0.200, maxGap: 10, active: true};
+        const defOptions = {idealGap: 1, maxGap: 15, active: true};
+        this._precision = options.precision;
+        this._bufferedTimes = new Array();
+        this._bufferedValues = new Array();
+        this._bufferedLen = 0;
         this.roll = new Klass(null, {...defOptions, ...options});
         this.periodized = new Map(periods.map(period => [period, {
             roll: this.roll.clone({period}),
@@ -135,8 +139,35 @@ class DataCollector {
     }
 
     add(time, value) {
-        // XXX Perhaps we should have a aggregation buffer here so
-        // we don't accumulate a bunch of repetitive data.
+        const elapsed = this._bufferedLen ? time - this._bufferedTimes[0] : 0;
+        const idealGap = this.roll.idealGap;
+        if (elapsed < idealGap) {
+            const i = this._bufferedLen++;
+            this._bufferedTimes[i] = time;
+            this._bufferedValues[i] = value;
+        } else {
+            let totV = 0;
+            for (let i = 0; i < this._bufferedLen; i++) {
+                totV += this._bufferedValues[i];
+            }
+            let adjValue = totV / this._bufferedLen;
+            // XXX check perf and maybe replace with 1 second idealized version as micro opt
+            // XXX2 sometimes this will be the same ts and the prev entry.  If there is a gap and we only have a few datapoints
+            // then we will round down. Maybe we can always round up?  More testing!
+            const adjTime = Math.round(this._bufferedTimes[this._bufferedLen - 1] / idealGap) * idealGap;
+            if (this._precision) {
+                adjValue = Number(adjValue.toFixed(this._precision));
+            } else {
+                adjValue = Math.round(adjValue);
+            }
+            this._add(adjTime, adjValue);
+            this._bufferedTimes[0] = time;
+            this._bufferedValues[0] = value;
+            this._bufferedLen = 1;
+        }
+    }
+
+    _add(time, value) {
         this.roll.add(time, value);
         if (value > this._maxPower) {
             this._maxPower = value;
@@ -231,6 +262,8 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         this.watching = null;
         this.athletesCache = new Map();
         this._stateProcessCount = 0;
+        this._stateDupCount = 0;
+        this._stateStaleCount = 0;
         this._profileFetchIds = new Set();
         this._pendingProfileFetches = new Map();
         this._profileFetchCount = 0;
@@ -574,7 +607,8 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         const periods = [5, 15, 60, 300, 1200];
         return {
             power: new DataCollector(sauce.power.RollingPower, periods, {inlineNP: true}),
-            speed: new DataCollector(sauce.data.RollingAverage, periods, {ignoreZeros: true}),
+            speed: new DataCollector(sauce.data.RollingAverage, periods,
+                {ignoreZeros: true, precision: 1}),
             hr: new DataCollector(sauce.data.RollingAverage, periods, {ignoreZeros: true}),
             cadence: new DataCollector(sauce.data.RollingAverage, [], {ignoreZeros: true}),
             draft: new DataCollector(sauce.data.RollingAverage, []),
@@ -733,13 +767,12 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             this._athleteData.set(state.athleteId, this._createAthleteData(state.athleteId, state.ts));
         }
         const ad = this._athleteData.get(state.athleteId);
-        if (ad.mostRecentState && ad.mostRecentState.ts > state.ts) {
-            // XXX  ^^^ I changed this to >= and found there are a lot of dup worldTime packets, sometimes with same data
-            // but also occasionally with different data that appears to actually be newer.  Possibly the server infra or even
-            // the player software is having some sort of clock drift event or resolution issue / latency / whatever that
-            // sends packets very quickly back to back with the same time stamp.  I'm not sure if zwift infra tries to correct
-            // these stamps or if they expect the clients to be perfect.
-            console.info("Dropping stale packet", state.ts - ad.mostRecentState.ts);
+        if (ad.mostRecentState && ad.mostRecentState.ts >= state.ts) {
+            if (ad.mostRecentState.ts === state.ts) {
+                this._stateDupCount++;
+            } else {
+                this._stateStaleCount++;
+            }
             return false;
         }
         // TBD: Move most of this to zwift-packet-monitor...
@@ -834,11 +867,12 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     async _fakeDataGenerator() {
         const OutgoingPacket = ZwiftPacketMonitor.OutgoingPacket;
         const athleteCount = 10000;
-        let watching = -Math.trunc(athleteCount / 2);
+        let watching = -Math.trunc(athleteCount / 2 + 1);
         let iters = 1;
         const hz = 5;
         while (this._active) {
-            for (let i = 1; i < athleteCount; i++) {
+            const start = performance.now();
+            for (let i = 1; i < athleteCount + 1; i++) {
                 const athleteId = -i;
                 const ad = this._athleteData.get(athleteId);
                 const priorState = ad && ad.mostRecentState;
@@ -867,7 +901,11 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             if (iters++ % (hz * 60) === 0) {
                 watching = -Math.trunc(Math.random() * athleteCount);
             }
-            await sauce.sleep(200);
+            const delay = 200 - (performance.now() - start);
+            if (iters % (hz * 5 * 1000) === 0) {
+                console.debug('fake data delay', delay, iters, this._stateProcessCount);
+            }
+            await sauce.sleep(delay);
         }
     }
 
@@ -1064,6 +1102,8 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             pendingZwiftProfileFetches: this._pendingProfileFetches.size,
             zwiftProfileFetchCount: this._profileFetchCount,
             stateProcessCount: this._stateProcessCount,
+            stateDupCount: this._stateDupCount,
+            stateStaleCount: this._stateStaleCount,
             activeAthletesSize: this._athleteData.size,
             activeAthleteDataPoints: Array.from(this._athleteData.values())
                 .map(x => x.power.roll.size() + x.speed.roll.size() + x.hr.roll.size() + x.hr.roll.size() + x.draft.roll.size())

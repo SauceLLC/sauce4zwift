@@ -238,6 +238,7 @@ const debugFormatters = {
     sysUptime: x => H.duration(x.sys.uptime, {short: true}),
     sysMem: x => H.number(x.sys.mem.total / 1024 / 1024) + unit('GB'),
     gpu: x => x.sys.gpu.status.gpu_compositing,
+    statesDropped: x => H.number(x.game.stateDupCount) + ' / ' + H.number(x.game.stateStaleCount),
     dbRowsAthletes: x => H.number(x.databases.find(x => x.tableName === 'athletes').rows) + unit('rows'),
     dbRowsSettings: x => H.number(x.databases.find(x => x.tableName === 'store').rows) + unit('rows'),
 };
