@@ -263,8 +263,17 @@ async function renderWindowsPanel() {
             <td class="btn"><a class="link delete"><img src="images/fa/window-close-regular.svg"></a></td>
         </tr>
     `).join('\n');
-    el.querySelector('.add-new select').innerHTML = manifests.filter(x => !x.private).map(x =>
-        `<option title="${x.prettyDesc}" value="${x.type}">${x.prettyName}</option>`).join('');
+    const mGroups = new Map();
+    for (const m of manifests.filter(x => !x.private)) {
+        if (!mGroups.has(m.groupTitle)) {
+            mGroups.set(m.groupTitle, []);
+        }
+        mGroups.get(m.groupTitle).push(m);
+    }
+    el.querySelector('.add-new select').innerHTML = Array.from(mGroups.entries()).map(([title, ms]) =>
+        `<optgroup label="${title || 'Main'}">${ms.map(x =>
+            `<option title="${x.prettyDesc}" value="${x.type}">${x.prettyName}</option>`)}</optgroup>`
+    ).join('');
     return el;
 }
 

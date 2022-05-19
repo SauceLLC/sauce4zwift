@@ -248,6 +248,13 @@ html.settings-mode #meta.app-drag {
     font-weight: 400;
     opacity: 0.88;
     line-height: normal;
+
+    &.team {
+        color: yellow;
+        font-size: 0.65em;
+        line-height: 1;
+        font-variant: small-caps;
+    }
 }
 
 .position .desc.right:not(.empty)::before,

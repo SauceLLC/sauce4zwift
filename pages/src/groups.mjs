@@ -5,10 +5,10 @@ const L = sauce.locale;
 const H = L.human;
 const positions = new Map();
 const settingsKey = 'groups-settings-v6';
+let zoomedPosition = common.storage.get('zoomedPosition');
 let imperial = common.storage.get('/imperialUnits');
 L.setImperial(imperial);
 let settings;
-let zoomedPosition;
 let curGroups;
 let contentEl;
 let metaEl;
@@ -72,6 +72,7 @@ function getOrCreatePosition(relPos) {
             } else {
                 zoomedPosition = null;
             }
+            common.storage.set('zoomedPosition', zoomedPosition);
             render();
         });
     }
@@ -147,16 +148,19 @@ function renderZoomed(groups) {
         let label;
         let avatar = 'images/blankavatar.png';
         let fLast;
+        let team;
         if (athlete.athlete) {
             const a = athlete.athlete;
-            if (a.name) {
-                fLast = `${a.name[0].trim().substr(0, 1)}.${a.name[1].trim()}`;
-                // Only use avatar if we have fLast to avoid a nameless bubble
-                if (a.avatar) {
-                    avatar = a.avatar;
-                } else {
-                    label = a.name.map(x => x[0].toUpperCase()).join('').substr(0, 2);
-                }
+            team = a.team;  // hehehe
+            if (a.sanitizedName && a.sanitizedName.length) {
+                fLast = a.sanitizedName.length > 1 ?
+                    [a.sanitizedName[0][0], a.sanitizedName[1]].filter(x => x).join('. ') :
+                    fLast = a.sanitizedName[0];
+            }
+            if (a.avatar) {
+                avatar = a.avatar;
+            } else {
+                label = a.initials;
             }
         }
         if (label) {
@@ -167,6 +171,9 @@ function renderZoomed(groups) {
         const leftLines = [];
         if (fLast) {
             leftLines.push(`<div class="line minor">${fLast}</div>`);
+            if (team) {
+                leftLines.push(`<div class="line minor team">${team}</div>`);
+            }
         }
         const attacker = athlete.state.power > 400 && (athlete.state.power / group.power) > 2;
         if (attacker) {
@@ -364,7 +371,7 @@ export async function main() {
         zoomedGapField: 'distance',
         solidBackground: false,
         backgroundColor: '#00ff00',
-        refreshInterval: 1,
+        refreshInterval: 2,
     });
     setBackground(settings);
     common.storage.addEventListener('update', ev => {

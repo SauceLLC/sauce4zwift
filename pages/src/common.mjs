@@ -9,16 +9,6 @@ let rpcCall;
 
 let windowID;
 
-if (!Array.prototype.at) {
-    // For chromecast which is currently v90 chromium
-    Array.prototype.at = function(i) {
-        if (i < 0) {
-            return this[this.length - i];
-        } else {
-            return this[i];
-        }
-    }
-}
 
 function makeRPCError(errResp) {
     const e = new Error(`${errResp.error.name}: ${errResp.error.message}`);

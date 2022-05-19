@@ -79,6 +79,26 @@ function titleCase(s) {
 }
 
 
+function splitNameAndTeam(name) {
+    if (!name || !name.match) {
+        return [name];
+    }
+    const m = name.match(/\[(?<t1>.*?)\]|\((?<t2>.*?)\)/);
+    if (!m) {
+        return [name];
+    }
+    const team = m.groups.t1 || m.groups.t2;
+    if (!team) {
+        return [name];
+    }
+    name = [
+        name.substr(0, m.index).trim(),
+        name.substr(m.index + m[0].length).trim()
+    ].filter(x => x).join(' ');
+    return [name, team];
+}
+
+
 function highPrecTimeConv(ts) {
     // As seen on payload timestamps.
     const dv = new DataView(new Uint32Array([ts.low, ts.high]).buffer);
@@ -417,8 +437,21 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         if (fName && fName.length === 1 && d.name && d.name[0] && d.name[0].length > 1 && d.name[0][0] === fName) {
             fName = d.name[0];  // Update is just the first initial but we know the full name already.
         }
-        d.name = (fName || lName) ? [fName, lName].filter(x => x) : d.name;
+        d.name = (fName || lName) ? [fName, lName].map(x =>
+            (x && x.trim) ? x.trim() : null).filter(x => x) : d.name;
         d.fullname = d.name && d.name.join(' ');
+        const leadingPunc = /^[.*_#\s]+/;
+        const saniFirst = d.name && d.name[0].replace(leadingPunc, '');
+        let saniLast;
+        if (d.name[1]) {
+            const [last, team] = splitNameAndTeam(d.name[1]);
+            saniLast = last && last.replace(leadingPunc, '');
+            d.team = team;
+        }
+        d.sanitizedName = (saniFirst || saniLast) ? [saniFirst, saniLast].filter(x => x) : null;
+        d.sanitizedFullname = d.sanitizedName && d.sanitizedName.join(' ');
+        d.initials = d.sanitizedName ? d.sanitizedName.map(x => x[0]).join('').toUpperCase() : null;
+        console.debug(d.name, d.fullname, d.sanitizedName, d.sanitizedFullname, d.initials, d.team);
         Object.assign(d, extra);
         this.saveAthlete(id, d);
         return d;

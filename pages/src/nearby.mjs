@@ -59,22 +59,15 @@ function getAthleteValue(x, key) {
 }
 
 
-function getAthleteInitials(x) {
-    const name = getAthleteValue(x, 'name');
-    if (name && Array.isArray(name)) {
-        return name.filter(x => x).map(x => x[0]).join('');
-    }
-    return '';
-}
-
-
 const fields = [
     {id: 'avatar', defaultEn: true, label: '<img class="fa" src="images/fa/user-circle-solid.svg"/>',
      get: x => getAthleteValue(x, 'avatar'),
      fmt: x => x ? `<a href="${x}" class="avatar" target="_blank"><img src="${x}"/></a>` : ''},
-    {id: 'name', defaultEn: true, label: 'Name', get: x => getAthleteValue(x, 'fullname'),
+    {id: 'name', defaultEn: true, label: 'Name', get: x => getAthleteValue(x, 'sanitizedFullname'),
      sanitize: true, fmt: x => x || '-'},
-    {id: 'initials', defaultEn: false, label: 'Initials', get: x => getAthleteInitials(x),
+    {id: 'team', defaultEn: false, label: 'Team', get: x => getAthleteValue(x, 'team'),
+     sanitize: true, fmt: x => x || '-'},
+    {id: 'initials', defaultEn: false, label: 'Initials', get: x => getAthleteValue(x, 'initials'),
      sanitize: true, fmt: x => x || '-'},
     {id: 'id', defaultEn: true, label: 'ID', get: x => x.athleteId,
      fmt: x => `<a title="Open in ZwiftPower" external="" target="_blank" href="https://zwiftpower.com/profile.php?z=${x}">${x}</a>`},
