@@ -440,18 +440,24 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         d.name = (fName || lName) ? [fName, lName].map(x =>
             (x && x.trim) ? x.trim() : null).filter(x => x) : d.name;
         d.fullname = d.name && d.name.join(' ');
-        const leadingPunc = /^[.*_#\s]+/;
-        const saniFirst = d.name && d.name[0].replace(leadingPunc, '');
+        const edgeJunk = /^[.*_#\-\s]+|[.*_#\-\s]+$/g;
+        let saniFirst = d.name && d.name[0].replace(edgeJunk, '');
         let saniLast;
-        if (d.name && d.name[1]) {
-            const [last, team] = splitNameAndTeam(d.name[1]);
-            saniLast = last && last.replace(leadingPunc, '');
+        if (d.name && d.name.length) {
+            const idx = d.name.length - 1;
+            const [name, team] = splitNameAndTeam(d.name[idx]);
+            if (idx > 0) {
+                saniLast = name && name.replace(edgeJunk, '');
+            } else {
+                // User only set a last name, sometimes because this looks better in game.
+                saniFirst = name;
+            }
             d.team = team;
         }
         d.sanitizedName = (saniFirst || saniLast) ? [saniFirst, saniLast].filter(x => x) : null;
         d.sanitizedFullname = d.sanitizedName && d.sanitizedName.join(' ');
         d.initials = d.sanitizedName ? d.sanitizedName.map(x => x[0]).join('').toUpperCase() : null;
-    console.debug(d.name, d.fullname, d.sanitizedName, d.sanitizedFullname, d.initials, d.team);
+        console.debug({fName, lName}, d.name, d.fullname, d.sanitizedName, d.sanitizedFullname, d.initials, d.team);
         Object.assign(d, extra);
         this.saveAthlete(id, d);
         return d;
