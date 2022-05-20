@@ -443,7 +443,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         const leadingPunc = /^[.*_#\s]+/;
         const saniFirst = d.name && d.name[0].replace(leadingPunc, '');
         let saniLast;
-        if (d.name[1]) {
+        if (d.name && d.name[1]) {
             const [last, team] = splitNameAndTeam(d.name[1]);
             saniLast = last && last.replace(leadingPunc, '');
             d.team = team;
@@ -451,7 +451,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         d.sanitizedName = (saniFirst || saniLast) ? [saniFirst, saniLast].filter(x => x) : null;
         d.sanitizedFullname = d.sanitizedName && d.sanitizedName.join(' ');
         d.initials = d.sanitizedName ? d.sanitizedName.map(x => x[0]).join('').toUpperCase() : null;
-        console.debug(d.name, d.fullname, d.sanitizedName, d.sanitizedFullname, d.initials, d.team);
+    console.debug(d.name, d.fullname, d.sanitizedName, d.sanitizedFullname, d.initials, d.team);
         Object.assign(d, extra);
         this.saveAthlete(id, d);
         return d;
