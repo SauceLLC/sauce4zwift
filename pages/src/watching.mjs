@@ -230,16 +230,11 @@ function createStatHistoryChart(el, sIndex) {
 }
 
 
-const fieldGroups = {
+const groupSpecs = {
     power: {
         title: 'Power',
-        backgroundImage: '../images/fa/bolt-duotone.svg',
+        backgroundImage: 'url(../images/fa/bolt-duotone.svg)',
         fields: [{
-            value: x => H.number(x && x.state.power),
-            label: () => 'watts',
-            key: () => 'Watts',
-            unit: () => 'w',
-        }, {
             value: x => H.number(x && x.stats && x.stats.power.avg),
             label: () => 'avg',
             key: () => 'Avg',
@@ -248,6 +243,11 @@ const fieldGroups = {
             value: x => H.number(x && x.stats && x.stats.power.max),
             label: () => 'max',
             key: () => 'Max',
+            unit: () => 'w',
+        }, {
+            value: x => H.number(x && x.state.power),
+            label: () => 'watts',
+            key: () => 'Watts',
             unit: () => 'w',
         }, {
             value: x => humanWkg(x && x.state.power, x && x.athlete),
@@ -336,14 +336,9 @@ const fieldGroups = {
     },
     hr: {
         title: 'Heart Rate',
-        backgroundImage: '../images/fa/heartbeat-duotone.svg',
+        backgroundImage: 'url(../images/fa/heartbeat-duotone.svg)',
         fields: [{
-            value: x => H.number(x && x.state.heartrate || null),
-            label: () => 'bpm',
-            key: () => 'Current',
-            unit: () => 'bpm',
-        }, {
-            value: x => H.number(x && x.stats && x.stats.hr.avg || null), // XXX check the null is required
+           value: x => H.number(x && x.stats && x.stats.hr.avg || null), // XXX check the null is required
             label: () => 'avg',
             key: () => 'Avg',
             unit: () => 'bpm',
@@ -351,6 +346,11 @@ const fieldGroups = {
             value: x => H.number(x && x.stats && x.stats.hr.max || null),
             label: () => 'max',
             key: () => 'Max',
+            unit: () => 'bpm',
+        }, {
+            value: x => H.number(x && x.state.heartrate || null),
+            label: () => 'bpm',
+            key: () => 'Current',
             unit: () => 'bpm',
         },
             makeSmoothHRField(5),
@@ -382,7 +382,7 @@ const fieldGroups = {
     },
     cadence: {
         title: 'Cadence',
-        backgroundImage: '../images/fa/solar-system.svg',
+        backgroundImage: 'url(../images/fa/solar-system-duotone.svg)',
         fields: [{
             value: x => H.number(x && x.state.cadence),
             label: () => 'Cadence',
@@ -422,7 +422,7 @@ const fieldGroups = {
     },
     draft: {
         title: 'Draft',
-        backgroundImage: '../images/fa/draft-duotone.svg',
+        backgroundImage: 'url(../images/fa/wind-duotone.svg)',
         fields: [{
             value: x => H.number(x && x.state.draft),
             label: () => 'Draft',
@@ -461,64 +461,77 @@ const fieldGroups = {
         }],
     },
 };
-    
+
+
+async function getLayoutTpl(name) {
+    return await sauce.template.getTemplate(`templates/${name}.html.tpl`);
+}
+
 
 export async function main() {
     common.initInteractionListeners();
     settings = common.storage.get(settingsKey, {
-        numScreens: 2,
         lockedFields: false,
+        screens: [{
+            id: 'default-screen-1',
+            sections: [{
+                type: 'primary',
+                id: 'default-primary',
+                groups: [{
+                    id: 'default-power',
+                    type: 'power',
+                }],
+            }, {
+                type: 'secondary',
+                id: 'default-secondary',
+                groups: [{
+                    type: 'hr',
+                    id: 'default-hr',
+                }],
+            }, {
+                type: 'tertiary',
+                id: 'default-tertiary',
+                groups: [{
+                    type: 'cadence',
+                    id: 'default-cadence',
+                }, {
+                    type: 'draft',
+                    id: 'default-draft',
+                }],
+            }],
+        }],
     });
     const content = document.querySelector('#content');
     const renderers = [];
     let curScreen;
-    const defScreenTpl = document.querySelector('template.screen.default');
-    settings.screenLayouts = settings.screenLayouts || {};
-    for (let sIndex = 1; sIndex <= settings.numScreens; sIndex++) {
-        const layout = settings.screenLayouts[sIndex] || (settings.screenLayouts[sIndex] = {});
-        const screenTpl = document.querySelector(`template.screen[data-layout-id="${layout.template}"]`) || defScreenTpl;
-        const screen = screenTpl.content.cloneNode(true).querySelector('.screen');
-        screen.dataset.id = sIndex;
-        if (sIndex !== 1) {
-            screen.classList.add('hidden');
+    const layoutTpl = await getLayoutTpl('watching-screen-layout');
+    for (const [sIndex, screen] of settings.screens.entries()) {
+        const screenEl = (await layoutTpl({screen, sIndex, groupSpecs})).querySelector('.screen');
+        screenEl.dataset.id = sIndex + 1;
+        if (sIndex) {
+            screenEl.classList.add('hidden');
         } else {
-            curScreen = screen;
+            curScreen = screenEl;
         }
-        content.appendChild(screen);
-        screen.querySelector('.page-title').textContent = `${sIndex}`;
-        const renderer = new common.Renderer(screen, {
-            id: `watching-screen-${sIndex}`,
+        content.appendChild(screenEl);
+        const renderer = new common.Renderer(screenEl, {
+            id: screen.id,
             fps: 2,
             locked: settings.lockedFields,
         });
-        renderers.push(renderer);
-        const unusedGroups = new Set(Object.keys(fieldGroups));
-        const groupConfigs = layout.groupConfigs || (layout.groupConfigs = {});
-        for (const [groupIndex, groupEl] of screen.querySelectorAll('.field-group').entries()) {
-            const config = groupConfigs[groupIndex] || (groupConfigs[groupIndex] = {});
-            if (!config.type) {
-                config.type = unusedGroups.values().next().value;
-            }
-            unusedGroups.delete(config.type);
+        for (const groupEl of screenEl.querySelectorAll('[data-group-id]')) {
             const mapping = [];
-            const fieldEls = groupEl.querySelectorAll('[data-field]');
-            for (const [i, fieldEl] of fieldEls.entries()) {
-                const id = `${groupIndex}-${config.type}-${i}`;
-                fieldEl.dataset.field = id;
+            for (const [i, fieldEl] of groupEl.querySelectorAll('[data-field]').entries()) {
+                const id = fieldEl.dataset.field;
                 mapping.push({id, default: i});
             }
-            const fieldGroup = fieldGroups[config.type];
-            const titleEl = groupEl.querySelector('.group-title');
-            if (titleEl) {
-                titleEl.textContent = fieldGroup.title || '';
-            }
-            groupEl.style.setProperty('--background-image', `url(${fieldGroup.backgroundImage})` || 'none');
             renderer.addRotatingFields({
                 el: groupEl,
                 mapping,
-                fields: fieldGroup.fields,
+                fields: groupSpecs[groupEl.dataset.groupType].fields,
             });
         }
+        renderers.push(renderer);
         /*
         const chartData = {
             pace: [],
@@ -580,7 +593,7 @@ export async function main() {
     const prevBtn = document.querySelector('.button-bar .button.prev-screen');
     const nextBtn = document.querySelector('.button-bar .button.next-screen');
     prevBtn.classList.add('disabled');
-    if (settings.numScreens === 1) {
+    if (settings.screens.length === 1) {
         nextBtn.classList.add('disabled');
     }
     prevBtn.addEventListener('click', ev => {
@@ -592,7 +605,7 @@ export async function main() {
         curScreen.classList.remove('hidden');
         nextBtn.classList.remove('disabled');
         resizeCharts();
-        if (Number(curScreen.dataset.id) === 1) {
+        if (Number(curScreen.dataset.index) === 0) {
             prevBtn.classList.add('disabled');
         }
     });
@@ -605,7 +618,7 @@ export async function main() {
         curScreen.classList.remove('hidden');
         prevBtn.classList.remove('disabled');
         resizeCharts();
-        if (settings.numScreens === Number(curScreen.dataset.id)) {
+        if (settings.screens.length === Number(curScreen.dataset.index + 1)) {
             nextBtn.classList.add('disabled');
         }
     });
@@ -655,7 +668,12 @@ export async function main() {
 }
 
 
+function initLayoutConfigSettings() {
+}
+
+
 export async function settingsMain() {
     common.initInteractionListeners();
     await common.initSettingsForm('form', {settingsKey});
 }
+
