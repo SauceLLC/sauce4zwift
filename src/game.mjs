@@ -718,7 +718,8 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                     .split(' ').filter(x => x);
                 const fName = words[randInt(words.length)];
                 const lName = words[randInt(words.length)];
-                this.updateAthlete(id, titleCase(fName), titleCase(lName), {
+                const team = Math.random() > 0.8 ? ` [${words[randInt(10)]}]` : '';
+                this.updateAthlete(id, titleCase(fName), titleCase(lName) + team, {
                     ftp: Math.round(100 + randInt(300)),
                     avatar: Math.random() > 0.25 ?
                         `https://gravatar.com/avatar/${Math.abs(id)}?s=400&d=robohash&r=x` :
@@ -905,7 +906,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
 
     async _fakeDataGenerator() {
         const OutgoingPacket = ZwiftPacketMonitor.OutgoingPacket;
-        const athleteCount = 10000;
+        const athleteCount = 1000;
         let watching = -Math.trunc(athleteCount / 2 + 1);
         let iters = 1;
         const hz = 5;
