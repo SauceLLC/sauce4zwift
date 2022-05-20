@@ -41,66 +41,66 @@
             <div class="hint"></div>
         </div>
     </body>
-    <template id="screen">
+
+    <template class="screen default" data-layout-id="1">
         <div class="screen">
             <div class="page-title"></div>
-            <div class="entry power columns">
+            <div class="screen-row primary columns field-group">
                 <div class="sub">
-                    <heading>POWER:</heading>
-                    <div class="row" data-field="power-upper">
+                    <heading class="group-title"></heading>
+                    <div class="field-row" data-field="">
                         <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
                     </div>
-                    <div class="row" data-field="power-lower">
+                    <div class="field-row" data-field="">
                         <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
                     </div>
                 </div>
-                <div class="primary top" data-field="power-main">
+                <div class="double top" data-field="">
                     <div class="value">-</div>
                     <div class="label"></div>
                     <div class="sub-label"></div>
                 </div>
             </div>
-            <div class="entry hr columns">
+            <div class="screen-row secondary columns field-group">
                 <div class="sub">
-                    <heading>HEART RATE:</heading>
-                    <div class="row avg" data-field="hr-upper">
+                    <heading class="group-title"></heading>
+                    <div class="field-row avg" data-field="upper">
                         <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
                     </div>
-                    <div class="row max" data-field="hr-lower">
+                    <div class="field-row max" data-field="lower">
                         <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
                     </div>
                 </div>
-                <div class="primary current" data-field="hr-main">
+                <div class="double current" data-field="main">
                     <div class="value">-</div>
                     <div class="label"></div>
                     <div class="sub-label"></div>
                 </div>
             </div>
-            <div class="entry misc columns no-heading">
-                <div class="sub cadence">
-                    <heading>CADENCE:</heading>
-                    <div class="row current" data-field="cadence-upper">
+            <div class="screen-row tertiary columns no-heading">
+                <div class="sub field-group">
+                    <heading class="group-title"></heading>
+                    <div class="field-row current" data-field="upper">
                         <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
                     </div>
-                    <div class="row avg" data-field="cadence-lower">
-                        <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
-                    </div>
-                </div>
-                <div class="sub draft">
-                    <heading>DRAFT:</heading>
-                    <div class="row current" data-field="draft-upper">
-                        <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
-                    </div>
-                    <div class="row avg" data-field="draft-lower">
+                    <div class="field-row avg" data-field="lower">
                         <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
                     </div>
                 </div>
-
+                <div class="sub field-group">
+                    <heading class="group-title"></heading>
+                    <div class="field-row current" data-field="upper">
+                        <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
+                    </div>
+                    <div class="field-row avg" data-field="lower">
+                        <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
+                    </div>
+                </div>
             </div>
-            <div class="entry no-heading no-side-margin">
+            <!--<div class="screen-row no-heading no-side-margin">
                 <div class="chart-holder ec"></div>
                 <div class="s-chart-legend"></div>
-            </div>
+            </div>-->
         </div>
     </template>
 </html>

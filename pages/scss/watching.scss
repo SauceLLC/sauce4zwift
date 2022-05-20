@@ -27,7 +27,7 @@ html {
     }
 }
 
-.entry {
+.screen-row {
     display: flex;
     flex-direction: column;
     margin: 0.2rem 0.5rem 0;
@@ -36,6 +36,30 @@ html {
     background-repeat: no-repeat;
     background-position-x: center;
     background-origin: content-box;
+
+    &.primary {
+        font-size: 1.7em;
+        background-image: var(--background-image);
+    }
+
+    &.secondary {
+        font-size: 1.3em;
+        background-image: var(--background-image);
+    }
+
+    &.tertiary {
+        font-size: 1.3em;
+    }
+
+    &.columns {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        background-repeat: no-repeat;
+        background-position: right 1ch center;
+        background-origin: border-box;
+        background-size: auto 90%;
+    }
 
     &:not(:last-child) {
         border-bottom: 1px solid #fff9;
@@ -47,16 +71,6 @@ html {
 
     &:last-child {
         margin-bottom: 0;
-    }
-
-    &.columns {
-        flex-direction: row;
-        justify-content: space-between;
-        align-items: center;
-        background-repeat: no-repeat;
-        background-position: right 1ch center;
-        background-origin: border-box;
-        background-size: auto 90%;
     }
 
     &.no-heading {
@@ -92,7 +106,7 @@ html {
         display: block;
     }
 
-    .primary {
+    [data-field].double {
         position: relative;
         font-size: 1.65em;
         font-weight: bold;
@@ -128,13 +142,13 @@ html {
         }
     }
 
-    .row {
+    .field-row {
         display: flex;
         align-items: baseline;
     }
 }
 
-.row .key {
+.field-row .key {
     font-size: 0.60rem;
     margin-right: 0.3em;
     text-align: right;
@@ -176,20 +190,6 @@ abbr.unit {
     margin-left: 0.2em;
     font-size: 0.55em;
     opacity: 0.82;
-}
-
-.power {
-    font-size: 1.7em;
-    background-image: url(../images/fa/bolt-duotone.svg);
-}
-
-.hr {
-    font-size: 1.3em;
-    background-image: url(../images/fa/heartbeat-duotone.svg);
-}
-
-.misc {
-    font-size: 1.3em;
 }
 
 #titlebar .button-bar .button.reset img {

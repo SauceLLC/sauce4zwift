@@ -8,7 +8,7 @@ echarts.registerTheme('sauce', theme);
 
 const L = sauce.locale;
 const H = L.human;
-const settingsKey = 'watching-settings-v2';
+const settingsKey = 'watching-settings-v3';
 const maxLineChartLen = 60;
 const colors = {
     power: '#46f',
@@ -230,6 +230,239 @@ function createStatHistoryChart(el, sIndex) {
 }
 
 
+const fieldGroups = {
+    power: {
+        title: 'Power',
+        backgroundImage: '../images/fa/bolt-duotone.svg',
+        fields: [{
+            value: x => H.number(x && x.state.power),
+            label: () => 'watts',
+            key: () => 'Watts',
+            unit: () => 'w',
+        }, {
+            value: x => H.number(x && x.stats && x.stats.power.avg),
+            label: () => 'avg',
+            key: () => 'Avg',
+            unit: () => 'w',
+        }, {
+            value: x => H.number(x && x.stats && x.stats.power.max),
+            label: () => 'max',
+            key: () => 'Max',
+            unit: () => 'w',
+        }, {
+            value: x => humanWkg(x && x.state.power, x && x.athlete),
+            label: () => 'w/kg',
+            key: () => 'W/kg',
+        }, {
+            value: x => H.number(x && x.stats && x.stats.power.np),
+            label: () => 'np',
+            key: () => 'NP',
+        }, {
+            value: x => H.number(x && x.stats && x.stats.power.tss),
+            label: () => 'tss',
+            key: () => 'TSS',
+        },
+            makeSmoothPowerField(5),
+            makeSmoothPowerField(15),
+            makeSmoothPowerField(60),
+            makeSmoothPowerField(300),
+            makeSmoothPowerField(1200),
+            makePeakPowerField(5),
+            makePeakPowerField(15),
+            makePeakPowerField(60),
+            makePeakPowerField(300),
+            makePeakPowerField(1200),
+        {
+            value: x => H.number(x && x.laps && x.laps.at(-1).power.avg),
+            label: () => 'lap avg',
+            key: () => 'Lap Avg',
+            unit: () => 'w',
+        }, {
+            value: x => humanWkg(x && x.laps && x.laps.at(-1).power.avg, x && x.athlete),
+            label: () => ['lap avg', 'w/kg'],
+            key: () => 'Lap Avg',
+            unit: () => 'w/kg',
+        }, {
+            value: x => H.number(x && x.laps && x.laps.at(-1).power.max),
+            label: () => 'lap max',
+            key: () => 'Lap Max',
+            unit: () => 'w',
+        }, {
+            value: x => humanWkg(x && x.laps && x.laps.at(-1).power.max, x && x.athlete),
+            label: () => ['lap max', 'w/kg'],
+            key: () => 'Lap Max',
+            unit: () => 'w/kg',
+        }, {
+            value: x => H.number(x && x.laps && x.laps.at(-1).power.np),
+            label: () => 'lap np',
+            key: () => 'Lap NP',
+        },
+            makePeakPowerField(5, -1),
+            makePeakPowerField(15, -1),
+            makePeakPowerField(60, -1),
+            makePeakPowerField(300, -1),
+            makePeakPowerField(1200, -1),
+        {
+            value: x => H.number(x && x.laps && x.laps.length > 1 && x.laps.at(-2).power.avg),
+            label: () => ['last lap', 'avg'],
+            key: () => 'Last Lap',
+            unit: () => 'w',
+        }, {
+            value: x => humanWkg(x && x.laps && x.laps.length > 1 && x.laps.at(-2).power.avg, x && x.athlete),
+            label: () => ['last lap', 'avg w/kg'],
+            key: () => 'Last Lap',
+            unit: () => 'w/kg',
+        }, {
+            value: x => H.number(x && x.laps && x.laps.length > 1 && x.laps.at(-2).power.max),
+            label: () => ['last lap', 'max'],
+            key: () => '<small>Last Lap Max</small>',
+            unit: () => 'w',
+        }, {
+            value: x => humanWkg(x && x.laps && x.laps.length > 1 && x.laps.at(-2).power.max, x && x.athlete),
+            label: () => ['last lap', 'max w/kg'],
+            key: () => '<small>Last Lap Max</small>',
+            unit: () => 'w/kg',
+        }, {
+            value: x => H.number(x && x.laps && x.laps.length > 1 && x.laps.at(-2).power.np),
+            label: () => ['last lap', 'np'],
+            key: () => '<small>Last Lap NP</small>',
+        },
+            makePeakPowerField(5, -2),
+            makePeakPowerField(15, -2),
+            makePeakPowerField(60, -2),
+            makePeakPowerField(300, -2),
+            makePeakPowerField(1200, -2),
+        ],
+    },
+    hr: {
+        title: 'Heart Rate',
+        backgroundImage: '../images/fa/heartbeat-duotone.svg',
+        fields: [{
+            value: x => H.number(x && x.state.heartrate || null),
+            label: () => 'bpm',
+            key: () => 'Current',
+            unit: () => 'bpm',
+        }, {
+            value: x => H.number(x && x.stats && x.stats.hr.avg || null), // XXX check the null is required
+            label: () => 'avg',
+            key: () => 'Avg',
+            unit: () => 'bpm',
+        }, {
+            value: x => H.number(x && x.stats && x.stats.hr.max || null),
+            label: () => 'max',
+            key: () => 'Max',
+            unit: () => 'bpm',
+        },
+            makeSmoothHRField(5),
+            makeSmoothHRField(15),
+            makeSmoothHRField(60),
+            makeSmoothHRField(300),
+            makeSmoothHRField(1200),
+        {
+            value: x => H.number(x && x.laps && x.laps.at(-1).hr.avg || null), // XXX check if null is req
+            label: () => 'lap avg',
+            key: () => 'Lap Avg',
+            unit: () => 'bpm',
+        }, {
+            value: x => H.number(x && x.laps && x.laps.at(-1).hr.max || null), // XXX check if null is req
+            label: () => 'lap max',
+            key: () => 'Lap Max',
+            unit: () => 'bpm',
+        }, {
+            value: x => H.number(x && x.laps && x.laps.length > 1 && x.laps.at(-2).hr.avg || null), // XXX check if null is req
+            label: () => ['last lap', 'avg'],
+            key: () => 'Last Lap',
+            unit: () => 'bpm',
+        }, {
+            value: x => H.number(x && x.laps && x.laps.at(-1).hr.max || null), // XXX check if null is req
+            label: () => ['last lap', 'max'],
+            key: () => '<small>Last Lap Max</small>',
+            unit: () => 'bpm',
+        }],
+    },
+    cadence: {
+        title: 'Cadence',
+        backgroundImage: '../images/fa/solar-system.svg',
+        fields: [{
+            value: x => H.number(x && x.state.cadence),
+            label: () => 'Cadence',
+            key: () => 'Current',
+            unit: () => 'rpm',
+        }, {
+            value: x => H.number(x && x.stats && x.stats.cadence.avg || null),
+            label: () => 'avg',
+            key: () => 'Avg',
+            unit: () => 'rpm',
+        }, {
+            value: x => H.number(x && x.stats && x.stats.cadence.max || null),
+            label: () => 'max',
+            key: () => 'Max',
+            unit: () => 'rpm',
+        }, {
+            value: x => H.number(x && x.laps && x.laps.at(-1).cadence.avg || null), // XXX check if null is req
+            label: () => 'lap avg',
+            key: () => 'Lap Avg',
+            unit: () => 'rpm',
+        }, {
+            value: x => H.number(x && x.laps && x.laps.at(-1).cadence.max || null), // XXX check if null is req
+            label: () => 'lap max',
+            key: () => 'Lap Max',
+            unit: () => 'rpm',
+        }, {
+            value: x => H.number(x && x.laps && x.laps.length > 1 && x.laps.at(-2).cadence.avg || null), // XXX check if null is req
+            label: () => ['last lap', 'avg'],
+            key: () => 'Last Lap',
+            unit: () => 'rpm',
+        }, {
+            value: x => H.number(x && x.laps && x.laps.at(-1).cadence.max || null), // XXX check if null is req
+            label: () => ['last lap', 'max'],
+            key: () => '<small>Last Lap Max</small>',
+            unit: () => 'rpm',
+        }],
+    },
+    draft: {
+        title: 'Draft',
+        backgroundImage: '../images/fa/draft-duotone.svg',
+        fields: [{
+            value: x => H.number(x && x.state.draft),
+            label: () => 'Draft',
+            key: () => 'Current',
+            unit: () => '%',
+        }, {
+            value: x => H.number(x && x.stats && x.stats.draft.avg),
+            label: () => 'avg',
+            key: () => 'Avg',
+            unit: () => '%',
+        }, {
+            value: x => H.number(x && x.stats && x.stats.draft.max),
+            label: () => 'max',
+            key: () => 'Max',
+            unit: () => '%',
+        }, {
+            value: x => H.number(x && x.laps && x.laps.at(-1).draft.avg),
+            label: () => 'lap avg',
+            key: () => 'Lap Avg',
+            unit: () => '%',
+        }, {
+            value: x => H.number(x && x.laps && x.laps.at(-1).draft.max),
+            label: () => 'lap max',
+            key: () => 'Lap Max',
+            unit: () => '%',
+        }, {
+            value: x => H.number(x && x.laps && x.laps.length > 1 && x.laps.at(-2).draft.avg),
+            label: () => ['last lap', 'avg'],
+            key: () => 'Last Lap',
+            unit: () => '%',
+        }, {
+            value: x => H.number(x && x.laps && x.laps.length > 1 && x.laps.at(-2).draft.max),
+            label: () => ['last lap', 'max'],
+            key: () => '<small>Last Lap Max</small>',
+            unit: () => '%',
+        }],
+    },
+};
+    
+
 export async function main() {
     common.initInteractionListeners();
     settings = common.storage.get(settingsKey, {
@@ -238,9 +471,12 @@ export async function main() {
     });
     const content = document.querySelector('#content');
     const renderers = [];
-    const screenTpl = document.querySelector('template#screen');
     let curScreen;
+    const defScreenTpl = document.querySelector('template.screen.default');
+    settings.screenLayouts = settings.screenLayouts || {};
     for (let sIndex = 1; sIndex <= settings.numScreens; sIndex++) {
+        const layout = settings.screenLayouts[sIndex] || (settings.screenLayouts[sIndex] = {});
+        const screenTpl = document.querySelector(`template.screen[data-layout-id="${layout.template}"]`) || defScreenTpl;
         const screen = screenTpl.content.cloneNode(true).querySelector('.screen');
         screen.dataset.id = sIndex;
         if (sIndex !== 1) {
@@ -256,261 +492,34 @@ export async function main() {
             locked: settings.lockedFields,
         });
         renderers.push(renderer);
-        renderer.addRotatingFields({
-            mapping: [{
-                id: 'power-main',
-                default: 0
-            }, {
-                id: 'power-upper',
-                default: 1
-            }, {
-                id: 'power-lower',
-                default: 2
-            }],
-            fields: [{
-                value: x => H.number(x && x.state.power),
-                label: () => 'watts',
-                key: () => 'Watts',
-                unit: () => 'w',
-            }, {
-                value: x => H.number(x && x.stats && x.stats.power.avg),
-                label: () => 'avg',
-                key: () => 'Avg',
-                unit: () => 'w',
-            }, {
-                value: x => H.number(x && x.stats && x.stats.power.max),
-                label: () => 'max',
-                key: () => 'Max',
-                unit: () => 'w',
-            }, {
-                value: x => humanWkg(x && x.state.power, x && x.athlete),
-                label: () => 'w/kg',
-                key: () => 'W/kg',
-            }, {
-                value: x => H.number(x && x.stats && x.stats.power.np),
-                label: () => 'np',
-                key: () => 'NP',
-            }, {
-                value: x => H.number(x && x.stats && x.stats.power.tss),
-                label: () => 'tss',
-                key: () => 'TSS',
-            },
-                makeSmoothPowerField(5),
-                makeSmoothPowerField(15),
-                makeSmoothPowerField(60),
-                makeSmoothPowerField(300),
-                makeSmoothPowerField(1200),
-                makePeakPowerField(5),
-                makePeakPowerField(15),
-                makePeakPowerField(60),
-                makePeakPowerField(300),
-                makePeakPowerField(1200),
-            {
-                value: x => H.number(x && x.laps && x.laps.at(-1).power.avg),
-                label: () => 'lap avg',
-                key: () => 'Lap Avg',
-                unit: () => 'w',
-            }, {
-                value: x => humanWkg(x && x.laps && x.laps.at(-1).power.avg, x && x.athlete),
-                label: () => ['lap avg', 'w/kg'],
-                key: () => 'Lap Avg',
-                unit: () => 'w/kg',
-            }, {
-                value: x => H.number(x && x.laps && x.laps.at(-1).power.max),
-                label: () => 'lap max',
-                key: () => 'Lap Max',
-                unit: () => 'w',
-            }, {
-                value: x => humanWkg(x && x.laps && x.laps.at(-1).power.max, x && x.athlete),
-                label: () => ['lap max', 'w/kg'],
-                key: () => 'Lap Max',
-                unit: () => 'w/kg',
-            }, {
-                value: x => H.number(x && x.laps && x.laps.at(-1).power.np),
-                label: () => 'lap np',
-                key: () => 'Lap NP',
-            },
-                makePeakPowerField(5, -1),
-                makePeakPowerField(15, -1),
-                makePeakPowerField(60, -1),
-                makePeakPowerField(300, -1),
-                makePeakPowerField(1200, -1),
-            {
-                value: x => H.number(x && x.laps && x.laps.length > 1 && x.laps.at(-2).power.avg),
-                label: () => ['last lap', 'avg'],
-                key: () => 'Last Lap',
-                unit: () => 'w',
-            }, {
-                value: x => humanWkg(x && x.laps && x.laps.length > 1 && x.laps.at(-2).power.avg, x && x.athlete),
-                label: () => ['last lap', 'avg w/kg'],
-                key: () => 'Last Lap',
-                unit: () => 'w/kg',
-            }, {
-                value: x => H.number(x && x.laps && x.laps.length > 1 && x.laps.at(-2).power.max),
-                label: () => ['last lap', 'max'],
-                key: () => '<small>Last Lap Max</small>',
-                unit: () => 'w',
-            }, {
-                value: x => humanWkg(x && x.laps && x.laps.length > 1 && x.laps.at(-2).power.max, x && x.athlete),
-                label: () => ['last lap', 'max w/kg'],
-                key: () => '<small>Last Lap Max</small>',
-                unit: () => 'w/kg',
-            }, {
-                value: x => H.number(x && x.laps && x.laps.length > 1 && x.laps.at(-2).power.np),
-                label: () => ['last lap', 'np'],
-                key: () => '<small>Last Lap NP</small>',
-            },
-                makePeakPowerField(5, -2),
-                makePeakPowerField(15, -2),
-                makePeakPowerField(60, -2),
-                makePeakPowerField(300, -2),
-                makePeakPowerField(1200, -2),
-            ],
-        });
-        renderer.addRotatingFields({
-            mapping: [{
-                id: 'hr-main',
-                default: 0
-            }, {
-                id: 'hr-upper',
-                default: 1
-            }, {
-                id: 'hr-lower',
-                default: 2
-            }],
-            fields: [{
-                value: x => H.number(x && x.state.heartrate || null),
-                label: () => 'bpm',
-                key: () => 'Current',
-                unit: () => 'bpm',
-            }, {
-                value: x => H.number(x && x.stats && x.stats.hr.avg || null), // XXX check the null is required
-                label: () => 'avg',
-                key: () => 'Avg',
-                unit: () => 'bpm',
-            }, {
-                value: x => H.number(x && x.stats && x.stats.hr.max || null),
-                label: () => 'max',
-                key: () => 'Max',
-                unit: () => 'bpm',
-            },
-                makeSmoothHRField(5),
-                makeSmoothHRField(15),
-                makeSmoothHRField(60),
-                makeSmoothHRField(300),
-                makeSmoothHRField(1200),
-            {
-                value: x => H.number(x && x.laps && x.laps.at(-1).hr.avg || null), // XXX check if null is req
-                label: () => 'lap avg',
-                key: () => 'Lap Avg',
-                unit: () => 'bpm',
-            }, {
-                value: x => H.number(x && x.laps && x.laps.at(-1).hr.max || null), // XXX check if null is req
-                label: () => 'lap max',
-                key: () => 'Lap Max',
-                unit: () => 'bpm',
-            }, {
-                value: x => H.number(x && x.laps && x.laps.length > 1 && x.laps.at(-2).hr.avg || null), // XXX check if null is req
-                label: () => ['last lap', 'avg'],
-                key: () => 'Last Lap',
-                unit: () => 'bpm',
-            }, {
-                value: x => H.number(x && x.laps && x.laps.at(-1).hr.max || null), // XXX check if null is req
-                label: () => ['last lap', 'max'],
-                key: () => '<small>Last Lap Max</small>',
-                unit: () => 'bpm',
-            }],
-        });
-        renderer.addRotatingFields({
-            mapping: [{
-                id: 'cadence-upper',
-                default: 0
-            }, {
-                id: 'cadence-lower',
-                default: 1
-            }],
-            fields: [{
-                value: x => H.number(x && x.state.cadence),
-                label: () => 'Cadence',
-                key: () => 'Current',
-                unit: () => 'rpm',
-            }, {
-                value: x => H.number(x && x.stats && x.stats.cadence.avg || null),
-                label: () => 'avg',
-                key: () => 'Avg',
-                unit: () => 'rpm',
-            }, {
-                value: x => H.number(x && x.stats && x.stats.cadence.max || null),
-                label: () => 'max',
-                key: () => 'Max',
-                unit: () => 'rpm',
-            }, {
-                value: x => H.number(x && x.laps && x.laps.at(-1).cadence.avg || null), // XXX check if null is req
-                label: () => 'lap avg',
-                key: () => 'Lap Avg',
-                unit: () => 'rpm',
-            }, {
-                value: x => H.number(x && x.laps && x.laps.at(-1).cadence.max || null), // XXX check if null is req
-                label: () => 'lap max',
-                key: () => 'Lap Max',
-                unit: () => 'rpm',
-            }, {
-                value: x => H.number(x && x.laps && x.laps.length > 1 && x.laps.at(-2).cadence.avg || null), // XXX check if null is req
-                label: () => ['last lap', 'avg'],
-                key: () => 'Last Lap',
-                unit: () => 'rpm',
-            }, {
-                value: x => H.number(x && x.laps && x.laps.at(-1).cadence.max || null), // XXX check if null is req
-                label: () => ['last lap', 'max'],
-                key: () => '<small>Last Lap Max</small>',
-                unit: () => 'rpm',
-            }],
-        });
-        renderer.addRotatingFields({
-            mapping: [{
-                id: 'draft-upper',
-                default: 0
-            }, {
-                id: 'draft-lower',
-                default: 1
-            }],
-            fields: [{
-                value: x => H.number(x && x.state.draft),
-                label: () => 'Draft',
-                key: () => 'Current',
-                unit: () => '%',
-            }, {
-                value: x => H.number(x && x.stats && x.stats.draft.avg),
-                label: () => 'avg',
-                key: () => 'Avg',
-                unit: () => '%',
-            }, {
-                value: x => H.number(x && x.stats && x.stats.draft.max),
-                label: () => 'max',
-                key: () => 'Max',
-                unit: () => '%',
-            }, {
-                value: x => H.number(x && x.laps && x.laps.at(-1).draft.avg),
-                label: () => 'lap avg',
-                key: () => 'Lap Avg',
-                unit: () => '%',
-            }, {
-                value: x => H.number(x && x.laps && x.laps.at(-1).draft.max),
-                label: () => 'lap max',
-                key: () => 'Lap Max',
-                unit: () => '%',
-            }, {
-                value: x => H.number(x && x.laps && x.laps.length > 1 && x.laps.at(-2).draft.avg),
-                label: () => ['last lap', 'avg'],
-                key: () => 'Last Lap',
-                unit: () => '%',
-            }, {
-                value: x => H.number(x && x.laps && x.laps.length > 1 && x.laps.at(-2).draft.max),
-                label: () => ['last lap', 'max'],
-                key: () => '<small>Last Lap Max</small>',
-                unit: () => '%',
-            }],
-        });
+        const unusedGroups = new Set(Object.keys(fieldGroups));
+        const groupConfigs = layout.groupConfigs || (layout.groupConfigs = {});
+        for (const [groupIndex, groupEl] of screen.querySelectorAll('.field-group').entries()) {
+            const config = groupConfigs[groupIndex] || (groupConfigs[groupIndex] = {});
+            if (!config.type) {
+                config.type = unusedGroups.values().next().value;
+            }
+            unusedGroups.delete(config.type);
+            const mapping = [];
+            const fieldEls = groupEl.querySelectorAll('[data-field]');
+            for (const [i, fieldEl] of fieldEls.entries()) {
+                const id = `${groupIndex}-${config.type}-${i}`;
+                fieldEl.dataset.field = id;
+                mapping.push({id, default: i});
+            }
+            const fieldGroup = fieldGroups[config.type];
+            const titleEl = groupEl.querySelector('.group-title');
+            if (titleEl) {
+                titleEl.textContent = fieldGroup.title || '';
+            }
+            groupEl.style.setProperty('--background-image', `url(${fieldGroup.backgroundImage})` || 'none');
+            renderer.addRotatingFields({
+                el: groupEl,
+                mapping,
+                fields: fieldGroup.fields,
+            });
+        }
+        /*
         const chartData = {
             pace: [],
             hr: [],
@@ -564,8 +573,10 @@ export async function main() {
                 }]
             });
         });
+        */
         renderer.render();
     }
+    common.storage.set(settingsKey, settings);
     const prevBtn = document.querySelector('.button-bar .button.prev-screen');
     const nextBtn = document.querySelector('.button-bar .button.next-screen');
     prevBtn.classList.add('disabled');

@@ -270,7 +270,7 @@ export class Renderer {
     addRotatingFields(spec) {
         for (const x of spec.mapping) {
             const id = x.id;
-            const el = this._contentEl.querySelector(`[data-field="${x.id}"]`);
+            const el = (spec.el || this._contentEl).querySelector(`[data-field="${x.id}"]`);
             const storageKey = `${this.id}-${id}`;
             this.fields.set(id, {
                 id,
