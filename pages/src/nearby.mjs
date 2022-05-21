@@ -312,8 +312,8 @@ function makeTableRow() {
     const tr = document.createElement('tr');
     tr.innerHTML = `
         <td>
-            <a class="link" data-id="edit" data-tooltip="Manually edit athlete"><img src="images/fa/edit-duotone.svg"/></a>
-            <a class="link" data-id="export" data-tooltip="Export FIT File"><img src="images/fa/download-duotone.svg"/></a>
+            <a class="link" data-id="edit" title="Manually edit athlete"><img src="images/fa/edit-duotone.svg"/></a>
+            <a class="link" data-id="export" title="Export FIT File"><img src="images/fa/download-duotone.svg"/></a>
         </td>
         ${enFields.map(({id}) => `<td data-id="${id}"></td>`).join('')}
     `;

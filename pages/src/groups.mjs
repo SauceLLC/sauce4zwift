@@ -122,7 +122,7 @@ function renderZoomed(groups) {
     const gapProp = gapField === 'distance' ? 'gapDistance' : 'gap';
     const totGap = athletes[athletes.length - 1][gapProp] - athletes[0][gapProp];
     // Keep total flex-grow < 1 for tight groups.  I.e. prevent 100% height usage when small
-    const flexFactor = gapField === 'distance' ? 0.08 : 0.1;
+    const flexFactor = gapField === 'distance' ? 0.015 : 0.1;
     contentEl.style.setProperty('--total-athletes', athletes.length);  // visual only
     contentEl.style.setProperty('--total-gap', totGap * flexFactor);
     const athletesLabel = groupSize === 1 ? 'Athlete' : 'Athletes';
@@ -146,14 +146,7 @@ function renderZoomed(groups) {
         const next = athletes[i + 1];
         active.add(i);
         const pos = getOrCreatePosition(i);
-        pos.bubble.dataset.tooltip = `Position: ${i}\nClick bubble to zoom out`;
-        if (i >= athletes.length / 2) {
-            pos.bubble.setAttribute('data-tooltip-above', '');
-            pos.bubble.removeAttribute('data-tooltip-below');
-        } else {
-            pos.bubble.setAttribute('data-tooltip-below', '');
-            pos.bubble.removeAttribute('data-tooltip-above');
-        }
+        pos.bubble.title = `Position: ${i}\nClick bubble to zoom out`;
         pos.el.classList.toggle('watching', !!athlete.watching);
         pos.el.style.setProperty('--athletes', 1);
         let label;
@@ -288,14 +281,7 @@ function renderGroups(groups) {
         const relPos = i - centerIdx;
         active.add(relPos);
         const pos = getOrCreatePosition(relPos);
-        pos.bubble.dataset.tooltip = `Group: ${relPos}\nClick bubble to zoom in`;
-        if (i >= groups.length / 2) {
-            pos.bubble.setAttribute('data-tooltip-above', '');
-            pos.bubble.removeAttribute('data-tooltip-below');
-        } else {
-            pos.bubble.setAttribute('data-tooltip-below', '');
-            pos.bubble.removeAttribute('data-tooltip-above');
-        }
+        pos.bubble.title = `Group: ${relPos}\nClick bubble to zoom in`;
         pos.el.classList.toggle('watching', !!group.watching);
         pos.el.style.setProperty('--athletes', group.athletes.length);
         let label;

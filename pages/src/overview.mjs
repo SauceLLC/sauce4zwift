@@ -257,7 +257,7 @@ async function renderWindowsPanel() {
     const restoreLink = `<a class="link restore"><img src="images/fa/plus-square-duotone.svg"></a>`;
     el.querySelector('table.active-windows tbody').innerHTML = windows.map(x => `
         <tr data-id="${x.id}" class="active-window ${x.closed ? 'closed' : ''}">
-            <td data-tooltip="${descs[x.type].prettyDesc}">${descs[x.type].prettyName}</td>
+            <td title="${descs[x.type].prettyDesc}">${descs[x.type].prettyName}</td>
             <td>${x.closed ? 'Closed' : 'Active'}</td>
             <td class="btn">${x.closed ? restoreLink : ''}</td>
             <td class="btn"><a class="link delete"><img src="images/fa/window-close-regular.svg"></a></td>
