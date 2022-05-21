@@ -27,6 +27,15 @@ function spdFmt(s) {
 }
 
 
+function teamHue(name) {
+    let s = 0;
+    for (let i = 0; i < name.length; i++) {
+        s += name.charCodeAt(i);
+    }
+    return s % 360;
+}
+
+
 function getOrCreatePosition(relPos) {
     if (!positions.has(relPos)) {
         const el = document.createElement('div');
@@ -81,7 +90,9 @@ function getOrCreatePosition(relPos) {
 
 
 function render() {
-    if (zoomedPosition != null) {
+    const zoomed = zoomedPosition != null;
+    contentEl.classList.toggle('zoomed', zoomed);
+    if (zoomed) {
         renderZoomed(curGroups);
     } else {
         renderGroups(curGroups);
@@ -111,7 +122,7 @@ function renderZoomed(groups) {
     const gapProp = gapField === 'distance' ? 'gapDistance' : 'gap';
     const totGap = athletes[athletes.length - 1][gapProp] - athletes[0][gapProp];
     // Keep total flex-grow < 1 for tight groups.  I.e. prevent 100% height usage when small
-    const flexFactor = gapField === 'distance' ? 0.08 : 0.5;
+    const flexFactor = gapField === 'distance' ? 0.08 : 0.1;
     contentEl.style.setProperty('--total-athletes', athletes.length);  // visual only
     contentEl.style.setProperty('--total-gap', totGap * flexFactor);
     const athletesLabel = groupSize === 1 ? 'Athlete' : 'Athletes';
@@ -127,7 +138,7 @@ function renderZoomed(groups) {
         aheadEl.textContent = `+${ahead} ahead`;
     }
     behindEl.classList.toggle('visible', !!behind);
-    if (end < group.athletes.length) {
+    if (behind) {
         behindEl.textContent = `+${behind} behind`;
     }
     for (const [i, athlete] of athletes.entries()) {
@@ -135,15 +146,15 @@ function renderZoomed(groups) {
         const next = athletes[i + 1];
         active.add(i);
         const pos = getOrCreatePosition(i);
-        pos.el.dataset.tooltip = `Position: ${i}\nClick bubble to zoom out`;
+        pos.bubble.dataset.tooltip = `Position: ${i}\nClick bubble to zoom out`;
         if (i >= athletes.length / 2) {
-            pos.el.setAttribute('data-tooltip-above', '');
-            pos.el.removeAttribute('data-tooltip-below');
+            pos.bubble.setAttribute('data-tooltip-above', '');
+            pos.bubble.removeAttribute('data-tooltip-below');
         } else {
-            pos.el.setAttribute('data-tooltip-below', '');
-            pos.el.removeAttribute('data-tooltip-above');
+            pos.bubble.setAttribute('data-tooltip-below', '');
+            pos.bubble.removeAttribute('data-tooltip-above');
         }
-        pos.el.classList.toggle('watching', !!athlete.state.watching);
+        pos.el.classList.toggle('watching', !!athlete.watching);
         pos.el.style.setProperty('--athletes', 1);
         let label;
         let avatar = 'images/blankavatar.png';
@@ -169,18 +180,21 @@ function renderZoomed(groups) {
             pos.bubble.innerHTML = `<img src="${avatar}"/>`;
         }
         const leftLines = [];
-        if (fLast) {
-            leftLines.push(`<div class="line minor">${fLast}</div>`);
-            if (team) {
-                leftLines.push(`<div class="line minor team">${team}</div>`);
-            }
-        }
-        const attacker = athlete.state.power > 400 && (athlete.state.power / group.power) > 2;
+        const attacker = settings.detectAttacks &&
+            athlete.state.power > 400 &&
+            (athlete.state.power / group.power) > 2;
         if (attacker) {
             pos.el.classList.add('attn', 'attack');
-            leftLines.push(`<div class="line minor attn">Attacking!</div>`);
+            leftLines.push(`<div class="line major attn">Attacking!</div>`);
         } else {
             pos.el.classList.remove('attn', 'attack');
+            if (fLast) {
+                leftLines.push(`<div class="line minor">${fLast}</div>`);
+                if (team) {
+                    const hue = teamHue(team);
+                    leftLines.push(`<div class="line minor team" style="--team-hue: ${hue};">${team}</div>`);
+                }
+            }
         }
         const rightLines = [`<div class="line">${pwrFmt(athlete.state.power)}</div>`];
         const minorField = settings.zoomedSecondaryField || 'heartrate';
@@ -237,35 +251,50 @@ function renderGroups(groups) {
         return;
     }
     let centerIdx = groups.findIndex(x => x.watching);
-    groups = groups.slice(
-        Math.max(0, centerIdx - (settings.maxAhead || 3)),
-        centerIdx + (settings.maxBehind || 3) + 1);
+    const ahead = Math.max(0, centerIdx - (settings.maxAhead || 3));
+    const end = Math.min(groups.length, centerIdx + (settings.maxBehind || 3) + 1);
+    const behind = groups.length - end;
+    groups = groups.slice(ahead, end);
     centerIdx = groups.findIndex(x => x.watching);
     if (centerIdx === -1) {
         return;
     }
     const totAthletes = groups.reduce((agg, x) => agg + x.athletes.length, 0);
     const totGap = groups[groups.length - 1].gap - groups[0].gap;
+    const flexFactor = Math.min(1, 0.5 / 15);
+    console.log (flexFactor);
     contentEl.style.setProperty('--total-athletes', totAthletes);
-    contentEl.style.setProperty('--total-gap', totGap);
+    contentEl.style.setProperty('--total-gap', totGap * flexFactor);
     const athletesLabel = totAthletes === 1 ? 'Athlete' : 'Athletes';
     metaEl.innerHTML = `<div class="line">${totAthletes} ${athletesLabel}</div>`;
     const active = new Set();
-    aheadEl.classList.toggle('visible', false); // Maybe use someday
-    behindEl.classList.toggle('visible', false); // Maybe use someday
+
+   // aheadEl.classList.toggle('visible', false); // Maybe use someday
+   // behindEl.classList.toggle('visible', false); // Maybe use someday
+
+    aheadEl.classList.toggle('visible', !!ahead);
+    if (ahead) {
+        aheadEl.textContent = `+${ahead} ahead`;
+    }
+    behindEl.classList.toggle('visible', !!behind);
+    if (behind) {
+        behindEl.textContent = `+${behind} behind`;
+    }
+
+
     for (const [i, group] of groups.entries()) {
         // NOTE: gap measurement is always to the next group or null.
         const next = groups[i + 1];
         const relPos = i - centerIdx;
         active.add(relPos);
         const pos = getOrCreatePosition(relPos);
-        pos.el.dataset.tooltip = `Group: ${relPos}\nClick bubble to zoom in`;
+        pos.bubble.dataset.tooltip = `Group: ${relPos}\nClick bubble to zoom in`;
         if (i >= groups.length / 2) {
-            pos.el.setAttribute('data-tooltip-above', '');
-            pos.el.removeAttribute('data-tooltip-below');
+            pos.bubble.setAttribute('data-tooltip-above', '');
+            pos.bubble.removeAttribute('data-tooltip-below');
         } else {
-            pos.el.setAttribute('data-tooltip-below', '');
-            pos.el.removeAttribute('data-tooltip-above');
+            pos.bubble.setAttribute('data-tooltip-below', '');
+            pos.bubble.removeAttribute('data-tooltip-above');
         }
         pos.el.classList.toggle('watching', !!group.watching);
         pos.el.style.setProperty('--athletes', group.athletes.length);
@@ -285,7 +314,10 @@ function renderGroups(groups) {
                     max = p;
                 }
             }
-            const attacker = group.athletes.length > 1 && max > 400 && (max / group.power) > 2;
+            const attacker = settings.detectAttacks &&
+                group.athletes.length > 1 &&
+                max > 400 &&
+                (max / group.power) > 2;
             if (attacker) {
                 pos.el.classList.add('attn', 'attack');
                 leftLines.push(`<div class="line attn">Attacker!</div>`);
@@ -329,8 +361,8 @@ function renderGroups(groups) {
         pos.rightDesc.classList.toggle('empty', !rightLines.length);
         const innerGap = next ? group.innerGap : 0;
         const gap = relPos < 0 ? group.gap : next ? next.gap : 0;
-        pos.gap.el.style.setProperty('--inner-gap', innerGap);
-        pos.gap.el.style.setProperty('--outer-gap', Math.abs(gap));
+        pos.gap.el.style.setProperty('--inner-gap', innerGap * flexFactor);
+        pos.gap.el.style.setProperty('--outer-gap', Math.abs(gap) * flexFactor);
         pos.gap.el.style.setProperty('--gap-sign', gap > 0 ? 1 : -1);
         pos.gap.el.classList.toggle('real', !!next && !next.isGapEst);
         pos.gap.el.classList.toggle('alone', !innerGap);
@@ -365,7 +397,7 @@ export async function main() {
         detectAttacks: true,
         maxAhead: 4,
         maxBehind: 2,
-        maxZoomed: 10,
+        maxZoomed: 8,
         groupsSecondaryField: 'speed',
         zoomedSecondaryField: 'draft',
         zoomedGapField: 'distance',

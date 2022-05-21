@@ -65,6 +65,9 @@ html.settings-mode #meta.app-drag {
         display: none;
     }
 }
+#ahead {
+    order: -100000000;
+}
 #behind {
     order: 100000000;
 }
@@ -77,6 +80,30 @@ html.settings-mode #meta.app-drag {
     padding: $content-pad;
     align-items: center;
     justify-content: center;
+}
+
+@keyframes attn-rim-pulse {
+    from {
+        box-shadow: 0 0 0 $shadow-size var(--rim-color-from), 0.03rem 0.03rem $shadow-size 0 var(--rim-border-color);
+    }
+
+    50% {
+        box-shadow: 0 0 0 $shadow-size var(--rim-color-to), 0.03rem 0.03rem $shadow-size 0 var(--rim-border-color);
+    }
+
+    to {
+        box-shadow: 0 0 0 $shadow-size var(--rim-color-from), 0.03rem 0.03rem $shadow-size 0 var(--rim-border-color);
+    }
+}
+
+@keyframes attn-line-snap {
+    from {
+        transform: scale3d(1, 1, 1);
+    }
+
+    to {
+        transform: scale3d(0.98, 0.90, 0.98);
+    }
 }
 
 .position {
@@ -101,9 +128,13 @@ html.settings-mode #meta.app-drag {
     }
 
     &.attn {
-        --rim-color: #ff35008f;
-        --rim-border-color: #fff;
+        --rim-color-from: #ff35008f;
+        --rim-color-to: #800a;
         --attn-line-color: #fb0;
+
+        .bubble {
+            animation: attn-rim-pulse 400ms infinite linear;
+        }
     }
 
     .bubble {
@@ -112,6 +143,7 @@ html.settings-mode #meta.app-drag {
         height: var(--size);
         transition-property: margin, width, height, font;
         transition-duration: 2s;
+        transition-timing-function: ease-in-out;
         display: flex;
         overflow: hidden;
         cursor: pointer;
@@ -136,6 +168,15 @@ html.settings-mode #meta.app-drag {
 }
 .no-transition .position {
     transition: initial;
+}
+
+.zoomed .position.watching {
+    --rim-color: #09ea;
+    --rim-border-color: #fff4;
+
+    .bubble {
+        background: radial-gradient(#025, #027);
+    }
 }
 
 .position.hidden {
@@ -234,6 +275,13 @@ html.settings-mode #meta.app-drag {
         font-size: 0.8em;
         font-weight: 600;
         line-height: 0.9;
+
+        &.major {
+            line-height: 1.3;
+            font-size: 1em;
+            animation: attn-line-snap 400ms infinite;
+            animation-timing-function: ease-out;
+        }
     }
 
     abbr.unit {
@@ -250,10 +298,21 @@ html.settings-mode #meta.app-drag {
     line-height: normal;
 
     &.team {
-        color: yellow;
-        font-size: 0.65em;
+        --team-hue: 90deg;
+        color: #fff;
+        font-size: 0.76em;
         line-height: 1;
-        font-variant: small-caps;
+        vertical-align: middle;
+        font-variant: all-small-caps;
+        font-weight: bold;
+        background-image: linear-gradient(to bottom,
+            hsla(var(--team-hue), 70%, 30%, 0.86),
+            hsla(var(--team-hue), 87%, 50%, 0.86));
+        border-radius: 0.28em;
+        padding: 0.1em 0.5em 0.2em;
+        text-shadow: none;
+        margin-top: 0.2em;
+        margin-right: 0.1em;
     }
 }
 
@@ -278,7 +337,8 @@ html.settings-mode #meta.app-drag {
     border-right-color: hsl(calc(70deg + 50deg * min(var(--outer-gap) / 300, 1) * var(--gap-sign)), 100%, 50%);
     flex: var(--inner-gap) 1 0;
     transition-property: flex, opacity, visibility;
-    transition-duration: 4s, 1s, 1s;
+    transition-duration: 1s, 1s, 1s;
+    transition-timing-function: ease-in-out;
 
     .desc {
         $pad: 0.1rem;
