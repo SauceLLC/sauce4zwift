@@ -50,7 +50,7 @@
     <div class="info">
         <div class="row p1">{{sanitizedFullname}}</div>
         <% if (obj.team) { %>
-            <div class="team">Team: {{team}}</div>
+            <div class="row p2">Team: {{team}}</div>
         <% } %>
         <div class="row p2">Level: {{level}}</div>
         <div class="row p2">Age: {{age}}</div>

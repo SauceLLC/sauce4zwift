@@ -45,7 +45,7 @@ function getOrCreatePosition(relPos) {
             <div class="desc left empty">
                 <div class="lines"></div>
             </div>
-            <div class="bubble"></div>
+            <a class="bubble" target="_blank"></a>
             <div class="desc right empty">
                 <div class="lines"></div>
             </div>
@@ -63,7 +63,7 @@ function getOrCreatePosition(relPos) {
         `;
         containerEl.appendChild(el);
         containerEl.appendChild(gap);
-        positions.set(relPos, {
+        const nodes = {
             el,
             leftDesc: el.querySelector('.desc.left'),
             leftLines: el.querySelector('.desc.left .lines'),
@@ -74,15 +74,15 @@ function getOrCreatePosition(relPos) {
                 el: gap,
                 leftLine: gap.querySelector('.lines .line.time'),
             },
-        });
-        el.addEventListener('click', ev => {
-            if (zoomedPosition == null) {
-                zoomedPosition = Number(ev.currentTarget.style.getPropertyValue('--rel-pos'));
-            } else {
-                zoomedPosition = null;
+        };
+        positions.set(relPos, nodes);
+        nodes.bubble.addEventListener('click', ev => {
+            if (!ev.currentTarget.href && zoomedPosition == null) {
+                ev.preventDefault();
+                zoomedPosition = relPos;
+                common.storage.set('zoomedPosition', zoomedPosition);
+                render();
             }
-            common.storage.set('zoomedPosition', zoomedPosition);
-            render();
         });
     }
     return positions.get(relPos);
@@ -146,7 +146,8 @@ function renderZoomed(groups) {
         const next = athletes[i + 1];
         active.add(i);
         const pos = getOrCreatePosition(i);
-        pos.bubble.title = `Position: ${i}\nClick bubble to zoom out`;
+        pos.bubble.title = `Click for athlete details`;
+        pos.bubble.href = `athlete.html?athleteId=${athlete.athleteId}`;
         pos.el.classList.toggle('watching', !!athlete.watching);
         pos.el.style.setProperty('--athletes', 1);
         let label;
@@ -281,7 +282,10 @@ function renderGroups(groups) {
         const relPos = i - centerIdx;
         active.add(relPos);
         const pos = getOrCreatePosition(relPos);
-        pos.bubble.title = `Group: ${relPos}\nClick bubble to zoom in`;
+        pos.bubble.title = `Click to switch to zoomed in view`;
+        if (pos.bubble.href) {
+            pos.bubble.removeAttribute('href');
+        }
         pos.el.classList.toggle('watching', !!group.watching);
         pos.el.style.setProperty('--athletes', group.athletes.length);
         let label;
@@ -392,6 +396,11 @@ export async function main() {
         refreshInterval: 2,
     });
     setBackground(settings);
+    contentEl.querySelector('.zoom-out').addEventListener('click', ev => {
+        zoomedPosition = null;
+        common.storage.set('zoomedPosition', zoomedPosition);
+        render();
+    });
     common.storage.addEventListener('update', ev => {
         if (ev.data.key !== settingsKey) {
             return;

@@ -293,6 +293,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         rpc.register(this.startLap, {scope: this});
         rpc.register(this.resetStats, {scope: this});
         rpc.register(this.exportFIT, {scope: this});
+        rpc.register(this.loadAthlete, {scope: this, name: 'getAthlete'});
     }
 
     maybeLearnAthleteId(packet) {
