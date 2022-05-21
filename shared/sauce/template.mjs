@@ -63,12 +63,21 @@ const escapes = {
 const escapeChar = match => '\\' + escapes[match];
 const escapeRegExp = /\\|'|\r|\n|\u2028|\u2029/g;
 
+const localeHelpers = {};
+for (const fn of Object.values(locale.human)) {
+    if (!fn.name || !fn.name.startsWith('human')) {
+        console.warn("Unexpected naming convention for locale human function:", fn.name);
+        continue;
+    }
+    localeHelpers[fn.name] = fn;
+}
 
 const helpers = {
     embed: async function(file, data) {
         const localeKey = this.settings.localePrefix && this.settings.localePrefix.slice(0, -1);
         return (await getTemplate(file, localeKey))(data);
     },
+    ...localeHelpers,
 };
 
 const staticHelpers = {
@@ -146,7 +155,6 @@ async function compile(text, settingsOverrides) {
     code.push(`
             } /*end-with*/
             const html = __p.join('');
-            console.log(html);
             const el = document.createElement('div');
             el.innerHTML = html;
             const frag = document.createDocumentFragment();

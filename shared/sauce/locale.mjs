@@ -266,6 +266,19 @@ function humanWeight(kg, options={}) {
 }
 
 
+function humanHeight(cm, options={}) {
+    if (imperial) {
+        const feet = cm / 100 / 0.3048;
+        const wholeFeet = Math.trunc(feet);
+        const inches = Math.round((feet % 1) * 12);
+        return `${wholeFeet}'` + (inches ? ` ${inches}"` : '');
+    } else {
+        const unit = options.html ? '<abbr class="unit">m</abbr>' : 'm';
+        return (cm / 100).toFixed(2) + unit;
+    }
+}
+
+
 function humanElevation(meters, options={}) {
     return humanNumber(imperial ? meters * metersPerFoot : meters, options);
 }
@@ -308,6 +321,7 @@ export const human = {
     duration: humanDuration,
     relTime: humanRelTime,
     weight: humanWeight,
+    height: humanHeight,
     elevation: humanElevation,
     number: humanNumber,
     pace: humanPace,

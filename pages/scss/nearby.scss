@@ -70,6 +70,14 @@ table {
             white-space: nowrap;
         }
 
+        a.athlete-link {
+            text-decoration: none;
+
+            &:hover {
+                text-decoration: underline;
+            }
+        }
+
         &[data-id="name"] {
             overflow: hidden;
             white-space: nowrap;

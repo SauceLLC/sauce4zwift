@@ -152,7 +152,8 @@ export async function main() {
         }
         entry.style.setProperty('--message-hue', athleteHue(chat.from) + 'deg');
         entry.innerHTML = `
-            <a href="${chat.avatar}" target="_blank" class="avatar"><img src="${chat.avatar || 'images/blankavatar.png'}"/></a>
+            <a href="athlete.html?athleteId=${chat.from}&widthHint=900&heightHint=375" target="_blank"
+               class="avatar"><img src="${chat.avatar || 'images/blankavatar.png'}"/></a>
             <div class="content">
                 <div class="header"><span class="name"></span></div>
                 <div class="live">${liveDataFormatter(chat.from)}</div>

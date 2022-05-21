@@ -59,18 +59,30 @@ function getAthleteValue(x, key) {
 }
 
 
+function athleteLink(id, content, options={}) {
+    return `<a title="${options.title || ''}" class="athlete-link ${options.class || ''}"
+               target="_blank" href="athlete.html?athleteId=${id}&widthHint=900&heightHint=375">${content || ''}</a>`;
+}
+
+
+const _sanitizeEl = document.createElement('span');
+function sanitize(unsafe) {
+    _sanitizeEl.textContent = unsafe;
+    return _sanitizeEl.innerHTML;
+}
+
+
 const fields = [
     {id: 'avatar', defaultEn: true, label: '<img class="fa" src="images/fa/user-circle-solid.svg"/>',
-     get: x => getAthleteValue(x, 'avatar'),
-     fmt: x => x ? `<a href="${x}" class="avatar" target="_blank"><img src="${x}"/></a>` : ''},
-    {id: 'name', defaultEn: true, label: 'Name', get: x => getAthleteValue(x, 'sanitizedFullname'),
-     sanitize: true, fmt: x => x || '-'},
+     get: x => [x.athleteId, getAthleteValue(x, 'avatar')],
+     fmt: ([id, avatar]) => avatar ? athleteLink(id, `<img src="${avatar}"/>`, {class: 'avatar'}) : ''},
+    {id: 'name', defaultEn: true, label: 'Name', get: x => [x.athleteId, getAthleteValue(x, 'sanitizedFullname')],
+     fmt: ([id, name]) => athleteLink(id, sanitize(name || '-'))},
     {id: 'team', defaultEn: false, label: 'Team', get: x => getAthleteValue(x, 'team'),
-     sanitize: true, fmt: x => x || '-'},
-    {id: 'initials', defaultEn: false, label: 'Initials', get: x => getAthleteValue(x, 'initials'),
-     sanitize: true, fmt: x => x || '-'},
-    {id: 'id', defaultEn: true, label: 'ID', get: x => x.athleteId,
-     fmt: x => `<a title="Open in ZwiftPower" external="" target="_blank" href="https://zwiftpower.com/profile.php?z=${x}">${x}</a>`},
+     fmt: x => sanitize(x) || '-'},
+    {id: 'initials', defaultEn: false, label: 'Initials', get: x => [x.athleteId, getAthleteValue(x, 'initials')],
+     fmt: ([id, initials]) => athleteLink(id, sanitize(initials) || '-')},
+    {id: 'id', defaultEn: false, label: 'ID', get: x => x.athleteId},
     {id: 'weight', defaultEn: false, label: 'Weight', get: x => getAthleteValue(x, 'weight'), fmt: weight},
     {id: 'ftp', defaultEn: false, label: 'FTP', get: x => getAthleteValue(x, 'ftp'), fmt: pwr},
     {id: 'tss', defaultEn: false, label: 'TSS', get: x => x.stats.power.tss, fmt: num},
@@ -81,35 +93,48 @@ const fields = [
     {id: 'wkg-cur', defaultEn: true, label: 'W/kg', get: x => x.state.power / (x.athlete && x.athlete.weight), fmt: wkg},
 
     {id: 'pwr-5s', defaultEn: false, label: '5s Pwr', get: x => x.stats.power.smooth[5], fmt: pwr},
-    {id: 'wkg-5s', defaultEn: false, label: '5s W/kg', get: x => x.stats.power.smooth[5] / (x.athlete && x.athlete.weight), fmt: wkg},
+    {id: 'wkg-5s', defaultEn: false, label: '5s W/kg',
+     get: x => x.stats.power.smooth[5] / (x.athlete && x.athlete.weight), fmt: wkg},
     {id: 'pwr-15s', defaultEn: false, label: '15s Pwr', get: x => x.stats.power.smooth[15], fmt: pwr},
-    {id: 'wkg-15s', defaultEn: false, label: '15s W/kg', get: x => x.stats.power.smooth[15] / (x.athlete && x.athlete.weight), fmt: wkg},
+    {id: 'wkg-15s', defaultEn: false, label: '15s W/kg',
+     get: x => x.stats.power.smooth[15] / (x.athlete && x.athlete.weight), fmt: wkg},
     {id: 'pwr-60s', defaultEn: false, label: '1m Pwr', get: x => x.stats.power.smooth[60], fmt: pwr},
-    {id: 'wkg-60s', defaultEn: false, label: '1m W/kg', get: x => x.stats.power.smooth[60] / (x.athlete && x.athlete.weight), fmt: wkg},
+    {id: 'wkg-60s', defaultEn: false, label: '1m W/kg',
+     get: x => x.stats.power.smooth[60] / (x.athlete && x.athlete.weight), fmt: wkg},
     {id: 'pwr-300s', defaultEn: false, label: '5m Pwr', get: x => x.stats.power.smooth[300], fmt: pwr},
-    {id: 'wkg-300s', defaultEn: false, label: '5m W/kg', get: x => x.stats.power.smooth[300] / (x.athlete && x.athlete.weight), fmt: wkg},
+    {id: 'wkg-300s', defaultEn: false, label: '5m W/kg',
+     get: x => x.stats.power.smooth[300] / (x.athlete && x.athlete.weight), fmt: wkg},
     {id: 'pwr-1200s', defaultEn: false, label: '20m Pwr', get: x => x.stats.power.smooth[1200], fmt: pwr},
-    {id: 'wkg-1200s', defaultEn: false, label: '20m W/kg', get: x => x.stats.power.smooth[1200] / (x.athlete && x.athlete.weight), fmt: wkg},
+    {id: 'wkg-1200s', defaultEn: false, label: '20m W/kg',
+     get: x => x.stats.power.smooth[1200] / (x.athlete && x.athlete.weight), fmt: wkg},
 
     {id: 'pwr-avg', defaultEn: true, label: 'Avg Pwr', get: x => x.stats.power.avg, fmt: pwr},
-    {id: 'wkg-avg', defaultEn: false, label: 'Avg W/kg', get: x => x.stats.power.avg / (x.athlete && x.athlete.weight), fmt: wkg},
+    {id: 'wkg-avg', defaultEn: false, label: 'Avg W/kg',
+     get: x => x.stats.power.avg / (x.athlete && x.athlete.weight), fmt: wkg},
 
     {id: 'pwr-np', defaultEn: true, label: 'NP', get: x => x.stats.power.np, fmt: pwr},
-    {id: 'wkg-np', defaultEn: false, label: 'NP W/kg', get: x => x.stats.power.np / (x.athlete && x.athlete.weight), fmt: wkg},
+    {id: 'wkg-np', defaultEn: false, label: 'NP W/kg',
+     get: x => x.stats.power.np / (x.athlete && x.athlete.weight), fmt: wkg},
 
     {id: 'pwr-max', defaultEn: true, label: 'Max Pwr', get: x => x.stats.power.max || null, fmt: pwr},
-    {id: 'wkg-max', defaultEn: false, label: 'Max W/kg', get: x => (x.stats.power.max || null) / (x.athlete && x.athlete.weight), fmt: wkg},
+    {id: 'wkg-max', defaultEn: false, label: 'Max W/kg',
+     get: x => (x.stats.power.max || null) / (x.athlete && x.athlete.weight), fmt: wkg},
 
     {id: 'pwr-p5s', defaultEn: false, label: '5s Peak Pwr', get: x => x.stats.power.peaks[5].avg, fmt: pwr},
-    {id: 'wkg-p5s', defaultEn: false, label: '5s Peak W/kg', get: x => x.stats.power.peaks[5].avg / (x.athlete && x.athlete.weight), fmt: wkg},
+    {id: 'wkg-p5s', defaultEn: false, label: '5s Peak W/kg',
+     get: x => x.stats.power.peaks[5].avg / (x.athlete && x.athlete.weight), fmt: wkg},
     {id: 'pwr-p15s', defaultEn: false, label: '15s Peak Pwr', get: x => x.stats.power.peaks[15].avg, fmt: pwr},
-    {id: 'wkg-p15s', defaultEn: false, label: '15s Peak W/kg', get: x => x.stats.power.peaks[15].avg / (x.athlete && x.athlete.weight), fmt: wkg},
+    {id: 'wkg-p15s', defaultEn: false, label: '15s Peak W/kg',
+     get: x => x.stats.power.peaks[15].avg / (x.athlete && x.athlete.weight), fmt: wkg},
     {id: 'pwr-p60s', defaultEn: false, label: '1m Peak Pwr', get: x => x.stats.power.peaks[60].avg, fmt: pwr},
-    {id: 'wkg-p60s', defaultEn: false, label: '1m Peak W/kg', get: x => x.stats.power.peaks[60].avg / (x.athlete && x.athlete.weight), fmt: wkg},
+    {id: 'wkg-p60s', defaultEn: false, label: '1m Peak W/kg',
+     get: x => x.stats.power.peaks[60].avg / (x.athlete && x.athlete.weight), fmt: wkg},
     {id: 'pwr-p300s', defaultEn: true, label: '5m Peak Pwr', get: x => x.stats.power.peaks[300].avg, fmt: pwr},
-    {id: 'wkg-p300s', defaultEn: false, label: '5m Peak W/kg', get: x => x.stats.power.peaks[300].avg / (x.athlete && x.athlete.weight), fmt: wkg},
+    {id: 'wkg-p300s', defaultEn: false, label: '5m Peak W/kg',
+     get: x => x.stats.power.peaks[300].avg / (x.athlete && x.athlete.weight), fmt: wkg},
     {id: 'pwr-p1200s', defaultEn: false, label: '20m Peak Pwr', get: x => x.stats.power.peaks[1200].avg, fmt: pwr},
-    {id: 'wkg-p1200s', defaultEn: false, label: '20m Peak W/kg', get: x => x.stats.power.peaks[1200].avg / (x.athlete && x.athlete.weight), fmt: wkg},
+    {id: 'wkg-p1200s', defaultEn: false, label: '20m Peak W/kg',
+     get: x => x.stats.power.peaks[1200].avg / (x.athlete && x.athlete.weight), fmt: wkg},
 
     {id: 'spd-cur', defaultEn: true, label: 'Spd', get: x => x.state.speed, fmt: spd},
     {id: 'spd-60s', defaultEn: false, label: '1m Spd', get: x => x.stats.speed.smooth[60], fmt: spd},
@@ -343,7 +368,7 @@ function updateTableRow(row, info) {
             sanitizeEl.textContent = value;
             value = sanitizeEl.innerHTML;
         }
-        const html = '' + fmt(value);
+        const html = '' + (fmt ? fmt(value) : value);
         const td = tds[i + 1];
         if (td._html !== html) {
             td.innerHTML = (td._html = html);
@@ -356,7 +381,6 @@ function updateTableRow(row, info) {
 
 let nextAnimFrame;
 let frames = 0;
-const sanitizeEl = document.createElement('span');
 function renderData(data) {
     if (!data || !data.length || document.hidden) {
         return;

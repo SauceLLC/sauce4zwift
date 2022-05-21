@@ -605,8 +605,8 @@ function _openWindow(id, spec) {
         let width, height;
         if (wHint || hHint) {
             const {width: sWidth, height: sHeight} = electron.screen.getPrimaryDisplay().size;
-            width = Math.round(sWidth * (wHint || 0.5));
-            height = Math.round(sHeight * (hHint || 0.5));
+            width = wHint <= 1 ? Math.round(sWidth * (wHint || 0.5)) : Math.round(wHint);
+            height = hHint <= 1 ? Math.round(sHeight * (hHint || 0.5)) : Math.round(hHint) ;
         }
         const newWin = new electron.BrowserWindow({
             icon: appIcon,
@@ -623,7 +623,7 @@ function _openWindow(id, spec) {
         if (spec.overlay !== false) {
             newWin.setAlwaysOnTop(true, 'pop-up-menu');
         }
-        subWindows.set(newWin.webContents, {spec});
+        subWindows.set(newWin.webContents, {win: newWin, spec, activeSubs: new Set()});
         if (electron.app.isPackaged) {
             newWin.removeMenu();
         }
@@ -867,7 +867,8 @@ async function main() {
         }
     }
     electron.ipcMain.on('subscribe', (ev, {event, domEvent, persistent}) => {
-        const {win, activeSubs, spec} = activeWindows.get(ev.sender);
+        const w = activeWindows.get(ev.sender) || subWindows.get(ev.sender);
+        const {win, activeSubs, spec} = w;
         // NOTE: Electron webContents.send is incredibly hard ON CPU and GC for deep objects.  Using JSON is
         // a massive win for CPU and memory.
         const sendMessage = data => win.webContents.send('browser-message', {domEvent, json: JSON.stringify(data)});
