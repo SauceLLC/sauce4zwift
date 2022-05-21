@@ -11,13 +11,13 @@ const kgsPerLbs = 2.20462;
 
 const hdUnits = {
     year: 'year',
-    weak: 'weak',
+    week: 'week',
     day: 'day',
     hour: 'hour',
     min: 'min',
     sec: 'sec',
     years: 'years',
-    weaks: 'weaks',
+    weeks: 'weeks',
     days: 'days',
     hours: 'hours',
     mins: 'mins',

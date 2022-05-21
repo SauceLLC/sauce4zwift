@@ -362,12 +362,8 @@ function updateTableRow(row, info) {
         row.dataset.id = info.athleteId;
     }
     const tds = row.querySelectorAll('td');
-    for (const [i, {id, get, fmt, sanitize}] of enFields.entries()) {
-        let value = get(info);
-        if (sanitize && value) {
-            sanitizeEl.textContent = value;
-            value = sanitizeEl.innerHTML;
-        }
+    for (const [i, {id, get, fmt}] of enFields.entries()) {
+        const value = get(info);
         const html = '' + (fmt ? fmt(value) : value);
         const td = tds[i + 1];
         if (td._html !== html) {

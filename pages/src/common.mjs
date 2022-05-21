@@ -164,7 +164,12 @@ export function addOpenSettingsParam(key, value) {
 
 export function initInteractionListeners() {
     const html = document.documentElement;
+    const body = document.body;
     document.addEventListener('sauce-highlight-window', () => {
+        if (body.classList.contains('transparent-bg')) {
+            body.classList.remove('transparent-bg');
+            setTimeout(() => body.classList.add('transparent-bg'), 3000);
+        }
         html.classList.remove('highlight-window');
         html.offsetWidth; // force layout
         html.classList.add('highlight-window');

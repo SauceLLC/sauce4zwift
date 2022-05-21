@@ -1,12 +1,24 @@
 <style>
     .athlete {
         display: flex;
+        flex-direction: column;
+        flex: 1 1;
+    }
+
+    .athlete > section {
+        display: flex;
         flex-wrap: wrap;
         border-radius: 0.3em;
         overflow: hidden;
         font-variant-numeric: tabular-nums;
         background: #0002;
-        box-shadow: 1px 1px 8px 0 #0008;
+    }
+
+    .athlete > header {
+        padding: 0.4em 0.7em;
+        font-size: 1.8em;
+        font-weight: bold;
+        background-image: linear-gradient(to top, #222, #333);
     }
 
     .athlete a.avatar {
@@ -14,32 +26,35 @@
         display: block;
         overflow: hidden;
         max-width: 100%;
-        border-radius: 0.3em;
+        max-height: calc(100vh - 4rem);
         display: flex;
-        align-items: center;
+        padding: 1em;
+        align-items: flex-start;
         justify-content: center;
     }
 
     .athlete a.avatar img {
-        width: 100%;
+        width: fit-content;
         max-width: 100%;
         max-height: 100%;
+        border-radius: 2.5em 0.6em;
+        border: 0.5em solid #ff8b1170;
+        box-shadow: 1px 1px 5px #0003;
     }
 
     .athlete .info {
-        padding: 0 0.5em;
         flex: 100 1;
         display: flex;
         flex-direction: column;
-        margin: 0.5em 0;
+        margin: 0.8em 0.33em;
         min-width: 250px;
-    }
-    .athlete .info.live {
-        border-left: 1px solid #6666;
+        border-radius: 0.5em;
+        overflow: hidden;
+        background-color: #0001;
     }
 
     .athlete .info .row {
-        padding: 0.5em 1em;
+        padding: 0.4em 0.7em;
     }
 
     .athlete .info .row:nth-child(odd) {
@@ -47,7 +62,8 @@
     }
 
     .athlete .p1 {
-        font-size: 1.2em;
+        font-size: 1.1em;
+        font-weight: bold;
     }
 
     key {
@@ -70,32 +86,53 @@
     }
 </style>
 <div class="athlete">
-    <a class="avatar" href="{{profile && profile.avatar || ''}}" external target="_blank">
-        <img src="{{profile && profile.avatar || 'images/blankavatar.png'}}"/>
-    </a>
-    <div class="info">
-        <% if (obj.profile) { %>
-            <div class="row p1">{{profile.sanitizedFullname}}</div>
-            <% if (profile.team) { %>
-                <div class="row p2"><key>Team:</key>{{profile.team}}</div>
+    <header class="title">
+        {{profile.sanitizedFullname}}
+        <!--<a class="button open-settings" href="nearby-settings.html?widthHint=0.3&heightHint=0.5"
+           target="nearby-settings"><img src="images/fa/cog-duotone.svg"/></a>-->
+    </header>
+    <section>
+        <a class="avatar" href="{{profile && profile.avatar || ''}}" external target="_blank">
+            <img src="{{profile && profile.avatar || 'images/blankavatar.png'}}"/>
+        </a>
+        <div class="info">
+            <div class="row p1">About:</div>
+            <% if (obj.profile) { %>
+                <% if (profile.team) { %>
+                    <div class="row p2"><key>Team</key>{{profile.team}}</div>
+                <% } %>
+                <% if (profile.level) { %>
+                    <div class="row p2"><key>Level</key>{{profile.level}}</div>
+                <% } %>
+                <% if (profile.age) { %>
+                    <div class="row p2"><key>Age</key>{{profile.age}}</div>
+                <% } %>
+                <% if (profile.weight) { %>
+                    <div class="row p2"><key>Weight</key>{-humanWeight(profile.weight, {suffix: true, html: true})-}</div>
+                <% } %>
+                <% if (profile.height) { %>
+                    <div class="row p2"><key>Height</key>{-humanHeight(profile.height, {html: true})-}</div>
+                <% } %>
+                <% if (profile.ftp) { %>
+                    <div class="row p2"><key>FTP</key>{{profile.ftp}}<abbr class="unit">w</abbr></div>
+                <% } %>
+                <div class="row p2">
+                    <a href="https://zwiftpower.com/profile.php?z={{athleteId}}" target="_blank"
+                       external>ZwiftPower Profile</a>
+                </div>
+            <% } else { %>
+                <div class="row p1"><key>ID</key> {{athleteId}}</div>
+                <div class="row p2"><b>No data available yet</b></div>
+                <div class="row p2"><i>Profiles are loaded lazily based on rider proximity.</i></div>
             <% } %>
-            <div class="row p2"><key>Level</key>{{profile.level}}</div>
-            <div class="row p2"><key>Age</key>{{profile.age}}</div>
-            <div class="row p2"><key>Weight</key>{-humanWeight(profile.weight, {suffix: true, html: true})-}</div>
-            <div class="row p2"><key>Height</key>{-humanHeight(profile.height, {html: true})-}</div>
-            <div class="row p2"><key>FTP</key>{{profile.ftp}}<abbr class="unit">w</abbr></div>
-        <% } else { %>
-            <div class="row p1"><key>ID</key> {{athleteId}}</div>
-            <div class="row p2"><b>No data available yet</b></div>
-            <div class="row p2"><i>Profiles are loaded lazily based on rider proximity.</i></div>
-        <% } %>
-    </div>
-    <div class="info live">
-        <div class="row p1">Live stats</div>
-        <div class="row p2"><key>Power</key><span class="live" data-id="power">-</span><abbr class="unit">w</abbr></div>
-        <div class="row p2"><key>HR</key><span class="live" data-id="hr">-</span><abbr class="unit">bpm</abbr></div>
-        <div class="row p2"><key>Ride Ons</key><span class="live" data-id="rideons">-</span></div>
-        <div class="row p2"><key>Energy</key><span class="live" data-id="kj">-</span><abbr class="unit">kJ</abbr></div>
-        <div class="row p2"><key>Watching</key><span class="live" data-id="watching">-</span></div>
-    </div>
+        </div>
+        <div class="info live">
+            <div class="row p1">Live:</div>
+            <div class="row p2"><key>Power</key><span class="live" data-id="power">-</span><abbr class="unit">w</abbr></div>
+            <div class="row p2"><key>HR</key><span class="live" data-id="hr">-</span><abbr class="unit">bpm</abbr></div>
+            <div class="row p2"><key>Ride Ons</key><span class="live" data-id="rideons">-</span></div>
+            <div class="row p2"><key>Energy</key><span class="live" data-id="kj">-</span><abbr class="unit">kJ</abbr></div>
+            <div class="row p2"><key>Watching</key><span class="live" data-id="watching">-</span></div>
+        </div>
+    </section>
 </div>

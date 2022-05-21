@@ -21,7 +21,7 @@ html {
     &.highlight-window {
         animation-duration: 500ms;
         animation-name: highlight;
-        animation-iteration-count: 3;
+        animation-iteration-count: 4;
     }
 }
 *,
@@ -40,6 +40,11 @@ img {
 
 a {
     color: inherit;
+    text-decoration: none;
+
+    &:hover {
+        text-decoration: underline;
+    }
 }
 
 *:not(:hover)::-webkit-scrollbar {
