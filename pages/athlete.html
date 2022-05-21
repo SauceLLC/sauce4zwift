@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+        <meta name="apple-mobile-web-app-capable" content="yes"/>
+        <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval';"/>
+
+        <title>Athlete Info - Sauce for Zwift™</title>
+
+        <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
+        <link rel="stylesheet" href="css/common.css"/>
+
+        <style>
+            html {
+                padding: 0;
+                font-size: 16px;
+            }
+
+            body {
+                border-radius: 0;
+                padding: 2em;
+                display: flex;
+                align-items: center;
+                flex-direction: column;
+            }
+
+            body > main {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                flex-direction: column;
+            }
+        </style>
+
+        <script type="module">
+            import * as common from './src/common.mjs';
+            import {template} from '../shared/sauce/index.mjs';
+
+            const athleteId = (new URLSearchParams(location.search)).get('athleteId');
+            const gettingAthlete = common.rpc.getAthlete(athleteId || 1);
+            const gettingTemplate = template.getTemplate('templates/athlete.html.tpl');
+
+            async function main() {
+                common.initInteractionListeners();
+                const athlete = await gettingAthlete;
+                const tpl = await gettingTemplate;
+                console.info(athlete);
+                document.querySelector('body > main').appendChild(await tpl(athlete));
+            }
+            document.addEventListener('DOMContentLoaded', main);
+        </script>
+    </head>
+
+    <body>
+        <main>
+        </main>
+    </body>
+</html>
