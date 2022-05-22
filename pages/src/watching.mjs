@@ -235,6 +235,11 @@ const groupSpecs = {
         title: 'Power',
         backgroundImage: 'url(../images/fa/bolt-duotone.svg)',
         fields: [{
+            value: x => H.number(x && x.state.power),
+            label: () => 'watts',
+            key: () => 'Watts',
+            unit: () => 'w',
+        }, {
             value: x => H.number(x && x.stats && x.stats.power.avg),
             label: () => 'avg',
             key: () => 'Avg',
@@ -245,12 +250,7 @@ const groupSpecs = {
             key: () => 'Max',
             unit: () => 'w',
         }, {
-            value: x => H.number(x && x.state.power),
-            label: () => 'watts',
-            key: () => 'Watts',
-            unit: () => 'w',
-        }, {
-            value: x => humanWkg(x && x.state.power, x && x.athlete),
+           value: x => humanWkg(x && x.state.power, x && x.athlete),
             label: () => 'w/kg',
             key: () => 'W/kg',
         }, {
@@ -338,7 +338,12 @@ const groupSpecs = {
         title: 'Heart Rate',
         backgroundImage: 'url(../images/fa/heartbeat-duotone.svg)',
         fields: [{
-           value: x => H.number(x && x.stats && x.stats.hr.avg || null), // XXX check the null is required
+            value: x => H.number(x && x.state.heartrate || null),
+            label: () => 'bpm',
+            key: () => 'Current',
+            unit: () => 'bpm',
+        }, {
+            value: x => H.number(x && x.stats && x.stats.hr.avg || null), // XXX check the null is required
             label: () => 'avg',
             key: () => 'Avg',
             unit: () => 'bpm',
@@ -346,11 +351,6 @@ const groupSpecs = {
             value: x => H.number(x && x.stats && x.stats.hr.max || null),
             label: () => 'max',
             key: () => 'Max',
-            unit: () => 'bpm',
-        }, {
-            value: x => H.number(x && x.state.heartrate || null),
-            label: () => 'bpm',
-            key: () => 'Current',
             unit: () => 'bpm',
         },
             makeSmoothHRField(5),
@@ -385,7 +385,7 @@ const groupSpecs = {
         backgroundImage: 'url(../images/fa/solar-system-duotone.svg)',
         fields: [{
             value: x => H.number(x && x.state.cadence),
-            label: () => 'Cadence',
+            label: () => 'rpm',
             key: () => 'Current',
             unit: () => 'rpm',
         }, {
@@ -425,7 +425,7 @@ const groupSpecs = {
         backgroundImage: 'url(../images/fa/wind-duotone.svg)',
         fields: [{
             value: x => H.number(x && x.state.draft),
-            label: () => 'Draft',
+            label: () => '%',
             key: () => 'Current',
             unit: () => '%',
         }, {
@@ -475,22 +475,22 @@ export async function main() {
         screens: [{
             id: 'default-screen-1',
             sections: [{
-                type: 'primary',
-                id: 'default-primary',
+                type: 'large-data-fields',
+                id: 'default-large-data-fields',
                 groups: [{
                     id: 'default-power',
                     type: 'power',
                 }],
             }, {
-                type: 'secondary',
-                id: 'default-secondary',
+                type: 'data-fields',
+                id: 'default-data-fields',
                 groups: [{
                     type: 'hr',
                     id: 'default-hr',
                 }],
             }, {
-                type: 'tertiary',
-                id: 'default-tertiary',
+                type: 'split',
+                id: 'default-split',
                 groups: [{
                     type: 'cadence',
                     id: 'default-cadence',
@@ -507,7 +507,6 @@ export async function main() {
     const layoutTpl = await getLayoutTpl('watching-screen-layout');
     for (const [sIndex, screen] of settings.screens.entries()) {
         const screenEl = (await layoutTpl({screen, sIndex, groupSpecs})).querySelector('.screen');
-        screenEl.dataset.id = sIndex + 1;
         if (sIndex) {
             screenEl.classList.add('hidden');
         } else {
@@ -523,7 +522,7 @@ export async function main() {
             const mapping = [];
             for (const [i, fieldEl] of groupEl.querySelectorAll('[data-field]').entries()) {
                 const id = fieldEl.dataset.field;
-                mapping.push({id, default: i});
+                mapping.push({id, default: Number(fieldEl.dataset.default || i)});
             }
             renderer.addRotatingFields({
                 el: groupEl,
@@ -668,15 +667,57 @@ export async function main() {
 }
 
 
-function initLayoutConfigSettings() {
-    const el = document.querySelector('layout-config');
-    
+function initScreenSettings() {
+    const form = document.querySelector('form#screens');
+    const screenSelect = form.querySelector('select[name="screen"]');
+    const screenEl = form.querySelector('.screen');
+    let selectedScreen = settings.screens[0];
+    function renderScreen() {
+        screenEl.innerHTML = `<textarea name="screen-json">${JSON.stringify(selectedScreen.sections, null, 4)}</textarea>`;
+    }
+    function renderScreenSelect() {
+        screenSelect.innerHTML = '';
+        for (const [sIndex, screen] of settings.screens.entries()) {
+            screenSelect.insertAdjacentHTML('beforeend',
+                `<option ${screen === selectedScreen ? 'selected' : ''}
+                         value="${screen.id}">${sIndex}: ${screen.id}</option>`);
+        }
+        renderScreen();
+    }
+    renderScreenSelect();
+    form.addEventListener('submit', ev => {
+        ev.preventDefault();
+        const action = ev.submitter.name;
+        if (action === 'add') {
+            const newScreen = {
+                id: 'user-screen-' + Date.now(),
+                sections: [],
+            };
+            settings.screens.push(newScreen);
+            common.storage.set(settingsKey, settings);
+            selectedScreen = newScreen;
+            renderScreenSelect();
+        } else if (action === 'save') {
+            // XXX
+            const sections = JSON.parse(document.querySelector('textarea').value);
+            selectedScreen.sections = sections;
+            common.storage.set(settingsKey, settings);
+        } else if (action === 'delete') {
+        } else {
+            throw new TypeError("Invalid submit: " + action);
+        }
+    });
+    screenSelect.addEventListener('change', ev => {
+        selectedScreen = settings.screens.find(x => x.id === screenSelect.value);
+        renderScreen();
+    });
 }
 
 
 export async function settingsMain() {
     common.initInteractionListeners();
-    await common.initSettingsForm('form', {settingsKey});
-    initLayoutConfigSettings();
+    settings = common.storage.get(settingsKey);
+    await common.initSettingsForm('form#general', {settingsKey});
+    initScreenSettings();
 }
 

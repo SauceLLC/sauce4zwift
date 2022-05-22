@@ -21,19 +21,26 @@
             <header><div class="title">Watching Settings</div></header>
         </div>
         <div id="settings">
-            <form>
+            <form id="general" class="section">
+                <div class="title">General</div>
                 <label title="Prevent fields from rotating when clicked">
                     <key>Lock fields:</key>
                     <input type="checkbox" name="lockedFields"/>
                 </label>
             </form>
-            <hr/>
-            <h2>Screen Layouts</h2>
-             <form>
+
+             <form id="screens" class="section">
+                <div class="title">Screens</div>
                 <label>
                     <key>Screen:</key>
                     <select name="screen"></select>
+                    <button name="add">Add new screen</button>
                 </label>
+                <div class="screen"></div>
+                <div class="actions">
+                    <button name="delete">Remove</button>
+                    <button name="save">Save</button>
+                </div>
             </form>
         </div>
     </body>

@@ -27,7 +27,7 @@ html {
     }
 }
 
-.screen-row {
+.screen-section {
     display: flex;
     flex-direction: column;
     margin: 0.2rem 0.5rem 0;
@@ -37,17 +37,17 @@ html {
     background-position-x: center;
     background-origin: content-box;
 
-    &.primary {
+    &.large-data-fields {
         font-size: 1.7em;
         background-image: var(--background-image);
     }
 
-    &.secondary {
+    &.data-fields {
         font-size: 1.3em;
         background-image: var(--background-image);
     }
 
-    &.tertiary {
+    &.split {
         font-size: 1.3em;
     }
 
@@ -102,8 +102,9 @@ html {
     heading {
         font-size: 0.7rem;
         font-weight: 500;
-        opacity: 0.88;
+        line-height: 1.1;
         display: block;
+        font-variant: all-small-caps;
     }
 
     [data-field].double {
@@ -166,7 +167,8 @@ html {
         font-size: 0.65em;
         position: absolute;
         right: 0.5em;
-        top: 90%;
+        top: 75%;
+        font-variant: all-petite-caps;
     }
 }
 
