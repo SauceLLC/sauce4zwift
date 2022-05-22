@@ -669,11 +669,14 @@ export async function main() {
 
 
 function initLayoutConfigSettings() {
+    const el = document.querySelector('layout-config');
+    
 }
 
 
 export async function settingsMain() {
     common.initInteractionListeners();
     await common.initSettingsForm('form', {settingsKey});
+    initLayoutConfigSettings();
 }
 

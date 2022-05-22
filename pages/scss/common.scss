@@ -108,9 +108,25 @@ html {
 
 #settings {
     font-size: 16px;
-    padding: 1em;
+    padding: 0.5em 0.8em;
     overflow: auto;
     overflow: overlay;
+
+    > .section {
+        padding: 0.5em;
+
+        &:not(:last-child) {
+            border-bottom: 1px solid #fff2;
+        }
+
+        .title {
+            font-size: 1.3em;
+            opacity: 0.8;
+            padding: 0.2em 0 0.5em;
+            font-variant: all-small-caps;
+            font-weight: bold;
+        }
+    }
 }
 
 form {

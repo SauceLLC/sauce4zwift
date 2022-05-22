@@ -21,8 +21,8 @@
             <header><div class="title">Nearby Settings</div></header>
         </div>
         <div id="settings">
-            <b>General:</b>
-            <form id="options">
+            <form id="options" class="section">
+                <div class="title">General</div>
                 <label>
                     <key>Refresh interval:</key>
                     <input type="number" min="1" step="1" name="refreshInterval"/> <small>(seconds)</small>
@@ -46,8 +46,9 @@
                     <input type="text" name="transparency" size="3"/>%
                 </label>
             </form>
-            <b>Fields:</b>
-            <form id="fields"></form>
+            <form id="fields" class="section">
+                <div class="title">Fields</div>
+            </form>
         </div>
     </body>
 </html>

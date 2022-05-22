@@ -441,6 +441,6 @@ export async function settingsMain() {
             <input type="checkbox" name="${x.id}" ${fieldStates[x.id] ? 'checked' : ''}/>
         </label>
     `).join('');
-    form.innerHTML = fieldsHtml;
+    form.insertAdjacentHTML('beforeend', fieldsHtml);
     await common.initSettingsForm('form#options', {settingsKey});
 }
