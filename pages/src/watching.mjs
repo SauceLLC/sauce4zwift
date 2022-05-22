@@ -669,26 +669,52 @@ export async function main() {
 
 function initScreenSettings() {
     const form = document.querySelector('form#screens');
-    const screenSelect = form.querySelector('select[name="screen"]');
     const screenEl = form.querySelector('.screen');
+    const screenSelect = form.querySelector('select[name="screen"]');
+    const sectionSelect = form.querySelector('select[name="section"]');
+    const groupSelect = form.querySelector('select[name="group"]');
+    const groupTypeSelect = form.querySelector('select[name="group-type"]');
     let selectedScreen = settings.screens[0];
-    function renderScreen() {
-        screenEl.innerHTML = `<textarea name="screen-json">${JSON.stringify(selectedScreen.sections, null, 4)}</textarea>`;
+    let selectedSection = selectedScreen.sections[0];
+    let selectedGroup = selectedSection ? selectedSection.groups[0];
+    function renderGroupSelect() {
+        groupSelect.innerHTML = '';
+        for (const [i, group] of selectedSection.groups.entries()) {
+            groupSelect.insertAdjacentHTML('beforeend',
+                `<option ${group === selectedGroup ? 'selected' : ''}
+                         value="${group.id}">${i + 1}: ${group.id}</option>`);
+        }
+        groupTypeSelect.innerHTML = '';
+        for (const groupType of Object.keys(groupSpecs)) {
+            groupTypeSelect.insertAdjacentHTML('beforeend',
+                `<option ${groupType === selectedSection ? 'selected' : ''}
+                         value="${group.id}">${i + 1}: ${group.id}</option>`);
+        }
+            
+        
+    }
+    function renderSectionSelect() {
+        sectionSelect.innerHTML = '';
+        for (const [i, section] of selectedScreen.sections.entries()) {
+            sectionSelect.insertAdjacentHTML('beforeend',
+                `<option ${section === selectedSection ? 'selected' : ''}
+                         value="${section.id}">${i + 1}: ${section.id}</option>`);
+        }
     }
     function renderScreenSelect() {
         screenSelect.innerHTML = '';
-        for (const [sIndex, screen] of settings.screens.entries()) {
+        for (const [i, screen] of settings.screens.entries()) {
             screenSelect.insertAdjacentHTML('beforeend',
                 `<option ${screen === selectedScreen ? 'selected' : ''}
-                         value="${screen.id}">${sIndex}: ${screen.id}</option>`);
+                         value="${screen.id}">${i + 1}: ${screen.id}</option>`);
         }
-        renderScreen();
+        renderSectionSelect();
     }
     renderScreenSelect();
     form.addEventListener('submit', ev => {
         ev.preventDefault();
         const action = ev.submitter.name;
-        if (action === 'add') {
+        if (action === 'add-screen') {
             const newScreen = {
                 id: 'user-screen-' + Date.now(),
                 sections: [],
@@ -697,19 +723,30 @@ function initScreenSettings() {
             common.storage.set(settingsKey, settings);
             selectedScreen = newScreen;
             renderScreenSelect();
+        } else if (action === 'add-section') {
+            const newSection = {
+                id: 'user-section-' + Date.now(),
+                type: 'data-fields',
+                groups: [],
+            };
+            selectedScreen.sections.push(newSection);
+            common.storage.set(settingsKey, settings);
+            renderSectionSelect();
+        } else if (action === 'delete-screen') {
+            debugger;
         } else if (action === 'save') {
             // XXX
-            const sections = JSON.parse(document.querySelector('textarea').value);
+            debugger;
+            /*const sections = JSON.parse(document.querySelector('textarea').value);
             selectedScreen.sections = sections;
-            common.storage.set(settingsKey, settings);
-        } else if (action === 'delete') {
+            common.storage.set(settingsKey, settings);*/
         } else {
             throw new TypeError("Invalid submit: " + action);
         }
     });
     screenSelect.addEventListener('change', ev => {
         selectedScreen = settings.screens.find(x => x.id === screenSelect.value);
-        renderScreen();
+        renderSectionSelect();
     });
 }
 

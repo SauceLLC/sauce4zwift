@@ -34,13 +34,37 @@
                 <label>
                     <key>Screen:</key>
                     <select name="screen"></select>
-                    <button name="add">Add new screen</button>
+                    <button name="add-screen">Add Screen</button>
+                    <button name="delete-screen">Remove</button>
                 </label>
-                <div class="screen"></div>
-                <div class="actions">
-                    <button name="delete">Remove</button>
-                    <button name="save">Save</button>
+                <div class="screen">
+                    <label>
+                        <key>Sections:</key>
+                        <select name="section"></select>
+                        <button name="add-section">Add Section</button>
+                        <button name="delete-section">Remove</button>
+                    </label>
+                    <label>
+                        <key>Type:</key>
+                        <select name="section-type">
+                            <option value="data-fields">Data Fields</option>
+                            <option value="large-data-fields">Data Fields (larger)</option>
+                            <option value="split">Split Fields</option>
+                            <option value="chart">Chart</option>
+                        </select>
+                    </label>
+                    <label>
+                        <key>Field Group:</key>
+                        <select name="group"></select>
+                        <button name="add-group">Add Group</button>
+                        <button name="delete-group">Remove</button>
+                    </label>
+                    <label>
+                        <key>Field Group Type:</key>
+                        <select name="group-type"></select>
+                    </label>
                 </div>
+                <button name="save">Save Changes</button>
             </form>
         </div>
     </body>
