@@ -4,12 +4,13 @@
         <meta charset="utf-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
         <meta name="apple-mobile-web-app-capable" content="yes"/>
-        <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
+        <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval';"/>
 
         <title>Watching Settings - Sauce for Zwift™</title>
 
         <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
         <link rel="stylesheet" href="css/common.css"/>
+        <link rel="stylesheet" href="css/watching.css"/>
 
         <script type="module">
             import {settingsMain} from './src/watching.mjs';
@@ -29,43 +30,41 @@
                 </label>
             </form>
 
-             <form id="screens" class="section">
-                <div class="title">Screens</div>
-                <label>
-                    <key>Screen:</key>
-                    <select name="screen"></select>
-                    <button name="add-screen">Add Screen</button>
-                    <button name="delete-screen">Remove</button>
-                </label>
-                <div class="screen">
-                    <label>
-                        <key>Sections:</key>
-                        <select name="section"></select>
-                        <button name="add-section">Add Section</button>
-                        <button name="delete-section">Remove</button>
-                    </label>
-                    <label>
-                        <key>Type:</key>
-                        <select name="section-type">
+            <div id="screens" class="section">
+                <div class="title">Layout</div>
+
+                <main>
+                    <div class="title">Screen <span class="sIndex">1</span> of <span class="sLen">1</span></div>
+                    <header>
+                        <div class="button-group">
+                            <div class="button disabled" title="Previous screen" data-action="prev">
+                                <img class="fa" src="images/fa/caret-left-regular.svg"/>
+                            </div>
+                            <div class="button disabled" title="Delete this screen" data-action="delete">
+                                <img class="fa" src="images/fa/times-circle-duotone.svg"/>
+                            </div>
+                            <div class="button" title="Add new screen" data-action="add">
+                                <img class="fa" src="images/fa/plus-square-duotone.svg"/>
+                            </div>
+                            <div class="button disabled" title="Next screen" data-action="next">
+                                <img class="fa" src="images/fa/caret-right-regular.svg"/>
+                            </div>
+                        </div>
+                    </header>
+
+                    <div class="active-screen"></div>
+
+                    <label class="add-section">
+                        <key>Add Section:</key>
+                        <select name="type">
                             <option value="data-fields">Data Fields</option>
                             <option value="large-data-fields">Data Fields (larger)</option>
-                            <option value="split">Split Fields</option>
-                            <option value="chart">Chart</option>
+                            <option value="split-data-fields">Split Data Fields</option>
                         </select>
+                        <input type="button" value="Add"/>
                     </label>
-                    <label>
-                        <key>Field Group:</key>
-                        <select name="group"></select>
-                        <button name="add-group">Add Group</button>
-                        <button name="delete-group">Remove</button>
-                    </label>
-                    <label>
-                        <key>Field Group Type:</key>
-                        <select name="group-type"></select>
-                    </label>
-                </div>
-                <button name="save">Save Changes</button>
-            </form>
+                </main>
+            </div>
         </div>
     </body>
 </html>

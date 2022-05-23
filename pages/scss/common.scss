@@ -321,7 +321,7 @@ html:not(:hover) #hintbar {
             transition: opacity 200ms, background 200ms;
 
             &:hover {
-                background: #0003;
+                background: #9700ff6b;
             }
 
             &:active {
@@ -401,10 +401,15 @@ dialog {
     padding: 0;
     box-shadow: 1px 1px 5px #000a;
     border-color: #222e;
+    font-size: 0.9rem;
+
+    &::backdrop {
+        background-color: #0007;
+    }
 
     header {
         padding: 0.5em;
-        background-image: linear-gradient(to bottom, #444, #222 1em);
+        background-image: linear-gradient(to bottom, #444, #333);
         font-size: 1.2em;
         color: white;
     }

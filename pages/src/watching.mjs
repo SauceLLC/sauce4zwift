@@ -229,6 +229,20 @@ function createStatHistoryChart(el, sIndex) {
     return lineChart;
 }
 
+const sectionSpecs = {
+    'large-data-fields': {
+        title: 'Data Fields (large)',
+        groups: 1,
+    },
+    'data-fields': {
+        title: 'Data Fields',
+        groups: 1,
+    },
+    'split-data-fields': {
+        title: 'Split Data Fields',
+        groups: 2,
+    },
+};
 
 const groupSpecs = {
     power: {
@@ -463,7 +477,7 @@ const groupSpecs = {
 };
 
 
-async function getLayoutTpl(name) {
+async function getTpl(name) {
     return await sauce.template.getTemplate(`templates/${name}.html.tpl`);
 }
 
@@ -489,8 +503,8 @@ export async function main() {
                     id: 'default-hr',
                 }],
             }, {
-                type: 'split',
-                id: 'default-split',
+                type: 'split-data-fields',
+                id: 'default-split-data-fields',
                 groups: [{
                     type: 'cadence',
                     id: 'default-cadence',
@@ -504,9 +518,14 @@ export async function main() {
     const content = document.querySelector('#content');
     const renderers = [];
     let curScreen;
-    const layoutTpl = await getLayoutTpl('watching-screen-layout');
+    const layoutTpl = await getTpl('watching-screen-layout');
     for (const [sIndex, screen] of settings.screens.entries()) {
-        const screenEl = (await layoutTpl({screen, sIndex, groupSpecs})).querySelector('.screen');
+        const screenEl = (await layoutTpl({
+            screen,
+            sIndex,
+            groupSpecs,
+            sectionSpecs
+        })).querySelector('.screen');
         if (sIndex) {
             screenEl.classList.add('hidden');
         } else {
@@ -617,7 +636,7 @@ export async function main() {
         curScreen.classList.remove('hidden');
         prevBtn.classList.remove('disabled');
         resizeCharts();
-        if (settings.screens.length === Number(curScreen.dataset.index + 1)) {
+        if (settings.screens.length === Number(curScreen.dataset.index) + 1) {
             nextBtn.classList.add('disabled');
         }
     });
@@ -667,87 +686,109 @@ export async function main() {
 }
 
 
-function initScreenSettings() {
-    const form = document.querySelector('form#screens');
-    const screenEl = form.querySelector('.screen');
-    const screenSelect = form.querySelector('select[name="screen"]');
-    const sectionSelect = form.querySelector('select[name="section"]');
-    const groupSelect = form.querySelector('select[name="group"]');
-    const groupTypeSelect = form.querySelector('select[name="group-type"]');
-    let selectedScreen = settings.screens[0];
-    let selectedSection = selectedScreen.sections[0];
-    let selectedGroup = selectedSection ? selectedSection.groups[0];
-    function renderGroupSelect() {
-        groupSelect.innerHTML = '';
-        for (const [i, group] of selectedSection.groups.entries()) {
-            groupSelect.insertAdjacentHTML('beforeend',
-                `<option ${group === selectedGroup ? 'selected' : ''}
-                         value="${group.id}">${i + 1}: ${group.id}</option>`);
-        }
-        groupTypeSelect.innerHTML = '';
-        for (const groupType of Object.keys(groupSpecs)) {
-            groupTypeSelect.insertAdjacentHTML('beforeend',
-                `<option ${groupType === selectedSection ? 'selected' : ''}
-                         value="${group.id}">${i + 1}: ${group.id}</option>`);
-        }
-            
-        
+async function initScreenSettings() {
+    const layoutTpl = await getTpl('watching-screen-layout');
+    let sIndex = 0;
+    const activeScreenEl = document.querySelector('main .active-screen');
+    const sIndexEl = document.querySelector('.sIndex');
+    const sLenEl = document.querySelector('.sLen');
+    const prevBtn = document.querySelector('main header .button[data-action="prev"]');
+    const nextBtn = document.querySelector('main header .button[data-action="next"]');
+    const delBtn = document.querySelector('main header .button[data-action="delete"]');
+
+    async function renderScreen() {
+        sIndexEl.textContent = sIndex + 1;
+        const sLen = settings.screens.length;
+        sLenEl.textContent = sLen;
+        const screen = settings.screens[sIndex];
+        const screenEl = (await layoutTpl({
+            screen,
+            sIndex,
+            groupSpecs,
+            sectionSpecs,
+            configuring: true
+        })).querySelector('.screen');
+        activeScreenEl.innerHTML = '';
+        activeScreenEl.appendChild(screenEl);
+        prevBtn.classList.toggle('disabled', sIndex === 0);
+        nextBtn.classList.toggle('disabled', sIndex === sLen - 1);
+        delBtn.classList.toggle('disabled', sLen === 1);
     }
-    function renderSectionSelect() {
-        sectionSelect.innerHTML = '';
-        for (const [i, section] of selectedScreen.sections.entries()) {
-            sectionSelect.insertAdjacentHTML('beforeend',
-                `<option ${section === selectedSection ? 'selected' : ''}
-                         value="${section.id}">${i + 1}: ${section.id}</option>`);
+
+    document.querySelector('main header .button-group').addEventListener('click', ev => {
+        const btn = ev.target.closest('.button-group .button');
+        const action = btn && btn.dataset.action;
+        if (!action) {
+            return;
         }
-    }
-    function renderScreenSelect() {
-        screenSelect.innerHTML = '';
-        for (const [i, screen] of settings.screens.entries()) {
-            screenSelect.insertAdjacentHTML('beforeend',
-                `<option ${screen === selectedScreen ? 'selected' : ''}
-                         value="${screen.id}">${i + 1}: ${screen.id}</option>`);
+        if (action === 'add') {
+            settings.screens.push({
+                id: `user-section-${settings.screens.length +1}-${Date.now()}`,
+                sections: []
+            });
+            common.storage.set(settingsKey, settings);
+            sIndex = settings.screens.length - 1;
+            renderScreen();
+        } else if (action === 'next') {
+            sIndex++;
+            renderScreen();
+        } else if (action === 'prev') {
+            sIndex--;
+            renderScreen();
+        } else if (action === 'delete') {
+            settings.screens.splice(sIndex, 1);
+            sIndex = Math.max(0, sIndex -1);
+            common.storage.set(settingsKey, settings);
+            renderScreen();
         }
-        renderSectionSelect();
-    }
-    renderScreenSelect();
-    form.addEventListener('submit', ev => {
+    });
+    document.querySelector('main .add-section input[type="button"]').addEventListener('click', ev => {
         ev.preventDefault();
-        const action = ev.submitter.name;
-        if (action === 'add-screen') {
-            const newScreen = {
-                id: 'user-screen-' + Date.now(),
-                sections: [],
-            };
-            settings.screens.push(newScreen);
+        const type = ev.currentTarget.closest('.add-section').querySelector('select[name="type"]').value;
+        const screen = settings.screens[sIndex];
+        screen.sections.push({
+            type,
+            id: `user-section-${Date.now()}`,
+            groups: Array.from(new Array(sectionSpecs[type].groups)).map((_, i) => ({
+                id: `user-group-${i}-${Date.now()}`,
+                type: Object.keys(groupSpecs)[i] || 'power',
+            })),
+        });
+        common.storage.set(settingsKey, settings);
+        renderScreen();
+    });
+    activeScreenEl.addEventListener('click', ev => {
+        const btn = ev.target.closest('.screen-section .button-group .button');
+        const action = btn && btn.dataset.action;
+        if (!action) {
+            return;
+        }
+        const sectionEl = btn.closest('.screen-section');
+        const sectionId = sectionEl.dataset.sectionId;
+        const screen = settings.screens[sIndex];
+        if (action === 'edit') {
+            const d = sectionEl.querySelector('dialog.edit');
+            d.addEventListener('close', ev => {
+                if (d.returnValue !== 'save') {
+                    return;
+                }
+                const section = screen.sections.find(x => x.id === sectionId);
+                for (const g of d.querySelectorAll('select[name="group"]')) {
+                    section.groups.find(x => x.id === g.dataset.id).type = g.value;
+                }
+                common.storage.set(settingsKey, settings);
+                renderScreen();
+            }, {once: true});
+            d.showModal();
+        } else if (action === 'delete') {
+            screen.sections.splice(screen.sections.findIndex(x => x.id === sectionId), 1);
             common.storage.set(settingsKey, settings);
-            selectedScreen = newScreen;
-            renderScreenSelect();
-        } else if (action === 'add-section') {
-            const newSection = {
-                id: 'user-section-' + Date.now(),
-                type: 'data-fields',
-                groups: [],
-            };
-            selectedScreen.sections.push(newSection);
-            common.storage.set(settingsKey, settings);
-            renderSectionSelect();
-        } else if (action === 'delete-screen') {
-            debugger;
-        } else if (action === 'save') {
-            // XXX
-            debugger;
-            /*const sections = JSON.parse(document.querySelector('textarea').value);
-            selectedScreen.sections = sections;
-            common.storage.set(settingsKey, settings);*/
+            renderScreen();
         } else {
-            throw new TypeError("Invalid submit: " + action);
+            throw new TypeError("Invalid action: " + action);
         }
     });
-    screenSelect.addEventListener('change', ev => {
-        selectedScreen = settings.screens.find(x => x.id === screenSelect.value);
-        renderSectionSelect();
-    });
+    await renderScreen();
 }
 
 
@@ -755,6 +796,6 @@ export async function settingsMain() {
     common.initInteractionListeners();
     settings = common.storage.get(settingsKey);
     await common.initSettingsForm('form#general', {settingsKey});
-    initScreenSettings();
+    await initScreenSettings();
 }
 

@@ -149,6 +149,21 @@ html {
     }
 }
 
+.screen.configuring {
+    .screen-section {
+        position: relative;
+
+        .button-group {
+            position: absolute;
+            right: -3rem;
+            font-size: 0.8rem;
+        }
+    }
+
+    dialog.edit {
+    }
+}
+
 .field-row .key {
     font-size: 0.60rem;
     margin-right: 0.3em;
@@ -188,6 +203,7 @@ html {
     }
 }
 
+
 abbr.unit {
     margin-left: 0.2em;
     font-size: 0.55em;
@@ -197,4 +213,87 @@ abbr.unit {
 #titlebar .button-bar .button.reset img {
     height: 0.9em;
     margin: 0.15em 0;
+}
+
+.settings-page {
+    .section {
+        header {
+            display: flex;
+            font-size: 1.1em;
+        }
+
+        .button-group {
+            border-radius: 0.26em;
+            overflow: hidden;
+            display: flex;
+            flex-grow: 1;
+            background-image: linear-gradient(to bottom, #0003, #0006);
+
+            &.vertical {
+                flex-direction: column;
+            }
+
+            .button {
+                padding: 0.5em 0.8em;
+                display: flex;
+                flex-grow: 1;
+                align-items: center;
+                justify-content: center;
+
+                &.disabled {
+                    pointer-events: none;
+                    opacity: 0.2;
+                }
+
+                &:hover {
+                    background-color: #0006;
+                }
+
+                img {
+                    height: 1em;
+
+                    &.fa {
+                        filter: invert(1);
+                    }
+                }
+            }
+        }
+
+        main {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            max-width: 14.5em;
+
+            .active-screen {
+                position: relative;
+                width: 100%;
+                border: 2px solid #7777;
+                border-radius: 1em;
+                aspect-ratio: 10 / 9;
+                background: #333;
+                box-shadow: 1px 1px 8px 1px #0007;
+                margin: 1em 3rem 0.5em;
+            }
+
+            > label {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                justify-content: center;
+                font-size: 0.8rem;
+
+                key {
+                    font-variant: all-small-caps;
+                    width: 100%;
+                    text-align: center;
+                }
+
+                input[type="button"] {
+                    padding-left: 1em;
+                    padding-right: 1em;
+                }
+            }
+        }
+    }
 }
