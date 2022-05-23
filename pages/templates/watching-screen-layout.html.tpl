@@ -17,7 +17,7 @@
                     </div>
                 </div>
                 <div class="double top" data-default="0" data-field="{{section.id}}-{{group.id}}-2">
-                    <div class="value">-</div>
+                    <div class="value"></div>
                     <div class="label"></div>
                     <div class="sub-label"></div>
                 </div>
