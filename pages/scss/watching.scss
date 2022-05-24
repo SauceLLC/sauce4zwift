@@ -163,12 +163,39 @@ html {
 
 .screen.configuring {
     .screen-section {
-        position: relative;
+        transition: opacity 200ms;
 
-        .button-group {
+        .button-mask {
             position: absolute;
-            right: -3rem;
             font-size: 0.8rem;
+            left: -6px;
+            top: -2px;
+            height: calc(100% + 4px);
+            width: calc(100% + 10px + 3rem);
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            border-radius: 0.25em;
+            padding: 0.35em;
+            background-color: #495ce863;
+            overflow: hidden;
+            mix-blend-mode: lighten;
+            transition: opacity 200ms, visibility 200ms;
+            opacity: 0;
+            visibility: hidden;
+
+            .button-group {
+                mix-blend-mode: plus-lighter;
+                flex: 0 0 auto;
+            }
+        }
+
+        &:hover,
+        &:focus {
+            .button-mask {
+                visibility: visible;
+                opacity: 1;
+            }
         }
 
         [data-field] {

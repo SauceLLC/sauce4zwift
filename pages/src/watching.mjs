@@ -105,7 +105,7 @@ function makeSmoothHRField(period) {
 }
 
 
-function createStatHistoryChart(el, sIndex) {
+function createStatHistoryChart(el, sectionId) {
     const lineChart = echarts.init(el, 'sauce', {
         renderer: location.search.includes('svg') ? 'svg' : 'canvas',
     });
@@ -223,7 +223,7 @@ function createStatHistoryChart(el, sIndex) {
     new charts.SauceLegend({
         el: el.nextElementSibling,
         chart: lineChart,
-        hiddenStorageKey: `watching-hidden-graph-p${sIndex}`,
+        hiddenStorageKey: `watching-hidden-graph-p${sectionId}`,
     });
     chartRefs.add(new WeakRef(lineChart));
     return lineChart;
@@ -232,16 +232,24 @@ function createStatHistoryChart(el, sIndex) {
 const sectionSpecs = {
     'large-data-fields': {
         title: 'Data Fields (large)',
+        baseType: 'data-fields',
         groups: 1,
     },
     'data-fields': {
         title: 'Data Fields',
+        baseType: 'data-fields',
         groups: 1,
     },
     'split-data-fields': {
         title: 'Split Data Fields',
+        baseType: 'data-fields',
         groups: 2,
     },
+    'line-chart': {
+        title: 'Line Chart',
+        baseType: 'chart',
+        groups: 1,
+    }
 };
 
 const groupSpecs = {
@@ -482,6 +490,62 @@ async function getTpl(name) {
 }
 
 
+function bindLineChart(lineChart, renderer) {
+    const chartData = {
+        pace: [],
+        hr: [],
+        power: [],
+    };
+    let dataCount = 0;
+    let lastRender = 0;
+    renderer.addCallback(data => {
+        const now = Date.now();
+        if (now - lastRender < 900) {
+            return;
+        }
+        lastRender = now;
+        if (data) {
+            chartData.power.push(data.state.power || 0);
+            chartData.hr.push(data.state.heartrate || 0);
+            chartData.pace.push(data.state.speed || 0);
+            if (chartData.power.length > maxLineChartLen) {
+                chartData.power.shift();
+                chartData.hr.shift();
+                chartData.pace.shift();
+            }
+        }
+        const maxPower = sauce.data.max(chartData.power);
+        const maxPIndex = chartData.power.indexOf(maxPower);
+        lineChart.setOption({
+            xAxis: [{
+                data: [...sauce.data.range(maxLineChartLen)].map(i =>
+                    (dataCount > maxLineChartLen ? dataCount - maxLineChartLen : 0) + i),
+            }],
+            series: [{
+                data: chartData.power,
+                markLine: {
+                    symbol: 'none',
+                    data: [{
+                        name: 'Max',
+                        xAxis: maxPIndex,
+                        label: {
+                            formatter: x => H.power(chartData.power[x.value], {suffix: true})
+                        },
+                        emphasis: {
+                            disabled: true,
+                        },
+                    }],
+                },
+            }, {
+                data: chartData.hr,
+            }, {
+                data: chartData.pace,
+            }]
+        });
+    });
+}
+
+
 export async function main() {
     common.initInteractionListeners();
     settings = common.storage.get(settingsKey, {
@@ -537,74 +601,33 @@ export async function main() {
             fps: 2,
             locked: settings.lockedFields,
         });
-        for (const groupEl of screenEl.querySelectorAll('[data-group-id]')) {
-            const mapping = [];
-            for (const [i, fieldEl] of groupEl.querySelectorAll('[data-field]').entries()) {
-                const id = fieldEl.dataset.field;
-                mapping.push({id, default: Number(fieldEl.dataset.default || i)});
+        for (const sectionEl of screenEl.querySelectorAll('[data-section-id]')) {
+            const sectionType = sectionEl.dataset.sectionType;
+            if (sectionSpecs[sectionType].baseType === 'data-fields') {
+                const groups = [
+                    sectionEl.dataset.groupId ? sectionEl : null,
+                    ...sectionEl.querySelectorAll('[data-group-id]')
+                ].filter(x => x);
+                for (const groupEl of groups) {
+                    const mapping = [];
+                    for (const [i, fieldEl] of groupEl.querySelectorAll('[data-field]').entries()) {
+                        const id = fieldEl.dataset.field;
+                        mapping.push({id, default: Number(fieldEl.dataset.default || i)});
+                    }
+                    renderer.addRotatingFields({
+                        el: groupEl,
+                        mapping,
+                        fields: groupSpecs[groupEl.dataset.groupType].fields,
+                    });
+                }
+            } else if (sectionType === 'line-chart') {
+                const lineChart = createStatHistoryChart(
+                    sectionEl.querySelector('.chart-holder.ec'),
+                    sectionEl.dataset.sectionId);
+                bindLineChart(lineChart, renderer);
             }
-            renderer.addRotatingFields({
-                el: groupEl,
-                mapping,
-                fields: groupSpecs[groupEl.dataset.groupType].fields,
-            });
         }
         renderers.push(renderer);
-        /*
-        const chartData = {
-            pace: [],
-            hr: [],
-            power: [],
-        };
-        let dataCount = 0;
-        const lineChart = createStatHistoryChart(screen.querySelector('.chart-holder.ec'), sIndex);
-        let lastRender = 0;
-        renderer.addCallback(data => {
-            const now = Date.now();
-            if (now - lastRender < 900) {
-                return;
-            }
-            lastRender = now;
-            if (data) {
-                chartData.power.push(data.state.power || 0);
-                chartData.hr.push(data.state.heartrate || 0);
-                chartData.pace.push(data.state.speed || 0);
-                if (chartData.power.length > maxLineChartLen) {
-                    chartData.power.shift();
-                    chartData.hr.shift();
-                    chartData.pace.shift();
-                }
-            }
-            const maxPower = sauce.data.max(chartData.power);
-            const maxPIndex = chartData.power.indexOf(maxPower);
-            lineChart.setOption({
-                xAxis: [{
-                    data: [...sauce.data.range(maxLineChartLen)].map(i =>
-                        (dataCount > maxLineChartLen ? dataCount - maxLineChartLen : 0) + i),
-                }],
-                series: [{
-                    data: chartData.power,
-                    markLine: {
-                        symbol: 'none',
-                        data: [{
-                            name: 'Max',
-                            xAxis: maxPIndex,
-                            label: {
-                                formatter: x => H.power(chartData.power[x.value], {suffix: true})
-                            },
-                            emphasis: {
-                                disabled: true,
-                            },
-                        }],
-                    },
-                }, {
-                    data: chartData.hr,
-                }, {
-                    data: chartData.pace,
-                }]
-            });
-        });
-        */
         renderer.render();
     }
     common.storage.set(settingsKey, settings);
@@ -695,6 +718,8 @@ async function initScreenSettings() {
     const prevBtn = document.querySelector('main header .button[data-action="prev"]');
     const nextBtn = document.querySelector('main header .button[data-action="next"]');
     const delBtn = document.querySelector('main header .button[data-action="delete"]');
+    document.querySelector('main .add-section select[name="type"]').innerHTML = Object.entries(sectionSpecs)
+        .map(([type, {title}]) => `<option value="${type}">${title}</option>`).join('\n');
 
     async function renderScreen() {
         sIndexEl.textContent = sIndex + 1;
