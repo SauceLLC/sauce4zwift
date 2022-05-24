@@ -1,5 +1,8 @@
 <div class="screen {{obj.configuring ? 'configuring' : ''}}" data-id="{{screen.id}}" data-index="{{sIndex}}">
     <div class="page-title">{{(sIndex + 1).toLocaleString()}}</div>
+    <% if (!screen.sections.length) { %>
+        <div class="no-sections">No data sections added</div>
+    <% } %>
     <% for (const [sectionIndex, section] of screen.sections.entries()) { %>
         <% const baseSectionType = sectionSpecs[section.type].baseType; %>
         <% if (['large-data-fields', 'data-fields'].includes(section.type)) { %>
@@ -83,13 +86,18 @@
             <div class="screen-section no-heading no-side-margin {{section.type}}"
                  data-section-type="{{section.type}}" data-base-section-type="{{baseSectionType}}"
                  data-section-id="{{section.id}}">
-                <div class="chart-holder ec"></div>
+                <div class="chart-holder ec">
+                    <% if (obj.configuring) { %>
+                        <img class="example" src="images/examples/sauce-line-chart-cap-50pct.png"/>
+                    <% } %>
+                </div>
                 <div class="s-chart-legend"></div>
                 <% if (obj.configuring) { %>
                     <dialog class="edit">
                         <header>Edit Section: {{sectionIndex +1 }}</header>
                         <form method="dialog">
                             <label>Type: {{sectionSpecs[section.type].title}}</label>
+                            <label><i>No configuration for line chart (yet)</i></label>
                             <footer>
                                 <button value="cancel">Cancel</button>
                                 <button value="save" class="primary">Save</button>

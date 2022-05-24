@@ -25,6 +25,14 @@ html {
         font-size: 10em;
         opacity: 0.05;
     }
+
+    .no-sections {
+        padding: 1em;
+        text-align: center;
+        font-weight: bold;
+        opacity: 0.5;
+        font-size: 2em;
+    }
 }
 
 .screen-section {
@@ -181,6 +189,7 @@ html {
             overflow: hidden;
             mix-blend-mode: lighten;
             transition: opacity 200ms, visibility 200ms;
+            transition-delay: 200ms;
             opacity: 0;
             visibility: hidden;
 
@@ -190,11 +199,17 @@ html {
             }
         }
 
+        img.example {
+            width: 100%;
+            max-height: 100%;
+        }
+
         &:hover,
         &:focus {
             .button-mask {
                 visibility: visible;
                 opacity: 1;
+                transition-delay: 0s;
             }
         }
 
@@ -336,17 +351,19 @@ abbr.unit {
             display: flex;
             flex-direction: column;
             align-items: center;
-            max-width: 14.5em;
 
             .active-screen {
-                position: relative;
-                width: 100%;
-                border: 2px solid #7777;
-                border-radius: 1em;
-                aspect-ratio: 10 / 9;
-                background: #333;
-                box-shadow: 1px 1px 8px 1px #0007;
-                margin: 1em 3rem 0.5em;
+                padding: 1em 3rem 0.5em;
+
+                > .screen {
+                    position: relative;
+                    width: 100%;
+                    border: 2px solid #7777;
+                    border-radius: 1em;
+                    aspect-ratio: 10 / 9;
+                    background: #333;
+                    box-shadow: 1px 1px 8px 1px #0007;
+                }
             }
 
             > label {
