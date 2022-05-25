@@ -713,18 +713,14 @@ async function eulaConsent() {
 }
 
 
-function maybeShowReleaseNotes() {
-    const lastVersion = getAppSetting('lastVersion');
-    if (lastVersion === pkg.version) {
-        return;
-    }
-    if (!lastVersion) {
-        setAppSetting('lastVersion', pkg.version);
-        return;
-    }
+function showReleaseNotes() {
     const win = makeCaptiveWindow({width: 500, height: 600});
     win.loadFile(path.join(pagePath, 'release-notes.html'));
-    win.on('closed', () => setAppSetting('lastVersion', pkg.version));
+    win.on('closed', () => {
+        if (!appQuiting) {
+            setAppSetting('lastVersion', pkg.version);
+        }
+    });
 }
 
 
@@ -815,6 +811,18 @@ async function main() {
     await electron.app.whenReady();
     menu.setAppMenu();
     autoUpdater.checkForUpdatesAndNotify().catch(Sentry.captureException);
+    const lastVersion = getAppSetting('lastVersion');
+    if (lastVersion !== pkg.version) {
+        if (lastVersion) {
+            await electron.session.defaultSession.clearCache();
+            showReleaseNotes();
+        } else {
+            // First run, skip release notes.
+            // TBD: Could do a welcome thing instead.
+            setAppSetting('lastVersion', pkg.version);
+            console.info("First time invocation: Welcome to Sauce for Zwift");
+        }
+    }
     try {
         if (!await eulaConsent() || !await patronLink()) {
             appQuiting = true;
@@ -827,7 +835,6 @@ async function main() {
         electron.app.exit(1);
         return;
     }
-    maybeShowReleaseNotes();
     if (getAppSetting('zwiftLogin')) {
         await zwiftLogin();
     }
@@ -928,7 +935,7 @@ async function main() {
     openAllWindows();
     if (_appSettings.webServerEnabled) {
         webServer.setMonitor(gameMonitor);
-        await webServer.start(_appSettings.webServerPort);
+        await webServer.start(_appSettings.webServerPort, {debug: electron.app.isPackaged});
     }
     started = true;
 }
