@@ -529,7 +529,16 @@ function bindLineChart(lineChart, renderer) {
                         name: 'Max',
                         xAxis: maxPIndex,
                         label: {
-                            formatter: x => H.power(chartData.power[x.value], {suffix: true})
+                            formatter: x => {
+                                const nbsp ='\u00A0';
+                                console.log(x.value);
+                                return [
+                                    ''.padStart(Math.max(0, 5 - x.value), nbsp),
+                                    nbsp, nbsp, // for unit offset
+                                    H.power(chartData.power[x.value], {suffix: true}),
+                                    ''.padEnd(Math.max(0, x.value - (maxLineChartLen - 1) + 5), nbsp)
+                                ].join('');
+                            },
                         },
                         emphasis: {
                             disabled: true,
@@ -583,6 +592,7 @@ export async function main() {
     const renderers = [];
     let curScreen;
     const layoutTpl = await getTpl('watching-screen-layout');
+    const alwaysRender = true;
     for (const [sIndex, screen] of settings.screens.entries()) {
         const screenEl = (await layoutTpl({
             screen,
@@ -600,6 +610,7 @@ export async function main() {
             id: screen.id,
             fps: 2,
             locked: settings.lockedFields,
+            backgroundRender: alwaysRender,
         });
         for (const sectionEl of screenEl.querySelectorAll('[data-section-id]')) {
             const sectionType = sectionEl.dataset.sectionType;
@@ -705,7 +716,7 @@ export async function main() {
             x.setData(watching);
             x.render({force});
         }
-    });
+    }, {persistent: alwaysRender});
 }
 
 

@@ -211,6 +211,7 @@ export class Renderer {
         this._nextRender;
         this._lastRenderTime = 0;
         this.locked = !!options.locked;
+        this.backgroundRender = options.backgroundRender;
         contentEl.classList.toggle('unlocked', !this.locked);
         this.stopping = false;
         this.fps = options.fps || 1;
@@ -293,6 +294,14 @@ export class Renderer {
         }
     }
 
+    schedAnimationFrame(cb) {
+        if (!this.backgroundRender) {
+            return requestAnimationFrame(cb);
+        } else {
+            return queueMicrotask(cb);
+        }
+    }
+
     render(options={}) {
         if (!options.force && this.fps) {
             const age = performance.now() - (this._lastRender || -Infinity);
@@ -314,7 +323,7 @@ export class Renderer {
             }
             const start = performance.now();
             this._nextRender = new Promise(resolve => {
-                requestAnimationFrame(() => {
+                this.schedAnimationFrame(() => {
                     if (this.stopping) {
                         resolve();
                         return;
