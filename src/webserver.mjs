@@ -80,13 +80,13 @@ async function closeServer(s) {
 }
 
 
-export async function start(port) {
+export async function start(port, options={}) {
     if (starting || starting || running) {
         throw new Error("Invalid state");
     }
     starting = true;
     try {
-        await _start(port);
+        await _start(port, options);
     } catch(e) {
         const s = server;
         server = null;
@@ -101,7 +101,7 @@ export async function start(port) {
 }
 
 
-async function _start(port) {
+async function _start(port, options) {
     app = express();
     app.use(express.json());
     server = http.createServer(app);
@@ -109,7 +109,7 @@ async function _start(port) {
     // workaround https://github.com/websockets/ws/issues/2023
     webSocketServer.on('error', () => void 0);
     const cacheDisabled = 'no-cache, no-store, must-revalidate';
-    const cacheEnabled = 'public, max-age=3600, s-maxage=900';
+    const cacheEnabled = options.debug ? cacheDisabled : 'public, max-age=3600, s-maxage=900';
     const router = express.Router();
     router.use('/', express.static(`${WD}/../pages`, {index: 'index.html'}));
     router.use('/pages/images', express.static(`${WD}/../pages/images`, {
