@@ -2,7 +2,10 @@ import {SqliteDatabase, deleteDatabase} from './db.mjs';
 
 
 export async function reset() {
-    _db = null;
+    if (_db) {
+        _db.close();
+        _db = null;
+    }
     await deleteDatabase('storage');
 }
 

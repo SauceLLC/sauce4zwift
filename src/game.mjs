@@ -62,6 +62,9 @@ function getDB() {
 
 
 async function resetDB() {
+    if (_db) {
+        _db.close();
+    }
     _db = null;
     await deleteDatabase('athletes');
 }
