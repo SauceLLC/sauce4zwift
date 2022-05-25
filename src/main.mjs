@@ -83,7 +83,7 @@ const windowManifests = [{
     prettyName: 'Overview',
     prettyDesc: 'Main top window for overall control and stats.',
     private: true,
-    options: {relWidth: 0.6, height: 40, relX: 0.2, y: 0},
+    options: {relWidth: 0.6, height: 40, relX: 0.2, y: 28},
     webPreferences: {backgroundThrottling: false}, // XXX Doesn't appear to work
     hideable: false,
 }, {
