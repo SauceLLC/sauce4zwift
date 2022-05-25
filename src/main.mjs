@@ -34,6 +34,10 @@ try {
         electron.dialog.showErrorBox('Storage error. Reseting database...', '' + e)
     ]).then(() => electron.app.exit(1));
 }
+rpc.register(async () => {
+    await storage.reset();
+    restart();
+}, {name: 'resetStorageState'});
 
 let sentryAnonId;
 if (electron.app.isPackaged) {
@@ -252,11 +256,13 @@ rpc.register(() => gameMonitor.ip, {name: 'getMonitorIP'});
 rpc.register(() => sentryAnonId, {name: 'getSentryAnonId'});
 rpc.register(url => electron.shell.openExternal(url), {name: 'openExternalLink'});
 
-rpc.register(() => {
+
+function restart() {
     appQuiting = true;
     electron.app.relaunch();
     electron.app.quit();
-}, {name: 'restart'});
+}
+rpc.register(restart);
 
 rpc.register(() => {
     appQuiting = true;

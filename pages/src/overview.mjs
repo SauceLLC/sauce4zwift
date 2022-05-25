@@ -306,6 +306,17 @@ export async function settingsMain() {
         const id = await common.rpc.createWindow({type});
         await common.rpc.openWindow(id);
     });
+    document.querySelector('.action-buttons').addEventListener('click', async ev => {
+        const btn = ev.target.closest('.button[data-action]');
+        if (!btn) {
+            return;
+        }
+        if (btn.dataset.action === 'reset-state') {
+            await common.rpc.resetStorageState();
+        } else if (btn.dataset.action === 'reset-athletes-db') {
+            await common.rpc.resetAthletesDB();
+        }
+    });
     document.addEventListener('windows-updated', renderWindowsPanel);
     await common.rpc.listenForWindowUpdates('windows-updated');
     if (await common.rpc.getAppSetting('webServerEnabled')) {

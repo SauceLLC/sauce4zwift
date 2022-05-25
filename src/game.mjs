@@ -294,6 +294,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         rpc.register(this.resetStats, {scope: this});
         rpc.register(this.exportFIT, {scope: this});
         rpc.register(this.loadAthlete, {scope: this, name: 'getAthlete'});
+        rpc.register(this.resetAthletesDB, {scope: this, name: 'resetAthletesDB'});
     }
 
     maybeLearnAthleteId(packet) {
@@ -873,16 +874,25 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         this._stateProcessCount++;
     }
 
+    async resetAthletesDB() {
+        await resetDB();
+        this.athletesCache.clear();
+        this.initAthletesDB();
+    }
+
+    initAthletesDB() {
+        this.athletesDB = getDB();
+        this.getAthleteStmt = this.athletesDB.prepare('SELECT data FROM athletes WHERE id = ?');
+    }
+
     async start() {
         this._active = true;
         try {
-            this.athletesDB = getDB();
+            this.initAthletesDB();
         } catch(e) {
             captureExceptionOnce(e);
-            await resetDB();
-            this.athletesDB = getDB();
+            this.resetAthletesDB();
         }
-        this.getAthleteStmt = this.athletesDB.prepare('SELECT data FROM athletes WHERE id = ?');
         if (!this._useFakeData) {
             super.start();
         } else {
