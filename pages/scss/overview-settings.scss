@@ -1,6 +1,3 @@
-#settings {
-}
-
 #windows {
     font-size: 16px;
 
@@ -41,7 +38,7 @@
         }
 
         a.link {
-            opacity: 0.6;
+            opacity: 0.8;
             transition: opacity 100ms;
             margin: 0 0.4em;
             display: inline-block;
@@ -63,6 +60,8 @@
             padding: 0.2em 2em;
         }
     }
+}
 
-
+.action-buttons {
+    display: flex;
 }

@@ -16,13 +16,13 @@
 
     .athlete > header {
         padding: 0.4em 0.7em;
-        font-size: 1.8em;
+        font-size: 1.6em;
         font-weight: bold;
         background-image: linear-gradient(to top, #222, #333);
     }
 
     .athlete a.avatar {
-        flex: 1 0 300px;
+        flex: 1 0 280px;
         display: block;
         overflow: hidden;
         max-width: 100%;
@@ -38,8 +38,13 @@
         max-width: 100%;
         max-height: 100%;
         border-radius: 2.5em 0.6em;
-        border: 0.5em solid #ff8b1170;
+        border: 0.6em solid #0007;
         box-shadow: 1px 1px 5px #0003;
+        background-image: radial-gradient(ellipse at 11% 0,
+            rgba(32, 2, 72, 0.8) 0%,
+            rgba(10, 12, 142, 0.8) 42%,
+            rgba(132, 70, 13, 0.8) 94%);
+        background-clip: content-box;
     }
 
     .athlete .info {
@@ -62,7 +67,7 @@
     }
 
     .athlete .p1 {
-        font-size: 1.1em;
+        font-size: 1em;
         font-weight: bold;
     }
 
@@ -71,7 +76,7 @@
         min-width: 10ch;
         font-variant: small-caps;
         font-weight: bold;
-        font-size: 0.9em;
+        font-size: 0.8em;
     }
 
     key::after {
