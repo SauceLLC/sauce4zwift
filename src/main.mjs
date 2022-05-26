@@ -34,9 +34,21 @@ try {
         electron.dialog.showErrorBox('Storage error. Reseting database...', '' + e)
     ]).then(() => electron.app.exit(1));
 }
-rpc.register(async () => {
-    await storage.reset();
-    restart();
+rpc.register(async function() {
+    const {response} = await electron.dialog.showMessageBox(this.getOwnerBrowserWindow(), {
+        icon: appIcon,
+        type: 'question',
+        title: 'Confirm Reset State',
+        message: 'This operation will reset all settings completely.  Are you sure you want continue?',
+        buttons: ['Reset State and Restart', 'Cancel'],
+        cancelId: 1,
+        noLink: true,
+    });
+    if (response === 0) {
+        console.warn('Reseting state and restarting...');
+        //await storage.reset();
+        //restart();
+    }
 }, {name: 'resetStorageState'});
 
 let sentryAnonId;
@@ -70,6 +82,8 @@ if (electron.app.isPackaged) {
 } else {
     console.info("Sentry disabled for unpackaged app");
 }
+
+electron.nativeTheme.themeSource = 'dark';
 
 const appSettingDefaults = {
     zwiftLogin: false,
@@ -172,7 +186,9 @@ const appSettingsKey = 'app-settings';
 const appPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const pagePath = path.join(appPath, 'pages');
 const appIcon = electron.nativeImage.createFromPath(path.join(appPath,
-    'build/images/app-icon.icos'));
+    'pages/images/icon256.png'));
+    //'build/images/app-icon.ico'));
+console.log(appPath, appIcon.getSize(), appIcon.toDataURL());
 const activeWindows = new Map();
 const subWindows = new WeakMap();
 const windowsUpdateListeners = new Map();
@@ -382,7 +398,10 @@ rpc.register(pid => {
         if (activeWindows.has(wc)) {
             return activeWindows.get(wc).spec;
         } else if (subWindows.has(wc)) {
-            return subWindows.get(wc).spec;
+            return {
+                subWindow: true,
+                ...subWindows.get(wc).spec,
+            };
         }
     }
 }, {name: 'getWindowSpecForPID'});
@@ -815,6 +834,13 @@ async function zwiftLogin() {
 
 async function main() {
     await electron.app.whenReady();
+    const notif = new electron.Notification({
+        title: "title foo",
+        subtitle: 'sub titles',
+        body: 'This is the body of the thing. \n this is after a newline.  <h1>This is html? </h1>',
+        silent: false,
+    });
+    notif.show();
     menu.setAppMenu();
     autoUpdater.checkForUpdatesAndNotify().catch(Sentry.captureException);
     const lastVersion = getAppSetting('lastVersion');
