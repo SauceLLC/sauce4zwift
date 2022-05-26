@@ -62,7 +62,8 @@ async function makeMetricCharts(proc, el) {
         },
         title: [{
             left: 'left',
-            text: `${spec ? spec.prettyName : ''} ${decodedNames[proc.type] || proc.name || proc.type}, PID: ${proc.pid}`,
+            text: `${spec ? spec.prettyName : ''} ${spec && spec.subWindow ? 'Sub' : ''} ` +
+                `${decodedNames[proc.type] || proc.name || proc.type}, PID: ${proc.pid}`,
         }],
         tooltip: {
             trigger: 'axis',
