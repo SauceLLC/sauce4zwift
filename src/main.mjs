@@ -4,7 +4,7 @@ import os from 'node:os';
 import fs from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import * as storage from './storage.mjs';
-import menu from './menu.mjs';
+import * as menu from './menu.mjs';
 import * as patreon from './patreon.mjs';
 import * as rpc from './rpc.mjs';
 import {databases} from './db.mjs';
@@ -13,6 +13,7 @@ import {Dedupe} from '@sentry/integrations';
 import * as webServer from './webserver.mjs';
 import * as game from './game.mjs';
 import {beforeSentrySend, setSentry} from '../shared/sentry-util.mjs';
+import {sleep} from '../shared/sauce/base.mjs';
 import crypto from 'node:crypto';
 import {createRequire} from 'node:module';
 const require = createRequire(import.meta.url);
@@ -34,22 +35,22 @@ try {
     Promise.all([
         storage.reset(),
         electron.dialog.showErrorBox('Storage error. Reseting database...', '' + e)
-    ]).then(() => electron.app.exit(1));
+    ]).finally(() => quit(1));
 }
 rpc.register(async function() {
     const {response} = await electron.dialog.showMessageBox(this.getOwnerBrowserWindow(), {
         icon: appIcon,
         type: 'question',
         title: 'Confirm Reset State',
-        message: 'This operation will reset all settings completely.  Are you sure you want continue?',
-        buttons: ['Reset State and Restart', 'Cancel'],
+        message: 'This operation will reset all settings completely.\n\n' +
+            'Are you sure you want continue?',
+        buttons: ['Yes, reset to defaults', 'Cancel'],
         cancelId: 1,
-        noLink: true,
     });
     if (response === 0) {
         console.warn('Reseting state and restarting...');
-        //await storage.reset();
-        //restart();
+        await storage.reset();
+        restart();
     }
 }, {name: 'resetStorageState'});
 
@@ -86,6 +87,25 @@ if (!isDEV) {
 }
 
 electron.nativeTheme.themeSource = 'dark';
+
+
+function quit(retcode) {
+    appQuiting = true;
+    if (retcode) {
+        electron.app.exit(retcode);
+    } else {
+        electron.app.quit();
+    }
+}
+rpc.register(quit);
+
+
+function restart() {
+    electron.app.relaunch();
+    quit();
+}
+rpc.register(restart);
+
 
 const appSettingDefaults = {
     zwiftLogin: false,
@@ -172,7 +192,7 @@ const defaultWindows = [{
 }, {
     id: 'default-watching-1',
     type: 'watching',
-    options: {x: 8, y: 64},
+    options: {x: 8, y: 40},
 }, {
     id: 'default-groups-1',
     type: 'groups',
@@ -200,7 +220,17 @@ if (electron.app.dock) {
 }
 electron.app.on('window-all-closed', () => {
     if (started) {
-        electron.app.quit();
+        quit();
+    }
+});
+electron.app.on('second-instance', (ev,_, __, {type}) => {
+    if (Math.random() > 0.1) {
+        console.error("snub them!");
+        return;
+    }
+    if (type === 'quit') {
+        console.warn("Another instance requested us to quit.");
+        quit();
     }
 });
 electron.app.on('activate', async () => {
@@ -271,19 +301,6 @@ rpc.register(() => pkg.version, {name: 'getVersion'});
 rpc.register(() => gameMonitor.ip, {name: 'getMonitorIP'});
 rpc.register(() => sentryAnonId, {name: 'getSentryAnonId'});
 rpc.register(url => electron.shell.openExternal(url), {name: 'openExternalLink'});
-
-
-function restart() {
-    appQuiting = true;
-    electron.app.relaunch();
-    electron.app.quit();
-}
-rpc.register(restart);
-
-rpc.register(() => {
-    appQuiting = true;
-    electron.app.quit();
-}, {name: 'quit'});
 
 rpc.register(() => {
     for (const {win, spec} of activeWindows.values()) {
@@ -832,8 +849,46 @@ async function zwiftLogin() {
 }
 
 
+async function ensureSingleInstance() {
+    if (electron.app.requestSingleInstanceLock({type: 'probe'})) {
+        return;
+    }
+    const {response} = await electron.dialog.showMessageBox({
+        icon: appIcon,
+        type: 'question',
+        message: 'Another Sauce process detected.\n\nThere can only be one, you must choose...',
+        buttons: ['Take the prize!', 'Run away'],
+        noLink: true,
+        cancelId: 1,
+    });
+    if (response === 1) {
+        console.debug("Quiting due to existing instance");
+        quit();
+        return false;
+    }
+    let hasLock = electron.app.requestSingleInstanceLock({type: 'quit'});
+    for (let i = 0; i < 10; i++) {
+        if (hasLock) {
+            return;
+        }
+        await sleep(500);
+        hasLock = electron.app.requestSingleInstanceLock({type: 'quit'});
+    }
+    await electron.dialog.showErrorBox('Existing Sauce process hung',
+        'Consider using Activity Monitor (mac) or Task Manager (windows) to find ' +
+        'and stop any existing Sauce processes');
+    quit(1);
+    return false;
+}
+
+
 async function main() {
+    if (await ensureSingleInstance() === false) {
+        return;
+    }
     await electron.app.whenReady();
+    const tray = new electron.Tray(appIcon);
+    tray.setContextMenu(menu.trayMenu);
     menu.setAppMenu();
     autoUpdater.checkForUpdatesAndNotify().catch(Sentry.captureException);
     const lastVersion = getAppSetting('lastVersion');
@@ -850,15 +905,11 @@ async function main() {
     }
     try {
         if (!await eulaConsent() || !await patronLink()) {
-            appQuiting = true;
-            electron.app.quit();
-            return;
+            return quit();
         }
     } catch(e) {
         await electron.dialog.showErrorBox('EULA or Patreon Link Error', '' + e);
-        appQuiting = true;
-        electron.app.exit(1);
-        return;
+        return quit(1);
     }
     if (getAppSetting('zwiftLogin')) {
         await zwiftLogin();
@@ -883,9 +934,7 @@ async function main() {
         try {
             if (e.message.match(/permission denied/i)) {
                 await game.getCapturePermission();
-                appQuiting = true;
-                electron.app.relaunch();
-                electron.app.quit();
+                restart();
                 return;
             } else {
                 throw e;
@@ -893,8 +942,7 @@ async function main() {
         } catch(e) {
             await electron.dialog.showErrorBox('Startup Error', '' + e);
             Sentry.captureException(e);
-            appQuiting = true;
-            setTimeout(() => electron.app.exit(1), 1000);
+            setTimeout(() => quit(1), 1000);
             return;
         }
     }

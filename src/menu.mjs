@@ -1,7 +1,7 @@
 import process from 'node:process';
 import {createRequire} from 'node:module';
 const require = createRequire(import.meta.url);
-const {BrowserWindow, Menu, app, shell} = require('electron');
+const {Menu, app, shell} = require('electron');
 
 
 const template = [{
@@ -31,27 +31,14 @@ const template = [{
     }, {
         label: 'Select All',
         accelerator: 'CmdOrCtrl+A',
-        role: 'selectall'
+        role: 'selectAll',
     }]
 }, {
     label: 'View',
     submenu: [{
         label: 'Reload',
         accelerator: 'CmdOrCtrl+R',
-        click: (item, focusedWindow) => {
-            if (focusedWindow) {
-                // on reload, start fresh and close any old
-                // open secondary windows
-                if (focusedWindow.id === 1) {
-                    BrowserWindow.getAllWindows().forEach(win => {
-                        if (win.id > 1) {
-                            win.close();
-                        }
-                    });
-                }
-                focusedWindow.reload();
-            }
-        }
+        role: 'reload',
     }, !app.isPackaged ? {
         label: 'Toggle Developer Tools',
         accelerator: process.platform === 'darwin' ? 'Alt+Command+I' : 'Ctrl+Shift+I',
@@ -115,18 +102,17 @@ if (process.platform === 'darwin') {
             type: 'separator'
         }, {
             label: 'Quit',
+            role: 'quit',
             accelerator: 'Command+Q',
-            click: () => {
-                app.quit();
-            }
         }]
     });
 }
 
-const menu = Menu.buildFromTemplate(template);
 
-function setAppMenu() {
-    Menu.setApplicationMenu(menu);
+export function setAppMenu() {
+    Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
-export default {setAppMenu};
+export const trayMenu = Menu.buildFromTemplate([{
+    label: 'Foo',
+}]);
