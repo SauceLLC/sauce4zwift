@@ -584,8 +584,8 @@ export async function initSettingsForm(selector, options={}) {
 
 rpcCall('getVersion').then(v => Sentry.setTag('version', v));
 rpcCall('getSentryAnonId').then(id => Sentry.setUser({id}));
-rpcCall('appIsPackaged').then(packaged => {
-    if (packaged) {
+rpcCall('isDEV').then(isDEV => {
+    if (!isDEV) {
         setSentry(Sentry);
         Sentry.init({
             dsn: "https://df855be3c7174dc89f374ef0efaa6a92@o1166536.ingest.sentry.io/6257001",
@@ -593,7 +593,7 @@ rpcCall('appIsPackaged').then(packaged => {
             integrations: arr => arr.filter(x => !['Breadcrumbs', 'TryCatch'].includes(x.name)),
         });
     } else {
-        console.debug("Sentry disabled for unpackaged app");
+        console.debug("Sentry disabled for dev mode");
     }
 });
 

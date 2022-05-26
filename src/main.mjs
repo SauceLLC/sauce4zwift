@@ -20,6 +20,8 @@ const pkg = require('../package.json');
 const {autoUpdater} = require('electron-updater');
 const electron = require('electron');
 
+const isDEV = !electron.app.isPackaged;
+
 let appQuiting = false;
 let started;
 let gameMonitor;
@@ -52,7 +54,7 @@ rpc.register(async function() {
 }, {name: 'resetStorageState'});
 
 let sentryAnonId;
-if (electron.app.isPackaged) {
+if (!isDEV) {
     setSentry(Sentry);
     Sentry.init({
         dsn: "https://df855be3c7174dc89f374ef0efaa6a92@o1166536.ingest.sentry.io/6257001",
@@ -80,7 +82,7 @@ if (electron.app.isPackaged) {
     Sentry.setUser({id});
     sentryAnonId = id;
 } else {
-    console.info("Sentry disabled for unpackaged app");
+    console.info("Sentry disabled by dev mode");
 }
 
 electron.nativeTheme.themeSource = 'dark';
@@ -185,10 +187,8 @@ const appSettingsKey = 'app-settings';
 // NEVER use app.getAppPath() it uses asar for universal builds
 const appPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const pagePath = path.join(appPath, 'pages');
-const appIcon = electron.nativeImage.createFromPath(path.join(appPath,
-    'pages/images/icon256.png'));
-    //'build/images/app-icon.ico'));
-console.log(appPath, appIcon.getSize(), appIcon.toDataURL());
+const appIcon = isDEV ? electron.nativeImage.createFromPath(path.join(appPath,
+    'build/images/icon256-dev.png')) : undefined;
 const activeWindows = new Map();
 const subWindows = new WeakMap();
 const windowsUpdateListeners = new Map();
@@ -266,7 +266,7 @@ export function setAppSetting(key, value) {
 }
 rpc.register(setAppSetting);
 
-rpc.register(() => electron.app.isPackaged, {name: 'appIsPackaged'});
+rpc.register(() => isDEV, {name: 'isDEV'});
 rpc.register(() => pkg.version, {name: 'getVersion'});
 rpc.register(() => gameMonitor.ip, {name: 'getMonitorIP'});
 rpc.register(() => sentryAnonId, {name: 'getSentryAnonId'});
@@ -579,7 +579,7 @@ function _openWindow(id, spec) {
         show: false,
         webPreferences: {
             sandbox: true,
-            devTools: !electron.app.isPackaged,
+            devTools: isDEV,
             preload: path.join(appPath, 'src', 'preload', 'common.js'),
             webgl: false,
             ...manifest.webPreferences,
@@ -587,7 +587,7 @@ function _openWindow(id, spec) {
         },
         ...options,
     });
-    if (electron.app.isPackaged) {
+    if (!isDEV) {
         win.removeMenu();
     }
     if (!spec.position && (options.relWidth != null || options.relHeight != null ||
@@ -641,7 +641,7 @@ function _openWindow(id, spec) {
             alwaysOnTop: spec.overlay !== false,
             webPreferences: {
                 sandbox: true,
-                devTools: !electron.app.isPackaged,
+                devTools: isDEV,
                 preload: path.join(appPath, 'src', 'preload', 'common.js'),
             }
         });
@@ -649,7 +649,7 @@ function _openWindow(id, spec) {
             newWin.setAlwaysOnTop(true, 'pop-up-menu');
         }
         subWindows.set(newWin.webContents, {win: newWin, spec, activeSubs: new Set()});
-        if (electron.app.isPackaged) {
+        if (!isDEV) {
             newWin.removeMenu();
         }
         newWin.loadURL(url);
@@ -698,13 +698,13 @@ function makeCaptiveWindow(options={}, webPrefs={}) {
         fullscreenable: false,
         webPreferences: {
             sandbox: true,
-            devTools: !electron.app.isPackaged,
+            devTools: isDEV,
             preload: path.join(appPath, 'src', 'preload', 'common.js'),
             ...webPrefs,
         },
         ...options
     });
-    if (electron.app.isPackaged) {
+    if (!isDEV) {
         win.removeMenu();
     }
     return win;
@@ -793,7 +793,7 @@ async function patronLink() {
 
 
 async function zwiftLogin() {
-    if (!electron.app.isPackaged && storage.load('zwift-token')) {
+    if (isDEV && storage.load('zwift-token')) {
         return; // let it timeout for testing, but also avoid relentless logins
     }
     const win = makeCaptiveWindow({
@@ -834,13 +834,6 @@ async function zwiftLogin() {
 
 async function main() {
     await electron.app.whenReady();
-    const notif = new electron.Notification({
-        title: "title foo",
-        subtitle: 'sub titles',
-        body: 'This is the body of the thing. \n this is after a newline.  <h1>This is html? </h1>',
-        silent: false,
-    });
-    notif.show();
     menu.setAppMenu();
     autoUpdater.checkForUpdatesAndNotify().catch(Sentry.captureException);
     const lastVersion = getAppSetting('lastVersion');
@@ -967,7 +960,7 @@ async function main() {
     openAllWindows();
     if (_appSettings.webServerEnabled) {
         webServer.setMonitor(gameMonitor);
-        await webServer.start(_appSettings.webServerPort, {debug: electron.app.isPackaged});
+        await webServer.start(_appSettings.webServerPort, {debug: isDEV});
     }
     started = true;
 }
