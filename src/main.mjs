@@ -207,15 +207,16 @@ const appSettingsKey = 'app-settings';
 // NEVER use app.getAppPath() it uses asar for universal builds
 const appPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const pagePath = path.join(appPath, 'pages');
+// Otherwise is done via builder
 const appIcon = isDEV ? electron.nativeImage.createFromPath(path.join(appPath,
-    'build/images/icon256-dev.png')) : undefined;
+    'build', 'images', 'icon256-dev.png')) : undefined;
 const activeWindows = new Map();
 const subWindows = new WeakMap();
 const windowsUpdateListeners = new Map();
 // Use non-electron naming for windows updater.
 // https://github.com/electron-userland/electron-builder/issues/2700
 electron.app.setAppUserModelId('io.saucellc.sauce4zwift'); // must match build.appId for windows
-if (electron.app.dock) {
+if (electron.app.dock && isDEV) {
     electron.app.dock.setIcon(appIcon);
 }
 electron.app.on('window-all-closed', () => {
@@ -887,10 +888,9 @@ async function main() {
         return;
     }
     await electron.app.whenReady();
-    const appIcon = isDEV ? electron.nativeImage.createFromPath(path.join(appPath,
-        'build/images/trayicon.png')) : undefined;
-    console.log(appIcon.toDataURL());
-    const tray = new electron.Tray(appIcon);
+    const trayIcon = electron.nativeImage.createFromPath(path.join(appPath, 'build', 'images',
+        os.platform() === 'darwin' ? 'mac-trayicon.png' : 'win-trayicon.png'));
+    const tray = new electron.Tray(trayIcon);
     tray.setContextMenu(menu.trayMenu);
     menu.setAppMenu();
     autoUpdater.checkForUpdatesAndNotify().catch(Sentry.captureException);
