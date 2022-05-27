@@ -93,6 +93,15 @@ html {
         align-items: center;
         justify-content: center;
         position: relative;
+        margin-top: 0.5em;
+
+        &:not(:last-child) {
+            border-bottom: 1px solid #aaa6;
+        }
+
+        &:hover {
+            background-color: #0003;
+        }
 
         .chart {
             padding: 0;
