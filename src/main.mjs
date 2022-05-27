@@ -39,7 +39,6 @@ try {
 }
 rpc.register(async function() {
     const {response} = await electron.dialog.showMessageBox(this.getOwnerBrowserWindow(), {
-        icon: appIcon,
         type: 'question',
         title: 'Confirm Reset State',
         message: 'This operation will reset all settings completely.\n\n' +
@@ -208,17 +207,12 @@ const appSettingsKey = 'app-settings';
 const appPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const pagePath = path.join(appPath, 'pages');
 // Otherwise is done via builder
-const appIcon = isDEV ? electron.nativeImage.createFromPath(path.join(appPath,
-    'build', 'images', 'icon256-dev.png')) : undefined;
 const activeWindows = new Map();
 const subWindows = new WeakMap();
 const windowsUpdateListeners = new Map();
 // Use non-electron naming for windows updater.
 // https://github.com/electron-userland/electron-builder/issues/2700
 electron.app.setAppUserModelId('io.saucellc.sauce4zwift'); // must match build.appId for windows
-if (electron.app.dock && isDEV) {
-    electron.app.dock.setIcon(appIcon);
-}
 electron.app.on('window-all-closed', () => {
     if (started) {
         quit();
@@ -589,7 +583,6 @@ function _openWindow(id, spec) {
         opacity: spec.opacity,
     };
     const win = new electron.BrowserWindow({
-        icon: appIcon,
         show: false,
         webPreferences: {
             sandbox: true,
@@ -648,7 +641,6 @@ function _openWindow(id, spec) {
             height = hHint <= 1 ? Math.round(sHeight * (hHint || 0.5)) : Math.round(hHint) ;
         }
         const newWin = new electron.BrowserWindow({
-            icon: appIcon,
             show: false,
             width,
             height,
@@ -706,7 +698,6 @@ function openAllWindows() {
 
 function makeCaptiveWindow(options={}, webPrefs={}) {
     const win = new electron.BrowserWindow({
-        icon: appIcon,
         center: true,
         maximizable: false,
         fullscreenable: false,
@@ -851,7 +842,6 @@ async function ensureSingleInstance() {
         return;
     }
     const {response} = await electron.dialog.showMessageBox({
-        icon: appIcon,
         type: 'question',
         message: 'Another Sauce process detected.\n\nThere can only be one, you must choose...',
         buttons: ['Take the prize!', 'Run away'],
@@ -884,7 +874,7 @@ async function main() {
         return;
     }
     await electron.app.whenReady();
-    const trayIcon = electron.nativeImage.createFromPath(path.join(appPath, 'build', 'images',
+    const trayIcon = electron.nativeImage.createFromPath(path.join(appPath, 'images',
         os.platform() === 'darwin' ? 'mac-trayicon.png' : 'win-trayicon.png'));
     const tray = new electron.Tray(trayIcon);
     tray.setContextMenu(menu.trayMenu);
