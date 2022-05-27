@@ -887,6 +887,9 @@ async function main() {
         return;
     }
     await electron.app.whenReady();
+    const appIcon = isDEV ? electron.nativeImage.createFromPath(path.join(appPath,
+        'build/images/trayicon.png')) : undefined;
+    console.log(appIcon.toDataURL());
     const tray = new electron.Tray(appIcon);
     tray.setContextMenu(menu.trayMenu);
     menu.setAppMenu();
