@@ -225,10 +225,6 @@ electron.app.on('window-all-closed', () => {
     }
 });
 electron.app.on('second-instance', (ev,_, __, {type}) => {
-    if (Math.random() > 0.1) {
-        console.error("snub them!");
-        return;
-    }
     if (type === 'quit') {
         console.warn("Another instance requested us to quit.");
         quit();
