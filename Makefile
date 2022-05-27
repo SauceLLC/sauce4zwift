@@ -76,15 +76,10 @@ endif
 
 clean:
 ifndef WINBLOWS
-	rm -rf pages/deps/src
-	rm -rf pages/deps/css
-	mkdir -p pages/deps/src pages/deps/css
+	rm -rf pages/deps/src/*
 	rm $(BUILD)
 else
-	-rm -r -fo -ErrorAction SilentlyContinue pages/deps/src
-	-rm -r -fo -ErrorAction SilentlyContinue pages/deps/css
-	mkdir pages/deps/src | Out-Null
-	mkdir pages/deps/css | Out-Null
+	-rm -r -fo -ErrorAction SilentlyContinue pages/deps/src/*
 	-rm -fo -ErrorAction SilentlyContinue $(BUILD)
 endif
 
