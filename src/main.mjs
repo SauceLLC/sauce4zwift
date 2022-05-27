@@ -929,7 +929,7 @@ async function main() {
                 throw e;
             }
         } catch(e) {
-            await electron.dialog.showErrorBox('Startup Error', '' + e);
+            await electron.dialog.showErrorBox('Startup Error', e.stack);
             Sentry.captureException(e);
             setTimeout(() => quit(1), 1000);
             return;
