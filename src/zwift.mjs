@@ -117,6 +117,11 @@ export async function giveRideon(to, from) {
 }
 
 
+export async function getNotifications() {
+    return await jsonAPI(`/api/notifications`);
+}
+
+
 
 // XXX devtools prototyping
 global.zwift = {
@@ -126,4 +131,5 @@ global.zwift = {
     getProfile,
     searchProfiles,
     giveRideon,
+    getNotifications,
 };

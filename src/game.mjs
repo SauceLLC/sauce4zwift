@@ -4,6 +4,7 @@ import {SqliteDatabase, deleteDatabase} from './db.mjs';
 import * as rpc from './rpc.mjs';
 import * as zwift from './zwift.mjs';
 import * as sauce from '../shared/sauce/index.mjs';
+import {getAppSetting} from './main.mjs';
 import {createRequire} from 'node:module';
 import {captureExceptionOnce} from '../shared/sentry-util.mjs';
 const require = createRequire(import.meta.url);
@@ -288,6 +289,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         this._profileFetchIds = new Set();
         this._pendingProfileFetches = new Map();
         this._profileFetchCount = 0;
+        this._useZwiftAPI = getAppSetting('zwiftLogin');
         this.on('incoming', this.onIncoming);
         this.on('outgoing', this.onOutgoing);
         rpc.register(this.updateAthlete, {scope: this});
@@ -667,6 +669,9 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     }
 
     maybeUpdateAthletesFromProfile(nearby) {
+        if (!this._useZwiftAPI) {
+            return;
+        }
         for (const {athleteId, gap} of nearby) {
             if (this._profileFetchIds.has(athleteId)) {
                 continue;
