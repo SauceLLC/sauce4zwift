@@ -1,11 +1,9 @@
 import os from 'node:os';
 import net from 'node:net';
 import {SqliteDatabase, deleteDatabase} from './db.mjs';
-import * as storage from './storage.mjs';
 import * as rpc from './rpc.mjs';
+import * as zwift from './zwift.mjs';
 import * as sauce from '../shared/sauce/index.mjs';
-import fetch from 'node-fetch';
-import {getAppSetting} from './main.mjs';
 import {createRequire} from 'node:module';
 import {captureExceptionOnce} from '../shared/sentry-util.mjs';
 const require = createRequire(import.meta.url);
@@ -690,13 +688,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     }
 
     async runAthleteProfileUpdater() {
-        if (this._useFakeData) {
-            this.zwiftToken = true;
-        } else if (this.zwiftToken === undefined) {
-            const zwiftLogin = getAppSetting('zwiftLogin');
-            this.zwiftToken = zwiftLogin && storage.load('zwift-token');
-        }
-        while (this.zwiftToken && this._pendingProfileFetches.size) {
+        while (this._pendingProfileFetches.size) {
             let minGap = Infinity;
             let id;
             for (const [xId, xGap] of this._pendingProfileFetches.entries()) {
@@ -735,45 +727,28 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 });
             } else {
                 try {
-                    const p = await this._fetchProfile(id, this.zwiftToken);
-                    this.updateAthlete(id, p.firstName, p.lastName, {
-                        ftp: p.ftp,
-                        avatar: p.imageSrcLarge || p.imageSrc,
-                        weight: p.weight / 1000,
-                        height: p.height / 10,
-                        gender: p.male === false ? 'female' : 'male',
-                        age: p.age,
-                        level: Math.floor(p.achievementLevel / 100),
-                        createdOn: p.createdOn ? +(new Date(p.createdOn)) : undefined,
-                    });
+                    const p = await zwift.getProfile(id);
+                    if (p) {
+                        this._profileFetchCount++;
+                        this.updateAthlete(id, p.firstName, p.lastName, {
+                            ftp: p.ftp,
+                            avatar: p.imageSrcLarge || p.imageSrc,
+                            weight: p.weight / 1000,
+                            height: p.height / 10,
+                            gender: p.male === false ? 'female' : 'male',
+                            age: p.age,
+                            level: Math.floor(p.achievementLevel / 100),
+                            createdOn: p.createdOn ? +(new Date(p.createdOn)) : undefined,
+                        });
+                    }
                 } catch(e) {
                     console.error("Zwift API error:", e);
                     this.updateAthlete(id);  // Update TS
                 }
             }
-            this._profileFetchCount++;
             await sauce.sleep(500 + 1000 * Math.random());
         }
         this._pendingProfileFetches.clear();
-    }
-
-    async _fetchProfile(id, token) {
-        const r = await fetch(`https://us-or-rly101.zwift.com/api/profiles/${id}`, {
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Zwift-Api-Version': '2.5',
-                'Authority': 'us-or-rly101.zwift.com',
-                'Accept': 'application/json',
-                'Accept-Language': 'en-US,en;q=0.9,und;q=0.8',
-                'User-Agent': 'CNL/3.18.0 (Windows 10; Windows 10.0.19044) zwift/1.0.100641 curl/7.78.0-DEV',
-            }
-        });
-        if (!r.ok) {
-            storage.remove('zwift-token');
-            this.zwiftToken = null;
-            throw new Error(`[${r.status}]: ${await r.text()}`);
-        }
-        return await r.json();
     }
 
     _createAthleteData(athleteId, tsOffset) {
