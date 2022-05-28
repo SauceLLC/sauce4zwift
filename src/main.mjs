@@ -798,6 +798,9 @@ async function patronLink() {
 
 
 async function zwiftLogin() {
+    if (process.argv.includes('--zwift-logout')) {
+        storage.remove('zwift-token');
+    }
     if (isDEV && storage.load('zwift-token')) {
         return; // let it timeout for testing, but also avoid relentless logins
     }

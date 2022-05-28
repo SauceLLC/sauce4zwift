@@ -86,9 +86,11 @@ export async function getProfile(id) {
 
 
 export async function searchProfiles(query, options={}) {
-    const limit = options.limit || 20;
+    const limit = options.limit || 100;
     const results = [];
     let start = 0;
+    let pages = 0;
+    const pageLimit = options.pageLimit ? options.pageLimit : 10;
     while (true) {
         const q = new URLSearchParams({start, limit});
         const page = await jsonAPI(`/api/search/profiles?${q}`, {
@@ -98,12 +100,20 @@ export async function searchProfiles(query, options={}) {
         for (const x of page) {
             results.push(x);
         }
-        if (page.length < limit) {
+        if (page.length < limit || ++pages >= pageLimit) {
             break;
         }
         start = results.length;
     }
     return results;
+}
+
+
+export async function giveRideon(to, from) {
+    await jsonAPI(`/api/profiles/${to}/activities/0/rideon`, {
+        method: 'POST',
+        body: JSON.stringify({profileId: from})
+    });
 }
 
 
@@ -115,4 +125,5 @@ global.zwift = {
     protobufAPI,
     getProfile,
     searchProfiles,
+    giveRideon,
 };
