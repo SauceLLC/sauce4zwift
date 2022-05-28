@@ -120,7 +120,7 @@ const windowManifests = [{
     private: true,
     options: {relWidth: 0.6, height: 40, relX: 0.2, y: 28},
     webPreferences: {backgroundThrottling: false}, // XXX Doesn't appear to work
-    hideable: false,
+    alwaysVisible: true,
 }, {
     type: 'watching',
     page: 'watching.html',
@@ -184,6 +184,7 @@ const windowManifests = [{
     overlay: false,
 }];
 rpc.register(() => windowManifests, {name: 'getWindowManifests'});
+const windowManifestsByType = Object.fromEntries(windowManifests.map(x => [x.type, x]));
 
 const defaultWindows = [{
     id: 'default-overview-1',
@@ -295,7 +296,8 @@ rpc.register(url => electron.shell.openExternal(url), {name: 'openExternalLink'}
 
 rpc.register(() => {
     for (const {win, spec} of activeWindows.values()) {
-        if (spec.hideable !== false && spec.overlay !== false) {
+        const manifest = windowManifestsByType[spec.type];
+        if (!manifest.alwaysVisible && spec.overlay !== false) {
             win.hide();
         }
     }
@@ -303,7 +305,8 @@ rpc.register(() => {
 
 rpc.register(() => {
     for (const {win, spec} of activeWindows.values()) {
-        if (spec.hideable !== false && spec.overlay !== false) {
+        const manifest = windowManifestsByType[spec.type];
+        if (!manifest.alwaysVisible && spec.overlay !== false) {
             win.showInactive();
         }
     }
@@ -322,8 +325,8 @@ rpc.register(function() {
 }, {name: 'minimizewindow'});
 
 rpc.register(() => electron.app.getGPUFeatureStatus(), {name: 'getGPUFeatureStatus'});
-
 rpc.register(() => electron.app.getGPUInfo('complete'), {name: 'getGPUInfo'});
+
 
 let _appMetricsPromise;
 let _lastAppMetricsTS = 0;
@@ -515,7 +518,7 @@ rpc.register(removeWindow);
 
 function createWindow({id, type, options, ...state}) {
     id = id || `user-${type}-${Date.now()}-${Math.round(Math.random() * 1000)}`;
-    const manifest = windowManifests.find(x => x.type === type);
+    const manifest = windowManifestsByType[type];
     setWindow(id, {
         ...manifest,
         id,
@@ -573,7 +576,7 @@ function _openWindow(id, spec) {
         maximizable: false,
         fullscreenable: false,
     };
-    const manifest = windowManifests.find(x => x.type === spec.type);
+    const manifest = windowManifestsByType[spec.type];
     // Order of options is crucial...
     const options = {
         ...(spec.overlay !== false ? overlayOptions : {}),
@@ -671,7 +674,7 @@ function _openWindow(id, spec) {
     win.on('resized', onPositionUpdate);
     win.on('close', () => {
         activeWindows.delete(webContents);
-        if (!appQuiting) {
+        if (!appQuiting && !manifest.alwaysVisible) {
             updateWindow(id, {closed: true});
         }
     });
@@ -689,7 +692,8 @@ function _openWindow(id, spec) {
 
 function openAllWindows() {
     for (const [id, spec] of Object.entries(getWindows())) {
-        if (!spec.closed) {
+        const manifest = windowManifestsByType[spec.type];
+        if (manifest.alwaysVisible || !spec.closed) {
             _openWindow(id, spec);
         }
     }
