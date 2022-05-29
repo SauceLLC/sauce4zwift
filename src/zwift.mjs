@@ -1,6 +1,13 @@
 import * as storage from './storage.mjs';
-//import * as rpc from './rpc.mjs';
 import fetch from 'node-fetch';
+import protobuf from 'protobufjs';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const protos = protobuf.loadSync(path.join(__dirname, 'zwift.proto')).root;
+
+let xRequestId = 1;
 
 
 let _token;
@@ -25,63 +32,48 @@ void refreshToken;
 
 
 export async function api(urn, options, headers) {
-    const token = getToken();
-    if (!token) {
-        throw new TypeError('Auth token not found');
+    headers = headers || {};
+    if (!options.noAuth) {
+        const token = getToken();
+        if (!token) {
+            throw new TypeError('Auth token not found');
+        }
+        headers['Authorization'] = `Bearer ${token}`;
     }
-    const r = await fetch(`https://us-or-rly101.zwift.com/${urn.replace(/^\//, '')}`, {
+    if (options.json) {
+        options.body = JSON.stringify(options.json);
+        headers['Content-Type'] = 'application/json';
+    }
+    if (options.accept) {
+        headers['Accept'] = {
+            json: 'application/json',
+            protobuf: 'application/x-protobuf-lite',
+        }[options.accept];
+    }
+    const host = options.host || `us-or-rly101.zwift.com`;
+    const r = await fetch(`https://${host}/${urn.replace(/^\//, '')}`, {
         headers: {
-            'Authorization': `Bearer ${token}`,
-            'Zwift-Api-Version': '2.5',
-            'Authority': 'us-or-rly101.zwift.com',
-            'User-Agent': 'CNL/3.18.0 (Windows 10; Windows 10.0.19044) zwift/1.0.100641 curl/7.78.0-DEV',
+            'Platform': 'OSX',
+            'Source': 'Game Client',
+            'User-Agent': 'CNL/3.20.4 (macOS 12 Monterey; Darwin Kernel 21.4.0) zwift/1.0.101024 curl/7.78.0-DEV',
+            'X-Machine-Id': '2-986ffe25-41af-475a-8738-1bb16d3ca987',
+            'X-Request-Id': xRequestId++,
             ...headers,
         },
         ...options,
     });
     if (!r.ok) {
         const msg = await r.text();
-        console.error('Zwift API Error:', msg);
+        console.error('Zwift API Error:', r.status, msg);
+        console.debug('Zwift API Request:', options, headers, r);
         throw new Error('Zwift HTTP Error: ' + r.status);
     }
     return r;
 }
 
 
-export async function jsonAPI(urn, options) {
-    const r = await api(urn, options, {
-        'accept': 'application/json',
-        'content-type': 'application/json',
-    });
-    return await r.json();
-}
-
-
-export async function protobufAPI(urn, options) {
-    const r = await api(urn, options, {accept: 'application/x-protobuf-lite'});
-    return await r.arrayBuffer();
-}
-
-/* Endpoint notes:
- *
- * protobufs:
- * /relay/worlds
- * /api/profiles/?id=1&id=2
- * /api/tcp-config
- *
- * json:
- * /relay/worlds (yup works in json too)
- * /api/profiles/1
- * /api/telemetry/config 
- * /api/zfiles/list
- * /api/game_info (woah, all the things)
- * 
- *
- */
-
-
 export async function getProfile(id) {
-    return await jsonAPI(`/api/profiles/${id}`);
+    return await (await api(`/api/profiles/${id}`)).json();
 }
 
 
@@ -93,10 +85,10 @@ export async function searchProfiles(query, options={}) {
     const pageLimit = options.pageLimit ? options.pageLimit : 10;
     while (true) {
         const q = new URLSearchParams({start, limit});
-        const page = await jsonAPI(`/api/search/profiles?${q}`, {
+        const page = await (await api(`/api/search/profiles?${q}`, {
             method: 'POST',
-            body: JSON.stringify({query}),
-        });
+            json: {query},
+        })).json();
         for (const x of page) {
             results.push(x);
         }
@@ -110,26 +102,45 @@ export async function searchProfiles(query, options={}) {
 
 
 export async function giveRideon(to, from) {
-    await jsonAPI(`/api/profiles/${to}/activities/0/rideon`, {
+    await (await api(`/api/profiles/${to}/activities/0/rideon`, {
         method: 'POST',
-        body: JSON.stringify({profileId: from})
-    });
+        json: {profileId: from},
+    })).json();
 }
 
 
 export async function getNotifications() {
-    return await jsonAPI(`/api/notifications`);
+    return await (await api(`/api/notifications`)).json();
 }
 
+
+export async function getEventFeed() {  // from=epoch, limit=25, sport=CYCLING
+    return await (await api(`/api/event-feed`)).json();
+}
+
+
+export async function login(username, password) {
+    return await (await api('/auth/realms/zwift/protocol/openid-connect/token', {
+        host: 'secure.zwift.com',
+        noAuth: true,
+        method: 'POST',
+        body: new URLSearchParams({
+            client_id: 'Zwift Game Client',
+            grant_type: 'password',
+            password,
+            username,
+        })
+    })).json();
+}
 
 
 // XXX devtools prototyping
 global.zwift = {
     api,
-    jsonAPI,
-    protobufAPI,
     getProfile,
     searchProfiles,
     giveRideon,
     getNotifications,
+    getEventFeed,
+    login,
 };

@@ -25,6 +25,7 @@
     "express": "4.17.3",
     "express-ws": "5.0.2",
     "jsfit": "https://github.com/mayfield/jsfit.git#617a6e10870aa21a4c",
+    "keytar": "7.9.0",
     "node-fetch": "3.2.3",
     "sudo-prompt": "9.2.1"
   },

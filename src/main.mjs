@@ -16,6 +16,8 @@ import {beforeSentrySend, setSentry} from '../shared/sentry-util.mjs';
 import {sleep} from '../shared/sauce/base.mjs';
 import crypto from 'node:crypto';
 import {createRequire} from 'node:module';
+import * as secrets from './secrets.mjs';
+
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 const {autoUpdater} = require('electron-updater');
@@ -808,6 +810,7 @@ async function patronLink() {
 
 
 async function zwiftLogin() {
+    debugger;
     if (process.argv.includes('--zwift-logout')) {
         storage.remove('zwift-token');
     }
@@ -821,6 +824,14 @@ async function zwiftLogin() {
     }, {
         preload: path.join(appPath, 'src', 'preload', 'zwift-login.js'),
     });
+
+    debugger;
+    console.warn(await secrets.set('zwiftLogin', {aaa:111, bbb: Math.random()}));
+    console.warn(await secrets.get('zwiftLogin'));
+    for (const [k, v] of await secrets.entries()) {
+        console.log(k, v);
+    }
+
     scrubUA(win);
     const needLoginPromise = new Promise(resolve => {
         electron.ipcMain.on('zwift-login-required', (ev, needLogin) => resolve(needLogin));
