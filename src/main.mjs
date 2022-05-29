@@ -22,6 +22,9 @@ const {autoUpdater} = require('electron-updater');
 const electron = require('electron');
 
 const isDEV = !electron.app.isPackaged;
+const isWindows = os.platform() === 'win32';
+const isMac = !isWindows && os.platform() === 'darwin';
+const isLinux = !isWindows && !isMac && os.platform() === 'linux';
 
 let appQuiting = false;
 let started;
@@ -586,6 +589,7 @@ function _openWindow(id, spec) {
         opacity: spec.opacity,
     };
     const win = new electron.BrowserWindow({
+        type: isLinux ? 'splash' : undefined,
         show: false,
         webPreferences: {
             sandbox: true,
@@ -644,6 +648,7 @@ function _openWindow(id, spec) {
             height = hHint <= 1 ? Math.round(sHeight * (hHint || 0.5)) : Math.round(hHint) ;
         }
         const newWin = new electron.BrowserWindow({
+            type: isLinux ? 'splash' : undefined,
             show: false,
             width,
             height,
@@ -702,6 +707,7 @@ function openAllWindows() {
 
 function makeCaptiveWindow(options={}, webPrefs={}) {
     const win = new electron.BrowserWindow({
+        type: isLinux ? 'splash' : undefined,
         center: true,
         maximizable: false,
         fullscreenable: false,
@@ -882,7 +888,7 @@ async function main() {
     }
     await electron.app.whenReady();
     const trayIcon = electron.nativeImage.createFromPath(path.join(appPath, 'images',
-        os.platform() === 'darwin' ? 'mac-trayicon.png' : 'win-trayicon.png'));
+        isMac ? 'mac-trayicon.png' : 'win-trayicon.png'));
     const tray = new electron.Tray(trayIcon);
     tray.setContextMenu(menu.trayMenu);
     menu.setAppMenu();
