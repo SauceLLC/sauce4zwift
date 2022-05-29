@@ -17,6 +17,9 @@ import {sleep} from '../shared/sauce/base.mjs';
 import crypto from 'node:crypto';
 import {createRequire} from 'node:module';
 import * as secrets from './secrets.mjs';
+import * as zwift from './zwift.mjs';
+
+global.secrets = secrets;
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
@@ -112,7 +115,6 @@ rpc.register(restart);
 
 
 const appSettingDefaults = {
-    zwiftLogin: false,
     webServerEnabled: true,
     webServerPort: 1080,
 };
@@ -810,54 +812,50 @@ async function patronLink() {
 
 
 async function zwiftLogin() {
-    debugger;
     if (process.argv.includes('--zwift-logout')) {
-        storage.remove('zwift-token');
+        await secrets.remove('zwift-login');
     }
-    if (isDEV && storage.load('zwift-token')) {
-        return; // let it timeout for testing, but also avoid relentless logins
+    const login = await secrets.get('zwift-login');
+    if (login) {
+        try {
+            return await zwift.authenticate(login.username, login.password);
+        } catch(e) {
+            console.debug("Previous Zwift login invalid:", e);
+            // We could remove them, but it might be a network error; just leave em for now.
+        }
     }
     const win = makeCaptiveWindow({
         width: 400,
-        height: 700,
+        height: 600,
         show: false,
     }, {
         preload: path.join(appPath, 'src', 'preload', 'zwift-login.js'),
     });
-
-    debugger;
-    console.warn(await secrets.set('zwiftLogin', {aaa:111, bbb: Math.random()}));
-    console.warn(await secrets.get('zwiftLogin'));
-    for (const [k, v] of await secrets.entries()) {
-        console.log(k, v);
-    }
-
-    scrubUA(win);
-    const needLoginPromise = new Promise(resolve => {
-        electron.ipcMain.on('zwift-login-required', (ev, needLogin) => resolve(needLogin));
-    });
     let closed;
-    const tokenPromise = new Promise(resolve => {
-        electron.ipcMain.on('zwift-token', (ev, token) => resolve(token));
-        win.on('closed', () => (closed = true, resolve(false)));
+    let setDone;
+    const done = new Promise(resolve => setDone = resolve);
+    electron.ipcMain.on('zwift-creds', async (ev, {username, password}) => {
+        try {
+            await zwift.authenticate(username, password);
+            await secrets.set('zwift-login', {username, password});
+            setDone();
+        } catch(e) {
+            win.webContents.send('validation-error', e);
+        }
     });
-    win.loadURL(`https://www.zwift.com/sign-in`);
-    if (await needLoginPromise) {
-        console.info("Login to Zwift required...");
-        win.show();
-    } else {
-        console.info("Zwift token refreshing...");
+    win.on('closed', () => {
+        closed = true;
+        setDone();
+    });
+    win.loadFile(path.join(pagePath, 'zwift-login.html'));
+    win.show();
+    try {
+        await done;
+    } finally {
+        if (!closed) {
+            win.close();
+        }
     }
-    const token = await tokenPromise;
-    if (token) {
-        console.info("Zwift token acquired");
-    } else {
-        console.info("Zwift login failed");
-    }
-    if (!closed) {
-        win.close();
-    }
-    storage.save('zwift-token', token);
 }
 
 

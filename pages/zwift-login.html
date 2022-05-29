@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+        <meta name="apple-mobile-web-app-capable" content="yes"/>
+        <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
+
+        <title>Zwift Login - Sauce for Zwift™</title>
+
+        <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
+        <link rel="stylesheet" href="css/common.css"/>
+
+        <style>
+            html {
+                padding: 0;
+                font-size: 16px;
+                transition: filter 200ms;
+            }
+
+            html.validating {
+                filter: brightness(0.5);
+                pointer-events: none;
+            }
+
+            body {
+                border-radius: 0;
+                padding: 2em;
+                display: flex;
+                align-items: center;
+                flex-direction: column;
+            }
+
+            img.logo {
+                height: 120px;
+                transform: rotate(-20deg);
+                margin-right: 2em;
+            }
+
+            body > header {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            body > main {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                flex-direction: column;
+            }
+
+            h4, h5 {
+                margin-top: 1em;
+                margin-bottom: 0.5em;
+            }
+
+            form {
+                margin: 1em;
+            }
+
+            key {
+                display: inline-block;
+                min-width: 8ch !important;
+            }
+
+            input[type="submit"] {
+                font-size: 1em;
+                margin-top: 0.8em;
+                padding: 0.3em 1em;
+                align-self: center;
+            }
+
+            .fearnot {
+                opacity: 0.8;
+                font-size: 0.9em;
+            }
+
+            .error:not(:empty) {
+                margin-top: 1em;
+                padding: 0.2em 0.8em;
+                font-size: 0.8em;
+                font-weight: 600;
+                color: #cb2801;
+                background: #f8f8f8;
+                border-radius: 0.26em;
+                align-self: center;
+            }
+        </style>
+    </head>
+
+    <body>
+        <header>
+            <img class="logo" src="images/logo_vert_120x320.png"/>
+            <div>
+                <h1>Zwift Login</h1>
+                <p>Why? For access to athlete names, watts/kg, avatars and complete total oneness with the universe.
+            </div>
+        </header>
+        <main>
+            <form name="zwift-login-for-sauce">
+                <label>
+                    <key>Username:</key>
+                    <input type="text" autocomplete="off" name="username" placeholder="Probably your email"/>
+                </label>
+                <label>
+                    <key>Password:</key>
+                    <input type="password" autocomplete="off" name="password" placeholder="Hopefully not &quot;password&quot;"/>
+                </label>
+                <input type="submit" value="Login to Zwift"/>
+                <div class="error"></div>
+            </form>
+            <i class="fearnot">Fear not brave soul, for these credentials are only used to <b>directly</b> communicate with Zwift servers and Sauce keeps them in your private encrypted Mac Keychain or Windows Credential Manager.</i>
+        </main>
+    </body>
+</html>

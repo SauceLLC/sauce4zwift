@@ -1,4 +1,3 @@
-import * as storage from './storage.mjs';
 import fetch from 'node-fetch';
 import protobuf from 'protobufjs';
 import path from 'node:path';
@@ -6,39 +5,24 @@ import {fileURLToPath} from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const protos = protobuf.loadSync(path.join(__dirname, 'zwift.proto')).root;
+void protos;
 
 let xRequestId = 1;
+let authToken;
 
 
-let _token;
-function getToken() {
-    if (_token === undefined) {
-        _token = storage.load('zwift-token') || null;
-    }
-    return _token;
+export function isAuthenticated() {
+    return !!authToken;
 }
-
-
-function setToken(token) {
-    _token = token;
-}
-void setToken;
-
-
-function refreshToken() {
-    throw new Error('TBD'); // use refresh jwt or just reload the zwift login browser page.
-}
-void refreshToken;
 
 
 export async function api(urn, options, headers) {
     headers = headers || {};
     if (!options.noAuth) {
-        const token = getToken();
-        if (!token) {
-            throw new TypeError('Auth token not found');
+        if (!authToken) {
+            throw new TypeError('Auth token not set');
         }
-        headers['Authorization'] = `Bearer ${token}`;
+        headers['Authorization'] = `Bearer ${authToken}`;
     }
     if (options.json) {
         options.body = JSON.stringify(options.json);
@@ -62,10 +46,9 @@ export async function api(urn, options, headers) {
         },
         ...options,
     });
-    if (!r.ok) {
+    if (!r.ok && (!options.ok || !options.ok.includes(r.status))) {
         const msg = await r.text();
         console.error('Zwift API Error:', r.status, msg);
-        console.debug('Zwift API Request:', options, headers, r);
         throw new Error('Zwift HTTP Error: ' + r.status);
     }
     return r;
@@ -119,18 +102,61 @@ export async function getEventFeed() {  // from=epoch, limit=25, sport=CYCLING
 }
 
 
-export async function login(username, password) {
-    return await (await api('/auth/realms/zwift/protocol/openid-connect/token', {
+export async function authenticate(username, password) {
+    const r = await api('/auth/realms/zwift/protocol/openid-connect/token', {
         host: 'secure.zwift.com',
         noAuth: true,
         method: 'POST',
+        ok: [200, 401],
         body: new URLSearchParams({
             client_id: 'Zwift Game Client',
             grant_type: 'password',
             password,
             username,
         })
-    })).json();
+    });
+    const resp = await r.json();
+    if (r.status === 401) {
+        throw new Error(resp.error_description || 'Login failed');
+    }
+    authToken = resp;
+    console.debug("Zwift auth token acquired");
+    schedRefresh(authToken.expires_in * 1000 / 2);
+}
+
+
+export async function refreshToken() {
+    if (!authToken) {
+        console.warn("No auth token to refresh");
+        return false;
+    }
+    const r = await api('/auth/realms/zwift/protocol/openid-connect/token', {
+        host: 'secure.zwift.com',
+        noAuth: true,
+        method: 'POST',
+        body: new URLSearchParams({
+            client_id: 'Zwift Game Client',
+            grant_type: 'refresh_token',
+            refresh_token: authToken.refresh_token,
+        })
+    });
+    const resp = await r.json();
+    authToken = resp;
+    console.debug("Zwift auth token refreshed");
+    schedRefresh(authToken.expires_in * 1000 / 2);
+}
+
+
+let _nextRefresh;
+function cancelRefresh() {
+    clearTimeout(_nextRefresh);
+}
+
+
+function schedRefresh(delay) {
+    cancelRefresh();
+    console.debug(`Refresh Zwift token in: ${Math.round(delay / 1000)} seconds`);
+    _nextRefresh = setTimeout(refreshToken, delay);
 }
 
 
@@ -142,5 +168,6 @@ global.zwift = {
     giveRideon,
     getNotifications,
     getEventFeed,
-    login,
+    authenticate,
+    refreshToken,
 };

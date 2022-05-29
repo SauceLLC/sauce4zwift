@@ -15,7 +15,7 @@ export async function set(key, value) {
     if (!key || !value) {
         throw new TypeError('key and value required');
     }
-    await keytar.getPassword(service, key, JSON.stringify(value));
+    await keytar.setPassword(service, key, JSON.stringify(value));
 }
 
 
