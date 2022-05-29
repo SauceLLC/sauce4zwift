@@ -675,8 +675,8 @@ function _openWindow(id, spec) {
         clearTimeout(saveStateTimeout);
         saveStateTimeout = setTimeout(() => updateWindow(id, {position}), 200);
     }
-    win.on('moved', onPositionUpdate);
-    win.on('resized', onPositionUpdate);
+    win.on('move', onPositionUpdate);
+    win.on('resize', onPositionUpdate);
     win.on('close', () => {
         activeWindows.delete(webContents);
         if (!appQuiting && !manifest.alwaysVisible) {
