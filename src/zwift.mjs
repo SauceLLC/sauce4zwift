@@ -4,8 +4,10 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const _case = protobuf.parse.defaults.keepCase;
+protobuf.parse.defaults.keepCase = true;
 const protos = protobuf.loadSync(path.join(__dirname, 'zwift.proto')).root;
-void protos;
+protobuf.parse.defaults.keepCase = _case;
 
 let xRequestId = 1;
 let authToken;
@@ -16,13 +18,13 @@ export function isAuthenticated() {
 }
 
 
-export async function api(urn, options, headers) {
+export async function api(urn, options={}, headers={}) {
     headers = headers || {};
     if (!options.noAuth) {
-        if (!authToken) {
+        if (!authToken || !authToken.access_token) {
             throw new TypeError('Auth token not set');
         }
-        headers['Authorization'] = `Bearer ${authToken}`;
+        headers['Authorization'] = `Bearer ${authToken.access_token}`;
     }
     if (options.json) {
         options.body = JSON.stringify(options.json);
@@ -55,8 +57,29 @@ export async function api(urn, options, headers) {
 }
 
 
+export async function apiJSON(urn, options, headers) {
+    const r = await api(urn, {accept: 'json', ...options}, headers);
+    return await r.json();
+}
+
+
+export async function apiPB(urn, options, headers) {
+    const r = await api(urn, {accept: 'protobuf', ...options}, headers);
+    const ProtoBuf = protos.get(options.protobuf);
+    return ProtoBuf.decode(new Uint8Array(await r.arrayBuffer()));
+}
+
+
 export async function getProfile(id) {
-    return await (await api(`/api/profiles/${id}`)).json();
+    return await apiJSON(`/api/profiles/${id}`);
+}
+
+
+export async function getProfiles(ids) {
+    const q = new URLSearchParams(ids.map(id => ['id', id]));
+    const unordered = (await apiPB(`/api/profiles?${q}`, {protobuf: 'PlayerProfiles'})).profiles;
+    const m = new Map(unordered.map(x => [Number(x.id), x]));
+    return ids.map(id => m.get(id));
 }
 
 
@@ -88,17 +111,18 @@ export async function giveRideon(to, from) {
     await (await api(`/api/profiles/${to}/activities/0/rideon`, {
         method: 'POST',
         json: {profileId: from},
+        accept: 'json',
     })).json();
 }
 
 
 export async function getNotifications() {
-    return await (await api(`/api/notifications`)).json();
+    return await (await api(`/api/notifications`, {accept: 'json'})).json();
 }
 
 
 export async function getEventFeed() {  // from=epoch, limit=25, sport=CYCLING
-    return await (await api(`/api/event-feed`)).json();
+    return await (await api(`/api/event-feed`, {accept: 'json'})).json();
 }
 
 
@@ -108,6 +132,7 @@ export async function authenticate(username, password) {
         noAuth: true,
         method: 'POST',
         ok: [200, 401],
+        accept: 'json',
         body: new URLSearchParams({
             client_id: 'Zwift Game Client',
             grant_type: 'password',
@@ -134,6 +159,7 @@ export async function refreshToken() {
         host: 'secure.zwift.com',
         noAuth: true,
         method: 'POST',
+        accept: 'json',
         body: new URLSearchParams({
             client_id: 'Zwift Game Client',
             grant_type: 'refresh_token',
