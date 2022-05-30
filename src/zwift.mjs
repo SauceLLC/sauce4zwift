@@ -158,16 +158,3 @@ function schedRefresh(delay) {
     console.debug(`Refresh Zwift token in: ${Math.round(delay / 1000)} seconds`);
     _nextRefresh = setTimeout(refreshToken, delay);
 }
-
-
-// XXX devtools prototyping
-global.zwift = {
-    api,
-    getProfile,
-    searchProfiles,
-    giveRideon,
-    getNotifications,
-    getEventFeed,
-    authenticate,
-    refreshToken,
-};
