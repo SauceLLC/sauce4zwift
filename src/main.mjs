@@ -907,8 +907,8 @@ async function main() {
     menu.setAppMenu();
     autoUpdater.checkForUpdatesAndNotify().catch(Sentry.captureException);
     const lastVersion = getAppSetting('lastVersion');
-    if (lastVersion !== pkg.version) {
-        if (lastVersion) {
+    if (lastVersion !== pkg.version || true) {
+        if (lastVersion && false) {
             await electron.session.defaultSession.clearCache();
             showReleaseNotes();
         } else {
@@ -916,6 +916,22 @@ async function main() {
             // TBD: Could do a welcome thing instead.
             setAppSetting('lastVersion', pkg.version);
             console.info("First time invocation: Welcome to Sauce for Zwift");
+            const welcomeWin = new electron.BrowserWindow({
+                type: isLinux ? 'splash' : undefined,
+                center: true,
+                maximizable: false,
+                fullscreen: true,
+                frame: false,
+                transparent: true,
+                hasShadow: false,
+                titleBarStyle: 'hidden',
+                webPreferences: {
+                    sandbox: true,
+                    devTools: isDEV,
+                    preload: path.join(appPath, 'src', 'preload', 'common.js'),
+                },
+            });
+            welcomeWin.removeMenu();
         }
     }
     try {
