@@ -1,7 +1,6 @@
 import path from 'node:path';
 import process from 'node:process';
 import os from 'node:os';
-import fs from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import * as storage from './storage.mjs';
 import * as menu from './menu.mjs';
