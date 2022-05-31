@@ -6,4 +6,5 @@ export async function main() {
     const svg = document.querySelector('svg');
     svg.offsetWidth;
     svg.classList.add('animate');
+    setTimeout(() => svg.classList.add('fadeout'), 8000);
 }

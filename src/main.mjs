@@ -937,17 +937,18 @@ async function main() {
     menu.setAppMenu();
     autoUpdater.checkForUpdatesAndNotify().catch(Sentry.captureException);
     const lastVersion = getAppSetting('lastVersion');
-    await welcomeSplash();
+    const splash = welcomeSplash();
+    await splash;
     if (lastVersion !== pkg.version) {
         if (lastVersion) {
             await electron.session.defaultSession.clearCache();
+            await splash;
             showReleaseNotes();
         } else {
             // First run, skip release notes.
-            // TBD: Could do a welcome thing instead.
+            // TBD: Could do a walkthrough thing here.
             setAppSetting('lastVersion', pkg.version);
             console.info("First time invocation: Welcome to Sauce for Zwift");
-            await welcomeSplash();
         }
     }
     try {
