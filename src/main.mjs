@@ -916,15 +916,19 @@ async function main() {
             // TBD: Could do a welcome thing instead.
             setAppSetting('lastVersion', pkg.version);
             console.info("First time invocation: Welcome to Sauce for Zwift");
+            const {width, height} = electron.screen.getPrimaryDisplay().size; // XXX
             const welcomeWin = new electron.BrowserWindow({
                 type: isLinux ? 'splash' : undefined,
                 center: true,
-                maximizable: false,
-                fullscreen: true,
-                frame: false,
+                width,
+                height,
                 transparent: true,
                 hasShadow: false,
-                titleBarStyle: 'hidden',
+                frame: false,
+                roundedCorners: false,
+                alwaysOnTop: true,
+                maximizable: false,
+                fullscreenable: false,
                 webPreferences: {
                     sandbox: true,
                     devTools: isDEV,
@@ -932,6 +936,9 @@ async function main() {
                 },
             });
             welcomeWin.removeMenu();
+            welcomeWin.setIgnoreMouseEvents(true);
+            welcomeWin.setFocusable(false);
+            welcomeWin.loadFile(path.join(pagePath, 'welcome.html'));
         }
     }
     try {

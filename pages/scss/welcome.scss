@@ -1,10 +1,18 @@
+html {
+    pointer-events: none;
+}
+
+body {
+    background: none !important;
+}
+
 svg {
     $size: 10vw;
     $sauce-width: $size * 2.72;
     $for-width: $size * 1.3;
     $zwift-width: $size * 2.18;
     opacity: 0;
-    transition: opacity 5s;
+    transition: opacity 2s;
 
     width: 100%;
     height: 100%;
@@ -18,7 +26,7 @@ svg {
         stroke: white;
         font-weight: 600;
         fill: url(#sauce);
-        transition: transform 10s, stroke-dashoffset 15s, fill-opacity 10s 5s, stroke 10s 5s, filter 4s 16s;
+        transition: transform 4s, stroke-dashoffset 7.5s, fill-opacity 4s 2s, stroke 4s 2s, filter 2s 8s;
         transition-timing-function: ease-in-out;
         width: 100%;
         height: 100%;
@@ -38,7 +46,7 @@ svg {
         }
 
         &.tm {
-            transition: opacity 1s 12s, filter 4s 16s;
+            transition: opacity 1s 5s, filter 2s 8s;
             opacity: 0;
             stroke-width: 0;
             font-variant: all-small-caps;

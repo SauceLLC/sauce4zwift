@@ -434,7 +434,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     }
 
     updateAthlete(id, fName, lName, extra={}) {
-        this.saveAthletes([id, this._updateAthlete(id, fName, lName, extra)]);
+        this.saveAthletes([[id, this._updateAthlete(id, fName, lName, extra)]]);
     }
 
     _updateAthlete(id, fName, lName, extra={}) {
