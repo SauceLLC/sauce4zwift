@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html class="use-aspect-ratio">
+    <head>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+        <meta name="apple-mobile-web-app-capable" content="yes"/>
+        <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
+
+        <title>Welcome to Sauce for Zwift™</title>
+
+        <script type="module">
+            import {main} from './src/welcome.mjs';
+            document.addEventListener('DOMContentLoaded', main);
+        </script>
+
+        <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
+        <link rel="stylesheet" href="css/common.css"/>
+        <link rel="stylesheet" href="css/welcome.css"/>
+    </head>
+    <body class="transparent-bg">
+        <div id="titlebar">
+            <header>
+                <div class="button move app-drag electron-only"><img src="images/fa/arrows-alt.svg"/></div>
+                <div class="title app-drag">Welcome to Sauce for Zwift™</div>
+            </header>
+        </div>
+        <div id="content">
+            <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" baseProfile="full">
+                <defs>
+                    <linearGradient id="bluegreen" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%"   stop-color="#05a"/>
+                        <stop offset="100%" stop-color="#0a5"/>
+                    </linearGradient>
+                    <linearGradient id="tb-wipe" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%"   stop-color="#fff"/>
+                        <stop offset="100%" stop-color="#000"/>
+                    </linearGradient>
+                    <linearGradient id="sauce" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%"   stop-color="#db0000de"/>
+                        <stop offset="100%" stop-color="#020e64d1"/>
+                    </linearGradient>
+                </defs>
+                <g>
+                    <text>Sauce</text>
+                    <text>for</text>
+                    <text>Zwift</text>
+                    <text class="tm" dx="1%" dy="-10%">TM</text>
+                </g>
+            </svg>
+        </div>
+    </body>
+</html>
