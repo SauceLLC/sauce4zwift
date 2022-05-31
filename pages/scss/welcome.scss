@@ -24,7 +24,7 @@ svg {
         stroke: white;
         font-weight: 600;
         fill: url(#sauce);
-        transition: transform 6s, stroke-dashoffset 8s, fill-opacity 3s 3s, stroke 3s 5s, filter 2s 8s;
+        transition: transform 4s, stroke-dashoffset 6s, fill-opacity 3s 3s, stroke 3s 4s, filter 2s 8s;
         transition-timing-function: ease-in-out;
         width: 100%;
         height: 100%;
@@ -34,17 +34,17 @@ svg {
         stroke-dashoffset: calc($size * 4); // ^^^
 
         &:nth-child(1) {
-            transform: translate(calc(40% - $sauce-width - ($for-width / 2) - 0.5ch), calc(50% + $size / 4)) scale(5) rotate3d(10, 100, 10, 340deg);
+            transform: translate(40%, 50%) scale(5) rotate3d(10, 100, 10, 340deg);
         }
         &:nth-child(2) {
-            transform: translate(calc(-50% - $for-width / 2), calc(-50% + $size / 4)) scale(5) rotate3d(10, 10, 10, -200deg);
+            transform: translate(0%, 0%) scale(5) rotate3d(100, 100, 100, 200deg);
         }
         &:nth-child(3) {
-            transform: translate(calc(100% + ($for-width / 2) + 0.5ch), calc(150% + $size / 4)) scale(5) rotate3d(10, 10, 100, 200deg);
+            transform: translate(50%, 10%) scale(5) rotate3d(10, 10, 100, -200deg);
         }
 
         &.tm {
-            transition: opacity 1s 5s, filter 2s 8s;
+            transition: opacity 2s 6s, filter 2s 8s;
             opacity: 0;
             stroke-width: 0;
             font-variant: all-small-caps;
