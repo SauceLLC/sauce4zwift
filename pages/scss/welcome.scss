@@ -105,6 +105,12 @@ footer, header {
     font-size: 3vh;
     opacity: 0;
     transition: opacity 1s 4s;
+    text-shadow:
+        0 0 1px black,
+        0 0 1px black,
+        0 0 1px black,
+        0 0 1px black,
+        0 0 1px black;
 }
 
 header {

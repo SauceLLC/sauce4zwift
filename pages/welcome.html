@@ -10,7 +10,7 @@
 
         <script type="module">
             import {main} from './src/welcome.mjs';
-            document.addEventListener('DOMContentLoaded', main);
+            addEventListener('load', main); // must be load, not dom-content-loaded for anim.
         </script>
 
         <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
