@@ -278,9 +278,7 @@ function render() {
         if (link) {
             ev.stopPropagation();
             const athleteId = Number(ev.target.closest('tr').dataset.id);
-            if (link.dataset.id === 'edit') {
-                showAthleteDialog(athleteId);
-            } else if (link.dataset.id === 'export') {
+            if (link.dataset.id === 'export') {
                 const fitData = await common.rpc.exportFIT(athleteId);
                 const f = new File([new Uint8Array(fitData)], `${athleteId}.fit`, {type: 'application/binary'});
                 const l = document.createElement('a');
@@ -300,44 +298,10 @@ function render() {
 }
 
 
-function showAthleteDialog(id) {
-    // XXX Let's switch this to a new window that can be used by any page
-    // Then we can add options for chat-mute, pinned, team, notes as well as add
-    // a nice display of their avatar and perhaps other stats.
-    const ath = athleteData.get(id) || {};
-    const dialog = document.getElementById('edit-name-dialog');
-    const nameInput = dialog.querySelector('input[name="name"]');
-    nameInput.value = ath.fullname || '';
-    const weightInput = dialog.querySelector('input[name="weight"]');
-    weightInput.value = ath.weight || '';
-    const ftpInput = dialog.querySelector('input[name="ftp"]');
-    ftpInput.value = ath.ftp || '';
-    const avatarInput = dialog.querySelector('input[name="avatar"]');
-    avatarInput.value = ath.avatar || '';
-    dialog.addEventListener('close', async ev => {
-        if (dialog.returnValue === 'save') {
-            const [first, ...lasts] = nameInput.value.split(' ').filter(x => x);
-            const last = lasts.length ? lasts.join(' ') : null;
-            const extra = {
-                weight: Number(weightInput.value) || null,
-                ftp: Number(ftpInput.value) || null,
-                avatar: avatarInput.value || null,
-            };
-            const updated = await common.rpc.updateAthlete(id, first, last, extra);
-            athleteData.set(id, updated);
-            console.info(id, updated);
-            renderData(nearbyData);
-        }
-    }, {once: true});
-    dialog.showModal();
-}
-
-
 function makeTableRow() {
     const tr = document.createElement('tr');
     tr.innerHTML = `
         <td>
-            <a class="link" data-id="edit" title="Manually edit athlete"><img src="images/fa/edit-duotone.svg"/></a>
             <a class="link" data-id="export" title="Export FIT File"><img src="images/fa/download-duotone.svg"/></a>
         </td>
         ${enFields.map(({id}) => `<td data-id="${id}"></td>`).join('')}

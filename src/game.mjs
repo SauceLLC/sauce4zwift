@@ -433,17 +433,14 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         return Array.from(fitParser.encode());
     }
 
-    updateAthlete(id, fName, lName, extra={}) {
-        this.saveAthletes([[id, this._updateAthlete(id, fName, lName, extra)]]);
+    updateAthlete(id, data) {
+        this.saveAthletes([[id, this._updateAthlete(id, data)]]);
     }
 
-    _updateAthlete(id, fName, lName, extra={}) {
+    _updateAthlete(id, data) {
         const d = this.loadAthlete(id) || {};
         d.updated = Date.now();
-        if (fName && fName.length === 1 && d.name && d.name[0] && d.name[0].length > 1 && d.name[0][0] === fName) {
-            fName = d.name[0];  // Update is just the first initial but we know the full name already.
-        }
-        d.name = (fName || lName) ? [fName, lName].map(x =>
+        d.name = (data.firstName || data.lastName) ? [data.firstName, data.lastName].map(x =>
             (x && x.trim) ? x.trim() : null).filter(x => x) : d.name;
         d.fullname = d.name && d.name.join(' ');
         const edgeJunk = /^[.*_#\-\s]+|[.*_#\-\s]+$/g;
@@ -463,7 +460,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         d.sanitizedName = (saniFirst || saniLast) ? [saniFirst, saniLast].filter(x => x) : null;
         d.sanitizedFullname = d.sanitizedName && d.sanitizedName.join(' ');
         d.initials = d.sanitizedName ? d.sanitizedName.map(x => x[0]).join('').toUpperCase() : null;
-        Object.assign(d, extra);
+        Object.assign(d, data);
         return d;
     }
 
@@ -507,8 +504,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 const ts = highPrecTimeConv(x.ts);
                 const p = x.payload;
                 if (p.$type.name === 'PlayerEnteredWorld') {
-                    const extra = p.weight ? {weight: p.weight / 1000} : undefined;
-                    this.updateAthlete(p.athleteId, p.firstName, p.lastName, extra);
+                    console.debug("Player entered world update:", p);
                 } else if (p.$type.name === 'EventJoin') {
                     console.debug("Event Join:", p);
                 } else if (p.$type.name === 'EventLeave') {
@@ -530,11 +526,11 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                     this._chatDeDup.unshift([ts, p.from]);
                     this._chatDeDup.length = Math.min(10, this._chatDeDup.length);
                     this.emit('chat', {...p, ts});
-                    this.updateAthlete(p.from, p.firstName, p.lastName, {avatar: p.avatar});
-                } else if (x.payload.$type.name === 'RideOn') {
+                } else if (p.$type.name === 'RideOn') {
                     this.emit('rideon', {...p, ts});
-                    this.updateAthlete(p.from, p.firstName, p.lastName);
                     console.debug("RideOn:", p);
+                } else {
+                    console.debug("what is it?", p.$type);
                 }
             }
         }
@@ -673,9 +669,6 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     }
 
     maybeUpdateAthletesFromProfile(nearby) {
-        if (!this._useZwiftAPI) {
-            return;
-        }
         for (const {athleteId} of nearby) {
             if (this._profileFetchIds.has(athleteId)) {
                 continue;
@@ -706,10 +699,10 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 const words = this.constructor.toString().replaceAll(/[^a-zA-Z ]/g, ' ')
                     .split(' ').filter(x => x);
                 for (const id of batch) {
-                    const fName = words[randInt(words.length)];
-                    const lName = words[randInt(words.length)];
                     const team = Math.random() > 0.8 ? ` [${words[randInt(10)]}]` : '';
-                    const data = this._updateAthlete(id, titleCase(fName), titleCase(lName) + team, {
+                    const data = this._updateAthlete(id, {
+                        firstName: titleCase(words[randInt(words.length)]),
+                        lastName: titleCase(words[randInt(words.length)]) + team,
                         ftp: Math.round(100 + randInt(300)),
                         avatar: Math.random() > 0.05 ?
                             `https://gravatar.com/avatar/${Math.abs(id)}?s=400&d=robohash&r=x` :
@@ -725,7 +718,9 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 for (const p of await zwift.getProfiles(batch)) {
                     if (p) {
                         const id = Number(p.id);
-                        const data = this._updateAthlete(id, p.firstName, p.lastName, {
+                        const data = this._updateAthlete(id, {
+                            firstName: p.firstName,
+                            lastname: p.lastName,
                             ftp: p.ftp,
                             avatar: p.imageSrcLarge || p.imageSrc,
                             weight: p.weight / 1000,

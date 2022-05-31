@@ -19,6 +19,13 @@
         font-size: 1.6em;
         font-weight: bold;
         background-image: linear-gradient(to top, #222, #333);
+        display: flex;
+    }
+
+    .athlete > header .buttons {
+        flex: 1;
+        display: flex;
+        justify-content: flex-end;
     }
 
     .athlete a.avatar {
@@ -93,8 +100,14 @@
 <div class="athlete">
     <header class="title">
         {{profile.sanitizedFullname}}
-        <!--<a class="button open-settings" href="nearby-settings.html?widthHint=0.3&heightHint=0.5"
-           target="nearby-settings"><img src="images/fa/cog-duotone.svg"/></a>-->
+        <div class="buttons">
+            <a href data-action="toggleMute" title="Toggle chat messages from Yahoos.
+
+
+
+seriously"><ms>{{profile.muted ? 'comments_disabled' : 'comment'}}</ms></a>
+            <a href data-action="togglePinned" title="Toggle pinned state for this person.  Used for windows that only show pinned athletes."><ms>{{profile.pinned ? 'star' : 'grade'}}</ms></a>
+        </div>
     </header>
     <section>
         <a class="avatar" href="{{profile && profile.avatar || ''}}" external target="_blank">

@@ -60,7 +60,6 @@ rpc.register(async function() {
         console.warn('Reseting state and restarting...');
         await storage.reset();
         await secrets.remove('zwift-login');
-        await fs.unlink(disableGPUFile);
         restart();
     }
 }, {name: 'resetStorageState'});
@@ -242,16 +241,6 @@ electron.app.on('activate', async () => {
         openAllWindows();
     }
 });
-electron.app.on('app-setting-change', async (key, value) => {
-    if (key === 'disableGPU') {
-        const disableGPUFile = path.join(electron.app.getPath('userData'), 'disabled-gpu');
-        if (value) {
-            await (await fs.open(disableGPUFile, 'w')).close();
-        } else {
-            await fs.unlink(disableGPUFile);
-        }
-    }
-});
 electron.app.on('before-quit', () => {
     appQuiting = true;
     Sentry.flush();
@@ -335,8 +324,6 @@ rpc.register(function() {
     win.minimize();
 }, {name: 'minimizewindow'});
 
-rpc.register(() => electron.app.getGPUFeatureStatus(), {name: 'getGPUFeatureStatus'});
-rpc.register(() => electron.app.getGPUInfo('complete'), {name: 'getGPUInfo'});
 
 
 let _appMetricsPromise;
@@ -362,14 +349,7 @@ rpc.register(async () => {
 }, {name: 'pollAppMetrics'});
 
 
-let _gpuDebug;
 async function getDebugInfo() {
-    if (!_gpuDebug) {
-        _gpuDebug = {
-            info: await electron.app.getGPUInfo('complete'),
-            status: electron.app.getGPUFeatureStatus(),
-        };
-    }
     return {
         app: {
             version: pkg.version,
@@ -387,10 +367,6 @@ async function getDebugInfo() {
             mem: process.getSystemMemoryInfo(),
             uptime: os.uptime(),
             cpus: os.cpus(),
-            gpu: {
-                devices: _gpuDebug.info.gpuDevice,
-                status: _gpuDebug.status,
-            },
         },
         game: gameMonitor.getDebugInfo(),
         databases: [].concat(...Array.from(databases.entries()).map(([dbName, db]) => {

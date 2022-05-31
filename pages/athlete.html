@@ -49,6 +49,19 @@
                 const tpl = await gettingTemplate;
                 const profileFrag = await tpl({athleteId, profile});
                 document.querySelector('body > main').appendChild(profileFrag);
+                document.querySelector('header').addEventListener('click', async ev => {
+                    const a = ev.target.closest('a[data-action]');
+                    if (!a) {
+                        return;
+                    }
+                    ev.preventDefault();
+                    if (a.dataset.action === 'toggleMute') {
+                        await common.rpc.updateAthlete(athleteId, {muted: !profile.muted});
+                    } else if (a.dataset.action === 'togglePinned') {
+                        await common.rpc.updateAthlete(athleteId, {pinned: !profile.pinned});
+                    }
+                    location.reload(); // XXX 
+                });
                 const liveEls = Object.fromEntries(Array.from(document.querySelectorAll('.live'))
                     .map(x => [x.dataset.id, x]));
                 let lastWatching;
