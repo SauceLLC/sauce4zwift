@@ -1,9 +1,6 @@
 Error.stackTraceLimit = 50;
 
-const path = require('node:path');
-const fs = require('node:fs');
 const {app, dialog} = require('electron');
-
 
 app.commandLine.appendSwitch('disable-gpu');
 app.commandLine.appendSwitch('disable-gpu-compositing');
