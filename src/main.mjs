@@ -921,7 +921,7 @@ async function welcomeSplash() {
     welcomeWin.setFocusable(false);
     welcomeWin.loadFile(path.join(pagePath, 'welcome.html'));
     welcomeWin.show();
-    return await sleep(10100).then(() => welcomeWin.close());
+    return await sleep(10000).then(() => welcomeWin.close());
 }
 
 
