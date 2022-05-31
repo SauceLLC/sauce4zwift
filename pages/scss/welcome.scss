@@ -13,11 +13,9 @@ svg {
     $zwift-width: $size * 2.18;
     opacity: 0;
     transition: opacity 2s;
-
     width: 100%;
     height: 100%;
     font-family: 'Jost';
-
 
     text {
         stroke-linejoin: round;
@@ -26,7 +24,7 @@ svg {
         stroke: white;
         font-weight: 600;
         fill: url(#sauce);
-        transition: transform 4s, stroke-dashoffset 7.5s, fill-opacity 4s 2s, stroke 4s 2s, filter 2s 8s;
+        transition: transform 4s, stroke-dashoffset 7.5s, fill-opacity 4s 2s, stroke 5s 3s, filter 2s 8s;
         transition-timing-function: ease-in-out;
         width: 100%;
         height: 100%;

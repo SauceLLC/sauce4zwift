@@ -895,6 +895,36 @@ async function ensureSingleInstance() {
 }
 
 
+async function welcomeSplash() {
+    const {width, height} = electron.screen.getPrimaryDisplay().size; // XXX
+    const welcomeWin = new electron.BrowserWindow({
+        type: isLinux ? 'splash' : undefined,
+        center: true,
+        width,
+        height,
+        show: false,
+        transparent: true,
+        hasShadow: false,
+        frame: false,
+        roundedCorners: false,
+        alwaysOnTop: true,
+        maximizable: false,
+        fullscreenable: false,
+        webPreferences: {
+            sandbox: true,
+            devTools: isDEV,
+            preload: path.join(appPath, 'src', 'preload', 'common.js'),
+        },
+    });
+    welcomeWin.removeMenu();
+    welcomeWin.setIgnoreMouseEvents(true);
+    welcomeWin.setFocusable(false);
+    welcomeWin.loadFile(path.join(pagePath, 'welcome.html'));
+    welcomeWin.show();
+    return await sleep(10100).then(() => welcomeWin.close());
+}
+
+
 async function main() {
     if (await ensureSingleInstance() === false) {
         return;
@@ -907,8 +937,9 @@ async function main() {
     menu.setAppMenu();
     autoUpdater.checkForUpdatesAndNotify().catch(Sentry.captureException);
     const lastVersion = getAppSetting('lastVersion');
-    if (lastVersion !== pkg.version || true) {
-        if (lastVersion && false) {
+    await welcomeSplash();
+    if (lastVersion !== pkg.version) {
+        if (lastVersion) {
             await electron.session.defaultSession.clearCache();
             showReleaseNotes();
         } else {
@@ -916,29 +947,7 @@ async function main() {
             // TBD: Could do a welcome thing instead.
             setAppSetting('lastVersion', pkg.version);
             console.info("First time invocation: Welcome to Sauce for Zwift");
-            const {width, height} = electron.screen.getPrimaryDisplay().size; // XXX
-            const welcomeWin = new electron.BrowserWindow({
-                type: isLinux ? 'splash' : undefined,
-                center: true,
-                width,
-                height,
-                transparent: true,
-                hasShadow: false,
-                frame: false,
-                roundedCorners: false,
-                alwaysOnTop: true,
-                maximizable: false,
-                fullscreenable: false,
-                webPreferences: {
-                    sandbox: true,
-                    devTools: isDEV,
-                    preload: path.join(appPath, 'src', 'preload', 'common.js'),
-                },
-            });
-            welcomeWin.removeMenu();
-            welcomeWin.setIgnoreMouseEvents(true);
-            welcomeWin.setFocusable(false);
-            welcomeWin.loadFile(path.join(pagePath, 'welcome.html'));
+            await welcomeSplash();
         }
     }
     try {
