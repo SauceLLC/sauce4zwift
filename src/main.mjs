@@ -130,7 +130,7 @@ const windowManifests = [{
     private: true,
     options: {relWidth: 0.6, height: 40, relX: 0.2, y: 28},
     webPreferences: {backgroundThrottling: false}, // XXX Doesn't appear to work
-    alwaysVisible: false,
+    alwaysVisible: true,
 }, {
     type: 'watching',
     page: 'watching.html',

@@ -5,7 +5,7 @@ $zwift-width: $size * 2.18;
 
 html {
     pointer-events: none;
-    transition: opacity 2s, filter 2s;
+    transition: opacity 2s;
 }
 
 body {
@@ -89,7 +89,6 @@ svg {
 }
 
 .fadeout {
-    filter: blur(10vw) brightness(2);
     opacity: 0;
 }
 
