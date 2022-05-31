@@ -4,7 +4,6 @@ import {SqliteDatabase, deleteDatabase} from './db.mjs';
 import * as rpc from './rpc.mjs';
 import * as zwift from './zwift.mjs';
 import * as sauce from '../shared/sauce/index.mjs';
-import {getAppSetting} from './main.mjs';
 import {createRequire} from 'node:module';
 import {captureExceptionOnce} from '../shared/sentry-util.mjs';
 const require = createRequire(import.meta.url);
@@ -287,9 +286,8 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         this._stateDupCount = 0;
         this._stateStaleCount = 0;
         this._profileFetchIds = new Set();
-        this._pendingProfileFetches = new Map();
+        this._pendingProfileFetches = [];
         this._profileFetchCount = 0;
-        this._useZwiftAPI = getAppSetting('zwiftLogin');
         this.on('incoming', this.onIncoming);
         this.on('outgoing', this.onOutgoing);
         rpc.register(this.updateAthlete, {scope: this});
@@ -326,7 +324,6 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     resetStats() {
         console.debug("User requested stats reset");
         this._athleteData.clear();
-        this.clearPendingProfileFetches();
     }
 
     async exportFIT(athleteId) {
@@ -437,6 +434,10 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     }
 
     updateAthlete(id, fName, lName, extra={}) {
+        this.saveAthletes([id, this._updateAthlete(id, fName, lName, extra)]);
+    }
+
+    _updateAthlete(id, fName, lName, extra={}) {
         const d = this.loadAthlete(id) || {};
         d.updated = Date.now();
         if (fName && fName.length === 1 && d.name && d.name[0] && d.name[0].length > 1 && d.name[0][0] === fName) {
@@ -463,7 +464,6 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         d.sanitizedFullname = d.sanitizedName && d.sanitizedName.join(' ');
         d.initials = d.sanitizedName ? d.sanitizedName.map(x => x[0]).join('').toUpperCase() : null;
         Object.assign(d, extra);
-        this.saveAthlete(id, d);
         return d;
     }
 
@@ -482,10 +482,14 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         }
     }
 
-    saveAthlete(id, data) {
-        this.athletesCache.set(id, data);
-        this.athletesDB.prepare('INSERT OR REPLACE INTO athletes (id, data) VALUES(?, ?)')
-            .run(id, JSON.stringify(data));
+    saveAthletes(records) {
+        const stmt = this.athletesDB.prepare('INSERT OR REPLACE INTO athletes (id, data) VALUES(?, ?)');
+        this.athletesDB.transaction(() => {
+            for (const [id, data] of records) {
+                this.athletesCache.set(id, data);
+                stmt.run(id, JSON.stringify(data));
+            }
+        })();
     }
 
     onIncoming(...args) {
@@ -573,7 +577,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     setWatching(athleteId) {
         console.debug("Now watching:", athleteId);
         this.watching = athleteId;
-        this.clearPendingProfileFetches();
+        this._pendingProfileFetches.length = 0;
     }
 
     processFlags1(bits) {
@@ -672,108 +676,42 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         if (!this._useZwiftAPI) {
             return;
         }
-        for (const {athleteId, gap} of nearby) {
+        for (const {athleteId} of nearby) {
             if (this._profileFetchIds.has(athleteId)) {
                 continue;
             }
             this._profileFetchIds.add(athleteId);
-            this._pendingProfileFetches.set(athleteId, Math.abs(gap));
+            this._pendingProfileFetches.push(athleteId);
         }
-        if (!this._athleteProfileUpdater && this._pendingProfileFetches.size) {
+        if (!this._athleteProfileUpdater && this._pendingProfileFetches.length) {
             this._athleteProfileUpdater = this.runAthleteProfileUpdater().finally(() =>
                 this._athleteProfileUpdater = null);
         }
     }
 
-    clearPendingProfileFetches() {
-        for (const id of this._pendingProfileFetches.keys()) {
-            this._profileFetchIds.delete(id);
-        }
-        this._pendingProfileFetches.clear();
-    }
-
-    async runAthleteProfileUpdaterSlow() {
-        while (this._pendingProfileFetches.size) {
-            let minGap = Infinity;
-            let id;
-            for (const [xId, xGap] of this._pendingProfileFetches.entries()) {
-                if (xGap < minGap) {
-                    minGap = xGap;
-                    id = xId;
+    async runAthleteProfileUpdater() {
+        while (this._pendingProfileFetches.length) {
+            const batch = Array.from(this._pendingProfileFetches);
+            setTimeout(() => {
+                for (const x of batch) {
+                    this._profileFetchIds.delete(x);
                 }
-            }
-            this._pendingProfileFetches.delete(id);
-            const state = this._athleteData.get(id).mostRecentState;
-            if (!state || this._watchingRoadSig !== this._roadSig(state)) {
-                this._profileFetchIds.delete(id);  // Allow immediate recheck
-                continue;
-            }
-            // Allow lookup/cache-validation after 1 hour...
-            setTimeout(() => this._profileFetchIds.delete(id), 3600 * 1000);
-            const data = this.loadAthlete(id);
-            if (!this._useFakeData && data && data.updated && (Date.now() - data.updated) < (86400 * 1000)) {
-                continue;
-            }
+            }, 300 * 1000);
+            this._pendingProfileFetches.length = 0;
+            this._profileFetchCount += batch.length;
+            console.debug(`Fetching ${batch.length} profiles`);
+            const s = performance.now();
+            const updates = [];
             if (this._useFakeData) {
                 const words = this.constructor.toString().replaceAll(/[^a-zA-Z ]/g, ' ')
                     .split(' ').filter(x => x);
-                const fName = words[randInt(words.length)];
-                const lName = words[randInt(words.length)];
-                const team = Math.random() > 0.8 ? ` [${words[randInt(10)]}]` : '';
-                this.updateAthlete(id, titleCase(fName), titleCase(lName) + team, {
-                    ftp: Math.round(100 + randInt(300)),
-                    avatar: Math.random() > 0.25 ?
-                        `https://gravatar.com/avatar/${Math.abs(id)}?s=400&d=robohash&r=x` :
-                        undefined,
-                    weight: Math.round(40 + randInt(70)),
-                    gender: ['female', 'male'][randInt(2)],
-                    age: Math.round(18 + randInt(60)),
-                    level: Math.round(1 + randInt(40)),
-                });
-            } else {
-                try {
-                    const p = await zwift.getProfile(id);
-                    if (p) {
-                        this._profileFetchCount++;
-                        this.updateAthlete(id, p.firstName, p.lastName, {
-                            ftp: p.ftp,
-                            avatar: p.imageSrcLarge || p.imageSrc,
-                            weight: p.weight / 1000,
-                            height: p.height / 10,
-                            gender: p.male === false ? 'female' : 'male',
-                            age: p.age,
-                            level: Math.floor(p.achievementLevel / 100),
-                            createdOn: p.createdOn ? +(new Date(p.createdOn)) : undefined,
-                        });
-                    }
-                } catch(e) {
-                    console.error("Zwift API error:", e);
-                    this.updateAthlete(id);  // Update TS
-                }
-            }
-            await sauce.sleep(500 + 1000 * Math.random());
-        }
-        this._pendingProfileFetches.clear();
-    }
-
-    async runAthleteProfileUpdater() {
-        while (this._pendingProfileFetches.size) {
-            const batch = [];
-            for (const x of this._pendingProfileFetches.keys()) {
-                batch.push(x);
-                setTimeout(() => this._profileFetchIds.delete(x), 300 * 1000);
-            }
-            this._pendingProfileFetches.clear();
-            if (this._useFakeData) {
                 for (const id of batch) {
-                    const words = this.constructor.toString().replaceAll(/[^a-zA-Z ]/g, ' ')
-                        .split(' ').filter(x => x);
                     const fName = words[randInt(words.length)];
                     const lName = words[randInt(words.length)];
                     const team = Math.random() > 0.8 ? ` [${words[randInt(10)]}]` : '';
-                    this.updateAthlete(id, titleCase(fName), titleCase(lName) + team, {
+                    const data = this._updateAthlete(id, titleCase(fName), titleCase(lName) + team, {
                         ftp: Math.round(100 + randInt(300)),
-                        avatar: Math.random() > 0.25 ?
+                        avatar: Math.random() > 0.05 ?
                             `https://gravatar.com/avatar/${Math.abs(id)}?s=400&d=robohash&r=x` :
                             undefined,
                         weight: Math.round(40 + randInt(70)),
@@ -781,13 +719,13 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                         age: Math.round(18 + randInt(60)),
                         level: Math.round(1 + randInt(40)),
                     });
-                    await sauce.sleep(0);  // don't block realtime tasks
+                    updates.push([id, data]);
                 }
             } else {
                 for (const p of await zwift.getProfiles(batch)) {
                     if (p) {
-                        this._profileFetchCount++;
-                        this.updateAthlete(Number(p.id), p.firstName, p.lastName, {
+                        const id = Number(p.id);
+                        const data = this._updateAthlete(id, p.firstName, p.lastName, {
                             ftp: p.ftp,
                             avatar: p.imageSrcLarge || p.imageSrc,
                             weight: p.weight / 1000,
@@ -796,10 +734,15 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                             age: p.age,
                             level: Math.floor(p.achievementLevel / 100),
                         });
+                        updates.push([id, data]);
                     }
                 }
             }
-            await sauce.sleep(500 + 1000 * Math.random());
+            if (updates.length) {
+                this.saveAthletes(updates);
+            }
+            console.debug('took', performance.now() - s);
+            await sauce.sleep(500);
         }
     }
 
@@ -1179,7 +1122,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
 
     getDebugInfo() {
         return {
-            pendingZwiftProfileFetches: this._pendingProfileFetches.size,
+            pendingZwiftProfileFetches: this._pendingProfileFetches.length,
             zwiftProfileFetchCount: this._profileFetchCount,
             stateProcessCount: this._stateProcessCount,
             stateDupCount: this._stateDupCount,

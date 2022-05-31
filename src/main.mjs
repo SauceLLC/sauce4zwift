@@ -19,7 +19,9 @@ import {createRequire} from 'node:module';
 import * as secrets from './secrets.mjs';
 import * as zwift from './zwift.mjs';
 
-global.secrets = secrets;
+// Dev tools prototyping
+global.zwift = zwift;
+global.game = game;
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
@@ -57,6 +59,8 @@ rpc.register(async function() {
     if (response === 0) {
         console.warn('Reseting state and restarting...');
         await storage.reset();
+        await secrets.remove('zwift-login');
+        await fs.unlink(disableGPUFile);
         restart();
     }
 }, {name: 'resetStorageState'});
@@ -127,7 +131,7 @@ const windowManifests = [{
     private: true,
     options: {relWidth: 0.6, height: 40, relX: 0.2, y: 28},
     webPreferences: {backgroundThrottling: false}, // XXX Doesn't appear to work
-    alwaysVisible: true,
+    alwaysVisible: false,
 }, {
     type: 'watching',
     page: 'watching.html',
@@ -922,15 +926,13 @@ async function main() {
         await electron.dialog.showErrorBox('EULA or Patreon Link Error', '' + e);
         return quit(1);
     }
-    if (getAppSetting('zwiftLogin')) {
-        await zwiftLogin();
-    }
     if (game.npcapMissing) {
         electron.shell.beep();
         const installPrompt = makeCaptiveWindow({width: 400, height: 400});
         installPrompt.loadFile(path.join(pagePath, 'npcap-install.html'));
         return;
     }
+    await zwiftLogin();
     if (process.argv.includes('--garmin-live-track')) {
         const session = process.argv.find((x, i) => i && process.argv[i - 1] == '--garmin-live-track');
         const garminLiveTrack = await import('./garmin_live_track.mjs');
