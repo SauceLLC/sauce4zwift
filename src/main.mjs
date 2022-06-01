@@ -357,10 +357,7 @@ async function getDebugInfo() {
             cpu: process.cpuUsage(),
             cwd: process.cwd(),
         },
-        gpu: {
-            ...electron.app.getGPUFeatureStatus(),
-            info: await electron.app.getGPUInfo('basic'),
-        },
+        gpu: electron.app.getGPUFeatureStatus(),
         sys: {
             arch: process.arch,
             platform: os.platform(),
