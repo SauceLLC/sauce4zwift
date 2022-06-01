@@ -185,7 +185,7 @@ const windowManifests = [{
     options: {relWidth: 0.20, aspectRatio: 0.8},
 }, {
     type: 'stats-for-nerds',
-    groupTitle: 'Debug',
+    groupTitle: 'Misc',
     page: 'stats-for-nerds.html',
     prettyName: 'Stats for Nerds',
     prettyDesc: 'Debug info (cpu/mem) about Sauce.',
@@ -356,6 +356,10 @@ async function getDebugInfo() {
             mem: process.memoryUsage(),
             cpu: process.cpuUsage(),
             cwd: process.cwd(),
+        },
+        gpu: {
+            ...electron.app.getGPUFeatureStatus(),
+            info: await electron.app.getGPUInfo('basic'),
         },
         sys: {
             arch: process.arch,
@@ -670,6 +674,8 @@ function _openWindow(id, spec) {
         win.loadFile(path.join(pagePath, spec.page));
     } else if (spec.pageURL) {
         win.loadURL(`file://${path.join(pagePath, spec.pageURL)}`);
+    } else if (spec.url) {
+        win.loadURL(spec.url);
     } else {
         throw new TypeError("No page or pageURL defined");
     }
@@ -877,14 +883,19 @@ async function welcomeSplash() {
         center: true,
         width,
         height,
+        resizable: false,
+        movable: false,
+        minimizable: false,
+        maximizable: false,
+        fullscreenable: false,
         show: false,
         transparent: true,
         hasShadow: false,
         frame: false,
+        focusable: false,
+        skipTaskbar: true,
         roundedCorners: false,
         alwaysOnTop: true,
-        maximizable: false,
-        fullscreenable: false,
         webPreferences: {
             sandbox: true,
             devTools: isDEV,
@@ -892,8 +903,9 @@ async function welcomeSplash() {
         },
     });
     welcomeWin.removeMenu();
+    welcomeWin.excludedFromShownWindowsMenu = true;
+    welcomeWin.setAlwaysOnTop(true, 'screen-saver');
     welcomeWin.setIgnoreMouseEvents(true);
-    welcomeWin.setFocusable(false);
     welcomeWin.loadFile(path.join(pagePath, 'welcome.html'));
     welcomeWin.show();
     return await sleep(10000).then(() => welcomeWin.close());
@@ -912,8 +924,9 @@ async function main() {
     menu.setAppMenu();
     autoUpdater.checkForUpdatesAndNotify().catch(Sentry.captureException);
     const lastVersion = getAppSetting('lastVersion');
-    const splash = welcomeSplash();
-    await splash;
+    if (!isDEV || true) {
+        await welcomeSplash();
+    }
     if (lastVersion !== pkg.version) {
         if (lastVersion) {
             await electron.session.defaultSession.clearCache();

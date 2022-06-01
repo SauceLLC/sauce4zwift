@@ -255,14 +255,20 @@ async function renderWindowsPanel() {
     const el = document.querySelector('#windows');
     const descs = Object.fromEntries(manifests.map(x => [x.type, x]));
     const restoreLink = `<a class="link restore"><img src="images/fa/plus-square-duotone.svg"></a>`;
-    el.querySelector('table.active-windows tbody').innerHTML = windows.map(x => `
-        <tr data-id="${x.id}" class="active-window ${x.closed ? 'closed' : ''}">
-            <td title="${descs[x.type].prettyDesc}">${descs[x.type].prettyName}</td>
-            <td>${x.closed ? 'Closed' : 'Active'}</td>
-            <td class="btn">${x.closed ? restoreLink : ''}</td>
-            <td class="btn"><a class="link delete"><img src="images/fa/window-close-regular.svg"></a></td>
-        </tr>
-    `).join('\n');
+    el.querySelector('table.active-windows tbody').innerHTML = windows.map(x => {
+        const desc = descs[x.type] || {
+            prettyName: `Unknown window: ${x.type}`,
+            prettyDesc: common.sanitizeForAttr(JSON.stringify(x, null, 4)),
+        };
+        return `
+            <tr data-id="${x.id}" class="active-window ${x.closed ? 'closed' : ''}">
+                <td title="${desc.prettyDesc}">${desc.prettyName}</td>
+                <td>${x.closed ? 'Closed' : 'Active'}</td>
+                <td class="btn">${x.closed ? restoreLink : ''}</td>
+                <td class="btn"><a class="link delete"><img src="images/fa/window-close-regular.svg"></a></td>
+            </tr>
+        `;
+    }).join('\n');
     const mGroups = new Map();
     for (const m of manifests.filter(x => !x.private)) {
         if (!mGroups.has(m.groupTitle)) {

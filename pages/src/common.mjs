@@ -580,6 +580,17 @@ export async function initSettingsForm(selector, options={}) {
     };
     await bindFormData(selector, storageIface);
 }
+
+
+const _saniEl = document.createElement('span');
+export function sanitizeForAttr(raw) {
+    _saniEl.setAttribute('clean', raw);
+    try {
+        return _saniEl.outerHTML.substr(13, _saniEl.outerHTML.length - 22);
+    } finally {
+        _saniEl.setAttribute('clean', '');
+    }
+}
  
 
 rpcCall('getVersion').then(v => Sentry.setTag('version', v));
