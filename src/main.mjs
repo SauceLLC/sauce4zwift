@@ -934,7 +934,6 @@ async function main() {
     menu.setAppMenu();
     autoUpdater.checkForUpdatesAndNotify().catch(Sentry.captureException);
     const lastVersion = getAppSetting('lastVersion');
-            await welcomeSplash();
     if (lastVersion !== pkg.version) {
         if (lastVersion) {
             await electron.session.defaultSession.clearCache();
