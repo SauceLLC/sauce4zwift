@@ -11,7 +11,7 @@
                href><ms>{{profile.muted ? 'comments_disabled' : 'comment'}}</ms></a>
             <a title="Toggle pinned state for this person.  Used for windows that only show pinned athletes."
                data-action="togglePinned" class="{{profile.pinned ? 'active' : ''}}"
-               href><ms>{{profile.pinned ? 'star' : 'grade'}}</ms></a>
+               href><ms>{{profile.pinned ? 'person_pin_circle' : 'add_location'}}</ms></a>
         </div>
     </header>
     <section>

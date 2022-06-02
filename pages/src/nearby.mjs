@@ -72,6 +72,15 @@ function sanitize(unsafe) {
 }
 
 
+function formatTeam(t) {
+    if (!t) {
+        return '-';
+    }
+    const hue = common.teamHue(t);
+    return `<div class="team-badge" style="--team-hue: ${hue};">${sanitize(t)}</div>`;
+}
+
+
 const fields = [
     {id: 'avatar', defaultEn: true, label: '<img class="fa" src="images/fa/user-circle-solid.svg"/>',
      get: x => [x.athleteId, getAthleteValue(x, 'avatar')],
@@ -79,7 +88,7 @@ const fields = [
     {id: 'name', defaultEn: true, label: 'Name', get: x => [x.athleteId, getAthleteValue(x, 'sanitizedFullname')],
      fmt: ([id, name]) => athleteLink(id, sanitize(name || '-'))},
     {id: 'team', defaultEn: false, label: 'Team', get: x => getAthleteValue(x, 'team'),
-     fmt: x => sanitize(x) || '-'},
+     fmt: formatTeam},
     {id: 'initials', defaultEn: false, label: 'Initials', get: x => [x.athleteId, getAthleteValue(x, 'initials')],
      fmt: ([id, initials]) => athleteLink(id, sanitize(initials) || '-')},
     {id: 'id', defaultEn: false, label: 'ID', get: x => x.athleteId},
@@ -208,6 +217,9 @@ export function main() {
     let lastRefresh = 0;
     common.subscribe('nearby', data => {
         nearbyData = data;
+        if (settings.onlyPinned) {
+            data = data.filter(x => x.watching || (x.athlete && x.athlete.pinned));
+        }
         athleteData = new Map(data.filter(x => x.athlete).map(x => [x.athleteId, x.athlete]));
         const elapsed = Date.now() - lastRefresh;
         if (elapsed >= refresh) {
