@@ -362,24 +362,14 @@ html.settings-mode #meta.app-drag {
     opacity: 0.88;
     line-height: normal;
 
-    &.team {
-        --team-hue: 90deg;
-        color: #fff;
-        font-size: 0.76em;
-        line-height: 1;
-        vertical-align: middle;
-        font-variant: all-small-caps;
-        font-weight: bold;
-        background-image: linear-gradient(to bottom,
-            hsla(var(--team-hue), 70%, 30%, 0.86),
-            hsla(var(--team-hue), 87%, 50%, 0.86));
-        border-radius: 0.28em;
-        padding: 0.1em 0.5em 0.2em;
-        text-shadow: none;
-        margin-top: 0.2em;
-        margin-right: 0.1em;
-    }
 }
+
+.desc .lines .team-badge {
+    margin-top: 0.2em;
+    margin-right: 0.1em;
+    font-size: 0.76em;
+}
+
 
 .position .desc.right:not(.empty)::before,
 .position .desc.left:not(.empty)::after,

@@ -278,16 +278,16 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         this._useFakeData = fakeData;
         this.setMaxListeners(50);
         this._athleteData = new Map();
-        this._chatDeDup = [];
         this.athleteId = null;
         this.watching = null;
-        this.athletesCache = new Map();
+        this._athletesCache = new Map();
         this._stateProcessCount = 0;
         this._stateDupCount = 0;
         this._stateStaleCount = 0;
         this._profileFetchIds = new Set();
         this._pendingProfileFetches = [];
         this._profileFetchCount = 0;
+        this._chatHistory = [];
         this.on('incoming', this.onIncoming);
         this.on('outgoing', this.onOutgoing);
         rpc.register(this.updateAthlete, {scope: this});
@@ -296,6 +296,15 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         rpc.register(this.exportFIT, {scope: this});
         rpc.register(this.loadAthlete, {scope: this, name: 'getAthlete'});
         rpc.register(this.resetAthletesDB, {scope: this, name: 'resetAthletesDB'});
+        rpc.register(this.getChatHistory, {scope: this, name: 'getChatHistory'});
+    }
+
+    getChatHistory() {
+        return this._chatHistory.map(x => {
+            const athlete = this._athletesCache.get(x.from);
+            x.muted = athlete.muted != null ? athlete.muted : x.muted;
+            return x;
+        });
     }
 
     maybeLearnAthleteId(packet) {
@@ -465,17 +474,17 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     }
 
     loadAthlete(id) {
-        const a = this.athletesCache.get(id);
+        const a = this._athletesCache.get(id);
         if (a !== undefined) {
             return a;
         }
         const r = this.getAthleteStmt.get(id);
         if (r) {
             const data = JSON.parse(r.data);
-            this.athletesCache.set(id, data);
+            this._athletesCache.set(id, data);
             return data;
         } else {
-            this.athletesCache.set(id, null);
+            this._athletesCache.set(id, null);
         }
     }
 
@@ -483,7 +492,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         const stmt = this.athletesDB.prepare('INSERT OR REPLACE INTO athletes (id, data) VALUES(?, ?)');
         this.athletesDB.transaction(() => {
             for (const [id, data] of records) {
-                this.athletesCache.set(id, data);
+                this._athletesCache.set(id, data);
                 stmt.run(id, JSON.stringify(data));
             }
         })();
@@ -502,35 +511,19 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         for (const x of packet.playerUpdates) {
             if (x.payload && x.payload.$type) {
                 const ts = highPrecTimeConv(x.ts);
-                const p = x.payload;
-                if (p.$type.name === 'PlayerEnteredWorld') {
-                    console.debug("Player entered world update:", p);
-                } else if (p.$type.name === 'EventJoin') {
-                    console.debug("Event Join:", p);
-                } else if (p.$type.name === 'EventLeave') {
-                    console.debug("Event Leave:", p);
-                } else if (p.$type.name === 'ChatMessage') {
-                    let dedup;
-                    for (const [t, from] of this._chatDeDup) {
-                        if (t === ts && from === p.from) {
-                            dedup = true;
-                            break;
-                        }
-                    }
-                    if (dedup) {
-                        console.warn("Deduping chat message:", ts, p.from);
-                        continue;
-                    } else {
-                        console.debug(ts, p.from, p);
-                    }
-                    this._chatDeDup.unshift([ts, p.from]);
-                    this._chatDeDup.length = Math.min(10, this._chatDeDup.length);
-                    this.emit('chat', {...p, ts});
-                } else if (p.$type.name === 'RideOn') {
-                    this.emit('rideon', {...p, ts});
-                    console.debug("RideOn:", p);
+                const name = x.payload.$type.name;
+                if (name === 'PlayerEnteredWorld') {
+                    console.debug("Player entered world update:", x.payload);
+                } else if (name === 'EventJoin') {
+                    console.debug("Event Join:", x.payload);
+                } else if (name === 'EventLeave') {
+                    console.debug("Event Leave:", x.payload);
+                } else if (name === 'ChatMessage') {
+                    this.handleChatPayload(x.payload, ts);
+                } else if (name === 'RideOn') {
+                    this.handleRideOnPayload(x.payload, ts);
                 } else {
-                    console.debug("what is it?", p.$type);
+                    console.debug("What is this player update?", x);
                 }
             }
         }
@@ -542,6 +535,37 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 this._watchingRoadSig = this._roadSig(x);
             }
         }
+    }
+
+    handleRideOnPayload(payload, ts) {
+        this.emit('rideon', {...payload, ts});
+        console.debug("RideOn:", payload);
+    }
+
+    handleChatPayload(payload, ts) {
+        for (let i = 1; i <= this._chatHistory.length && i < 10; i++) {
+            const x = this._chatHistory[this._chatHistory.length - i];
+            if (x.ts === ts && x.from === payload.from) {
+                console.warn("Deduping chat message:", ts, payload.from);
+                return;
+            }
+        }
+        const athlete = this.loadAthlete(payload.from);
+        const chat = {...payload, ts};
+        if (athlete) {
+            Object.assign(chat, {
+                muted: athlete.muted,
+                firstName: athlete.sanitizedName[0],
+                lastName: athlete.sanitizedName[1],
+                team: athlete.team,
+            });
+        }
+        console.debug('Chat:', chat);
+        this._chatHistory.push(chat);
+        if (this._chatHistory.length > 100) {
+            this._chatHistory.length = 100;
+        }
+        this.emit('chat', chat);
     }
 
     onOutgoing(...args) {
@@ -693,7 +717,6 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             this._pendingProfileFetches.length = 0;
             this._profileFetchCount += batch.length;
             console.debug(`Fetching ${batch.length} profiles`);
-            const s = performance.now();
             const updates = [];
             if (this._useFakeData) {
                 const words = this.constructor.toString().replaceAll(/[^a-zA-Z ]/g, ' ')
@@ -736,8 +759,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             if (updates.length) {
                 this.saveAthletes(updates);
             }
-            console.debug('took', performance.now() - s);
-            await sauce.sleep(500);
+            await sauce.sleep(100);
         }
     }
 
@@ -844,7 +866,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
 
     async resetAthletesDB() {
         await resetDB();
-        this.athletesCache.clear();
+        this._athletesCache.clear();
         this.initAthletesDB();
     }
 
@@ -918,6 +940,19 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             }
             if (iters++ % (hz * 60) === 0) {
                 watching = -Math.trunc(Math.random() * athleteCount);
+            }
+            if (iters++ % (hz * 10) === 0) {
+                const from = -randInt(1000);
+                const athlete = this.loadAthlete(from);
+                const chat = ZwiftPacketMonitor.IncomingPacket.root.ChatMessage.fromObject({
+                    to: null,
+                    from,
+                    message: 'Test',
+                    firstName: athlete && athlete.firstName,
+                    lastName: athlete && athlete.lastName,
+                    avatar: athlete && athlete.avatar,
+                });
+                this.handleChatPayload(chat);
             }
             const delay = 200 - (performance.now() - start);
             if (iters % (hz * 5 * 1000) === 0) {
@@ -995,6 +1030,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         for (const [k, {updated}] of this._athleteData.entries()) {
             if (updated < expiration) {
                 this._athleteData.delete(k);
+                this._athletesCache.delete(k);
             }
         }
     }
@@ -1126,7 +1162,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             activeAthleteDataPoints: Array.from(this._athleteData.values())
                 .map(x => x.power.roll.size() + x.speed.roll.size() + x.hr.roll.size() + x.hr.roll.size() + x.draft.roll.size())
                 .reduce((agg, c) => agg + c, 0),
-            athletesCacheSize: this.athletesCache.size,
+            athletesCacheSize: this._athletesCache.size,
         };
     }
 }

@@ -45,6 +45,19 @@ body {
     transition: max-height 1s 0s;
     overflow: hidden;
 
+    &.muted {
+        background-color: #3336;
+
+        .content {
+            padding: 0.2em 1em;
+            font-size: 0.8em;
+            justify-content: center;
+            font-variant: all-small-caps;
+            font-weight: bold;
+            opacity: 0.9;
+        }
+    }
+
     &.fadeout {
         transition: opacity var(--fadeout-time) var(--cleanup-time), max-height 1s 0s;
         opacity: 0;
@@ -92,9 +105,19 @@ body {
         font-size: 0.6em;
         padding: 0.6em 0.3rem 0 0;
         flex: 0 0 auto;
+        display: flex;
+        align-items: center;
 
         .name {
             font-weight: bold;
+        }
+
+        .team-badge {
+            &:empty {
+                display: none;
+            }
+
+            margin-left: 0.4em;
         }
     }
 

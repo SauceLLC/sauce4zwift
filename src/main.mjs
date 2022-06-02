@@ -909,11 +909,24 @@ async function welcomeSplash() {
 }
 
 
+function initShortcuts() {
+    if (isDEV) {
+        electron.globalShortcut.register('F12', () => {
+            const focused = electron.BrowserWindow.getFocusedWindow();
+            if (focused) {
+                focused.webContents.openDevTools();
+            }
+        });
+    }
+}
+
+
 async function main() {
     if (await ensureSingleInstance() === false) {
         return;
     }
     await electron.app.whenReady();
+    initShortcuts();
     const trayIcon = electron.nativeImage.createFromPath(path.join(appPath, 'images',
         isMac ? 'mac-trayicon.png' : 'win-trayicon.png'));
     const tray = new electron.Tray(trayIcon);
@@ -921,19 +934,16 @@ async function main() {
     menu.setAppMenu();
     autoUpdater.checkForUpdatesAndNotify().catch(Sentry.captureException);
     const lastVersion = getAppSetting('lastVersion');
-    if (!isDEV || true) {
-        await welcomeSplash();
-    }
     if (lastVersion !== pkg.version) {
         if (lastVersion) {
             await electron.session.defaultSession.clearCache();
-            await splash;
             showReleaseNotes();
         } else {
             // First run, skip release notes.
             // TBD: Could do a walkthrough thing here.
             setAppSetting('lastVersion', pkg.version);
             console.info("First time invocation: Welcome to Sauce for Zwift");
+            await welcomeSplash();
         }
     }
     try {

@@ -27,15 +27,6 @@ function spdFmt(s) {
 }
 
 
-function teamHue(name) {
-    let s = 0;
-    for (let i = 0; i < name.length; i++) {
-        s += name.charCodeAt(i);
-    }
-    return s % 360;
-}
-
-
 function getOrCreatePosition(relPos) {
     if (!positions.has(relPos)) {
         const el = document.createElement('div');
@@ -185,8 +176,8 @@ function renderZoomed(groups) {
             if (fLast) {
                 leftLines.push(`<div class="line minor">${fLast}</div>`);
                 if (team) {
-                    const hue = teamHue(team);
-                    leftLines.push(`<div class="line minor team" style="--team-hue: ${hue};">${team}</div>`);
+                    const hue = common.teamHue(team);
+                    leftLines.push(`<div class="team-badge" style="--team-hue: ${hue};">${team}</div>`);
                 }
             }
         }

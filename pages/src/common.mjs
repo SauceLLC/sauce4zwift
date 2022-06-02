@@ -591,7 +591,17 @@ export function sanitizeForAttr(raw) {
         _saniEl.setAttribute('clean', '');
     }
 }
- 
+
+
+export function teamHue(name) {
+    name = name || '';
+    let s = 0;
+    for (let i = 0; i < name.length; i++) {
+        s += name.charCodeAt(i);
+    }
+    return s % 360;
+}
+
 
 rpcCall('getVersion').then(v => Sentry.setTag('version', v));
 rpcCall('getSentryAnonId').then(id => Sentry.setUser({id}));

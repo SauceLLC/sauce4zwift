@@ -150,20 +150,31 @@ export async function main() {
         } else {
             entry.classList.add('public');
         }
-        entry.style.setProperty('--message-hue', athleteHue(chat.from) + 'deg');
-        entry.innerHTML = `
-            <a href="athlete.html?athleteId=${chat.from}&widthHint=900&heightHint=375" target="_blank"
-               class="avatar"><img src="${chat.avatar || 'images/blankavatar.png'}"/></a>
-            <div class="content">
-                <div class="header"><span class="name"></span></div>
-                <div class="live">${liveDataFormatter(chat.from)}</div>
-                <div class="message"><div class="chunk"></div></div>
-            </div>
-        `;
-        const name = [chat.firstName, chat.lastName].filter(x => x).join(' ');
-        // Sanitize with `textContent`.  Don't use ^^^ string interpolation.
-        entry.querySelector('.name').textContent = name;
-        entry.querySelector('.message .chunk').textContent = chat.message;
+        if (!chat.muted) {
+            entry.style.setProperty('--message-hue', athleteHue(chat.from) + 'deg');
+            const hue = common.teamHue(chat.team);
+            entry.innerHTML = `
+                <a href="athlete.html?athleteId=${chat.from}&widthHint=900&heightHint=375" target="_blank"
+                   class="avatar"><img src="${chat.avatar || 'images/blankavatar.png'}"/></a>
+                <div class="content">
+                    <div class="header">
+                        <div class="name"></div>
+                        <div class="team-badge" title="Team name" style="--team-hue: ${hue};"></div>
+                    </div>
+                    <div class="live">${liveDataFormatter(chat.from)}</div>
+                    <div class="message"><div class="chunk"></div></div>
+                </div>
+            `;
+            const name = [chat.firstName, chat.lastName].filter(x => x).join(' ');
+            // Sanitize with `textContent`.  Don't use ^^^ string interpolation.
+            entry.querySelector('.name').textContent = name;
+            entry.querySelector('.team-badge').textContent = chat.team || '';
+            entry.querySelector('.message .chunk').textContent = chat.message;
+        } else {
+            const initials = [chat.firstName[0].toUpperCase(), chat.lastName[0].toUpperCase()].filter(x => x).join('');
+            entry.classList.add('muted');
+            entry.innerHTML = `<div class="content">Muted message from ${initials}</div>`;
+        }
         addContentEntry(entry);
     }
 
@@ -172,6 +183,9 @@ export async function main() {
             nearby.set(x.athleteId, x);
         }
     });
+    for (const x of await common.rpc.getChatHistory()) {
+        onChatMessage(x);
+    }
     common.subscribe('chat', onChatMessage, {persistent: true});
 
     if (location.search.includes('test')) {
