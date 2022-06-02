@@ -42,7 +42,7 @@ body {
     border-radius: 0.33em;
     box-shadow: 1px 1px 5px 0 #0004;
     max-height: 0;
-    transition: max-height 1s 0s;
+    transition: max-height 1s, opacity var(--fadeout-time);
     overflow: hidden;
 
     &.muted {
@@ -59,7 +59,6 @@ body {
     }
 
     &.fadeout {
-        transition: opacity var(--fadeout-time) var(--cleanup-time), max-height 1s 0s;
         opacity: 0;
     }
 

@@ -84,23 +84,17 @@ export async function main() {
     });
     const fadeoutTime = 5;
     content.style.setProperty('--fadeout-time', `${fadeoutTime}s`);
-    if (settings.cleanup) {
-        content.style.setProperty('--cleanup-time', `${settings.cleanup}s`);
-    }
     setBackground(settings);
     common.storage.addEventListener('update', ev => {
         if (ev.data.key !== settingsKey) {
             return;
         }
         settings = ev.data.value;
-        if (settings.cleanup) {
-            content.style.setProperty('--cleanup-time', `${settings.cleanup}s`);
-        } else {
-            content.style.removeProperty('--cleanup-time');
-        }
         setBackground(settings);
         for (const el of document.querySelectorAll('.entry')) {
-            el._resetCleanup();
+            if (el._resetCleanup) {
+                el._resetCleanup();
+            }
         }
     });
 
@@ -111,27 +105,28 @@ export async function main() {
     }
 
 
-    function addContentEntry(el) {
+    function addContentEntry(el, age) {
         content.appendChild(el);
         void el.offsetLeft; // force layout/reflow so we can trigger animation.
         el.classList.add('slidein');
-        let to;
-        el._resetCleanup = () => {
-            clearTimeout(to);
-            el.classList.remove('fadeout');
-            void el.offsetLeft; // force layout/reflow so we can trigger animation.
-            if (settings.cleanup) {
-                el.classList.add('fadeout');
-                to = setTimeout(() => el.remove(), (fadeoutTime + settings.cleanup) * 1000);
-            }
-        };
-        el._resetCleanup();
+        if (settings.cleanup) {
+            let to;
+            el._resetCleanup = () => {
+                clearTimeout(to);
+                to = setTimeout(() => {
+                    el.classList.add('fadeout');
+                    setTimeout(() => el.remove(), fadeoutTime * 1000);
+                }, (settings.cleanup - (age || 0)) * 1000);
+            };
+            el._resetCleanup();
+        }
     }
 
 
-    function onChatMessage(chat) {
+    function onChatMessage(chat, age) {
         const lastEntry = getLastEntry();
-        if (lastEntry && Number(lastEntry.dataset.from) === chat.from) {
+        if (lastEntry && Number(lastEntry.dataset.from) === chat.from &&
+            !lastEntry.classList.contains('fadeout')) {
             const chunk = document.createElement('div');
             chunk.classList.add('chunk');
             chunk.textContent = chat.message;
@@ -175,7 +170,7 @@ export async function main() {
             entry.classList.add('muted');
             entry.innerHTML = `<div class="content">Muted message from ${initials}</div>`;
         }
-        addContentEntry(entry);
+        addContentEntry(entry, age);
     }
 
     common.subscribe('nearby', data => {
@@ -184,7 +179,11 @@ export async function main() {
         }
     });
     for (const x of (await common.rpc.getChatHistory()).reverse()) {
-        onChatMessage(x);
+        const age = (Date.now() - x.ts) / 1000;
+        if (settings.cleanup && age > settings.cleanup) {
+            continue;
+        }
+        onChatMessage(x, age);
     }
     common.subscribe('chat', onChatMessage, {persistent: true});
 

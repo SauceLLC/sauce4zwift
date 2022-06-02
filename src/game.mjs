@@ -952,7 +952,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                     lastName: athlete && athlete.lastName,
                     avatar: athlete && athlete.avatar,
                 });
-                this.handleChatPayload(chat);
+                this.handleChatPayload(chat, Date.now());
             }
             const delay = 200 - (performance.now() - start);
             if (iters % (hz * 5 * 1000) === 0) {
