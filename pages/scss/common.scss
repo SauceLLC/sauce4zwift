@@ -116,23 +116,21 @@ a {
     display: none;
 }
 ::-webkit-scrollbar {
-    width: 0.5rem;
-    height: 0.5rem;
+    width: 8px;
+    height: 8px;
 }
 ::-webkit-scrollbar-track {
-    margin: 0.22rem;
-    border-radius: 1rem;
     background-color: #1114;
 }
 ::-webkit-scrollbar-thumb {
-    border-radius: 1rem;
+    border-radius: 4px;
     background-color: #eeec;
 }
 ::-webkit-scrollbar-thumb:hover {
     background-color: #eee;
 }
 ::-webkit-scrollbar-corner {
-    background-color: transparent;
+    background-color: #1114;
 }
 
 html, body {

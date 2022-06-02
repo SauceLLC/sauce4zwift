@@ -183,7 +183,7 @@ export async function main() {
             nearby.set(x.athleteId, x);
         }
     });
-    for (const x of await common.rpc.getChatHistory()) {
+    for (const x of (await common.rpc.getChatHistory()).reverse()) {
         onChatMessage(x);
     }
     common.subscribe('chat', onChatMessage, {persistent: true});

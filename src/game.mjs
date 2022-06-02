@@ -543,8 +543,8 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     }
 
     handleChatPayload(payload, ts) {
-        for (let i = 1; i <= this._chatHistory.length && i < 10; i++) {
-            const x = this._chatHistory[this._chatHistory.length - i];
+        for (let i = 0; i < this._chatHistory.length && i < 10; i++) {
+            const x = this._chatHistory[i];
             if (x.ts === ts && x.from === payload.from) {
                 console.warn("Deduping chat message:", ts, payload.from);
                 return;
@@ -560,10 +560,10 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 team: athlete.team,
             });
         }
-        console.debug('Chat:', chat);
-        this._chatHistory.push(chat);
-        if (this._chatHistory.length > 100) {
-            this._chatHistory.length = 100;
+        console.debug('Chat:', chat.firstName, chat.lastName, chat.message);
+        this._chatHistory.unshift(chat);
+        if (this._chatHistory.length > 50) {
+            this._chatHistory.length = 50;
         }
         this.emit('chat', chat);
     }
