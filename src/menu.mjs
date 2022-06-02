@@ -115,4 +115,8 @@ export function setAppMenu() {
 
 export const trayMenu = Menu.buildFromTemplate([{
     label: 'Foo',
+}, {
+    label: 'Bar',
+}, {
+    label: 'Foo Bar',
 }]);

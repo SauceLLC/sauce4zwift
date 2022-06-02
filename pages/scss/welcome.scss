@@ -1,6 +1,6 @@
-$size: 10vw;
-$sauce-width: $size * 2.72;
-$for-width: $size * 1.3;
+$size: 12vw;
+$sauce-width: $size * 2.76;
+$for-width: $size * 1.24;
 $zwift-width: $size * 2.18;
 
 html {
@@ -26,7 +26,7 @@ svg {
         stroke: white;
         font-weight: 600;
         fill: url(#sauce);
-        transition: transform 4s, stroke-dashoffset 10s, fill-opacity 3s 3s, stroke 3.5s 3.5s;
+        transition: transform 8s, stroke-dashoffset 18s, fill-opacity 6s 6s, stroke 7s 7s;
         transition-timing-function: ease-in-out;
         width: 100%;
         height: 100%;
@@ -46,7 +46,7 @@ svg {
         }
 
         &.tm {
-            transition: opacity 2s 4s;
+            transition: opacity 4s 8s;
             opacity: 0;
             stroke-width: 0;
             font-variant: all-small-caps;
@@ -103,7 +103,7 @@ footer, header {
     text-align: center;
     font-size: 3vh;
     opacity: 0;
-    transition: opacity 1s 4s;
+    transition: opacity 2s 8s;
     text-shadow:
         0 0 1px black,
         0 0 1px black,

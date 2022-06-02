@@ -905,7 +905,7 @@ async function welcomeSplash() {
     welcomeWin.setIgnoreMouseEvents(true);
     welcomeWin.loadFile(path.join(pagePath, 'welcome.html'));
     welcomeWin.show();
-    return await sleep(10000).then(() => welcomeWin.close());
+    return await sleep(20000).then(() => welcomeWin.close());
 }
 
 
@@ -934,6 +934,7 @@ async function main() {
     menu.setAppMenu();
     autoUpdater.checkForUpdatesAndNotify().catch(Sentry.captureException);
     const lastVersion = getAppSetting('lastVersion');
+            await welcomeSplash();
     if (lastVersion !== pkg.version) {
         if (lastVersion) {
             await electron.session.defaultSession.clearCache();
