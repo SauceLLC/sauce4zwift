@@ -45,8 +45,16 @@
     "files": [
       "!**/Makefile",
       "!**/README.md",
+      "!**/CONTRIBUTING.md",
+      "!**/HISTORY.md",
+      "!**/.github",
+      "!**/.eslint*",
+      "!**/.jest*",
       "!**/*.js.map",
+      "!**/*.ts.map",
+      "!**/*.mjs.map",
       "!**/*.css.map",
+      "!**/.history",
       "!.*",
       "!tools",
       "!assets",
@@ -55,7 +63,11 @@
       "!**/better-sqlite3/build/Release/obj",
       "!**/better-sqlite3/build/deps",
       "!**/better-sqlite3/deps",
-      "!**/better-sqlite3/src"
+      "!**/better-sqlite3/src",
+      "!node_modules/nan",
+      "!node_modules/web-streams-polyfill",
+      "!node_modules/@sentry/**/build",
+      "!node_modules/@sentry/**/esm"
     ],
     "asar": false,
     "publish": [
@@ -81,6 +93,9 @@
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist"
+    },
+    "linux": {
+      "target": "AppImage"
     },
     "afterSign": "build/scripts/notarize.js"
   }

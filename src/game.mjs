@@ -452,10 +452,11 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         d.name = (data.firstName || data.lastName) ? [data.firstName, data.lastName].map(x =>
             (x && x.trim) ? x.trim() : null).filter(x => x) : d.name;
         d.fullname = d.name && d.name.join(' ');
-        const edgeJunk = /^[.*_#\-\s]+|[.*_#\-\s]+$/g;
-        let saniFirst = d.name && d.name[0].replace(edgeJunk, '');
+        let saniFirst;
         let saniLast;
         if (d.name && d.name.length) {
+            const edgeJunk = /^[.*_#\-\s]+|[.*_#\-\s]+$/g;
+            saniFirst = d.name[0].replace(edgeJunk, '');
             const idx = d.name.length - 1;
             const [name, team] = splitNameAndTeam(d.name[idx]);
             if (idx > 0) {
