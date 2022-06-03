@@ -330,6 +330,6 @@ export async function settingsMain() {
         const port = await common.rpc.getAppSetting('webServerPort');
         webServerURL = `http://${ip}:${port}`;
     }
-    await common.initAppSettingsForm('form.app-settings', {extraData: {webServerURL}});
-    await common.initSettingsForm('form.settings', {settingsKey, extraData: {version}});
+    await common.initAppSettingsForm('form.app-settings', {extraData: {webServerURL, version}});
+    await common.initSettingsForm('form.settings', {settingsKey});
 }

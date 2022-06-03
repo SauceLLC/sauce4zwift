@@ -487,6 +487,9 @@ function updateWindow(id, updates) {
     const w = getWindow(id);
     Object.assign(w, updates);
     setWindow(id, w);
+    if ('closed' in updates) {
+        setTimeout(updateTrayMenu, 100);
+    }
     return w;
 }
 rpc.register(updateWindow);
@@ -500,6 +503,7 @@ function removeWindow(id) {
     const wins = getWindows();
     delete wins[id];
     setWindows(wins);
+    setTimeout(updateTrayMenu, 100);
 }
 rpc.register(removeWindow);
 
@@ -514,6 +518,7 @@ function createWindow({id, type, options, ...state}) {
         options,
         ...state,
     });
+    setTimeout(updateTrayMenu, 100);
     return id;
 }
 rpc.register(createWindow);
@@ -554,7 +559,7 @@ rpc.register(reopenWindow);
 
 
 function _openWindow(id, spec) {
-    console.debug("Making window:", id, spec.type);
+    console.debug("Opening window:", id, spec.type);
     const overlayOptions = {
         transparent: true,
         hasShadow: false,
@@ -906,7 +911,7 @@ async function welcomeSplash() {
     welcomeWin.setIgnoreMouseEvents(true);
     welcomeWin.loadFile(path.join(pagePath, 'welcome.html'));
     welcomeWin.show();
-    return await sleep(20000).then(() => welcomeWin.close());
+    return await sleep(16500).then(() => welcomeWin.close());
 }
 
 
@@ -923,16 +928,13 @@ function initShortcuts() {
 
 
 function updateTrayMenu() {
-    global.tray = tray;
-    global.Menu = electron.Menu;
-    const pad = '    ';
+    const pad = '  ';
     const windows = Object.values(getWindows());
     const activeWins = windows.filter(x => x.private !== true && x.closed !== true);
     const closedWins = windows.filter(x => x.private !== true && x.closed === true);
     const menu = [{
         label: `${pkg.productName} v${pkg.version}`,
-        sublabel: pkg.version,
-        enabled: false,
+        click: welcomeSplash
     }, {
         type: 'separator',
     }];
@@ -943,6 +945,7 @@ function updateTrayMenu() {
             ...activeWins.map(x => ({
                 label: pad + x.prettyName,
                 tooltip: x.prettyDesc,
+                click: () => highlightWindow(x.id),
             }))
         );
     }
@@ -953,20 +956,33 @@ function updateTrayMenu() {
             ...closedWins.map(x => ({
                 label: pad + x.prettyName,
                 tooltip: x.prettyDesc,
+                click: () => openWindow(x.id),
             }))
         );
     }
     if (getAppSetting('webServerEnabled') && gameMonitor) {
+        const url = `http://${gameMonitor.ip}:${getAppSetting('webServerPort')}`;
         menu.push({
-            label: `Web: http://${gameMonitor.ip}:${getAppSetting('webServerPort')}`
+            type: 'separator',
+        }, {
+            label: `Web: ${url}`,
+            click: () => electron.shell.openExternal(url),
         });
     }
     menu.push({
+        type: 'separator',
+    }, {
         label: 'Settings',
-        click: 'quit',
+        click: () => {
+            const win = makeCaptiveWindow({width: 500, height: 600});
+            // Bit of a hack to get the preload context setup so overview settings function
+            const id = Object.values(getWindows()).find(x => x.type === 'overview').id;
+            subWindows.set(win.webContents, {win, spec: {id, type: 'overview'}, activeSubs: new Set()});
+            win.loadFile(path.join(pagePath, 'overview-settings.html'));
+        },
     }, {
         label: '',
-        //type: 'separator',
+        enabled: false,
     }, {
         label: 'Quit',
         role: 'quit',
@@ -984,10 +1000,7 @@ async function main() {
     const trayIcon = electron.nativeImage.createFromPath(path.join(appPath, 'images',
         isMac ? 'mac-trayicon.png' : 'win-trayicon.png'));
     tray = new electron.Tray(trayIcon);
-    updateTrayMenu();
-    setInterval(updateTrayMenu, 1000);
-    tray.setToolTip('tip' + pkg.productName);
-    tray.setTitle('tit ' + pkg.productName);
+    tray.setToolTip(pkg.productName);
     menu.setAppMenu();
     autoUpdater.checkForUpdatesAndNotify().catch(Sentry.captureException);
     const lastVersion = getAppSetting('lastVersion');
@@ -1103,6 +1116,7 @@ async function main() {
             }
         }
     });
+    updateTrayMenu();
     openAllWindows();
     if (_appSettings.webServerEnabled) {
         webServer.setMonitor(gameMonitor);

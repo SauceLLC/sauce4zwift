@@ -6,7 +6,7 @@ export async function main() {
     const version = await common.rpc.getVersion();
     setTimeout(() => {
         document.documentElement.classList.add('animate');
-        setTimeout(() => document.documentElement.classList.add('fadeout'), 16000);
+        setTimeout(() => document.documentElement.classList.add('fadeout'), 14000);
         document.querySelector('footer').textContent = `v${version}`;
     }, 200);
 }

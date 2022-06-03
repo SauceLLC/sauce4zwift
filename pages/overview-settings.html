@@ -24,10 +24,9 @@
         <div id="settings">
             <form class="app-settings section">
                 <div class="title">App Settings</div>
-                <label title="Login to Zwift to get meta data like name and weight">
-                    <key>Login to Zwift:</key>
-                    <input type="checkbox" name="zwiftLogin"/>
-                    <span class="restart-required"></span>
+                <label>
+                    <key>Version:</key>
+                    <span class="display-field" name="version"></span>
                 </label>
                 <label title="Access Sauce for Zwift from any browser on your network">
                     <key>Enable Web Server:</key>
@@ -36,7 +35,9 @@
                 </label>
                 <label>
                     <key>Web Server Port:</key>
-                    <input data-depends-on="webServerEnabled" type="number" size="5" name="webServerPort" restart-required/>
+                    <input data-depends-on="webServerEnabled" type="number" size="5"
+                           name="webServerPort"/>
+                    <span class="restart-required"></span>
                 </label>
                 <label>
                     <key>Web Server URL:</key>
@@ -46,10 +47,6 @@
 
             <form class="settings section">
                 <div class="title">Window Settings</div>
-                <label>
-                    <key>Version:</key>
-                    <span class="display-field" name="version"></span>
-                </label>
                 <label>
                     <key>Left fields:</key>
                     <input type="number" min="0" max="10" step="1" name="leftFields"/>
