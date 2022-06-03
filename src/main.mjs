@@ -750,10 +750,13 @@ async function eulaConsent() {
 function showReleaseNotes() {
     const win = makeCaptiveWindow({width: 500, height: 600});
     win.loadFile(path.join(pagePath, 'release-notes.html'));
-    win.on('closed', () => {
-        if (!appQuiting) {
-            setAppSetting('lastVersion', pkg.version);
-        }
+    return new Promise(resolve => {
+        win.on('closed', () => {
+            resolve();
+            if (!appQuiting) {
+                setAppSetting('lastVersion', pkg.version);
+            }
+        });
     });
 }
 
@@ -1009,10 +1012,8 @@ async function main() {
     if (lastVersion !== pkg.version) {
         if (lastVersion) {
             await electron.session.defaultSession.clearCache();
-            showReleaseNotes();
+            await showReleaseNotes();
         } else {
-            // First run, skip release notes.
-            // TBD: Could do a walkthrough thing here.
             setAppSetting('lastVersion', pkg.version);
             console.info("First time invocation: Welcome to Sauce for Zwift");
             await welcomeSplash();
