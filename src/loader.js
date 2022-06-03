@@ -1,9 +1,13 @@
 Error.stackTraceLimit = 50;
-
+const os = require('os');
 const {app, dialog} = require('electron');
 
 //app.commandLine.appendSwitch('disable-gpu');
-app.commandLine.appendSwitch('disable-gpu-compositing');
+// app.disableHardwareAcceleration();
+if (os.platform() === 'win32') {
+    console.debug("Disable GPU Compositing for windows");
+    app.commandLine.appendSwitch('disable-gpu-compositing');
+}
 //app.commandLine.appendSwitch('disable-gpu-driver-bug-workarounds');
 
 (async () => {
