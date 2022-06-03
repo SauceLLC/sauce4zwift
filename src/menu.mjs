@@ -112,11 +112,3 @@ if (process.platform === 'darwin') {
 export function setAppMenu() {
     Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
-
-export const trayMenu = Menu.buildFromTemplate([{
-    label: 'Foo',
-}, {
-    label: 'Bar',
-}, {
-    label: 'Foo Bar',
-}]);

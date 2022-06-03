@@ -35,6 +35,7 @@ const isLinux = !isWindows && !isMac && os.platform() === 'linux';
 let appQuiting = false;
 let started;
 let gameMonitor;
+let tray;
 
 try {
     storage.load(0);
@@ -921,6 +922,59 @@ function initShortcuts() {
 }
 
 
+function updateTrayMenu() {
+    global.tray = tray;
+    global.Menu = electron.Menu;
+    const pad = '    ';
+    const windows = Object.values(getWindows());
+    const activeWins = windows.filter(x => x.private !== true && x.closed !== true);
+    const closedWins = windows.filter(x => x.private !== true && x.closed === true);
+    const menu = [{
+        label: `${pkg.productName} v${pkg.version}`,
+        sublabel: pkg.version,
+        enabled: false,
+    }, {
+        type: 'separator',
+    }];
+    if (activeWins.length) {
+        menu.push(
+            {type: 'separator'},
+            {label: 'Active Windows', enabled: false},
+            ...activeWins.map(x => ({
+                label: pad + x.prettyName,
+                tooltip: x.prettyDesc,
+            }))
+        );
+    }
+    if (closedWins.length) {
+        menu.push(
+            {type: 'separator'},
+            {label: 'Closed Windows', enabled: false},
+            ...closedWins.map(x => ({
+                label: pad + x.prettyName,
+                tooltip: x.prettyDesc,
+            }))
+        );
+    }
+    if (getAppSetting('webServerEnabled') && gameMonitor) {
+        menu.push({
+            label: `Web: http://${gameMonitor.ip}:${getAppSetting('webServerPort')}`
+        });
+    }
+    menu.push({
+        label: 'Settings',
+        click: 'quit',
+    }, {
+        label: '',
+        //type: 'separator',
+    }, {
+        label: 'Quit',
+        role: 'quit',
+    });
+    tray.setContextMenu(electron.Menu.buildFromTemplate(menu));
+}
+
+
 async function main() {
     if (await ensureSingleInstance() === false) {
         return;
@@ -929,8 +983,11 @@ async function main() {
     initShortcuts();
     const trayIcon = electron.nativeImage.createFromPath(path.join(appPath, 'images',
         isMac ? 'mac-trayicon.png' : 'win-trayicon.png'));
-    const tray = new electron.Tray(trayIcon);
-    tray.setContextMenu(menu.trayMenu);
+    tray = new electron.Tray(trayIcon);
+    updateTrayMenu();
+    setInterval(updateTrayMenu, 1000);
+    tray.setToolTip('tip' + pkg.productName);
+    tray.setTitle('tit ' + pkg.productName);
     menu.setAppMenu();
     autoUpdater.checkForUpdatesAndNotify().catch(Sentry.captureException);
     const lastVersion = getAppSetting('lastVersion');
