@@ -60,6 +60,8 @@ rpc.register(async function() {
         console.warn('Reseting state and restarting...');
         await storage.reset();
         await secrets.remove('zwift-login');
+        await electron.session.defaultSession.clearStorageData();
+        await electron.session.defaultSession.clearCache();
         restart();
     }
 }, {name: 'resetStorageState'});
