@@ -22,7 +22,7 @@ export async function main() {
         leftFields: 2,
         rightFields: 2,
         lockedFields: false,
-        autoHideWindows: window.isElectron ? true : false,
+        autoHideWindows: false,
         centerGapSize: 0,
     });
     document.documentElement.style.setProperty('--center-gap-size', settings.centerGapSize + 'px');
