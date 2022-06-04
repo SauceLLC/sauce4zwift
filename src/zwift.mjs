@@ -2,7 +2,9 @@ import fetch from 'node-fetch';
 import protobuf from 'protobufjs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {createRequire} from 'node:module';
 
+const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const _case = protobuf.parse.defaults.keepCase;
 protobuf.parse.defaults.keepCase = true;
@@ -65,7 +67,8 @@ export async function apiJSON(urn, options, headers) {
 
 export async function apiPB(urn, options, headers) {
     const r = await api(urn, {accept: 'protobuf', ...options}, headers);
-    const ProtoBuf = protos.get(options.protobuf);
+    const monitorProtos = require('@saucellc/zwift-packet-monitor').pbRoot;
+    const ProtoBuf = protos.get(options.protobuf) || monitorProtos.get(options.protobuf);
     return ProtoBuf.decode(new Uint8Array(await r.arrayBuffer()));
 }
 
