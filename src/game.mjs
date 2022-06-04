@@ -19,7 +19,7 @@ try {
     ZwiftPacketMonitor = require('@saucellc/zwift-packet-monitor');
 } catch(e) {
     if (e.message.includes('cap.node')) {
-        console.warn("npcap not installed");
+        console.warn("npcap not installed", e);
         npcapMissing = true;
         ZwiftPacketMonitor = Object;
     } else {
@@ -509,22 +509,16 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
 
     _onIncoming(packet, from) {
         this.maybeLearnAthleteId(packet);
-        for (const x of packet.playerUpdates) {
+        for (const x of packet.worldUpdates) {
             if (x.payload && x.payload.$type) {
                 const ts = highPrecTimeConv(x.ts);
-                const name = x.payload.$type.name;
-                if (name === 'PlayerEnteredWorld') {
-                    console.debug("Player entered world update:", x.payload);
-                } else if (name === 'EventJoin') {
-                    console.debug("Event Join:", x.payload);
-                } else if (name === 'EventLeave') {
-                    console.debug("Event Leave:", x.payload);
-                } else if (name === 'ChatMessage') {
+                const type = x.payloadType;
+                if (type === 'PayloadChatMessage') {
                     this.handleChatPayload(x.payload, ts);
-                } else if (name === 'RideOn') {
+                } else if (type === 'PayloadRideOn') {
                     this.handleRideOnPayload(x.payload, ts);
                 } else {
-                    console.debug("What is this player update?", x);
+                    console.debug(x.payloadType, x.payload);
                 }
             }
         }
