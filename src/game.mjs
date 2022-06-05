@@ -266,16 +266,17 @@ function getLocalRoutedIface(ip) {
 
 export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
 
-    static async factory({fakeData}={}) {
+    static async factory(options) {
         const ip = await getLocalRoutedIP();
         const iface = getLocalRoutedIface(ip);
-        return new this(iface, ip, fakeData);
+        return new this(iface, ip, options);
     }
 
-    constructor(iface, ip, fakeData) {
+    constructor(iface, ip, options={}) {
         super(iface);
         this.ip = ip;
-        this._useFakeData = fakeData;
+        this._useFakeData = options.fakeData;
+        this._noData = options.noData;
         this.setMaxListeners(50);
         this._athleteData = new Map();
         this.athleteId = null;
@@ -878,10 +879,10 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             captureExceptionOnce(e);
             this.resetAthletesDB();
         }
-        if (!this._useFakeData) {
-            super.start();
-        } else {
+        if (this._useFakeData) {
             this._fakeDataGenerator();
+        } else if (!this._noData) {
+            super.start();
         }
         this._nearbyJob = this.nearbyProcessor();
         this._gcInterval = setInterval(this.gcStates.bind(this), 32768);

@@ -1040,7 +1040,8 @@ async function main() {
         gameMonitor = await garminLiveTrack.Sauce4ZwiftMonitor.factory({session});
     } else {
         const fakeData = process.argv.includes('--fake-data');
-        gameMonitor = await game.Sauce4ZwiftMonitor.factory({fakeData});
+        const noData = process.argv.includes('--no-data');
+        gameMonitor = await game.Sauce4ZwiftMonitor.factory({fakeData, noData});
     }
     try {
         await gameMonitor.start();
