@@ -15,6 +15,11 @@ let xRequestId = 1;
 let authToken;
 
 
+function zwiftCompatDate(date) {
+    return date && (date.toISOString().slice(0, -5) + 'Z');
+}
+
+
 export function isAuthenticated() {
     return !!authToken;
 }
@@ -83,6 +88,49 @@ export async function getProfiles(ids) {
     const unordered = (await apiPB(`/api/profiles?${q}`, {protobuf: 'PlayerProfiles'})).profiles;
     const m = new Map(unordered.map(x => [Number(x.id), x]));
     return ids.map(id => m.get(id));
+}
+
+
+export async function getLiveSegmentLeaders() {
+    const data = await apiPB(`/live-segment-results-service/leaders`,
+        {protobuf: 'SegmentResults'});
+    const segments = {};
+    for (let x of data.results) {
+        x.segmentFlags = x._segmentId.high;
+        x.segmentId = x._segmentId.low;
+        console.log(x._segmentId);
+        if (!(x.segmentId in segments)) {
+            segments[x.segmentId] = [];
+        }
+        segments[x.segmentId].push(x);
+    }
+    return segments;
+}
+
+
+export async function getLiveSegmentLeaderboard(segmentId) {
+    return (await apiPB(`/live-segment-results-service/leaderboard/${segmentId}`,
+        {protobuf: 'SegmentResults'})).results;
+}
+
+
+export async function getSegmentResults(segmentId, options={}, test) {
+    // query args: segment_id, player_id, only-best, from, to
+    const q = new URLSearchParams({segment_id: segmentId, ...test});
+    if (options.athleteId) {
+        q.set('player_id', options.athleteId);
+    }
+    if (options.from) {
+        q.set('from', zwiftCompatDate(options.from));
+    }
+    if (options.to) {
+        q.set('to', zwiftCompatDate(options.to));
+    }
+    if (options.best) {
+        q.set('only-best', 'true');
+    }
+    console.log('' + q);
+    return (await apiPB(`/api/segment-results?${q}`, {protobuf: 'SegmentResults'})).results;
 }
 
 

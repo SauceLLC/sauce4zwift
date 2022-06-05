@@ -939,7 +939,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             if (iters++ % (hz * 10) === 0) {
                 const from = -randInt(1000);
                 const athlete = this.loadAthlete(from);
-                const chat = ZwiftPacketMonitor.IncomingPacket.root.ChatMessage.fromObject({
+                const chat = ZwiftPacketMonitor.pbRoot.PayloadChatMessage.fromObject({
                     to: null,
                     from,
                     message: 'Test',
