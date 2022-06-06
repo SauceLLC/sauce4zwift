@@ -1,6 +1,5 @@
 // This is a fork of the wonderful work at https://github.com/zoffline/zwift-offline
-
-syntax = "proto2";
+syntax = "proto3";
 
 enum NotableMomentTypeZG {
     NMT_NEW_PR = 0;
@@ -40,7 +39,7 @@ message NotableMoment { //.2,.3,.4 meanings inside last_activity.bin - not type,
 }
 
 message SocialInteraction {
-    optional uint64 player_id = 1;
+    optional uint64 athleteId = 1;
     optional uint32 timeDuration = 2;
     optional float proximityTimeScore = 3;
     optional string si_f4 = 4;
@@ -69,7 +68,7 @@ enum FitnessPrivacy {
 
 message ActivityFull {  //where is primaryImageUrl, feedImageThumbnailUrl, activityRideOnCount, activityCommentCount, eventId, rideOnGiven
     optional uint64 id = 1;
-    required uint64 player_id = 2;
+    required uint64 athleteId = 2;
     required uint64 course_id = 3;
     required string name = 4;
     optional string _f5 = 5;
@@ -113,7 +112,7 @@ message ActivityFull {  //where is primaryImageUrl, feedImageThumbnailUrl, activ
 
 message Activity { //field names pinned to db 
     optional uint64 id = 1;
-    required uint64 player_id = 2;
+    required uint64 athleteId = 2;
     required uint64 _f3 = 3; //-> rename to course_id
     required string name = 4;
     optional string _f5 = 5;
@@ -522,7 +521,7 @@ message DropInPlayer {
 
 message Goal {
     optional uint64 id = 1;
-    optional uint64 player_id = 2;
+    optional uint64 athleteId = 2;
     optional int64 _f3 = 3;    //-> enum Sport sport
     optional string name = 4; // i.e. "Monthly time goal"
     optional int64 type = 5;  //-> enum GoalType 0=distance, 1=time
@@ -616,7 +615,7 @@ enum MessageGroupType {
 }
 
 message SocialPlayerAction {
-    optional int64 player_id = 1;
+    optional int64 athleteId = 1;
     optional int64 to_player_id = 2; // 0 if public message
     optional SocialPlayerActionType spa_type = 3;
     optional string firstName = 4;
@@ -629,11 +628,10 @@ message SocialPlayerAction {
     optional int64 eventSubgroup = 11;
 }
 
-/*
-message PhoneToGameCommand {
+message CompanionToGameCommand {
     required int32 seqno = 1;
     required uint32 command = 2;
-    optional int64 _f3 = 3;
+    optional int32 subject = 3;
     optional string _f4 = 4;
     optional int64 _f5 = 5;
     optional string _f6 = 6;
@@ -643,18 +641,18 @@ message PhoneToGameCommand {
     required uint32 command_copy = 10;
     optional SocialPlayerAction _f11 = 11;
     // no 12
-    optional MobileAlertResponse _f13 = 13;
+    //optional MobileAlertResponse _f13 = 13;
     // no 14-17
-    optional BLEPeripheralResponse _f18 = 18;
-    optional int64 _f19 = 19;
+    //optional BLEPeripheralResponse _f18 = 18;
+    optional uint64 athleteId = 19;
     optional string _f20 = 20;
     optional bytes _f21 = 21;
-    optional BLEAdvertisement _f22 = 22;
+    //optional BLEAdvertisement _f22 = 22;
 }
 
-message PhoneToGame {
-    required int64 player_id = 1;
-    repeated PhoneToGameCommand command = 2;
+message CompanionToGame {
+    required int64 athleteId = 1;
+    repeated CompanionToGameCommand commands = 2;
     optional float _f3 = 3;
     optional float _f4 = 4;
     optional float _f5 = 5;
@@ -663,8 +661,80 @@ message PhoneToGame {
     optional float _f8 = 8;
     optional double _f9 = 9;
     optional int32 _f10 = 10;
-}*/
+}
 
+message PlayerInfo {
+    int32 id = 1;
+    int32 f2 = 2;
+    int64 position = 3;
+    string profile = 5;
+    int32 id2 = 6;
+    int32 f7 = 7;
+    string name = 11;
+    int32 countryCode = 12;
+    fixed32 worldTime = 13;
+    int32 f16 = 16;
+}
+
+message GTPC21_6_1 {
+    int32 seqno = 1;
+    repeated PlayerInfo playerInfos = 2;
+    int32 f3 = 3;
+}
+
+message GTPC21_6 {
+    repeated GTPC21_6_1 gtpc21_6_1 = 1;
+}
+
+message GTPC21_4 {
+    int32 f1 = 1;
+    string f6 = 6;
+    int32 f7 = 7;
+    int32 f8 = 8;
+}
+
+message GTPC21_8 {
+    int32 f1 = 1;
+    int32 f2 = 2;
+}
+
+message GTPC21 {
+    int32 f1 = 1;
+    GTPC21_4 gtpc21_4 = 4;
+    GTPC21_6 gtpc21_6 = 6;
+    GTPC21_8 gtpc21_8 = 8;
+}
+
+message GameToCompanionCommand {
+    int32 seqno = 1;
+    int32 f2 = 2;
+    int32 f3 = 3;
+    int32 f4 = 4;
+    int32 f5 = 5;
+    int32 f6 = 6;
+    GTPC21 gtpc21 = 21;
+}
+
+message GameToCompanion {
+    int32 seqno = 1;
+    int32 replySeqno = 2;
+    uint64 athleteId = 3;
+    int32 _f4 = 4; // possibly bool
+    int64 _f5 = 5;
+    uint32 _f6 = 6; // possibly bool
+    int64 _f7 = 7;
+    int64 _f8 = 8;
+    int64 _f9 = 9;
+    int64 _f10 = 10;
+    repeated GameToCompanionCommand commands = 11;
+    int64 _f12 = 12;
+    int64 _f13 = 13;
+    int64 _f34414 = 14;
+    int64 _f1444 = 15;
+    int64 _f44441s4 = 16;
+    int64 _f444414 = 17;
+    int64 _f4414 = 18;
+}
 
 message PartnersUrls {
     optional string todaysplan_url = 1;
@@ -680,7 +750,7 @@ message PerSessionInfo {
 }
 
 message InvitedProfileProto {
-    required uint64 player_id = 1;
+    required uint64 athleteId = 1;
     optional string firstName = 2;
     optional string lastName = 3;
     optional string imageSrc = 4;
@@ -727,13 +797,13 @@ message PrivateEventFeedListProto {
 
 message PlayerJoinedEvent {
     required uint64 rel_id = 1; //subgroup id
-    optional uint64 player_id = 2;
+    optional uint64 athleteId = 2;
     optional uint64 pje_f3 = 3;
 }
 
 message PlayerLeftEvent {
     required uint64 rel_id = 1; //event id
-    optional uint64 player_id = 2;
+    optional uint64 athleteId = 2;
     optional uint64 ple_f3 = 3;
 }
 
@@ -915,7 +985,7 @@ message LateJoinInformation {
     optional uint64 road_id = 1;
     optional float road_time = 2;
     optional bool is_forward = 3;
-    optional uint64 player_id = 4; // leader of meetup or -1
+    optional uint64 athleteId = 4; // leader of meetup or -1
     optional uint32 lj_f5 = 5; //64 on wire
     optional uint32 lj_f6 = 6; //64 on wire
     optional uint32 lj_f7 = 7; //64 on wire

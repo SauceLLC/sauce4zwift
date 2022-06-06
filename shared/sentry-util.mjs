@@ -1,5 +1,3 @@
-/* global structuredClone */
-
 let Sentry;
 
 

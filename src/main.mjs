@@ -811,7 +811,8 @@ async function zwiftLogin() {
     const login = await secrets.get('zwift-login');
     if (login) {
         try {
-            return await zwift.authenticate(login.username, login.password);
+            await zwift.authenticate(login.username, login.password);
+            return true;
         } catch(e) {
             console.debug("Previous Zwift login invalid:", e);
             // We could remove them, but it might be a network error; just leave em for now.
@@ -831,7 +832,7 @@ async function zwiftLogin() {
         try {
             await zwift.authenticate(username, password);
             await secrets.set('zwift-login', {username, password});
-            setDone();
+            setDone(true);
         } catch(e) {
             win.webContents.send('validation-error', e);
         }
@@ -843,7 +844,7 @@ async function zwiftLogin() {
     win.loadFile(path.join(pagePath, 'zwift-login.html'));
     win.show();
     try {
-        await done;
+        return await done;
     } finally {
         if (!closed) {
             win.close();
@@ -996,6 +997,13 @@ function updateTrayMenu() {
 }
 
 
+async function startGameConnectionServer(ip) {
+    const server = new zwift.GameConnectionServer(ip);
+    await server.register();
+    global.game = server;
+}
+
+
 async function main() {
     if (await ensureSingleInstance() === false) {
         return;
@@ -1033,7 +1041,7 @@ async function main() {
         installPrompt.loadFile(path.join(pagePath, 'npcap-install.html'));
         return;
     }
-    await zwiftLogin();
+    const hasZwiftLogin = await zwiftLogin();
     if (process.argv.includes('--garmin-live-track')) {
         const session = process.argv.find((x, i) => i && process.argv[i - 1] == '--garmin-live-track');
         const garminLiveTrack = await import('./garmin_live_track.mjs');
@@ -1120,6 +1128,9 @@ async function main() {
             }
         }
     });
+    if (hasZwiftLogin) {
+        startGameConnectionServer(gameMonitor.ip);
+    }
     updateTrayMenu();
     openAllWindows();
     if (_appSettings.webServerEnabled) {

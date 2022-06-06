@@ -1,6 +1,9 @@
+/* global Buffer */
+
 import fetch from 'node-fetch';
 import protobuf from 'protobufjs';
 import path from 'node:path';
+import net from 'node:net';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
 
@@ -94,17 +97,10 @@ export async function getProfiles(ids) {
 export async function getLiveSegmentLeaders() {
     const data = await apiPB(`/live-segment-results-service/leaders`,
         {protobuf: 'SegmentResults'});
-    const segments = {};
-    for (let x of data.results) {
-        x.segmentFlags = x._segmentId.high;
-        x.segmentId = x._segmentId.low;
-        console.log(x._segmentId);
-        if (!(x.segmentId in segments)) {
-            segments[x.segmentId] = [];
-        }
-        segments[x.segmentId].push(x);
-    }
-    return segments;
+    return data.results.filter(x => x._unsignedSegmentId.toNumber()).map(x => ({
+        ...x,
+        segmentId: x._unsignedSegmentId.toSigned().toString()
+    }));
 }
 
 
@@ -114,9 +110,12 @@ export async function getLiveSegmentLeaderboard(segmentId) {
 }
 
 
-export async function getSegmentResults(segmentId, options={}, test) {
+export async function getSegmentResults(segmentId, options={}) {
     // query args: segment_id, player_id, only-best, from, to
-    const q = new URLSearchParams({segment_id: segmentId, ...test});
+    const q = new URLSearchParams({
+        world_id: 1,
+        segment_id: segmentId,
+    });
     if (options.athleteId) {
         q.set('player_id', options.athleteId);
     }
@@ -234,4 +233,90 @@ function schedRefresh(delay) {
     cancelRefresh();
     console.debug(`Refresh Zwift token in: ${Math.round(delay / 1000)} seconds`);
     _nextRefresh = setTimeout(refreshToken, delay);
+}
+
+
+export class GameConnectionServer extends net.Server {
+    constructor(ip) {
+        super();
+        this.ip = ip;
+        this._socket = null;
+        this._msgSize = null;
+        this._msgOfft = 0;
+        this._msgBuf = null;
+        this.on('connection', this.onConnection.bind(this));
+        this.on('error', this.onError.bind(this));
+        this.listenDone = new Promise(resolve => this.listen({address: ip, port: 0}, resolve));
+    }
+
+    async register() {
+        await this.listenDone;
+        const {port} = this.address();
+        console.info("Registering game connnection server:", this.ip, port);
+        await api('/relay/profiles/me/phone', {
+            method: 'PUT',
+            json: {
+                phoneAddress: this.ip,
+                port,
+                protocol: 'TCP',
+            }
+        });
+    }
+
+    async send(o) {
+        const pb = protos.CompanionToGame.encode(o).finish();
+        const header = Buffer.alloc(4);
+        header.writeUInt32BE(pb.byteLength);
+        this._socket.write(header);
+        await new Promise(resolve => {
+            this._socket.write(pb, resolve);
+        });
+    }
+
+    onConnection(socket) {
+        console.info('Game connection established from:', socket);
+        this._socket = socket;
+        socket.on('data', this.onData.bind(this));
+        socket.on('end', this.onSocketEnd.bind(this));
+        socket.on('error', this.onSocketError.bind(this));
+    }
+
+    onError(e) {
+        console.error('Game connection server error:', e);
+    }
+
+    onData(buf) {
+        if (!this._msgBuf) {
+            this._msgSize = buf.readUint32BE(0);
+            this._msgOfft = 0;
+            this._msgBuf = Buffer.alloc(this._msgSize);
+            buf = buf.slice(4);
+        }
+        const end = this._msgSize - this._msgOfft;
+        buf.copy(this._msgBuf, this._msgOfft, 0, end);
+        this._msgOfft += Math.min(end, buf.byteLength);
+        if (this._msgOfft === this._msgSize) {
+            this.onMessage();
+            if (end < buf.byteLength) {
+                this.onData(buf.slice(end));
+            }
+        }
+    }
+
+    onMessage() {
+        const buf = this._msgBuf;
+        this._msgBuf = null;
+        const pb = protos.GameToCompanion.decode(buf);
+        console.debug("Game message:", pb.toJSON());
+        this.emit('message', pb);
+    }
+
+    onSocketEnd() {
+        console.info("Game connection ended");
+        this._socket = null;
+    }
+
+    onSocketError(e) {
+        console.error("Game connection network error:", e);
+    }
 }
