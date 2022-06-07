@@ -300,13 +300,6 @@ export class GameConnectionServer extends net.Server {
         });
     }
 
-    async sendTakePicture() {
-        await this.sendCommands({
-            command: 17,
-            subCommand: 17,
-        });
-    }
-
     async sendWatch(id) {
         await this.sendCommands({
             command: 24,
