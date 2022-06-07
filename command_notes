@@ -1,0 +1,27 @@
+command | command_copy | action
+1         1              CHANGE CAMERA
+22        1080           HUD TOGGLE
+5         5              WAVE
+6         6              SAY (RideOn)
+22        1060           TOGGLE GRAPH?
+8         8              SAY (hammer time)
+9         9              SAY (i'm toast)
+10        10             SAY (nice)
+17        17             TAKE PICTURE
+23        23             REVERSE
+24        -              SWITCH VIEW
+                             subject(f3): athleteid 
+16        -              FOLLOWS VIEW CHANGE or watching view, not sure..
+                             f5: intlike (1329712, 3057236, 2341987, 212999, 158794)
+25        -              SOCIAL ACTION (CHAT)
+                             f11: {
+                                1: 1
+                                2: 1(direct/private?) or 0 (nearby)
+                                3: 1
+                                4: "z"  // firstname 
+                                5: "offline" // lastname
+                                6: "Aaaaaaaaa" // message
+                                7: "https://avatar.jpg" // avatar
+                                8: 0
+                             }
+29        -              NOT SURE (f21 = message(f1 = 8, f9 = msg/string(f1 = 1)))

@@ -244,6 +244,9 @@ export class GameConnectionServer extends net.Server {
         this._msgSize = null;
         this._msgOfft = 0;
         this._msgBuf = null;
+        this._seqno = 1;
+        this._cmdSeqno = 1;
+        this.athleteId = 0; // Set by gameToCompan messages
         this.on('connection', this.onConnection.bind(this));
         this.on('error', this.onError.bind(this));
         this.listenDone = new Promise(resolve => this.listen({address: ip, port: 0}, resolve));
@@ -263,18 +266,83 @@ export class GameConnectionServer extends net.Server {
         });
     }
 
-    async send(o) {
-        const pb = protos.CompanionToGame.encode(o).finish();
+    async sendChangeCamera() {
+        await this.sendCommands({
+            command: 1,
+            subCommand: 1,
+        });
+    }
+
+    async sendWave() {
+        await this.sendCommands({
+            command: 5,
+            subCommand: 5,
+        });
+    }
+
+    async sendSay(what) {
+        const cmd = {
+            rideon: 6,
+            hammertime: 8,
+            toast: 9,
+            nice: 10,
+        }[what] || 6;
+        await this.sendCommands({
+            command: cmd,
+            subCommand: cmd,
+        });
+    }
+
+    async sendTakePicture() {
+        await this.sendCommands({
+            command: 17,
+            subCommand: 17,
+        });
+    }
+
+    async sendTakePicture() {
+        await this.sendCommands({
+            command: 17,
+            subCommand: 17,
+        });
+    }
+
+    async sendWatch(id) {
+        await this.sendCommands({
+            command: 24,
+            subject: id,
+        });
+    }
+
+    async sendCommands(...commands) {
+        return await this._send({
+            commands: commands.map(x => ({
+                seqno: this._cmdSeqno++,
+                ...x
+            }))
+        });
+    }
+
+    async _send(o) {
+        const seqno = this._seqno++;
+        const payload = {
+            athleteId: this.athleteId,
+            seqno,
+            ...o,
+        };
+        console.debug('sneding', payload);
+        const pb = protos.CompanionToGame.encode(payload).finish();
         const header = Buffer.alloc(4);
         header.writeUInt32BE(pb.byteLength);
         this._socket.write(header);
         await new Promise(resolve => {
             this._socket.write(pb, resolve);
         });
+        return seqno;
     }
 
     onConnection(socket) {
-        console.info('Game connection established from:', socket);
+        console.info('Game connection established from:', socket.remoteAddress);
         this._socket = socket;
         socket.on('data', this.onData.bind(this));
         socket.on('end', this.onSocketEnd.bind(this));
@@ -307,6 +375,7 @@ export class GameConnectionServer extends net.Server {
         const buf = this._msgBuf;
         this._msgBuf = null;
         const pb = protos.GameToCompanion.decode(buf);
+        this.athleteId = pb.athleteId.toNumber();
         console.debug("Game message:", pb.toJSON());
         this.emit('message', pb);
     }

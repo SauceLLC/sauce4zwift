@@ -615,8 +615,8 @@ enum MessageGroupType {
 }
 
 message SocialPlayerAction {
-    optional int64 athleteId = 1;
-    optional int64 to_player_id = 2; // 0 if public message
+    optional uint64 athleteId = 1;
+    optional uint64 toAthleteId = 2; // 0 if public message
     optional SocialPlayerActionType spa_type = 3;
     optional string firstName = 4;
     optional string lastName = 5;
@@ -624,21 +624,21 @@ message SocialPlayerAction {
     optional string avatar = 7;
     optional int32 countryCode = 8;
     optional FlagType flagType = 9;
-    optional MessageGroupType mgType = 10;
+    optional MessageGroupType msgType = 10;
     optional int64 eventSubgroup = 11;
 }
 
 message CompanionToGameCommand {
     required int32 seqno = 1;
-    required uint32 command = 2;
-    optional int32 subject = 3;
+    required uint32 command = 2; // 1 looks like camera change
+    optional int64 subject = 3;
     optional string _f4 = 4;
     optional int64 _f5 = 5;
     optional string _f6 = 6;
     optional int64 _f7 = 7;
     optional int32 _f8 = 8;
     optional uint32 _f9 = 9;
-    required uint32 command_copy = 10;
+    required uint32 subCommand = 10;
     optional SocialPlayerAction _f11 = 11;
     // no 12
     //optional MobileAlertResponse _f13 = 13;
@@ -651,16 +651,16 @@ message CompanionToGameCommand {
 }
 
 message CompanionToGame {
-    required int64 athleteId = 1;
+    required uint64 athleteId = 1;
     repeated CompanionToGameCommand commands = 2;
-    optional float _f3 = 3;
-    optional float _f4 = 4;
-    optional float _f5 = 5;
-    optional float _f6 = 6;
-    optional float _f7 = 7;
-    optional float _f8 = 8;
-    optional double _f9 = 9;
-    optional int32 _f10 = 10;
+    optional float _a3 = 3; // 0 zero not moving, look to see if delta coords
+    optional float _a4 = 4; // 0
+    optional float _a5 = 5; // 0
+    optional float _b6 = 6; // maybe coords: -0.0314304381608963
+    optional float _b7 = 7; // maybe coords: -0.06250044703483582
+    optional float _b8 = 8; // maybe coords: -2.5603649616241455
+    optional double ts = 9;
+    optional int32 seqno = 10;
 }
 
 message PlayerInfo {
@@ -699,15 +699,16 @@ message GTPC21_8 {
 }
 
 message GTPC21 {
-    int32 f1 = 1;
+    int32 f1 = 1; // saw a 6 following a cam change once.
     GTPC21_4 gtpc21_4 = 4;
     GTPC21_6 gtpc21_6 = 6;
+    string _f7 = 7;
     GTPC21_8 gtpc21_8 = 8;
 }
 
 message GameToCompanionCommand {
     int32 seqno = 1;
-    int32 f2 = 2;
+    int32 f2 = 2; // 13 following cam change once
     int32 f3 = 3;
     int32 f4 = 4;
     int32 f5 = 5;
@@ -727,13 +728,7 @@ message GameToCompanion {
     int64 _f9 = 9;
     int64 _f10 = 10;
     repeated GameToCompanionCommand commands = 11;
-    int64 _f12 = 12;
-    int64 _f13 = 13;
-    int64 _f34414 = 14;
-    int64 _f1444 = 15;
-    int64 _f44441s4 = 16;
-    int64 _f444414 = 17;
-    int64 _f4414 = 18;
+    int64 _f12 = 12;  // Possibly world time? u-240543788796 s-120271894398
 }
 
 message PartnersUrls {
