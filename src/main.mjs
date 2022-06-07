@@ -999,8 +999,9 @@ function updateTrayMenu() {
 
 async function startGameConnectionServer(ip) {
     const server = new zwift.GameConnectionServer(ip);
+    rpc.register(server.sendWatch.bind(server), {name: 'setWatching'});
     await server.register();
-    global.game = server;
+    global.game = server;  // XXX prototyping
 }
 
 
