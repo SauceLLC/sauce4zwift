@@ -237,9 +237,9 @@ function schedRefresh(delay) {
 
 
 export class GameConnectionServer extends net.Server {
-    constructor(ip) {
+    constructor(gameMonitor) {
         super();
-        this.ip = ip;
+        this.ip = gameMonitor.ip;
         this._socket = null;
         this._msgSize = null;
         this._msgOfft = 0;
@@ -249,7 +249,9 @@ export class GameConnectionServer extends net.Server {
         this.athleteId = 0; // Set by gameToCompan messages
         this.on('connection', this.onConnection.bind(this));
         this.on('error', this.onError.bind(this));
-        this.listenDone = new Promise(resolve => this.listen({address: ip, port: 0}, resolve));
+        this.watching = gameMonitor.watching;
+        gameMonitor.on('watching-athlete-change', id => this.watching = id);
+        this.listenDone = new Promise(resolve => this.listen({address: this.ip, port: 0}, resolve));
     }
 
     async register() {
@@ -271,6 +273,26 @@ export class GameConnectionServer extends net.Server {
             command: 1,
             subCommand: 1,
         });
+    }
+
+    async setCamera(number) {
+        if (number < 0 || number > 9) {
+            throw new TypeError('Invalid camera number');
+        }
+        let changes = [];
+        if (number === 0) {
+            number = 10;
+        } else if (number === 1) {
+            number = 11;  // prevents auto rotation.
+        }
+        for (let i = 1; i < number; i++) {
+            changes.push({command: 1, subCommand: 1});
+        }
+        console.log("toggles", changes.length);
+        await this.sendCommands({
+            command: 24, // reset camera to known offset with sendWatch first
+            subject: this.watching,
+        }, ...changes);
     }
 
     async sendWave() {
@@ -301,6 +323,7 @@ export class GameConnectionServer extends net.Server {
     }
 
     async sendWatch(id) {
+        this.watching = id;
         await this.sendCommands({
             command: 24,
             subject: id,

@@ -594,6 +594,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         console.debug("Now watching:", athleteId);
         this.watching = athleteId;
         this._pendingProfileFetches.length = 0;
+        this.emit('watching-athlete-change', athleteId);
     }
 
     processFlags1(bits) {

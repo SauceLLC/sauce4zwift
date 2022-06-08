@@ -997,9 +997,15 @@ function updateTrayMenu() {
 }
 
 
-async function startGameConnectionServer(ip) {
-    const server = new zwift.GameConnectionServer(ip);
-    rpc.register(server.sendWatch.bind(server), {name: 'setWatching'});
+async function startGameConnectionServer(gameMonitor) {
+    const server = new zwift.GameConnectionServer(gameMonitor);
+    rpc.register(server.sendWatch.bind(server), {name: 'gameSetWatching'});
+    rpc.register(server.sendSay.bind(server), {name: 'gameSay'});
+    rpc.register(server.sendWave.bind(server), {name: 'gameWave'});
+    rpc.register(server.sendTakePicture.bind(server), {name: 'gameTakePicture'});
+    rpc.register(server.sendChangeCamera.bind(server), {name: 'gameChangeCamera'});
+    rpc.register(server.setCamera.bind(server), {name: 'gameSetCamera'});
+    rpc.register(server.sendCommands.bind(server), {name: 'gameSendCommands'});
     await server.register();
     global.game = server;  // XXX prototyping
 }
