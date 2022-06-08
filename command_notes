@@ -1,25 +1,23 @@
 command | sub_command    | action
 1         1              CHANGE CAMERA
-22        [1-?]          REPLICATE COMMANDS  subcommand is treated as the command
 2                        TELEPORT BACKISH
 3                        TELEPORT HOME
-22        1080           HUD ON
-22        1081           HUD OFF
+4         4              ELBOW (pull through signal)
 5         5              WAVE
 6         6              SAY (RideOn)
 7         7              RING BELL
-22        1060           TOGGLE GRAPHS
 8         8              SAY (hammer time)
 9         9              SAY (i'm toast)
 10        10             SAY (nice)
 11        11             SAY (bringit)
 14        14             END RIDE
 17        17             TAKE PICTURE
+21        21             USE POWER UP
 23        23             REVERSE
 24        -              SWITCH VIEW
                              subject(f3): athleteid
-16        -              FOLLOWS VIEW CHANGE or watching view, not sure..
-                             f5: intlike (1329712, 3057236, 2341987, 212999, 158794)
+16        -              REQUEST PROFILE
+                             (f5): athleteId
 25        -              SOCIAL ACTION (CHAT)
                              f11: {
                                 1: 1
@@ -31,9 +29,51 @@ command | sub_command    | action
                                 7: "https://avatar.jpg" // avatar
                                 8: 0
                              }
-29        -              NOT SURE (f21 = message(f1 = 8, f9 = msg/string(f1 = 1)))
+29        -              GAME PACKET (f21 = message(f1 = 8, f9 = msg/string(f1 = 1)))
+
+22        [1-?]          REPLICATE COMMANDS  subcommand is treated as the command
 22        1003           ORANGE BAR INCREASE ?? XXX not sure what it is
 22        1004           ORANGE BAR DECREASE ?? XXX not sure what it is
 22        1005           BEEP SOUND XXX Maybe other effect?
 22        1006           BOOP SOUND XXX Maybe other effect?
+22        1020           Some sort of pairing thing XXX
+22        1021           Some sort of pairing thing XXX
 22        1050           START STEERING CALIBRATION
+22        1060           TOGGLE GRAPHS
+22        1080           HUD ON
+22        1081           HUD OFF
+
+
+From decompiled dex classes:
+    PHONE_TO_GAME_UNKNOWN_COMMAND(0),
+    CHANGE_CAMERA_ANGLE(1),
+    JOIN_ANOTHER_PLAYER(2),
+    TELEPORT_TO_START(3),
+    ELBOW_FLICK(4),
+    WAVE(5),
+    RIDE_ON(6),
+    BELL(7),
+    HAMMER_TIME(8),
+    TOAST(9),
+    NICE(10),
+    BRING_IT(11),
+    DONE_RIDING(14),
+    CANCEL_DONE_RIDING(15),
+    DISCARD_ACTIVITY(12), 
+    SAVE_ACTIVITY(13),
+    REQUEST_FOR_PROFILE(16),
+    TAKE_SCREENSHOT(17),
+    OBSOLETE_GROUP_TEXT_MESSAGE(18),
+    OBSOLETE_SINGLE_PLAYER_TEXT_MESSAGE(19),
+    MOBILE_API_VERSION(20),
+    ACTIVATE_POWER_UP(21),
+    CUSTOM_ACTION(22),
+    U_TURN(23),
+    FAN_VIEW(24),
+    SOCIAL_PLAYER_ACTION(25),
+    MOBILE_ALERT_RESPONSE(26),
+    BLEPERIPHERAL_RESPONSE(27),
+    PAIRING_AS(28),
+    PHONE_TO_GAME_PACKET(29),
+    BLEPERIPHERAL_DISCOVERY(30);
+

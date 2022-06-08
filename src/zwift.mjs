@@ -287,6 +287,13 @@ export class GameConnectionServer extends net.Server {
         }
     }
 
+    async sendElbow() {
+        await this.sendCommands({
+            command: 4,
+            subCommand: 4,
+        });
+    }
+
     async sendWave() {
         await this.sendCommands({
             command: 5,

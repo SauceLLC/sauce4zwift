@@ -633,7 +633,7 @@ message CompanionToGameCommand {
     required uint32 command = 2; // 1 looks like camera change
     optional int64 subject = 3;
     optional string _f4 = 4;
-    optional int64 _f5 = 5;
+    optional int64 profileRequestAthleteId = 5;
     optional string _f6 = 6;
     optional int64 _f7 = 7;
     optional int32 _f8 = 8;
