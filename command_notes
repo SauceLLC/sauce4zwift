@@ -1,6 +1,7 @@
 command | sub_command    | action
 1         1              CHANGE CAMERA
-2                        TELEPORT BACKISH
+2                        JOIN PLAYER
+                            subject: athleteId to join/teleport to
 3                        TELEPORT HOME
 4         4              ELBOW (pull through signal)
 5         5              WAVE

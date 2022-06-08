@@ -359,6 +359,7 @@ export class GameConnectionServer extends net.Server {
     }
 
     async sendChatMessage(message, options={}) {
+        // XXX probably just use the REST API instead
         await this.sendCommands({
             command: 25,
             socialAction: {
@@ -380,6 +381,17 @@ export class GameConnectionServer extends net.Server {
             command: 24,
             subject: id,
         });
+    }
+
+    async sendJoin(id) {
+        await this.sendCommands({
+            command: 2,
+            subject: id,
+        });
+    }
+
+    async sendTeleportHome() {
+        await this.sendCommands({command: 3});
     }
 
     async sendCommands(...commands) {

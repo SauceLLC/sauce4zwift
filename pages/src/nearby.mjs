@@ -249,7 +249,7 @@ function render() {
     mainRow.classList.add('watching');
     tbody.innerHTML = '';
     tbody.appendChild(mainRow);
-    tbody.addEventListener('dblclick', ev => {
+    tbody.addEventListener('dblclick', async ev => {
         const row = ev.target.closest('tr');
         if (row) {
             clearSelection();
@@ -264,6 +264,7 @@ function render() {
             } else {
                 row.classList.add('hi');
             }
+            await common.rpc.gameWatch(hiRow);
         }
     });
     theadRow.addEventListener('click', ev => {

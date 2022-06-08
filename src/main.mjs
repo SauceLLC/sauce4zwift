@@ -1000,6 +1000,8 @@ function updateTrayMenu() {
 async function startGameConnectionServer(gameMonitor) {
     const server = new zwift.GameConnectionServer(gameMonitor);
     rpc.register(server.sendWatch.bind(server), {name: 'gameSetWatching'});
+    rpc.register(server.sendJoin.bind(server), {name: 'gameJoin'});
+    rpc.register(server.sendTeleportHome.bind(server), {name: 'gameTeleportHome'});
     rpc.register(server.sendSay.bind(server), {name: 'gameSay'});
     rpc.register(server.sendWave.bind(server), {name: 'gameWave'});
     rpc.register(server.sendTakePicture.bind(server), {name: 'gameTakePicture'});
