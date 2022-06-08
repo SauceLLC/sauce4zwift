@@ -639,7 +639,7 @@ message CompanionToGameCommand {
     optional int32 _f8 = 8;
     optional uint32 _f9 = 9;
     required uint32 subCommand = 10;
-    optional SocialPlayerAction _f11 = 11;
+    optional SocialPlayerAction socialAction = 11;
     // no 12
     //optional MobileAlertResponse _f13 = 13;
     // no 14-17

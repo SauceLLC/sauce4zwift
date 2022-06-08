@@ -1004,8 +1004,12 @@ async function startGameConnectionServer(gameMonitor) {
     rpc.register(server.sendWave.bind(server), {name: 'gameWave'});
     rpc.register(server.sendTakePicture.bind(server), {name: 'gameTakePicture'});
     rpc.register(server.sendChangeCamera.bind(server), {name: 'gameChangeCamera'});
-    rpc.register(server.setCamera.bind(server), {name: 'gameSetCamera'});
+    rpc.register(server.sendHUDEnabled.bind(server), {name: 'gameSetHUDEnabled'});
+    rpc.register(server.sendChatMessage.bind(server), {name: 'gameSendChatMessage'});
+    rpc.register(server.sendReverse.bind(server), {name: 'gameReverse'});
+    rpc.register(server.sendToggleGraphs.bind(server), {name: 'gameToggleGraphs'});
     rpc.register(server.sendCommands.bind(server), {name: 'gameSendCommands'});
+    rpc.register(server.setCameraHack.bind(server), {name: 'gameSetCameraHack'});
     await server.register();
     global.game = server;  // XXX prototyping
 }
@@ -1136,7 +1140,7 @@ async function main() {
         }
     });
     if (hasZwiftLogin) {
-        startGameConnectionServer(gameMonitor.ip);
+        startGameConnectionServer(gameMonitor);
     }
     updateTrayMenu();
     openAllWindows();

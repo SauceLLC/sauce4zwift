@@ -1,6 +1,7 @@
 command | command_copy | action
 1         1              CHANGE CAMERA
-22        1080           HUD TOGGLE
+22        1080           HUD ON 
+22        1081           HUD OFF
 5         5              WAVE
 6         6              SAY (RideOn)
 22        1060           TOGGLE GRAPH?

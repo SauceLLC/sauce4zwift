@@ -4,6 +4,7 @@ import fetch from 'node-fetch';
 import protobuf from 'protobufjs';
 import path from 'node:path';
 import net from 'node:net';
+import {sleep} from '../shared/sauce/base.mjs';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
 
@@ -275,24 +276,15 @@ export class GameConnectionServer extends net.Server {
         });
     }
 
-    async setCamera(number) {
-        if (number < 0 || number > 9) {
-            throw new TypeError('Invalid camera number');
-        }
-        let changes = [];
-        if (number === 0) {
-            number = 10;
-        } else if (number === 1) {
-            number = 11;  // prevents auto rotation.
-        }
-        for (let i = 1; i < number; i++) {
-            changes.push({command: 1, subCommand: 1});
-        }
-        console.log("toggles", changes.length);
+    async setCameraHack(toggles, delayHack=30) {
         await this.sendCommands({
             command: 24, // reset camera to known offset with sendWatch first
             subject: this.watching,
-        }, ...changes);
+        });
+        for (let i = 0; i < toggles; i++) {
+            await sleep(delayHack);
+            await this.sendCommands({command: 1, subCommand: 1});
+        }
     }
 
     async sendWave() {
@@ -322,6 +314,43 @@ export class GameConnectionServer extends net.Server {
         });
     }
 
+    async sendHUDEnabled(en=true) {
+        await this.sendCommands({
+            command: 22,
+            subCommand: en ? 1080 : 1081,
+        });
+    }
+
+    async sendToggleGraphs() {
+        await this.sendCommands({
+            command: 22,
+            subCommand: 1060,
+        });
+    }
+
+    async sendReverse() {
+        await this.sendCommands({
+            command: 23,
+            subCommand: 23,
+        });
+    }
+
+    async sendChatMessage(message, options={}) {
+        await this.sendCommands({
+            command: 25,
+            socialAction: {
+                athleteId: this.athleteId,
+                toAthleteId: options.to || 0,
+                spa_type: 1,
+                firstName: 'Justin',
+                lastName: 'Mayfield',
+                message,
+                avatar: 'https://static-cdn.zwift.com/prod/profile/a70f79fb-486675',
+                countryCode: 840,
+            }
+        });
+    }
+
     async sendWatch(id) {
         this.watching = id;
         await this.sendCommands({
@@ -346,7 +375,7 @@ export class GameConnectionServer extends net.Server {
             seqno,
             ...o,
         };
-        console.debug('sneding', payload);
+        console.debug('sneding', JSON.stringify(payload, null, 2));
         const pb = protos.CompanionToGame.encode(payload).finish();
         const header = Buffer.alloc(4);
         header.writeUInt32BE(pb.byteLength);
@@ -391,8 +420,14 @@ export class GameConnectionServer extends net.Server {
         const buf = this._msgBuf;
         this._msgBuf = null;
         const pb = protos.GameToCompanion.decode(buf);
-        this.athleteId = pb.athleteId.toNumber();
-        console.debug("Game message:", pb.toJSON());
+        if (!this.athleteId) {
+            this.athleteId = pb.athleteId.toNumber();
+            if (!this.watching) {
+                // Remove dev only
+                this.watching = this.athleteId;
+            }
+        }
+        console.debug("Game message:", JSON.stringify(pb.toJSON(), null, 2));
         this.emit('message', pb);
     }
 

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html class="">
+    <head>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+        <meta name="apple-mobile-web-app-capable" content="yes"/>
+        <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
+
+        <title>Game Control - Sauce for Zwift™</title>
+
+        <script type="module">
+            import {main} from './src/game-control.mjs';
+            addEventListener('DOMContentLoaded', main);
+        </script>
+
+        <link rel="manifest" href="game-control-manifest.json"/>
+        <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
+        <link rel="stylesheet" href="css/common.css"/>
+        <link rel="stylesheet" href="css/game-control.css"/>
+    </head>
+    <body class="">
+        <div id="titlebar">
+            <header>
+                <div class="button move app-drag electron-only overlay-only"><img src="images/fa/arrows-alt.svg"/></div>
+                <div class="title app-drag">Game Control - Sauce for Zwift™</div>
+                <div class="buttons">
+                    <a class="button open-settings" href="game-control-settings.html?widthHint=0.3&heightHint=0.5"
+                       target="game-control-settings"><img src="images/fa/cog-duotone.svg"/></a>
+                    <div class="button close electron-only overlay-only"><img src="images/fa/window-close-light.svg"/></div>
+                </div>
+            </header>
+        </div>
+        <div id="content">
+            <div class="buttons">
+                <div class="std button" data-call="game" data-args="[]">Watch next rider</div>
+                <div class="std button" data-call="game" data-args="[]">Watch next group (last rider)</div>
+                <div class="std button" data-call="game" data-args="[]">Watch next group (middle rider)</div>
+                <div class="std button" data-call="game" data-args="[]">Watch next group (first rider)</div>
+            </div>
+
+            <div class="std button xl" data-call="gameSetCameraHack" data-args="[3]">Look back</div>
+            <div class="std button xl" data-call="gameSetCameraHack" data-args="[0]">Look forward</div>
+            <div class="std button xl" data-call="gameSetCameraHack" data-args="[5]">Look forward (first person)</div>
+            <div class="std button" data-call="gameChangeCamera" data-args="[]">Change camera</div>
+
+            <div class="std button" data-call="gameSetHUDEnabled" data-args="[false]">HUD Off</div>
+            <div class="std button" data-call="gameSetHUDEnabled" data-args="[true]">HUD On</div>
+
+            <div class="std button" data-call="gameWave" data-args="[]">Wave</div>
+            <div class="std button" data-call="gameSay" data-args='["rideon"]'>Say Ride On!</div>
+            <div class="std button" data-call="gameSay" data-args='["toast"]'>Say I'm toast</div>
+            <div class="std button" data-call="gameSay" data-args='["nice"]'>Say Nice!</div>
+            <div class="std button" data-call="gameSay" data-args='["hammertime"]'>Say Hammer time!</div>
+
+            <div class="std button" data-call="gameReverse" data-args="[]">Reverse direction</div>
+
+            <div class="std button" data-call="gameTakePicture" data-args="[]">Take Picture</div>
+
+            <div class="std button" data-call="gameToggleGraphs" data-args="[]">Toggle Power/HR Graph</div>
+        </div>
+        <div id="hintbar">
+            <div class="hint"></div>
+        </div>
+    </body>
+</html>

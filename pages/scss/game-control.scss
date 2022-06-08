@@ -1,0 +1,12 @@
+html {
+}
+
+html, body {
+    font-size: 14px;
+}
+
+#content {
+    scroll-behavior: smooth;
+    overflow: auto;
+    overflow: overlay; // chromium only
+}
