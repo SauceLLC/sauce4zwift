@@ -297,13 +297,29 @@ export class GameConnectionServer extends net.Server {
     async sendSay(what) {
         const cmd = {
             rideon: 6,
+            bell: 7,
             hammertime: 8,
             toast: 9,
             nice: 10,
+            bringit: 11,
         }[what] || 6;
         await this.sendCommands({
             command: cmd,
             subCommand: cmd,
+        });
+    }
+
+    async sendRingBell() {
+        await this.sendCommands({
+            command: 7,
+            subCommand: 7,
+        });
+    }
+
+    async sendEndRide() {
+        await this.sendCommands({
+            command: 14,
+            subCommand: 14,
         });
     }
 
