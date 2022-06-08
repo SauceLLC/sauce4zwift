@@ -34,6 +34,9 @@ function getOrCreatePosition(relPos) {
         el.style.setProperty('--rel-pos', relPos);
         el.innerHTML = `
             <div class="desc left empty">
+                <div class="actions">
+                    <ms data-action="setWatching" title="Watch">videocam</ms>
+                </div>
                 <div class="lines"></div>
             </div>
             <a class="bubble" target="_blank"></a>
@@ -55,6 +58,7 @@ function getOrCreatePosition(relPos) {
         containerEl.appendChild(el);
         containerEl.appendChild(gap);
         const nodes = {
+            watchTarget: null,
             el,
             leftDesc: el.querySelector('.desc.left'),
             leftLines: el.querySelector('.desc.left .lines'),
@@ -65,6 +69,9 @@ function getOrCreatePosition(relPos) {
                 el: gap,
                 leftLine: gap.querySelector('.lines .line.time'),
             },
+            actions: {
+                setWatching: el.querySelector('[data-action="setWatching"]'),
+            },
         };
         positions.set(relPos, nodes);
         nodes.bubble.addEventListener('click', ev => {
@@ -73,6 +80,15 @@ function getOrCreatePosition(relPos) {
                 zoomedPosition = relPos;
                 common.storage.set('zoomedPosition', zoomedPosition);
                 render();
+            }
+        });
+        nodes.leftDesc.querySelector('.actions').addEventListener('click', async ev => {
+            const ms = ev.target.closest('ms[data-action]');
+            if (!ms) {
+                return;
+            }
+            if (ms.dataset.action === 'setWatching') {
+                await common.rpc.gameSetWatching(nodes.watchTarget);
             }
         });
     }
@@ -224,6 +240,10 @@ function renderZoomed(groups) {
         }
         pos.gap.leftLine.textContent = dur ? dur : '';
         pos.gap.el.classList.toggle('alone', !dur);
+        pos.actions.setWatching.classList.toggle('hidden', athlete.watching);
+        if (!athlete.watching) {
+            pos.watchTarget = athlete.athleteId;
+        }
     }
     for (const [i, {el}] of positions.entries()) {
         el.classList.toggle('hidden', !active.has(i));
@@ -247,16 +267,11 @@ function renderGroups(groups) {
     const totAthletes = groups.reduce((agg, x) => agg + x.athletes.length, 0);
     const totGap = groups[groups.length - 1].gap - groups[0].gap;
     const flexFactor = Math.min(1, 0.5 / 15);
-    console.log (flexFactor);
     contentEl.style.setProperty('--total-athletes', totAthletes);
     contentEl.style.setProperty('--total-gap', totGap * flexFactor);
     const athletesLabel = totAthletes === 1 ? 'Athlete' : 'Athletes';
     metaEl.innerHTML = `<div class="line">${totAthletes} ${athletesLabel}</div>`;
     const active = new Set();
-
-   // aheadEl.classList.toggle('visible', false); // Maybe use someday
-   // behindEl.classList.toggle('visible', false); // Maybe use someday
-
     aheadEl.classList.toggle('visible', !!ahead);
     if (ahead) {
         aheadEl.textContent = `+${ahead} ahead`;
@@ -265,8 +280,6 @@ function renderGroups(groups) {
     if (behind) {
         behindEl.textContent = `+${behind} behind`;
     }
-
-
     for (const [i, group] of groups.entries()) {
         // NOTE: gap measurement is always to the next group or null.
         const next = groups[i + 1];
@@ -349,6 +362,10 @@ function renderGroups(groups) {
         pos.gap.el.classList.toggle('alone', !innerGap);
         const dur = innerGap && H.duration(Math.abs(gap), {short: true, seperator: ' '});
         pos.gap.leftLine.textContent = dur ? (gap > 0 ? '+' : '-') + dur : '';
+        pos.actions.setWatching.classList.toggle('hidden', group.watching);
+        if (!group.watching) {
+            pos.watchTarget = group.athletes[Math.trunc(group.athletes.length / 2)].athleteId;
+        }
     }
     for (const [i, {el}] of positions.entries()) {
         el.classList.toggle('hidden', !active.has(i));

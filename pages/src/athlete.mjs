@@ -4,7 +4,7 @@ import {locale, template} from '../../shared/sauce/index.mjs';
 const H = locale.human;
 locale.setImperial(common.storage.get('/imperialUnits'));
 const athleteId = Number((new URLSearchParams(location.search)).get('athleteId'));
-const gettingAthlete = common.rpc.getAthlete(athleteId || 1);
+const gettingAthlete = common.rpc.getAthlete(athleteId || 1, {refresh: true});
 const gettingTemplate = template.getTemplate('templates/athlete.html.tpl');
 
 
@@ -27,6 +27,8 @@ export async function main() {
         } else if (a.dataset.action === 'togglePinned') {
             profile.pinned = !profile.pinned;
             await common.rpc.updateAthlete(athleteId, {pinned: profile.pinned});
+        } else if (a.dataset.action === 'setWatching') {
+            await common.rpc.gameSetWatching(athleteId);
         }
         main.innerHTML = '';
         main.appendChild(await tpl({athleteId, profile}));

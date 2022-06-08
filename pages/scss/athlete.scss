@@ -65,10 +65,11 @@ body > main {
             }
 
             &:not(:last-child) {
-                margin-right: 0.3em;
+                margin-right: 0.4em;
             }
             &[data-action="toggleMuted"] {
                 font-size: 0.9em;
+                padding-top: 0.23em;
             }
             &[data-action="togglePinned"].active {
                 color: #69ff94;

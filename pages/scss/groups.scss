@@ -127,6 +127,48 @@ html.settings-mode #meta.app-drag {
     --size: calc(1.5rem + (var(--athletes) / max(10, var(--total-athletes)) * 3.5rem));
     order: var(--rel-pos);
 
+    .left.desc .actions {
+        transition: opacity 150ms, visibility 150ms, margin 150ms, max-width 200ms;
+        opacity: 0;
+        visibility: hidden;
+        margin: 0;
+        font-size: 1.2em;
+        max-width: 0;
+
+        ms[data-action] {
+            font-weight: 600;
+            opacity: 0.8em;
+            transition: opacity 150ms;
+            cursor: pointer;
+            margin-right: 0.6em;
+            text-shadow:
+                0 0 1px #000,
+                0 0 1px #000,
+                0 0 1px #000,
+                0 0 1px #000;
+
+            &.hidden {
+                display: none;
+            }
+        }
+    }
+
+    &:hover {
+        .left.desc .actions {
+            opacity: 1;
+            visibility: visible;
+            max-width: 2em;
+
+            ms[data-action] {
+                opacity: 0.7;
+
+                &:hover {
+                    opacity: 1;
+                }
+            }
+        }
+    }
+
     &.watching {
         .bubble {
             background: radial-gradient(#0af, #09ea, #333a);
@@ -165,6 +207,7 @@ html.settings-mode #meta.app-drag {
         font-family: sans-serif;
         color: black;
         box-shadow: 0 0 0 $shadow-size var(--rim-color), 0.03rem 0.03rem $shadow-size 0 var(--rim-border-color);
+        text-decoration: none;
 
         img {
             width: 100%;

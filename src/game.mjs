@@ -295,7 +295,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         rpc.register(this.startLap, {scope: this});
         rpc.register(this.resetStats, {scope: this});
         rpc.register(this.exportFIT, {scope: this});
-        rpc.register(this.loadAthlete, {scope: this, name: 'getAthlete'});
+        rpc.register(this.getAthlete, {scope: this});
         rpc.register(this.resetAthletesDB, {scope: this, name: 'resetAthletesDB'});
         rpc.register(this.getChatHistory, {scope: this, name: 'getChatHistory'});
     }
@@ -303,7 +303,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     getChatHistory() {
         return this._chatHistory.map(x => {
             const athlete = this._athletesCache.get(x.from);
-            x.muted = athlete.muted != null ? athlete.muted : x.muted;
+            x.muted = (athlete && athlete.muted != null) ? athlete.muted : x.muted;
             return x;
         });
     }
@@ -488,6 +488,15 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         } else {
             this._athletesCache.set(id, null);
         }
+    }
+
+    async getAthlete(id, options={}) {
+        const a = options.refresh !== true && this.loadAthlete(id);
+        if (a) {
+            return a;
+        }
+        await this._updateAthleteProfilesFromServer([id]);
+        return this._athletesCache.get(id);
     }
 
     saveAthletes(records) {
@@ -689,7 +698,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         };
     }
 
-    maybeUpdateAthletesFromProfile(nearby) {
+    maybeUpdateAthletesFromServer(nearby) {
         for (const {athleteId} of nearby) {
             if (this._profileFetchIds.has(athleteId)) {
                 continue;
@@ -703,6 +712,51 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         }
     }
 
+    async _updateAthleteProfilesFromServer(batch) {
+        const updates = [];
+        if (this._useFakeData) {
+            const words = this.constructor.toString().replaceAll(/[^a-zA-Z ]/g, ' ')
+                .split(' ').filter(x => x);
+            for (const id of batch) {
+                const team = Math.random() > 0.8 ? ` [${words[randInt(10)]}]` : '';
+                const data = this._updateAthlete(id, {
+                    firstName: titleCase(words[randInt(words.length)]),
+                    lastName: titleCase(words[randInt(words.length)]) + team,
+                    ftp: Math.round(100 + randInt(300)),
+                    avatar: Math.random() > 0.05 ?
+                        `https://gravatar.com/avatar/${Math.abs(id)}?s=400&d=robohash&r=x` :
+                        undefined,
+                    weight: Math.round(40 + randInt(70)),
+                    gender: ['female', 'male'][randInt(2)],
+                    age: Math.round(18 + randInt(60)),
+                    level: Math.round(1 + randInt(40)),
+                });
+                updates.push([id, data]);
+            }
+        } else {
+            for (const p of await zwift.getProfiles(batch)) {
+                if (p) {
+                    const id = Number(p.id);
+                    const data = this._updateAthlete(id, {
+                        firstName: p.firstName,
+                        lastName: p.lastName,
+                        ftp: p.ftp,
+                        avatar: p.imageSrcLarge || p.imageSrc,
+                        weight: p.weight / 1000,
+                        height: p.height / 10,
+                        gender: p.male === false ? 'female' : 'male',
+                        age: p.age,
+                        level: Math.floor(p.achievementLevel / 100),
+                    });
+                    updates.push([id, data]);
+                }
+            }
+        }
+        if (updates.length) {
+            this.saveAthletes(updates);
+        }
+    }
+
     async runAthleteProfileUpdater() {
         while (this._pendingProfileFetches.length) {
             const batch = Array.from(this._pendingProfileFetches);
@@ -713,49 +767,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             }, 300 * 1000);
             this._pendingProfileFetches.length = 0;
             this._profileFetchCount += batch.length;
-            console.debug(`Fetching ${batch.length} profiles`);
-            const updates = [];
-            if (this._useFakeData) {
-                const words = this.constructor.toString().replaceAll(/[^a-zA-Z ]/g, ' ')
-                    .split(' ').filter(x => x);
-                for (const id of batch) {
-                    const team = Math.random() > 0.8 ? ` [${words[randInt(10)]}]` : '';
-                    const data = this._updateAthlete(id, {
-                        firstName: titleCase(words[randInt(words.length)]),
-                        lastName: titleCase(words[randInt(words.length)]) + team,
-                        ftp: Math.round(100 + randInt(300)),
-                        avatar: Math.random() > 0.05 ?
-                            `https://gravatar.com/avatar/${Math.abs(id)}?s=400&d=robohash&r=x` :
-                            undefined,
-                        weight: Math.round(40 + randInt(70)),
-                        gender: ['female', 'male'][randInt(2)],
-                        age: Math.round(18 + randInt(60)),
-                        level: Math.round(1 + randInt(40)),
-                    });
-                    updates.push([id, data]);
-                }
-            } else {
-                for (const p of await zwift.getProfiles(batch)) {
-                    if (p) {
-                        const id = Number(p.id);
-                        const data = this._updateAthlete(id, {
-                            firstName: p.firstName,
-                            lastname: p.lastName,
-                            ftp: p.ftp,
-                            avatar: p.imageSrcLarge || p.imageSrc,
-                            weight: p.weight / 1000,
-                            height: p.height / 10,
-                            gender: p.male === false ? 'female' : 'male',
-                            age: p.age,
-                            level: Math.floor(p.achievementLevel / 100),
-                        });
-                        updates.push([id, data]);
-                    }
-                }
-            }
-            if (updates.length) {
-                this.saveAthletes(updates);
-            }
+            await this._updateAthleteProfilesFromServer(batch);
             await sauce.sleep(100);
         }
     }
@@ -1101,7 +1113,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         }
         nearby.sort((a, b) => a.gap - b.gap);
         this.emit('nearby', nearby);
-        this.maybeUpdateAthletesFromProfile(nearby);
+        this.maybeUpdateAthletesFromServer(nearby);
 
         const groups = [];
         let curGroup;

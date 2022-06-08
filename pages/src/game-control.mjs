@@ -1,4 +1,3 @@
-import * as sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
 
 

@@ -2,6 +2,9 @@
     <header class="title">
         <div class="name">{{profile.sanitizedFullname}}</div>
         <div class="buttons">
+            <a title="Watch this athlete"
+               data-action="setWatching"
+               href><ms>videocam</ms></a>
             <a title="Toggle visibility of chat messages from yahoos
 
 

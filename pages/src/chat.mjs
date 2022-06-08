@@ -149,7 +149,7 @@ export async function main() {
             entry.style.setProperty('--message-hue', athleteHue(chat.from) + 'deg');
             const hue = common.teamHue(chat.team);
             entry.innerHTML = `
-                <a href="athlete.html?athleteId=${chat.from}&widthHint=900&heightHint=375" target="_blank"
+                <a href="athlete.html?athleteId=${chat.from}&widthHint=900&heightHint=400" target="_blank"
                    class="avatar"><img src="${chat.avatar || 'images/blankavatar.png'}"/></a>
                 <div class="content">
                     <div class="header">
@@ -170,6 +170,9 @@ export async function main() {
             entry.classList.add('muted');
             entry.innerHTML = `<div class="content">Muted message from ${initials}</div>`;
         }
+        entry.addEventListener('dblclick', async () => {
+            await common.rpc.gameSetWatching(chat.from);
+        });
         addContentEntry(entry, age);
     }
 
