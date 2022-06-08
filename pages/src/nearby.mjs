@@ -264,7 +264,7 @@ function render() {
             } else {
                 row.classList.add('hi');
             }
-            await common.rpc.gameWatch(hiRow);
+            await common.rpc.gameSetWatching(hiRow);
         }
     });
     theadRow.addEventListener('click', ev => {
