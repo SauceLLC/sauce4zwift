@@ -531,7 +531,6 @@ function bindLineChart(lineChart, renderer) {
                         label: {
                             formatter: x => {
                                 const nbsp ='\u00A0';
-                                console.log(x.value);
                                 return [
                                     ''.padStart(Math.max(0, 5 - x.value), nbsp),
                                     nbsp, nbsp, // for unit offset

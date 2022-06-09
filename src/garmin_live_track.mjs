@@ -1,6 +1,6 @@
 import EventEmitter from 'node:events';
 import fetch from 'node-fetch';
-import sauce from '../shared/sauce/index.mjs';
+import * as sauce from '../shared/sauce/index.mjs';
 
 
 async function sleep(ms) {
@@ -59,7 +59,7 @@ class RollingPeaks {
 
 
 export class Sauce4ZwiftMonitor extends EventEmitter {
-    static async factory(session) {
+    static async factory({session}) {
         return new this('127.0.0.1', session);
     }
 
@@ -129,7 +129,7 @@ export class Sauce4ZwiftMonitor extends EventEmitter {
         if (state.cadence != null) {
             rolls.cadence.add(state.ts, state.cadence);
         }
-        state.stats = {
+        const stats = {
             power: rolls.power.getStats({np: rolls.power.roll.np({force: true})}),
             speed: rolls.speed.getStats(),
             hr: rolls.hr.getStats(),
@@ -137,7 +137,7 @@ export class Sauce4ZwiftMonitor extends EventEmitter {
             cadence: rolls.cadence.getStats(),
         };
         if (this.watching === state.athleteId) {
-            this.emit('watching', this.cleanState(state));
+            this.emit('watching', {athleteId: state.athleteId, state: this.cleanState(state), stats});
         }
     }
 
