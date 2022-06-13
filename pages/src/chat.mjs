@@ -171,7 +171,7 @@ export async function main() {
             entry.innerHTML = `<div class="content">Muted message from ${initials}</div>`;
         }
         entry.addEventListener('dblclick', async () => {
-            await common.rpc.gameSetWatching(chat.from);
+            await common.rpc.setWatching(chat.from);
         });
         addContentEntry(entry, age);
     }

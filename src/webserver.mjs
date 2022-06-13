@@ -11,7 +11,6 @@ let server;
 let starting;
 let stopping;
 let running;
-let monitor;
 
 
 async function sleep(ms) {
@@ -43,16 +42,11 @@ function wrapWebSocketMessage(ws, callback) {
 }
 
 
-export async function restart(monitor) {
+export async function restart() {
     if (starting) {
         await stop();
     }
     start();
-}
-
-
-export function setMonitor(m) {
-    monitor = m;
 }
 
 
@@ -80,13 +74,13 @@ async function closeServer(s) {
 }
 
 
-export async function start(port, options={}) {
+export async function start(options={}) {
     if (starting || starting || running) {
         throw new Error("Invalid state");
     }
     starting = true;
     try {
-        await _start(port, options);
+        await _start(options);
     } catch(e) {
         const s = server;
         server = null;
@@ -101,7 +95,7 @@ export async function start(port, options={}) {
 }
 
 
-async function _start(port, options) {
+async function _start({ip, port, debug, rpcSources}) {
     app = express();
     app.use(express.json());
     server = http.createServer(app);
@@ -109,7 +103,7 @@ async function _start(port, options) {
     // workaround https://github.com/websockets/ws/issues/2023
     webSocketServer.on('error', () => void 0);
     const cacheDisabled = 'no-cache, no-store, must-revalidate';
-    const cacheEnabled = options.debug ? cacheDisabled : 'public, max-age=3600, s-maxage=900';
+    const cacheEnabled = debug ? cacheDisabled : 'public, max-age=3600, s-maxage=900';
     const router = express.Router();
     router.use('/', express.static(`${WD}/../pages`, {index: 'index.html'}));
     router.use('/pages/images', express.static(`${WD}/../pages/images`, {
@@ -127,20 +121,23 @@ async function _start(port, options) {
         cacheControl: true,
         setHeaders: res => res.setHeader('Cache-Control', cacheDisabled)
     }));
-    router.post('/api/rpc', async (req, res) => {
-        const {name, args} = req.body;
-        res.json(await rpc.invoke.call(null, name, ...args));
+    router.post('/api/rpc/:name', async (req, res) => {
+        res.json(await rpc.invoke.call(null, req.params.name, ...req.body));
     });
-    router.ws('/api/ws', (ws, req) => {
+    router.ws('/api/ws/events', (ws, req) => {
         const subs = new Map();
         ws.on('message', wrapWebSocketMessage(ws, (type, {method, arg}) => {
             if (type !== 'request') {
                 throw new TypeError('Invalid type');
             }
             if (method === 'subscribe') {
-                const {event, subId} = arg;
+                const {event, subId, source='game'} = arg;
                 if (!event) {
                     throw new TypeError('"event" arg required');
+                }
+                const emitter = rpcSources[source];
+                if (!emitter) {
+                    throw new TypeError('Invalid emitter source: ' + source);
                 }
                 const cb = data => {
                     ws.send(JSON.stringify({
@@ -150,25 +147,25 @@ async function _start(port, options) {
                         uid: subId,
                     }));
                 };
-                subs.set(subId, {event, cb});
-                monitor.on(event, cb);
+                subs.set(subId, {event, cb, emitter});
+                emitter.on(event, cb);
                 return;
             } else if (method === 'unsubscribe') {
                 const subId = arg;
                 if (!subId) {
                     throw new TypeError('"subId" arg required');
                 }
-                const {event, cb} = subs.get(subId);
+                const {event, cb, emitter} = subs.get(subId);
                 subs.delete(subId);
-                monitor.off(event, cb);
+                emitter.off(event, cb);
                 return;
             } else {
                 throw new TypeError('Invalid "method"');
             }
         }));
         ws.on('close', () => {
-            for (const {event, cb} of subs.values()) {
-                monitor.off(event, cb);
+            for (const {event, cb, emitter} of subs.values()) {
+                emitter.off(event, cb);
             }
             subs.clear();
         });
@@ -186,7 +183,7 @@ async function _start(port, options) {
                 server.on('error', rej);
                 server.listen(port);
             });
-            console.info(`\nWeb server started at: http://${monitor.ip}:${port}/\n`);
+            console.info(`\nWeb server started at: http://${ip}:${port}/\n`);
             return;
         } catch(e) {
             if (e.code === 'EADDRINUSE') {
@@ -201,6 +198,6 @@ async function _start(port, options) {
             server.off('error', rej);
         }
     }
-    console.error(`Web server failed to startup at: http://${monitor.ip}:${port}/`);
+    console.error(`Web server failed to startup at: http://${ip}:${port}/`);
     return true;
 }

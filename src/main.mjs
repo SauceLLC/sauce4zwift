@@ -1,10 +1,8 @@
-import path from 'node:path';
 import process from 'node:process';
 import os from 'node:os';
-import {fileURLToPath} from 'node:url';
+import {EventEmitter} from 'node:events';
 import * as storage from './storage.mjs';
 import * as menu from './menu.mjs';
-import * as patreon from './patreon.mjs';
 import * as rpc from './rpc.mjs';
 import {databases} from './db.mjs';
 import * as Sentry from '@sentry/node';
@@ -17,6 +15,7 @@ import crypto from 'node:crypto';
 import {createRequire} from 'node:module';
 import * as secrets from './secrets.mjs';
 import * as zwift from './zwift.mjs';
+import * as windows from './windows.mjs';
 
 // Dev tools prototyping
 global.zwift = zwift;
@@ -26,47 +25,51 @@ const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 const {autoUpdater} = require('electron-updater');
 const electron = require('electron');
-
 const isDEV = !electron.app.isPackaged;
-const isWindows = os.platform() === 'win32';
-const isMac = !isWindows && os.platform() === 'darwin';
-const isLinux = !isWindows && !isMac && os.platform() === 'linux';
 
-let appQuiting = false;
 let started;
-let gameMonitor;
-let tray;
+let quiting;
+let sentryAnonId;
+let sauceApp;
+const rpcSources = {
+    windows: windows.eventEmitter,
+};
+
+
+function quit(retcode) {
+    quiting = true;
+    if (retcode) {
+        electron.app.exit(retcode);
+    } else {
+        electron.app.quit();
+    }
+}
+rpc.register(quit);
+
+
+function restart() {
+    electron.app.relaunch();
+    quit();
+}
+rpc.register(restart);
+
+
+export function getApp() {
+    return sauceApp;
+}
+
 
 try {
     storage.load(0);
 } catch(e) {
-    appQuiting = true;
+    quiting = true;
     console.error('Storage error:', e);
     Promise.all([
         storage.reset(),
-        electron.dialog.showErrorBox('Storage error. Reseting database...', '' + e)
+        electron.dialog.showErrorBox('Storage error. Resetting database...', '' + e)
     ]).finally(() => quit(1));
 }
-rpc.register(async function() {
-    const {response} = await electron.dialog.showMessageBox(this.getOwnerBrowserWindow(), {
-        type: 'question',
-        title: 'Confirm Reset State',
-        message: 'This operation will reset all settings completely.\n\n' +
-            'Are you sure you want continue?',
-        buttons: ['Yes, reset to defaults', 'Cancel'],
-        cancelId: 1,
-    });
-    if (response === 0) {
-        console.warn('Reseting state and restarting...');
-        await storage.reset();
-        await secrets.remove('zwift-login');
-        await electron.session.defaultSession.clearStorageData();
-        await electron.session.defaultSession.clearCache();
-        restart();
-    }
-}, {name: 'resetStorageState'});
 
-let sentryAnonId;
 if (!isDEV) {
     setSentry(Sentry);
     Sentry.init({
@@ -98,131 +101,9 @@ if (!isDEV) {
     console.info("Sentry disabled by dev mode");
 }
 
-electron.nativeTheme.themeSource = 'dark';
 
 
-function quit(retcode) {
-    appQuiting = true;
-    if (retcode) {
-        electron.app.exit(retcode);
-    } else {
-        electron.app.quit();
-    }
-}
-rpc.register(quit);
 
-
-function restart() {
-    electron.app.relaunch();
-    quit();
-}
-rpc.register(restart);
-
-
-const appSettingDefaults = {
-    webServerEnabled: true,
-    webServerPort: 1080,
-};
-
-const windowManifests = [{
-    type: 'overview',
-    page: 'overview.html',
-    prettyName: 'Overview',
-    prettyDesc: 'Main top window for overall control and stats.',
-    private: true,
-    options: {relWidth: 0.6, height: 40, relX: 0.2, y: 28},
-    webPreferences: {backgroundThrottling: false}, // XXX Doesn't appear to work
-    alwaysVisible: true,
-}, {
-    type: 'watching',
-    page: 'watching.html',
-    prettyName: 'Currently Watching',
-    prettyDesc: 'Replacement window for stats of the athlete being watched.',
-    options: {relWidth: 0.18, aspectRatio: 1},
-}, {
-    type: 'groups',
-    page: 'groups.html',
-    prettyName: 'Groups',
-    prettyDesc: 'A zoomable view of groups of athletes.',
-    options: {relWidth: 0.15, relHeight: 0.65},
-}, {
-    type: 'chat',
-    page: 'chat.html',
-    prettyName: 'Chat',
-    prettyDesc: 'Chat dialog from nearby athletes.',
-    options: {relWidth: 0.18, aspectRatio: 2},
-}, {
-    type: 'nearby',
-    page: 'nearby.html',
-    prettyName: 'Nearby Athletes',
-    prettyDesc: 'A sortable data table of nearby athletes.',
-    options: {width: 800, height: 400},
-    overlay: false,
-}, {
-    type: 'power-gauge',
-    groupTitle: 'Gauges',
-    pageURL: 'gauge.html?t=power',
-    prettyName: 'Power Gauge [experiment]',
-    prettyDesc: 'Car style power (watts) gauge.',
-    options: {relWidth: 0.20, aspectRatio: 0.8},
-}, {
-    type: 'draft-gauge',
-    groupTitle: 'Gauges',
-    pageURL: 'gauge.html?t=draft',
-    prettyName: 'Draft Gauge [experiment]',
-    prettyDesc: 'Car style draft (% power reduction) gauge.',
-    options: {relWidth: 0.20, aspectRatio: 0.8},
-}, {
-    type: 'pace-gauge',
-    groupTitle: 'Gauges',
-    pageURL: 'gauge.html?t=pace',
-    prettyName: 'Pace Gauge [experiment]',
-    prettyDesc: 'Car style pace/speed gauge.',
-    options: {relWidth: 0.20, aspectRatio: 0.8},
-}, {
-    type: 'hr-gauge',
-    groupTitle: 'Gauges',
-    pageURL: 'gauge.html?t=hr',
-    prettyName: 'Heart Rate Gauge [experiment]',
-    prettyDesc: 'Car style heart rate gauge.',
-    options: {relWidth: 0.20, aspectRatio: 0.8},
-}, {
-    type: 'stats-for-nerds',
-    groupTitle: 'Misc',
-    page: 'stats-for-nerds.html',
-    prettyName: 'Stats for Nerds',
-    prettyDesc: 'Debug info (cpu/mem) about Sauce.',
-    options: {width: 900, height: 600},
-    overlay: false,
-}];
-rpc.register(() => windowManifests, {name: 'getWindowManifests'});
-const windowManifestsByType = Object.fromEntries(windowManifests.map(x => [x.type, x]));
-
-const defaultWindows = [{
-    id: 'default-overview-1',
-    type: 'overview',
-}, {
-    id: 'default-watching-1',
-    type: 'watching',
-    options: {x: 8, y: 40},
-}, {
-    id: 'default-groups-1',
-    type: 'groups',
-    options: {x: -280, y: -10},
-}, {
-    id: 'default-chat-1',
-    type: 'chat',
-    options: {x: 320, y: 230},
-}];
-
-const appSettingsKey = 'app-settings';
-// NEVER use app.getAppPath() it uses asar for universal builds
-const appPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const pagePath = path.join(appPath, 'pages');
-// Otherwise is done via builder
-const activeWindows = new Map();
-const subWindows = new WeakMap();
-const windowsUpdateListeners = new Map();
 // Use non-electron naming for windows updater.
 // https://github.com/electron-userland/electron-builder/issues/2700
 electron.app.setAppUserModelId('io.saucellc.sauce4zwift'); // must match build.appId for windows
@@ -240,617 +121,82 @@ electron.app.on('second-instance', (ev,_, __, {type}) => {
 electron.app.on('activate', async () => {
     // Clicking on the app icon..
     if (electron.BrowserWindow.getAllWindows().length === 0) {
-        openAllWindows();
+        windows.openAllWindows();
     }
 });
 electron.app.on('before-quit', () => {
-    appQuiting = true;
+    quiting = true;
     Sentry.flush();
 });
-electron.ipcMain.on('getWindowContextSync', ev => {
-    let returnValue = {
-        id: null,
-        type: null,
-    };
-    try {
-        const o = activeWindows.get(ev.sender) || subWindows.get(ev.sender);
-        if (o) {
-            returnValue = {
-                id: o.spec.id,
-                type: o.spec.type,
-            };
+electron.ipcMain.on('subscribe', (ev, {event, domEvent, persistent, source='game'}) => {
+    const {win, activeSubs, spec} = windows.getMetaByWebContents(ev.sender);
+    // NOTE: Electron webContents.send is incredibly hard ON CPU and GC for deep objects.  Using JSON is
+    // a massive win for CPU and memory.
+    const sendMessage = data => win.webContents.send('browser-message', {domEvent, json: JSON.stringify(data)});
+    // NOTE: MacOS emits show/hide AND restore/minimize but Windows only does restore/minimize
+    const resumeEvents = ['responsive', 'show', 'restore'];
+    const suspendEvents = ['unresponsive', 'hide', 'minimize'];
+    const shutdownEvents = ['destroyed', 'did-start-loading'];
+    const emitter = rpcSources[source];
+    if (!emitter) {
+        throw new TypeError('Invalid emitter source: ' + source);
+    }
+    const listeners = [];
+    function resume(who) {
+        if (!activeSubs.has(event)) {
+            if (who) {
+                console.debug("Resume subscription:", event, spec.id, who);
+            } else {
+                console.debug("Startup subscription:", event, spec.id);
+            }
+            emitter.on(event, sendMessage);
+            activeSubs.add(event);
         }
-    } finally {
-        ev.returnValue = returnValue; // MUST set otherwise page blocks.
+    }
+    function suspend(who) {
+        if (activeSubs.has(event)) {
+            console.debug("Suspending subscription:", event, spec.id, who);
+            emitter.off(event, sendMessage);
+            activeSubs.delete(event);
+        }
+    }
+    function shutdown() {
+        console.debug("Shutdown subscription:", event, spec.id);
+        emitter.off(event, sendMessage);
+        for (const x of shutdownEvents) {
+            win.webContents.off(x, shutdown);
+        }
+        for (const [name, cb] of listeners) {
+            win.off(name, cb);
+        }
+        activeSubs.clear();
+    }
+    if (persistent || (win.isVisible() && !win.isMinimized())) {
+        resume();
+    }
+    for (const x of shutdownEvents) {
+        win.webContents.once(x, shutdown);
+    }
+    if (!persistent) {
+        for (const x of resumeEvents) {
+            const cb = ev => resume(x, ev);
+            win.on(x, cb);
+            listeners.push([x, cb]);
+        }
+        for (const x of suspendEvents) {
+            const cb = ev => suspend(x, ev);
+            win.on(x, cb);
+            listeners.push([x, cb]);
+        }
     }
 });
 
-
-let _appSettings;
-export function getAppSetting(key, def) {
-    if (!_appSettings) {
-        _appSettings = storage.load(appSettingsKey) || {...appSettingDefaults};
-    }
-    if (!Object.prototype.hasOwnProperty.call(_appSettings, key) && def !== undefined) {
-        _appSettings[key] = def;
-        storage.save(appSettingsKey, _appSettings);
-    }
-    return _appSettings[key];
-}
-rpc.register(getAppSetting);
-
-
-export function setAppSetting(key, value) {
-    if (!_appSettings) {
-        _appSettings = storage.load(appSettingsKey) || {...appSettingDefaults};
-    }
-    _appSettings[key] = value;
-    storage.save(appSettingsKey, _appSettings);
-    electron.app.emit('app-setting-change', key, value);
-}
-rpc.register(setAppSetting);
 
 rpc.register(() => isDEV, {name: 'isDEV'});
 rpc.register(() => pkg.version, {name: 'getVersion'});
-rpc.register(() => gameMonitor.ip, {name: 'getMonitorIP'});
 rpc.register(() => sentryAnonId, {name: 'getSentryAnonId'});
 rpc.register(url => electron.shell.openExternal(url), {name: 'openExternalLink'});
-
-rpc.register(() => {
-    for (const {win, spec} of activeWindows.values()) {
-        const manifest = windowManifestsByType[spec.type];
-        if (!manifest.alwaysVisible && spec.overlay !== false) {
-            win.hide();
-        }
-    }
-}, {name: 'hideAllWindows'});
-
-rpc.register(() => {
-    for (const {win, spec} of activeWindows.values()) {
-        const manifest = windowManifestsByType[spec.type];
-        if (!manifest.alwaysVisible && spec.overlay !== false) {
-            win.showInactive();
-        }
-    }
-}, {name: 'showAllWindows'});
-
-rpc.register(function() {
-    const {win, spec} = activeWindows.get(this);
-    console.debug('Window close requested:', spec.id);
-    win.close();
-}, {name: 'closeWindow'});
-
-rpc.register(function() {
-    const {win, spec} = activeWindows.get(this);
-    console.debug('Window close requested:', spec.id);
-    win.minimize();
-}, {name: 'minimizewindow'});
-
-
-
-let _appMetricsPromise;
-let _lastAppMetricsTS = 0;
-function _getAppMetrics(reentrant) {
-    return new Promise(resolve => setTimeout(() => {
-        if (reentrant !== true) {
-            // Schedule one more in anticipation of pollers
-            _appMetricsPromise = _getAppMetrics(true);
-        } else {
-            _appMetricsPromise = null;
-        }
-        _lastAppMetricsTS = Date.now();
-        resolve(electron.app.getAppMetrics());
-    }, 2000 - (Date.now() - _lastAppMetricsTS)));
-}
-
-rpc.register(async () => {
-    if (!_appMetricsPromise) {
-        _appMetricsPromise = _getAppMetrics();
-    }
-    return await _appMetricsPromise;
-}, {name: 'pollAppMetrics'});
-
-
-async function getDebugInfo() {
-    return {
-        app: {
-            version: pkg.version,
-            uptime: process.uptime(),
-            mem: process.memoryUsage(),
-            cpu: process.cpuUsage(),
-            cwd: process.cwd(),
-        },
-        gpu: electron.app.getGPUFeatureStatus(),
-        sys: {
-            arch: process.arch,
-            platform: os.platform(),
-            release: os.release(),
-            version: os.version(),
-            productVersion: process.getSystemVersion(),
-            mem: process.getSystemMemoryInfo(),
-            uptime: os.uptime(),
-            cpus: os.cpus(),
-        },
-        game: gameMonitor.getDebugInfo(),
-        databases: [].concat(...Array.from(databases.entries()).map(([dbName, db]) => {
-            const stats = db.prepare('SELECT * FROM sqlite_schema WHERE type = ? AND name NOT LIKE ?')
-                .all('table', 'sqlite_%');
-            return stats.map(t => ({
-                dbName,
-                tableName: t.name,
-                rows: db.prepare(`SELECT COUNT(*) as rows FROM ${t.name}`).get().rows,
-            }));
-        })),
-    };
-}
-rpc.register(getDebugInfo);
-
-rpc.register(pid => {
-    for (const x of electron.BrowserWindow.getAllWindows()) {
-        let wc;
-        try {
-            wc = x.webContents;
-        } catch(e) {
-            continue;
-        }
-        if (wc.getOSProcessId() !== pid) {
-            continue;
-        }
-        if (activeWindows.has(wc)) {
-            return activeWindows.get(wc).spec;
-        } else if (subWindows.has(wc)) {
-            return {
-                subWindow: true,
-                ...subWindows.get(wc).spec,
-            };
-        }
-    }
-}, {name: 'getWindowSpecForPID'});
-
-
-function getActiveWindow(id) {
-    for (const w of activeWindows.values()) {
-        if (w.spec.id === id) {
-            return w.win;
-        }
-    }
-}
-
-
-let _windows;
-function getWindows() {
-    if (!_windows) {
-        _windows = storage.load('windows');
-        if (!_windows) {
-            _windows = {};
-            for (const x of defaultWindows) {
-                createWindow(x);
-            }
-        }
-    }
-    return _windows;
-}
-rpc.register(getWindows);
-
-
-rpc.register(function(domEvent) {
-    if (this) {
-        windowsUpdateListeners.set(new WeakRef(this), domEvent);
-    } else {
-        // XXX Doesn't work for web clients, but I think we could proxy to the webServer
-        console.warn("listenForWindowUpdates is only supported on electron");
-    }
-}, {name: 'listenForWindowUpdates'});
-
-
-let _windowsUpdatedTimeout;
-function setWindows(wins) {
-    _windows = wins;
-    storage.save('windows', _windows);
-    clearTimeout(_windowsUpdatedTimeout);
-    _windowsUpdatedTimeout = setTimeout(() => {
-        for (const [ref, domEvent] of windowsUpdateListeners.entries()) {
-            const sender = ref.deref();
-            if (!sender || sender.isDestroyed()) {
-                windowsUpdateListeners.delete(ref);
-            } else {
-                sender.send('browser-message', {domEvent});
-            }
-        }
-    }, 200);
-}
-
-
-function getWindow(id) {
-    return getWindows()[id];
-}
-rpc.register(getWindow);
-
-
-function setWindow(id, data) {
-    const wins = getWindows();
-    wins[id] = data;
-    setWindows(wins);
-}
-rpc.register(setWindow);
-
-
-function setWindowOpacity(id, opacity) {
-    updateWindow(id, {opacity});
-    const win = getActiveWindow(id);
-    if (win) {
-        win.setOpacity(opacity);
-    }
-}
-rpc.register(setWindowOpacity);
-
-
-function updateWindow(id, updates) {
-    const w = getWindow(id);
-    Object.assign(w, updates);
-    setWindow(id, w);
-    if ('closed' in updates) {
-        setTimeout(updateTrayMenu, 100);
-    }
-    return w;
-}
-rpc.register(updateWindow);
-
-
-function removeWindow(id) {
-    const win = getActiveWindow(id);
-    if (win) {
-        win.close();
-    }
-    const wins = getWindows();
-    delete wins[id];
-    setWindows(wins);
-    setTimeout(updateTrayMenu, 100);
-}
-rpc.register(removeWindow);
-
-
-function createWindow({id, type, options, ...state}) {
-    id = id || `user-${type}-${Date.now()}-${Math.round(Math.random() * 1000)}`;
-    const manifest = windowManifestsByType[type];
-    setWindow(id, {
-        ...manifest,
-        id,
-        type,
-        options,
-        ...state,
-    });
-    setTimeout(updateTrayMenu, 100);
-    return id;
-}
-rpc.register(createWindow);
-
-
-function highlightWindow(id) {
-    const win = getActiveWindow(id);
-    if (win) {
-        if (!win.isVisible() || win.isMinimized()) {
-            win.show();
-        } else {
-            win.focus();
-        }
-        win.webContents.send('browser-message', {domEvent: 'sauce-highlight-window'});
-    }
-}
-rpc.register(highlightWindow);
-
-
-function openWindow(id) {
-    const spec = getWindow(id);
-    if (spec.closed) {
-        updateWindow(id, {closed: false});
-    }
-    _openWindow(id, spec);
-}
-rpc.register(openWindow);
-
-
-function reopenWindow(id) {
-    const win = getActiveWindow(id);
-    if (win) {
-        win.close();
-    }
-    openWindow(id);
-}
-rpc.register(reopenWindow);
-
-
-function _openWindow(id, spec) {
-    console.debug("Opening window:", id, spec.type);
-    const overlayOptions = {
-        transparent: true,
-        hasShadow: false,
-        frame: false,
-        roundedCorners: false,  // macos only, we use page style instead.
-        alwaysOnTop: true,
-        maximizable: false,
-        fullscreenable: false,
-    };
-    const manifest = windowManifestsByType[spec.type];
-    // Order of options is crucial...
-    const options = {
-        ...(spec.overlay !== false ? overlayOptions : {}),
-        ...manifest.options,
-        ...spec.options,
-        ...spec.position,
-        opacity: spec.opacity,
-    };
-    const win = new electron.BrowserWindow({
-        type: isLinux ? 'splash' : undefined,
-        show: false,
-        webPreferences: {
-            sandbox: true,
-            devTools: isDEV,
-            preload: path.join(appPath, 'src', 'preload', 'common.js'),
-            webgl: false,
-            ...manifest.webPreferences,
-            ...spec.webPreferences,
-        },
-        ...options,
-    });
-    if (!isDEV) {
-        win.removeMenu();
-    }
-    if (!spec.position && (options.relWidth != null || options.relHeight != null ||
-        options.relX != null || options.relY != null || options.x < 0 || options.y < 0)) {
-        const {width: sWidth, height: sHeight} = electron.screen.getPrimaryDisplay().size; // XXX
-        const width = options.width != null ?
-            options.width :
-            Math.round(options.relWidth * sWidth);
-        const height = options.height != null ?
-            options.height :
-            options.aspectRatio != null ?
-                Math.round(width * options.aspectRatio) :
-                Math.round(options.relHeight * sHeight);
-        const x = options.x == null ?
-            (options.relX ? Math.round(options.relX * sWidth) : null) :
-            options.x < 0 ?
-                sWidth + options.x - width :
-                options.x;
-        const y = options.y == null ?
-            (options.relY ? Math.round(options.relY * sHeight) : null) :
-            options.y < 0 ?
-                sHeight + options.y - height :
-                options.y;
-        win.setSize(width, height);
-        if (x != null && y != null) {
-            win.setPosition(x, y, false);
-        }
-    }
-    if (spec.overlay !== false) {
-        win.setAlwaysOnTop(true, 'pop-up-menu');
-    }
-    const webContents = win.webContents;  // Save to prevent electron from killing us.
-    activeWindows.set(webContents, {win, spec, activeSubs: new Set()});
-    webContents.on('new-window', (ev, url) => {
-        // Popups...
-        ev.preventDefault();
-        const q = new URLSearchParams((new URL(url)).search);
-        const wHint = Number(q.get('widthHint'));
-        const hHint = Number(q.get('heightHint'));
-        let width, height;
-        if (wHint || hHint) {
-            const {width: sWidth, height: sHeight} = electron.screen.getPrimaryDisplay().size;
-            width = wHint <= 1 ? Math.round(sWidth * (wHint || 0.5)) : Math.round(wHint);
-            height = hHint <= 1 ? Math.round(sHeight * (hHint || 0.5)) : Math.round(hHint) ;
-        }
-        const newWin = new electron.BrowserWindow({
-            type: isLinux ? 'splash' : undefined,
-            show: false,
-            width,
-            height,
-            alwaysOnTop: spec.overlay !== false,
-            webPreferences: {
-                sandbox: true,
-                devTools: isDEV,
-                preload: path.join(appPath, 'src', 'preload', 'common.js'),
-            }
-        });
-        if (spec.overlay !== false) {
-            newWin.setAlwaysOnTop(true, 'pop-up-menu');
-        }
-        subWindows.set(newWin.webContents, {win: newWin, spec, activeSubs: new Set()});
-        if (!isDEV) {
-            newWin.removeMenu();
-        }
-        newWin.loadURL(url);
-        newWin.show();
-    });
-    let saveStateTimeout;
-    function onPositionUpdate() {
-        const position = win.getBounds();
-        clearTimeout(saveStateTimeout);
-        saveStateTimeout = setTimeout(() => updateWindow(id, {position}), 200);
-    }
-    win.on('move', onPositionUpdate);
-    win.on('resize', onPositionUpdate);
-    win.on('close', () => {
-        activeWindows.delete(webContents);
-        if (!appQuiting && !manifest.alwaysVisible) {
-            updateWindow(id, {closed: true});
-        }
-    });
-    if (spec.page) {
-        win.loadFile(path.join(pagePath, spec.page));
-    } else if (spec.pageURL) {
-        win.loadURL(`file://${path.join(pagePath, spec.pageURL)}`);
-    } else if (spec.url) {
-        win.loadURL(spec.url);
-    } else {
-        throw new TypeError("No page or pageURL defined");
-    }
-    win.show();
-    return win;
-}
-
-
-function openAllWindows() {
-    for (const [id, spec] of Object.entries(getWindows())) {
-        const manifest = windowManifestsByType[spec.type];
-        if (manifest.alwaysVisible || !spec.closed) {
-            _openWindow(id, spec);
-        }
-    }
-}
-
-
-function makeCaptiveWindow(options={}, webPrefs={}) {
-    const win = new electron.BrowserWindow({
-        type: isLinux ? 'splash' : undefined,
-        center: true,
-        maximizable: false,
-        fullscreenable: false,
-        webPreferences: {
-            sandbox: true,
-            devTools: isDEV,
-            preload: path.join(appPath, 'src', 'preload', 'common.js'),
-            ...webPrefs,
-        },
-        ...options
-    });
-    if (!isDEV) {
-        win.removeMenu();
-    }
-    return win;
-}
-
-
-async function eulaConsent() {
-    if (storage.load('eula-consent')) {
-        return true;
-    }
-    const win = makeCaptiveWindow({width: 800, height: 600});
-    let closed;
-    const consenting = new Promise(resolve => {
-        rpc.register(async agree => {
-            if (agree === true) {
-                storage.save('eula-consent', true);
-                resolve(true);
-            } else {
-                console.warn("User does not agree to EULA");
-                resolve(false);
-            }
-        }, {name: 'eulaConsent'});
-        win.on('closed', () => (closed = true, resolve(false)));
-    });
-    win.loadFile(path.join(pagePath, 'eula.html'));
-    const consent = await consenting;
-    if (!closed) {
-        win.close();
-    }
-    return consent;
-}
-
-
-function showReleaseNotes() {
-    const win = makeCaptiveWindow({width: 500, height: 600});
-    win.loadFile(path.join(pagePath, 'release-notes.html'));
-    return new Promise(resolve => {
-        win.on('closed', () => {
-            resolve();
-            if (!appQuiting) {
-                setAppSetting('lastVersion', pkg.version);
-            }
-        });
-    });
-}
-
-
-function scrubUA(win) {
-    // Prevent Patreon's datedome.co bot service from blocking us.
-    const ua = win.webContents.userAgent;
-    win.webContents.userAgent = ua.replace(/ SauceforZwift.*? /, ' ').replace(/ Electron\/.*? /, ' ');
-}
-
-
-async function patronLink() {
-    let membership = storage.load('patron-membership');
-    if (membership && membership.patronLevel >= 10) {
-        // XXX Implment refresh once in a while.
-        return true;
-    }
-    const win = makeCaptiveWindow({width: 400, height: 720}, {
-        preload: path.join(appPath, 'src', 'preload', 'patron-link.js'),
-    });
-    scrubUA(win);
-    let resolve;
-    electron.ipcMain.on('patreon-auth-code', (ev, code) => resolve({code}));
-    electron.ipcMain.on('patreon-special-token', (ev, token) => resolve({token}));
-    win.on('closed', () => resolve({closed: true}));
-    win.loadFile(path.join(pagePath, 'patron.html'));
-    while (true) {
-        const {code, token, closed} = await new Promise(_resolve => resolve = _resolve);
-        if (closed) {
-            return false;
-        } else if (token) {
-            membership = await patreon.getLegacyMembership(token);
-        } else {
-            const isAuthed = code && await patreon.link(code);
-            membership = isAuthed && await patreon.getMembership();
-        }
-        if (membership && membership.patronLevel >= 10) {
-            storage.save('patron-membership', membership);
-            win.close();
-            return true;
-        } else {
-            win.loadFile(path.join(pagePath, 'non-patron.html'));
-        }
-    }
-}
-
-
-async function zwiftLogin() {
-    if (process.argv.includes('--zwift-logout')) {
-        await secrets.remove('zwift-login');
-    }
-    const login = await secrets.get('zwift-login');
-    if (login) {
-        try {
-            await zwift.authenticate(login.username, login.password);
-            return true;
-        } catch(e) {
-            console.debug("Previous Zwift login invalid:", e);
-            // We could remove them, but it might be a network error; just leave em for now.
-        }
-    }
-    const win = makeCaptiveWindow({
-        width: 400,
-        height: 600,
-        show: false,
-    }, {
-        preload: path.join(appPath, 'src', 'preload', 'zwift-login.js'),
-    });
-    let closed;
-    let setDone;
-    const done = new Promise(resolve => setDone = resolve);
-    electron.ipcMain.on('zwift-creds', async (ev, {username, password}) => {
-        try {
-            await zwift.authenticate(username, password);
-            await secrets.set('zwift-login', {username, password});
-            setDone(true);
-        } catch(e) {
-            win.webContents.send('validation-error', e);
-        }
-    });
-    win.on('closed', () => {
-        closed = true;
-        setDone();
-    });
-    win.loadFile(path.join(pagePath, 'zwift-login.html'));
-    win.show();
-    try {
-        return await done;
-    } finally {
-        if (!closed) {
-            win.close();
-        }
-    }
-}
+rpc.register(() => sauceApp && sauceApp.webServerURL, {name: 'getWebServerURL'});
 
 
 async function ensureSingleInstance() {
@@ -885,163 +231,221 @@ async function ensureSingleInstance() {
 }
 
 
-async function welcomeSplash() {
-    const {width, height} = electron.screen.getPrimaryDisplay().size; // XXX
-    const welcomeWin = new electron.BrowserWindow({
-        type: isLinux ? 'splash' : undefined,
-        center: true,
-        width,
-        height,
-        resizable: false,
-        movable: false,
-        minimizable: false,
-        maximizable: false,
-        fullscreenable: false,
-        show: false,
-        transparent: true,
-        hasShadow: false,
-        frame: false,
-        focusable: false,
-        skipTaskbar: true,
-        roundedCorners: false,
-        alwaysOnTop: true,
-        webPreferences: {
-            sandbox: true,
-            devTools: isDEV,
-            preload: path.join(appPath, 'src', 'preload', 'common.js'),
-        },
-    });
-    welcomeWin.removeMenu();
-    welcomeWin.excludedFromShownWindowsMenu = true;
-    welcomeWin.setAlwaysOnTop(true, 'screen-saver');
-    welcomeWin.setIgnoreMouseEvents(true);
-    welcomeWin.loadFile(path.join(pagePath, 'welcome.html'));
-    welcomeWin.show();
-    return await sleep(16500).then(() => welcomeWin.close());
+function registerRPCMethods(instance, ...methodNames) {
+    for (const name of methodNames) {
+        if (!instance[name]) {
+            throw new TypeError('Invalid method name: ' + name);
+        }
+        rpc.register(instance[name].bind(instance), {name});
+    }
 }
 
 
-function initShortcuts() {
-    if (isDEV) {
-        electron.globalShortcut.register('F12', () => {
-            const focused = electron.BrowserWindow.getFocusedWindow();
-            if (focused) {
-                focused.webContents.openDevTools();
+class SauceApp extends EventEmitter {
+    _defaultSettings = {
+        webServerEnabled: true,
+        webServerPort: 1080,
+    };
+    _settings;
+    _settingsKey = 'app-settings';
+    _metricsPromise;
+    _lastMetricsTS = 0;
+
+    constructor() {
+        super();
+        const _this = this;
+        rpc.register(function() {
+            _this._resetStorageState.call(_this, /*sender*/ this);
+        }, {name: 'resetStorageState'});
+        registerRPCMethods(this, 'getSetting', 'setSetting', 'pollMetrics', 'getDebugInfo',
+            'getGameConnectionStatus');
+        this.initShortcuts();
+    }
+
+    getSetting(key, def) {
+        if (!this._settings) {
+            this._settings = storage.load(this._settingsKey) || {...this._defaultSettings};
+        }
+        if (!Object.prototype.hasOwnProperty.call(this._settings, key) && def !== undefined) {
+            this._settings[key] = def;
+            storage.save(this._settingsKey, this._settings);
+        }
+        return this._settings[key];
+    }
+
+    setSetting(key, value) {
+        if (!this._settings) {
+            this._settings = storage.load(this._settingsKey) || {...this._defaultSettings};
+        }
+        this._settings[key] = value;
+        storage.save(this._settingsKey, this._settings);
+        this.emit('setting-change', {
+            key,
+            value
+        });
+    }
+
+    _getMetrics(reentrant) {
+        return new Promise(resolve => setTimeout(() => {
+            if (reentrant !== true) {
+                // Schedule one more in anticipation of pollers
+                this._metricsPromise = this._getMetrics(true);
+            } else {
+                this._metricsPromise = null;
             }
+            this._lastMetricsTS = Date.now();
+            resolve(electron.app.getAppMetrics());
+        }, 2000 - (Date.now() - this._lastMetricsTS)));
+    }
+
+    async pollMetrics() {
+        if (!this._metricsPromise) {
+            this._metricsPromise = this._getMetrics();
+        }
+        return await this._metricsPromise;
+    }
+
+    async getDebugInfo() {
+        return {
+            app: {
+                version: pkg.version,
+                uptime: process.uptime(),
+                mem: process.memoryUsage(),
+                cpu: process.cpuUsage(),
+                cwd: process.cwd(),
+            },
+            gpu: electron.app.getGPUFeatureStatus(),
+            sys: {
+                arch: process.arch,
+                platform: os.platform(),
+                release: os.release(),
+                version: os.version(),
+                productVersion: process.getSystemVersion(),
+                mem: process.getSystemMemoryInfo(),
+                uptime: os.uptime(),
+                cpus: os.cpus(),
+            },
+            game: this.gameMonitor.getDebugInfo(),
+            databases: [].concat(...Array.from(databases.entries()).map(([dbName, db]) => {
+                const stats = db.prepare('SELECT * FROM sqlite_schema WHERE type = ? AND name NOT LIKE ?')
+                    .all('table', 'sqlite_%');
+                return stats.map(t => ({
+                    dbName,
+                    tableName: t.name,
+                    rows: db.prepare(`SELECT COUNT(*) as rows FROM ${t.name}`).get().rows,
+                }));
+            })),
+        };
+    }
+
+    initShortcuts() {
+        if (isDEV) {
+            electron.globalShortcut.register('F12', () => {
+                const focused = electron.BrowserWindow.getFocusedWindow();
+                if (focused) {
+                    focused.webContents.openDevTools();
+                }
+            });
+        }
+    }
+
+    startGameConnectionServer() {
+        const gcs = new zwift.GameConnectionServer(this.gameMonitor);
+        registerRPCMethods(gcs, 'watch', 'join', 'teleportHome', 'say', 'wave', 'takePicture', 'changeCamera',
+            'enableHUD', 'disableHUD', 'chatMessage', 'reverse', 'toggleGraphs', 'sendCommands');
+        gcs.start().catch(Sentry.captureException);
+        return gcs;
+    }
+
+    async _resetStorageState(sender) {
+        const {response} = await electron.dialog.showMessageBox(sender.getOwnerBrowserWindow(), {
+            type: 'question',
+            title: 'Confirm Reset State',
+            message: 'This operation will reset all settings completely.\n\n' +
+                'Are you sure you want continue?',
+            buttons: ['Yes, reset to defaults', 'Cancel'],
+            cancelId: 1,
         });
+        if (response === 0) {
+            console.warn('Reseting state and restarting...');
+            await storage.reset();
+            await secrets.remove('zwift-login');
+            await electron.session.defaultSession.clearStorageData();
+            await electron.session.defaultSession.clearCache();
+            restart();
+        }
+    }
+
+    getGameConnectionStatus() {
+        return this.gameConnection && this.gameConnection.getStatus();
+    }
+
+    async start(options={}) {
+        if (options.garminLiveTrackSession) {
+            const garminLiveTrack = await import('./garmin_live_track.mjs');
+            this.gameMonitor = await garminLiveTrack.Sauce4ZwiftMonitor.factory(
+                {session: options.garminLiveTrackSession});
+        } else {
+            const {fakeData, noData} = options;
+            this.gameMonitor = await game.Sauce4ZwiftMonitor.factory({fakeData, noData});
+        }
+        try {
+            await this.gameMonitor.start();
+        } catch(e) {
+            if (e.message.match(/permission denied/i)) {
+                await game.getCapturePermission();
+                restart();
+                return;
+            } else {
+                throw e;
+            }
+        }
+        rpcSources.game = this.gameMonitor;
+        rpcSources.app = this;
+        if (options.hasZwiftAPI && this.getSetting('gameConnectionEnabled')) {
+            rpcSources.gameConnection = (this.gameConnection = this.startGameConnectionServer());
+        }
+        if (this.getSetting('webServerEnabled')) {
+            this.webServerEnabled = true;
+            this.webServerPort = this.getSetting('webServerPort');
+            this.webServerURL = `http://${this.gameMonitor.ip}:${this.webServerPort}`;
+            await webServer.start({
+                ip: this.gameMonitor.ip,
+                port: this.webServerPort,
+                debug: isDEV,
+                rpcSources,
+            });
+        }
     }
 }
 
 
-function updateTrayMenu() {
-    const pad = '  ';
-    const windows = Object.values(getWindows());
-    const activeWins = windows.filter(x => x.private !== true && x.closed !== true);
-    const closedWins = windows.filter(x => x.private !== true && x.closed === true);
-    const menu = [{
-        label: `${pkg.productName} v${pkg.version}`,
-        click: welcomeSplash
-    }, {
-        type: 'separator',
-    }];
-    if (activeWins.length) {
-        menu.push(
-            {type: 'separator'},
-            {label: 'Active Windows', enabled: false},
-            ...activeWins.map(x => ({
-                label: pad + x.prettyName,
-                tooltip: x.prettyDesc,
-                click: () => highlightWindow(x.id),
-            }))
-        );
+export async function main() {
+    if (quiting) {
+        return;
     }
-    if (closedWins.length) {
-        menu.push(
-            {type: 'separator'},
-            {label: 'Closed Windows', enabled: false},
-            ...closedWins.map(x => ({
-                label: pad + x.prettyName,
-                tooltip: x.prettyDesc,
-                click: () => openWindow(x.id),
-            }))
-        );
-    }
-    if (getAppSetting('webServerEnabled') && gameMonitor) {
-        const url = `http://${gameMonitor.ip}:${getAppSetting('webServerPort')}`;
-        menu.push({
-            type: 'separator',
-        }, {
-            label: `Web: ${url}`,
-            click: () => electron.shell.openExternal(url),
-        });
-    }
-    menu.push({
-        type: 'separator',
-    }, {
-        label: 'Settings',
-        click: () => {
-            const win = makeCaptiveWindow({width: 500, height: 600});
-            // Bit of a hack to get the preload context setup so overview settings function
-            const id = Object.values(getWindows()).find(x => x.type === 'overview').id;
-            subWindows.set(win.webContents, {win, spec: {id, type: 'overview'}, activeSubs: new Set()});
-            win.loadFile(path.join(pagePath, 'overview-settings.html'));
-        },
-    }, {
-        label: '',
-        enabled: false,
-    }, {
-        label: 'Quit',
-        role: 'quit',
-    });
-    tray.setContextMenu(electron.Menu.buildFromTemplate(menu));
-}
-
-
-async function startGameConnectionServer(gameMonitor) {
-    const server = new zwift.GameConnectionServer(gameMonitor);
-    rpc.register(server.sendWatch.bind(server), {name: 'gameSetWatching'});
-    rpc.register(server.sendJoin.bind(server), {name: 'gameJoin'});
-    rpc.register(server.sendTeleportHome.bind(server), {name: 'gameTeleportHome'});
-    rpc.register(server.sendSay.bind(server), {name: 'gameSay'});
-    rpc.register(server.sendWave.bind(server), {name: 'gameWave'});
-    rpc.register(server.sendTakePicture.bind(server), {name: 'gameTakePicture'});
-    rpc.register(server.sendChangeCamera.bind(server), {name: 'gameChangeCamera'});
-    rpc.register(server.sendHUDEnabled.bind(server), {name: 'gameSetHUDEnabled'});
-    rpc.register(server.sendChatMessage.bind(server), {name: 'gameSendChatMessage'});
-    rpc.register(server.sendReverse.bind(server), {name: 'gameReverse'});
-    rpc.register(server.sendToggleGraphs.bind(server), {name: 'gameToggleGraphs'});
-    rpc.register(server.sendCommands.bind(server), {name: 'gameSendCommands'});
-    rpc.register(server.setCameraHack.bind(server), {name: 'gameSetCameraHack'});
-    await server.register();
-    global.game = server;  // XXX prototyping
-}
-
-
-async function main() {
+    sauceApp = new SauceApp();
     if (await ensureSingleInstance() === false) {
         return;
     }
     await electron.app.whenReady();
-    initShortcuts();
-    const trayIcon = electron.nativeImage.createFromPath(path.join(appPath, 'images',
-        isMac ? 'mac-trayicon.png' : 'win-trayicon.png'));
-    tray = new electron.Tray(trayIcon);
-    tray.setToolTip(pkg.productName);
+    menu.installTrayIcon();
     menu.setAppMenu();
     autoUpdater.checkForUpdatesAndNotify().catch(Sentry.captureException);
-    const lastVersion = getAppSetting('lastVersion');
+    const lastVersion = sauceApp.getSetting('lastVersion');
     if (lastVersion !== pkg.version) {
         if (lastVersion) {
+            console.info("Sauce recently updated");
             await electron.session.defaultSession.clearCache();
-            await showReleaseNotes();
+            await windows.showReleaseNotes();
         } else {
-            setAppSetting('lastVersion', pkg.version);
             console.info("First time invocation: Welcome to Sauce for Zwift");
-            await welcomeSplash();
+            await windows.welcomeSplash();
         }
+        sauceApp.setSetting('lastVersion', pkg.version);
     }
     try {
-        if (!await eulaConsent() || !await patronLink()) {
+        if (!await windows.eulaConsent() || !await windows.patronLink()) {
             return quit();
         }
     } catch(e) {
@@ -1050,109 +454,24 @@ async function main() {
     }
     if (game.npcapMissing) {
         electron.shell.beep();
-        const installPrompt = makeCaptiveWindow({width: 400, height: 400});
-        installPrompt.loadFile(path.join(pagePath, 'npcap-install.html'));
+        windows.makeCaptiveWindow({
+            width: 400,
+            height: 400,
+            page: 'npcap-install.html'
+        });
         return;
     }
-    const hasZwiftLogin = await zwiftLogin();
+    const options = {
+        hasZwiftAPI: await windows.zwiftLogin(),
+    };
     if (process.argv.includes('--garmin-live-track')) {
-        const session = process.argv.find((x, i) => i && process.argv[i - 1] == '--garmin-live-track');
-        const garminLiveTrack = await import('./garmin_live_track.mjs');
-        gameMonitor = await garminLiveTrack.Sauce4ZwiftMonitor.factory({session});
+        options.garminLiveTrackSession = process.argv.find((x, i) => i && process.argv[i - 1] == '--garmin-live-track');
     } else {
-        const fakeData = process.argv.includes('--fake-data');
-        const noData = process.argv.includes('--no-data');
-        gameMonitor = await game.Sauce4ZwiftMonitor.factory({fakeData, noData});
+        options.fakeData = process.argv.includes('--fake-data');
+        options.noData = process.argv.includes('--no-data');
     }
-    try {
-        await gameMonitor.start();
-    } catch(e) {
-        try {
-            if (e.message.match(/permission denied/i)) {
-                await game.getCapturePermission();
-                restart();
-                return;
-            } else {
-                throw e;
-            }
-        } catch(e) {
-            await electron.dialog.showErrorBox('Startup Error', e.stack);
-            Sentry.captureException(e);
-            setTimeout(() => quit(1), 1000);
-            return;
-        }
-    }
-    electron.ipcMain.on('subscribe', (ev, {event, domEvent, persistent}) => {
-        const w = activeWindows.get(ev.sender) || subWindows.get(ev.sender);
-        const {win, activeSubs, spec} = w;
-        // NOTE: Electron webContents.send is incredibly hard ON CPU and GC for deep objects.  Using JSON is
-        // a massive win for CPU and memory.
-        const sendMessage = data => win.webContents.send('browser-message', {domEvent, json: JSON.stringify(data)});
-        // NOTE: MacOS emits show/hide AND restore/minimize but Windows only does restore/minimize
-        const resumeEvents = ['responsive', 'show', 'restore'];
-        const suspendEvents = ['unresponsive', 'hide', 'minimize'];
-        const shutdownEvents = ['destroyed', 'did-start-loading'];
-        const listeners = [];
-        function resume(source) {
-            if (!activeSubs.has(event)) {
-                if (source) {
-                    console.debug("Resume subscription:", event, spec.id, source);
-                } else {
-                    console.debug("Startup subscription:", event, spec.id);
-                }
-                gameMonitor.on(event, sendMessage);
-                activeSubs.add(event);
-            }
-        }
-        function suspend(source) {
-            if (activeSubs.has(event)) {
-                console.debug("Suspending subscription:", event, spec.id, source);
-                gameMonitor.off(event, sendMessage);
-                activeSubs.delete(event);
-            }
-        }
-        function shutdown() {
-            console.debug("Shutdown subscription:", event, spec.id);
-            gameMonitor.off(event, sendMessage);
-            for (const x of shutdownEvents) {
-                win.webContents.off(x, shutdown);
-            }
-            for (const [name, cb] of listeners) {
-                win.off(name, cb);
-            }
-            activeSubs.clear();
-        }
-        if (persistent || (win.isVisible() && !win.isMinimized())) {
-            resume();
-        }
-        for (const x of shutdownEvents) {
-            win.webContents.once(x, shutdown);
-        }
-        if (!persistent) {
-            for (const x of resumeEvents) {
-                const cb = ev => resume(x, ev);
-                win.on(x, cb);
-                listeners.push([x, cb]);
-            }
-            for (const x of suspendEvents) {
-                const cb = ev => suspend(x, ev);
-                win.on(x, cb);
-                listeners.push([x, cb]);
-            }
-        }
-    });
-    if (hasZwiftLogin) {
-        startGameConnectionServer(gameMonitor);
-    }
-    updateTrayMenu();
-    openAllWindows();
-    if (_appSettings.webServerEnabled) {
-        webServer.setMonitor(gameMonitor);
-        await webServer.start(_appSettings.webServerPort, {debug: isDEV});
-    }
+    await sauceApp.start(options);
+    menu.updateTrayMenu();
+    windows.openAllWindows();
     started = true;
-}
-
-if (!appQuiting) {
-    main();
 }

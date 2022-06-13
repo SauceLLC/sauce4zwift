@@ -3,13 +3,14 @@ import * as common from './common.mjs';
 
 export async function main() {
     common.initInteractionListeners();
-    //const enabled = await common.rpc.getAppSetting('gameConnectionEnabled');
+    //const enabled = await common.rpc.getSetting('gameConnectionEnabled');
     document.addEventListener('click', ev => {
         const btn = ev.target.closest('.button');
         if (!btn) {
             return;
         }
-        common.rpc[btn.dataset.call](...JSON.parse(btn.dataset.args));
+        const args = btn.dataset.args ? JSON.parse(btn.dataset.args) : [];
+        common.rpc[btn.dataset.call](...args);
     });
 }
 

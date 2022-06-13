@@ -4,7 +4,6 @@ import fetch from 'node-fetch';
 import protobuf from 'protobufjs';
 import path from 'node:path';
 import net from 'node:net';
-import {sleep} from '../shared/sauce/base.mjs';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
 
@@ -253,12 +252,25 @@ export class GameConnectionServer extends net.Server {
         this.watching = gameMonitor.watching;
         gameMonitor.on('watching-athlete-change', id => this.watching = id);
         this.listenDone = new Promise(resolve => this.listen({address: this.ip, port: 0}, resolve));
+        this._state = 'init';
     }
 
-    async register() {
+    async start() {
+        try {
+            await this._start();
+        } catch(e) {
+            this._state = 'error';
+            this._error = e;
+            throw e;
+        }
+    }
+
+    async _start() {
         await this.listenDone;
+        this._state = 'ready';
         const {port} = this.address();
         console.info("Registering game connnection server:", this.ip, port);
+        this.port = port;
         await api('/relay/profiles/me/phone', {
             method: 'PUT',
             json: {
@@ -267,41 +279,31 @@ export class GameConnectionServer extends net.Server {
                 protocol: 'TCP',
             }
         });
+        this._state = 'waiting';
     }
 
-    async sendChangeCamera() {
+    async changeCamera() {
         await this.sendCommands({
             command: 1,
             subCommand: 1,
         });
     }
 
-    async setCameraHack(toggles, delayHack=30) {
-        await this.sendCommands({
-            command: 24, // reset camera to known offset with sendWatch first
-            subject: this.watching,
-        });
-        for (let i = 0; i < toggles; i++) {
-            await sleep(delayHack);
-            await this.sendCommands({command: 1, subCommand: 1});
-        }
-    }
-
-    async sendElbow() {
+    async elbow() {
         await this.sendCommands({
             command: 4,
             subCommand: 4,
         });
     }
 
-    async sendWave() {
+    async wave() {
         await this.sendCommands({
             command: 5,
             subCommand: 5,
         });
     }
 
-    async sendSay(what) {
+    async say(what) {
         const cmd = {
             rideon: 6,
             bell: 7,
@@ -316,50 +318,58 @@ export class GameConnectionServer extends net.Server {
         });
     }
 
-    async sendRingBell() {
+    async ringBell() {
         await this.sendCommands({
             command: 7,
             subCommand: 7,
         });
     }
 
-    async sendEndRide() {
+    async endRide() {
         await this.sendCommands({
             command: 14,
             subCommand: 14,
         });
     }
 
-    async sendTakePicture() {
+    async takePicture() {
         await this.sendCommands({
             command: 17,
             subCommand: 17,
         });
     }
 
-    async sendHUDEnabled(en=true) {
+    async enableHUD(en=true) {
+        await this._hud(en);
+    }
+
+    async disableHUD(en=false) {
+        await this._hud(en);
+    }
+
+    async _hud(en=true) {
         await this.sendCommands({
             command: 22,
             subCommand: en ? 1080 : 1081,
         });
     }
 
-    async sendToggleGraphs() {
+    async toggleGraphs() {
         await this.sendCommands({
             command: 22,
             subCommand: 1060,
         });
     }
 
-    async sendReverse() {
+    async reverse() {
         await this.sendCommands({
             command: 23,
             subCommand: 23,
         });
     }
 
-    async sendChatMessage(message, options={}) {
-        // XXX probably just use the REST API instead
+    async chatMessage(message, options={}) {
+        console.warn("XXX Just use the reset api please");
         await this.sendCommands({
             command: 25,
             socialAction: {
@@ -375,7 +385,7 @@ export class GameConnectionServer extends net.Server {
         });
     }
 
-    async sendWatch(id) {
+    async watch(id) {
         this.watching = id;
         await this.sendCommands({
             command: 24,
@@ -383,14 +393,14 @@ export class GameConnectionServer extends net.Server {
         });
     }
 
-    async sendJoin(id) {
+    async join(id) {
         await this.sendCommands({
             command: 2,
             subject: id,
         });
     }
 
-    async sendTeleportHome() {
+    async teleportHome() {
         await this.sendCommands({command: 3});
     }
 
@@ -424,13 +434,30 @@ export class GameConnectionServer extends net.Server {
     onConnection(socket) {
         console.info('Game connection established from:', socket.remoteAddress);
         this._socket = socket;
+        this._state = 'connected';
+        this._error = null;
         socket.on('data', this.onData.bind(this));
         socket.on('end', this.onSocketEnd.bind(this));
         socket.on('error', this.onSocketError.bind(this));
+        this.emit('status', this.getStatus());
+    }
+
+    getStatus() {
+        const connected = !!this._socket;
+        return {
+            connected,
+            port: this.port,
+            state: this._state,
+            error: this._state === 'error' ? this._error.message : undefined,
+        };
     }
 
     onError(e) {
         console.error('Game connection server error:', e);
+        this._socket = null;
+        this._state = 'error';
+        this._error = e;
+        this.emit('status', this.getStatus());
     }
 
     onData(buf) {
@@ -462,16 +489,22 @@ export class GameConnectionServer extends net.Server {
                 this.watching = this.athleteId;
             }
         }
-        console.debug("Game message:", JSON.stringify(pb.toJSON(), null, 2));
+        //console.debug("Game message:", JSON.stringify(pb.toJSON(), null, 2));
         this.emit('message', pb);
     }
 
     onSocketEnd() {
         console.info("Game connection ended");
         this._socket = null;
+        this._state = 'disconnected';
+        this.emit('status', this.getStatus());
     }
 
     onSocketError(e) {
         console.error("Game connection network error:", e);
+        this._socket = null;
+        this._state = 'error';
+        this._error = e;
+        this.emit('status', this.getStatus());
     }
 }

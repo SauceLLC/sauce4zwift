@@ -287,10 +287,9 @@ async function renderWindowsPanel() {
 
 export async function settingsMain() {
     common.initInteractionListeners();
-    const version = await common.rpc.getVersion();
-    let webServerURL;
+    const extraData = {version: await common.rpc.getVersion()};
     const winsEl = await renderWindowsPanel();
-    winsEl.querySelector('table').addEventListener('click', async ev => {
+    winsEl.querySelector('table tbody').addEventListener('click', async ev => {
         const id = ev.target.closest('[data-id]').dataset.id;
         const link = ev.target.closest('a.link');
         if (link) {
@@ -323,13 +322,17 @@ export async function settingsMain() {
             await common.rpc.resetAthletesDB();
         }
     });
-    document.addEventListener('windows-updated', renderWindowsPanel);
-    await common.rpc.listenForWindowUpdates('windows-updated');
-    if (await common.rpc.getAppSetting('webServerEnabled')) {
-        const ip = await common.rpc.getMonitorIP();
-        const port = await common.rpc.getAppSetting('webServerPort');
-        webServerURL = `http://${ip}:${port}`;
+    common.subscribe('set-windows', renderWindowsPanel, {source: 'windows'});
+    extraData.webServerURL = await common.rpc.getWebServerURL();
+    const gcs = await common.rpc.getGameConnectionStatus();
+    if (gcs) {
+        extraData.gameConnectionStatus = gcs.state;
+        common.subscribe('status', async status => {
+            extraData.gameConnectionStatus = status.state;
+            // XXX use some sort of updater, maybe that is retunred from the initappsettingsform
+            await common.initAppSettingsForm('form.app-settings', {extraData});
+        }, {source: 'gameConnection'});
     }
-    await common.initAppSettingsForm('form.app-settings', {extraData: {webServerURL, version}});
+    await common.initAppSettingsForm('form.app-settings', {extraData});
     await common.initSettingsForm('form.settings', {settingsKey});
 }

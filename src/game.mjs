@@ -951,8 +951,8 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 watching = -Math.trunc(Math.random() * athleteCount);
             }
             if (iters++ % (hz * 10) === 0) {
-                const from = -randInt(1000);
-                const athlete = this.loadAthlete(from);
+                const from = -randInt(athleteCount);
+                const athlete = await this.getAthlete(from);
                 const chat = ZwiftPacketMonitor.pbRoot.PayloadChatMessage.fromObject({
                     to: null,
                     from,

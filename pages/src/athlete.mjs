@@ -6,13 +6,15 @@ locale.setImperial(common.storage.get('/imperialUnits'));
 const athleteId = Number((new URLSearchParams(location.search)).get('athleteId'));
 const gettingAthlete = common.rpc.getAthlete(athleteId || 1, {refresh: true});
 const gettingTemplate = template.getTemplate('templates/athlete.html.tpl');
+const gettingGameConnectionStatus = common.rpc.getGameConnectionStatus();
 
 
 export async function main() {
     common.initInteractionListeners();
     const profile = await gettingAthlete;
     const tpl = await gettingTemplate;
-    const profileFrag = await tpl({athleteId, profile});
+    const gameConnectionStatus = await gettingGameConnectionStatus;
+    const profileFrag = await tpl({athleteId, profile, gameConnectionStatus});
     const main = document.querySelector('body > main');
     main.appendChild(profileFrag);
     main.addEventListener('click', async ev => {
@@ -27,11 +29,11 @@ export async function main() {
         } else if (a.dataset.action === 'togglePinned') {
             profile.pinned = !profile.pinned;
             await common.rpc.updateAthlete(athleteId, {pinned: profile.pinned});
-        } else if (a.dataset.action === 'setWatching') {
-            await common.rpc.gameSetWatching(athleteId);
+        } else if (a.dataset.action === 'watch') {
+            await common.rpc.watch(athleteId);
         }
         main.innerHTML = '';
-        main.appendChild(await tpl({athleteId, profile}));
+        main.appendChild(await tpl({athleteId, profile, gameConnectionStatus}));
     });
     let lastWatching;
     common.subscribe('nearby', async data => {

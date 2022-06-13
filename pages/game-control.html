@@ -31,32 +31,24 @@
             </header>
         </div>
         <div id="content">
-            <div class="buttons">
-                <div class="std button" data-call="game" data-args="[]">Watch next rider</div>
-                <div class="std button" data-call="game" data-args="[]">Watch next group (last rider)</div>
-                <div class="std button" data-call="game" data-args="[]">Watch next group (middle rider)</div>
-                <div class="std button" data-call="game" data-args="[]">Watch next group (first rider)</div>
-            </div>
+            <div class="std button" data-call="changeCamera">Change camera</div>
 
-            <div class="std button xl" data-call="gameSetCameraHack" data-args="[3]">Look back</div>
-            <div class="std button xl" data-call="gameSetCameraHack" data-args="[0]">Look forward</div>
-            <div class="std button xl" data-call="gameSetCameraHack" data-args="[5]">Look forward (first person)</div>
-            <div class="std button" data-call="gameChangeCamera" data-args="[]">Change camera</div>
+            <div class="std button" data-call="disableHUD">HUD Off</div>
+            <div class="std button" data-call="enableHUD">HUD On</div>
 
-            <div class="std button" data-call="gameSetHUDEnabled" data-args="[false]">HUD Off</div>
-            <div class="std button" data-call="gameSetHUDEnabled" data-args="[true]">HUD On</div>
+            <div class="std button" data-call="wave">Wave</div>
+            <div class="std button" data-call="elbow">Elbow</div>
 
-            <div class="std button" data-call="gameWave" data-args="[]">Wave</div>
-            <div class="std button" data-call="gameSay" data-args='["rideon"]'>Say Ride On!</div>
-            <div class="std button" data-call="gameSay" data-args='["toast"]'>Say I'm toast</div>
-            <div class="std button" data-call="gameSay" data-args='["nice"]'>Say Nice!</div>
-            <div class="std button" data-call="gameSay" data-args='["hammertime"]'>Say Hammer time!</div>
+            <div class="std button" data-call="say" data-args='["rideon"]'>Say Ride On!</div>
+            <div class="std button" data-call="say" data-args='["toast"]'>Say I'm toast</div>
+            <div class="std button" data-call="say" data-args='["nice"]'>Say Nice!</div>
+            <div class="std button" data-call="say" data-args='["hammertime"]'>Say Hammer time!</div>
 
-            <div class="std button" data-call="gameReverse" data-args="[]">Reverse direction</div>
+            <div class="std button" data-call="reverse">Reverse direction</div>
 
-            <div class="std button" data-call="gameTakePicture" data-args="[]">Take Picture</div>
+            <div class="std button" data-call="takePicture">Take Picture</div>
 
-            <div class="std button" data-call="gameToggleGraphs" data-args="[]">Toggle Power/HR Graph</div>
+            <div class="std button" data-call="toggleGraphs">Toggle Power/HR Graph</div>
         </div>
         <div id="hintbar">
             <div class="hint"></div>

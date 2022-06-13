@@ -63,7 +63,7 @@ if (window.isElectron) {
     let errBackoff = 500;
     let wsp;
     const connectWebSocket = async function() {
-        const ws = new WebSocket(`ws://${location.host}/api/ws`);
+        const ws = new WebSocket(`ws://${location.host}/api/ws/events`);
         ws.addEventListener('message', ev => {
             const envelope = JSON.parse(ev.data);
             const {resolve, reject} = respHandlers.get(envelope.uid);
@@ -94,31 +94,28 @@ if (window.isElectron) {
                 console.debug("WebSocket connected");
                 errBackoff = 500;
                 clearTimeout(tO);
-                for (const {event, callback} of subs) {
-                    _subscribe(ws, event, callback);
+                for (const {event, callback, options} of subs) {
+                    _subscribe(ws, event, callback, options);
                 }
                 resolve(ws);
             });
         });
     };
 
-    subscribe = async function(event, callback) {
+    subscribe = async function(event, callback, options={}) {
         if (!wsp) {
             wsp = connectWebSocket();
         }
         const ws = await wsp;
-        await _subscribe(ws, event, callback);
-        subs.push({event, callback});
+        await _subscribe(ws, event, callback, options);
+        subs.push({event, callback, options});
     };
 
     rpcCall = async function(name, ...args) {
-        const f = await fetch('/api/rpc', {
+        const f = await fetch(`/api/rpc/${name}`, {
             method: 'POST',
             headers: {"content-type": 'application/json'},
-            body: JSON.stringify({
-                name,
-                args
-            })
+            body: JSON.stringify(args),
         });
         const r = await f.json();
         if (r.success) {
@@ -128,7 +125,7 @@ if (window.isElectron) {
         }
     };
 
-    const _subscribe = function(ws, event, callback) {
+    const _subscribe = function(ws, event, callback, options={}) {
         const uid = uidInc++;
         const subId = uidInc++;
         let resolve, reject;
@@ -143,6 +140,7 @@ if (window.isElectron) {
                 arg: {
                     event,
                     subId,
+                    ...options,
                 }
             }
         }));
@@ -537,10 +535,10 @@ export async function initAppSettingsForm(selector, options={}) {
             if (extraData && Object.prototype.hasOwnProperty.call(extraData, name)) {
                 return extraData[name];
             }
-            return await rpcCall('getAppSetting', name);
+            return await rpcCall('getSetting', name);
         },
         set: async (name, value) => {
-            return await rpcCall('setAppSetting', name, value);
+            return await rpcCall('setSetting', name, value);
         },
     };
     await bindFormData(selector, storageIface);

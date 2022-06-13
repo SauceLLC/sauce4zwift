@@ -266,7 +266,7 @@ export async function main() {
     });
     let iter = 0;
     while (true) {
-        const metrics = await common.rpc.pollAppMetrics().catch(e =>
+        const metrics = await common.rpc.pollMetrics().catch(e =>
             void console.warn("Failed to get metrics:", e));
         const debugInfo = await common.rpc.getDebugInfo().catch(e =>
             void console.warn("Failed to get debugInfo:", e));

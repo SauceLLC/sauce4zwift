@@ -2,9 +2,13 @@
     <header class="title">
         <div class="name">{{profile.sanitizedFullname}}</div>
         <div class="buttons">
-            <a title="Watch this athlete"
-               data-action="setWatching"
-               href><ms>videocam</ms></a>
+            <% if (gameConnectionStatus && gameConnectionStatus.connected) { %>
+                <a title="Watch this athlete"
+                   data-action="watch" href><ms>video_camera_front</ms></a>
+            <% } else { %>
+                <a title="Game connection is not enabled or established which is required to send the watch command."
+                   disabled data-action="watch"><ms>videocam</ms></a>
+            <% } %>
             <a title="Toggle visibility of chat messages from yahoos
 
 
