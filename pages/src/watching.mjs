@@ -830,7 +830,7 @@ async function initScreenSettings() {
 export async function settingsMain() {
     common.initInteractionListeners();
     settings = common.storage.get(settingsKey);
-    await common.initSettingsForm('form#general', {settingsKey});
+    await common.initSettingsForm('form#general', {settingsKey})();
     await initScreenSettings();
 }
 

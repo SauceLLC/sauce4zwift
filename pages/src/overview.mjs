@@ -320,19 +320,21 @@ export async function settingsMain() {
             await common.rpc.resetStorageState();
         } else if (btn.dataset.action === 'reset-athletes-db') {
             await common.rpc.resetAthletesDB();
+        } else if (btn.dataset.action === 'restart') {
+            await common.rpc.restart();
         }
     });
     common.subscribe('set-windows', renderWindowsPanel, {source: 'windows'});
     extraData.webServerURL = await common.rpc.getWebServerURL();
+    const appSettingsUpdate = common.initAppSettingsForm('form.app-settings');
     const gcs = await common.rpc.getGameConnectionStatus();
     if (gcs) {
         extraData.gameConnectionStatus = gcs.state;
         common.subscribe('status', async status => {
             extraData.gameConnectionStatus = status.state;
-            // XXX use some sort of updater, maybe that is retunred from the initappsettingsform
-            await common.initAppSettingsForm('form.app-settings', {extraData});
+            await appSettingsUpdate(extraData);
         }, {source: 'gameConnection'});
     }
-    await common.initAppSettingsForm('form.app-settings', {extraData});
-    await common.initSettingsForm('form.settings', {settingsKey});
+    appSettingsUpdate(extraData);
+    await common.initSettingsForm('form.settings', {settingsKey})();
 }

@@ -446,5 +446,5 @@ export async function main() {
 
 export async function settingsMain() {
     common.initInteractionListeners();
-    await common.initSettingsForm('form', {settingsKey});
+    await common.initSettingsForm('form', {settingsKey})();
 }

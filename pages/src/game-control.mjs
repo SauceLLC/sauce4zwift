@@ -17,5 +17,5 @@ export async function main() {
 
 export async function settingsMain() {
     common.initInteractionListeners();
-    //await common.initSettingsForm('form#options', {});
+    //await common.initSettingsForm('form#options', {})();
 }

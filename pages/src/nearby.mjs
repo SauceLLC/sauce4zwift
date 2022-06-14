@@ -419,5 +419,5 @@ export async function settingsMain() {
         </label>
     `).join('');
     form.insertAdjacentHTML('beforeend', fieldsHtml);
-    await common.initSettingsForm('form#options', {settingsKey});
+    await common.initSettingsForm('form#options', {settingsKey})();
 }

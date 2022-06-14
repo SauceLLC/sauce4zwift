@@ -442,8 +442,17 @@ html.settings-page #titlebar {
 
         &:active {
             box-shadow: inset 0 0 0.8rem 0 #0008;
-            --bg-from-color: #ddd;
-            --bg-to-color: #ddd;
+        }
+
+        &.danger {
+            --bg-from-color: #c22;
+            --bg-to-color: #a22b;
+            color: #eee;
+
+            &:hover {
+                --bg-from-color: #d11;
+                --bg-to-color: #b11b;
+            }
         }
     }
 

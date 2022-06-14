@@ -50,7 +50,7 @@ switching the athlete being watched.
 NOTE: Game Connection uses the Companion App protocol which only
 supports a single connection.  If you require use of the Zwift
 Companion App DO NOT enable this feature.">
-                    <key>Enable Game Connection:</key>
+                    <key>Game Connection:</key>
                     <input type="checkbox" name="gameConnectionEnabled"/>
                     <span class="restart-required"></span>
                 </label>
@@ -106,10 +106,11 @@ Companion App DO NOT enable this feature.">
             <div class="section electron-only">
                 <div class="title">Maintenance</div>
                 <div class="action-buttons">
-                    <div class="std button" title="Reset window positions and configuration to defaults"
+                    <div class="std button danger" title="Reset window positions and configuration to defaults"
                          data-action="reset-state">Reset to defaults</div>
                     <div class="std button" title="Clear the athlete cache database"
                          data-action="reset-athletes-db">Clear Athletes Cache</div>
+                    <div class="std button" data-action="restart">Restart</div>
                 </div>
             </div>
         </div>
