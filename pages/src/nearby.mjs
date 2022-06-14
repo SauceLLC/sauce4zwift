@@ -264,7 +264,7 @@ function render() {
             } else {
                 row.classList.add('hi');
             }
-            await common.rpc.gameSetWatching(hiRow);
+            await common.rpc.setWatching(hiRow);
         }
     });
     theadRow.addEventListener('click', ev => {
@@ -419,5 +419,5 @@ export async function settingsMain() {
         </label>
     `).join('');
     form.insertAdjacentHTML('beforeend', fieldsHtml);
-    await common.initSettingsForm('form#options', {settingsKey});
+    await common.initSettingsForm('form#options', {settingsKey})();
 }

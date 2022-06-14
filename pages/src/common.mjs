@@ -63,7 +63,7 @@ if (window.isElectron) {
     let errBackoff = 500;
     let wsp;
     const connectWebSocket = async function() {
-        const ws = new WebSocket(`ws://${location.host}/api/ws`);
+        const ws = new WebSocket(`ws://${location.host}/api/ws/events`);
         ws.addEventListener('message', ev => {
             const envelope = JSON.parse(ev.data);
             const {resolve, reject} = respHandlers.get(envelope.uid);
@@ -94,31 +94,28 @@ if (window.isElectron) {
                 console.debug("WebSocket connected");
                 errBackoff = 500;
                 clearTimeout(tO);
-                for (const {event, callback} of subs) {
-                    _subscribe(ws, event, callback);
+                for (const {event, callback, options} of subs) {
+                    _subscribe(ws, event, callback, options);
                 }
                 resolve(ws);
             });
         });
     };
 
-    subscribe = async function(event, callback) {
+    subscribe = async function(event, callback, options={}) {
         if (!wsp) {
             wsp = connectWebSocket();
         }
         const ws = await wsp;
-        await _subscribe(ws, event, callback);
-        subs.push({event, callback});
+        await _subscribe(ws, event, callback, options);
+        subs.push({event, callback, options});
     };
 
     rpcCall = async function(name, ...args) {
-        const f = await fetch('/api/rpc', {
+        const f = await fetch(`/api/rpc/${name}`, {
             method: 'POST',
             headers: {"content-type": 'application/json'},
-            body: JSON.stringify({
-                name,
-                args
-            })
+            body: JSON.stringify(args),
         });
         const r = await f.json();
         if (r.success) {
@@ -128,7 +125,7 @@ if (window.isElectron) {
         }
     };
 
-    const _subscribe = function(ws, event, callback) {
+    const _subscribe = function(ws, event, callback, options={}) {
         const uid = uidInc++;
         const subId = uidInc++;
         let resolve, reject;
@@ -143,6 +140,7 @@ if (window.isElectron) {
                 arg: {
                     event,
                     subId,
+                    ...options,
                 }
             }
         }));
@@ -455,29 +453,10 @@ class LocalStorage extends EventTarget {
 export const storage = new LocalStorage();
 
 
-async function bindFormData(selector, storageIface, options={}) {
+function bindFormData(selector, storageIface, options={}) {
     const form = document.querySelector(selector);
-    for (const el of form.querySelectorAll('.display-field[name]')) {
-        const name = el.getAttribute('name');
-        const val = await storageIface.get(name);
-        el.textContent = val;
-        if (el.hasAttribute('href')) {
-            el.href = val;
-        }
-    }
     const fieldConnections = new Map();
     for (const el of form.querySelectorAll('input')) {
-        const name = el.name;
-        if (!fieldConnections.has(name)) {
-            fieldConnections.set(name, new Set());
-        }
-        fieldConnections.get(name).add(el);
-        const val = await storageIface.get(name);
-        if (el.type === 'checkbox') {
-            el.checked = val;
-        } else {
-            el.value = val == null ? '' : val;
-        }
         el.addEventListener('input', async ev => {
             const baseType = {
                 range: 'number',
@@ -500,61 +479,87 @@ async function bindFormData(selector, storageIface, options={}) {
                     x.closest('label').classList.toggle('disabled', x.disabled);
                 }
             }
-            await storageIface.set(name, val);
+            await storageIface.set(el.name, val);
         });
     }
-    for (const el of form.querySelectorAll('select')) {
-        const name = el.name;
-        const val = await storageIface.get(name);
-        el.value = val == null ? '' : val;
-        el.addEventListener('change', async ev => {
-            let val;
-            if (el.dataset.type === 'number') {
-                val = el.value ? Number(el.value) : undefined;
-            } else {
-                val = el.value || undefined;
+    return async function update() {
+        for (const el of form.querySelectorAll('input')) {
+            const name = el.name;
+            if (!fieldConnections.has(name)) {
+                fieldConnections.set(name, new Set());
             }
-            await storageIface.set(name, val);
-        });
-    }
-    for (const el of form.querySelectorAll('[data-depends-on]')) {
-        const dependsOn = el.dataset.dependsOn;
-        const depEl = form.querySelector(`[name="${dependsOn.replace(/^!/, '')}"]`);
-        el.disabled = dependsOn.startsWith('!') ? depEl.checked : !depEl.checked;
-        el.closest('label').classList.toggle('disabled', el.disabled);
-        if (!depEl.dependants) {
-            depEl.dependants = [];
+            fieldConnections.get(name).add(el);
+            const val = await storageIface.get(name);
+            if (el.type === 'checkbox') {
+                el.checked = val;
+            } else {
+                el.value = val == null ? '' : val;
+            }
         }
-        depEl.dependants.push(el);
-    }
+        for (const el of form.querySelectorAll('.display-field[name]')) {
+            const name = el.getAttribute('name');
+            const val = await storageIface.get(name);
+            el.textContent = val;
+            if (el.hasAttribute('href')) {
+                el.href = val;
+            }
+        }
+        for (const el of form.querySelectorAll('select')) {
+            const name = el.name;
+            const val = await storageIface.get(name);
+            el.value = val == null ? '' : val;
+            el.addEventListener('change', async ev => {
+                let val;
+                if (el.dataset.type === 'number') {
+                    val = el.value ? Number(el.value) : undefined;
+                } else {
+                    val = el.value || undefined;
+                }
+                await storageIface.set(name, val);
+            });
+        }
+        for (const el of form.querySelectorAll('[data-depends-on]')) {
+            const dependsOn = el.dataset.dependsOn;
+            const depEl = form.querySelector(`[name="${dependsOn.replace(/^!/, '')}"]`);
+            el.disabled = dependsOn.startsWith('!') ? depEl.checked : !depEl.checked;
+            el.closest('label').classList.toggle('disabled', el.disabled);
+            if (!depEl.dependants) {
+                depEl.dependants = new Set();
+            }
+            depEl.dependants.add(el);
+        }
+    };
 }
 
 
-export async function initAppSettingsForm(selector, options={}) {
-    const extraData = options.extraData;
+export function initAppSettingsForm(selector) {
+    let extraData;
     const storageIface = {
         get: async name => {
             if (extraData && Object.prototype.hasOwnProperty.call(extraData, name)) {
                 return extraData[name];
             }
-            return await rpcCall('getAppSetting', name);
+            return await rpcCall('getSetting', name);
         },
         set: async (name, value) => {
-            return await rpcCall('setAppSetting', name, value);
+            return await rpcCall('setSetting', name, value);
         },
     };
-    await bindFormData(selector, storageIface);
+    const update = bindFormData(selector, storageIface);
+    return async data => {
+        extraData = data;
+        await update();
+    };
 }
 
 
-export async function initSettingsForm(selector, options={}) {
+export function initSettingsForm(selector, options={}) {
     const settingsKey = options.settingsKey;
-    const extraData = options.extraData;
     if (!settingsKey) {
         throw new TypeError('settingsKey required');
     }
-    const storageData = storage.get(settingsKey) || {};
-    const allData = {...storageData, ...extraData};
+    let storageData;
+    let allData;
     const storageIface = {
         get: name => {
             const isGlobal = name.startsWith('/');
@@ -578,7 +583,12 @@ export async function initSettingsForm(selector, options={}) {
             }
         },
     };
-    await bindFormData(selector, storageIface);
+    const update = bindFormData(selector, storageIface);
+    return async data => {
+        storageData = storage.get(settingsKey) || {};
+        allData = {...storageData, ...data};
+        await update();
+    };
 }
 
 

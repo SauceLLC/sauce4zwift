@@ -417,12 +417,24 @@ html.settings-page #titlebar {
     initial-value: #0000;
 }
 
+.button-group {
+    display: flex;
+    flex-wrap: wrap;
+
+    .button {
+        flex: 1;
+    }
+}
+
 .button {
     cursor: pointer;
     opacity: 0.86;
     transition: opacity 200ms;
 
     &.std {
+        display: flex;
+        align-items: center;
+        justify-content: center;
         opacity: 1;
         color: #000;
         --bg-from-color: #fff;
@@ -442,8 +454,17 @@ html.settings-page #titlebar {
 
         &:active {
             box-shadow: inset 0 0 0.8rem 0 #0008;
-            --bg-from-color: #ddd;
-            --bg-to-color: #ddd;
+        }
+
+        &.danger {
+            --bg-from-color: #c22;
+            --bg-to-color: #a22b;
+            color: #eee;
+
+            &:hover {
+                --bg-from-color: #d11;
+                --bg-to-color: #b11b;
+            }
         }
     }
 

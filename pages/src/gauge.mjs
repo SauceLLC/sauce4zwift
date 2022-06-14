@@ -330,5 +330,5 @@ export async function settingsMain() {
     document.title = `${title} Settings - Sauce for Zwift™`;
     document.querySelector('#titlebar header .title').textContent = document.title;
     common.initInteractionListeners();
-    await common.initSettingsForm('form', {settingsKey});
+    await common.initSettingsForm('form', {settingsKey})();
 }

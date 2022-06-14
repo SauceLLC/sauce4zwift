@@ -60,6 +60,10 @@ body > main {
             padding-top: 0.2em;
             color: #ddd;
 
+            &[disabled] {
+                opacity: 0.3 !important;
+            }
+
             &:hover {
                 opacity: 1;
             }

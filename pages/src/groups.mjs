@@ -15,6 +15,7 @@ let metaEl;
 let aheadEl;
 let behindEl;
 let containerEl;
+const doc = document.documentElement;
 
 
 function pwrFmt(p) {
@@ -35,7 +36,7 @@ function getOrCreatePosition(relPos) {
         el.innerHTML = `
             <div class="desc left empty">
                 <div class="actions">
-                    <ms data-action="setWatching" title="Watch">videocam</ms>
+                    <ms data-action="watch" title="Watch">video_camera_front</ms>
                 </div>
                 <div class="lines"></div>
             </div>
@@ -70,7 +71,7 @@ function getOrCreatePosition(relPos) {
                 leftLine: gap.querySelector('.lines .line.time'),
             },
             actions: {
-                setWatching: el.querySelector('[data-action="setWatching"]'),
+                watch: el.querySelector('[data-action="watch"]'),
             },
         };
         positions.set(relPos, nodes);
@@ -87,8 +88,8 @@ function getOrCreatePosition(relPos) {
             if (!ms) {
                 return;
             }
-            if (ms.dataset.action === 'setWatching') {
-                await common.rpc.gameSetWatching(nodes.watchTarget);
+            if (ms.dataset.action === 'watch') {
+                await common.rpc.watch(nodes.watchTarget);
             }
         });
     }
@@ -240,7 +241,7 @@ function renderZoomed(groups) {
         }
         pos.gap.leftLine.textContent = dur ? dur : '';
         pos.gap.el.classList.toggle('alone', !dur);
-        pos.actions.setWatching.classList.toggle('hidden', athlete.watching);
+        pos.actions.watch.classList.toggle('hidden', athlete.watching);
         if (!athlete.watching) {
             pos.watchTarget = athlete.athleteId;
         }
@@ -362,7 +363,7 @@ function renderGroups(groups) {
         pos.gap.el.classList.toggle('alone', !innerGap);
         const dur = innerGap && H.duration(Math.abs(gap), {short: true, seperator: ' '});
         pos.gap.leftLine.textContent = dur ? (gap > 0 ? '+' : '-') + dur : '';
-        pos.actions.setWatching.classList.toggle('hidden', group.watching);
+        pos.actions.watch.classList.toggle('hidden', group.watching);
         if (!group.watching) {
             pos.watchTarget = group.athletes[Math.trunc(group.athletes.length / 2)].athleteId;
         }
@@ -374,7 +375,6 @@ function renderGroups(groups) {
 
 
 function setBackground({solidBackground, backgroundColor}) {
-    const doc = document.documentElement;
     doc.classList.toggle('solid-background', solidBackground);
     if (solidBackground) {
         doc.style.setProperty('--background-color', backgroundColor);
@@ -422,6 +422,13 @@ export async function main() {
             L.setImperial(imperial = ev.data.value);
         }
     });
+    const gcs = await common.rpc.getGameConnectionStatus();
+    if (gcs) {
+        common.subscribe('status', status =>
+            doc.classList.toggle('game-connection', status.connected),
+            {source: 'gameConnection'});
+        doc.classList.toggle('game-connection', gcs.connected);
+    }
     let ts = 0;
     common.subscribe('groups', groups => {
         if (!groups.length) {
@@ -439,5 +446,5 @@ export async function main() {
 
 export async function settingsMain() {
     common.initInteractionListeners();
-    await common.initSettingsForm('form', {settingsKey});
+    await common.initSettingsForm('form', {settingsKey})();
 }
