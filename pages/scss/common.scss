@@ -417,12 +417,24 @@ html.settings-page #titlebar {
     initial-value: #0000;
 }
 
+.button-group {
+    display: flex;
+    flex-wrap: wrap;
+
+    .button {
+        flex: 1;
+    }
+}
+
 .button {
     cursor: pointer;
     opacity: 0.86;
     transition: opacity 200ms;
 
     &.std {
+        display: flex;
+        align-items: center;
+        justify-content: center;
         opacity: 1;
         color: #000;
         --bg-from-color: #fff;

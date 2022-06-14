@@ -338,21 +338,12 @@ class SauceApp extends EventEmitter {
         };
     }
 
-    initShortcuts() {
-        if (isDEV) {
-            electron.globalShortcut.register('F12', () => {
-                const focused = electron.BrowserWindow.getFocusedWindow();
-                if (focused) {
-                    focused.webContents.openDevTools();
-                }
-            });
-        }
-    }
+    initShortcuts() {}
 
     startGameConnectionServer() {
         const gcs = new zwift.GameConnectionServer(this.gameMonitor);
-        registerRPCMethods(gcs, 'watch', 'join', 'teleportHome', 'say', 'wave', 'takePicture', 'changeCamera',
-            'enableHUD', 'disableHUD', 'chatMessage', 'reverse', 'toggleGraphs', 'sendCommands');
+        registerRPCMethods(gcs, 'watch', 'join', 'teleportHome', 'say', 'wave', 'elbow', 'takePicture',
+            'changeCamera', 'enableHUD', 'disableHUD', 'chatMessage', 'reverse', 'toggleGraphs', 'sendCommands');
         gcs.start().catch(Sentry.captureException);
         return gcs;
     }
