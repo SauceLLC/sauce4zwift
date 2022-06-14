@@ -35,6 +35,14 @@ html.settings-mode #meta.app-drag {
     margin-right: $content-pad;
     margin-left: $content-pad;
 
+    &:empty::before {
+        content: 'Groups Window';
+    }
+    &:empty::after {
+        font-size: 0.8em;
+        content: 'Waiting for data';
+    }
+
     .line {
         line-height: 1;
         white-space: nowrap;
