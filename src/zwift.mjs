@@ -18,6 +18,19 @@ let xRequestId = 1;
 let authToken;
 
 
+const pbProfilePrivacyFlags = {
+    approvalRequired: 0x1,
+    minor: 0x2,
+    displayWeight: 0x4,
+    privateMessaging: 0x8,
+    defaultFitnessDataPrivacy: 0x10,
+    suppressFollowerNotification: 0x20,
+}
+const pbProfilePrivacyFlagsInverted = {
+    displayAge: 0x40,
+}
+
+
 function zwiftCompatDate(date) {
     return date && (date.toISOString().slice(0, -5) + 'Z');
 }
@@ -77,7 +90,16 @@ export async function apiPB(urn, options, headers) {
     const r = await api(urn, {accept: 'protobuf', ...options}, headers);
     const monitorProtos = require('@saucellc/zwift-packet-monitor').pbRoot;
     const ProtoBuf = protos.get(options.protobuf) || monitorProtos.get(options.protobuf);
-    return ProtoBuf.decode(new Uint8Array(await r.arrayBuffer()));
+    const data = new Uint8Array(await r.arrayBuffer());
+    if (options.debug) {
+        const hex = [];
+        for (const x of data) {
+            hex.push(x.toString(16).padStart(2, '0'));
+        }
+        // compatible with https://protobuf-decoder.netlify.app/
+        console.debug(hex.join(' '));
+    }
+    return ProtoBuf.decode(data);
 }
 
 
@@ -86,11 +108,39 @@ export async function getProfile(id) {
 }
 
 
-export async function getProfiles(ids) {
+export async function getProfiles(ids, options) {
     const q = new URLSearchParams(ids.map(id => ['id', id]));
-    const unordered = (await apiPB(`/api/profiles?${q}`, {protobuf: 'PlayerProfiles'})).profiles;
-    const m = new Map(unordered.map(x => [Number(x.id), x]));
-    return ids.map(id => m.get(id));
+    const unordered = (await apiPB(`/api/profiles?${q}`, {protobuf: 'PlayerProfiles', ...options})).profiles;
+    // Reorder and make results similar to getProfile
+    const m = new Map(unordered.map(x => [x.id.toNumber(), x.toJSON()]));
+    return ids.map(_id => {
+        const id = +_id;
+        const x = m.get(id);
+        if (!x) {
+            console.debug('Missing profile:', id);
+            return;
+        }
+        x.id = id;
+        x.privacy = {
+            defaultActivityPrivacy: x.default_activity_privacy,
+        };
+        for (const [k, flag] of Object.entries(pbProfilePrivacyFlags)) {
+            x.privacy[k] = !!(+x.privacy_bits & flag);
+        }
+        for (const [k, flag] of Object.entries(pbProfilePrivacyFlagsInverted)) {
+            x.privacy[k] = !(+x.privacy_bits & flag);
+        }
+        x.socialFacts = {
+            profileId: id,
+            //followersCount: null,
+            //followeesCount: null,
+            followerStatusOfLoggedInPlayer: x.follow_status
+            //followeeStatusOfLoggedInPlayer: null,
+            //isFavoriteOfLoggedInPlayer: null,
+        };
+        console.log(x.privacy);
+        return x;
+    });
 }
 
 
