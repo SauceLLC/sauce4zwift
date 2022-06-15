@@ -301,7 +301,7 @@ message PlayerProfile {
     optional uint32 totalRunTimeInMinutes = 85;
     optional Sport sport = 86;
     optional uint32 utc_offset_in_minutes = 87;
-    optional bool connected_to_under_armour = 88;
+    optional bool connectedToUnderArmour = 88;
     optional string preferredLanguage = 89;
     optional uint32 hair_colour = 90;
     optional uint32 facial_hair_colour = 91;
@@ -317,12 +317,12 @@ message PlayerProfile {
     optional uint32 _f101 = 101;
     optional uint32 _f102 = 102;
     optional uint32 _f103 = 103;
-    optional uint32 _f104 = 104;
-    optional bool connected_to_withings = 105;
-    optional bool connected_to_fitbit = 106;
+    optional uint32 _f104 = 104;  // avatar setting? Seen 3 and 1
+    optional bool connectedToWithings = 105;
+    optional bool connectedToFitbit = 106;
     optional string launchedGameClient = 108;
     optional int64 current_activity_id = 109;
-    optional bool connected_to_garmin = 110;
+    optional bool connectedToGarmin = 110;
     message Reminder {
         optional int64 _f1 = 1;
         optional string _f2 = 2;
@@ -343,7 +343,7 @@ message PlayerProfile {
     optional int32 runTime1miInSeconds = 117;
     optional int32 runTime5kmInSeconds = 118;
     optional int32 runTime10kmInSeconds = 119;
-    optional int32 runTimeHalfMarathonKnSeconds = 120;
+    optional int32 runTimeHalfMarathonInSeconds = 120;
     optional int32 runTimeFullMarathonInSeconds = 121;
     optional int32 _f122 = 122;
     enum CyclingOrganization {
@@ -355,7 +355,7 @@ message PlayerProfile {
     optional CyclingOrganization cyclingOrganization = 123;
     optional string _f124 = 124;
     optional ActivityPrivacyType default_activity_privacy = 125;
-    optional bool connected_to_runtastic = 126;
+    optional bool connectedToRuntastic = 126;
     repeated PropertyChange property_changes = 127;
 }
 
@@ -415,10 +415,10 @@ enum FollowStatus {
     UNKNOWN = 1;
     REQUESTS_TO_FOLLOW = 2;
     IS_FOLLOWING = 3;
-    HAS_BEEN_DECLINED = 7;
     IS_BLOCKED = 4;
     NO_RELATIONSHIP = 5;
     SELF = 6;
+    HAS_BEEN_DECLINED = 7;
 }
 
 message Subscription {
