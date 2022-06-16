@@ -14,7 +14,6 @@ protobuf.parse.defaults.keepCase = true;
 const protos = protobuf.loadSync(path.join(__dirname, 'zwift.proto')).root;
 protobuf.parse.defaults.keepCase = _case;
 
-let xRequestId = 1;
 let authToken;
 
 
@@ -25,10 +24,10 @@ const pbProfilePrivacyFlags = {
     privateMessaging: 0x8,
     defaultFitnessDataPrivacy: 0x10,
     suppressFollowerNotification: 0x20,
-}
+};
 const pbProfilePrivacyFlagsInverted = {
     displayAge: 0x40,
-}
+};
 
 
 function zwiftCompatDate(date) {
@@ -59,24 +58,50 @@ export async function api(urn, options={}, headers={}) {
             protobuf: 'application/x-protobuf-lite',
         }[options.accept];
     }
+    if (options.apiVersion) {
+        headers['Zwift-Api-Version'] = options.apiVersion;
+    }
     const host = options.host || `us-or-rly101.zwift.com`;
-    const r = await fetch(`https://${host}/${urn.replace(/^\//, '')}`, {
+    const q = options.query ? '?' + options.query : '';
+    const r = await fetch(`https://${host}/${urn.replace(/^\//, '')}${q}`, {
         headers: {
             'Platform': 'OSX',
             'Source': 'Game Client',
             'User-Agent': 'CNL/3.20.4 (macOS 12 Monterey; Darwin Kernel 21.4.0) zwift/1.0.101024 curl/7.78.0-DEV',
-            'X-Machine-Id': '2-986ffe25-41af-475a-8738-1bb16d3ca987',
-            'X-Request-Id': xRequestId++,
             ...headers,
         },
         ...options,
     });
     if (!r.ok && (!options.ok || !options.ok.includes(r.status))) {
         const msg = await r.text();
-        console.error('Zwift API Error:', r.status, msg);
-        throw new Error('Zwift HTTP Error: ' + r.status);
+        const e = new Error(`Zwift HTTP Error: [${r.status}]: ${msg}`);
+        e.status = r.status;
+        throw e;
     }
     return r;
+}
+
+
+export async function apiPaged(urn, options={}, headers) {
+    const results = [];
+    let start = 0;
+    let pages = 0;
+    const pageLimit = options.pageLimit ? options.pageLimit : 10;
+    const query = options.query || new URLSearchParams();
+    const limit = options.limit || 100;
+    query.set('limit', limit);
+    while (true) {
+        query.set('start', start);
+        const page = await apiJSON(urn, {query, ...options}, headers);
+        for (const x of page) {
+            results.push(x);
+        }
+        if (page.length < limit || ++pages >= pageLimit) {
+            break;
+        }
+        start = results.length;
+    }
+    return results;
 }
 
 
@@ -104,13 +129,22 @@ export async function apiPB(urn, options, headers) {
 
 
 export async function getProfile(id) {
-    return await apiJSON(`/api/profiles/${id}`);
+    try {
+        return await apiJSON(`/api/profiles/${id}`);
+    } catch(e) {
+        if (e.status === 404) {
+            return;
+        }
+        throw e;
+    }
 }
 
 
 export async function getProfiles(ids, options) {
-    const q = new URLSearchParams(ids.map(id => ['id', id]));
-    const unordered = (await apiPB(`/api/profiles?${q}`, {protobuf: 'PlayerProfiles', ...options})).profiles;
+    const unordered = (await apiPB('/api/profiles', {
+        query: new URLSearchParams(ids.map(id => ['id', id])),
+        protobuf: 'PlayerProfiles', ...options
+    })).profiles;
     // Reorder and make results similar to getProfile
     const m = new Map(unordered.map(x => [x.id.toNumber(), x.toJSON()]));
     return ids.map(_id => {
@@ -130,15 +164,6 @@ export async function getProfiles(ids, options) {
         for (const [k, flag] of Object.entries(pbProfilePrivacyFlagsInverted)) {
             x.privacy[k] = !(+x.privacy_bits & flag);
         }
-        x.socialFacts = {
-            profileId: id,
-            //followersCount: null,
-            //followeesCount: null,
-            followerStatusOfLoggedInPlayer: x.follow_status
-            //followeeStatusOfLoggedInPlayer: null,
-            //isFavoriteOfLoggedInPlayer: null,
-        };
-        console.log(x.privacy);
         return x;
     });
 }
@@ -161,49 +186,46 @@ export async function getLiveSegmentLeaderboard(segmentId) {
 
 
 export async function getSegmentResults(segmentId, options={}) {
-    // query args: segment_id, player_id, only-best, from, to
-    const q = new URLSearchParams({
+    const query = new URLSearchParams({
         world_id: 1,
         segment_id: segmentId,
     });
     if (options.athleteId) {
-        q.set('player_id', options.athleteId);
+        query.set('player_id', options.athleteId);
     }
     if (options.from) {
-        q.set('from', zwiftCompatDate(options.from));
+        query.set('from', zwiftCompatDate(options.from));
     }
     if (options.to) {
-        q.set('to', zwiftCompatDate(options.to));
+        query.set('to', zwiftCompatDate(options.to));
     }
     if (options.best) {
-        q.set('only-best', 'true');
+        query.set('only-best', 'true');
     }
-    console.log('' + q);
-    return (await apiPB(`/api/segment-results?${q}`, {protobuf: 'SegmentResults'})).results;
+    return (await apiPB('/api/segment-results', {query, protobuf: 'SegmentResults'})).results;
 }
 
 
-export async function searchProfiles(query, options={}) {
-    const limit = options.limit || 100;
-    const results = [];
-    let start = 0;
-    let pages = 0;
-    const pageLimit = options.pageLimit ? options.pageLimit : 10;
-    while (true) {
-        const q = new URLSearchParams({start, limit});
-        const page = await (await api(`/api/search/profiles?${q}`, {
-            method: 'POST',
-            json: {query},
-        })).json();
-        for (const x of page) {
-            results.push(x);
-        }
-        if (page.length < limit || ++pages >= pageLimit) {
-            break;
-        }
-        start = results.length;
-    }
-    return results;
+export async function searchProfiles(searchText, options={}) {
+    return await apiPaged('/api/search/profiles', {
+        method: 'POST',
+        json: {query: searchText},
+    });
+}
+
+
+export async function getFollowees(athleteId, options={}) {
+    return await apiPaged(`/api/profiles/${athleteId}/followees`);
+}
+
+
+export async function getFollowers(athleteId, options={}) {
+    return await apiPaged(`/api/profiles/${athleteId}/followers`);
+}
+
+
+export async function getGameInfo() {
+    return await apiJSON(`/api/game_info`, {apiVersion: '2.6'});
 }
 
 

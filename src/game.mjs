@@ -443,8 +443,25 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         return Array.from(fitParser.encode());
     }
 
+    _profileToAthlete(p) {
+        return {
+            firstName: p.firstName,
+            lastName: p.lastName,
+            ftp: p.ftp,
+            avatar: p.imageSrcLarge || p.imageSrc,
+            weight: p.weight ? p.weight / 1000 : undefined,
+            height: p.height ? p.height / 10 : undefined,
+            gender: p.male === false ? 'female' : 'male',
+            age: p.age,
+            level: p.achievementLevel ? Math.floor(p.achievementLevel / 100) : undefined,
+            socialFacts: p.socialFacts || undefined,
+        };
+    }
+
     updateAthlete(id, data) {
-        this.saveAthletes([[id, this._updateAthlete(id, data)]]);
+        const fullData = this._updateAthlete(id, data);
+        this.saveAthletes([[id, fullData]]);
+        return fullData;
     }
 
     _updateAthlete(id, data) {
@@ -471,7 +488,11 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         d.sanitizedName = (saniFirst || saniLast) ? [saniFirst, saniLast].filter(x => x) : null;
         d.sanitizedFullname = d.sanitizedName && d.sanitizedName.join(' ');
         d.initials = d.sanitizedName ? d.sanitizedName.map(x => x[0]).join('').toUpperCase() : null;
-        Object.assign(d, data);
+        for (const [k, v] of Object.entries(data)) {
+            if (v !== undefined) {
+                d[k] = v;
+            }
+        }
         return d;
     }
 
@@ -491,12 +512,18 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     }
 
     async getAthlete(id, options={}) {
-        const a = options.refresh !== true && this.loadAthlete(id);
-        if (a) {
-            return a;
+        if (zwift.isAuthenticated()) {
+            if (!options.refresh) {
+                return this.loadAthlete(id);
+            } else {
+                const p = await zwift.getProfile(id);
+                if (p) {
+                    return this.updateAthlete(p.id, this._profileToAthlete(p));
+                }
+            }
+        } else {
+            return this.loadAthlete(id);
         }
-        await this._updateAthleteProfilesFromServer([id]);
-        return this._athletesCache.get(id);
     }
 
     saveAthletes(records) {
@@ -733,22 +760,10 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 });
                 updates.push([id, data]);
             }
-        } else {
+        } else if (zwift.isAuthenticated()) {
             for (const p of await zwift.getProfiles(batch)) {
                 if (p) {
-                    const id = Number(p.id);
-                    const data = this._updateAthlete(id, {
-                        firstName: p.firstName,
-                        lastName: p.lastName,
-                        ftp: p.ftp,
-                        avatar: p.imageSrcLarge || p.imageSrc,
-                        weight: p.weight / 1000,
-                        height: p.height / 10,
-                        gender: p.male === false ? 'female' : 'male',
-                        age: p.age,
-                        level: Math.floor(p.achievementLevel / 100),
-                    });
-                    updates.push([id, data]);
+                    updates.push([p.id, this._updateAthlete(p.id, this._profileToAthlete(p))]);
                 }
             }
         }
@@ -896,6 +911,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             this._fakeDataGenerator();
         } else if (!this._noData) {
             super.start();
+            this._socialNetworkUpdate().catch(captureExceptionOnce);
         }
         this._nearbyJob = this.nearbyProcessor();
         this._gcInterval = setInterval(this.gcStates.bind(this), 32768);
@@ -910,6 +926,27 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             await this._nearbyJob;
         } finally {
             this._nearybyJob = null;
+        }
+    }
+
+    async _socialNetworkUpdate() {
+        if (!zwift.isAuthenticated()) {
+            console.warn("Skipping social network update because not logged into zwift");
+            return;
+        }
+        const selfProfile = await zwift.getProfile('me');
+        const ourId = selfProfile.id;
+        const followees = await zwift.getFollowees(ourId);
+        const updates = [];
+        for (const x of followees) {
+            const p = x.followeeProfile;
+            if (p) {
+                updates.push([p.id, this._updateAthlete(p.id, this._profileToAthlete(p))]);
+            }
+        }
+        if (updates.length) {
+            console.info(`Updating info for ${updates.length} followees`);
+            this.saveAthletes(updates);
         }
     }
 

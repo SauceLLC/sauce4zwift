@@ -416,6 +416,7 @@ export async function main() {
         return;
     }
     sauceApp = new SauceApp();
+    global.app = sauceApp;  // devTools debug XXX
     if (await ensureSingleInstance() === false) {
         return;
     }
