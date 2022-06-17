@@ -54,7 +54,8 @@ function humanDuration(elapsed, options={}) {
         (options.minPeriod ? period >= options.minPeriod : true));
     const stack = [];
     const precision = options.precision || 1;
-    elapsed = Math.round(elapsed / precision) * precision;
+    const sign = elapsed < 0 ? '-' : '';
+    elapsed = Math.round(Math.abs(elapsed) / precision) * precision;
     let i = 0;
     for (let [key, period] of units) {
         i++;
@@ -80,7 +81,7 @@ function humanDuration(elapsed, options={}) {
             elapsed %= period;
         }
     }
-    return stack.slice(0, 2).join(options.seperator || ', ');
+    return sign + stack.slice(0, 2).join(options.seperator || ', ');
 }
 
 
@@ -239,12 +240,18 @@ function humanNumber(value, options={}) {
 
 
 function humanPower(p, options={}) {
+    if (!_realNumber(p)) {
+        return '-';
+    }
     const suffix = options.suffix ? options.html ? `<abbr class="unit">w</abbr>` : 'w' : '';
     return humanNumber(p, options) + suffix;
 }
 
 
 function humanPace(kph, options={}) {
+    if (!_realNumber(kph)) {
+        return '-';
+    }
     const unit = imperial ? 'mph' : 'kph';
     const suffix = options.suffix ? options.html ? `<abbr class="unit">${unit}</abbr>` : unit : '';
     return humanNumber(imperial ? kph * 1000 / metersPerMile : kph,
@@ -253,12 +260,23 @@ function humanPace(kph, options={}) {
 
 
 function humanDistance(meters, options={}) {
+    if (!_realNumber(meters)) {
+        return '-';
+    }
     return humanNumber(imperial ? meters / metersPerMile : meters / 1000,
         {fixed: true, precision: 1, ...options});
 }
 
 
+function _realNumber(n) {
+    return n != null && n < Infinity && n > -Infinity && !isNaN(n);
+}
+
+
 function humanWeight(kg, options={}) {
+    if (!_realNumber(kg)) {
+        return '-';
+    }
     const unit = imperial ? 'lbs' : 'kg';
     const suffix = options.suffix ? options.html ? `<abbr class="unit">${unit}</abbr>` : unit : '';
     return humanNumber(imperial ? kg * kgsPerLbs : kg,
@@ -267,6 +285,9 @@ function humanWeight(kg, options={}) {
 
 
 function humanWeightClass(kg, options={}) {
+    if (!_realNumber(kg)) {
+        return '-';
+    }
     const unit = imperial ? 'lbs' : 'kg';
     const suffix = options.suffix ? options.html ? `<abbr class="unit">${unit}</abbr>` : unit : '';
     const v = imperial ? kg * kgsPerLbs : kg;
@@ -274,11 +295,14 @@ function humanWeightClass(kg, options={}) {
     const vOfRange = v / range;
     const lower = Math.floor(vOfRange) * range;
     const upper = (vOfRange % 1) ? Math.ceil(vOfRange) * range : (vOfRange + 1) * range;
-    return `${humanNumber(lower)}-${humanNumber(upper)}${suffix}`;
+    return `${humanNumber(lower)}~${humanNumber(upper)}${suffix}`;
 }
 
 
 function humanHeight(cm, options={}) {
+    if (!_realNumber(cm)) {
+        return '-';
+    }
     if (imperial) {
         const feet = cm / 100 / 0.3048;
         const wholeFeet = Math.trunc(feet);
@@ -292,6 +316,9 @@ function humanHeight(cm, options={}) {
 
 
 function humanElevation(meters, options={}) {
+    if (!_realNumber(meters)) {
+        return '-';
+    }
     return humanNumber(imperial ? meters * metersPerFoot : meters, options);
 }
 

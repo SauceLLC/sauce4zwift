@@ -43,6 +43,12 @@ body > main {
 
     .name {
         padding: 0.3em 0;
+
+        img {
+            display: inline-block;
+            vertical-align: middle;
+            height: 1em;
+        }
     }
 
     .buttons {
@@ -77,7 +83,7 @@ body > main {
                     margin-bottom: 0.085em;
                 }
             }
-            &[data-action="togglePinned"].active {
+            &[data-action="toggleMarked"].active {
                 color: #69ff94;
             }
             &[data-action="toggleMuted"].active {
@@ -126,6 +132,12 @@ body > main {
     border-radius: 0.5em;
     overflow: hidden;
     background-color: #0001;
+
+    .flag {
+        display: inline-block;
+        vertical-align: middle;
+        max-height: 1em;
+    }
 }
 
 .athlete .info .row {
@@ -155,7 +167,7 @@ key::after {
 }
 
 abbr.unit {
-    font-size: 0.8em;
-    margin-left: 0.15em;
-    opacity: 0.86;
+    font-size: 0.76em;
+    margin-left: 0.16em;
+    opacity: 0.80;
 }

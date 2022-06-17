@@ -26,6 +26,12 @@ table {
     border-collapse: collapse;
     user-select: none;
 
+    abbr.unit {
+        font-size: 0.82em;
+        opacity: 0.8;
+        margin-left: 0.1em;
+    }
+
     thead {
         position: sticky;
         z-index: 1;
@@ -76,6 +82,7 @@ table {
             text-overflow: ellipsis;
             max-width: max(12ch, 20vw);
         }
+
         &[data-id="avatar"] {
             text-align: center;
 
@@ -97,6 +104,12 @@ table {
                     width: 1.7em;
                     object-fit: cover;
                 }
+            }
+        }
+
+        &[data-id="nation"] {
+            img {
+                height: 1em;
             }
         }
 

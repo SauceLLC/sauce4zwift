@@ -18,34 +18,19 @@ let sortBy;
 let sortByDir;
 let tbody;
 let mainRow;
+let nations;
+let flags;
 
 
-function spd(v) {
-    const unit = imperial ? 'mph' : 'kph';
-    return v ? `${H.pace(v, {precision: 0})}<small>${unit}</small>` : v !== 0 ? '-' : 0;
-}
-
-
-function weight(v) {
-    const unit = imperial ? 'lbs' : 'kg';
-    return v ? `${H.weight(v, {precision: 0})}<small>${unit}</small>` : v !== 0 ? '-' : 0;
-}
-
-
-function pwr(v) {
-    return v ? `${num(v)}<small>w</small>`: v !== 0 ? '-' : 0;
-}
-
-
-function wkg(v) {
-    v = v === Infinity ? null : v;
-    return v ? `${num(v, {precision: 1, fixed: true})}<small>w/kg</small>`: v !== 0 ? '-' : 0;
-}
-
-
-function hr(v) {
-    return v ? `${num(v)}<small>bpm</small>` : '-';
-}
+const spd = v => H.pace(v, {precision: 0, suffix: true, html: true});
+const weight = v => H.weight(v, {precision: 0, suffix: true, html: true});
+const weightClass = v => H.weightClass(v, {suffix: true, html: true});
+const pwr = v => H.power(v, {suffix: true, html: true});
+const hr = v => v ? `${num(v)}<abbr class="unit">bpm</abbr>` : '-';
+const kj = v => v != null ? `${num(v)}<abbr class="unit">kJ</abbr>` : '-';
+const pct = v => v != null ? `${num(v)}<abbr class="unit">%</abbr>` : '-';
+const wkg = v => (v !== Infinity && !isNaN(v)) ?
+    `${num(v, {precision: 1, fixed: true})}<abbr class="unit">w/kg</abbr>`: '-';
 
 
 function clearSelection() {
@@ -87,16 +72,19 @@ const fields = [
      fmt: ([id, avatar]) => avatar ? athleteLink(id, `<img src="${avatar}"/>`, {class: 'avatar'}) : ''},
     {id: 'name', defaultEn: true, label: 'Name', get: x => [x.athleteId, getAthleteValue(x, 'sanitizedFullname')],
      fmt: ([id, name]) => athleteLink(id, sanitize(name || '-'))},
+    {id: 'nation', defaultEn: true, label: '<ms>flag</ms>', get: x => getAthleteValue(x, 'countryCode'),
+     fmt: code => (code && flags && flags[code]) ? `<img src="${flags[code]}" title="${common.sanitizeForAttr(nations[code])}"/>` : ''},
     {id: 'team', defaultEn: false, label: 'Team', get: x => getAthleteValue(x, 'team'),
      fmt: formatTeam},
     {id: 'initials', defaultEn: false, label: 'Initials', get: x => [x.athleteId, getAthleteValue(x, 'initials')],
      fmt: ([id, initials]) => athleteLink(id, sanitize(initials) || '-')},
     {id: 'id', defaultEn: false, label: 'ID', get: x => x.athleteId},
     {id: 'weight', defaultEn: false, label: 'Weight', get: x => getAthleteValue(x, 'weight'), fmt: weight},
+    {id: 'weight-class', defaultEn: false, label: 'Weight', get: x => getAthleteValue(x, 'weight'), fmt: weightClass},
     {id: 'ftp', defaultEn: false, label: 'FTP', get: x => getAthleteValue(x, 'ftp'), fmt: pwr},
     {id: 'tss', defaultEn: false, label: 'TSS', get: x => x.stats.power.tss, fmt: num},
 
-    {id: 'gap', defaultEn: true, label: 'Gap', get: x => x.gap, fmt: x => `${num(x)}s`},
+    {id: 'gap', defaultEn: true, label: 'Gap', get: x => x.gap, fmt: x => H.duration(x, {short: true, html: true})},
 
     {id: 'pwr-cur', defaultEn: true, label: 'Pwr', get: x => x.state.power, fmt: pwr},
     {id: 'wkg-cur', defaultEn: true, label: 'W/kg', get: x => x.state.power / (x.athlete && x.athlete.weight), fmt: wkg},
@@ -156,13 +144,25 @@ const fields = [
     {id: 'hr-p60s', defaultEn: false, label: '1m Peak HR', get: x => x.stats.hr.peaks[60].avg, fmt: hr},
 
     {id: 'rideons', defaultEn: false, label: 'Ride Ons', get: x => x.state.rideons, fmt: num},
-    {id: 'kj', defaultEn: false, label: 'Energy', get: x => x.state.kj, fmt: x => num(x) + 'kJ'},
-    {id: 'draft', defaultEn: false, label: 'Draft', get: x => x.state.draft, fmt: x => num(x) + '%'},
+    {id: 'kj', defaultEn: false, label: 'Energy', get: x => x.state.kj, fmt: kj},
+    {id: 'draft', defaultEn: false, label: 'Draft', get: x => x.state.draft, fmt: pct},
 ];
 
 
-export function main() {
+async function lazyInitNationMeta() {
+    const r = await fetch('deps/src/countries.json');
+    if (!r.ok) {
+        throw new Error('Failed to get country data: ' + r.status);
+    }
+    const data = await r.json();
+    nations = Object.fromEntries(data.map(({id, en}) => [id, en]));
+    flags = Object.fromEntries(data.map(({id, alpha2}) => [id, `deps/flags/${alpha2}.png`]));
+}
+
+
+export async function main() {
     common.initInteractionListeners();
+    lazyInitNationMeta();  // bg okay
     let refresh;
     const setRefresh = () => refresh = (settings.refreshInterval || 1) * 1000 - 100; // within 100ms is fine.
     common.storage.addEventListener('update', async ev => {
@@ -217,8 +217,8 @@ export function main() {
     let lastRefresh = 0;
     common.subscribe('nearby', data => {
         nearbyData = data;
-        if (settings.onlyPinned) {
-            data = data.filter(x => x.watching || (x.athlete && x.athlete.pinned));
+        if (settings.onlyMarked) {
+            data = data.filter(x => x.watching || (x.athlete && x.athlete.marked));
         }
         athleteData = new Map(data.filter(x => x.athlete).map(x => [x.athleteId, x.athlete]));
         const elapsed = Date.now() - lastRefresh;
