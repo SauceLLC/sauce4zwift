@@ -444,18 +444,24 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
     }
 
     _profileToAthlete(p) {
-        return {
+        const o = {
             firstName: p.firstName,
             lastName: p.lastName,
             ftp: p.ftp,
+            type: p.playerType,
+            countryCode: p.countryCode, // iso 3166
             avatar: p.imageSrcLarge || p.imageSrc,
             weight: p.weight ? p.weight / 1000 : undefined,
             height: p.height ? p.height / 10 : undefined,
             gender: p.male === false ? 'female' : 'male',
-            age: p.age,
+            age: (p.privacy && p.privacy.displayAge) ? p.age : null,
             level: p.achievementLevel ? Math.floor(p.achievementLevel / 100) : undefined,
-            socialFacts: p.socialFacts || undefined,
         };
+        if (p.socialFacts) {
+            o.following = p.socialFacts.followerStatusOfLoggedInPlayer === 'IS_FOLLOWING';
+            o.favorite = p.socialFacts.isFavoriteOfLoggedInPlayer;
+        }
+        return o;
     }
 
     updateAthlete(id, data) {

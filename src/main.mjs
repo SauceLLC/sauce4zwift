@@ -463,7 +463,7 @@ export async function main() {
         options.noData = process.argv.includes('--no-data');
     }
     await sauceApp.start(options);
-    menu.updateTrayMenu();
     windows.openAllWindows();
+    menu.updateTrayMenu();
     started = true;
 }

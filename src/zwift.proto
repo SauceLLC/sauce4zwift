@@ -110,7 +110,7 @@ message ActivityFull {  //where is primaryImageUrl, feedImageThumbnailUrl, activ
     repeated ClubAttribution cas = 41;
 }
 
-message Activity { //field names pinned to db 
+message Activity { //field names pinned to db
     optional uint64 id = 1;
     required uint64 athleteId = 2;
     required uint64 _f3 = 3; //-> rename to course_id
@@ -240,8 +240,8 @@ message PlayerProfile {
     optional uint32 max_heart_rate = 44;
     optional bool connectedToStrava = 45;
     optional uint32 totalExperiencePoints = 46;
-    optional uint32 totalGold = 47;    
-    optional PlayerType playerTypeId = 48;    
+    optional uint32 totalGold = 47;
+    optional PlayerType playerType = 48;
     optional uint32 achievementLevel = 49;
     optional bool useMetric = 50;
     optional bool stravaPremium = 51;
@@ -254,7 +254,7 @@ message PlayerProfile {
     optional string imageSrcLarge = 58;
     optional fixed64 privacy_bits = 59;
     repeated ProfileEntitlement entitlements = 60;
-    
+
     optional SocialFacts social_facts = 61;
     message SocialFacts {
         optional int64 profile_id = 1;
@@ -265,11 +265,11 @@ message PlayerProfile {
         optional FollowStatus followee_status_of_logged_in_player = 6;
         optional bool is_favorite_of_logged_in_player = 7;
     }
-    
+
     optional FollowStatus follow_status = 62;
     optional bool connected_to_training_peaks = 63;
     optional bool connected_to_todays_plan = 64;
-    
+
     optional EnrolledProgram enrolled_program = 65;
     enum EnrolledProgram {
         ENROLLEDPROGRAM0 = 0;
@@ -278,7 +278,7 @@ message PlayerProfile {
         ENROLLEDPROGRAM3 = 3;
         ENROLLEDPROGRAM4 = 4;
     }
-    
+
     optional string todayplan_url = 66;
     optional uint32 _f67 = 67;
     optional fixed32 run_shirt_type = 68;
@@ -428,7 +428,7 @@ message Subscription {
         BRAINTREE = 0;
         APPLE = 1;
     }
-    
+
     optional SubscriptionStatus status = 2;
 
     enum SubscriptionStatus {
@@ -506,7 +506,7 @@ message DropInPlayer {
     optional uint64 country_code = 6;
     optional PlayerType player_type = 7;
     optional Sport sport = 8;
-    optional bool _f9 = 9; 
+    optional bool _f9 = 9;
     optional bool _f10 = 10;
     optional uint64 _f11 = 11;
     optional uint64 power = 12;
@@ -783,7 +783,7 @@ message PrivateEventFeedProto {
     optional uint64 updateDate = 15;
     optional uint64 subgroupId = 16;
     optional uint32 laps = 17;
-    optional bool rubberbanding = 18; //keep together "rulesId": "1024" 
+    optional bool rubberbanding = 18; //keep together "rulesId": "1024"
 }
 
 message PrivateEventFeedListProto {
@@ -908,7 +908,7 @@ enum EventCulling {
     CULLING_SUBGROUP_ONLY = 3;
 }
 
-message Event { //real name: EventProtobuf; where is shortName, shortDescription, rulesSet, routeUrl, bikeHash, 
+message Event { //real name: EventProtobuf; where is shortName, shortDescription, rulesSet, routeUrl, bikeHash,
 //privateEvent, followeeEntrantCount, totalEntrantCount, followeeSignedUpCount, totalSignedUpCount, followeeJoinedCount,
 //totalJoinedCount, auxiliaryUrl, imageS3Name, imageS3Bucket, cullingType, recurring, recurringOffset, publishRecurring, parentId, type, workoutHash,
 //customUrl, restricted, unlisted, eventSecret, accessExpression, qualificationRuleIds, minGameVersion, recordable, imported, eventTemplateId
