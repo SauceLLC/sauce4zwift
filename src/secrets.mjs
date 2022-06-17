@@ -8,7 +8,7 @@ export async function get(key) {
         throw new TypeError('key required');
     }
     const raw = await keytar.getPassword(service, key);
-    return raw ? return JSON.parse(raw) : undefined;
+    return raw ? JSON.parse(raw) : undefined;
 }
 
 
