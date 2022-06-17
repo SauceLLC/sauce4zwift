@@ -295,7 +295,7 @@ function humanWeightClass(kg, options={}) {
     const vOfRange = v / range;
     const lower = Math.floor(vOfRange) * range;
     const upper = (vOfRange % 1) ? Math.ceil(vOfRange) * range : (vOfRange + 1) * range;
-    return `${humanNumber(lower)}~${humanNumber(upper)}${suffix}`;
+    return `${humanNumber(lower)} - ${humanNumber(upper)}${suffix}`;
 }
 
 
