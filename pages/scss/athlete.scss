@@ -53,11 +53,11 @@ body > main {
         font-size: 1.1em;
         padding-bottom: 0.1em;
 
-        a[data-action] {
+        a {
             opacity: 0.86;
             transition: opacity 150ms;
             margin: -0.5em 0;
-            padding-top: 0.2em;
+            padding-top: 0.15em;
             color: #ddd;
 
             &[disabled] {
@@ -72,14 +72,20 @@ body > main {
                 margin-right: 0.4em;
             }
             &[data-action="toggleMuted"] {
-                font-size: 0.9em;
-                padding-top: 0.23em;
+                ms {
+                    font-size: 0.9em;
+                    margin-bottom: 0.085em;
+                }
             }
             &[data-action="togglePinned"].active {
                 color: #69ff94;
             }
             &[data-action="toggleMuted"].active {
                 color: #e14300;
+            }
+
+            img {
+                max-height: 1em;
             }
         }
     }

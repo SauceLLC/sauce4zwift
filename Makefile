@@ -57,6 +57,8 @@ publish: $(BUILD)
 
 webdeps:
 	cp node_modules/echarts/dist/echarts.esm.js pages/deps/src/echarts.mjs
+	cp node_modules/world_countries_lists/data/countries/_combined/world.json pages/deps/src/countries.json
+	cp -r node_modules/world_countries_lists/data/flags/64x64 pages/deps/flags
 
 sass:
 	$(NPATH)/sass pages/scss:pages/css
@@ -77,9 +79,11 @@ endif
 clean:
 ifndef WINBLOWS
 	rm -rf pages/deps/src/*
-	rm $(BUILD)
+	rm -rf pages/deps/flags
+	rm -f $(BUILD)
 else
 	-rm -r -fo -ErrorAction SilentlyContinue pages/deps/src/*
+	-rm -r -fo -ErrorAction SilentlyContinue pages/deps/flags
 	-rm -fo -ErrorAction SilentlyContinue $(BUILD)
 endif
 

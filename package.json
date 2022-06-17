@@ -36,7 +36,8 @@
     "electron-builder": "23.0.4",
     "electron-notarize": "1.2.1",
     "eslint": "8.16.0",
-    "sass": "1.52.2"
+    "sass": "1.52.2",
+    "world_countries_lists": "2.5.1"
   },
   "build": {
     "appId": "io.saucellc.sauce4zwift",
