@@ -7,7 +7,6 @@ import * as rpc from './rpc.mjs';
 import {EventEmitter} from 'node:events';
 import {sleep} from '../shared/sauce/base.mjs';
 import {createRequire} from 'node:module';
-import * as secrets from './secrets.mjs';
 import * as zwift from './zwift.mjs';
 import * as menu from './menu.mjs';
 
@@ -570,20 +569,7 @@ export async function patronLink() {
 }
 
 
-export async function zwiftLogin(logout) {
-    if (logout) {
-        await secrets.remove('zwift-login');
-    }
-    const login = await secrets.get('zwift-login');
-    if (login) {
-        try {
-            await zwift.authenticate(login.username, login.password);
-            return true;
-        } catch(e) {
-            console.debug("Previous Zwift login invalid:", e);
-            // We could remove them, but it might be a network error; just leave em for now.
-        }
-    }
+export async function zwiftLogin() {
     const win = makeCaptiveWindow({
         width: 400,
         height: 600,
@@ -598,8 +584,7 @@ export async function zwiftLogin(logout) {
     electron.ipcMain.on('zwift-creds', async (ev, {username, password}) => {
         try {
             await zwift.authenticate(username, password);
-            await secrets.set('zwift-login', {username, password});
-            setDone(true);
+            setDone({username, password});
         } catch(e) {
             win.webContents.send('validation-error', e);
         }

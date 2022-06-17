@@ -1,21 +1,22 @@
 import keytar from 'keytar';
 
-const service = 'Sauce, LLC';
+const service = 'Zwift Credentials - Sauce for Zwift';
 
 
 export async function get(key) {
     if (!key) {
         throw new TypeError('key required');
     }
-    return JSON.parse(await keytar.getPassword(service, key));
+    const raw = await keytar.getPassword(service, key);
+    return raw ? return JSON.parse(raw) : undefined;
 }
 
 
-export async function set(key, value) {
-    if (!key || !value) {
-        throw new TypeError('key and value required');
+export async function set(key, data) {
+    if (!key || !data) {
+        throw new TypeError('key and data required');
     }
-    await keytar.setPassword(service, key, JSON.stringify(value));
+    await keytar.setPassword(service, key, JSON.stringify(data));
 }
 
 
@@ -24,10 +25,4 @@ export async function remove(key) {
         throw new TypeError('key required');
     }
     return await keytar.deletePassword(service, key);
-}
-
-
-export async function entries() {
-    const data = await keytar.findCredentials(service);
-    return data.map(({account, password}) => [account, JSON.parse(password)]);
 }

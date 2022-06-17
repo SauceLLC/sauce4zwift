@@ -393,7 +393,7 @@ class SauceApp extends EventEmitter {
         }
         rpcSources.game = this.gameMonitor;
         rpcSources.app = this;
-        if (options.hasZwiftAPI && this.getSetting('gameConnectionEnabled')) {
+        if (zwift.isAuthenticated() && this.getSetting('gameConnectionEnabled')) {
             rpcSources.gameConnection = (this.gameConnection = this.startGameConnectionServer());
         }
         if (this.getSetting('webServerEnabled')) {
@@ -407,6 +407,29 @@ class SauceApp extends EventEmitter {
                 rpcSources,
             });
         }
+    }
+}
+
+
+async function zwiftAuthenticate(options={}) {
+    let creds;
+    if (!options.forceLogin) {
+        creds = await secrets.get('zwift-login');
+        if (creds) {
+            try {
+                await zwift.authenticate(creds.username, creds.password);
+                return;
+            } catch(e) {
+                console.debug("Previous Zwift login invalid:", e);
+                // We could remove them, but it might be a network error; just leave em for now.
+            }
+        }
+    }
+    creds = await windows.zwiftLogin();
+    if (creds) {
+        await secrets.set('zwift-login', creds);
+    } else {
+        console.warn("Zwift login not active.  Things WILL BE BROKEN", zwift.isAuthenticated());
     }
 }
 
@@ -453,9 +476,8 @@ export async function main() {
         });
         return;
     }
-    const options = {
-        hasZwiftAPI: await windows.zwiftLogin(),
-    };
+    await zwiftAuthenticate({forceLogin: process.argv.includes('--force-zwift-login')});
+    const options = {};
     if (process.argv.includes('--garmin-live-track')) {
         options.garminLiveTrackSession = process.argv.find((x, i) => i && process.argv[i - 1] == '--garmin-live-track');
     } else {
