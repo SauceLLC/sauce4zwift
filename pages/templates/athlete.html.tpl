@@ -10,8 +10,10 @@
                 <a title="Watch this athlete"
                    data-action="watch" href><ms>video_camera_front</ms></a>
             <% } else { %>
-                <a title="Game connection is not enabled or established which is required to send the watch command."
-                   disabled data-action="watch"><ms>videocam</ms></a>
+                <a title="Game Connection is required to send the Watch command"
+                   disabled><ms>videocam</ms></a>
+                <a title="Game Connection is required to send the Join (i.e. ride with) command"
+                   disabled><ms>follow_the_signs</ms></a>
             <% } %>
             <a title="Toggle visibility of chat messages from yahoos
 
