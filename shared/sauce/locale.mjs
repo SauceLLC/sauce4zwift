@@ -266,6 +266,18 @@ function humanWeight(kg, options={}) {
 }
 
 
+function humanWeightClass(kg, options={}) {
+    const unit = imperial ? 'lbs' : 'kg';
+    const suffix = options.suffix ? options.html ? `<abbr class="unit">${unit}</abbr>` : unit : '';
+    const v = imperial ? kg * kgsPerLbs : kg;
+    const range = imperial ? 20 : 10;
+    const vOfRange = v / range;
+    const lower = Math.floor(vOfRange) * range;
+    const upper = (vOfRange % 1) ? Math.ceil(vOfRange) * range : (vOfRange + 1) * range;
+    return `${humanNumber(lower)}-${humanNumber(upper)}${suffix}`;
+}
+
+
 function humanHeight(cm, options={}) {
     if (imperial) {
         const feet = cm / 100 / 0.3048;
@@ -321,6 +333,7 @@ export const human = {
     duration: humanDuration,
     relTime: humanRelTime,
     weight: humanWeight,
+    weightClass: humanWeightClass,
     height: humanHeight,
     elevation: humanElevation,
     number: humanNumber,
