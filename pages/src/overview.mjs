@@ -156,7 +156,7 @@ function buildLayout() {
                 value: x => H.number(x && x.stats && x.stats.power.tss),
                 key: () => 'TSS',
             }, {
-                value: x => H.weight(x && x.athlete && x.athlete.weight),
+                value: x => H.weightClass(x && x.athlete && x.athlete.weight),
                 key: () => 'Weight',
                 unit: () => imperial ? 'lbs' : 'kg',
             }, {
