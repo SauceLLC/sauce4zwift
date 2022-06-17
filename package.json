@@ -17,7 +17,7 @@
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
-    "@saucellc/zwift-packet-monitor": "https://github.com/SauceLLC/zwift-packet-monitor.git#836ef9cf5656",
+    "@saucellc/zwift-packet-monitor": "https://github.com/SauceLLC/zwift-packet-monitor.git#c8b953ba31cde",
     "@sentry/integrations": "6.19.6",
     "@sentry/node": "6.19.6",
     "better-sqlite3": "7.5.3",
