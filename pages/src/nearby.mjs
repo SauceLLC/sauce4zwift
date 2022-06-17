@@ -23,7 +23,7 @@ let flags;
 
 
 const spd = v => H.pace(v, {precision: 0, suffix: true, html: true});
-const weight = v => H.weight(v, {precision: 0, suffix: true, html: true});
+//const weight = v => H.weight(v, {precision: 0, suffix: true, html: true});
 const weightClass = v => H.weightClass(v, {suffix: true, html: true});
 const pwr = v => H.power(v, {suffix: true, html: true});
 const hr = v => v ? `${num(v)}<abbr class="unit">bpm</abbr>` : '-';
