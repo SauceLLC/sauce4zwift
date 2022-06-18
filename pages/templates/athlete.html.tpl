@@ -8,11 +8,11 @@
     <% } else { %>
         <header class="title">
             <div class="name">
-                {{profile.sanitizedFullname}}
                 <% if (profile.countryCode) { %>
                     <img class="flag" src="{{flags[profile.countryCode]}}"
                          title="{{nations[profile.countryCode]}}"/>
                 <% } %>
+                {{profile.sanitizedFullname}}
             </div>
             <div class="buttons">
                 <a href="https://zwiftpower.com/profile.php?z={{athleteId}}"

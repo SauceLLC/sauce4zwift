@@ -30,6 +30,13 @@ const pbProfilePrivacyFlagsInverted = {
 };
 
 
+// XXX lifted from zwift-packet-monitor.  I need to refactor it so it's less of a pita to work with or integrate it.
+const worldTimeOffset = 1414016074335;  // ms since zwift started production.
+function worldTimeToDate(wt) {
+    return new Date(worldTimeOffset + Number(wt));
+}
+
+
 function zwiftCompatDate(date) {
     return date && (date.toISOString().slice(0, -5) + 'Z');
 }
@@ -169,19 +176,30 @@ export async function getProfiles(ids, options) {
 }
 
 
+function convSegmentResult(x) {
+    const ret = {
+        ...x.toJSON(),
+        ts: worldTimeToDate(x._worldTime),
+        finishTime: x.finishTime && new Date(x.finishTime),
+        segmentId: x._unsignedSegmentId.toSigned().toString()
+    };
+    delete ret._worldTime;
+    delete ret._unsignedSegmentId;
+    return ret;
+}
+
+
 export async function getLiveSegmentLeaders() {
     const data = await apiPB(`/live-segment-results-service/leaders`,
         {protobuf: 'SegmentResults'});
-    return data.results.filter(x => x._unsignedSegmentId.toNumber()).map(x => ({
-        ...x,
-        segmentId: x._unsignedSegmentId.toSigned().toString()
-    }));
+    return data.results.filter(x => +x.id).map(convSegmentResult);
 }
 
 
 export async function getLiveSegmentLeaderboard(segmentId) {
-    return (await apiPB(`/live-segment-results-service/leaderboard/${segmentId}`,
-        {protobuf: 'SegmentResults'})).results;
+    const data = await apiPB(`/live-segment-results-service/leaderboard/${segmentId}`,
+        {protobuf: 'SegmentResults'});
+    return data.results.map(convSegmentResult);
 }
 
 
