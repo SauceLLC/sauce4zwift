@@ -19,7 +19,20 @@ export async function main() {
     const nations = countries && Object.fromEntries(countries.map(({id, en}) => [id, en]));
     const flags = countries && Object.fromEntries(countries.map(({id, alpha2}) =>
         [id, `deps/flags/${alpha2}.png`]));
-    const profileFrag = await tpl({athleteId, profile, gameConnectionStatus, nations, flags});
+    const debug = location.search.includes('debug');
+    const tplData = {
+        debug,
+        athleteId,
+        profile,
+        gameConnectionStatus,
+        nations,
+        flags,
+        prettyType: profile && {
+            NORMAL: '',
+            PACER_BOT: 'Pacer Bot',
+        }[profile.type],
+    };
+    const profileFrag = await tpl(tplData);
     const main = document.querySelector('body > main');
     main.appendChild(profileFrag);
     main.addEventListener('click', async ev => {
@@ -38,28 +51,32 @@ export async function main() {
             await common.rpc.watch(athleteId);
         }
         main.innerHTML = '';
-        main.appendChild(await tpl({athleteId, profile, gameConnectionStatus, nations, flags}));
+        main.appendChild(await tpl(tplData));
     });
     let lastWatching;
     common.subscribe('nearby', async data => {
+        const live = data.find(x => x.athleteId === athleteId);
+        if (!live) {
+            return;
+        }
         const liveEls = Object.fromEntries(Array.from(document.querySelectorAll('.live'))
             .map(x => [x.dataset.id, x]));
-        for (const x of data) {
-            if (x.athleteId === athleteId) {
-                liveEls.power.textContent = H.number(x.state.power);
-                liveEls.hr.textContent = H.number(x.state.heartrate);
-                liveEls.rideons.textContent = H.number(x.state.rideons);
-                liveEls.kj.textContent = H.number(x.state.kj);
-                const watching = x.state.watchingAthleteId;
-                if (watching === athleteId) {
-                    liveEls.watching.textContent = '<self>';
-                } else if (watching) {
-                    if (!lastWatching) {
-                        lastWatching = await common.rpc.getAthlete(watching);
-                    }
-                    liveEls.watching.textContent = lastWatching ? lastWatching.sanitizedFullname : '-';
-                }
+        liveEls.power.innerHTML = H.power(live.state.power, {suffix: true, html: true});
+        liveEls.speed.innerHTML = H.pace(live.state.speed, {suffix: true, html: true});
+        liveEls.hr.textContent = H.number(live.state.heartrate);
+        liveEls.rideons.textContent = H.number(live.state.rideons);
+        liveEls.kj.textContent = H.number(live.state.kj);
+        const watching = live.state.watchingAthleteId;
+        if (watching === athleteId) {
+            liveEls.watching.textContent = '<self>';
+        } else if (watching) {
+            if (!lastWatching) {
+                lastWatching = await common.rpc.getAthlete(watching);
             }
+            liveEls.watching.textContent = lastWatching ? lastWatching.sanitizedFullname : '-';
+        }
+        if (debug) {
+            document.querySelector('.debug').textContent = JSON.stringify(live, null, 4);
         }
     });
 }

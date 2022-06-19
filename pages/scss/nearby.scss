@@ -113,6 +113,11 @@ table {
             }
         }
 
+        &[data-id="weight-class"] {
+            white-space: nowrap;
+            font-variant-numeric: normal;
+        }
+
         .team-badge {
             display: inline-block;
         }

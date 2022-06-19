@@ -72,14 +72,21 @@
                 <% if (profile.ftp) { %>
                     <div class="row p2"><key>FTP</key>{{profile.ftp}}<abbr class="unit">w</abbr></div>
                 <% } %>
+                <% if (profile.type !== 'NORMAL') { %>
+                    <div class="row p2"><key>Type</key>{{prettyType || profile.type}}</div>
+                <% } %>
             </div>
             <div class="info live">
-                <div class="row p2"><key>Power</key><span class="live" data-id="power">-</span><abbr class="unit">w</abbr></div>
+                <div class="row p2"><key>Power</key><span class="live" data-id="power">-</span></div>
+                <div class="row p2"><key>Speed</key><span class="live" data-id="speed">-</span></div>
                 <div class="row p2"><key>HR</key><span class="live" data-id="hr">-</span><abbr class="unit">bpm</abbr></div>
                 <div class="row p2"><key>Ride Ons</key><span class="live" data-id="rideons">-</span></div>
                 <div class="row p2"><key>Energy</key><span class="live" data-id="kj">-</span><abbr class="unit">kJ</abbr></div>
                 <div class="row p2"><key>Watching</key><span class="live" data-id="watching">-</span></div>
             </div>
         </section>
+    <% } %>
+    <% if (obj.debug) { %>
+        <section><pre class="debug"></pre></section>
     <% } %>
 </div>
