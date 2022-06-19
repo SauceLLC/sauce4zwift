@@ -20,7 +20,7 @@ $(PACKAGES): package.json
 	npm install
 	echo "" > $@
 
-$(BUILD): $(PAGES_SRC) $(PACKAGES) sass webdeps Makefile .git/index
+$(BUILD): $(PAGES_SRC) $(PACKAGES) sass deps Makefile .git/index
 	echo "" > $@
 
 build: $(BUILD)
@@ -55,10 +55,12 @@ endif
 publish: $(BUILD)
 	npm run publish
 
-webdeps:
+deps:
 	cp node_modules/echarts/dist/echarts.esm.js pages/deps/src/echarts.mjs
 	cp node_modules/world_countries_lists/data/countries/_combined/world.json pages/deps/src/countries.json
 	cp -r node_modules/world_countries_lists/data/flags/64x64 pages/deps/flags
+	cp node_modules/zwift-data/lib/esm/routes.js shared/deps/routes.mjs
+	cp node_modules/zwift-data/lib/esm/segments.js shared/deps/segments.mjs
 
 sass:
 	$(NPATH)/sass pages/scss:pages/css
@@ -80,11 +82,13 @@ clean:
 ifndef WINBLOWS
 	rm -rf pages/deps/src/*
 	rm -rf pages/deps/flags
+	rm -rf shared/deps/*
 	rm -f $(BUILD)
 else
 	-rm -r -fo -ErrorAction SilentlyContinue pages/deps/src/*
 	-rm -r -fo -ErrorAction SilentlyContinue pages/deps/flags
+	-rm -r -fo -ErrorAction SilentlyContinue shared/deps/*
 	-rm -fo -ErrorAction SilentlyContinue $(BUILD)
 endif
 
-.PHONY: build pack publish lint sass webdeps clean
+.PHONY: build pack publish lint sass deps clean

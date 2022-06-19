@@ -17,7 +17,7 @@
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
-    "@saucellc/zwift-packet-monitor": "https://github.com/SauceLLC/zwift-packet-monitor.git#c8b953ba31cde",
+    "@saucellc/zwift-packet-monitor": "https://github.com/SauceLLC/zwift-packet-monitor.git#886d862d8e0",
     "@sentry/integrations": "6.19.6",
     "@sentry/node": "6.19.6",
     "better-sqlite3": "7.5.3",
@@ -37,7 +37,8 @@
     "electron-notarize": "1.2.1",
     "eslint": "8.16.0",
     "sass": "1.52.2",
-    "world_countries_lists": "2.5.1"
+    "world_countries_lists": "2.5.1",
+    "zwift-data": "1.16.0"
   },
   "build": {
     "appId": "io.saucellc.sauce4zwift",
