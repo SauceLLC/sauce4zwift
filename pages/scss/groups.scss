@@ -257,7 +257,7 @@ html:not(.game-connection) {
             }
 
             img {
-                height: 2em;
+                height: 1.5em;
                 filter: invert(1);
             }
         }
@@ -294,7 +294,6 @@ html:not(.game-connection) {
             background-size: auto min(1rem, 50%);
             background-position: center center;
             background-repeat: no-repeat;
-            filter: invert(1);
         }
     }
 }
