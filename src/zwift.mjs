@@ -261,8 +261,55 @@ export async function getNotifications() {
 }
 
 
-export async function getEventFeed() {  // from=epoch, limit=25, sport=CYCLING
-    return await (await api(`/api/event-feed`, {accept: 'json'})).json();
+export async function getEventFeed(options={}) {
+    // Be forewarned, this API is not stable.  It returns dups and skips entries on page boundries.
+    const urn = '/api/event-feed';
+    const results = [];
+    const from = +options.from || (Date.now() - (3600 * 1000));
+    const to = +options.to || (Date.now() + (3600 * 1000));
+    let pages = 0;
+    const pageLimit = options.pageLimit ? options.pageLimit : 5;
+    const ids = new Set();
+    const limit = options.limit || 50;
+    const query = new URLSearchParams({from, limit});
+    let done;
+    while (!done) {
+        const page = await apiJSON(urn, {query});
+        for (const x of page.data) {
+            if (new Date(x.event.eventStart) >= to) {
+                done = true;
+                break;
+            } else if (!ids.has(x.event.id)) {
+                results.push(x.event);
+                ids.add(x.event.id);
+            }
+        }
+        if (page.data.length < limit || ++pages >= pageLimit) {
+            break;
+        }
+        query.set('cursor', page.cursor);
+    }
+    return results;
+}
+
+
+export async function getPrivateEventFeed(options={}) {
+    // This endpoint is also unreliable and the from/to don't seem to do much.
+    // Sometimes it returns all meetups, and sometimes just recent ones if any.
+    const start_date = +options.from || (Date.now() - (3600 * 1000));
+    const end_date = +options.to || (Date.now() + (3600 * 1000));
+    const query = new URLSearchParams({start_date, end_date});
+    return await apiJSON('/api/private_event/feed', {query});
+}
+
+
+export async function getEvent(id) {
+    return await apiJSON(`/api/events/${id}`);
+}
+
+
+export async function getPrivateEvent(id) {
+    return await apiJSON(`/api/private_event/${id}`);
 }
 
 
