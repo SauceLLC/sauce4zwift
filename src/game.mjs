@@ -289,6 +289,8 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         this._pendingProfileFetches = [];
         this._profileFetchCount = 0;
         this._chatHistory = [];
+        this._events = new Map();
+        this._subGroupEvents = new Map();
         this.on('incoming', this.onIncoming);
         this.on('outgoing', this.onOutgoing);
         rpc.register(this.updateAthlete, {scope: this});
@@ -296,8 +298,21 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         rpc.register(this.resetStats, {scope: this});
         rpc.register(this.exportFIT, {scope: this});
         rpc.register(this.getAthlete, {scope: this});
+        rpc.register(this.getEvent, {scope: this});
+        rpc.register(this.getSubGroupEvent, {scope: this});
         rpc.register(this.resetAthletesDB, {scope: this, name: 'resetAthletesDB'});
         rpc.register(this.getChatHistory, {scope: this, name: 'getChatHistory'});
+    }
+
+    getEvent(id) {
+        return this._events.get(id);
+    }
+
+    getSubGroupEvent(id) {
+        const eid = this._subGroupEvents.get(id);
+        if (eid) {
+            return this._events.get(eid);
+        }
     }
 
     getChatHistory() {
@@ -561,7 +576,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 } else if (type === 'PayloadRideOn') {
                     this.handleRideOnPayload(x.payload, ts);
                 } else {
-                    console.debug(x.payloadType, x.payload);
+                    console.debug(x.payloadType, x.payload.toJSON());
                 }
             }
         }
@@ -680,7 +695,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         bits >>>= 16;
         const _rem2 = bits; // XXX no idea
         return {
-            activePowerUp: powerUping === 0xF ? false : powerUpEnum[powerUping],
+            activePowerUp: powerUping === 0xF ? null : powerUpEnum[powerUping],
             turning,
             roadId,
             overlapping,
@@ -827,6 +842,12 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         if (!this._athleteData.has(state.athleteId)) {
             this._athleteData.set(state.athleteId, this._createAthleteData(state.athleteId, state.ts));
         }
+        //console.debug(state.progress.toString(16)); // Only ever see bits 8-16 set
+        if (state.progress & 0xffff00ff) {
+            console.debug("unexpected progress value, examine:", state.athleteId, state.progress.toString(16), state.progress >> 8 & 0xff);
+        }
+        state.progress = (state._progress >> 8 & 0xff) / 0xff;
+        state.progressIsWorkout = !!(state._progress & 0x01);
         const ad = this._athleteData.get(state.athleteId);
         if (ad.mostRecentState && ad.mostRecentState.ts >= state.ts) {
             if (ad.mostRecentState.ts === state.ts) {
@@ -844,10 +865,8 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         state.heading = headingConv(state._heading);  // degrees
         state.speed = state._speed / 1000000;  // km/h
         state.cadence = state._cadenceUHz ? state._cadenceUHz / 1000000 * 60 : 0;  // rpm
-        // XXX there are two distance values, one probably includes lateral movement?
-        // But we just use the more precise one and clobber the other.
-        state.distance = state._distance / 100;  // cm -> meters
         state.roadCompletion = !state.reverse ? 1000000 - state.roadLocation : state.roadLocation;
+        state.distanceWithLateral = state._distanceWithLateral / 100;  // cm -> m
         ad.mostRecentState = state;
         const roadSig = this._roadSig(state);
         if (roadSig !== ad.roadHistory.sig) {
@@ -917,7 +936,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             this._fakeDataGenerator();
         } else if (!this._noData) {
             super.start();
-            this._socialNetworkUpdate().catch(captureExceptionOnce);
+            this._zwiftMetaSync();  // bg okay
         }
         this._nearbyJob = this.nearbyProcessor();
         this._gcInterval = setInterval(this.gcStates.bind(this), 32768);
@@ -935,11 +954,12 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         }
     }
 
-    async _socialNetworkUpdate() {
-        if (!zwift.isAuthenticated()) {
+    async _zwiftMetaSync() {
+        if (!this._active || !zwift.isAuthenticated()) {
             console.warn("Skipping social network update because not logged into zwift");
             return;
         }
+        setTimeout(this._zwiftMetaSync.bind(this), 600 * 1000);
         const selfProfile = await zwift.getProfile('me');
         const ourId = selfProfile.id;
         const followees = await zwift.getFollowees(ourId);
@@ -953,6 +973,22 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         if (updates.length) {
             console.info(`Updating info for ${updates.length} followees`);
             this.saveAthletes(updates);
+        }
+        const events = await zwift.getEventFeed();
+        for (const x of events) {
+            this._events.set(x.id, x);
+            if (x.eventSubgroups) {
+                for (const sg of x.eventSubgroups) {
+                    this._subGroupEvents.set(sg.id, x.id);
+                }
+            }
+        }
+        const meetups = await zwift.getPrivateEventFeed();
+        for (const x of meetups) {
+            this._events.set(x.id, x);
+            if (x.eventSubgroupId) {
+                this._subGroupEvents.set(x.eventSubgroupId, x.id);
+            }
         }
     }
 

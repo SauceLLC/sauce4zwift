@@ -1,5 +1,6 @@
 import * as sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
+import {routes} from '../../shared/deps/routes.mjs';
 
 const L = sauce.locale;
 const H = L.human;
@@ -20,10 +21,11 @@ let tbody;
 let mainRow;
 let nations;
 let flags;
+const routesById = new Map(routes.map(x => [x.id, x]));
+const eventsBySubGroup = new Map();
 
 
 const spd = v => H.pace(v, {precision: 0, suffix: true, html: true});
-//const weight = v => H.weight(v, {precision: 0, suffix: true, html: true});
 const weightClass = v => H.weightClass(v, {suffix: true, html: true});
 const pwr = v => H.power(v, {suffix: true, html: true});
 const hr = v => v ? `${num(v)}<abbr class="unit">bpm</abbr>` : '-';
@@ -31,6 +33,45 @@ const kj = v => v != null ? `${num(v)}<abbr class="unit">kJ</abbr>` : '-';
 const pct = v => v != null ? `${num(v)}<abbr class="unit">%</abbr>` : '-';
 const wkg = v => (v !== Infinity && !isNaN(v)) ?
     `${num(v, {precision: 1, fixed: true})}<abbr class="unit">w/kg</abbr>`: '-';
+const dist = v => H.distance(v, {suffix: true, html: true});
+
+function fmtRoute(rid) {
+    if (!rid) {
+        return '-';
+    }
+    const route = routesById.get(rid);
+    if (route) {
+        return route.name;
+    } else {
+        console.warn("Unknown route:", rid);
+        return '?';
+    }
+}
+
+function fmtEvent(sgid) {
+    if (!sgid) {
+        return '-';
+    }
+    if (!eventsBySubGroup.has(sgid)) {
+        common.rpc.getSubGroupEvent(sgid).then(event => {
+            if (event) {
+                eventsBySubGroup.set(sgid, event);
+            } else {
+                console.warn("Unknown event subgroup:", sgid);
+                eventsBySubGroup.set(sgid, null);
+            }
+        });
+        return '...';  // show on next refresh
+    } else {
+        const event = eventsBySubGroup.get(sgid);
+        if (event) {
+            const sg = event.eventSubgroups.find(x => x.id === sgid);
+            return `(${sg.subgroupLabel}) ${event.name}`;
+        } else {
+            return '?';
+        }
+    }
+}
 
 
 function clearSelection() {
@@ -45,8 +86,10 @@ function getAthleteValue(x, key) {
 
 
 function athleteLink(id, content, options={}) {
+    const debug = location.search.includes('debug') ? '&debug' : '';
     return `<a title="${options.title || ''}" class="athlete-link ${options.class || ''}"
-               target="_blank" href="athlete.html?athleteId=${id}&widthHint=900&heightHint=375">${content || ''}</a>`;
+               href="athlete.html?athleteId=${id}&widthHint=900&heightHint=375${debug}"
+               target="_blank">${content || ''}</a>`;
 }
 
 
@@ -79,7 +122,6 @@ const fields = [
     {id: 'initials', defaultEn: false, label: 'Initials', get: x => [x.athleteId, getAthleteValue(x, 'initials')],
      fmt: ([id, initials]) => athleteLink(id, sanitize(initials) || '-')},
     {id: 'id', defaultEn: false, label: 'ID', get: x => x.athleteId},
-//    {id: 'weight', defaultEn: false, label: 'Weight', get: x => getAthleteValue(x, 'weight'), fmt: weight},
     {id: 'weight-class', defaultEn: false, label: 'Weight', get: x => getAthleteValue(x, 'weight'), fmt: weightClass},
     {id: 'ftp', defaultEn: false, label: 'FTP', get: x => getAthleteValue(x, 'ftp'), fmt: pwr},
     {id: 'tss', defaultEn: false, label: 'TSS', get: x => x.stats.power.tss, fmt: num},
@@ -133,6 +175,7 @@ const fields = [
     {id: 'wkg-p1200s', defaultEn: false, label: '20m Peak W/kg',
      get: x => x.stats.power.peaks[1200].avg / (x.athlete && x.athlete.weight), fmt: wkg},
 
+    {id: 'distance', defaultEn: false, label: 'Dist', get: x => x.state.distance, fmt: dist},
     {id: 'spd-cur', defaultEn: true, label: 'Spd', get: x => x.state.speed, fmt: spd},
     {id: 'spd-60s', defaultEn: false, label: '1m Spd', get: x => x.stats.speed.smooth[60], fmt: spd},
     {id: 'spd-avg', defaultEn: true, label: 'Avg Spd', get: x => x.stats.speed.avg, fmt: spd},
@@ -146,6 +189,9 @@ const fields = [
     {id: 'rideons', defaultEn: false, label: 'Ride Ons', get: x => x.state.rideons, fmt: num},
     {id: 'kj', defaultEn: false, label: 'Energy', get: x => x.state.kj, fmt: kj},
     {id: 'draft', defaultEn: false, label: 'Draft', get: x => x.state.draft, fmt: pct},
+
+    {id: 'route', defaultEn: false, label: 'Route', get: x => x.state.route, fmt: fmtRoute},
+    {id: 'group', defaultEn: false, label: 'Event', get: x => x.state.groupId, fmt: fmtEvent},
 ];
 
 
@@ -264,7 +310,7 @@ function render() {
             } else {
                 row.classList.add('hi');
             }
-            await common.rpc.setWatching(hiRow);
+            await common.rpc.watch(hiRow);
         }
     });
     theadRow.addEventListener('click', ev => {

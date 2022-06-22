@@ -19,13 +19,16 @@
                    title="Open ZwiftPower profile"
                    target="_blank" external><img src="images/zp_logo.png"/></a>
                 <% if (gameConnectionStatus && gameConnectionStatus.connected) { %>
-                    <a title="Watch this athlete"
-                       data-action="watch" href><ms>video_camera_front</ms></a>
+                    <a title="Watch this athlete" data-action="watch" href><ms>video_camera_front</ms></a>
+                    <% if (obj.debug) { %>
+                        <a title="Join this athlete" data-action="join" href><ms>follow_the_signs</ms></a>
+                    <% } %>
                 <% } else { %>
-                    <a title="Game Connection is required to send the Watch command"
-                       disabled><ms>videocam</ms></a>
-                    <a title="Game Connection is required to send the Join (i.e. ride with) command"
-                       disabled><ms>follow_the_signs</ms></a>
+                    <a title="Game Connection is required to send the Watch command" disabled><ms>videocam</ms></a>
+                    <% if (obj.debug) { %>
+                        <a title="Game Connection is required to send the Join (i.e. ride with) command"
+                           disabled><ms>follow_the_signs</ms></a>
+                    <% } %>
                 <% } %>
                 <a title="Toggle visibility of chat messages from yahoos
 

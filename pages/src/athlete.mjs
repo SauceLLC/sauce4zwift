@@ -49,6 +49,10 @@ export async function main() {
             await common.rpc.updateAthlete(athleteId, {marked: profile.marked});
         } else if (a.dataset.action === 'watch') {
             await common.rpc.watch(athleteId);
+        } else if (a.dataset.action === 'join') {
+            await common.rpc.join(athleteId);
+        } else {
+            alert("Invalid command: " + a.dataset.action);
         }
         main.innerHTML = '';
         main.appendChild(await tpl(tplData));
@@ -76,7 +80,7 @@ export async function main() {
             liveEls.watching.textContent = lastWatching ? lastWatching.sanitizedFullname : '-';
         }
         if (debug) {
-            document.querySelector('.debug').textContent = JSON.stringify(live, null, 4);
+            document.querySelector('.debug').textContent = JSON.stringify([live.state, live.athlete], null, 4);
         }
     });
 }

@@ -263,8 +263,10 @@ function humanDistance(meters, options={}) {
     if (!_realNumber(meters)) {
         return '-';
     }
+    const unit = imperial ? 'mi' : 'km';
+    const suffix = options.suffix ? options.html ? `<abbr class="unit">${unit}</abbr>` : unit : '';
     return humanNumber(imperial ? meters / metersPerMile : meters / 1000,
-        {fixed: true, precision: 1, ...options});
+        {fixed: true, precision: 1, ...options}) + suffix;
 }
 
 
