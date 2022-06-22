@@ -193,8 +193,8 @@ function renderZoomed(groups) {
             if (fLast) {
                 leftLines.push(`<div class="line minor">${fLast}</div>`);
                 if (team) {
-                    const hue = common.teamHue(team);
-                    leftLines.push(`<div class="team-badge" style="--team-hue: ${hue};">${team}</div>`);
+                    const hue = common.badgeHue(team);
+                    leftLines.push(`<div class="badge" style="--hue: ${hue};">${team}</div>`);
                 }
             }
         }

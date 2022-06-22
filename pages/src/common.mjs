@@ -603,7 +603,7 @@ export function sanitizeForAttr(raw) {
 }
 
 
-export function teamHue(name) {
+export function badgeHue(name) {
     name = name || '';
     let s = 0;
     for (let i = 0; i < name.length; i++) {

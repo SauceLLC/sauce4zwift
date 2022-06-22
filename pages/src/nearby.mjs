@@ -66,7 +66,16 @@ function fmtEvent(sgid) {
         const event = eventsBySubGroup.get(sgid);
         if (event) {
             const sg = event.eventSubgroups.find(x => x.id === sgid);
-            return `(${sg.subgroupLabel}) ${event.name}`;
+            const badgeHue = {
+                A: 0,
+                B: 90,
+                C: 180,
+                D: 60,
+                E: 260,
+            }[sg.subgroupLabel];
+            return `<a href="https://www.zwift.com/events/view/${event.id}" target="_blank">
+                <span class="badge" style="--hue: ${badgeHue}deg;">${sg.subgroupLabel}</span> ${event.name}
+            </a>`;
         } else {
             return '?';
         }
@@ -104,8 +113,8 @@ function formatTeam(t) {
     if (!t) {
         return '-';
     }
-    const hue = common.teamHue(t);
-    return `<div class="team-badge" style="--team-hue: ${hue};">${sanitize(t)}</div>`;
+    const hue = common.badgeHue(t);
+    return `<div class="badge" style="--hue: ${hue};">${sanitize(t)}</div>`;
 }
 
 

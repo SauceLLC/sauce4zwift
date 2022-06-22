@@ -147,14 +147,14 @@ export async function main() {
         }
         if (!chat.muted) {
             entry.style.setProperty('--message-hue', athleteHue(chat.from) + 'deg');
-            const hue = common.teamHue(chat.team);
+            const hue = common.badgeHue(chat.team);
             entry.innerHTML = `
                 <a href="athlete.html?athleteId=${chat.from}&widthHint=900&heightHint=400" target="_blank"
                    class="avatar"><img src="${chat.avatar || 'images/blankavatar.png'}"/></a>
                 <div class="content">
                     <div class="header">
                         <div class="name"></div>
-                        <div class="team-badge" title="Team name" style="--team-hue: ${hue};"></div>
+                        <div class="badge" title="Team name" style="--hue: ${hue};"></div>
                     </div>
                     <div class="live">${liveDataFormatter(chat.from)}</div>
                     <div class="message"><div class="chunk"></div></div>
@@ -163,7 +163,7 @@ export async function main() {
             const name = [chat.firstName, chat.lastName].filter(x => x).join(' ');
             // Sanitize with `textContent`.  Don't use ^^^ string interpolation.
             entry.querySelector('.name').textContent = name;
-            entry.querySelector('.team-badge').textContent = chat.team || '';
+            entry.querySelector('.badge').textContent = chat.team || '';
             entry.querySelector('.message .chunk').textContent = chat.message;
         } else {
             const initials = [chat.firstName[0].toUpperCase(), chat.lastName[0].toUpperCase()].filter(x => x).join('');
