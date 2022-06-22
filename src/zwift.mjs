@@ -224,6 +224,11 @@ export async function getSegmentResults(segmentId, options={}) {
 }
 
 
+export async function getGameInfo() {
+    return await apiJSON(`/api/game_info`, {apiVersion: '2.6'});
+}
+
+
 export async function searchProfiles(searchText, options={}) {
     return await apiPaged('/api/search/profiles', {
         method: 'POST',
@@ -242,17 +247,22 @@ export async function getFollowers(athleteId, options={}) {
 }
 
 
-export async function getGameInfo() {
-    return await apiJSON(`/api/game_info`, {apiVersion: '2.6'});
+export async function _setFollowing(to, from) {
+    return await apiJSON(`/api/profiles/${from}/following/${to}`, {
+        method: 'POST',
+        json: {
+            followeeId: to,
+            followerId: from,
+        },
+    });
 }
 
 
-export async function giveRideon(to, from) {
-    await (await api(`/api/profiles/${to}/activities/0/rideon`, {
+export async function _giveRideon(to, from) {
+    await apiJSON(`/api/profiles/${to}/activities/0/rideon`, {
         method: 'POST',
         json: {profileId: from},
-        accept: 'json',
-    })).json();
+    });
 }
 
 
@@ -506,7 +516,7 @@ export class GameConnectionServer extends net.Server {
     }
 
     async chatMessage(message, options={}) {
-        console.warn("XXX Just use the reset api please");
+        console.warn("XXX Just use the REST api please");
         await this.sendCommands({
             command: 25,
             socialAction: {
@@ -621,12 +631,7 @@ export class GameConnectionServer extends net.Server {
         const pb = protos.GameToCompanion.decode(buf);
         if (!this.athleteId) {
             this.athleteId = pb.athleteId.toNumber();
-            if (!this.watching) {
-                // Remove dev only
-                this.watching = this.athleteId;
-            }
         }
-        //console.debug("Game message:", JSON.stringify(pb.toJSON(), null, 2));
         this.emit('message', pb);
     }
 
