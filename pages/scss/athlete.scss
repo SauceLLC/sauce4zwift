@@ -89,6 +89,9 @@ body > main {
             &[data-action="toggleMuted"].active {
                 color: #e14300;
             }
+            &[data-action="unfollow"].active {
+                color: #69ff94;
+            }
 
             img {
                 max-height: 1em;

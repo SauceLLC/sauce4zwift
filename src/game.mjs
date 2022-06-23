@@ -300,8 +300,11 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         rpc.register(this.getAthlete, {scope: this});
         rpc.register(this.getEvent, {scope: this});
         rpc.register(this.getSubGroupEvent, {scope: this});
-        rpc.register(this.resetAthletesDB, {scope: this, name: 'resetAthletesDB'});
-        rpc.register(this.getChatHistory, {scope: this, name: 'getChatHistory'});
+        rpc.register(this.resetAthletesDB, {scope: this});
+        rpc.register(this.getChatHistory, {scope: this});
+        rpc.register(this.setFollowing, {scope: this});
+        rpc.register(this.setNotFollowing, {scope: this});
+        rpc.register(this.giveRideon, {scope: this});
     }
 
     getEvent(id) {
@@ -474,6 +477,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         };
         if (p.socialFacts) {
             o.following = p.socialFacts.followerStatusOfLoggedInPlayer === 'IS_FOLLOWING';
+            o.followRequest = p.socialFacts.followerStatusOfLoggedInPlayer === 'REQUESTS_TO_FOLLOW';
             o.favorite = p.socialFacts.isFavoriteOfLoggedInPlayer;
         }
         return o;
@@ -936,7 +940,12 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             this._fakeDataGenerator();
         } else if (!this._noData) {
             super.start();
-            this._zwiftMetaSync();  // bg okay
+            if (zwift.isAuthenticated()) {
+                const selfProfile = await zwift.getProfile('me');
+                // Could technically be different than the game account
+                this.zwiftAPIAthleteId = selfProfile.id;
+                this._zwiftMetaSync();  // bg okay
+            }
         }
         this._nearbyJob = this.nearbyProcessor();
         this._gcInterval = setInterval(this.gcStates.bind(this), 32768);
@@ -959,10 +968,8 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             console.warn("Skipping social network update because not logged into zwift");
             return;
         }
-        setTimeout(this._zwiftMetaSync.bind(this), 600 * 1000);
-        const selfProfile = await zwift.getProfile('me');
-        const ourId = selfProfile.id;
-        const followees = await zwift.getFollowees(ourId);
+        setTimeout(this._zwiftMetaSync.bind(this), 1200 * 1000);
+        const followees = await zwift.getFollowees(this.zwiftAPIAthleteId);
         const updates = [];
         for (const x of followees) {
             const p = x.followeeProfile;
@@ -971,7 +978,6 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             }
         }
         if (updates.length) {
-            console.info(`Updating info for ${updates.length} followees`);
             this.saveAthletes(updates);
         }
         const events = await zwift.getEventFeed();
@@ -990,6 +996,37 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 this._subGroupEvents.set(x.eventSubgroupId, x.id);
             }
         }
+        console.debug(`Updated zwift data for ${updates.length} followees, ${events.length} events, ` +
+            `${meetups.length} meetups`);
+    }
+
+    async setFollowing(athleteId) {
+        if (!zwift.isAuthenticated()) {
+            throw new TypeError("Zwift login required");
+        }
+        const resp = await zwift._setFollowing(athleteId, this.zwiftAPIAthleteId);
+        return this.updateAthlete(athleteId, {
+            following: resp.status === 'IS_FOLLOWING',
+            followRequest: resp.status === 'REQUESTS_TO_FOLLOW',
+        });
+    }
+
+    async setNotFollowing(athleteId) {
+        if (!zwift.isAuthenticated()) {
+            throw new TypeError("Zwift login required");
+        }
+        await zwift._setNotFollowing(athleteId, this.zwiftAPIAthleteId);
+        return this.updateAthlete(athleteId, {
+            following: false,
+            followRequest: false,
+        });
+    }
+
+    async giveRideon(athleteId, activity=0) {
+        if (!zwift.isAuthenticated()) {
+            throw new TypeError("Zwift login required");
+        }
+        return await zwift._giveRideon(athleteId, this.zwiftAPIAthleteId, activity);
     }
 
     async _fakeDataGenerator() {

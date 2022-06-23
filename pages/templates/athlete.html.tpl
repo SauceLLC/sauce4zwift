@@ -37,11 +37,16 @@
                                                              ...seriously"
                    data-action="toggleMuted" class="{{profile.muted ? 'active' : ''}}"
                    href><ms>{{profile.muted ? 'comments_disabled' : 'comment'}}</ms></a>
-                <a title="Toggle following status" href class="{{profile.following ? 'active' : ''}}"
-                   data-action="toggleFollow"><ms>{{profile.following ? 'group_remove' : 'group_add'}}</ms></a>
+                <a title="Give a Ride On to this athlete" {{obj.rideonSent ? 'disabled' : 'href'}}
+                   data-action="rideon"><ms>thumb_up</ms></a>
                 <% if (profile.following) { %>
-                    <a title="Toggle favorite status" href
-                       data-action="toggleFavorite"><ms>{{profile.favorite ? 'grade' : 'star'}}</ms></a>
+                    <a title="You are following this athlete, click to unfollow" href class="active"
+                       data-action="unfollow"><ms>group</ms></a>
+                <% } else if (profile.followRequest) { %>
+                    <a title="Follow request sent" disabled class=""><ms>pending</ms></a>
+                <% } else { %>
+                    <a title="You are not following this athlete, click to follow" href
+                       data-action="follow"><ms>group_add</ms></a>
                 <% } %>
                 <a title="Toggle marked state for this person.  Marked athletes will receieve extra attention and allow quick filtering.  Recommended for friends or foes in race situations."
                    data-action="toggleMarked" class="{{profile.marked ? 'active' : ''}}"

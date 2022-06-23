@@ -247,19 +247,28 @@ export async function getFollowers(athleteId, options={}) {
 }
 
 
-export async function _setFollowing(to, from) {
-    return await apiJSON(`/api/profiles/${from}/following/${to}`, {
+export async function _setFollowing(them, us) {
+    return await apiJSON(`/api/profiles/${us}/following/${them}`, {
         method: 'POST',
         json: {
-            followeeId: to,
-            followerId: from,
+            followeeId: them,
+            followerId: us,
         },
     });
 }
 
 
-export async function _giveRideon(to, from) {
-    await apiJSON(`/api/profiles/${to}/activities/0/rideon`, {
+export async function _setNotFollowing(them, us) {
+    const resp = await api(`/api/profiles/${us}/following/${them}`, {method: 'DELETE'});
+    if (!resp.ok) {
+        throw new Error(resp.status);
+    }
+}
+
+
+export async function _giveRideon(to, from, activity=0) {
+    // activity 0 is an in-game rideon
+    await apiJSON(`/api/profiles/${to}/activities/${activity}/rideon`, {
         method: 'POST',
         json: {profileId: from},
     });

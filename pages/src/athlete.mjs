@@ -49,8 +49,17 @@ export async function main() {
             await common.rpc.updateAthlete(athleteId, {marked: profile.marked});
         } else if (a.dataset.action === 'watch') {
             await common.rpc.watch(athleteId);
+            return;
         } else if (a.dataset.action === 'join') {
             await common.rpc.join(athleteId);
+            return;
+        } else if (a.dataset.action === 'follow') {
+            tplData.profile = await common.rpc.setFollowing(athleteId);
+        } else if (a.dataset.action === 'unfollow') {
+            tplData.profile = await common.rpc.setNotFollowing(athleteId);
+        } else if (a.dataset.action === 'rideon') {
+            await common.rpc.giveRideon(athleteId);
+            tplData.rideonSent = true;
         } else {
             alert("Invalid command: " + a.dataset.action);
         }
