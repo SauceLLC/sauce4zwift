@@ -9,11 +9,11 @@ const settingsKey = 'nearby-settings-v3';
 const fieldsKey = 'nearby-fields-v2';
 let imperial = common.storage.get('/imperialUnits');
 L.setImperial(imperial);
+let eventSite = common.storage.get('/externalEventSite', 'zwift');
 let settings;
 let fieldStates;
 let athleteData = new Map();
 let nearbyData;
-let hiRow;
 let enFields;
 let sortBy;
 let sortByDir;
@@ -24,7 +24,6 @@ let flags;
 const routesById = new Map(routes.map(x => [x.id, x]));
 const eventsBySubGroup = new Map();
 
-
 const spd = v => H.pace(v, {precision: 0, suffix: true, html: true});
 const weightClass = v => H.weightClass(v, {suffix: true, html: true});
 const pwr = v => H.power(v, {suffix: true, html: true});
@@ -34,6 +33,7 @@ const pct = v => v != null ? `${num(v)}<abbr class="unit">%</abbr>` : '-';
 const wkg = v => (v !== Infinity && !isNaN(v)) ?
     `${num(v, {precision: 1, fixed: true})}<abbr class="unit">w/kg</abbr>`: '-';
 const dist = v => H.distance(v, {suffix: true, html: true});
+
 
 function fmtRoute(rid) {
     if (!rid) {
@@ -47,6 +47,7 @@ function fmtRoute(rid) {
         return '?';
     }
 }
+
 
 function fmtEvent(sgid) {
     if (!sgid) {
@@ -73,13 +74,22 @@ function fmtEvent(sgid) {
                 D: 60,
                 E: 260,
             }[sg.subgroupLabel];
-            return `<a href="https://www.zwift.com/events/view/${event.id}" target="_blank">
+            return `<a href="${eventUrl(event.id)}" target="_blank" external>
                 <span class="badge" style="--hue: ${badgeHue}deg;">${sg.subgroupLabel}</span> ${event.name}
             </a>`;
         } else {
             return '?';
         }
     }
+}
+
+
+function eventUrl(id) {
+    const urls = {
+        zwift: `https://www.zwift.com/events/view/${id}`,
+        zwiftpower: `https://zwiftpower.com/events.php?zid=${id}`,
+    };
+    return urls[eventSite] || urls.zwift;
 }
 
 
@@ -120,16 +130,16 @@ function formatTeam(t) {
 
 const fields = [
     {id: 'avatar', defaultEn: true, label: '<img class="fa" src="images/fa/user-circle-solid.svg"/>',
-     get: x => [x.athleteId, getAthleteValue(x, 'avatar')],
+     get: x => [x.athleteId, getAthleteValue(x, 'avatar') || 'images/fa/user-circle-solid.svg'],
      fmt: ([id, avatar]) => avatar ? athleteLink(id, `<img src="${avatar}"/>`, {class: 'avatar'}) : ''},
-    {id: 'name', defaultEn: true, label: 'Name', get: x => [x.athleteId, getAthleteValue(x, 'sanitizedFullname')],
-     fmt: ([id, name]) => athleteLink(id, sanitize(name || '-'))},
     {id: 'nation', defaultEn: true, label: '<ms>flag</ms>', get: x => getAthleteValue(x, 'countryCode'),
      fmt: code => (code && flags && flags[code]) ? `<img src="${flags[code]}" title="${common.sanitizeForAttr(nations[code])}"/>` : ''},
+    {id: 'name', defaultEn: true, label: 'Name', get: x => [getAthleteValue(x, 'sanitizedFullname'), x.athleteId],
+     fmt: ([name, id]) => athleteLink(id, sanitize(name || '-'))},
     {id: 'team', defaultEn: false, label: 'Team', get: x => getAthleteValue(x, 'team'),
      fmt: formatTeam},
-    {id: 'initials', defaultEn: false, label: 'Initials', get: x => [x.athleteId, getAthleteValue(x, 'initials')],
-     fmt: ([id, initials]) => athleteLink(id, sanitize(initials) || '-')},
+    {id: 'initials', defaultEn: false, label: 'Initials', get: x => [getAthleteValue(x, 'initials'), x.athleteId],
+     fmt: ([initials, id]) => athleteLink(id, sanitize(initials) || '-')},
     {id: 'id', defaultEn: false, label: 'ID', get: x => x.athleteId},
     {id: 'weight-class', defaultEn: false, label: 'Weight', get: x => getAthleteValue(x, 'weight'), fmt: weightClass},
     {id: 'ftp', defaultEn: false, label: 'FTP', get: x => getAthleteValue(x, 'ftp'), fmt: pwr},
@@ -247,6 +257,8 @@ export async function main() {
     common.storage.addEventListener('globalupdate', ev => {
         if (ev.data.key === '/imperialUnits') {
             L.setImperial(imperial = ev.data.value);
+        } else if (ev.data.key === '/exteranlEventSite') {
+            eventSite = ev.data.value;
         }
     });
     settings = common.storage.get(settingsKey, {
@@ -271,10 +283,10 @@ export async function main() {
     refresh = setRefresh();
     let lastRefresh = 0;
     common.subscribe('nearby', data => {
-        nearbyData = data;
         if (settings.onlyMarked) {
             data = data.filter(x => x.watching || (x.athlete && x.athlete.marked));
         }
+        nearbyData = data;
         athleteData = new Map(data.filter(x => x.athlete).map(x => [x.athleteId, x.athlete]));
         const elapsed = Date.now() - lastRefresh;
         if (elapsed >= refresh) {
@@ -284,6 +296,17 @@ export async function main() {
     });
 }
 
+
+async function watch(athleteId) {
+    await common.rpc.watch(athleteId);
+    if (nearbyData) {
+        for (const x of nearbyData) {
+            x.watching = x.athleteId === athleteId;
+        }
+        render();
+        renderData(nearbyData);
+    }
+}
 
 function render() {
     document.documentElement.classList.toggle('autoscroll', settings.autoscroll);
@@ -295,11 +318,14 @@ function render() {
         sortBy = enFields[0].id;
     }
     sortByDir = common.storage.get('nearby-sort-dir', 1);
+    const sortDirClass = sortByDir > 0 ? 'sort-asc' : 'sort-desc';
     const table = document.querySelector('#content table');
     tbody = table.querySelector('tbody');
     const theadRow = table.querySelector('thead tr');
     theadRow.innerHTML = '<td></td>' + enFields.map(x =>
-        `<td data-id="${x.id}" class="${sortBy === x.id ? 'hi' : ''}">${x.label}</td>`).join('');
+        `<td data-id="${x.id}"
+             class="${sortBy === x.id ? 'sorted ' + sortDirClass : ''}"
+             >${x.label}<ms class="sort-asc">arrow_drop_up</ms><ms class="sort-desc">arrow_drop_down</ms></td>`).join('');
     mainRow = makeTableRow();
     mainRow.classList.add('watching');
     tbody.innerHTML = '';
@@ -308,18 +334,7 @@ function render() {
         const row = ev.target.closest('tr');
         if (row) {
             clearSelection();
-            hiRow = Number(row.dataset.id);
-            const oldHi = tbody.querySelector('tr.hi');
-            if (oldHi) {
-                oldHi.classList.remove('hi');
-            }
-            if (settings.autoscroll) {
-                row.scrollIntoView({block: 'center'});  // forces smooth
-                setTimeout(() => row.classList.add('hi'), 200); // smooth scroll hack.
-            } else {
-                row.classList.add('hi');
-            }
-            await common.rpc.watch(hiRow);
+            await watch(Number(row.dataset.id));
         }
     });
     theadRow.addEventListener('click', ev => {
@@ -332,12 +347,13 @@ function render() {
             }
             sortBy = id;
             common.storage.set(`nearby-sort-by`, id);
-            for (const td of table.querySelectorAll('td.hi')) {
-                td.classList.remove('hi');
+            for (const td of table.querySelectorAll('td.sorted')) {
+                td.classList.remove('sorted', 'sort-asc', 'sort-desc');
             }
             for (const td of table.querySelectorAll(`td[data-id="${sortBy}"]`)) {
-                td.classList.add('hi');
+                td.classList.add('sorted');
             }
+            col.classList.add(sortByDir > 0 ? 'sort-asc' : 'sort-desc');
             renderData(nearbyData);
         }
     });
@@ -361,6 +377,11 @@ function render() {
                     l.remove();
                 }
             }
+            if (link.dataset.id === 'watch') {
+                await watch(athleteId);
+                render();
+                renderData(nearbyData);
+            }
         }
     });
 }
@@ -370,7 +391,8 @@ function makeTableRow() {
     const tr = document.createElement('tr');
     tr.innerHTML = `
         <td>
-            <a class="link" data-id="export" title="Export FIT File"><img src="images/fa/download-duotone.svg"/></a>
+            <a class="link" data-id="export" title="Export FIT file of collected data"><ms>file_download</ms></a>
+            <a class="link" data-id="watch" title="Watch this athlete"><ms>video_camera_front</ms></a>
         </td>
         ${enFields.map(({id}) => `<td data-id="${id}"></td>`).join('')}
     `;
@@ -389,7 +411,8 @@ function gentleClassToggle(el, cls, force) {
 
 
 function updateTableRow(row, info) {
-    gentleClassToggle(row, 'hi', info.athleteId === hiRow);
+    gentleClassToggle(row, 'marked', info.athlete && info.athlete.marked);
+    gentleClassToggle(row, 'following', info.athlete && info.athlete.following);
     if (row.dataset.id !== '' + info.athleteId) {
         row.dataset.id = info.athleteId;
     }
@@ -401,7 +424,7 @@ function updateTableRow(row, info) {
         if (td._html !== html) {
             td.innerHTML = (td._html = html);
         }
-        gentleClassToggle(td, 'hi', sortBy === id);
+        gentleClassToggle(td, 'sorted', sortBy === id);
     }
     gentleClassToggle(row, 'hidden', false);
 }
@@ -421,8 +444,10 @@ function renderData(data) {
             return 0;
         } else if (av == null || bv == null) {
             return av == null ? 1 : -1;
-        } else {
+        } else if (typeof av === 'number') {
             return (av < bv ? 1 : -1) * sortByDir;
+        } else {
+            return (('' + av).toLowerCase() < ('' + bv).toLowerCase() ? 1 : -1) * sortByDir;
         }
     });
     if (nextAnimFrame) {

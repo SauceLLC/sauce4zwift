@@ -405,8 +405,6 @@ export class GameConnectionServer extends net.Server {
         this.athleteId = 0; // Set by gameToCompan messages
         this.on('connection', this.onConnection.bind(this));
         this.on('error', this.onError.bind(this));
-        this.watching = gameMonitor.watching;
-        gameMonitor.on('watching-athlete-change', id => this.watching = id);
         this.listenDone = new Promise(resolve => this.listen({address: this.ip, port: 0}, resolve));
         this._state = 'init';
     }
@@ -542,7 +540,6 @@ export class GameConnectionServer extends net.Server {
     }
 
     async watch(id) {
-        this.watching = id;
         await this.sendCommands({
             command: 24,
             subject: id,

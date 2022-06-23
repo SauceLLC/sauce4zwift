@@ -58,6 +58,24 @@ table {
                     display: inline-block;
                 }
             }
+
+            ms.sort-asc,
+            ms.sort-desc {
+                display: none;
+                font-size: 2em;
+                line-height: 0.5;
+            }
+
+            &.sorted {
+                &.sort-asc ms.sort-asc,
+                &.sort-desc ms.sort-desc {
+                    display: inline;
+                }
+            }
+        }
+
+        td.sorted {
+            background-color: #0333;
         }
     }
 
@@ -76,11 +94,14 @@ table {
             white-space: nowrap;
         }
 
-        &[data-id="name"] {
+        &[data-id="name"],
+        &[data-id="team"],
+        &[data-id="group"],
+        &[data-id="route"] {
             overflow: hidden;
             white-space: nowrap;
             text-overflow: ellipsis;
-            max-width: max(12ch, 20vw);
+            max-width: max(16ch, 18vw);
         }
 
         &[data-id="avatar"] {
@@ -118,6 +139,10 @@ table {
             font-variant-numeric: normal;
         }
 
+        &[data-id="gap"] {
+            white-space: nowrap;
+        }
+
         .badge {
             display: inline-block;
             margin-bottom: 0.15em;
@@ -133,22 +158,31 @@ table {
     tr.hidden {
         display: none;
     }
+
     tr.watching {
-        background-color: #0009 !important;
+        background-color: #0081ffba !important;
         color: white !important;
         td {
             padding-top: 0.5em;
             padding-bottom: 0.5em;
         }
     }
+
     tbody tr:not(.hi):hover {
         background-color: #0355;
     }
-    tr.hi {
-        background-color: #035a;
+
+    td.sorted {
+        background-color: #0333;
     }
-    td.hi {
-        background-color: #a35a;
+
+    tr.marked {
+        background-color: #23ff6ca3;
+    }
+
+    tr.following {
+        background-color: #fff;
+        color: black;
     }
 
     td .link {
@@ -158,18 +192,17 @@ table {
         margin-top: -0.2em;
         margin-bottom: -0.1em;
 
-        &:hover img {
+        &:hover ms {
             opacity: 1 !important;
         }
 
-        img {
+        ms {
+            font-size: 1.2em;
             opacity: 0;
-            filter: invert(1);
-            height: 0.9em;
         }
     }
 
-    tr:hover .link img {
+    tr:hover .link ms {
         opacity: 0.7;
     }
 }

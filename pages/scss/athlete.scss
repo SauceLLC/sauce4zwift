@@ -18,7 +18,6 @@ body > main {
     flex: 1 1;
 }
 
-
 .athlete {
     display: flex;
     flex-direction: column;
@@ -31,7 +30,6 @@ body > main {
     border-radius: 0.3em;
     overflow: hidden;
     font-variant-numeric: tabular-nums;
-    background: #0002;
 }
 
 .athlete > header {
@@ -47,7 +45,7 @@ body > main {
         img {
             display: inline-block;
             vertical-align: middle;
-            height: 1em;
+            height: 1.2em;
         }
     }
 
