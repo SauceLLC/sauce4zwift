@@ -8,20 +8,15 @@ Since Zwift is formally planning to shut down community applications like this I
 open sourcing the project so it will live on in spirit and people can enjoy it in the
 remaining days.
 
-<a href="https://www.patreon.com/bePatron?u=32064618" target="_blank">
-    <img src="pages/images/become_a_patron_button@2x.png" width="150"/>
-</a>
+See: wiedmann/zwift-packet-monitor#5
 
-Download (Mac/PC only)
---------
-### https://saucellc.io/products/sauce4zwift/download
-#### ☝️☝️☝️
-
-
-1,000 words
---------
 <img src="assets/images/screenshot.jpg" width="640"/>
 <img src="assets/images/slideshow.webp" width="400"/>
+
+
+Download for Mac/PC while you still can
+--------
+### https://saucellc.io/products/sauce4zwift/download
 
 
 Feature Highlights
@@ -49,3 +44,8 @@ Disclaimer
 --------
 I don't work for Zwift nor do I represent them.  I assume no liability bla
 bla bla.  You get the idea.
+
+
+<a href="https://www.patreon.com/bePatron?u=32064618" target="_blank">
+    <img src="pages/images/become_a_patron_button@2x.png" width="150"/>
+</a>
