@@ -592,6 +592,9 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 this._watchingRoadSig = this._roadSig(x);
             }
         }
+        if (packet.playerStates2XXX.length) {
+            debugger; // XXX
+        }
     }
 
     handleRideOnPayload(payload, ts) {
@@ -669,7 +672,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         bits >>>= 1;
         const _b4_15 = bits & (1 << 12) - 1; // XXX no idea
         bits >>>= 12;
-        const course = bits & 0xff;
+        const worldAux = bits & 0xff;
         bits >>>= 8;
         const rideons = bits;
         return {
@@ -678,7 +681,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             reversing,
             reverse,
             _b4_15,
-            course,
+            worldAux,
             rideons,
         };
     }
@@ -846,12 +849,12 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         if (!this._athleteData.has(state.athleteId)) {
             this._athleteData.set(state.athleteId, this._createAthleteData(state.athleteId, state.ts));
         }
-        //console.debug(state.progress.toString(16)); // Only ever see bits 8-16 set
-        if (state.progress & 0xffff00ff) {
-            console.debug("unexpected progress value, examine:", state.athleteId, state.progress.toString(16), state.progress >> 8 & 0xff);
+        if (state._progress & 0xffff0000) {
+            console.debug("unexpected progress value, examine:",
+                state.athleteId, state._progress.toString(16), state._progress >> 8 & 0xff);
         }
         state.progress = (state._progress >> 8 & 0xff) / 0xff;
-        state.progressIsWorkout = !!(state._progress & 0x01);
+        state.workoutZone = (state._progress & 0xF) || null;
         const ad = this._athleteData.get(state.athleteId);
         if (ad.mostRecentState && ad.mostRecentState.ts >= state.ts) {
             if (ad.mostRecentState.ts === state.ts) {
@@ -1191,7 +1194,8 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         }
         const nearby = [];
         for (const [aId, aData] of this._athleteData.entries()) {
-            if ((!aData.mostRecentState.speed || performance.now() - aData.updated > 10000) && aId !== this.watching) {
+            if ((!aData.mostRecentState.speed || performance.now() - aData.updated > 10000) &&
+                aId !== this.watching) {
                 continue; // stopped or offline
             }
             let gapDistance, gap, isGapEst;

@@ -17,7 +17,9 @@ let nearbyData;
 let enFields;
 let sortBy;
 let sortByDir;
+let table;
 let tbody;
+let theadRow;
 let mainRow;
 let nations;
 let flags;
@@ -30,38 +32,46 @@ const pwr = v => H.power(v, {suffix: true, html: true});
 const hr = v => v ? `${num(v)}<abbr class="unit">bpm</abbr>` : '-';
 const kj = v => v != null ? `${num(v)}<abbr class="unit">kJ</abbr>` : '-';
 const pct = v => v != null ? `${num(v)}<abbr class="unit">%</abbr>` : '-';
+const pct_1 = v => v != null ? `${num(v, {precision: 1})}<abbr class="unit">%</abbr>` : '-';
 const wkg = v => (v !== Infinity && !isNaN(v)) ?
     `${num(v, {precision: 1, fixed: true})}<abbr class="unit">w/kg</abbr>`: '-';
 const dist = v => H.distance(v, {suffix: true, html: true});
 
 
-function fmtRoute(rid) {
-    if (!rid) {
+function fmtRoute(meta) {
+    if (!meta) {
         return '-';
     }
-    const route = routesById.get(rid);
-    if (route) {
-        return route.name;
-    } else {
-        console.warn("Unknown route:", rid);
+    const route = routesById.get(meta.id);
+    if (!route) {
+        console.error("Unknown route:", meta.id);
         return '?';
     }
+    const parts = [];
+    if (meta.laps) {
+        parts.push(`${meta.laps} x`);
+        parts.push(route.distance * meta.laps);
+    }
+    parts.push(route.name);
+    return parts.join(' ');
 }
 
 
+const _gettingSubGroups = {};
 function fmtEvent(sgid) {
     if (!sgid) {
         return '-';
     }
     if (!eventsBySubGroup.has(sgid)) {
-        common.rpc.getSubGroupEvent(sgid).then(event => {
-            if (event) {
-                eventsBySubGroup.set(sgid, event);
-            } else {
-                console.warn("Unknown event subgroup:", sgid);
-                eventsBySubGroup.set(sgid, null);
-            }
-        });
+        if (!_gettingSubGroups[sgid]) {
+            _gettingSubGroups[sgid] = common.rpc.getSubGroupEvent(sgid).then(event => {
+                if (!event) {
+                    console.warn("Unknown event subgroup (probably private):", sgid);
+                }
+                eventsBySubGroup.set(sgid, event || null);
+                delete _gettingSubGroups[sgid];
+            });
+        }
         return '...';  // show on next refresh
     } else {
         const event = eventsBySubGroup.get(sgid);
@@ -79,6 +89,21 @@ function fmtEvent(sgid) {
             </a>`;
         } else {
             return '?';
+        }
+    }
+}
+
+
+function getRouteMeta(state) {
+    if (state.route) {
+        return {id: state.route};
+    } else if (state.groupId) {
+        const event = eventsBySubGroup.get(state.groupId);
+        if (event) {
+            const sg = event.eventSubgroups.find(x => x.id === state.groupId);
+            if (sg) {
+                return {id: sg.routeId, laps: sg.laps};
+            }
         }
     }
 }
@@ -209,8 +234,14 @@ const fields = [
     {id: 'kj', defaultEn: false, label: 'Energy', get: x => x.state.kj, fmt: kj},
     {id: 'draft', defaultEn: false, label: 'Draft', get: x => x.state.draft, fmt: pct},
 
-    {id: 'route', defaultEn: false, label: 'Route', get: x => x.state.route, fmt: fmtRoute},
+    {id: 'route', defaultEn: false, label: 'Route', get: x => getRouteMeta(x.state), fmt: fmtRoute},
     {id: 'group', defaultEn: false, label: 'Event', get: x => x.state.groupId, fmt: fmtEvent},
+
+    {id: 'progress', defaultEn: false, label: 'Route Progress xxx', get: x => x.state.progress * 100, fmt: pct},
+    {id: 'workout-zone', defaultEn: false, label: 'Workout Zone XXX', get: x => x.state.workoutZone},
+    {id: 'laps', defaultEn: false, label: 'Laps xxx', get: x => x.state.laps},
+    {id: 'world', defaultEn: false, label: 'World xxx', get: x => x.state.world},
+    {id: 'world-aux', defaultEn: false, label: 'WorldAux xxx', get: x => x.state.worldAux},
 ];
 
 
@@ -280,56 +311,6 @@ export async function main() {
         });
     }
     render();
-    refresh = setRefresh();
-    let lastRefresh = 0;
-    common.subscribe('nearby', data => {
-        if (settings.onlyMarked) {
-            data = data.filter(x => x.watching || (x.athlete && x.athlete.marked));
-        }
-        nearbyData = data;
-        athleteData = new Map(data.filter(x => x.athlete).map(x => [x.athleteId, x.athlete]));
-        const elapsed = Date.now() - lastRefresh;
-        if (elapsed >= refresh) {
-            lastRefresh = Date.now();
-            renderData(data);
-        }
-    });
-}
-
-
-async function watch(athleteId) {
-    await common.rpc.watch(athleteId);
-    if (nearbyData) {
-        for (const x of nearbyData) {
-            x.watching = x.athleteId === athleteId;
-        }
-        render();
-        renderData(nearbyData);
-    }
-}
-
-function render() {
-    document.documentElement.classList.toggle('autoscroll', settings.autoscroll);
-    document.documentElement.style.setProperty('--font-scale', settings.fontScale || 1);
-    enFields = fields.filter(x => fieldStates[x.id]);
-    sortBy = common.storage.get('nearby-sort-by', 'gap');
-    const isFieldAvail = !!enFields.find(x => x.id === sortBy);
-    if (!isFieldAvail) {
-        sortBy = enFields[0].id;
-    }
-    sortByDir = common.storage.get('nearby-sort-dir', 1);
-    const sortDirClass = sortByDir > 0 ? 'sort-asc' : 'sort-desc';
-    const table = document.querySelector('#content table');
-    tbody = table.querySelector('tbody');
-    const theadRow = table.querySelector('thead tr');
-    theadRow.innerHTML = '<td></td>' + enFields.map(x =>
-        `<td data-id="${x.id}"
-             class="${sortBy === x.id ? 'sorted ' + sortDirClass : ''}"
-             >${x.label}<ms class="sort-asc">arrow_drop_up</ms><ms class="sort-desc">arrow_drop_down</ms></td>`).join('');
-    mainRow = makeTableRow();
-    mainRow.classList.add('watching');
-    tbody.innerHTML = '';
-    tbody.appendChild(mainRow);
     tbody.addEventListener('dblclick', async ev => {
         const row = ev.target.closest('tr');
         if (row) {
@@ -384,6 +365,56 @@ function render() {
             }
         }
     });
+    refresh = setRefresh();
+    let lastRefresh = 0;
+    common.subscribe('nearby', data => {
+        if (settings.onlyMarked) {
+            data = data.filter(x => x.watching || (x.athlete && x.athlete.marked));
+        }
+        nearbyData = data;
+        athleteData = new Map(data.filter(x => x.athlete).map(x => [x.athleteId, x.athlete]));
+        const elapsed = Date.now() - lastRefresh;
+        if (elapsed >= refresh) {
+            lastRefresh = Date.now();
+            renderData(data);
+        }
+    });
+}
+
+
+async function watch(athleteId) {
+    await common.rpc.watch(athleteId);
+    if (nearbyData) {
+        for (const x of nearbyData) {
+            x.watching = x.athleteId === athleteId;
+        }
+        render();
+        renderData(nearbyData);
+    }
+}
+
+function render() {
+    document.documentElement.classList.toggle('autoscroll', settings.autoscroll);
+    document.documentElement.style.setProperty('--font-scale', settings.fontScale || 1);
+    enFields = fields.filter(x => fieldStates[x.id]);
+    sortBy = common.storage.get('nearby-sort-by', 'gap');
+    const isFieldAvail = !!enFields.find(x => x.id === sortBy);
+    if (!isFieldAvail) {
+        sortBy = enFields[0].id;
+    }
+    sortByDir = common.storage.get('nearby-sort-dir', 1);
+    const sortDirClass = sortByDir > 0 ? 'sort-asc' : 'sort-desc';
+    table = document.querySelector('#content table');
+    tbody = table.querySelector('tbody');
+    theadRow = table.querySelector('thead tr');
+    theadRow.innerHTML = '<td></td>' + enFields.map(x =>
+        `<td data-id="${x.id}"
+             class="${sortBy === x.id ? 'sorted ' + sortDirClass : ''}"
+             >${x.label}<ms class="sort-asc">arrow_drop_up</ms><ms class="sort-desc">arrow_drop_down</ms></td>`).join('');
+    mainRow = makeTableRow();
+    mainRow.classList.add('watching');
+    tbody.innerHTML = '';
+    tbody.appendChild(mainRow);
 }
 
 
@@ -418,7 +449,7 @@ function updateTableRow(row, info) {
     }
     const tds = row.querySelectorAll('td');
     for (const [i, {id, get, fmt}] of enFields.entries()) {
-        const value = get(info);
+        const value = get ? get(info) : info;
         const html = '' + (fmt ? fmt(value) : value);
         const td = tds[i + 1];
         if (td._html !== html) {
@@ -436,10 +467,11 @@ function renderData(data) {
     if (!data || !data.length || document.hidden) {
         return;
     }
-    const get = enFields.find(x => x.id === sortBy).get;
+    const sortField = enFields.find(x => x.id === sortBy);
+    const sortGet = sortField.sortValue || sortField.get;
     data.sort((a, b) => {
-        const av = get(a);
-        const bv = get(b);
+        const av = sortGet(a);
+        const bv = sortGet(b);
         if (av == bv) {
             return 0;
         } else if (av == null || bv == null) {
