@@ -58,7 +58,12 @@ publish: $(BUILD)
 deps:
 	cp node_modules/echarts/dist/echarts.esm.js pages/deps/src/echarts.mjs
 	cp node_modules/world_countries_lists/data/countries/_combined/world.json pages/deps/src/countries.json
-	cp -r node_modules/world_countries_lists/data/flags/64x64 pages/deps/flags
+ifndef WINBLOWS
+	mkdir -p pages/deps/flags
+else
+	mkdir -f pages/deps/flags
+endif
+	cp -r node_modules/world_countries_lists/data/flags/64x64/*.png pages/deps/flags/
 	cp node_modules/zwift-data/lib/esm/routes.js shared/deps/routes.mjs
 	cp node_modules/zwift-data/lib/esm/segments.js shared/deps/segments.mjs
 
