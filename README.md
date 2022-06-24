@@ -20,7 +20,7 @@ Download (Mac/PC only)
 --------
 ![screenshot](assets/images/screenshot.jpg|width=640)
 
-![slideshow](assets/images/slideshow.webp|width=400)
+<img src="assets/images/slideshow.webp" width="400"/>
 
 
 Feature Highlights
