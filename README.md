@@ -8,13 +8,16 @@ Since Zwift is formally planning to shut down community applications like this I
 open sourcing the project so it will live on in spirit and people can enjoy it in the
 remaining days.
 
-[![become a patron](images/become_a_patron_button.png)](https://www.patreon.com/bePatron?u=32064618)
+[![become a patron](pages/images/become_a_patron_button.png)](https://www.patreon.com/bePatron?u=32064618)
 
 Download (Mac/PC only)
 --------
-https://saucellc.io/products/sauce4zwift/download
+### https://saucellc.io/products/sauce4zwift/download
+#### ☝️☝️☝️
 
 
+1,000 words
+--------
 ![screenshot](assets/images/screenshot.jpg)
 
 ![slideshow](assets/images/slideshow.webp)
