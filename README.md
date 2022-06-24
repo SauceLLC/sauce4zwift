@@ -48,6 +48,8 @@ I don't work for Zwift nor do I represent them.  I assume no liability bla
 bla bla.  You get the idea.
 
 
+Support my work
+--------
 <a href="https://www.patreon.com/bePatron?u=32064618" target="_blank">
     <img src="pages/images/become_a_patron_button@2x.png" width="150"/>
 </a>
