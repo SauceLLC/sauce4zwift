@@ -1,6 +1,6 @@
 Sauce for Zwift™
 ===========
-![Sauce](images/logo_horiz_320x120.png)
+![Sauce](pages/images/logo_horiz_320x120.png)
 #### An suite of add-ons and replacement widgets for Zwift
 Sauce for Zwift™ extends the zwift cycling simulator with more stats and pretty charts.
 
@@ -15,7 +15,9 @@ Download (Mac/PC only)
 https://saucellc.io/products/sauce4zwift/download
 
 
-![slideshow](assets/images/screenshots/slideshow.gif)
+![screenshot](assets/images/screenshot.jpg)
+
+![slideshow](assets/images/slideshow.webp)
 
 
 Feature Highlights
