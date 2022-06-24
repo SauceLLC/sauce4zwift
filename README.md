@@ -1,9 +1,11 @@
 Sauce for Zwift™
 ===========
 ![Sauce](pages/images/logo_horiz_320x120.png)
-#### An suite of add-ons and replacement widgets for Zwift
-Sauce for Zwift™ extends the zwift cycling simulator with more stats and pretty charts.
+#### A collection of add-ons and replacement widgets for Zwift
+Sauce for Zwift™ extends the zwift cycling and running simulator with more stats and
+pretty things.
 
+#### NOTE:
 Since Zwift is formally planning to shut down community applications like this I'm
 open sourcing the project so it will live on in spirit and people can enjoy it in the
 remaining days.
