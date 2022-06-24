@@ -8,7 +8,7 @@ Since Zwift is formally planning to shut down community applications like this I
 open sourcing the project so it will live on in spirit and people can enjoy it in the
 remaining days.
 
-[![become a patron](pages/images/become_a_patron_button.png)](https://www.patreon.com/bePatron?u=32064618)
+[![become a patron](pages/images/become_a_patron_button2x.png)](https://www.patreon.com/bePatron?u=32064618 | width=150px)
 
 Download (Mac/PC only)
 --------
@@ -18,9 +18,9 @@ Download (Mac/PC only)
 
 1,000 words
 --------
-![screenshot](assets/images/screenshot.jpg)
+![screenshot](assets/images/screenshot.jpg|width=640px)
 
-![slideshow](assets/images/slideshow.webp)
+![slideshow](assets/images/slideshow.webp|width=400px)
 
 
 Feature Highlights
