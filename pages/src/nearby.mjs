@@ -32,7 +32,6 @@ const pwr = v => H.power(v, {suffix: true, html: true});
 const hr = v => v ? `${num(v)}<abbr class="unit">bpm</abbr>` : '-';
 const kj = v => v != null ? `${num(v)}<abbr class="unit">kJ</abbr>` : '-';
 const pct = v => v != null ? `${num(v)}<abbr class="unit">%</abbr>` : '-';
-const pct_1 = v => v != null ? `${num(v, {precision: 1})}<abbr class="unit">%</abbr>` : '-';
 const wkg = v => (v !== Infinity && !isNaN(v)) ?
     `${num(v, {precision: 1, fixed: true})}<abbr class="unit">w/kg</abbr>`: '-';
 const dist = v => H.distance(v, {suffix: true, html: true});
