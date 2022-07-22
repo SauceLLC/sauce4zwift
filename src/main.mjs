@@ -418,6 +418,7 @@ async function zwiftAuthenticate(options={}) {
         if (creds) {
             try {
                 await zwift.authenticate(creds.username, creds.password);
+                console.info("Using Zwift username:", creds.username);
                 return;
             } catch(e) {
                 console.debug("Previous Zwift login invalid:", e);

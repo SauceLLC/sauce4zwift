@@ -3,7 +3,15 @@ import * as common from './common.mjs';
 
 export async function main() {
     common.initInteractionListeners();
-    //const enabled = await common.rpc.getSetting('gameConnectionEnabled');
+    const statusEl = document.querySelector('.status');
+    const gcs = await common.rpc.getGameConnectionStatus();
+    console.log(gcs);
+    document.documentElement.classList.toggle('connected', gcs.connected);
+    statusEl.textContent = gcs.state;
+    common.subscribe('status', x => {
+        document.documentElement.classList.toggle('connected', x.connected);
+        statusEl.textContent = x.state;
+    });
     document.addEventListener('click', ev => {
         const btn = ev.target.closest('.button');
         if (!btn) {
@@ -17,5 +25,5 @@ export async function main() {
 
 export async function settingsMain() {
     common.initInteractionListeners();
-    //await common.initSettingsForm('form#options', {})();
+   //await common.initSettingsForm('form#options', {})();
 }
