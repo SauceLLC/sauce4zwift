@@ -84,6 +84,7 @@ if (window.isElectron) {
             errBackoff = Math.min(errBackoff * 1.1, 60000);
             console.warn('WebSocket connection issue: retry in', (errBackoff / 1000).toFixed(1), 's');
             wsp = sleep(errBackoff).then(connectWebSocket);
+            document.dispatchEvent(new CustomEvent('sauce-ws-status', {detail: 'disconnected'}));
         });
         const tO = setTimeout(() => ws.close(), 5000);
         ws.addEventListener('error', ev => {
@@ -98,6 +99,7 @@ if (window.isElectron) {
                     _subscribe(ws, event, callback, options);
                 }
                 resolve(ws);
+                document.dispatchEvent(new CustomEvent('sauce-ws-status', {detail: 'connected'}));
             });
         });
     };

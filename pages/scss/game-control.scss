@@ -5,6 +5,15 @@ html, body {
     font-size: 14px;
 }
 
+
+html:not(.connected) {
+    #content .button {
+        pointer-events: none;
+        opacity: 0.6;
+        color: #444;
+    }
+}
+
 #content {
     scroll-behavior: smooth;
     overflow: auto;
@@ -13,5 +22,13 @@ html, body {
     header {
         padding: 0.3em 0.4em;
         background: #000a;
+        font-variant: all-small-caps;
+        font-weight: 600;
+        color: #eee;
+        margin-bottom: 0.2em;
+    }
+
+    .button-group {
+        margin: 0.5em;
     }
 }
