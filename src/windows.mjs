@@ -41,7 +41,7 @@ export const windowManifests = [{
 }, {
     type: 'groups',
     page: 'groups.html',
-    prettyName: 'Groups',
+    prettyName: 'Groups [DEPRECATED]',
     prettyDesc: 'A zoomable view of groups of athletes.',
     options: {relWidth: 0.15, relHeight: 0.65},
 }, {
@@ -53,36 +53,42 @@ export const windowManifests = [{
 }, {
     type: 'nearby',
     page: 'nearby.html',
-    prettyName: 'Nearby Athletes',
+    prettyName: 'Nearby Athletes [DEPRECATED]',
     prettyDesc: 'A sortable data table of nearby athletes.',
     options: {width: 800, height: 400},
     overlay: false,
 }, {
+    type: 'game-control',
+    page: 'game-control.html',
+    prettyName: 'Game Control',
+    prettyDesc: 'Control game actions like view, shouting, HUD toggle, etc.',
+    options: {width: 300, aspectRatio: 1.65},
+}, {
     type: 'power-gauge',
     groupTitle: 'Gauges',
     pageURL: 'gauge.html?t=power',
-    prettyName: 'Power Gauge [experiment]',
+    prettyName: 'Power Gauge',
     prettyDesc: 'Car style power (watts) gauge.',
     options: {relWidth: 0.20, aspectRatio: 0.8},
 }, {
     type: 'draft-gauge',
     groupTitle: 'Gauges',
     pageURL: 'gauge.html?t=draft',
-    prettyName: 'Draft Gauge [experiment]',
+    prettyName: 'Draft Gauge',
     prettyDesc: 'Car style draft (% power reduction) gauge.',
     options: {relWidth: 0.20, aspectRatio: 0.8},
 }, {
     type: 'pace-gauge',
     groupTitle: 'Gauges',
     pageURL: 'gauge.html?t=pace',
-    prettyName: 'Pace Gauge [experiment]',
+    prettyName: 'Pace Gauge',
     prettyDesc: 'Car style pace/speed gauge.',
     options: {relWidth: 0.20, aspectRatio: 0.8},
 }, {
     type: 'hr-gauge',
     groupTitle: 'Gauges',
     pageURL: 'gauge.html?t=hr',
-    prettyName: 'Heart Rate Gauge [experiment]',
+    prettyName: 'Heart Rate Gauge',
     prettyDesc: 'Car style heart rate gauge.',
     options: {relWidth: 0.20, aspectRatio: 0.8},
 }, {
@@ -369,7 +375,8 @@ function _openWindow(id, spec) {
         win.removeMenu();
     }
     if (!spec.position && (options.relWidth != null || options.relHeight != null ||
-        options.relX != null || options.relY != null || options.x < 0 || options.y < 0)) {
+        options.relX != null || options.relY != null || options.x < 0 || options.y < 0 ||
+        options.aspectRatio)) {
         const {width: sWidth, height: sHeight} = electron.screen.getPrimaryDisplay().size; // XXX
         const width = options.width != null ?
             options.width :
