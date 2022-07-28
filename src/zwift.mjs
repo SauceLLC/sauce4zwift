@@ -4,6 +4,7 @@ import fetch from 'node-fetch';
 import protobuf from 'protobufjs';
 import path from 'node:path';
 import net from 'node:net';
+import crypto from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
 
@@ -11,7 +12,10 @@ const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const _case = protobuf.parse.defaults.keepCase;
 protobuf.parse.defaults.keepCase = true;
-const protos = protobuf.loadSync(path.join(__dirname, 'zwift.proto')).root;
+export const protos = protobuf.loadSync([
+    path.join(__dirname, '..', 'node_modules', '@saucellc', 'zwift-packet-monitor', 'zwiftMessages.proto'),
+    path.join(__dirname, 'zwift.proto')
+]).root;
 protobuf.parse.defaults.keepCase = _case;
 
 let authToken;
@@ -59,6 +63,10 @@ export async function api(urn, options={}, headers={}) {
         options.body = JSON.stringify(options.json);
         headers['Content-Type'] = 'application/json';
     }
+    if (options.pb) {
+        options.body = options.pb.finish();
+        headers['Content-Type'] = 'application/x-protobuf-lite; version=2.0';
+    }
     if (options.accept) {
         headers['Accept'] = {
             json: 'application/json',
@@ -74,7 +82,7 @@ export async function api(urn, options={}, headers={}) {
         headers: {
             'Platform': 'OSX',
             'Source': 'Game Client',
-            'User-Agent': 'CNL/3.20.4 (macOS 12 Monterey; Darwin Kernel 21.4.0) zwift/1.0.101024 curl/7.78.0-DEV',
+            'User-Agent': 'CNL/3.22.2 (macOS 12 Monterey; Darwin Kernel 21.5.0) zwift/1.0.101324 curl/7.78.0-DEV',
             ...headers,
         },
         ...options,
@@ -122,14 +130,9 @@ export async function apiPB(urn, options, headers) {
     const r = await api(urn, {accept: 'protobuf', ...options}, headers);
     const monitorProtos = require('@saucellc/zwift-packet-monitor').pbRoot;
     const ProtoBuf = protos.get(options.protobuf) || monitorProtos.get(options.protobuf);
-    const data = new Uint8Array(await r.arrayBuffer());
+    const data = Buffer.from(await r.arrayBuffer());
     if (options.debug) {
-        const hex = [];
-        for (const x of data) {
-            hex.push(x.toString(16).padStart(2, '0'));
-        }
-        // compatible with https://protobuf-decoder.netlify.app/
-        console.debug(hex.join(' '));
+        console.debug(data.toString('hex'));
     }
     return ProtoBuf.decode(data);
 }
@@ -356,6 +359,217 @@ export async function authenticate(username, password) {
 }
 
 
+// Poor API naming here; this is how we get info about relay servers and establish
+// encryption material.
+export async function gameLogin(options={}) {
+    const aeskey = crypto.randomBytes(16);
+
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
+    const login = await apiPB('/api/users/login', {
+        method: 'POST',
+
+        host: 'localhost',
+        
+        pb: protos.LoginRequest.encode({
+            aeskey,
+            properties: {
+                entries: [{
+                    key: 'OS Type',
+                    value: 'macOS',
+                }, {
+                    key: 'OS',
+                    value: 'OSX 10.X 64bit',
+                }, {
+                    key: 'COMPUTER',
+                    value: 'MacBookPro18,2',
+                }, {
+                    key: 'Machine Id',
+                    value: '2-986ffe15-41af-475a-8738-1bb16d2ca987',
+                }],
+            }
+        }),
+        protobuf: 'LoginResponse',
+        ...options
+    });
+    return {login, aeskey};
+}
+
+const deviceTypes = {
+    relay: 1,
+    companion: 2,
+};
+
+const channelTypes = {
+    udpClient: 1,
+    udpServer: 2,
+    tcpClient: 3,
+    tcpServer: 4,
+};
+
+const headerFlags = {
+    ri: 4,
+    ci: 2,
+    seqno: 1,
+};
+
+
+export class IV {
+    constructor(props={}) {
+        Object.assign(this, props);
+    }
+
+    toBuffer() {
+        const ivBuf = Buffer.alloc(2 + 2 + 2 + 2 + 4); // 12
+        ivBuf.writeUInt16BE(deviceTypes[this.deviceType], 2);
+        ivBuf.writeUInt16BE(channelTypes[this.channelType], 4);
+        ivBuf.writeUInt16BE(this.ci, 6);
+        ivBuf.writeUInt32BE(this.seqno, 8);
+        return ivBuf;
+    }
+}
+
+
+export function decryptPacket(data, key, iv) {
+    const flags = data.readUint8(0);
+    const envelope = {flags};
+    let headerOfft = 1;
+    if (flags & headerFlags.ri) {
+        envelope.ri = data.readUInt32BE(headerOfft);
+        headerOfft += 4;
+    }
+    if (flags & headerFlags.ci) {
+        iv.ci = envelope.ci = data.readUInt16BE(headerOfft);
+        headerOfft += 2;
+    }
+    if (flags & headerFlags.seqno) {
+        iv.seqno = envelope.seqno = data.readUInt32BE(headerOfft);
+        headerOfft += 4;
+        iv.seqno++;
+    }
+    const ivBuf = iv.toBuffer();
+    console.log('iv', ivBuf.toString('hex'));
+    debugger;
+    const decipher = crypto.createDecipheriv('aes-128-gcm', key, ivBuf);
+    //decipher.setAAD(data.subarray(0, headerOfft));
+    decipher.setAuthTag(data.subarray(-4));
+    const plain = Buffer.concat([decipher.update(data.subarray(headerOfft)), decipher.final()]);
+    console.log("plaintext", plain.toString('hex'));
+    return plain;
+}
+
+
+export function encryptPacket(data, key, iv, ri, ci, seqno) {
+    let flags = 0;
+    let headerOfft = 1;
+    const header = Buffer.alloc(1 + 4 + 2 + 4);
+    if (ri !== undefined) {
+        flags |= headerFlags.ri;
+        header.writeUInt32BE(ri, headerOfft);
+        headerOfft += 4;
+    }
+    if (ci !== undefined) {
+        flags |= headerFlags.ci;
+        header.writeUInt16BE(ci, headerOfft);
+        headerOfft += 2;
+    }
+    if (seqno !== undefined) {
+        flags |= headerFlags.seqno;
+        header.writeUInt32BE(seqno, headerOfft);
+        headerOfft += 4;
+    }
+    header.writeUInt8(flags, 0);
+    const cipher = crypto.createCipheriv('aes-128-gcm', key, iv.toBuffer());
+    const headerCompact = header.subarray(0, headerOfft);
+    //cipher.setAAD(headerCompact);
+    const cipherBufs = [cipher.update(data), cipher.final()];
+    const mac = cipher.getAuthTag().subarray(0, 4);
+    return Buffer.concat([headerCompact, ...cipherBufs, mac]);
+}
+
+
+export async function gameClient(options={}) {
+    const {login, aeskey} = await gameLogin(options);
+    const host = login.info.tcpConfig.nodes[0].ip;
+    console.log(login);
+    let pendingBuf;
+    let pendingSize;
+    const iv = new IV({deviceType: 'relay', channelType: 'tcpClient'});
+    const client = net.createConnection({
+        host,
+        port: 3025,
+        noDelay: true,
+        timeout: 60000,
+        onread: {
+            buffer: Buffer.alloc(1 * 1024 * 1024),
+            callback: (nread, buf) => {
+                const data = buf.subarray(0, nread);
+                for (let offt = 0; offt < data.byteLength;) {
+                    let size;
+                    if (pendingSize) {
+                        size = pendingSize;
+                    } else {
+                        size = data.readUInt16BE(0);
+                        offt += 2;
+                    }
+                    if (data.byteLength - offt + (pendingBuf ? pendingBuf.byteLength : 0) < size) {
+                        debugger;
+                        console.debug("short read");
+                        const dataCopy = Buffer.from(data.subarray(offt));
+                        if (!pendingBuf) {
+                            pendingBuf = dataCopy;
+                            pendingSize = size;
+                        } else {
+                            // Yet-another-short-read.
+                            console.debug("another short read!");
+                            pendingBuf = Buffer.concat([pendingBuf, dataCopy]);
+                        }
+                    } else {
+                        let completeBuf;
+                        if (pendingBuf) {
+                            completeBuf = Buffer.concat([
+                                pendingBuf,
+                                data.subarray(offt, (offt += pendingBuf.byteLength - size))
+                            ]);
+                        } else {
+                            completeBuf = data.subarray(offt, (offt += size));
+                        }
+                        iv.channelType = 'tcpServer';
+                        const plainBuf = decryptPacket(completeBuf, aeskey, iv);
+                        console.log("plainbuf", plainBuf.toString('hex'));
+                        const pb = protos.IncomingPacket.decode(plainBuf);
+                        console.log(pb);
+                        client.emit('packet', pb);
+                    }
+                }
+                console.log('zwift game data', nread, buf.subarray(0, nread).toString('hex'));
+            },
+        },
+    });
+    await new Promise((resolve, reject) => {
+        client.once('connect', resolve);
+        client.once('error', reject);
+    });
+    const hello = protos.ClientToServer.encode({
+        athleteId: 1, // XXX
+        worldTime: 0,
+        seqno: 1,
+        largWaTime: 0,
+    });
+    const plainBuf = hello.finish();
+    const helloMagic = Buffer.from([0x10, 0x0]);
+    const cipherBuf = encryptPacket(Buffer.concat([helloMagic, plainBuf]),
+        aeskey, iv, /*ri*/ 1, /*ci*/ 0);
+    const wireBuf = Buffer.alloc(cipherBuf.byteLength + 2);
+    wireBuf.writeUInt16BE(cipherBuf.byteLength, 0);
+    wireBuf.set(cipherBuf, 2);
+    console.log('size+flags+cipher+mac', wireBuf.toString('hex'));
+    console.log('plain', plainBuf.toString('hex'));
+    await new Promise(resolve => client.write(wireBuf, resolve));
+    return client;
+}
+
+ 
 export async function refreshToken() {
     if (!authToken) {
         console.warn("No auth token to refresh");
@@ -388,7 +602,7 @@ function cancelRefresh() {
 function schedRefresh(delay) {
     cancelRefresh();
     console.debug(`Refresh Zwift token in: ${Math.round(delay / 1000)} seconds`);
-    _nextRefresh = setTimeout(refreshToken, delay);
+    _nextRefresh = setTimeout(refreshToken, Math.min(0x7fffffff, delay));
 }
 
 
@@ -437,34 +651,25 @@ export class GameConnectionServer extends net.Server {
     }
 
     async changeCamera() {
-        await this.sendCommands({
-            command: 1,
-            subCommand: 1,
-        });
+        await this.sendCommands({command: protos.CompanionToGameCommandType.CHANGE_CAMERA_ANGLE});
     }
 
     async elbow() {
-        await this.sendCommands({
-            command: 4,
-            subCommand: 4,
-        });
+        await this.sendCommands({command: protos.CompanionToGameCommandType.ELBOW_FLICK});
     }
 
     async wave() {
-        await this.sendCommands({
-            command: 5,
-            subCommand: 5,
-        });
+        await this.sendCommands({command: protos.CompanionToGameCommandType.WAVE});
     }
 
     async say(what) {
         const cmd = {
-            rideon: 6,
-            bell: 7,
-            hammertime: 8,
-            toast: 9,
-            nice: 10,
-            bringit: 11,
+            rideon: protos.CompanionToGameCommandType.RIDE_ON,
+            bell: protos.CompanionToGameCommandType.BELL,
+            hammertime: protos.CompanionToGameCommandType.HAMMER_TIME,
+            toast: protos.CompanionToGameCommandType.TOAST,
+            nice: protos.CompanionToGameCommandType.NICE,
+            bringit: protos.CompanionToGameCommandType.BRING_IT,
         }[what] || 6;
         await this.sendCommands({
             command: cmd,
@@ -473,24 +678,15 @@ export class GameConnectionServer extends net.Server {
     }
 
     async ringBell() {
-        await this.sendCommands({
-            command: 7,
-            subCommand: 7,
-        });
+        await this.sendCommands({command: protos.CompanionToGameCommandType.BELL});
     }
 
     async endRide() {
-        await this.sendCommands({
-            command: 14,
-            subCommand: 14,
-        });
+        await this.sendCommands({command: protos.CompanionToGameCommandType.DONE_RIDING});
     }
 
     async takePicture() {
-        await this.sendCommands({
-            command: 17,
-            subCommand: 17,
-        });
+        await this.sendCommands({command: protos.CompanionToGameCommandType.TAKE_SCREENSHOT});
     }
 
     async enableHUD(en=true) {
@@ -503,29 +699,25 @@ export class GameConnectionServer extends net.Server {
 
     async _hud(en=true) {
         await this.sendCommands({
-            command: 22,
+            command: protos.CompanionToGameCommandType.CUSTOM_ACTION,
             subCommand: en ? 1080 : 1081,
         });
     }
 
     async toggleGraphs() {
         await this.sendCommands({
-            command: 22,
+            command: protos.CompanionToGameCommandType.CUSTOM_ACTION,
             subCommand: 1060,
         });
     }
 
     async reverse() {
-        await this.sendCommands({
-            command: 23,
-            subCommand: 23,
-        });
+        await this.sendCommands({command: protos.CompanionToGameCommandType.U_TURN});
     }
 
     async chatMessage(message, options={}) {
-        console.warn("XXX Just use the REST api please");
         await this.sendCommands({
-            command: 25,
+            command: protos.CompanionToGameCommandType.SOCIAL_PLAYER_ACTION,
             socialAction: {
                 athleteId: this.athleteId,
                 toAthleteId: options.to || 0,
@@ -541,23 +733,26 @@ export class GameConnectionServer extends net.Server {
 
     async watch(id) {
         await this.sendCommands({
-            command: 24,
+            command: protos.CompanionToGameCommandType.FAN_VIEW,
             subject: id,
         });
     }
 
     async join(id) {
         await this.sendCommands({
-            command: 2,
+            command: protos.CompanionToGameCommandType.JOIN_ANOTHER_PLAYER,
             subject: id,
         });
     }
 
     async teleportHome() {
-        await this.sendCommands({command: 3});
+        await this.sendCommands({command: protos.CompanionToGameCommandType.TELEPORT_TO_START});
     }
 
     async sendCommands(...commands) {
+        for (const c of commands) {
+            console.log(c.command);
+        }
         return await this._send({
             commands: commands.map(x => ({
                 seqno: this._cmdSeqno++,
@@ -584,7 +779,7 @@ export class GameConnectionServer extends net.Server {
         return seqno;
     }
 
-    onConnection(socket) {
+    async onConnection(socket) {
         console.info('Game connection established from:', socket.remoteAddress);
         this._socket = socket;
         this._state = 'connected';
@@ -593,6 +788,14 @@ export class GameConnectionServer extends net.Server {
         socket.on('end', this.onSocketEnd.bind(this));
         socket.on('error', this.onSocketError.bind(this));
         this.emit('status', this.getStatus());
+        await this.sendCommands({
+        /*    command: protos.CompanionToGameCommandType.PHONE_TO_GAME_PACKET,
+         *    ...
+         *}, {
+         */
+            command: protos.CompanionToGameCommandType.PAIRING_AS,
+            athleteId: 5052891,// this.athleteId, XXX
+        });
     }
 
     getStatus() {
@@ -634,7 +837,9 @@ export class GameConnectionServer extends net.Server {
     onMessage() {
         const buf = this._msgBuf;
         this._msgBuf = null;
+        console.info(buf.toString('hex'));
         const pb = protos.GameToCompanion.decode(buf);
+        console.info(pb);
         if (!this.athleteId) {
             this.athleteId = pb.athleteId.toNumber();
         }
