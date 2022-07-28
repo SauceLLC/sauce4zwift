@@ -369,7 +369,7 @@ export async function gameLogin(options={}) {
     const login = await apiPB('/api/users/login', {
         method: 'POST',
 
-        host: 'localhost',
+        host: 'jm', // XXX
         
         pb: protos.LoginRequest.encode({
             aeskey,
@@ -416,6 +416,7 @@ const headerFlags = {
 
 export class IV {
     constructor(props={}) {
+        this.seqno = 0;
         Object.assign(this, props);
     }
 
@@ -423,8 +424,8 @@ export class IV {
         const ivBuf = Buffer.alloc(2 + 2 + 2 + 2 + 4); // 12
         ivBuf.writeUInt16BE(deviceTypes[this.deviceType], 2);
         ivBuf.writeUInt16BE(channelTypes[this.channelType], 4);
-        ivBuf.writeUInt16BE(this.ci, 6);
-        ivBuf.writeUInt32BE(this.seqno, 8);
+        ivBuf.writeUInt16BE(this.ci || 0, 6);
+        ivBuf.writeUInt32BE(this.seqno || 0, 8);
         return ivBuf;
     }
 }
@@ -449,11 +450,13 @@ export function decryptPacket(data, key, iv) {
     }
     const ivBuf = iv.toBuffer();
     console.log('iv', ivBuf.toString('hex'));
-    debugger;
     const decipher = crypto.createDecipheriv('aes-128-gcm', key, ivBuf);
-    //decipher.setAAD(data.subarray(0, headerOfft));
+    console.log("header", data.subarray(0, headerOfft).toString('hex'));
+    decipher.setAAD(data.subarray(0, headerOfft));
     decipher.setAuthTag(data.subarray(-4));
-    const plain = Buffer.concat([decipher.update(data.subarray(headerOfft)), decipher.final()]);
+    console.log(data.subarray(-4).toString('hex'));
+    console.log('headerofft', headerOfft);
+    const plain = Buffer.concat([decipher.update(data.subarray(headerOfft, -4)), decipher.final()]);
     console.log("plaintext", plain.toString('hex'));
     return plain;
 }
@@ -481,7 +484,7 @@ export function encryptPacket(data, key, iv, ri, ci, seqno) {
     header.writeUInt8(flags, 0);
     const cipher = crypto.createCipheriv('aes-128-gcm', key, iv.toBuffer());
     const headerCompact = header.subarray(0, headerOfft);
-    //cipher.setAAD(headerCompact);
+    cipher.setAAD(headerCompact);
     const cipherBufs = [cipher.update(data), cipher.final()];
     const mac = cipher.getAuthTag().subarray(0, 4);
     return Buffer.concat([headerCompact, ...cipherBufs, mac]);
@@ -535,7 +538,9 @@ export async function gameClient(options={}) {
                             completeBuf = data.subarray(offt, (offt += size));
                         }
                         iv.channelType = 'tcpServer';
+                        console.log(completeBuf.toString('hex'));
                         const plainBuf = decryptPacket(completeBuf, aeskey, iv);
+                        iv.seqno++;
                         console.log("plainbuf", plainBuf.toString('hex'));
                         const pb = protos.IncomingPacket.decode(plainBuf);
                         console.log(pb);
