@@ -363,13 +363,10 @@ export async function authenticate(username, password) {
 // encryption material.
 export async function gameLogin(options={}) {
     const aeskey = crypto.randomBytes(16);
-
-    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-
     const login = await apiPB('/api/users/login', {
         method: 'POST',
 
-        host: 'jm', // XXX
+        //host: 'jm', // XXX
         
         pb: protos.LoginRequest.encode({
             aeskey,
@@ -431,150 +428,157 @@ export class IV {
 }
 
 
-export function decryptPacket(data, key, iv) {
-    const flags = data.readUint8(0);
-    const envelope = {flags};
-    let headerOfft = 1;
-    if (flags & headerFlags.ri) {
-        envelope.ri = data.readUInt32BE(headerOfft);
-        headerOfft += 4;
+export class GameClient {
+    constructor() {
+        this.tcpIV = new IV({deviceType: 'relay', channelType: 'tcpClient'});
+        this.udpIV = new IV({deviceType: 'relay', channelType: 'udpClient'});
     }
-    if (flags & headerFlags.ci) {
-        iv.ci = envelope.ci = data.readUInt16BE(headerOfft);
-        headerOfft += 2;
-    }
-    if (flags & headerFlags.seqno) {
-        iv.seqno = envelope.seqno = data.readUInt32BE(headerOfft);
-        headerOfft += 4;
-        iv.seqno++;
-    }
-    const ivBuf = iv.toBuffer();
-    console.log('iv', ivBuf.toString('hex'));
-    const decipher = crypto.createDecipheriv('aes-128-gcm', key, ivBuf);
-    console.log("header", data.subarray(0, headerOfft).toString('hex'));
-    decipher.setAAD(data.subarray(0, headerOfft));
-    decipher.setAuthTag(data.subarray(-4));
-    console.log(data.subarray(-4).toString('hex'));
-    console.log('headerofft', headerOfft);
-    const plain = Buffer.concat([decipher.update(data.subarray(headerOfft, -4)), decipher.final()]);
-    console.log("plaintext", plain.toString('hex'));
-    return plain;
-}
 
-
-export function encryptPacket(data, key, iv, ri, ci, seqno) {
-    let flags = 0;
-    let headerOfft = 1;
-    const header = Buffer.alloc(1 + 4 + 2 + 4);
-    if (ri !== undefined) {
-        flags |= headerFlags.ri;
-        header.writeUInt32BE(ri, headerOfft);
-        headerOfft += 4;
+    decrypt(data, iv) {
+        const flags = data.readUint8(0);
+        const envelope = {flags};
+        let headerOfft = 1;
+        if (flags & headerFlags.ri) {
+            envelope.ri = data.readUInt32BE(headerOfft);
+            headerOfft += 4;
+        }
+        if (flags & headerFlags.ci) {
+            iv.ci = envelope.ci = data.readUInt16BE(headerOfft);
+            headerOfft += 2;
+        }
+        if (flags & headerFlags.seqno) {
+            iv.seqno = envelope.seqno = data.readUInt32BE(headerOfft);
+            headerOfft += 4;
+            iv.seqno++;
+        }
+        const ivBuf = iv.toBuffer();
+        console.log('iv', ivBuf.toString('hex'));
+        const decipher = crypto.createDecipheriv('aes-128-gcm', this.aeskey, ivBuf);
+        console.log("header", data.subarray(0, headerOfft).toString('hex'));
+        decipher.setAAD(data.subarray(0, headerOfft));
+        decipher.setAuthTag(data.subarray(-4));
+        console.log(data.subarray(-4).toString('hex'));
+        console.log('headerofft', headerOfft);
+        const plain = Buffer.concat([decipher.update(data.subarray(headerOfft, -4)), decipher.final()]);
+        console.log("plaintext", plain.toString('hex'));
+        return plain;
     }
-    if (ci !== undefined) {
-        flags |= headerFlags.ci;
-        header.writeUInt16BE(ci, headerOfft);
-        headerOfft += 2;
-    }
-    if (seqno !== undefined) {
-        flags |= headerFlags.seqno;
-        header.writeUInt32BE(seqno, headerOfft);
-        headerOfft += 4;
-    }
-    header.writeUInt8(flags, 0);
-    const cipher = crypto.createCipheriv('aes-128-gcm', key, iv.toBuffer());
-    const headerCompact = header.subarray(0, headerOfft);
-    cipher.setAAD(headerCompact);
-    const cipherBufs = [cipher.update(data), cipher.final()];
-    const mac = cipher.getAuthTag().subarray(0, 4);
-    return Buffer.concat([headerCompact, ...cipherBufs, mac]);
-}
 
+    encrypt(data, iv, ri, ci, seqno) {
+        let flags = 0;
+        let headerOfft = 1;
+        const header = Buffer.alloc(1 + 4 + 2 + 4);
+        if (ri !== undefined) {
+            flags |= headerFlags.ri;
+            header.writeUInt32BE(ri, headerOfft);
+            headerOfft += 4;
+        }
+        if (ci !== undefined) {
+            flags |= headerFlags.ci;
+            header.writeUInt16BE(ci, headerOfft);
+            headerOfft += 2;
+        }
+        if (seqno !== undefined) {
+            flags |= headerFlags.seqno;
+            header.writeUInt32BE(seqno, headerOfft);
+            headerOfft += 4;
+        }
+        header.writeUInt8(flags, 0);
+        const cipher = crypto.createCipheriv('aes-128-gcm', this.aeskey, iv.toBuffer());
+        const headerCompact = header.subarray(0, headerOfft);
+        cipher.setAAD(headerCompact);
+        const cipherBufs = [cipher.update(data), cipher.final()];
+        const mac = cipher.getAuthTag().subarray(0, 4);
+        return Buffer.concat([headerCompact, ...cipherBufs, mac]);
+    }
 
-export async function gameClient(options={}) {
-    const {login, aeskey} = await gameLogin(options);
-    const host = login.info.tcpConfig.nodes[0].ip;
-    console.log(login);
-    let pendingBuf;
-    let pendingSize;
-    const iv = new IV({deviceType: 'relay', channelType: 'tcpClient'});
-    const client = net.createConnection({
-        host,
-        port: 3025,
-        noDelay: true,
-        timeout: 60000,
-        onread: {
-            buffer: Buffer.alloc(1 * 1024 * 1024),
-            callback: (nread, buf) => {
-                const data = buf.subarray(0, nread);
-                for (let offt = 0; offt < data.byteLength;) {
-                    let size;
-                    if (pendingSize) {
-                        size = pendingSize;
-                    } else {
-                        size = data.readUInt16BE(0);
-                        offt += 2;
-                    }
-                    if (data.byteLength - offt + (pendingBuf ? pendingBuf.byteLength : 0) < size) {
-                        debugger;
-                        console.debug("short read");
-                        const dataCopy = Buffer.from(data.subarray(offt));
-                        if (!pendingBuf) {
-                            pendingBuf = dataCopy;
-                            pendingSize = size;
-                        } else {
-                            // Yet-another-short-read.
-                            console.debug("another short read!");
-                            pendingBuf = Buffer.concat([pendingBuf, dataCopy]);
-                        }
-                    } else {
-                        let completeBuf;
-                        if (pendingBuf) {
-                            completeBuf = Buffer.concat([
-                                pendingBuf,
-                                data.subarray(offt, (offt += pendingBuf.byteLength - size))
-                            ]);
-                        } else {
-                            completeBuf = data.subarray(offt, (offt += size));
-                        }
-                        iv.channelType = 'tcpServer';
-                        console.log(completeBuf.toString('hex'));
-                        const plainBuf = decryptPacket(completeBuf, aeskey, iv);
-                        iv.seqno++;
-                        console.log("plainbuf", plainBuf.toString('hex'));
-                        const pb = protos.IncomingPacket.decode(plainBuf);
-                        console.log(pb);
-                        client.emit('packet', pb);
-                    }
+    async connect() {
+        const {login, aeskey} = await gameLogin();
+        this.aeskey = aeskey;
+        this.servers = login.info.tcpConfig.nodes;
+        console.log(login, aeskey);
+        this.tcpConn = net.createConnection({
+            host: this.servers[0].ip,
+            port: 3025,
+            noDelay: true,
+            timeout: 60000,
+            onread: {
+                buffer: Buffer.alloc(1 * 1024), // Testing buffering
+                callback: this.onRecvData.bind(this),
+            }
+        });
+        await new Promise((resolve, reject) => {
+            this.tcpConn.once('connect', resolve);
+            this.tcpConn.once('error', reject);
+        });
+        await this.sendTCP({
+            athleteId: 1, // XXX
+            worldTime: 0,
+            seqno: 1,
+            largWaTime: 0,
+        });
+    }
+
+    sendTCP(props) {
+        const pb = protos.ClientToServer.encode(props);
+        const plainBuf = pb.finish();
+        const magic = Buffer.from([0x10, 0x0]);
+        const cipherBuf = this.encrypt(Buffer.concat([magic, plainBuf]), this.tcpIV, /*ri*/ 1, /*ci*/ 0);
+        const wireBuf = Buffer.alloc(cipherBuf.byteLength + 2);
+        wireBuf.writeUInt16BE(cipherBuf.byteLength, 0);
+        wireBuf.set(cipherBuf, 2);
+        console.log('size+flags+cipher+mac', wireBuf.toString('hex'));
+        console.log('plain', plainBuf.toString('hex'));
+        await new Promise(resolve => this.tcpConn.write(wireBuf, resolve));
+    }
+
+    onRecvData(nread, buf) {
+        const data = buf.subarray(0, nread);
+        for (let offt = 0; offt < data.byteLength;) {
+            let size;
+            if (this.pendingSize) {
+                size = this.pendingSize;
+            } else {
+                size = data.readUInt16BE(0);
+                offt += 2;
+            }
+            if (data.byteLength - offt + (this.pendingBuf ? this.pendingBuf.byteLength : 0) < size) {
+                debugger;
+                console.debug("short read");
+                const dataCopy = Buffer.from(data.subarray(offt));
+                if (!this.pendingBuf) {
+                    this.pendingBuf = dataCopy;
+                    this.pendingSize = size;
+                } else {
+                    // Yet-another-short-read.
+                    console.debug("another short read!");
+                    this.pendingBuf = Buffer.concat([this.pendingBuf, dataCopy]);
                 }
-                console.log('zwift game data', nread, buf.subarray(0, nread).toString('hex'));
-            },
-        },
-    });
-    await new Promise((resolve, reject) => {
-        client.once('connect', resolve);
-        client.once('error', reject);
-    });
-    const hello = protos.ClientToServer.encode({
-        athleteId: 1, // XXX
-        worldTime: 0,
-        seqno: 1,
-        largWaTime: 0,
-    });
-    const plainBuf = hello.finish();
-    const helloMagic = Buffer.from([0x10, 0x0]);
-    const cipherBuf = encryptPacket(Buffer.concat([helloMagic, plainBuf]),
-        aeskey, iv, /*ri*/ 1, /*ci*/ 0);
-    const wireBuf = Buffer.alloc(cipherBuf.byteLength + 2);
-    wireBuf.writeUInt16BE(cipherBuf.byteLength, 0);
-    wireBuf.set(cipherBuf, 2);
-    console.log('size+flags+cipher+mac', wireBuf.toString('hex'));
-    console.log('plain', plainBuf.toString('hex'));
-    await new Promise(resolve => client.write(wireBuf, resolve));
-    return client;
+            } else {
+                let completeBuf;
+                if (this.pendingBuf) {
+                    completeBuf = Buffer.concat([
+                        this.pendingBuf,
+                        data.subarray(offt, (offt += this.pendingBuf.byteLength - size))
+                    ]);
+                } else {
+                    completeBuf = data.subarray(offt, (offt += size));
+                }
+                this.tcpIV.channelType = 'tcpServer';
+                console.log(completeBuf.toString('hex'));
+                const plainBuf = this.decrypt(completeBuf, this.tcpIV);
+                this.tcpIV.seqno++;
+                console.log("plainbuf", plainBuf.toString('hex'));
+                const pb = protos.IncomingPacket.decode(plainBuf);
+                console.log(pb);
+                client.emit('packet', pb);
+            }
+        }
+        console.log('zwift game data', nread, buf.subarray(0, nread).toString('hex'));
+    }
 }
 
- 
+     
 export async function refreshToken() {
     if (!authToken) {
         console.warn("No auth token to refresh");
