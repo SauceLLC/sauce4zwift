@@ -380,17 +380,7 @@ class SauceApp extends EventEmitter {
             const {fakeData, noData} = options;
             this.gameMonitor = await game.Sauce4ZwiftMonitor.factory({fakeData, noData});
         }
-        try {
-            await this.gameMonitor.start();
-        } catch(e) {
-            if (e.message.match(/permission denied/i)) {
-                await game.getCapturePermission();
-                restart();
-                return;
-            } else {
-                throw e;
-            }
-        }
+        await this.gameMonitor.start();
         rpcSources.game = this.gameMonitor;
         rpcSources.app = this;
         if (zwift.isAuthenticated() && this.getSetting('gameConnectionEnabled')) {
@@ -467,15 +457,6 @@ export async function main() {
     } catch(e) {
         await electron.dialog.showErrorBox('EULA or Patreon Link Error', '' + e);
         return quit(1);
-    }
-    if (game.npcapMissing) {
-        electron.shell.beep();
-        windows.makeCaptiveWindow({
-            width: 400,
-            height: 400,
-            page: 'npcap-install.html'
-        });
-        return;
     }
     await zwiftAuthenticate({forceLogin: process.argv.includes('--force-zwift-login')});
     const options = {};

@@ -35,8 +35,8 @@ run-debug-brk: $(BUILD)
 	npm run start-debug-brk
 
 lint:
-	$(NPATH)/eslint src
 	$(NPATH)/eslint --ext .mjs --config .eslintrc.modules.json src shared pages/src
+	$(NPATH)/eslint src
 
 unpacked: $(BUILD)
 ifndef WINBLOWS

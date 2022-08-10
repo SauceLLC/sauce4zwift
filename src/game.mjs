@@ -1,31 +1,21 @@
-import os from 'node:os';
 import net from 'node:net';
+import events from 'node:events';
+import path from 'node:path';
+import protobuf from 'protobufjs';
 import {SqliteDatabase, deleteDatabase} from './db.mjs';
 import * as rpc from './rpc.mjs';
 import * as zwift from './zwift.mjs';
 import * as sauce from '../shared/sauce/index.mjs';
 import {captureExceptionOnce} from '../shared/sentry-util.mjs';
+import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
 const require = createRequire(import.meta.url);
-const electron = require('electron');
 const pkg = require('../package.json');
-
-export let npcapMissing = false;
-
-let cap;
-let ZwiftPacketMonitor;
-try {
-    cap = require('cap');
-    ZwiftPacketMonitor = require('@saucellc/zwift-packet-monitor');
-} catch(e) {
-    if (e.message.includes('cap.node')) {
-        console.warn("npcap not installed", e);
-        npcapMissing = true;
-        ZwiftPacketMonitor = Object;
-    } else {
-        throw e;
-    }
-}
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const _case = protobuf.parse.defaults.keepCase;
+protobuf.parse.defaults.keepCase = true;
+export const protos = protobuf.loadSync([path.join(__dirname, 'zwift.proto')]).root;
+protobuf.parse.defaults.keepCase = _case;
 
 
 const powerUpEnum = {
@@ -65,13 +55,6 @@ async function resetDB() {
     }
     _db = null;
     await deleteDatabase('athletes');
-}
-
-
-const worldTimeOffset = 1414016074335;  // ms since zwift started production.
-function worldTimeConv(wt) {
-    // TBD I think timesync helps us adjust the offset but I can't interpret it yet.
-    return new Date(Number(worldTimeOffset) + Number(wt));
 }
 
 
@@ -253,27 +236,15 @@ async function getLocalRoutedIP() {
 }
 
 
-function getLocalRoutedIface(ip) {
-    for (const xDevice of cap.Cap.deviceList()) {
-        for (const xAddr of xDevice.addresses) {
-            if (xAddr.addr === ip) {
-                return xDevice.name;
-            }
-        }
-    }
-}
-
-
-export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
+export class Sauce4ZwiftMonitor extends events.EventEmitter {
 
     static async factory(options) {
         const ip = await getLocalRoutedIP();
-        const iface = getLocalRoutedIface(ip);
-        return new this(iface, ip, options);
+        return new this(ip, options);
     }
 
-    constructor(iface, ip, options={}) {
-        super(iface);
+    constructor(ip, options={}) {
+        super();
         this.ip = ip;
         this._useFakeData = options.fakeData;
         this._noData = options.noData;
@@ -291,8 +262,6 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         this._chatHistory = [];
         this._events = new Map();
         this._subGroupEvents = new Map();
-        this.on('incoming', this.onIncoming);
-        this.on('outgoing', this.onOutgoing);
         rpc.register(this.updateAthlete, {scope: this});
         rpc.register(this.startLap, {scope: this});
         rpc.register(this.resetStats, {scope: this});
@@ -305,6 +274,10 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         rpc.register(this.setFollowing, {scope: this});
         rpc.register(this.setNotFollowing, {scope: this});
         rpc.register(this.giveRideon, {scope: this});
+        this.gameClient = new zwift.GameClient();
+        this.gameClient.on('inPacket', this.onIncoming.bind(this));
+        this.gameClient.on('outPacket', this.onOutgoing.bind(this));
+        this.gameClient.connect({courseId: 6});
     }
 
     getEvent(id) {
@@ -569,15 +542,22 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         }
     }
 
-    _onIncoming(packet, from) {
+    _onIncoming(packet) {
         this.maybeLearnAthleteId(packet);
         for (const x of packet.worldUpdates) {
-            if (x.payload && x.payload.$type) {
+            x.payloadType = x.$type.getEnum('PayloadType')[x._payloadType];
+            if (!x.payloadType) {
+                console.warn("No enum type for:", x._payloadType);
+            } else if (x.payloadType[0] !== '_') {
+                const PayloadMsg = protos.get(x.payloadType);
+                if (!PayloadMsg) {
+                    throw new Error("Missing protobuf for type:", x.payloadType);
+                }
+                x.payload = PayloadMsg.decode(x._payload);
                 const ts = highPrecTimeConv(x.ts);
-                const type = x.payloadType;
-                if (type === 'PayloadChatMessage') {
+                if (x.payloadType === 'PayloadChatMessage') {
                     this.handleChatPayload(x.payload, ts);
-                } else if (type === 'PayloadRideOn') {
+                } else if (x.payloadType === 'PayloadRideOn') {
                     this.handleRideOnPayload(x.payload, ts);
                 } else {
                     console.debug(x.payloadType, x.payload.toJSON());
@@ -585,7 +565,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             }
         }
         for (const x of packet.playerStates) {
-            if (this.processState(x, from) === false) {
+            if (this.processState(x) === false) {
                 continue;
             }
             if (x.athleteId === this.watching) {
@@ -636,13 +616,13 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         }
     }
 
-    _onOutgoing(packet, from) {
+    _onOutgoing(packet) {
         this.maybeLearnAthleteId(packet);
         const state = packet.state;
         if (!state) {
             return;
         }
-        if (this.processState(state, from) === false) {
+        if (this.processState(state) === false) {
             return;
         }
         const watching = state.watchingAthleteId;
@@ -844,8 +824,8 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
         };
     }
 
-    processState(state, from) {
-        state.ts = +worldTimeConv(state._worldTime);
+    processState(state) {
+        state.ts = +zwift.worldTimeToDate(state._worldTime);
         if (!this._athleteData.has(state.athleteId)) {
             this._athleteData.set(state.athleteId, this._createAthleteData(state.athleteId, state.ts));
         }
@@ -865,7 +845,7 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
             return false;
         }
         // TBD: Move most of this to zwift-packet-monitor...
-        state.joinTime = +worldTimeConv(state._joinTime);
+        state.joinTime = +zwift.worldTimeToDate(state._joinTime);
         Object.assign(state, this.processFlags1(state._flags1));
         Object.assign(state, this.processFlags2(state._flags2));
         state.kj = state._mwHours / 1000 / (1000 / 3600);
@@ -1047,10 +1027,10 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 const roadId = priorState ? priorState.roadId : randInt(30);
                 const packet = OutgoingPacket.fromObject({
                     athleteId,
-                    worldTime: Date.now() - worldTimeOffset,
+                    worldTime: Date.now() - zwift.worldTimeOffset,
                     state: {
                         athleteId,
-                        _worldTime: Date.now() - worldTimeOffset,
+                        _worldTime: Date.now() - zwift.worldTimeOffset,
                         watchingAthleteId: watching,
                         power: Math.round(250 + 250 * Math.sin(i * 10 + Date.now() / 10000)),
                         heartrate: Math.round(150 + 50 * Math.cos(i * 10 + Date.now() / 10000)),
@@ -1293,32 +1273,5 @@ export class Sauce4ZwiftMonitor extends ZwiftPacketMonitor {
                 .reduce((agg, c) => agg + c, 0),
             athletesCacheSize: this._athletesCache.size,
         };
-    }
-}
-
-
-export async function getCapturePermission() {
-    if (os.platform() === 'darwin') {
-        const sudo = await import('sudo-prompt');
-        await new Promise((resolve, reject) => {
-            sudo.exec(`chown ${os.userInfo().uid} /dev/bpf*`, {name: 'Sauce for Zwift'},
-                (e, stdout, stderr) => {
-                    if (stderr) {
-                        console.warn(stderr);
-                    }
-                    if (e) {
-                        reject(e);
-                    } else {
-                        resolve(stdout);
-                    }
-                });
-        });
-    } else {
-        await electron.dialog.showErrorBox(
-            'Network capture permission required to continue',
-            'Sauce extends Zwift by capturing the game data sent over the network ' +
-            'For MacOS this requires read permission on the "/dev/bpf0" file.'
-        );
-        throw new Error("libpcap permission required");
     }
 }

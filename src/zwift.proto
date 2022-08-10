@@ -1,7 +1,329 @@
 // This is a fork of the wonderful work at https://github.com/zoffline/zwift-offline
 syntax = "proto3";
-import "zwiftMessages.proto"; // PlayerState
 
+message PlayerState {
+    int32 athleteId = 1;
+    int64 _worldTime = 2;
+    int32 distance = 3; // meters
+    int32 roadLocation = 4; // Location on road in percent * 10,000.
+    int32 laps = 5;
+    int32 _speed = 6; // mm / hour
+    int32 roadPosition = 8;  // Horiz, i.e. lane.
+    int32 _cadenceUHz = 9;
+    int32 draft = 10; // seems to be in percentage.
+    int32 heartrate = 11;
+    int32 power = 12;
+    int32 _heading = 13;  // microrads from -pi -> 3pi
+    int32 lean = 14;
+    int32 climbing = 15;
+    int32 time = 16;
+    uint32 frameHue = 18;
+    uint32 _flags1 = 19; // Packed with info parsed in user code
+    uint32 _flags2 = 20; // Packed with info parsed in user code
+    uint32 _progress = 21; // 16-32 are some sort of inverse mask when set, 8-16 is pct progress, 0 is workout
+    int64 _joinTime = 22;
+    bool justWatching = 23;
+    int32 _mwHours = 24; // milliwatt/hours of energy
+    float x = 25; // cartesian meters
+    float y = 27; // cartesian meters
+    float altitude = 26;
+    int32 watchingAthleteId = 28;
+    int32 groupId = 29;
+    int32 sport = 31; // 0 = biking, 1 = running
+    float _distanceWithLateral = 34; // cm
+    int32 world = 35;
+    int32 _f36 = 36; // low vals like 56 maybe segment/route/course/road related
+    int32 _f37 = 37; // low vals like 4 maybe segment/route/course/road related
+    bool canSteer = 38;
+    uint32 route = 39;
+    int64 _f41 = 41; // varint
+}
+
+
+message WorldUpdate {
+    int64 _worldTime = 1;
+    int32 realm = 2;
+
+    enum PayloadType {
+        _UNSET = 0;
+        PayloadLeftWorld = 2;
+        PayloadLeftWorld2 = 3;
+        PayloadRideOn = 4;
+        PayloadChatMessage = 5;
+        PayloadEvent = 6;
+        PayloadEventJoin = 7;
+        PayloadEventLeave = 8;
+        PayloadRequestProfile = 9;
+        PayloadReceiveInvitation = 10;
+
+        _kicked = 11;
+
+        _worldTime = 100;
+        _setRoadTime = 101;
+        _performAction = 102;
+
+        PayloadSegmentResult = 105;
+
+        _flag = 106;
+        _rideLeaderAction = 108;
+        _groupEventUserRegistered = 109;
+        _notableMoment = 110;
+        _fenceStats = 113;
+        _fenceConfig = 114;
+    }
+    PayloadType _payloadType = 3;
+
+    bytes _payload = 4;
+    int64 _worldTimeBorn = 5;
+    int64 x = 6;
+    int64 altitude = 7;
+    int64 z = 8;
+    int64 _worldTimeExpire = 9;
+    int64 relId = 10;
+    int32 importance = 11;
+    int64 _f12 = 12;
+    uint64 ts = 14;
+    int32 _f15 = 15;
+}
+
+message PayloadEventJoin {
+    int32 eventId = 1;
+}
+
+message PayloadEventLeave {
+    int32 eventId = 1;
+}
+
+message PayloadSegmentResult {
+    int64 id = 1;
+    int32 athleteId = 2;
+    int32 realm = 3;
+    int32 courseId = 4; // XXX double check this is relay server course
+    uint64 _unsignedSegmentId = 5;
+    uint32 eventSubgroupId = 6;
+    string firstName = 7;
+    string lastName = 8;
+    uint64 _worldTime = 9;
+    string finishTime = 10;
+    uint32 elapsed = 11; // ms
+    int32 powerType = 12;
+    int32 weight = 13; // grams
+    int32 _f14 = 14;
+    uint32 avgPower = 15;
+    bool male = 16;
+    string leaderboardBirth = 17;
+    uint32 playerType = 18;
+    int32 avgHR = 19;
+    int32 sport = 20;
+    int64 activityId = 21;
+}
+
+
+// for /api/segment-results
+message SegmentResults {
+    int32 realm = 1;
+    uint64 _unsignedSegmentId = 2;
+    uint64 eventSubgroupId = 3;
+    repeated PayloadSegmentResult results = 4;
+}
+
+
+message PayloadChatMessage {
+    int32 from = 1;
+    int32 to = 2; // 0 if public message
+    int32 _f3 = 3; // always value 1 ?
+    string firstName = 4;
+    string lastName = 5;
+    string message = 6;
+    string avatar = 7;
+    int32 countryCode = 8;
+    int32 eventSubgroup = 11;
+}
+
+message PayloadRideOn {
+    int32 from = 1;
+    int32 to = 2;
+    string firstName = 3;
+    string lastName = 4;
+    int32 countryCode = 5;
+}
+
+message Payload2 {
+    int32 _f1 = 1;
+    int64 _f2 = 2;
+}
+
+message PayloadLeftWorld {
+    int64 athleteId = 1;
+    int64 _worldTime = 2;
+    bool multipleLogins = 3;
+    bool _f4 = 4; // maybe bool
+}
+
+message PayloadLeftWorld2 {
+    int64 athleteId = 1;
+    int64 _worldTime = 2;
+    bool multipleLogins = 3;
+    bool _f4 = 4; // maybe bool
+}
+
+message PayloadEvent {
+    int32 id = 1;
+    int32 _f2 = 2; // varint maybe bool
+    string name = 3; // ldelim
+    string desc = 4; // ldelim
+    uint64 ts = 5; // varint
+    fixed32 distance = 7;
+    int32 _f8 = 8; // varint maybe bool
+    message Attrs {
+        int32 id = 1;
+        string name = 2;
+        string desc = 3;
+        string _f7 = 7;
+        int64 _f8 = 8; // varint
+        int64 _f9 = 9; // varint
+        int64 _f10 = 10; // varint
+        int64 _f11 = 11; // varint
+        int64 _f12 = 12; // varint
+        int64 _f13 = 13; // varint
+        int64 _f14 = 14; // varint
+        int64 _f15 = 15; // varint
+        int64 _f16 = 16; // varint
+        int64 _f17 = 17; // varint
+        int64 _f18 = 18; // varint
+        int64 _f22 = 22; // varint
+        fixed32 distance = 24;
+        int64 _f25 = 25; // varint
+        int64 _f29 = 29; // varint
+        int64 _f30 = 30; // varint
+        int64 _f31 = 31; // varint
+        fixed32 _f32_maybe_float_XXX= 32; // maybe float
+        fixed32 _f33_maybe_float_XXX = 33; // maybe float
+        int64 duration = 34; // varint
+        int64 _f42 = 42; // varint
+        int64 _f44 = 44; // varint
+        int64 _f46 = 46; // varint
+        int64 _f47 = 47; // varint
+    }
+    repeated Attrs attrs = 10;
+    string imageUrl = 12;
+    int32 duration = 13; // varint
+    int64 _f14 = 14; // varint
+    int32 _f15 = 15; // varint
+    int32 _f17 = 17; // varint
+    int32 _f18 = 18; // varint
+    int64 _f19 = 19; // varint
+    int32 _f22 = 22; // varint
+    int32 _f23 = 23; // varint
+    int32 meetupOnlyView = 24; // varint
+    int32 _f25 = 25; // varint
+    int32 _f27 = 27; // varint
+    int32 _f28 = 28; // varint
+    int32 _f29 = 29; // varint
+    int32 _f34 = 34; // varint
+    int32 _f35 = 35; // varint
+    int64 _f36 = 36; // varint
+}
+
+message EventPositions {
+    int32 position = 1;
+    message PlayerPlacement {
+        int32 athleteId = 1;
+        float distanceCovered = 2; // maybe fixed32?
+        int32 distanceToLeader = 3; // cm?, ms?
+    }
+    repeated PlayerPlacement player1 = 2;
+    repeated PlayerPlacement player2 = 3;
+    repeated PlayerPlacement player3 = 4; // leader? self?
+    repeated PlayerPlacement player4 = 5; // tail?
+    int32 activeAthleteCount = 6;
+    int32 leaderAthleteId = 7;
+    int32 distanceToLeader = 8;  // cm?, ms?
+    int32 athleteCount = 116;
+}
+
+message ServerToClient {
+    int32 realm = 1;
+    int32 athleteId = 2;
+    int64 _worldTime = 3;
+    int32 seqno = 4;
+    int32 ackSeqno = 5;  // UDP ack to our previously sent seqno
+    repeated PlayerState playerStates = 8;
+    repeated WorldUpdate worldUpdates = 9;
+    int64 _f11 = 11;
+    string localIP = 12;
+    int32 athleteCount = 14;
+    int32 localPort = 15;
+    int32 protocol = 16; // 1 = UDP, 2 = TCP
+    int64 latency = 17;
+    int32 messageCount = 18;
+    int32 msgCount = 19;
+    EventPositions eventPositions = 23;
+    Server1 servers1 = 24;
+    Server2 servers2 = 25;
+    repeated PlayerState playerStates2XXX = 28; // not so sure about this..
+    optional bytes companion_aeskey = 32;
+}
+
+message ServerAddress {
+    int32 realm = 1;
+    int32 courseId = 2;
+    string ip = 3;
+    int32 port = 4;
+    float serverSelection1 = 5; // no idea
+    float serverSelection2 = 6; // no idea
+}
+
+message ServerPool {
+    int32 realm = 1;
+    int32 courseId = 2;
+    repeated ServerAddress addresses = 3;
+    bool serverSelectionMethod = 4;
+}
+
+message Server2 {
+    repeated ServerPool pools = 1;
+    int32 port = 2;
+    int64 _f3 = 3;
+    int64 _f4 = 4;
+    float _f5 = 5;
+    float _f6 = 6;
+}
+
+message Server1 {
+    repeated ServerAddress addresses = 1;
+    int32 _f2 = 2;
+    int32 _f3 = 3;
+    int32 _f4 = 4;
+}
+
+message WorldAttributes {
+    int32 worldId = 1;
+    string name = 2;
+    int64 _f3 = 3;
+    int64 _f5 = 4;
+    int64 _worldTime = 6;
+    int64 clockTime = 7;
+}
+
+message WorldAttribute {
+    int64 _worldTime = 2;
+}
+
+message AthleteAttributes {
+    int32 _f2 = 2;
+    int32 _f3 = 3;
+    message AttributeMessage {
+        int32 myId = 1;
+        int32 theirId = 2;
+        string firstName = 3;
+        string lastName = 4;
+        int32 countryCode = 5;
+    }
+    AttributeMessage attributeMessage = 4;
+    int32 theirId = 10;
+    int32 _f13 = 13;
+}
 enum NotableMomentTypeZG {
     NEW_PR = 0;
     GAINED_LEVEL = 5;
@@ -70,7 +392,7 @@ enum FitnessPrivacy {
 message ActivityFull {  //where is primaryImageUrl, feedImageThumbnailUrl, activityRideOnCount, activityCommentCount, eventId, rideOnGiven
     optional uint64 id = 1;
     required uint64 athleteId = 2;
-    required uint64 courseId = 3;
+    required int32 courseId = 3; // XXX double check that is is the same as the relay server courseId concept ie 6=watopia
     required string name = 4;
     optional string _f5 = 5;
     optional bool privateActivity = 6;
@@ -114,7 +436,7 @@ message ActivityFull {  //where is primaryImageUrl, feedImageThumbnailUrl, activ
 message Activity { //field names pinned to db
     optional uint64 id = 1;
     required uint64 athleteId = 2;
-    required uint64 courseId = 3;
+    required int32 courseId = 3; // XXX double check this is relay server course
     required string name = 4;
     optional string _f5 = 5;
     optional bool _f6 = 6;
@@ -197,7 +519,7 @@ enum PowerType {
 
 message PlayerProfile {
     optional int64 id = 1;
-    optional int64 realm = 2;
+    optional int32 realm = 2;
     optional string email = 3;
     optional string firstName = 4;
     optional string lastName = 5;
@@ -488,10 +810,10 @@ message Achievements {
 message DropInWorld {
     required uint64 id = 1;
     optional string name = 2;
-    optional uint64 courseId = 3;
+    optional int32 courseId = 3;
     optional bool _f4 = 4;
     optional uint64 zwifters = 5;
-    optional uint64 worldTime = 6;
+    optional uint64 _worldTime = 6;
     optional uint64 realTime = 7;
     repeated DropInPlayer proPlayers = 8;
     repeated DropInPlayer followees = 9;
@@ -548,8 +870,8 @@ message Goals {
 }
 
 message HashSeed {
-    required uint32 seed1 = 1;
-    required uint32 seed2 = 2;
+    required uint32 nonce = 1;
+    required uint32 seed = 2;
     required uint64 expiryDate = 3;
 }
 
@@ -583,10 +905,6 @@ message RelaySessionRefreshResponse {
     required uint32 expiration = 2; // minutes
 }
 
-
-enum ZofflineConstants {
-    RealmID = 1;   // hardcoded in ZwiftApp=1 (g_CurrentServerRealmID, 0: never connected; -1: disconnected)
-}
 
 enum UserBikeAction {
     ELBOW = 0;
@@ -836,7 +1154,7 @@ message TcpAddress {
     optional string ip = 1;
     optional int32 port = 2;
     optional int32 realm = 3;
-    optional int32 course = 4;
+    optional int32 courseId = 4;
 }
 
 message TcpConfig {
@@ -857,10 +1175,11 @@ message PerSessionInfo {
     optional int32 maxSegmentSubs = 5;
 }
 
+
 message ClientToServer {
-    optional int64 realm = 1;
+    required int32 realm = 1;
     required int64 athleteId = 2;
-    optional int64 worldTime = 3;
+    optional int64 _worldTime = 3;
     required uint32 seqno = 4;
     optional uint32 _f5 = 5;
     optional int64 _f6 = 6;
@@ -872,7 +1191,8 @@ message ClientToServer {
     optional int64 lastPlayerUpdate = 12;
     optional int64 largWaTime = 13;
     optional bool _f14 = 14;
-    repeated int64 subsSegments = 15;
+    //repeated int64 subsSegments = 15;
+    int64 subsSegments = 15;
     repeated int64 unsSegments = 16;
 }
 
@@ -982,7 +1302,7 @@ message EventSubgroupProtobuf { //where is fieldLimit, signedUp, signupStatus, r
     optional bool _f44 = 44; // false, tag736
     optional string tags = 45; // tag746, semi-colon delimited tags eg: "fenced;3r;created_ryan;communityevent;no_kick_mode;timestamp=1603911177622"
     optional uint32 lateJoinInMinutes = 46; //tag752
-    optional uint64 courseId = 47; // tag760
+    optional int32 courseId = 47; // tag760 // XXX double check this is relay server course
     optional uint64 _f48 = 48; //tag898
     optional string routeUrl = 49; //tag906
     repeated int32 _f50 = 50; //tag912
@@ -1043,7 +1363,7 @@ enum EventCulling {
 
 message Event { 
     required uint64 id = 1;
-    optional uint64 realm = 2;
+    optional int32 realm = 2;
     required string name = 3;
     optional string description = 4;
     optional uint64 eventStart = 5; // Start time (epoch time in ms)
@@ -1076,7 +1396,7 @@ message Event {
     optional uint64 _f32 = 32;
     optional bool wtrl = 33; //WTRL (World Tactical Racing Leagues)
     optional uint32 lateJoinInMinutes = 34;
-    optional uint64 courseId = 35;
+    optional int32 courseId = 35; // XXX double check this is relay server course
     optional EventTimeTrialOptions tto = 36;
     optional string _f37 = 37;
     optional string _f38 = 38;

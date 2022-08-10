@@ -17,7 +17,6 @@
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
-    "@saucellc/zwift-packet-monitor": "https://github.com/SauceLLC/zwift-packet-monitor.git#36a7630979",
     "@sentry/integrations": "6.19.6",
     "@sentry/node": "6.19.6",
     "better-sqlite3": "7.5.3",
@@ -27,7 +26,7 @@
     "jsfit": "https://github.com/mayfield/jsfit.git#617a6e10870aa21a4c",
     "keytar": "7.9.0",
     "node-fetch": "3.2.5",
-    "sudo-prompt": "9.2.1"
+    "xxhash-addon": "2.0.1"
   },
   "devDependencies": {
     "@sentry/browser": "6.19.6",
