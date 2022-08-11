@@ -7,7 +7,6 @@ import * as rpc from './rpc.mjs';
 import {EventEmitter} from 'node:events';
 import {sleep} from '../shared/sauce/base.mjs';
 import {createRequire} from 'node:module';
-import * as zwift from './zwift.mjs';
 import * as menu from './menu.mjs';
 
 const require = createRequire(import.meta.url);
@@ -576,12 +575,12 @@ export async function patronLink() {
 }
 
 
-export async function zwiftLogin() {
+export async function zwiftLogin(options) {
     const win = makeCaptiveWindow({
         width: 400,
         height: 600,
         show: false,
-        page: 'zwift-login.html',
+        page: options.game ? 'zwift-game-login.html' : 'zwift-login.html',
     }, {
         preload: path.join(appPath, 'src', 'preload', 'zwift-login.js'),
     });
@@ -590,7 +589,7 @@ export async function zwiftLogin() {
     const done = new Promise(resolve => setDone = resolve);
     electron.ipcMain.on('zwift-creds', async (ev, {username, password}) => {
         try {
-            await zwift.authenticate(username, password);
+            await options.api.authenticate(username, password, options);
             setDone({username, password});
         } catch(e) {
             win.webContents.send('validation-error', e);

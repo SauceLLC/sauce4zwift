@@ -1,4 +1,3 @@
-import net from 'node:net';
 import events from 'node:events';
 import path from 'node:path';
 import protobuf from 'protobufjs';
@@ -221,34 +220,13 @@ class DataCollector {
 }
 
 
-async function getLocalRoutedIP() {
-    const sock = net.createConnection(80, 'www.zwift.com');
-    return await new Promise((resolve, reject) => {
-        sock.on('connect', () => {
-            try {
-                resolve(sock.address().address);
-            } finally {
-                sock.end();
-            }
-        });
-        sock.on('error', reject);
-    });
-}
-
-
 export class Sauce4ZwiftMonitor extends events.EventEmitter {
-
-    static async factory(options) {
-        const ip = await getLocalRoutedIP();
-        return new this(ip, options);
-    }
-
-    constructor(ip, options={}) {
+    constructor(options={}) {
         super();
-        this.ip = ip;
         this._useFakeData = options.fakeData;
-        this._noData = options.noData;
-        this.setMaxListeners(50);
+        this.zwiftAPI = options.zwiftAPI;
+        this.gameClient = options.gameClient;
+        this.setMaxListeners(100);
         this._athleteData = new Map();
         this.athleteId = null;
         this.watching = null;
@@ -274,10 +252,6 @@ export class Sauce4ZwiftMonitor extends events.EventEmitter {
         rpc.register(this.setFollowing, {scope: this});
         rpc.register(this.setNotFollowing, {scope: this});
         rpc.register(this.giveRideon, {scope: this});
-        this.gameClient = new zwift.GameClient();
-        this.gameClient.on('inPacket', this.onIncoming.bind(this));
-        this.gameClient.on('outPacket', this.onOutgoing.bind(this));
-        this.gameClient.connect({courseId: 6});
     }
 
     getEvent(id) {
@@ -510,11 +484,11 @@ export class Sauce4ZwiftMonitor extends events.EventEmitter {
     }
 
     async getAthlete(id, options={}) {
-        if (zwift.isAuthenticated()) {
+        if (this.zwiftAPI.isAuthenticated()) {
             if (!options.refresh) {
                 return this.loadAthlete(id);
             } else {
-                const p = await zwift.getProfile(id);
+                const p = await this.zwiftAPI.getProfile(id);
                 if (p) {
                     return this.updateAthlete(p.id, this._profileToAthlete(p));
                 }
@@ -768,8 +742,8 @@ export class Sauce4ZwiftMonitor extends events.EventEmitter {
                 });
                 updates.push([id, data]);
             }
-        } else if (zwift.isAuthenticated()) {
-            for (const p of await zwift.getProfiles(batch)) {
+        } else {
+            for (const p of await this.zwiftAPI.getProfiles(batch)) {
                 if (p) {
                     updates.push([p.id, this._updateAthlete(p.id, this._profileToAthlete(p))]);
                 }
@@ -898,6 +872,7 @@ export class Sauce4ZwiftMonitor extends events.EventEmitter {
             });
         }
         this._stateProcessCount++;
+        console.debug(state);
     }
 
     async resetAthletesDB() {
@@ -919,19 +894,17 @@ export class Sauce4ZwiftMonitor extends events.EventEmitter {
             captureExceptionOnce(e);
             this.resetAthletesDB();
         }
-        if (this._useFakeData) {
-            this._fakeDataGenerator();
-        } else if (!this._noData) {
-            super.start();
-            if (zwift.isAuthenticated()) {
-                const selfProfile = await zwift.getProfile('me');
-                // Could technically be different than the game account
-                this.zwiftAPIAthleteId = selfProfile.id;
-                this._zwiftMetaSync();  // bg okay
-            }
-        }
         this._nearbyJob = this.nearbyProcessor();
         this._gcInterval = setInterval(this.gcStates.bind(this), 32768);
+        if (this._useFakeData) {
+            this._fakeDataGenerator();
+        } else {
+            this.gameClient.on('inPacket', this.onIncoming.bind(this));
+            this.gameClient.on('outPacket', this.onOutgoing.bind(this));
+            await this.gameClient.connect();
+            this.zwiftAPIAthleteId = this.zwiftAPI.profile.id;
+            queueMicrotask(() => this._zwiftMetaSync());
+        }
     }
 
     async stop() {
@@ -947,12 +920,12 @@ export class Sauce4ZwiftMonitor extends events.EventEmitter {
     }
 
     async _zwiftMetaSync() {
-        if (!this._active || !zwift.isAuthenticated()) {
+        if (!this._active || !this.zwiftAPI.isAuthenticated()) {
             console.warn("Skipping social network update because not logged into zwift");
             return;
         }
         setTimeout(this._zwiftMetaSync.bind(this), 1200 * 1000);
-        const followees = await zwift.getFollowees(this.zwiftAPIAthleteId);
+        const followees = await this.zwiftAPI.getFollowees(this.zwiftAPIAthleteId);
         const updates = [];
         for (const x of followees) {
             const p = x.followeeProfile;
@@ -963,7 +936,7 @@ export class Sauce4ZwiftMonitor extends events.EventEmitter {
         if (updates.length) {
             this.saveAthletes(updates);
         }
-        const events = await zwift.getEventFeed();
+        const events = await this.zwiftAPI.getEventFeed();
         for (const x of events) {
             this._events.set(x.id, x);
             if (x.eventSubgroups) {
@@ -972,7 +945,7 @@ export class Sauce4ZwiftMonitor extends events.EventEmitter {
                 }
             }
         }
-        const meetups = await zwift.getPrivateEventFeed();
+        const meetups = await this.zwiftAPI.getPrivateEventFeed();
         for (const x of meetups) {
             this._events.set(x.id, x);
             if (x.eventSubgroupId) {
@@ -984,10 +957,7 @@ export class Sauce4ZwiftMonitor extends events.EventEmitter {
     }
 
     async setFollowing(athleteId) {
-        if (!zwift.isAuthenticated()) {
-            throw new TypeError("Zwift login required");
-        }
-        const resp = await zwift._setFollowing(athleteId, this.zwiftAPIAthleteId);
+        const resp = await this.zwiftAPI._setFollowing(athleteId, this.zwiftAPIAthleteId);
         return this.updateAthlete(athleteId, {
             following: resp.status === 'IS_FOLLOWING',
             followRequest: resp.status === 'REQUESTS_TO_FOLLOW',
@@ -995,10 +965,7 @@ export class Sauce4ZwiftMonitor extends events.EventEmitter {
     }
 
     async setNotFollowing(athleteId) {
-        if (!zwift.isAuthenticated()) {
-            throw new TypeError("Zwift login required");
-        }
-        await zwift._setNotFollowing(athleteId, this.zwiftAPIAthleteId);
+        await this.zwiftAPI._setNotFollowing(athleteId, this.zwiftAPIAthleteId);
         return this.updateAthlete(athleteId, {
             following: false,
             followRequest: false,
@@ -1006,14 +973,11 @@ export class Sauce4ZwiftMonitor extends events.EventEmitter {
     }
 
     async giveRideon(athleteId, activity=0) {
-        if (!zwift.isAuthenticated()) {
-            throw new TypeError("Zwift login required");
-        }
-        return await zwift._giveRideon(athleteId, this.zwiftAPIAthleteId, activity);
+        return await this.zwiftAPI._giveRideon(athleteId, this.zwiftAPIAthleteId, activity);
     }
 
     async _fakeDataGenerator() {
-        const OutgoingPacket = ZwiftPacketMonitor.OutgoingPacket;
+        const CTS = protos.ClientToServer;
         const athleteCount = 1000;
         let watching = -Math.trunc(athleteCount / 2 + 1);
         let iters = 1;
@@ -1025,7 +989,7 @@ export class Sauce4ZwiftMonitor extends events.EventEmitter {
                 const ad = this._athleteData.get(athleteId);
                 const priorState = ad && ad.mostRecentState;
                 const roadId = priorState ? priorState.roadId : randInt(30);
-                const packet = OutgoingPacket.fromObject({
+                const packet = CTS.fromObject({
                     athleteId,
                     worldTime: Date.now() - zwift.worldTimeOffset,
                     state: {
@@ -1052,7 +1016,7 @@ export class Sauce4ZwiftMonitor extends events.EventEmitter {
             if (iters++ % (hz * 10) === 0) {
                 const from = -randInt(athleteCount);
                 const athlete = await this.getAthlete(from);
-                const chat = ZwiftPacketMonitor.pbRoot.PayloadChatMessage.fromObject({
+                const chat = protos.PayloadChatMessage.fromObject({
                     to: null,
                     from,
                     message: 'Test',
@@ -1168,8 +1132,9 @@ export class Sauce4ZwiftMonitor extends events.EventEmitter {
     }
 
     async _nearbyProcessor() {
-        const watchingData = this._athleteData.get(this.watching);
+        let watchingData = this._athleteData.get(this.watching);
         if (!watchingData) {
+            console.debug('No data for watching athlete', this._athleteData);
             return;
         }
         const nearby = [];

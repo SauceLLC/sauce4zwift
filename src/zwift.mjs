@@ -18,7 +18,6 @@ protobuf.parse.defaults.keepCase = true;
 export const protos = protobuf.loadSync([path.join(__dirname, 'zwift.proto')]).root;
 protobuf.parse.defaults.keepCase = _case;
 
-let authToken;
 
 const pbProfilePrivacyFlags = {
     approvalRequired: 0x1,
@@ -49,98 +48,6 @@ function zwiftCompatDate(date) {
 }
 
 
-export function isAuthenticated() {
-    return !!authToken;
-}
-
-
-export async function api(urn, options={}, headers={}) {
-    headers = headers || {};
-    if (!options.noAuth) {
-        if (!authToken || !authToken.access_token) {
-            throw new TypeError('Auth token not set');
-        }
-        headers['Authorization'] = `Bearer ${authToken.access_token}`;
-    }
-    if (options.json) {
-        options.body = JSON.stringify(options.json);
-        headers['Content-Type'] = 'application/json';
-    }
-    if (options.pb) {
-        options.body = options.pb.finish();
-        headers['Content-Type'] = 'application/x-protobuf-lite; version=2.0';
-    }
-    if (options.accept) {
-        headers['Accept'] = {
-            json: 'application/json',
-            protobuf: 'application/x-protobuf-lite',
-        }[options.accept];
-    }
-    if (options.apiVersion) {
-        headers['Zwift-Api-Version'] = options.apiVersion;
-    }
-    const host = options.host || `us-or-rly101.zwift.com`;
-    const q = options.query ? '?' + options.query : '';
-    const r = await fetch(`https://${host}/${urn.replace(/^\//, '')}${q}`, {
-        headers: {
-            'Platform': 'OSX',
-            //'Source': 'Game Client',
-            'Source': 'zwift-companion', // Hack to make zwift-offline work
-            'User-Agent': 'CNL/3.22.2 (macOS 12 Monterey; Darwin Kernel 21.5.0) zwift/1.0.101324 curl/7.78.0-DEV',
-            ...headers,
-        },
-        ...options,
-    });
-    if (!r.ok && (!options.ok || !options.ok.includes(r.status))) {
-        const msg = await r.text();
-        const e = new Error(`Zwift HTTP Error: [${r.status}]: ${msg}`);
-        e.status = r.status;
-        throw e;
-    }
-    return r;
-}
-
-
-export async function apiPaged(urn, options={}, headers) {
-    const results = [];
-    let start = 0;
-    let pages = 0;
-    const pageLimit = options.pageLimit ? options.pageLimit : 10;
-    const query = options.query || new URLSearchParams();
-    const limit = options.limit || 100;
-    query.set('limit', limit);
-    while (true) {
-        query.set('start', start);
-        const page = await apiJSON(urn, {query, ...options}, headers);
-        for (const x of page) {
-            results.push(x);
-        }
-        if (page.length < limit || ++pages >= pageLimit) {
-            break;
-        }
-        start = results.length;
-    }
-    return results;
-}
-
-
-export async function apiJSON(urn, options, headers) {
-    const r = await api(urn, {accept: 'json', ...options}, headers);
-    return await r.json();
-}
-
-
-export async function apiPB(urn, options, headers) {
-    const r = await api(urn, {accept: 'protobuf', ...options}, headers);
-    const ProtoBuf = protos.get(options.protobuf);
-    const data = Buffer.from(await r.arrayBuffer());
-    if (options.debug) {
-        console.debug(data.toString('hex'));
-    }
-    return ProtoBuf.decode(data);
-}
-
-
 function seedToBuffer(num) {
     const buf = Buffer.alloc(4);
     buf.writeUInt32BE(num);
@@ -148,239 +55,340 @@ function seedToBuffer(num) {
 }
 
 
-export async function getHashSeeds(options) {
-    const data = (await apiPB('/relay/worlds/hash-seeds', {
-        protobuf: 'HashSeeds',
-        ...options
-    }));
-    return Array.from(data.seeds).map(x => ({
-        nonce: seedToBuffer(x.nonce),
-        seed: seedToBuffer(x.seed),
-    }));
-}
-
- 
-export async function getProfile(id, options) {
-    try {
-        return await apiJSON(`/api/profiles/${id}`, options);
-    } catch(e) {
-        if (e.status === 404) {
-            return;
+export class ZwiftAPI {
+    async authenticate(username, password, options={}) {
+        if (options.host) {
+            this.host = options.host;
         }
-        throw e;
-    }
-}
-
-
-export async function getProfiles(ids, options) {
-    const unordered = (await apiPB('/api/profiles', {
-        query: new URLSearchParams(ids.map(id => ['id', id])),
-        protobuf: 'PlayerProfiles',
-        ...options,
-    })).profiles;
-    // Reorder and make results similar to getProfile
-    const m = new Map(unordered.map(x => [x.id.toNumber(), x.toJSON()]));
-    return ids.map(_id => {
-        const id = +_id;
-        const x = m.get(id);
-        if (!x) {
-            console.debug('Missing profile:', id);
-            return;
+        const r = await this.fetch('/auth/realms/zwift/protocol/openid-connect/token', {
+            host: this.host || 'secure.zwift.com',
+            noAuth: true,
+            method: 'POST',
+            ok: [200, 401],
+            accept: 'json',
+            body: new URLSearchParams({
+                client_id: 'Zwift Game Client',
+                grant_type: 'password',
+                password,
+                username,
+            })
+        });
+        const resp = await r.json();
+        if (r.status === 401) {
+            throw new Error(resp.error_description || 'Login failed');
         }
-        x.id = id;
-        x.privacy = {
-            defaultActivityPrivacy: x.default_activity_privacy,
-        };
-        for (const [k, flag] of Object.entries(pbProfilePrivacyFlags)) {
-            x.privacy[k] = !!(+x.privacy_bits & flag);
+        this._authToken = resp;
+        console.debug("Zwift auth token acquired");
+        this._schedRefresh(this._authToken.expires_in * 1000 / 2);
+        this.profile = await this.getProfile('me');
+    }
+
+    async _refreshToken() {
+        if (!this._authToken) {
+            console.warn("No auth token to refresh");
+            return false;
         }
-        for (const [k, flag] of Object.entries(pbProfilePrivacyFlagsInverted)) {
-            x.privacy[k] = !(+x.privacy_bits & flag);
-        }
-        return x;
-    });
-}
-
-
-function convSegmentResult(x) {
-    const ret = {
-        ...x.toJSON(),
-        ts: worldTimeToDate(x._worldTime),
-        finishTime: x.finishTime && new Date(x.finishTime),
-        segmentId: x._unsignedSegmentId.toSigned().toString()
-    };
-    delete ret._worldTime;
-    delete ret._unsignedSegmentId;
-    return ret;
-}
-
-
-export async function getLiveSegmentLeaders() {
-    const data = await apiPB(`/live-segment-results-service/leaders`,
-        {protobuf: 'SegmentResults'});
-    return data.results.filter(x => +x.id).map(convSegmentResult);
-}
-
-
-export async function getLiveSegmentLeaderboard(segmentId) {
-    const data = await apiPB(`/live-segment-results-service/leaderboard/${segmentId}`,
-        {protobuf: 'SegmentResults'});
-    return data.results.map(convSegmentResult);
-}
-
-
-export async function getSegmentResults(segmentId, options={}) {
-    const query = new URLSearchParams({
-        world_id: 1,
-        segment_id: segmentId,
-    });
-    if (options.athleteId) {
-        query.set('player_id', options.athleteId);
+        const r = await this.fetch('/auth/realms/zwift/protocol/openid-connect/token', {
+            host: this.host || 'secure.zwift.com',
+            noAuth: true,
+            method: 'POST',
+            accept: 'json',
+            body: new URLSearchParams({
+                client_id: 'Zwift Game Client',
+                grant_type: 'refresh_token',
+                refresh_token: this._authToken.refresh_token,
+            })
+        });
+        const resp = await r.json();
+        this._authToken = resp;
+        console.debug("Zwift auth token refreshed");
+        this._schedRefresh(this._authToken.expires_in * 1000 / 2);
     }
-    if (options.from) {
-        query.set('from', zwiftCompatDate(options.from));
+
+    _schedRefresh(delay) {
+        clearTimeout(this._nextRefresh);
+        console.debug(`Refresh Zwift token in: ${Math.round(delay / 1000)} seconds`);
+        this._nextRefresh = setTimeout(this._refreshToken.bind(this), Math.min(0x7fffffff, delay));
     }
-    if (options.to) {
-        query.set('to', zwiftCompatDate(options.to));
+
+    isAuthenticated() {
+        return !!(this._authToken && this._authToken.access_token);
     }
-    if (options.best) {
-        query.set('only-best', 'true');
-    }
-    return (await apiPB('/api/segment-results', {query, protobuf: 'SegmentResults'})).results;
-}
 
-
-export async function getGameInfo() {
-    return await apiJSON(`/api/game_info`, {apiVersion: '2.6'});
-}
-
-
-export async function searchProfiles(searchText, options={}) {
-    return await apiPaged('/api/search/profiles', {
-        method: 'POST',
-        json: {query: searchText},
-    });
-}
-
-
-export async function getFollowees(athleteId, options={}) {
-    return await apiPaged(`/api/profiles/${athleteId}/followees`);
-}
-
-
-export async function getFollowers(athleteId, options={}) {
-    return await apiPaged(`/api/profiles/${athleteId}/followers`);
-}
-
-
-export async function _setFollowing(them, us) {
-    return await apiJSON(`/api/profiles/${us}/following/${them}`, {
-        method: 'POST',
-        json: {
-            followeeId: them,
-            followerId: us,
-        },
-    });
-}
-
-
-export async function _setNotFollowing(them, us) {
-    const resp = await api(`/api/profiles/${us}/following/${them}`, {method: 'DELETE'});
-    if (!resp.ok) {
-        throw new Error(resp.status);
-    }
-}
-
-
-export async function _giveRideon(to, from, activity=0) {
-    // activity 0 is an in-game rideon
-    await apiJSON(`/api/profiles/${to}/activities/${activity}/rideon`, {
-        method: 'POST',
-        json: {profileId: from},
-    });
-}
-
-
-export async function getNotifications() {
-    return await (await api(`/api/notifications`, {accept: 'json'})).json();
-}
-
-
-export async function getEventFeed(options={}) {
-    // Be forewarned, this API is not stable.  It returns dups and skips entries on page boundries.
-    const urn = '/api/event-feed';
-    const results = [];
-    const from = +options.from || (Date.now() - (3600 * 1000));
-    const to = +options.to || (Date.now() + (3600 * 1000));
-    let pages = 0;
-    const pageLimit = options.pageLimit ? options.pageLimit : 5;
-    const ids = new Set();
-    const limit = options.limit || 50;
-    const query = new URLSearchParams({from, limit});
-    let done;
-    while (!done) {
-        const page = await apiJSON(urn, {query});
-        for (const x of page.data) {
-            if (new Date(x.event.eventStart) >= to) {
-                done = true;
-                break;
-            } else if (!ids.has(x.event.id)) {
-                results.push(x.event);
-                ids.add(x.event.id);
+    async fetch(urn, options={}, headers={}) {
+        headers = headers || {};
+        if (!options.noAuth) {
+            if (!this.isAuthenticated()) {
+                throw new TypeError('Auth token not set');
             }
+            headers['Authorization'] = `Bearer ${this._authToken.access_token}`;
         }
-        if (page.data.length < limit || ++pages >= pageLimit) {
-            break;
+        if (options.json) {
+            options.body = JSON.stringify(options.json);
+            headers['Content-Type'] = 'application/json';
         }
-        query.set('cursor', page.cursor);
+        if (options.pb) {
+            options.body = options.pb.finish();
+            headers['Content-Type'] = 'application/x-protobuf-lite; version=2.0';
+        }
+        if (options.accept) {
+            headers['Accept'] = {
+                json: 'application/json',
+                protobuf: 'application/x-protobuf-lite',
+            }[options.accept];
+        }
+        if (options.apiVersion) {
+            headers['Zwift-Api-Version'] = options.apiVersion;
+        }
+        const host = options.host || this.host || `us-or-rly101.zwift.com`;
+        const q = options.query ? '?' + options.query : '';
+        const r = await fetch(`https://${host}/${urn.replace(/^\//, '')}${q}`, {
+            headers: {
+                'Platform': 'OSX',
+                'Source': 'Game Client',
+                //'Source': 'zwift-companion', // Hack to make zwift-offline work
+                'User-Agent': 'CNL/3.23.5 (macOS 12 Monterey; Darwin Kernel 21.5.0) zwift/1.0.101433 curl/7.78.0-DEV',
+                ...headers,
+            },
+            ...options,
+        });
+        if (!r.ok && (!options.ok || !options.ok.includes(r.status))) {
+            const msg = await r.text();
+            const e = new Error(`Zwift HTTP Error: [${r.status}]: ${msg}`);
+            e.status = r.status;
+            throw e;
+        }
+        return r;
     }
-    return results;
-}
 
-
-export async function getPrivateEventFeed(options={}) {
-    // This endpoint is also unreliable and the from/to don't seem to do much.
-    // Sometimes it returns all meetups, and sometimes just recent ones if any.
-    const start_date = +options.from || (Date.now() - (3600 * 1000));
-    const end_date = +options.to || (Date.now() + (3600 * 1000));
-    const query = new URLSearchParams({start_date, end_date});
-    return await apiJSON('/api/private_event/feed', {query});
-}
-
-
-export async function getEvent(id) {
-    return await apiJSON(`/api/events/${id}`);
-}
-
-
-export async function getPrivateEvent(id) {
-    return await apiJSON(`/api/private_event/${id}`);
-}
-
-
-export async function authenticate(username, password) {
-    const r = await api('/auth/realms/zwift/protocol/openid-connect/token', {
-        host: 'secure.zwift.com',
-        noAuth: true,
-        method: 'POST',
-        ok: [200, 401],
-        accept: 'json',
-        body: new URLSearchParams({
-            client_id: 'Zwift Game Client',
-            grant_type: 'password',
-            password,
-            username,
-        })
-    });
-    const resp = await r.json();
-    if (r.status === 401) {
-        throw new Error(resp.error_description || 'Login failed');
+    async fetchPaged(urn, options={}, headers) {
+        const results = [];
+        let start = 0;
+        let pages = 0;
+        const pageLimit = options.pageLimit ? options.pageLimit : 10;
+        const query = options.query || new URLSearchParams();
+        const limit = options.limit || 100;
+        query.set('limit', limit);
+        while (true) {
+            query.set('start', start);
+            const page = await this.fetchJSON(urn, {query, ...options}, headers);
+            for (const x of page) {
+                results.push(x);
+            }
+            if (page.length < limit || ++pages >= pageLimit) {
+                break;
+            }
+            start = results.length;
+        }
+        return results;
     }
-    authToken = resp;
-    console.debug("Zwift auth token acquired");
-    schedRefresh(authToken.expires_in * 1000 / 2);
-}
 
+    async fetchJSON(urn, options, headers) {
+        const r = await this.fetch(urn, {accept: 'json', ...options}, headers);
+        return await r.json();
+    }
+
+    async fetchPB(urn, options, headers) {
+        const r = await this.fetch(urn, {accept: 'protobuf', ...options}, headers);
+        const ProtoBuf = protos.get(options.protobuf);
+        const data = Buffer.from(await r.arrayBuffer());
+        if (options.debug) {
+            console.debug('PB API DEBUG', urn, data.toString('hex'));
+        }
+        return ProtoBuf.decode(data);
+    }
+
+    async getHashSeeds(options) {
+        const data = (await this.fetchPB('/relay/worlds/hash-seeds', {
+            protobuf: 'HashSeeds',
+            ...options
+        }));
+        return Array.from(data.seeds).map(x => ({
+            nonce: seedToBuffer(x.nonce),
+            seed: seedToBuffer(x.seed),
+        }));
+    }
+
+    async getProfile(id, options) {
+        try {
+            return await this.fetchJSON(`/api/profiles/${id}`, options);
+        } catch(e) {
+            if (e.status === 404) {
+                return;
+            }
+            throw e;
+        }
+    }
+
+    async getProfiles(ids, options) {
+        const unordered = (await this.fetchPB('/api/profiles', {
+            query: new URLSearchParams(ids.map(id => ['id', id])),
+            protobuf: 'PlayerProfiles',
+            ...options,
+        })).profiles;
+        // Reorder and make results similar to getProfile
+        const m = new Map(unordered.map(x => [x.id.toNumber(), x.toJSON()]));
+        return ids.map(_id => {
+            const id = +_id;
+            const x = m.get(id);
+            if (!x) {
+                console.debug('Missing profile:', id);
+                return;
+            }
+            x.id = id;
+            x.privacy = {
+                defaultActivityPrivacy: x.default_activity_privacy,
+            };
+            for (const [k, flag] of Object.entries(pbProfilePrivacyFlags)) {
+                x.privacy[k] = !!(+x.privacy_bits & flag);
+            }
+            for (const [k, flag] of Object.entries(pbProfilePrivacyFlagsInverted)) {
+                x.privacy[k] = !(+x.privacy_bits & flag);
+            }
+            return x;
+        });
+    }
+
+    convSegmentResult(x) {
+        const ret = {
+            ...x.toJSON(),
+            ts: worldTimeToDate(x._worldTime),
+            finishTime: x.finishTime && new Date(x.finishTime),
+            segmentId: x._unsignedSegmentId.toSigned().toString()
+        };
+        delete ret._worldTime;
+        delete ret._unsignedSegmentId;
+        return ret;
+    }
+
+    async getLiveSegmentLeaders() {
+        const data = await this.fetchPB(`/live-segment-results-service/leaders`,
+            {protobuf: 'SegmentResults'});
+        return data.results.filter(x => +x.id).map(this.convSegmentResult);
+    }
+
+    async getLiveSegmentLeaderboard(segmentId) {
+        const data = await this.fetchPB(`/live-segment-results-service/leaderboard/${segmentId}`,
+            {protobuf: 'SegmentResults'});
+        return data.results.map(this.convSegmentResult);
+    }
+
+    async getSegmentResults(segmentId, options={}) {
+        const query = new URLSearchParams({
+            world_id: 1,
+            segment_id: segmentId,
+        });
+        if (options.athleteId) {
+            query.set('player_id', options.athleteId);
+        }
+        if (options.from) {
+            query.set('from', zwiftCompatDate(options.from));
+        }
+        if (options.to) {
+            query.set('to', zwiftCompatDate(options.to));
+        }
+        if (options.best) {
+            query.set('only-best', 'true');
+        }
+        return (await this.fetchPB('/api/segment-results', {query, protobuf: 'SegmentResults'})).results;
+    }
+
+    async getGameInfo() {
+        return await this.fetchJSON(`/api/game_info`, {apiVersion: '2.6'});
+    }
+
+    async searchProfiles(searchText, options={}) {
+        return await this.fetchPaged('/api/search/profiles', {
+            method: 'POST',
+            json: {query: searchText},
+        });
+    }
+
+    async getFollowees(athleteId, options={}) {
+        return await this.fetchPaged(`/api/profiles/${athleteId}/followees`);
+    }
+
+    async getFollowers(athleteId, options={}) {
+        return await this.fetchPaged(`/api/profiles/${athleteId}/followers`);
+    }
+
+    async _setFollowing(them, us) {
+        return await this.fetchJSON(`/api/profiles/${us}/following/${them}`, {
+            method: 'POST',
+            json: {
+                followeeId: them,
+                followerId: us,
+            },
+        });
+    }
+
+    async _setNotFollowing(them, us) {
+        const resp = await this.fetch(`/api/profiles/${us}/following/${them}`, {method: 'DELETE'});
+        if (!resp.ok) {
+            throw new Error(resp.status);
+        }
+    }
+
+    async _giveRideon(to, from, activity=0) {
+        // activity 0 is an in-game rideon
+        await this.fetchJSON(`/api/profiles/${to}/activities/${activity}/rideon`, {
+            method: 'POST',
+            json: {profileId: from},
+        });
+    }
+
+    async getNotifications() {
+        return await (await this.fetch(`/api/notifications`, {accept: 'json'})).json();
+    }
+
+    async getEventFeed(options={}) {
+        // Be forewarned, this API is not stable.  It returns dups and skips entries on page boundries.
+        const urn = '/api/event-feed';
+        const results = [];
+        const from = +options.from || (Date.now() - (3600 * 1000));
+        const to = +options.to || (Date.now() + (3600 * 1000));
+        let pages = 0;
+        const pageLimit = options.pageLimit ? options.pageLimit : 5;
+        const ids = new Set();
+        const limit = options.limit || 50;
+        const query = new URLSearchParams({from, limit});
+        let done;
+        while (!done) {
+            const page = await this.fetchJSON(urn, {query});
+            for (const x of page.data) {
+                if (new Date(x.event.eventStart) >= to) {
+                    done = true;
+                    break;
+                } else if (!ids.has(x.event.id)) {
+                    results.push(x.event);
+                    ids.add(x.event.id);
+                }
+            }
+            if (page.data.length < limit || ++pages >= pageLimit) {
+                break;
+            }
+            query.set('cursor', page.cursor);
+        }
+        return results;
+    }
+
+    async getPrivateEventFeed(options={}) {
+        // This endpoint is also unreliable and the from/to don't seem to do much.
+        // Sometimes it returns all meetups, and sometimes just recent ones if any.
+        const start_date = +options.from || (Date.now() - (3600 * 1000));
+        const end_date = +options.to || (Date.now() + (3600 * 1000));
+        const query = new URLSearchParams({start_date, end_date});
+        return await this.fetchJSON('/api/private_event/feed', {query});
+    }
+
+    async getEvent(id) {
+        return await this.fetchJSON(`/api/events/${id}`);
+    }
+
+    async getPrivateEvent(id) {
+        return await this.fetchJSON(`/api/private_event/${id}`);
+    }
+}
 
 
 const deviceTypes = {
@@ -424,13 +432,17 @@ export class IV {
 
 
 export class GameClient extends events.EventEmitter {
-    constructor({host}={}) {
+    constructor(options={}) {
         super();
-        this.athleteId = undefined;
-        this.host = host;
+        this.api = options.zwiftAPI;
+        this.athleteId = this.api.profile.id;
+        this.monitorAthleteId = options.monitorAthleteId;
+        this.watchingAthleteId = this.monitorAthleteId;
+        this.courseId = options.courseId;
         this._tcpConnId = 0;
         this._udpConnId = 0;
         this._relayId = null;
+        this.connected = false;
         // These are real values, not test data...
         this.defaultHashSeed = {
             nonce: seedToBuffer(1234),
@@ -458,14 +470,10 @@ export class GameClient extends events.EventEmitter {
             headerOfft += 4;
         }
         const ivBuf = iv.toBuffer();
-        //console.debug("Decrypting:");
-        //console.debug('  iv', iv.toString(), ivBuf.toString('hex'));
         const decipher = crypto.createDecipheriv('aes-128-gcm', this.aeskey, ivBuf, {authTagLength: 4});
-        //console.debug("  header", data.subarray(0, headerOfft).toString('hex'));
         decipher.setAAD(data.subarray(0, headerOfft));
         decipher.setAuthTag(data.subarray(-4));
         const plain = Buffer.concat([decipher.update(data.subarray(headerOfft, -4)), decipher.final()]);
-        //console.debug("  plaintext", plain.toString('hex'));
         iv.seqno++; // Implicit seqno increase (this protocol is quite fragile)
         return plain;
     }
@@ -474,7 +482,6 @@ export class GameClient extends events.EventEmitter {
         let flags = 0;
         let headerOfft = 1;
         const header = Buffer.alloc(1 + 4 + 2 + 4);
-        // Work on a cleaner way of managing the caching capabilities of this header.
         // We are only required to send relayId and connId when values change.
         if (options.hello) {
             flags |= headerFlags.relayId;
@@ -503,48 +510,40 @@ export class GameClient extends events.EventEmitter {
     }
 
     async login(options) {
-        if (!this.athleteId) {
-            const profile = await getProfile('me', {host: this.host});
-            this.athleteId = profile.id;
-        }
         this.aeskey = crypto.randomBytes(16);
-        const login = await apiPB('/api/users/login', {
+        const login = await this.api.fetchPB('/api/users/login', {
             method: 'POST',
-            host: this.host,
             pb: protos.LoginRequest.encode({
                 aeskey: this.aeskey,
                 properties: {
-                    entries: [{
-                        key: 'OS Type',
-                        value: 'macOS',
-                    }, {
-                        key: 'OS',
-                        value: 'OSX 10.X 64bit',
-                    }, {
-                        key: 'COMPUTER',
-                        value: 'MacBookPro18,2',
-                    }, {
-                        key: 'Machine Id',
-                        value: '2-d9d8235c-f1b5-4415-b90e-eaef1bd3098c',
-                    }],
+                    entries: [
+                        {key: 'OS Type', value: 'macOS'},
+                        {key: 'OS', value: 'OSX 10.X 64bit'},
+                        {key: 'COMPUTER', value: 'MacBookPro18,2'},
+                        {key: 'Machine Id', value: '2-d9d8235c-f1b5-4415-b90e-deadbeef098c'}
+                    ],
                 }
             }),
             protobuf: 'LoginResponse',
             ...options,
         });
-        this.serverHashSeeds = await getHashSeeds({host: this.host, debug: true});
+        this.serverHashSeeds = await this.api.getHashSeeds();
         this.relayId = login.relaySessionId;
         this.servers = login.info.tcpConfig.nodes;
+        console.warn("TCP Servers:", this, this.servers);
     }
 
     async connect(options) {
+        this.connected = false;
         await this.login(options);
         await sleep(1000); // No joke this is required.
         await this.establishConnection(options);
         await this.sayHello(options);
+        this.connected = true;
     }
 
     async disconnect(options) {
+        this.connected = false;
         clearInterval(this.sendLoop);
         if (this.tcpConn) {
             this.tcpConn.end();
@@ -567,8 +566,9 @@ export class GameClient extends events.EventEmitter {
         this._tcpConnId++;
         this._tcpPacketSeqno = 0;
         let servers = this.servers.filter(x => x.realm === 0 && x.courseId === 0);
-        if (options.courseId) {
-            const dedicatedServers = this.servers.filter(x => x.realm === 1 && x.courseId === options.courseId);
+        if (this.courseId) {
+            const dedicatedServers = this.servers.filter(x =>
+                x.realm === 1 && x.courseId === this.courseId);
             if (dedicatedServers.length) {
                 servers = dedicatedServers;
             }
@@ -597,7 +597,20 @@ export class GameClient extends events.EventEmitter {
         this.tcpConn.on('close', this.onConnectionClose.bind(this));
     }
 
-    async establishUDPSocket(ip) {
+    getBestUDPServerIP(serverSelectionHack) {
+        console.warn("udp servers", this.udpServerPools);
+        let pool = this.udpServerPools.find(x => x.realm === 0 && x.courseId === 0);
+        if (serverSelectionHack) {
+            pool = this.udpServerPools.find(x => x.realm === 1 && x.courseId === this.courseId) || pool;
+        }
+        // XXX figure out the weird server selection thing.
+        const index = serverSelectionHack ? -1 : 0;
+        const ip = pool.addresses.at(index).ip;
+        return ip;
+    }
+
+    async establishUDPSocket(serverSelectionHack) {
+        const ip = this.getBestUDPServerIP(serverSelectionHack);
         if (this.udpSock) {
             this.udpSock.removeAllListeners();
             this.udpSock.close();
@@ -617,61 +630,79 @@ export class GameClient extends events.EventEmitter {
         console.warn("Connection to Zwift Game servers closed");
         this.disconnect();
         return;
-        await sleep(Math.max(0, 15000 - (Date.now() - this._connectingTime)));
-        await this.establishConnection();
+        //await sleep(Math.max(0, 15000 - (Date.now() - this._connectingTime)));
+        //await this.establishConnection();
     }
 
     async sayHello(options={}) {
-        const udpConnected = new Promise((resolve, reject) => {
-            this.once('inPacket', packet => (async () => {
-                let pool = packet.servers2.pools.find(x => x.realm === 0 && x.courseId === 0);
-                if (options.courseId) {
-                    const dedicatedPool = packet.servers2.pools.find(x =>
-                        x.realm === 1 && x.courseId === options.courseId);
-                    if (dedicatedPool.length) {
-                        pool= dedicatedPool;
-                    }
-                }
-                const ip = pool.addresses.at(-1).ip;
-                await this.establishUDPSocket(ip);
-                resolve();
-            })().catch(reject));
-        });
+        const udpServersAvailable = new Promise(resolve =>
+            this.once('udpServerPoolsUpdated', resolve));
         await this.sendTCP({
             athleteId: this.athleteId,
             _worldTime: 0,
             largWaTime: 0,
         }, {hello: true});
-        await udpConnected;
-        for (let i = 0; i < 4; i++) { // XXX
-            await this.sendUDP({
-                athleteId: this.athleteId,
-                realm: 1,
-                _worldTime: 0,
-            }, {hello: true});
+        await udpServersAvailable;
+        // This recipe is completely XXX
+        await this.establishUDPSocket(); // XXX
+        for (let i = 0; i < 4; i++) { // be like real game
+            await this.sendHandshake(); // XXX
+            await sleep(50); // XXX
         }
-        await this.establishUDPSocket('54.213.160.217'); // XXX
+        await this.establishUDPSocket(true); // XXX
+        //await this.establishUDPSocket('54.213.160.217'); // XXX
+        await this.sendHandshake(); // XXX
+        await this.sendPlayerState(); // XXX
+        this.sendLoop = setInterval(async () => {
+            await this.sendPlayerState(); // XXX
+        }, 1000);
+    }
+
+    async sendHandshake() {
         await this.sendUDP({
             athleteId: this.athleteId,
             realm: 1,
             _worldTime: 0,
         }, {hello: true});
-        await this.sendPlayerState();
-        this.sendLoop = setInterval(async () => {
+    }
+
+    async setWatching(athleteId) {
+        this.watchingAthleteId = athleteId;
+        if (this.connected) {
             await this.sendPlayerState();
-        }, 1000);
+        }
+    }
+
+    async setCourseId(courseId) {
+        this.courseId = courseId;
+        if (this.connected) {
+            await this.disconnect();
+            await this.connect();
+        }
     }
 
     async sendPlayerState(props={}, state={}, sendOptions={}) {
         const wt = dateToWorldTime(new Date());
         await this.sendUDP({
-            athleteId: 0,
+            athleteId: this.athleteId,
             realm: 1,
             _worldTime: wt,
             ...props,
             state: {
-                athleteId: 0,
+                athleteId: this.athleteId,
                 _worldTime: wt,
+                justWatching: true,
+                watchingAthleteId: this.watchingAthleteId,
+                _flags1: 393237, // XXX need to properly encode these
+                _flags2: 33560079, // XXX need to properly encode these
+                x: 0,
+                altitude: 0,
+                y: 0,
+                world: this.courseId,
+
+                // Optional...
+
+                //world: this.courseId,
                 //distance: 0,
                 //roadLocation: 680000,
                 //laps: 0,
@@ -685,27 +716,19 @@ export class GameClient extends events.EventEmitter {
                 //lean: 970405,
                 //climbing: 0,
                 //time: 0,
-                //_flags1: 393237,
-                //_flags2: 33560079,
                 //_progress: 0,
-                justWatching: true,
                 //_mwHours: 0,
-                //x: 63127.33984375,
-                //altitude: 11080.501953125,
-                //y: -90862.140625,
-                //watchingAthleteId: this.athleteId,
-                watchingAthleteId: 62463,
                 //groupId: 0,
                 //sport: 0,
                 //_distanceWithLateral: 3.11,
-                //world: 6,
                 //_f36: 0,
                 //_f37: 2,
                 //canSteer: false,
+
                 ...this.playerState, // XXX
                 ...state,
             }
-        }, {forceSeq: true, dfPrefix: true, ...sendOptions});
+        }, {dfPrefix: true, ...sendOptions});
     }
 
     async sendUDP(props, options={}) {
@@ -713,21 +736,15 @@ export class GameClient extends events.EventEmitter {
         const pb = protos.ClientToServer.encode({seqno, ...props});
         const prefixBuf = options.dfPrefix ? Buffer.from([0xdf]) : Buffer.alloc(0);
         const dataBuf = pb.finish();
-        const headerBuf = this.encodeHeader(this._udpSendIV, options);
+        const headerBuf = this.encodeHeader(this._udpSendIV, {forceSeq: true, ...options});
         const hashSeed = options.hello ? this.defaultHashSeed : this.serverHashSeeds[0];
         const hash = new XXHash32(hashSeed.seed);
         hash.update(dataBuf);
         hash.update(hashSeed.nonce); // XXX Not sure how server knows which once we're using.
         const hashBuf = hash.digest();
-        // XXX I don't know why, but non hello-ish packets must be prefixed with 0xdf
         const plainBuf = Buffer.concat([prefixBuf, dataBuf, hashBuf]);
         const cipherBuf = this.encrypt(headerBuf, plainBuf, this._udpSendIV);
         const wireBuf = Buffer.concat([headerBuf, cipherBuf]);
-        //console.debug("Sending UDP packet");
-        //console.debug("  iv", this._udpSendIV.toString(), this._udpSendIV.toBuffer().toString('hex'));
-        //console.debug('  header', headerBuf.toString('hex'));
-        //console.debug('  [prefix]+data', prefixBuf.toString('hex'), dataBuf.toString('hex'));
-        //console.debug('  hash', hashBuf.toString('hex'));
         this._udpSendIV.seqno++;
         await new Promise((resolve, reject) =>
             this.udpSock.send(wireBuf, e => void (e ? reject(e) : resolve())));
@@ -751,12 +768,6 @@ export class GameClient extends events.EventEmitter {
         const sizeBuf = Buffer.alloc(2);
         sizeBuf.writeUInt16BE(headerBuf.byteLength + cipherBuf.byteLength);
         const wireBuf = Buffer.concat([sizeBuf, headerBuf, cipherBuf]);
-        console.debug("Sending TCP packet");
-        console.debug("  iv", this._tcpSendIV.toString(), this._tcpSendIV.toBuffer().toString('hex'));
-        console.debug('  header', headerBuf.toString('hex'));
-        console.debug('  magic', magic.toString('hex'));
-        console.debug('  data', dataBuf.toString('hex'));
-        console.debug('  hash', hashBuf.toString('hex'));
         this._tcpSendIV.seqno++;
         await new Promise(resolve => this.tcpConn.write(wireBuf, resolve));
         this.emit('outPacket', protos.ClientToServer.decode(dataBuf)); // XXX find alt use of protobufs
@@ -832,58 +843,33 @@ export class GameClient extends events.EventEmitter {
 
     processPacket(buf) {
         const pb = protos.ServerToClient.decode(buf);
+        if (pb.servers2 && pb.servers2.pools) {
+            this.udpServerPools = pb.servers2.pools;
+            this.emit('udpServerPoolsUpdated', this.udpServerPools);
+        }
+        if (pb.playerStates && pb.playerStates.length) {
+            const state = pb.playerStates.find(x => x.athleteId === this.monitorAthleteId);
+            if (state && state.watchingAthleteId !== this.watchingAthleteId) {
+                this.setWatching(state.watchingAthleteId);
+            }
+        }
         this.emit('inPacket', pb);
     }
 }
 
-     
-export async function refreshToken() {
-    if (!authToken) {
-        console.warn("No auth token to refresh");
-        return false;
-    }
-    const r = await api('/auth/realms/zwift/protocol/openid-connect/token', {
-        host: 'secure.zwift.com',
-        noAuth: true,
-        method: 'POST',
-        accept: 'json',
-        body: new URLSearchParams({
-            client_id: 'Zwift Game Client',
-            grant_type: 'refresh_token',
-            refresh_token: authToken.refresh_token,
-        })
-    });
-    const resp = await r.json();
-    authToken = resp;
-    console.debug("Zwift auth token refreshed");
-    schedRefresh(authToken.expires_in * 1000 / 2);
-}
-
-
-let _nextRefresh;
-function cancelRefresh() {
-    clearTimeout(_nextRefresh);
-}
-
-
-function schedRefresh(delay) {
-    cancelRefresh();
-    console.debug(`Refresh Zwift token in: ${Math.round(delay / 1000)} seconds`);
-    _nextRefresh = setTimeout(refreshToken, Math.min(0x7fffffff, delay));
-}
-
 
 export class GameConnectionServer extends net.Server {
-    constructor(gameMonitor) {
+    constructor({ip, zwiftAPI}) {
         super();
-        this.ip = gameMonitor.ip;
+        this.ip = ip;
+        this.api = zwiftAPI;
         this._socket = null;
         this._msgSize = null;
         this._msgOfft = 0;
         this._msgBuf = null;
         this._seqno = 1;
         this._cmdSeqno = 1;
-        this.athleteId = 0; // Set by gameToCompan messages
+        this.athleteId = zwiftAPI.profile.id;
         this.on('connection', this.onConnection.bind(this));
         this.on('error', this.onError.bind(this));
         this.listenDone = new Promise(resolve => this.listen({address: this.ip, port: 0}, resolve));
@@ -906,7 +892,7 @@ export class GameConnectionServer extends net.Server {
         const {port} = this.address();
         console.info("Registering game connnection server:", this.ip, port);
         this.port = port;
-        await api('/relay/profiles/me/phone', {
+        await this.api.fetch('/relay/profiles/me/phone', {
             method: 'PUT',
             json: {
                 phoneAddress: this.ip,
@@ -989,8 +975,8 @@ export class GameConnectionServer extends net.Server {
                 athleteId: this.athleteId,
                 toAthleteId: options.to || 0,
                 spa_type: 1,
-                firstName: 'Justin',
-                lastName: 'Mayfield',
+                firstName: this.api.profile.firstName,
+                lastName: this.api.profile.lastName,
                 message,
                 avatar: 'https://static-cdn.zwift.com/prod/profile/a70f79fb-486675',
                 countryCode: 840,
@@ -1017,9 +1003,6 @@ export class GameConnectionServer extends net.Server {
     }
 
     async sendCommands(...commands) {
-        for (const c of commands) {
-            console.log(c.command);
-        }
         return await this._send({
             commands: commands.map(x => ({
                 seqno: this._cmdSeqno++,
@@ -1055,14 +1038,10 @@ export class GameConnectionServer extends net.Server {
         socket.on('end', this.onSocketEnd.bind(this));
         socket.on('error', this.onSocketError.bind(this));
         this.emit('status', this.getStatus());
-        await this.sendCommands({
-        /*    command: protos.CompanionToGameCommandType.PHONE_TO_GAME_PACKET,
-         *    ...
-         *}, {
-         */
-            command: protos.CompanionToGameCommandType.PAIRING_AS,
-            athleteId: 5052891,// this.athleteId, XXX
-        });
+        //await this.sendCommands({
+        //    command: protos.CompanionToGameCommandType.PAIRING_AS,
+        //    athleteId: this.athleteId,
+        //});
     }
 
     getStatus() {
@@ -1107,9 +1086,6 @@ export class GameConnectionServer extends net.Server {
         console.info(buf.toString('hex'));
         const pb = protos.GameToCompanion.decode(buf);
         console.info(pb);
-        if (!this.athleteId) {
-            this.athleteId = pb.athleteId.toNumber();
-        }
         this.emit('message', pb);
     }
 

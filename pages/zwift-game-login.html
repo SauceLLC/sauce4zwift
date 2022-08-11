@@ -6,7 +6,7 @@
         <meta name="apple-mobile-web-app-capable" content="yes"/>
         <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
 
-        <title>Zwift Login - Sauce for Zwift™</title>
+        <title>Zwift Game Login - Sauce for Zwift™</title>
 
         <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
         <link rel="stylesheet" href="css/common.css"/>
@@ -93,24 +93,31 @@
         <header>
             <img class="logo" src="images/logo_vert_120x320.png"/>
             <div>
-                <h1>Zwift Login</h1>
-                <p>This should be the login for your main account that you will using Zwift as.
+                <h1>Zwift 2nd Login</h1>
+                <p>
+                    A second login is required for Sauce to work properly since July 2022.
+                   <i><b>You do NOT need to be a paying member for this second login.</b></i>
+                </p>
+                <p>
+                    <a href="https://www.zwift.com/create-account" target="_blank"><b>Create your second account</b></a> and then
+                    fill out the form below when you're done.
+                </p>
             </div>
         </header>
         <main>
             <form name="zwift-login-for-sauce">
                 <label>
                     <key>Username:</key>
-                    <input type="text" autocomplete="off" name="username" placeholder="your.email@internet.com"/>
+                    <input type="text" autocomplete="off" name="username" placeholder="you+sauce@internet.com"/>
                 </label>
                 <label>
                     <key>Password:</key>
                     <input type="password" autocomplete="off" name="password" placeholder="Hopefully not &quot;password&quot;"/>
                 </label>
-                <input type="submit" value="Login to Zwift"/>
+                <input type="submit" value="2nd Login to Zwift"/>
                 <div class="error"></div>
             </form>
-            <i class="fearnot">Fear not brave soul, for these credentials are only used to <b>directly</b> communicate with Zwift servers and Sauce keeps them in your private encrypted Mac Keychain or Windows Credential Manager.</i>
+            <i class="fearnot">Hopefully someday this will not be required, but for now this is the only way I've found to make things work perfectly.</i>
         </main>
     </body>
     <script>

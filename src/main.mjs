@@ -1,5 +1,6 @@
 import process from 'node:process';
 import os from 'node:os';
+import net from 'node:net';
 import {EventEmitter} from 'node:events';
 import * as storage from './storage.mjs';
 import * as menu from './menu.mjs';
@@ -17,15 +18,14 @@ import * as secrets from './secrets.mjs';
 import * as zwift from './zwift.mjs';
 import * as windows from './windows.mjs';
 
-// Dev tools prototyping
-global.zwift = zwift;
-global.game = game;
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 const {autoUpdater} = require('electron-updater');
 const electron = require('electron');
 const isDEV = !electron.app.isPackaged;
+const zwiftAPI = new zwift.ZwiftAPI();
+const zwiftGameAPI = new zwift.ZwiftAPI();
 
 let started;
 let quiting;
@@ -241,6 +241,21 @@ function registerRPCMethods(instance, ...methodNames) {
 }
 
 
+async function getLocalRoutedIP() {
+    const conn = net.createConnection(80, 'www.zwift.com');
+    return await new Promise((resolve, reject) => {
+        conn.on('connect', () => {
+            try {
+                resolve(conn.address().address);
+            } finally {
+                conn.end();
+            }
+        });
+        conn.on('error', reject);
+    });
+}
+
+
 class SauceApp extends EventEmitter {
     _defaultSettings = {
         webServerEnabled: true,
@@ -340,8 +355,8 @@ class SauceApp extends EventEmitter {
 
     initShortcuts() {}
 
-    startGameConnectionServer() {
-        const gcs = new zwift.GameConnectionServer(this.gameMonitor);
+    startGameConnectionServer(ip) {
+        const gcs = new zwift.GameConnectionServer({ip, zwiftAPI});
         registerRPCMethods(gcs, 'watch', 'join', 'teleportHome', 'say', 'wave', 'elbow', 'takePicture',
             'changeCamera', 'enableHUD', 'disableHUD', 'chatMessage', 'reverse', 'toggleGraphs', 'sendCommands');
         gcs.start().catch(Sentry.captureException);
@@ -372,26 +387,34 @@ class SauceApp extends EventEmitter {
     }
 
     async start(options={}) {
+        const gameClient = new zwift.GameClient({
+            monitorAthleteId: zwiftAPI.profile.id,
+            courseId: 7, // XXX we can't figure this out yet
+            zwiftAPI: zwiftGameAPI,
+        });
         if (options.garminLiveTrackSession) {
             const garminLiveTrack = await import('./garmin_live_track.mjs');
             this.gameMonitor = await garminLiveTrack.Sauce4ZwiftMonitor.factory(
                 {session: options.garminLiveTrackSession});
         } else {
-            const {fakeData, noData} = options;
-            this.gameMonitor = await game.Sauce4ZwiftMonitor.factory({fakeData, noData});
+            const {fakeData} = options;
+            this.gameMonitor = new game.Sauce4ZwiftMonitor({fakeData, zwiftAPI, gameClient});
         }
         await this.gameMonitor.start();
         rpcSources.game = this.gameMonitor;
         rpcSources.app = this;
-        if (zwift.isAuthenticated() && this.getSetting('gameConnectionEnabled')) {
-            rpcSources.gameConnection = (this.gameConnection = this.startGameConnectionServer());
+        let ip;
+        if (this.getSetting('gameConnectionEnabled')) {
+            ip = ip || await getLocalRoutedIP();
+            rpcSources.gameConnection = (this.gameConnection = this.startGameConnectionServer(ip));
         }
         if (this.getSetting('webServerEnabled')) {
+            ip = ip || await getLocalRoutedIP();
             this.webServerEnabled = true;
             this.webServerPort = this.getSetting('webServerPort');
-            this.webServerURL = `http://${this.gameMonitor.ip}:${this.webServerPort}`;
+            this.webServerURL = `http://${ip}:${this.webServerPort}`;
             await webServer.start({
-                ip: this.gameMonitor.ip,
+                ip,
                 port: this.webServerPort,
                 debug: isDEV,
                 rpcSources,
@@ -403,12 +426,13 @@ class SauceApp extends EventEmitter {
 
 async function zwiftAuthenticate(options={}) {
     let creds;
+    const ident = options.ident || 'zwift-login';
     if (!options.forceLogin) {
-        creds = await secrets.get('zwift-login');
+        creds = await secrets.get(ident);
         if (creds) {
             try {
-                await zwift.authenticate(creds.username, creds.password);
-                console.info("Using Zwift username:", creds.username);
+                await options.api.authenticate(creds.username, creds.password, options);
+                console.info(`Using Zwift username [${ident}]:`, creds.username);
                 return;
             } catch(e) {
                 console.debug("Previous Zwift login invalid:", e);
@@ -416,11 +440,11 @@ async function zwiftAuthenticate(options={}) {
             }
         }
     }
-    creds = await windows.zwiftLogin();
+    creds = await windows.zwiftLogin(options);
     if (creds) {
-        await secrets.set('zwift-login', creds);
+        await secrets.set(ident, creds);
     } else {
-        console.warn("Zwift login not active.  Things WILL BE BROKEN", zwift.isAuthenticated());
+        console.warn("Zwift login not active.  Things WILL BE BROKEN", zwiftAPI.isAuthenticated());
     }
 }
 
@@ -458,16 +482,35 @@ export async function main() {
         await electron.dialog.showErrorBox('EULA or Patreon Link Error', '' + e);
         return quit(1);
     }
-    await zwiftAuthenticate({forceLogin: process.argv.includes('--force-zwift-login')});
+    const host = process.argv.find((x, i) => i && process.argv[i - 1] === '--host');
+    const forceLogin = process.argv.includes('--force-login');
+    await zwiftAuthenticate({
+        api: zwiftAPI,
+        ident: 'zwift-login',
+        host,
+        forceLogin,
+    });
+    await zwiftAuthenticate({
+        api: zwiftGameAPI,
+        ident: 'zwift-login-game',
+        host,
+        game: true,
+        forceLogin,
+    });
     const options = {};
     if (process.argv.includes('--garmin-live-track')) {
         options.garminLiveTrackSession = process.argv.find((x, i) => i && process.argv[i - 1] == '--garmin-live-track');
     } else {
         options.fakeData = process.argv.includes('--fake-data');
-        options.noData = process.argv.includes('--no-data');
     }
     await sauceApp.start(options);
     windows.openAllWindows();
     menu.updateTrayMenu();
     started = true;
 }
+
+// Dev tools prototyping
+global.zwift = zwift;
+global.game = game;
+global.zwiftAPI = zwiftAPI;
+global.zwiftGameAPI = zwiftGameAPI;
