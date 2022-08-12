@@ -31,6 +31,105 @@ const pbProfilePrivacyFlagsInverted = {
     displayAge: 0x40,
 };
 
+const powerUpEnum = {
+    0: 'FEATHER',
+    1: 'DRAFT',
+    4: 'BURRITO',
+    5: 'AERO',
+    6: 'GHOST',
+};
+
+
+export function decodePlayerStateFlags1(bits) {
+    const powerMeter = !!(bits & 0x1);
+    bits >>>= 1;
+    const companionApp = !!(bits & 0x1);
+    bits >>>= 1;
+    const reverse = !!(bits & 0x1);
+    bits >>>= 1;
+    const reversing = !!(bits & 0x1);
+    bits >>>= 1;
+    const _b4_15 = bits & 0xfff;
+    bits >>>= 12;
+    const auxCourseId = bits & 0xff;
+    bits >>>= 8;
+    const rideons = bits;
+    return {
+        powerMeter,
+        companionApp,
+        reversing,
+        reverse,
+        _b4_15,
+        auxCourseId,
+        rideons,
+    };
+}
+
+
+export function encodePlayerStateFlags1(props) {
+    let bits = 0;
+    bits |= props.rideons & 0xff;
+    bits <<= 8;
+    bits |= props.auxCourseId & 0xff;
+    bits <<= 12;
+    bits |= props._b4_15 & 0xfff;
+    bits <<= 1;
+    bits |= props.reversing;
+    bits <<= 1;
+    bits |= props.reverse;
+    bits <<= 1;
+    bits |= props.companionApp;
+    bits <<= 1;
+    bits |= props.powerMeter;
+    return bits;
+}
+
+
+export function decodePlayerStateFlags2(bits) {
+    const powerUping = bits & 0xf; // 15 = Not active, otherwise enum
+    bits >>>= 4;
+    const turning = {
+        0: null,
+        1: 'RIGHT',
+        2: 'LEFT',
+    }[bits & 0x3];
+    bits >>>= 2;
+    const overlapping = bits & 0x1;  // or near junction or recently on junction.  It's unclear.
+    bits >>>= 1;
+    const roadId = bits & 0xffff;
+    bits >>>= 16;
+    const _rem2 = bits; // XXX no idea
+    return {
+        activePowerUp: powerUping === 0xf ? null : powerUpEnum[powerUping],
+        turning,
+        overlapping,
+        roadId,
+        _rem2,
+    };
+}
+
+
+export function encodePlayerStateFlags2(props) {
+    let bits = 0;
+    bits |= props._rem2 & 0x1ff;
+    bits <<= 16;
+    bits |= props.roadId & 0xffff;
+    bits <<= 1;
+    bits |= props.overlapping;
+    bits <<= 2;
+    bits |= {
+        RIGHT: 1,
+        LEFT: 2,
+    }[props.turning] || 0;
+    bits <<= 4;
+    let powerUping = 0xf; // hidden, but possibly by server, so maybe do include it?
+    if (props.activePowerUp) {
+        [powerUping] = Object.entries(powerUpEnum).find(([v, k]) => k === props.activePowerUp);
+    }
+    bits |= powerUping & 0xf;
+    return bits;
+}
+
 
 export const worldTimeOffset = 1414016074335;  // ms since zwift started production.
 export function worldTimeToDate(wt) {
@@ -410,9 +509,10 @@ const headerFlags = {
 };
 
 
-export class IV {
+export class RelayIV {
     constructor(props={}) {
         this.seqno = 0;
+        this.deviceType = 'relay';
         Object.assign(this, props);
     }
 
@@ -426,31 +526,37 @@ export class IV {
     }
 
     toString() {
-        return `IV deviceType:${this.deviceType} channelType:${this.channelType} connId:${this.connId} seqno:${this.seqno}`;
+        return `RelayIV deviceType:${this.deviceType} channelType:${this.channelType} connId:${this.connId} seqno:${this.seqno}`;
     }
 }
 
 
-export class GameClient extends events.EventEmitter {
-    constructor(options={}) {
-        super();
-        this.api = options.zwiftAPI;
-        this.athleteId = this.api.profile.id;
-        this.monitorAthleteId = options.monitorAthleteId;
-        this.watchingAthleteId = this.monitorAthleteId;
-        this.courseId = options.courseId;
-        this._tcpConnId = 0;
-        this._udpConnId = 0;
-        this._relayId = null;
-        this.connected = false;
-        // These are real values, not test data...
-        this.defaultHashSeed = {
-            nonce: seedToBuffer(1234),
-            seed: seedToBuffer(5678),
-        };
+// These are real values, not test data...
+const defaultHashSeed = {
+    nonce: seedToBuffer(1234),
+    seed: seedToBuffer(5678),
+};
+
+
+class NetChannel extends events.EventEmitter {
+    static getConnInc() {
+        return this._connInc++; // Defined by subclasses so tcp and udp each have their own counter
     }
 
-    decrypt(data, iv) {
+    constructor(options={}) {
+        super();
+        this.ip = options.ip;
+        this.connId = this.constructor.getConnInc();
+        this.relayId = options.relayId;
+        this.hashSeeds = options.hashSeeds;
+        this.aesKey = options.aesKey;
+        this._sendSeqno = 0;
+        this.sendIV = new RelayIV({channelType: `${options.proto}Client`, connId: this.connId});
+        this.recvIV = new RelayIV({channelType: `${options.proto}Server`, connId: this.connId});
+    }
+
+    decrypt(data) {
+        const iv = this.recvIV;
         const flags = data.readUint8(0);
         let headerOfft = 1;
         if (flags & headerFlags.relayId) {
@@ -470,15 +576,25 @@ export class GameClient extends events.EventEmitter {
             headerOfft += 4;
         }
         const ivBuf = iv.toBuffer();
-        const decipher = crypto.createDecipheriv('aes-128-gcm', this.aeskey, ivBuf, {authTagLength: 4});
+        const decipher = crypto.createDecipheriv('aes-128-gcm', this.aesKey, ivBuf, {authTagLength: 4});
         decipher.setAAD(data.subarray(0, headerOfft));
         decipher.setAuthTag(data.subarray(-4));
         const plain = Buffer.concat([decipher.update(data.subarray(headerOfft, -4)), decipher.final()]);
-        iv.seqno++; // Implicit seqno increase (this protocol is quite fragile)
+        iv.seqno++;
         return plain;
     }
 
-    encodeHeader(iv, options={}) {
+    encrypt(aad, data) {
+        const cipher = crypto.createCipheriv('aes-128-gcm', this.aesKey, this.sendIV.toBuffer(),
+            {authTagLength: 4});
+        cipher.setAAD(aad);
+        const dataBuf = Buffer.concat([cipher.update(data), cipher.final(), cipher.getAuthTag()]);
+        this.sendIV.seqno++;
+        return dataBuf;
+    }
+
+    encodeHeader(options={}) {
+        const iv = this.sendIV;
         let flags = 0;
         let headerOfft = 1;
         const header = Buffer.alloc(1 + 4 + 2 + 4);
@@ -502,84 +618,44 @@ export class GameClient extends events.EventEmitter {
         return header.subarray(0, headerOfft);
     }
 
-    encrypt(aad, data, iv) {
-        const cipher = crypto.createCipheriv('aes-128-gcm', this.aeskey, iv.toBuffer(),
-            {authTagLength: 4});
-        cipher.setAAD(aad);
-        return Buffer.concat([cipher.update(data), cipher.final(), cipher.getAuthTag()]);
+    establish() {
+        this.active = true;
     }
 
-    async login(options) {
-        this.aeskey = crypto.randomBytes(16);
-        const login = await this.api.fetchPB('/api/users/login', {
-            method: 'POST',
-            pb: protos.LoginRequest.encode({
-                aeskey: this.aeskey,
-                properties: {
-                    entries: [
-                        {key: 'OS Type', value: 'macOS'},
-                        {key: 'OS', value: 'OSX 10.X 64bit'},
-                        {key: 'COMPUTER', value: 'MacBookPro18,2'},
-                        {key: 'Machine Id', value: '2-d9d8235c-f1b5-4415-b90e-deadbeef098c'}
-                    ],
-                }
-            }),
-            protobuf: 'LoginResponse',
-            ...options,
-        });
-        this.serverHashSeeds = await this.api.getHashSeeds();
-        this.relayId = login.relaySessionId;
-        this.servers = login.info.tcpConfig.nodes;
-        console.warn("TCP Servers:", this, this.servers);
-    }
-
-    async connect(options) {
-        this.connected = false;
-        await this.login(options);
-        await sleep(1000); // No joke this is required.
-        await this.establishConnection(options);
-        await this.sayHello(options);
-        this.connected = true;
-    }
-
-    async disconnect(options) {
-        this.connected = false;
-        clearInterval(this.sendLoop);
-        if (this.tcpConn) {
-            this.tcpConn.end();
-            this.tcpConn = null;
-        }
-        if (this.udpSock) {
-            this.udpSock.close();
-            this.udpSock = null;
+    shutdown(options) {
+        if (this.active) {
+            this.active = false;
+            this.emit('shutdown', this);
         }
     }
 
-    async establishConnection(options={}) {
-        this._connectingTime = Date.now();
-        if (this.tcpConn) {
-            this.tcpConn.removeAllListeners();
-            this.tcpConn.end();
-        }
-        this._tcpSendIV = new IV({deviceType: 'relay', channelType: 'tcpClient', connId: this._tcpConnId});
-        this._tcpRecvIV = new IV({deviceType: 'relay', channelType: 'tcpServer', connId: this._tcpConnId});
-        this._tcpConnId++;
-        this._tcpPacketSeqno = 0;
-        let servers = this.servers.filter(x => x.realm === 0 && x.courseId === 0);
-        if (this.courseId) {
-            const dedicatedServers = this.servers.filter(x =>
-                x.realm === 1 && x.courseId === this.courseId);
-            if (dedicatedServers.length) {
-                servers = dedicatedServers;
-            }
-        }
-        let ip;
-        if (!options.ip) {
-            ip = servers[0].ip;
-        }
-        console.info("Establishing TCP connection to:", ip);
-        this.tcpConn = net.createConnection({
-            host: ip,
+    makeDataPBAndBuffer(props) {
+        const seqno = this._sendSeqno++;
+        const pb = protos.ClientToServer.fromObject({seqno, ...props});
+        return [pb, protos.ClientToServer.encode(pb).finish()];
+    }
+
+    makeHashBuf(dataBuf, options={}) {
+        const hashSeed = options.hello ? defaultHashSeed : this.hashSeeds[0];
+        const hash = new XXHash32(hashSeed.seed);
+        hash.update(dataBuf);
+        hash.update(hashSeed.nonce);
+        return hash.digest();
+    }
+}
+
+
+class TCPChannel extends NetChannel {
+    static _connInc = 0;
+
+    constructor(options) {
+        super({proto: 'tcp', ...options});
+        this.conn = null;
+    }
+
+    async establish() {
+        this.conn = net.createConnection({
+            host: this.ip,
             port: 3025,
             noDelay: true,
             keepAlive: true,
@@ -591,200 +667,20 @@ export class GameClient extends events.EventEmitter {
             }
         });
         await new Promise((resolve, reject) => {
-            this.tcpConn.once('connect', resolve);
-            this.tcpConn.once('error', reject);
+            this.conn.once('connect', resolve);
+            this.conn.once('error', reject);
         });
-        this.tcpConn.on('close', this.onConnectionClose.bind(this));
+        this.conn.on('close', () => this.shutdown());
+        super.establish();
     }
 
-    getBestUDPServerIP(serverSelectionHack) {
-        console.warn("udp servers", this.udpServerPools);
-        let pool = this.udpServerPools.find(x => x.realm === 0 && x.courseId === 0);
-        if (serverSelectionHack) {
-            pool = this.udpServerPools.find(x => x.realm === 1 && x.courseId === this.courseId) || pool;
+    shutdown() {
+        super.shutdown();
+        if (this.conn) {
+            this.conn.removeAllListeners();
+            this.conn.end();
+            this.conn = null;
         }
-        // XXX figure out the weird server selection thing.
-        const index = serverSelectionHack ? -1 : 0;
-        const ip = pool.addresses.at(index).ip;
-        return ip;
-    }
-
-    async establishUDPSocket(serverSelectionHack) {
-        const ip = this.getBestUDPServerIP(serverSelectionHack);
-        if (this.udpSock) {
-            this.udpSock.removeAllListeners();
-            this.udpSock.close();
-        }
-        this._udpSendIV = new IV({deviceType: 'relay', channelType: 'udpClient', connId: this._udpConnId});
-        this._udpRecvIV = new IV({deviceType: 'relay', channelType: 'udpServer', connId: this._udpConnId});
-        this._udpConnId++;
-        this._udpPacketSeqno = 0;
-        console.info("Establishing UDP connection to:", ip);
-        this.udpSock = dgram.createSocket('udp4');
-        this.udpSock.on('message', this.onUDPData.bind(this));
-        await new Promise((resolve, reject) =>
-            this.udpSock.connect(3024, ip, e => void (e ? reject(e) : resolve())));
-    }
-
-    async onConnectionClose() {
-        console.warn("Connection to Zwift Game servers closed");
-        this.disconnect();
-        return;
-        //await sleep(Math.max(0, 15000 - (Date.now() - this._connectingTime)));
-        //await this.establishConnection();
-    }
-
-    async sayHello(options={}) {
-        const udpServersAvailable = new Promise(resolve =>
-            this.once('udpServerPoolsUpdated', resolve));
-        await this.sendTCP({
-            athleteId: this.athleteId,
-            _worldTime: 0,
-            largWaTime: 0,
-        }, {hello: true});
-        await udpServersAvailable;
-        // This recipe is completely XXX
-        await this.establishUDPSocket(); // XXX
-        for (let i = 0; i < 4; i++) { // be like real game
-            await this.sendHandshake(); // XXX
-            await sleep(50); // XXX
-        }
-        await this.establishUDPSocket(true); // XXX
-        //await this.establishUDPSocket('54.213.160.217'); // XXX
-        await this.sendHandshake(); // XXX
-        await this.sendPlayerState(); // XXX
-        this.sendLoop = setInterval(async () => {
-            await this.sendPlayerState(); // XXX
-        }, 1000);
-    }
-
-    async sendHandshake() {
-        await this.sendUDP({
-            athleteId: this.athleteId,
-            realm: 1,
-            _worldTime: 0,
-        }, {hello: true});
-    }
-
-    async setWatching(athleteId) {
-        this.watchingAthleteId = athleteId;
-        if (this.connected) {
-            await this.sendPlayerState();
-        }
-    }
-
-    async setCourseId(courseId) {
-        this.courseId = courseId;
-        if (this.connected) {
-            await this.disconnect();
-            await this.connect();
-        }
-    }
-
-    async sendPlayerState(props={}, state={}, sendOptions={}) {
-        const wt = dateToWorldTime(new Date());
-        await this.sendUDP({
-            athleteId: this.athleteId,
-            realm: 1,
-            _worldTime: wt,
-            ...props,
-            state: {
-                athleteId: this.athleteId,
-                _worldTime: wt,
-                justWatching: true,
-                watchingAthleteId: this.watchingAthleteId,
-                _flags1: 393237, // XXX need to properly encode these
-                _flags2: 33560079, // XXX need to properly encode these
-                x: 0,
-                altitude: 0,
-                y: 0,
-                world: this.courseId,
-
-                // Optional...
-
-                //world: this.courseId,
-                //distance: 0,
-                //roadLocation: 680000,
-                //laps: 0,
-                //_speed: 0,
-                //roadPosition: 10463403,
-                //_cadenceUHz: 0,
-                //draft: 0,
-                //heartrate: 0,
-                //power: 0,
-                //_heading: 5235197,
-                //lean: 970405,
-                //climbing: 0,
-                //time: 0,
-                //_progress: 0,
-                //_mwHours: 0,
-                //groupId: 0,
-                //sport: 0,
-                //_distanceWithLateral: 3.11,
-                //_f36: 0,
-                //_f37: 2,
-                //canSteer: false,
-
-                ...this.playerState, // XXX
-                ...state,
-            }
-        }, {dfPrefix: true, ...sendOptions});
-    }
-
-    async sendUDP(props, options={}) {
-        const seqno = this._udpPacketSeqno++;
-        const pb = protos.ClientToServer.encode({seqno, ...props});
-        const prefixBuf = options.dfPrefix ? Buffer.from([0xdf]) : Buffer.alloc(0);
-        const dataBuf = pb.finish();
-        const headerBuf = this.encodeHeader(this._udpSendIV, {forceSeq: true, ...options});
-        const hashSeed = options.hello ? this.defaultHashSeed : this.serverHashSeeds[0];
-        const hash = new XXHash32(hashSeed.seed);
-        hash.update(dataBuf);
-        hash.update(hashSeed.nonce); // XXX Not sure how server knows which once we're using.
-        const hashBuf = hash.digest();
-        const plainBuf = Buffer.concat([prefixBuf, dataBuf, hashBuf]);
-        const cipherBuf = this.encrypt(headerBuf, plainBuf, this._udpSendIV);
-        const wireBuf = Buffer.concat([headerBuf, cipherBuf]);
-        this._udpSendIV.seqno++;
-        await new Promise((resolve, reject) =>
-            this.udpSock.send(wireBuf, e => void (e ? reject(e) : resolve())));
-        this.emit('outPacket', protos.ClientToServer.decode(dataBuf)); // XXX find alt use of protobufs
-    }
-
-    async sendTCP(props, options={}) {
-        const seqno = this._tcpPacketSeqno++;
-        const pb = protos.ClientToServer.encode({seqno, ...props});
-        const dataBuf = pb.finish();
-        const headerBuf = this.encodeHeader(this._tcpSendIV, options);
-        const magic = Buffer.from([0x01, options.hello ? 0 : 1]);
-        const hashSeed = options.hello ? this.defaultHashSeed : this.serverHashSeeds[0];
-        const hash = new XXHash32(hashSeed.seed);
-        hash.update(magic);
-        hash.update(dataBuf);
-        hash.update(hashSeed.nonce); // XXX Not sure how server knows which once we're using.
-        const hashBuf = hash.digest();
-        const plainBuf = Buffer.concat([magic, dataBuf, hashBuf]);
-        const cipherBuf = this.encrypt(headerBuf, plainBuf, this._tcpSendIV);
-        const sizeBuf = Buffer.alloc(2);
-        sizeBuf.writeUInt16BE(headerBuf.byteLength + cipherBuf.byteLength);
-        const wireBuf = Buffer.concat([sizeBuf, headerBuf, cipherBuf]);
-        this._tcpSendIV.seqno++;
-        await new Promise(resolve => this.tcpConn.write(wireBuf, resolve));
-        this.emit('outPacket', protos.ClientToServer.decode(dataBuf)); // XXX find alt use of protobufs
-    }
-
-    onUDPData(buf, rinfo) {
-        try {
-            this._onUDPData(buf, rinfo);
-        } catch(e) {
-            console.error(e);
-            debugger;
-        }
-    }
-
-    _onUDPData(buf, rinfo) {
-        const plainBuf = this.decrypt(buf, this._udpRecvIV);
-        queueMicrotask(() => this.processPacket(plainBuf));
     }
 
     onTCPData(nread, buf) {
@@ -832,8 +728,8 @@ export class GameClient extends events.EventEmitter {
                     completeBuf = data.subarray(offt, (offt += size));
                 }
                 try {
-                    const plainBuf = this.decrypt(completeBuf, this._tcpRecvIV);
-                    queueMicrotask(() => this.processPacket(plainBuf));
+                    const plainBuf = this.decrypt(completeBuf);
+                    this.emit('inPacket', protos.ServerToClient.decode(plainBuf));
                 } catch(e) {
                     console.error('Decryption error:', e);
                 }
@@ -841,10 +737,299 @@ export class GameClient extends events.EventEmitter {
         }
     }
 
-    processPacket(buf) {
-        const pb = protos.ServerToClient.decode(buf);
-        if (pb.servers2 && pb.servers2.pools) {
-            this.udpServerPools = pb.servers2.pools;
+    async sendPacket(props, options={}) {
+        const [pb, dataBuf] = this.makeDataPBAndBuffer(props);
+        const headerBuf = this.encodeHeader(options);
+        const magic = Buffer.from([0x01, options.hello ? 0 : 1]);
+        const hashBuf = this.makeHashBuf(dataBuf, options);
+        const plainBuf = Buffer.concat([magic, dataBuf, hashBuf]);
+        const cipherBuf = this.encrypt(headerBuf, plainBuf);
+        const sizeBuf = Buffer.alloc(2);
+        sizeBuf.writeUInt16BE(headerBuf.byteLength + cipherBuf.byteLength);
+        const wireBuf = Buffer.concat([sizeBuf, headerBuf, cipherBuf]);
+        await new Promise(resolve => this.conn.write(wireBuf, resolve));
+        this.emit('outPacket', pb);
+    }
+}
+
+
+class UDPChannel extends NetChannel {
+    static _connInc = 0;
+
+    constructor(options) {
+        super({proto: 'udp', ...options});
+        this.sock = null;
+    }
+
+    async establish() {
+        this.sock = dgram.createSocket('udp4');
+        this.sock.on('message', this.onUDPData.bind(this));
+        this.sock.on('close', () => this.shutdown());
+        this.sock.on('error', () => this.shutdown());
+        await new Promise((resolve, reject) =>
+            this.sock.connect(3024, this.ip, e => void (e ? reject(e) : resolve())));
+        super.establish();
+    }
+ 
+    shutdown() {
+        super.shutdown();
+        if (this.sock) {
+            this.sock.removeAllListeners();
+            this.sock.close();
+            this.sock = null;
+        }
+    }
+
+    onUDPData(buf) {
+        try {
+            this._onUDPData(buf);
+        } catch(e) {
+            console.error(e);
+            debugger;
+        }
+    }
+
+    _onUDPData(buf, rinfo) {
+        const plainBuf = this.decrypt(buf);
+        this.emit('inPacket', protos.ServerToClient.decode(plainBuf));
+    }
+
+    async sendPacket(props, options={}) {
+        const [pb, dataBuf] = this.makeDataPBAndBuffer(props);
+        const prefixBuf = options.dfPrefix ? Buffer.from([0xdf]) : Buffer.alloc(0);
+        const headerBuf = this.encodeHeader({forceSeq: true, ...options});
+        const hashBuf = this.makeHashBuf(dataBuf, options);
+        const plainBuf = Buffer.concat([prefixBuf, dataBuf, hashBuf]);
+        const cipherBuf = this.encrypt(headerBuf, plainBuf, this._udpSendIV);
+        const wireBuf = Buffer.concat([headerBuf, cipherBuf]);
+        await new Promise((resolve, reject) =>
+            this.sock.send(wireBuf, e => void (e ? reject(e) : resolve())));
+        this.emit('outPacket', pb);
+    }
+}
+
+
+export class GameClient extends events.EventEmitter {
+    constructor(options={}) {
+        super();
+        this.api = options.zwiftAPI;
+        this.athleteId = this.api.profile.id;
+        this.monitorAthleteId = options.monitorAthleteId;
+        this.watchingAthleteId = this.monitorAthleteId;
+        this.courseId = options.courseId;
+        this.relayId = null;
+        this.connected = false;
+    }
+
+    async login(options) {
+        this.aesKey = crypto.randomBytes(16);
+        const login = await this.api.fetchPB('/api/users/login', {
+            method: 'POST',
+            pb: protos.LoginRequest.encode({
+                aesKey: this.aesKey,
+                properties: {
+                    entries: [
+                        {key: 'OS Type', value: 'macOS'},
+                        {key: 'OS', value: 'OSX 10.X 64bit'},
+                        {key: 'COMPUTER', value: 'MacBookPro18,2'},
+                        {key: 'Machine Id', value: '2-d9d8235c-f1b5-4415-b90e-deadbeef098c'}
+                    ],
+                }
+            }),
+            protobuf: 'LoginResponse',
+            ...options,
+        });
+        this.hashSeeds = await this.api.getHashSeeds();
+        this.relayId = login.relaySessionId;
+        this.servers = login.session.tcpConfig.servers;
+    }
+
+    async connect(options) {
+        this.connected = false;
+        await this.login(options);
+        await sleep(1000); // No joke this is required.
+        await this.establishConnection(options);
+        await this.sayHello(options);
+        this.connected = true;
+    }
+
+    disconnect(options={}) {
+        this.connected = false;
+        clearInterval(this.sendLoop);
+        if (this.udpChannel) {
+            this.udpChannel.shutdown();
+            this.udpChannel = null;
+        }
+        if (this.tcpChannel) {
+            this.tcpChannel.shutdown();
+            this.tcpChannel = null;
+        }
+    }
+
+    async establishConnection(options={}) {
+        this._connectingTime = Date.now();
+        if (this.tcpChannel) {
+            this.tcpChannel.shutdown();
+        }
+        let servers = this.servers.filter(x => x.realm === 0 && x.courseId === 0);
+        let dedicated;
+        if (this.courseId) {
+            const dedicatedServers = this.servers.filter(x =>
+                x.realm === 1 && x.courseId === this.courseId);
+            if (dedicatedServers.length) {
+                servers = dedicatedServers;
+                dedicated = true;
+            }
+        }
+        const ip = servers[0].ip;
+        console.info(`Establishing TCP channel to [${dedicated ? 'Dedicated' : 'Generic'}]:`, this.courseId, ip);
+        this.tcpChannel = new TCPChannel({ip, relayId: this.relayId, hashSeeds: this.hashSeeds, aesKey: this.aesKey});
+        this.tcpChannel.on('shutdown', this.onChannelShutdown.bind(this));
+        this.tcpChannel.on('inPacket', this.onInPacket.bind(this));
+        await this.tcpChannel.establish();
+    }
+
+    makeUDPChannel(options={}) {
+        let pool;
+        if (options.loadBalancer) {
+            pool = this.udpServerPools.find(x => x.realm === 0 && x.courseId === 0);
+        } else {
+            pool = this.udpServerPools.find(x => x.realm === 1 && x.courseId === this.courseId);
+        }
+        const ip = pool.servers[0].ip;
+        console.info(`Establishing UDP channel to [${options.loadBalancer ? 'LoadBalancer' : 'Dedicated'}]:`, this.courseId, ip);
+        return new UDPChannel({ip, relayId: this.relayId, hashSeeds: this.hashSeeds, aesKey: this.aesKey});
+    }
+
+    async establishUDPChannel(options={}) {
+        if (this.udpChannel) {
+            this.udpChannel.shutdown();
+        }
+        this.udpChannel = this.makeUDPChannel(options);
+        this.udpChannel.on('shutdown', this.onChannelShutdown.bind(this));
+        this.udpChannel.on('inPacket', this.onInPacket.bind(this));
+        this.udpChannel.on('outPacket', (...args) => this.emit('outPacket', ...args));
+        await this.udpChannel.establish();
+    }
+
+    onChannelShutdown(ch) {
+        console.warn("TBD: channel shutdown behavior", ch);
+        // Sometimes it's us, sometimes it's the network.  
+        //this.disconnect();
+        return;
+        //await sleep(Math.max(0, 15000 - (Date.now() - this._connectingTime)));
+        //await this.establishConnection();
+    }
+
+    async sayHello(options={}) {
+        const udpServersAvailable = new Promise(resolve =>
+            this.once('udpServerPoolsUpdated', resolve));
+        await this.tcpChannel.sendPacket({
+            athleteId: this.athleteId,
+            _worldTime: 0,
+            largWaTime: 0,
+        }, {hello: true});
+        await udpServersAvailable;
+        // This recipe is completely XXX
+        await this.establishUDPChannel({loadBalancer: true}); // XXX
+        for (let i = 0; i < 4; i++) { // be like real game
+            await this.sendHandshake(); // XXX
+            await sleep(50); // XXX
+        }
+        await this.establishUDPChannel(); // XXX
+        await this.sendHandshake(); // XXX
+        await this.sendPlayerState(); // XXX
+        this.sendLoop = setInterval(async () => {
+            await this.sendPlayerState(); // XXX
+        }, 1000);
+    }
+
+    async sendHandshake() {
+        await this.udpChannel.sendPacket({
+            athleteId: this.athleteId,
+            realm: 1,
+            _worldTime: 0,
+        }, {hello: true});
+    }
+
+    async sendDisconnect() {
+        await this.udpChannel.sendPacket({
+            athleteId: this.athleteId,
+            realm: -1,
+            _worldTime: 0,
+        });
+    }
+
+    async setWatching(athleteId) {
+        this.watchingAthleteId = athleteId;
+        if (this.connected) {
+            await this.sendPlayerState();
+        }
+    }
+
+    async setCourseId(courseId) {
+        this.courseId = courseId;
+        if (this.connected) {
+            await this.sendDisconnect();
+            this.disconnect();
+        }
+        await this.connect();
+    }
+
+    async sendPlayerState(props={}, state={}, sendOptions={}) {
+        const wt = dateToWorldTime(new Date());
+        await this.udpChannel.sendPacket({
+            athleteId: this.athleteId,
+            realm: 1,
+            _worldTime: wt,
+            ...props,
+            state: {
+                athleteId: this.athleteId,
+                _worldTime: wt,
+                justWatching: true,
+                watchingAthleteId: this.watchingAthleteId,
+                x: 0,
+                altitude: 0,
+                y: 0,
+                courseId: this.courseId,
+
+                // Optional...
+
+                //_flags1: 0,
+                //_flags2: 0,
+                //world: this.courseId,
+                //distance: 0,
+                //roadLocation: 680000,
+                //laps: 0,
+                //_speed: 0,
+                //roadPosition: 10463403,
+                //_cadenceUHz: 0,
+                //draft: 0,
+                //heartrate: 0,
+                //power: 0,
+                //_heading: 5235197,
+                //lean: 970405,
+                //climbing: 0,
+                //time: 0,
+                //_progress: 0,
+                //_mwHours: 0,
+                //groupId: 0,
+                //sport: 0,
+                //_distanceWithLateral: 3.11,
+                //_f36: 0,
+                //_f37: 2,
+                //canSteer: false,
+
+                ...this.playerState, // XXX
+                ...state,
+            }
+        }, {dfPrefix: true, ...sendOptions});
+    }
+
+    onInPacket(pb) {
+        if (pb.udpConfigVOD && pb.udpConfigVOD.pools) {
+            this.udpServerPools = pb.udpConfigVOD.pools;
+            console.warn("udp servers", this.udpServerPools);
             this.emit('udpServerPoolsUpdated', this.udpServerPools);
         }
         if (pb.playerStates && pb.playerStates.length) {

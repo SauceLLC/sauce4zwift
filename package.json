@@ -32,7 +32,7 @@
   "devDependencies": {
     "@sentry/browser": "6.19.6",
     "echarts": "5.3.2",
-    "electron": "19.0.0",
+    "electron": "19.0.10",
     "electron-builder": "23.3.3",
     "electron-notarize": "1.2.1",
     "eslint": "8.21.0",

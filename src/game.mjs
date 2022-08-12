@@ -17,15 +17,6 @@ export const protos = protobuf.loadSync([path.join(__dirname, 'zwift.proto')]).r
 protobuf.parse.defaults.keepCase = _case;
 
 
-const powerUpEnum = {
-    0: 'FEATHER',
-    1: 'DRAFT',
-    4: 'BURRITO',
-    5: 'AERO',
-    6: 'GHOST',
-};
-
-
 function randInt(ceil=Number.MAX_SAFE_INTEGER) {
     return Math.trunc(Math.random() * ceil);
 }
@@ -519,7 +510,7 @@ export class Sauce4ZwiftMonitor extends events.EventEmitter {
     _onIncoming(packet) {
         this.maybeLearnAthleteId(packet);
         for (const x of packet.worldUpdates) {
-            x.payloadType = x.$type.getEnum('PayloadType')[x._payloadType];
+            x.payloadType = protos.WorldUpdatePayloadType[x._payloadType];
             if (!x.payloadType) {
                 console.warn("No enum type for:", x._payloadType);
             } else if (x.payloadType[0] !== '_') {
@@ -546,8 +537,17 @@ export class Sauce4ZwiftMonitor extends events.EventEmitter {
                 this._watchingRoadSig = this._roadSig(x);
             }
         }
-        if (packet.playerStates2XXX.length) {
+        if (packet.playerSummaries) {
             debugger; // XXX
+        }
+        if (packet.udpConfigVOD2) {
+            debugger; // XXX
+        }
+        if (packet.playerStates2.length) {
+            debugger; // XXX
+        }
+        if (packet.tcpConfig) {
+            console.log(packet.tcpConfig);
         }
     }
 
@@ -613,55 +613,6 @@ export class Sauce4ZwiftMonitor extends events.EventEmitter {
         this.watching = athleteId;
         this._pendingProfileFetches.length = 0;
         this.emit('watching-athlete-change', athleteId);
-    }
-
-    processFlags1(bits) {
-        const powerMeter = !!(bits & 0x1);
-        bits >>>= 1;
-        const companionApp = !!(bits & 0x1);
-        bits >>>= 1;
-        const reverse = !!(bits & 0x1);
-        bits >>>= 1;
-        const reversing = !!(bits & 0x1);
-        bits >>>= 1;
-        const _b4_15 = bits & (1 << 12) - 1; // XXX no idea
-        bits >>>= 12;
-        const worldAux = bits & 0xff;
-        bits >>>= 8;
-        const rideons = bits;
-        return {
-            powerMeter,
-            companionApp,
-            reversing,
-            reverse,
-            _b4_15,
-            worldAux,
-            rideons,
-        };
-    }
-
-    processFlags2(bits) {
-        const powerUping = bits & 0xF;
-        // b0_3: 15 = Not active, otherwise enum
-        bits >>>= 4;
-        const turning = {
-            0: null,
-            1: 'RIGHT',
-            2: 'LEFT',
-        }[bits & 0x3];
-        bits >>>= 2;
-        const overlapping = bits & 0x1;  // or near junction or recently on junction.  It's unclear.
-        bits >>>= 1;
-        const roadId = bits & 0xFFFF;
-        bits >>>= 16;
-        const _rem2 = bits; // XXX no idea
-        return {
-            activePowerUp: powerUping === 0xF ? null : powerUpEnum[powerUping],
-            turning,
-            roadId,
-            overlapping,
-            _rem2,
-        };
     }
 
     _roadSig(state) {
@@ -818,10 +769,9 @@ export class Sauce4ZwiftMonitor extends events.EventEmitter {
             }
             return false;
         }
-        // TBD: Move most of this to zwift-packet-monitor...
         state.joinTime = +zwift.worldTimeToDate(state._joinTime);
-        Object.assign(state, this.processFlags1(state._flags1));
-        Object.assign(state, this.processFlags2(state._flags2));
+        Object.assign(state, zwift.decodePlayerStateFlags1(state._flags1));
+        Object.assign(state, zwift.decodePlayerStateFlags2(state._flags2));
         state.kj = state._mwHours / 1000 / (1000 / 3600);
         state.heading = headingConv(state._heading);  // degrees
         state.speed = state._speed / 1000000;  // km/h
@@ -855,11 +805,6 @@ export class Sauce4ZwiftMonitor extends events.EventEmitter {
         curLap.hr.resize(time);
         curLap.draft.resize(time);
         curLap.cadence.resize(time);
-        if (state.power == null || state.speed == null || state.heartrate == null ||
-            state.cadence == null || state.draft == null) {
-            console.error("Assertion failure");
-            debugger;
-        }
         ad.updated = performance.now();
         if (this.watching === state.athleteId) {
             const athlete = this.loadAthlete(state.athleteId);

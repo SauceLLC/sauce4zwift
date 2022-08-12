@@ -389,7 +389,7 @@ class SauceApp extends EventEmitter {
     async start(options={}) {
         const gameClient = new zwift.GameClient({
             monitorAthleteId: zwiftAPI.profile.id,
-            courseId: 7, // XXX we can't figure this out yet
+            courseId: 14, // XXX we can't figure this out yet
             zwiftAPI: zwiftGameAPI,
         });
         if (options.garminLiveTrackSession) {

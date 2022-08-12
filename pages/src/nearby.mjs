@@ -239,8 +239,9 @@ const fields = [
     {id: 'progress', defaultEn: false, label: 'Route %', get: x => x.state.progress * 100, fmt: pct},
     {id: 'workout-zone', defaultEn: false, label: 'WO Zone', get: x => x.state.workoutZone},
     {id: 'laps', defaultEn: false, label: 'Laps', get: x => x.state.laps},
-    //{id: 'world', defaultEn: false, label: 'World xxx', get: x => x.state.world},
-    //{id: 'world-aux', defaultEn: false, label: 'WorldAux xxx', get: x => x.state.worldAux},
+
+    {id: 'course', defaultEn: false, label: 'DEV Course', get: x => x.state.courseId},
+    {id: 'road', defaultEn: false, label: 'DEV Road', get: x => x.state.roadId},
 ];
 
 
