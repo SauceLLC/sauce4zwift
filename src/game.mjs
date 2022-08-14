@@ -264,15 +264,6 @@ export class Sauce4ZwiftMonitor extends events.EventEmitter {
         });
     }
 
-    maybeLearnAthleteId(packet) {
-        if (this.athleteId === null && packet.athleteId != null) {
-            this.athleteId = packet.athleteId;
-            if (this.watching == null) {
-                this.watching = this.athleteId;
-            }
-        }
-    }
-
     startLap() {
         console.debug("User requested lap start");
         const now = performance.now();
@@ -508,7 +499,6 @@ export class Sauce4ZwiftMonitor extends events.EventEmitter {
     }
 
     _onIncoming(packet) {
-        this.maybeLearnAthleteId(packet);
         for (const x of packet.worldUpdates) {
             x.payloadType = protos.WorldUpdatePayloadType[x._payloadType];
             if (!x.payloadType) {
@@ -582,34 +572,8 @@ export class Sauce4ZwiftMonitor extends events.EventEmitter {
         this.emit('chat', chat);
     }
 
-    onOutgoing(...args) {
-        try {
-            this._onOutgoing(...args);
-        } catch(e) {
-            captureExceptionOnce(e);
-        }
-    }
-
-    _onOutgoing(packet) {
-        this.maybeLearnAthleteId(packet);
-        const state = packet.state;
-        if (!state) {
-            return;
-        }
-        if (this.processState(state) === false) {
-            return;
-        }
-        const watching = state.watchingAthleteId;
-        if (watching != null && this.watching !== watching) {
-            this.setWatching(watching);
-        }
-        if (state.athleteId === this.watching) {
-            this._watchingRoadSig = this._roadSig(state);
-        }
-    }
-
     setWatching(athleteId) {
-        console.debug("Now watching:", athleteId);
+        console.info("Now watching:", athleteId);
         this.watching = athleteId;
         this._pendingProfileFetches.length = 0;
         this.emit('watching-athlete-change', athleteId);
@@ -817,7 +781,6 @@ export class Sauce4ZwiftMonitor extends events.EventEmitter {
             });
         }
         this._stateProcessCount++;
-        console.debug(state);
     }
 
     async resetAthletesDB() {
@@ -844,10 +807,11 @@ export class Sauce4ZwiftMonitor extends events.EventEmitter {
         if (this._useFakeData) {
             this._fakeDataGenerator();
         } else {
+            this.athleteId = this.zwiftAPI.profile.id;
+            this.watching = this.gameClient.watchingAthleteId;
             this.gameClient.on('inPacket', this.onIncoming.bind(this));
-            this.gameClient.on('outPacket', this.onOutgoing.bind(this));
+            this.gameClient.on('watching-athlete', this.setWatching.bind(this));
             await this.gameClient.connect();
-            this.zwiftAPIAthleteId = this.zwiftAPI.profile.id;
             queueMicrotask(() => this._zwiftMetaSync());
         }
     }
@@ -870,7 +834,7 @@ export class Sauce4ZwiftMonitor extends events.EventEmitter {
             return;
         }
         setTimeout(this._zwiftMetaSync.bind(this), 1200 * 1000);
-        const followees = await this.zwiftAPI.getFollowees(this.zwiftAPIAthleteId);
+        const followees = await this.zwiftAPI.getFollowees(this.athleteId);
         const updates = [];
         for (const x of followees) {
             const p = x.followeeProfile;
@@ -902,7 +866,7 @@ export class Sauce4ZwiftMonitor extends events.EventEmitter {
     }
 
     async setFollowing(athleteId) {
-        const resp = await this.zwiftAPI._setFollowing(athleteId, this.zwiftAPIAthleteId);
+        const resp = await this.zwiftAPI._setFollowing(athleteId, this.athleteId);
         return this.updateAthlete(athleteId, {
             following: resp.status === 'IS_FOLLOWING',
             followRequest: resp.status === 'REQUESTS_TO_FOLLOW',
@@ -910,7 +874,7 @@ export class Sauce4ZwiftMonitor extends events.EventEmitter {
     }
 
     async setNotFollowing(athleteId) {
-        await this.zwiftAPI._setNotFollowing(athleteId, this.zwiftAPIAthleteId);
+        await this.zwiftAPI._setNotFollowing(athleteId, this.athleteId);
         return this.updateAthlete(athleteId, {
             following: false,
             followRequest: false,
@@ -918,7 +882,7 @@ export class Sauce4ZwiftMonitor extends events.EventEmitter {
     }
 
     async giveRideon(athleteId, activity=0) {
-        return await this.zwiftAPI._giveRideon(athleteId, this.zwiftAPIAthleteId, activity);
+        return await this.zwiftAPI._giveRideon(athleteId, this.athleteId, activity);
     }
 
     async _fakeDataGenerator() {
@@ -953,10 +917,11 @@ export class Sauce4ZwiftMonitor extends events.EventEmitter {
                         _flags2: +roadId << 7,
                     }
                 });
-                this.onOutgoing(packet);
+                this.onIncoming(packet);
             }
             if (iters++ % (hz * 60) === 0) {
                 watching = -Math.trunc(Math.random() * athleteCount);
+                this.setWatching(watching);
             }
             if (iters++ % (hz * 10) === 0) {
                 const from = -randInt(athleteCount);
@@ -1079,7 +1044,6 @@ export class Sauce4ZwiftMonitor extends events.EventEmitter {
     async _nearbyProcessor() {
         let watchingData = this._athleteData.get(this.watching);
         if (!watchingData) {
-            console.debug('No data for watching athlete', this._athleteData);
             return;
         }
         const nearby = [];

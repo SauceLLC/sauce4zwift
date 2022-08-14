@@ -546,6 +546,7 @@ class NetChannel extends events.EventEmitter {
     constructor(options={}) {
         super();
         this.ip = options.ip;
+        this.proto = options.proto;
         this.connId = this.constructor.getConnInc();
         this.relayId = options.relayId;
         this.hashSeeds = options.hashSeeds;
@@ -553,6 +554,10 @@ class NetChannel extends events.EventEmitter {
         this._sendSeqno = 0;
         this.sendIV = new RelayIV({channelType: `${options.proto}Client`, connId: this.connId});
         this.recvIV = new RelayIV({channelType: `${options.proto}Server`, connId: this.connId});
+    }
+
+    toString() {
+        return `<NetChannel [${this.proto}] connId: ${this.connId}, relayId: ${this.relayId}>`;
     }
 
     decrypt(data) {
@@ -729,7 +734,7 @@ class TCPChannel extends NetChannel {
                 }
                 try {
                     const plainBuf = this.decrypt(completeBuf);
-                    this.emit('inPacket', protos.ServerToClient.decode(plainBuf));
+                    this.emit('inPacket', protos.ServerToClient.decode(plainBuf), this);
                 } catch(e) {
                     console.error('Decryption error:', e);
                 }
@@ -758,7 +763,15 @@ class UDPChannel extends NetChannel {
 
     constructor(options) {
         super({proto: 'udp', ...options});
+        this.athleteId = options.athleteId;
+        this.courseId = options.courseId;
         this.sock = null;
+        this.isDirect = options.isDirect;
+    }
+
+    toString() {
+        return `<UDPChannel [${this.isDirect ? 'DIRECT' : 'LB'}] courseId: ${this.courseId} ` +
+            `connId: ${this.connId} relayId: ${this.relayId}>`;
     }
 
     async establish() {
@@ -790,8 +803,7 @@ class UDPChannel extends NetChannel {
     }
 
     _onUDPData(buf, rinfo) {
-        const plainBuf = this.decrypt(buf);
-        this.emit('inPacket', protos.ServerToClient.decode(plainBuf));
+        this.emit('inPacket', protos.ServerToClient.decode(this.decrypt(buf)), this);
     }
 
     async sendPacket(props, options={}) {
@@ -806,6 +818,33 @@ class UDPChannel extends NetChannel {
             this.sock.send(wireBuf, e => void (e ? reject(e) : resolve())));
         this.emit('outPacket', pb);
     }
+
+    async sendHandshake() {
+        await this.sendPacket({
+            athleteId: this.athleteId,
+            realm: 1,
+            _worldTime: 0,
+        }, {hello: true});
+    }
+
+    async sendPlayerState(state) {
+        const wt = dateToWorldTime(new Date());
+        await this.sendPacket({
+            athleteId: this.athleteId,
+            realm: 1,
+            _worldTime: wt,
+            state: {
+                athleteId: this.athleteId,
+                _worldTime: wt,
+                justWatching: true,
+                x: 0,
+                altitude: 0,
+                y: 0,
+                courseId: this.courseId,
+                ...state,
+            }
+        }, {dfPrefix: true});
+    }
 }
 
 
@@ -816,8 +855,10 @@ export class GameClient extends events.EventEmitter {
         this.athleteId = this.api.profile.id;
         this.monitorAthleteId = options.monitorAthleteId;
         this.watchingAthleteId = this.monitorAthleteId;
-        this.courseId = options.courseId;
         this.relayId = null;
+        this.udpServerPools = new Map();
+        this.tcpChannel = null;
+        this.udpChannel = null;
         this.connected = false;
     }
 
@@ -841,13 +882,21 @@ export class GameClient extends events.EventEmitter {
         });
         this.hashSeeds = await this.api.getHashSeeds();
         this.relayId = login.relaySessionId;
-        this.servers = login.session.tcpConfig.servers;
+        this.tcpServers = login.session.tcpConfig.servers;
+    }
+
+    async logout() {
+        // XXX does this do anything?
+        const resp = await this.api.fetch('/api/users/logout', {method: 'POST'});
+        if (!resp.ok) {
+            throw new Error("Game client logout failed:", await resp.text());
+        }
     }
 
     async connect(options) {
         this.connected = false;
         await this.login(options);
-        await sleep(1000); // No joke this is required.
+        await sleep(1000); // No joke this is required (100ms works about 50% of the time)
         await this.establishConnection(options);
         await this.sayHello(options);
         this.connected = true;
@@ -871,54 +920,36 @@ export class GameClient extends events.EventEmitter {
         if (this.tcpChannel) {
             this.tcpChannel.shutdown();
         }
-        let servers = this.servers.filter(x => x.realm === 0 && x.courseId === 0);
-        let dedicated;
-        if (this.courseId) {
-            const dedicatedServers = this.servers.filter(x =>
-                x.realm === 1 && x.courseId === this.courseId);
-            if (dedicatedServers.length) {
-                servers = dedicatedServers;
-                dedicated = true;
-            }
-        }
+        const servers = this.tcpServers.filter(x => x.realm === 0 && x.courseId === 0);
         const ip = servers[0].ip;
-        console.info(`Establishing TCP channel to [${dedicated ? 'Dedicated' : 'Generic'}]:`, this.courseId, ip);
+        console.info(`Establishing TCP channel to:`, ip);
         this.tcpChannel = new TCPChannel({ip, relayId: this.relayId, hashSeeds: this.hashSeeds, aesKey: this.aesKey});
         this.tcpChannel.on('shutdown', this.onChannelShutdown.bind(this));
         this.tcpChannel.on('inPacket', this.onInPacket.bind(this));
         await this.tcpChannel.establish();
     }
 
-    makeUDPChannel(options={}) {
-        let pool;
-        if (options.loadBalancer) {
-            pool = this.udpServerPools.find(x => x.realm === 0 && x.courseId === 0);
-        } else {
-            pool = this.udpServerPools.find(x => x.realm === 1 && x.courseId === this.courseId);
+    makeUDPChannel(courseId) {
+        let servers = this.udpServerPools.get(courseId);
+        const isDirect = !!servers;
+        if (!servers) {
+            servers = this.udpServerPools.get(0);
         }
-        const ip = pool.servers[0].ip;
-        console.info(`Establishing UDP channel to [${options.loadBalancer ? 'LoadBalancer' : 'Dedicated'}]:`, this.courseId, ip);
-        return new UDPChannel({ip, relayId: this.relayId, hashSeeds: this.hashSeeds, aesKey: this.aesKey});
-    }
-
-    async establishUDPChannel(options={}) {
-        if (this.udpChannel) {
-            this.udpChannel.shutdown();
-        }
-        this.udpChannel = this.makeUDPChannel(options);
-        this.udpChannel.on('shutdown', this.onChannelShutdown.bind(this));
-        this.udpChannel.on('inPacket', this.onInPacket.bind(this));
-        this.udpChannel.on('outPacket', (...args) => this.emit('outPacket', ...args));
-        await this.udpChannel.establish();
+        const ip = servers[0].ip;
+        console.info(`Establishing UDP channel to course=${courseId}:`, ip);
+        return new UDPChannel({
+            ip,
+            courseId,
+            athleteId: this.athleteId,
+            relayId: this.relayId,
+            hashSeeds: this.hashSeeds,
+            aesKey: this.aesKey,
+            isDirect,
+        });
     }
 
     onChannelShutdown(ch) {
-        console.warn("TBD: channel shutdown behavior", ch);
-        // Sometimes it's us, sometimes it's the network.  
-        //this.disconnect();
-        return;
-        //await sleep(Math.max(0, 15000 - (Date.now() - this._connectingTime)));
-        //await this.establishConnection();
+        console.warn("TBD: TCP channel shutdown behavior", ch);
     }
 
     async sayHello(options={}) {
@@ -930,22 +961,49 @@ export class GameClient extends events.EventEmitter {
             largWaTime: 0,
         }, {hello: true});
         await udpServersAvailable;
-        // This recipe is completely XXX
-        await this.establishUDPChannel({loadBalancer: true}); // XXX
-        for (let i = 0; i < 4; i++) { // be like real game
-            await this.sendHandshake(); // XXX
-            await sleep(50); // XXX
-        }
-        await this.establishUDPChannel(); // XXX
-        await this.sendHandshake(); // XXX
-        await this.sendPlayerState(); // XXX
-        this.sendLoop = setInterval(async () => {
-            await this.sendPlayerState(); // XXX
-        }, 1000);
+        await this.setUDPChannel(6);
+        this.sendLoop = setInterval(this.sendPlayerState.bind(this), 1000);
     }
 
-    async sendHandshake() {
-        await this.udpChannel.sendPacket({
+    async sendPlayerState() {
+        await this.udpChannel.sendPlayerState({watchingAthleteId: this.watchingAthleteId});
+        if (this.watchingAthleteId !== this.monitorAthleteId) {
+            await this.udpChannel.sendPlayerState({watchingAthleteId: this.monitorAthleteId});
+        }
+    }
+
+    setWatching(athleteId) {
+        console.info("Setting watched athlete to:", athleteId);
+        this.watchingAthleteId = athleteId;
+        this.sendPlayerState(); // bg okay
+        this.emit("watching-athlete", athleteId);
+    }
+
+    async setUDPChannel(courseId) {
+        if (this.udpChannel) {
+            console.warn("Replacing UDP Channel for:", courseId);
+            this.udpChannel.shutdown();
+            this.udpChannel = null;
+        }
+        const ch = this.makeUDPChannel(courseId);
+        ch.on('shutdown', () => {
+            console.warn("UDP Channel shutdown", ch.toString());
+            const old = this.udpChannel;
+            if (old === ch) {
+                this.udpChannel = null;
+            }
+        });
+        ch.on('inPacket', this.onInPacket.bind(this));
+        this.udpChannel = ch;
+        await ch.establish();
+        for (let i = 0; i < 5; i++) { // be like real game
+            await ch.sendHandshake();
+        }
+        await ch.sendPlayerState();
+    }
+
+    async sendHandshake(ch) {
+        await ch.sendPacket({
             athleteId: this.athleteId,
             realm: 1,
             _worldTime: 0,
@@ -960,79 +1018,21 @@ export class GameClient extends events.EventEmitter {
         });
     }
 
-    async setWatching(athleteId) {
-        this.watchingAthleteId = athleteId;
-        if (this.connected) {
-            await this.sendPlayerState();
-        }
-    }
-
-    async setCourseId(courseId) {
-        this.courseId = courseId;
-        if (this.connected) {
-            await this.sendDisconnect();
-            this.disconnect();
-        }
-        await this.connect();
-    }
-
-    async sendPlayerState(props={}, state={}, sendOptions={}) {
-        const wt = dateToWorldTime(new Date());
-        await this.udpChannel.sendPacket({
-            athleteId: this.athleteId,
-            realm: 1,
-            _worldTime: wt,
-            ...props,
-            state: {
-                athleteId: this.athleteId,
-                _worldTime: wt,
-                justWatching: true,
-                watchingAthleteId: this.watchingAthleteId,
-                x: 0,
-                altitude: 0,
-                y: 0,
-                courseId: this.courseId,
-
-                // Optional...
-
-                //_flags1: 0,
-                //_flags2: 0,
-                //world: this.courseId,
-                //distance: 0,
-                //roadLocation: 680000,
-                //laps: 0,
-                //_speed: 0,
-                //roadPosition: 10463403,
-                //_cadenceUHz: 0,
-                //draft: 0,
-                //heartrate: 0,
-                //power: 0,
-                //_heading: 5235197,
-                //lean: 970405,
-                //climbing: 0,
-                //time: 0,
-                //_progress: 0,
-                //_mwHours: 0,
-                //groupId: 0,
-                //sport: 0,
-                //_distanceWithLateral: 3.11,
-                //_f36: 0,
-                //_f37: 2,
-                //canSteer: false,
-
-                ...this.playerState, // XXX
-                ...state,
-            }
-        }, {dfPrefix: true, ...sendOptions});
-    }
-
-    onInPacket(pb) {
+    onInPacket(pb, ch) {
         if (pb.udpConfigVOD && pb.udpConfigVOD.pools) {
-            this.udpServerPools = pb.udpConfigVOD.pools;
-            console.warn("udp servers", this.udpServerPools);
+            for (const x of pb.udpConfigVOD.pools) {
+                this.udpServerPools.set(x.courseId, x.servers);
+            }
             this.emit('udpServerPoolsUpdated', this.udpServerPools);
+            const available = new Set(this.udpServerPools.keys());
+            const udpCh = this.udpChannel;
+            if (udpCh && !udpCh.isDirect && available.has(udpCh.courseId)) {
+                console.info("Upgrading UDP channel to direct server:", udpCh.toString());
+                this.setUDPChannel(udpCh.courseId);
+            }
         }
         if (pb.playerStates && pb.playerStates.length) {
+            console.debug(`IN DATA| states: ${pb.playerStates.length} ${ch.toString()}`);
             const state = pb.playerStates.find(x => x.athleteId === this.monitorAthleteId);
             if (state && state.watchingAthleteId !== this.watchingAthleteId) {
                 this.setWatching(state.watchingAthleteId);
