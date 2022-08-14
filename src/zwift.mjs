@@ -39,6 +39,19 @@ const powerUpEnum = {
     6: 'GHOST',
 };
 
+const worldToCourseMapping = {
+    1: [6, 'Watopia'],
+    2: [2, 'Richmond'],
+    3: [7, 'London'],
+    4: [8, 'New York'],
+    5: [9, 'Innsbruck'],
+
+    7: [0, 'Yorkshire'],
+    9: [0, 'Makuri Islands'],
+    10: [0, 'France'],
+    11: [0, 'Paris'],
+};
+
 
 export function decodePlayerStateFlags1(bits) {
     const powerMeter = !!(bits & 0x1);
