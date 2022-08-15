@@ -1044,6 +1044,8 @@ export class Sauce4ZwiftMonitor extends events.EventEmitter {
     async _nearbyProcessor() {
         let watchingData = this._athleteData.get(this.watching);
         if (!watchingData) {
+            this.emit('nearby', []);
+            this.emit('groups', []);
             return;
         }
         const nearby = [];

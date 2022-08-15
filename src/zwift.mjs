@@ -39,18 +39,24 @@ const powerUpEnum = {
     6: 'GHOST',
 };
 
-const worldToCourseMapping = {
-    1: [6, 'Watopia'],
-    2: [2, 'Richmond'],
-    3: [7, 'London'],
-    4: [8, 'New York'],
-    5: [9, 'Innsbruck'],
-
-    7: [0, 'Yorkshire'],
-    9: [0, 'Makuri Islands'],
-    10: [0, 'France'],
-    11: [0, 'Paris'],
-};
+const worldCourseDescs = [
+    {worldId: 1, courseId: 6, name: 'Watopia'},
+    {worldId: 2, courseId: 2, name: 'Richmond'},
+    {worldId: 3, courseId: 7, name: 'London'},
+    {worldId: 4, courseId: 8, name: 'New York'},
+    {worldId: 5, courseId: 9, name: 'Innsbruck'},
+    {worldId: 6, courseId: 10, name: 'Bologna'}, // XXX guess
+    {worldId: 7, courseId: 11, name: 'Yorkshire'},
+    {worldId: 8, courseId: 12, name: 'Crit City'}, // XXX guess
+    {worldId: 9, courseId: 13, name: 'Makuri Islands'},
+    {worldId: 10, courseId: 14, name: 'France'},
+    {worldId: 11, courseId: 15, name: 'Paris'},
+    {worldId: 12, courseId: 16, name: 'Gravel Mountain'}, // XXX guess
+];
+export const courseToWorldIds = Object.fromEntries(worldCourseDescs.map(x => [x.courseId, x.worldId]));
+export const worldToCourseIds = Object.fromEntries(worldCourseDescs.map(x => [x.worldId, x.courseId]));
+export const courseToNames = Object.fromEntries(worldCourseDescs.map(x => [x.courseId, x.name]));
+export const worldToNames = Object.fromEntries(worldCourseDescs.map(x => [x.worldId, x.name]));
 
 
 export function decodePlayerStateFlags1(bits) {
@@ -359,6 +365,28 @@ export class ZwiftAPI {
             }
             return x;
         });
+    }
+
+    async getActivities(id) {
+        try {
+            return await this.fetchJSON(`/api/profiles/${id}/activities`);
+        } catch(e) {
+            if (e.status === 404) {
+                return;
+            }
+            throw e;
+        }
+    }
+
+    async getPlayerState(id) {
+        try {
+            return await this.fetchPB(`/relay/worlds/1/players/${id}`, {protobuf: 'PlayerState'});
+        } catch(e) {
+            if (e.status === 404) {
+                return;
+            }
+            throw e;
+        }
     }
 
     convSegmentResult(x) {
@@ -881,19 +909,13 @@ export class GameClient extends events.EventEmitter {
             method: 'POST',
             pb: protos.LoginRequest.encode({
                 aesKey: this.aesKey,
-                properties: {
-                    entries: [
-                        {key: 'OS Type', value: 'macOS'},
-                        {key: 'OS', value: 'OSX 10.X 64bit'},
-                        {key: 'COMPUTER', value: 'MacBookPro18,2'},
-                        {key: 'Machine Id', value: '2-d9d8235c-f1b5-4415-b90e-deadbeef098c'}
-                    ],
-                }
+                //properties: {}
             }),
             protobuf: 'LoginResponse',
             ...options,
         });
         this.hashSeeds = await this.api.getHashSeeds();
+        this.courseId = await this.api.getPlayerState(this.monitorAthleteId);
         this.relayId = login.relaySessionId;
         this.tcpServers = login.session.tcpConfig.servers;
     }
@@ -912,12 +934,14 @@ export class GameClient extends events.EventEmitter {
         await sleep(1000); // No joke this is required (100ms works about 50% of the time)
         await this.establishConnection(options);
         await this.sayHello(options);
+        this.monitorPlayerStateLoop = setInterval(this.monitorPlayerState.bind(this), 5000);
         this.connected = true;
     }
 
     disconnect(options={}) {
         this.connected = false;
         clearInterval(this.sendLoop);
+        clearInterval(this.monitorPlayerStateLoop);
         if (this.udpChannel) {
             this.udpChannel.shutdown();
             this.udpChannel = null;
@@ -974,21 +998,47 @@ export class GameClient extends events.EventEmitter {
             largWaTime: 0,
         }, {hello: true});
         await udpServersAvailable;
-        await this.setUDPChannel(6);
+        if (this.courseId) {
+            await this.setUDPChannel(this.courseId);
+        } else {
+            console.info("User not in game yet: waiting for activity...");
+        }
         this.sendLoop = setInterval(this.sendPlayerState.bind(this), 1000);
     }
 
     async sendPlayerState() {
+        if (this.suspended || !this.udpChannel) {
+            return;
+        }
         await this.udpChannel.sendPlayerState({watchingAthleteId: this.watchingAthleteId});
-        if (this.watchingAthleteId !== this.monitorAthleteId) {
-            await this.udpChannel.sendPlayerState({watchingAthleteId: this.monitorAthleteId});
+    }
+
+    async monitorPlayerState() {
+        if (Date.now() - this._lastMonitorStateUpdate < 4900) {
+            console.debug("debounce");
+            return;
+        }
+        console.info("fetching state from RESET API");
+        const state = await this.api.getPlayerState(this.monitorAthleteId);
+        console.log('state', state);
+        
+        if (!state) {
+            if (!this.suspended) {
+                console.info("Suspending game client until activity is detected...");
+                this.suspended = true;
+            }
+        } else {
+            if (this.suspended) {
+                console.info("Resuming game client...");
+                this.suspended = false;
+            }
+            await this.updateMonitorState(state);
         }
     }
 
     setWatching(athleteId) {
         console.info("Setting watched athlete to:", athleteId);
         this.watchingAthleteId = athleteId;
-        this.sendPlayerState(); // bg okay
         this.emit("watching-athlete", athleteId);
     }
 
@@ -1047,11 +1097,23 @@ export class GameClient extends events.EventEmitter {
         if (pb.playerStates && pb.playerStates.length) {
             console.debug(`IN DATA| states: ${pb.playerStates.length} ${ch.toString()}`);
             const state = pb.playerStates.find(x => x.athleteId === this.monitorAthleteId);
-            if (state && state.watchingAthleteId !== this.watchingAthleteId) {
-                this.setWatching(state.watchingAthleteId);
+            if (state) {
+                queueMicrotask(() => this.updateMonitorState(state));
             }
         }
         this.emit('inPacket', pb);
+    }
+
+    async updateMonitorState(state) {
+        this._lastMonitorStateUpdate = Date.now();
+        if (state.watchingAthleteId !== this.watchingAthleteId) {
+            this.setWatching(state.watchingAthleteId);
+        }
+        if (state.courseId !== this.courseId) {
+            console.info(`Changing course to ${courseToNames[state.courseId]}, courseId: ${state.courseId}`);
+            this.courseId = state.courseId;
+            await this.setUDPChannel(this.courseId);
+        }
     }
 }
 
@@ -1281,9 +1343,9 @@ export class GameConnectionServer extends net.Server {
     onMessage() {
         const buf = this._msgBuf;
         this._msgBuf = null;
-        console.info(buf.toString('hex'));
+        console.debug(buf.toString('hex'));
         const pb = protos.GameToCompanion.decode(buf);
-        console.info(pb);
+        console.debug(pb);
         this.emit('message', pb);
     }
 
