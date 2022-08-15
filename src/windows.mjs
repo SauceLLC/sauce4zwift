@@ -40,7 +40,7 @@ export const windowManifests = [{
 }, {
     type: 'groups',
     page: 'groups.html',
-    prettyName: 'Groups [DEPRECATED]',
+    prettyName: 'Groups',
     prettyDesc: 'A zoomable view of groups of athletes.',
     options: {relWidth: 0.15, relHeight: 0.65},
 }, {
@@ -52,7 +52,7 @@ export const windowManifests = [{
 }, {
     type: 'nearby',
     page: 'nearby.html',
-    prettyName: 'Nearby Athletes [DEPRECATED]',
+    prettyName: 'Nearby Athletes',
     prettyDesc: 'A sortable data table of nearby athletes.',
     options: {width: 800, height: 400},
     overlay: false,

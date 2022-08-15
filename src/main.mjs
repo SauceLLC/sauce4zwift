@@ -406,6 +406,8 @@ class SauceApp extends EventEmitter {
         if (this.getSetting('gameConnectionEnabled')) {
             ip = ip || await getLocalRoutedIP();
             rpcSources.gameConnection = (this.gameConnection = this.startGameConnectionServer(ip));
+            // This isn't required but reduces latency..
+            this.gameConnection.on('watch-command', id => this.gameMonitor.setWatching(id));
         }
         if (this.getSetting('webServerEnabled')) {
             ip = ip || await getLocalRoutedIP();

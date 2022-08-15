@@ -811,8 +811,9 @@ class UDPChannel extends NetChannel {
     }
 
     toString() {
-        return `<UDPChannel [${this.isDirect ? 'DIRECT' : 'LB'}] courseId: ${this.courseId} ` +
-            `connId: ${this.connId} relayId: ${this.relayId}>`;
+        const world = this.courseId ? `${courseToNames[this.courseId]} (${this.courseId})` : 'UNATTACHED';
+        return `<UDPChannel [${this.isDirect ? 'DIRECT' : 'LB'}] ${world} ` +
+            `connId: ${this.connId} relayId: ${this.relayId} ip: ${this.ip}>`;
     }
 
     async establish() {
@@ -890,14 +891,18 @@ class UDPChannel extends NetChannel {
 
 
 export class GameClient extends events.EventEmitter {
+
+    monitorDelay = 2500;  // Rate limit is 2000
+
     constructor(options={}) {
         super();
+        this.udpServerPools = new Map();
         this.api = options.zwiftAPI;
         this.athleteId = this.api.profile.id;
         this.monitorAthleteId = options.monitorAthleteId;
-        this.watchingAthleteId = this.monitorAthleteId;
+        this.watchingAthleteId = null;
+        this.courseId = null;
         this.relayId = null;
-        this.udpServerPools = new Map();
         this.tcpChannel = null;
         this.udpChannel = null;
         this.connected = false;
@@ -907,15 +912,19 @@ export class GameClient extends events.EventEmitter {
         this.aesKey = crypto.randomBytes(16);
         const login = await this.api.fetchPB('/api/users/login', {
             method: 'POST',
-            pb: protos.LoginRequest.encode({
-                aesKey: this.aesKey,
-                //properties: {}
-            }),
+            pb: protos.LoginRequest.encode({aesKey: this.aesKey}),
             protobuf: 'LoginResponse',
             ...options,
         });
         this.hashSeeds = await this.api.getHashSeeds();
-        this.courseId = await this.api.getPlayerState(this.monitorAthleteId);
+        const initialState = await this.api.getPlayerState(this.monitorAthleteId);
+        if (initialState) {
+            this.courseId = initialState.courseId;
+            this.setWatching(initialState.watchingAthleteId);
+        } else {
+            this.courseId = null;
+            this.setWatching(this.monitorAthleteId);
+        }
         this.relayId = login.relaySessionId;
         this.tcpServers = login.session.tcpConfig.servers;
     }
@@ -934,7 +943,7 @@ export class GameClient extends events.EventEmitter {
         await sleep(1000); // No joke this is required (100ms works about 50% of the time)
         await this.establishConnection(options);
         await this.sayHello(options);
-        this.monitorPlayerStateLoop = setInterval(this.monitorPlayerState.bind(this), 5000);
+        this.monitorPlayerStateLoop = setInterval(this.monitorPlayerState.bind(this), this.monitorDelay);
         this.connected = true;
     }
 
@@ -973,7 +982,6 @@ export class GameClient extends events.EventEmitter {
             servers = this.udpServerPools.get(0);
         }
         const ip = servers[0].ip;
-        console.info(`Establishing UDP channel to course=${courseId}:`, ip);
         return new UDPChannel({
             ip,
             courseId,
@@ -1014,20 +1022,22 @@ export class GameClient extends events.EventEmitter {
     }
 
     async monitorPlayerState() {
-        if (Date.now() - this._lastMonitorStateUpdate < 4900) {
-            console.debug("debounce");
+        if (Date.now() - this._lastMonitorStateUpdated < this.monitorDelay * 0.75) {
             return;
         }
-        console.info("fetching state from RESET API");
         const state = await this.api.getPlayerState(this.monitorAthleteId);
-        console.log('state', state);
-        
         if (!state) {
             if (!this.suspended) {
                 console.info("Suspending game client until activity is detected...");
                 this.suspended = true;
             }
         } else {
+            // The Game Monitor works better with these being recently available.
+            this.emit('inPacket', protos.ServerToClient.fromObject({
+                athleteId: this.athleteId,
+                _worldTime: state._worldTime,
+                playerStates: [state],
+            }));
             if (this.suspended) {
                 console.info("Resuming game client...");
                 this.suspended = false;
@@ -1037,20 +1047,22 @@ export class GameClient extends events.EventEmitter {
     }
 
     setWatching(athleteId) {
-        console.info("Setting watched athlete to:", athleteId);
+        if (athleteId === this.watchingAthleteId) {
+            return;
+        }
         this.watchingAthleteId = athleteId;
         this.emit("watching-athlete", athleteId);
     }
 
     async setUDPChannel(courseId) {
         if (this.udpChannel) {
-            console.warn("Replacing UDP Channel for:", courseId);
             this.udpChannel.shutdown();
             this.udpChannel = null;
         }
         const ch = this.makeUDPChannel(courseId);
+        console.info(`Establishing:`, ch.toString());
         ch.on('shutdown', () => {
-            console.warn("UDP Channel shutdown", ch.toString());
+            console.info("UDP Channel shutdown", ch.toString());
             const old = this.udpChannel;
             if (old === ch) {
                 this.udpChannel = null;
@@ -1095,7 +1107,7 @@ export class GameClient extends events.EventEmitter {
             }
         }
         if (pb.playerStates && pb.playerStates.length) {
-            console.debug(`IN DATA| states: ${pb.playerStates.length} ${ch.toString()}`);
+            //console.debug(`IN DATA| states: ${pb.playerStates.length} ${ch.toString()}`);
             const state = pb.playerStates.find(x => x.athleteId === this.monitorAthleteId);
             if (state) {
                 queueMicrotask(() => this.updateMonitorState(state));
@@ -1105,7 +1117,12 @@ export class GameClient extends events.EventEmitter {
     }
 
     async updateMonitorState(state) {
-        this._lastMonitorStateUpdate = Date.now();
+        state.ts = +worldTimeToDate(state._worldTime);
+        if (this._lastMonitorState && this._lastMonitorState.ts >= state.ts) {
+            return;
+        }
+        this._lastMonitorState = state;
+        this._lastMonitorStateUpdated = Date.now();
         if (state.watchingAthleteId !== this.watchingAthleteId) {
             this.setWatching(state.watchingAthleteId);
         }
@@ -1229,17 +1246,19 @@ export class GameConnectionServer extends net.Server {
     }
 
     async chatMessage(message, options={}) {
+        const p = this.api.profile;
         await this.sendCommands({
             command: protos.CompanionToGameCommandType.SOCIAL_PLAYER_ACTION,
             socialAction: {
-                athleteId: this.athleteId,
+                athleteId: p.id,
+                spaType: protos.SocialPlayerActionType.TEXT_MESSAGE,
+                firstName: p.firstName,
+                lastName: p.lastName,
+                avatar: p.imageSrcLarge || p.imageSrc,
+                countryCode: p.countryCode,
+                msgType: protos.MessageGroupType.GLOBAL, // XXX if we're in an event use that mode
                 toAthleteId: options.to || 0,
-                spa_type: 1,
-                firstName: this.api.profile.firstName,
-                lastName: this.api.profile.lastName,
                 message,
-                avatar: 'https://static-cdn.zwift.com/prod/profile/a70f79fb-486675',
-                countryCode: 840,
             }
         });
     }
@@ -1249,6 +1268,7 @@ export class GameConnectionServer extends net.Server {
             command: protos.CompanionToGameCommandType.FAN_VIEW,
             subject: id,
         });
+        this.emit('watch-command', id);
     }
 
     async join(id) {
@@ -1343,9 +1363,7 @@ export class GameConnectionServer extends net.Server {
     onMessage() {
         const buf = this._msgBuf;
         this._msgBuf = null;
-        console.debug(buf.toString('hex'));
         const pb = protos.GameToCompanion.decode(buf);
-        console.debug(pb);
         this.emit('message', pb);
     }
 

@@ -536,9 +536,6 @@ export class Sauce4ZwiftMonitor extends events.EventEmitter {
         if (packet.playerStates2.length) {
             debugger; // XXX
         }
-        if (packet.tcpConfig) {
-            console.log(packet.tcpConfig);
-        }
     }
 
     handleRideOnPayload(payload, ts) {
@@ -573,6 +570,9 @@ export class Sauce4ZwiftMonitor extends events.EventEmitter {
     }
 
     setWatching(athleteId) {
+        if (athleteId === this.watching) {
+            return;
+        }
         console.info("Now watching:", athleteId);
         this.watching = athleteId;
         this._pendingProfileFetches.length = 0;
@@ -580,7 +580,7 @@ export class Sauce4ZwiftMonitor extends events.EventEmitter {
     }
 
     _roadSig(state) {
-        return [state.roadId, state.reverse].join();
+        return [state.courseId, state.roadId, state.reverse].join();
     }
 
     _getCollectorStats(data, athlete) {
@@ -808,7 +808,6 @@ export class Sauce4ZwiftMonitor extends events.EventEmitter {
             this._fakeDataGenerator();
         } else {
             this.athleteId = this.zwiftAPI.profile.id;
-            this.watching = this.gameClient.watchingAthleteId;
             this.gameClient.on('inPacket', this.onIncoming.bind(this));
             this.gameClient.on('watching-athlete', this.setWatching.bind(this));
             await this.gameClient.connect();
