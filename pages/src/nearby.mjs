@@ -402,7 +402,7 @@ function render() {
     if (!isFieldAvail) {
         sortBy = enFields[0].id;
     }
-    sortByDir = common.storage.get('nearby-sort-dir', 1);
+    sortByDir = common.storage.get('nearby-sort-dir', -1);
     const sortDirClass = sortByDir > 0 ? 'sort-asc' : 'sort-desc';
     table = document.querySelector('#content table');
     tbody = table.querySelector('tbody');
