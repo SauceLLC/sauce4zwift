@@ -893,7 +893,7 @@ class UDPChannel extends NetChannel {
 
 export class GameMonitor extends events.EventEmitter {
 
-    monitorDelay = 2500;  // Rate limit is 2000
+    monitorDelay = 3000;  // Rate limit is 2000
 
     constructor(options={}) {
         super();
@@ -944,14 +944,16 @@ export class GameMonitor extends events.EventEmitter {
         await sleep(1000); // No joke this is required (100ms works about 50% of the time)
         await this.establishConnection(options);
         await this.sayHello(options);
-        this.monitorPlayerStateLoop = setInterval(this.monitorPlayerState.bind(this), this.monitorDelay);
+        this.monitorStateLoop = setInterval(this.checkMonitorState.bind(this), this.monitorDelay);
+        this.watchingStateLoop = setInterval(this.checkWatchingState.bind(this), this.monitorDelay);
         this.connected = true;
     }
 
     disconnect(options={}) {
         this.connected = false;
         clearInterval(this.sendLoop);
-        clearInterval(this.monitorPlayerStateLoop);
+        clearInterval(this.monitorStateLoop);
+        clearInterval(this.watchingStateLoop);
         if (this.udpChannel) {
             this.udpChannel.shutdown();
             this.udpChannel = null;
@@ -976,13 +978,13 @@ export class GameMonitor extends events.EventEmitter {
         await this.tcpChannel.establish();
     }
 
-    makeUDPChannel(courseId) {
+    makeUDPChannel(courseId, xxx=0) {
         let servers = this.udpServerPools.get(courseId);
         const isDirect = !!servers;
         if (!servers) {
             servers = this.udpServerPools.get(0);
         }
-        const ip = servers[0].ip;
+        const ip = servers[xxx].ip;
         return new UDPChannel({
             ip,
             courseId,
@@ -1039,19 +1041,19 @@ export class GameMonitor extends events.EventEmitter {
         this.suspended = false;
     }
 
-    async monitorPlayerState() {
-        if (this._monitorPlayerStateActive) {
+    async checkMonitorState() {
+        if (this._checkMonitorStateActive) {
             return;
         }
-        this._monitorPlayerStateActive = true;
+        this._checkMonitorStateActive = true;
         try {
-            await this._monitorPlayerState();
+            await this._checkeMonitorState();
         } finally {
-            this._monitorPlayerStateActive = false;
+            this._checkMonitorStateActive = false;
         }
     }
 
-    async _monitorPlayerState() {
+    async _checkMonitorState() {
         if (Date.now() - this._lastMonitorStateUpdated < this.monitorDelay * 0.75) {
             return;
         }
@@ -1062,7 +1064,7 @@ export class GameMonitor extends events.EventEmitter {
                 this.suspend();
             }
         } else {
-            // The Game Monitor works better with these being recently available.
+            // The stats proc works better with these being recently available.
             this.emit('inPacket', protos.ServerToClient.fromObject({
                 athleteId: this.athleteId,
                 _worldTime: state._worldTime,
@@ -1076,6 +1078,38 @@ export class GameMonitor extends events.EventEmitter {
         }
     }
 
+    async checkWatchingState() {
+        if (this._checkWatchingStateActive) {
+            return;
+        }
+        this._checkWatchingStateActive = true;
+        try {
+            await this._checkeWatchingState();
+        } finally {
+            this._checkWatchingStateActive = false;
+        }
+    }
+
+    async _checkWatchingState() {
+        if (this.suspended) {
+            return;
+        }
+        if (Date.now() - this._lastWatchingStateUpdated < this.monitorDelay * 0.75) {
+            return;
+        }
+        const state = await this.api.getPlayerState(this.watchingAthleteId);
+        if (!state) {
+            return;
+        }
+        // The stats proc works better with these being recently available.
+        this.emit('inPacket', protos.ServerToClient.fromObject({
+            athleteId: this.athleteId,
+            _worldTime: state._worldTime,
+            playerStates: [state],
+        }));
+        await this.updateWatchingState(state);
+    }
+
     setWatching(athleteId) {
         if (athleteId === this.watchingAthleteId) {
             return;
@@ -1084,12 +1118,12 @@ export class GameMonitor extends events.EventEmitter {
         this.emit("watching-athlete", athleteId);
     }
 
-    async setUDPChannel(courseId) {
+    async setUDPChannel(courseId, xxx) {
         if (this.udpChannel) {
             this.udpChannel.shutdown();
             this.udpChannel = null;
         }
-        const ch = this.makeUDPChannel(courseId);
+        const ch = this.makeUDPChannel(courseId, xxx);
         console.info(`Establishing:`, ch.toString());
         ch.on('shutdown', () => {
             console.info("UDP Channel shutdown", ch.toString());
@@ -1128,6 +1162,12 @@ export class GameMonitor extends events.EventEmitter {
         if (pb.udpConfigVOD && pb.udpConfigVOD.pools) {
             for (const x of pb.udpConfigVOD.pools) {
                 this.udpServerPools.set(x.courseId, x.servers);
+                if (x.courseId === this.courseId) {
+                    console.log("selmethod", x.selectionMethod);
+                    for (const xx of x.servers) {
+                        console.log(xx);
+                    }
+                }
             }
             this.emit('udpServerPoolsUpdated', this.udpServerPools);
             const available = new Set(this.udpServerPools.keys());
@@ -1139,9 +1179,14 @@ export class GameMonitor extends events.EventEmitter {
         }
         if (pb.playerStates && pb.playerStates.length) {
             console.debug(`IN DATA| states: ${pb.playerStates.length} ${ch.toString()}`);
-            const state = pb.playerStates.find(x => x.athleteId === this.monitorAthleteId);
-            if (state) {
-                queueMicrotask(() => this.updateMonitorState(state));
+            const monState = pb.playerStates.find(x => x.athleteId === this.monitorAthleteId);
+            if (monState) {
+                queueMicrotask(() => this.updateMonitorState(monState));
+            } else {
+                const watchState = pb.playerStates.find(x => x.athleteId === this.watchingAthleteId);
+                if (watchState) {
+                    queueMicrotask(() => this.setWatchingState(watchState));
+                }
             }
         }
         this.emit('inPacket', pb);
@@ -1162,6 +1207,31 @@ export class GameMonitor extends events.EventEmitter {
             this.courseId = state.courseId;
             await this.setUDPChannel(this.courseId);
         }
+    }
+
+    async updateWatchingState(state) {
+        state.ts = +worldTimeToDate(state._worldTime);
+        if (this._lastWatchingState && this._lastWatchingState.ts >= state.ts) {
+            return;
+        }
+        this._lastWatchingState = state;
+        let servers = Array.from(this.udpServerPools.get(this.courseId));
+        servers = servers.filter(s => state.x < s.xBound && state.y < s.yBound);
+        console.info("watching x,y", state.x, state.y);
+        console.warn("filtered", servers);
+        servers = servers.sort((a, b) => {
+            const axDelta = a.xBound - state.x;
+            const ayDelta = a.yBound - state.y;
+            const ayDist = Math.sqrt(axDelta ** 2 + ayDelta ** 2);
+            const bxDelta = b.xBound - state.x;
+            const byDelta = b.yBound - state.y;
+            const byDist = Math.sqrt(bxDelta ** 2 + byDelta ** 2);
+            console.log(ayDist, byDist);
+            console.log(a, b);
+            return ayDist - byDist;
+        });
+        console.warn("sorted", servers);
+        console.error("Winner is", servers[0].ip);
     }
 }
 

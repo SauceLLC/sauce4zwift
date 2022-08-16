@@ -294,15 +294,15 @@ message UDPServer {
     int32 courseId = 2;
     string ip = 3;
     int32 port = 4;
-    float serverSelection1 = 5; // no idea
-    float serverSelection2 = 6; // no idea
+    float xBound = 5;
+    float yBound = 6;
 }
 
 message UDPServerPool {
     int32 realm = 1;
     int32 courseId = 2;
     repeated UDPServer servers = 3;
-    bool selectionMethod = 4;
+    bool useBounds = 4;
 }
 
 message UDPConfigVOD {
