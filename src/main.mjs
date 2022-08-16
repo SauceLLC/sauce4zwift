@@ -9,7 +9,7 @@ import {databases} from './db.mjs';
 import * as Sentry from '@sentry/node';
 import {Dedupe} from '@sentry/integrations';
 import * as webServer from './webserver.mjs';
-import * as game from './game.mjs';
+import * as stats from './stats.mjs';
 import {beforeSentrySend, setSentry} from '../shared/sentry-util.mjs';
 import {sleep} from '../shared/sauce/base.mjs';
 import crypto from 'node:crypto';
@@ -25,7 +25,7 @@ const {autoUpdater} = require('electron-updater');
 const electron = require('electron');
 const isDEV = !electron.app.isPackaged;
 const zwiftAPI = new zwift.ZwiftAPI();
-const zwiftGameAPI = new zwift.ZwiftAPI();
+const zwiftMonitorAPI = new zwift.ZwiftAPI();
 
 let started;
 let quiting;
@@ -128,7 +128,7 @@ electron.app.on('before-quit', () => {
     quiting = true;
     Sentry.flush();
 });
-electron.ipcMain.on('subscribe', (ev, {event, domEvent, persistent, source='game'}) => {
+electron.ipcMain.on('subscribe', (ev, {event, domEvent, persistent, source='stats'}) => {
     const {win, activeSubs, spec} = windows.getMetaByWebContents(ev.sender);
     // NOTE: Electron webContents.send is incredibly hard ON CPU and GC for deep objects.  Using JSON is
     // a massive win for CPU and memory.
@@ -197,6 +197,30 @@ rpc.register(() => pkg.version, {name: 'getVersion'});
 rpc.register(() => sentryAnonId, {name: 'getSentryAnonId'});
 rpc.register(url => electron.shell.openExternal(url), {name: 'openExternalLink'});
 rpc.register(() => sauceApp && sauceApp.webServerURL, {name: 'getWebServerURL'});
+rpc.register(() => {
+    return {
+        main: zwiftAPI ? {
+            username: zwiftAPI.username,
+            id: zwiftAPI.profile ? zwiftAPI.profile.id : null,
+            authenticated: zwiftAPI.isAuthenticated(),
+        } : null,
+        monitor: zwiftAPI ? {
+            username: zwiftMonitorAPI.username,
+            id: zwiftMonitorAPI.profile ? zwiftMonitorAPI.profile.id : null,
+            authenticated: zwiftMonitorAPI.isAuthenticated(),
+        } : null,
+    };
+}, {name: 'getZwiftLoginInfo'});
+rpc.register(async id => {
+    const key = {
+        main: 'zwift-login',
+        monitor: 'zwift-monitor-login',
+    }[id];
+    if (!id) {
+        throw new TypeError('Invalid id for zwift logout');
+    }
+    await secrets.remove(key);
+}, {name: 'zwiftLogout'});
 
 
 async function ensureSingleInstance() {
@@ -340,7 +364,7 @@ class SauceApp extends EventEmitter {
                 uptime: os.uptime(),
                 cpus: os.cpus(),
             },
-            game: this.gameMonitor.getDebugInfo(),
+            stats: this.statsProcessor.getDebugInfo(),
             databases: [].concat(...Array.from(databases.entries()).map(([dbName, db]) => {
                 const stats = db.prepare('SELECT * FROM sqlite_schema WHERE type = ? AND name NOT LIKE ?')
                     .all('table', 'sqlite_%');
@@ -376,6 +400,7 @@ class SauceApp extends EventEmitter {
             console.warn('Reseting state and restarting...');
             await storage.reset();
             await secrets.remove('zwift-login');
+            await secrets.remove('zwift-monitor-login');
             await electron.session.defaultSession.clearStorageData();
             await electron.session.defaultSession.clearCache();
             restart();
@@ -387,27 +412,20 @@ class SauceApp extends EventEmitter {
     }
 
     async start(options={}) {
-        const gameClient = new zwift.GameClient({
+        const gameMonitor = this.gameMonitor = new zwift.GameMonitor({
             monitorAthleteId: zwiftAPI.profile.id,
-            zwiftAPI: zwiftGameAPI,
+            zwiftAPI: zwiftMonitorAPI,
         });
-        if (options.garminLiveTrackSession) {
-            const garminLiveTrack = await import('./garmin_live_track.mjs');
-            this.gameMonitor = await garminLiveTrack.Sauce4ZwiftMonitor.factory(
-                {session: options.garminLiveTrackSession});
-        } else {
-            const {fakeData} = options;
-            this.gameMonitor = new game.Sauce4ZwiftMonitor({fakeData, zwiftAPI, gameClient});
-        }
-        await this.gameMonitor.start();
-        rpcSources.game = this.gameMonitor;
+        this.statsProc = new stats.StatsProcessor({fakeData: options.fakeData, zwiftAPI, gameMonitor});
+        await this.statsProc.start();
+        rpcSources.stats = this.statsProc;
         rpcSources.app = this;
         let ip;
         if (this.getSetting('gameConnectionEnabled')) {
             ip = ip || await getLocalRoutedIP();
-            rpcSources.gameConnection = (this.gameConnection = this.startGameConnectionServer(ip));
+            rpcSources.gameConnection = this.gameConnection = this.startGameConnectionServer(ip);
             // This isn't required but reduces latency..
-            this.gameConnection.on('watch-command', id => this.gameMonitor.setWatching(id));
+            this.gameConnection.on('watch-command', id => gameMonitor.setWatching(id));
         }
         if (this.getSetting('webServerEnabled')) {
             ip = ip || await getLocalRoutedIP();
@@ -492,18 +510,15 @@ export async function main() {
         forceLogin,
     });
     await zwiftAuthenticate({
-        api: zwiftGameAPI,
-        ident: 'zwift-login-game',
+        api: zwiftMonitorAPI,
+        ident: 'zwift-monitor-login',
         host,
-        game: true,
+        monitor: true,
         forceLogin,
     });
-    const options = {};
-    if (process.argv.includes('--garmin-live-track')) {
-        options.garminLiveTrackSession = process.argv.find((x, i) => i && process.argv[i - 1] == '--garmin-live-track');
-    } else {
-        options.fakeData = process.argv.includes('--fake-data');
-    }
+    const options = {
+        fakeData: process.argv.includes('--fake-data'),
+    };
     await sauceApp.start(options);
     windows.openAllWindows();
     menu.updateTrayMenu();
@@ -512,6 +527,6 @@ export async function main() {
 
 // Dev tools prototyping
 global.zwift = zwift;
-global.game = game;
+global.stats = stats;
 global.zwiftAPI = zwiftAPI;
-global.zwiftGameAPI = zwiftGameAPI;
+global.zwiftMonitorAPI = zwiftMonitorAPI;

@@ -211,12 +211,12 @@ class DataCollector {
 }
 
 
-export class Sauce4ZwiftMonitor extends events.EventEmitter {
+export class StatsProcessor extends events.EventEmitter {
     constructor(options={}) {
         super();
         this._useFakeData = options.fakeData;
         this.zwiftAPI = options.zwiftAPI;
-        this.gameClient = options.gameClient;
+        this.gameMonitor = options.gameMonitor;
         this.setMaxListeners(100);
         this._athleteData = new Map();
         this.athleteId = null;
@@ -808,9 +808,9 @@ export class Sauce4ZwiftMonitor extends events.EventEmitter {
             this._fakeDataGenerator();
         } else {
             this.athleteId = this.zwiftAPI.profile.id;
-            this.gameClient.on('inPacket', this.onIncoming.bind(this));
-            this.gameClient.on('watching-athlete', this.setWatching.bind(this));
-            await this.gameClient.connect();
+            this.gameMonitor.on('inPacket', this.onIncoming.bind(this));
+            this.gameMonitor.on('watching-athlete', this.setWatching.bind(this));
+            await this.gameMonitor.connect();
             queueMicrotask(() => this._zwiftMetaSync());
         }
     }

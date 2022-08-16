@@ -195,6 +195,7 @@ export class ZwiftAPI {
         if (r.status === 401) {
             throw new Error(resp.error_description || 'Login failed');
         }
+        this.username = username;
         this._authToken = resp;
         console.debug("Zwift auth token acquired");
         this._schedRefresh(this._authToken.expires_in * 1000 / 2);
@@ -890,7 +891,7 @@ class UDPChannel extends NetChannel {
 }
 
 
-export class GameClient extends events.EventEmitter {
+export class GameMonitor extends events.EventEmitter {
 
     monitorDelay = 2500;  // Rate limit is 2000
 

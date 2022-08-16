@@ -207,7 +207,7 @@ rpc.register(pid => {
                 spec: w.spec,
                 title: w.title,
                 subWindow,
-            }
+            };
         }
     }
 }, {name: 'getWindowInfoForPID'});
@@ -596,10 +596,10 @@ export async function patronLink() {
 
 export async function zwiftLogin(options) {
     const win = makeCaptiveWindow({
-        width: 400,
+        width: 460,
         height: 600,
         show: false,
-        page: options.game ? 'zwift-game-login.html' : 'zwift-login.html',
+        page: options.monitor ? 'zwift-monitor-login.html' : 'zwift-login.html',
     }, {
         preload: path.join(appPath, 'src', 'preload', 'zwift-login.js'),
     });

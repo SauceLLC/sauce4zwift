@@ -311,7 +311,7 @@ export async function settingsMain() {
         const id = await common.rpc.createWindow({type});
         await common.rpc.openWindow(id);
     });
-    document.querySelector('.action-buttons').addEventListener('click', async ev => {
+    document.addEventListener('click', async ev => {
         const btn = ev.target.closest('.button[data-action]');
         if (!btn) {
             return;
@@ -322,6 +322,14 @@ export async function settingsMain() {
             await common.rpc.resetAthletesDB();
         } else if (btn.dataset.action === 'restart') {
             await common.rpc.restart();
+        } else if (btn.dataset.action === 'logout-zwift') {
+            debugger;
+            const id = btn.dataset.id;
+            await common.rpc.zwiftLogout(id);
+            extraData[`${id}ZwiftLogin`] = '<LOGGED OUT>';
+            btn.closest('label').classList.add('edited');
+            btn.remove();
+            await appSettingsUpdate(extraData);
         }
     });
     common.subscribe('set-windows', renderWindowsPanel, {source: 'windows'});
@@ -335,6 +343,9 @@ export async function settingsMain() {
             await appSettingsUpdate(extraData);
         }, {source: 'gameConnection'});
     }
-    appSettingsUpdate(extraData);
+    const loginInfo = await common.rpc.getZwiftLoginInfo();
+    extraData.mainZwiftLogin = loginInfo && loginInfo.main && loginInfo.main.username;
+    extraData.monitorZwiftLogin = loginInfo && loginInfo.monitor && loginInfo.monitor.username;
+    await appSettingsUpdate(extraData);
     await common.initSettingsForm('form.settings', {settingsKey})();
 }

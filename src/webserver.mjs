@@ -131,7 +131,7 @@ async function _start({ip, port, debug, rpcSources}) {
                 throw new TypeError('Invalid type');
             }
             if (method === 'subscribe') {
-                const {event, subId, source='game'} = arg;
+                const {event, subId, source='stats'} = arg;
                 if (!event) {
                     throw new TypeError('"event" arg required');
                 }
