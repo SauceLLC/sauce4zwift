@@ -17,7 +17,7 @@ async function makeMetricCharts(proc, el) {
         GPU: 'GPU Bridge', // not GPU usage but the proc that proxies GPU ops.
         Tab: 'Window',
     };
-    const spec = await common.rpc.getWindowSpecForPID(proc.pid);
+    const {spec, title, subWindow} = (await common.rpc.getWindowInfoForPID(proc.pid)) || {};
     const lineEl = document.createElement('div');
     const gaugeEl = document.createElement('div');
     lineEl.classList.add('chart', 'line');
@@ -62,8 +62,9 @@ async function makeMetricCharts(proc, el) {
         },
         title: [{
             left: 'left',
-            text: `${spec ? spec.prettyName : ''} ${spec && spec.subWindow ? 'Sub' : ''} ` +
-                `${decodedNames[proc.type] || proc.name || proc.type}, PID: ${proc.pid}`,
+            text: `${spec ? (spec.prettyName + ' ') : ''}${subWindow ? 'Sub ' : ''}` +
+                `${decodedNames[proc.type] || proc.name || proc.type}` +
+                `${title ? ` (${title})` : ''}, PID: ${proc.pid}`,
         }],
         tooltip: {
             trigger: 'axis',

@@ -131,6 +131,7 @@ export function getMetaByWebContents(wc) {
     return activeWindows.get(wc) || subWindows.get(wc);
 }
 
+
 electron.ipcMain.on('getWindowContextSync', ev => {
     let returnValue = {
         id: null,
@@ -192,16 +193,24 @@ rpc.register(pid => {
         if (wc.getOSProcessId() !== pid) {
             continue;
         }
+        let w;
+        let subWindow;
         if (activeWindows.has(wc)) {
-            return activeWindows.get(wc).spec;
+            w = activeWindows.get(wc);
+            subWindow = false;
         } else if (subWindows.has(wc)) {
+            w = subWindows.get(wc);
+            subWindow = true;
+        }
+        if (w) {
             return {
-                subWindow: true,
-                ...subWindows.get(wc).spec,
-            };
+                spec: w.spec,
+                title: w.title,
+                subWindow,
+            }
         }
     }
-}, {name: 'getWindowSpecForPID'});
+}, {name: 'getWindowInfoForPID'});
 
 
 export function getActiveWindow(id) {
@@ -337,6 +346,47 @@ export function openWindow(id) {
 rpc.register(openWindow);
 
 
+function handleNewSubWindow(webContents, spec) {
+    webContents.on('new-window', (ev, url) => {
+        // Popups...
+        ev.preventDefault();
+        const q = new URLSearchParams((new URL(url)).search);
+        const wHint = Number(q.get('widthHint'));
+        const hHint = Number(q.get('heightHint'));
+        let width, height;
+        if (wHint || hHint) {
+            const {width: sWidth, height: sHeight} = electron.screen.getPrimaryDisplay().size;
+            width = wHint <= 1 ? Math.round(sWidth * (wHint || 0.5)) : Math.round(wHint);
+            height = hHint <= 1 ? Math.round(sHeight * (hHint || 0.5)) : Math.round(hHint) ;
+        }
+        const newWin = new electron.BrowserWindow({
+            type: isLinux ? 'splash' : undefined,
+            show: false,
+            width,
+            height,
+            alwaysOnTop: spec.overlay !== false,
+            webPreferences: {
+                sandbox: true,
+                devTools: isDEV,
+                preload: path.join(appPath, 'src', 'preload', 'common.js'),
+            }
+        });
+        if (spec.overlay !== false) {
+            newWin.setAlwaysOnTop(true, 'pop-up-menu');
+        }
+        subWindows.set(newWin.webContents, {win: newWin, spec, activeSubs: new Set()});
+        newWin.on('page-title-updated', (ev, title) =>
+            subWindows.get(newWin.webContents).title = title.replace(/( - )?Sauce for Zwift™?$/, ''));
+        handleNewSubWindow(newWin.webContents, spec);
+        if (!isDEV) {
+            newWin.removeMenu();
+        }
+        newWin.loadURL(url);
+        newWin.show();
+    });
+}
+
+
 function _openWindow(id, spec) {
     console.debug("Opening window:", id, spec.type);
     const overlayOptions = {
@@ -405,46 +455,15 @@ function _openWindow(id, spec) {
     }
     const webContents = win.webContents;  // Save to prevent electron from killing us.
     activeWindows.set(webContents, {win, spec, activeSubs: new Set()});
-    webContents.on('new-window', (ev, url) => {
-        // Popups...
-        ev.preventDefault();
-        const q = new URLSearchParams((new URL(url)).search);
-        const wHint = Number(q.get('widthHint'));
-        const hHint = Number(q.get('heightHint'));
-        let width, height;
-        if (wHint || hHint) {
-            const {width: sWidth, height: sHeight} = electron.screen.getPrimaryDisplay().size;
-            width = wHint <= 1 ? Math.round(sWidth * (wHint || 0.5)) : Math.round(wHint);
-            height = hHint <= 1 ? Math.round(sHeight * (hHint || 0.5)) : Math.round(hHint) ;
-        }
-        const newWin = new electron.BrowserWindow({
-            type: isLinux ? 'splash' : undefined,
-            show: false,
-            width,
-            height,
-            alwaysOnTop: spec.overlay !== false,
-            webPreferences: {
-                sandbox: true,
-                devTools: isDEV,
-                preload: path.join(appPath, 'src', 'preload', 'common.js'),
-            }
-        });
-        if (spec.overlay !== false) {
-            newWin.setAlwaysOnTop(true, 'pop-up-menu');
-        }
-        subWindows.set(newWin.webContents, {win: newWin, spec, activeSubs: new Set()});
-        if (!isDEV) {
-            newWin.removeMenu();
-        }
-        newWin.loadURL(url);
-        newWin.show();
-    });
+    handleNewSubWindow(webContents, spec);
     let saveStateTimeout;
     function onPositionUpdate() {
         const position = win.getBounds();
         clearTimeout(saveStateTimeout);
         saveStateTimeout = setTimeout(() => updateWindow(id, {position}), 200);
     }
+    win.on('page-title-updated', (ev, title) =>
+            activeWindows.get(webContents).title = title.replace(/( - )?Sauce for Zwift™?$/, ''));
     win.on('move', onPositionUpdate);
     win.on('resize', onPositionUpdate);
     win.on('close', () => {
@@ -528,7 +547,7 @@ export async function eulaConsent() {
 
 
 export async function showReleaseNotes() {
-    const win = makeCaptiveWindow({width: 500, height: 600, page: 'release-notes.html'});
+    const win = makeCaptiveWindow({width: 600, height: 600, page: 'release-notes.html'});
     await new Promise(resolve => win.on('closed', resolve));
 }
 

@@ -14,7 +14,7 @@
         <style>
             html {
                 padding: 0;
-                font-size: 16px;
+                font-size: 15px;
             }
 
             html:not(.updated) .update-only {
@@ -32,6 +32,7 @@
                 align-items: center;
                 flex-direction: column;
                 overflow: auto;
+                overflow: overlay;
             }
 
             img.logo {
@@ -60,14 +61,48 @@
             section.notes header {
                 font-size: 1.4em;
                 font-variant-numeric: tabular-nums;
-                color: #ff4400;
+                font-weight: 700;
+                color: ##e0e0e0;
                 text-shadow:
-                    0 0 1px #000,
                     0 0 1px #000,
                     0 0 1px #000,
                     0 0 1px #000;
                 display: flex;
                 justify-content: space-between;
+            }
+
+            release {
+                display: block;
+                border-bottom: 1px solid #fff2;
+                margin-bottom: 1em;
+                padding-bottom: 0.2em;
+            }
+
+            ul.notes {
+                padding-inline-start: 2em;
+            }
+
+            ul > li {
+                padding: 0.28em;
+            }
+
+            ul > ul {
+                background: #0001;
+                border-radius: 0.28em;
+                padding-top: 0.2em;
+                padding-bottom: 0.4em;
+                padding-inline-start: 2em;
+            }
+
+            ul > ul > li {
+                font-size: 0.92em;
+            }
+
+            code {
+                font-size: 0.9em;
+                background: #0003;
+                border-radius: 0.28em;
+                padding: 0.2em 0.4em;
             }
         </style>
 
@@ -75,7 +110,6 @@
             import * as common from './src/common.mjs';
 
             const notesPromise = fetch('https://saucellc.io/products/sauce4zwift/release_notes.json').then(r => r.json());
-            //const notesPromise = fetch('https://saucellc.io/release_notes.json').then(r => r.json());
 
 
             function fakeSHU(version) {
@@ -174,7 +208,7 @@
             <div>
                 <h1 class="update-only">Sauce Updated!</h1>
                 <h4 class="update-only">Sauce's heat level just upgraded from <span class="from-version"></span> scovilles to <span class="to-version"></span>! Oh my!!! 🌶️🔥</h4>
-                <h1 class="not-update">Sauce Changelog</h1>
+                <h1 class="not-update">Release Notes</h1>
             </div>
         </header>
         <main>
