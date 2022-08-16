@@ -825,7 +825,7 @@ class UDPChannel extends NetChannel {
             this.sock.connect(3024, this.ip, e => void (e ? reject(e) : resolve())));
         super.establish();
     }
- 
+
     shutdown() {
         super.shutdown();
         if (this.sock) {
@@ -1021,7 +1021,36 @@ export class GameClient extends events.EventEmitter {
         await this.udpChannel.sendPlayerState({watchingAthleteId: this.watchingAthleteId});
     }
 
+    suspend() {
+        this.suspended = true;
+        this._gcSuspendedChannel = setTimeout(() => {
+            if (this.udpChannel && this.suspended) {
+                this.udpChannel.shutdown();
+            }
+        }, 60 * 1000);
+    }
+
+    async resume() {
+        clearTimeout(this._gcSuspendedChannel);
+        if (!this.udpChannel) {
+            await this.setUDPChannel(this.courseId);
+        }
+        this.suspended = false;
+    }
+
     async monitorPlayerState() {
+        if (this._monitorPlayerStateActive) {
+            return;
+        }
+        this._monitorPlayerStateActive = true;
+        try {
+            await this._monitorPlayerState();
+        } finally {
+            this._monitorPlayerStateActive = false;
+        }
+    }
+
+    async _monitorPlayerState() {
         if (Date.now() - this._lastMonitorStateUpdated < this.monitorDelay * 0.75) {
             return;
         }
@@ -1029,7 +1058,7 @@ export class GameClient extends events.EventEmitter {
         if (!state) {
             if (!this.suspended) {
                 console.info("Suspending game client until activity is detected...");
-                this.suspended = true;
+                this.suspend();
             }
         } else {
             // The Game Monitor works better with these being recently available.
@@ -1040,7 +1069,7 @@ export class GameClient extends events.EventEmitter {
             }));
             if (this.suspended) {
                 console.info("Resuming game client...");
-                this.suspended = false;
+                await this.resume();
             }
             await this.updateMonitorState(state);
         }
@@ -1073,6 +1102,7 @@ export class GameClient extends events.EventEmitter {
         await ch.establish();
         for (let i = 0; i < 5; i++) { // be like real game
             await ch.sendHandshake();
+            await sleep(50);
         }
         await ch.sendPlayerState();
     }
@@ -1107,7 +1137,7 @@ export class GameClient extends events.EventEmitter {
             }
         }
         if (pb.playerStates && pb.playerStates.length) {
-            //console.debug(`IN DATA| states: ${pb.playerStates.length} ${ch.toString()}`);
+            console.debug(`IN DATA| states: ${pb.playerStates.length} ${ch.toString()}`);
             const state = pb.playerStates.find(x => x.athleteId === this.monitorAthleteId);
             if (state) {
                 queueMicrotask(() => this.updateMonitorState(state));
