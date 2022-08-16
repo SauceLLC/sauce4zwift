@@ -23,6 +23,8 @@ let theadRow;
 let mainRow;
 let nations;
 let flags;
+let gameControlEnabled;
+let gameControlConnected;
 const routesById = new Map(routes.map(x => [x.id, x]));
 const eventsBySubGroup = new Map();
 
@@ -240,8 +242,8 @@ const fields = [
     {id: 'workout-zone', defaultEn: false, label: 'WO Zone', get: x => x.state.workoutZone},
     {id: 'laps', defaultEn: false, label: 'Laps', get: x => x.state.laps},
 
-    {id: 'course', defaultEn: false, label: 'DEV Course', get: x => x.state.courseId},
-    {id: 'road', defaultEn: false, label: 'DEV Road', get: x => x.state.roadId},
+    //{id: 'course', defaultEn: false, label: 'DEV Course', get: x => x.state.courseId},
+    //{id: 'road', defaultEn: false, label: 'DEV Road', get: x => x.state.roadId},
 ];
 
 
@@ -261,6 +263,12 @@ export async function main() {
     lazyInitNationMeta();  // bg okay
     let refresh;
     const setRefresh = () => refresh = (settings.refreshInterval || 1) * 1000 - 100; // within 100ms is fine.
+    const gcs = await common.rpc.getGameConnectionStatus();
+    gameControlEnabled = gcs != null;
+    gameControlConnected = gcs && gcs.connected;
+    common.subscribe('status', gcs => {
+        gameControlConnected = gcs && gcs.connected;
+    }, {source: 'gameConnection'});
     common.storage.addEventListener('update', async ev => {
         if (ev.data.key === fieldsKey) {
             fieldStates = ev.data.value;
@@ -383,6 +391,10 @@ export async function main() {
 
 
 async function watch(athleteId) {
+    if (!gameControlEnabled || !gameControlConnected) {
+        console.warn("Game control not connected/enabled. Can't send watch command");
+        return;
+    }
     await common.rpc.watch(athleteId);
     if (nearbyData) {
         for (const x of nearbyData) {
@@ -392,6 +404,7 @@ async function watch(athleteId) {
         renderData(nearbyData);
     }
 }
+
 
 function render() {
     document.documentElement.classList.toggle('autoscroll', settings.autoscroll);
@@ -420,13 +433,11 @@ function render() {
 
 function makeTableRow() {
     const tr = document.createElement('tr');
-    tr.innerHTML = `
-        <td>
-            <a class="link" data-id="export" title="Export FIT file of collected data"><ms>file_download</ms></a>
-            <a class="link" data-id="watch" title="Watch this athlete"><ms>video_camera_front</ms></a>
-        </td>
-        ${enFields.map(({id}) => `<td data-id="${id}"></td>`).join('')}
-    `;
+    const btns = [`<a class="link" data-id="export" title="Export FIT file of collected data"><ms>file_download</ms></a>`];
+    if (gameControlEnabled) {
+        btns.push(`<a class="link" data-id="watch" title="Watch this athlete"><ms>video_camera_front</ms></a>`);
+    }
+    tr.innerHTML = `<td>${btns.join('')}</td>${enFields.map(({id}) => `<td data-id="${id}"></td>`).join('')}`;
     return tr;
 }
 
@@ -498,12 +509,10 @@ function renderData(data) {
         while (row.previousElementSibling) {
             gentleClassToggle(row = row.previousElementSibling, 'hidden', true);
         }
-        row = mainRow.nextElementSibling || mainRow.insertAdjacentElement('afterend', makeTableRow());
+        row = mainRow;
         for (let i = centerIdx + 1; i < data.length; i++) {
+            row = row.nextElementSibling || row.insertAdjacentElement('afterend', makeTableRow());
             updateTableRow(row, data[i]);
-            if (i < data.length - 1) {
-                row = row.nextElementSibling || row.insertAdjacentElement('afterend', makeTableRow());
-            }
         }
         while (row.nextElementSibling) {
             gentleClassToggle(row = row.nextElementSibling, 'hidden', true);

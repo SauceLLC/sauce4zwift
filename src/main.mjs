@@ -364,7 +364,7 @@ class SauceApp extends EventEmitter {
                 uptime: os.uptime(),
                 cpus: os.cpus(),
             },
-            stats: this.statsProcessor.getDebugInfo(),
+            stats: this.statsProc.getDebugInfo(),
             databases: [].concat(...Array.from(databases.entries()).map(([dbName, db]) => {
                 const stats = db.prepare('SELECT * FROM sqlite_schema WHERE type = ? AND name NOT LIKE ?')
                     .all('table', 'sqlite_%');
@@ -426,6 +426,9 @@ class SauceApp extends EventEmitter {
             rpcSources.gameConnection = this.gameConnection = this.startGameConnectionServer(ip);
             // This isn't required but reduces latency..
             this.gameConnection.on('watch-command', id => gameMonitor.setWatching(id));
+        } else {
+            // Prevent errors for pages wanting this.
+            rpcSources.gameConnection = new EventEmitter();
         }
         if (this.getSetting('webServerEnabled')) {
             ip = ip || await getLocalRoutedIP();

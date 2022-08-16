@@ -2,7 +2,9 @@ import * as common from './common.mjs';
 
 
 function updateConnStatus(s) {
-    console.warn(s);
+    if (!s) {
+        s = {connected: false, state: 'disabled'};
+    }
     document.documentElement.classList.toggle('connected', s.connected);
     const statusEl = document.querySelector('.status');
     statusEl.textContent = s.state;
