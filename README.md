@@ -5,13 +5,6 @@ Sauce for Zwift™
 Sauce for Zwift™ extends the zwift cycling and running simulator with more stats and
 pretty things.
 
-#### NOTE:
-Since Zwift is formally planning to shut down community applications like this I'm
-open sourcing the project so it will live on in spirit and people can enjoy it in the
-remaining days.
-
-See: wiedmann/zwift-packet-monitor#5
-
 <img src="assets/images/screenshot.jpg" width="640"/>
 <img src="assets/images/slideshow.webp" width="400"/>
 
