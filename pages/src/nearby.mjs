@@ -242,8 +242,9 @@ const fields = [
     {id: 'workout-zone', defaultEn: false, label: 'WO Zone', get: x => x.state.workoutZone},
     {id: 'laps', defaultEn: false, label: 'Laps', get: x => x.state.laps},
 
-    //{id: 'course', defaultEn: false, label: 'DEV Course', get: x => x.state.courseId},
-    //{id: 'road', defaultEn: false, label: 'DEV Road', get: x => x.state.roadId},
+    // Debugish fields.
+    {id: 'course', defaultEn: false, label: 'Course', get: x => x.state.courseId},
+    {id: 'road', defaultEn: false, label: 'Road', get: x => x.state.roadId},
 ];
 
 
