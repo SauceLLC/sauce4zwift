@@ -1018,7 +1018,8 @@ export class StatsProcessor extends events.EventEmitter {
 
     async nearbyProcessor() {
         let errBackoff = 1000;
-        const target = performance.now() % 1000;
+        const interval = 1000;
+        const target = performance.now() % interval;
         while (this._active) {
             if (this.watching == null) {
                 await sauce.sleep(100);
@@ -1026,8 +1027,8 @@ export class StatsProcessor extends events.EventEmitter {
             }
             try {
                 await this._nearbyProcessor();
-                const offt = performance.now() % 1000;
-                const schedSleep = 1000 - (offt - target);
+                const offt = performance.now() % interval;
+                const schedSleep = interval - (offt - target);
                 await sauce.sleep(schedSleep);
             } catch(e) {
                 captureExceptionOnce(e);

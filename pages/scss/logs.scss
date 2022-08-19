@@ -1,0 +1,86 @@
+html {
+    padding: 0;
+}
+
+html body {
+    background: none #3d3d3d !important;
+    border-radius: 0;
+}
+
+#content {
+    align-items: flex-start;
+    padding: 0.2rem;
+    overflow-y: auto;
+    overflow-y: overlay; // chromium only, but way better
+    scroll-snap-type: y proximity;
+
+    table.logs {
+        font-size: 13px;
+        width: 100%;
+        border-collapse: collapse;
+
+        tr {
+            > *:first-child {
+                /* https://bugs.chromium.org/p/chromium/issues/detail?id=411624 */
+                margin-top: auto;  /* Shift to bottom when unscrolled */
+            }
+
+            &:last-child {
+                scroll-snap-align: end;
+                scroll-margin-block-end: 1rem;
+            }
+
+            &:nth-child(odd) {
+                background-color: #ffffff05;
+            }
+
+            &[data-level="debug"] {
+                opacity: 0.8;
+            }
+            &[data-level="info"] {
+            }
+            &[data-level="warn"] {
+                background-color: #f4f4114a;
+
+                &:nth-child(odd) {
+                    background-color: #f4f41161
+                }
+            }
+            &[data-level="error"] {
+                background-color: #e6242491;
+
+                &:nth-child(odd) {
+                    background-color: #e62424a0;
+                }
+            }
+
+            &:hover td {
+                background-color: #fff2;
+            }
+        }
+
+        td {
+            white-space: nowrap;
+            vertical-align: top;
+            padding: 0.3em;
+
+            &.time {
+                font-size: 0.9em;
+            }
+
+            &.level {
+                font-weight: bold;
+                font-size: 0.9em;
+                text-align: right;
+            }
+
+            &.message {
+                font-size: 0.92em;
+                font-family: monospace;
+                white-space: pre-wrap;
+                padding-top: 0.3em;
+            }
+        }
+    }
+}
+

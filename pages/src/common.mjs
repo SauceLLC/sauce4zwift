@@ -214,7 +214,7 @@ export class Renderer {
         this.backgroundRender = options.backgroundRender;
         contentEl.classList.toggle('unlocked', !this.locked);
         this.stopping = false;
-        this.fps = options.fps || 1;
+        this.fps = options.fps === undefined ? 1 : options.fps;
         this.id = options.id || location.pathname.split('/').at(-1);
         this.fields = new Map();
         this.onKeyDownBound = this.onKeyDown.bind(this);

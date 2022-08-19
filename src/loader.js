@@ -10,8 +10,11 @@ if (os.platform() === 'win32') {
     app.commandLine.appendSwitch('disable-gpu-compositing');
 }
 
-import('./main.mjs').then(m => m.main()).catch(async e => {
-    console.error(e);
-    await dialog.showErrorBox('Startup Error', e.stack);
-    app.exit(1);
-});
+const mainPromise = import('./main.mjs').then(m => m.main());
+if (app.isPackaged) {
+    mainPromise.catch(async e => {
+        console.error(e);
+        await dialog.showErrorBox('Sauce Startup Error', e.stack);
+        app.exit(1);
+    });
+}

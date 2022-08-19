@@ -1,6 +1,8 @@
 import process from 'node:process';
 import os from 'node:os';
 import net from 'node:net';
+import fs from 'node:fs';
+import path from 'node:path';
 import {EventEmitter} from 'node:events';
 import * as storage from './storage.mjs';
 import * as menu from './menu.mjs';
@@ -18,7 +20,6 @@ import * as secrets from './secrets.mjs';
 import * as zwift from './zwift.mjs';
 import * as windows from './windows.mjs';
 
-
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 const {autoUpdater} = require('electron-updater');
@@ -34,6 +35,100 @@ let sauceApp;
 const rpcSources = {
     windows: windows.eventEmitter,
 };
+
+
+function getConsoleSymbol(name) {
+    /*
+     * The symbols of functions in the console module are somehow not in the
+     * global registry.  So we need to use this hack to get the real symbols
+     * for monkey patching.
+     */
+    const symString = Symbol.for(name).toString();
+    return Object.getOwnPropertySymbols(console).filter(x =>
+        x.toString() === symString)[0];
+}
+
+
+function fmtLogDate(d) {
+    const h = d.getHours().toString();
+    const m = d.getMinutes().toString().padStart(2, '0');
+    const s = d.getSeconds().toString().padStart(2, '0');
+    const ms = d.getMilliseconds().toString().padStart(3, '0');
+    return `${h}:${m}:${s}.${ms}`;
+}
+
+
+function monkeyPatchConsoleInformant() {
+    /*
+     * This is highly Node specific but it maintains console logging,
+     * devtools logging with correct file:lineno references, and allows
+     * us to support file logging and logging windows.
+     */
+    process.env.TERM = 'dumb';  // Prevent color tty commands
+    let curLogLevel;
+    const descriptors = Object.getOwnPropertyDescriptors(console);
+    const levels = {
+        debug: 'debug',
+        info: 'info',
+        log: 'info',
+        count: 'info',
+        dir: 'info',
+        warn: 'warn',
+        assert: 'warn',
+        error: 'error',
+        trace: 'error',
+    };
+    for (const [fn, level] of Object.entries(levels)) {
+        Object.defineProperty(console, fn, {
+            enumerable: descriptors[fn].enumerable,
+            get: () => (curLogLevel = level, descriptors[fn].value),
+        });
+    }
+    const kWriteToConsoleSymbol = getConsoleSymbol('kWriteToConsole');
+    const kWriteToConsoleFunction = console[kWriteToConsoleSymbol];
+    const emitter = new EventEmitter();
+    let seqno = 1;
+    console[kWriteToConsoleSymbol] = function(useStdErr, message) {
+        try {
+            return kWriteToConsoleFunction.call(this, useStdErr, message);
+        } finally {
+            const o = {};
+            const saveTraceLimit = Error.stackTraceLimit;
+            Error.stackTraceLimit = 3;
+            Error.captureStackTrace(o);
+            Error.stackTraceLimit = saveTraceLimit;
+            const stack = o.stack;
+            const fileMatch = stack.match(/([^/: (]+:[0-9]+):[0-9]+\)?$/);
+            if (!fileMatch) {
+                debugger;
+            }
+            emitter.emit('message', {
+                seqno: seqno++,
+                date: new Date(),
+                level: curLogLevel,
+                message,
+                file: fileMatch ? fileMatch[1] : null,
+            });
+        }
+    };
+    return emitter;
+}
+const logInformant = monkeyPatchConsoleInformant();
+const _logFile = path.join(electron.app.getPath('userData'), 'sauce.log');
+const _logFileStream = fs.createWriteStream(_logFile);
+const _logQueue = [];
+logInformant.on('message', o => {
+    _logQueue.push(o);
+    const time = fmtLogDate(o.date);
+    const level = (`[${o.level.toUpperCase()}]`).padStart(5, ' ');
+    _logFileStream.write(`${time} ${level} (${o.file}): ${o.message}\n`);
+    if (_logQueue.length > 1000) {
+        _logQueue.shift();
+    }
+});
+rpcSources['logs'] = logInformant;
+rpc.register(() => _logQueue, {name: 'getLogs'});
+console.info("Sauce log file:", _logFile);
 
 
 function quit(retcode) {

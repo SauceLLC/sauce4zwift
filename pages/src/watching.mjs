@@ -607,7 +607,7 @@ export async function main() {
         content.appendChild(screenEl);
         const renderer = new common.Renderer(screenEl, {
             id: screen.id,
-            fps: 2,
+            fps: null,
             locked: settings.lockedFields,
             backgroundRender: alwaysRender,
         });
