@@ -256,7 +256,6 @@ electron.ipcMain.on('subscribe', (ev, {event, domEvent, persistent, source='stat
         }
     }
     function shutdown() {
-        console.debug("Shutdown subscription:", event, spec.id);
         emitter.off(event, sendMessage);
         for (const x of shutdownEvents) {
             win.webContents.off(x, shutdown);
@@ -265,6 +264,8 @@ electron.ipcMain.on('subscribe', (ev, {event, domEvent, persistent, source='stat
             win.off(name, cb);
         }
         activeSubs.clear();
+        // Must log last because of logs source which eats its own tail otherwise.
+        console.debug("Shutdown subscription:", event, spec.id);
     }
     if (persistent || (win.isVisible() && !win.isMinimized())) {
         resume();
