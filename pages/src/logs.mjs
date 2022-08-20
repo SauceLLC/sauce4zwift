@@ -115,16 +115,16 @@ function filterMsg(el, trigrams) {
                 hi.style.left = `${rect.left - msgRect.left}px`;
                 hi.style.width = `${rect.width}px`;
                 hi.style.height = `${rect.height}px`;
-                msgEl.appendChild(hi);
+                requestAnimationFrame(() => msgEl.appendChild(hi));
             }
         }
         if (visible) {
             if (el.style.display) {
-                el.style.display = '';
+                requestAnimationFrame(() => el.style.display = '');
             }
         } else {
             if (!el.style.display) {
-                el.style.display = 'none';
+                requestAnimationFrame(() => el.style.display = 'none');
             }
         }
     }
