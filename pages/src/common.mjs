@@ -174,7 +174,8 @@ export function initInteractionListeners() {
         html.offsetWidth; // force layout
         html.classList.add('highlight-window');
     });
-    if (!html.classList.contains('settings-mode')) {
+    if (!html.classList.contains('settings-mode') &&
+        !html.classList.contains('disable-settings-mode')) {
         window.addEventListener('contextmenu', ev => {
             ev.preventDefault();
             void html.classList.toggle('settings-mode');

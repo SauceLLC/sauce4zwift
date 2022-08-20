@@ -181,7 +181,7 @@ export async function main() {
         addEntry(x);
     }
     requestAnimationFrame(() => {
-        document.querySelector('#content').scrollTop = Number.MAX_SAFE_INTEGER;
+        document.querySelector('#content').scrollTop = Number.MAX_SAFE_INTEGER >>> 1;
     });
     document.querySelector('input[name="filter"]').addEventListener('input', onFilterInput);
     document.querySelector('select[name="level"]').addEventListener('change', onLevelChange);
