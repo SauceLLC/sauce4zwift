@@ -323,6 +323,7 @@ export class ZwiftAPI {
             ...options
         }));
         return Array.from(data.seeds).map(x => ({
+            expires: worldTimeToDate(x.expiryDate),
             nonce: seedToBuffer(x.nonce),
             seed: seedToBuffer(x.seed),
         }));
@@ -683,7 +684,25 @@ class NetChannel extends events.EventEmitter {
     }
 
     makeHashBuf(dataBuf, options={}) {
-        const hashSeed = options.hello ? defaultHashSeed : this.hashSeeds[0];
+        let hashSeed;
+        if (options.hello) {
+             hashSeed = defaultHashSeed;
+        } else {
+            while (this.hashSeeds.length) {
+                const h = this.hashSeeds[0];
+                if (h.expires < Date.now() - 300 * 1000) {
+                    console.warn('Rotating hash seeds');
+                    debugger;
+                    this.hashSeeds.shift();
+                } else {
+                    hashSeed = h;
+                    break;
+                }
+            }
+            if (!hashSeed) {
+                throw new Error("No valid hash seeds available");
+            }
+        }
         const hash = new XXHash32(hashSeed.seed);
         hash.update(dataBuf);
         hash.update(hashSeed.nonce);
@@ -924,6 +943,11 @@ export class GameMonitor extends events.EventEmitter {
             ...options,
         });
         this.hashSeeds = await this.api.getHashSeeds();
+        const lastHashExpires = this.hashSeeds.at(-1).expires;
+        const hashRefreshDelay = (lastHashExpires - Date.now()) / 2;
+        console.debug(`Hash seeds are good until ${lastHashExpires.toLocaleTimeString()}: refresh in`,
+            Math.round(hashRefreshDelay / 1000).toLocaleString() + 's');
+        this._refreshHashSeeds = setTimeout(this.refreshHashSeeds.bind(this), hashRefreshDelay);
         const initialState = await this.api.getPlayerState(this.monitorAthleteId);
         if (initialState) {
             this.courseId = initialState.courseId;
@@ -934,6 +958,23 @@ export class GameMonitor extends events.EventEmitter {
         }
         this.relayId = login.relaySessionId;
         this.tcpServers = login.session.tcpConfig.servers;
+    }
+
+    async refreshHashSeeds() {
+        if (!this.connected) {
+            return;
+        }
+        console.info("Refreshing hash seeds...");
+        this.hashSeeds = await this.api.getHashSeeds();
+        if (this.tcpChannel) {
+            // Technically we don't use these in the TCP channels, but someday if
+            // we start sending more data via TCP (if that's a thing) I want the
+            // channel to be in good standing.
+            this.tcpChannel.hashSeeds = this.hashSeeds;
+        }
+        if (this.udpChannel) {
+            this.udpChannel.hashSeeds = this.hashSeeds;
+        }
     }
 
     async logout() {
@@ -956,7 +997,8 @@ export class GameMonitor extends events.EventEmitter {
 
     async disconnect(options={}) {
         this.connected = false;
-        clearInterval(this.sendLoop);
+        clearTimeout(this._refreshHashSeeds);
+        clearInterval(this._sendLoop);
         if (this.udpChannel) {
             this.udpChannel.shutdown();
             this.udpChannel = null;
@@ -1027,7 +1069,7 @@ export class GameMonitor extends events.EventEmitter {
             console.info("User not in game yet: waiting for activity...");
             this.suspend();
         }
-        this.sendLoop = setInterval(this.sendPlayerState.bind(this), 1000);
+        this._sendLoop = setInterval(this.sendPlayerState.bind(this), 1000);
     }
 
     async sendPlayerState() {

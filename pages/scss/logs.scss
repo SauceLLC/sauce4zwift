@@ -1,10 +1,52 @@
 html {
     padding: 0;
+    user-select: initial !important;
+
+    &[data-level="info"] {
+        table tr[data-level="debug"] {
+            display: none !important;
+        }
+    }
+    &[data-level="warn"] {
+        table tr[data-level="debug"],
+        table tr[data-level="info"] {
+            display: none !important;
+        }
+    }
+    &[data-level="error"] {
+        table tr[data-level="debug"],
+        table tr[data-level="info"],
+        table tr[data-level="warn"] {
+            display: none !important;
+        }
+    }
+
+    body {
+        border-radius: 0;
+        background-image:
+            linear-gradient(135deg, #1727e952, transparent),
+            linear-gradient(315deg, #0d117599, transparent);
+    }
 }
 
-html body {
-    background: none #3d3d3d !important;
-    border-radius: 0;
+header {
+    flex-wrap: wrap;
+
+    input, select {
+        font-size: 0.8em;
+        margin: 0 0 0 1em;
+        background: #111;
+        color: #fff;
+        border-color: #3333;
+    }
+
+    .buttons {
+        font-size: 0.7em;
+
+        .button {
+            padding: 0.2em 1.2em !important;
+        }
+    }
 }
 
 #content {
@@ -40,10 +82,10 @@ html body {
             &[data-level="info"] {
             }
             &[data-level="warn"] {
-                background-color: #f4f4114a;
+                background-color: #f4c81187;
 
                 &:nth-child(odd) {
-                    background-color: #f4f41161
+                    background-color: #f4c81167;
                 }
             }
             &[data-level="error"] {
@@ -78,7 +120,21 @@ html body {
                 font-size: 0.92em;
                 font-family: monospace;
                 white-space: pre-wrap;
-                padding-top: 0.3em;
+                padding-top: 0.45em;
+                width: 100%;
+                position: relative;
+
+                .hi {
+                    position: absolute;
+                    z-index: 1;
+                    pointer-events: none;
+                    background: #ffd60065;
+                }
+            }
+
+            &.file {
+                text-align: right;
+                padding-right: 0.8em; // scrollbar
             }
         }
     }

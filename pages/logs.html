@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html class="">
+<html class="has-frame">
     <head>
         <meta charset="utf-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
@@ -17,10 +17,20 @@
         <link rel="stylesheet" href="css/common.css"/>
         <link rel="stylesheet" href="css/logs.css"/>
     </head>
-    <body class="">
+    <body class="alt-background">
         <div id="titlebar" class="always-visible">
             <header>
                 <div class="title">Logs - Sauce for Zwift™</div>
+                <div class="filter"><input type="text" name="filter" placeholder="filter"></input></div>
+                <div class="level">
+                    <select name="level">
+                        <option value="debug">All</option>
+                        <option value="info">Info</option>
+                        <option value="warn">Warning</option>
+                        <option value="error">Error</option>
+                    </select>
+                </div>
+                <div class="buttons"><div class="std button clear">Clear</div></div>
             </header>
         </div>
         <div id="content">

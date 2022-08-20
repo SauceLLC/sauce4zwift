@@ -98,7 +98,7 @@ function monkeyPatchConsoleInformant() {
             Error.captureStackTrace(o);
             Error.stackTraceLimit = saveTraceLimit;
             const stack = o.stack;
-            const fileMatch = stack.match(/([^/: (]+:[0-9]+):[0-9]+\)?$/);
+            const fileMatch = stack.match(/([^/\\: (]+:[0-9]+):[0-9]+\)?$/);
             if (!fileMatch) {
                 debugger;
             }
@@ -128,6 +128,7 @@ logInformant.on('message', o => {
 });
 rpcSources['logs'] = logInformant;
 rpc.register(() => _logQueue, {name: 'getLogs'});
+rpc.register(() => _logQueue.length = 0, {name: 'clearLogs'});
 console.info("Sauce log file:", _logFile);
 
 
