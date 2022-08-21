@@ -1187,6 +1187,7 @@ export class GameMonitor extends events.EventEmitter {
     }
 
     setWatching(athleteId) {
+        this._setWatchingTS = Date.now();
         if (athleteId === this.watchingAthleteId) {
             return;
         }
@@ -1205,7 +1206,7 @@ export class GameMonitor extends events.EventEmitter {
         }
         const legacyCh = this.udpChannels[0];
         if (legacyCh && legacyCh.active && legacyCh.isDirect && legacyCh.courseId === courseId) {
-            console.info("Furlough of legacy:", legacyCh.toString());
+            console.debug("Furlough of legacy:", legacyCh.toString());
             legacyCh.schedShutdown(60000);
         } else if (legacyCh) {
             console.info("Shutdown of non-reusable:", legacyCh.toString());
@@ -1214,7 +1215,7 @@ export class GameMonitor extends events.EventEmitter {
         if (reuseIndex !== -1) {
             const ch = this.udpChannels.splice(reuseIndex, 1)[0];
             ch.cancelShutdown();
-            console.info("Switching to preexisting:", ch.toString());
+            console.debug("Switching to preexisting:", ch.toString());
             this.udpChannels.unshift(ch);
         } else {
             const ch = this.makeUDPChannel(courseId, ip);
@@ -1298,7 +1299,11 @@ export class GameMonitor extends events.EventEmitter {
         this._lastMonitorState = state;
         this._lastMonitorStateUpdated = Date.now();
         if (state.watchingAthleteId !== this.watchingAthleteId) {
-            this.setWatching(state.watchingAthleteId);
+            if (state.ts < this._setWatchingTS) {
+                console.debug('Debouncing setWatching call from possibly stale state');
+            } else {
+                this.setWatching(state.watchingAthleteId);
+            }
         }
         if (state.courseId !== this.courseId) {
             console.warn(`Moving to ${courseToNames[state.courseId]}, courseId: ${state.courseId}`);
