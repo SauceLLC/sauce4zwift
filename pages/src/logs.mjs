@@ -16,9 +16,18 @@ function trigramify(s) {
 }
 
 
+function fmtLogDate(d) {
+    const h = d.getHours().toString();
+    const m = d.getMinutes().toString().padStart(2, '0');
+    const s = d.getSeconds().toString().padStart(2, '0');
+    const ms = d.getMilliseconds().toString().padStart(3, '0');
+    return `${h}:${m}:${s}.${ms}`;
+}
+
+
 const logsBody = document.querySelector('table.logs tbody');
 function addEntry(o) {
-    const time = (new Date(o.date)).toLocaleTimeString();
+    const time = fmtLogDate(new Date(o.date));
     logsBody.insertAdjacentHTML('beforeend', `
         <tr data-level="${o.level}">
             <td class="time">${time}</td>
