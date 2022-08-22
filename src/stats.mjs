@@ -794,7 +794,7 @@ export class StatsProcessor extends events.EventEmitter {
         this.getAthleteStmt = this.athletesDB.prepare('SELECT data FROM athletes WHERE id = ?');
     }
 
-    async start() {
+    start() {
         this._active = true;
         try {
             this.initAthletesDB();
@@ -810,7 +810,7 @@ export class StatsProcessor extends events.EventEmitter {
             this.athleteId = this.zwiftAPI.profile.id;
             this.gameMonitor.on('inPacket', this.onIncoming.bind(this));
             this.gameMonitor.on('watching-athlete', this.setWatching.bind(this));
-            await this.gameMonitor.connect();
+            queueMicrotask(() => this.gameMonitor.connect());
             queueMicrotask(() => this._zwiftMetaSync());
         }
     }
