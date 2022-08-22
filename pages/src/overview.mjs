@@ -94,7 +94,7 @@ export async function main() {
         common.rpc.showAllWindows({autoHide: true});
     }
 
-    const autoHideWait = 2500;
+    const autoHideWait = 4000;
     if (window.isElectron && settings.autoHideWindows) {
         autoHideTimeout = setTimeout(autoHide, autoHideWait);
     }
