@@ -19,6 +19,11 @@ export async function main() {
     const nations = countries && Object.fromEntries(countries.map(({id, en}) => [id, en]));
     const flags = countries && Object.fromEntries(countries.map(({id, alpha2}) =>
         [id, `deps/flags/${alpha2}.png`]));
+    // Hack in the custom codes I've seen for UK
+    flags[900] = flags[826]; // Scotland
+    flags[901] = flags[826]; // Wales
+    flags[902] = flags[826]; // England
+    flags[903] = flags[826]; // Northern Ireland
     const debug = location.search.includes('debug');
     const tplData = {
         debug,
