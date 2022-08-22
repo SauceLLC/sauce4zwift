@@ -159,7 +159,7 @@ const fields = [
      get: x => [x.athleteId, getAthleteValue(x, 'avatar') || 'images/fa/user-circle-solid.svg'],
      fmt: ([id, avatar]) => avatar ? athleteLink(id, `<img src="${avatar}"/>`, {class: 'avatar'}) : ''},
     {id: 'nation', defaultEn: true, label: '<ms>flag</ms>', get: x => getAthleteValue(x, 'countryCode'),
-     fmt: code => (code && flags && flags[code]) ? `<img src="${flags[code]}" title="${common.sanitizeForAttr(nations[code])}"/>` : code},
+     fmt: code => (code && flags && flags[code]) ? `<img src="${flags[code]}" title="${common.sanitizeForAttr(nations[code])}"/>` : code ? code : ''},
     {id: 'name', defaultEn: true, label: 'Name', get: x => [getAthleteValue(x, 'sanitizedFullname'), x.athleteId],
      fmt: ([name, id]) => athleteLink(id, sanitize(name || '-'))},
     {id: 'team', defaultEn: false, label: 'Team', get: x => getAthleteValue(x, 'team'),
