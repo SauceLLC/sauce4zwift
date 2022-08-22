@@ -810,7 +810,7 @@ export class StatsProcessor extends events.EventEmitter {
             this.athleteId = this.zwiftAPI.profile.id;
             this.gameMonitor.on('inPacket', this.onIncoming.bind(this));
             this.gameMonitor.on('watching-athlete', this.setWatching.bind(this));
-            queueMicrotask(() => this.gameMonitor.connect());
+            this.gameMonitor.start();
             queueMicrotask(() => this._zwiftMetaSync());
         }
     }

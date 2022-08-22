@@ -600,6 +600,7 @@ class NetChannel extends events.EventEmitter {
         this.recvIV = new RelayIV({channelType: `${options.proto}Server`, connId: this.connId});
         this.recvCount = 0;
         this.sendCount = 0;
+        this.timeout = options.timeout || 30000;
     }
 
     toString() {
@@ -679,10 +680,10 @@ class NetChannel extends events.EventEmitter {
 
     shutdown() {
         this._disableWatchdog();
-        if (this.active) {
-            this.emit('shutdown', this);
+        if (this.active !== false) {
+            this.active = false;
+            queueMicrotask(() => this.emit('shutdown', this));
         }
-        this.active = false;
     }
 
     schedShutdown(time) {
@@ -700,7 +701,7 @@ class NetChannel extends events.EventEmitter {
 
     _enableWatchdog() {
         if (!this._watchdogLoop) {
-            this._watchdogLoop = setInterval(this._checkWatchdog.bind(this), 5000);
+            this._watchdogLoop = setInterval(this._checkWatchdog.bind(this), this.timeout / 2);
         }
         this.tickleWatchdog();
     }
@@ -714,9 +715,9 @@ class NetChannel extends events.EventEmitter {
 
     _checkWatchdog() {
         const elapsed = Date.now() - this._watchdogTS;
-        if (elapsed > 1000) {
-            console.error("Data starvation detected:", this.toString());
-            this.emit('watchdog', this, elapsed);
+        if (elapsed > this.timeout) {
+            this.tickleWatchdog();
+            this.emit('timeout', this, elapsed);
         }
     }
 
@@ -731,17 +732,7 @@ class NetChannel extends events.EventEmitter {
     }
 
     makeHashBuf(dataBuf, options={}) {
-        let hashSeed;
-        if (options.hello) {
-            hashSeed = defaultHashSeed;
-        } else {
-            hashSeed = this.hashSeed;
-            if (hashSeed.expires < Date.now() + 60 * 1000) {
-                console.warn("Hash seed is near expiration, shutting down:", this.toString());
-                this.shutdown();
-                throw new InactiveChannelError();
-            }
-        }
+        const hashSeed = options.hello ? defaultHashSeed : this.hashSeed;
         const hash = new XXHash32(hashSeed.seed);
         hash.update(dataBuf);
         hash.update(hashSeed.nonce);
@@ -762,20 +753,20 @@ class TCPChannel extends NetChannel {
         this.conn = net.createConnection({
             host: this.ip,
             port: 3025,
-            noDelay: true,
-            keepAlive: true,
-            keepAliveInitialDelay: 15000,
-            timeout: 60000,
+            timeout: 31000, // XXX maybe just use watchdog
             onread: {
                 buffer: Buffer.alloc(65536),
                 callback: this.onTCPData.bind(this),
             }
         });
+        this.conn.setKeepAlive(true, 15000);
         await new Promise((resolve, reject) => {
             this.conn.once('connect', resolve);
             this.conn.once('error', reject);
         });
         this.conn.on('close', () => this.shutdown());
+        this.conn.on('timeout', () => this.shutdown());
+        this.conn.on('error', () => this.shutdown());
         super.establish();
     }
 
@@ -783,7 +774,7 @@ class TCPChannel extends NetChannel {
         super.shutdown();
         if (this.conn) {
             this.conn.removeAllListeners();
-            this.conn.end();
+            this.conn.destroy();
             this.conn = null;
         }
     }
@@ -944,7 +935,8 @@ class UDPChannel extends NetChannel {
 
 export class GameMonitor extends events.EventEmitter {
 
-    stateRefreshDelay = 2500;  // Rate limit is 2000
+    stateRefreshDelay = 4000;  // Rate limit is 2000 and we might need to do 2
+    sessionRestartSlack = 300 * 1000;
 
     constructor(options={}) {
         super();
@@ -955,8 +947,13 @@ export class GameMonitor extends events.EventEmitter {
         this.watchingAthleteId = null;
         this.courseId = null;
         this.udpChannels = [];
-        this.connected = false;
+        this._starting = false;
+        this._stopping = false;
+        this.connectingTS = 0;
+        this.connectingCount = 0;
         this._session = null;
+        this._setWatchingTS = 0;
+        this._lastMonitorStateUpdated = 0;
     }
 
     async login() {
@@ -966,15 +963,13 @@ export class GameMonitor extends events.EventEmitter {
             pb: protos.LoginRequest.encode({aesKey}),
             protobuf: 'LoginResponse',
         });
-        const timeout = login.expiration * 60 * 1000;
-        clearInterval(this._sessionTimeout);
-        this._sessionTimeout = setTimeout(this.reconnect.bind(this), timeout - 300 * 1000);
+        const expires = new Date(Date.now() + (login.expiration * 60 * 1000));
         await sleep(1000); // No joke this is required (100ms works about 50% of the time)
         return {
             aesKey,
             relayId: login.relaySessionId,
             tcpServers: login.session.tcpConfig.servers,
-            expires: new Date(Date.now() + timeout),
+            expires,
         };
     }
 
@@ -983,6 +978,11 @@ export class GameMonitor extends events.EventEmitter {
         if (s) {
             this.courseId = s.courseId;
             this.setWatching(s.watchingAthleteId);
+            if (s.watchingAthleteId === this.monitorAthleteId) {
+                // Optimize first connect when watching self (common) by allowing
+                // setUDPChannel to use best UDP server immediately..
+                this._setWatchingState(s);
+            }
         } else {
             this.courseId = null;
             this.setWatching(this.monitorAthleteId);
@@ -991,49 +991,31 @@ export class GameMonitor extends events.EventEmitter {
 
     async initHashSeeds() {
         this._hashSeeds = await this.api.getHashSeeds();
-        this._newestHashSig = this._hashSeeds.at(-1).sig;
-        this.schedHashSeedsRefresh();
     }
 
-    schedHashSeedsRefresh(delay) {
+    _schedHashSeedsRefresh(delay) {
+        clearTimeout(this._refreshHashSeedsTimeout);
         if (!delay) {
             const lastHashExpires = this._hashSeeds.at(-1).expires;
             delay = (lastHashExpires - Date.now()) / 2;
         }
         console.debug(`Next hash seeds refresh in`, Math.round(delay / 1000).toLocaleString() + 's');
-        clearTimeout(this._refreshHashSeeds);
-        this._refreshHashSeeds = setTimeout(this.refreshHashSeeds.bind(this), delay);
+        this._refreshHashSeedsTimeout = setTimeout(this._refreshHashSeeds.bind(this), delay);
     }
 
-    async refreshHashSeeds() {
-        if (!this.connected) {
+    async _refreshHashSeeds() {
+        if (this._stopping) {
             return;
         }
+        const id = this._refreshHashSeedsTimeout;
         console.info("Refreshing hash seeds...");
         let delayFallback = 30000;
         try {
             this._hashSeeds = await this.api.getHashSeeds();
             delayFallback = null;
         } finally {
-            this.schedHashSeedsRefresh(delayFallback);
-        }
-        this._newestHashSig = this._hashSeeds.at(-1).sig;
-        for (const [i, ch] of Array.from(this.udpChannels).entries()) {
-            if (ch.hashSeed.sig === this._newestHashSig) {
-                continue; // already up to date (unlikely but whatever)
-            }
-            const isValid = ch.hashSeed.expires > Date.now();
-            if (!isValid) {
-                console.error("Expired hash seed still in use for:", ch.toString());
-                ch.shutdown();
-            } else {
-                if (i === 0) {
-                    console.info("Replacing primary channel with aging hash seed:", ch.toString());
-                    this.setUDPChannel(this.courseId); // Build fresh connection
-                } else {
-                    console.info("Cleanup of furloughed channel with aging hash seed:", ch.toString());
-                    ch.shutdown();
-                }
+            if (!this._stopping && id === this._refreshHashSeedsTimeout) {
+                this._schedHashSeedsRefresh(delayFallback);
             }
         }
     }
@@ -1046,49 +1028,87 @@ export class GameMonitor extends events.EventEmitter {
         }
     }
 
-    async connect() {
-        if (this.connected || this._session) {
+    start() {
+        if (this._starting) {
             throw new TypeError('invalid state');
         }
-        console.info("Connecting to Zwift relay...");
-        this.connected = false;
+        this._starting = true;
+        console.info("Starting Zwift Game Monitor...");
+        queueMicrotask(() => this.connect());
+    }
+
+    stop() {
+        console.info("Stopping Zwift Game Monitor...");
+        this._stopping = true;
+        this._disconnect();
+    }
+
+    _setConnecting() {
+        this.connectingTS = Date.now();
+        this.connectingCount++;
+    }
+
+    async connect() {
+        console.info("Connecting to Zwift relay servers...");
+        try {
+            await this._connect();
+        } catch(e) {
+            console.error('Connection attempt failed:', e);
+            this._schedConnectRetry();
+        }
+    }
+
+    async _connect() {
+        this._setConnecting();
         const session = await this.login();
         await this.initHashSeeds();
         await this.initPlayerState();
         await this.establishTCPChannel(session);
         await this.activateSession(session);
-        this.connected = true;
-        this._refreshStatesTask = this.refreshStatesLoop();
-        this._sendLoop = setInterval(this.broadcastPlayerState.bind(this), 1000);
+        this._schedHashSeedsRefresh();
+        this._refreshStatesTimeout = setTimeout(this._refreshStates.bind(this), this.stateRefreshDelay);
+        this._playerStateInterval = setInterval(this.broadcastPlayerState.bind(this), 1000);
     }
 
-    async reconnect() {
-        if (!this.connected) {
+    async renewSession() {
+        if (!this._starting || this._stopping) {
             throw new TypeError('invalid state');
         }
-        console.info("Reconnecting to Zwift relay...");
+        console.info("Renewing to Zwift relay session...");
+        try {
+            await this._renewSession();
+        } catch(e) {
+            console.error('Renew session attempt failed:', e);
+            this._schedConnectRetry();
+        }
+    }
+
+    async _renewSession() {
+        this._setConnecting();
         const session = await this.login();
         await this.establishTCPChannel(session);
         await this.activateSession(session);
     }
 
-    async disconnect() {
-        console.info("Disconnecting from Zwift relay...");
-        this.connected = false;
-        clearTimeout(this._refreshHashSeeds);
-        clearInterval(this._sendLoop);
+    _disconnect() {
+        clearInterval(this._playerStateInterval);
         clearTimeout(this._sessionTimeout);
-        for (const x of this.udpChannels) {
-            x.shutdown();
-        }
+        clearTimeout(this._refreshHashSeedsTimeout);
+        clearTimeout(this._refreshStatesTimeout);
+        const channels = Array.from(this.udpChannels);
         this.udpChannels.length = 0;
         if (this._session && this._session.tcpChannel) {
-            const ch = this._session.tcpChannel;
+            channels.push(this._session.tcpChannel);
             this._session.tcpChannel = null;
-            ch.shutdown();
         }
         this._session = null;
-        await this._refreshStatesTask;
+        for (const ch of channels) {
+            try {
+                ch.shutdown();
+            } catch(e) {
+                console.error(e); // A little extra paranoid for now.
+            }
+        }
     }
 
     async establishTCPChannel(session) {
@@ -1101,39 +1121,72 @@ export class GameMonitor extends events.EventEmitter {
         await session.tcpChannel.establish();
     }
 
-    makeUDPChannel(courseId, ip) {
+    makeUDPChannel(ip) {
         let isDirect = !!ip;
         if (!ip) {
-            let servers = this.udpServerPools.get(courseId);
-            isDirect = !!servers;
-            if (servers) {
-                const lws = this._lastWatchingState;
-                if (lws && lws.courseId === courseId && Date.now() - lws.ts < 60000) {
-                    servers = [this.findBestUDPServer([lws.x, lws.y], this.courseId)];
+            // Use a load balancer unless we have enough info for a direct server.
+            ip = this.udpServerPools.get(0)[0].ip;
+            const lws = this._lastWatchingState;
+            if (lws && lws.courseId === this.courseId && Date.now() - lws.ts < 60000) {
+                const best = this.findBestUDPServer(lws);
+                if (best) {
+                    ip = best.ip;
+                    isDirect = true;
                 }
-            } else {
-                // Use a load balancer until we get a direct server.
-                servers = this.udpServerPools.get(0);
             }
-            ip = servers[0].ip;
         }
-        return new UDPChannel({
+        const hashSeed = this._hashSeeds.at(-1);
+        const expires = Math.min(
+            hashSeed.expires - 120 * 1000,
+            this._session.expires - (this.sessionRestartSlack / 2));
+        if (expires < Date.now()) {
+            // Internal error
+            throw new TypeError('Expired session or hash seeds');
+        }
+        const ch = new UDPChannel({
             ip,
-            courseId,
+            courseId: this.courseId,
             athleteId: this.athleteId,
             session: this._session,
-            hashSeed: this._hashSeeds.at(-1),
+            hashSeed,
             isDirect,
         });
+        console.warn(ch.toString(), 'expires', expires - Date.now()); // XXX
+        const expireTimeout = setTimeout(() => ch.shutdown(), expires - Date.now());
+        ch.on('shutdown', () => {
+            console.info("Shutdown:", ch.toString());
+            clearTimeout(expireTimeout);
+            const i = this.udpChannels.indexOf(ch);
+            if (i !== -1) {
+                this.udpChannels.splice(i, 1);
+                if (!this.suspended && this._session && (i === 0 || !this.udpChannels.length)) {
+                    console.debug("Last/primary channel shutdown");
+                    this.setUDPChannel();
+                }
+            }
+        });
+        ch.on('inPacket', this.onInPacket.bind(this));
+        ch.on('timeout', () => {
+            console.warn("Data watchdog timeout triggered:", ch.toString());
+            ch.shutdown();
+        });
+        return ch;
     }
 
     onTCPChannelShutdown(ch) {
-        if (this._session && this._session.tcpChannel === ch && this.connected) {
-            console.error("IMPL reconnect here");
-            debugger;
-        } else {
-            console.info("TCP channel shutdown:", ch.toString());
+        console.info("TCP channel shutdown:", ch.toString());
+        if (this._session && this._session.tcpChannel === ch && !this._stopping) {
+            this._schedConnectRetry();
         }
+    }
+
+    _schedConnectRetry() {
+        clearTimeout(this._connectRetryTimeout);
+        this._disconnect();
+        const delay = Math.max(1000,
+            (this.connectingCount * 1000) - (Date.now() - this.connectingTS));
+        console.warn("Next connect retry in:", Math.round(delay / 1000));
+        this._connectRetryTimeout = setTimeout(this.connect.bind(this), delay);
     }
 
     async activateSession(session) {
@@ -1150,17 +1203,21 @@ export class GameMonitor extends events.EventEmitter {
         if (udpServersPending) {
             await udpServersPending;
         }
+        clearTimeout(this._sessionTimeout);
         this._session = session;
-        if (this.courseId) {
-            this.setUDPChannel(this.courseId);
+        const renewDelay = session.expires - Date.now() - this.sessionRestartSlack;
+        console.debug("Session renewal scheduled for:", Math.round(renewDelay / 1000));
+        this._sessionTimeout = setTimeout(this.renewSession.bind(this), renewDelay);
+        if (!this.suspended && this.courseId) {
+            this.setUDPChannel();
         } else {
-            console.info("User not in game yet: waiting for activity...");
+            console.warn("User not in game: waiting for activity...");
             this.suspend();
         }
     }
 
     async broadcastPlayerState() {
-        if (this.suspended || !this.connected) {
+        if (this.suspended || this._stopping) {
             return;
         }
         for (const ch of this.udpChannels) {
@@ -1170,7 +1227,8 @@ export class GameMonitor extends events.EventEmitter {
                     break;
                 } catch(e) {
                     if (!(e instanceof InactiveChannelError)) {
-                        throw e;
+                        console.error(e);
+                        await sleep(2000);
                     }
                 }
             }
@@ -1181,6 +1239,7 @@ export class GameMonitor extends events.EventEmitter {
         if (this.suspended) {
             return;
         }
+        console.info("Suspending game monitor...");
         this.suspended = true;
         for (const x of this.udpChannels) {
             x.schedShutdown(30000);
@@ -1188,36 +1247,49 @@ export class GameMonitor extends events.EventEmitter {
     }
 
     resume() {
+        if (!this.suspended) {
+            return;
+        }
         this.suspended = false;
+        if (this._stopping) {
+            return;
+        }
+        console.info("Resuming game monitor...");
         if (this.courseId && !this.udpChannels.length) {
-            this.setUDPChannel(this.courseId);
+            this.setUDPChannel();
         }
     }
 
-    async refreshStatesLoop() {
-        let errBackoff = 1000;
-        while (this.connected) {
-            try {
-                await this._refreshMonitorState();
-                if (this.monitorAthleteId !== this.watchingAthleteId && this._lastMonitorState) {
-                    await this._refreshWatchingState();
-                }
-            } catch(e) {
-                console.error("Refresh states error:", e);
-                await sleep(errBackoff *= 1.10);
+    async _refreshStates() {
+        if (this._stopping) {
+            return;
+        }
+        const id = this._refreshStatesTimeout;
+        let delay = this.stateRefreshDelay;
+        try {
+            await this._refreshMonitorState();
+            if (this.monitorAthleteId !== this.watchingAthleteId) {
+                await this._refreshWatchingState();
             }
-            await sleep(this.stateRefreshDelay);
+        } catch(e) {
+            console.error("Refresh states error:", e);
+            delay *= 2;
+        }
+        if (!this._stopping && id === this._refreshStatesTimeout) {
+            this._refreshStatesTimeout = setTimeout(this._refreshStates.bind(this), delay);
         }
     }
 
     async _refreshMonitorState() {
-        if (Date.now() - this._lastMonitorStateUpdated < this.stateRefreshDelay * 0.95) {
+        const age = Date.now() - this._lastMonitorStateUpdated;
+        if (age < this.stateRefreshDelay * 0.95) {
+            // Optimized out by data stream
             return;
         }
         const state = await this.api.getPlayerState(this.monitorAthleteId);
         if (!state) {
-            if (!this.suspended) {
-                console.info("Suspending game monitor until activity is detected...");
+            if (!this.suspended && age > 10 * 1000) {
+                // Stop harassing the UDP channel..
                 this.suspend();
             }
         } else {
@@ -1227,19 +1299,15 @@ export class GameMonitor extends events.EventEmitter {
                 _worldTime: state._worldTime,
                 playerStates: [state],
             }));
-            this.updateMonitorState(state);
+            this._updateMonitorState(state);
             if (state.athleteId === this.watchingAthleteId) {
-                this.updateWatchingState(state);
-            }
-            if (this.suspended) {
-                console.info("Resuming game monitor...");
-                this.resume();
+                this._updateWatchingState(state);
             }
         }
     }
 
     async _refreshWatchingState() {
-        if (this.suspended ||
+        if (this.suspended || this._stopping ||
             Date.now() - this._lastWatchingStateUpdated < this.stateRefreshDelay * 0.95) {
             return;
         }
@@ -1254,7 +1322,7 @@ export class GameMonitor extends events.EventEmitter {
             _worldTime: state._worldTime,
             playerStates: [state],
         }));
-        this.updateWatchingState(state);
+        this._updateWatchingState(state);
     }
 
     setWatching(athleteId) {
@@ -1266,49 +1334,47 @@ export class GameMonitor extends events.EventEmitter {
         this.emit("watching-athlete", athleteId);
     }
 
-    setUDPChannel(courseId, ip) {
-        this.courseId = courseId;
+    _isChannelReusable(ch) {
+        return !!(
+            ch.active !== false &&
+            ch.isDirect &&
+            ch.courseId === this.courseId &&
+            ch.hashSeed.expires - Date.now() > 60000 &&
+            ch.relayId === this._session.relayId
+        );
+    }
+
+    setUDPChannel(ip) {
         const reuseIndex = this.udpChannels.findIndex(x =>
-            x.active !== false &&
-            x.isDirect &&
-            x.courseId === courseId &&
-            x.ip === ip &&
-            x.hashSeed.sig === this._newestHashSig &&
-            x.session === this._session);
+            ip && ip === x.ip && this._isChannelReusable(x));
         if (reuseIndex === 0) {
             console.error("Redundant call to setUDPChannel");
             return;
         }
         const legacyCh = this.udpChannels[0];
-        if (legacyCh && legacyCh.active !== false && legacyCh.isDirect && legacyCh.courseId === courseId) {
-            console.debug("Furlough of legacy:", legacyCh.toString());
-            legacyCh.schedShutdown(60000);
-        } else if (legacyCh) {
-            console.debug("Shutdown of non-reusable:", legacyCh.toString());
-            legacyCh.shutdown();
+        if (legacyCh) {
+            if (this._isChannelReusable(legacyCh)) {
+                console.debug("Detaching:", legacyCh.toString());
+                legacyCh.schedShutdown(60000);
+            } else {
+                console.debug("Removing:", legacyCh.toString());
+                queueMicrotask(() => legacyCh.shutdown());
+            }
         }
+        let ch;
         if (reuseIndex !== -1) {
-            const ch = this.udpChannels.splice(reuseIndex, 1)[0];
+            ch = this.udpChannels.splice(reuseIndex, 1)[0];
             ch.cancelShutdown();
-            console.debug("Switching to preexisting:", ch.toString());
-            this.udpChannels.unshift(ch);
+            console.debug("Reattaching:", ch.toString());
         } else {
-            const ch = this.makeUDPChannel(courseId, ip);
-            ch.on('shutdown', () => {
-                console.info("Shutdown:", ch.toString());
-                const i = this.udpChannels.indexOf(ch);
-                if (i !== -1) {
-                    this.udpChannels.splice(i, 1);
-                }
-            });
-            ch.on('inPacket', this.onInPacket.bind(this));
-            this.udpChannels.unshift(ch);
+            ch = this.makeUDPChannel(ip);
+            console.info("Making new:", ch.toString());
             queueMicrotask(() => this.establishUDPChannel(ch));
         }
+        this.udpChannels.unshift(ch);
     }
 
     async establishUDPChannel(ch) {
-        console.info(`Establishing new:`, ch.toString());
         try {
             await ch.establish();
             await ch.sendPlayerState({watchingAthleteId: this.watchingAthleteId});
@@ -1319,6 +1385,7 @@ export class GameMonitor extends events.EventEmitter {
             }
             throw e;
         }
+        console.info(`Established:`, ch.toString());
     }
 
     onInPacket(pb, ch) {
@@ -1326,78 +1393,90 @@ export class GameMonitor extends events.EventEmitter {
             for (const x of pb.udpConfigVOD.pools) {
                 this.udpServerPools.set(x.courseId, x.servers);
             }
-            this.emit('udpServerPoolsUpdated', this.udpServerPools);
-            const available = new Set(this.udpServerPools.keys());
-            const udpCh = this.udpChannels[0];
-            if (udpCh && !udpCh.isDirect && available.has(udpCh.courseId)) {
-                console.info("Upgrading UDP channel to direct server...");
-                this.setUDPChannel(udpCh.courseId);
-            }
+            queueMicrotask(() => this.emit('udpServerPoolsUpdated', this.udpServerPools));
         }
         if (pb.playerStates && pb.playerStates.length) {
             //console.debug(`IN DATA| states: ${pb.playerStates.length} ${ch.toString()}`);
             const monState = pb.playerStates.find(x => x.athleteId === this.monitorAthleteId);
             if (monState) {
-                queueMicrotask(() => this.updateMonitorState(monState));
+                queueMicrotask(() => this._updateMonitorState(monState));
             }
             const watchState = this.monitorAthleteId === this.watchingAthleteId ?
                 monState :
                 pb.playerStates.find(x => x.athleteId === this.watchingAthleteId);
             if (watchState) {
-                queueMicrotask(() => this.updateWatchingState(watchState));
+                queueMicrotask(() => this._updateWatchingState(watchState));
             }
         }
-        this.emit('inPacket', pb);
+        queueMicrotask(() => this.emit('inPacket', pb));
     }
 
-    updateMonitorState(state) {
+    _updateMonitorState(state) {
         state.ts = +worldTimeToDate(state._worldTime);
         if (this._lastMonitorState && this._lastMonitorState.ts >= state.ts) {
             return;
         }
         this._lastMonitorState = state;
         this._lastMonitorStateUpdated = Date.now();
-        if (state.watchingAthleteId !== this.watchingAthleteId) {
-            if (state.ts < this._setWatchingTS) {
-                console.debug('Debouncing setWatching call from possibly stale state');
-            } else {
-                this.setWatching(state.watchingAthleteId);
-            }
+        if (this._stopping) {
+            return;
+        }
+        if (this.suspended) {
+            this.resume();
+        }
+        if (state.watchingAthleteId !== this.watchingAthleteId &&
+            state.ts > this._setWatchingTS) {
+            this.setWatching(state.watchingAthleteId);
         }
         if (state.courseId !== this.courseId) {
-            console.warn(`Moving to ${courseToNames[state.courseId]}, courseId: ${state.courseId}`);
-            this.setUDPChannel(state.courseId);
+            this.setCourse(state.courseId);
         }
     }
 
-    updateWatchingState(state) {
+    setCourse(courseId) {
+        console.warn(`Moving to ${courseToNames[courseId]}, courseId: ${courseId}`);
+        this.courseId = courseId;
+        this.setUDPChannel();
+    }
+
+    _setWatchingState(state) {
         state.ts = +worldTimeToDate(state._worldTime);
-        if (this._lastWatchingState && this._lastWatchingState.ts >= state.ts) {
-            return;
+        const lws = this._lastWatchingState;
+        if (lws && lws.ts >= state.ts) {
+            // Dedup & filter stale
+            return false;
         }
-        const elapsed = this._lastWatchingState ? state.ts - this._lastWatchingState.ts : 0;
-        if (elapsed > 1000) {
-            console.warn(`Slow watching state update: ${elapsed}ms`);
+        if (state.courseId !== this.courseId) {
+            console.warn('Ignoring incongruent courseId for watching state:',
+                state.courseId, this.courseId);
+            return false;
         }
         this._lastWatchingState = state;
         this._lastWatchingStateUpdated = Date.now();
-        if (state.courseId !== this.courseId) {
-            console.warn("Ignoring watching player state with different courseId");
+        const age = lws ? state.ts - lws.ts : 0;
+        if (age > 1000) {
+            console.warn(`Slow watching state update: ${age}ms`);
+        }
+    }
+
+    _updateWatchingState(state) {
+        const isValid = this._setWatchingState(state) !== false;
+        if (!isValid || !this._session) {
             return;
         }
         const curCh = this.udpChannels[0];
         if (curCh) {
-            const bestServer = this.findBestUDPServer([state.x, state.y], state.courseId);
-            if (bestServer && bestServer.ip !== curCh.ip) {
-                this.setUDPChannel(this.courseId, bestServer.ip);
+            const best = this.findBestUDPServer(state);
+            if (best && (best.ip !== curCh.ip || !curCh.isDirect)) {
+                this.setUDPChannel(best.ip);
             }
         } else {
             console.info("Recovering UDP channel...");
-            this.setUDPChannel(this.courseId);
+            this.setUDPChannel();
         }
     }
 
-    findBestUDPServer([x, y], courseId) {
+    findBestUDPServer({x, y, courseId}) {
         // This is just my best guess and seems to match the real game.
         // If someone knows what the official algo is, please contact me!
         if (!this.udpServerPools.has(courseId)) {
