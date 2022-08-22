@@ -69,6 +69,12 @@ header {
 
             &:last-child {
                 scroll-snap-align: end;
+                scroll-margin-block-end: 1rem;
+                border-bottom: 1px dashed #fff4;
+
+                td {
+                    padding-bottom: 0.5em;
+                }
             }
 
             &:nth-child(odd) {
