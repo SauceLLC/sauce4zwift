@@ -514,7 +514,7 @@ class SauceApp extends EventEmitter {
             zwiftAPI: zwiftMonitorAPI,
         });
         this.statsProc = new stats.StatsProcessor({fakeData: options.fakeData, zwiftAPI, gameMonitor});
-        await this.statsProc.start();
+        this.statsProc.start();
         rpcSources.stats = this.statsProc;
         rpcSources.app = this;
         let ip;
