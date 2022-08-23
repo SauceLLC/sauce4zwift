@@ -239,12 +239,13 @@ const fields = [
     {id: 'group', defaultEn: false, label: 'Event', get: x => x.state.groupId, fmt: fmtEvent},
 
     {id: 'progress', defaultEn: false, label: 'Route %', get: x => x.state.progress * 100, fmt: pct},
-    {id: 'workout-zone', defaultEn: false, label: 'WO Zone', get: x => x.state.workoutZone},
+    {id: 'workout-zone', defaultEn: false, label: 'WO Zone', get: x => x.state.workoutZone, fmt: x => x || '-'},
     {id: 'laps', defaultEn: false, label: 'Laps', get: x => x.state.laps},
 
     // Debugish fields.
     {id: 'course', defaultEn: false, label: 'Course', get: x => x.state.courseId},
     {id: 'road', defaultEn: false, label: 'Road', get: x => x.state.roadId},
+    {id: 'level', defaultEn: false, label: 'Level', get: x => getAthleteValue(x, 'level')},
 ];
 
 
