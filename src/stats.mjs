@@ -563,7 +563,7 @@ export class StatsProcessor extends events.EventEmitter {
                 team: athlete.team,
             });
         }
-        console.debug('Chat:', chat.firstName, chat.lastName, chat.message);
+        console.debug('Chat:', chat.firstName || '', chat.lastName || '', chat.message);
         this._chatHistory.unshift(chat);
         if (this._chatHistory.length > 50) {
             this._chatHistory.length = 50;
@@ -660,10 +660,21 @@ export class StatsProcessor extends events.EventEmitter {
                 updates.push([id, data]);
             }
         } else {
-            for (const p of await this.zwiftAPI.getProfiles(batch)) {
-                if (p) {
-                    updates.push([p.id, this._updateAthlete(p.id, this._profileToAthlete(p))]);
+            let allowRefetchAfter = 1000; // err
+            try {
+                for (const p of await this.zwiftAPI.getProfiles(batch)) {
+                    if (p) {
+                        updates.push([p.id, this._updateAthlete(p.id, this._profileToAthlete(p))]);
+                    }
                 }
+                // Could probably extend this if we integrated player update handling effectively.
+                allowRefetchAfter = 300 * 1000;
+            } finally {
+                setTimeout(() => {
+                    for (const x of batch) {
+                        this._profileFetchIds.delete(x);
+                    }
+                }, allowRefetchAfter);
             }
         }
         if (updates.length) {
@@ -674,14 +685,13 @@ export class StatsProcessor extends events.EventEmitter {
     async runAthleteProfileUpdater() {
         while (this._pendingProfileFetches.length) {
             const batch = Array.from(this._pendingProfileFetches);
-            setTimeout(() => {
-                for (const x of batch) {
-                    this._profileFetchIds.delete(x);
-                }
-            }, 300 * 1000);
             this._pendingProfileFetches.length = 0;
             this._profileFetchCount += batch.length;
-            await this._updateAthleteProfilesFromServer(batch);
+            try {
+                await this._updateAthleteProfilesFromServer(batch);
+            } catch(e) {
+                console.error("Error while collecting profiles from server:", e);
+            }
             await sauce.sleep(100);
         }
     }
