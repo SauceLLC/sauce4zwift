@@ -153,6 +153,7 @@ html {
 
     &.browser-mode {
         background-color: black;
+        padding: 0;
     }
 
     &.settings-page {
@@ -281,7 +282,7 @@ html body {
     }
 }
 
-html:not(.has-frame):not(.browser-mode) body {
+html.noframe:not(.browser-mode) body {
     border-radius: 0.3rem;
 }
 

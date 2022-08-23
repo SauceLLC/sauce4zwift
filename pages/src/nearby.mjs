@@ -314,6 +314,7 @@ export async function main() {
         transparency: 0,
     });
     document.documentElement.classList.toggle('overlay-mode', settings.overlayMode);
+    document.documentElement.classList.toggle('noframe', settings.overlayMode);
     fieldStates = common.storage.get(fieldsKey, Object.fromEntries(fields.map(x => [x.id, x.defaultEn])));
     if (window.isElectron) {
         common.rpc.getWindow(window.electron.context.id).then(({overlay}) => {
@@ -321,6 +322,7 @@ export async function main() {
                 settings.overlayMode = overlay;
                 common.storage.set(settingsKey, settings);
                 document.documentElement.classList.toggle('overlay-mode', overlay);
+                document.documentElement.classList.toggle('noframe', overlay);
             }
         });
     }

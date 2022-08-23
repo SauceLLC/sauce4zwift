@@ -152,7 +152,7 @@ logInformant.on('message', o => {
     const time = fmtLogDate(o.date);
     const level = (`[${o.level.toUpperCase()}]`).padStart(5, ' ');
     _logFileStream.write(`${time} ${level} (${o.file}): ${o.message}\n`);
-    if (_logQueue.length > 1000) {
+    if (_logQueue.length > 2000) {
         _logQueue.shift();
     }
 });
@@ -230,8 +230,6 @@ if (!isDEV) {
 } else {
     console.info("Sentry disabled by dev mode");
 }
-
-
 
 
 // Use non-electron naming for windows updater.
