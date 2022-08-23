@@ -884,7 +884,8 @@ class UDPChannel extends NetChannel {
         this.sock.on('error', () => this.shutdown());
         await new Promise((resolve, reject) =>
             this.sock.connect(3024, this.ip, e => void (e ? reject(e) : resolve())));
-        for (let i = 0; i < 5; i++) { // be like real game
+        // XXX testing out resileiance
+        for (let i = 0; i < 1; i++) { // be like real game 
             await this.sendPacket({
                 athleteId: this.athleteId,
                 realm: 1,
@@ -969,7 +970,7 @@ export class GameMonitor extends events.EventEmitter {
         this._setWatchingTS = 0;
         this._lastGameStateUpdated = 0;
         this._lastWatchingStateUpdated = 0;
-        setInterval(() => console.debug(this.toString()), 30000);
+        setInterval(() => console.info(this.toString()), 30000);
     }
 
     toString() {
