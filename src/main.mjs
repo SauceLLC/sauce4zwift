@@ -510,8 +510,8 @@ class SauceApp extends EventEmitter {
 
     async start(options={}) {
         const gameMonitor = this.gameMonitor = new zwift.GameMonitor({
-            monitorAthleteId: zwiftAPI.profile.id,
-            zwiftAPI: zwiftMonitorAPI,
+            zwiftMonitorAPI,
+            gameAthleteId: zwiftAPI.profile.id,
         });
         this.statsProc = new stats.StatsProcessor({fakeData: options.fakeData, zwiftAPI, gameMonitor});
         this.statsProc.start();

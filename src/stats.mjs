@@ -17,10 +17,7 @@ export const protos = protobuf.loadSync([path.join(__dirname, 'zwift.proto')]).r
 protobuf.parse.defaults.keepCase = _case;
 
 
-function randInt(ceil=Number.MAX_SAFE_INTEGER) {
-    return Math.trunc(Math.random() * ceil);
-}
-
+const monotonic = performance.now;
 
 let _db;
 function getDB() {
@@ -36,6 +33,11 @@ function getDB() {
         }
     });
     return _db;
+}
+
+
+function randInt(ceil=Number.MAX_SAFE_INTEGER) {
+    return Math.trunc(Math.random() * ceil);
 }
 
 
@@ -266,7 +268,7 @@ export class StatsProcessor extends events.EventEmitter {
 
     startLap() {
         console.debug("User requested lap start");
-        const now = performance.now();
+        const now = monotonic();
         for (const data of this._athleteData.values()) {
             const lastLap = data.laps.at(-1);
             lastLap.end = now;
@@ -584,7 +586,7 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _getCollectorStats(data, athlete) {
-        const end = data.end || performance.now();
+        const end = data.end || monotonic();
         const elapsed = (end - data.start) / 1000;
         const np = data.power.roll.np({force: true});
         const tss = np && athlete && athlete.ftp ?
@@ -693,7 +695,7 @@ export class StatsProcessor extends events.EventEmitter {
             cadence: new DataCollector(sauce.data.RollingAverage, [], {ignoreZeros: true}),
             draft: new DataCollector(sauce.data.RollingAverage, []),
         };
-        const start = performance.now();
+        const start = monotonic();
         return {
             start,
             tsOffset,
@@ -769,7 +771,7 @@ export class StatsProcessor extends events.EventEmitter {
         curLap.hr.resize(time);
         curLap.draft.resize(time);
         curLap.cadence.resize(time);
-        ad.updated = performance.now();
+        ad.updated = monotonic();
         if (this.watching === state.athleteId) {
             const athlete = this.loadAthlete(state.athleteId);
             this.emit('watching', {
@@ -891,7 +893,7 @@ export class StatsProcessor extends events.EventEmitter {
         let iters = 1;
         const hz = 5;
         while (this._active) {
-            const start = performance.now();
+            const start = monotonic();
             for (let i = 1; i < athleteCount + 1; i++) {
                 const athleteId = -i;
                 const ad = this._athleteData.get(athleteId);
@@ -935,7 +937,7 @@ export class StatsProcessor extends events.EventEmitter {
                 });
                 this.handleChatPayload(chat, Date.now());
             }
-            const delay = 200 - (performance.now() - start);
+            const delay = 200 - (monotonic() - start);
             if (iters % (hz * 5 * 1000) === 0) {
                 console.debug('fake data delay', delay, iters, this._stateProcessCount);
             }
@@ -1006,7 +1008,7 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     gcStates() {
-        const now = performance.now();
+        const now = monotonic();
         const expiration = now - 300 * 1000;
         for (const [k, {updated}] of this._athleteData.entries()) {
             if (updated < expiration) {
@@ -1019,7 +1021,7 @@ export class StatsProcessor extends events.EventEmitter {
     async nearbyProcessor() {
         let errBackoff = 1000;
         const interval = 1000;
-        const target = performance.now() % interval;
+        const target = monotonic() % interval;
         while (this._active) {
             if (this.watching == null) {
                 await sauce.sleep(100);
@@ -1027,7 +1029,7 @@ export class StatsProcessor extends events.EventEmitter {
             }
             try {
                 await this._nearbyProcessor();
-                const offt = performance.now() % interval;
+                const offt = monotonic() % interval;
                 const schedSleep = interval - (offt - target);
                 await sauce.sleep(schedSleep);
             } catch(e) {
@@ -1049,10 +1051,12 @@ export class StatsProcessor extends events.EventEmitter {
             return;
         }
         const nearby = [];
+        // Only filter stopped riders if we are moving.
+        const filterStopped = !!watchingData.mostRecentState.speed;
         for (const [aId, aData] of this._athleteData.entries()) {
-            if ((!aData.mostRecentState.speed || performance.now() - aData.updated > 10000) &&
+            if (((filterStopped && !aData.mostRecentState.speed) || monotonic() - aData.updated > 15000) &&
                 aId !== this.watching) {
-                continue; // stopped or offline
+                continue;
             }
             let gapDistance, gap, isGapEst;
             const watching = aId === this.watching;

@@ -85,6 +85,15 @@ function humanDuration(elapsed, options={}) {
 }
 
 
+function humanRelDuration(date, options={}) {
+    if (!(date instanceof Date)) {
+        date = new Date(date);
+    }
+    const elapsed = (Date.now() - date.getTime()) / 1000;
+    return humanDuration(Math.abs(elapsed), options);
+}
+
+
 function humanRelTime(date, options={}) {
     if (!(date instanceof Date)) {
         date = new Date(date);
@@ -361,6 +370,7 @@ export function distanceUnconvert(localeDist) {
 export const human = {
     duration: humanDuration,
     relTime: humanRelTime,
+    relDuration: humanRelDuration,
     weight: humanWeight,
     weightClass: humanWeightClass,
     height: humanHeight,
