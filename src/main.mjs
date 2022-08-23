@@ -58,6 +58,29 @@ function fmtLogDate(d) {
 }
 
 
+function rotateLogFiles(limit=5) {
+    const ud = electron.app.getPath('userData');
+    const logs = fs.readdirSync(ud).filter(x => x.startsWith('sauce.log'));
+    logs.sort((a, b) => a < b ? 1 : -1);
+    while (logs.length > limit) {
+        // NOTE: this is only for if we change the limit to a lower number
+        // in a subsequent release.
+        const fn = logs.shift();
+        console.warn("Delete old log file:", fn);
+        fs.unlinkSync(path.join(ud, fn));
+    }
+    let end = Math.min(logs.length, limit - 1);
+    for (const fn of logs.slice(-(limit - 1))) {
+        const newFn = `sauce.log.${end--}`;
+        if (newFn === fn) {
+            continue;
+        }
+        console.debug('Rotate log file:', fn, newFn);
+        fs.renameSync(path.join(ud, fn), path.join(ud, newFn));
+    }
+}
+
+
 function monkeyPatchConsoleInformant() {
     /*
      * This is highly Node specific but it maintains console logging,
@@ -114,6 +137,13 @@ function monkeyPatchConsoleInformant() {
     return emitter;
 }
 const logInformant = monkeyPatchConsoleInformant();
+let _rotateErr;
+try {
+    rotateLogFiles();
+} catch(e) {
+    // Probably windows with anti virus. :/
+    _rotateErr = e;
+}
 const _logFile = path.join(electron.app.getPath('userData'), 'sauce.log');
 const _logFileStream = fs.createWriteStream(_logFile);
 const _logQueue = [];
@@ -130,6 +160,9 @@ rpcSources['logs'] = logInformant;
 rpc.register(() => _logQueue, {name: 'getLogs'});
 rpc.register(() => _logQueue.length = 0, {name: 'clearLogs'});
 console.info("Sauce log file:", _logFile);
+if (_rotateErr) {
+    console.error('Log rotate error:', _rotateErr);
+}
 
 
 function quit(retcode) {
