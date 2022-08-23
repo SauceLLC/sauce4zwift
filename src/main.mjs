@@ -159,6 +159,7 @@ logInformant.on('message', o => {
 rpcSources['logs'] = logInformant;
 rpc.register(() => _logQueue, {name: 'getLogs'});
 rpc.register(() => _logQueue.length = 0, {name: 'clearLogs'});
+rpc.register(() => electron.shell.showItemInFolder(_logFile), {name: 'showLogInFolder'});
 console.info("Sauce log file:", _logFile);
 if (_rotateErr) {
     console.error('Log rotate error:', _rotateErr);
