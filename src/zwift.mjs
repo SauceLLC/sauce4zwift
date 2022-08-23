@@ -263,16 +263,27 @@ export class ZwiftAPI {
         }
         const host = options.host || this.host || `us-or-rly101.zwift.com`;
         const q = options.query ? '?' + options.query : '';
-        const r = await fetch(`https://${host}/${urn.replace(/^\//, '')}${q}`, {
-            headers: {
-                'Platform': 'OSX',
-                'Source': 'Game Client',
-                //'Source': 'zwift-companion', // Hack to make zwift-offline work
-                'User-Agent': 'CNL/3.23.5 (macOS 12 Monterey; Darwin Kernel 21.5.0) zwift/1.0.101433 curl/7.78.0-DEV',
-                ...headers,
-            },
-            ...options,
-        });
+        const timeout = options.timeout !== undefined ? options.timeout : 30000;
+        const abort = new AbortController();
+        const to = timeout && setTimeout(() => abort.abort(), timeout);
+        let r;
+        try {
+            r = await fetch(`https://${host}/${urn.replace(/^\//, '')}${q}`, {
+                signal: abort.signal,
+                headers: {
+                    'Platform': 'OSX',
+                    'Source': 'Game Client',
+                    //'Source': 'zwift-companion', // Hack to make zwift-offline work
+                    'User-Agent': 'CNL/3.23.5 (macOS 12 Monterey; Darwin Kernel 21.5.0) zwift/1.0.101433 curl/7.78.0-DEV',
+                    ...headers,
+                },
+                ...options,
+            });
+        } finally {
+            if (to) {
+                clearTimeout(to);
+            }
+        }
         if (!r.ok && (!options.ok || !options.ok.includes(r.status))) {
             const msg = await r.text();
             const e = new Error(`Zwift HTTP Error: [${r.status}]: ${msg}`);
