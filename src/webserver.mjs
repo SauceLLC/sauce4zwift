@@ -183,7 +183,7 @@ async function _start({ip, port, debug, rpcSources}) {
                 server.on('error', rej);
                 server.listen(port);
             });
-            console.info(`\nWeb server started at: http://${ip}:${port}/\n`);
+            console.info(`Web server started at: http://${ip}:${port}/\n`);
             return;
         } catch(e) {
             if (e.code === 'EADDRINUSE') {
