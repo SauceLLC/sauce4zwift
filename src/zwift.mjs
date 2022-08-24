@@ -884,14 +884,37 @@ class UDPChannel extends NetChannel {
         this.sock.on('error', () => this.shutdown());
         await new Promise((resolve, reject) =>
             this.sock.connect(3024, this.ip, e => void (e ? reject(e) : resolve())));
-        // XXX testing out resileiance
-        for (let i = 0; i < 1; i++) { // be like real game 
+        const seqno = Math.round(Math.random() * 100000000); // XXX testing handshake theory
+        let ACK;
+        const gotACK = new Promise(resolve => {
+            this.once('inPacket', packet => {
+                console.debug('handshake testing', packet);
+                if (packet.ackSeqno !== seqno) {
+                    console.error("seqno assert failed");
+                }
+                ACK = true;
+                resolve(packet.ackSeqno);
+            });
+        });
+        const s = Date.now();
+        for (let i = 0; i < 10 && !ACK; i++) {
+            // Send hankshake packets with `hello` option (sends full IV in AAD).  Even if they
+            // are dropped the AES decrypt and IV state machine setup will succeed and pave the
+            // way for sends that only require `seqno`, even with packet loss on this socket.
+            console.debug("send handshake", i, seqno);
             await this.sendPacket({
                 athleteId: this.athleteId,
                 realm: 1,
                 _worldTime: 0,
+                seqno, // XXX
             }, {hello: true});
+            await Promise.race([sleep(20), gotACK]);
         }
+        if (!ACK) {
+            console.error("Timeout waiting for handshake ACK:", this.toString());
+            this.shutdown();
+        }
+        console.debug('got udp ack took', Date.now() - s);
         super.establish();
     }
 
@@ -977,16 +1000,17 @@ export class GameMonitor extends events.EventEmitter {
         const tcpCh = (this._session && this._session.tcpChannel) ?
             this._session.tcpChannel.toString() :
             'none';
-        return `GameMonitor [game-id: ${this.gameAthleteId}, monitor-id: ${this.athleteId}]\n\t` + [
+        const pad = '    ';
+        return `GameMonitor [game-id: ${this.gameAthleteId}, monitor-id: ${this.athleteId}]\n${pad}` + [
             `course-id:            ${this.courseId}`,
             `watching-id:          ${this.watchingAthleteId}`,
             `connect-duration:     ${H.relDuration(this.connectingTS)}`,
             `connect-count:        ${this.connectingCount}`,
             `last-game-state:      ${H.relTime(this._lastGameStateUpdated)}`,
             `last-watching-state:  ${H.relTime(this._lastWatchingStateUpdated)}`,
-            `tcp-channel:          ${tcpCh}`,
-            `udp-channels:         ${'\n\t\t' + this.udpChannels.map(x => x.toString()).join('\n\t\t')}`,
-        ].join('\n\t');
+            `tcp-channel:`,        `${pad}${tcpCh}`,
+            `udp-channels:`,       `${pad}${this.udpChannels.map(x => x.toString()).join(`\n${pad}${pad}`)}`,
+        ].join('\n    ');
     }
 
     async login() {
@@ -1402,7 +1426,7 @@ export class GameMonitor extends events.EventEmitter {
             ch = this.makeUDPChannel(ip);
             queueMicrotask(() => this.establishUDPChannel(ch));
         }
-        this.udpChannels.unshift(ch);
+        this.udpChannels.unshift(ch); // XXX dubious to switch before establish finishes
     }
 
     async establishUDPChannel(ch) {
