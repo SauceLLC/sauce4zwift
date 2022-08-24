@@ -2,18 +2,18 @@ import * as common from './common.mjs';
 
 let lastSeqno = 0;
 let curFilters = [];
-const msgTrigrams = [];
+let countEl;
+let curLevel = 'debug';
+const totals = [0, 0, 0, 0];
+const filtered = [0, 0, 0, 0];
+const levelIndexes = {
+    'debug': 0,
+    'info': 1,
+    'warn': 2,
+    'error': 3,
+};
+const msgEls = new Map();
 const resizeObs = new ResizeObserver(onMsgResize);
-
-
-function trigramify(s) {
-    s = s.toLowerCase();
-    const trigrams = [];
-    for (let i = 0; i < s.length - 2; i++) {
-        trigrams.push(s.slice(i, i + 3));
-    }
-    return trigrams;
-}
 
 
 function fmtLogDate(d) {
@@ -22,6 +22,22 @@ function fmtLogDate(d) {
     const s = d.getSeconds().toString().padStart(2, '0');
     const ms = d.getMilliseconds().toString().padStart(3, '0');
     return `${h}:${m}:${s}.${ms}`;
+}
+
+
+let _nextUpdateCount;
+function updateCount() {
+    cancelAnimationFrame(_nextUpdateCount);
+    _nextUpdateCount = requestAnimationFrame(() => {
+        let count = 0;
+        for (let i = levelIndexes[curLevel]; i < totals.length; i++) {
+            count += totals[i];
+        }
+        for (let i = levelIndexes[curLevel]; i < filtered.length; i++) {
+            count -= filtered[i];
+        }
+        countEl.textContent = count.toLocaleString();
+    });
 }
 
 
@@ -36,13 +52,20 @@ function addEntry(o) {
             <td class="file">${o.file}</td>
         </tr>
     `);
-    const el = logsBody.querySelector(':scope > tr:last-child');
-    const msgEl = el.querySelector('.message');
+    totals[levelIndexes[o.level]]++;
+    const row = logsBody.lastElementChild;
+    const msgEl = row.querySelector('.message');
     msgEl.textContent = o.message;
-    const trigrams = trigramify(msgEl.textContent);
-    msgTrigrams.push([el, trigrams]);
-    filterMsg(el, trigrams);
+    const msg = msgEl.textContent.toLowerCase();
+    const msgTextEl = msgEl.childNodes[0];
+    const tuple = [row, msgEl, msgTextEl, msg, o.level];
+    msgEls.set(msgEl, tuple);
+    const update = filterMsg(tuple);
     resizeObs.observe(msgEl);
+    requestAnimationFrame(() => {
+        updateRow(update);
+        updateCount();
+    });
 }
 
 
@@ -52,103 +75,108 @@ function onFilterInput(ev) {
 
 
 function filter(value) {
-    for (const x of document.querySelectorAll('td.message .hi')) {
-        x.remove();
-    }
     curFilters = value === undefined ?
         curFilters :
-        value.split('|').map(trigramify).filter(x => x.length);
-    for (const x of msgTrigrams) {
-        filterMsg.apply(null, x);
+        value.split('|').map(x => x.toLowerCase()).filter(x => x.length);
+    const updates = Array.from(msgEls.values()).map(filterMsg);
+    requestAnimationFrame(() => {
+        updates.forEach(updateRow);
+        updateCount();
+    });
+}
+
+
+function filterMsg([row, msgEl, msgTextEl, msg, level]) {
+    if (!curFilters.length) {
+        return [true, row, msgEl, [], level];
+    } else {
+        const range = document.createRange();
+        const highlights = [];
+        for (const x of curFilters) {
+            let offt = 0;
+            while(true) {
+                const start = msg.indexOf(x, offt);
+                if (start !== -1) {
+                    offt = start + 1;
+                    range.setStart(msgTextEl, start);
+                    range.setEnd(msgTextEl, start + x.length);
+                    const msgRect = msgEl.getBoundingClientRect();
+                    const rangeRect = range.getBoundingClientRect();
+                    highlights.push({
+                        top: `${rangeRect.top - msgRect.top}px`,
+                        left: `${rangeRect.left - msgRect.left}px`,
+                        width: `${rangeRect.width}px`,
+                        height: `${rangeRect.height}px`,
+                    });
+                } else {
+                    break;
+                }
+            }
+        }
+        return [highlights.length > 0, row, msgEl, highlights, level];
     }
 }
 
 
-function filterMsg(el, trigrams) {
-    if (!curFilters.length) {
-        if (el.style.display) {
-            el.style.display = '';
+function updateRow([visible, row, msgEl, highlights, level]) {
+    if (visible) {
+        for (let i = 0; i < highlights.length; i++) {
+            let el;
+            if (msgEl.childNodes.length > i + 1) {
+                el = msgEl.childNodes[i + 1];
+            } else {
+                el = document.createElement('div');
+                el.classList.add('hi');
+                msgEl.appendChild(el);
+            }
+            Object.assign(el.style, highlights[i]);
+        }
+        while (msgEl.childNodes.length > highlights.length + 1) {
+            msgEl.lastChild.remove();
+        }
+        if (row.style.display) {
+            row.style.display = '';
+            filtered[levelIndexes[level]]--;
         }
     } else {
-        let visible = false;
-        for (const filterTG of curFilters) {
-            let matches = 0;
-            const highlights = new Set();
-            for (let i = 0; i < filterTG.length; i++) {
-                for (let j = 0; j < trigrams.length; j++) {
-                    if (trigrams[j] === filterTG[i]) {
-                        matches++;
-                        highlights.add(j);
-                        highlights.add(j + 1);
-                        highlights.add(j + 2);
-                    }
-                }
-                if (i > 4 && matches < (i + 1) * 0.10) {
-                    break; // optimize hopeless causes
-                }
-            }
-            const matchPct = matches / filterTG.length;
-            /*if (matchPct) {
-                console.log(matchPct, el.children[2].textContent);
-            }*/
-            if (matchPct >= 0.80) {
-                visible = true;
-            } else {
-                continue;
-            }
-            const indexes = Array.from(highlights).sort((a, b) => a - b);
-            const ranges = [];
-            let range;
-            const msgEl = el.querySelector('.message');
-            const msgTextEl = el.querySelector('.message').childNodes[0];
-            for (const [i, index] of indexes.entries()) {
-                if (!range) {
-                    range = document.createRange();
-                    range.setStart(msgTextEl, index);
-                } else if (indexes[i - 1] !== index - 1) {
-                    range.setEnd(msgTextEl, indexes[i - 1] + 1);
-                    ranges.push(range);
-                    range = document.createRange();
-                    range.setStart(msgTextEl, index);
-                } else if (i === indexes.length - 1) {
-                    range.setEnd(msgTextEl, index + 1);
-                    ranges.push(range);
-                }
-            }
-            const msgRect = msgEl.getBoundingClientRect();
-            for (const x of ranges) {
-                const rect = x.getBoundingClientRect();
-                const hi = document.createElement('div');
-                hi.classList.add('hi');
-                hi.style.top = `${rect.top - msgRect.top}px`;
-                hi.style.left = `${rect.left - msgRect.left}px`;
-                hi.style.width = `${rect.width}px`;
-                hi.style.height = `${rect.height}px`;
-                requestAnimationFrame(() => msgEl.appendChild(hi));
-            }
+        while (msgEl.childNodes.length > 1) {
+            msgEl.lastChild.remove();
         }
-        if (visible) {
-            if (el.style.display) {
-                requestAnimationFrame(() => el.style.display = '');
-            }
-        } else {
-            if (!el.style.display) {
-                requestAnimationFrame(() => el.style.display = 'none');
-            }
+        if (!row.style.display) {
+            row.style.display = 'none';
+            filtered[levelIndexes[level]]++;
         }
     }
 }
 
 
 let _pendingResize;
+const _pendingResizeEls = new Set();
 function onMsgResize(entries) {
     cancelAnimationFrame(_pendingResize);
-    _pendingResize = requestAnimationFrame(() => filter());
+    for (let i = 0; i < entries.length; i++) {
+        _pendingResizeEls.add(entries[i].target);
+    }
+    _pendingResize = requestAnimationFrame(() => {
+        const updates = [];
+        const pending = Array.from(_pendingResizeEls);
+        _pendingResizeEls.clear();
+        for (let i = 0; i < pending.length; i++) {
+            updates.push(filterMsg(msgEls.get(pending[i])));
+        }
+        requestAnimationFrame(() => {
+            for (let i = 0; i < updates.length; i++) {
+                updateRow(updates[i]);
+            }
+            updateCount();
+        });
+    });
 }
 
 
 function onLevelChange(ev) {
-    document.documentElement.dataset.level = ev.currentTarget.value;
+    document.documentElement.dataset.level = curLevel = ev.currentTarget.value;
+    updateCount();
 }
 
 
@@ -161,7 +189,11 @@ async function onClearClick() {
 function clear() {
     logsBody.innerHTML = '';
     lastSeqno = -1;
-    msgTrigrams.length = 0;
+    msgEls.clear();
+    filtered.length = totals.length = 0;
+    totals.push(0, 0, 0, 0);
+    filtered.push(0, 0, 0, 0);
+    updateCount();
 }
 
 
@@ -192,6 +224,7 @@ export async function main() {
     requestAnimationFrame(() => {
         document.querySelector('#content').scrollTop = Number.MAX_SAFE_INTEGER >>> 1;
     });
+    countEl = document.querySelector('header .count');
     document.querySelector('input[name="filter"]').addEventListener('input', onFilterInput);
     document.querySelector('select[name="level"]').addEventListener('change', onLevelChange);
     document.querySelector('.button.clear').addEventListener('click', onClearClick);

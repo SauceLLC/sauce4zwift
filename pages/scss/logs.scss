@@ -40,6 +40,14 @@ header {
         border-color: #3333;
     }
 
+    .count {
+        font-variant: tabular-nums;
+        font-weight: 600;
+        font-size: 0.8em;
+        margin: 0 0.6em;
+        color: #fffd;
+    }
+
     .buttons {
         font-size: 0.7em;
         justify-content: flex-end;
