@@ -564,12 +564,13 @@ class SauceApp extends EventEmitter {
             this.webServerEnabled = true;
             this.webServerPort = this.getSetting('webServerPort');
             this.webServerURL = `http://${ip}:${this.webServerPort}`;
-            await webServer.start({
+            // Will stall when there is a port conflict..
+            webServer.start({
                 ip,
                 port: this.webServerPort,
                 debug: isDEV,
                 rpcSources,
-            });
+            }).catch(Sentry.captureException);
         }
     }
 }
