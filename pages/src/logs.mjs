@@ -2,7 +2,9 @@ import * as common from './common.mjs';
 
 let lastSeqno = 0;
 let curFilters = [];
+let filterSeq = 0;
 let countEl;
+let contentEl;
 let curLevel = 'debug';
 const totals = [0, 0, 0, 0];
 const filtered = [0, 0, 0, 0];
@@ -12,8 +14,7 @@ const levelIndexes = {
     'warn': 2,
     'error': 3,
 };
-const msgEls = new Map();
-const resizeObs = new ResizeObserver(onMsgResize);
+const msgEls = [];
 
 
 function fmtLogDate(d) {
@@ -56,16 +57,10 @@ function addEntry(o) {
     const row = logsBody.lastElementChild;
     const msgEl = row.querySelector('.message');
     msgEl.textContent = o.message;
-    const msg = msgEl.textContent.toLowerCase();
-    const msgTextEl = msgEl.childNodes[0];
-    const tuple = [row, msgEl, msgTextEl, msg, o.level];
-    msgEls.set(msgEl, tuple);
-    const update = filterMsg(tuple);
-    resizeObs.observe(msgEl);
-    requestAnimationFrame(() => {
-        updateRow(update);
-        updateCount();
-    });
+    const tuple = [row, msgEl, o.level];
+    msgEls.push(tuple);
+    // jump onto any existing updates by using cur seq
+    filterMsgs(filterSeq, [tuple]);
 }
 
 
@@ -78,99 +73,78 @@ function filter(value) {
     curFilters = value === undefined ?
         curFilters :
         value.split('|').map(x => x.toLowerCase()).filter(x => x.length);
-    const updates = Array.from(msgEls.values()).map(filterMsg);
-    requestAnimationFrame(() => {
-        updates.forEach(updateRow);
-        updateCount();
+    const batch = Array.from(msgEls);
+    const scrollTop = contentEl.scrollTop;
+    batch.sort(([a], [b]) => {
+        const aDist = Math.abs(a.offsetTop - scrollTop);
+        const bDist = Math.abs(b.offsetTop - scrollTop);
+        return aDist < bDist ? 1 : -1;
     });
+    filterMsgs(++filterSeq, batch);
 }
 
 
-function filterMsg([row, msgEl, msgTextEl, msg, level]) {
-    if (!curFilters.length) {
-        return [true, row, msgEl, [], level];
-    } else {
-        const range = document.createRange();
-        const highlights = [];
-        for (const x of curFilters) {
-            let offt = 0;
-            while(true) {
-                const start = msg.indexOf(x, offt);
-                if (start !== -1) {
-                    offt = start + 1;
-                    range.setStart(msgTextEl, start);
-                    range.setEnd(msgTextEl, start + x.length);
-                    const msgRect = msgEl.getBoundingClientRect();
-                    const rangeRect = range.getBoundingClientRect();
-                    highlights.push({
-                        top: `${rangeRect.top - msgRect.top}px`,
-                        left: `${rangeRect.left - msgRect.left}px`,
-                        width: `${rangeRect.width}px`,
-                        height: `${rangeRect.height}px`,
-                    });
-                } else {
-                    break;
+function filterMsgs(seq, batch) {
+    if (seq !== filterSeq) {
+        return;
+    }
+    for (let j = 0; j < Math.min(100, batch.length); j++) {
+        const [row, msgEl, level] = batch.pop();
+        if (msgEl.childNodes.length > 1) {
+            // fast normalize (make eslint happy by breaking it up)
+            const t = msgEl.textContent;
+            msgEl.textContent = t;
+        }
+        let visible;
+        if (!curFilters.length) {
+            visible = true;
+        } else {
+            const range = document.createRange();
+            for (const x of curFilters) {
+                for (const n of msgEl.childNodes) {
+                    if (n.nodeType !== Node.TEXT_NODE) {
+                        continue;
+                    }
+                    const indexes = [];
+                    let offt = 0;
+                    const text = n.data.toLowerCase();
+                    while (true) {
+                        offt = text.indexOf(x, offt);
+                        if (offt !== -1) {
+                            indexes.push(offt++);
+                            visible = true;
+                        } else {
+                            break;
+                        }
+                    }
+                    for (let i = indexes.length - 1; i >= 0; i--) {
+                        const start = indexes[i];
+                        range.setStart(n, start);
+                        range.setEnd(n, start + x.length);
+                        const hi = document.createElement('span');
+                        hi.classList.add('hi');
+                        range.surroundContents(hi);
+                    }
                 }
             }
         }
-        return [highlights.length > 0, row, msgEl, highlights, level];
-    }
-}
-
-
-function updateRow([visible, row, msgEl, highlights, level]) {
-    if (visible) {
-        for (let i = 0; i < highlights.length; i++) {
-            let el;
-            if (msgEl.childNodes.length > i + 1) {
-                el = msgEl.childNodes[i + 1];
-            } else {
-                el = document.createElement('div');
-                el.classList.add('hi');
-                msgEl.appendChild(el);
+        if (visible) {
+            if (row.style.display) {
+                row.style.display = '';
+                filtered[levelIndexes[level]]--;
             }
-            Object.assign(el.style, highlights[i]);
+        } else {
+            if (!row.style.display) {
+                row.style.display = 'none';
+                filtered[levelIndexes[level]]++;
+            }
         }
-        while (msgEl.childNodes.length > highlights.length + 1) {
-            msgEl.lastChild.remove();
-        }
-        if (row.style.display) {
-            row.style.display = '';
-            filtered[levelIndexes[level]]--;
-        }
+    }
+    if (batch.length) {
+        requestAnimationFrame(() => filterMsgs(seq, batch));
     } else {
-        while (msgEl.childNodes.length > 1) {
-            msgEl.lastChild.remove();
-        }
-        if (!row.style.display) {
-            row.style.display = 'none';
-            filtered[levelIndexes[level]]++;
-        }
+        updateCount();
     }
-}
-
-
-let _pendingResize;
-const _pendingResizeEls = new Set();
-function onMsgResize(entries) {
-    cancelAnimationFrame(_pendingResize);
-    for (let i = 0; i < entries.length; i++) {
-        _pendingResizeEls.add(entries[i].target);
-    }
-    _pendingResize = requestAnimationFrame(() => {
-        const updates = [];
-        const pending = Array.from(_pendingResizeEls);
-        _pendingResizeEls.clear();
-        for (let i = 0; i < pending.length; i++) {
-            updates.push(filterMsg(msgEls.get(pending[i])));
-        }
-        requestAnimationFrame(() => {
-            for (let i = 0; i < updates.length; i++) {
-                updateRow(updates[i]);
-            }
-            updateCount();
-        });
-    });
 }
 
 
@@ -189,7 +163,7 @@ async function onClearClick() {
 function clear() {
     logsBody.innerHTML = '';
     lastSeqno = -1;
-    msgEls.clear();
+    msgEls.length = 0;
     filtered.length = totals.length = 0;
     totals.push(0, 0, 0, 0);
     filtered.push(0, 0, 0, 0);
@@ -221,10 +195,9 @@ export async function main() {
         lastSeqno = x.seqno;
         addEntry(x);
     }
-    requestAnimationFrame(() => {
-        document.querySelector('#content').scrollTop = Number.MAX_SAFE_INTEGER >>> 1;
-    });
     countEl = document.querySelector('header .count');
+    contentEl = document.querySelector('#content');
+    requestAnimationFrame(() => contentEl.scrollTop = Number.MAX_SAFE_INTEGER >>> 1);
     document.querySelector('input[name="filter"]').addEventListener('input', onFilterInput);
     document.querySelector('select[name="level"]').addEventListener('change', onLevelChange);
     document.querySelector('.button.clear').addEventListener('click', onClearClick);
