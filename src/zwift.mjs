@@ -891,12 +891,10 @@ class UDPChannel extends NetChannel {
                 resolve(packet.ackSeqno);
             });
         });
-        const s = Date.now();
         for (let i = 0; i < 10 && !ACK; i++) {
             // Send hankshake packets with `hello` option (full IV in AAD).  Even if they
             // are dropped the AES decrypt and IV state machine setup will succeed and pave the
             // way for sends that only require `seqno`, even with packet loss on this socket.
-            console.warn("send handshake", i);
             await this.sendPacket({
                 athleteId: this.athleteId,
                 realm: 1,
@@ -909,7 +907,6 @@ class UDPChannel extends NetChannel {
             this.shutdown();
             return;
         }
-        console.warn('got udp ack took', Date.now() - s);
         super.establish();
     }
 
