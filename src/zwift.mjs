@@ -1272,7 +1272,7 @@ export class GameMonitor extends events.EventEmitter {
         for (const ch of this.udpChannels) {
             if (ch.active) {
                 try {
-                    await ch.sendPlayerState({watchingAthleteId: this.watchingAthleteId});
+                    await ch.sendPlayerState({watchingAthleteId: this.watchingAthleteId, ...this._extraPlayerState});
                     break;
                 } catch(e) {
                     if (!(e instanceof InactiveChannelError)) {
