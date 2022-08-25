@@ -892,7 +892,7 @@ class UDPChannel extends NetChannel {
             });
         });
         const s = Date.now();
-        for (let i = 0; i < 5 && !ACK; i++) {
+        for (let i = 0; i < 10 && !ACK; i++) {
             // Send hankshake packets with `hello` option (full IV in AAD).  Even if they
             // are dropped the AES decrypt and IV state machine setup will succeed and pave the
             // way for sends that only require `seqno`, even with packet loss on this socket.
@@ -902,7 +902,7 @@ class UDPChannel extends NetChannel {
                 realm: 1,
                 _worldTime: 0,
             }, {hello: true});
-            await Promise.race([sleep(50 * (i + 1)), gotACK]);
+            await Promise.race([sleep(100 * (i + 1)), gotACK]);
         }
         if (!ACK) {
             console.error("Timeout waiting for handshake ACK:", this.toString());
