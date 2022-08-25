@@ -328,16 +328,16 @@ rpc.register(url => electron.shell.openExternal(url), {name: 'openExternalLink'}
 rpc.register(() => sauceApp && sauceApp.webServerURL, {name: 'getWebServerURL'});
 rpc.register(() => {
     return {
-        main: zwiftAPI ? {
+        main: {
             username: zwiftAPI.username,
             id: zwiftAPI.profile ? zwiftAPI.profile.id : null,
             authenticated: zwiftAPI.isAuthenticated(),
-        } : null,
-        monitor: zwiftAPI ? {
+        },
+        monitor: {
             username: zwiftMonitorAPI.username,
             id: zwiftMonitorAPI.profile ? zwiftMonitorAPI.profile.id : null,
             authenticated: zwiftMonitorAPI.isAuthenticated(),
-        } : null,
+        },
     };
 }, {name: 'getZwiftLoginInfo'});
 rpc.register(async id => {
@@ -576,9 +576,9 @@ class SauceApp extends EventEmitter {
 }
 
 
-async function zwiftAuthenticate(options={}) {
+async function zwiftAuthenticate(options) {
     let creds;
-    const ident = options.ident || 'zwift-login';
+    const ident = options.ident;
     if (!options.forceLogin) {
         creds = await secrets.get(ident);
         if (creds) {
