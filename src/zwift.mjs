@@ -884,37 +884,32 @@ class UDPChannel extends NetChannel {
         this.sock.on('error', () => this.shutdown());
         await new Promise((resolve, reject) =>
             this.sock.connect(3024, this.ip, e => void (e ? reject(e) : resolve())));
-        const seqno = Math.round(Math.random() * 100000000); // XXX testing handshake theory
         let ACK;
         const gotACK = new Promise(resolve => {
             this.once('inPacket', packet => {
-                console.debug('handshake testing', packet);
-                if (packet.ackSeqno !== seqno) {
-                    console.error("seqno assert failed");
-                }
                 ACK = true;
                 resolve(packet.ackSeqno);
             });
         });
         const s = Date.now();
-        for (let i = 0; i < 10 && !ACK; i++) {
-            // Send hankshake packets with `hello` option (sends full IV in AAD).  Even if they
+        for (let i = 0; i < 5 && !ACK; i++) {
+            // Send hankshake packets with `hello` option (full IV in AAD).  Even if they
             // are dropped the AES decrypt and IV state machine setup will succeed and pave the
             // way for sends that only require `seqno`, even with packet loss on this socket.
-            console.debug("send handshake", i, seqno);
+            console.warn("send handshake", i);
             await this.sendPacket({
                 athleteId: this.athleteId,
                 realm: 1,
                 _worldTime: 0,
-                seqno, // XXX
             }, {hello: true});
-            await Promise.race([sleep(20), gotACK]);
+            await Promise.race([sleep(50 * (i + 1)), gotACK]);
         }
         if (!ACK) {
             console.error("Timeout waiting for handshake ACK:", this.toString());
             this.shutdown();
+            return;
         }
-        console.debug('got udp ack took', Date.now() - s);
+        console.warn('got udp ack took', Date.now() - s);
         super.establish();
     }
 
