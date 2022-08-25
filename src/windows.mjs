@@ -614,22 +614,24 @@ export async function zwiftLogin(options) {
     let closed;
     let setDone;
     const done = new Promise(resolve => setDone = resolve);
-    electron.ipcMain.on('zwift-creds', async (ev, {username, password}) => {
+    const onCreds = async (ev, {username, password}) => {
         try {
             await options.api.authenticate(username, password, options);
             setDone({username, password});
         } catch(e) {
             win.webContents.send('validation-error', e);
         }
-    });
+    };
     win.on('closed', () => {
         closed = true;
         setDone();
     });
-    win.show();
+    electron.ipcMain.on('zwift-creds', onCreds);
     try {
+        win.show();
         return await done;
     } finally {
+        electron.ipcMain.off('zwift-creds', onCreds);
         if (!closed) {
             win.close();
         }
