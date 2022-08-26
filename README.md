@@ -5,29 +5,58 @@ Sauce for Zwift™
 Sauce for Zwift™ extends the zwift cycling and running simulator with more stats and
 pretty things.
 
+
+Requirements:
+--------
+As of July 2022 Sauce emulates a full encrypted game client that "watches" your real
+Zwift account.  As such, you'll need to create a second login (free is fine).  Although
+a bit annoying this does allow you to run S4Z on any device anywhere.
+
 <img src="assets/images/screenshot.jpg" width="640"/>
 <img src="assets/images/slideshow.webp" width="400"/>
 
 
-Download for Mac/PC while you still can
+Download for Mac / Windows:
 --------
 ### https://saucellc.io/products/sauce4zwift/download
+
+If you want a Linux build let me know and I'll consider doing releases for it too.
+All my development happens on a Linux machine, I just don't know how much interest
+people will have in it.
 
 
 Feature Highlights
 --------
- * Real cycling stats
+ * Draft %:
+   * Don't ask me how it's used in the engine, I don't know, but it's infinitely
+     interesting and everyone loves it.
+ * Groups view:
+   * See the size of your group and others nearby
+   * Show the time gap to the groups ahead and behind
+   * Accurate gap measurement with virtual checkpoints.  All road positions are
+     continually recorded with timestamps for all nearby riders.  The gaps are
+     real values from when riders crossed the same point.  Geometric based estimates
+     are only used as a fallback when road positions are not yet available (rare).
+ * Real stats:
    * Average and Max for power, HR, cadence, speed and event draft
    * Rolling Averages (5s, 5min, etc) for most metrics (power, hr, etc)
    * Peak Averages (5s, 5min, etc) for most metrics (power, hr, etc)
- * View data by lap
- * Extreme configurability
-   * Multiple screens for top left current value stats
- * Gauges, some charts, etc.
- * Built-in web server for remote access to widgets. I.e. run chat on your phone.
- * Improved Chat client
- * Groups View
+   * NP, TSS, kJ
+   * Laps
+ * Highly configurable:
+   * Dynamic scaling of almost every component to suit all needs
+   * Chroma key support for OBS streamers
+   * Almost every field can be changed
+   * Pick and choose which windows you want visible and configure each of them with unique custom settings
+ * Gauges:
+   * Power (with zones), Draft, Speed, HR
+ * Improved chat client:
+   * Avatar
+   * Gap to athlete
+   * Real time power, hr of athlete
+   * Support to mute people
  * Nearby riders/runners table with extensive field options.
+ * Web server access to all the widgets. I.e. Use the chat window on your phone.
 
 
 Release Notes

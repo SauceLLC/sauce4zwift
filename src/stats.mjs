@@ -556,10 +556,12 @@ export class StatsProcessor extends events.EventEmitter {
         const athlete = this.loadAthlete(payload.from);
         const chat = {...payload, ts};
         if (athlete) {
+            // back compat with old dbs
+            const nameArr = athlete.sanitizedName || athlete.name || ['', ''];
             Object.assign(chat, {
                 muted: athlete.muted,
-                firstName: athlete.sanitizedName[0],
-                lastName: athlete.sanitizedName[1],
+                firstName: nameArr[0],
+                lastName: nameArr[1],
                 team: athlete.team,
             });
         }
