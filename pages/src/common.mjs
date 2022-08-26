@@ -404,6 +404,9 @@ class LocalStorage extends EventTarget {
     _onStorage(ev) {
         let evName;
         let key;
+        if (ev.key === null) {
+            return;  // clear event
+        }
         if (ev.key.startsWith(this.prefix)) {
             evName = 'update';
             key = ev.key.substr(this.prefix.length);
