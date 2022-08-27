@@ -21,6 +21,10 @@
                 display: none;
             }
 
+            html:not(.has-notes) .notes-only {
+                display: none;
+            }
+
             html.updated .not-update {
                 display: none;
             }
@@ -51,6 +55,11 @@
                 display: flex;
                 justify-content: center;
                 flex-direction: column;
+                max-width: 600px;
+            }
+
+            header h1 {
+                font-size: 2em;
             }
 
             h4, h5 {
@@ -83,7 +92,7 @@
             }
 
             ul > li {
-                padding: 0.28em;
+                padding: 0.28em 0.28em 0.1em 0;
             }
 
             ul > ul {
@@ -98,6 +107,21 @@
                 font-size: 0.92em;
             }
 
+            .close.button {
+                font-size: 1.2em;
+                margin-top: 1em;
+                align-self: center;
+            }
+
+            body > header .version {
+                text-shadow:
+                    0 0 1px #000,
+                    0 0 1px #000,
+                    0 0 1px #000,
+                    0 0 1px #000;
+                border-bottom: 1px solid #fff8;
+            }
+
             code {
                 font-size: 0.9em;
                 background: #0003;
@@ -109,7 +133,8 @@
         <script type="module">
             import * as common from './src/common.mjs';
 
-            const notesPromise = fetch('https://saucellc.io/products/sauce4zwift/release_notes.json').then(r => r.json());
+            const notesPromise = fetch('https://saucellc.io/products/sauce4zwift/release_notes.json')
+                .then(r => r.json());
 
 
             function fakeSHU(version) {
@@ -152,6 +177,8 @@
 
 
             async function main() {
+                document.querySelector('.close.button').addEventListener('click',
+                    () => common.rpc.closeWindow());
                 const [lastVersion, version] = await Promise.all([
                     common.rpc.getSetting('lastVersion'),
                     common.rpc.getVersion(),
@@ -160,6 +187,7 @@
                 if (updated) {
                     document.querySelector('.from-version').textContent = fakeSHU(lastVersion);
                     document.querySelector('.to-version').textContent = fakeSHU(version);
+                    document.querySelector('.version').textContent = 'v' + version;
                     document.documentElement.classList.add('updated');
                 }
                 let notes = await notesPromise;
@@ -167,36 +195,26 @@
                     const prevBigVer = bigIntVersion(lastVersion);
                     notes = notes.filter(x => bigIntVersion(x.version) > prevBigVer);
                 }
-                const frag = document.createDocumentFragment();
-                if (!notes.length) {
-                    notes.push({
-                        version,
-                        ts: Date.now(),
-                        notes: [{
-                            html: "<b>Absolutely nothing!!!</b>",
-                            children: [
-                                "Apparently this update is so incredibly important that Justin didn't bother to " +
-                                "create release notes for it.  Carry on, nothing to see here..."
-                            ]
-                        }]
-                    });
-                }
-                for (const x of notes.reverse()) {
-                    if (x.private) {
-                        continue;
+                if (notes.length) {
+                    document.documentElement.classList.add('has-notes');
+                    const frag = document.createDocumentFragment();
+                    for (const x of notes.reverse()) {
+                        if (x.private) {
+                            continue;
+                        }
+                        const release = document.createElement('release');
+                        release.id = x.version;
+                        release.innerHTML = `
+                            <header>
+                                <div class="version">v${x.version}</div>
+                                <div class="date">${new Date(x.ts).toLocaleDateString()}</div>
+                            </header>
+                            <ul class="notes">${notesToHTML(x.notes)}</ul>
+                        `;
+                        frag.appendChild(release);
                     }
-                    const release = document.createElement('release');
-                    release.id = x.version;
-                    release.innerHTML = `
-                        <header>
-                            <div class="version">v${x.version}</div>
-                            <div class="date">${new Date(x.ts).toLocaleDateString()}</div>
-                        </header>
-                        <ul class="notes">${notesToHTML(x.notes)}</ul>
-                    `;
-                    frag.appendChild(release);
+                    document.querySelector('section.notes').appendChild(frag);
                 }
-                document.querySelector('section.notes').appendChild(frag);
             }
             addEventListener('DOMContentLoaded', main);
         </script>
@@ -206,14 +224,15 @@
         <header>
             <img class="logo" src="images/logo_vert_120x320.png"/>
             <div>
-                <h1 class="update-only">Sauce Updated!</h1>
-                <h4 class="update-only">Sauce's heat level just upgraded from <span class="from-version"></span> scovilles to <span class="to-version"></span>! Oh my!!! 🌶️🔥</h4>
+                <h2 class="update-only">Sauce Updated to <span class="version"></span>!</h2>
+                <h4 class="update-only">You just went from <span class="from-version"></span> to <span class="to-version"></span> scovilles!!! 🌶️🔥</h4>
                 <h1 class="not-update">Release Notes</h1>
             </div>
         </header>
         <main>
-            <h3>What's New...</h3>
-            <section class="notes"></section>
+            <h3 class="notes-only">What's New...</h3>
+            <section class="notes notes-only"></section>
+            <div class="std button close electron-only">Dismiss</div>
         </main>
     </body>
 </html>
