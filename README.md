@@ -56,7 +56,9 @@ Feature Highlights
    * Real time power, hr of athlete
    * Support to mute people
  * Nearby riders/runners table with extensive field options.
- * Web server access to all the widgets. I.e. Use the chat window on your phone.
+ * Web server access to all the widgets.
+   * Port 1080 by default (configurable) e.g. http://localhost:1080
+   * REST / WebSocket API for programmers
 
 
 Release Notes
