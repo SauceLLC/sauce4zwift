@@ -359,11 +359,10 @@ async function ensureSingleInstance() {
     const {response} = await electron.dialog.showMessageBox({
         type: 'question',
         message: 'Another Sauce process detected.\n\nThere can only be one, you must choose...',
-        buttons: ['Take the prize!', 'Run away'],
+        buttons: ['Oops, quit here', 'Replace the other process'],
         noLink: true,
-        cancelId: 1,
     });
-    if (response === 1) {
+    if (response === 0) {
         console.debug("Quiting due to existing instance");
         quit();
         return false;
@@ -599,6 +598,31 @@ async function zwiftAuthenticate(options) {
 }
 
 
+async function checkMacOSInstall() {
+    if (electron.app.isInApplicationFolder() || sauceApp.getSetting('ignoreImproperInstall')) {
+        return;
+    }
+    const {response} = await electron.dialog.showMessageBox({
+        type: 'question',
+        message: 'Sauce for Zwift needs to be located in the /Applications folder.\n\n' +
+            'Would your like me to move it there now?',
+        buttons: ['No, I\'m a rebel', 'Yes, thank you'],
+    });
+    if (response === 0) {
+        console.warn("User opted out of moving app to the Applications folder");
+        sauceApp.setSetting('ignoreImproperInstall', true);
+    } else {
+        try {
+            electron.app.moveToApplicationsFolder();
+        } catch(e) {
+            debugger;
+            await electron.dialog.showErrorBox('Something went wrong', '' + e);
+            quit(1);
+        }
+    }
+}
+
+
 export async function main() {
     if (quiting) {
         return;
@@ -610,6 +634,9 @@ export async function main() {
         return;
     }
     await electron.app.whenReady();
+    if (os.platform() === 'darwin') {
+        await checkMacOSInstall();
+    }
     if (!headless) {
         menu.installTrayIcon();
         menu.setAppMenu();
