@@ -177,9 +177,19 @@ rpc.register(() => {
 }, {name: 'showAllWindows'});
 
 rpc.register(function() {
-    const {win, spec} = activeWindows.get(this);
-    console.debug('Window close requested:', spec.id);
-    win.close();
+    const window = this.getOwnerBrowserWindow(); // XXX Testing
+    if (activeWindows.has(this)) {
+        // Just validate that the above technique is valid
+        const {win, spec} = activeWindows.get(this);
+        if (win !== window) {
+            console.error("window equality assertion error", win, window);
+        }
+        console.debug('Window close requested:', spec.id);
+        win.close();
+    } else {
+        console.debug('Generic window close requested');
+        window.close();
+    }
 }, {name: 'closeWindow'});
 
 rpc.register(function() {
@@ -555,7 +565,7 @@ export async function eulaConsent() {
 
 
 export async function showReleaseNotes() {
-    const win = makeCaptiveWindow({width: 600, height: 600, page: 'release-notes.html'});
+    const win = makeCaptiveWindow({width: 512, height: 500, page: 'release-notes.html'});
     await new Promise(resolve => win.on('closed', resolve));
 }
 
