@@ -190,6 +190,12 @@ export function initInteractionListeners() {
     }
     if (!window.isElectron) {
         addOpenSettingsParam('id', windowID);
+        if (navigator.userAgent.match(/ OBS\//)) {
+            console.info("Enabling OBS hack to avoid broken tabs handling");
+            for (const x of document.querySelectorAll('a[target]')) {
+                x.removeAttribute('target');
+            }
+        }
     }
     const close = document.querySelector('#titlebar .button.close');
     if (close) {
