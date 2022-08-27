@@ -570,6 +570,7 @@ class SauceApp extends EventEmitter {
                 port: this.webServerPort,
                 debug: isDEV,
                 rpcSources,
+                statsProc: this.statsProc,
             }).catch(Sentry.captureException);
         }
     }

@@ -95,7 +95,7 @@ export async function start(options={}) {
 }
 
 
-async function _start({ip, port, debug, rpcSources}) {
+async function _start({ip, port, debug, rpcSources, statsProc}) {
     app = express();
     app.use(express.json());
     server = http.createServer(app);
@@ -170,6 +170,31 @@ async function _start({ip, port, debug, rpcSources}) {
             subs.clear();
         });
     });
+    const restApi = express.Router();
+    restApi.use(express.json());
+    restApi.get('/', (req, res) => {
+        res.send([{
+            'athletes': 'Information for all active athletes',
+            'athletes/<id>': 'Information for specific athlete',
+            'athletes/watching': 'Information for athlete being watched',
+            'nearby': 'Information for all nearby athletes',
+            'groups': 'Information for all nearby groups',
+        }]);
+    });
+    const sp = statsProc;
+    function getAthleteHandler(res, id) {
+        const data = sp.getAthleteData(id);
+        if (!data) {
+            res.status(404);
+        }
+        res.send(data);
+    }
+    restApi.get('/athletes/watching', (req, res) => getAthleteHandler(res, sp.watching));
+    restApi.get('/athletes/:id', (req, res) => getAthleteHandler(res, Number(req.params.id)));
+    restApi.get('/athletes', (req, res) => res.send(sp.getAthletesData()));
+    restApi.get('/nearby', (req, res) => res.send(sp.getNearbyData()));
+    restApi.get('/groups', (req, res) => res.send(sp.getGroupsData()));
+    router.use('/api', restApi);
     router.all('*', (req, res) => res.status(404).send(`File Not Found: "${req.path}"\n`));
     app.use(router);
     let retries = 0;

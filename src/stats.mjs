@@ -36,22 +36,12 @@ function getDB() {
 }
 
 
-function randInt(ceil=Number.MAX_SAFE_INTEGER) {
-    return Math.trunc(Math.random() * ceil);
-}
-
-
 async function resetDB() {
     if (_db) {
         _db.close();
     }
     _db = null;
     await deleteDatabase('athletes');
-}
-
-
-function titleCase(s) {
-    return s[0].toUpperCase() + s.substr(1).toLowerCase();
 }
 
 
@@ -216,7 +206,6 @@ class DataCollector {
 export class StatsProcessor extends events.EventEmitter {
     constructor(options={}) {
         super();
-        this._useFakeData = options.fakeData;
         this.zwiftAPI = options.zwiftAPI;
         this.gameMonitor = options.gameMonitor;
         this.setMaxListeners(100);
@@ -233,6 +222,8 @@ export class StatsProcessor extends events.EventEmitter {
         this._chatHistory = [];
         this._events = new Map();
         this._subGroupEvents = new Map();
+        this._mostRecentNearby = [];
+        this._mostRecentGroups = [];
         rpc.register(this.updateAthlete, {scope: this});
         rpc.register(this.startLap, {scope: this});
         rpc.register(this.resetStats, {scope: this});
@@ -264,6 +255,31 @@ export class StatsProcessor extends events.EventEmitter {
             x.muted = (athlete && athlete.muted != null) ? athlete.muted : x.muted;
             return x;
         });
+    }
+
+    _fmtAthleteData(x) {
+        return {
+            athleteId: x.athleteId,
+            mostRecentState: this._cleanState(x.mostRecentState),
+            profile: this.loadAthlete(x.athleteId),
+        };
+    }
+
+    getAthletesData() {
+        return Array.from(this._athleteData.values()).map(this._fmtAthleteData.bind(this));
+    }
+
+    getAthleteData(id) {
+        const data = this._athleteData.get(id);
+        return data ? this._fmtAthleteData(data) : null;
+    }
+
+    getNearbyData() {
+        return Array.from(this._mostRecentNearby);
+    }
+
+    getGroupsData() {
+        return Array.from(this._mostRecentGroups);
     }
 
     startLap() {
@@ -642,42 +658,21 @@ export class StatsProcessor extends events.EventEmitter {
 
     async _updateAthleteProfilesFromServer(batch) {
         const updates = [];
-        if (this._useFakeData) {
-            const words = this.constructor.toString().replaceAll(/[^a-zA-Z ]/g, ' ')
-                .split(' ').filter(x => x);
-            for (const id of batch) {
-                const team = Math.random() > 0.8 ? ` [${words[randInt(10)]}]` : '';
-                const data = this._updateAthlete(id, {
-                    firstName: titleCase(words[randInt(words.length)]),
-                    lastName: titleCase(words[randInt(words.length)]) + team,
-                    ftp: Math.round(100 + randInt(300)),
-                    avatar: Math.random() > 0.05 ?
-                        `https://gravatar.com/avatar/${Math.abs(id)}?s=400&d=robohash&r=x` :
-                        undefined,
-                    weight: Math.round(40 + randInt(70)),
-                    gender: ['female', 'male'][randInt(2)],
-                    age: Math.round(18 + randInt(60)),
-                    level: Math.round(1 + randInt(40)),
-                });
-                updates.push([id, data]);
-            }
-        } else {
-            let allowRefetchAfter = 1000; // err
-            try {
-                for (const p of await this.zwiftAPI.getProfiles(batch)) {
-                    if (p) {
-                        updates.push([p.id, this._updateAthlete(p.id, this._profileToAthlete(p))]);
-                    }
+        let allowRefetchAfter = 1000; // err
+        try {
+            for (const p of await this.zwiftAPI.getProfiles(batch)) {
+                if (p) {
+                    updates.push([p.id, this._updateAthlete(p.id, this._profileToAthlete(p))]);
                 }
-                // Could probably extend this if we integrated player update handling effectively.
-                allowRefetchAfter = 300 * 1000;
-            } finally {
-                setTimeout(() => {
-                    for (const x of batch) {
-                        this._profileFetchIds.delete(x);
-                    }
-                }, allowRefetchAfter);
             }
+            // Could probably extend this if we integrated player update handling effectively.
+            allowRefetchAfter = 300 * 1000;
+        } finally {
+            setTimeout(() => {
+                for (const x of batch) {
+                    this._profileFetchIds.delete(x);
+                }
+            }, allowRefetchAfter);
         }
         if (updates.length) {
             this.saveAthletes(updates);
@@ -791,7 +786,7 @@ export class StatsProcessor extends events.EventEmitter {
                 athlete,
                 stats: this._getCollectorStats(ad, athlete),
                 laps: ad.laps.map(x => this._getCollectorStats(x, athlete)),
-                state: this.cleanState(state),
+                state: this._cleanState(state),
             });
         }
         this._stateProcessCount++;
@@ -816,17 +811,13 @@ export class StatsProcessor extends events.EventEmitter {
             captureExceptionOnce(e);
             this.resetAthletesDB();
         }
-        this._nearbyJob = this.nearbyProcessor();
+        this._statesJob = this._statesProcessor();
         this._gcInterval = setInterval(this.gcStates.bind(this), 32768);
-        if (this._useFakeData) {
-            this._fakeDataGenerator();
-        } else {
-            this.athleteId = this.zwiftAPI.profile.id;
-            this.gameMonitor.on('inPacket', this.onIncoming.bind(this));
-            this.gameMonitor.on('watching-athlete', this.setWatching.bind(this));
-            this.gameMonitor.start();
-            queueMicrotask(() => this._zwiftMetaSync());
-        }
+        this.athleteId = this.zwiftAPI.profile.id;
+        this.gameMonitor.on('inPacket', this.onIncoming.bind(this));
+        this.gameMonitor.on('watching-athlete', this.setWatching.bind(this));
+        this.gameMonitor.start();
+        queueMicrotask(() => this._zwiftMetaSync());
     }
 
     async stop() {
@@ -835,7 +826,7 @@ export class StatsProcessor extends events.EventEmitter {
         clearInterval(this._gcInterval);
         this._gcInterval = null;
         try {
-            await this._nearbyJob;
+            await this._statesJob;
         } finally {
             this._nearybyJob = null;
         }
@@ -896,65 +887,6 @@ export class StatsProcessor extends events.EventEmitter {
 
     async giveRideon(athleteId, activity=0) {
         return await this.zwiftAPI._giveRideon(athleteId, this.athleteId, activity);
-    }
-
-    async _fakeDataGenerator() {
-        const CTS = protos.ClientToServer;
-        const athleteCount = 1000;
-        let watching = -Math.trunc(athleteCount / 2 + 1);
-        let iters = 1;
-        const hz = 5;
-        while (this._active) {
-            const start = monotonic();
-            for (let i = 1; i < athleteCount + 1; i++) {
-                const athleteId = -i;
-                const ad = this._athleteData.get(athleteId);
-                const priorState = ad && ad.mostRecentState;
-                const roadId = priorState ? priorState.roadId : randInt(30);
-                const packet = CTS.fromObject({
-                    athleteId,
-                    worldTime: Date.now() - zwift.worldTimeOffset,
-                    state: {
-                        athleteId,
-                        _worldTime: Date.now() - zwift.worldTimeOffset,
-                        watchingAthleteId: watching,
-                        power: Math.round(250 + 250 * Math.sin(i * 10 + Date.now() / 10000)),
-                        heartrate: Math.round(150 + 50 * Math.cos(i * 10 + Date.now() / 10000)),
-                        _speed: Math.round(30 + 25 * Math.sin(i * 10 + Date.now() / 15000)) * 1000000,
-                        _cadenceUHz: Math.round(50 + 50 * Math.sin(i * 10 + Date.now() / 15000)) / 60 * 1000000,
-                        draft: randInt(300),
-                        roadLocation: priorState ?
-                            (priorState.roadLocation + 100 + randInt(10)) % 1000000 :
-                            i * 10,
-                        _flags1: 1 << 2, // reverse
-                        _flags2: +roadId << 7,
-                    }
-                });
-                this.onIncoming(packet);
-            }
-            if (iters++ % (hz * 60) === 0) {
-                watching = -Math.trunc(Math.random() * athleteCount);
-                this.setWatching(watching);
-            }
-            if (iters++ % (hz * 10) === 0) {
-                const from = -randInt(athleteCount);
-                const athlete = await this.getAthlete(from);
-                const chat = protos.PayloadChatMessage.fromObject({
-                    to: null,
-                    from,
-                    message: 'Test',
-                    firstName: athlete && athlete.firstName,
-                    lastName: athlete && athlete.lastName,
-                    avatar: athlete && athlete.avatar,
-                });
-                this.handleChatPayload(chat, Date.now());
-            }
-            const delay = 200 - (monotonic() - start);
-            if (iters % (hz * 5 * 1000) === 0) {
-                console.debug('fake data delay', delay, iters, this._stateProcessCount);
-            }
-            await sauce.sleep(delay);
-        }
     }
 
     realGap(a, b) {
@@ -1030,39 +962,53 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
-    async nearbyProcessor() {
-        let errBackoff = 1000;
+    async _statesProcessor() {
+        let errBackoff = 1;
         const interval = 1000;
-        const target = monotonic() % interval;
+        // Useful for testing as it puts us on a perfect boundry.
+        await sauce.sleep(interval - (Date.now() % interval));
+        // Use a incrementing target to provide skew resistent intervals
+        // I.e. make it emulate the typcial realtime nature of a head unit
+        // which most of our stats code performs best with.
+        let target = monotonic();
         while (this._active) {
+            while (monotonic() > (target += interval)) {
+                console.warn("States processor skip");
+            }
+            await sauce.sleep(target - monotonic());
             if (this.watching == null) {
-                await sauce.sleep(100);
                 continue;
             }
             try {
-                await this._nearbyProcessor();
-                const offt = monotonic() % interval;
-                const schedSleep = interval - (offt - target);
-                await sauce.sleep(schedSleep);
+                const nearby = this._mostRecentNearby = this._computeNearby();
+                const groups = this._mostRecentGroups = this._computeGroups(nearby);
+                queueMicrotask(() => this.emit('nearby', nearby));
+                queueMicrotask(() => this.emit('groups', groups));
             } catch(e) {
                 captureExceptionOnce(e);
-                await sauce.sleep(errBackoff *= 2);
+                target += errBackoff++ * interval;
             }
         }
     }
 
-    cleanState(raw) {
-        return Object.fromEntries(Object.entries(raw).filter(([k]) => !k.startsWith('_')));
+    _cleanState(raw) {
+        const o = {};
+        const keys = Object.keys(raw);
+        for (let i = 0; i < keys.length; i++) {
+            const k = keys[i];
+            if (k[0] !== '_') {
+                o[k] = raw[k];
+            }
+        }
+        return o;
     }
 
-    async _nearbyProcessor() {
+    _computeNearby() {
+        const nearby = [];
         let watchingData = this._athleteData.get(this.watching);
         if (!watchingData) {
-            this.emit('nearby', []);
-            this.emit('groups', []);
-            return;
+            return nearby;
         }
-        const nearby = [];
         // Only filter stopped riders if we are moving.
         const filterStopped = !!watchingData.mostRecentState.speed;
         for (const [aId, aData] of this._athleteData.entries()) {
@@ -1100,14 +1046,19 @@ export class StatsProcessor extends events.EventEmitter {
                 athlete,
                 stats: this._getCollectorStats(aData, athlete),
                 laps: aData.laps.map(x => this._getCollectorStats(x, athlete)),
-                state: this.cleanState(aData.mostRecentState),
+                state: this._cleanState(aData.mostRecentState),
             });
         }
         nearby.sort((a, b) => a.gap - b.gap);
-        this.emit('nearby', nearby);
         this.maybeUpdateAthletesFromServer(nearby);
+        return nearby;
+    }
 
+    _computeGroups(nearby) {
         const groups = [];
+        if (!nearby.length) {
+            return groups;
+        }
         let curGroup;
         for (const x of nearby) {
             if (!curGroup) {
@@ -1149,7 +1100,7 @@ export class StatsProcessor extends events.EventEmitter {
                 x.isGapEst = false;
             }
         }
-        this.emit('groups', groups);
+        return groups;
     }
 
     getDebugInfo() {
