@@ -427,7 +427,6 @@ class SauceApp extends EventEmitter {
         }, {name: 'resetStorageState'});
         registerRPCMethods(this, 'getSetting', 'setSetting', 'pollMetrics', 'getDebugInfo',
             'getGameConnectionStatus');
-        this.initShortcuts();
     }
 
     getSetting(key, def) {
@@ -505,8 +504,6 @@ class SauceApp extends EventEmitter {
             })),
         };
     }
-
-    initShortcuts() {}
 
     startGameConnectionServer(ip) {
         const gcs = new zwift.GameConnectionServer({ip, zwiftAPI});
@@ -606,24 +603,29 @@ export async function main() {
     if (quiting) {
         return;
     }
+    const headless = process.argv.includes('--headless');
     sauceApp = new SauceApp();
     global.app = sauceApp;  // devTools debug XXX
     if (await ensureSingleInstance() === false) {
         return;
     }
     await electron.app.whenReady();
-    menu.installTrayIcon();
-    menu.setAppMenu();
+    if (!headless) {
+        menu.installTrayIcon();
+        menu.setAppMenu();
+    }
     autoUpdater.checkForUpdatesAndNotify().catch(Sentry.captureException);
     const lastVersion = sauceApp.getSetting('lastVersion');
     if (lastVersion !== pkg.version) {
-        if (lastVersion) {
-            console.info("Sauce recently updated");
-            await electron.session.defaultSession.clearCache();
-            await windows.showReleaseNotes();
-        } else {
-            console.info("First time invocation: Welcome to Sauce for Zwift");
-            await windows.welcomeSplash();
+        if (!headless) {
+            if (lastVersion) {
+                console.info("Sauce recently updated");
+                await electron.session.defaultSession.clearCache();
+                await windows.showReleaseNotes();
+            } else {
+                console.info("First time invocation: Welcome to Sauce for Zwift");
+                await windows.welcomeSplash();
+            }
         }
         sauceApp.setSetting('lastVersion', pkg.version);
     }
@@ -650,12 +652,11 @@ export async function main() {
         monitor: true,
         forceLogin,
     });
-    const options = {
-        fakeData: process.argv.includes('--fake-data'),
-    };
-    await sauceApp.start(options);
-    windows.openAllWindows();
-    menu.updateTrayMenu();
+    await sauceApp.start({headless});
+    if (!headless) {
+        windows.openAllWindows();
+        menu.updateTrayMenu();
+    }
     started = true;
 }
 
