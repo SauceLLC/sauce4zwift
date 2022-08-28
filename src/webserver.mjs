@@ -121,9 +121,6 @@ async function _start({ip, port, debug, rpcSources, statsProc}) {
         cacheControl: true,
         setHeaders: res => res.setHeader('Cache-Control', cacheDisabled)
     }));
-    router.post('/api/rpc/:name', async (req, res) => {
-        res.json(await rpc.invoke.call(null, req.params.name, ...req.body));
-    });
     router.ws('/api/ws/events', (ws, req) => {
         const subs = new Map();
         ws.on('message', wrapWebSocketMessage(ws, (type, {method, arg}) => {
@@ -174,11 +171,13 @@ async function _start({ip, port, debug, rpcSources, statsProc}) {
     restApi.use(express.json());
     restApi.get('/', (req, res) => {
         res.send([{
-            'athletes': 'Information for all active athletes',
-            'athletes/<id>': 'Information for specific athlete',
-            'athletes/watching': 'Information for athlete being watched',
-            'nearby': 'Information for all nearby athletes',
-            'groups': 'Information for all nearby groups',
+            'athletes': '[GET] Information for all active athletes',
+            'athletes/<id>': '[GET] Information for specific athlete',
+            'athletes/watching': '[GET] Information for athlete being watched',
+            'nearby': '[GET] Information for all nearby athletes',
+            'groups': '[GET] Information for all nearby groups',
+            'rpc/<name>': '[POST] Make an RPC call into the backend. ' +
+                'Content body should be JSON Array of arguments',
         }]);
     });
     const sp = statsProc;
@@ -189,6 +188,8 @@ async function _start({ip, port, debug, rpcSources, statsProc}) {
         }
         res.send(data);
     }
+    restApi.post('/rpc/:name', async (req, res) =>
+        res.send(await rpc.invoke.call(null, req.params.name, ...req.body)));
     restApi.get('/athletes/watching', (req, res) => getAthleteHandler(res, sp.watching));
     restApi.get('/athletes/:id', (req, res) => getAthleteHandler(res, Number(req.params.id)));
     restApi.get('/athletes', (req, res) => res.send(sp.getAthletesData()));
@@ -208,7 +209,9 @@ async function _start({ip, port, debug, rpcSources, statsProc}) {
                 server.on('error', rej);
                 server.listen(port);
             });
-            console.info(`Web server started at: http://${ip}:${port}/\n`);
+            console.info(`Web server started at: http://${ip}:${port}/`);
+            console.debug(` REST API at: http://${ip}:${port}/api`);
+            console.debug(`   WS API at: http://${ip}:${port}/api/ws/events`);
             return;
         } catch(e) {
             if (e.code === 'EADDRINUSE') {

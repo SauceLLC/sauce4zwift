@@ -1,8 +1,7 @@
 import process from 'node:process';
 import os from 'node:os';
 import net from 'node:net';
-import fs from 'node:fs';
-import path from 'node:path';
+import crypto from 'node:crypto';
 import {EventEmitter} from 'node:events';
 import * as storage from './storage.mjs';
 import * as menu from './menu.mjs';
@@ -13,8 +12,6 @@ import {Dedupe} from '@sentry/integrations';
 import * as webServer from './webserver.mjs';
 import * as stats from './stats.mjs';
 import {beforeSentrySend, setSentry} from '../shared/sentry-util.mjs';
-import {sleep} from '../shared/sauce/base.mjs';
-import crypto from 'node:crypto';
 import {createRequire} from 'node:module';
 import * as secrets from './secrets.mjs';
 import * as zwift from './zwift.mjs';
@@ -37,132 +34,8 @@ const rpcSources = {
 };
 
 
-function getConsoleSymbol(name) {
-    /*
-     * The symbols of functions in the console module are somehow not in the
-     * global registry.  So we need to use this hack to get the real symbols
-     * for monkey patching.
-     */
-    const symString = Symbol.for(name).toString();
-    return Object.getOwnPropertySymbols(console).filter(x =>
-        x.toString() === symString)[0];
-}
-
-
-function fmtLogDate(d) {
-    const h = d.getHours().toString();
-    const m = d.getMinutes().toString().padStart(2, '0');
-    const s = d.getSeconds().toString().padStart(2, '0');
-    const ms = d.getMilliseconds().toString().padStart(3, '0');
-    return `${h}:${m}:${s}.${ms}`;
-}
-
-
-function rotateLogFiles(limit=5) {
-    const ud = electron.app.getPath('userData');
-    const logs = fs.readdirSync(ud).filter(x => x.startsWith('sauce.log'));
-    logs.sort((a, b) => a < b ? 1 : -1);
-    while (logs.length > limit) {
-        // NOTE: this is only for if we change the limit to a lower number
-        // in a subsequent release.
-        const fn = logs.shift();
-        console.warn("Delete old log file:", fn);
-        fs.unlinkSync(path.join(ud, fn));
-    }
-    let end = Math.min(logs.length, limit - 1);
-    for (const fn of logs.slice(-(limit - 1))) {
-        const newFn = `sauce.log.${end--}`;
-        if (newFn === fn) {
-            continue;
-        }
-        console.debug('Rotate log file:', fn, newFn);
-        fs.renameSync(path.join(ud, fn), path.join(ud, newFn));
-    }
-}
-
-
-function monkeyPatchConsoleInformant() {
-    /*
-     * This is highly Node specific but it maintains console logging,
-     * devtools logging with correct file:lineno references, and allows
-     * us to support file logging and logging windows.
-     */
-    process.env.TERM = 'dumb';  // Prevent color tty commands
-    let curLogLevel;
-    const descriptors = Object.getOwnPropertyDescriptors(console);
-    const levels = {
-        debug: 'debug',
-        info: 'info',
-        log: 'info',
-        count: 'info',
-        dir: 'info',
-        warn: 'warn',
-        assert: 'warn',
-        error: 'error',
-        trace: 'error',
-    };
-    for (const [fn, level] of Object.entries(levels)) {
-        Object.defineProperty(console, fn, {
-            enumerable: descriptors[fn].enumerable,
-            get: () => (curLogLevel = level, descriptors[fn].value),
-        });
-    }
-    const kWriteToConsoleSymbol = getConsoleSymbol('kWriteToConsole');
-    const kWriteToConsoleFunction = console[kWriteToConsoleSymbol];
-    const emitter = new EventEmitter();
-    let seqno = 1;
-    console[kWriteToConsoleSymbol] = function(useStdErr, message) {
-        try {
-            return kWriteToConsoleFunction.call(this, useStdErr, message);
-        } finally {
-            const o = {};
-            const saveTraceLimit = Error.stackTraceLimit;
-            Error.stackTraceLimit = 3;
-            Error.captureStackTrace(o);
-            Error.stackTraceLimit = saveTraceLimit;
-            const stack = o.stack;
-            const fileMatch = stack.match(/([^/\\: (]+:[0-9]+):[0-9]+\)?$/);
-            if (!fileMatch) {
-                debugger;
-            }
-            emitter.emit('message', {
-                seqno: seqno++,
-                date: new Date(),
-                level: curLogLevel,
-                message,
-                file: fileMatch ? fileMatch[1] : null,
-            });
-        }
-    };
-    return emitter;
-}
-const logInformant = monkeyPatchConsoleInformant();
-let _rotateErr;
-try {
-    rotateLogFiles();
-} catch(e) {
-    // Probably windows with anti virus. :/
-    _rotateErr = e;
-}
-const _logFile = path.join(electron.app.getPath('userData'), 'sauce.log');
-const _logFileStream = fs.createWriteStream(_logFile);
-const _logQueue = [];
-logInformant.on('message', o => {
-    _logQueue.push(o);
-    const time = fmtLogDate(o.date);
-    const level = (`[${o.level.toUpperCase()}]`).padStart(5, ' ');
-    _logFileStream.write(`${time} ${level} (${o.file}): ${o.message}\n`);
-    if (_logQueue.length > 2000) {
-        _logQueue.shift();
-    }
-});
-rpcSources['logs'] = logInformant;
-rpc.register(() => _logQueue, {name: 'getLogs'});
-rpc.register(() => _logQueue.length = 0, {name: 'clearLogs'});
-rpc.register(() => electron.shell.showItemInFolder(_logFile), {name: 'showLogInFolder'});
-console.info("Sauce log file:", _logFile);
-if (_rotateErr) {
-    console.error('Log rotate error:', _rotateErr);
+export function getApp() {
+    return sauceApp;
 }
 
 
@@ -182,11 +55,6 @@ function restart() {
     quit();
 }
 rpc.register(restart);
-
-
-export function getApp() {
-    return sauceApp;
-}
 
 
 try {
@@ -231,10 +99,6 @@ if (!isDEV) {
     console.info("Sentry disabled by dev mode");
 }
 
-
-// Use non-electron naming for windows updater.
-// https://github.com/electron-userland/electron-builder/issues/2700
-electron.app.setAppUserModelId('io.saucellc.sauce4zwift'); // must match build.appId for windows
 electron.app.on('window-all-closed', () => {
     if (started) {
         quit();
@@ -320,7 +184,6 @@ electron.ipcMain.on('subscribe', (ev, {event, domEvent, persistent, source='stat
     }
 });
 
-
 rpc.register(() => isDEV, {name: 'isDEV'});
 rpc.register(() => pkg.version, {name: 'getVersion'});
 rpc.register(() => sentryAnonId, {name: 'getSentryAnonId'});
@@ -350,37 +213,6 @@ rpc.register(async id => {
     }
     await secrets.remove(key);
 }, {name: 'zwiftLogout'});
-
-
-async function ensureSingleInstance() {
-    if (electron.app.requestSingleInstanceLock({type: 'probe'})) {
-        return;
-    }
-    const {response} = await electron.dialog.showMessageBox({
-        type: 'question',
-        message: 'Another Sauce process detected.\n\nThere can only be one, you must choose...',
-        buttons: ['Oops, quit here', 'Replace the other process'],
-        noLink: true,
-    });
-    if (response === 0) {
-        console.debug("Quiting due to existing instance");
-        quit();
-        return false;
-    }
-    let hasLock = electron.app.requestSingleInstanceLock({type: 'quit'});
-    for (let i = 0; i < 10; i++) {
-        if (hasLock) {
-            return;
-        }
-        await sleep(500);
-        hasLock = electron.app.requestSingleInstanceLock({type: 'quit'});
-    }
-    await electron.dialog.showErrorBox('Existing Sauce process hung',
-        'Consider using Activity Monitor (mac) or Task Manager (windows) to find ' +
-        'and stop any existing Sauce processes');
-    quit(1);
-    return false;
-}
 
 
 function registerRPCMethods(instance, ...methodNames) {
@@ -598,50 +430,22 @@ async function zwiftAuthenticate(options) {
 }
 
 
-async function checkMacOSInstall() {
-    if (electron.app.isInApplicationFolder() || sauceApp.getSetting('ignoreImproperInstall')) {
-        return;
-    }
-    const {response} = await electron.dialog.showMessageBox({
-        type: 'question',
-        message: 'Sauce for Zwift needs to be located in the /Applications folder.\n\n' +
-            'Would your like me to move it there now?',
-        buttons: ['No, I\'m a rebel', 'Yes, thank you'],
-    });
-    if (response === 0) {
-        console.warn("User opted out of moving app to the Applications folder");
-        sauceApp.setSetting('ignoreImproperInstall', true);
-    } else {
-        try {
-            electron.app.moveToApplicationsFolder();
-        } catch(e) {
-            debugger;
-            await electron.dialog.showErrorBox('Something went wrong', '' + e);
-            quit(1);
-        }
-    }
-}
-
-
-export async function main() {
+export async function main({logEmitter, logFile, logQueue}) {
     if (quiting) {
         return;
     }
+    rpcSources['logs'] = logEmitter;
+    rpc.register(() => logQueue, {name: 'getLogs'});
+    rpc.register(() => logQueue.length = 0, {name: 'clearLogs'});
+    rpc.register(() => electron.shell.showItemInFolder(logFile), {name: 'showLogInFolder'});
     const headless = process.argv.includes('--headless');
     sauceApp = new SauceApp();
-    global.app = sauceApp;  // devTools debug XXX
-    if (await ensureSingleInstance() === false) {
-        return;
-    }
-    await electron.app.whenReady();
-    if (os.platform() === 'darwin') {
-        await checkMacOSInstall();
-    }
+    global.app = sauceApp;  // devTools debug
+    setTimeout(() => autoUpdater.checkForUpdatesAndNotify().catch(Sentry.captureException), 10000);
     if (!headless) {
         menu.installTrayIcon();
         menu.setAppMenu();
     }
-    autoUpdater.checkForUpdatesAndNotify().catch(Sentry.captureException);
     const lastVersion = sauceApp.getSetting('lastVersion');
     if (lastVersion !== pkg.version) {
         if (!headless) {
