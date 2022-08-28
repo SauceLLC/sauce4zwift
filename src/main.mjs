@@ -21,7 +21,7 @@ const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 const {autoUpdater} = require('electron-updater');
 const electron = require('electron');
-const isDEV = !electron.app.isPackaged;
+const isDEV = !electron.app.isPackaged && false;
 const zwiftAPI = new zwift.ZwiftAPI();
 const zwiftMonitorAPI = new zwift.ZwiftAPI();
 
@@ -70,15 +70,16 @@ try {
 
 if (!isDEV) {
     setSentry(Sentry);
+    const skipIntegrations = new Set(['OnUncaughtException', 'Console']);
     Sentry.init({
         dsn: "https://df855be3c7174dc89f374ef0efaa6a92@o1166536.ingest.sentry.io/6257001",
         // Sentry changes the uncaught exc behavior to exit the process.  I think that's a bug
         // but this is the only workaround for now.
-        integrations: data => [new Dedupe(), ...data.filter(x => x.name !== 'OnUncaughtException')],
+        integrations: data => [new Dedupe(), ...data.filter(x => !skipIntegrations.has(x.name))],
         beforeSend: beforeSentrySend,
     });
     // No idea, just copied from https://github.com/getsentry/sentry-javascript/issues/1661
-    global.process.on('uncaughtException', e => {
+    process.on('uncaughtException', e => {
         const hub = Sentry.getCurrentHub();
         hub.withScope(async scope => {
             scope.setLevel('fatal');
@@ -434,10 +435,12 @@ export async function main({logEmitter, logFile, logQueue}) {
     if (quiting) {
         return;
     }
-    rpcSources['logs'] = logEmitter;
-    rpc.register(() => logQueue, {name: 'getLogs'});
-    rpc.register(() => logQueue.length = 0, {name: 'clearLogs'});
-    rpc.register(() => electron.shell.showItemInFolder(logFile), {name: 'showLogInFolder'});
+    if (logEmitter) {
+        rpcSources['logs'] = logEmitter;
+        rpc.register(() => logQueue, {name: 'getLogs'});
+        rpc.register(() => logQueue.length = 0, {name: 'clearLogs'});
+        rpc.register(() => electron.shell.showItemInFolder(logFile), {name: 'showLogInFolder'});
+    }
     const headless = process.argv.includes('--headless');
     sauceApp = new SauceApp();
     global.app = sauceApp;  // devTools debug

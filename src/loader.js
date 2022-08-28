@@ -15,18 +15,6 @@ function userDataPath(...args) {
 }
 
 
-function getConsoleSymbol(name) {
-    /*
-     * The symbols of functions in the console module are somehow not in the
-     * global registry.  So we need to use this hack to get the real symbols
-     * for monkey patching.
-     */
-    const symString = Symbol.for(name).toString();
-    return Object.getOwnPropertySymbols(console).filter(x =>
-        x.toString() === symString)[0];
-}
-
-
 function fmtLogDate(d) {
     const h = d.getHours().toString();
     const m = d.getMinutes().toString().padStart(2, '0');
@@ -58,13 +46,24 @@ function rotateLogFiles(limit=5) {
 }
 
 
+function getConsoleSymbol(name) {
+    /*
+     * The symbols of functions in the console module are somehow not in the
+     * global registry.  So we need to use this hack to get the real symbols
+     * for monkey patching.
+     */
+    const symString = Symbol.for(name).toString();
+    return Object.getOwnPropertySymbols(console).filter(x =>
+        x.toString() === symString)[0];
+}
+
+
 function monkeyPatchConsoleWithEmitter() {
     /*
      * This is highly Node specific but it maintains console logging,
      * devtools logging with correct file:lineno references, and allows
      * us to support file logging and logging windows.
      */
-    process.env.TERM = 'dumb';  // Prevent color tty commands
     let curLogLevel;
     const descriptors = Object.getOwnPropertyDescriptors(console);
     const levels = {
@@ -82,6 +81,10 @@ function monkeyPatchConsoleWithEmitter() {
         Object.defineProperty(console, fn, {
             enumerable: descriptors[fn].enumerable,
             get: () => (curLogLevel = level, descriptors[fn].value),
+            set: () => {
+                debugger;
+                throw new Error("Double console monkey patch detected!");
+            },
         });
     }
     const kWriteToConsoleSymbol = getConsoleSymbol('kWriteToConsole');
@@ -123,6 +126,7 @@ function initLogging() {
         // Probably windows with anti virus. :/
         rotateErr = e;
     }
+    process.env.TERM = 'dumb';  // Prevent color tty commands
     const logEmitter = monkeyPatchConsoleWithEmitter();
     const logFile = userDataPath(logFileName);
     const logQueue = [];
