@@ -440,6 +440,13 @@ export async function main({logEmitter, logFile, logQueue}) {
         rpc.register(() => logQueue, {name: 'getLogs'});
         rpc.register(() => logQueue.length = 0, {name: 'clearLogs'});
         rpc.register(() => electron.shell.showItemInFolder(logFile), {name: 'showLogInFolder'});
+        logEmitter.on('message', ({message, level}) => {
+            Sentry.addBreadcrumb({
+                category: 'log',
+                level: level === 'warn' ? 'warning' : level,
+                message,
+            });
+        });
     }
     const headless = process.argv.includes('--headless');
     sauceApp = new SauceApp();
