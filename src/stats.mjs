@@ -734,8 +734,9 @@ export class StatsProcessor extends events.EventEmitter {
         state.progress = (state._progress >> 8 & 0xff) / 0xff;
         state.workoutZone = (state._progress & 0xF) || null;
         const ad = this._athleteData.get(state.athleteId);
-        if (ad.mostRecentState && ad.mostRecentState.ts >= state.ts) {
-            if (ad.mostRecentState.ts === state.ts) {
+        const prevState = ad.mostRecentState;
+        if (prevState && prevState.ts >= state.ts) {
+            if (prevState.ts === state.ts) {
                 this._stateDupCount++;
             } else {
                 this._stateStaleCount++;
@@ -754,8 +755,16 @@ export class StatsProcessor extends events.EventEmitter {
         ad.mostRecentState = state;
         const roadSig = this._roadSig(state);
         if (roadSig !== ad.roadHistory.sig) {
-            ad.roadHistory.prevSig = ad.roadHistory.sig;
-            ad.roadHistory.prevTimeline = ad.roadHistory.timeline;
+            const keepHistory = prevState &&
+                prevState.courseId === state.courseId &&
+                state.roadId !== prevState.roadId; // ie. not reversing
+            if (keepHistory) {
+                ad.roadHistory.prevSig = ad.roadHistory.sig;
+                ad.roadHistory.prevTimeline = ad.roadHistory.timeline;
+            } else {
+                ad.roadHistory.prevSig = null;
+                ad.roadHistory.prevTimeline = null;
+            }
             ad.roadHistory.sig = roadSig;
             ad.roadHistory.timeline = [];
         }
@@ -919,7 +928,8 @@ export class StatsProcessor extends events.EventEmitter {
             return null;
         }
         let prev;
-        // TODO: Use binary search or at least use a normal for loop and walk backwards with out doing a reverse, and for of .geez guy
+        // TODO: Use binary search or at least use a normal for loop and walk backwards
+        // with out doing a reverse, and for of .geez guy
         for (const x of Array.from(leaderTimeline).reverse()) {  // newest to oldest...
             if (x.roadCompletion <= trailingState.roadCompletion) {
                 let offt = 0;
@@ -1051,9 +1061,61 @@ export class StatsProcessor extends events.EventEmitter {
                 stats: this._getCollectorStats(aData, athlete),
                 laps: aData.laps.map(x => this._getCollectorStats(x, athlete)),
                 state: this._cleanState(aData.mostRecentState),
+                _data: aData,
             });
         }
-        nearby.sort((a, b) => a.gap - b.gap);
+        nearby.sort((a, b) => {
+            const aInFront = this.isFirstLeadingSecond(a._data, b._data);
+            return aInFront ? -1 : 1;
+        });
+        const watchingIdx = nearby.findIndex(x => x.watching);
+        for (let i = watchingIdx - 1; i >= 0; i--) {
+            const x = nearby[i];
+            if (x.isGapEst) {
+                const behind = nearby[i + 1];
+                if (!behind) {
+                    console.warn('xxx');
+                    debugger;
+                }
+                let gap = this.realGap(behind._data, x._data);
+                const gapDistance = crowDistance(behind.state, x.state);
+                if (gap == null) {
+                    gap = estGap(behind.state, x.state, gapDistance);
+                } else {
+                    if (!behind.isGapEst) {
+                        x.isGapEst = false;
+                    }
+                }
+                console.log('up', x.gap, '=>', behind.gap - gap);
+                console.log('up', x.gapDistance, '=>', behind.gapDistance - gapDistance);
+                x.gap = behind.gap - gap;
+                x.gapDistance = behind.gapDistance - gapDistance;
+            }
+        }
+        for (let i = watchingIdx + 1; i < nearby.length; i++) {
+            const x = nearby[i];
+            if (x.isGapEst) {
+                const ahead = nearby[i - 1];
+                if (!ahead) {
+                    console.warn('xxx');
+                    debugger;
+                }
+                let gap = this.realGap(x._data, ahead._data);
+                const gapDistance = crowDistance(x.state, ahead.state);
+                if (gap == null) {
+                    gap = estGap(x.state, ahead.state, gapDistance);
+                } else {
+                    if (!ahead.isGapEst) {
+                        x.isGapEst = false;
+                    }
+                }
+                console.log('down', x.gap, '=>', ahead.gap + gap);
+                console.log('down', x.gapDistance, '=>', ahead.gapDistance + gapDistance);
+                x.gap = ahead.gap + gap;
+                x.gapDistance = ahead.gapDistance + gapDistance;
+            }
+        }
+        //nearby.sort((a, b) => a.gap - b.gap);
         this.maybeUpdateAthletesFromServer(nearby);
         return nearby;
     }

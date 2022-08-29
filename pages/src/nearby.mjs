@@ -168,6 +168,7 @@ const fields = [
      fmt: ([initials, id]) => athleteLink(id, sanitize(initials) || '-')},
     {id: 'id', defaultEn: false, label: 'ID', get: x => x.athleteId},
     {id: 'weight-class', defaultEn: false, label: 'Weight', get: x => getAthleteValue(x, 'weight'), fmt: weightClass},
+    {id: 'level', defaultEn: false, label: 'Level', get: x => getAthleteValue(x, 'level')},
     {id: 'ftp', defaultEn: false, label: 'FTP', get: x => getAthleteValue(x, 'ftp'), fmt: pwr},
     {id: 'tss', defaultEn: false, label: 'TSS', get: x => x.stats.power.tss, fmt: num},
 
@@ -242,10 +243,13 @@ const fields = [
     {id: 'workout-zone', defaultEn: false, label: 'WO Zone', get: x => x.state.workoutZone, fmt: x => x || '-'},
     {id: 'laps', defaultEn: false, label: 'Laps', get: x => x.state.laps},
 
+
     // Debugish fields.
     {id: 'course', defaultEn: false, label: 'Course', get: x => x.state.courseId},
     {id: 'road', defaultEn: false, label: 'Road', get: x => x.state.roadId},
-    {id: 'level', defaultEn: false, label: 'Level', get: x => getAthleteValue(x, 'level')},
+    {id: 'direction', defaultEn: false, label: 'Dir', get: x => x.state.reverse ? 'rev' : 'fwd'},
+    {id: 'estgap', defaultEn: false, label: 'Est Gap', get: x => x.isGapEst ? 'est' : ''},
+    {id: 'roadcom', defaultEn: false, label: 'Road %', get: x => x.state.roadCompletion / 10000, fmt: pct},
 ];
 
 
@@ -489,7 +493,7 @@ function renderData(data) {
     }
     const sortField = enFields.find(x => x.id === sortBy);
     const sortGet = sortField.sortValue || sortField.get;
-    data.sort((a, b) => {
+    /*data.sort((a, b) => {
         const av = sortGet(a);
         const bv = sortGet(b);
         if (av == bv) {
@@ -501,7 +505,7 @@ function renderData(data) {
         } else {
             return (('' + av).toLowerCase() < ('' + bv).toLowerCase() ? 1 : -1) * sortByDir;
         }
-    });
+    });*/
     if (nextAnimFrame) {
         cancelAnimationFrame(nextAnimFrame);
     }
