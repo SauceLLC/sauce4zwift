@@ -988,6 +988,7 @@ export class GameMonitor extends events.EventEmitter {
         this.udpServerPools = new Map();
         this.api = options.zwiftMonitorAPI;
         this.athleteId = this.api.profile.id;
+        this.randomWatch = options.randomWatch;
         this.gameAthleteId = options.gameAthleteId;
         this.watchingAthleteId = null;
         this.courseId = null;
@@ -1037,7 +1038,15 @@ export class GameMonitor extends events.EventEmitter {
         };
     }
 
+    async getRandomAthleteId() {
+        const inWorld = (await zwiftAPI.fetchJSON('/relay/worlds/1')).friendsInWorld;
+        return inWorld[0].playerId;
+    }
+
     async initPlayerState() {
+        if (this.randomWatch) {
+            this.gameAthleteId = await this.getRandomAthleteId();
+        }
         const s = await this.api.getPlayerState(this.gameAthleteId);
         if (s) {
             this.courseId = s.courseId;
@@ -1357,6 +1366,9 @@ export class GameMonitor extends events.EventEmitter {
             if (!this.suspended && age > 15 * 1000) {
                 // Stop harassing the UDP channel..
                 this.suspend();
+                if (this.randomWatch) {
+                    this.gameAthleteId = await this.getRandomAthleteId();
+                }
             }
         } else {
             // The stats proc works better with these being recently available.
@@ -1397,6 +1409,9 @@ export class GameMonitor extends events.EventEmitter {
             return;
         }
         this.watchingAthleteId = athleteId;
+        if (this.randomWatch) {
+            this.gameAthleteId = athleteId;
+        }
         this.emit("watching-athlete", athleteId);
     }
 

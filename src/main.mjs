@@ -329,10 +329,11 @@ class SauceApp extends EventEmitter {
         return this.gameConnection && this.gameConnection.getStatus();
     }
 
-    async start({athleteId}) {
+    async start(args) {
         const gameMonitor = this.gameMonitor = new zwift.GameMonitor({
             zwiftMonitorAPI,
-            gameAthleteId: athleteId || zwiftAPI.profile.id,
+            gameAthleteId: args.athleteId || zwiftAPI.profile.id,
+            randomWatch: args.randomWatch,
         });
         this.statsProc = new stats.StatsProcessor({zwiftAPI, gameMonitor});
         this.statsProc.start();
@@ -400,7 +401,7 @@ function snakeToCamelCase(v) {
 function parseArgs() {
     const iter = process.argv.values();
     const args = {};
-    const switches = ['headless', 'force-login'];
+    const switches = ['headless', 'force-login', 'random-watch'];
     const options = ['host', 'athlete-id'];
     for (let x of iter) {
         if (!x.startsWith('--')) {
