@@ -1,13 +1,32 @@
-Error.stackTraceLimit = 50;
+Error.stackTraceLimit = 25;
 
 const os = require('node:os');
 const path = require('node:path');
 const fs = require('node:fs');
 const process = require('node:process');
+const crypto = require('node:crypto');
+const pkg = require('../package.json');
 const {EventEmitter} = require('node:events');
 const {app, dialog, nativeTheme} = require('electron');
+const Sentry = require('@sentry/node');
+const {Dedupe} = require('@sentry/integrations');
 
 const logFileName = 'sauce.log';
+
+
+let settings = {};
+if (fs.existsSync(userDataPath('loader_settings.json'))) {
+    try {
+        settings = JSON.parse(fs.readFileSync(userDataPath('loader_settings.json')));
+    } catch(e) {
+        console.error("Error loading 'loader_settings.json':", e);
+    }
+}
+
+
+function saveSettings() {
+    fs.writeFileSync(userDataPath('loader_settings.json'), JSON.stringify(settings));
+}
 
 
 function userDataPath(...args) {
@@ -179,20 +198,10 @@ async function ensureSingleInstance() {
 }
 
 
-function isIgnoringImproperInstall() {
-    return fs.existsSync(userDataPath('ignore_improper_install'));
-}
-
-
-function setIgnoringImproperInstall() {
-    return fs.closeSync(fs.openSync(userDataPath('ignore_improper_install'), 'w'));
-}
-
-
 async function checkMacOSInstall() {
     if (!app.isPackaged ||
         app.isInApplicationsFolder() ||
-        isIgnoringImproperInstall()) {
+        settings.isIgnoringImproperInstall) {
         return;
     }
     const {response, checkboxChecked} = await dialog.showMessageBox({
@@ -207,7 +216,8 @@ async function checkMacOSInstall() {
     if (response === 0) {
         console.warn("User opted out of moving app to the Applications folder");
         if (checkboxChecked) {
-            setIgnoringImproperInstall();
+            settings.isIgnoringImproperInstall = true;
+            saveSettings();
         }
     } else {
         try {
@@ -226,6 +236,50 @@ async function checkMacOSInstall() {
 }
 
 
+async function initSentry(logEmitter) {
+    if (!app.isPackaged) {
+        console.info("Sentry disabled by dev mode");
+        return;
+    }
+    const {beforeSentrySend, setSentry} = await import('../shared/sentry-util.mjs');
+    setSentry(Sentry);
+    const skipIntegrations = new Set(['OnUncaughtException', 'Console']);
+    Sentry.init({
+        dsn: "https://df855be3c7174dc89f374ef0efaa6a92@o1166536.ingest.sentry.io/6257001",
+        // Sentry changes the uncaught exc behavior to exit the process.  I think it may
+        // be fixed in newer versions though.
+        integrations: data => [new Dedupe(), ...data.filter(x => !skipIntegrations.has(x.name))],
+        beforeSend: beforeSentrySend,
+    });
+    // No idea, just copied from https://github.com/getsentry/sentry-javascript/issues/1661
+    process.on('uncaughtException', e => {
+        const hub = Sentry.getCurrentHub();
+        hub.withScope(async scope => {
+            scope.setLevel('fatal');
+            hub.captureException(e, {originalException: e});
+        });
+        console.error('Uncaught (but reported)', e);
+    });
+    Sentry.setTag('version', pkg.version);
+    let id = settings.sentryId;
+    if (!id) {
+        id = Array.from(crypto.randomBytes(16)).map(x => String.fromCharCode(97 + (x % 26))).join('');
+        settings.sentryId = id;
+        saveSettings();
+    }
+    Sentry.setUser({id});
+    app.on('before-quit', () => Sentry.flush());
+    logEmitter.on('message', ({message, level}) => {
+        Sentry.addBreadcrumb({
+            category: 'log',
+            level: level === 'warn' ? 'warning' : level,
+            message,
+        });
+    });
+    return id;
+}
+
+
 (async () => {
     const logMeta = initLogging();
     nativeTheme.themeSource = 'dark';
@@ -236,6 +290,7 @@ async function checkMacOSInstall() {
     // Use non-electron naming for windows updater.
     // https://github.com/electron-userland/electron-builder/issues/2700
     app.setAppUserModelId('io.saucellc.sauce4zwift'); // must match build.appId for windows
+    const sentryAnonId = await initSentry(logMeta.logEmitter);
     await app.whenReady();
     if (await ensureSingleInstance() === false) {
         return;
@@ -244,7 +299,7 @@ async function checkMacOSInstall() {
         return;
     }
     const main = await import('./main.mjs');
-    await main.main({...logMeta});
+    await main.main({sentryAnonId, ...logMeta});
 })().catch(async e => {
     console.error('Startup Error:', e.stack);
     await dialog.showErrorBox('Sauce Startup Error', e.stack);

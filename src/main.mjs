@@ -1,21 +1,18 @@
 import process from 'node:process';
 import os from 'node:os';
 import net from 'node:net';
-import crypto from 'node:crypto';
 import {EventEmitter} from 'node:events';
 import * as storage from './storage.mjs';
 import * as menu from './menu.mjs';
 import * as rpc from './rpc.mjs';
 import {databases} from './db.mjs';
-import * as Sentry from '@sentry/node';
-import {Dedupe} from '@sentry/integrations';
 import * as webServer from './webserver.mjs';
 import * as stats from './stats.mjs';
-import {beforeSentrySend, setSentry} from '../shared/sentry-util.mjs';
 import {createRequire} from 'node:module';
 import * as secrets from './secrets.mjs';
 import * as zwift from './zwift.mjs';
 import * as windows from './windows.mjs';
+import * as Sentry from '@sentry/node';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
@@ -27,7 +24,6 @@ const zwiftMonitorAPI = new zwift.ZwiftAPI();
 
 let started;
 let quiting;
-let sentryAnonId;
 let sauceApp;
 const rpcSources = {
     windows: windows.eventEmitter,
@@ -68,38 +64,6 @@ try {
     ]).finally(() => quit(1));
 }
 
-if (!isDEV) {
-    setSentry(Sentry);
-    const skipIntegrations = new Set(['OnUncaughtException', 'Console']);
-    Sentry.init({
-        dsn: "https://df855be3c7174dc89f374ef0efaa6a92@o1166536.ingest.sentry.io/6257001",
-        // Sentry changes the uncaught exc behavior to exit the process.  I think that's a bug
-        // but this is the only workaround for now.
-        integrations: data => [new Dedupe(), ...data.filter(x => !skipIntegrations.has(x.name))],
-        beforeSend: beforeSentrySend,
-    });
-    // No idea, just copied from https://github.com/getsentry/sentry-javascript/issues/1661
-    process.on('uncaughtException', e => {
-        const hub = Sentry.getCurrentHub();
-        hub.withScope(async scope => {
-            scope.setLevel('fatal');
-            hub.captureException(e, {originalException: e});
-        });
-        console.error('Uncaught (but reported)', e);
-    });
-    Sentry.setTag('version', pkg.version);
-    let id = storage.load('sentry-id');
-    if (!id) {
-        // It's just an anonymous value to distinguish errors and feedback
-        id = crypto.randomBytes(16).toString("hex");
-        storage.save('sentry-id', id);
-    }
-    Sentry.setUser({id});
-    sentryAnonId = id;
-} else {
-    console.info("Sentry disabled by dev mode");
-}
-
 electron.app.on('window-all-closed', () => {
     if (started) {
         quit();
@@ -117,10 +81,7 @@ electron.app.on('activate', async () => {
         windows.openAllWindows();
     }
 });
-electron.app.on('before-quit', () => {
-    quiting = true;
-    Sentry.flush();
-});
+electron.app.on('before-quit', () => void (quiting = true));
 electron.ipcMain.on('subscribe', (ev, {event, domEvent, persistent, source='stats'}) => {
     const {win, activeSubs, spec} = windows.getMetaByWebContents(ev.sender);
     // NOTE: Electron webContents.send is incredibly hard ON CPU and GC for deep objects.  Using JSON is
@@ -187,7 +148,6 @@ electron.ipcMain.on('subscribe', (ev, {event, domEvent, persistent, source='stat
 
 rpc.register(() => isDEV, {name: 'isDEV'});
 rpc.register(() => pkg.version, {name: 'getVersion'});
-rpc.register(() => sentryAnonId, {name: 'getSentryAnonId'});
 rpc.register(url => electron.shell.openExternal(url), {name: 'openExternalLink'});
 rpc.register(() => sauceApp && sauceApp.webServerURL, {name: 'getWebServerURL'});
 rpc.register(() => {
@@ -369,12 +329,12 @@ class SauceApp extends EventEmitter {
         return this.gameConnection && this.gameConnection.getStatus();
     }
 
-    async start(options={}) {
+    async start({athleteId}) {
         const gameMonitor = this.gameMonitor = new zwift.GameMonitor({
             zwiftMonitorAPI,
-            gameAthleteId: zwiftAPI.profile.id,
+            gameAthleteId: athleteId || zwiftAPI.profile.id,
         });
-        this.statsProc = new stats.StatsProcessor({fakeData: options.fakeData, zwiftAPI, gameMonitor});
+        this.statsProc = new stats.StatsProcessor({zwiftAPI, gameMonitor});
         this.statsProc.start();
         rpcSources.stats = this.statsProc;
         rpcSources.app = this;
@@ -431,34 +391,61 @@ async function zwiftAuthenticate(options) {
 }
 
 
-export async function main({logEmitter, logFile, logQueue}) {
+function snakeToCamelCase(v) {
+    return v.split(/[_-]/).map((x, i) =>
+        i ? x[0].toUpperCase() + x.substr(1) : x).join('');
+}
+
+
+function parseArgs() {
+    const iter = process.argv.values();
+    const args = {};
+    const switches = ['headless', 'force-login'];
+    const options = ['host', 'athlete-id'];
+    for (let x of iter) {
+        if (!x.startsWith('--')) {
+            continue;
+        }
+        x = x.substr(2);
+        if (switches.includes(x)) {
+            args[snakeToCamelCase(x)] = true;
+        } else if (options.includes(x)) {
+            let value = iter.next().value;
+            if (value === undefined) {
+                throw new TypeError('Missing value for option: ' + x);
+            }
+            if (Number(value).toString() === value) {
+                value = Number(value);
+            }
+            args[snakeToCamelCase(x)] = value;
+        }
+    }
+    return args;
+}
+
+
+export async function main({logEmitter, logFile, logQueue, sentryAnonId}) {
     if (quiting) {
         return;
     }
+    const args = parseArgs();
     if (logEmitter) {
         rpcSources['logs'] = logEmitter;
         rpc.register(() => logQueue, {name: 'getLogs'});
         rpc.register(() => logQueue.length = 0, {name: 'clearLogs'});
         rpc.register(() => electron.shell.showItemInFolder(logFile), {name: 'showLogInFolder'});
-        logEmitter.on('message', ({message, level}) => {
-            Sentry.addBreadcrumb({
-                category: 'log',
-                level: level === 'warn' ? 'warning' : level,
-                message,
-            });
-        });
     }
-    const headless = process.argv.includes('--headless');
+    rpc.register(() => sentryAnonId, {name: 'getSentryAnonId'});
     sauceApp = new SauceApp();
     global.app = sauceApp;  // devTools debug
     setTimeout(() => autoUpdater.checkForUpdatesAndNotify().catch(Sentry.captureException), 10000);
-    if (!headless) {
+    if (!args.headless) {
         menu.installTrayIcon();
         menu.setAppMenu();
     }
     const lastVersion = sauceApp.getSetting('lastVersion');
     if (lastVersion !== pkg.version) {
-        if (!headless) {
+        if (!args.headless) {
             if (lastVersion) {
                 console.info("Sauce recently updated");
                 await electron.session.defaultSession.clearCache();
@@ -478,23 +465,19 @@ export async function main({logEmitter, logFile, logQueue}) {
         await electron.dialog.showErrorBox('EULA or Patreon Link Error', '' + e);
         return quit(1);
     }
-    const host = process.argv.find((x, i) => i && process.argv[i - 1] === '--host');
-    const forceLogin = process.argv.includes('--force-login');
     await zwiftAuthenticate({
         api: zwiftAPI,
         ident: 'zwift-login',
-        host,
-        forceLogin,
+        ...args,
     });
     await zwiftAuthenticate({
         api: zwiftMonitorAPI,
         ident: 'zwift-monitor-login',
-        host,
         monitor: true,
-        forceLogin,
+        ...args,
     });
-    await sauceApp.start({headless});
-    if (!headless) {
+    await sauceApp.start(args);
+    if (!args.headless) {
         windows.openAllWindows();
         menu.updateTrayMenu();
     }

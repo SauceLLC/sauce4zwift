@@ -972,8 +972,12 @@ export class StatsProcessor extends events.EventEmitter {
         // which most of our stats code performs best with.
         let target = monotonic();
         while (this._active) {
+            let skipped = 0;
             while (monotonic() > (target += interval)) {
-                console.warn("States processor skip");
+                skipped++;
+            }
+            if (skipped) {
+                console.warn("States processor skipped:", skipped);
             }
             await sauce.sleep(target - monotonic());
             if (this.watching == null) {
