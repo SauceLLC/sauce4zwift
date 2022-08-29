@@ -722,6 +722,17 @@ export class StatsProcessor extends events.EventEmitter {
         };
     }
 
+    _roadLengthConst = 1 - Math.exp(-1 / 1000);
+    _roadLengths = new Map();
+
+    learnRoadLength(sig, m) {
+        let l = this._roadLengths.get(sig) || m;
+        const c = this._roadLengthConst;
+        l = (l * (1 - c)) + (m * c);
+        this._roadLengths.set(sig, l);
+        return l;
+    }
+
     processState(state) {
         state.ts = +zwift.worldTimeToDate(state._worldTime);
         if (!this._athleteData.has(state.athleteId)) {
@@ -767,6 +778,14 @@ export class StatsProcessor extends events.EventEmitter {
             }
             ad.roadHistory.sig = roadSig;
             ad.roadHistory.timeline = [];
+        } else if (prevState) {
+            const d = state.distance - prevState.distance;
+            const meters = (1 / ((state.roadCompletion - prevState.roadCompletion) / 1000000)) * d;
+            if (roadSig === this._watchingRoadSig) {
+                console.log("road length", this.learnRoadLength(roadSig, meters), meters);
+            } else {
+                this.learnRoadLength(roadSig, meters);
+            }
         }
         const last = ad.roadHistory.timeline[ad.roadHistory.timeline.length - 1];
         if (last && state.roadCompletion < last.roadCompletion) {
@@ -917,15 +936,17 @@ export class StatsProcessor extends events.EventEmitter {
             if (a.roadHistory.prevSig === bSig) {
                 leaderTimeline = a.roadHistory.prevTimeline;
                 trailingState = b.mostRecentState;
-            } else {
-                if (b.roadHistory.prevSig === aSig) {
-                    leaderTimeline = b.roadHistory.prevTimeline;
-                    trailingState = a.mostRecentState;
-                }
+            } else if (b.roadHistory.prevSig === aSig) {
+                leaderTimeline = b.roadHistory.prevTimeline;
+                trailingState = a.mostRecentState;
             }
         }
         if (!trailingState) {
             return null;
+        }
+        if (a.mostRecentState.roadCompletion == null || b.mostRecentState.roadCompletion == null) {
+            debugger;
+            throw new TypeError("Internal error");
         }
         let prev;
         // TODO: Use binary search or at least use a normal for loop and walk backwards
@@ -1074,7 +1095,6 @@ export class StatsProcessor extends events.EventEmitter {
             if (x.isGapEst) {
                 const behind = nearby[i + 1];
                 if (!behind) {
-                    console.warn('xxx');
                     debugger;
                 }
                 let gap = this.realGap(behind._data, x._data);
@@ -1086,8 +1106,8 @@ export class StatsProcessor extends events.EventEmitter {
                         x.isGapEst = false;
                     }
                 }
-                console.log('up', x.gap, '=>', behind.gap - gap);
-                console.log('up', x.gapDistance, '=>', behind.gapDistance - gapDistance);
+                //console.log('up', x.gap, '=>', behind.gap - gap);
+                //console.log('up', x.gapDistance, '=>', behind.gapDistance - gapDistance);
                 x.gap = behind.gap - gap;
                 x.gapDistance = behind.gapDistance - gapDistance;
             }
@@ -1097,7 +1117,6 @@ export class StatsProcessor extends events.EventEmitter {
             if (x.isGapEst) {
                 const ahead = nearby[i - 1];
                 if (!ahead) {
-                    console.warn('xxx');
                     debugger;
                 }
                 let gap = this.realGap(x._data, ahead._data);
@@ -1109,8 +1128,8 @@ export class StatsProcessor extends events.EventEmitter {
                         x.isGapEst = false;
                     }
                 }
-                console.log('down', x.gap, '=>', ahead.gap + gap);
-                console.log('down', x.gapDistance, '=>', ahead.gapDistance + gapDistance);
+                //console.log('down', x.gap, '=>', ahead.gap + gap);
+                //console.log('down', x.gapDistance, '=>', ahead.gapDistance + gapDistance);
                 x.gap = ahead.gap + gap;
                 x.gapDistance = ahead.gapDistance + gapDistance;
             }
