@@ -613,12 +613,22 @@ class NetChannel extends events.EventEmitter {
         this.recvIV = new RelayIV({channelType: `${options.proto}Server`, connId: this.connId});
         this.recvCount = 0;
         this.sendCount = 0;
+        this.errCount = 0;
         this.timeout = options.timeout || 30000;
     }
 
     toString() {
         return `<NetChannel [${this.proto}] connId: ${this.connId}, relayId: ${this.relayId}, ` +
             `recv: ${this.recvCount}, send: ${this.sendCount}, ip: ${this.ip}>`;
+    }
+
+    incError() {
+        this.errCount++;
+        const limit = 10;
+        if (this.errCount > limit) {
+            console.error("Error count exceeded limit:", limit);
+            this.shutdown();
+        }
     }
 
     decrypt(data) {
@@ -794,6 +804,15 @@ class TCPChannel extends NetChannel {
     }
 
     onTCPData(nread, buf) {
+        try {
+            this._onTCPData(nread, buf);
+        } catch(e) {
+            console.error("TCP recv handler error:", e);
+            this.incError();
+        }
+    }
+
+    _onTCPData(nread, buf) {
         this.tickleWatchdog();
         this.recvCount++;
         const data = buf.subarray(0, nread);
@@ -830,12 +849,8 @@ class TCPChannel extends NetChannel {
                 } else {
                     completeBuf = data.subarray(offt, (offt += size));
                 }
-                try {
-                    const plainBuf = this.decrypt(completeBuf);
-                    this.emit('inPacket', protos.ServerToClient.decode(plainBuf), this);
-                } catch(e) {
-                    console.error('Decryption error:', e);
-                }
+                const plainBuf = this.decrypt(completeBuf);
+                this.emit('inPacket', protos.ServerToClient.decode(plainBuf), this);
             }
         }
     }
@@ -1272,7 +1287,10 @@ export class GameMonitor extends events.EventEmitter {
         for (const ch of this.udpChannels) {
             if (ch.active) {
                 try {
-                    await ch.sendPlayerState({watchingAthleteId: this.watchingAthleteId, ...this._extraPlayerState});
+                    await ch.sendPlayerState({
+                        watchingAthleteId: this.watchingAthleteId,
+                        ...this._extraPlayerState
+                    });
                     break;
                 } catch(e) {
                     if (!(e instanceof InactiveChannelError)) {
