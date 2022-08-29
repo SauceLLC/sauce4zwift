@@ -401,7 +401,7 @@ function snakeToCamelCase(v) {
 function parseArgs() {
     const iter = process.argv.values();
     const args = {};
-    const switches = ['headless', 'force-login', 'random-watch'];
+    const switches = ['help', 'headless', 'force-login', 'random-watch'];
     const options = ['host', 'athlete-id'];
     for (let x of iter) {
         if (!x.startsWith('--')) {
@@ -421,15 +421,21 @@ function parseArgs() {
             args[snakeToCamelCase(x)] = value;
         }
     }
+    if (args.help) {
+        console.warn(`Usage: ${process.argv[0]} ` +
+            switches.map(x => `[--${x}]`).join(' ') + ' ' +
+            options.map(x => `[--${x} VALUE]`).join(' '));
+        quit(1);
+    }
     return args;
 }
 
 
 export async function main({logEmitter, logFile, logQueue, sentryAnonId}) {
+    const args = parseArgs();
     if (quiting) {
         return;
     }
-    const args = parseArgs();
     if (logEmitter) {
         rpcSources['logs'] = logEmitter;
         rpc.register(() => logQueue, {name: 'getLogs'});
