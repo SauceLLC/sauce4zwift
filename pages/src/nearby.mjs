@@ -491,21 +491,27 @@ function renderData(data) {
     if (!data || !data.length || document.hidden) {
         return;
     }
-    const sortField = enFields.find(x => x.id === sortBy);
-    const sortGet = sortField.sortValue || sortField.get;
-    /*data.sort((a, b) => {
-        const av = sortGet(a);
-        const bv = sortGet(b);
-        if (av == bv) {
-            return 0;
-        } else if (av == null || bv == null) {
-            return av == null ? 1 : -1;
-        } else if (typeof av === 'number') {
-            return (av < bv ? 1 : -1) * sortByDir;
-        } else {
-            return (('' + av).toLowerCase() < ('' + bv).toLowerCase() ? 1 : -1) * sortByDir;
+    if (sortBy === 'roadcom') {
+        if (sortByDir === -1) {
+            data.reverse();
         }
-    });*/
+    } else {
+        const sortField = enFields.find(x => x.id === sortBy);
+        const sortGet = sortField.sortValue || sortField.get;
+        data.sort((a, b) => {
+            const av = sortGet(a);
+            const bv = sortGet(b);
+            if (av == bv) {
+                return 0;
+            } else if (av == null || bv == null) {
+                return av == null ? 1 : -1;
+            } else if (typeof av === 'number') {
+                return (av < bv ? 1 : -1) * sortByDir;
+            } else {
+                return (('' + av).toLowerCase() < ('' + bv).toLowerCase() ? 1 : -1) * sortByDir;
+            }
+        });
+    }
     if (nextAnimFrame) {
         cancelAnimationFrame(nextAnimFrame);
     }
