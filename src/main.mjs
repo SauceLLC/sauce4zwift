@@ -18,7 +18,7 @@ const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 const {autoUpdater} = require('electron-updater');
 const electron = require('electron');
-const isDEV = !electron.app.isPackaged && false;
+const isDEV = !electron.app.isPackaged;
 const zwiftAPI = new zwift.ZwiftAPI();
 const zwiftMonitorAPI = new zwift.ZwiftAPI();
 
@@ -358,7 +358,6 @@ class SauceApp extends EventEmitter {
             webServer.start({
                 ip,
                 port: this.webServerPort,
-                debug: isDEV,
                 rpcSources,
                 statsProc: this.statsProc,
             }).catch(Sentry.captureException);
@@ -445,7 +444,9 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId}) {
     rpc.register(() => sentryAnonId, {name: 'getSentryAnonId'});
     sauceApp = new SauceApp();
     global.app = sauceApp;  // devTools debug
-    setTimeout(() => autoUpdater.checkForUpdatesAndNotify().catch(Sentry.captureException), 10000);
+    if (!isDEV) {
+        setTimeout(() => autoUpdater.checkForUpdatesAndNotify().catch(Sentry.captureException), 10000);
+    }
     if (!args.headless) {
         menu.installTrayIcon();
         menu.setAppMenu();

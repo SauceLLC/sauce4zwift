@@ -95,7 +95,7 @@ export async function start(options={}) {
 }
 
 
-async function _start({ip, port, debug, rpcSources, statsProc}) {
+async function _start({ip, port, rpcSources, statsProc}) {
     app = express();
     app.use(express.json());
     server = http.createServer(app);
@@ -103,10 +103,14 @@ async function _start({ip, port, debug, rpcSources, statsProc}) {
     // workaround https://github.com/websockets/ws/issues/2023
     webSocketServer.on('error', () => void 0);
     const cacheDisabled = 'no-cache, no-store, must-revalidate';
-    const cacheEnabled = debug ? cacheDisabled : 'public, max-age=3600, s-maxage=900';
+    const cacheEnabled = 'public, max-age=3600, s-maxage=900';
     const router = express.Router();
     router.use('/', express.static(`${WD}/../pages`, {index: 'index.html'}));
     router.use('/pages/images', express.static(`${WD}/../pages/images`, {
+        cacheControl: true,
+        setHeaders: res => res.setHeader('Cache-Control', cacheEnabled)
+    }));
+    router.use('/pages/deps/flags', express.static(`${WD}/../pages/deps/flags`, {
         cacheControl: true,
         setHeaders: res => res.setHeader('Cache-Control', cacheEnabled)
     }));
