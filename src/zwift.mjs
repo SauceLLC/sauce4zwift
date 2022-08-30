@@ -1039,7 +1039,7 @@ export class GameMonitor extends events.EventEmitter {
     }
 
     async getRandomAthleteId() {
-        const inWorld = (await zwiftAPI.fetchJSON('/relay/worlds/1')).friendsInWorld;
+        const inWorld = (await this.api.fetchJSON('/relay/worlds/1')).friendsInWorld;
         return inWorld[0].playerId;
     }
 
