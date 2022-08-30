@@ -85,18 +85,19 @@ function crowDistance(a, b) {
 }
 
 
-const _roadDistWeightConst = 1 - Math.exp(-1 / 100);
-function adjRoadDistEstimate(sig, raw) {
-    let d = roadDistEstimates.get(sig) || raw;
-    const c = _roadDistWeightConst;
-    d = (d * (1 - c)) + (raw * c);
-    roadDistEstimates.set(sig, d);
+function makeExpWeighted(period) {
+    const c = 1 - Math.exp(-1 / 100);
+    let w;
+    return x => (w = w === undefined ? x : (w * (1 - c)) + (x * c));
 }
 
 
-function estGap(a, b, dist) {
-    dist = dist !== undefined ? dist : crowDistance(a, b);
-    return dist / ((a.speed || b.speed || 1) * 1000 / 3600);
+const _roadDistExpFuncs = {};
+function adjRoadDistEstimate(sig, raw) {
+    if (!_roadDistExpFuncs[sig]) {
+        _roadDistExpFuncs[sig] = makeExpWeighted(100);
+    }
+    roadDistEstimates.set(sig, _roadDistExpFuncs[sig](raw));
 }
 
 
@@ -973,14 +974,36 @@ export class StatsProcessor extends events.EventEmitter {
     isFirstLeadingSecond(a, b) {
         const aSig = a.roadHistory.sig;
         const bSig = b.roadHistory.sig;
-        if (aSig === bSig) {
+        if (!aSig || !bSig) {
+            debugger;
+            return;
+        } else if (aSig === bSig) {
             return a.mostRecentState.roadCompletion > b.mostRecentState.roadCompletion;
         } else {
+            // If an athlete's last place on their previous road was in front of the other
+            // then they are still in contention for ordering.  Otherwise they've turned off
+            // the road and been passed by the other athlete.
             if (a.roadHistory.prevSig === bSig) {
-                return true;
-            } else {
-                if (b.roadHistory.prevSig === aSig) {
+                const aLast = a.roadHistory.prevTimeline[a.roadHistory.prevTimeline.length - 1];
+                if (aLast.roadCompletion > b.mostRecentState.roadCompletion) {
+                    return true;
+                } else if (aLast.roadCompletion === b.mostRecentState.roadCompletion) {
+                    // rare
+                    debugger;
+                    return aLast.ts < b.mostRecentState.ts;
+                } else {
+                    return null;
+                }
+            } else if (b.roadHistory.prevSig === aSig) {
+                const bLast = b.roadHistory.prevTimeline[b.roadHistory.prevTimeline.length - 1];
+                if (bLast.roadCompletion > b.mostRecentState.roadCompletion) {
                     return false;
+                } else if (bLast.roadCompletion === b.mostRecentState.roadCompletion) {
+                    // rare
+                    debugger;
+                    return bLast.ts > b.mostRecentState.ts;
+                } else {
+                    return null;
                 }
             }
         }
@@ -1056,11 +1079,15 @@ export class StatsProcessor extends events.EventEmitter {
         return crowDistance(a, b);
     }
 
-    _estimateGap(a, b, gapDistance) {
+    _estimateGap(a, b, gapDistance, speed) {
         const gap = this.realGap(
             this._athleteData.get(a.athleteId),
             this._athleteData.get(b.athleteId));
-        return gap != null ? gap : estGap(a, b, gapDistance);
+        if (gap != null) {
+            return gap;
+        } else {
+            return gapDistance / (speed * 1000 / 3600);
+        }
     }
 
     _computeNearby() {
@@ -1069,8 +1096,16 @@ export class StatsProcessor extends events.EventEmitter {
         if (!watchingData) {
             return nearby;
         }
+        // We need to use a speed value for estimates and just using one value is
+        // dangerous, so we use a weighted function that's seeded (skewed) to the
+        // the watching rider.
+        const refSpeedForEstimates = makeExpWeighted(10);
+        const watchingSpeed = watchingData.mostRecentState.speed;
+        if (watchingSpeed > 1) {
+            refSpeedForEstimates(watchingSpeed);
+        }
         // Only filter stopped riders if we are moving.
-        const filterStopped = !!watchingData.mostRecentState.speed;
+        const filterStopped = !!watchingSpeed;
         for (const [aId, aData] of this._athleteData.entries()) {
             if (((filterStopped && !aData.mostRecentState.speed) || monotonic() - aData.updated > 15000) &&
                 aId !== this.watching) {
@@ -1081,7 +1116,7 @@ export class StatsProcessor extends events.EventEmitter {
             if (!watching) {
                 const leading = this.isFirstLeadingSecond(watchingData, aData);
                 if (leading == null) {
-                    continue;  // Not on same road (usually reverse direction)
+                    continue;
                 }
                 const sign = leading ? 1 : -1;
                 gap = this.realGap(watchingData, aData);
@@ -1104,28 +1139,72 @@ export class StatsProcessor extends events.EventEmitter {
                 state: this._cleanState(aData.mostRecentState),
             });
         }
-        nearby.sort((a, b) =>
-            this.isFirstLeadingSecond(this._athleteData.get(a.athleteId), this._athleteData.get(b.athleteId)) ? -1 : 1);
+        nearby.sort((a, b) => {
+            const l = this.isFirstLeadingSecond(
+                this._athleteData.get(a.athleteId),
+                this._athleteData.get(b.athleteId));
+            return l == null ? 0 : l ? -1 : 1;
+        });
+        const sym = Array.from(nearby);
+        sym.sort((a, b) => {
+            const l = this.isFirstLeadingSecond(
+                this._athleteData.get(b.athleteId),
+                this._athleteData.get(a.athleteId));
+            return l == null ? 0 : l ? 1 : -1;
+        });
+        for (let i = 0; i < sym.length; i++) {
+            if (sym[i] !== nearby[i]) {
+                console.log(i, sym, nearby);
+                debugger;
+            }
+        }
         const watchingIdx = nearby.findIndex(x => x.watching);
         for (let i = watchingIdx - 1; i >= 0; i--) {
             const x = nearby[i];
-            const behind = nearby[i + 1];
-            const innerGapDistance = this._estimateGapDistance(x.state, behind.state);
-            x.gapDistance = behind.gapDistance - innerGapDistance;
+            const adjacent = nearby[i + 1];
+            const igd = this._estimateGapDistance(x.state, adjacent.state);
+            x.gapDistance = adjacent.gapDistance - igd;
+            const speedRef = refSpeedForEstimates(x.state.speed);
             if (x.gap == null) {
-                const gap = this._estimateGap(x.state, behind.state, innerGapDistance);
-                x.gap = behind.gap - gap;
+                const gap = this._estimateGap(x.state, adjacent.state, igd, speedRef);
+                x.gap = adjacent.gap - gap;
+            }
+            const xx = nearby[i - 1];
+            if (xx && xx.gap != null && xx.gap > x.gap) {
+                if (Math.abs(xx.gap - x.gap) > 1000) {
+                    xx;
+                    debugger;
+                }
             }
         }
         for (let i = watchingIdx + 1; i < nearby.length; i++) {
             const x = nearby[i];
-            const ahead = nearby[i - 1];
-            const innerGapDistance = this._estimateGapDistance(x.state, ahead.state);
-            x.gapDistance = ahead.gapDistance + innerGapDistance;
+            const adjacent = nearby[i - 1];
+            const igd = this._estimateGapDistance(x.state, adjacent.state);
+            x.gapDistance = adjacent.gapDistance + igd;
+            const speedRef = refSpeedForEstimates(x.state.speed);
             if (x.gap == null) {
-                const gap = this._estimateGap(x.state, ahead.state, innerGapDistance);
-                x.gap = ahead.gap + gap;
+                const gap = this._estimateGap(x.state, adjacent.state, igd, speedRef);
+                x.gap = adjacent.gap + gap;
             }
+            const xx = nearby[i + 1];
+            if (xx && xx.gap != null && xx.gap < x.gap) {
+                if (Math.abs(xx.gap - x.gap) > 1000) {
+                    xx;
+                    debugger;
+                }
+            }
+        }
+        const test = Array.from(nearby);
+        test.sort((a, b) => a.gap < b.gap ? -1 : a.gap === b.gap ? 0 : 1);
+        const outoforder = [];
+        for (let i = 0; i < test.length; i++) {
+            if (test[i] !== nearby[i]) {
+                outoforder.push(i);
+            }
+        }
+        if (outoforder.length) {
+            console.debug(outoforder, test, nearby);
         }
         this.maybeUpdateAthletesFromServer(nearby);
         return nearby;
