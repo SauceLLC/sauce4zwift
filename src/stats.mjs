@@ -976,10 +976,11 @@ export class StatsProcessor extends events.EventEmitter {
         const bSig = b.roadHistory.sig;
         if (!aSig || !bSig) {
             debugger;
-            return;
+            return null;
         } else if (aSig === bSig) {
             return a.mostRecentState.roadCompletion > b.mostRecentState.roadCompletion;
         } else {
+            return null;
             // If an athlete's last place on their previous road was in front of the other
             // then they are still in contention for ordering.  Otherwise they've turned off
             // the road and been passed by the other athlete.
