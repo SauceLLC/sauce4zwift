@@ -1,5 +1,6 @@
 html {
     user-select: initial;
+    --page-width: 2000px;
 }
 
 html:not(.overlay-mode) {
@@ -79,7 +80,34 @@ table {
         }
     }
 
-    tr,
+    tr {
+        --dom-index: 0;
+        --data-index: 0;
+        --height: 2.6em;
+
+        height: var(--height); // Required for translate consistency and accuracy using table
+        transition: background 2s, transform 5s, opacity 2s;
+        // use --height instead of 100% which has accurarcy issues on chrome
+        transform: translate3d(0, calc(var(--height) * (var(--data-index) - var(--dom-index))), 0);
+        //transform: translate(0, calc(var(--height) * (var(--data-index) - var(--dom-index))));
+
+        &.hiding {
+            background: yellow;
+            opacity: 0;
+            //transition: opacity 2s;
+            //transform: translate3d(0, calc(var(--height) * (var(--data-index) - var(--dom-index))), 0) scaleY(0);
+        }
+
+        &.watching {
+            transition: none;
+            background-color: #0081ffba;
+        }
+
+        &.hidden {
+            display: none;
+        }
+    }
+
     td {
         transition: background 200ms;
     }
@@ -155,21 +183,20 @@ table {
         padding-right: 0.6em;
     }
 
-    tr.hidden {
-        display: none;
-    }
-
-    tr.watching {
-        background-color: #0081ffba !important;
-        color: white !important;
-        td {
-            padding-top: 0.5em;
-            padding-bottom: 0.5em;
-        }
-    }
-
     tbody tr:not(.hi):hover {
         background-color: #0355;
+
+        &.following {
+            background-color: #51c164;
+        }
+
+        &.marked {
+            background-color: #f0f0f0;
+        }
+
+        &.watching {
+            background-color: #0081ffde;
+        }
     }
 
     td.sorted {
@@ -177,12 +204,12 @@ table {
     }
 
     tr.marked {
-        background-color: #23ff6ca3;
+        background-color: #eeee;
+        color: #111;
     }
 
     tr.following {
-        background-color: #fff;
-        color: black;
+        background-color: #51c164e0;
     }
 
     td .link {
@@ -208,7 +235,7 @@ table {
 }
 
 #content {
-    scroll-behavior: smooth;
+    //scroll-behavior: smooth;
     padding: 0;
     overflow: auto;
     overflow: overlay; // chromium only
@@ -216,9 +243,13 @@ table {
     font-size: calc(var(--font-scale) * 1em);
 }
 
-html.autoscroll table tr.watching {
-    scroll-snap-align: center;
-}
-html.autoscroll #content {
-    scroll-snap-type: y proximity;
+html.autoscroll {
+    table tr.watching {
+        //scroll-snap-align: center;
+        //transition: background 200ms;
+    }
+
+    #content {
+        //scroll-snap-type: y proximity;
+    }
 }

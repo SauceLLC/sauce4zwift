@@ -25,8 +25,13 @@ let nations;
 let flags;
 let gameControlEnabled;
 let gameControlConnected;
+let watchingRow;
+let watchingRowObservable;
 const routesById = new Map(routes.map(x => [x.id, x]));
 const eventsBySubGroup = new Map();
+const activeRows = new Map();
+const inactiveRows = [];
+const intersectionObserver = new IntersectionObserver(onIntersection, {threshold: 1});
 
 const spd = v => H.pace(v, {precision: 0, suffix: true, html: true});
 const weightClass = v => H.weightClass(v, {suffix: true, html: true});
@@ -389,6 +394,9 @@ export async function main() {
     refresh = setRefresh();
     let lastRefresh = 0;
     common.subscribe('nearby', data => {
+        if (window.pause) {
+            return;
+        }
         if (settings.onlyMarked) {
             data = data.filter(x => x.watching || (x.athlete && x.athlete.marked));
         }
@@ -437,10 +445,10 @@ function render() {
         `<td data-id="${x.id}"
              class="${sortBy === x.id ? 'sorted ' + sortDirClass : ''}"
              >${x.label}<ms class="sort-asc">arrow_drop_up</ms><ms class="sort-desc">arrow_drop_down</ms></td>`).join('');
-    mainRow = makeTableRow();
-    mainRow.classList.add('watching');
+    //mainRow = makeTableRow();
+    //mainRow.classList.add('watching');
     tbody.innerHTML = '';
-    tbody.appendChild(mainRow);
+    //tbody.appendChild(mainRow);
 }
 
 
@@ -465,7 +473,24 @@ function gentleClassToggle(el, cls, force) {
 }
 
 
+function onIntersection(entries) {
+    const ent = entries[0];
+    watchingRowObservable = ent && ent.intersectionRatio === 1;
+    console.warn('observable', watchingRowObservable);
+}
+
+
 function updateTableRow(row, info) {
+    gentleClassToggle(row, 'watching', info.watching);
+    if (info.watching) {
+        if (row !== watchingRow) {
+            if (watchingRow) {
+                intersectionObserver.unobserve(watchingRow);
+            }
+            watchingRow = row;
+            requestAnimationFrame(() => intersectionObserver.observe(watchingRow));
+        }
+    }
     gentleClassToggle(row, 'marked', info.athlete && info.athlete.marked);
     gentleClassToggle(row, 'following', info.athlete && info.athlete.following);
     if (row.dataset.id !== '' + info.athleteId) {
@@ -481,7 +506,16 @@ function updateTableRow(row, info) {
         }
         gentleClassToggle(td, 'sorted', sortBy === id);
     }
-    gentleClassToggle(row, 'hidden', false);
+}
+
+
+function hideRow(row) {
+    delete row.dataset.id;
+    gentleClassToggle(row, 'slideout', true);
+    row.addEventListener('transitionend', ev => {
+        console.warn(ev.propertyName, row.dataset.id);
+        gentleClassToggle(row, 'hidden', true);
+    }, {once: true});
 }
 
 
@@ -515,7 +549,7 @@ function renderData(data) {
     if (nextAnimFrame) {
         cancelAnimationFrame(nextAnimFrame);
     }
-    nextAnimFrame = requestAnimationFrame(() => {
+    /*nextAnimFrame = requestAnimationFrame(() => {
         nextAnimFrame = null;
         const centerIdx = data.findIndex(x => x.watching);
         let row = mainRow;
@@ -539,8 +573,110 @@ function renderData(data) {
         if (!frames++ && settings.autoscroll) {
             queueMicrotask(() => mainRow.scrollIntoView({block: 'center'}));
         }
+    });*/
+    nextAnimFrame = requestAnimationFrame(() => {
+        nextAnimFrame = null;
+        const unusedRows = new Set(activeRows.keys());
+        const oldWatchingIdx = watchingRow ? watchingRow._dataIdx : null;
+        const prevIndexes = new Map(Array.from(tbody.querySelectorAll('tr:not(.hiding)')).map(x => [x._dataIdx, x]));
+        for (const [i, entry] of data.entries()) {
+            let row;
+            if (activeRows.has(entry.athleteId)) {
+                row = activeRows.get(entry.athleteId);
+                unusedRows.delete(entry.athleteId);
+            } else {
+                if (inactiveRows.length) {
+                    row = inactiveRows.shift();
+                    row.style.setProperty('--data-index', i);
+                    row.offsetHeight; // Trigger reflow
+                    // Reflow hack alone doesn't cut it with transform, must do this too.
+                    requestAnimationFrame(() => row.classList.remove('hiding'));
+                } else {
+                    activeRows.set(entry.athleteId, row);
+                    row = makeTableRow();
+                    tbody.appendChild(row);
+                    row.style.setProperty('--dom-index', tbody.childElementCount - 1);
+                }
+                activeRows.set(entry.athleteId, row);
+            }
+            row.style.setProperty('--data-index', i);
+            row._dataIdx = i;
+            updateTableRow(row, data[i]);
+        }
+        for (const id of unusedRows) {
+            const row = activeRows.get(id);
+            activeRows.delete(id);
+            inactiveRows.push(row);
+            row.classList.add('hiding');
+            row.classList.remove('watching');
+        }
+        if (watchingRowObservable) {
+            // Scroll to where we will be using the row that is there now
+            watchingRow.scrollIntoView({block: 'center'});
+            const idx = watchingRow._dataIdx;
+            const destRow = prevIndexes.get(idx);
+            if (destRow) {
+                //destRow.scrollIntoView({block: 'center'});
+            } else {
+                console.log('borked, off end?', idx); // off 
+            }
+        } else {
+            console.log("out of scroll frame");
+        }
+        if (!frames++ && settings.autoscroll) {
+            requestAnimationFrame(() => {
+                const row = tbody.querySelector('tr.watching');
+                if (row) {
+                    row.scrollIntoView({block: 'center'});
+                }
+            });
+        }
     });
 }
+
+function keepCentered() {
+    requestAnimationFrame(keepCentered);
+    if (watchingRowObservable && watchingRow) {
+        const {height, y} = watchingRow.getBoundingClientRect();
+        const midPoint = (content.clientHeight - height) / 2;
+        const t = y - midPoint;
+        if (Math.abs(t) < 1) {
+            return;
+        }
+        if (t > 0) {
+            console.log("move up", t);
+            content.scrollTop += t;
+        } else {
+            console.log("move down", t);
+            content.scrollTop += t;
+        }
+    }
+}
+// keepCentered();
+window.renderData = renderData;
+
+window.data = [];
+for (let i = 0; i < 100; i++) {
+    data.push({state:{}, athleteId: i})
+}
+
+data[0].watching = true;
+
+//setTimeout(() => renderData(data), 1000);
+//setInterval(() => renderData(data.filter(x => !x.hidden)), 5000);
+
+window.move = (from, to) => {
+    const t = data.splice(from, 1)[0];
+    data.splice(to, 0, t);
+    renderData(data.filter(x => !x.hidden));
+};
+
+window.shuffle = () => {
+    for (const i of data.keys()) {
+        const ti = (Math.random() * data.length) | 0;
+        [data[i], data[ti]] = [data[ti], data[i]];
+    }
+};
 
 
 export async function settingsMain() {
