@@ -346,23 +346,30 @@ export async function main() {
     });
     theadRow.addEventListener('click', ev => {
         const col = ev.target.closest('td');
-        if (col) {
-            const id = col.dataset.id;
-            if (id === sortBy) {
-                sortByDir = -sortByDir;
-                common.storage.set('nearby-sort-dir', sortByDir);
-            }
+        if (!col) {
+            return;
+        }
+        const id = col.dataset.id;
+        for (const th of theadRow.querySelectorAll('.sorted')) {
+            th.classList.remove('sorted', 'sort-asc', 'sort-desc');
+        }
+        if (id === sortBy) {
+            sortByDir = -sortByDir;
+            common.storage.set('nearby-sort-dir', sortByDir);
+        } else {
             sortBy = id;
-            common.storage.set(`nearby-sort-by`, id);
-            for (const td of table.querySelectorAll('td.sorted')) {
-                td.classList.remove('sorted', 'sort-asc', 'sort-desc');
+            for (const td of tbody.querySelectorAll('td.sorted')) {
+                td.classList.remove('sorted');
             }
-            for (const td of table.querySelectorAll(`td[data-id="${sortBy}"]`)) {
+            for (const td of tbody.querySelectorAll(`td[data-id="${sortBy}"]`)) {
                 td.classList.add('sorted');
             }
-            col.classList.add(sortByDir > 0 ? 'sort-asc' : 'sort-desc');
-            renderData(nearbyData);
+            common.storage.set(`nearby-sort-by`, id);
         }
+        col.classList.add('sorted', sortByDir > 0 ? 'sort-asc' : 'sort-desc');
+        table.classList.add('notransitions');
+        requestAnimationFrame(() => table.classList.remove('notransitions'));
+        renderData(nearbyData);
     });
     tbody.addEventListener('click', async ev => {
         const link = ev.target.closest('.link');
@@ -438,6 +445,11 @@ function render() {
     }
     sortByDir = common.storage.get('nearby-sort-dir', -1);
     const sortDirClass = sortByDir > 0 ? 'sort-asc' : 'sort-desc';
+    if (watchingRow) { // XXX
+        intersectionObserver.unobserve(watchingRow); // XXX
+        watchingRow = null; // XXX
+        watchingRowObservable = false; // XXX
+    }
     table = document.querySelector('#content table');
     tbody = table.querySelector('tbody');
     theadRow = table.querySelector('thead tr');
@@ -445,9 +457,11 @@ function render() {
         `<td data-id="${x.id}"
              class="${sortBy === x.id ? 'sorted ' + sortDirClass : ''}"
              >${x.label}<ms class="sort-asc">arrow_drop_up</ms><ms class="sort-desc">arrow_drop_down</ms></td>`).join('');
+    tbody.innerHTML = '';
+    activeRows.clear();
+    inactiveRows.length = 0;
     //mainRow = makeTableRow();
     //mainRow.classList.add('watching');
-    tbody.innerHTML = '';
     //tbody.appendChild(mainRow);
 }
 
@@ -488,6 +502,7 @@ function updateTableRow(row, info) {
                 intersectionObserver.unobserve(watchingRow);
             }
             watchingRow = row;
+            watchingRow.addEventListener('transitionend', keepCentered);
             requestAnimationFrame(() => intersectionObserver.observe(watchingRow));
         }
     }
@@ -519,39 +534,28 @@ function hideRow(row) {
 }
 
 
-let nextAnimFrame;
 let frames = 0;
 function renderData(data) {
     if (!data || !data.length || document.hidden) {
         return;
     }
-    if (sortBy === 'roadcom') {
-        if (sortByDir === -1) {
-            data.reverse();
+    const sortField = enFields.find(x => x.id === sortBy);
+    const sortGet = sortField.sortValue || sortField.get;
+    data = data.filter(x => !x.hidden); //XXX
+    data.sort((a, b) => {
+        const av = sortGet(a);
+        const bv = sortGet(b);
+        if (av == bv) {
+            return 0;
+        } else if (av == null || bv == null) {
+            return av == null ? 1 : -1;
+        } else if (typeof av === 'number') {
+            return (av < bv ? 1 : -1) * sortByDir;
+        } else {
+            return (('' + av).toLowerCase() < ('' + bv).toLowerCase() ? 1 : -1) * sortByDir;
         }
-    } else {
-        const sortField = enFields.find(x => x.id === sortBy);
-        const sortGet = sortField.sortValue || sortField.get;
-        data.sort((a, b) => {
-            const av = sortGet(a);
-            const bv = sortGet(b);
-            if (av == bv) {
-                return 0;
-            } else if (av == null || bv == null) {
-                return av == null ? 1 : -1;
-            } else if (typeof av === 'number') {
-                return (av < bv ? 1 : -1) * sortByDir;
-            } else {
-                return (('' + av).toLowerCase() < ('' + bv).toLowerCase() ? 1 : -1) * sortByDir;
-            }
-        });
-    }
-    if (nextAnimFrame) {
-        cancelAnimationFrame(nextAnimFrame);
-    }
-    /*nextAnimFrame = requestAnimationFrame(() => {
-        nextAnimFrame = null;
-        const centerIdx = data.findIndex(x => x.watching);
+    });
+    /*  const centerIdx = data.findIndex(x => x.watching);
         let row = mainRow;
         for (let i = centerIdx; i >= 0; i--) {
             updateTableRow(row, data[i]);
@@ -574,93 +578,96 @@ function renderData(data) {
             queueMicrotask(() => mainRow.scrollIntoView({block: 'center'}));
         }
     });*/
-    nextAnimFrame = requestAnimationFrame(() => {
-        nextAnimFrame = null;
-        const unusedRows = new Set(activeRows.keys());
-        const oldWatchingIdx = watchingRow ? watchingRow._dataIdx : null;
-        const prevIndexes = new Map(Array.from(tbody.querySelectorAll('tr:not(.hiding)')).map(x => [x._dataIdx, x]));
-        for (const [i, entry] of data.entries()) {
-            let row;
-            if (activeRows.has(entry.athleteId)) {
-                row = activeRows.get(entry.athleteId);
-                unusedRows.delete(entry.athleteId);
+    const unusedRows = new Set(activeRows.keys());
+    const oldWatchingIdx = watchingRow ? watchingRow._dataIdx : null;
+    //const prevIndexes = new Map(Array.from(tbody.querySelectorAll('tr:not(.hiding)')).map(x => [x._dataIdx, x]));
+    for (const [i, entry] of data.entries()) {
+        let row;
+        if (activeRows.has(entry.athleteId)) {
+            row = activeRows.get(entry.athleteId);
+            unusedRows.delete(entry.athleteId);
+        } else {
+            if (inactiveRows.length) {
+                row = inactiveRows.shift();
+                row.style.transition = 'initial';
+                row.style.setProperty('--data-index', i);
+                void row.offsetWidth; // Trigger reflow
+                row.style.transition = null;
+                row.classList.remove('hiding');
             } else {
-                if (inactiveRows.length) {
-                    row = inactiveRows.shift();
-                    row.style.setProperty('--data-index', i);
-                    row.offsetHeight; // Trigger reflow
-                    // Reflow hack alone doesn't cut it with transform, must do this too.
-                    requestAnimationFrame(() => row.classList.remove('hiding'));
-                } else {
-                    activeRows.set(entry.athleteId, row);
-                    row = makeTableRow();
-                    tbody.appendChild(row);
-                    row.style.setProperty('--dom-index', tbody.childElementCount - 1);
-                }
                 activeRows.set(entry.athleteId, row);
+                row = makeTableRow();
+                tbody.appendChild(row);
+                row.style.setProperty('--dom-index', tbody.childElementCount - 1);
             }
-            row.style.setProperty('--data-index', i);
-            row._dataIdx = i;
-            updateTableRow(row, data[i]);
+            activeRows.set(entry.athleteId, row);
         }
-        for (const id of unusedRows) {
-            const row = activeRows.get(id);
-            activeRows.delete(id);
-            inactiveRows.push(row);
-            row.classList.add('hiding');
+        row.style.setProperty('--data-index', i);
+        row._dataIdx = i;
+        updateTableRow(row, data[i]);
+    }
+    for (const id of unusedRows) {
+        const row = activeRows.get(id);
+        activeRows.delete(id);
+        inactiveRows.push(row);
+        row.classList.add('hiding');
+        if (row === watchingRow) {
             row.classList.remove('watching');
         }
-        if (watchingRowObservable) {
-            // Scroll to where we will be using the row that is there now
-            watchingRow.scrollIntoView({block: 'center'});
-            const idx = watchingRow._dataIdx;
-            const destRow = prevIndexes.get(idx);
-            if (destRow) {
-                //destRow.scrollIntoView({block: 'center'});
-            } else {
-                console.log('borked, off end?', idx); // off 
-            }
+    }
+    /*if (watchingRowObservable && watchingRow) {
+        // Scroll to where we will be using the row that is there now
+        watchingRow.scrollIntoView({block: 'center'});
+        const idx = watchingRow._dataIdx;
+        const destRow = prevIndexes.get(idx);
+        if (destRow) {
+            //destRow.scrollIntoView({block: 'center'});
         } else {
-            console.log("out of scroll frame");
+            console.log('borked, off end?', idx); // off 
         }
-        if (!frames++ && settings.autoscroll) {
-            requestAnimationFrame(() => {
-                const row = tbody.querySelector('tr.watching');
-                if (row) {
-                    row.scrollIntoView({block: 'center'});
-                }
-            });
-        }
-    });
+    } else {
+        console.log("out of scroll frame");
+    }*/
+    if (!frames++ && settings.autoscroll) {
+        requestAnimationFrame(() => {
+            const row = tbody.querySelector('tr.watching');
+            if (row) {
+                row.scrollIntoView({block: 'center'});
+            }
+        });
+    }
 }
 
 function keepCentered() {
-    requestAnimationFrame(keepCentered);
+    //setTimeout(keepCentered, 100);
     if (watchingRowObservable && watchingRow) {
         const {height, y} = watchingRow.getBoundingClientRect();
-        const midPoint = (content.clientHeight - height) / 2;
+        const midPoint = (window.content.clientHeight - height) / 2;
         const t = y - midPoint;
         if (Math.abs(t) < 1) {
             return;
         }
         if (t > 0) {
             console.log("move up", t);
-            content.scrollTop += t;
+            window.content.scrollTop += t;
         } else {
             console.log("move down", t);
-            content.scrollTop += t;
+            window.content.scrollTop += t;
         }
     }
 }
-// keepCentered();
+//keepCentered();
 window.renderData = renderData;
 
-window.data = [];
-for (let i = 0; i < 100; i++) {
-    data.push({state:{}, athleteId: i})
+//window.data = nearbyData = [];
+const data = window.data = [];
+for (let i = 0; i < 50; i++) {
+    data.push({state:{}, athlete: {}, athleteId: i});
 }
 
-data[0].watching = true;
+data[20].athlete.marked = true;
+data[25].watching = true;
+data[30].athlete.following = true;
 
 //setTimeout(() => renderData(data), 1000);
 //setInterval(() => renderData(data.filter(x => !x.hidden)), 5000);
@@ -671,13 +678,37 @@ window.move = (from, to) => {
     renderData(data.filter(x => !x.hidden));
 };
 
-window.shuffle = () => {
+window.shuffleAll = () => {
     for (const i of data.keys()) {
         const ti = (Math.random() * data.length) | 0;
         [data[i], data[ti]] = [data[ti], data[i]];
     }
+    renderData(data.filter(x => !x.hidden));
 };
 
+window.shuffleSome = (pct=10) => {
+    for (const i of data.keys()) {
+        if (Math.random() > pct / 100) {
+            continue;
+        }
+        const ti = (Math.random() * data.length) | 0;
+        [data[i], data[ti]] = [data[ti], data[i]];
+    }
+    renderData(data.filter(x => !x.hidden));
+};
+
+window.showHideSome = (pct=5) => {
+    for (const x of data) {
+        if (Math.random() > pct / 100) {
+            continue;
+        }
+        x.hidden = !x.hidden;
+    }
+    renderData(data.filter(x => !x.hidden));
+};
+
+
+window.rd = () => renderData(data.filter(x => !x.hidden));
 
 export async function settingsMain() {
     common.initInteractionListeners();

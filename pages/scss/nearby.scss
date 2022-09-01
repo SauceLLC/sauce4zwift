@@ -27,6 +27,10 @@ table {
     border-collapse: collapse;
     user-select: none;
 
+    &.notransitions tr {
+        transition: initial !important;
+    }
+
     abbr.unit {
         font-size: 0.82em;
         opacity: 0.8;
@@ -89,30 +93,38 @@ table {
         transition: background 2s, transform 5s, opacity 2s;
         // use --height instead of 100% which has accurarcy issues on chrome
         transform: translate3d(0, calc(var(--height) * (var(--data-index) - var(--dom-index))), 0);
-        //transform: translate(0, calc(var(--height) * (var(--data-index) - var(--dom-index))));
 
         &.hiding {
-            background: yellow;
+            //transition: background 2s, transform 5s, opacity 2s;
+            background-color: #babc01de;
             opacity: 0;
-            //transition: opacity 2s;
-            //transform: translate3d(0, calc(var(--height) * (var(--data-index) - var(--dom-index))), 0) scaleY(0);
         }
 
         &.watching {
-            transition: none;
+            //transition: none;
             background-color: #0081ffba;
+        }
+
+        &.marked {
+            background-color: #eeee;
+            color: #111;
+        }
+
+        &.following {
+            background-color: #51c164e0;
         }
 
         &.hidden {
             display: none;
         }
+
+        &:hover td {
+            background-color: #0355;
+        }
     }
 
     td {
-        transition: background 200ms;
-    }
-
-    td {
+        transition: background 100ms;
         text-align: left;
         padding: 0.2em 0.2em;
         font-variant: tabular-nums;
@@ -183,33 +195,8 @@ table {
         padding-right: 0.6em;
     }
 
-    tbody tr:not(.hi):hover {
-        background-color: #0355;
-
-        &.following {
-            background-color: #51c164;
-        }
-
-        &.marked {
-            background-color: #f0f0f0;
-        }
-
-        &.watching {
-            background-color: #0081ffde;
-        }
-    }
-
     td.sorted {
-        background-color: #0333;
-    }
-
-    tr.marked {
-        background-color: #eeee;
-        color: #111;
-    }
-
-    tr.following {
-        background-color: #51c164e0;
+        background-color: #0332;
     }
 
     td .link {
@@ -235,21 +222,10 @@ table {
 }
 
 #content {
-    //scroll-behavior: smooth;
+    scroll-behavior: smooth;
     padding: 0;
     overflow: auto;
     overflow: overlay; // chromium only
     position: relative;
     font-size: calc(var(--font-scale) * 1em);
-}
-
-html.autoscroll {
-    table tr.watching {
-        //scroll-snap-align: center;
-        //transition: background 200ms;
-    }
-
-    #content {
-        //scroll-snap-type: y proximity;
-    }
 }

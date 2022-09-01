@@ -1153,12 +1153,13 @@ export class StatsProcessor extends events.EventEmitter {
                 this._athleteData.get(a.athleteId));
             return l == null ? 0 : l ? 1 : -1;
         });
+        /*
         for (let i = 0; i < sym.length; i++) {
             if (sym[i] !== nearby[i]) {
                 console.log(i, sym, nearby);
                 debugger;
             }
-        }
+        }*/
         const watchingIdx = nearby.findIndex(x => x.watching);
         for (let i = watchingIdx - 1; i >= 0; i--) {
             const x = nearby[i];
@@ -1196,6 +1197,7 @@ export class StatsProcessor extends events.EventEmitter {
                 }
             }
         }
+        /*
         const test = Array.from(nearby);
         test.sort((a, b) => a.gap < b.gap ? -1 : a.gap === b.gap ? 0 : 1);
         const outoforder = [];
@@ -1207,6 +1209,7 @@ export class StatsProcessor extends events.EventEmitter {
         if (outoforder.length) {
             console.debug(outoforder, test, nearby);
         }
+        */
         this.maybeUpdateAthletesFromServer(nearby);
         return nearby;
     }
