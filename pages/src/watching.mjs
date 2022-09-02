@@ -375,8 +375,6 @@ const groupSpecs = {
             key: () => 'Max',
             unit: () => 'bpm',
         },
-            makeSmoothHRField(5),
-            makeSmoothHRField(15),
             makeSmoothHRField(60),
             makeSmoothHRField(300),
             makeSmoothHRField(1200),
