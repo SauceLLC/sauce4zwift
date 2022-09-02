@@ -222,21 +222,23 @@ message PayloadEvent {
     int64 _f36 = 36; // varint
 }
 
+message PlayerPlacement {
+    int32 athleteId = 1;
+    float distanceCovered = 2;
+    int32 distanceToLeader = 3; // cm?, ms?
+    int32 position = 4; // only see with new players10
+}
+
 message EventPositions {
     int32 position = 1;
-    message PlayerPlacement {
-        int32 athleteId = 1;
-        float distanceCovered = 2; // maybe fixed32?
-        int32 distanceToLeader = 3; // cm?, ms?
-    }
-    repeated PlayerPlacement player1 = 2;
-    repeated PlayerPlacement player2 = 3;
-    repeated PlayerPlacement player3 = 4; // leader? self?
-    repeated PlayerPlacement player4 = 5; // tail?
-    int32 activeAthleteCount = 6;
-    int32 leaderAthleteId = 7;
-    int32 distanceToLeader = 8;  // cm?, ms?
-    int32 athleteCount = 116;
+    repeated PlayerPlacement players1 = 2;
+    repeated PlayerPlacement players2 = 3;
+    repeated PlayerPlacement players3 = 4; // leader? self?
+    repeated PlayerPlacement players4 = 5; // tail?
+    int32 activeAthleteCount = 6;  // doesn't seem to line up XXX
+    int32 watchingAthleteId = 7;
+    int32 watchingDistanceToLeader = 8;  // cm?, ms?
+    repeated PlayerPlacement players10 = 10;
 }
 
 message PlayerSummary {
@@ -272,18 +274,15 @@ message ServerToClient {
     int32 athleteCount = 14;
     int32 companionPort = 15;
     int32 companionProtocol = 16; // 1 = UDP, 2 = TCP
-    int64 latency = 17;
+    int32 latency = 17;
     int32 msgCount = 18;
     int32 msg = 19;
     bool multipleLogins = 20;
-    PlayerSummaries playerSummaries = 21;
+    PlayerSummaries playerSummaries = 21; // never seen
     EventPositions eventPositions = 23;
     UDPConfig udpConfig = 24;
     UDPConfigVOD udpConfigVOD = 25;
     int32 expungeReason = 26;
-    UDPConfigVOD udpConfigVOD2 = 27; // never seen
-    repeated PlayerState playerStates2 = 28; // never seen
-    TCPConfig tcpConfig = 29; // never seen
     repeated int64 ackSubsSegments = 30;
     uint32 _f31 = 31;
     bytes companionAesKey = 32;
