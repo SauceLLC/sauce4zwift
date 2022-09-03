@@ -5,9 +5,9 @@ export function setImperial(en) {
 }
 
 
-const metersPerMile = 1609.344;
-const metersPerFoot = 0.3048;
-const kgsPerLbs = 2.20462;
+export const metersPerMile = 1609.344;
+export const metersPerFoot = 0.3048;
+export const kgsPerLbs = 2.20462;
 
 const hdUnits = {
     year: 'year',
@@ -55,6 +55,7 @@ function humanDuration(elapsed, options={}) {
     const stack = [];
     const precision = options.precision || 1;
     const sign = elapsed < 0 ? '-' : '';
+    // XXX completely broken. :(
     elapsed = Math.round(Math.abs(elapsed) / precision) * precision;
     let i = 0;
     for (let [key, period] of units) {
