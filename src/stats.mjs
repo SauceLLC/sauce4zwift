@@ -18,7 +18,7 @@ protobuf.parse.defaults.keepCase = _case;
 
 
 const monotonic = performance.now;
-const roadDistEstimates = new Map();
+const roadDistEstimates = {};
 
 let _db;
 function getDB() {
@@ -97,7 +97,7 @@ function adjRoadDistEstimate(sig, raw) {
     if (!_roadDistExpFuncs[sig]) {
         _roadDistExpFuncs[sig] = makeExpWeighted(100);
     }
-    roadDistEstimates.set(sig, _roadDistExpFuncs[sig](raw));
+    roadDistEstimates[sig] = _roadDistExpFuncs[sig](raw);
 }
 
 
@@ -108,7 +108,6 @@ class DataCollector {
             return;
         }
         const defOptions = {idealGap: 1, maxGap: 15, active: true};
-        this._precision = options.precision;
         this._bufferedTimes = new Array();
         this._bufferedValues = new Array();
         this._bufferedLen = 0;
@@ -147,16 +146,11 @@ class DataCollector {
             for (let i = 0; i < this._bufferedLen; i++) {
                 totV += this._bufferedValues[i];
             }
-            let adjValue = totV / this._bufferedLen;
             // XXX check perf and maybe replace with 1 second idealized version as micro opt
             // XXX2 sometimes this will be the same ts and the prev entry.  If there is a gap and we only have a few datapoints
             // then we will round down. Maybe we can always round up?  More testing!
             const adjTime = Math.round(this._bufferedTimes[this._bufferedLen - 1] / idealGap) * idealGap;
-            if (this._precision) {
-                adjValue = Number(adjValue.toFixed(this._precision));
-            } else {
-                adjValue = Math.round(adjValue);
-            }
+            const adjValue = Math.round(totV / this._bufferedLen);
             this._add(adjTime, adjValue);
             this._bufferedTimes[0] = time;
             this._bufferedValues[0] = value;
@@ -528,6 +522,12 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _onIncoming(packet) {
+        const ts = zwift.worldTimeToTime(packet._worldTime);
+        if (ts) {
+            const latency = packet.latency;
+            const now = Date.now();
+            //console.log('latency report', ts - now, latency);
+        }
         for (const x of packet.worldUpdates) {
             x.payloadType = protos.WorldUpdatePayloadType[x._payloadType];
             if (!x.payloadType) {
@@ -557,13 +557,18 @@ export class StatsProcessor extends events.EventEmitter {
             }
         }
         if (packet.playerSummaries) {
-            debugger; // XXX
+            debugger;
         }
-        if (packet.udpConfigVOD2) {
-            debugger; // XXX
+        if (packet.expungeReason) {
+            console.error("Expunged:", packet.expungeReason);
+            debugger;
         }
-        if (packet.playerStates2.length) {
-            debugger; // XXX
+        if (packet.multipleLogins) {
+            console.error("Multiple logins!");
+            debugger;
+        }
+        if (packet.eventPositions) {
+            console.debug(packet.eventPositions);
         }
     }
 
@@ -611,7 +616,7 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _roadSig(state) {
-        return [state.courseId, state.roadId, state.reverse].join();
+        return `${state.courseId},${state.roadId},${state.reverse}`;
     }
 
     _getCollectorStats(data, athlete) {
@@ -633,13 +638,13 @@ export class StatsProcessor extends events.EventEmitter {
 
     makeDataCollectors() {
         const periods = [5, 15, 60, 300, 1200];
+        const longPeriods = periods.filter(x => x >= 60); // XXX Bench this.
         return {
             power: new DataCollector(sauce.power.RollingPower, periods, {inlineNP: true}),
-            speed: new DataCollector(sauce.data.RollingAverage, periods,
-                {ignoreZeros: true, precision: 1}),
-            hr: new DataCollector(sauce.data.RollingAverage, periods, {ignoreZeros: true}),
+            speed: new DataCollector(sauce.data.RollingAverage, longPeriods, {ignoreZeros: true}),
+            hr: new DataCollector(sauce.data.RollingAverage, longPeriods, {ignoreZeros: true}),
             cadence: new DataCollector(sauce.data.RollingAverage, [], {ignoreZeros: true}),
-            draft: new DataCollector(sauce.data.RollingAverage, []),
+            draft: new DataCollector(sauce.data.RollingAverage, longPeriods),
         };
     }
 
@@ -705,14 +710,7 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _createAthleteData(athleteId, tsOffset) {
-        const periods = [5, 15, 60, 300, 1200];
-        const collectors = {
-            power: new DataCollector(sauce.power.RollingPower, periods, {inlineNP: true}),
-            speed: new DataCollector(sauce.data.RollingAverage, periods, {ignoreZeros: true}),
-            hr: new DataCollector(sauce.data.RollingAverage, periods, {ignoreZeros: true}),
-            cadence: new DataCollector(sauce.data.RollingAverage, [], {ignoreZeros: true}),
-            draft: new DataCollector(sauce.data.RollingAverage, []),
-        };
+        const collectors = this.makeDataCollectors();
         const start = monotonic();
         return {
             start,
@@ -734,7 +732,7 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     processState(state) {
-        state.ts = +zwift.worldTimeToDate(state._worldTime);
+        state.ts = zwift.worldTimeToTime(state._worldTime);
         if (!this._athleteData.has(state.athleteId)) {
             this._athleteData.set(state.athleteId, this._createAthleteData(state.athleteId, state.ts));
         }
@@ -754,7 +752,7 @@ export class StatsProcessor extends events.EventEmitter {
             }
             return false;
         }
-        state.joinTime = +zwift.worldTimeToDate(state._joinTime);
+        state.joinTime = zwift.worldTimeToTime(state._joinTime);
         Object.assign(state, zwift.decodePlayerStateFlags1(state._flags1));
         Object.assign(state, zwift.decodePlayerStateFlags2(state._flags2));
         state.kj = state._mwHours / 1000 / (1000 / 3600);
@@ -922,41 +920,55 @@ export class StatsProcessor extends events.EventEmitter {
         return await this.zwiftAPI._giveRideon(athleteId, this.athleteId, activity);
     }
 
-    realGap(a, b) {
-        const aSig = a.roadHistory.sig;
-        const bSig = b.roadHistory.sig;
-        let leaderTimeline;
-        let trailingState;
-        if (aSig === bSig) {
+    isFirstLeading(a, b) {
+        return this._isFirstLeading(a, b)[0];
+    }
+
+    _isFirstLeading(a, b) {
+        const aHist = a.roadHistory;
+        const bHist = b.roadHistory;
+        if (aHist.sig === bHist.sig) {
             if (a.mostRecentState.roadCompletion > b.mostRecentState.roadCompletion) {
-                leaderTimeline = a.roadHistory.timeline;
-                trailingState = b.mostRecentState;
+                return [true, aHist.timeline];
             } else if (a.mostRecentState.roadCompletion < b.mostRecentState.roadCompletion) {
-                leaderTimeline = b.roadHistory.timeline;
-                trailingState = a.mostRecentState;
+                return [false, bHist.timeline];
             } else {
-                return 0;
+                if (a.mostRecentState.ts < b.mostRecentState.ts) {
+                    return [true, aHist.timeline];
+                } else {
+                    return [false, bHist.timeline];
+                }
             }
         } else {
-            if (a.roadHistory.prevSig === bSig) {
-                leaderTimeline = a.roadHistory.prevTimeline;
-                trailingState = b.mostRecentState;
-            } else if (b.roadHistory.prevSig === aSig) {
-                leaderTimeline = b.roadHistory.prevTimeline;
-                trailingState = a.mostRecentState;
+            // If an athlete's last place on their previous road was in front of the other
+            // then they are still in contention for ordering.  Otherwise they've turned off
+            // the road and been passed by the other athlete.
+            if (aHist.prevSig === bHist.sig) {
+                const aLast = aHist.prevTimeline[aHist.prevTimeline.length - 1];
+                return [aLast.roadCompletion >= b.mostRecentState.roadCompletion ? true : null, aHist.prevTimeline];
+            } else if (bHist.prevSig === aHist.sig) {
+                const bLast = bHist.prevTimeline[bHist.prevTimeline.length - 1];
+                return [bLast.roadCompletion >= a.mostRecentState.roadCompletion ? false : null, bHist.prevTimeline];
             }
         }
-        if (!trailingState) {
+        return [null, null];
+    }
+
+    realGap(a, b) {
+        const [aLeading, leadTimeline] = this._isFirstLeading(a, b);
+        if (aLeading == null) {
             return null;
+        } else if (!aLeading) {
+            [a, b] = [b, a];
         }
-        if (a.mostRecentState.roadCompletion == null || b.mostRecentState.roadCompletion == null) {
-            debugger;
-            throw new TypeError("Internal error");
-        }
+        return this._realGap(leadTimeline, b.mostRecentState);
+    }
+
+    _realGap(leadTimeline, trailingState) {
         let prev;
-        // TODO: Use binary search or at least use a normal for loop and walk backwards
-        // with out doing a reverse, and for of .geez guy
-        for (const x of Array.from(leaderTimeline).reverse()) {  // newest to oldest...
+        // TODO: Check if binary search is a win despite end of array locality
+        for (let i = leadTimeline.length - 1; i >= 0; i--) {
+            const x = leadTimeline[i];
             if (x.roadCompletion <= trailingState.roadCompletion) {
                 let offt = 0;
                 if (prev) {
@@ -969,45 +981,6 @@ export class StatsProcessor extends events.EventEmitter {
             prev = x;
         }
         return null;
-    }
-
-    isFirstLeadingSecond(a, b) {
-        const aSig = a.roadHistory.sig;
-        const bSig = b.roadHistory.sig;
-        if (!aSig || !bSig) {
-            debugger;
-            return null;
-        } else if (aSig === bSig) {
-            return a.mostRecentState.roadCompletion > b.mostRecentState.roadCompletion;
-        } else {
-            return null;
-            // If an athlete's last place on their previous road was in front of the other
-            // then they are still in contention for ordering.  Otherwise they've turned off
-            // the road and been passed by the other athlete.
-            if (a.roadHistory.prevSig === bSig) {
-                const aLast = a.roadHistory.prevTimeline[a.roadHistory.prevTimeline.length - 1];
-                if (aLast.roadCompletion > b.mostRecentState.roadCompletion) {
-                    return true;
-                } else if (aLast.roadCompletion === b.mostRecentState.roadCompletion) {
-                    // rare
-                    debugger;
-                    return aLast.ts < b.mostRecentState.ts;
-                } else {
-                    return null;
-                }
-            } else if (b.roadHistory.prevSig === aSig) {
-                const bLast = b.roadHistory.prevTimeline[b.roadHistory.prevTimeline.length - 1];
-                if (bLast.roadCompletion > b.mostRecentState.roadCompletion) {
-                    return false;
-                } else if (bLast.roadCompletion === b.mostRecentState.roadCompletion) {
-                    // rare
-                    debugger;
-                    return bLast.ts > b.mostRecentState.ts;
-                } else {
-                    return null;
-                }
-            }
-        }
     }
 
     gcStates() {
@@ -1030,12 +1003,14 @@ export class StatsProcessor extends events.EventEmitter {
         // I.e. make it emulate the typcial realtime nature of a head unit
         // which most of our stats code performs best with.
         let target = monotonic();
+        let recentOrder;
         while (this._active) {
             let skipped = 0;
             while (monotonic() > (target += interval)) {
                 skipped++;
             }
             if (skipped) {
+                recentOrder = null;
                 console.warn("States processor skipped:", skipped);
             }
             await sauce.sleep(target - monotonic());
@@ -1043,13 +1018,15 @@ export class StatsProcessor extends events.EventEmitter {
                 continue;
             }
             try {
-                const nearby = this._mostRecentNearby = this._computeNearby();
+                const nearby = this._mostRecentNearby = this._computeNearby(recentOrder);
                 const groups = this._mostRecentGroups = this._computeGroups(nearby);
                 queueMicrotask(() => this.emit('nearby', nearby));
                 queueMicrotask(() => this.emit('groups', groups));
+                recentOrder = new Map(nearby.map((x, i) => [x.athleteId, i]));
             } catch(e) {
                 captureExceptionOnce(e);
                 target += errBackoff++ * interval;
+                recentOrder = null;
             }
         }
     }
@@ -1070,7 +1047,7 @@ export class StatsProcessor extends events.EventEmitter {
         const aSig = this._roadSig(a);
         const bSig = this._roadSig(b);
         if (aSig === bSig) {
-            const roadDist = roadDistEstimates.get(aSig);
+            const roadDist = roadDistEstimates[aSig];
             if (roadDist) {
                 const aOfft = roadDist * (a.roadCompletion / 1000000);
                 const bOfft = roadDist * (b.roadCompletion / 1000000);
@@ -1080,123 +1057,160 @@ export class StatsProcessor extends events.EventEmitter {
         return crowDistance(a, b);
     }
 
-    _estimateGap(a, b, gapDistance, speed) {
-        const gap = this.realGap(
-            this._athleteData.get(a.athleteId),
-            this._athleteData.get(b.athleteId));
-        if (gap != null) {
-            return gap;
-        } else {
-            return gapDistance / (speed * 1000 / 3600);
-        }
-    }
-
-    _computeNearby() {
+    _computeNearby(recentOrder) {
         const nearby = [];
-        let watchingData = this._athleteData.get(this.watching);
+        const watchingData = this._athleteData.get(this.watching);
         if (!watchingData) {
             return nearby;
         }
         // We need to use a speed value for estimates and just using one value is
         // dangerous, so we use a weighted function that's seeded (skewed) to the
         // the watching rider.
-        const refSpeedForEstimates = makeExpWeighted(10);
+        const refSpeedForEstimates = makeExpWeighted(10); // maybe up and reuse? XXX
         const watchingSpeed = watchingData.mostRecentState.speed;
         if (watchingSpeed > 1) {
             refSpeedForEstimates(watchingSpeed);
         }
+        const refFrameTS = watchingData.mostRecentState.ts;
         // Only filter stopped riders if we are moving.
         const filterStopped = !!watchingSpeed;
-        for (const [aId, aData] of this._athleteData.entries()) {
-            if (((filterStopped && !aData.mostRecentState.speed) || monotonic() - aData.updated > 15000) &&
-                aId !== this.watching) {
+        for (const [id, data] of this._athleteData.entries()) {
+            if (((filterStopped && !data.mostRecentState.speed) || monotonic() - data.updated > 10000) &&
+                id !== this.watching) {
                 continue;
             }
             let gap;
-            const watching = aId === this.watching;
+            const watching = id === this.watching;
             if (!watching) {
-                const leading = this.isFirstLeadingSecond(watchingData, aData);
+                const [leading, leadTimeline] = this._isFirstLeading(watchingData, data);
                 if (leading == null) {
                     continue;
-                }
-                const sign = leading ? 1 : -1;
-                gap = this.realGap(watchingData, aData);
-                if (gap != null) {
-                    gap *= sign;
+                } else if (leading) {
+                    gap = this._realGap(leadTimeline, data.mostRecentState);
+                    if (gap != null) {
+                        const latency = global.useLatency ? (refFrameTS - data.mostRecentState.ts) / 1000 : 0;
+                        gap += latency;
+                        //console.warn("latency realgap full", latency, gap);
+                    }
+                } else {
+                    gap = this._realGap(leadTimeline, watchingData.mostRecentState);
+                    if (gap != null) {
+                        //const latency = global.useLatency ? (refFrameTS - watchingData.mostRecentState.ts) / 1000 : 0;
+                        gap = (-gap); // - latency;
+                        //console.warn("latency2", latency, gap);
+                    }
                 }
             } else {
                 gap = 0;
             }
-            const athlete = this.loadAthlete(aId);
+            const athlete = this.loadAthlete(id);
             nearby.push({
-                athleteId: aId,
+                athleteId: id,
                 gap,
                 isGapEst: gap == null,
                 gapDistance: watching ? 0 : undefined,
                 watching,
                 athlete,
-                stats: this._getCollectorStats(aData, athlete),
-                laps: aData.laps.map(x => this._getCollectorStats(x, athlete)),
-                state: this._cleanState(aData.mostRecentState),
+                stats: this._getCollectorStats(data, athlete),
+                laps: data.laps.map(x => this._getCollectorStats(x, athlete)),
+                state: this._cleanState(data.mostRecentState),
+                _data: data, // use during compute then unset
             });
         }
+
         nearby.sort((a, b) => {
-            const l = this.isFirstLeadingSecond(
-                this._athleteData.get(a.athleteId),
-                this._athleteData.get(b.athleteId));
+            const l = this.isFirstLeading(a._data, b._data);
             return l == null ? 0 : l ? -1 : 1;
         });
+        // XXX test for symmetric isFirstLeading
         const sym = Array.from(nearby);
         sym.sort((a, b) => {
-            const l = this.isFirstLeadingSecond(
-                this._athleteData.get(b.athleteId),
-                this._athleteData.get(a.athleteId));
-            return l == null ? 0 : l ? 1 : -1;
+            const l = this.isFirstLeading(a._data, b._data);
+            return l == null ? 0 : l ? -1 : 1;
         });
-        /*
         for (let i = 0; i < sym.length; i++) {
             if (sym[i] !== nearby[i]) {
                 console.log(i, sym, nearby);
                 debugger;
             }
-        }*/
+        }
+
         const watchingIdx = nearby.findIndex(x => x.watching);
+        // We could get fancy and roll this into one loop but it's faster unrolled
         for (let i = watchingIdx - 1; i >= 0; i--) {
             const x = nearby[i];
             const adjacent = nearby[i + 1];
-            const igd = this._estimateGapDistance(x.state, adjacent.state);
-            x.gapDistance = adjacent.gapDistance - igd;
+            const dist = this._estimateGapDistance(x.state, adjacent.state);
+            x.gapDistance = adjacent.gapDistance - dist;
             const speedRef = refSpeedForEstimates(x.state.speed);
             if (x.gap == null) {
-                const gap = this._estimateGap(x.state, adjacent.state, igd, speedRef);
-                x.gap = adjacent.gap - gap;
+                let gap = this.realGap(x._data, adjacent._data);
+                if (gap == null) {
+                    gap = speedRef ? dist / (speedRef * 1000 / 3600) : 0;
+                } else if (!adjacent.isGapEst) {
+                    x.isGapEst = false;
+                }
+                const latency = global.useLatency ? (refFrameTS - adjacent.state.ts) / 1000 : 0;
+                x.gap = adjacent.gap - gap + latency;
+                //console.warn("latency3", latency, x.gap);
             }
+
+            // TESTING XXX
             const xx = nearby[i - 1];
             if (xx && xx.gap != null && xx.gap > x.gap) {
                 if (Math.abs(xx.gap - x.gap) > 1000) {
-                    xx;
-                    debugger;
+                    console.error(xx.gap, x.gap);
                 }
             }
         }
         for (let i = watchingIdx + 1; i < nearby.length; i++) {
             const x = nearby[i];
             const adjacent = nearby[i - 1];
-            const igd = this._estimateGapDistance(x.state, adjacent.state);
-            x.gapDistance = adjacent.gapDistance + igd;
+            const dist = this._estimateGapDistance(x.state, adjacent.state);
+            x.gapDistance = adjacent.gapDistance + dist;
             const speedRef = refSpeedForEstimates(x.state.speed);
             if (x.gap == null) {
-                const gap = this._estimateGap(x.state, adjacent.state, igd, speedRef);
-                x.gap = adjacent.gap + gap;
+                let gap = this.realGap(adjacent._data, x._data);
+                if (gap == null) {
+                    gap = speedRef ? dist / (speedRef * 1000 / 3600) : 0;
+                } else if (!adjacent.isGapEst) {
+                    x.isGapEst = false;
+                }
+                const latency = global.useLatency ? (refFrameTS - x.state.ts) / 1000 : 0;
+                x.gap = adjacent.gap + gap - latency;
+                //console.warn("latency4", latency, x.gap, x.isGapEst);
             }
+
+            // TESTING XXX
             const xx = nearby[i + 1];
             if (xx && xx.gap != null && xx.gap < x.gap) {
                 if (Math.abs(xx.gap - x.gap) > 1000) {
-                    xx;
-                    debugger;
+                    console.error(xx.gap, x.gap);
                 }
             }
         }
+
+        // Sort by last nearby state first then stable sort after rounded gaps.
+        // Otherwise network latency essentially randomizes tight groups on each
+        // cycle and we're jumping all over the place.
+        /*if (recentOrder) {
+            nearby.sort((a, b) => {
+                const ai = recentOrder.get(a.athleteId);
+                const ab = recentOrder.get(b.athleteId);
+                return (ai !== undefined && ab !== undefined) ? (ai < ab ? -1 : 1) : 0;
+            });
+        }*/
+        
+        const recentNearbyOrder = Array.from(nearby);
+
+        for (let i = 0; i < nearby.length; i++) {
+            //nearby[i].gap = Math.round(nearby[i].gap);
+            delete nearby[i]._data;
+        }
+        //nearby.sort((a, b) => Math.abs(a.gap - b.gap) < 0.5 ? 0 : a.gap < b.gap ? -1 : 1);
+        nearby.sort((a, b) => a.gap < b.gap ? -1 : 1);
+
+
         /*
         const test = Array.from(nearby);
         test.sort((a, b) => a.gap < b.gap ? -1 : a.gap === b.gap ? 0 : 1);
@@ -1224,7 +1238,7 @@ export class StatsProcessor extends events.EventEmitter {
             if (!curGroup) {
                 curGroup = {athletes: [x]};
             } else {
-                const last = curGroup.athletes.at(-1);
+                const last = curGroup.athletes[curGroup.athletes.length - 1];
                 const gap = x.gap - last.gap;
                 if (gap > 2) {
                     curGroup.innerGap = gap;
@@ -1249,7 +1263,7 @@ export class StatsProcessor extends events.EventEmitter {
             x.speed = sauce.data.median(x.athletes.map(x => x.state.speed));
             x.heartrate = sauce.data.avg(x.athletes.map(x => x.state.heartrate).filter(x => x));
             if (watchingIdx !== i) {
-                const edge = watchingIdx < i ? x.athletes[0] : x.athletes.at(-1);
+                const edge = watchingIdx < i ? x.athletes[0] : x.athletes[x.athletes.length - 1];
                 x.isGapEst = edge.isGapEst;
                 x.gap = edge.gap;
                 if (i < groups.length - 1 && x.gap - groups[i + 1] < 2) {
@@ -1272,7 +1286,12 @@ export class StatsProcessor extends events.EventEmitter {
             stateStaleCount: this._stateStaleCount,
             activeAthletesSize: this._athleteData.size,
             activeAthleteDataPoints: Array.from(this._athleteData.values())
-                .map(x => x.power.roll.size() + x.speed.roll.size() + x.hr.roll.size() + x.hr.roll.size() + x.draft.roll.size())
+                .map(x =>
+                    x.power.roll.size() +
+                    x.speed.roll.size() +
+                    x.hr.roll.size() +
+                    x.hr.roll.size() +
+                    x.draft.roll.size())
                 .reduce((agg, c) => agg + c, 0),
             athletesCacheSize: this._athletesCache.size,
         };

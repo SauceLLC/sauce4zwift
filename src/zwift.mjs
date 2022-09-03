@@ -153,8 +153,15 @@ export function encodePlayerStateFlags2(props) {
 
 
 export const worldTimeOffset = 1414016074335;  // ms since zwift started production.
+
+
+export function worldTimeToTime(wt) {
+    return worldTimeOffset + wt.toNumber();
+}
+
+
 export function worldTimeToDate(wt) {
-    return new Date(worldTimeOffset + Number(wt));
+    return new Date(worldTimeToTime(wt));
 }
 
 
@@ -497,14 +504,15 @@ export class ZwiftAPI {
         return await (await this.fetch(`/api/notifications`, {accept: 'json'})).json();
     }
 
-    async getEventFeed(options={}) {
+    async getEventFeed() {
         // Be forewarned, this API is not stable.  It returns dups and skips entries on page boundaries.
         const urn = '/api/event-feed';
         const results = [];
-        const from = +options.from || (Date.now() - (3600 * 1000));
-        const to = +options.to || (Date.now() + (3600 * 1000));
+        const range = options.range || (2 * 3600 * 1000);
+        const from = +options.from || (Date.now() - range);
+        const to = +options.to || (Date.now() + range);
         let pages = 0;
-        const pageLimit = options.pageLimit ? options.pageLimit : 5;
+        const pageLimit = options.pageLimit ? options.pageLimit : 10;
         const ids = new Set();
         const limit = options.limit || 50;
         const query = new URLSearchParams({from, limit});
