@@ -48,6 +48,7 @@ table {
             padding-bottom: 0.5em;
             font-weight: normal;
             font-variant: all-small-caps;
+            white-space: nowrap;
 
             &:hover {
                 background-color: #9355;
@@ -90,18 +91,19 @@ table {
         --height: 2.6em;
 
         height: var(--height); // Required for translate consistency and accuracy using table
-        transition: background 2s, transform 5s, opacity 2s;
+        transition: background 1s, transform 1s, opacity 1s, visibility 1s;
         // use --height instead of 100% which has accurarcy issues on chrome
         transform: translate3d(0, calc(var(--height) * (var(--data-index) - var(--dom-index))), 0);
 
         &.hiding {
-            //transition: background 2s, transform 5s, opacity 2s;
             background-color: #babc01de;
             opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
         }
 
         &.watching {
-            //transition: none;
+            transition: initial;
             background-color: #0081ffba;
         }
 
@@ -126,20 +128,16 @@ table {
     td {
         transition: background 100ms;
         text-align: left;
-        padding: 0.2em 0.2em;
+        padding: 0.18em 0.3em;
         font-variant: tabular-nums;
         cursor: pointer;
-
-        &:first-child { // buttons
-            white-space: nowrap;
-        }
+        white-space: nowrap;
 
         &[data-id="name"],
         &[data-id="team"],
         &[data-id="group"],
         &[data-id="route"] {
             overflow: hidden;
-            white-space: nowrap;
             text-overflow: ellipsis;
             max-width: max(16ch, 18vw);
         }
@@ -186,6 +184,13 @@ table {
         .badge {
             display: inline-block;
             margin-bottom: 0.15em;
+
+            &.category {
+                font-variant: none;
+                font-size: 0.86em;
+                padding: 0.2em 0.26em 0.1em;
+                margin-right: 0.5em;
+            }
         }
     }
     td:first-child {
@@ -222,7 +227,7 @@ table {
 }
 
 #content {
-    scroll-behavior: smooth;
+    //scroll-behavior: smooth;
     padding: 0;
     overflow: auto;
     overflow: overlay; // chromium only

@@ -10,6 +10,30 @@
 
         <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
         <link rel="stylesheet" href="css/common.css"/>
+        <style>
+            form#fields {
+                display: flex;
+                flex-wrap: wrap;
+                flex-direction: row;
+                align-items: stretch;
+            }
+
+            form#fields .title {
+                flex: 1 0 100%;
+            }
+
+            form#fields .field-group {
+                background: #3333;
+                padding: 1em 1.5em;
+                margin: 1em;
+                border-radius: 0.28em;
+                flex: 1 1 0;
+            }
+
+            form#fields .field-group label {
+                justify-content: space-between;
+            }
+        </style>
 
         <script type="module">
             import {settingsMain} from './src/nearby.mjs';
@@ -62,7 +86,7 @@
                 </label>
             </form>
             <form id="fields" class="section">
-                <div class="title">Fields</div>
+                <div class="title">Field Settings</div>
             </form>
         </div>
     </body>
