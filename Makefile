@@ -7,6 +7,14 @@ ifeq ($(OS),Windows_NT)
   WINBLOWS := true
   SHELL := powershell.exe
   .SHELLFLAGS := -C
+else
+  T := $(shell uname -s)
+  ifeq ($(T),Linux)
+    LINUX := true
+  endif
+  ifeq ($(UNAME_S),Darwin)
+    MAC := true
+  endif
 endif
 
 MODS := $(CURDIR)/node_modules
@@ -75,10 +83,14 @@ sass-watch:
 
 lint-watch:
 ifndef WINBLOWS
+  ifdef LINUX
+	tools/bin/lintwatch
+  else
 	while true ; do \
 		$(MAKE) lint; \
 		sleep 5; \
 	done
+  endif
 else
 	@echo Unsupported on winblows
 endif
