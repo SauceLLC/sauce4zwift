@@ -504,7 +504,7 @@ export class ZwiftAPI {
         return await (await this.fetch(`/api/notifications`, {accept: 'json'})).json();
     }
 
-    async getEventFeed() {
+    async getEventFeed(options={}) {
         // Be forewarned, this API is not stable.  It returns dups and skips entries on page boundaries.
         const urn = '/api/event-feed';
         const results = [];
@@ -966,7 +966,7 @@ class UDPChannel extends NetChannel {
     }
 
     async sendPlayerState(state) {
-        const wt = dateToWorldTime(new Date());
+        const wt = dateToWorldTime(Date.now());
         await this.sendPacket({
             athleteId: this.athleteId,
             realm: 1,
