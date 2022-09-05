@@ -269,6 +269,8 @@ const fieldGroups = [{
         {id: 'rideons', defaultEn: false, label: 'Ride Ons', headerLabel: '<ms>thumb_up</ms>',
          get: x => x.state.rideons, fmt: num},
         {id: 'kj', defaultEn: false, label: 'Energy (kJ)', headerLabel: 'kJ', get: x => x.state.kj, fmt: kj},
+        {id: 'power-meter', defaultEn: false, label: 'Power Meter', headerLabel: 'PM',
+         get: x => x.state.powerMeter, fmt: x => x ? '<ms>check</ms>' : ''},
     ],
 }, {
     group: 'position',
@@ -592,6 +594,12 @@ export async function main() {
         }
         if (settings.onlyMarked) {
             data = data.filter(x => x.watching || (x.athlete && x.athlete.marked));
+        }
+        if (settings.onlySameCategory) {
+            const watching = data.find(x => x.watching);
+            if (watching && watching.groupId) {
+                data = data.filter(x => x.groupId === watching.groupId);
+            }
         }
         nearbyData = data;
         athleteData = new Map(data.filter(x => x.athlete).map(x => [x.athleteId, x.athlete]));
