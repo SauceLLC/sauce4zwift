@@ -507,22 +507,21 @@ export class ZwiftAPI {
     async getEventFeed(options={}) {
         // Be forewarned, this API is not stable.  It returns dups and skips entries on page boundaries.
         const urn = '/api/event-feed';
-        const results = [];
         const range = options.range || (2 * 3600 * 1000);
         const from = +options.from || (Date.now() - range);
         const to = +options.to || (Date.now() + range);
-        let pages = 0;
         const pageLimit = options.pageLimit ? options.pageLimit : 10;
-        const ids = new Set();
         const limit = options.limit || 50;
-        const query = new URLSearchParams({from, limit});
+        const query = new URLSearchParams({from, to, limit});
+        const ids = new Set();
+        const results = [];
+        let pages = 0;
         let done;
         while (!done) {
             const page = await this.fetchJSON(urn, {query});
             for (const x of page.data) {
                 if (new Date(x.event.eventStart) >= to) {
                     done = true;
-                    break;
                 } else if (!ids.has(x.event.id)) {
                     results.push(x.event);
                     ids.add(x.event.id);
@@ -539,8 +538,9 @@ export class ZwiftAPI {
     async getPrivateEventFeed(options={}) {
         // This endpoint is also unreliable and the from/to don't seem to do much.
         // Sometimes it returns all meetups, and sometimes just recent ones if any.
-        const start_date = +options.from || (Date.now() - (3600 * 1000));
-        const end_date = +options.to || (Date.now() + (3600 * 1000));
+        const range = options.range || (1 * 3600 * 1000);
+        const start_date = +options.from || (Date.now() - range);
+        const end_date = +options.to || (Date.now() + range);
         const query = new URLSearchParams({start_date, end_date});
         return await this.fetchJSON('/api/private_event/feed', {query});
     }
