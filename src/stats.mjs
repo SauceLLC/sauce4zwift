@@ -1222,6 +1222,10 @@ export class StatsProcessor extends events.EventEmitter {
             console.debug(outoforder, test, nearby);
         }
         */
+        for (let i = 0; i < nearby.length; i++) {
+            delete nearby[i]._data;
+            nearby[i].index = i;
+        }
         this.maybeUpdateAthletesFromServer(nearby);
         return nearby;
     }
