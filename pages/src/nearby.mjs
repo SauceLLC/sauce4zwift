@@ -67,7 +67,7 @@ function fmtDist(v) {
         const suffix = `<abbr class="unit">${imperial ? 'ft' : 'm'}</abbr>`;
         return H.number(imperial ? v / L.metersPerFoot : v) + suffix;
     } else {
-        return H.distance(v, {precision: 2, suffix: true, html: true});
+        return H.distance(v, {precision: 1, suffix: true, html: true});
     }
 }
 
