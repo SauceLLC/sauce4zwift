@@ -717,6 +717,7 @@ function updateTableRow(row, info) {
         }
         gentleClassToggle(td, 'sorted', sortBy === id);
     }
+    gentleClassToggle(row, 'hidden', false);
 }
 
 
@@ -727,7 +728,6 @@ function renderData(data, {recenter}={}) {
     }
     const sortField = enFields.find(x => x.id === sortBy);
     const sortGet = sortField.sortValue || sortField.get;
-    data = data.filter(x => !x.hidden); //XXX
     data.sort((a, b) => {
         let av = sortGet(a);
         let bv = sortGet(b);
