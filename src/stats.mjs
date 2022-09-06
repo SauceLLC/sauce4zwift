@@ -756,7 +756,7 @@ export class StatsProcessor extends events.EventEmitter {
         state.speed = state._speed / 1000000;  // km/h
         state.cadence = state._cadenceUHz ? state._cadenceUHz / 1000000 * 60 : 0;  // rpm
         state.roadCompletion = !state.reverse ? 1000000 - state.roadLocation : state.roadLocation;
-        state.distanceWithLateral = state._distanceWithLateral / 100;  // cm -> m
+        state.eventDistance = state._eventDistance / 100;  // cm -> m
         ad.mostRecentState = state;
         const roadSig = this._roadSig(state);
         if (prevState) {
@@ -1053,8 +1053,6 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _cleanState(raw) {
-        // XXX
-        return {...raw};
         const o = {};
         const keys = Object.keys(raw);
         for (let i = 0; i < keys.length; i++) {

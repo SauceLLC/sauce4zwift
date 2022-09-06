@@ -40,7 +40,7 @@ message PlayerState {
     float _f32XXX = 32;
     uint32 _f33XXX = 33;
 
-    float _distanceWithLateral = 34; // cm
+    float _eventDistance = 34; // cm
     int32 courseId = 35;
     int32 _f36 = 36; // low vals like 56 maybe segment/route/course/road related
     int32 _f37 = 37; // low vals like 4 maybe segment/route/course/road related

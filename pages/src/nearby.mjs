@@ -74,8 +74,16 @@ function fmtDist(v) {
         const suffix = `<abbr class="unit">${imperial ? 'ft' : 'm'}</abbr>`;
         return H.number(imperial ? v / L.metersPerFoot : v) + suffix;
     } else {
-        return H.distance(v, {suffix: true, html: true});
+        return H.distance(v, {precision: 2, suffix: true, html: true});
     }
+}
+
+
+function fmtDur(v) {
+    if (v == null || v === Infinity || v === -Infinity || isNaN(v)) {
+        return '-';
+    }
+    return H.timer(v);
 }
 
 
@@ -132,21 +140,30 @@ function fmtRoute({route, laps}) {
 function getRemaining(x) {
     const sgid = x.state.eventSubgroupId;
     let distance;
+    let duration;
+    let covered;
     if (sgid) {
         const sg = lazyGetSubgroup(sgid);
         if (sg) {
             distance = sg.distanceInMeters;
+            duration = sg.durationInSeconds;
+            covered = x.state.eventDistance;
         }
     }
-    if (!distance) {
+    if (!distance && !duration) {
         const {route, laps} = getRoute(x);
         if (route) {
             distance = route.leadinDistanceInMeters + (route.distanceInMeters * (laps || 1));
+            debugger;
+            // TBD: Can duration be set this way too?
         }
     }
     if (distance) {
-        const covered = x.state.progress * distance;
-        return distance - covered;
+        return {distance: distance - (covered || x.state.progress * distance)};
+    } else if (duration) {
+        return {duration: duration - x.state.time};
+    } else {
+        return {};
     }
 }
 
@@ -270,6 +287,8 @@ const fieldGroups = [{
          tooltip: 'Training Stress Score'},
         {id: 'distance', defaultEn: false, label: 'Distance', headerLabel: 'Dist',
          get: x => x.state.distance, fmt: fmtDist},
+        {id: 'event-distance', defaultEn: false, label: 'Event Distance', headerLabel: 'Ev Dist',
+         get: x => x.state.eventDistance, fmt: fmtDist},
         {id: 'rideons', defaultEn: false, label: 'Ride Ons', headerLabel: '<ms>thumb_up</ms>',
          get: x => x.state.rideons, fmt: num},
         {id: 'kj', defaultEn: false, label: 'Energy (kJ)', headerLabel: 'kJ', get: x => x.state.kj, fmt: kj},
@@ -425,10 +444,10 @@ const fieldGroups = [{
     fields: [
         {id: 'game-laps', defaultEn: false, label: 'Game Lap', headerLabel: 'Lap',
          get: x => x.state.laps, fmt: x => x != null ? x + 1 : '-'},
-        {id: 'route', defaultEn: false, label: 'Route', get: getRoute, fmt: fmtRoute},
         {id: 'remaining', defaultEn: false, label: 'Remaining', headerLabel: '<ms>sports_score</ms>',
-         get: getRemaining, fmt: fmtDist},
+         get: getRemaining, fmt: ({duration, distance}) => distance ? fmtDist(distance) : fmtDur(duration)},
         {id: 'event', defaultEn: false, label: 'Event', get: x => x.state.eventSubgroupId, fmt: fmtEvent},
+        {id: 'route', defaultEn: false, label: 'Route', get: getRoute, fmt: fmtRoute},
         {id: 'progress', defaultEn: false, label: 'Route/Workout %', headerLabel: 'RT/WO %',
          get: x => x.state.progress * 100, fmt: pct},
         {id: 'workout-zone', defaultEn: false, label: 'Workout Zone', headerLabel: 'Zone',
@@ -448,6 +467,7 @@ const fieldGroups = [{
         {id: 'direction', defaultEn: false, label: 'Direction', headerLabel: 'Dir',
          get: x => x.state.reverse, fmt: x => x ? '<ms>arrow_back</ms>' : '<ms>arrow_forward</ms>'},
 
+        /*
         {id: '_f7', defaultEn: false, label: 'f7', get: x => x.state._f7XXX},
         {id: '_f17', defaultEn: false, label: 'f17', get: x => x.state._f17XXX},
         {id: '_f32', defaultEn: false, label: 'f32', get: x => x.state._f32XXX},
@@ -455,6 +475,7 @@ const fieldGroups = [{
         {id: '_f36', defaultEn: false, label: 'f36', get: x => x.state._f36},
         {id: '_f37', defaultEn: false, label: 'f37', get: x => x.state._f37},
         {id: '_f41', defaultEn: false, label: 'f41', get: x => x.state._f41},
+        */
     ],
 }];
 
