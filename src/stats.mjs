@@ -17,6 +17,10 @@ export const protos = protobuf.loadSync([path.join(__dirname, 'zwift.proto')]).r
 protobuf.parse.defaults.keepCase = _case;
 
 
+// When game lags it can send huge values.  BLE testing suggests 240 is
+// their normal limit and they just drop values over this and send 1. So
+// we'll emulate that behavior.
+const CADENCE_MAX = 240 * 1000000 / 60;
 const monotonic = performance.now;
 const roadDistEstimates = {};
 
@@ -754,9 +758,10 @@ export class StatsProcessor extends events.EventEmitter {
         state.kj = state._mwHours / 1000 / (1000 / 3600);
         state.heading = headingConv(state._heading);  // degrees
         state.speed = state._speed / 1000000;  // km/h
-        state.cadence = state._cadenceUHz ? state._cadenceUHz / 1000000 * 60 : 0;  // rpm
+        state.cadence = (state._cadenceUHz && state._cadenceUHz < CADENCE_MAX) ?
+            state._cadenceUHz / 1000000 * 60 : 0; // rpm
         state.roadCompletion = !state.reverse ? 1000000 - state.roadLocation : state.roadLocation;
-        state.eventDistance = state._eventDistance / 100;  // cm -> m
+        state.eventDistance = state._eventDistance / 100;  // meters
         ad.mostRecentState = state;
         const roadSig = this._roadSig(state);
         if (prevState) {
