@@ -5,6 +5,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import http from 'node:http';
 
+const MAX_BUFFERED_PER_SOCKET = 8 * 1024 * 1024;
 const WD = path.dirname(fileURLToPath(import.meta.url));
 let app;
 let server;
@@ -126,6 +127,8 @@ async function _start({ip, port, rpcSources, statsProc}) {
         setHeaders: res => res.setHeader('Cache-Control', cacheDisabled)
     }));
     router.ws('/api/ws/events', (ws, req) => {
+        const client = req.client.remoteAddress;
+        console.info("WebSocket connected:", client);
         const subs = new Map();
         ws.on('message', wrapWebSocketMessage(ws, (type, {method, arg}) => {
             if (type !== 'request') {
@@ -141,12 +144,18 @@ async function _start({ip, port, rpcSources, statsProc}) {
                     throw new TypeError('Invalid emitter source: ' + source);
                 }
                 const cb = data => {
-                    ws.send(JSON.stringify({
-                        success: true,
-                        type: 'event',
-                        data,
-                        uid: subId,
-                    }));
+                    if (ws && ws.bufferedAmount > MAX_BUFFERED_PER_SOCKET) {
+                        console.warn("Terminating unresponsive WebSocket connection:", client);
+                        ws.close();
+                        ws = null;
+                    } else if (ws) {
+                        ws.send(JSON.stringify({
+                            success: true,
+                            type: 'event',
+                            data,
+                            uid: subId,
+                        }));
+                    }
                 };
                 subs.set(subId, {event, cb, emitter});
                 emitter.on(event, cb);
@@ -169,11 +178,19 @@ async function _start({ip, port, rpcSources, statsProc}) {
                 emitter.off(event, cb);
             }
             subs.clear();
+            console.debug("WebSocket closed:", client);
         });
     });
-    const restApi = express.Router();
-    restApi.use(express.json());
-    restApi.get('/', (req, res) => {
+    const api = express.Router();
+    api.use(express.json());
+    api.use((req, res, next) => {
+        res.on('finish', () => {
+            const client = req.client.remoteAddress;
+            console.debug(`Web API request: (${client}) [${req.method}] ${req.originalUrl} -> ${res.statusCode}`);
+        });
+        next();
+    });
+    api.get('/', (req, res) => {
         res.send([{
             'athletes': '[GET] Information for all active athletes',
             'athletes/<id>': '[GET] Information for specific athlete',
@@ -190,17 +207,30 @@ async function _start({ip, port, rpcSources, statsProc}) {
         if (!data) {
             res.status(404);
         }
-        res.send(data);
+        res.json(data);
     }
-    restApi.post('/rpc/:name', async (req, res) =>
-        res.send(await rpc.invoke.call(null, req.params.name, ...req.body)));
-    restApi.get('/athletes/watching', (req, res) => getAthleteHandler(res, sp.watching));
-    restApi.get('/athletes/:id', (req, res) => getAthleteHandler(res, Number(req.params.id)));
-    restApi.get('/athletes', (req, res) => res.send(sp.getAthletesData()));
-    restApi.get('/nearby', (req, res) => res.send(sp.getNearbyData()));
-    restApi.get('/groups', (req, res) => res.send(sp.getGroupsData()));
-    router.use('/api', restApi);
-    router.all('*', (req, res) => res.status(404).send(`File Not Found: "${req.path}"\n`));
+    api.post('/rpc/:name', async (req, res) => {
+        const replyEnvelope = await rpc.invoke.call(null, req.params.name, ...req.body);
+        if (!replyEnvelope.success) {
+            res.status(400);
+        }
+        res.send(replyEnvelope);
+    });
+    api.get('/athletes/watching', (req, res) => getAthleteHandler(res, sp.watching));
+    api.get('/athletes/:id', (req, res) => getAthleteHandler(res, Number(req.params.id)));
+    api.get('/athletes', (req, res) => res.send(sp.getAthletesData()));
+    api.get('/nearby', (req, res) => res.send(sp.getNearbyData()));
+    api.get('/groups', (req, res) => res.send(sp.getGroupsData()));
+    api.use((e, req, res, next) => {
+        res.status(500);
+        res.json({
+            error: "internal error",
+            message: e.message,
+        });
+    });
+    api.all('*', (req, res) => res.status(404).json(null));
+    router.use('/api', api);
+    router.all('*', (req, res) => res.status(404).send('Invalid URL'));
     app.use(router);
     let retries = 0;
     while (retries < 20) {
@@ -214,8 +244,8 @@ async function _start({ip, port, rpcSources, statsProc}) {
                 server.listen(port);
             });
             console.info(`Web server started at: http://${ip}:${port}/`);
-            console.debug(` REST API at: http://${ip}:${port}/api`);
-            console.debug(`   WS API at: http://${ip}:${port}/api/ws/events`);
+            console.debug(`  Web API at: http://${ip}:${port}/api`);
+            console.debug(`  WebSocket API at: http://${ip}:${port}/api/ws/events`);
             return;
         } catch(e) {
             if (e.code === 'EADDRINUSE') {
