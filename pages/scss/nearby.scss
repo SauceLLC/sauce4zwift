@@ -136,6 +136,7 @@ table {
         &[data-id="name"],
         &[data-id="team"],
         &[data-id="group"],
+        &[data-id="event"],
         &[data-id="route"] {
             overflow: hidden;
             text-overflow: ellipsis;
@@ -227,10 +228,20 @@ table {
 }
 
 #content {
-    //scroll-behavior: smooth;
+    scroll-behavior: smooth;
     padding: 0;
     overflow: auto;
     overflow: overlay; // chromium only
     position: relative;
     font-size: calc(var(--font-scale) * 1em);
+}
+
+.autoscroll {
+    table tr.watching {
+        scroll-snap-align: center;
+    }
+
+    #content {
+        scroll-snap-type: y proximity;
+    }
 }

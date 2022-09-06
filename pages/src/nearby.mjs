@@ -11,7 +11,6 @@ L.setImperial(imperial);
 let eventSite = common.storage.get('/externalEventSite', 'zwift');
 let settings;
 let fieldStates;
-let athleteData = new Map(); // XXX why now?
 let nearbyData;
 let enFields;
 let sortBy;
@@ -19,16 +18,10 @@ let sortByDir;
 let table;
 let tbody;
 let theadRow;
-let mainRow;
 let nations;
 let flags;
 let gameControlEnabled;
 let gameControlConnected;
-let watchingRow;
-let watchingRowObservable;
-const activeRows = new Map();
-const inactiveRows = [];
-const intersectionObserver = new IntersectionObserver(onIntersection, {threshold: 1});
 
 const spd = v => H.pace(v, {precision: 0, suffix: true, html: true});
 const weightClass = v => H.weightClass(v, {suffix: true, html: true});
@@ -154,8 +147,12 @@ function getRemaining(x) {
         const {route, laps} = getRoute(x);
         if (route) {
             distance = route.leadinDistanceInMeters + (route.distanceInMeters * (laps || 1));
-            debugger;
-            // TBD: Can duration be set this way too?
+            if (route.distanceInMetersFromEventStart) {
+                console.warn("Investigate dist from event start value",
+                    route.distanceInMetersFromEventStart);
+                // Probably we need to add this to the distance.
+                debugger;
+            }
         }
     }
     if (distance) {
@@ -223,13 +220,6 @@ function clearSelection() {
 }
 
 
-function getAthleteValue(x, key) {
-    // XXX why do I still need this?
-    const a = athleteData.get(x.athleteId);
-    return a && a[key];
-}
-
-
 function athleteLink(id, content, options={}) {
     const debug = location.search.includes('debug') ? '&debug' : '';
     return `<a title="${options.title || ''}" class="athlete-link ${options.class || ''}"
@@ -268,20 +258,23 @@ const fieldGroups = [{
     group: 'athlete',
     label: 'Athlete',
     fields: [
-        {id: 'avatar', defaultEn: true, label: 'Avatar', headerLabel: '<img class="fa" src="images/fa/user-circle-solid.svg"/>',
-         get: x => [x.athleteId, getAthleteValue(x, 'avatar') || 'images/fa/user-circle-solid.svg'],
-         fmt: ([id, avatar]) => avatar ? athleteLink(id, `<img src="${avatar}"/>`, {class: 'avatar'}) : ''},
+        {id: 'avatar', defaultEn: true, label: 'Avatar',
+         headerLabel: '<img class="fa" src="images/fa/user-circle-solid.svg"/>',
+         get: x => x.athlete && x.athlete.avatar || 'images/fa/user-circle-solid.svg',
+         fmt: (url, {athleteId}) => url ? athleteLink(athleteId, `<img src="${url}"/>`, {class: 'avatar'}) : ''},
         {id: 'nation', defaultEn: true, label: 'Country Flag', headerLabel: '<ms>flag</ms>',
-         get: x => getAthleteValue(x, 'countryCode'), fmt: fmtFlag},
-        {id: 'name', defaultEn: true, label: 'Name', get: x => getAthleteValue(x, 'sanitizedFullname'), fmt: fmtName},
+         get: x => x.athlete && x.athlete.countryCode, fmt: fmtFlag},
+        {id: 'name', defaultEn: true, label: 'Name', get: x => x.athlete && x.athlete.sanitizedFullname,
+         fmt: fmtName},
         {id: 'initials', defaultEn: false, label: 'Name Initials', headerLabel: ' ',
-         get: x => getAthleteValue(x, 'initials'), fmt: fmtInitials},
-        {id: 'team', defaultEn: false, label: 'Team', get: x => getAthleteValue(x, 'team'), fmt: fmtTeam},
+         get: x => x.athlete && x.athlete.initials, fmt: fmtInitials},
+        {id: 'team', defaultEn: false, label: 'Team', get: x => x.athlete && x.athlete.team,
+         fmt: fmtTeam},
         {id: 'weight-class', defaultEn: false, label: 'Weight Class', headerLabel: 'Weight',
-         get: x => getAthleteValue(x, 'weight'), fmt: weightClass},
-        {id: 'level', defaultEn: false, label: 'Level', get: x => getAthleteValue(x, 'level'),
+         get: x => x.athlete && x.athlete.weight, fmt: weightClass},
+        {id: 'level', defaultEn: false, label: 'Level', get: x => x.athlete && x.athlete.level,
          tooltip: 'The Zwift level of this athlete'},
-        {id: 'ftp', defaultEn: false, label: 'FTP', get: x => getAthleteValue(x, 'ftp'), fmt: pwr,
+        {id: 'ftp', defaultEn: false, label: 'FTP', get: x => x.athlete && x.athlete.ftp, fmt: pwr,
          tooltip: 'Functional Threshold Power'},
         {id: 'tss', defaultEn: false, label: 'TSS', get: x => x.stats.power.tss, fmt: num,
          tooltip: 'Training Stress Score'},
@@ -296,11 +289,24 @@ const fieldGroups = [{
          get: x => x.state.powerMeter, fmt: x => x ? '<ms>check</ms>' : ''},
     ],
 }, {
-    group: 'position',
-    label: 'Position',
+    group: 'event',
+    label: 'Event / Road',
     fields: [
         {id: 'gap', defaultEn: true, label: 'Gap', get: x => x.gap, fmt: gapTime},
         {id: 'gap-distance', defaultEn: false, label: 'Gap (dist)', get: x => x.gapDistance, fmt: fmtDist},
+        {id: 'game-laps', defaultEn: false, label: 'Game Lap', headerLabel: 'Lap',
+         get: x => x.state.laps, fmt: x => x != null ? x + 1 : '-'},
+        {id: 'remaining', defaultEn: false, label: 'Remaining', headerLabel: '<ms>sports_score</ms>',
+         get: getRemaining, fmt: ({duration, distance}) => distance ? fmtDist(distance) : fmtDur(duration)},
+        {id: 'event', defaultEn: false, label: 'Event', get: x => x.state.eventSubgroupId, fmt: fmtEvent},
+        {id: 'route', defaultEn: false, label: 'Route', get: getRoute, fmt: fmtRoute},
+        {id: 'progress', defaultEn: false, label: 'Route/Workout %', headerLabel: 'RT/WO %',
+         get: x => x.state.progress * 100, fmt: pct},
+        {id: 'workout-zone', defaultEn: false, label: 'Workout Zone', headerLabel: 'Zone',
+         get: x => x.state.workoutZone, fmt: x => x || '-'},
+        {id: 'road', defaultEn: false, label: 'Road ID', get: x => x.state.roadId},
+        {id: 'roadcom', defaultEn: false, label: 'Road Completion', headerLabel: 'Road %',
+         get: x => x.state.roadCompletion / 10000, fmt: pct},
     ],
 }, {
     group: 'power',
@@ -437,24 +443,6 @@ const fieldGroups = [{
          get: x => x.stats.speed.peaks[60].avg, fmt: spd},
         {id: 'hr-p60s', defaultEn: false, label: 'Heart Rate 1 min peak', headerLabel: 'HR (peak 1m)',
          get: x => x.stats.hr.peaks[60].avg, fmt: hr},
-    ],
-}, {
-    group: 'event',
-    label: 'Event / Road',
-    fields: [
-        {id: 'game-laps', defaultEn: false, label: 'Game Lap', headerLabel: 'Lap',
-         get: x => x.state.laps, fmt: x => x != null ? x + 1 : '-'},
-        {id: 'remaining', defaultEn: false, label: 'Remaining', headerLabel: '<ms>sports_score</ms>',
-         get: getRemaining, fmt: ({duration, distance}) => distance ? fmtDist(distance) : fmtDur(duration)},
-        {id: 'event', defaultEn: false, label: 'Event', get: x => x.state.eventSubgroupId, fmt: fmtEvent},
-        {id: 'route', defaultEn: false, label: 'Route', get: getRoute, fmt: fmtRoute},
-        {id: 'progress', defaultEn: false, label: 'Route/Workout %', headerLabel: 'RT/WO %',
-         get: x => x.state.progress * 100, fmt: pct},
-        {id: 'workout-zone', defaultEn: false, label: 'Workout Zone', headerLabel: 'Zone',
-         get: x => x.state.workoutZone, fmt: x => x || '-'},
-        {id: 'road', defaultEn: false, label: 'Road ID', get: x => x.state.roadId},
-        {id: 'roadcom', defaultEn: false, label: 'Road Completion', headerLabel: 'Road %',
-         get: x => x.state.roadCompletion / 10000, fmt: pct},
     ],
 }, {
     group: 'debug',
@@ -636,7 +624,6 @@ export async function main() {
             }
         }
         nearbyData = data;
-        athleteData = new Map(data.filter(x => x.athlete).map(x => [x.athleteId, x.athlete]));
         const elapsed = Date.now() - lastRefresh;
         if (elapsed >= refresh) {
             lastRefresh = Date.now();
@@ -675,25 +662,15 @@ function render() {
     const sortDirClass = sortByDir > 0 ? 'sort-asc' : 'sort-desc';
     table = document.querySelector('#content table');
     tbody = table.querySelector('tbody');
+    tbody.innerHTML = '';
     theadRow = table.querySelector('thead tr');
     theadRow.innerHTML = '<td></td>' + enFields.map(x =>
         `<td data-id="${x.id}"
              title="${common.sanitizeForAttr(x.tooltip || x.label || '')}"
              class="${sortBy === x.id ? 'sorted ' + sortDirClass : ''}"
-             >${x.headerLabel || x.label}<ms class="sort-asc">arrow_drop_up</ms><ms class="sort-desc">arrow_drop_down</ms></td>`).join('');
-    tbody.innerHTML = '';
-    activeRows.clear();
-    inactiveRows.length = 0;
-    //mainRow = makeTableRow();
-    //mainRow.classList.add('watching');
-    //tbody.appendChild(mainRow);
-    for (let i = 0; i < 50; i++) {
-        const row = makeTableRow();
-        row.style.setProperty('--dom-index', i);
-        row.classList.add('hiding');
-        inactiveRows.push(row);
-        tbody.appendChild(row);
-    }
+             >${x.headerLabel || x.label}` +
+                `<ms class="sort-asc">arrow_drop_up</ms>` +
+                `<ms class="sort-desc">arrow_drop_down</ms></td>`).join('');
 }
 
 
@@ -718,26 +695,8 @@ function gentleClassToggle(el, cls, force) {
 }
 
 
-function onIntersection(entries) {
-    const ent = entries[0];
-    watchingRowObservable = ent && ent.intersectionRatio === 1;
-    console.warn('observable', watchingRowObservable);
-}
-
-
 function updateTableRow(row, info) {
     gentleClassToggle(row, 'watching', info.watching);
-    if (info.watching) {
-        if (row !== watchingRow) {
-            if (watchingRow) {
-                intersectionObserver.unobserve(watchingRow);
-                watchingRow.removeEventListener('transitionstart', startKeepCentered);
-            }
-            watchingRow = row;
-            watchingRow.addEventListener('transitionstart', startKeepCentered);
-            requestAnimationFrame(() => intersectionObserver.observe(watchingRow));
-        }
-    }
     gentleClassToggle(row, 'marked', info.athlete && info.athlete.marked);
     gentleClassToggle(row, 'following', info.athlete && info.athlete.following);
     if (row.dataset.id !== '' + info.athleteId) {
@@ -758,16 +717,6 @@ function updateTableRow(row, info) {
         }
         gentleClassToggle(td, 'sorted', sortBy === id);
     }
-}
-
-
-function hideRow(row) {
-    delete row.dataset.id;
-    gentleClassToggle(row, 'slideout', true);
-    row.addEventListener('transitionend', ev => {
-        console.warn(ev.propertyName, row.dataset.id);
-        gentleClassToggle(row, 'hidden', true);
-    }, {once: true});
 }
 
 
@@ -798,79 +747,25 @@ function renderData(data, {recenter}={}) {
             return (('' + av).toLowerCase() < ('' + bv).toLowerCase() ? 1 : -1) * sortByDir;
         }
     });
-    /*  const centerIdx = data.findIndex(x => x.watching);
-        let row = mainRow;
-        for (let i = centerIdx; i >= 0; i--) {
-            updateTableRow(row, data[i]);
-            if (i) {
-                row = row.previousElementSibling || row.insertAdjacentElement('beforebegin', makeTableRow());
-            }
+    const centerIdx = data.findIndex(x => x.watching);
+    const watchingRow = tbody.querySelector('tr.watching') || tbody.appendChild(makeTableRow());
+    let row = watchingRow;
+    for (let i = centerIdx; i >= 0; i--) {
+        updateTableRow(row, data[i]);
+        if (i) {
+            row = row.previousElementSibling || row.insertAdjacentElement('beforebegin', makeTableRow());
         }
-        while (row.previousElementSibling) {
-            gentleClassToggle(row = row.previousElementSibling, 'hidden', true);
-        }
-        row = mainRow;
-        for (let i = centerIdx + 1; i < data.length; i++) {
-            row = row.nextElementSibling || row.insertAdjacentElement('afterend', makeTableRow());
-            updateTableRow(row, data[i]);
-        }
-        while (row.nextElementSibling) {
-            gentleClassToggle(row = row.nextElementSibling, 'hidden', true);
-        }
-        if (!frames++ && settings.autoscroll) {
-            queueMicrotask(() => mainRow.scrollIntoView({block: 'center'}));
-        }
-    });*/
-    const unusedRows = new Set(activeRows.keys());
-    const prevIndexes = new Map(Array.from(tbody.querySelectorAll('tr:not(.hiding)')).map(x => [x._dataIdx, x]));
-    const watchingIdx = data.findIndex(x => x.watching);
-    for (const [i, entry] of data.entries()) {
-        entry.index = i;
-        let row;
-        if (activeRows.has(entry.athleteId)) {
-            row = activeRows.get(entry.athleteId);
-            unusedRows.delete(entry.athleteId);
-        } else {
-            if (inactiveRows.length) {
-                row = inactiveRows.shift();
-                row.style.transition = 'initial';
-                row.style.setProperty('--data-index', i);
-                void row.offsetWidth; // Trigger reflow
-                row.style.transition = null;
-                row.classList.remove('hiding');
-            } else {
-                activeRows.set(entry.athleteId, row);
-                row = makeTableRow();
-                tbody.appendChild(row);
-                row.style.setProperty('--dom-index', tbody.childElementCount - 1);
-            }
-            activeRows.set(entry.athleteId, row);
-        }
-        row.style.setProperty('--data-index', i);
-        row._dataIdx = i;
+    }
+    while (row.previousElementSibling) {
+        gentleClassToggle(row = row.previousElementSibling, 'hidden', true);
+    }
+    row = watchingRow;
+    for (let i = centerIdx + 1; i < data.length; i++) {
+        row = row.nextElementSibling || row.insertAdjacentElement('afterend', makeTableRow());
         updateTableRow(row, data[i]);
     }
-    for (const id of unusedRows) {
-        const row = activeRows.get(id);
-        activeRows.delete(id);
-        inactiveRows.push(row);
-        row.classList.add('hiding');
-        if (row === watchingRow) {
-            row.classList.remove('watching');
-        }
-    }
-    if (watchingRowObservable && watchingRow) {
-        // Scroll to where we will be using the row that is there now
-        watchingRow.scrollIntoView({block: 'center'});
-        const idx = watchingRow._dataIdx;
-        const destRow = prevIndexes.get(idx);
-        if (destRow) {
-            destRow.scrollIntoView({block: 'center'});
-        } else {
-            console.log('borked, off end?', idx); // off
-        }
-    } else {
-        console.log("out of scroll frame");
+    while (row.nextElementSibling) {
+        gentleClassToggle(row = row.nextElementSibling, 'hidden', true);
     }
     if ((!frames++ || recenter) && settings.autoscroll) {
         requestAnimationFrame(() => {
@@ -882,99 +777,6 @@ function renderData(data, {recenter}={}) {
     }
 }
 
-function startKeepCentered() {
-    console.info("started");
-    let animating = true;
-    if (watchingRowObservable && watchingRow) {
-        watchingRow.addEventListener('transitioncancel', () => {
-            console.info("cancel");
-            animating = false;
-        }, {once: true});
-        watchingRow.addEventListener('transitionend', () => {
-            console.info("end");
-            animating = false;
-        }, {once: true});
-        const center = () => {
-            watchingRow.scrollIntoView({block: 'center'});
-            //keepCentered();
-            if (animating) {
-                requestAnimationFrame(center);
-            }
-        };
-        center();
-    }
-}
-function keepCentered() {
-    //setTimeout(keepCentered, 100);
-    if (watchingRowObservable && watchingRow) {
-        const {height, y} = watchingRow.getBoundingClientRect();
-        const midPoint = (window.content.clientHeight - height) / 2;
-        const t = y - midPoint;
-        if (Math.abs(t) < 1) {
-            return;
-        }
-        if (t > 0) {
-            console.log("move up", t);
-            window.content.scrollTop += t;
-        } else {
-            console.log("move down", t);
-            window.content.scrollTop += t;
-        }
-    }
-}
-//keepCentered();
-window.renderData = renderData;
-
-//window.data = nearbyData = [];
-const data = window.data = [];
-for (let i = 0; i < 50; i++) {
-    data.push({state:{}, athlete: {}, athleteId: i});
-}
-
-data[20].athlete.marked = true;
-data[25].watching = true;
-data[30].athlete.following = true;
-
-//setTimeout(() => renderData(data), 1000);
-//setInterval(() => renderData(data.filter(x => !x.hidden)), 5000);
-
-window.move = (from, to) => {
-    const t = data.splice(from, 1)[0];
-    data.splice(to, 0, t);
-    renderData(data.filter(x => !x.hidden));
-};
-
-window.shuffleAll = () => {
-    for (const i of data.keys()) {
-        const ti = (Math.random() * data.length) | 0;
-        [data[i], data[ti]] = [data[ti], data[i]];
-    }
-    renderData(data.filter(x => !x.hidden));
-};
-
-window.shuffleSome = (pct=10) => {
-    for (const i of data.keys()) {
-        if (Math.random() > pct / 100) {
-            continue;
-        }
-        const ti = (Math.random() * data.length) | 0;
-        [data[i], data[ti]] = [data[ti], data[i]];
-    }
-    renderData(data.filter(x => !x.hidden));
-};
-
-window.showHideSome = (pct=5) => {
-    for (const x of data) {
-        if (Math.random() > pct / 100) {
-            continue;
-        }
-        x.hidden = !x.hidden;
-    }
-    renderData(data.filter(x => !x.hidden));
-};
-
-
-window.rd = () => renderData(data.filter(x => !x.hidden));
 
 export async function settingsMain() {
     common.initInteractionListeners();
