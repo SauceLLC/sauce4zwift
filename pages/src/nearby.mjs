@@ -1,6 +1,5 @@
 import * as sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
-import {routes} from '../../shared/deps/routes.mjs';
 
 const L = sauce.locale;
 const H = L.human;
@@ -27,7 +26,6 @@ let gameControlEnabled;
 let gameControlConnected;
 let watchingRow;
 let watchingRowObservable;
-const routesById = new Map(routes.map(x => [x.id, x]));
 const activeRows = new Map();
 const inactiveRows = [];
 const intersectionObserver = new IntersectionObserver(onIntersection, {threshold: 1});
@@ -37,14 +35,40 @@ const weightClass = v => H.weightClass(v, {suffix: true, html: true});
 const pwr = v => H.power(v, {suffix: true, html: true});
 const hr = v => v ? `${num(v)}<abbr class="unit">bpm</abbr>` : '-';
 const kj = v => v != null ? `${num(v)}<abbr class="unit">kJ</abbr>` : '-';
-const pct = v => v != null ? `${num(v)}<abbr class="unit">%</abbr>` : '-';
-const wkg = v => (v !== Infinity && !isNaN(v)) ?
-    `${num(v, {precision: 1, fixed: true})}<abbr class="unit">w/kg</abbr>`: '-';
+const pct = v => (v != null && !isNaN(v)) ? `${num(v)}<abbr class="unit">%</abbr>` : '-';
 const gapTime = (v, entry) => (H.duration(v, {short: true, html: true}) + (entry.isGapEst ? '<small> (est)</small>' : ''));
 
 
+function makeLazyGetter(cb) {
+    const getting = {};
+    const cache = new Map();
+
+    return function getter(key) {
+        if (!cache.has(key)) {
+            if (!getting[key]) {
+                getting[key] = cb(key).then(value => {
+                    cache.set(key, value || null);
+                    if (!value) {
+                        // Allow retry, especially for event data which is wonky
+                        setTimeout(() => cache.delete(key), 10000);
+                    }
+                    delete getting[key];
+                });
+            }
+            return;
+        } else {
+            return cache.get(key);
+        }
+    };
+}
+
+
+const lazyGetSubgroup = makeLazyGetter(id => common.rpc.getEventSubgroup(id));
+const lazyGetRoute = makeLazyGetter(id => common.rpc.getRoute(id));
+
+
 function fmtDist(v) {
-    if (v == null || v === Infinity || v === -Infinity) {
+    if (v == null || v === Infinity || v === -Infinity || isNaN(v)) {
         return '-';
     } else if (Math.abs(v) < 1500) {
         const suffix = `<abbr class="unit">${imperial ? 'ft' : 'm'}</abbr>`;
@@ -67,88 +91,70 @@ function fmtWkg(v, entry) {
 
 
 function fmtName(name, entry) {
-    let badge = '';
-    const sgid = entry.state.groupId;
+    let badge;
+    const sgid = entry.state.eventSubgroupId;
     if (sgid) {
-        const event = lazyGetSubGroup(sgid);
-        if (event) {
-            badge = makeEventBadge(event, sgid);
+        const sg = lazyGetSubgroup(sgid);
+        if (sg) {
+            badge = makeEventBadge(sg);
         }
     }
-    return athleteLink(entry.athleteId, badge + sanitize(name || '-'));
+    return athleteLink(entry.athleteId, (badge || '') + sanitize(name || '-'));
 }
 
 
 function fmtInitials(initials, entry) {
-    let badge = '';
-    const sgid = entry.state.groupId;
+    let badge;
+    const sgid = entry.state.eventSubgroupId;
     if (sgid) {
-        const event = lazyGetSubGroup(sgid);
-        if (event) {
-            badge = makeEventBadge(event, sgid);
+        const sg = lazyGetSubgroup(sgid);
+        if (sg) {
+            badge = makeEventBadge(sg, sgid);
         }
     }
-    return athleteLink(entry.athleteId, badge + sanitize(initials || '-'));
+    return athleteLink(entry.athleteId, (badge || '') + sanitize(initials || '-'));
 }
 
 
-function fmtRoute(meta) {
-    if (!meta) {
+function fmtRoute({route, laps}) {
+    if (!route) {
         return '-';
     }
-    const route = routesById.get(meta.id);
-    if (!route) {
-        console.error("Unknown route:", meta.id);
-        return '?';
-    }
     const parts = [];
-    if (meta.laps) {
-        parts.push(`${meta.laps} x`);
+    if (laps) {
+        parts.push(`${laps} x`);
     }
     parts.push(route.name);
     return parts.join(' ');
 }
 
 
-function getRouteRemaining(x) {
-    const meta = getRouteMeta(x.state);
-    if (!meta) {
-        return null;
-    }
-    const route = routesById.get(meta.id);
-    if (!route) {
-        console.error("Unknown route:", meta.id);
-        return null;
-    }
-    const distance = route.distance * 1000 * meta.laps;
-    const covered = x.state.progress * distance;
-    return distance - covered;
-}
-
-
-const _gettingSubGroups = {};
-const _eventsBySubGroup = new Map();
-
-function lazyGetSubGroup(sgid) {
-    if (!_eventsBySubGroup.has(sgid)) {
-        if (!_gettingSubGroups[sgid]) {
-            _gettingSubGroups[sgid] = common.rpc.getSubGroupEvent(sgid).then(event => {
-                if (!event) {
-                    console.warn("Unknown event subgroup (probably private):", sgid);
-                }
-                _eventsBySubGroup.set(sgid, event || null);
-                delete _gettingSubGroups[sgid];
-            });
+function getRemaining(x) {
+    const sgid = x.state.eventSubgroupId;
+    let distance;
+    if (sgid) {
+        const sg = lazyGetSubgroup(sgid);
+        if (sg) {
+            distance = sg.distanceInMeters;
         }
-        return;
-    } else {
-        return _eventsBySubGroup.get(sgid);
+    }
+    if (!distance) {
+        const {route, laps} = getRoute(x);
+        if (route) {
+            distance = route.leadinDistanceInMeters + (route.distanceInMeters * (laps || 1));
+        }
+    }
+    if (distance) {
+        const covered = x.state.progress * distance;
+        return distance - covered;
     }
 }
 
 
-function makeEventBadge(event, sgid) {
-    const sg = event.eventSubgroups.find(x => x.id === sgid);
+function makeEventBadge(sg) {
+    if (!sg.subgroupLabel) {
+        return;
+    }
     const badgeHue = {
         A: 0,
         B: 90,
@@ -164,27 +170,25 @@ function fmtEvent(sgid) {
     if (!sgid) {
         return '-';
     }
-    const event = lazyGetSubGroup(sgid);
-    if (event) {
-        return `<a href="${eventUrl(event.id)}" target="_blank" external>${event.name}</a>`;
+    const sg = lazyGetSubgroup(sgid);
+    if (sg) {
+        return `<a href="${eventUrl(sg.event.id)}" target="_blank" external>${sg.event.name}</a>`;
     } else {
         return '...';
     }
 }
 
 
-function getRouteMeta(state) {
-    if (state.route) {
-        return {id: state.route};
-    } else if (state.groupId) {
-        const event = lazyGetSubGroup(state.groupId);
-        if (event) {
-            const sg = event.eventSubgroups.find(x => x.id === state.groupId);
-            if (sg) {
-                return {id: sg.routeId, laps: sg.laps};
-            }
+function getRoute({state}) {
+    if (state.eventSubgroupId) {
+        const sg = lazyGetSubgroup(state.eventSubgroupId);
+        if (sg) {
+            return {route: sg.route, laps: sg.laps};
         }
+    } else if (state.routeId) {
+        return {route: lazyGetRoute(state.routeId), laps: 0};
     }
+    return {};
 }
 
 
@@ -421,10 +425,10 @@ const fieldGroups = [{
     fields: [
         {id: 'game-laps', defaultEn: false, label: 'Game Lap', headerLabel: 'Lap',
          get: x => x.state.laps, fmt: x => x != null ? x + 1 : '-'},
-        {id: 'route', defaultEn: false, label: 'Route', get: x => getRouteMeta(x.state), fmt: fmtRoute},
-        {id: 'remaining', defaultEn: false, label: 'Remaining', headerLabel: 'Rem',
-         get: getRouteRemaining, fmt: fmtDist},
-        {id: 'event', defaultEn: false, label: 'Event', get: x => x.state.groupId, fmt: fmtEvent},
+        {id: 'route', defaultEn: false, label: 'Route', get: getRoute, fmt: fmtRoute},
+        {id: 'remaining', defaultEn: false, label: 'Remaining', headerLabel: '<ms>sports_score</ms>',
+         get: getRemaining, fmt: fmtDist},
+        {id: 'event', defaultEn: false, label: 'Event', get: x => x.state.eventSubgroupId, fmt: fmtEvent},
         {id: 'progress', defaultEn: false, label: 'Route/Workout %', headerLabel: 'RT/WO %',
          get: x => x.state.progress * 100, fmt: pct},
         {id: 'workout-zone', defaultEn: false, label: 'Workout Zone', headerLabel: 'Zone',
@@ -442,7 +446,15 @@ const fieldGroups = [{
         {id: 'course', defaultEn: false, label: 'Course (aka world)', headerLabel: 'Course',
          get: x => x.state.courseId},
         {id: 'direction', defaultEn: false, label: 'Direction', headerLabel: 'Dir',
-         get: x => x.state.reverse, fmt: x => x ? 'rev' : 'fwd'},
+         get: x => x.state.reverse, fmt: x => x ? '<ms>arrow_back</ms>' : '<ms>arrow_forward</ms>'},
+
+        {id: '_f7', defaultEn: false, label: 'f7', get: x => x.state._f7XXX},
+        {id: '_f17', defaultEn: false, label: 'f17', get: x => x.state._f17XXX},
+        {id: '_f32', defaultEn: false, label: 'f32', get: x => x.state._f32XXX},
+        {id: '_f33', defaultEn: false, label: 'f33', get: x => x.state._f33XXX},
+        {id: '_f36', defaultEn: false, label: 'f36', get: x => x.state._f36},
+        {id: '_f37', defaultEn: false, label: 'f37', get: x => x.state._f37},
+        {id: '_f41', defaultEn: false, label: 'f41', get: x => x.state._f41},
     ],
 }];
 
@@ -597,8 +609,9 @@ export async function main() {
         }
         if (settings.onlySameCategory) {
             const watching = data.find(x => x.watching);
-            if (watching && watching.groupId) {
-                data = data.filter(x => x.groupId === watching.groupId);
+            const sgid = watching && watching.state.eventSubgroupId;
+            if (sgid) {
+                data = data.filter(x => x.state.eventSubgroupId === sgid);
             }
         }
         nearbyData = data;

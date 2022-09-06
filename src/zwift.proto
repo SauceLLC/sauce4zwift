@@ -8,6 +8,9 @@ message PlayerState {
     int32 roadLocation = 4; // Location on road in percent * 10,000.
     int32 laps = 5;
     int32 _speed = 6; // mm / hour
+
+    uint32 _f7XXX = 7;
+
     int32 roadPosition = 8;  // Horiz, i.e. lane.
     int32 _cadenceUHz = 9;
     int32 draft = 10; // seems to be in percentage.
@@ -17,6 +20,9 @@ message PlayerState {
     int32 lean = 14;
     int32 climbing = 15;
     int32 time = 16;
+
+    int32 _f17XXX = 17;
+
     uint32 frameHue = 18;
     uint32 _flags1 = 19; // Packed with info parsed in user code
     uint32 _flags2 = 20; // Packed with info parsed in user code
@@ -28,14 +34,18 @@ message PlayerState {
     float y = 27; // cartesian meters
     float altitude = 26;
     int32 watchingAthleteId = 28;
-    int32 groupId = 29;
+    int32 eventSubgroupId = 29;
     int32 sport = 31; // 0 = biking, 1 = running
+
+    float _f32XXX = 32;
+    uint32 _f33XXX = 33;
+
     float _distanceWithLateral = 34; // cm
     int32 courseId = 35;
     int32 _f36 = 36; // low vals like 56 maybe segment/route/course/road related
     int32 _f37 = 37; // low vals like 4 maybe segment/route/course/road related
     bool canSteer = 38;
-    uint32 route = 39;
+    uint32 routeId = 39;
     int64 _f41 = 41; // varint
 }
 
@@ -427,7 +437,7 @@ message ActivityFull {  //where is primaryImageUrl, feedImageThumbnailUrl, activ
     uint32 _f23 = 23; //empty; stored as int32; enum up to 5 - ProfileFollowStatus?
     bytes fit = 24;
     string fitFilename = 25;
-    uint64 subgroupId = 26;
+    uint64 eventSubgroupId = 26;
     uint64 workoutHash = 27;
     float progressPercentage = 28;
     Sport sport = 29;
@@ -471,7 +481,7 @@ message Activity { //field names pinned to db
     uint32 _f23 = 23; //empty; stored as int32; enum up to 5 - ProfileFollowStatus?
     bytes fit = 24;
     string fitFilename = 25;
-    //uint64 subgroupId = 26;
+    //uint64 eventSubgroupId = 26;
     //uint64 workoutHash = 27;
     //float progressPercentage = 28;
     int64 _f29 = 29; //-> Sport sport
@@ -855,7 +865,7 @@ message DropInPlayer {
     float x = 14;
     float yAltitude = 15;
     float z = 16;
-    int32 route = 17;
+    int32 routeId = 17;
     uint32 ridePower = 18;
     uint32 speed = 19;
 }
@@ -1242,7 +1252,7 @@ message PrivateEventFeed {
     string organizerFirstName = 13;
     string organizerLastName = 14;
     uint64 updateDate = 15;
-    uint64 subgroupId = 16;
+    uint64 eventSubgroupId = 16;
     uint32 laps = 17;
     bool rubberbanding = 18; //keep together "rulesId": "1024"
 }

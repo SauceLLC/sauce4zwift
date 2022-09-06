@@ -226,7 +226,8 @@ export class StatsProcessor extends events.EventEmitter {
         this._profileFetchCount = 0;
         this._chatHistory = [];
         this._events = new Map();
-        this._subGroupEvents = new Map();
+        this._eventSubgroups = new Map();
+        this._routes = new Map();
         this._mostRecentNearby = [];
         this._mostRecentGroups = [];
         rpc.register(this.updateAthlete, {scope: this});
@@ -235,7 +236,8 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.exportFIT, {scope: this});
         rpc.register(this.getAthlete, {scope: this});
         rpc.register(this.getEvent, {scope: this});
-        rpc.register(this.getSubGroupEvent, {scope: this});
+        rpc.register(this.getEventSubgroup, {scope: this});
+        rpc.register(this.getRoute, {scope: this});
         rpc.register(this.resetAthletesDB, {scope: this});
         rpc.register(this.getChatHistory, {scope: this});
         rpc.register(this.setFollowing, {scope: this});
@@ -247,11 +249,12 @@ export class StatsProcessor extends events.EventEmitter {
         return this._events.get(id);
     }
 
-    getSubGroupEvent(id) {
-        const eid = this._subGroupEvents.get(id);
-        if (eid) {
-            return this._events.get(eid);
-        }
+    getEventSubgroup(id) {
+        return this._eventSubgroups.get(id);
+    }
+
+    getRoute(id) {
+        return this._routes.get(id);
     }
 
     getChatHistory() {
@@ -522,12 +525,6 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _onIncoming(packet) {
-        const ts = zwift.worldTimeToTime(packet._worldTime);
-        if (ts) {
-            const latency = packet.latency;
-            const now = Date.now();
-            //console.log('latency report', ts - now, latency);
-        }
         for (const x of packet.worldUpdates) {
             x.payloadType = protos.WorldUpdatePayloadType[x._payloadType];
             if (!x.payloadType) {
@@ -720,7 +717,7 @@ export class StatsProcessor extends events.EventEmitter {
             roadHistory: {
                 sig: null,
                 prevSig: null,
-                timeline: null,
+                timeline: [],
                 prevTimeline: null,
             },
             laps: [{
@@ -752,7 +749,6 @@ export class StatsProcessor extends events.EventEmitter {
             }
             return false;
         }
-        state.joinTime = zwift.worldTimeToTime(state._joinTime);
         Object.assign(state, zwift.decodePlayerStateFlags1(state._flags1));
         Object.assign(state, zwift.decodePlayerStateFlags2(state._flags2));
         state.kj = state._mwHours / 1000 / (1000 / 3600);
@@ -763,34 +759,42 @@ export class StatsProcessor extends events.EventEmitter {
         state.distanceWithLateral = state._distanceWithLateral / 100;  // cm -> m
         ad.mostRecentState = state;
         const roadSig = this._roadSig(state);
-        if (roadSig !== ad.roadHistory.sig) {
-            const keepHistory = prevState &&
-                prevState.courseId === state.courseId &&
-                state.roadId !== prevState.roadId; // ie. not reversing
-            if (keepHistory) {
+        if (prevState) {
+            let shiftHistory;
+            if (roadSig !== ad.roadHistory.sig) {
+                // XXX don't handle reversing until realgap can handle it..
+                shiftHistory = prevState.courseId === state.courseId && prevState.roadId !== state.roadId;
+            } else {
+                const last = ad.roadHistory.timeline[ad.roadHistory.timeline.length - 1];
+                const delta = state.roadCompletion - last.roadCompletion;
+                if (delta < 0) { // unlikely
+                    if (delta < -10000) {
+                        console.debug('Lapping detected:', delta, state.athleteId);
+                        shiftHistory = true;
+                    } else {
+                        // Stopped and wiggling backwards. For safety we just nuke hist.
+                        console.debug('Wiggler detected:', delta, state.athleteId);
+                        ad.roadHistory.timeline.length = 0;
+                    }
+                }
+            }
+            if (shiftHistory) {
                 ad.roadHistory.prevSig = ad.roadHistory.sig;
                 ad.roadHistory.prevTimeline = ad.roadHistory.timeline;
-            } else {
+                ad.roadHistory.timeline = [];
+            } else if (shiftHistory === false) {
                 ad.roadHistory.prevSig = null;
                 ad.roadHistory.prevTimeline = null;
             }
-            ad.roadHistory.sig = roadSig;
-            ad.roadHistory.timeline = [];
         }
-        const histTimeline = ad.roadHistory.timeline;
-        const last = histTimeline[histTimeline.length - 1];
-        if (last && state.roadCompletion < last.roadCompletion) {
-            // This can happen when lapping a single road segment or if your avatar
-            // Is stopped and sort of wiggling backwards. For safety we just nuke hist.
-            histTimeline.length = 0;
-        }
-        histTimeline.push({
+        ad.roadHistory.sig = roadSig;
+        ad.roadHistory.timeline.push({
             ts: state.ts,
             roadCompletion: state.roadCompletion,
             distance: state.distance
         });
-        if (histTimeline.length % 50 === 0) {
-            const hist = histTimeline[histTimeline.length - 50];
+        if (ad.roadHistory.timeline.length % 50 === 0) {
+            const hist = ad.roadHistory.timeline[ad.roadHistory.timeline.length - 50];
             const mDelta = state.distance - hist.distance;
             const rlDelta = state.roadCompletion - hist.roadCompletion;
             if (mDelta && rlDelta) {
@@ -848,6 +852,7 @@ export class StatsProcessor extends events.EventEmitter {
         this.gameMonitor.on('inPacket', this.onIncoming.bind(this));
         this.gameMonitor.on('watching-athlete', this.setWatching.bind(this));
         this.gameMonitor.start();
+        this._zwiftMetaRefresh = 60000;
         queueMicrotask(() => this._zwiftMetaSync());
     }
 
@@ -868,7 +873,10 @@ export class StatsProcessor extends events.EventEmitter {
             console.warn("Skipping social network update because not logged into zwift");
             return;
         }
-        setTimeout(this._zwiftMetaSync.bind(this), 1200 * 1000);
+        // The event feed APIs are horribly broken so we need to refresh more often
+        // at startup to try and fill in the gaps.
+        setTimeout(this._zwiftMetaSync.bind(this), this._zwiftMetaRefresh);
+        this._zwiftMetaRefresh = Math.min(30 * 60 * 1000, this._zwiftMetaRefresh * 2);
         const followees = await this.zwiftAPI.getFollowees(this.athleteId);
         const updates = [];
         for (const x of followees) {
@@ -880,24 +888,41 @@ export class StatsProcessor extends events.EventEmitter {
         if (updates.length) {
             this.saveAthletes(updates);
         }
-        const events = await this.zwiftAPI.getEventFeed();
-        for (const x of events) {
-            this._events.set(x.id, x);
-            if (x.eventSubgroups) {
-                for (const sg of x.eventSubgroups) {
-                    this._subGroupEvents.set(sg.id, x.id);
+        if (!this._routes.size) {
+            const gameInfo = await this.zwiftAPI.getGameInfo();
+            for (const x of gameInfo.maps) {
+                for (const xx of x.routes) {
+                    this._routes.set(xx.id, {world: x.name, ...xx});
                 }
             }
         }
-        const meetups = await this.zwiftAPI.getPrivateEventFeed();
-        for (const x of meetups) {
+        const someEvents = await this.zwiftAPI.getEventFeed(); // This API is wonky
+        for (const x of someEvents) {
             this._events.set(x.id, x);
-            if (x.eventSubgroupId) {
-                this._subGroupEvents.set(x.eventSubgroupId, x.id);
+            if (x.eventSubgroups) {
+                for (const sg of x.eventSubgroups) {
+                    this._eventSubgroups.set(sg.id, {
+                        event: x,
+                        route: this._routes.get(sg.routeId),
+                        ...sg
+                    });
+                }
             }
         }
-        console.debug(`Updated zwift data for ${updates.length} followees, ${events.length} events, ` +
-            `${meetups.length} meetups`);
+        const someMeetups = await this.zwiftAPI.getPrivateEventFeed(); // This API is wonky
+        for (const x of someMeetups) {
+            this._events.set(x.id, x);
+            if (x.eventSubgroupId) {
+                // Meetups are basicaly a hybrid event/subgroup
+                this._eventSubgroups.set(x.eventSubgroupId, {
+                    event: x,
+                    route: this._routes.get(x.routeId),
+                    ...x
+                });
+            }
+        }
+        console.info(`Updated zwift data for ${updates.length} followees, ` +
+            `${someEvents.length} events, ${someMeetups.length} meetups`);
     }
 
     async setFollowing(athleteId) {
@@ -1003,14 +1028,12 @@ export class StatsProcessor extends events.EventEmitter {
         // I.e. make it emulate the typcial realtime nature of a head unit
         // which most of our stats code performs best with.
         let target = monotonic();
-        let recentOrder;
         while (this._active) {
             let skipped = 0;
             while (monotonic() > (target += interval)) {
                 skipped++;
             }
             if (skipped) {
-                recentOrder = null;
                 console.warn("States processor skipped:", skipped);
             }
             await sauce.sleep(target - monotonic());
@@ -1018,20 +1041,20 @@ export class StatsProcessor extends events.EventEmitter {
                 continue;
             }
             try {
-                const nearby = this._mostRecentNearby = this._computeNearby(recentOrder);
+                const nearby = this._mostRecentNearby = this._computeNearby();
                 const groups = this._mostRecentGroups = this._computeGroups(nearby);
                 queueMicrotask(() => this.emit('nearby', nearby));
                 queueMicrotask(() => this.emit('groups', groups));
-                recentOrder = new Map(nearby.map((x, i) => [x.athleteId, i]));
             } catch(e) {
                 captureExceptionOnce(e);
                 target += errBackoff++ * interval;
-                recentOrder = null;
             }
         }
     }
 
     _cleanState(raw) {
+        // XXX
+        return {...raw};
         const o = {};
         const keys = Object.keys(raw);
         for (let i = 0; i < keys.length; i++) {
@@ -1057,7 +1080,7 @@ export class StatsProcessor extends events.EventEmitter {
         return crowDistance(a, b);
     }
 
-    _computeNearby(recentOrder) {
+    _computeNearby() {
         const nearby = [];
         const watchingData = this._athleteData.get(this.watching);
         if (!watchingData) {
@@ -1088,16 +1111,13 @@ export class StatsProcessor extends events.EventEmitter {
                 } else if (leading) {
                     gap = this._realGap(leadTimeline, data.mostRecentState);
                     if (gap != null) {
-                        const latency = global.useLatency ? (refFrameTS - data.mostRecentState.ts) / 1000 : 0;
+                        const latency = (refFrameTS - data.mostRecentState.ts) / 1000;
                         gap += latency;
-                        //console.warn("latency realgap full", latency, gap);
                     }
                 } else {
                     gap = this._realGap(leadTimeline, watchingData.mostRecentState);
                     if (gap != null) {
-                        //const latency = global.useLatency ? (refFrameTS - watchingData.mostRecentState.ts) / 1000 : 0;
-                        gap = (-gap); // - latency;
-                        //console.warn("latency2", latency, gap);
+                        gap = -gap;  // latency is 0 since we our refFrame is watching
                     }
                 }
             } else {
@@ -1150,9 +1170,8 @@ export class StatsProcessor extends events.EventEmitter {
                 } else if (!adjacent.isGapEst) {
                     x.isGapEst = false;
                 }
-                const latency = global.useLatency ? (refFrameTS - adjacent.state.ts) / 1000 : 0;
+                const latency = (refFrameTS - adjacent.state.ts) / 1000;
                 x.gap = adjacent.gap - gap + latency;
-                //console.warn("latency3", latency, x.gap);
             }
 
             // TESTING XXX
@@ -1176,9 +1195,8 @@ export class StatsProcessor extends events.EventEmitter {
                 } else if (!adjacent.isGapEst) {
                     x.isGapEst = false;
                 }
-                const latency = global.useLatency ? (refFrameTS - x.state.ts) / 1000 : 0;
+                const latency = (refFrameTS - x.state.ts) / 1000;
                 x.gap = adjacent.gap + gap - latency;
-                //console.warn("latency4", latency, x.gap, x.isGapEst);
             }
 
             // TESTING XXX
@@ -1190,26 +1208,8 @@ export class StatsProcessor extends events.EventEmitter {
             }
         }
 
-        // Sort by last nearby state first then stable sort after rounded gaps.
-        // Otherwise network latency essentially randomizes tight groups on each
-        // cycle and we're jumping all over the place.
-        /*if (recentOrder) {
-            nearby.sort((a, b) => {
-                const ai = recentOrder.get(a.athleteId);
-                const ab = recentOrder.get(b.athleteId);
-                return (ai !== undefined && ab !== undefined) ? (ai < ab ? -1 : 1) : 0;
-            });
-        }*/
-        
-        const recentNearbyOrder = Array.from(nearby);
-
-        for (let i = 0; i < nearby.length; i++) {
-            //nearby[i].gap = Math.round(nearby[i].gap);
-            delete nearby[i]._data;
-        }
         //nearby.sort((a, b) => Math.abs(a.gap - b.gap) < 0.5 ? 0 : a.gap < b.gap ? -1 : 1);
         nearby.sort((a, b) => a.gap < b.gap ? -1 : 1);
-
 
         /*
         const test = Array.from(nearby);
