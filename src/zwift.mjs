@@ -1128,6 +1128,7 @@ export class GameMonitor extends events.EventEmitter {
     _setConnecting() {
         this.connectingTS = Date.now();
         this.connectingCount++;
+        this._verboseDebug = 0;
     }
 
     async connect() {
@@ -1542,9 +1543,12 @@ export class GameMonitor extends events.EventEmitter {
         this._lastWatchingState = state;
         this._lastWatchingStateUpdated = Date.now();
         const age = lws ? state.ts - lws.ts : 0;
-        if (age > 2000 && (state._speed || state.power || state._cadenceUHz)) {
+        const connectTime = Date.now() - this.connectingTS;
+        const active = state._speed || state.power || state._cadenceUHz;
+        if (age > 2000 && connectTime > 30000 && active) {
             console.warn(`Slow watching state update: ${age}ms`, state);
-            this._verboseDebug = true;
+            this._verboseDebug++;
+            setTimeout(() => this._verboseDebug--, 90000);
         }
     }
 
@@ -1581,12 +1585,12 @@ export class GameMonitor extends events.EventEmitter {
                 const byDelta = b.yBound - y;
                 const bDist = Math.sqrt(bxDelta ** 2 + byDelta ** 2);
                 if (this._verboseDebug) {
-                    console.debug('VD', {aDist, bDist, a, b});
+                    console.debug('VD server sort', {aDist, bDist, a, b});
                 }
                 return aDist - bDist;
             });
         if (this._verboseDebug) {
-            console.debug('VD:', {x, y, servers});
+            console.debug('VD server results:', {x, y, servers});
         }
         return servers[0];
     }
