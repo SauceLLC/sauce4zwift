@@ -140,7 +140,8 @@ function getRemaining(x) {
         if (sg) {
             distance = sg.distanceInMeters;
             covered = x.state.eventDistance;
-            eventEnd = +(new Date(sg.eventSubgroupStart)) + (sg.durationInSeconds * 1000);
+            eventEnd = +(new Date(sg.eventSubgroupStart || sg.eventStart)) +
+                (sg.durationInSeconds * 1000);
         }
     }
     if (!distance && !eventEnd) {
