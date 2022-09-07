@@ -758,8 +758,9 @@ export class StatsProcessor extends events.EventEmitter {
         state.kj = state._mwHours / 1000 / (1000 / 3600);
         state.heading = headingConv(state._heading);  // degrees
         state.speed = state._speed / 1000000;  // km/h
+        state.joinTime = zwift.worldTimeToTime(state._joinTime);
         state.cadence = (state._cadenceUHz && state._cadenceUHz < CADENCE_MAX) ?
-            state._cadenceUHz / 1000000 * 60 : 0; // rpm
+            Math.round(state._cadenceUHz / 1000000 * 60) : 0; // rpm
         state.roadCompletion = !state.reverse ? 1000000 - state.roadLocation : state.roadLocation;
         state.eventDistance = state._eventDistance / 100;  // meters
         ad.mostRecentState = state;
