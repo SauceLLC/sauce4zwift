@@ -133,17 +133,17 @@ function fmtRoute({route, laps}) {
 function getRemaining(x) {
     const sgid = x.state.eventSubgroupId;
     let distance;
-    let duration;
     let covered;
+    let eventEnd;
     if (sgid) {
         const sg = lazyGetSubgroup(sgid);
         if (sg) {
             distance = sg.distanceInMeters;
-            duration = sg.durationInSeconds;
             covered = x.state.eventDistance;
+            eventEnd = +(new Date(sg.eventSubgroupStart)) + (sg.durationInSeconds * 1000);
         }
     }
-    if (!distance && !duration) {
+    if (!distance && !eventEnd) {
         const {route, laps} = getRoute(x);
         if (route) {
             distance = route.leadinDistanceInMeters + (route.distanceInMeters * (laps || 1));
@@ -156,11 +156,11 @@ function getRemaining(x) {
         }
     }
     if (distance) {
-        return {distance: distance - (covered || x.state.progress * distance)};
-    } else if (duration) {
-        return {duration: duration - x.state.time};
+        return [distance - (covered || x.state.progress * distance), true];
+    } else if (eventEnd) {
+        return [(eventEnd - Date.now()) / 1000, false];
     } else {
-        return {};
+        return [];
     }
 }
 
@@ -297,7 +297,7 @@ const fieldGroups = [{
         {id: 'game-laps', defaultEn: false, label: 'Game Lap', headerLabel: 'Lap',
          get: x => x.state.laps, fmt: x => x != null ? x + 1 : '-'},
         {id: 'remaining', defaultEn: false, label: 'Remaining', headerLabel: '<ms>sports_score</ms>',
-         get: getRemaining, fmt: ({duration, distance}) => distance ? fmtDist(distance) : fmtDur(duration)},
+         get: getRemaining, fmt: ([v, isDistance]) => isDistance ? fmtDist(v) : fmtDur(v)},
         {id: 'event', defaultEn: false, label: 'Event', get: x => x.state.eventSubgroupId, fmt: fmtEvent},
         {id: 'route', defaultEn: false, label: 'Route', get: getRoute, fmt: fmtRoute},
         {id: 'progress', defaultEn: false, label: 'Route/Workout %', headerLabel: 'RT/WO %',

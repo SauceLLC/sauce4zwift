@@ -30,6 +30,7 @@ body > main {
     border-radius: 0.3em;
     overflow: hidden;
     font-variant-numeric: tabular-nums;
+    user-select: text;
 }
 
 .athlete > header {

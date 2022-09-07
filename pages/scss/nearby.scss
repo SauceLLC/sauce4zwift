@@ -1,5 +1,4 @@
 html {
-    user-select: initial;
     --page-width: 2000px;
 }
 
@@ -25,7 +24,6 @@ html, body {
 
 table {
     border-collapse: collapse;
-    user-select: none;
 
     &.notransitions tr {
         transition: initial !important;
@@ -132,6 +130,7 @@ table {
         font-variant: tabular-nums;
         cursor: pointer;
         white-space: nowrap;
+        user-select: text;
 
         &[data-id="name"],
         &[data-id="team"],
