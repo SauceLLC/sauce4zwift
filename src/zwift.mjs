@@ -156,17 +156,18 @@ export const worldTimeOffset = 1414016074335;  // ms since zwift started product
 
 
 export function worldTimeToTime(wt) {
-    return worldTimeOffset + wt.toNumber();
+    return wt ? (wt.toNumber() + worldTimeOffset) : null;
 }
 
 
 export function worldTimeToDate(wt) {
-    return new Date(worldTimeToTime(wt));
+    const ts = worldTimeToTime(wt);
+    return ts ? new Date(ts) : null;
 }
 
 
 export function dateToWorldTime(d) {
-    return d - worldTimeOffset;
+    return d ? (d - worldTimeOffset) : 0;
 }
 
 
