@@ -989,7 +989,7 @@ class UDPChannel extends NetChannel {
 
 export class GameMonitor extends events.EventEmitter {
 
-    stateRefreshDelay = 4000;  // Rate limit is 2000 and we might need to do 2
+    stateRefreshDelay = 3000;  // Rate limit is 2000 and we might need to do 2
     sessionRestartSlack = 300 * 1000;
 
     constructor(options={}) {
@@ -1444,7 +1444,6 @@ export class GameMonitor extends events.EventEmitter {
         const legacyCh = this.udpChannels[0];
         if (legacyCh) {
             if (this._isChannelReusable(legacyCh)) {
-                console.debug("Detaching:", legacyCh.toString());
                 legacyCh.schedShutdown(60000);
             } else {
                 console.debug("Removing:", legacyCh.toString());
@@ -1455,7 +1454,7 @@ export class GameMonitor extends events.EventEmitter {
         if (reuseIndex !== -1) {
             ch = this.udpChannels.splice(reuseIndex, 1)[0];
             ch.cancelShutdown();
-            console.debug("Reattaching:", ch.toString());
+            console.debug("Switching to:", ch.toString());
         } else {
             ch = this.makeUDPChannel(ip);
             queueMicrotask(() => this.establishUDPChannel(ch));
@@ -1543,8 +1542,9 @@ export class GameMonitor extends events.EventEmitter {
         this._lastWatchingState = state;
         this._lastWatchingStateUpdated = Date.now();
         const age = lws ? state.ts - lws.ts : 0;
-        if (age > 1000) {
-            console.warn(`Slow watching state update: ${age}ms`);
+        if (age > 2000 && (state._speed || state.power || state._cadenceUHz)) {
+            console.warn(`Slow watching state update: ${age}ms`, state);
+            this._verboseDebug = true;
         }
     }
 
@@ -1580,10 +1580,14 @@ export class GameMonitor extends events.EventEmitter {
                 const bxDelta = b.xBound - x;
                 const byDelta = b.yBound - y;
                 const bDist = Math.sqrt(bxDelta ** 2 + byDelta ** 2);
-                //console.debug(aDist, bDist, a, b);
+                if (this._verboseDebug) {
+                    console.debug('VD', {aDist, bDist, a, b});
+                }
                 return aDist - bDist;
             });
-        //console.debug(x, y, servers);
+        if (this._verboseDebug) {
+            console.debug('VD:', {x, y, servers});
+        }
         return servers[0];
     }
 }
