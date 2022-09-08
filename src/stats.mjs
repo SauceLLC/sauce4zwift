@@ -775,7 +775,6 @@ export class StatsProcessor extends events.EventEmitter {
                 const delta = state.roadCompletion - last.roadCompletion;
                 if (delta < 0) { // unlikely
                     if (delta < -10000) {
-                        console.debug('Lapping detected:', delta, state.athleteId);
                         shiftHistory = true;
                     } else {
                         // Stopped and wiggling backwards. For safety we just nuke hist.
@@ -952,41 +951,54 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     isFirstLeading(a, b) {
-        return this._isFirstLeading(a, b)[0];
+        return this._isFirstLeading(a.roadHistory, b.roadHistory)[0];
     }
 
     _isFirstLeading(a, b) {
-        const aHist = a.roadHistory;
-        const bHist = b.roadHistory;
-        if (aHist.sig === bHist.sig) {
-            if (a.mostRecentState.roadCompletion > b.mostRecentState.roadCompletion) {
-                return [true, aHist.timeline];
-            } else if (a.mostRecentState.roadCompletion < b.mostRecentState.roadCompletion) {
-                return [false, bHist.timeline];
-            } else {
-                if (a.mostRecentState.ts < b.mostRecentState.ts) {
-                    return [true, aHist.timeline];
-                } else {
-                    return [false, bHist.timeline];
-                }
+        const aTail = a.timeline[a.timeline.length - 1];
+        const bTail = b.timeline[b.timeline.length - 1];
+        const aComp = aTail.roadCompletion;
+        const bComp = bTail.roadCompletion;
+        let d1, d2;
+        // Is A currently leading B or vice versa...
+        if (a.sig === b.sig) {
+            d1 = aComp - bComp;
+        }
+        // Is B trailing A on a prev road...
+        if (a.prevSig === b.sig) {
+            const d = a.prevTimeline[a.prevTimeline.length - 1].roadCompletion - bComp;
+            if (d >= 0 && (d1 === undefined || d < Math.abs(d1))) {
+                d2 = d; // winning
             }
-        } else {
-            // If an athlete's last place on their previous road was in front of the other
-            // then they are still in contention for ordering.  Otherwise they've turned off
-            // the road and been passed by the other athlete.
-            if (aHist.prevSig === bHist.sig) {
-                const aLast = aHist.prevTimeline[aHist.prevTimeline.length - 1];
-                return [aLast.roadCompletion >= b.mostRecentState.roadCompletion ? true : null, aHist.prevTimeline];
-            } else if (bHist.prevSig === aHist.sig) {
-                const bLast = bHist.prevTimeline[bHist.prevTimeline.length - 1];
-                return [bLast.roadCompletion >= a.mostRecentState.roadCompletion ? false : null, bHist.prevTimeline];
+        }
+        // Is A trailing B on a prev road...
+        if (b.prevSig === a.sig) {
+            const d = b.prevTimeline[b.prevTimeline.length - 1].roadCompletion - aComp;
+            if (d >= 0 && ((d2 !== undefined && d < d2) || d1 === undefined || d < Math.abs(d1))) {
+                // This would be d3, but we can just return the state immediately.
+                return [false, b.prevTimeline]; // winner
+            }
+        }
+        if (d2 !== undefined) {
+            return [true, a.prevTimeline];
+        } else if (d1 !== undefined) {
+            if (d1 > 0) {
+                return [true, a.timeline];
+            } else if (d1 < 0) {
+                return [false, b.timeline];
+            } else {
+                if (aTail.ts < bTail.ts) {
+                    return [true, a.timeline];
+                } else {
+                    return [false, b.timeline];
+                }
             }
         }
         return [null, null];
     }
 
     realGap(a, b) {
-        const [aLeading, leadTimeline] = this._isFirstLeading(a, b);
+        const [aLeading, leadTimeline] = this._isFirstLeading(a.roadHistory, b.roadHistory);
         if (aLeading == null) {
             return null;
         } else if (!aLeading) {
@@ -1109,7 +1121,8 @@ export class StatsProcessor extends events.EventEmitter {
             let gap;
             const watching = id === this.watching;
             if (!watching) {
-                const [leading, leadTimeline] = this._isFirstLeading(watchingData, data);
+                const [leading, leadTimeline] = this._isFirstLeading(watchingData.roadHistory,
+                    data.roadHistory);
                 if (leading == null) {
                     continue;
                 } else if (leading) {
@@ -1121,7 +1134,7 @@ export class StatsProcessor extends events.EventEmitter {
                 } else {
                     gap = this._realGap(leadTimeline, watchingData.mostRecentState);
                     if (gap != null) {
-                        gap = -gap;  // latency is 0 since we our refFrame is watching
+                        gap = -gap;  // latency is 0 since our refFrame is watching
                     }
                 }
             } else {
