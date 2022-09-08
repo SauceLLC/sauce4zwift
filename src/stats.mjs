@@ -1088,9 +1088,19 @@ export class StatsProcessor extends events.EventEmitter {
         if (aSig === bSig) {
             const roadDist = roadDistEstimates[aSig];
             if (roadDist) {
+                let delta = Math.abs(a.roadCompletion - b.roadCompletion);
+                if (delta > 500000) {
+                    // Normalize for lapping situations.
+                    delta = 1000000 - delta;
+                }
                 const aOfft = roadDist * (a.roadCompletion / 1000000);
                 const bOfft = roadDist * (b.roadCompletion / 1000000);
-                return Math.abs(aOfft - bOfft);
+                const old = Math.abs(aOfft - bOfft);
+                const newer = roadDist * (delta / 1000000);
+                if (old.toFixed(3) !== newer.toFixed(3)) {
+                    console.warn("handled looping better", old, newer);
+                }
+                return newer;
             }
         }
         return crowDistance(a, b);
