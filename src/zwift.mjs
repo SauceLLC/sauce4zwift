@@ -20,6 +20,13 @@ protobuf.parse.defaults.keepCase = _case;
 
 const H = locale.human;
 
+
+// When game lags it can send huge values.  BLE testing suggests 240 is
+// their normal limit and they just drop values over this and send 1. So
+// we'll emulate that behavior.
+const cadenceMax = 240 * 1000000 / 60;
+const worldTimeOffset = 1414016074335;  // ms since zwift started production.
+const halfCircle = 1000000 * Math.PI;
 const pbProfilePrivacyFlags = {
     approvalRequired: 0x1,
     minor: 0x2,
@@ -152,7 +159,26 @@ export function encodePlayerStateFlags2(props) {
 }
 
 
-export const worldTimeOffset = 1414016074335;  // ms since zwift started production.
+export function processPlayerStateMessage(msg) {
+    const flags1 = decodePlayerStateFlags1(msg._flags1);
+    const flags2 = decodePlayerStateFlags2(msg._flags2);
+    return {
+        ...msg,
+        ...flags1,
+        ...flags2,
+        ts: worldTimeToTime(msg._worldTime),
+        progress: (msg._progress >> 8 & 0xff) / 0xff,
+        workoutZone: (msg._progress & 0xF) || null,
+        kj: msg._mwHours / 1000 / (1000 / 3600),
+        heading: (((msg._heading + halfCircle) / (2 * halfCircle)) * 360) % 360,  // degrees
+        speed: msg._speed / 1000000,  // km/h
+        joinTime: worldTimeToTime(msg._joinTime),
+        cadence: (msg._cadenceUHz && msg._cadenceUHz < cadenceMax) ?
+            Math.round(msg._cadenceUHz / 1000000 * 60) : 0,  // rpm
+        eventDistance: msg._eventDistance / 100,  // meters
+        roadCompletion: !flags1.reverse ? 1000000 - msg.roadLocation : msg.roadLocation,
+    };
+}
 
 
 export function worldTimeToTime(wt) {
@@ -403,14 +429,16 @@ export class ZwiftAPI {
     }
 
     async getPlayerState(id) {
+        let pb;
         try {
-            return await this.fetchPB(`/relay/worlds/1/players/${id}`, {protobuf: 'PlayerState'});
+            pb = await this.fetchPB(`/relay/worlds/1/players/${id}`, {protobuf: 'PlayerState'});
         } catch(e) {
             if (e.status === 404) {
                 return;
             }
             throw e;
         }
+        return processPlayerStateMessage(pb);
     }
 
     convSegmentResult(x) {
@@ -1382,11 +1410,12 @@ export class GameMonitor extends events.EventEmitter {
             }
         } else {
             // The stats proc works better with these being recently available.
-            this.emit('inPacket', protos.ServerToClient.fromObject({
+            const stc = protos.ServerToClient.fromObject({
                 athleteId: this.athleteId,
                 _worldTime: state._worldTime,
-                playerStates: [state],
-            }));
+            });
+            stc.playerStates = [state];  // Assign after so our extensions work.
+            this.emit('inPacket', stc);
             this._updateGameState(state);
             if (state.athleteId === this.watchingAthleteId) {
                 this._updateWatchingState(state);
@@ -1405,11 +1434,12 @@ export class GameMonitor extends events.EventEmitter {
             return;
         }
         // The stats proc works better with these being recently available.
-        this.emit('inPacket', protos.ServerToClient.fromObject({
+        const stc = protos.ServerToClient.fromObject({
             athleteId: this.athleteId,
             _worldTime: state._worldTime,
-            playerStates: [state],
-        }));
+        });
+        stc.playerStates = [state];  // Assign after so our extensions work.
+        this.emit('inPacket', stc);
         this._updateWatchingState(state);
     }
 
@@ -1477,6 +1507,7 @@ export class GameMonitor extends events.EventEmitter {
         console.info(`Established:`, ch.toString());
     }
 
+
     onInPacket(pb, ch) {
         if (pb.udpConfigVOD && pb.udpConfigVOD.pools) {
             for (const x of pb.udpConfigVOD.pools) {
@@ -1484,24 +1515,19 @@ export class GameMonitor extends events.EventEmitter {
             }
             queueMicrotask(() => this.emit('udpServerPoolsUpdated', this.udpServerPools));
         }
-        if (pb.playerStates && pb.playerStates.length) {
-            //console.debug(`IN DATA| states: ${pb.playerStates.length} ${ch.toString()}`);
-            const monState = pb.playerStates.find(x => x.athleteId === this.gameAthleteId);
-            if (monState) {
-                queueMicrotask(() => this._updateGameState(monState));
+        for (let i = 0; i < pb.playerStates.length; i++) {
+            const state = pb.playerStates[i] = processPlayerStateMessage(pb.playerStates[i]);
+            if (state.athleteId === this.gameAthleteId) {
+                queueMicrotask(() => this._updateGameState(state));
             }
-            const watchState = this.gameAthleteId === this.watchingAthleteId ?
-                monState :
-                pb.playerStates.find(x => x.athleteId === this.watchingAthleteId);
-            if (watchState) {
-                queueMicrotask(() => this._updateWatchingState(watchState));
+            if (state.athleteId === this.watchingAthleteId) {
+                queueMicrotask(() => this._updateWatchingState(state));
             }
         }
         queueMicrotask(() => this.emit('inPacket', pb));
     }
 
     _updateGameState(state) {
-        state.ts = +worldTimeToDate(state._worldTime);
         if (this._lastGameState && this._lastGameState.ts >= state.ts) {
             return;
         }
@@ -1529,7 +1555,6 @@ export class GameMonitor extends events.EventEmitter {
     }
 
     _setWatchingState(state) {
-        state.ts = +worldTimeToDate(state._worldTime);
         const lws = this._lastWatchingState;
         if (lws && lws.ts >= state.ts) {
             // Dedup & filter stale
@@ -1548,7 +1573,7 @@ export class GameMonitor extends events.EventEmitter {
         if (age > 2000 && connectTime > 30000 && active) {
             console.warn(`Slow watching state update: ${age}ms`, state);
             this._verboseDebug++;
-            setTimeout(() => this._verboseDebug--, 90000);
+            setTimeout(() => this._verboseDebug = this._verboseDebug && this._verboseDebug - 1, 90000);
         }
     }
 
