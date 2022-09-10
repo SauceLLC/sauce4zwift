@@ -254,18 +254,22 @@ async function renderWindowsPanel() {
     const manifests = await common.rpc.getWindowManifests();
     const el = document.querySelector('#windows');
     const descs = Object.fromEntries(manifests.map(x => [x.type, x]));
-    const restoreLink = `<a class="link restore"><img src="images/fa/plus-square-duotone.svg"></a>`;
+    windows.sort((a, b) => !!a.closed - !!b.closed);
     el.querySelector('table.active-windows tbody').innerHTML = windows.map(x => {
         const desc = descs[x.type] || {
             prettyName: `Unknown window: ${x.type}`,
             prettyDesc: common.sanitizeForAttr(JSON.stringify(x, null, 4)),
         };
         return `
-            <tr data-id="${x.id}" class="active-window ${x.closed ? 'closed' : ''}">
-                <td title="${desc.prettyDesc}">${desc.prettyName}</td>
-                <td>${x.closed ? 'Closed' : 'Active'}</td>
-                <td class="btn">${x.closed ? restoreLink : ''}</td>
-                <td class="btn"><a class="link delete"><img src="images/fa/window-close-regular.svg"></a></td>
+            <tr data-id="${x.id}" class="window ${x.closed ? 'closed' : 'open'}"
+                title="${desc.prettyDesc}\n\nDouble click/tap to ${x.closed ? 'reopen' : 'focus'}">
+                <td class="name">${x.customName || desc.prettyName}<a class="link edit-name"
+                    title="Edit name"><ms>edit</ms></a></td>
+                <td class="state">${x.closed ? 'Closed' : 'Open'}</td>
+                <td class="btn"><a title="Reopen this window" class="link restore"
+                    ><ms>open_in_new</ms></a></td>
+                <td class="btn" title="Delete this window and its settings"
+                    ><a class="link delete"><ms>delete_forever</ms></a></td>
             </tr>
         `;
     }).join('\n');
@@ -280,7 +284,6 @@ async function renderWindowsPanel() {
         `<optgroup label="${title || 'Main'}">${ms.map(x =>
             `<option title="${x.prettyDesc}" value="${x.type}">${x.prettyName}</option>`)}</optgroup>`
     ).join('');
-    return el;
 }
 
 
@@ -288,20 +291,54 @@ async function renderWindowsPanel() {
 export async function settingsMain() {
     common.initInteractionListeners();
     const extraData = {version: await common.rpc.getVersion()};
-    const winsEl = await renderWindowsPanel();
+    await renderWindowsPanel();
+    const winsEl = document.querySelector('#windows');
     winsEl.querySelector('table tbody').addEventListener('click', async ev => {
-        const id = ev.target.closest('[data-id]').dataset.id;
         const link = ev.target.closest('a.link');
         if (link) {
+            const id = ev.target.closest('[data-id]').dataset.id;
             if (link.classList.contains('restore')) {
                 await common.rpc.openWindow(id);
             } else if (link.classList.contains('delete')) {
                 await common.rpc.removeWindow(id);
+            } else if (link.classList.contains('edit-name')) {
+                const td = ev.target.closest('td');
+                const input = document.createElement('input');
+                input.value = td.childNodes[0].textContent;
+                input.title = 'Press Enter to save or Escape';
+                td.innerHTML = '';
+                td.appendChild(input);
+                let actionTaken;
+                const save = async () => {
+                    if (actionTaken) {
+                        return;
+                    }
+                    actionTaken = true;
+                    const customName = common.sanitize(input.value);
+                    await common.rpc.updateWindow(id, {customName});
+                    await renderWindowsPanel();
+                };
+                input.addEventListener('blur', save);
+                input.addEventListener('keydown', ev => {
+                    if (ev.code === 'Enter') {
+                        save();
+                    } if (ev.code === 'Escape') {
+                        actionTaken = true;
+                        renderWindowsPanel();
+                    }
+                });
             }
+        }
+    });
+    winsEl.querySelector('table tbody').addEventListener('dblclick', async ev => {
+        const row = ev.target.closest('tr[data-id]');
+        if (!row || ev.target.closest('a.link.delete') || ev.target.closest('input')) {
             return;
         }
-        const row = ev.target.closest('tr');
-        if (row) {
+        const id = row.dataset.id;
+        if (row.classList.contains('closed')) {
+            await common.rpc.openWindow(id);
+        } else {
             await common.rpc.highlightWindow(id);
         }
     });

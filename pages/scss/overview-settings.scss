@@ -22,6 +22,21 @@
         }
 
         tbody tr {
+            &.closed {
+                opacity: 0.80;
+
+            }
+
+            &:not(.closed) {
+                .link.restore {
+                    display: none;
+                }
+
+                td.state {
+                    font-weight: 800;
+                }
+            }
+
             &:hover {
                 cursor: pointer;
                 background-color: #1119;
@@ -44,14 +59,25 @@
             display: inline-block;
             cursor: pointer;
 
+            ms {
+                font-weight: 600;
+            }
+
+            &.delete {
+                color: #f41616;
+            }
+
             &:hover {
                 opacity: 1;
             }
+        }
 
-            > img {
-                height: 1em;
-                filter: invert(1);
-            }
+        td.state {
+            font-variant: all-small-caps;
+        }
+
+        td.name:not(:hover) .link.edit-name {
+            opacity: 0;
         }
     }
 
@@ -65,4 +91,13 @@
 .action-buttons {
     display: flex;
     flex-wrap: wrap;
+}
+
+.app-settings {
+    .display-field[name="gameConnectionStatus"] {
+        margin-left: 0.2em;
+        font-variant: all-small-caps;
+        font-weight: 700;
+        margin-bottom: 0.2em;
+    }
 }
