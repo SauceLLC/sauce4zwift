@@ -148,9 +148,12 @@ electron.ipcMain.on('getWindowContextSync', ev => {
     try {
         const m = getMetaByWebContents(ev.sender);
         if (m) {
+            const manifest = windowManifestsByType[m.spec.type];
             returnValue = {
                 id: m.spec.id,
                 type: m.spec.type,
+                spec: m.spec,
+                manifest,
             };
         }
     } finally {

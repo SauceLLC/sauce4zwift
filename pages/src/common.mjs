@@ -165,6 +165,19 @@ export function addOpenSettingsParam(key, value) {
 export function initInteractionListeners() {
     const html = document.documentElement;
     const body = document.body;
+    if (window.isElectron) {
+        let customName = window.electron.context.spec.customName;
+        if (customName) {
+            if (html.classList.contains('settings-page')) {
+                customName += ' - Settings';
+            }
+            document.title = `${customName} - Sauce for Zwift™`;
+            const headerTitle = document.querySelector('#titlebar header .title');
+            if (headerTitle) {
+                headerTitle.textContent = customName;
+            }
+        }
+    }
     document.addEventListener('sauce-highlight-window', () => {
         if (body.classList.contains('transparent-bg')) {
             body.classList.remove('transparent-bg');
@@ -615,6 +628,16 @@ export function sanitizeForAttr(raw) {
 }
 
 
+export function sanitize(raw) {
+    _saniEl.textContent = raw;
+    try {
+        return _saniEl.innerHTML;
+    } finally {
+        _saniEl.textContent = '';
+    }
+}
+
+
 export function badgeHue(name) {
     name = name || '';
     let s = 0;
@@ -644,4 +667,4 @@ export const rpc = new Proxy({}, {
     get: (_, prop) => (...args) => rpcCall(prop, ...args)
 });
 
-window.rpc = rpc; // XXX DEBUG
+window.rpc = rpc; // DEBUG

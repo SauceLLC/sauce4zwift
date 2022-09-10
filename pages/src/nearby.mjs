@@ -23,13 +23,15 @@ let flags;
 let gameControlEnabled;
 let gameControlConnected;
 
+const unit = x => `<abbr class="unit">${x}</abbr>`;
 const spd = v => H.pace(v, {precision: 0, suffix: true, html: true});
 const weightClass = v => H.weightClass(v, {suffix: true, html: true});
 const pwr = v => H.power(v, {suffix: true, html: true});
-const hr = v => v ? `${num(v)}<abbr class="unit">bpm</abbr>` : '-';
-const kj = v => v != null ? `${num(v)}<abbr class="unit">kJ</abbr>` : '-';
-const pct = v => (v != null && !isNaN(v)) ? `${num(v)}<abbr class="unit">%</abbr>` : '-';
-const gapTime = (v, entry) => (H.duration(v, {short: true, html: true}) + (entry.isGapEst ? '<small> (est)</small>' : ''));
+const hr = v => v ? num(v) + unit('bpm') : '-';
+const kj = v => v != null ? num(v) + unit('kJ') : '-';
+const pct = v => (v != null && !isNaN(v)) ? num(v) + unit('%') : '-';
+//const gapTime = (v, entry) => (H.duration(v, {short: true, html: true}) + (entry.isGapEst ? '<small> (est)</small>' : ''));
+const gapTime = (v, entry) => ((v < 0 ? '-' : '') + H.timer(Math.abs(v)) + (entry.isGapEst ? '<small> (est)</small>' : ''));
 
 
 function makeLazyGetter(cb) {
@@ -63,8 +65,8 @@ const lazyGetRoute = makeLazyGetter(id => common.rpc.getRoute(id));
 function fmtDist(v) {
     if (v == null || v === Infinity || v === -Infinity || isNaN(v)) {
         return '-';
-    } else if (Math.abs(v) < 1500) {
-        const suffix = `<abbr class="unit">${imperial ? 'ft' : 'm'}</abbr>`;
+    } else if (Math.abs(v) < 1000) {
+        const suffix = unit(imperial ? 'ft' : 'm');
         return H.number(imperial ? v / L.metersPerFoot : v) + suffix;
     } else {
         return H.distance(v, {precision: 1, suffix: true, html: true});
@@ -86,7 +88,7 @@ function fmtWkg(v, entry) {
     }
     const wkg = v / (entry.athlete && entry.athlete.weight);
     return (wkg !== Infinity && wkg !== -Infinity && !isNaN(wkg)) ?
-        `${num(wkg, {precision: 1, fixed: true})}<abbr class="unit">w/kg</abbr>` :
+        num(wkg, {precision: 1, fixed: true}) + unit('w/kg') :
         '-';
 }
 
@@ -449,12 +451,14 @@ const fieldGroups = [{
     group: 'debug',
     label: 'Debug',
     fields: [
-        {id: 'number', defaultEn: false, label: 'Data Index', headerLabel: 'Idx', get: x => x.index + 1},
+        {id: 'index', defaultEn: false, label: 'Data Index', headerLabel: 'Idx', get: x => x.index},
         {id: 'id', defaultEn: false, label: 'Athlete ID', headerLabel: 'ID', get: x => x.athleteId},
         {id: 'course', defaultEn: false, label: 'Course (aka world)', headerLabel: 'Course',
          get: x => x.state.courseId},
         {id: 'direction', defaultEn: false, label: 'Direction', headerLabel: 'Dir',
          get: x => x.state.reverse, fmt: x => x ? '<ms>arrow_back</ms>' : '<ms>arrow_forward</ms>'},
+        {id: 'latency', defaultEn: false, label: 'Latency',
+         get: x => x.latency, fmt: x => x ? H.number(x * 1000) + unit('ms') : '-'},
 
         /*
         {id: '_f7', defaultEn: false, label: 'f7', get: x => x.state._f7XXX},

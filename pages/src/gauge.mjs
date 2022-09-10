@@ -118,7 +118,7 @@ function setBackground({solidBackground, backgroundColor}) {
 
 export async function main() {
     document.title = `${title} - Sauce for Zwift™`;
-    document.querySelector('#titlebar header .title').textContent = document.title;
+    document.querySelector('#titlebar header .title').textContent = title;
     common.addOpenSettingsParam('t', type);
     common.initInteractionListeners();
     const config = gaugeConfigs[type];
@@ -327,8 +327,8 @@ export async function main() {
 
 
 export async function settingsMain() {
-    document.title = `${title} Settings - Sauce for Zwift™`;
-    document.querySelector('#titlebar header .title').textContent = document.title;
+    document.title = `${title} - Settings - Sauce for Zwift™`;
+    document.querySelector('#titlebar header .title').textContent = `${title} - Settings`;
     common.initInteractionListeners();
     await common.initSettingsForm('form', {settingsKey})();
 }
