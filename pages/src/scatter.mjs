@@ -16,23 +16,9 @@ const settingsKey = `scatter-settings-v1`;
 let imperial = !!common.storage.get('/imperialUnits');
 L.setImperial(imperial);
 
-const scatterConfig = {
-    name: 'Draft',
-    color: '#930',
-    ticks: 6,
-    defaultSettings: {
-        min: 0,
-        max: 300,
-    },
-    getValue: x => x.state.draft,
-    getLabel: H.number,
-    detailFormatter: x => `{value|${H.number(x)}}\n{unit|% boost}`,
-};
-
 
 export async function main() {
     common.initInteractionListeners();
-    const config = scatterConfig;
     //settings = common.storage.get(settingsKey, {...commonDefaultSettings, ...config.defaultSettings});
     const content = document.querySelector('#content');
     const chart = echarts.init(content.querySelector('.scatter'), 'sauce', {
