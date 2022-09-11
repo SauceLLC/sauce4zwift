@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html class="use-aspect-ratio noframe">
+    <head>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+        <meta name="apple-mobile-web-app-capable" content="yes"/>
+        <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
+
+        <title>Scatter - Sauce for Zwift™</title>
+
+        <script type="module">
+            import {main} from './src/scatter.mjs';
+            addEventListener('DOMContentLoaded', main);
+        </script>
+
+        <link rel="manifest" href="scatter-manifest.json"/>
+        <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
+        <link rel="stylesheet" href="css/common.css"/>
+        <link rel="stylesheet" href="css/scatter.css"/>
+    </head>
+    <body class="transparent-bg">
+        <div id="titlebar">
+            <header>
+                <div class="button move app-drag electron-only"><img src="images/fa/arrows-alt.svg"/></div>
+                <div class="title app-drag">Scatter</div>
+                <div class="buttons">
+                    <a class="button open-settings" href="scatter-settings.html?widthHint=0.30&heightHint=0.50"
+                       target="scatter-settings"><img src="images/fa/cog-duotone.svg"/></a>
+                    <div class="button close electron-only"><img src="images/fa/window-close-light.svg"/></div>
+                </div>
+            </header>
+        </div>
+        <div id="content">
+            <div class="scatter"></div>
+        </div>
+        <div id="hintbar">
+            <div class="hint"></div>
+        </div>
+    </body>
+</html>
