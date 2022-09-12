@@ -451,7 +451,7 @@ const fieldGroups = [{
     group: 'debug',
     label: 'Debug',
     fields: [
-        {id: 'index', defaultEn: false, label: 'Data Index', headerLabel: 'Idx', get: x => x.index},
+        //{id: 'index', defaultEn: false, label: 'Data Index', headerLabel: 'Idx', get: x => x.index},
         {id: 'id', defaultEn: false, label: 'Athlete ID', headerLabel: 'ID', get: x => x.athleteId},
         {id: 'course', defaultEn: false, label: 'Course (aka world)', headerLabel: 'Course',
          get: x => x.state.courseId},
