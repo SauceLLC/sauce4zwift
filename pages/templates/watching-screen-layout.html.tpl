@@ -46,6 +46,39 @@
                     </dialog>
                 <% } %>
             <!-- leave section div open -->
+        <% } else if (['single-data-field'].includes(section.type)) { %>
+            <% const group = section.groups[0]; %>
+            <% const spec = groupSpecs[group.type]; %>
+            <div class="screen-section {{section.type}}" data-base-section-type="{{baseSectionType}}"
+                 data-section-type="{{section.type}}" data-section-id="{{section.id}}"
+                 data-group-type="{{group.type}}" data-group-id="{{group.id}}"
+                 style="--background-image: {{spec.backgroundImage}};">
+                <div class="double top" data-default="0" data-field="{{section.id}}-{{group.id}}-0">
+                    <heading class="group-title">{{group.title || groupSpecs[group.type].title}}</heading>
+                    <div class="value"></div>
+                    <div class="label"></div>
+                    <div class="sub-label"></div>
+                </div>
+                <% if (obj.configuring) { %>
+                    <dialog class="edit">
+                        <header>Edit Section: {{sectionIndex +1 }}</header>
+                        <form method="dialog">
+                            <label>Type: {{sectionSpecs[section.type].title}}</label>
+                            <label>Data Group:
+                                <select name="group" data-id="{{group.id}}">
+                                    <% for (const [type, g] of Object.entries(groupSpecs)) { %>
+                                        <option value="{{type}}" {{group.type === type ? 'selected' : ''}}>{{g.title}}</option>
+                                    <% } %>
+                                </select>
+                            </label>
+                            <footer>
+                                <button value="cancel">Cancel</button>
+                                <button value="save" class="primary">Save</button>
+                            </footer>
+                        </form>
+                    </dialog>
+                <% } %>
+            <!-- leave section div open -->
         <% } else if (section.type === 'split-data-fields') { %>
             <div class="screen-section columns no-heading {{section.type}}" data-section-type="{{section.type}}"
                  data-base-section-type="{{baseSectionType}}" data-section-id="{{section.id}}">
