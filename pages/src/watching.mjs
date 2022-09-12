@@ -245,10 +245,16 @@ const sectionSpecs = {
         baseType: 'data-fields',
         groups: 2,
     },
+    'single-data-field': {
+        title: 'Single Data Field',
+        baseType: 'single-data-field',
+        groups: 1,
+    },
     'line-chart': {
         title: 'Line Chart',
         baseType: 'chart',
         groups: 1,
+        alwaysRender: true,
     }
 };
 
@@ -589,7 +595,7 @@ export async function main() {
     const renderers = [];
     let curScreen;
     const layoutTpl = await getTpl('watching-screen-layout');
-    const alwaysRender = true;
+    let persistentData = settings.screens.some(x => x.sections.some(xx => sectionSpecs[xx.type].alwaysRender));
     for (const [sIndex, screen] of settings.screens.entries()) {
         const screenEl = (await layoutTpl({
             screen,
@@ -607,11 +613,28 @@ export async function main() {
             id: screen.id,
             fps: null,
             locked: settings.lockedFields,
-            backgroundRender: alwaysRender,
+            backgroundRender: screen.sections.some(x => sectionSpecs[x.type].alwaysRender),
         });
         for (const sectionEl of screenEl.querySelectorAll('[data-section-id]')) {
             const sectionType = sectionEl.dataset.sectionType;
             if (sectionSpecs[sectionType].baseType === 'data-fields') {
+                const groups = [
+                    sectionEl.dataset.groupId ? sectionEl : null,
+                    ...sectionEl.querySelectorAll('[data-group-id]')
+                ].filter(x => x);
+                for (const groupEl of groups) {
+                    const mapping = [];
+                    for (const [i, fieldEl] of groupEl.querySelectorAll('[data-field]').entries()) {
+                        const id = fieldEl.dataset.field;
+                        mapping.push({id, default: Number(fieldEl.dataset.default || i)});
+                    }
+                    renderer.addRotatingFields({
+                        el: groupEl,
+                        mapping,
+                        fields: groupSpecs[groupEl.dataset.groupType].fields,
+                    });
+                }
+            } else if (sectionSpecs[sectionType].baseType === 'single-data-field') {
                 const groups = [
                     sectionEl.dataset.groupId ? sectionEl : null,
                     ...sectionEl.querySelectorAll('[data-group-id]')
@@ -711,9 +734,11 @@ export async function main() {
         athleteId = watching.athleteId;
         for (const x of renderers) {
             x.setData(watching);
-            x.render({force});
+            if (x.backgroundRender || !x._contentEl.classList.contains('hidden')) {
+                x.render({force});
+            }
         }
-    }, {persistent: alwaysRender});
+    }, {persistent: persistentData});
 }
 
 

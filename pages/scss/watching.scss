@@ -1,7 +1,7 @@
 @import 'charts';
 
 html {
-    --aspect-ratio: 94 / 100;
+    font-size: clamp(10px, 7vw, 48px);
 }
 
 #content {
@@ -72,6 +72,10 @@ html {
 
     &.split {
         font-size: 1.3em;
+    }
+
+    &.single-data-field {
+        font-size: 2.5em;
     }
 
     &.columns {
