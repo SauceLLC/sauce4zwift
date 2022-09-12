@@ -355,7 +355,10 @@ export class Renderer {
                         } catch(e) {
                             captureExceptionOnce(e);
                         }
-                        field.valueEl.innerHTML = value != null && !Number.isNaN(value) ? value : '';
+                        const candidate = value != null && !Number.isNaN(value) ? value : '';
+                        if (field.valueEl.innerHTML !== candidate) {
+                            field.valueEl.innerHTML = candidate;
+                        }
                         if (field.labelEl) {
                             let labels = '';
                             try {
@@ -364,13 +367,22 @@ export class Renderer {
                                 captureExceptionOnce(e);
                             }
                             if (Array.isArray(labels)) {
-                                field.labelEl.innerHTML = labels[0];
+                                if (field.labelEl.innerHTML !== labels[0]) {
+                                    field.labelEl.innerHTML = labels[0];
+                                }
                                 if (field.subLabelEl) {
-                                    field.subLabelEl.innerHTML = labels.length > 1 ? labels[1] : '';
+                                    const candidate = labels.length > 1 ? labels[1] : '';
+                                    if (field.subLabelEl.innerHTML !== candidate) {
+                                        field.subLabelEl.innerHTML = candidate;
+                                    }
                                 }
                             } else {
-                                field.labelEl.innerHTML = labels;
-                                field.subLabelEl.innerHTML = '';
+                                if (field.labelEl.innerHTML !== labels) {
+                                    field.labelEl.innerHTML = labels;
+                                }
+                                if (field.subLabelEl.innerHTML) {
+                                    field.subLabelEl.innerHTML = '';
+                                }
                             }
                         }
                         if (field.keyEl) {
@@ -380,7 +392,9 @@ export class Renderer {
                             } catch(e) {
                                 captureExceptionOnce(e);
                             }
-                            field.keyEl.innerHTML = key;
+                            if (field.keyEl.innerHTML !== key) {
+                                field.keyEl.innerHTML = key;
+                            }
                         }
                         if (field.unitEl) {
                             let unit = '';
@@ -390,7 +404,9 @@ export class Renderer {
                             } catch(e) {
                                 captureExceptionOnce(e);
                             }
-                            field.unitEl.innerHTML = unit;
+                            if (field.unitEl.innerHTML !== unit) {
+                                field.unitEl.innerHTML = unit;
+                            }
                         }
                     }
                     for (const cb of this._callbacks) {
