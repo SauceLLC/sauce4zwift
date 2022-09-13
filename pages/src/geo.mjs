@@ -11,7 +11,7 @@ echarts.registerTheme('sauce', theme);
 
 const L = sauce.locale;
 const H = L.human;
-const settingsKey = `scatter-settings-v1`;
+const settingsKey = `geo-settings-v1`;
 //let settings;
 let imperial = !!common.storage.get('/imperialUnits');
 L.setImperial(imperial);
