@@ -342,9 +342,17 @@ const placeSuffixes = {
     few: 'rd',
     other: 'th',
 };
-function humanPlace(p) {
+function humanPlace(p, options={}) {
+    if (!p) {
+        return '-';
+    }
     const suffix = placeSuffixes[placePluralRules.select(p)];
-    return `${p}${suffix}`;
+    const hp = humanNumber(p);
+    if (options.html) {
+        return `${hp}<abbr class="unit">${suffix}</abbr>`;
+    } else {
+        return `${hp}${suffix}`;
+    }
 }
 
 

@@ -21,7 +21,7 @@
                         <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
                     </div>
                 </div>
-                <div class="double top" data-default="0" data-field="{{section.id}}-{{group.id}}-2">
+                <div class="full-height" data-default="0" data-field="{{section.id}}-{{group.id}}-2">
                     <div class="value"></div>
                     <div class="label"></div>
                     <div class="sub-label"></div>
@@ -53,7 +53,7 @@
                  data-section-type="{{section.type}}" data-section-id="{{section.id}}"
                  data-group-type="{{group.type}}" data-group-id="{{group.id}}"
                  style="--background-image: {{spec.backgroundImage}};">
-                <div class="double top" data-default="0" data-field="{{section.id}}-{{group.id}}-0">
+                <div class="full-height" data-default="0" data-field="{{section.id}}-{{group.id}}-0">
                     <heading class="group-title">{{group.title || groupSpecs[group.type].title}}</heading>
                     <div class="value"></div>
                     <div class="label"></div>

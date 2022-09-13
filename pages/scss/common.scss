@@ -312,6 +312,43 @@ html:not(:hover) #hintbar {
     font-size: 18px; /* same size on all windows */
 }
 
+.button-bar {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex: 0 0 auto;
+    background-image: linear-gradient(135deg, #1d0050de, #2b0078de);
+    overflow: hidden;
+
+    .button {
+        padding: 1em 0.6em;
+        flex: 1 1 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: opacity 200ms, background 200ms;
+
+        &:hover {
+            background: #9700ff6b;
+        }
+
+        &:active {
+            background: #0008;
+        }
+
+        &.disabled {
+            pointer-events: none;
+            opacity: 0.2;
+        }
+
+        img {
+            height: 1.2em !important;
+            filter: invert(1);
+        }
+    }
+}
+
 #titlebar {
     flex: 0 0 auto;
     display: flex;
@@ -377,38 +414,6 @@ html:not(:hover) #hintbar {
                     height: 0.85em;
                     filter: invert(1);
                 }
-            }
-        }
-    }
-
-    .button-bar {
-        width: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        flex: 1 0 auto;
-        background-image: linear-gradient(135deg, #1d0050de, #2b0078de);
-        overflow: hidden;
-
-        .button {
-            padding: 1em 0.6em;
-            flex: 1 1 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: opacity 200ms, background 200ms;
-
-            &:hover {
-                background: #9700ff6b;
-            }
-
-            &:active {
-                background: #0008;
-            }
-
-            img {
-                height: 1.2em;
-                filter: invert(1);
             }
         }
     }

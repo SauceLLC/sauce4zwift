@@ -375,7 +375,7 @@ function renderGroups(groups) {
 
 
 function setBackground({solidBackground, backgroundColor}) {
-    doc.classList.toggle('solid-background', solidBackground);
+    doc.classList.toggle('solid-background', !!solidBackground);
     if (solidBackground) {
         doc.style.setProperty('--background-color', backgroundColor);
     } else {

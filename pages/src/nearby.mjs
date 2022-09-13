@@ -1,6 +1,7 @@
 import * as sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
 
+const doc = document.documentElement;
 const L = sauce.locale;
 const H = L.human;
 const num = H.number;
@@ -129,42 +130,6 @@ function fmtRoute({route, laps}) {
     }
     parts.push(route.name);
     return parts.join(' ');
-}
-
-
-function getRemaining(x) {
-    const sgid = x.state.eventSubgroupId;
-    let distance;
-    let covered;
-    let eventEnd;
-    if (sgid) {
-        const sg = lazyGetSubgroup(sgid);
-        if (sg) {
-            distance = sg.distanceInMeters;
-            covered = x.state.eventDistance;
-            eventEnd = +(new Date(sg.eventSubgroupStart || sg.eventStart)) +
-                (sg.durationInSeconds * 1000);
-        }
-    }
-    if (!distance && !eventEnd) {
-        const {route, laps} = getRoute(x);
-        if (route) {
-            distance = route.leadinDistanceInMeters + (route.distanceInMeters * (laps || 1));
-            if (route.distanceInMetersFromEventStart) {
-                console.warn("Investigate dist from event start value",
-                    route.distanceInMetersFromEventStart);
-                // Probably we need to add this to the distance.
-                debugger;
-            }
-        }
-    }
-    if (distance) {
-        return [distance - (covered || x.state.progress * distance), true];
-    } else if (eventEnd) {
-        return [(eventEnd - Date.now()) / 1000, false];
-    } else {
-        return [];
-    }
 }
 
 
@@ -299,8 +264,10 @@ const fieldGroups = [{
         {id: 'gap-distance', defaultEn: false, label: 'Gap (dist)', get: x => x.gapDistance, fmt: fmtDist},
         {id: 'game-laps', defaultEn: false, label: 'Game Lap', headerLabel: 'Lap',
          get: x => x.state.laps, fmt: x => x != null ? x + 1 : '-'},
-        {id: 'remaining', defaultEn: false, label: 'Remaining', headerLabel: '<ms>sports_score</ms>',
-         get: getRemaining, fmt: ([v, isDistance]) => isDistance ? fmtDist(v) : fmtDur(v)},
+        {id: 'remaining', defaultEn: false, label: 'Event/Route Remaining', headerLabel: '<ms>sports_score</ms>',
+         get: x => x.remaining, fmt: (v, entry) => entry.remainingMetric === 'distance' ? fmtDist(v) : fmtDur(v)},
+        {id: 'position', defaultEn: false, label: 'Event Position', headerLabel: 'Pos',
+         get: x => x.eventPosition, fmt: v => v ? H.number(v) : '-'},
         {id: 'event', defaultEn: false, label: 'Event', get: x => x.state.eventSubgroupId, fmt: fmtEvent},
         {id: 'route', defaultEn: false, label: 'Route', get: getRoute, fmt: fmtRoute},
         {id: 'progress', defaultEn: false, label: 'Route/Workout %', headerLabel: 'RT/WO %',
@@ -506,6 +473,7 @@ export async function main() {
         } else if (ev.data.key === settingsKey) {
             const oldSettings = settings;
             settings = ev.data.value;
+            setBackground(settings);
             if (oldSettings.transparency !== settings.transparency) {
                 common.rpc.setWindowOpacity(window.electron.context.id, 1 - (settings.transparency / 100));
             }
@@ -537,9 +505,12 @@ export async function main() {
         overlayMode: false,
         fontScale: 1,
         transparency: 0,
+        solidBackground: false,
+        backgroundColor: '#00ff00',
     });
-    document.documentElement.classList.toggle('overlay-mode', settings.overlayMode);
-    document.documentElement.classList.toggle('noframe', settings.overlayMode);
+    setBackground(settings);
+    doc.classList.toggle('overlay-mode', settings.overlayMode);
+    doc.classList.toggle('noframe', settings.overlayMode);
     const fields = [].concat(...fieldGroups.map(x => x.fields));
     fieldStates = common.storage.get(fieldsKey, Object.fromEntries(fields.map(x => [x.id, x.defaultEn])));
     if (window.isElectron) {
@@ -547,8 +518,8 @@ export async function main() {
             if (settings.overlayMode !== overlay) {
                 settings.overlayMode = overlay;
                 common.storage.set(settingsKey, settings);
-                document.documentElement.classList.toggle('overlay-mode', overlay);
-                document.documentElement.classList.toggle('noframe', overlay);
+                doc.classList.toggle('overlay-mode', overlay);
+                doc.classList.toggle('noframe', overlay);
             }
         });
     }
@@ -583,8 +554,6 @@ export async function main() {
             common.storage.set(`nearby-sort-by`, id);
         }
         col.classList.add('sorted', sortByDir > 0 ? 'sort-asc' : 'sort-desc');
-        table.classList.add('notransitions');
-        requestAnimationFrame(() => table.classList.remove('notransitions'));
         renderData(nearbyData, {recenter: true});
     });
     tbody.addEventListener('click', async ev => {
@@ -654,8 +623,8 @@ async function watch(athleteId) {
 
 
 function render() {
-    document.documentElement.classList.toggle('autoscroll', settings.autoscroll);
-    document.documentElement.style.setProperty('--font-scale', settings.fontScale || 1);
+    doc.classList.toggle('autoscroll', settings.autoscroll);
+    doc.style.setProperty('--font-scale', settings.fontScale || 1);
     const fields = [].concat(...fieldGroups.map(x => x.fields));
     enFields = fields.filter(x => fieldStates[x.id]);
     sortBy = common.storage.get('nearby-sort-by', 'gap');
@@ -779,6 +748,16 @@ function renderData(data, {recenter}={}) {
                 row.scrollIntoView({block: 'center'});
             }
         });
+    }
+}
+
+
+function setBackground({solidBackground, backgroundColor}) {
+    doc.classList.toggle('solid-background', !!solidBackground);
+    if (solidBackground) {
+        doc.style.setProperty('--background-color', backgroundColor);
+    } else {
+        doc.style.removeProperty('--background-color');
     }
 }
 

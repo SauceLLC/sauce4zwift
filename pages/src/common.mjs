@@ -626,7 +626,7 @@ export function initSettingsForm(selector, options={}) {
     };
     const update = bindFormData(selector, storageIface);
     return async data => {
-        storageData = storage.get(settingsKey) || {};
+        storageData = options.storageData || storage.get(settingsKey) || {};
         allData = {...storageData, ...data};
         await update();
     };

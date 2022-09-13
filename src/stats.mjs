@@ -554,7 +554,20 @@ export class StatsProcessor extends events.EventEmitter {
             debugger;
         }
         if (packet.eventPositions) {
-            console.debug(packet.eventPositions);
+            const ep = packet.eventPositions;
+            if (ep.position && this._athleteData.has(ep.watchingAthleteId)) {
+                const ad = this._athleteData.get(ep.watchingAthleteId);
+                ad.eventPosition = ep.position;
+                ad.eventParticipants = ep.activeAthleteCount;
+            }
+            // There are several groups of fields on eventPositions, but I don't understand them.
+            for (const x of ep.players10) {
+                const ad = this._athleteData.get(x.athleteId);
+                if (ad) {
+                    ad.eventPosition = x.position;
+                    ad.eventParticipants = ep.activeAthleteCount;
+                }
+            }
         }
     }
 
@@ -719,7 +732,6 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     processState(state) {
-        Object.freeze(state);
         if (!this._athleteData.has(state.athleteId)) {
             this._athleteData.set(state.athleteId, this._createAthleteData(state.athleteId, state.ts));
         }
@@ -760,6 +772,11 @@ export class StatsProcessor extends events.EventEmitter {
                 ad.roadHistory.prevSig = null;
                 ad.roadHistory.prevTimeline = null;
             }
+            if (ad.eventPosition && (!state.eventSubgroupId ||
+                prevState.eventSubgroupId !== state.eventSubgroupId)) {
+                delete ad.eventPosition;
+                delete ad.eventParticipants;
+            }
         }
         ad.roadHistory.sig = roadSig;
         ad.roadHistory.timeline.push({
@@ -798,6 +815,9 @@ export class StatsProcessor extends events.EventEmitter {
                 stats: this._getCollectorStats(ad, athlete),
                 laps: ad.laps.map(x => this._getCollectorStats(x, athlete)),
                 state: this._cleanState(state),
+                eventPosition: ad.eventPosition,
+                eventParticipants: ad.eventParticipants,
+                ...this._getRemaining(state),
             });
         }
         this._stateProcessCount++;
@@ -1069,7 +1089,52 @@ export class StatsProcessor extends events.EventEmitter {
         return o;
     }
 
-    _formatNearbyEntry({data, isGapEst, rp, ...copy}) {
+    _getRouteDistance(route, laps=1) {
+        if (route.distanceInMetersFromEventStart) {
+            console.warn("Investiagate dist from event start value",
+                route.distanceInMetersFromEventStart);
+            // Probably we need to add this to the distance. XXX
+            debugger;
+        }
+        return route.leadinDistanceInMeters + (route.distanceInMeters * laps);
+    }
+
+    _getRemaining(state) {
+        const sg = state.eventSubgroupId && this._eventSubgroups.get(state.eventSubgroupId);
+        if (sg) {
+            if (sg.durationInSeconds) {
+                const eventEnd = +(new Date(sg.eventSubgroupStart || sg.eventStart)) +
+                    (sg.durationInSeconds * 1000);
+                if (!sg.eventSubgroupStart && !sg.eventStart) {
+                    debugger; // XXX
+                }
+                return {
+                    remaining: (eventEnd - Date.now()) / 1000,
+                    remainingMetric: 'time',
+                    remainingType: 'event',
+                };
+            } else {
+                const distance = sg.distanceInMeters || this._getRouteDistance(sg.route, sg.laps);
+                return {
+                    remaining: distance - state.eventDistance,
+                    remainingMetric: 'distance',
+                    remainingType: 'event',
+                };
+            }
+        } else if (state.routeId) {
+            const route = this._routes.get(state.routeId);
+            if (route) {
+                const distance = this._getRouteDistance(route);
+                return {
+                    remaining: distance - (state.progress * distance),
+                    remainingMetric: 'distance',
+                    remainingType: 'route',
+                };
+            }
+        }
+    }
+
+    _formatNearbyEntry({data, isGapEst, rp, gap}) {
         const athleteId = data.athleteId;
         const athlete = this.loadAthlete(athleteId);
         return {
@@ -1081,8 +1146,11 @@ export class StatsProcessor extends events.EventEmitter {
             laps: data.laps.map(x => this._getCollectorStats(x, athlete)),
             state: this._cleanState(data.mostRecentState),
             latency: (Date.now() - data.mostRecentState.ts) / 1000,
+            gap,
             gapDistance: rp.gapDistance,
-            ...copy,
+            eventPosition: data.eventPosition,
+            eventParticipants: data.eventParticipants,
+            ...this._getRemaining(data.mostRecentState),
         };
     }
 
@@ -1174,7 +1242,7 @@ export class StatsProcessor extends events.EventEmitter {
         for (let i = 0; i < behind.length; i++) {
             nearby.push(this._formatNearbyEntry(behind[i]));
         }
-        nearby.sort((a, b) => a.gap < b.gap ? -1 : 1);
+        nearby.sort((a, b) => a.gap - b.gap);
         return nearby;
     }
 

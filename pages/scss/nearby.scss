@@ -1,5 +1,11 @@
 html {
-    --page-width: 2000px;
+    &.solid-background {
+        background: var(--background-color);
+
+        body {
+            background: transparent !important;
+        }
+    }
 }
 
 html:not(.overlay-mode) {
@@ -24,10 +30,6 @@ html, body {
 
 table {
     border-collapse: collapse;
-
-    &.notransitions tr {
-        transition: initial !important;
-    }
 
     abbr.unit {
         font-size: 0.82em;
@@ -88,10 +90,8 @@ table {
         --data-index: 0;
         --height: 2.6em;
 
-        height: var(--height); // Required for translate consistency and accuracy using table
-        transition: background 1s, transform 1s, opacity 1s, visibility 1s;
-        // use --height instead of 100% which has accurarcy issues on chrome
-        transform: translate3d(0, calc(var(--height) * (var(--data-index) - var(--dom-index))), 0);
+        height: var(--height);
+        transition: background 100ms;
 
         &.hiding {
             background-color: #babc01de;
@@ -101,7 +101,6 @@ table {
         }
 
         &.watching {
-            transition: initial;
             background-color: #0081ffba;
         }
 
