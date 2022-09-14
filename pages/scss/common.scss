@@ -307,9 +307,12 @@ html:not(:hover) #hintbar {
     }
 }
 
-#titlebar,
+/* same size on all windows */
 #hintbar {
-    font-size: 18px; /* same size on all windows */
+    font-size: 18px;
+}
+#titlebar header {
+    font-size: 20px;
 }
 
 .button-bar {
@@ -320,6 +323,7 @@ html:not(:hover) #hintbar {
     flex: 0 0 auto;
     background-image: linear-gradient(135deg, #1d0050de, #2b0078de);
     overflow: hidden;
+    font-size: 1rem;
 
     .button {
         padding: 1em 0.6em;
@@ -359,14 +363,14 @@ html:not(:hover) #hintbar {
     width: 100%;
     color: white;
     overflow: hidden;
-    max-height: 6em;
-    transition: max-height 200ms, padding 200ms;
+    max-height: calc(60px + 3.5rem); // Roughly fixed header plus optional button bar
+    transition: max-height 300ms, padding 300ms;
     box-shadow: 0 1px 5px #0009;
 
     &:not(.always-visible) {
         position: absolute;
     }
-    .always-visible {
+    &.always-visible {
         position: relative;
     }
 
@@ -387,7 +391,7 @@ html:not(:hover) #hintbar {
         max-width: 100%;
         display: flex;
         align-items: center;
-        padding: 0.5em;
+        padding: 0.56em 0.5em;
         background-image: linear-gradient(to top, #222, #333);
 
         .title {
@@ -408,10 +412,10 @@ html:not(:hover) #hintbar {
             flex: 1 0 auto;
 
             .button {
-                padding-left: 0.4em;
+                padding-left: 0.5em;
 
                 img {
-                    height: 0.85em;
+                    height: 0.90em;
                     filter: invert(1);
                 }
             }
