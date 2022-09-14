@@ -594,6 +594,13 @@ export class ZwiftAPI {
     async eventSubgroupSignup(id) {
         return await zwiftAPI.fetchJSON(`/api/events/subgroups/signup/${id}`, {method: 'POST'})
     }
+
+    async postWorldUpdate(attrs) {
+        return await this.fetch('/relay/worlds/1/attributes', {
+            method: 'POST',
+            pb: protos.WorldUpdate.encode(attrs),
+        });
+    }
 }
 
 

@@ -225,7 +225,9 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.exportFIT, {scope: this});
         rpc.register(this.getAthlete, {scope: this});
         rpc.register(this.getEvent, {scope: this});
+        rpc.register(this.getEvents, {scope: this});
         rpc.register(this.getEventSubgroup, {scope: this});
+        rpc.register(this.getEventSubgroupEntrants, {scope: this});
         rpc.register(this.getRoute, {scope: this});
         rpc.register(this.resetAthletesDB, {scope: this});
         rpc.register(this.getChatHistory, {scope: this});
@@ -238,8 +240,25 @@ export class StatsProcessor extends events.EventEmitter {
         return this._events.get(id);
     }
 
+    getEvents() {
+        return Array.from(this._events.values());
+    }
+
     getEventSubgroup(id) {
         return this._eventSubgroups.get(id);
+    }
+
+    async getEventSubgroupEntrants(id) {
+        const profiles = await this.zwiftAPI.getEventSubgroupEntrants(id);
+        const entrants = [];
+        for (const p of profiles) {
+            entrants.push({
+                id: p.id,
+                athlete: this.updateAthlete(p.id, this._profileToAthlete(p)),
+                likelyInGame: p.likelyInGame,
+            });
+        }
+        return entrants;
     }
 
     getRoute(id) {
@@ -893,9 +912,11 @@ export class StatsProcessor extends events.EventEmitter {
         }
         const someEvents = await this.zwiftAPI.getEventFeed(); // This API is wonky
         for (const x of someEvents) {
+            x.routeDistance = this.getRouteDistance(x.routeId, x.laps);
             this._events.set(x.id, x);
             if (x.eventSubgroups) {
                 for (const sg of x.eventSubgroups) {
+                    sg.routeDistance = this.getRouteDistance(sg.routeId, sg.laps);
                     this._eventSubgroups.set(sg.id, {
                         event: x,
                         route: this._routes.get(sg.routeId),
@@ -906,6 +927,7 @@ export class StatsProcessor extends events.EventEmitter {
         }
         const someMeetups = await this.zwiftAPI.getPrivateEventFeed(); // This API is wonky
         for (const x of someMeetups) {
+            x.routeDistance = this.getRouteDistance(x.routeId, x.laps);
             this._events.set(x.id, x);
             if (x.eventSubgroupId) {
                 // Meetups are basicaly a hybrid event/subgroup
@@ -1087,6 +1109,13 @@ export class StatsProcessor extends events.EventEmitter {
             }
         }
         return o;
+    }
+
+    getRouteDistance(routeId, laps=1) {
+        const route = this._routes.get(routeId);
+        if (route) {
+            return this._getRouteDistance(route, laps);
+        }
     }
 
     _getRouteDistance(route, laps=1) {

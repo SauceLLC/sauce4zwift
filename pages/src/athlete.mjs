@@ -1,9 +1,17 @@
 import * as common from './common.mjs';
 import {locale, template} from '../../shared/sauce/index.mjs';
 
+const queryParams = new URLSearchParams(location.search);
+
+const doc = document.documentElement;
+
+if (queryParams.has('embed')) {
+    doc.classList.add('embed');
+}
+
 const H = locale.human;
 locale.setImperial(common.storage.get('/imperialUnits'));
-const athleteId = Number((new URLSearchParams(location.search)).get('athleteId'));
+const athleteId = Number(queryParams.get('athleteId'));
 const gettingAthlete = common.rpc.getAthlete(athleteId || 1, {refresh: true});
 const gettingTemplate = template.getTemplate('templates/athlete.html.tpl');
 const gettingGameConnectionStatus = common.rpc.getGameConnectionStatus();

@@ -54,7 +54,14 @@ export const windowManifests = [{
     page: 'nearby.html',
     prettyName: 'Nearby Athletes',
     prettyDesc: 'A sortable data table of nearby athletes',
-    options: {width: 800, height: 400},
+    options: {width: 900, relHeight: 0.8},
+    overlay: false,
+}, {
+    type: 'events',
+    page: 'events.html',
+    prettyName: 'Events [ALPHA]',
+    prettyDesc: 'Event listings and entrant information',
+    options: {width: 900, relHeight: 0.8},
     overlay: false,
 }, {
     type: 'game-control',
