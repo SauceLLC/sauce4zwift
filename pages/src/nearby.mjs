@@ -34,6 +34,13 @@ const pct = v => (v != null && !isNaN(v)) ? num(v) + unit('%') : '-';
 //const gapTime = (v, entry) => (H.duration(v, {short: true, html: true}) + (entry.isGapEst ? '<small> (est)</small>' : ''));
 const gapTime = (v, entry) => ((v < 0 ? '-' : '') + H.timer(Math.abs(v)) + (entry.isGapEst ? '<small> (est)</small>' : ''));
 
+let overlayMode;
+if (window.isElectron) {
+    overlayMode = !!window.electron.context.spec.overlay;
+    doc.classList.toggle('overlay-mode', overlayMode);
+    doc.classList.toggle('noframe', overlayMode);
+}
+
 
 function makeLazyGetter(cb) {
     const getting = {};
@@ -508,21 +515,13 @@ export async function main() {
         solidBackground: false,
         backgroundColor: '#00ff00',
     });
+    if (window.isElectron && overlayMode !== settings.overlayMode) {
+        settings.overlayMode = overlayMode;
+        common.storage.set(settingsKey, settings);
+    }
     setBackground(settings);
-    doc.classList.toggle('overlay-mode', settings.overlayMode);
-    doc.classList.toggle('noframe', settings.overlayMode);
     const fields = [].concat(...fieldGroups.map(x => x.fields));
     fieldStates = common.storage.get(fieldsKey, Object.fromEntries(fields.map(x => [x.id, x.defaultEn])));
-    if (window.isElectron) {
-        common.rpc.getWindow(window.electron.context.id).then(({overlay}) => {
-            if (settings.overlayMode !== overlay) {
-                settings.overlayMode = overlay;
-                common.storage.set(settingsKey, settings);
-                doc.classList.toggle('overlay-mode', overlay);
-                doc.classList.toggle('noframe', overlay);
-            }
-        });
-    }
     render();
     tbody.addEventListener('dblclick', async ev => {
         const row = ev.target.closest('tr');
