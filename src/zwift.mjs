@@ -296,7 +296,8 @@ export class ZwiftAPI {
             headers['Zwift-Api-Version'] = options.apiVersion;
         }
         const host = options.host || this.host || `us-or-rly101.zwift.com`;
-        const q = options.query ? '?' + options.query : '';
+        const q = options.query ? ('?' + ((options.query instanceof URLSearchParams) ?
+            options.query : new URLSearchParams(options.query))) : '';
         const timeout = options.timeout !== undefined ? options.timeout : 30000;
         const abort = new AbortController();
         const to = timeout && setTimeout(() => abort.abort(), timeout);
@@ -307,7 +308,6 @@ export class ZwiftAPI {
                 headers: {
                     'Platform': 'OSX',
                     'Source': 'Game Client',
-                    //'Source': 'zwift-companion', // Hack to make zwift-offline work
                     'User-Agent': 'CNL/3.23.5 (macOS 12 Monterey; Darwin Kernel 21.5.0) zwift/1.0.101433 curl/7.78.0-DEV',
                     ...headers,
                 },
@@ -466,21 +466,21 @@ export class ZwiftAPI {
     }
 
     async getSegmentResults(segmentId, options={}) {
-        const query = new URLSearchParams({
+        const query = {
             world_id: 1,
             segment_id: segmentId,
-        });
+        };
         if (options.athleteId) {
-            query.set('player_id', options.athleteId);
+            query.player_id = options.athleteId;
         }
         if (options.from) {
-            query.set('from', zwiftCompatDate(options.from));
+            query.from = zwiftCompatDate(options.from);
         }
         if (options.to) {
-            query.set('to', zwiftCompatDate(options.to));
+            query.to = zwiftCompatDate(options.to);
         }
         if (options.best) {
-            query.set('only-best', 'true');
+            query['only-best'] = 'true';
         }
         return (await this.fetchPB('/api/segment-results', {query, protobuf: 'SegmentResults'})).results;
     }
@@ -541,7 +541,7 @@ export class ZwiftAPI {
         const to = +options.to || (Date.now() + range);
         const pageLimit = options.pageLimit ? options.pageLimit : 10;
         const limit = options.limit || 50;
-        const query = new URLSearchParams({from, to, limit});
+        const query = {from, to, limit};
         const ids = new Set();
         const results = [];
         let pages = 0;
@@ -559,7 +559,7 @@ export class ZwiftAPI {
             if (page.data.length < limit || ++pages >= pageLimit) {
                 break;
             }
-            query.set('cursor', page.cursor);
+            query.cursor = page.cursor;
         }
         return results;
     }
@@ -570,7 +570,7 @@ export class ZwiftAPI {
         const range = options.range || (1 * 3600 * 1000);
         const start_date = +options.from || (Date.now() - range);
         const end_date = +options.to || (Date.now() + range);
-        const query = new URLSearchParams({start_date, end_date});
+        const query = {start_date, end_date};
         return await this.fetchJSON('/api/private_event/feed', {query});
     }
 
@@ -580,6 +580,19 @@ export class ZwiftAPI {
 
     async getPrivateEvent(id) {
         return await this.fetchJSON(`/api/private_event/${id}`);
+    }
+
+    async getEventSubgroupEntrants(id) {
+        return await this.fetchJSON(`/api/events/subgroups/entrants/${id}`, {
+            query: {
+                type: 'all',
+                participation: 'registered',
+            }
+        });
+    }
+
+    async eventSubgroupSignup(id) {
+        return await zwiftAPI.fetchJSON(`/api/events/subgroups/signup/${id}`, {method: 'POST'})
     }
 }
 
@@ -1570,7 +1583,7 @@ export class GameMonitor extends events.EventEmitter {
         const age = lws ? state.ts - lws.ts : 0;
         const connectTime = Date.now() - this.connectingTS;
         const active = state._speed || state.power || state._cadenceUHz;
-        if (age > 2000 && connectTime > 30000 && active) {
+        if (age > 3000 && connectTime > 30000 && active) {
             console.warn(`Slow watching state update: ${age}ms`, state);
             this._verboseDebug++;
             setTimeout(() => this._verboseDebug = this._verboseDebug && this._verboseDebug - 1, 90000);
@@ -1609,9 +1622,6 @@ export class GameMonitor extends events.EventEmitter {
                 const bxDelta = b.xBound - x;
                 const byDelta = b.yBound - y;
                 const bDist = Math.sqrt(bxDelta ** 2 + byDelta ** 2);
-                if (this._verboseDebug) {
-                    console.debug('VD server sort', {aDist, bDist, a, b});
-                }
                 return aDist - bDist;
             });
         if (this._verboseDebug) {
