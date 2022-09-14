@@ -1235,12 +1235,17 @@ export class StatsProcessor extends events.EventEmitter {
         }
 
         const nearby = [];
+        const maxGap = 15 * 60;
         for (let i = 0; i < ahead.length; i++) {
-            nearby.push(this._formatNearbyEntry(ahead[i]));
+            if (ahead[i].gap > -maxGap) {
+                nearby.push(this._formatNearbyEntry(ahead[i]));
+            }
         }
         nearby.push(this._formatNearbyEntry(watching));
         for (let i = 0; i < behind.length; i++) {
-            nearby.push(this._formatNearbyEntry(behind[i]));
+            if (behind[i].gap < maxGap) {
+                nearby.push(this._formatNearbyEntry(behind[i]));
+            }
         }
         nearby.sort((a, b) => a.gap - b.gap);
         return nearby;
