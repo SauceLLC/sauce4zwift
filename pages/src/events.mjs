@@ -20,11 +20,14 @@ function initExpanderTable(table, detailsCallback) {
             return;
         }
         if (row.classList.contains('summary')) {
+            const shouldCollapse = row.classList.contains('expanded');
             table.querySelectorAll(':scope > tbody > tr.expanded').forEach(x => x.classList.remove('expanded'));
             const el = row.nextElementSibling.querySelector('.container');
             el.innerHTML = '';
-            row.classList.add('expanded');
-            detailsCallback(el, row);
+            if (!shouldCollapse) {
+                row.classList.add('expanded');
+                detailsCallback(el, row);
+            }
         }
     });
 }
@@ -61,7 +64,6 @@ export async function main() {
         }
         const route = await getRoute(event.routeId);
         const subgroups = await Promise.all(event.eventSubgroups.map(async sg => {
-            console.log(sg.id);
             const entrants = await common.rpc.getEventSubgroupEntrants(sg.id);
             const route = await getRoute(sg.routeId);
             for (const x of entrants) {
@@ -98,12 +100,12 @@ async function render() {
     const now = Date.now();
     for (const x of await common.rpc.getEvents()) {
         x.ts = +(new Date(x.eventStart));
-        x.world = common.worldToNames[x.worldId];
+        x.world = common.worldToNames[x.mapId];
         if (x.ts < now - 60 * 60 * 1000) {
             continue;
         }
         x.started = x.ts < now;
-        console.log(x);
+        console.debug(x);
         events.set(x.id, x);
     }
     const frag = await eventsTpl({
