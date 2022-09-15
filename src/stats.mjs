@@ -425,6 +425,8 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _profileToAthlete(p) {
+        const powerMeterSources = ['Power Meter', 'Smart Trainer'];
+        const powerMeter = powerMeterSources.includes(p.powerSourceModel);
         const o = {
             firstName: p.firstName,
             lastName: p.lastName,
@@ -437,6 +439,7 @@ export class StatsProcessor extends events.EventEmitter {
             gender: p.male === false ? 'female' : 'male',
             age: (p.privacy && p.privacy.displayAge) ? p.age : null,
             level: p.achievementLevel ? Math.floor(p.achievementLevel / 100) : undefined,
+            powerMeter,
         };
         if (p.socialFacts) {
             o.following = p.socialFacts.followerStatusOfLoggedInPlayer === 'IS_FOLLOWING';
@@ -912,11 +915,19 @@ export class StatsProcessor extends events.EventEmitter {
         }
         const someEvents = await this.zwiftAPI.getEventFeed(); // This API is wonky
         for (const x of someEvents) {
-            x.routeDistance = this.getRouteDistance(x.routeId, x.laps);
+            const route = this._routes.get(x.routeId);
+            if (route) {
+                x.routeDistance = this._getRouteDistance(route, x.laps);
+                x.routeClimbing = this._getRouteClimbing(route, x.laps);
+            }
             this._events.set(x.id, x);
             if (x.eventSubgroups) {
                 for (const sg of x.eventSubgroups) {
-                    sg.routeDistance = this.getRouteDistance(sg.routeId, sg.laps);
+                    const route = this._routes.get(sg.routeId);
+                    if (route) {
+                        sg.routeDistance = this._getRouteDistance(route, sg.laps);
+                        sg.routeClimbing = this._getRouteClimbing(route, sg.laps);
+                    }
                     this._eventSubgroups.set(sg.id, {
                         event: x,
                         route: this._routes.get(sg.routeId),
@@ -1125,7 +1136,18 @@ export class StatsProcessor extends events.EventEmitter {
             // Probably we need to add this to the distance. XXX
             debugger;
         }
-        return route.leadinDistanceInMeters + (route.distanceInMeters * laps);
+        return route.leadinDistanceInMeters + (route.distanceInMeters * (laps || 1));
+    }
+
+    getRouteClimbing(routeId, laps=1) {
+        const route = this._routes.get(routeId);
+        if (route) {
+            return this._getRouteClimbing(route, laps);
+        }
+    }
+
+    _getRouteClimbing(route, laps=1) {
+        return route.leadinAscentInMeters + (route.ascentInMeters * (laps || 1));
     }
 
     _getRemaining(state) {

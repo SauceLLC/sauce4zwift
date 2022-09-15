@@ -30,6 +30,15 @@ function initExpanderTable(table, detailsCallback) {
 }
 
 
+const _fetchingRoutes = new Map();
+async function getRoute(id) {
+    if (!_fetchingRoutes.has(id)) {
+        _fetchingRoutes.set(id, common.rpc.getRoute(id));
+    }
+    return await _fetchingRoutes.get(id);
+}
+
+
 export async function main() {
     common.initInteractionListeners();
     const pendingNationInit = common.initNationFlags();
@@ -47,14 +56,26 @@ export async function main() {
     const athletes = new Map();
     initExpanderTable(contentEl.querySelector('table'), async (eventDetailsEl, eventSummaryEl) => {
         const event = events.get(Number(eventSummaryEl.dataset.eventId));
+        if (!event.routeId) {
+            debugger;
+        }
+        const route = await getRoute(event.routeId);
         const subgroups = await Promise.all(event.eventSubgroups.map(async sg => {
+            console.log(sg.id);
             const entrants = await common.rpc.getEventSubgroupEntrants(sg.id);
+            const route = await getRoute(sg.routeId);
             for (const x of entrants) {
                 athletes.set(x.id, x.athlete);
             }
-            return {...sg, entrants};
+            return {...sg, route, entrants};
         }));
-        eventDetailsEl.append(await eventDetailTpl({event, subgroups, teamBadge: common.teamBadge, eventBadge: common.eventBadge}));
+        eventDetailsEl.append(await eventDetailTpl({
+            event,
+            route,
+            subgroups,
+            teamBadge: common.teamBadge,
+            eventBadge: common.eventBadge
+        }));
         const {nations, flags} = await pendingNationInit;
         for (const t of eventDetailsEl.querySelectorAll('table.expandable')) {
             initExpanderTable(t, async (entrantDetailsEl, entrantSummaryEl) => {
@@ -74,10 +95,21 @@ export async function main() {
 
 async function render() {
     const eventsTpl = await sauce.template.getTemplate(`templates/events.html.tpl`);
+    const now = Date.now();
     for (const x of await common.rpc.getEvents()) {
+        x.ts = +(new Date(x.eventStart));
+        x.world = common.worldToNames[x.worldId];
+        if (x.ts < now - 60 * 60 * 1000) {
+            continue;
+        }
+        x.started = x.ts < now;
+        console.log(x);
         events.set(x.id, x);
     }
-    const frag = await eventsTpl({events: Array.from(events.values())});
+    const frag = await eventsTpl({
+        events: Array.from(events.values()),
+        eventBadge: common.eventBadge,
+    });
     const contentEl = document.querySelector('#content');
     contentEl.innerHTML = '';
     contentEl.append(frag);

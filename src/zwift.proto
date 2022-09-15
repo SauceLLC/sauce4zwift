@@ -584,7 +584,7 @@ message PlayerProfile {
     uint32 achievementLevel = 49;
     bool useMetric = 50;
     bool stravaPremium = 51;
-    PowerType powerSourceModel = 52;
+    PowerType _powerType = 52;
     uint32 _f53 = 53;
     uint32 _f54 = 54;
     uint32 age = 55;

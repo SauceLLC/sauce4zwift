@@ -9,6 +9,26 @@ let rpcCall;
 
 let windowID;
 
+const worldCourseDescs = [
+    {worldId: 1, courseId: 6, name: 'Watopia'},
+    {worldId: 2, courseId: 2, name: 'Richmond'},
+    {worldId: 3, courseId: 7, name: 'London'},
+    {worldId: 4, courseId: 8, name: 'New York'},
+    {worldId: 5, courseId: 9, name: 'Innsbruck'},
+    {worldId: 6, courseId: 10, name: 'Bologna'},
+    {worldId: 7, courseId: 11, name: 'Yorkshire'},
+    {worldId: 8, courseId: 12, name: 'Crit City'}, // XXX guess
+    {worldId: 9, courseId: 13, name: 'Makuri Islands'},
+    {worldId: 10, courseId: 14, name: 'France'},
+    {worldId: 11, courseId: 15, name: 'Paris'},
+    {worldId: 12, courseId: 16, name: 'Gravel Mountain'}, // XXX guess
+];
+export const courseToWorldIds = Object.fromEntries(worldCourseDescs.map(x => [x.courseId, x.worldId]));
+export const worldToCourseIds = Object.fromEntries(worldCourseDescs.map(x => [x.worldId, x.courseId]));
+export const courseToNames = Object.fromEntries(worldCourseDescs.map(x => [x.courseId, x.name]));
+export const worldToNames = Object.fromEntries(worldCourseDescs.map(x => [x.worldId, x.name]));
+
+
 
 function makeRPCError(errResp) {
     const e = new Error(`${errResp.error.name}: ${errResp.error.message}`);

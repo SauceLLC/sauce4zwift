@@ -42,6 +42,7 @@ export async function main() {
 
 
 export async function render(el, tpl, tplData) {
+    const athleteId = tplData.athleteId;
     const replaceContents = async () => el.replaceChildren(...(await tpl(tplData)).children);
     el.addEventListener('click', async ev => {
         const a = ev.target.closest('header a[data-action]');

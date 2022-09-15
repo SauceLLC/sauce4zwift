@@ -25,6 +25,27 @@ html, body {
 table {
     border-collapse: collapse;
 
+    &.events {
+        > tbody > tr {
+            &.started > td {
+                color: #aaa;
+            }
+
+            > td.type {
+                font-variant: all-small-caps;
+                font-weight: 600;
+            }
+
+            > td.groups {
+                font-size: 0.7em;
+
+                > * {
+                    margin-left: 0.2em;
+                }
+            }
+        }
+    }
+
     abbr.unit {
         font-size: 0.82em;
         opacity: 0.8;
@@ -43,7 +64,7 @@ table {
         }
     }
 
-    tr {
+    tbody tr {
         transition: background 100ms;
 
         &:hover {
@@ -54,10 +75,10 @@ table {
     &.expandable {
         > tbody > tr {
             &:nth-child(4n - 1) {
-                background-color: #3332;
+                background-color: #0001;
 
                 &:hover {
-                    background-color: #0355;
+                    background-color: #0354;
                 }
             }
 
@@ -67,25 +88,31 @@ table {
                 }
             }
 
+            &.summary {
+                cursor: pointer;
+            }
+
+            &.expanded,
+            &.details {
+                background-color: #0005 !important;
+            }
+
             &.expanded {
-                background-color: #eeee !important;
-                color: #111;
-                padding-top: 1em;
-                padding-bottom: 1em;
-                font-weight: bold;
+                > td {
+                    padding-top: 1em;
+                    padding-bottom: 0.5em;
+                    font-weight: bold;
+                }
             }
 
             &.details {
-                background-color: #eeee !important;
-
                 > td {
                     padding-top: 0.5em;
                     padding-bottom: 1em;
 
                     > .container {
-                        background-color: #eeee;
-                        color: #111;
-                        padding: 2em;
+                        background-color: #b929c330;
+                        padding: 1.5em;
                         border-radius: 0.28em;
                         box-shadow: 1px 1px 5px #0003;
 
@@ -104,7 +131,9 @@ table {
     }
 
     .event-info {
-        overflow: hidden;  // causes float img to size us
+        max-height: max(400px, 20vh);
+        overflow: auto;
+        overflow: overlay;
 
         .desc {
             white-space: pre-line;
@@ -118,24 +147,26 @@ table {
         .event-subgroup {
             margin: 1em 0;
             padding: 1em;
-            background: #dddd;
+            background: #0300001f;
             border-radius: 0.3em;
 
             header {
                 display: flex;
+                flex-wrap: wrap;
                 justify-content: space-between;
 
                 .badge {
                     font-size: 2em;
                     margin-left: -0.2em;
                     margin-top: -0.2em;
+                    margin-right: 0.3em;
+                    align-self: flex-start;
                 }
             }
         }
 
         table.entrants {
             width: 100%;
-            background-color: #dad9d7;
             margin-top: 1em;
             border-radius: 0.3em;
             overflow: hidden;
@@ -144,27 +175,52 @@ table {
                 background-color: #0003;
             }
 
-            .details .container {
-                padding: 0;
-                height: 350px;
+            ms.in-game {
+                color: #25e325;
+                font-weight: 600;
             }
 
-            iframe {
-                border: none;
-                margin: 0;
-                padding: 0;
-                width: 100%;
-                height: 100%;
+            .details {
+                > td {
+                    padding: 0;
+                }
+
+                .container {
+                    background-color: transparent;
+                    padding: 0;
+                }
             }
         }
     }
 
-    img.event-image {
+    .card {
         float: right;
-        width: 50%;
-        border-radius: 0.3em;
+        max-width: clamp(50%, 400px, 100%);
         margin-left: 0.5em;
         margin-bottom: 0.5em;
+        border-radius: 0.5em;
+        background: #1117;
+        overflow: hidden;
+
+        img.event-image {
+            width: 100%;
+        }
+
+        .meta {
+            padding: 1em;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+
+            ms {
+                opacity: 0.8;
+            }
+
+            > * {
+                padding: 0.2em;
+            }
+        }
     }
 }
 
@@ -173,4 +229,85 @@ table {
     padding: 0;
     overflow: auto;
     overflow: overlay; // chromium only
+}
+
+.details .container .athlete {
+    .avatar {
+        font-size: 0.5em;
+        flex-basis: 180px;
+    }
+
+    header.title {
+        display: contents;
+        background: none;
+        color: #f0f0f0;
+
+        .buttons {
+            padding: 0.5em;
+            float: left;
+        }
+
+        .name {
+            display: none;
+        }
+    }
+}
+
+@media only screen and (max-width: 600px)  {
+    table {
+        table-layout: fixed;
+        width: 100%;
+
+        td[colspan] {
+            padding-top: 0 !important;
+            padding-left: 0;
+            padding-right: 0;
+
+            > .container {
+                padding: 0.4em !important;
+
+                .event-subgroup {
+                    padding: 0.4em !important;
+                }
+            }
+        }
+
+        &.events {
+            > thead > tr > {
+                th.name,
+                th.id {
+                    visibility: hidden;
+                    width: 0;
+                    padding: 0;
+                    margin: 0;
+                }
+            }
+
+            > tbody > tr {
+                position: relative;
+
+                > td.id {
+                    visibility: hidden;
+                    width: 0;
+                    padding: 0;
+                    margin: 0;
+                }
+
+                > td.name {
+                    position: absolute;
+                    top: 0.2em;
+                    left: 0.1em;
+                    width: 100%;
+                    font-weight: 500;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                }
+
+                > td:not(.name) {
+                    padding-top: 3em;
+                }
+            }
+        }
+    }
 }

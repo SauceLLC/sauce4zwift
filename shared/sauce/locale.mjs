@@ -331,7 +331,9 @@ function humanElevation(meters, options={}) {
     if (!_realNumber(meters)) {
         return '-';
     }
-    return humanNumber(imperial ? meters * metersPerFoot : meters, options);
+    const unit = imperial ? 'ft' : 'm';
+    const suffix = options.suffix ? options.html ? `<abbr class="unit">${unit}</abbr>` : unit : '';
+    return humanNumber(imperial ? meters * metersPerFoot : meters, options) + suffix;
 }
 
 

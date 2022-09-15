@@ -413,6 +413,7 @@ export class ZwiftAPI {
             for (const [k, flag] of Object.entries(pbProfilePrivacyFlagsInverted)) {
                 x.privacy[k] = !(+x.privacy_bits & flag);
             }
+            x.powerSourceModel === (x._powerType === 'METER') ? 'Power Meter' : undefined;
             return x;
         });
     }
@@ -583,16 +584,31 @@ export class ZwiftAPI {
     }
 
     async getEventSubgroupEntrants(id) {
-        return await this.fetchJSON(`/api/events/subgroups/entrants/${id}`, {
-            query: {
-                type: 'all',
-                participation: 'registered',
+        const entrants = [];
+        const limit = 100;
+        let start = 0;
+        // XXX signed_up seems to be more inclusive but sometimes a user is only in registered
+        // I don't know the difference but I can't stand the idea of hitting both.
+        while (true) {
+            const data = await this.fetchJSON(`/api/events/subgroups/entrants/${id}`, {
+                query: {
+                    type: 'all',
+                    participation: 'signed_up',
+                    limit,
+                    start,
+                }
+            });
+            entrants.push(...data);
+            if (data.length < limit) {
+                break;
             }
-        });
+            start += data.length;
+        }
+        return entrants;
     }
 
     async eventSubgroupSignup(id) {
-        return await zwiftAPI.fetchJSON(`/api/events/subgroups/signup/${id}`, {method: 'POST'})
+        return await this.fetchJSON(`/api/events/subgroups/signup/${id}`, {method: 'POST'});
     }
 
     async postWorldUpdate(attrs) {
