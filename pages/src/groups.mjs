@@ -296,8 +296,7 @@ function renderGroups(groups) {
         const leftLines = [];
         const rightLines = [];
         if (group.athletes.length === 1 && group.athletes[0].athlete) {
-            const n = group.athletes[0].athlete.name;
-            label = n ? n.map(x => x[0].toUpperCase()).join('').substr(0, 2) : '1';
+            label = group.athletes[0].athlete.initials || '1';
             pos.el.classList.remove('attn', 'attack');
         } else {
             label = H.number(group.athletes.length);
