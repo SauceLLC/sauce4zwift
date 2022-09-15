@@ -5,7 +5,6 @@ import {render as athleteRender} from './athlete.mjs';
 const L = sauce.locale;
 //const H = L.human;
 //const settingsKey = 'events-settings-v1';
-const events = new Map();
 let imperial = common.storage.get('/imperialUnits');
 L.setImperial(imperial);
 //let settings;
@@ -42,6 +41,32 @@ async function getRoute(id) {
 }
 
 
+async function getEventsWithRetry() {
+    // We don't have any events for, well, events, so just poll to handle
+    // mutual startup races with backend.
+    let data;
+    for (let retry = 100;; retry += 100) {
+        data = await common.rpc.getEvents();
+        if (data.length) {
+            break;
+        }
+        await sauce.sleep(retry);
+    }
+    const now = Date.now();
+    const events = new Map();
+    for (const x of data) {
+        x.ts = +(new Date(x.eventStart));
+        if (x.ts < now - 60 * 60 * 1000) {
+            continue;
+        }
+        x.started = x.ts < now;
+        console.debug('event', x);
+        events.set(x.id, x);
+    }
+    return events;
+}
+
+
 export async function main() {
     common.initInteractionListeners();
     const pendingNationInit = common.initNationFlags();
@@ -53,7 +78,8 @@ export async function main() {
         }
     });
     //settings = common.storage.get(settingsKey, {});
-    const contentEl = await render();
+    const events = await getEventsWithRetry();
+    const contentEl = await render(events);
     const eventDetailTpl = await sauce.template.getTemplate(`templates/event-details.html.tpl`);
     const athleteDetailTpl = await sauce.template.getTemplate(`templates/athlete.html.tpl`);
     const athletes = new Map();
@@ -63,9 +89,12 @@ export async function main() {
             debugger;
         }
         const route = await getRoute(event.routeId);
+        const world = common.worldToNames[event.mapId || common.identToWorldId[route.world]];
+        console.log('route', route);
         const subgroups = await Promise.all(event.eventSubgroups.map(async sg => {
             const entrants = await common.rpc.getEventSubgroupEntrants(sg.id);
             const route = await getRoute(sg.routeId);
+            console.log('route', route);
             for (const x of entrants) {
                 athletes.set(x.id, x.athlete);
             }
@@ -73,6 +102,7 @@ export async function main() {
         }));
         eventDetailsEl.append(await eventDetailTpl({
             event,
+            world,
             route,
             subgroups,
             teamBadge: common.teamBadge,
@@ -95,19 +125,8 @@ export async function main() {
 }
 
 
-async function render() {
+async function render(events) {
     const eventsTpl = await sauce.template.getTemplate(`templates/events.html.tpl`);
-    const now = Date.now();
-    for (const x of await common.rpc.getEvents()) {
-        x.ts = +(new Date(x.eventStart));
-        x.world = common.worldToNames[x.mapId];
-        if (x.ts < now - 60 * 60 * 1000) {
-            continue;
-        }
-        x.started = x.ts < now;
-        console.debug(x);
-        events.set(x.id, x);
-    }
     const frag = await eventsTpl({
         events: Array.from(events.values()),
         eventBadge: common.eventBadge,

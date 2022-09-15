@@ -2,7 +2,7 @@
     <div class="card">
         <img class="event-image" src="{{event.imageUrl}}"/>
         <div class="meta">
-            <div title="Event World">{{event.world}} <ms>map</ms></div>
+            <div title="Event World">{{world}} <ms>map</ms></div>
             <div title="Route">{{(event.laps && event.laps > 1) ? event.laps + ' x ' : ''}}{{route.name}} <ms>route</ms></div>
             <div title="Climbing">{{humanElevation(event.routeClimbing, {suffix: true})}} <ms>landscape</ms></div>
             <div title="View event on Zwift Power"><a href="https://zwiftpower.com/events.php?zid={{event.id}}"
