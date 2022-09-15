@@ -68,4 +68,4 @@ document.addEventListener('patreon-auth-code', ev =>
     void ipcRenderer.send('patreon-auth-code', ev.detail));
 
 contextBridge.exposeInMainWorld('isElectron', true);
-contextBridge.exposeInMainWorld('electron', {context: {id: 'patron-link', type: null}});
+contextBridge.exposeInMainWorld('electron', {context: {id: 'patron-link', type: null, spec: {}}});

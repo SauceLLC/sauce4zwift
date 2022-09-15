@@ -1,4 +1,4 @@
-/*global Sentry*/
+/* global Sentry, electron */
 
 import {sleep} from '../../shared/sauce/base.mjs';
 import {beforeSentrySend, captureExceptionOnce, setSentry} from '../../shared/sentry-util.mjs';
@@ -38,7 +38,7 @@ function makeRPCError(errResp) {
 
 
 if (window.isElectron) {
-    windowID = window.electron.context.id;
+    windowID = electron.context.id;
     document.documentElement.classList.add('electron-mode');
     const sendToElectron = function(name, data) {
         document.dispatchEvent(new CustomEvent('electron-message', {detail: {name, data}}));
@@ -186,7 +186,8 @@ export function initInteractionListeners() {
     const html = document.documentElement;
     const body = document.body;
     if (window.isElectron) {
-        let customName = window.electron.context.spec.customName;
+        const spec = electron.context.spec;
+        let customName = spec && spec.customName;
         if (customName) {
             if (html.classList.contains('settings-page')) {
                 customName += ' - Settings';
