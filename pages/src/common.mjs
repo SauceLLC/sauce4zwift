@@ -10,23 +10,24 @@ let rpcCall;
 let windowID;
 
 const worldCourseDescs = [
-    {worldId: 1, courseId: 6, name: 'Watopia'},
-    {worldId: 2, courseId: 2, name: 'Richmond'},
-    {worldId: 3, courseId: 7, name: 'London'},
-    {worldId: 4, courseId: 8, name: 'New York'},
-    {worldId: 5, courseId: 9, name: 'Innsbruck'},
-    {worldId: 6, courseId: 10, name: 'Bologna'},
-    {worldId: 7, courseId: 11, name: 'Yorkshire'},
-    {worldId: 8, courseId: 12, name: 'Crit City'}, // XXX guess
-    {worldId: 9, courseId: 13, name: 'Makuri Islands'},
-    {worldId: 10, courseId: 14, name: 'France'},
-    {worldId: 11, courseId: 15, name: 'Paris'},
-    {worldId: 12, courseId: 16, name: 'Gravel Mountain'}, // XXX guess
+    {worldId: 1, courseId: 6, name: 'Watopia', ident: 'WATOPIA'},
+    {worldId: 2, courseId: 2, name: 'Richmond', ident: 'RICHMOND'},
+    {worldId: 3, courseId: 7, name: 'London', ident: 'LONDON'},
+    {worldId: 4, courseId: 8, name: 'New York', ident: 'NEWYORK'},
+    {worldId: 5, courseId: 9, name: 'Innsbruck', ident: 'INNSBRUCK'},
+    {worldId: 6, courseId: 10, name: 'Bologna', ident: 'BOLOGNATT'},
+    {worldId: 7, courseId: 11, name: 'Yorkshire', ident: 'YORKSHIRE'},
+    {worldId: 8, courseId: 12, name: 'Crit City', ident: 'CRITCITY'}, // XXX guess
+    {worldId: 9, courseId: 13, name: 'Makuri Islands', ident: 'MAKURIISLANDS'},
+    {worldId: 10, courseId: 14, name: 'France', ident: 'FRANCE'},
+    {worldId: 11, courseId: 15, name: 'Paris', ident: 'PARIS'},
+    {worldId: 12, courseId: 16, name: 'Gravel Mountain', ident: 'GRAVEL MOUNTAIN'}, // XXX guess
 ];
 export const courseToWorldIds = Object.fromEntries(worldCourseDescs.map(x => [x.courseId, x.worldId]));
 export const worldToCourseIds = Object.fromEntries(worldCourseDescs.map(x => [x.worldId, x.courseId]));
 export const courseToNames = Object.fromEntries(worldCourseDescs.map(x => [x.courseId, x.name]));
 export const worldToNames = Object.fromEntries(worldCourseDescs.map(x => [x.worldId, x.name]));
+export const identToWorldId = Object.fromEntries(worldCourseDescs.map(x => [x.ident, x.worldId]));
 
 
 
