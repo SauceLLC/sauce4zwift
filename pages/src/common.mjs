@@ -656,7 +656,7 @@ export function sanitize(raw) {
 
 export function teamBadge(t) {
     if (!t) {
-        return '-';
+        return '';
     }
     const hue = badgeHue(t);
     return `<span class="badge" style="--hue: ${hue};">${sanitize(t)}</span>`;
