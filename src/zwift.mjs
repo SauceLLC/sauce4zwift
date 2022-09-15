@@ -308,7 +308,7 @@ export class ZwiftAPI {
                 headers: {
                     'Platform': 'OSX',
                     'Source': 'Game Client',
-                    'User-Agent': 'CNL/3.23.5 (macOS 12 Monterey; Darwin Kernel 21.5.0) zwift/1.0.101433 curl/7.78.0-DEV',
+                    'User-Agent': 'CNL/3.24.1 (macOS 12 Monterey; Darwin Kernel 21.6.0) zwift/1.0.105233 curl/7.78.0-DEV',
                     ...headers,
                 },
                 ...options,
