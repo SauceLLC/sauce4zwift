@@ -1,18 +1,18 @@
 <div class="athlete">
-    <% if (!profile) { %>
+    <% if (!athlete) { %>
         <header class="title">
             <div class="name">
-                Profile not found: {{athleteId}}
+                Athlete not found: {{athleteId}}
             </div>
         </header>
     <% } else { %>
         <header class="title">
             <div class="name">
-                <% if (profile.countryCode) { %>
-                    <img class="flag" src="{{flags[profile.countryCode]}}"
-                         title="{{nations[profile.countryCode]}}"/>
+                <% if (athlete.countryCode) { %>
+                    <img class="flag" src="{{flags[athlete.countryCode]}}"
+                         title="{{nations[athlete.countryCode]}}"/>
                 <% } %>
-                {{profile.sanitizedFullname}}
+                {{athlete.sanitizedFullname}}
             </div>
             <div class="buttons">
                 <a href="https://zwiftpower.com/profile.php?z={{athleteId}}"
@@ -30,58 +30,56 @@
                            disabled><ms>follow_the_signs</ms></a>
                     <% } %>
                 <% } %>
-                <a title="Toggle visibility of chat messages from yahoos
-
-
-
-                                                             ...seriously"
-                   data-action="toggleMuted" class="{{profile.muted ? 'active' : ''}}"
-                   href><ms>{{profile.muted ? 'comments_disabled' : 'comment'}}</ms></a>
+                <a title="Toggle visibility of chat messages from this person"
+                   data-action="toggleMuted" class="{{athlete.muted ? 'active' : ''}}"
+                   href><ms>comments_disabled</ms></a>
                 <a title="Give a Ride On to this athlete" {{obj.rideonSent ? 'disabled' : 'href'}}
                    data-action="rideon"><ms>thumb_up</ms></a>
-                <% if (profile.following) { %>
+                <% if (athlete.following) { %>
                     <a title="You are following this athlete, click to unfollow" href class="active"
                        data-action="unfollow"><ms>group</ms></a>
-                <% } else if (profile.followRequest) { %>
+                <% } else if (athlete.followRequest) { %>
                     <a title="Follow request sent" disabled class=""><ms>pending</ms></a>
                 <% } else { %>
                     <a title="You are not following this athlete, click to follow" href
                        data-action="follow"><ms>group_add</ms></a>
                 <% } %>
                 <a title="Toggle marked state for this person.  Marked athletes will receieve extra attention and allow quick filtering.  Recommended for friends or foes in race situations."
-                   data-action="toggleMarked" class="{{profile.marked ? 'active' : ''}}"
-                   href><ms>{{profile.marked ? 'bookmark_added' : 'bookmark_add'}}</ms></a>
+                   data-action="toggleMarked" class="{{athlete.marked ? 'active' : ''}}"
+                   href><ms>{{athlete.marked ? 'bookmark_added' : 'bookmark_add'}}</ms></a>
             </div>
         </header>
         <section>
-            <% if (profile.avatar) { %>
-                <a class="avatar" href="{{profile.avatar}}" external target="_blank">
-                    <img src="{{profile.avatar}}"/>
+            <% if (athlete.avatar) { %>
+                <a class="avatar" href="{{athlete.avatar}}" external target="_blank">
+                    <img src="{{athlete.avatar}}"/>
                 </a>
             <% } else { %>
                 <a class="avatar"><img src="images/blankavatar.png"/></a>
             <% } %>
             <div class="info">
-                <% if (profile.team) { %>
-                    <div class="row p2"><key>Team</key>{{profile.team}}</div>
+                <% if (athlete.team) { %>
+                    <div class="row p2"><key>Team</key>{{athlete.team}}</div>
                 <% } %>
-                <% if (profile.level) { %>
-                    <div class="row p2"><key>Level</key>{{profile.level}}</div>
+                <% if (athlete.level) { %>
+                    <div class="row p2"><key>Level</key>{{athlete.level}}</div>
                 <% } %>
-                <% if (profile.age) { %>
-                    <div class="row p2"><key>Age</key>{{profile.age}}</div>
+                <% if (athlete.age) { %>
+                    <div class="row p2"><key>Age</key>{{athlete.age}}</div>
                 <% } %>
-                <% if (profile.weight) { %>
-                    <div class="row p2"><key>Weight</key>{-humanWeightClass(profile.weight, {suffix: true, html: true})-}</div>
+                <% if (athlete.weight) { %>
+                    <div class="row p2"><key>Weight</key>{-humanWeightClass(athlete.weight, {suffix: true, html: true})-}</div>
                 <% } %>
-                <% if (profile.height) { %>
-                    <div class="row p2"><key>Height</key>{-humanHeight(profile.height, {html: true})-}</div>
+                <% if (athlete.height) { %>
+                    <div class="row p2"><key>Height</key>{-humanHeight(athlete.height, {html: true})-}</div>
                 <% } %>
-                <% if (profile.ftp) { %>
-                    <div class="row p2"><key>FTP</key>{{profile.ftp}}<abbr class="unit">w</abbr></div>
+                <% if (athlete.ftp) { %>
+                    <div class="row p2"><key>FTP</key>{{athlete.ftp}}<abbr class="unit">w</abbr></div>
                 <% } %>
-                <% if (profile.type !== 'NORMAL') { %>
-                    <div class="row p2"><key>Type</key>{{prettyType || profile.type}}</div>
+                <% if (athlete.type !== 'NORMAL') { %>
+                    <div class="row p2"><key>Type</key>
+                        <span style="font-weight: bold; font-variant: all-small-caps;">{{athlete.type.replace(/_/, ' ')}}</span>
+                    </div>
                 <% } %>
             </div>
             <div class="info live">

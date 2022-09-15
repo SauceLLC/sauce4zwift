@@ -8,7 +8,7 @@
     <% for (const sg of subgroups) { %>
         <div class="event-subgroup" data-event-subgroup-id="{{sg.id}}">
             <header>
-                <div class="badge" style="--hue: {{badgeHues[sg.subgroupLabel]}}deg;">{{sg.subgroupLabel}}</div>
+                {-eventBadge(sg.subgroupLabel)-}
                 <div class="name">{{sg.name}}</div>
                 <% if (sg.durationInSeconds) { %>
                     <div>Duration: {-humanTimer(sg.durationInSeconds, {suffix: true, html: true})-}</div>
@@ -34,7 +34,7 @@
                             <td>{{id}}</td>
                             <td>{{athlete.sanitizedName}}</td>
                             <td>{{athlete.ftp}}</td>
-                            <td><% if (athlete.team) { %><span class="badge">{{athlete.team}}</span><% } %></td>
+                            <td><% if (athlete.team) { %>{-teamBadge(athlete.team)-}<% } %></td>
                         </tr>
                         <tr class="details">
                             <td colspan="5"><div class="container"></div></td>

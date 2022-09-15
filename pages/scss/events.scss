@@ -1,3 +1,5 @@
+@import 'athlete_tpl';
+
 html {
     padding: 0;
 
@@ -110,7 +112,6 @@ table {
     }
 
     .badge {
-        display: inline-block;
     }
 
     .subgroups {

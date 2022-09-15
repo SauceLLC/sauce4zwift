@@ -425,6 +425,10 @@ html:not(.game-connection) {
     margin-top: 0.2em;
     margin-right: 0.1em;
     font-size: 0.76em;
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
 
 

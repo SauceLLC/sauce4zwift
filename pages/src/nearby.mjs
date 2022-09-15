@@ -19,8 +19,6 @@ let sortByDir;
 let table;
 let tbody;
 let theadRow;
-let nations;
-let flags;
 let gameControlEnabled;
 let gameControlConnected;
 
@@ -107,10 +105,10 @@ function fmtName(name, entry) {
     if (sgid) {
         const sg = lazyGetSubgroup(sgid);
         if (sg) {
-            badge = makeEventBadge(sg);
+            badge = common.eventBadge(sg.subgroupLabel);
         }
     }
-    return athleteLink(entry.athleteId, (badge || '') + sanitize(name || '-'));
+    return athleteLink(entry.athleteId, (badge || '') + common.sanitize(name || '-'));
 }
 
 
@@ -120,10 +118,10 @@ function fmtInitials(initials, entry) {
     if (sgid) {
         const sg = lazyGetSubgroup(sgid);
         if (sg) {
-            badge = makeEventBadge(sg, sgid);
+            badge = common.eventBadge(sg.subgroupLabel);
         }
     }
-    return athleteLink(entry.athleteId, (badge || '') + sanitize(initials || '-'));
+    return athleteLink(entry.athleteId, (badge || '') + common.sanitize(initials || '-'));
 }
 
 
@@ -137,21 +135,6 @@ function fmtRoute({route, laps}) {
     }
     parts.push(route.name);
     return parts.join(' ');
-}
-
-
-function makeEventBadge(sg) {
-    if (!sg.subgroupLabel) {
-        return;
-    }
-    const badgeHue = {
-        A: 0,
-        B: 90,
-        C: 180,
-        D: 60,
-        E: 260,
-    }[sg.subgroupLabel];
-    return `<span class="badge category" style="--hue: ${badgeHue}deg;">${sg.subgroupLabel}</span>`;
 }
 
 
@@ -203,32 +186,6 @@ function athleteLink(id, content, options={}) {
 }
 
 
-const _sanitizeEl = document.createElement('span');
-function sanitize(unsafe) {
-    _sanitizeEl.textContent = unsafe;
-    return _sanitizeEl.innerHTML;
-}
-
-
-function fmtTeam(t) {
-    if (!t) {
-        return '-';
-    }
-    const hue = common.badgeHue(t);
-    return `<div class="badge" style="--hue: ${hue};">${sanitize(t)}</div>`;
-}
-
-
-function fmtFlag(code) {
-    if (code && flags && flags[code]) {
-        const nation = common.sanitizeForAttr(nations[code]);
-        return `<img src="${flags[code]}" title="${nation}"/>`;
-    } else {
-        return '-';
-    }
-}
-
-
 const fieldGroups = [{
     group: 'athlete',
     label: 'Athlete',
@@ -238,13 +195,13 @@ const fieldGroups = [{
          get: x => x.athlete && x.athlete.avatar || 'images/fa/user-circle-solid.svg',
          fmt: (url, {athleteId}) => url ? athleteLink(athleteId, `<img src="${url}"/>`, {class: 'avatar'}) : ''},
         {id: 'nation', defaultEn: true, label: 'Country Flag', headerLabel: '<ms>flag</ms>',
-         get: x => x.athlete && x.athlete.countryCode, fmt: fmtFlag},
+         get: x => x.athlete && x.athlete.countryCode, fmt: common.fmtFlag},
         {id: 'name', defaultEn: true, label: 'Name', get: x => x.athlete && x.athlete.sanitizedFullname,
          fmt: fmtName},
         {id: 'initials', defaultEn: false, label: 'Name Initials', headerLabel: ' ',
          get: x => x.athlete && x.athlete.initials, fmt: fmtInitials},
         {id: 'team', defaultEn: false, label: 'Team', get: x => x.athlete && x.athlete.team,
-         fmt: fmtTeam},
+         fmt: common.teamBadge},
         {id: 'weight-class', defaultEn: false, label: 'Weight Class', headerLabel: 'Weight',
          get: x => x.athlete && x.athlete.weight, fmt: weightClass},
         {id: 'level', defaultEn: false, label: 'Level', get: x => x.athlete && x.athlete.level,
@@ -447,25 +404,9 @@ const fieldGroups = [{
 }];
 
 
-async function lazyInitNationMeta() {
-    const r = await fetch('deps/src/countries.json');
-    if (!r.ok) {
-        throw new Error('Failed to get country data: ' + r.status);
-    }
-    const data = await r.json();
-    nations = Object.fromEntries(data.map(({id, en}) => [id, en]));
-    flags = Object.fromEntries(data.map(({id, alpha2}) => [id, `deps/flags/${alpha2}.png`]));
-    // Hack in the custom codes I've seen for UK
-    flags[900] = flags[826]; // Scotland
-    flags[901] = flags[826]; // Wales
-    flags[902] = flags[826]; // England
-    flags[903] = flags[826]; // Northern Ireland
-}
-
-
 export async function main() {
     common.initInteractionListeners();
-    lazyInitNationMeta();  // bg okay
+    common.initNationFlags();  // bg okay
     let refresh;
     const setRefresh = () => refresh = (settings.refreshInterval || 0) * 1000 - 100; // within 100ms is fine.
     const gcs = await common.rpc.getGameConnectionStatus();

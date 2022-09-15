@@ -3,63 +3,58 @@ import {locale, template} from '../../shared/sauce/index.mjs';
 
 const queryParams = new URLSearchParams(location.search);
 
-const doc = document.documentElement;
-
-if (queryParams.has('embed')) {
-    doc.classList.add('embed');
-}
-
 const H = locale.human;
-locale.setImperial(common.storage.get('/imperialUnits'));
 const athleteId = Number(queryParams.get('athleteId'));
-const gettingAthlete = common.rpc.getAthlete(athleteId || 1, {refresh: true});
-const gettingTemplate = template.getTemplate('templates/athlete.html.tpl');
-const gettingGameConnectionStatus = common.rpc.getGameConnectionStatus();
-const gettingCountries = fetch('deps/src/countries.json').then(r => r.ok ? r.json() : null);
+let gettingAthlete;
+let gettingTemplate;
+let gettingGameConnectionStatus;
+let pendingInitNationFlags;
+
+
+export function init() {
+    gettingAthlete = common.rpc.getAthlete(athleteId || 1, {refresh: true});
+    gettingTemplate = template.getTemplate('templates/athlete.html.tpl');
+    gettingGameConnectionStatus = common.rpc.getGameConnectionStatus();
+    pendingInitNationFlags = common.initNationFlags();
+    locale.setImperial(common.storage.get('/imperialUnits'));
+    addEventListener('DOMContentLoaded', main);
+}
 
 
 export async function main() {
     common.initInteractionListeners();
-    const profile = await gettingAthlete;
+    const athlete = await gettingAthlete;
     const tpl = await gettingTemplate;
     const gameConnectionStatus = await gettingGameConnectionStatus;
-    const countries = await gettingCountries;
-    const nations = countries && Object.fromEntries(countries.map(({id, en}) => [id, en]));
-    const flags = countries && Object.fromEntries(countries.map(({id, alpha2}) =>
-        [id, `deps/flags/${alpha2}.png`]));
-    // Hack in the custom codes I've seen for UK
-    flags[900] = flags[826]; // Scotland
-    flags[901] = flags[826]; // Wales
-    flags[902] = flags[826]; // England
-    flags[903] = flags[826]; // Northern Ireland
+    const {nations, flags} = await pendingInitNationFlags;
     const debug = location.search.includes('debug');
     const tplData = {
         debug,
         athleteId,
-        profile,
+        athlete,
         gameConnectionStatus,
         nations,
         flags,
-        prettyType: profile && {
-            NORMAL: '',
-            PACER_BOT: 'Pacer Bot',
-        }[profile.type],
     };
-    const profileFrag = await tpl(tplData);
     const main = document.querySelector('body > main');
-    main.appendChild(profileFrag);
-    main.addEventListener('click', async ev => {
+    await render(main, tpl, tplData);
+}
+
+
+export async function render(el, tpl, tplData) {
+    const replaceContents = async () => el.replaceChildren(...(await tpl(tplData)).children);
+    el.addEventListener('click', async ev => {
         const a = ev.target.closest('header a[data-action]');
         if (!a) {
             return;
         }
         ev.preventDefault();
         if (a.dataset.action === 'toggleMuted') {
-            profile.muted = !profile.muted;
-            await common.rpc.updateAthlete(athleteId, {muted: profile.muted});
+            tplData.athlete.muted = !tplData.athlete.muted;
+            await common.rpc.updateAthlete(athleteId, {muted: tplData.athlete.muted});
         } else if (a.dataset.action === 'toggleMarked') {
-            profile.marked = !profile.marked;
-            await common.rpc.updateAthlete(athleteId, {marked: profile.marked});
+            tplData.athlete.marked = !tplData.athlete.marked;
+            await common.rpc.updateAthlete(athleteId, {marked: tplData.athlete.marked});
         } else if (a.dataset.action === 'watch') {
             await common.rpc.watch(athleteId);
             return;
@@ -67,17 +62,16 @@ export async function main() {
             await common.rpc.join(athleteId);
             return;
         } else if (a.dataset.action === 'follow') {
-            tplData.profile = await common.rpc.setFollowing(athleteId);
+            tplData.athlete = await common.rpc.setFollowing(athleteId);
         } else if (a.dataset.action === 'unfollow') {
-            tplData.profile = await common.rpc.setNotFollowing(athleteId);
+            tplData.athlete = await common.rpc.setNotFollowing(athleteId);
         } else if (a.dataset.action === 'rideon') {
             await common.rpc.giveRideon(athleteId);
             tplData.rideonSent = true;
         } else {
             alert("Invalid command: " + a.dataset.action);
         }
-        main.innerHTML = '';
-        main.appendChild(await tpl(tplData));
+        await replaceContents();
     });
     let lastWatching;
     common.subscribe('nearby', async data => {
@@ -85,7 +79,7 @@ export async function main() {
         if (!live) {
             return;
         }
-        const liveEls = Object.fromEntries(Array.from(document.querySelectorAll('.live'))
+        const liveEls = Object.fromEntries(Array.from(el.querySelectorAll('.live'))
             .map(x => [x.dataset.id, x]));
         liveEls.power.innerHTML = H.power(live.state.power, {suffix: true, html: true});
         liveEls.speed.innerHTML = H.pace(live.state.speed, {suffix: true, html: true});
@@ -101,9 +95,9 @@ export async function main() {
             }
             liveEls.watching.textContent = lastWatching ? lastWatching.sanitizedFullname : '-';
         }
-        if (debug) {
+        if (tplData.debug) {
             document.querySelector('.debug').textContent = JSON.stringify([live.state, live.athlete], null, 4);
         }
     });
+    await replaceContents();
 }
-

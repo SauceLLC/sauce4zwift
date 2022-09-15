@@ -540,6 +540,7 @@ html.settings-page #titlebar {
 }
 
 .badge {
+    display: inline-block;
     --hue: 90deg;
     color: #fff;
     vertical-align: middle;

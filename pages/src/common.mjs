@@ -654,6 +654,58 @@ export function sanitize(raw) {
 }
 
 
+export function teamBadge(t) {
+    if (!t) {
+        return '-';
+    }
+    const hue = badgeHue(t);
+    return `<span class="badge" style="--hue: ${hue};">${sanitize(t)}</span>`;
+}
+
+
+let _nations, _flags;
+export function fmtFlag(code) {
+    if (code && _flags && _flags[code]) {
+        const nation = sanitizeForAttr(_nations[code]);
+        return `<img src="${_flags[code]}" title="${nation}"/>`;
+    } else {
+        return '-';
+    }
+}
+
+
+export async function initNationFlags() {
+    const r = await fetch('deps/src/countries.json');
+    if (!r.ok) {
+        throw new Error('Failed to get country data: ' + r.status);
+    }
+    const data = await r.json();
+    _nations = Object.fromEntries(data.map(({id, en}) => [id, en]));
+    _flags = Object.fromEntries(data.map(({id, alpha2}) => [id, `deps/flags/${alpha2}.png`]));
+    // Hack in the custom codes I've seen for UK
+    _flags[900] = _flags[826]; // Scotland
+    _flags[901] = _flags[826]; // Wales
+    _flags[902] = _flags[826]; // England
+    _flags[903] = _flags[826]; // Northern Ireland
+    return {nations: _nations, flags: _flags};
+}
+
+
+export function eventBadge(label) {
+    if (!label) {
+        return '';
+    }
+    const badgeHue = {
+        A: 0,
+        B: 90,
+        C: 180,
+        D: 60,
+        E: 260,
+    }[label];
+    return `<span class="badge category" style="--hue: ${badgeHue}deg;">${label}</span>`;
+}
+
+
 export function badgeHue(name) {
     name = name || '';
     let s = 0;
