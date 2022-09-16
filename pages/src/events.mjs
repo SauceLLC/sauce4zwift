@@ -55,7 +55,6 @@ async function getEventsWithRetry() {
     const now = Date.now();
     const events = new Map();
     for (const x of data) {
-        x.ts = +(new Date(x.eventStart));
         if (x.ts < now - 60 * 60 * 1000) {
             continue;
         }

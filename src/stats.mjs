@@ -241,7 +241,7 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     getEvents() {
-        return Array.from(this._events.values());
+        return Array.from(this._events.values()).sort((a, b) => a.ts - b.ts);
     }
 
     getEventSubgroup(id) {
@@ -920,6 +920,7 @@ export class StatsProcessor extends events.EventEmitter {
                 x.routeDistance = this._getRouteDistance(route, x.laps);
                 x.routeClimbing = this._getRouteClimbing(route, x.laps);
             }
+            x.ts = new Date(x.eventStart).getTime();
             this._events.set(x.id, x);
             if (x.eventSubgroups) {
                 for (const sg of x.eventSubgroups) {
@@ -939,6 +940,10 @@ export class StatsProcessor extends events.EventEmitter {
         const someMeetups = await this.zwiftAPI.getPrivateEventFeed(); // This API is wonky
         for (const x of someMeetups) {
             x.routeDistance = this.getRouteDistance(x.routeId, x.laps);
+            x.type = 'EVENT_TYPE_MEETUP';
+            x.totalEntrantCount = x.acceptedTotalCount;
+            x.eventSubgroups = [];
+            x.ts = new Date(x.eventStart).getTime();
             this._events.set(x.id, x);
             if (x.eventSubgroupId) {
                 // Meetups are basicaly a hybrid event/subgroup

@@ -13,6 +13,44 @@ function shortDuration(x) {
     return H.duration(x, {short: true});
 }
 
+const unit = x => `<abbr class="unit">${x}</abbr>`;
+
+function fmtDist(v) {
+    if (v == null || v === Infinity || v === -Infinity || isNaN(v)) {
+        return '-';
+    } else if (Math.abs(v) < 1000) {
+        const suffix = unit(imperial ? 'ft' : 'm');
+        return H.number(imperial ? v / L.metersPerFoot : v) + suffix;
+    } else {
+        return H.distance(v, {precision: 1, suffix: true, html: true});
+    }
+}
+
+
+function fmtDur(v) {
+    if (v == null || v === Infinity || v === -Infinity || isNaN(v)) {
+        return '-';
+    }
+    return H.timer(v);
+}
+
+
+const _events = new Map();
+function getEventSubgroup(id) {
+    if (!_events.has(id)) {
+        _events.set(id, null);
+        common.rpc.getEventSubgroup(id).then(x => {
+            if (x) {
+                _events.set(id, x);
+            } else {
+                // leave it null but allow retry later
+                setTimeout(() => _events.delete(id), 30000);
+            }
+        });
+    }
+    return _events.get(id);
+}
+
 
 export async function main() {
     common.initInteractionListeners();
@@ -109,6 +147,9 @@ export async function main() {
             autoHideTimeout = setTimeout(autoHide, autoHideWait);
         }
         lastData = watching;
+        if (watching.state.eventSubgroupId) {
+            watching.eventSubgroup = getEventSubgroup(watching.state.eventSubgroupId);
+        }
         renderer.setData(watching);
         const ts = Date.now();
         if (ts - lastUpdate > 500) {
@@ -116,6 +157,7 @@ export async function main() {
             renderer.render();
         }
     }, {persistent: true});  // Prevent autohide when offscreen
+    renderer.setData({});
     renderer.render();
 }
 
@@ -140,108 +182,131 @@ function buildLayout() {
         renderer.addRotatingFields({
             mapping,
             fields: [{
-                value: x => H.timer(x && x.laps && x.laps.at(-1).elapsed),
+                value: x => H.timer(x.laps && x.laps.at(-1).elapsed),
                 key: () => 'Lap Time',
             }, {
-                value: x => H.timer(x && x.stats && x.stats.elapsed),
+                value: x => H.timer(x.stats && x.stats.elapsed),
                 key: () => 'Time',
             }, {
-                value: x => H.number(x && x.state.rideons),
+                value: x => H.number(x.state && x.state.rideons),
                 key: () => 'Ride Ons',
             }, {
-                value: x => H.number(x && x.state.kj),
+                value: x => H.number(x.state && x.state.kj),
                 key: () => 'Energy',
                 unit: () => 'kJ',
             }, {
-                value: x => H.number(x && x.stats && x.stats.power.tss),
+                value: x => H.number(x.stats && x.stats.power.tss),
                 key: () => 'TSS',
             }, {
-                value: x => H.weightClass(x && x.athlete && x.athlete.weight),
+                value: x => H.weightClass(x.athlete && x.athlete.weight),
                 key: () => 'Weight',
                 unit: () => imperial ? 'lbs' : 'kg',
             }, {
-                value: x => H.number(x && x.athlete && x.athlete.ftp),
+                value: x => H.number(x.athlete && x.athlete.ftp),
                 key: () => 'FTP',
                 unit: () => 'w'
             }, {
-                value: x => H.pace(x && x.state.speed),
+                value: x => H.pace(x.state && x.state.speed),
                 key: () => 'Speed',
                 unit: () => imperial ? 'mph' : 'kph',
             }, {
-                value: x => H.pace(x && x.stats && x.stats.speed.avg),
+                value: x => H.pace(x.stats && x.stats.speed.avg),
                 key: () => 'Speed <small>(avg)</small>',
                 unit: () => imperial ? 'mph' : 'kph',
             }, {
-                value: x => H.pace(x && x.stats && x.stats.speed.smooth[60]),
+                value: x => H.pace(x.stats && x.stats.speed.smooth[60]),
                 key: () => `Speed <small>(${shortDuration(60)})</small>`,
                 unit: () => imperial ? 'mph' : 'kph',
             }, {
-                value: x => H.number(x && x.state.heartrate),
+                value: x => H.number(x.state && x.state.heartrate),
                 key: () => 'HR',
                 unit: () => 'bpm',
             }, {
-                value: x => H.number(x && x.stats && x.stats.hr.avg),
+                value: x => H.number(x.stats && x.stats.hr.avg),
                 key: () => 'HR <small>(avg)</small>',
                 unit: () => 'bpm',
             }, {
-                value: x => H.number(x && x.stats && x.stats.hr.smooth[60]),
+                value: x => H.number(x.stats && x.stats.hr.smooth[60]),
                 key: () => `HR <small>(${shortDuration(60)})</small>`,
                 unit: () => 'bpm',
             }, {
-                value: x => H.number(x && x.state.power),
+                value: x => H.number(x.state && x.state.power),
                 key: () => `Power`,
                 unit: () => 'w',
             }, {
-                value: x => H.number(x && x.stats && x.stats.power.smooth[5]),
+                value: x => H.number(x.stats && x.stats.power.smooth[5]),
                 key: () => `Power <small>(${shortDuration(5)})</small>`,
                 unit: () => 'w',
             }, {
-                value: x => H.number(x && x.stats && x.stats.power.smooth[15]),
+                value: x => H.number(x.stats && x.stats.power.smooth[15]),
                 key: () => `Power <small>(${shortDuration(15)})</small>`,
                 unit: () => 'w',
             }, {
-                value: x => H.number(x && x.stats && x.stats.power.smooth[60]),
+                value: x => H.number(x.stats && x.stats.power.smooth[60]),
                 key: () => `Power <small>(${shortDuration(60)})</small>`,
                 unit: () => 'w',
             }, {
-                value: x => H.number(x && x.stats && x.stats.power.smooth[300]),
+                value: x => H.number(x.stats && x.stats.power.smooth[300]),
                 key: () => `Power <small>(${shortDuration(300)})</small>`,
                 unit: () => 'w',
             }, {
-                value: x => H.number(x && x.stats && x.stats.power.smooth[1200]),
+                value: x => H.number(x.stats && x.stats.power.smooth[1200]),
                 key: () => `Power <small>(${shortDuration(1200)})</small>`,
                 unit: () => 'w',
             }, {
-                value: x => H.number(x && x.stats && x.stats.power.peaks[5].avg),
+                value: x => H.number(x.stats && x.stats.power.peaks[5].avg),
                 key: () => `Peak Power <small>(${shortDuration(5)})</small>`,
                 unit: () => 'w',
             }, {
-                value: x => H.number(x && x.stats && x.stats.power.peaks[15].avg),
+                value: x => H.number(x.stats && x.stats.power.peaks[15].avg),
                 key: () => `Peak Power <small>(${shortDuration(15)})</small>`,
                 unit: () => 'w',
             }, {
-                value: x => H.number(x && x.stats && x.stats.power.peaks[60].avg),
+                value: x => H.number(x.stats && x.stats.power.peaks[60].avg),
                 key: () => `Peak Power <small>(${shortDuration(60)})</small>`,
                 unit: () => 'w',
             }, {
-                value: x => H.number(x && x.stats && x.stats.power.peaks[300].avg),
+                value: x => H.number(x.stats && x.stats.power.peaks[300].avg),
                 key: () => `Peak Power <small>(${shortDuration(300)})</small>`,
                 unit: () => 'w',
             }, {
-                value: x => H.number(x && x.stats && x.stats.power.peaks[1200].avg),
+                value: x => H.number(x.stats && x.stats.power.peaks[1200].avg),
                 key: () => `Peak Power <small>(${shortDuration(1200)})</small>`,
                 unit: () => 'w',
             }, {
-                value: x => H.number(x && x.stats && x.stats.power.avg),
+                value: x => H.number(x.stats && x.stats.power.avg),
                 key: () => 'Power <small>(avg)</small>',
                 unit: () => 'w',
             }, {
-                value: x => H.number(x && x.stats && x.stats.power.np),
+                value: x => H.number(x.stats && x.stats.power.np),
                 key: () => 'NP',
             }, {
-                value: x => H.number(x && x.stats && x.stats.power.max),
+                value: x => H.number(x.stats && x.stats.power.max),
                 key: () => 'Power <small>(max)</small>',
                 unit: () => 'w',
+            }, {
+                value: x => x.eventPosition ? `${H.place(x.eventPosition, {html: true})}/<small>${x.eventParticipants}</small>`: '-',
+                key: () => 'Place',
+            }, {
+                value: x => x.remainingMetric === 'distance' ? fmtDist(x.remaining) : fmtDur(x.remaining),
+                key: () => 'Finish',
+            }, {
+                value: x => x.state ? (x.remainingMetric === 'distance' ?
+                    `${fmtDist(x.state.eventDistance)}/${fmtDist(x.state.eventDistance + x.remaining)}` :
+                    fmtDist(x.state.eventDistance)) : '-',
+                key: () => 'Event Dist',
+            }, {
+                value: x => fmtDist(x.state && x.state.distance),
+                key: () => 'Dist',
+            }, {
+                value: x => x.eventSubgroup ? x.eventSubgroup.name : '-',
+                key: () => 'Event',
+            }, {
+                value: x => x.eventSubgroup ?
+                    ((x.eventSubgroup.laps && x.eventSubgroup.laps > 1) ? `${x.eventSubgroup.laps} x ` : '') +
+                    x.eventSubgroup.route.name : '-',
+                key: () => 'Route',
+
             }],
         });
     }
