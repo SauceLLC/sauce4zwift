@@ -1058,14 +1058,14 @@ export class GameMonitor extends events.EventEmitter {
 
     constructor(options={}) {
         super();
-        this.udpServerPools = new Map();
         this.api = options.zwiftMonitorAPI;
         this.athleteId = this.api.profile.id;
         this.randomWatch = options.randomWatch;
         this.gameAthleteId = options.gameAthleteId;
         this.watchingAthleteId = null;
         this.courseId = null;
-        this.udpChannels = [];
+        this._udpChannels = [];
+        this._udpServerPools = new Map();
         this._starting = false;
         this._stopping = false;
         this.connectingTS = 0;
@@ -1090,7 +1090,7 @@ export class GameMonitor extends events.EventEmitter {
             `last-game-state:      ${H.relTime(this._lastGameStateUpdated)}`,
             `last-watching-state:  ${H.relTime(this._lastWatchingStateUpdated)}`,
             `tcp-channel:`,        `${pad}${tcpCh}`,
-            `udp-channels:`,       `${pad}${this.udpChannels.map(x => x.toString()).join(`\n${pad}${pad}`)}`,
+            `udp-channels:`,       `${pad}${this._udpChannels.map(x => x.toString()).join(`\n${pad}${pad}`)}`,
         ].join('\n    ');
     }
 
@@ -1242,8 +1242,8 @@ export class GameMonitor extends events.EventEmitter {
         clearTimeout(this._sessionTimeout);
         clearTimeout(this._refreshHashSeedsTimeout);
         clearTimeout(this._refreshStatesTimeout);
-        const channels = Array.from(this.udpChannels);
-        this.udpChannels.length = 0;
+        const channels = Array.from(this._udpChannels);
+        this._udpChannels.length = 0;
         if (this._session && this._session.tcpChannel) {
             channels.push(this._session.tcpChannel);
             this._session.tcpChannel = null;
@@ -1272,7 +1272,7 @@ export class GameMonitor extends events.EventEmitter {
         let isDirect = !!ip;
         if (!ip) {
             // Use a load balancer unless we have enough info for a direct server.
-            ip = this.udpServerPools.get(0)[0].ip;
+            ip = this._udpServerPools.get(0)[0].ip;
             const lws = this._lastWatchingState;
             if (lws && lws.courseId === this.courseId && Date.now() - lws.ts < 60000) {
                 const best = this.findBestUDPServer(lws);
@@ -1303,10 +1303,10 @@ export class GameMonitor extends events.EventEmitter {
         ch.on('shutdown', () => {
             console.info("Shutdown:", ch.toString());
             clearTimeout(expireTimeout);
-            const i = this.udpChannels.indexOf(ch);
+            const i = this._udpChannels.indexOf(ch);
             if (i !== -1) {
-                this.udpChannels.splice(i, 1);
-                if (!this.suspended && this._session && (i === 0 || !this.udpChannels.length)) {
+                this._udpChannels.splice(i, 1);
+                if (!this.suspended && this._session && (i === 0 || !this._udpChannels.length)) {
                     console.debug("Last/primary channel shutdown");
                     this.setUDPChannel();
                 }
@@ -1337,7 +1337,7 @@ export class GameMonitor extends events.EventEmitter {
     }
 
     async activateSession(session) {
-        const udpServersPending = this.udpServerPools.size ||
+        const udpServersPending = this._udpServerPools.size ||
             new Promise(resolve => this.once('udpServerPoolsUpdated', resolve));
         // This packet causes Zwift to close any other TCP connections for this athlete.
         // Also any UDP channels for those relay sessions will stop flowing.
@@ -1367,7 +1367,7 @@ export class GameMonitor extends events.EventEmitter {
         if (this.suspended || this._stopping) {
             return;
         }
-        for (const ch of this.udpChannels) {
+        for (const ch of this._udpChannels) {
             if (ch.active) {
                 try {
                     await ch.sendPlayerState({
@@ -1390,7 +1390,7 @@ export class GameMonitor extends events.EventEmitter {
         }
         console.info("Suspending game monitor...");
         this.suspended = true;
-        for (const x of this.udpChannels) {
+        for (const x of this._udpChannels) {
             x.schedShutdown(30000);
         }
     }
@@ -1404,7 +1404,7 @@ export class GameMonitor extends events.EventEmitter {
             return;
         }
         console.info("Resuming game monitor...");
-        if (this.courseId && !this.udpChannels.length) {
+        if (this.courseId && !this._udpChannels.length) {
             this.setUDPChannel();
         }
     }
@@ -1502,13 +1502,13 @@ export class GameMonitor extends events.EventEmitter {
     }
 
     setUDPChannel(ip) {
-        const reuseIndex = this.udpChannels.findIndex(x =>
+        const reuseIndex = this._udpChannels.findIndex(x =>
             ip && ip === x.ip && this._isChannelReusable(x));
         if (reuseIndex === 0) {
             console.error("Redundant call to setUDPChannel");
             return;
         }
-        const legacyCh = this.udpChannels[0];
+        const legacyCh = this._udpChannels[0];
         if (legacyCh) {
             if (this._isChannelReusable(legacyCh)) {
                 legacyCh.schedShutdown(60000);
@@ -1519,14 +1519,14 @@ export class GameMonitor extends events.EventEmitter {
         }
         let ch;
         if (reuseIndex !== -1) {
-            ch = this.udpChannels.splice(reuseIndex, 1)[0];
+            ch = this._udpChannels.splice(reuseIndex, 1)[0];
             ch.cancelShutdown();
             console.debug("Switching to:", ch.toString());
         } else {
             ch = this.makeUDPChannel(ip);
             queueMicrotask(() => this.establishUDPChannel(ch));
         }
-        this.udpChannels.unshift(ch); // XXX dubious to switch before establish finishes
+        this._udpChannels.unshift(ch); // XXX dubious to switch before establish finishes
     }
 
     async establishUDPChannel(ch) {
@@ -1547,9 +1547,9 @@ export class GameMonitor extends events.EventEmitter {
     onInPacket(pb, ch) {
         if (pb.udpConfigVOD && pb.udpConfigVOD.pools) {
             for (const x of pb.udpConfigVOD.pools) {
-                this.udpServerPools.set(x.courseId, x.servers);
+                this._udpServerPools.set(x.courseId, x.servers);
             }
-            queueMicrotask(() => this.emit('udpServerPoolsUpdated', this.udpServerPools));
+            queueMicrotask(() => this.emit('udpServerPoolsUpdated', this._udpServerPools));
         }
         for (let i = 0; i < pb.playerStates.length; i++) {
             const state = pb.playerStates[i] = processPlayerStateMessage(pb.playerStates[i]);
@@ -1618,7 +1618,7 @@ export class GameMonitor extends events.EventEmitter {
         if (!isValid || !this._session) {
             return;
         }
-        const curCh = this.udpChannels[0];
+        const curCh = this._udpChannels[0];
         if (curCh) {
             const best = this.findBestUDPServer(state);
             if (best && (best.ip !== curCh.ip || !curCh.isDirect)) {
@@ -1633,10 +1633,10 @@ export class GameMonitor extends events.EventEmitter {
     findBestUDPServer({x, y, courseId}) {
         // This is just my best guess and seems to match the real game.
         // If someone knows what the official algo is, please contact me!
-        if (!this.udpServerPools.has(courseId)) {
+        if (!this._udpServerPools.has(courseId)) {
             return;
         }
-        const servers = Array.from(this.udpServerPools.get(courseId))
+        const servers = Array.from(this._udpServerPools.get(courseId))
             .filter(s => x < s.xBound && y < s.yBound)
             .sort((a, b) => {
                 const axDelta = a.xBound - x;

@@ -602,7 +602,7 @@ export class StatsProcessor extends events.EventEmitter {
         for (let i = 0; i < this._chatHistory.length && i < 10; i++) {
             const x = this._chatHistory[i];
             if (x.ts === ts && x.from === payload.from) {
-                console.warn("Deduping chat message:", ts, payload.from);
+                console.warn("Deduping chat message:", ts, payload.from, payload.message);
                 return;
             }
         }
