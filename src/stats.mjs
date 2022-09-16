@@ -197,23 +197,24 @@ class DataCollector {
 }
 
 
-class PowerDataCollector extends DataCollector {
-    constructor(...args) {
-        super(...args);
-        this._wBalIncrementor = sauce.power.makeIncWPrimeBalDifferential(300, 20000);
-        this._wBalStream = [];
+class ExtendedRollingPower extends sauce.power.RollingPower {
+    setWPrime(cp, wPrime) {
+        this._wBalIncrementor = sauce.power.makeIncWPrimeBalDifferential(cp, wPrime);
+        for (const v of this.values()) {
+            this.wBal = this._wBalIncrementor(v);
+        }
+        if (this.wBal === undefined) {
+            this.wBal = wPrime;
+        }
     }
 
     _add(time, value) {
-        super._add(time, value);
-        this._wBalStream.push(this._wBalIncrementor(value));
-    }
-
-    getStats(tsOffset, extra) {
-        return {
-            wBal: this._wBalStream.at(-1),
-            ...super.getStats(tsOffset, extra)
-        };
+        const r = super._add(time, value);
+        if (this._wBalIncrementor) {
+            // NOTE This doesn't not support any resizing
+            this.wBal = this._wBalIncrementor(value);
+        }
+        return r;
     }
 }
 
@@ -478,6 +479,7 @@ export class StatsProcessor extends events.EventEmitter {
 
     _updateAthlete(id, data) {
         const d = this.loadAthlete(id) || {};
+        d.id = id;
         d.updated = Date.now();
         d.name = (data.firstName || data.lastName) ? [data.firstName, data.lastName].map(x =>
             (x && x.trim) ? x.trim() : null).filter(x => x) : d.name;
@@ -500,13 +502,17 @@ export class StatsProcessor extends events.EventEmitter {
         d.sanitizedName = (saniFirst || saniLast) ? [saniFirst, saniLast].filter(x => x) : null;
         d.sanitizedFullname = d.sanitizedName && d.sanitizedName.join(' ');
         d.initials = d.sanitizedName ? d.sanitizedName.map(x => x[0]).join('').toUpperCase() : null;
+        if (d.wPrime === undefined && data.wPrime === undefined) {
+            data.wPrime = 20000; // Po-boy migration
+        }
+        const wPrimeUpdated = data.wPrime !== undefined && data.wPrime !== d.wPrime;
         for (const [k, v] of Object.entries(data)) {
             if (v !== undefined) {
                 d[k] = v;
             }
         }
-        if (d.wPrime == null) {
-            d.wPrime = 15000;
+        if (wPrimeUpdated) {
+            this.updateAthleteWPrime(id, d);
         }
         return d;
     }
@@ -524,6 +530,14 @@ export class StatsProcessor extends events.EventEmitter {
         } else {
             this._athletesCache.set(id, null);
         }
+    }
+
+    updateAthleteWPrime(id, {ftp, wPrime}) {
+        const ad = this._athleteData.get(id);
+        if (!ad || !ftp || !wPrime) {
+            return;
+        }
+        ad.power.roll.setWPrime(ftp, wPrime);
     }
 
     async getAthlete(id, options={}) {
@@ -661,22 +675,23 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _roadSig(state) {
-        if (state.roadId == null) {
-            debugger;
-        }
         return `${state.courseId},${state.roadId},${state.reverse}`;
     }
 
-    _getCollectorStats(data, athlete) {
+    _getCollectorStats(data, athlete, isLap) {
         const end = data.end || monotonic();
         const elapsed = (end - data.start) / 1000;
         const np = data.power.roll.np({force: true});
+        if (!isLap && data.power.roll.wBal === undefined && athlete && athlete.ftp && athlete.wPrime) {
+            data.power.roll.setWPrime(athlete.ftp, athlete.wPrime);
+        }
+        const wBal = data.power.roll.wBal;
         const tss = np && athlete && athlete.ftp ?
             sauce.power.calcTSS(np, data.power.roll.active(), athlete.ftp) :
             undefined;
         return {
             elapsed,
-            power: data.power.getStats(data.tsOffset, {np, tss}),
+            power: data.power.getStats(data.tsOffset, {np, tss, wBal}),
             speed: data.speed.getStats(data.tsOffset),
             hr: data.hr.getStats(data.tsOffset),
             draft: data.draft.getStats(data.tsOffset),
@@ -686,9 +701,9 @@ export class StatsProcessor extends events.EventEmitter {
 
     makeDataCollectors() {
         const periods = [5, 15, 60, 300, 1200];
-        const longPeriods = periods.filter(x => x >= 60); // XXX Bench this.
+        const longPeriods = periods.filter(x => x >= 60);
         return {
-            power: new PowerDataCollector(sauce.power.RollingPower, periods, {inlineNP: true}),
+            power: new DataCollector(ExtendedRollingPower, periods, {inlineNP: true}),
             speed: new DataCollector(sauce.data.RollingAverage, longPeriods, {ignoreZeros: true}),
             hr: new DataCollector(sauce.data.RollingAverage, longPeriods, {ignoreZeros: true}),
             cadence: new DataCollector(sauce.data.RollingAverage, [], {ignoreZeros: true}),
@@ -859,7 +874,7 @@ export class StatsProcessor extends events.EventEmitter {
                 athleteId: state.athleteId,
                 athlete,
                 stats: this._getCollectorStats(ad, athlete),
-                laps: ad.laps.map(x => this._getCollectorStats(x, athlete)),
+                laps: ad.laps.map(x => this._getCollectorStats(x, athlete, /*isLap*/ true)),
                 state: this._cleanState(state),
                 eventPosition: ad.eventPosition,
                 eventParticipants: ad.eventParticipants,
@@ -1044,10 +1059,6 @@ export class StatsProcessor extends events.EventEmitter {
             if (b.prevSig === a.sig) {
                 const bPrevTail = b.prevTimeline[b.prevTimeline.length - 1];
                 const d = bPrevTail.roadCompletion - aComp;
-                if (d2) {
-                    // Highly strange road configuration for this to happen, but .. maybe ??
-                    debugger;
-                }
                 if (d >= 0 && (d2 === undefined || d < d2)) {
                     const roadDist = roadDistEstimates[b.prevSig] || 0;
                     const gapDistance = (d / 1000000 * roadDist) + (bTail.distance - bPrevTail.distance);
@@ -1185,9 +1196,6 @@ export class StatsProcessor extends events.EventEmitter {
             if (sg.durationInSeconds) {
                 const eventEnd = +(new Date(sg.eventSubgroupStart || sg.eventStart)) +
                     (sg.durationInSeconds * 1000);
-                if (!sg.eventSubgroupStart && !sg.eventStart) {
-                    debugger; // XXX
-                }
                 return {
                     remaining: (eventEnd - Date.now()) / 1000,
                     remainingMetric: 'time',
@@ -1223,7 +1231,7 @@ export class StatsProcessor extends events.EventEmitter {
             watching: athleteId === this.watching,
             athlete,
             stats: this._getCollectorStats(data, athlete),
-            laps: data.laps.map(x => this._getCollectorStats(x, athlete)),
+            laps: data.laps.map(x => this._getCollectorStats(x, athlete, /*isLap*/ true)),
             state: this._cleanState(data.mostRecentState),
             latency: (Date.now() - data.mostRecentState.ts) / 1000,
             gap,
@@ -1262,13 +1270,7 @@ export class StatsProcessor extends events.EventEmitter {
                 if (rp === null) {
                     continue;
                 }
-                if (typeof rp.gapDistance !== 'number' || rp.gapDistance === Infinity || rp.gapDistance === -Infinity) {
-                    debugger; // XXX
-                }
                 const gap = this._realGap(rp, data, watching.data);
-                if (gap < 0) {
-                    debugger; // XXX
-                }
                 if (rp.reversed) {
                     behind.push({data, rp, gap});
                 } else {
@@ -1356,9 +1358,6 @@ export class StatsProcessor extends events.EventEmitter {
             groups.push(curGroup);
         }
         const watchingIdx = groups.findIndex(x => x.watching);
-        if (watchingIdx === -1) {
-            debugger; // Bug
-        }
         for (let i = 0; i < groups.length; i++) {
             const x = groups[i];
             x.power = sauce.data.avg(x.athletes.map(x => x.state.power));
@@ -1369,9 +1368,6 @@ export class StatsProcessor extends events.EventEmitter {
                 const edge = watchingIdx < i ? x.athletes[0] : x.athletes[x.athletes.length - 1];
                 x.isGapEst = edge.isGapEst;
                 x.gap = edge.gap;
-                if (i < groups.length - 1 && x.gap - groups[i + 1] < 2) {
-                    debugger;
-                }
             } else {
                 x.gap = 0;
                 x.isGapEst = false;
