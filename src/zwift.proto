@@ -174,7 +174,7 @@ message PayloadEvent {
     string name = 3; // ldelim
     string desc = 4; // ldelim
     uint64 ts = 5; // varint
-    fixed32 distance = 7;
+    float distance = 7;
     int32 _f8 = 8; // varint maybe bool
     message Attrs {
         int32 id = 1;
@@ -209,7 +209,7 @@ message PayloadEvent {
     repeated Attrs attrs = 10;
     string imageUrl = 12;
     int32 duration = 13; // varint
-    int64 _f14 = 14; // varint
+    uint32 routeId = 14;
     int32 _f15 = 15; // varint
     int32 _f17 = 17; // varint
     int32 _f18 = 18; // varint
@@ -859,7 +859,7 @@ message DropInPlayer {
     float x = 14;
     float yAltitude = 15;
     float z = 16;
-    int32 routeId = 17;
+    uint32 routeId = 17;
     uint32 ridePower = 18;
     uint32 speed = 19;
 }
@@ -1234,7 +1234,7 @@ message PrivateEventFeed {
     required uint64 eventId = 1; //read in PrivateEventsManagerV2::RegisterPrivateEvent
     Sport sport = 2;
     uint64 eventSubgroupStart = 3; //IsPrivateEventExpired: return ZNETWORK_GetNetworkSyncedTimeGMT() > a1->m_eventSubgroupStart / 1000uLL + 1800
-    uint64 routeId = 4;
+    uint32 routeId = 4;
     uint32 durationInSeconds = 5;
     float distanceInMeters = 6;
     uint64 answeredCount = 7; //stored as int32
@@ -1291,7 +1291,7 @@ message EventSubgroup { //where is fieldLimit, signedUp, signupStatus, registere
     uint64 _f19 = 19;
     uint64 _f20 = 20; //tag416
     bool _f21 = 21; // false, tag424
-    required uint64 routeId = 22; // 3366225080
+    required uint32 routeId = 22; // 3366225080
     repeated uint64 invitedLeaders = 23; // tag440
     float distanceInMeters = 24; // tag453
     uint32 laps = 25; // tag456
@@ -1387,7 +1387,7 @@ message Event {
     string _f11 = 11;
     string imageUrl = 12;
     uint32 durationInSeconds = 13;
-    uint64 routeId = 14;
+    uint32 routeId = 14;
     uint64 rulesId = 15;
     uint32 _f16 = 16;
     bool visible = 17;
@@ -1425,7 +1425,7 @@ message PrivateEvent {
     required uint64 id = 1;
     Sport sport = 2;
     uint64 eventStart = 3;
-    uint64 routeId = 4;
+    uint32 routeId = 4;
     uint64 startLocation = 5;
     uint32 durationInSeconds = 6;
     float distanceInMeters = 7;
