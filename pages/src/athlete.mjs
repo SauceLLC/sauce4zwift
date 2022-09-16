@@ -43,7 +43,6 @@ export async function main() {
 
 
 function handleWPrimeEdit(el, {athleteId, athlete}, rerender) {
-    const p = el.parentElement;
     const input = document.createElement('input');
     input.type = 'number';
     input.value = athlete.wPrime;
