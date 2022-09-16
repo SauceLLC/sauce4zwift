@@ -774,9 +774,6 @@ export function calcWPrimeBalDifferential(wattsStream, timeStream, cp, wPrime) {
             const pNum = p || 0;  // convert null and undefined to 0.
             wBal += pNum < cp ? (cp - pNum) * (wPrime - wBal) / wPrime : cp - pNum;
         }
-        if (wBal > wPrime) {
-            debugger;  // XXX shouldn't be possible.
-        }
         if (!(p instanceof sauce.data.Pad)) {
             // Our output stream should align with the input stream, not the corrected
             // one used for calculations, so skip pad based values.
@@ -784,6 +781,28 @@ export function calcWPrimeBalDifferential(wattsStream, timeStream, cp, wPrime) {
         }
     }
     return wPrimeBal;
+}
+
+
+export function makeIncWPrimeBalDifferential(cp, wPrime) {
+    const epsilon = 0.000001;
+    let wBal = wPrime;
+    return p => {
+        if (p instanceof sauce.data.Break) {
+            // Refill wBal while we have a break.
+            for (let j = 0; j < p.pad; j++) {
+                wBal += cp * (wPrime - wBal) / wPrime;
+                if (wBal >= wPrime - epsilon) {
+                    wBal = wPrime;
+                    break;
+                }
+            }
+        } else {
+            const pNum = p || 0;  // convert null and undefined to 0.
+            wBal += pNum < cp ? (cp - pNum) * (wPrime - wBal) / wPrime : cp - pNum;
+        }
+        return wBal;
+    };
 }
 
 

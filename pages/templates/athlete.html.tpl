@@ -14,6 +14,9 @@
                 <% } %>
                 {{athlete.sanitizedFullname}}
             </div>
+            <% if (athlete.type !== 'NORMAL') { %>
+                <span style="opacity: 0.9; font-size: 0.8em; font-weight: bold; font-variant: all-small-caps;">({{athlete.type.replace(/_/, ' ')}})</span>
+            <% } %>
             <div class="buttons">
                 <a href="https://zwiftpower.com/profile.php?z={{athleteId}}"
                    title="Open ZwiftPower profile"
@@ -59,7 +62,7 @@
             <% } %>
             <div class="info">
                 <% if (athlete.team) { %>
-                    <div class="row p2"><key>Team</key>{{athlete.team}}</div>
+                    <div class="row p2"><key>Team</key>{-common.teamBadge(athlete.team)-}</div>
                 <% } %>
                 <% if (athlete.level) { %>
                     <div class="row p2"><key>Level</key>{{athlete.level}}</div>
@@ -73,14 +76,11 @@
                 <% if (athlete.height) { %>
                     <div class="row p2"><key>Height</key>{-humanHeight(athlete.height, {html: true})-}</div>
                 <% } %>
-                <% if (athlete.ftp) { %>
-                    <div class="row p2"><key>FTP</key>{{athlete.ftp}}<abbr class="unit">w</abbr></div>
-                <% } %>
-                <% if (athlete.type !== 'NORMAL') { %>
-                    <div class="row p2"><key>Type</key>
-                        <span style="font-weight: bold; font-variant: all-small-caps;">{{athlete.type.replace(/_/, ' ')}}</span>
-                    </div>
-                <% } %>
+                <div class="row p2">
+                    <key>Threshold</key>
+                    FTP: {-humanPower(athlete.ftp, {suffix: true, html: true})-},
+                    W':<a href="javascript:void(0)" class="wprime">{{athlete.wPrime ? humanNumber(athlete.wPrime / 1000) + 'kJ' : '-'}}</a>
+                </div>
             </div>
             <div class="info live">
                 <div class="row p2"><key>Power</key><span class="live" data-id="power">-</span></div>
@@ -88,7 +88,6 @@
                 <div class="row p2"><key>HR</key><span class="live" data-id="hr">-</span><abbr class="unit">bpm</abbr></div>
                 <div class="row p2"><key>Ride Ons</key><span class="live" data-id="rideons">-</span></div>
                 <div class="row p2"><key>Energy</key><span class="live" data-id="kj">-</span><abbr class="unit">kJ</abbr></div>
-                <div class="row p2"><key>Watching</key><span class="live" data-id="watching">-</span></div>
             </div>
         </section>
     <% } %>

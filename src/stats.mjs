@@ -92,7 +92,7 @@ function adjRoadDistEstimate(sig, raw) {
 
 class DataCollector {
     constructor(Klass, periods, options={}) {
-        this._maxPower = 0;
+        this._maxValue = 0;
         if (options._cloning) {
             return;
         }
@@ -110,7 +110,7 @@ class DataCollector {
     clone({reset}={}) {
         const instance = new this.constructor(null, null, {_cloning: true});
         if (!reset) {
-            instance._maxPower = this._maxPower;
+            instance._maxValue = this._maxValue;
         }
         instance.roll = this.roll.clone({reset});
         instance.periodized = new Map();
@@ -149,8 +149,8 @@ class DataCollector {
 
     _add(time, value) {
         this.roll.add(time, value);
-        if (value > this._maxPower) {
-            this._maxPower = value;
+        if (value > this._maxValue) {
+            this._maxValue = value;
         }
         this._resizePeriodized();
     }
@@ -158,8 +158,8 @@ class DataCollector {
     resize() {
         this.roll.resize();
         const value = this.roll.valueAt(-1);
-        if (value > this._maxPower) {
-            this._maxPower = value;
+        if (value > this._maxValue) {
+            this._maxValue = value;
         }
         this._resizePeriodized();
     }
@@ -188,10 +188,31 @@ class DataCollector {
         }
         return {
             avg: this.roll.avg(),
-            max: this._maxPower,
+            max: this._maxValue,
             peaks,
             smooth,
             ...extra,
+        };
+    }
+}
+
+
+class PowerDataCollector extends DataCollector {
+    constructor(...args) {
+        super(...args);
+        this._wBalIncrementor = sauce.power.makeIncWPrimeBalDifferential(300, 20000);
+        this._wBalStream = [];
+    }
+
+    _add(time, value) {
+        super._add(time, value);
+        this._wBalStream.push(this._wBalIncrementor(value));
+    }
+
+    getStats(tsOffset, extra) {
+        return {
+            wBal: this._wBalStream.at(-1),
+            ...super.getStats(tsOffset, extra)
         };
     }
 }
@@ -484,6 +505,9 @@ export class StatsProcessor extends events.EventEmitter {
                 d[k] = v;
             }
         }
+        if (d.wPrime == null) {
+            d.wPrime = 15000;
+        }
         return d;
     }
 
@@ -664,7 +688,7 @@ export class StatsProcessor extends events.EventEmitter {
         const periods = [5, 15, 60, 300, 1200];
         const longPeriods = periods.filter(x => x >= 60); // XXX Bench this.
         return {
-            power: new DataCollector(sauce.power.RollingPower, periods, {inlineNP: true}),
+            power: new PowerDataCollector(sauce.power.RollingPower, periods, {inlineNP: true}),
             speed: new DataCollector(sauce.data.RollingAverage, longPeriods, {ignoreZeros: true}),
             hr: new DataCollector(sauce.data.RollingAverage, longPeriods, {ignoreZeros: true}),
             cadence: new DataCollector(sauce.data.RollingAverage, [], {ignoreZeros: true}),

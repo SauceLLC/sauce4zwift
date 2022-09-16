@@ -217,6 +217,9 @@ const fieldGroups = [{
         {id: 'rideons', defaultEn: false, label: 'Ride Ons', headerLabel: '<ms>thumb_up</ms>',
          get: x => x.state.rideons, fmt: num},
         {id: 'kj', defaultEn: false, label: 'Energy (kJ)', headerLabel: 'kJ', get: x => x.state.kj, fmt: kj},
+        {id: 'wprimebal', defaultEn: false, label: 'W\'bal', get: x => x.stats.power.wBal,
+         fmt: (x, entry) => (x != null && entry.athlete && entry.athlete.wPrime) ?
+            common.fmtBattery(x / entry.athlete.wPrime) + kj(x / 1000) : '-'},
         {id: 'power-meter', defaultEn: false, label: 'Power Meter', headerLabel: 'PM',
          get: x => x.state.powerMeter, fmt: x => x ? '<ms>check</ms>' : ''},
     ],

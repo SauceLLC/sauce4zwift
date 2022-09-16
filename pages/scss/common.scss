@@ -63,6 +63,36 @@ ms {
     &[light] {
         font-weight: 200;
     }
+
+    @keyframes alert-color-flash {
+        from {
+            color: #b01010;
+        }
+
+        50% {
+            color: #f00;
+        }
+
+        to {
+            color: #b01010;
+        }
+    }
+
+    &.alert {
+        animation: 1s alert-color-flash infinite;
+    }
+
+    &.warn {
+        color: #dad00c;
+    }
+
+    &.caution {
+        color: #9da665;
+    }
+
+    &.good {
+        color: #16ad18;
+    }
 }
 
 @keyframes highlight {

@@ -117,6 +117,7 @@ export async function main() {
                     gameConnectionStatus,
                     nations,
                     flags,
+                    common,
                 });
             });
         }

@@ -696,6 +696,33 @@ export function fmtFlag(code) {
 }
 
 
+const _batSyms = [
+    'battery_0_bar',
+    'battery_1_bar',
+    'battery_2_bar',
+    'battery_3_bar',
+    'battery_4_bar',
+    'battery_5_bar',
+    'battery_6_bar',
+    'battery_full',
+];
+export function fmtBattery(pct, options={}) {
+    let sym;
+    let cls;
+    if (pct >= 0 && pct <= 1) {
+        sym = _batSyms[(pct * _batSyms.length - 0.000001) | 0];
+        cls = pct > 0.75 ? 'good' : pct > 0.50 ? 'caution' : pct > 0.25 ? 'warn' : 'alert';
+    } else if (pct < 0) {
+        sym = 'battery_alert';
+        cls = 'alert';
+    } else {
+        sym = 'battery_unknown';
+        cls = 'warn';
+    }
+    return `<ms class="battery ${cls}" data-pct="${Math.round(pct * 100)}">${sym}</ms>`;
+}
+
+
 export async function initNationFlags() {
     const r = await fetch('deps/src/countries.json');
     if (!r.ok) {

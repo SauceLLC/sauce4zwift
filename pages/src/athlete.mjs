@@ -35,18 +35,52 @@ export async function main() {
         gameConnectionStatus,
         nations,
         flags,
+        common,
     };
     const main = document.querySelector('body > main');
     await render(main, tpl, tplData);
 }
 
 
+function handleWPrimeEdit(el, {athleteId, athlete}, rerender) {
+    const p = el.parentElement;
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.value = athlete.wPrime;
+    el.replaceChildren(input);
+    let done;
+    input.focus();
+    document.addEventListener('keydown', async ev => {
+        if (done) {
+            return;
+        }
+        if (ev.key === 'Enter') {
+            done = true;
+            const wPrime = Number(input.value);
+            if (isNaN(wPrime)) {
+                alert('Invalid number');
+            }
+            await common.rpc.updateAthlete(athleteId, {wPrime});
+            athlete.wPrime = wPrime;
+            rerender();
+        } else if (ev.key === 'Escape') {
+            done = true;
+            rerender();
+        }
+    });
+}
+
+
 export async function render(el, tpl, tplData) {
     const athleteId = tplData.athleteId;
-    const replaceContents = async () => el.replaceChildren(...(await tpl(tplData)).children);
+    const rerender = async () => el.replaceChildren(...(await tpl(tplData)).children);
     el.addEventListener('click', async ev => {
         const a = ev.target.closest('header a[data-action]');
         if (!a) {
+            const wp = ev.target.closest('a.wprime');
+            if (wp) {
+                handleWPrimeEdit(wp, tplData, rerender);
+            }
             return;
         }
         ev.preventDefault();
@@ -72,9 +106,8 @@ export async function render(el, tpl, tplData) {
         } else {
             alert("Invalid command: " + a.dataset.action);
         }
-        await replaceContents();
+        await rerender();
     });
-    let lastWatching;
     common.subscribe('nearby', async data => {
         const live = data.find(x => x.athleteId === athleteId);
         if (!live) {
@@ -87,18 +120,9 @@ export async function render(el, tpl, tplData) {
         liveEls.hr.textContent = H.number(live.state.heartrate);
         liveEls.rideons.textContent = H.number(live.state.rideons);
         liveEls.kj.textContent = H.number(live.state.kj);
-        const watching = live.state.watchingAthleteId;
-        if (watching === athleteId) {
-            liveEls.watching.textContent = '<self>';
-        } else if (watching) {
-            if (!lastWatching) {
-                lastWatching = await common.rpc.getAthlete(watching);
-            }
-            liveEls.watching.textContent = lastWatching ? lastWatching.sanitizedFullname : '-';
-        }
         if (tplData.debug) {
             document.querySelector('.debug').textContent = JSON.stringify([live.state, live.athlete], null, 4);
         }
     });
-    await replaceContents();
+    await rerender();
 }
