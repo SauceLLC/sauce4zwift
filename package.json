@@ -69,7 +69,13 @@
       "!node_modules/nan",
       "!node_modules/web-streams-polyfill",
       "!node_modules/@sentry/**/build",
-      "!node_modules/@sentry/**/esm"
+      "!node_modules/@sentry/**/esm",
+      "!**/*.ts.map",
+      "!node_modules/typed-emitter",
+      "!node_modules/rxjs",
+      "!**/*.o.d",
+      "!**/*.a.d",
+      "!**/*.node.d"
     ],
     "asar": false,
     "publish": [
