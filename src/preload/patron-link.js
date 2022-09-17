@@ -67,5 +67,8 @@ document.addEventListener('DOMContentLoaded', () => {
 document.addEventListener('patreon-auth-code', ev =>
     void ipcRenderer.send('patreon-auth-code', ev.detail));
 
+document.addEventListener('patreon-reset-session', ev =>
+    void ipcRenderer.send('patreon-reset-session'));
+
 contextBridge.exposeInMainWorld('isElectron', true);
 contextBridge.exposeInMainWorld('electron', {context: {id: 'patron-link', type: null, spec: {}}});

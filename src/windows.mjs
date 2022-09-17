@@ -597,16 +597,23 @@ function scrubUA(win) {
 export async function patronLink() {
     let membership = storage.load('patron-membership');
     if (membership && membership.patronLevel >= 10) {
-        // XXX Implment refresh once in a while.
+        // XXX Implement refresh once in a while.
         return true;
     }
     const win = makeCaptiveWindow({width: 400, height: 720, page: 'patron.html'}, {
         preload: path.join(appPath, 'src', 'preload', 'patron-link.js'),
+        partition: 'persist:patreon',
     });
     scrubUA(win);
     let resolve;
     electron.ipcMain.on('patreon-auth-code', (ev, code) => resolve({code}));
     electron.ipcMain.on('patreon-special-token', (ev, token) => resolve({token}));
+    electron.ipcMain.on('patreon-reset-session', async () => {
+        win.webContents.session.clearStorageData();
+        win.webContents.session.clearCache();
+        electron.app.relaunch();
+        win.close();
+    });
     win.on('closed', () => resolve({closed: true}));
     while (true) {
         const {code, token, closed} = await new Promise(_resolve => resolve = _resolve);

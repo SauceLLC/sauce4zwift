@@ -58,6 +58,9 @@
         <script type="module">
             import * as common from './src/common.mjs';
             common.initInteractionListeners();
+
+            document.querySelector('.button.reset-session').addEventListener('click', () =>
+                document.dispatchEvent(new Event('patreon-reset-session')));
         </script>
     </head>
 
@@ -73,8 +76,12 @@
 
             <h4>After joining the campaign you can retry the <a href="patron.html">Link to Patreon</a>.</h4>
 
+
             <br/><br/><small>For assistance send an email to
             <a external href="mailto:support@saucellc.io">support@saucellc.io</a>.</small>
+
+            <br/>
+            <div class="std button reset-session">Logout and retry...</div>
         </main>
     </body>
 </html>
