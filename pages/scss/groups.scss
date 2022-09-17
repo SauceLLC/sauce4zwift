@@ -70,7 +70,7 @@ html.settings-mode #meta.app-drag {
     font-variant-numeric: tabular-nums;
     line-height: 1;
     transition-property: opacity, max-height, padding, visibility;
-    transition-duration: 400ms, 1s, 1s, 1s;
+    transition-duration: 400ms;
     max-height: 2.5em;
 
     &:not(.visible) {
@@ -206,8 +206,7 @@ html:not(.game-connection) {
         width: var(--size);
         height: var(--size);
         transition-property: color, margin, width, height, font;
-        transition-duration: 200ms, 2s, 2s, 2s, 2s, 2s;
-        transition-timing-function: ease-in-out;
+        transition-duration: 200ms, 1s, 1s, 1s, 1s;
         display: flex;
         overflow: hidden;
         cursor: pointer;
@@ -239,7 +238,13 @@ html:not(.game-connection) {
     display: none;
 }
 
+#content:not(.zoomed) {
+    --flex-factor: 60;  // 60s spread required to fill height
+}
+
 #content.zoomed {
+    --flex-factor: 10;  // 10s spread required to fill height
+
     &:hover {
         .zoom-out {
             display: initial;
@@ -434,7 +439,7 @@ html:not(.game-connection) {
 
 .position .desc.right:not(.empty)::before,
 .position .desc.left:not(.empty)::after,
-.gap .desc::after {
+.gap.has-label .desc::after {
     content: '―';
     color: #aaa9;
 }
@@ -451,9 +456,9 @@ html:not(.game-connection) {
     border-right-style: solid;
     border-right-width: $border-width;
     border-right-color: hsl(calc(70deg + 50deg * min(var(--outer-gap) / 300, 1) * var(--gap-sign)), 100%, 50%);
-    flex: var(--inner-gap) 1 0;
+    flex: calc(var(--inner-gap) / var(--flex-factor)) 1 0;
     transition-property: flex, opacity, visibility;
-    transition-duration: 2s, 500ms, 2s;
+    transition-duration: 1s;
     transition-timing-function: ease-in-out;
 
     .desc {

@@ -126,13 +126,7 @@ function renderZoomed(groups) {
     const end = Math.min(group.athletes.length, ahead + settings.maxZoomed);
     const behind = group.athletes.length - end;
     const athletes = group.athletes.slice(ahead, end);
-    const gapField = settings.zoomedGapField || 'distance';
-    const gapProp = gapField === 'distance' ? 'gapDistance' : 'gap';
-    const totGap = athletes[athletes.length - 1][gapProp] - athletes[0][gapProp];
-    // Keep total flex-grow < 1 for tight groups.  I.e. prevent 100% height usage when small
-    const flexFactor = gapField === 'distance' ? 0.015 : 0.1;
     contentEl.style.setProperty('--total-athletes', athletes.length);  // visual only
-    contentEl.style.setProperty('--total-gap', totGap * flexFactor);
     const athletesLabel = groupSize === 1 ? 'Athlete' : 'Athletes';
     const groupLabel = pos ? `${H.place(Math.abs(pos))} ${pos > 0 ? 'behind' : 'ahead'}` : 'Your Group';
     metaEl.innerHTML = [
@@ -140,7 +134,6 @@ function renderZoomed(groups) {
         `${pwrFmt(group.power)}, ${spdFmt(group.speed)}`,
     ].map(x => `<div class="line">${x}</div>`).join('');
     const active = new Set();
-    const bikeLength = 2;  // meters
     aheadEl.classList.toggle('visible', !!ahead);
     if (ahead) {
         aheadEl.textContent = `+${ahead} ahead`;
@@ -223,23 +216,25 @@ function renderZoomed(groups) {
         pos.leftDesc.classList.toggle('empty', !leftLines.length);
         pos.rightLines.innerHTML = rightLines.join('');
         pos.rightDesc.classList.toggle('empty', !rightLines.length);
-        let gap = next ? Math.abs(next[gapProp] - athlete[gapProp]) : 0;
-        if (gapField === 'distance') {
-            gap = Math.max(0, gap - bikeLength);
-        }
-        pos.gap.el.style.setProperty('--inner-gap', gap * flexFactor);
-        pos.gap.el.style.setProperty('--outer-gap', gap * flexFactor);
+        const gap = next ? Math.abs(next.gap - athlete.gap) : 0;
+        pos.gap.el.style.setProperty('--inner-gap', gap);
+        pos.gap.el.style.setProperty('--outer-gap', gap);
         pos.gap.el.style.setProperty('--gap-sign', -1);
         let dur;
         pos.gap.el.classList.toggle('real', true);
-        if (gapField === 'time') {
-            dur = gap && gap >= 0.5 && H.number(gap, {precision: 1}) + 's';
-        } else {
-            dur = gap && gap > bikeLength * 1.3 &&
-                (H.number(Math.max(0, gap) * (imperial ? 3.28084 : 1)) + (imperial ? 'ft' : 'm'));
+        if (gap) {
+            if (settings.zoomedGapField === 'time') {
+                dur = gap > 0.5 && (H.number(gap) + 's');
+            } else {
+                const gapDistance = Math.abs(next.gapDistance - athlete.gapDistance);
+                const units = imperial ? 'ft' : 'm';
+                dur = gapDistance && gapDistance > 2 &&
+                    (H.number(gapDistance * (imperial ? 3.28084 : 1)) + units);
+            }
         }
         pos.gap.leftLine.textContent = dur ? dur : '';
-        pos.gap.el.classList.toggle('alone', !dur);
+        pos.gap.el.classList.toggle('alone', !gap);
+        pos.gap.el.classList.toggle('has-label', !!dur);
         pos.actions.watch.classList.toggle('hidden', athlete.watching);
         if (!athlete.watching) {
             pos.watchTarget = athlete.athleteId;
@@ -265,10 +260,7 @@ function renderGroups(groups) {
         return;
     }
     const totAthletes = groups.reduce((agg, x) => agg + x.athletes.length, 0);
-    const totGap = groups[groups.length - 1].gap - groups[0].gap;
-    const flexFactor = Math.min(1, 0.5 / 15);
     contentEl.style.setProperty('--total-athletes', totAthletes);
-    contentEl.style.setProperty('--total-gap', totGap * flexFactor);
     const athletesLabel = totAthletes === 1 ? 'Athlete' : 'Athletes';
     metaEl.innerHTML = `<div class="line">${totAthletes} ${athletesLabel}</div>`;
     const active = new Set();
@@ -354,11 +346,12 @@ function renderGroups(groups) {
         pos.rightDesc.classList.toggle('empty', !rightLines.length);
         const innerGap = next ? group.innerGap : 0;
         const gap = relPos < 0 ? group.gap : next ? next.gap : 0;
-        pos.gap.el.style.setProperty('--inner-gap', innerGap * flexFactor);
-        pos.gap.el.style.setProperty('--outer-gap', Math.abs(gap) * flexFactor);
+        pos.gap.el.style.setProperty('--inner-gap', innerGap);
+        pos.gap.el.style.setProperty('--outer-gap', Math.abs(gap));
         pos.gap.el.style.setProperty('--gap-sign', gap > 0 ? 1 : -1);
         pos.gap.el.classList.toggle('real', !!next && !next.isGapEst);
         pos.gap.el.classList.toggle('alone', !innerGap);
+        pos.gap.el.classList.toggle('has-label', !!innerGap);
         const dur = innerGap && H.duration(Math.abs(gap), {short: true, seperator: ' '});
         pos.gap.leftLine.textContent = dur ? (gap > 0 ? '+' : '-') + dur : '';
         pos.actions.watch.classList.toggle('hidden', group.watching);
