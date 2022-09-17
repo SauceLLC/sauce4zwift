@@ -11,6 +11,7 @@ const title = {
     hr: 'Heart Rate Gauge',
     draft: 'Draft Gauge',
     pace: 'Pace Gauge',
+    wbal: 'W\'bal Gauge',
 }[type];
 const commonDefaultSettings = {
     refreshInterval: 1,
@@ -32,6 +33,22 @@ let imperial = !!common.storage.get('/imperialUnits');
 L.setImperial(imperial);
 
 const defaultAxisColorBands = [[1, '#0008']];
+
+
+let _wPrime;
+function getWBalValue(x) {
+    _wPrime = x.athlete && x.athlete.wPrime;
+    if (!_wPrime) {
+        return;
+    }
+    return x.stats.power.wBal / _wPrime * 100;
+}
+
+
+function wBalDetailFormatter(x) {
+    return x != null ? `{value|${H.number((x / 100) * _wPrime / 1000, {precision: 1})}}\n{unit|kJ}` : '';
+}
+
 
 const gaugeConfigs = {
     power: {
@@ -102,6 +119,30 @@ const gaugeConfigs = {
         getLabel: H.number,
         detailFormatter: x => `{value|${H.number(x)}}\n{unit|% boost}`,
     },
+    wbal: {
+        name: 'W\'bal',
+        color: '#555',
+        ticks: 10,
+        defaultSettings: {
+            min: 0,
+            max: 100,
+        },
+        getValue: getWBalValue,
+        getLabel: x => H.number(x / 100000 * _wPrime),
+        detailFormatter: wBalDetailFormatter,
+        visualMap: [{
+            show: false,
+            type: 'continuous',
+            hoverLink: false,
+            seriesIndex: 0,
+            min: 0,
+            max: 100,
+            inRange: {
+                color: ['#b01010', '#dad00c', '#9da665', '#16ff18'],
+                colorAlpha: [0.5, 0.9],
+            },
+        }],
+    },
 };
 
 
@@ -136,6 +177,7 @@ export async function main() {
             animationDurationUpdate: Math.max(200, Math.min(settings.refreshInterval * 1000, 1000)),
             animationEasingUpdate: 'linear',
             tooltip: {},
+            visualMap: config.visualMap,
             graphic: [{
                 elements: [{
                     left: 'center',
@@ -187,9 +229,9 @@ export async function main() {
                 progress: {
                     show: true,
                     width: 60 * relSize,
-                    itemStyle: {
+                    itemStyle: !config.visualMap ? {
                         color: config.axisColorBands ? '#fff3' : config.color + '4',
-                    },
+                    } : undefined,
                 },
                 axisLine: {
                     lineStyle: {
@@ -276,7 +318,8 @@ export async function main() {
     initGauge();
     const renderer = new common.Renderer(content, {fps: 1 / settings.refreshInterval});
     renderer.addCallback(data => {
-        const axisColorBands = config.axisColorBands ? data && config.axisColorBands(data) : defaultAxisColorBands;
+        const axisColorBands = config.axisColorBands ?
+            data && config.axisColorBands(data) : defaultAxisColorBands;
         const series = {
             axisLine: {lineStyle: {color: axisColorBands || defaultAxisColorBands}}
         };
