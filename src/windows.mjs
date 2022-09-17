@@ -98,6 +98,13 @@ export const windowManifests = [{
     prettyDesc: 'Car style heart rate gauge',
     options: {relWidth: 0.20, aspectRatio: 0.8},
 }, {
+    type: 'wbal-gauge',
+    groupTitle: 'Gauges',
+    pageURL: 'gauge.html?t=wbal',
+    prettyName: 'W\'bal Gauge',
+    prettyDesc: 'Car style W\'bal gauge',
+    options: {relWidth: 0.20, aspectRatio: 0.8},
+}, {
     type: 'stats-for-nerds',
     groupTitle: 'Misc',
     page: 'stats-for-nerds.html',
