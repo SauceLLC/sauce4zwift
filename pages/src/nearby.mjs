@@ -27,7 +27,7 @@ const spd = v => H.pace(v, {precision: 0, suffix: true, html: true});
 const weightClass = v => H.weightClass(v, {suffix: true, html: true});
 const pwr = v => H.power(v, {suffix: true, html: true});
 const hr = v => v ? num(v) + unit('bpm') : '-';
-const kj = v => v != null ? num(v) + unit('kJ') : '-';
+const kj = (v, options) => v != null ? num(v, options) + unit('kJ') : '-';
 const pct = v => (v != null && !isNaN(v)) ? num(v) + unit('%') : '-';
 //const gapTime = (v, entry) => (H.duration(v, {short: true, html: true}) + (entry.isGapEst ? '<small> (est)</small>' : ''));
 const gapTime = (v, entry) => ((v < 0 ? '-' : '') + H.timer(Math.abs(v)) + (entry.isGapEst ? '<small> (est)</small>' : ''));
@@ -218,8 +218,10 @@ const fieldGroups = [{
          get: x => x.state.rideons, fmt: num},
         {id: 'kj', defaultEn: false, label: 'Energy (kJ)', headerLabel: 'kJ', get: x => x.state.kj, fmt: kj},
         {id: 'wprimebal', defaultEn: false, label: 'W\'bal', get: x => x.stats.power.wBal,
+         tooltip: "W' and W'bal represent time above threshold and remaining energy respectively.\n" +
+         "Think of the W'bal value as the amount of energy in a battery.",
          fmt: (x, entry) => (x != null && entry.athlete && entry.athlete.wPrime) ?
-            common.fmtBattery(x / entry.athlete.wPrime) + kj(x / 1000) : '-'},
+            common.fmtBattery(x / entry.athlete.wPrime) + kj(x / 1000, {precision: 1}) : '-'},
         {id: 'power-meter', defaultEn: false, label: 'Power Meter', headerLabel: 'PM',
          get: x => x.state.powerMeter, fmt: x => x ? '<ms>check</ms>' : ''},
     ],

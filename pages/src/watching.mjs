@@ -545,7 +545,7 @@ function bindLineChart(lineChart, renderer) {
             return;
         }
         lastRender = now;
-        if (data) {
+        if (data && data.state) {
             chartData.power.push(data.state.power || 0);
             chartData.hr.push(data.state.heartrate || 0);
             chartData.pace.push(data.state.speed || 0);
