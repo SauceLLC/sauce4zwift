@@ -386,7 +386,7 @@ async function zwiftAuthenticate(options) {
     if (creds) {
         await secrets.set(ident, creds);
     } else {
-        console.warn("Zwift login not active.  Things WILL BE BROKEN", zwiftAPI.isAuthenticated());
+        return quit(1);
     }
 }
 
@@ -497,3 +497,4 @@ global.zwift = zwift;
 global.stats = stats;
 global.zwiftAPI = zwiftAPI;
 global.zwiftMonitorAPI = zwiftMonitorAPI;
+global.windows = windows;
