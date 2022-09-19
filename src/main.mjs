@@ -386,7 +386,7 @@ async function zwiftAuthenticate(options) {
     if (creds) {
         await secrets.set(ident, creds);
     } else {
-        return quit(1);
+        return false;
     }
 }
 
@@ -473,17 +473,10 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId}) {
         await electron.dialog.showErrorBox('EULA or Patreon Link Error', '' + e);
         return quit(1);
     }
-    await zwiftAuthenticate({
-        api: zwiftAPI,
-        ident: 'zwift-login',
-        ...args,
-    });
-    await zwiftAuthenticate({
-        api: zwiftMonitorAPI,
-        ident: 'zwift-monitor-login',
-        monitor: true,
-        ...args,
-    });
+    if (await zwiftAuthenticate({api: zwiftAPI, ident: 'zwift-login', ...args}) === false ||
+        await zwiftAuthenticate({api: zwiftMonitorAPI, ident: 'zwift-monitor-login', monitor: true, ...args}) === false) {
+        return quit(1);
+    }
     await sauceApp.start(args);
     if (!args.headless) {
         windows.openAllWindows();
