@@ -28,7 +28,7 @@ export const windowManifests = [{
     prettyName: 'Overview',
     prettyDesc: 'Main top window for overall control and stats',
     private: true,
-    options: {relWidth: 0.6, height: 40, relX: 0.2, y: 28},
+    options: {width: 0.6, height: 40, x: 0.2, y: 28},
     webPreferences: {backgroundThrottling: false}, // XXX Doesn't appear to work
     alwaysVisible: true,
 }, {
@@ -36,32 +36,32 @@ export const windowManifests = [{
     page: 'watching.html',
     prettyName: 'Currently Watching',
     prettyDesc: 'Replacement window for stats of the athlete being watched',
-    options: {relWidth: 0.18, aspectRatio: 1},
+    options: {width: 0.18, aspectRatio: 1},
 }, {
     type: 'groups',
     page: 'groups.html',
     prettyName: 'Groups',
     prettyDesc: 'A zoomable view of groups of athletes',
-    options: {relWidth: 0.15, relHeight: 0.65},
+    options: {width: 0.15, height: 0.65},
 }, {
     type: 'chat',
     page: 'chat.html',
     prettyName: 'Chat',
     prettyDesc: 'Chat dialog from nearby athletes',
-    options: {relWidth: 0.18, aspectRatio: 2},
+    options: {width: 0.18, aspectRatio: 2},
 }, {
     type: 'nearby',
     page: 'nearby.html',
     prettyName: 'Nearby Athletes',
     prettyDesc: 'A sortable data table of nearby athletes',
-    options: {width: 900, relHeight: 0.8},
+    options: {width: 900, height: 0.8},
     overlay: false,
 }, {
     type: 'events',
     page: 'events.html',
     prettyName: 'Events [ALPHA]',
     prettyDesc: 'Event listings and entrant information',
-    options: {width: 900, relHeight: 0.8},
+    options: {width: 900, height: 0.8},
     overlay: false,
 }, {
     type: 'game-control',
@@ -75,35 +75,35 @@ export const windowManifests = [{
     pageURL: 'gauge.html?t=power',
     prettyName: 'Power Gauge',
     prettyDesc: 'Car style power (watts) gauge',
-    options: {relWidth: 0.20, aspectRatio: 0.8},
+    options: {width: 0.20, aspectRatio: 0.8},
 }, {
     type: 'draft-gauge',
     groupTitle: 'Gauges',
     pageURL: 'gauge.html?t=draft',
     prettyName: 'Draft Gauge',
     prettyDesc: 'Car style draft (% power reduction) gauge',
-    options: {relWidth: 0.20, aspectRatio: 0.8},
+    options: {width: 0.20, aspectRatio: 0.8},
 }, {
     type: 'pace-gauge',
     groupTitle: 'Gauges',
     pageURL: 'gauge.html?t=pace',
     prettyName: 'Pace Gauge',
     prettyDesc: 'Car style pace/speed gauge',
-    options: {relWidth: 0.20, aspectRatio: 0.8},
+    options: {width: 0.20, aspectRatio: 0.8},
 }, {
     type: 'hr-gauge',
     groupTitle: 'Gauges',
     pageURL: 'gauge.html?t=hr',
     prettyName: 'Heart Rate Gauge',
     prettyDesc: 'Car style heart rate gauge',
-    options: {relWidth: 0.20, aspectRatio: 0.8},
+    options: {width: 0.20, aspectRatio: 0.8},
 }, {
     type: 'wbal-gauge',
     groupTitle: 'Gauges',
     pageURL: 'gauge.html?t=wbal',
     prettyName: 'W\'bal Gauge',
     prettyDesc: 'Car style W\'bal gauge',
-    options: {relWidth: 0.20, aspectRatio: 0.8},
+    options: {width: 0.20, aspectRatio: 0.8},
 }, {
     type: 'stats-for-nerds',
     groupTitle: 'Misc',
@@ -350,15 +350,20 @@ rpc.register(createWindow);
 export function highlightWindow(id) {
     const win = getActiveWindow(id);
     if (win) {
-        if (!win.isVisible() || win.isMinimized()) {
-            win.show();
-        } else {
-            win.focus();
-        }
-        win.webContents.send('browser-message', {domEvent: 'sauce-highlight-window'});
+        _highlightWindow(win);
     }
 }
 rpc.register(highlightWindow);
+
+
+function _highlightWindow(win) {
+    if (!win.isVisible() || win.isMinimized()) {
+        win.show();
+    } else {
+        win.focus();
+    }
+    win.webContents.send('browser-message', {domEvent: 'sauce-highlight-window'});
+}
 
 
 export function reopenWindow(id) {
@@ -381,24 +386,78 @@ export function openWindow(id) {
 rpc.register(openWindow);
 
 
-function handleNewSubWindow(webContents, spec) {
-    webContents.on('new-window', (ev, url) => {
-        // Popups...
-        ev.preventDefault();
-        const q = new URLSearchParams((new URL(url)).search);
-        const wHint = Number(q.get('widthHint'));
-        const hHint = Number(q.get('heightHint'));
-        let width, height;
-        if (wHint || hHint) {
-            const {width: sWidth, height: sHeight} = electron.screen.getPrimaryDisplay().size;
-            width = wHint <= 1 ? Math.round(sWidth * (wHint || 0.5)) : Math.round(wHint);
-            height = hHint <= 1 ? Math.round(sHeight * (hHint || 0.5)) : Math.round(hHint) ;
+function getPositionForDisplay(display, {x, y, width, height}) {
+    const db = display.bounds;
+    if (x == null) {
+        x = db.x + Math.round((db.width - width) / 2);
+    } else if (x < 0) {
+        x = db.x + db.width - x - width;
+    } else if (x <= 1) {
+        x = db.x + Math.round(db.width * x) - width;
+    } else {
+        x = db.x + x;
+    }
+    if (y == null) {
+        y = db.y + Math.round((db.height - height) / 2);
+    } else if (y < 0) {
+        y = db.y + db.height - y - height;
+    } else if (y <= 1) {
+        y = db.y + Math.round(db.height * y) - height;
+    } else {
+        y = db.y + y;
+    }
+    return {x, y};
+}
+
+
+function getSizeForDisplay(display, {width, height, aspectRatio}) {
+    const defaultWidth = 800;
+    const defaultHeight = 600;
+    const dSize = display.size;
+    width = width != null && width <= 1 ? Math.round(dSize.width * width) : width;
+    height = height != null && height <= 1 ? Math.round(dSize.height * height) : height;
+    if (aspectRatio) {
+        if (width == null && height == null) {
+            width = defaultWidth;
         }
+        if (height == null) {
+            height = Math.round(width * aspectRatio);
+        } else {
+            width = Math.round(width / aspectRatio);
+        }
+    } else {
+        width = width || defaultWidth;
+        height = height || defaultHeight;
+    }
+    return {width, height};
+}
+
+
+function handleNewSubWindow(parent, spec) {
+    // These are target=... popups...
+    const targetRefs = new Map();
+    parent.webContents.on('new-window', (ev, url, target) => {
+        ev.preventDefault();
+        if (targetRefs.has(target)) {
+            const targetWin = targetRefs.get(target).deref();
+            if (!targetWin) {
+                targetRefs.delete(target);
+            } else if (!targetWin.isDestroyed()) {
+                _highlightWindow(targetWin);
+                return;
+            }
+        }
+        const q = new URLSearchParams((new URL(url)).search);
+        const width = Number(q.get('widthHint')) || undefined;
+        const height = Number(q.get('heightHint')) || undefined;
+        const display = getDisplayForWindow(parent);
+        const size = getSizeForDisplay(display, {width, height});
+        const position = getPositionForDisplay(display, size);
         const newWin = new electron.BrowserWindow({
             type: isLinux ? 'splash' : undefined,
             show: false,
-            width,
-            height,
+            ...size,
+            ...position,
             alwaysOnTop: spec.overlay !== false,
             webPreferences: {
                 sandbox: true,
@@ -410,9 +469,12 @@ function handleNewSubWindow(webContents, spec) {
             newWin.setAlwaysOnTop(true, 'pop-up-menu');
         }
         subWindows.set(newWin.webContents, {win: newWin, spec, activeSubs: new Set()});
+        if (target && target !== '_blank') {
+            targetRefs.set(target, new WeakRef(newWin));
+        }
         newWin.on('page-title-updated', (ev, title) =>
             subWindows.get(newWin.webContents).title = title.replace(/( - )?Sauce for Zwift™?$/, ''));
-        handleNewSubWindow(newWin.webContents, spec);
+        handleNewSubWindow(newWin, spec);
         if (!isDEV) {
             newWin.removeMenu();
         }
@@ -434,12 +496,26 @@ function _openWindow(id, spec) {
         fullscreenable: false,
     };
     const manifest = windowManifestsByType[spec.type];
+    const inBounds = !spec.position || isWithinDisplayBounds(spec.position);
+    if (!inBounds) {
+        console.warn("Reseting position of window that is out of bounds:", spec.position);
+    }
+    let size, position;
+    if (!inBounds || !spec.position) {
+        const display = getCurrentDisplay();
+        const bounds = {...manifest.options, ...spec.options};
+        size = getSizeForDisplay(display, bounds);
+        position = getPositionForDisplay(display, {...bounds, ...size});
+    } else {
+        position = spec.position;
+    }
     // Order of options is crucial...
     const options = {
         ...(spec.overlay !== false ? overlayOptions : {}),
         ...manifest.options,
         ...spec.options,
-        ...spec.position,
+        ...size,
+        ...position,
         opacity: spec.opacity,
     };
     const win = new electron.BrowserWindow({
@@ -458,39 +534,12 @@ function _openWindow(id, spec) {
     if (!isDEV) {
         win.removeMenu();
     }
-    if (!spec.position && (options.relWidth != null || options.relHeight != null ||
-        options.relX != null || options.relY != null || options.x < 0 || options.y < 0 ||
-        options.aspectRatio)) {
-        const {width: sWidth, height: sHeight} = electron.screen.getPrimaryDisplay().size; // XXX
-        const width = options.width != null ?
-            options.width :
-            Math.round(options.relWidth * sWidth);
-        const height = options.height != null ?
-            options.height :
-            options.aspectRatio != null ?
-                Math.round(width * options.aspectRatio) :
-                Math.round(options.relHeight * sHeight);
-        const x = options.x == null ?
-            (options.relX ? Math.round(options.relX * sWidth) : null) :
-            options.x < 0 ?
-                sWidth + options.x - width :
-                options.x;
-        const y = options.y == null ?
-            (options.relY ? Math.round(options.relY * sHeight) : null) :
-            options.y < 0 ?
-                sHeight + options.y - height :
-                options.y;
-        win.setSize(width, height);
-        if (x != null && y != null) {
-            win.setPosition(x, y, false);
-        }
-    }
     if (spec.overlay !== false) {
         win.setAlwaysOnTop(true, 'pop-up-menu');
     }
     const webContents = win.webContents;  // Save to prevent electron from killing us.
     activeWindows.set(webContents, {win, spec, activeSubs: new Set()});
-    handleNewSubWindow(webContents, spec);
+    handleNewSubWindow(win, spec);
     let saveStateTimeout;
     function onPositionUpdate() {
         const position = win.getBounds();
@@ -532,6 +581,9 @@ export function openAllWindows() {
 
 
 export function makeCaptiveWindow(options={}, webPrefs={}) {
+    const display = getCurrentDisplay();
+    const size = getSizeForDisplay(display, options);
+    const position = getPositionForDisplay(display, size);
     const win = new electron.BrowserWindow({
         type: isLinux ? 'splash' : undefined,
         center: true,
@@ -543,7 +595,9 @@ export function makeCaptiveWindow(options={}, webPrefs={}) {
             preload: path.join(appPath, 'src', 'preload', 'common.js'),
             ...webPrefs,
         },
-        ...options
+        ...options,
+        ...size,
+        ...position,
     });
     if (!isDEV) {
         win.removeMenu();
@@ -559,7 +613,7 @@ export async function eulaConsent() {
     if (storage.load('eula-consent')) {
         return true;
     }
-    const win = makeCaptiveWindow({width: 800, height: 600, page: 'eula.html'});
+    const win = makeCaptiveWindow({page: 'eula.html'});
     let closed;
     const consenting = new Promise(resolve => {
         rpc.register(async agree => {
@@ -582,7 +636,7 @@ export async function eulaConsent() {
 
 
 export async function showReleaseNotes() {
-    const win = makeCaptiveWindow({width: 512, height: 500, page: 'release-notes.html'});
+    const win = makeCaptiveWindow({width: 512, height: 600, page: 'release-notes.html'});
     await new Promise(resolve => win.on('closed', resolve));
 }
 
@@ -674,12 +728,75 @@ export async function zwiftLogin(options) {
 
 
 export async function welcomeSplash() {
-    const {width, height} = electron.screen.getPrimaryDisplay().size;
     const welcomeWin = new electron.BrowserWindow({
         type: isLinux ? 'splash' : undefined,
         center: true,
-        width,
+        resizable: false,
+        movable: false,
+        minimizable: false,
+        maximizable: false,
+        fullscreenable: false,
+        show: false,
+        transparent: true,
+        hasShadow: false,
+        frame: false,
+        focusable: false,
+        skipTaskbar: true,
+        roundedCorners: false,
+        alwaysOnTop: true,
+        ...getCurrentDisplay().bounds,
+        webPreferences: {
+            sandbox: true,
+            devTools: isDEV,
+            preload: path.join(appPath, 'src', 'preload', 'common.js'),
+        },
+    });
+    welcomeWin.removeMenu();
+    welcomeWin.excludedFromShownWindowsMenu = true;
+    welcomeWin.setAlwaysOnTop(true, 'screen-saver');
+    welcomeWin.setIgnoreMouseEvents(true);
+    welcomeWin.loadFile(path.join(pagePath, 'welcome.html'));
+    welcomeWin.show();
+    return await sleep(16500).then(() => welcomeWin.close());
+}
+
+
+export function isWithinDisplayBounds({x, y, width, height}) {
+    const centerX = x + (width || 0) / 2;
+    const centerY = y + (height || 0) / 2;
+    return electron.screen.getAllDisplays().some(({bounds}) =>
+        centerX >= bounds.x && centerX < bounds.x + bounds.width &&
+        centerY >= bounds.y && centerY < bounds.y + bounds.height);
+}
+
+
+export function getDisplayForWindow(win) {
+    const bounds = win.getBounds();
+    const centerX = Math.round(bounds.x + bounds.width / 2);
+    const centerY = Math.round(bounds.y + bounds.height / 2);
+    return electron.screen.getDisplayNearestPoint({x: centerX, y: centerY});
+}
+
+
+export function getCurrentDisplay() {
+    const point = electron.screen.getCursorScreenPoint();
+    return electron.screen.getDisplayNearestPoint(point) || electron.screen.getPrimaryDisplay();
+}
+
+
+export async function systemMessage(msg) {
+    const overviewWin = Array.from(activeWindows.values()).find(x => x.spec.type === 'overview').win;
+    const oBounds = overviewWin.getBounds();
+    const dBounds = getDisplayForWindow(overviewWin).bounds;
+    const height = 400;
+    const y = (oBounds.y - dBounds.y < dBounds.height / 2) ? oBounds.y + oBounds.height : oBounds.y - height;
+    const x = oBounds.x;
+    const sysWin = new electron.BrowserWindow({
+        type: isLinux ? 'splash' : undefined,
+        width: oBounds.width,
         height,
+        x,
+        y,
         resizable: false,
         movable: false,
         minimizable: false,
@@ -699,11 +816,10 @@ export async function welcomeSplash() {
             preload: path.join(appPath, 'src', 'preload', 'common.js'),
         },
     });
-    welcomeWin.removeMenu();
-    welcomeWin.excludedFromShownWindowsMenu = true;
-    welcomeWin.setAlwaysOnTop(true, 'screen-saver');
-    welcomeWin.setIgnoreMouseEvents(true);
-    welcomeWin.loadFile(path.join(pagePath, 'welcome.html'));
-    welcomeWin.show();
-    return await sleep(16500).then(() => welcomeWin.close());
+    sysWin.removeMenu();
+    sysWin.excludedFromShownWindowsMenu = true;
+    sysWin.setAlwaysOnTop(true, 'screen-saver');
+    sysWin.setIgnoreMouseEvents(true);
+    sysWin.loadFile(path.join(pagePath, 'system-message.html'));
+    sysWin.show();
 }
