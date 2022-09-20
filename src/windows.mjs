@@ -391,18 +391,18 @@ function getPositionForDisplay(display, {x, y, width, height}) {
     if (x == null) {
         x = db.x + Math.round((db.width - width) / 2);
     } else if (x < 0) {
-        x = db.x + db.width - x - width;
+        x = db.x + db.width + x - width;
     } else if (x <= 1) {
-        x = db.x + Math.round(db.width * x) - width;
+        x = db.x + Math.round(db.width * x);
     } else {
         x = db.x + x;
     }
     if (y == null) {
         y = db.y + Math.round((db.height - height) / 2);
     } else if (y < 0) {
-        y = db.y + db.height - y - height;
+        y = db.y + db.height + y - height;
     } else if (y <= 1) {
-        y = db.y + Math.round(db.height * y) - height;
+        y = db.y + Math.round(db.height * y);
     } else {
         y = db.y + y;
     }
