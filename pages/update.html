@@ -44,28 +44,6 @@
                 flex-direction: column;
             }
 
-            .big-button { 
-                border-radius: 0.3em;
-                padding: 0.4em 1em;
-                margin-top: 1em;
-                margin-bottom: 1em;
-                border: none;
-                font-size: 18px;
-                opacity: 0.88;
-                background-color: #fffe;
-                outline: none; 
-                cursor: pointer;
-                user-select: none;
-                transition: 200ms opacity, 100ms box-shadow;
-            }
-            .big-button:hover {
-                opacity: 1;
-                box-shadow: 1px 1px 4px 0 #0004;
-            }
-            .big-button:active {
-                box-shadow: inset 0 0 10px 0 #0009;
-            }
-
             h4, h5 {
                 margin-top: 1em;
                 margin-bottom: 0.5em;
@@ -76,9 +54,7 @@
                 font-size: 2em;
             }
 
-            html:not(.updating) main.progress {
-                display: none;
-            }
+            html:not(.updating) main.progress,
             html.updating main.confirm {
                 display: none;
             }
