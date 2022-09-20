@@ -312,6 +312,7 @@ class SauceApp extends EventEmitter {
             message: 'This operation will reset all settings completely.\n\n' +
                 'Are you sure you want continue?',
             buttons: ['Yes, reset to defaults', 'Cancel'],
+            defaultId: 1,
             cancelId: 1,
         });
         if (response === 0) {
@@ -430,7 +431,54 @@ function parseArgs() {
 }
 
 
+async function checkForUpdates() {
+    autoUpdater.disableWebInstaller = true;
+    autoUpdater.autoDownload = false;
+    autoUpdater.allowPrerelease = !!'XXX';
+    let updateAvail;
+    // Auto updater was written by an alien.  Must use events to affirm update status.
+    autoUpdater.once('update-available', () => void (updateAvail = true));
+    try {
+        const update = await autoUpdater.checkForUpdates();
+        if (updateAvail) {
+            return update.versionInfo;
+        }
+    } catch(e) {
+        // A variety of non critical conditions can lead to this, log and move on.
+        console.warn("Auto update problem:", e);
+        return;
+    }
+}
+
+
+async function maybeDownloadAndInstallUpdate({version}) {
+    const confirmWin = await windows.updateConfirmationWindow(version);
+    if (!confirmWin) {
+        return;  // later
+    }
+    autoUpdater.on('download-progress', ev => {
+        console.info('Sauce update download progress:', ev.percent);
+        confirmWin.webContents.send('browser-message',
+            {domEvent: 'update-download-progress', json: JSON.stringify(ev)});
+    });
+    try {
+        await autoUpdater.downloadUpdate();
+    } catch(e) {
+        console.error('Update error:', e);
+        await electron.dialog.showErrorBox('Update error', '' + e);
+        Sentry.captureException(e);
+        if (!confirmWin.isDestroyed()) {
+            confirmWin.close();
+        }
+        return;
+    }
+    quiting = true;  // auto updater closes windows before quiting. Must not save state.
+    autoUpdater.quitAndInstall();
+    return true;
+}
+
 export async function main({logEmitter, logFile, logQueue, sentryAnonId}) {
+    const s = Date.now();
     const args = parseArgs();
     if (quiting) {
         return;
@@ -444,13 +492,11 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId}) {
     rpc.register(() => sentryAnonId, {name: 'getSentryAnonId'});
     sauceApp = new SauceApp();
     global.app = sauceApp;  // devTools debug
-    if (!isDEV) {
-        setTimeout(() => autoUpdater.checkForUpdatesAndNotify().catch(Sentry.captureException), 10000);
-    }
     if (!args.headless) {
         menu.installTrayIcon();
         menu.setAppMenu();
     }
+    let updater;
     const lastVersion = sauceApp.getSetting('lastVersion');
     if (lastVersion !== pkg.version) {
         if (!args.headless) {
@@ -464,6 +510,8 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId}) {
             }
         }
         sauceApp.setSetting('lastVersion', pkg.version);
+    } else if (!isDEV) {
+        updater = checkForUpdates();
     }
     try {
         if (!await windows.eulaConsent() || !await windows.patronLink()) {
@@ -477,7 +525,12 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId}) {
         await zwiftAuthenticate({api: zwiftMonitorAPI, ident: 'zwift-monitor-login', monitor: true, ...args}) === false) {
         return quit(1);
     }
+    const updateInfo = await updater;
+    if (updateInfo && await maybeDownloadAndInstallUpdate(updateInfo)) {
+        return; // updated, will restart
+    }
     await sauceApp.start(args);
+    console.debug('Startup bench:', Date.now() - s);
     if (!args.headless) {
         windows.openAllWindows();
         menu.updateTrayMenu();
@@ -491,3 +544,4 @@ global.stats = stats;
 global.zwiftAPI = zwiftAPI;
 global.zwiftMonitorAPI = zwiftMonitorAPI;
 global.windows = windows;
+global.electron = electron;

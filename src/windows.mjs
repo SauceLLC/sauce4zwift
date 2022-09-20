@@ -194,9 +194,8 @@ rpc.register(() => {
 }, {name: 'showAllWindows'});
 
 rpc.register(function() {
-    const window = this.getOwnerBrowserWindow(); // XXX Testing
+    const window = this.getOwnerBrowserWindow();
     if (activeWindows.has(this)) {
-        // Just validate that the above technique is valid
         const {win, spec} = activeWindows.get(this);
         if (win !== window) {
             console.error("window equality assertion error", win, window);
@@ -604,6 +603,8 @@ export function makeCaptiveWindow(options={}, webPrefs={}) {
     }
     if (options.page) {
         win.loadFile(path.join(pagePath, options.page));
+    } else if (options.pageURL) {
+        win.loadURL(`file://${path.join(pagePath, options.pageURL)}`);
     }
     return win;
 }
@@ -632,6 +633,23 @@ export async function eulaConsent() {
         win.close();
     }
     return consent;
+}
+
+
+export async function updateConfirmationWindow(version) {
+    const win = makeCaptiveWindow({pageURL: `update.html?newVersion=v${version}`, width: 400, height: 440});
+    let closed;
+    const prompting = new Promise(resolve => {
+        rpc.register(resolve, {name: 'confirmAppUpdate'});
+        win.on('closed', () => (closed = true, resolve(false)));
+    });
+    const doUpdate = await prompting;
+    if (!closed && !doUpdate) {
+        win.close();
+    }
+    if (doUpdate) {
+        return win;
+    }
 }
 
 

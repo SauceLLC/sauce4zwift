@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+        <meta name="apple-mobile-web-app-capable" content="yes"/>
+        <meta http-equiv="Content-Security-Policy" content="script-src 'self' https://www.youtube.com 'unsafe-inline';"/>
+
+        <title>Update Available - Sauce for Zwift™</title>
+
+        <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
+        <link rel="stylesheet" href="css/common.css"/>
+
+        <style>
+            html {
+                padding: 0;
+                font-size: 16px;
+            }
+
+            body {
+                border-radius: 0;
+                padding: 2em;
+                display: flex;
+                align-items: center;
+                flex-direction: column;
+            }
+
+            img.logo {
+                height: 120px;
+                transform: rotate(-20deg);
+                margin-right: 2em;
+            }
+
+            body > header {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            body > main {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                flex-direction: column;
+            }
+
+            .big-button { 
+                border-radius: 0.3em;
+                padding: 0.4em 1em;
+                margin-top: 1em;
+                margin-bottom: 1em;
+                border: none;
+                font-size: 18px;
+                opacity: 0.88;
+                background-color: #fffe;
+                outline: none; 
+                cursor: pointer;
+                user-select: none;
+                transition: 200ms opacity, 100ms box-shadow;
+            }
+            .big-button:hover {
+                opacity: 1;
+                box-shadow: 1px 1px 4px 0 #0004;
+            }
+            .big-button:active {
+                box-shadow: inset 0 0 10px 0 #0009;
+            }
+
+            h4, h5 {
+                margin-top: 1em;
+                margin-bottom: 0.5em;
+            }
+
+            progress {
+                width: 100%;
+                font-size: 2em;
+            }
+
+            html:not(.updating) main.progress {
+                display: none;
+            }
+            html.updating main.confirm {
+                display: none;
+            }
+
+            .version-available {
+                background-color: #333a;
+                padding: 0 0.4em;
+                border-radius: 0.3em;
+            }
+
+            .buttons {
+                margin-top: 1em;
+                display: flex;
+            }
+
+            .progress-text {
+                font-variant: tabular-nums all-small-caps;
+                font-weight: 700;
+                font-size: 1.3em;
+                opacity: 0.9;
+                line-height: 1;
+            }
+        </style>
+
+        <script type="module">
+            import * as common from './src/common.mjs';
+
+            function kb(b) {
+                return Number((b / 1024).toFixed(1)).toLocaleString();
+            }
+
+            function main() {
+                document.querySelector('.button.update').addEventListener('click', async ev => {
+                    ev.preventDefault();
+                    await common.rpc.confirmAppUpdate(true);
+                    document.documentElement.classList.add('updating');
+                });
+                document.querySelector('.button.dismiss').addEventListener('click', async ev => {
+                    ev.preventDefault();
+                    await common.rpc.confirmAppUpdate(false);
+                });
+                const q = new URLSearchParams(location.search);
+                document.querySelector('.version-available').textContent = q.get('newVersion');
+                const progress = document.querySelector('progress');
+                const progressText = document.querySelector('.progress-text');
+                document.addEventListener('update-download-progress', ev => {
+                    const r = JSON.parse(ev.detail);
+                    const pct = Math.max(100, r.percent);
+                    progress.value = pct;
+                    progressText.textContent = `${kb(r.total * (pct / 100))} / ${kb(r.total)} KB`;
+                });
+            }
+            addEventListener('DOMContentLoaded', main);
+        </script>
+    </head>
+
+    <body>
+        <header>
+            <img class="logo" src="images/logo_vert_120x320.png"/>
+            <h2>Update Available</h2>
+        </header>
+        <main class="confirm">
+            <h4>Version <span class="version-available"></span> is available.<br/><br/>
+            Would you like to install this update now?</h5>
+
+            <div class="buttons">
+                <div class="std button large dismiss">Maybe later</div>
+                <div class="std button large primary update">Update now</div>
+            </div>
+        </main>
+        <main class="progress">
+            <h4>Downloading update...</h4>
+            <progress max="100"></progress>
+            <div class="progress-text"></div>
+            <br/>
+            <i>After the download completes Sauce will install the update and restart.</i>
+        </main>
+    </body>
+</html>

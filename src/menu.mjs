@@ -48,7 +48,7 @@ const template = [{
         label: 'Reload',
         accelerator: 'CmdOrCtrl+R',
         role: 'reload',
-    }, !app.isPackaged ? {
+    }, {
         label: 'Toggle Developer Tools',
         accelerator: process.platform === 'darwin' ? 'Alt+Command+I' : 'Ctrl+Shift+I',
         click: (item, focusedWindow) => {
@@ -56,7 +56,7 @@ const template = [{
                 focusedWindow.toggleDevTools();
             }
         }
-    } : null].filter(x => x)
+    }],
 }, {
     label: 'Window',
     role: 'window',
