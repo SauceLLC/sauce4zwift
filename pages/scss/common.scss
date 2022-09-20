@@ -521,6 +521,25 @@ html.settings-page #titlebar {
                 --bg-to-color: #b11b;
             }
         }
+
+        &.primary {
+            --bg-from-color: #0060cb80;
+            --bg-to-color: #0060cbff;
+            color: #eee;
+
+            &:hover {
+                --bg-from-color: #0070db80;
+                --bg-to-color: #0070dbff;
+            }
+        }
+
+        &.large {
+            font-size: 1.2em;
+        }
+
+        &.xl {
+            font-size: 1.4em;
+        }
     }
 
     img {
