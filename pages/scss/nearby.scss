@@ -100,16 +100,16 @@ table {
             pointer-events: none;
         }
 
-        &.watching {
-            background-image: linear-gradient(135deg, #0c71d3cf, #2521aa47);
-        }
-
         &.marked {
             background-image: linear-gradient(135deg, #999595bd, transparent);
         }
 
         &.following {
             background-image: linear-gradient(135deg, #42e24fd9, transparent);
+        }
+
+        &.watching {
+            background-image: linear-gradient(135deg, #0c71d3cf, #2521aa47);
         }
 
         &.hidden {
