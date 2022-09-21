@@ -13,6 +13,8 @@ html, body {
 }
 
 #content > table {
+    user-select: text;
+
     > thead {
         position: sticky;
         z-index: 1;

@@ -3,6 +3,7 @@
 html {
     padding: 0;
     font-size: 16px;
+    user-select: text;
 
     &.embed {
         background: none;

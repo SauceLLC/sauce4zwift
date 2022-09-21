@@ -19,7 +19,12 @@
     src: url('../fonts/MaterialSymbolsRounded.woff2') format('woff2');
 }
 
+img {
+    user-select: none;
+}
+
 ms {
+    user-select: none;
     font-family: 'Material Symbols Rounded';
     font-weight: normal;
     font-style: normal;

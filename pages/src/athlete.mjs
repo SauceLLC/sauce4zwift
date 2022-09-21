@@ -24,6 +24,9 @@ export function init() {
 export async function main() {
     common.initInteractionListeners();
     const athlete = await gettingAthlete;
+    if (athlete) {
+        document.title = `${athlete.sanitizedFullname} - Sauce for Zwift™`;
+    }
     const tpl = await gettingTemplate;
     const gameConnectionStatus = await gettingGameConnectionStatus;
     const {nations, flags} = await pendingInitNationFlags;
@@ -70,6 +73,23 @@ function handleWPrimeEdit(el, {athleteId, athlete}, rerender) {
 }
 
 
+async function exportFITActivity(athleteId) {
+    const fitData = await common.rpc.exportFIT(athleteId);
+    const f = new File([new Uint8Array(fitData)], `${athleteId}.fit`, {type: 'application/binary'});
+    const l = document.createElement('a');
+    l.download = f.name;
+    l.style.display = 'none';
+    l.href = URL.createObjectURL(f);
+    try {
+        document.body.appendChild(l);
+        l.click();
+    } finally {
+        URL.revokeObjectURL(l.href);
+        l.remove();
+    }
+}
+
+
 export async function render(el, tpl, tplData) {
     const athleteId = tplData.athleteId;
     const rerender = async () => el.replaceChildren(...(await tpl(tplData)).children);
@@ -91,6 +111,9 @@ export async function render(el, tpl, tplData) {
             await common.rpc.updateAthlete(athleteId, {marked: tplData.athlete.marked});
         } else if (a.dataset.action === 'watch') {
             await common.rpc.watch(athleteId);
+            return;
+        } else if (a.dataset.action === 'exportFit') {
+            await exportFITActivity(athleteId);
             return;
         } else if (a.dataset.action === 'join') {
             await common.rpc.join(athleteId);

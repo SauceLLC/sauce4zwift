@@ -28,6 +28,13 @@ html, body {
     font-size: 14px;
 }
 
+html:not(.game-connection) {
+    table td .link[data-id="watch"] {
+        opacity: 0.2;
+        pointer-events: none;
+    }
+}
+
 table {
     border-collapse: collapse;
 
@@ -131,13 +138,18 @@ table {
         user-select: text;
 
         &[data-id="name"],
+        &[data-id="f-last"],
         &[data-id="team"],
         &[data-id="group"],
         &[data-id="event"],
         &[data-id="route"] {
             overflow: hidden;
             text-overflow: ellipsis;
-            max-width: max(16ch, 18vw);
+            max-width: clamp(8ch, 16ch, 18vw);
+        }
+
+        &[data-id="team"] {
+            max-width: clamp(6ch, 14ch, 14vw);
         }
 
         &[data-id="avatar"] {
@@ -180,6 +192,9 @@ table {
         }
 
         .badge {
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
             margin-bottom: 0.15em;
 
             &.category {
@@ -190,12 +205,6 @@ table {
             }
         }
     }
-    td:first-child {
-        padding-left: 0.6em;
-    }
-    td:last-child {
-        padding-right: 0.6em;
-    }
 
     td.sorted {
         background-color: #0332;
@@ -204,7 +213,7 @@ table {
     td .link {
         transition: opacity 200ms;
         display: inline-block;
-        margin-right: 0.15em;
+        margin-left: 0.10em;
         margin-top: -0.2em;
         margin-bottom: -0.1em;
 

@@ -36,6 +36,8 @@
                 <a title="Toggle visibility of chat messages from this person"
                    data-action="toggleMuted" class="{{athlete.muted ? 'active' : ''}}"
                    href><ms>comments_disabled</ms></a>
+                <a title="Export FIT activity file of sampled data"
+                   data-action="exportFit" href><ms>file_download</ms></a>
                 <a title="Give a Ride On to this athlete" {{obj.rideonSent ? 'disabled' : 'href'}}
                    data-action="rideon"><ms>thumb_up</ms></a>
                 <% if (athlete.following) { %>

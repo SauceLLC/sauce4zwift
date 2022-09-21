@@ -19,8 +19,7 @@ let sortByDir;
 let table;
 let tbody;
 let theadRow;
-let gameControlEnabled;
-let gameControlConnected;
+let gameConnection;
 
 const unit = x => `<abbr class="unit">${x}</abbr>`;
 const spd = v => H.pace(v, {precision: 0, suffix: true, html: true});
@@ -181,8 +180,37 @@ function clearSelection() {
 function athleteLink(id, content, options={}) {
     const debug = location.search.includes('debug') ? '&debug' : '';
     return `<a title="${options.title || ''}" class="athlete-link ${options.class || ''}"
-               href="athlete.html?athleteId=${id}&widthHint=900&heightHint=375${debug}"
+               href="athlete.html?athleteId=${id}&widthHint=800&heightHint=345${debug}"
                target="_blank">${content || ''}</a>`;
+}
+
+
+function fmtAvatar(name, {athlete, athleteId}) {
+    const url = athlete && athlete.avatar || 'images/fa/user-circle-solid.svg';
+    return athleteLink(athleteId, `<img src="${url}"/>`, {class: 'avatar'});
+}
+
+
+function fmtActions() {
+    return `<a class="link" data-id="watch"
+               title="Watch this athlete"><ms>video_camera_front</ms></a>`;
+}
+
+function fmtFLastName(names, entry) {
+    if (!names) {
+        return '';
+    }
+    let name;
+    if (names.length > 1) {
+        if (names[0].length) {
+            name = `${names[0][0]}.${names[1]}`;
+        } else {
+            name = names[1];
+        }
+    } else {
+        name = names[0];
+    }
+    return fmtName(name, entry);
 }
 
 
@@ -190,14 +218,15 @@ const fieldGroups = [{
     group: 'athlete',
     label: 'Athlete',
     fields: [
-        {id: 'avatar', defaultEn: true, label: 'Avatar',
-         headerLabel: '<img class="fa" src="images/fa/user-circle-solid.svg"/>',
-         get: x => x.athlete && x.athlete.avatar || 'images/fa/user-circle-solid.svg',
-         fmt: (url, {athleteId}) => url ? athleteLink(athleteId, `<img src="${url}"/>`, {class: 'avatar'}) : ''},
+        {id: 'actions', defaultEn: false, label: 'Action Button(s)', headerLabel: ' ', fmt: fmtActions},
+        {id: 'avatar', defaultEn: true, label: 'Avatar', headerLabel: '<ms>account_circle</ms>',
+         get: x => x.athlete && x.athlete.sanitizedFullname, fmt: fmtAvatar},
         {id: 'nation', defaultEn: true, label: 'Country Flag', headerLabel: '<ms>flag</ms>',
          get: x => x.athlete && x.athlete.countryCode, fmt: common.fmtFlag},
         {id: 'name', defaultEn: true, label: 'Name', get: x => x.athlete && x.athlete.sanitizedFullname,
          fmt: fmtName},
+        {id: 'f-last', defaultEn: false, label: 'F. Last', get: x => x.athlete &&
+            x.athlete.sanitizedName, fmt: fmtFLastName},
         {id: 'initials', defaultEn: false, label: 'Name Initials', headerLabel: ' ',
          get: x => x.athlete && x.athlete.initials, fmt: fmtInitials},
         {id: 'team', defaultEn: false, label: 'Team', get: x => x.athlete && x.athlete.team,
@@ -395,16 +424,6 @@ const fieldGroups = [{
          get: x => x.state.reverse, fmt: x => x ? '<ms>arrow_back</ms>' : '<ms>arrow_forward</ms>'},
         {id: 'latency', defaultEn: false, label: 'Latency',
          get: x => x.latency, fmt: x => x ? H.number(x * 1000) + unit('ms') : '-'},
-
-        /*
-        {id: '_f7', defaultEn: false, label: 'f7', get: x => x.state._f7XXX},
-        {id: '_f17', defaultEn: false, label: 'f17', get: x => x.state._f17XXX},
-        {id: '_f32', defaultEn: false, label: 'f32', get: x => x.state._f32XXX},
-        {id: '_f33', defaultEn: false, label: 'f33', get: x => x.state._f33XXX},
-        {id: '_f36', defaultEn: false, label: 'f36', get: x => x.state._f36},
-        {id: '_f37', defaultEn: false, label: 'f37', get: x => x.state._f37},
-        {id: '_f41', defaultEn: false, label: 'f41', get: x => x.state._f41},
-        */
     ],
 }];
 
@@ -415,10 +434,11 @@ export async function main() {
     let refresh;
     const setRefresh = () => refresh = (settings.refreshInterval || 0) * 1000 - 100; // within 100ms is fine.
     const gcs = await common.rpc.getGameConnectionStatus();
-    gameControlEnabled = gcs != null;
-    gameControlConnected = gcs && gcs.connected;
+    gameConnection = !!(gcs && gcs.connected);
+    doc.classList.toggle('game-connection', gameConnection);
     common.subscribe('status', gcs => {
-        gameControlConnected = gcs && gcs.connected;
+        gameConnection = gcs.connected;
+        doc.classList.toggle('game-connection', gameConnection);
     }, {source: 'gameConnection'});
     common.storage.addEventListener('update', async ev => {
         if (ev.data.key === fieldsKey) {
@@ -506,21 +526,6 @@ export async function main() {
         if (link) {
             ev.stopPropagation();
             const athleteId = Number(ev.target.closest('tr').dataset.id);
-            if (link.dataset.id === 'export') {
-                const fitData = await common.rpc.exportFIT(athleteId);
-                const f = new File([new Uint8Array(fitData)], `${athleteId}.fit`, {type: 'application/binary'});
-                const l = document.createElement('a');
-                l.download = f.name;
-                l.style.display = 'none';
-                l.href = URL.createObjectURL(f);
-                try {
-                    document.body.appendChild(l);
-                    l.click();
-                } finally {
-                    URL.revokeObjectURL(l.href);
-                    l.remove();
-                }
-            }
             if (link.dataset.id === 'watch') {
                 await watch(athleteId);
             }
@@ -529,9 +534,6 @@ export async function main() {
     refresh = setRefresh();
     let lastRefresh = 0;
     common.subscribe('nearby', data => {
-        if (window.pause) {
-            return;
-        }
         if (settings.onlyMarked) {
             data = data.filter(x => x.watching || (x.athlete && x.athlete.marked));
         }
@@ -553,10 +555,6 @@ export async function main() {
 
 
 async function watch(athleteId) {
-    if (!gameControlEnabled || !gameControlConnected) {
-        console.warn("Game control not connected/enabled. Can't send watch command");
-        return;
-    }
     await common.rpc.watch(athleteId);
     if (nearbyData) {
         for (const x of nearbyData) {
@@ -583,7 +581,7 @@ function render() {
     tbody = table.querySelector('tbody');
     tbody.innerHTML = '';
     theadRow = table.querySelector('thead tr');
-    theadRow.innerHTML = '<td></td>' + enFields.map(x =>
+    theadRow.innerHTML = enFields.map(x =>
         `<td data-id="${x.id}"
              title="${common.sanitizeForAttr(x.tooltip || x.label || '')}"
              class="${sortBy === x.id ? 'sorted ' + sortDirClass : ''}"
@@ -595,11 +593,7 @@ function render() {
 
 function makeTableRow() {
     const tr = document.createElement('tr');
-    const btns = [`<a class="link" data-id="export" title="Export FIT file of collected data"><ms>file_download</ms></a>`];
-    if (gameControlEnabled) {
-        btns.push(`<a class="link" data-id="watch" title="Watch this athlete"><ms>video_camera_front</ms></a>`);
-    }
-    tr.innerHTML = `<td>${btns.join('')}</td>${enFields.map(({id}) => `<td data-id="${id}"></td>`).join('')}`;
+    tr.innerHTML = enFields.map(({id}) => `<td data-id="${id}"></td>`).join('');
     return tr;
 }
 
@@ -615,6 +609,11 @@ function gentleClassToggle(el, cls, force) {
 
 
 function updateTableRow(row, info) {
+    if (row.title && !gameConnection) {
+        row.title = '';
+    } else if (!row.title && gameConnection) {
+        row.title = 'Double click row to watch this athlete';
+    }
     gentleClassToggle(row, 'watching', info.watching);
     gentleClassToggle(row, 'marked', info.athlete && info.athlete.marked);
     gentleClassToggle(row, 'following', info.athlete && info.athlete.following);
@@ -630,7 +629,7 @@ function updateTableRow(row, info) {
             value = null;
         }
         const html = '' + (fmt ? fmt(value, info) : value != null ? value : '-');
-        const td = tds[i + 1];
+        const td = tds[i];
         if (td._html !== html) {
             td.innerHTML = (td._html = html);
         }

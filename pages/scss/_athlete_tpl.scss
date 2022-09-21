@@ -40,9 +40,10 @@
         align-items: center;
         font-size: 1.1em;
         padding-bottom: 0.1em;
+        user-select: none;
 
         a {
-            opacity: 0.86;
+            opacity: 0.80;
             transition: opacity 150ms;
             margin: -0.5em 0;
             padding-top: 0.15em;
@@ -57,7 +58,7 @@
             }
 
             &:not(:last-child) {
-                margin-right: 0.4em;
+                margin-right: 0.6em;
             }
             &[data-action="toggleMuted"] {
                 ms {
