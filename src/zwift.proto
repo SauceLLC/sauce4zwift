@@ -305,16 +305,16 @@ message UDPServerPool {
     int32 realm = 1;
     int32 courseId = 2;
     repeated UDPServer servers = 3;
-    bool useBounds = 4;
+    bool useFirstInBounds = 4;
 }
 
 message UDPConfigVOD {
     repeated UDPServerPool pools = 1;
     int32 port = 2;
     int64 _f3 = 3;
-    int64 _f4 = 4;
-    float _f5 = 5;
-    float _f6 = 6;
+    int32 watchingAthleteId = 4;
+    float watchingX = 5;
+    float watchingY = 6;
 }
 
 message UDPConfig {
