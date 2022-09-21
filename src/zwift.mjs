@@ -1272,7 +1272,7 @@ export class GameMonitor extends events.EventEmitter {
         let isDirect = !!ip;
         if (!ip) {
             // Use a load balancer unless we have enough info for a direct server.
-            ip = this._udpServerPools.get(0)[0].ip;
+            ip = this._udpServerPools.get(0).servers[0].ip;
             const lws = this._lastWatchingState;
             if (lws && lws.courseId === this.courseId && Date.now() - lws.ts < 60000) {
                 const best = this.findBestUDPServer(lws);
@@ -1545,9 +1545,12 @@ export class GameMonitor extends events.EventEmitter {
 
 
     onInPacket(pb, ch) {
-        if (pb.udpConfigVOD && pb.udpConfigVOD.pools) {
+        if (pb.udpConfigVOD) {
+            if (!pb.udpConfigVOD.pools) {
+                debugger;
+            }
             for (const x of pb.udpConfigVOD.pools) {
-                this._udpServerPools.set(x.courseId, x.servers);
+                this._udpServerPools.set(x.courseId, x);
             }
             queueMicrotask(() => this.emit('udpServerPoolsUpdated', this._udpServerPools));
         }
@@ -1630,13 +1633,52 @@ export class GameMonitor extends events.EventEmitter {
         }
     }
 
-    findBestUDPServer({x, y, courseId}) {
+    findBestUDPServerDebug(arg) {
+        const server1 = this.findBestUDPServerNew(arg);
+        const server2 = this.findBestUDPServerOrig(arg);
+        if (server1 !== server2) {
+            console.warn("Different servers!!!!!", server1, server2, arg.x, arg.y);
+        }
+        return server1;
+    }
+
+    findBestUDPServer(arg) {
+        return this.findBestUDPServerNew(arg);
+    }
+
+    findBestUDPServerNew({x, y, courseId}) {
+        if (!this._udpServerPools.has(courseId)) {
+            return;
+        }
+        const pool = this._udpServerPools.get(courseId);
+        if (pool.useFirstInBounds) {
+            return pool.servers.find(server => x <= server.xBound && y <= server.yBound);
+        } else {
+            debugger;
+            let closestServer;
+            let closestDelta = Infinity;
+            for (const server of pool.servers) {
+                const xDelta = server.xBound - x;
+                const yDelta = server.yBound - y;
+                // Can simplify the sqrt out since we only need the winner
+                const delta = xDelta * xDelta + yDelta * yDelta;
+                if (delta < closestDelta) {
+                    closestDelta = delta;
+                    closestServer = server;
+                }
+            }
+            return closestServer;
+        }
+    }
+
+    findBestUDPServerOrig({x, y, courseId}) {
         // This is just my best guess and seems to match the real game.
         // If someone knows what the official algo is, please contact me!
         if (!this._udpServerPools.has(courseId)) {
             return;
         }
-        const servers = Array.from(this._udpServerPools.get(courseId))
+        const pool = this._udpServerPools.get(courseId);
+        const servers = Array.from(pool.servers)
             .filter(s => x < s.xBound && y < s.yBound)
             .sort((a, b) => {
                 const axDelta = a.xBound - x;
@@ -1652,6 +1694,7 @@ export class GameMonitor extends events.EventEmitter {
         }
         return servers[0];
     }
+
 }
 
 
