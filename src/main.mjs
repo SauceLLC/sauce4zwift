@@ -341,7 +341,7 @@ class SauceApp extends EventEmitter {
         rpcSources.stats = this.statsProc;
         rpcSources.app = this;
         let ip;
-        if (this.getSetting('gameConnectionEnabled')) {
+        if (this.getSetting('gameConnectionEnabled') && !args.disableGameConnection) {
             ip = ip || await getLocalRoutedIP();
             rpcSources.gameConnection = this.gameConnection = this.startGameConnectionServer(ip);
             // This isn't required but reduces latency..
@@ -401,7 +401,7 @@ function snakeToCamelCase(v) {
 function parseArgs() {
     const iter = process.argv.values();
     const args = {};
-    const switches = ['help', 'headless', 'force-login', 'random-watch'];
+    const switches = ['help', 'headless', 'force-login', 'random-watch', 'disable-game-connection'];
     const options = ['host', 'athlete-id'];
     for (let x of iter) {
         if (!x.startsWith('--')) {
