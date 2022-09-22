@@ -325,6 +325,9 @@ class SauceApp extends EventEmitter {
             await secrets.remove('zwift-monitor-login');
             await electron.session.defaultSession.clearStorageData();
             await electron.session.defaultSession.clearCache();
+            const patreonSession = electron.session.fromPartition('persist:patreon');
+            await patreonSession.clearStorageData();
+            await patreonSession.clearCache();
             restart();
         }
     }
