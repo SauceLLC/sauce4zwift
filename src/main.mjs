@@ -535,10 +535,6 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId}) {
         return quit(1);
     }
     if (mainUser === monUser || true) {
-        const buttons = [`Logout Main`, `Logout Monitor`];
-        if (os.platform() === 'darwin') {
-            buttons.reverse();
-        }
         const {response} = await electron.dialog.showMessageBox({
             type: 'warning',
             title: 'Duplicate Zwift Logins',
@@ -547,7 +543,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId}) {
                 'Please select which login should be changed...',
             detail: 'HINT: The Main Login should be your normal Zwift Game login and ' +
                 'the Monitor Login should be a FREE secondary login used ONLY by Sauce.',
-            buttons,
+            buttons: [`Logout Main`, `Logout Monitor`],
             noLink: true,
             textWidth: 400,
         });
