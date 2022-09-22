@@ -164,7 +164,9 @@ rpc.register(() => {
         },
     };
 }, {name: 'getZwiftLoginInfo'});
-rpc.register(async id => {
+
+
+async function zwiftLogout(id) {
     const key = {
         main: 'zwift-login',
         monitor: 'zwift-monitor-login',
@@ -173,7 +175,8 @@ rpc.register(async id => {
         throw new TypeError('Invalid id for zwift logout');
     }
     await secrets.remove(key);
-}, {name: 'zwiftLogout'});
+}
+rpc.register(zwiftLogout);
 
 
 function registerRPCMethods(instance, ...methodNames) {
@@ -376,9 +379,9 @@ async function zwiftAuthenticate(options) {
             try {
                 await options.api.authenticate(creds.username, creds.password, options);
                 console.info(`Using Zwift username [${ident}]:`, creds.username);
-                return;
+                return creds.username;
             } catch(e) {
-                console.debug("Previous Zwift login invalid:", e);
+                console.warn("Previous Zwift login invalid:", e);
                 // We could remove them, but it might be a network error; just leave em for now.
             }
         }
@@ -386,6 +389,7 @@ async function zwiftAuthenticate(options) {
     creds = await windows.zwiftLogin(options);
     if (creds) {
         await secrets.set(ident, creds);
+        return creds.username;
     } else {
         return false;
     }
@@ -521,9 +525,28 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId}) {
         await electron.dialog.showErrorBox('EULA or Patreon Link Error', '' + e);
         return quit(1);
     }
-    if (await zwiftAuthenticate({api: zwiftAPI, ident: 'zwift-login', ...args}) === false ||
-        await zwiftAuthenticate({api: zwiftMonitorAPI, ident: 'zwift-monitor-login', monitor: true, ...args}) === false) {
+    const mainUser = await zwiftAuthenticate({api: zwiftAPI, ident: 'zwift-login', ...args});
+    if (!mainUser) {
         return quit(1);
+    }
+    const monUser = await zwiftAuthenticate({api: zwiftMonitorAPI, ident: 'zwift-monitor-login',
+        monitor: true, ...args});
+    if (!monUser) {
+        return quit(1);
+    }
+    if (mainUser === monUser) {
+        const {response} = await electron.dialog.showMessageBox({
+            type: 'warning',
+            title: 'Duplicate Zwift Logins',
+            message: 'Your Main Zwift Login is the same as the Monitor Zwift Login.\n\n' +
+                `Both are set to: ${mainUser}\n\n` +
+                'Please select which login should be changed...',
+            detail: 'HINT: The Main Login should be your normal Zwift Game login and ' +
+                'the Monitor Login should be a FREE secondary login used ONLY by Sauce.',
+            buttons: [`Logout Main`, `Logout Monitor`],
+        });
+        await zwiftLogout(response === 0 ? 'main' : 'monitor');
+        return restart();
     }
     const updateInfo = await updater;
     if (updateInfo && await maybeDownloadAndInstallUpdate(updateInfo)) {
