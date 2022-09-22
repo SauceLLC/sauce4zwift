@@ -256,6 +256,7 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.setFollowing, {scope: this});
         rpc.register(this.setNotFollowing, {scope: this});
         rpc.register(this.giveRideon, {scope: this});
+        rpc.register(this.getPlayerState, {scope: this});
     }
 
     getEvent(id) {
@@ -1015,6 +1016,18 @@ export class StatsProcessor extends events.EventEmitter {
 
     async giveRideon(athleteId, activity=0) {
         return await this.zwiftAPI._giveRideon(athleteId, this.athleteId, activity);
+    }
+
+    async getPlayerState(athleteId) {
+        let state
+        if (this._athleteData.has(athleteId)) {
+            state = this._athleteData.get(athleteId).mostRecentState;
+        } else {
+            state = await this.zwiftAPI.getPlayerState(athleteId);
+        }
+        if (state) {
+            return this._cleanState(state);
+        }
     }
 
     compareRoadPositions(aData, bData) {

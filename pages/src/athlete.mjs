@@ -130,21 +130,44 @@ export async function render(el, tpl, tplData) {
         }
         await rerender();
     });
-    common.subscribe('nearby', async data => {
-        const live = data.find(x => x.athleteId === athleteId);
-        if (!live) {
-            return;
-        }
+    let lastUpdate = 0;
+    function updatePlayerState(state) {
+        lastUpdate = Date.now();
         const liveEls = Object.fromEntries(Array.from(el.querySelectorAll('.live'))
             .map(x => [x.dataset.id, x]));
-        liveEls.power.innerHTML = H.power(live.state.power, {suffix: true, html: true});
-        liveEls.speed.innerHTML = H.pace(live.state.speed, {suffix: true, html: true});
-        liveEls.hr.textContent = H.number(live.state.heartrate);
-        liveEls.rideons.textContent = H.number(live.state.rideons);
-        liveEls.kj.textContent = H.number(live.state.kj);
+        liveEls.power.innerHTML = H.power(state.power, {suffix: true, html: true});
+        liveEls.speed.innerHTML = H.pace(state.speed, {suffix: true, html: true});
+        liveEls.hr.textContent = H.number(state.heartrate);
+        liveEls.rideons.textContent = H.number(state.rideons);
+        liveEls.kj.textContent = H.number(state.kj);
         if (tplData.debug) {
-            document.querySelector('.debug').textContent = JSON.stringify([live.state, live.athlete], null, 4);
+            document.querySelector('.debug').textContent = JSON.stringify([state, tplData.athlete], null, 4);
         }
+    }
+    // XXX nearby his extremely wasteful and limited in scope, need new system to subscribe to one
+    common.subscribe('nearby', async data => {
+        const ad = data.find(x => x.athleteId === athleteId);
+        if (!ad) {
+            return;
+        }
+        console.log("update now");
+        updatePlayerState(ad.state);
     });
+    async function getPlayerState() {
+        console.debug("Using RPC get player state");
+        const state = await common.rpc.getPlayerState(athleteId);
+        if (state) {
+            updatePlayerState(state);
+        }
+    }
+    // Backup for not nearby or in game.
+    setInterval(async () => {
+        const now = Date.now();
+        if (now - lastUpdate < 9000) {
+            return;
+        }
+        await getPlayerState();
+    }, 10000);
     await rerender();
+    await getPlayerState();
 }
