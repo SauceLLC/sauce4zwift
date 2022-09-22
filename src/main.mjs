@@ -534,7 +534,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId}) {
     if (!monUser) {
         return quit(1);
     }
-    if (mainUser === monUser || true) {
+    if (mainUser === monUser) {
         const {response} = await electron.dialog.showMessageBox({
             type: 'warning',
             title: 'Duplicate Zwift Logins',
