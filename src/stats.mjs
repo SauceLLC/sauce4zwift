@@ -610,10 +610,6 @@ export class StatsProcessor extends events.EventEmitter {
             console.error("Expunged:", packet.expungeReason);
             debugger;
         }
-        if (packet.multipleLogins) {
-            console.error("Multiple logins!");
-            debugger;
-        }
         if (packet.eventPositions) {
             const ep = packet.eventPositions;
             if (ep.position && this._athleteData.has(ep.watchingAthleteId)) {

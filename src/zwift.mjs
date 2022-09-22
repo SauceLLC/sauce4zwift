@@ -1545,10 +1545,13 @@ export class GameMonitor extends events.EventEmitter {
 
 
     onInPacket(pb, ch) {
+        if (pb.multipleLogins) {
+            console.error("Multiple logins detected!");
+            this.emit('multiple-logins');
+            this.stop();
+            return;
+        }
         if (pb.udpConfigVOD) {
-            if (!pb.udpConfigVOD.pools) {
-                debugger;
-            }
             for (const x of pb.udpConfigVOD.pools) {
                 this._udpServerPools.set(x.courseId, x);
             }

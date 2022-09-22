@@ -339,6 +339,12 @@ class SauceApp extends EventEmitter {
             gameAthleteId: args.athleteId || zwiftAPI.profile.id,
             randomWatch: args.randomWatch,
         });
+        gameMonitor.on('multiple-logins', () => {
+            electron.dialog.showErrorBox('Multiple Logins Detected',
+                'Your Monitor Zwift Login is being used by more than 1 application. ' +
+                'This is usually an indicator that your Monitor Login is not the correct one. ' +
+                'Go to the main settings panel and logout if it is incorrect.');
+        });
         this.statsProc = new stats.StatsProcessor({zwiftAPI, gameMonitor});
         this.statsProc.start();
         rpcSources.stats = this.statsProc;
