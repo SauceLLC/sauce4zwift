@@ -225,6 +225,31 @@ table {
     }
 }
 
+#titlebar {
+    position: initial !important;
+
+    header {
+        flex-wrap: wrap;
+
+        input[type="text"], select {
+            font-size: 0.8em;
+            margin: 0 0 0 1em;
+            background: #111;
+            color: #fff;
+            border-color: #3333;
+        }
+
+        .buttons {
+            font-size: 0.7em;
+            justify-content: flex-end;
+
+            .button {
+                padding: 0.2em 1.2em !important;
+            }
+        }
+    }
+}
+
 #content {
     scroll-behavior: smooth;
     padding: 0;

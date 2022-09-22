@@ -4,10 +4,10 @@ import {render as athleteRender} from './athlete.mjs';
 
 const L = sauce.locale;
 //const H = L.human;
-//const settingsKey = 'events-settings-v1';
+const settingsKey = 'events-settings-v1';
 let imperial = common.storage.get('/imperialUnits');
 L.setImperial(imperial);
-//let settings;
+let settings;
 
 //const weightClass = v => H.weightClass(v, {suffix: true, html: true});
 
@@ -76,7 +76,10 @@ export async function main() {
             L.setImperial(imperial = ev.data.value);
         }
     });
-    //settings = common.storage.get(settingsKey, {});
+    settings = common.storage.get(settingsKey, {
+        sport: 'cycling',
+        hideEventTypes: [],
+    });
     const events = await getEventsWithRetry();
     const contentEl = await render(events);
     const eventDetailTpl = await sauce.template.getTemplate(`templates/event-details.html.tpl`);
