@@ -1015,7 +1015,7 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     async getPlayerState(athleteId) {
-        let state
+        let state;
         if (this._athleteData.has(athleteId)) {
             state = this._athleteData.get(athleteId).mostRecentState;
         } else {

@@ -689,12 +689,13 @@ export async function patronLink() {
     win.on('closed', () => resolve({closed: true}));
     while (true) {
         const {code, token, closed} = await new Promise(_resolve => resolve = _resolve);
+        let isAuthed;
         if (closed) {
             return false;
         } else if (token) {
             membership = await patreon.getLegacyMembership(token);
         } else {
-            const isAuthed = code && await patreon.link(code);
+            isAuthed = code && await patreon.link(code);
             membership = isAuthed && await patreon.getMembership();
         }
         if (membership && membership.patronLevel >= 10) {
@@ -702,7 +703,15 @@ export async function patronLink() {
             win.close();
             return true;
         } else {
-            win.loadFile(path.join(pagePath, 'non-patron.html'));
+            const q = new URLSearchParams();
+            if (isAuthed) {
+                q.set('id', patreon.getUserId());
+                if (membership) {
+                    q.set('isPatron', true);
+                    q.set('patronLevel', membership.patronLevel);
+                }
+            }
+            win.loadURL(`file://${path.join(pagePath, 'non-patron.html')}?${q}`);
         }
     }
 }

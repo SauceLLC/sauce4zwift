@@ -40,6 +40,14 @@ export async function link(code) {
 }
 
 
+export function getUserId(options={}) {
+    const auth = storage.load('patreon-auth');
+    if (auth) {
+        return auth.id;
+    }
+}
+
+
 export async function getMembership(options={}) {
     const auth = storage.load('patreon-auth');
     if (!auth) {

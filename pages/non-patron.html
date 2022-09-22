@@ -12,6 +12,10 @@
         <link rel="stylesheet" href="css/common.css"/>
 
         <style>
+            a {
+                text-decoration: underline;
+            }
+
             html {
                 padding: 0;
                 font-size: 16px;
@@ -53,12 +57,24 @@
                 height: 2.4em;
                 border-radius: 0.28em;
             }
+
+            html:not(.has-auth) .has-auth-only {
+                display: none;
+            }
         </style>
 
         <script type="module">
             import * as common from './src/common.mjs';
             common.initInteractionListeners();
 
+            const q = new URLSearchParams(location.search);
+            const id = q.get('id');
+            if (id) {
+                document.documentElement.classList.add('has-auth');
+                document.querySelector('a.patreon-user').href =
+                    `https://www.patreon.com/user/creators?u=${id}`;
+                document.querySelector('span.id').textContent = id;
+            }
             document.querySelector('.button.reset-session').addEventListener('click', () =>
                 document.dispatchEvent(new Event('patreon-reset-session')));
         </script>
@@ -67,21 +83,28 @@
     <body>
         <header>
             <img class="logo" src="images/logo_vert_120x320.png"/>
-            <h3>Darn, it looks like you're not a Sauce Member <i><small>(yet?)</small></i> 😞</h4>
+            <h3>Darn, it looks like you're not a Sauce Member yet or something isn't quite right 😞</h3>
         </header>
         <main>
-            <h4>If you just signed up to Patreon, you'll need to join our campaign at the "Sauce Member" (or higher) tier...</h4>
-
+            <h4>If you haven't signed up yet OR did not choose the "Sauce Member" tier or higher, use this link...</h4>
             <a external href="https://www.patreon.com/bePatron?u=32064618"><img class="patreon" src="images/become_a_patron_button@2x.png"/></a>
+            <h4>...and then <a href="patron.html">Link to Patreon</a> again.</h4>
 
-            <h4>After joining the campaign you can retry the <a href="patron.html">Link to Patreon</a>.</h4>
 
+            <div class="has-auth-only">
+                <br/>
+                <h4>Also please check that
+                    <a external target="_blank" class="patreon-user">Patreon account <span class="id"></span></a>
+                    is the one associated with your Sauce Membership.
+                    </br/>
+                </p>
+            </div>
+
+            <br/>
+            <div class="std button large reset-session">Logout and retry...</div>
 
             <br/><br/><small>For assistance send an email to
             <a external href="mailto:support@saucellc.io">support@saucellc.io</a>.</small>
-
-            <br/>
-            <div class="std button reset-session">Logout and retry...</div>
         </main>
     </body>
 </html>
