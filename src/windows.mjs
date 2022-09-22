@@ -59,7 +59,7 @@ export const windowManifests = [{
 }, {
     type: 'events',
     page: 'events.html',
-    prettyName: 'Events [ALPHA]',
+    prettyName: 'Events',
     prettyDesc: 'Event listings and entrant information',
     options: {width: 900, height: 0.8},
     overlay: false,
