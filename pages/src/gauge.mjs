@@ -361,7 +361,7 @@ export async function main() {
             L.setImperial(imperial);
         }
     });
-    common.subscribe('watching', watching => {
+    common.subscribe('athlete/watching', watching => {
         renderer.setData(watching);
         renderer.render();
     });

@@ -257,6 +257,26 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.setNotFollowing, {scope: this});
         rpc.register(this.giveRideon, {scope: this});
         rpc.register(this.getPlayerState, {scope: this});
+        rpc.register(this.getNearbyData, {scope: this});
+        rpc.register(this.getGroupsData, {scope: this});
+        rpc.register(this.getAthleteData, {scope: this});
+        this._athleteSubs = new Map();
+        this.on('newListener', this.onNewListener.bind(this));
+        this.on('removeListener', this.onRemoveListener.bind(this));
+    }
+
+    onNewListener(event) {
+        if (event.startsWith('athlete/')) {
+            const ident = event.match(/athlete\/(.+)/)[1];
+            console.info("New athlete subscription:", ident);
+        }
+    }
+
+    onRemoveListener(event) {
+        if (event.startsWith('athlete/')) {
+            const ident = event.match(/athlete\/(.+)/)[1];
+            console.info("Removing athlete subscription:", ident);
+        }
     }
 
     getEvent(id) {
@@ -296,21 +316,13 @@ export class StatsProcessor extends events.EventEmitter {
         });
     }
 
-    _fmtAthleteData(x) {
-        return {
-            athleteId: x.athleteId,
-            mostRecentState: this._cleanState(x.mostRecentState),
-            profile: this.loadAthlete(x.athleteId),
-        };
-    }
-
     getAthletesData() {
-        return Array.from(this._athleteData.values()).map(this._fmtAthleteData.bind(this));
+        return Array.from(this._athleteData.values()).map(this._formatAthleteEntry.bind(this));
     }
 
     getAthleteData(id) {
         const data = this._athleteData.get(id);
-        return data ? this._fmtAthleteData(data) : null;
+        return data ? this._formatAthleteEntry(data) : null;
     }
 
     getNearbyData() {
@@ -865,18 +877,14 @@ export class StatsProcessor extends events.EventEmitter {
         curLap.draft.resize(time);
         curLap.cadence.resize(time);
         ad.updated = monotonic();
-        if (this.watching === state.athleteId) {
-            const athlete = this.loadAthlete(state.athleteId);
-            this.emit('watching', {
-                athleteId: state.athleteId,
-                athlete,
-                stats: this._getCollectorStats(ad, athlete),
-                laps: ad.laps.map(x => this._getCollectorStats(x, athlete, /*isLap*/ true)),
-                state: this._cleanState(state),
-                eventPosition: ad.eventPosition,
-                eventParticipants: ad.eventParticipants,
-                ...this._getRemaining(state),
-            });
+        if (this.watching === state.athleteId && this.listenerCount('athlete/watching')) {
+            this.emit('athlete/watching', this._formatAthleteEntry(ad));
+        }
+        if (this.athleteId === state.athleteId && this.listenerCount('athlete/self')) {
+            this.emit('athlete/self', this._formatAthleteEntry(ad));
+        }
+        if (this.listenerCount(`athlete/${state.athleteId}`)) {
+            this.emit(`athlete/${state.athleteId}`, this._formatAthleteEntry(ad));
         }
         this._stateProcessCount++;
     }
@@ -1231,24 +1239,30 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
-    _formatNearbyEntry({data, isGapEst, rp, gap}) {
-        const athleteId = data.athleteId;
-        const athlete = this.loadAthlete(athleteId);
+    _formatAthleteEntry(data, extra) {
+        const athlete = this.loadAthlete(data.athleteId);
+        const state = data.mostRecentState;
         return {
-            athleteId,
-            isGapEst: isGapEst !== false,
-            watching: athleteId === this.watching,
+            athleteId: state.athleteId,
             athlete,
             stats: this._getCollectorStats(data, athlete),
             laps: data.laps.map(x => this._getCollectorStats(x, athlete, /*isLap*/ true)),
-            state: this._cleanState(data.mostRecentState),
-            latency: (Date.now() - data.mostRecentState.ts) / 1000,
-            gap,
-            gapDistance: rp.gapDistance,
+            state: this._cleanState(state),
+            latency: (Date.now() - state.ts) / 1000,
             eventPosition: data.eventPosition,
             eventParticipants: data.eventParticipants,
-            ...this._getRemaining(data.mostRecentState),
+            ...this._getRemaining(state),
+            ...extra,
         };
+    }
+
+    _formatNearbyEntry({data, isGapEst, rp, gap}) {
+        return this._formatAthleteEntry(data, {
+            gap,
+            gapDistance: rp.gapDistance,
+            isGapEst: isGapEst ? true : undefined,
+            watching: data.athleteId === this.watching ? true : undefined,
+        });
     }
 
     _computeNearby() {

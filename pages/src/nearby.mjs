@@ -493,7 +493,9 @@ export async function main() {
         const row = ev.target.closest('tr');
         if (row) {
             clearSelection();
-            await watch(Number(row.dataset.id));
+            if (gameConnection) {
+                await watch(Number(row.dataset.id));
+            }
         }
     });
     theadRow.addEventListener('click', ev => {
@@ -645,26 +647,28 @@ function renderData(data, {recenter}={}) {
         return;
     }
     const sortField = enFields.find(x => x.id === sortBy);
-    const sortGet = sortField.sortValue || sortField.get;
-    data.sort((a, b) => {
-        let av = sortGet(a);
-        let bv = sortGet(b);
-        if (Array.isArray(av)) {
-            av = av[0];
-        }
-        if (Array.isArray(bv)) {
-            bv = bv[0];
-        }
-        if (av == bv) {
-            return 0;
-        } else if (av == null || bv == null) {
-            return av == null ? 1 : -1;
-        } else if (typeof av === 'number') {
-            return (av < bv ? 1 : -1) * sortByDir;
-        } else {
-            return (('' + av).toLowerCase() < ('' + bv).toLowerCase() ? 1 : -1) * sortByDir;
-        }
-    });
+    const sortGet = sortField && (sortField.sortValue || sortField.get);
+    if (sortGet) {
+        data.sort((a, b) => {
+            let av = sortGet(a);
+            let bv = sortGet(b);
+            if (Array.isArray(av)) {
+                av = av[0];
+            }
+            if (Array.isArray(bv)) {
+                bv = bv[0];
+            }
+            if (av == bv) {
+                return 0;
+            } else if (av == null || bv == null) {
+                return av == null ? 1 : -1;
+            } else if (typeof av === 'number') {
+                return (av < bv ? 1 : -1) * sortByDir;
+            } else {
+                return (('' + av).toLowerCase() < ('' + bv).toLowerCase() ? 1 : -1) * sortByDir;
+            }
+        });
+    }
     const centerIdx = data.findIndex(x => x.watching);
     const watchingRow = tbody.querySelector('tr.watching') || tbody.appendChild(makeTableRow());
     let row = watchingRow;

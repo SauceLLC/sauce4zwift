@@ -137,7 +137,7 @@ export async function main() {
         autoHideTimeout = setTimeout(autoHide, autoHideWait);
     }
     let lastUpdate = 0;
-    common.subscribe('watching', watching => {
+    common.subscribe('athlete/watching', watching => {
         if (window.isElectron && settings.autoHideWindows &&
             (watching.state.speed || watching.state.cadence || watching.state.power)) {
             clearTimeout(autoHideTimeout);

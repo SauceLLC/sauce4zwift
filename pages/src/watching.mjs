@@ -778,7 +778,7 @@ export async function main() {
         }
     });
     let athleteId;
-    common.subscribe('watching', watching => {
+    common.subscribe('athlete/watching', watching => {
         const force = watching.athleteId !== athleteId;
         athleteId = watching.athleteId;
         for (const x of renderers) {

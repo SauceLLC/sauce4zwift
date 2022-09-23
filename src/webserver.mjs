@@ -194,6 +194,7 @@ async function _start({ip, port, rpcSources, statsProc}) {
         res.send([{
             'athletes': '[GET] Information for all active athletes',
             'athletes/<id>': '[GET] Information for specific athlete',
+            'athletes/self': '[GET] Information for the logged in athlete',
             'athletes/watching': '[GET] Information for athlete being watched',
             'nearby': '[GET] Information for all nearby athletes',
             'groups': '[GET] Information for all nearby groups',
@@ -216,6 +217,7 @@ async function _start({ip, port, rpcSources, statsProc}) {
         }
         res.send(replyEnvelope);
     });
+    api.get('/athletes/self', (req, res) => getAthleteHandler(res, sp.athleteId));
     api.get('/athletes/watching', (req, res) => getAthleteHandler(res, sp.watching));
     api.get('/athletes/:id', (req, res) => getAthleteHandler(res, Number(req.params.id)));
     api.get('/athletes', (req, res) => res.send(sp.getAthletesData()));
