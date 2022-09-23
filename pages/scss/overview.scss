@@ -43,22 +43,19 @@ html {
     align-items: center;
     overflow: hidden;
     flex: 1 1 100%;
-    padding: 0.1em 0.6em;
+    padding: 0.1em 0;
 }
 
-html #content .button.move {
-    font-size: 1em;
-}
 #content .button.move {
-    padding-top: 0.2em;
-    padding-bottom: 0.2em;
-    padding-right: 0.4em;
-    transition: font-size 200ms;
+    font-size: 1.3em;
+    padding: 0.2em 0.2em 0.2em 0.5rem;
     overflow: hidden;
+    height: 100%;
+    display: flex;
+    align-items: center;
 
-    img {
-        height: 1em;
-        filter: invert(1);
+    ms {
+        margin-bottom: 0;
     }
 }
 
@@ -127,23 +124,47 @@ header {
     display: flex;
     justify-content: flex-end;
     align-items: center;
+    margin-right: 0.3em;
 
-    .button img {
-        height: 1.5em;
-        filter: invert(1);
+    .button {
+        padding-left: 0.33em;
+        padding-right: 0.33em;
+        border-radius: 0.3em;
+        transition: opacity 200ms, background 200ms;
+
+        &:not(:last-child) {
+            padding-right: 0.3em;
+        }
+
+        &:hover {
+            background-color: #fff3;
+        }
+
+        &:active {
+            background-color: #0003;
+        }
+
+        ms {
+            margin-top: 0.15em;
+            font-size: 1.5em;
+        }
     }
 
-    .button:not(:last-child) {
-        margin-right: 0.5em;
+    .button.hide,
+    .button.show {
+        ms {
+            margin-bottom: 0.08em;
+        }
     }
 
     .auto-hidden-label {
         font-variant: small-caps;
         font-weight: bold;
         font-size: 0.6em;
-        opacity: 0.6;
+        opacity: 0.78;
         text-align: center;
-        margin-right: 1em;
+        margin-left: 0.15em;
+        margin-right: 0.1em;
         line-height: 1;
     }
 }

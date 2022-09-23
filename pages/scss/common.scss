@@ -155,7 +155,7 @@ html {
 }
 
 html:not(.electron-mode) .electron-only {
-    display: none;
+    display: none !important;
 }
 
 img {
@@ -379,7 +379,7 @@ html:not(:hover) #hintbar {
     font-size: 18px;
 }
 #titlebar header {
-    font-size: 20px;
+    font-size: 22px;
 }
 
 .button-bar {
@@ -442,9 +442,21 @@ html:not(:hover) #hintbar {
     }
 
     .button {
+        transition: background 200ms;
+
+        border-radius: 0.28em;
+
         img {
             height: 0.85em;
             filter: invert(1);
+        }
+
+        &:hover {
+            background-color: #fff3;
+        }
+
+        &:active {
+            background-color: #0003;
         }
 
         &.disabled {
@@ -458,7 +470,7 @@ html:not(:hover) #hintbar {
         max-width: 100%;
         display: flex;
         align-items: center;
-        padding: 0.56em 0.5em;
+        padding: 0.2em;
         background-image: linear-gradient(to top, #222, #333);
 
         .title {
@@ -466,21 +478,31 @@ html:not(:hover) #hintbar {
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            flex: 1 1 auto;
+            padding: 0.6em 0.3em;
+        }
+
+        .button {
+            font-size: 1.26em;
+            padding: 0.05em 0.3em;
         }
 
         .button.move {
-            padding: 0 0.4em 0 0;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            padding: 0.3em 0 0.3em 0.15em;
+
+            ms {
+                margin-bottom: 0;
+            }
         }
 
         .buttons {
             display: flex;
             align-items: center;
-            justify-content: flex-end;
-            flex: 1 0 auto;
 
             .button {
-                padding-left: 0.5em;
-
                 img {
                     height: 0.90em;
                     filter: invert(1);
