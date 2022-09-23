@@ -225,9 +225,9 @@ export class StatsProcessor extends events.EventEmitter {
         this.zwiftAPI = options.zwiftAPI;
         this.gameMonitor = options.gameMonitor;
         this.setMaxListeners(100);
-        this._athleteData = new Map();
         this.athleteId = null;
         this.watching = null;
+        this._athleteData = new Map();
         this._athletesCache = new Map();
         this._stateProcessCount = 0;
         this._stateDupCount = 0;
@@ -236,8 +236,8 @@ export class StatsProcessor extends events.EventEmitter {
         this._pendingProfileFetches = [];
         this._profileFetchCount = 0;
         this._chatHistory = [];
-        this._events = new Map();
-        this._eventSubgroups = new Map();
+        this._recentEvents = new Map();
+        this._recentEventSubgroups = new Map();
         this._routes = new Map();
         this._mostRecentNearby = [];
         this._mostRecentGroups = [];
@@ -280,15 +280,15 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     getEvent(id) {
-        return this._events.get(id);
+        return this._recentEvents.get(id);
     }
 
     getEvents() {
-        return Array.from(this._events.values()).sort((a, b) => a.ts - b.ts);
+        return Array.from(this._recentEvents.values()).sort((a, b) => a.ts - b.ts);
     }
 
     getEventSubgroup(id) {
-        return this._eventSubgroups.get(id);
+        return this._recentEventSubgroups.get(id);
     }
 
     async getEventSubgroupEntrants(id) {
@@ -965,7 +965,7 @@ export class StatsProcessor extends events.EventEmitter {
                 x.routeClimbing = this._getRouteClimbing(route, x.laps);
             }
             x.ts = new Date(x.eventStart).getTime();
-            this._events.set(x.id, x);
+            this._recentEvents.set(x.id, x);
             if (x.eventSubgroups) {
                 for (const sg of x.eventSubgroups) {
                     const route = this._routes.get(sg.routeId);
@@ -973,7 +973,7 @@ export class StatsProcessor extends events.EventEmitter {
                         sg.routeDistance = this._getRouteDistance(route, sg.laps);
                         sg.routeClimbing = this._getRouteClimbing(route, sg.laps);
                     }
-                    this._eventSubgroups.set(sg.id, {
+                    this._recentEventSubgroups.set(sg.id, {
                         event: x,
                         route: this._routes.get(sg.routeId),
                         ...sg
@@ -988,10 +988,10 @@ export class StatsProcessor extends events.EventEmitter {
             x.totalEntrantCount = x.acceptedTotalCount;
             x.eventSubgroups = [];
             x.ts = new Date(x.eventStart).getTime();
-            this._events.set(x.id, x);
+            this._recentEvents.set(x.id, x);
             if (x.eventSubgroupId) {
                 // Meetups are basicaly a hybrid event/subgroup
-                this._eventSubgroups.set(x.eventSubgroupId, {
+                this._recentEventSubgroups.set(x.eventSubgroupId, {
                     event: x,
                     route: this._routes.get(x.routeId),
                     ...x
@@ -1208,7 +1208,7 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _getRemaining(state) {
-        const sg = state.eventSubgroupId && this._eventSubgroups.get(state.eventSubgroupId);
+        const sg = state.eventSubgroupId && this._recentEventSubgroups.get(state.eventSubgroupId);
         if (sg) {
             if (sg.durationInSeconds) {
                 const eventEnd = +(new Date(sg.eventSubgroupStart || sg.eventStart)) +
