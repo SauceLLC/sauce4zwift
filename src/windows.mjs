@@ -295,16 +295,6 @@ export function setWindow(id, data) {
 rpc.register(setWindow);
 
 
-export function setWindowOpacity(id, opacity) {
-    updateWindow(id, {opacity});
-    const win = getActiveWindow(id);
-    if (win) {
-        win.setOpacity(opacity);
-    }
-}
-rpc.register(setWindowOpacity);
-
-
 export function updateWindow(id, updates) {
     const w = getWindow(id);
     Object.assign(w, updates);

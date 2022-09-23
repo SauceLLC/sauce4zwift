@@ -447,9 +447,6 @@ export async function main() {
             const oldSettings = settings;
             settings = ev.data.value;
             setBackground(settings);
-            if (oldSettings.transparency !== settings.transparency) {
-                common.rpc.setWindowOpacity(window.electron.context.id, 1 - (settings.transparency / 100));
-            }
             if (window.isElectron && typeof settings.overlayMode === 'boolean') {
                 await common.rpc.updateWindow(window.electron.context.id, {overlay: settings.overlayMode});
                 if (settings.overlayMode !== oldSettings.overlayMode) {
@@ -477,7 +474,6 @@ export async function main() {
         refreshInterval: 2,
         overlayMode: false,
         fontScale: 1,
-        transparency: 0,
         solidBackground: false,
         backgroundColor: '#00ff00',
     });
