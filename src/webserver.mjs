@@ -126,6 +126,7 @@ async function _start({ip, port, rpcSources, statsProc}) {
         cacheControl: true,
         setHeaders: res => res.setHeader('Cache-Control', cacheDisabled)
     }));
+    const serialCache = new WeakMap();
     router.ws('/api/ws/events', (ws, req) => {
         const client = req.client.remoteAddress;
         console.info("WebSocket connected:", client);
@@ -149,12 +150,18 @@ async function _start({ip, port, rpcSources, statsProc}) {
                         ws.close();
                         ws = null;
                     } else if (ws) {
-                        ws.send(JSON.stringify({
-                            success: true,
-                            type: 'event',
-                            data,
-                            uid: subId,
-                        }));
+                        let json = serialCache.get(data);
+                        if (!json) {
+                            json = JSON.stringify(data);
+                            serialCache.set(data, json);
+                        }
+                        // Saves heaps of CPU when we have many clients on same event
+                        ws.send(`{
+                            "success": true,
+                            "type": "event",
+                            "uid": ${JSON.stringify(subId)},
+                            "data": ${json}
+                        }`);
                     }
                 };
                 subs.set(subId, {event, cb, emitter});

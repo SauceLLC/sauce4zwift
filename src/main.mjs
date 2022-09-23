@@ -82,11 +82,20 @@ electron.app.on('activate', async () => {
     }
 });
 electron.app.on('before-quit', () => void (quiting = true));
+
+const serialCache = new WeakMap();
 electron.ipcMain.on('subscribe', (ev, {event, domEvent, persistent, source='stats'}) => {
     const {win, activeSubs, spec} = windows.getMetaByWebContents(ev.sender);
     // NOTE: Electron webContents.send is incredibly hard ON CPU and GC for deep objects.  Using JSON is
     // a massive win for CPU and memory.
-    const sendMessage = data => win.webContents.send('browser-message', {domEvent, json: JSON.stringify(data)});
+    const sendMessage = data => {
+        let json = serialCache.get(data);
+        if (!json) {
+            json = JSON.stringify(data);
+            serialCache.set(data, json);
+        }
+        win.webContents.send('browser-message', {domEvent, json});
+    };
     // NOTE: MacOS emits show/hide AND restore/minimize but Windows only does restore/minimize
     const resumeEvents = ['responsive', 'show', 'restore'];
     const suspendEvents = ['unresponsive', 'hide', 'minimize'];
