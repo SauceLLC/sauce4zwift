@@ -35,10 +35,12 @@
 }
 
 img {
+    -webkit-user-select: none;
     user-select: none;
 }
 
 ms {
+    -webkit-user-select: none;
     user-select: none;
     font-family: 'Material Symbols Rounded';
     font-weight: normal;
@@ -135,6 +137,8 @@ ms {
 
 html {
     box-sizing: border-box;
+    -webkit-user-select: none;
+
     user-select: none;
     font-family: 'Jost', sans-serif;
 
@@ -602,6 +606,7 @@ html.settings-page #titlebar {
     display: flex;
     align-items: center;
     justify-content: center;
+    -webkit-user-select: none;
     user-select: none;
 
     .hint {

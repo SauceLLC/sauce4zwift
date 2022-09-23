@@ -135,6 +135,7 @@ table {
         font-variant: tabular-nums;
         cursor: pointer;
         white-space: nowrap;
+        -webkit-user-select: text;
         user-select: text;
 
         &[data-id="name"],

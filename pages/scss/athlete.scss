@@ -3,6 +3,7 @@
 html {
     padding: 0;
     font-size: 16px;
+    -webkit-user-select: text;
     user-select: text;
 
     &.embed {

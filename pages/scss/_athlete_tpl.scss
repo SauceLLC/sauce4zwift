@@ -11,6 +11,7 @@
     border-radius: 0.3em;
     overflow: hidden;
     font-variant-numeric: tabular-nums;
+    -webkit-user-select: text;
     user-select: text;
 }
 
@@ -40,6 +41,7 @@
         align-items: center;
         font-size: 1.1em;
         padding-bottom: 0.1em;
+        -webkit-user-select: none;
         user-select: none;
 
         a {

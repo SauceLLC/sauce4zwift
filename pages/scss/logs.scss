@@ -1,6 +1,5 @@
 html {
     padding: 0;
-    user-select: initial !important;
 
     &[data-level="info"] {
         table tr[data-level="debug"] {
@@ -119,6 +118,8 @@ header {
             white-space: nowrap;
             vertical-align: top;
             padding: 0.3em;
+            -webkit-user-select: text;
+            user-select: text;
 
             &.time {
                 font-size: 0.9em;
