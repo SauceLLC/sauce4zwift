@@ -222,6 +222,16 @@ export function initInteractionListeners() {
                 html.classList.remove('settings-mode');
             }
         });
+        const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+        if (isSafari) {
+            let touching;
+            window.addEventListener("touchstart", ev => {
+                clearTimeout(touching);
+                touching = setTimeout(() => window.dispatchEvent(new Event('contextmenu')), 500);
+            });
+            window.addEventListener("touchmove", () => clearTimeout(touching));
+            window.addEventListener("touchend", () => clearTimeout(touching));
+        }
     }
     if (!window.isElectron) {
         addOpenSettingsParam('id', windowID);

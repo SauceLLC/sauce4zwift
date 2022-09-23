@@ -620,6 +620,12 @@ html.settings-page #titlebar {
     }
 }
 
+@media (hover: none) {
+    #hintbar .hint::after {
+        content: 'Long press for controls';
+    }
+}
+
 #content {
     flex: 1 1 auto;
     display: flex;
