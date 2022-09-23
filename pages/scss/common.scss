@@ -84,6 +84,10 @@ ms {
         font-weight: 200;
     }
 
+    &[fill] {
+        font-variation-settings: 'FILL' 1;
+    }
+
     @keyframes alert-color-flash {
         from {
             color: #b01010;

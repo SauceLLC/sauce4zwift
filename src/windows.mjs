@@ -447,8 +447,8 @@ function handleNewSubWindow(parent, spec) {
             }
         }
         const q = new URLSearchParams((new URL(url)).search);
-        const width = Number(q.get('widthHint')) || undefined;
-        const height = Number(q.get('heightHint')) || undefined;
+        const width = Number(q.get('width')) || undefined;
+        const height = Number(q.get('height')) || undefined;
         const display = getDisplayForWindow(parent);
         const size = getSizeForDisplay(display, {width, height});
         const position = getPositionForDisplay(display, size);
