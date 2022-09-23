@@ -505,7 +505,6 @@ function _openWindow(id, spec) {
         ...spec.options,
         ...size,
         ...position,
-        opacity: spec.opacity,
     };
     const win = new electron.BrowserWindow({
         type: isLinux ? 'splash' : undefined,
