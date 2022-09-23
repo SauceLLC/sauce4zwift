@@ -398,14 +398,13 @@ html:not(:hover) #hintbar {
         display: flex;
         align-items: center;
         justify-content: center;
-        transition: opacity 200ms, background 200ms;
 
         &:hover {
-            background: #9700ff6b;
+            background: #fff3;
         }
 
         &:active {
-            background: #0008;
+            background: #0003;
         }
 
         &.disabled {
@@ -442,8 +441,6 @@ html:not(:hover) #hintbar {
     }
 
     .button {
-        transition: background 200ms;
-
         border-radius: 0.28em;
 
         img {
@@ -483,8 +480,12 @@ html:not(:hover) #hintbar {
         }
 
         .button {
-            font-size: 1.26em;
+            font-size: 1.2em;
             padding: 0.05em 0.3em;
+
+            ms {
+                font-weight: 300;
+            }
         }
 
         .button.move {
@@ -492,6 +493,7 @@ html:not(:hover) #hintbar {
             display: flex;
             align-items: center;
             padding: 0.3em 0 0.3em 0.15em;
+            background-color: transparent !important;
 
             ms {
                 margin-bottom: 0;
@@ -542,8 +544,8 @@ html.settings-page #titlebar {
 
 .button {
     cursor: pointer;
-    opacity: 0.86;
-    transition: opacity 200ms;
+    opacity: 0.80;
+    transition: opacity 200ms, background 200ms;
 
     &.std {
         display: flex;

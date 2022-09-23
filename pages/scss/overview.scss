@@ -47,7 +47,7 @@ html {
 }
 
 #content .button.move {
-    font-size: 1.3em;
+    font-size: 1.4em;
     padding: 0.2em 0.2em 0.2em 0.5rem;
     overflow: hidden;
     height: 100%;
@@ -56,6 +56,7 @@ html {
 
     ms {
         margin-bottom: 0;
+        font-weight: 300;
     }
 }
 
@@ -146,7 +147,8 @@ header {
 
         ms {
             margin-top: 0.15em;
-            font-size: 1.5em;
+            font-size: 1.4em;
+            font-weight: 300;
         }
     }
 
