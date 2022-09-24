@@ -370,6 +370,7 @@ html:not(:hover) #hintbar {
     padding-bottom: 0;
 
     .app-drag {
+        app-region: initial;
         -webkit-app-region: initial;
     }
 }
@@ -518,6 +519,7 @@ html.settings-page #titlebar {
 }
 
 .electron-mode .app-drag {
+    app-region: drag;
     -webkit-app-region: drag;
     cursor: move !important;
 }
