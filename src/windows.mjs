@@ -418,7 +418,7 @@ function getBoundsForDisplay(display, {x, y, width, height, aspectRatio}) {
         width = width || defaultWidth;
         height = height || defaultHeight;
     }
-    {x, y} = _getPositionForDisplay(display, {x, y, width, height});
+    ({x, y} = _getPositionForDisplay(display, {x, y, width, height}));
     return {x, y, width, height};
 }
 
@@ -441,7 +441,6 @@ function handleNewSubWindow(parent, spec) {
         const width = Number(q.get('width')) || undefined;
         const height = Number(q.get('height')) || undefined;
         const display = getDisplayForWindow(parent);
-        console.log(display);
         const bounds = getBoundsForDisplay(display, {width, height});
         const newWin = new electron.BrowserWindow({
             type: isLinux ? 'splash' : undefined,
@@ -514,6 +513,7 @@ function _openWindow(id, spec) {
         },
         ...options,
     });
+    win.setBounds(bounds); // https://github.com/electron/electron/issues/10862
     if (!isDEV) {
         win.removeMenu();
     }
