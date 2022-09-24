@@ -375,7 +375,7 @@ export function openWindow(id) {
 rpc.register(openWindow);
 
 
-function getPositionForDisplay(display, {x, y, width, height}) {
+function _getPositionForDisplay(display, {x, y, width, height}) {
     const db = display.bounds;
     if (x == null) {
         x = db.x + Math.round((db.width - width) / 2);
@@ -399,7 +399,7 @@ function getPositionForDisplay(display, {x, y, width, height}) {
 }
 
 
-function getSizeForDisplay(display, {width, height, aspectRatio}) {
+function getBoundsForDisplay(display, {x, y, width, height, aspectRatio}) {
     const defaultWidth = 800;
     const defaultHeight = 600;
     const dSize = display.size;
@@ -418,7 +418,8 @@ function getSizeForDisplay(display, {width, height, aspectRatio}) {
         width = width || defaultWidth;
         height = height || defaultHeight;
     }
-    return {width, height};
+    {x, y} = _getPositionForDisplay(display, {x, y, width, height});
+    return {x, y, width, height};
 }
 
 
@@ -440,13 +441,12 @@ function handleNewSubWindow(parent, spec) {
         const width = Number(q.get('width')) || undefined;
         const height = Number(q.get('height')) || undefined;
         const display = getDisplayForWindow(parent);
-        const size = getSizeForDisplay(display, {width, height});
-        const position = getPositionForDisplay(display, size);
+        console.log(display);
+        const bounds = getBoundsForDisplay(display, {width, height});
         const newWin = new electron.BrowserWindow({
             type: isLinux ? 'splash' : undefined,
             show: false,
-            ...size,
-            ...position,
+            ...bounds,
             alwaysOnTop: spec.overlay !== false,
             webPreferences: {
                 sandbox: true,
@@ -485,26 +485,21 @@ function _openWindow(id, spec) {
         fullscreenable: false,
     };
     const manifest = windowManifestsByType[spec.type];
-    const inBounds = !spec.position || isWithinDisplayBounds(spec.position);
+    let bounds = spec.bounds || spec.position; // XXX spec.position is the legacy prop, remove in a few rels
+    const inBounds = !bounds || isWithinDisplayBounds(bounds);
     if (!inBounds) {
-        console.warn("Reseting position of window that is out of bounds:", spec.position);
+        console.warn("Reseting window that is out of bounds:", bounds);
     }
-    let size, position;
-    if (!inBounds || !spec.position) {
-        const display = getCurrentDisplay();
-        const bounds = {...manifest.options, ...spec.options};
-        size = getSizeForDisplay(display, bounds);
-        position = getPositionForDisplay(display, {...bounds, ...size});
-    } else {
-        position = spec.position;
+    if (!inBounds || !bounds) {
+        bounds = getBoundsForDisplay(getCurrentDisplay(),
+            {...manifest.options, ...spec.options});
     }
     // Order of options is crucial...
     const options = {
         ...(spec.overlay !== false ? overlayOptions : {}),
         ...manifest.options,
         ...spec.options,
-        ...size,
-        ...position,
+        ...bounds,
     };
     const win = new electron.BrowserWindow({
         type: isLinux ? 'splash' : undefined,
@@ -529,15 +524,14 @@ function _openWindow(id, spec) {
     activeWindows.set(webContents, {win, spec, activeSubs: new Set()});
     handleNewSubWindow(win, spec);
     let saveStateTimeout;
-    function onPositionUpdate() {
-        const position = win.getBounds();
+    function onBoundsUpdate() {
         clearTimeout(saveStateTimeout);
-        saveStateTimeout = setTimeout(() => updateWindow(id, {position}), 200);
+        saveStateTimeout = setTimeout(() => updateWindow(id, {bounds: win.getBounds()}), 200);
     }
     win.on('page-title-updated', (ev, title) =>
             activeWindows.get(webContents).title = title.replace(/( - )?Sauce for Zwift™?$/, ''));
-    win.on('move', onPositionUpdate);
-    win.on('resize', onPositionUpdate);
+    win.on('move', onBoundsUpdate);
+    win.on('resize', onBoundsUpdate);
     win.on('close', () => {
         activeWindows.delete(webContents);
         if (!quiting && !manifest.alwaysVisible) {
@@ -570,8 +564,7 @@ export function openAllWindows() {
 
 export function makeCaptiveWindow(options={}, webPrefs={}) {
     const display = getCurrentDisplay();
-    const size = getSizeForDisplay(display, options);
-    const position = getPositionForDisplay(display, size);
+    const bounds = getBoundsForDisplay(display, options);
     const win = new electron.BrowserWindow({
         type: isLinux ? 'splash' : undefined,
         center: true,
@@ -584,8 +577,7 @@ export function makeCaptiveWindow(options={}, webPrefs={}) {
             ...webPrefs,
         },
         ...options,
-        ...size,
-        ...position,
+        ...bounds,
     });
     if (!isDEV) {
         win.removeMenu();
