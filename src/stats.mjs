@@ -261,8 +261,6 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.getGroupsData, {scope: this});
         rpc.register(this.getAthleteData, {scope: this});
         this._athleteSubs = new Map();
-        this.on('newListener', this.onNewListener.bind(this));
-        this.on('removeListener', this.onRemoveListener.bind(this));
     }
 
     getEvent(id) {
