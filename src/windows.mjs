@@ -15,7 +15,7 @@ const electron = require('electron');
 let quiting;
 electron.app.on('before-quit', () => quiting = true);
 
-const isDEV = !electron.app.isPackaged;
+const isDEV = !electron.app.isPackaged && !'XXX';
 const isWindows = os.platform() === 'win32';
 const isMac = !isWindows && os.platform() === 'darwin';
 const isLinux = !isWindows && !isMac && os.platform() === 'linux';
@@ -442,11 +442,13 @@ function handleNewSubWindow(parent, spec) {
         const height = Number(q.get('height')) || undefined;
         const display = getDisplayForWindow(parent);
         const bounds = getBoundsForDisplay(display, {width, height});
+        const frame = !url.startsWith('file://');
         const newWin = new electron.BrowserWindow({
             type: isLinux ? 'splash' : undefined,
             show: false,
+            frame,
+            parent,
             ...bounds,
-            alwaysOnTop: spec.overlay !== false,
             webPreferences: {
                 sandbox: true,
                 devTools: isDEV,
@@ -477,7 +479,6 @@ function _openWindow(id, spec) {
     const overlayOptions = {
         transparent: true,
         hasShadow: false,
-        frame: false,
         roundedCorners: false,  // macos only, we use page style instead.
         alwaysOnTop: true,
         maximizable: false,
@@ -503,6 +504,7 @@ function _openWindow(id, spec) {
     const win = new electron.BrowserWindow({
         type: isLinux ? 'splash' : undefined,
         show: false,
+        frame: false,
         webPreferences: {
             sandbox: true,
             devTools: isDEV,
@@ -570,6 +572,7 @@ export function makeCaptiveWindow(options={}, webPrefs={}) {
         center: true,
         maximizable: false,
         fullscreenable: false,
+        frame: false,
         webPreferences: {
             sandbox: true,
             devTools: isDEV,
