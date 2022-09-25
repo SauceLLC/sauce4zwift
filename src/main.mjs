@@ -587,3 +587,4 @@ global.zwiftAPI = zwiftAPI;
 global.zwiftMonitorAPI = zwiftMonitorAPI;
 global.windows = windows;
 global.electron = electron;
+global.report = report;

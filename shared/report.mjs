@@ -30,7 +30,7 @@ export function errorThrottled(e) {
     if (Math.log2(count) % 1 === 0) { // power of two
         error(e);
     } else {
-        console.warn('Error report [throttled]:', e);
+        console.warn(`Error report [throttled: ${count}]:`, e);
     }
 }
 
