@@ -123,7 +123,7 @@ electron.ipcMain.on('subscribe', (ev, {event, domEvent, persistent, source='stat
             activeSubs.delete(event);
         }
     }
-    function shutdown() {
+    function shutdown(ev) {
         emitter.off(event, sendMessage);
         if (!win.isDestroyed()) {
             for (const x of shutdownEvents) {

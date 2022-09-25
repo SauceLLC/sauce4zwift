@@ -448,11 +448,6 @@ function handleNewSubWindow(parent, spec) {
             show: false,
             frame,
             parent,
-            titleBarOverlay: {
-                // windows only
-                color: '#3333ff',
-                symbolColor: '#f0f0f0',
-            },
             ...bounds,
             webPreferences: {
                 sandbox: true,
@@ -510,11 +505,6 @@ function _openWindow(id, spec) {
         type: isLinux ? 'splash' : undefined,
         show: false,
         frame: false,
-        titleBarOverlay: {
-            // windows only
-            color: '#3333ff',
-            symbolColor: '#f0f0f0',
-        },
         webPreferences: {
             sandbox: true,
             devTools: isDEV,
@@ -582,11 +572,6 @@ export function makeCaptiveWindow(options={}, webPrefs={}) {
         center: true,
         maximizable: false,
         fullscreenable: false,
-        titleBarOverlay: {
-            // windows only
-            color: '#3333ff',
-            symbolColor: '#f0f0f0',
-        },
         webPreferences: {
             sandbox: true,
             devTools: isDEV,
