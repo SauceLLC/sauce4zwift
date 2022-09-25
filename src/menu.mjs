@@ -177,7 +177,12 @@ export function updateTrayMenu() {
     }, {
         label: 'Settings',
         click: () => {
-            const win = windows.makeCaptiveWindow({width: 500, height: 600, page: 'overview-settings.html'});
+            const win = windows.makeCaptiveWindow({
+                width: 500,
+                height: 0.8,
+                page: 'overview-settings.html',
+                frame: false
+            });
             // Bit of a hack to get the preload context setup so overview settings function
             const id = Object.values(windows.getWindows()).find(x => x.type === 'overview').id;
             windows.subWindows.set(win.webContents, {win, spec: {id, type: 'overview'}, activeSubs: new Set()});

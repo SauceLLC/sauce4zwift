@@ -448,6 +448,11 @@ function handleNewSubWindow(parent, spec) {
             show: false,
             frame,
             parent,
+            titleBarOverlay: {
+                // windows only
+                color: '#3333ff',
+                symbolColor: '#f0f0f0',
+            },
             ...bounds,
             webPreferences: {
                 sandbox: true,
@@ -505,6 +510,11 @@ function _openWindow(id, spec) {
         type: isLinux ? 'splash' : undefined,
         show: false,
         frame: false,
+        titleBarOverlay: {
+            // windows only
+            color: '#3333ff',
+            symbolColor: '#f0f0f0',
+        },
         webPreferences: {
             sandbox: true,
             devTools: isDEV,
@@ -572,7 +582,11 @@ export function makeCaptiveWindow(options={}, webPrefs={}) {
         center: true,
         maximizable: false,
         fullscreenable: false,
-        frame: false,
+        titleBarOverlay: {
+            // windows only
+            color: '#3333ff',
+            symbolColor: '#f0f0f0',
+        },
         webPreferences: {
             sandbox: true,
             devTools: isDEV,
@@ -621,7 +635,11 @@ export async function eulaConsent() {
 
 
 export async function updateConfirmationWindow(version) {
-    const win = makeCaptiveWindow({pageURL: `update.html?newVersion=v${version}`, width: 400, height: 440});
+    const win = makeCaptiveWindow({
+        pageURL: `update.html?newVersion=v${version}`,
+        width: 400,
+        height: 440,
+    });
     let closed;
     const prompting = new Promise(resolve => {
         rpc.register(resolve, {name: 'confirmAppUpdate'});
@@ -638,7 +656,11 @@ export async function updateConfirmationWindow(version) {
 
 
 export async function showReleaseNotes() {
-    const win = makeCaptiveWindow({width: 512, height: 600, page: 'release-notes.html'});
+    const win = makeCaptiveWindow({
+        page: 'release-notes.html',
+        width: 512,
+        height: 600,
+    });
     await new Promise(resolve => win.on('closed', resolve));
 }
 
@@ -656,7 +678,11 @@ export async function patronLink() {
         // XXX Implement refresh once in a while.
         return true;
     }
-    const win = makeCaptiveWindow({width: 400, height: 720, page: 'patron.html'}, {
+    const win = makeCaptiveWindow({
+        page: 'patron.html',
+        width: 400,
+        height: 720,
+    }, {
         preload: path.join(appPath, 'src', 'preload', 'patron-link.js'),
         partition: 'persist:patreon',
     });
@@ -703,10 +729,10 @@ export async function patronLink() {
 
 export async function zwiftLogin(options) {
     const win = makeCaptiveWindow({
+        page: options.monitor ? 'zwift-monitor-login.html' : 'zwift-login.html',
         width: 460,
         height: 600,
         show: false,
-        page: options.monitor ? 'zwift-monitor-login.html' : 'zwift-login.html',
     }, {
         preload: path.join(appPath, 'src', 'preload', 'zwift-login.js'),
     });
