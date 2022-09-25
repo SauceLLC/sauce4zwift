@@ -48,11 +48,9 @@ header {
     }
 
     .buttons {
-        font-size: 0.5em;
-        justify-content: flex-end;
-
-        .button {
-            padding: 0.2em 1.2em !important;
+        .std.button {
+            font-size: 0.65em;
+            padding: 0.2em 0.8em !important;
         }
     }
 }

@@ -15,7 +15,7 @@ const electron = require('electron');
 let quiting;
 electron.app.on('before-quit', () => quiting = true);
 
-const isDEV = !electron.app.isPackaged && !'XXX';
+const isDEV = !electron.app.isPackaged;
 const isWindows = os.platform() === 'win32';
 const isMac = !isWindows && os.platform() === 'darwin';
 const isLinux = !isWindows && !isMac && os.platform() === 'linux';
@@ -442,7 +442,7 @@ function handleNewSubWindow(parent, spec) {
         const height = Number(q.get('height')) || undefined;
         const display = getDisplayForWindow(parent);
         const bounds = getBoundsForDisplay(display, {width, height});
-        const frame = !url.startsWith('file://');
+        const frame = q.has('frame') || !url.startsWith('file://');
         const newWin = new electron.BrowserWindow({
             type: isLinux ? 'splash' : undefined,
             show: false,

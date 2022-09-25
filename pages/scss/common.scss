@@ -1,3 +1,5 @@
+$header-height: 0.56in;
+
 @font-face {
     font-family: 'Jost';
     src: url('../fonts/Jost-VariableFont_wght.woff2') format('woff2');
@@ -430,7 +432,7 @@ html:not(:hover) #hintbar {
     width: 100%;
     color: white;
     overflow: hidden;
-    max-height: calc(60px + 3.5rem); // Roughly fixed header plus optional button bar
+    max-height: calc($header-height + 3.5rem); // Roughly fixed header plus optional button bar
     transition: max-height 300ms, padding 300ms;
     box-shadow: 0 1px 5px #0009;
 
@@ -442,7 +444,7 @@ html:not(:hover) #hintbar {
     }
 
     .button {
-        border-radius: 0.28em;
+        border-radius: 0.22em;
 
         img {
             height: 0.85em;
@@ -468,24 +470,46 @@ html:not(:hover) #hintbar {
         max-width: 100%;
         display: flex;
         align-items: center;
-        padding: 0.2em;
+        justify-content: space-between;
+        height: $header-height;
         background-image: linear-gradient(to top, #222, #333);
 
+        .title,
+        .filler {
+            app-region: drag;
+            -webkit-app-region: drag;
+            cursor: move;
+            height: 100%;
+        }
+
+        .filler {
+            flex: 1 1 0;
+        }
+
         .title {
+            flex: 0 0 auto;
+            display: flex;
+            align-items: center;
             font-size: 0.8em;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            flex: 1 1 auto;
-            padding: 0.6em 0.3em;
+            padding: 0 0.3em;
+
+            &:first-child {
+                padding-left: 0.8em;
+            }
         }
 
         .button {
-            font-size: 1.2em;
             padding: 0.05em 0.3em;
 
             ms {
                 font-weight: 300;
+            }
+
+            &:last-child {
+                margin-right: 0.3em;
             }
         }
 
@@ -502,6 +526,7 @@ html:not(:hover) #hintbar {
         }
 
         .buttons {
+            flex: 0 0 auto;
             display: flex;
             align-items: center;
 
@@ -514,14 +539,15 @@ html:not(:hover) #hintbar {
         }
     }
 }
+
 html.settings-page #titlebar {
-    position: relative;
+    position: relative; // XXX not sure why at this point?
 }
 
 .electron-mode .app-drag {
     app-region: drag;
     -webkit-app-region: drag;
-    cursor: move !important;
+    cursor: move;
 }
 
 @property --bg-from-color {
