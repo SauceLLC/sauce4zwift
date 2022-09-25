@@ -1,7 +1,7 @@
 /* global Sentry, electron */
 
 import {sleep} from '../../shared/sauce/base.mjs';
-import {beforeSentrySend, captureExceptionOnce, setSentry} from '../../shared/sentry-util.mjs';
+import * as report from '../../shared/report.mjs';
 import './sentry.js';
 
 export let subscribe;
@@ -385,7 +385,7 @@ export class Renderer {
                         try {
                             value = field.active.value(this._data);
                         } catch(e) {
-                            captureExceptionOnce(e);
+                            report.errorThrottled(e);
                         }
                         const candidate = value != null && !Number.isNaN(value) ? value : '';
                         if (field.valueEl.innerHTML !== candidate) {
@@ -396,7 +396,7 @@ export class Renderer {
                             try {
                                 labels = field.active.label ? field.active.label(this._data) : '';
                             } catch(e) {
-                                captureExceptionOnce(e);
+                                report.errorThrottled(e);
                             }
                             if (Array.isArray(labels)) {
                                 if (field.labelEl.innerHTML !== labels[0]) {
@@ -422,7 +422,7 @@ export class Renderer {
                             try {
                                 key = field.active.key ? field.active.key(this._data) : '';
                             } catch(e) {
-                                captureExceptionOnce(e);
+                                report.errorThrottled(e);
                             }
                             if (field.keyEl.innerHTML !== key) {
                                 field.keyEl.innerHTML = key;
@@ -434,7 +434,7 @@ export class Renderer {
                                 unit = (value != null && value !== '-' && field.active.unit) ?
                                     field.active.unit(this._data) : '';
                             } catch(e) {
-                                captureExceptionOnce(e);
+                                report.errorThrottled(e);
                             }
                             if (field.unitEl.innerHTML !== unit) {
                                 field.unitEl.innerHTML = unit;
@@ -445,7 +445,7 @@ export class Renderer {
                         try {
                             cb(this._data);
                         } catch(e) {
-                            captureExceptionOnce(e);
+                            report.errorThrottled(e);
                         }
                     }
                     resolve();
@@ -779,10 +779,10 @@ rpcCall('getVersion').then(v => Sentry.setTag('version', v));
 rpcCall('getSentryAnonId').then(id => Sentry.setUser({id}));
 rpcCall('isDEV').then(isDEV => {
     if (!isDEV) {
-        setSentry(Sentry);
+        report.setSentry(Sentry);
         Sentry.init({
             dsn: "https://df855be3c7174dc89f374ef0efaa6a92@o1166536.ingest.sentry.io/6257001",
-            beforeSend: beforeSentrySend,
+            beforeSend: report.beforeSentrySend,
             integrations: arr => arr.filter(x => !['Breadcrumbs', 'TryCatch'].includes(x.name)),
         });
     } else {

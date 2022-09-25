@@ -2,6 +2,7 @@ import process from 'node:process';
 import os from 'node:os';
 import net from 'node:net';
 import {EventEmitter} from 'node:events';
+import * as report from '../shared/report.mjs';
 import * as storage from './storage.mjs';
 import * as menu from './menu.mjs';
 import * as rpc from './rpc.mjs';
@@ -12,7 +13,6 @@ import {createRequire} from 'node:module';
 import * as secrets from './secrets.mjs';
 import * as zwift from './zwift.mjs';
 import * as windows from './windows.mjs';
-import * as Sentry from '@sentry/node';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
@@ -313,7 +313,7 @@ class SauceApp extends EventEmitter {
         const gcs = new zwift.GameConnectionServer({ip, zwiftAPI});
         registerRPCMethods(gcs, 'watch', 'join', 'teleportHome', 'say', 'wave', 'elbow', 'takePicture',
             'changeCamera', 'enableHUD', 'disableHUD', 'chatMessage', 'reverse', 'toggleGraphs', 'sendCommands');
-        gcs.start().catch(Sentry.captureException);
+        gcs.start().catch(report.error);
         return gcs;
     }
 
@@ -382,7 +382,7 @@ class SauceApp extends EventEmitter {
                 port: this.webServerPort,
                 rpcSources,
                 statsProc: this.statsProc,
-            }).catch(Sentry.captureException);
+            }).catch(report.error);
         }
     }
 }
@@ -486,9 +486,8 @@ async function maybeDownloadAndInstallUpdate({version}) {
     try {
         await autoUpdater.downloadUpdate();
     } catch(e) {
-        console.error('Update error:', e);
+        report.error(e);
         await electron.dialog.showErrorBox('Update error', '' + e);
-        Sentry.captureException(e);
         if (!confirmWin.isDestroyed()) {
             confirmWin.close();
         }

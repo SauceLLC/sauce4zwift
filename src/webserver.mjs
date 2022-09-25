@@ -98,6 +98,7 @@ export async function start(options={}) {
 
 async function _start({ip, port, rpcSources, statsProc}) {
     app = express();
+    app.set('json spaces', 2);
     app.use(express.json());
     server = http.createServer(app);
     const webSocketServer = expressWebSocketPatch(app, server).getWss();

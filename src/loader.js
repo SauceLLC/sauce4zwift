@@ -241,25 +241,17 @@ async function initSentry(logEmitter) {
         console.info("Sentry disabled by dev mode");
         return;
     }
-    const {beforeSentrySend, setSentry} = await import('../shared/sentry-util.mjs');
-    setSentry(Sentry);
+    const report = await import('../shared/report.mjs');
+    report.setSentry(Sentry);
     const skipIntegrations = new Set(['OnUncaughtException', 'Console']);
     Sentry.init({
         dsn: "https://df855be3c7174dc89f374ef0efaa6a92@o1166536.ingest.sentry.io/6257001",
         // Sentry changes the uncaught exc behavior to exit the process.  I think it may
         // be fixed in newer versions though.
         integrations: data => [new Dedupe(), ...data.filter(x => !skipIntegrations.has(x.name))],
-        beforeSend: beforeSentrySend,
+        beforeSend: report.beforeSentrySend,
     });
-    // No idea, just copied from https://github.com/getsentry/sentry-javascript/issues/1661
-    process.on('uncaughtException', e => {
-        const hub = Sentry.getCurrentHub();
-        hub.withScope(async scope => {
-            scope.setLevel('fatal');
-            hub.captureException(e, {originalException: e});
-        });
-        console.error('Uncaught (but reported)', e);
-    });
+    process.on('uncaughtException', report.errorThrottled);
     Sentry.setTag('version', pkg.version);
     let id = settings.sentryId;
     if (!id) {

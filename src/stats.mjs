@@ -4,7 +4,7 @@ import protobuf from 'protobufjs';
 import {SqliteDatabase, deleteDatabase} from './db.mjs';
 import * as rpc from './rpc.mjs';
 import * as sauce from '../shared/sauce/index.mjs';
-import {captureExceptionOnce} from '../shared/sentry-util.mjs';
+import * as report from '../shared/report.mjs';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
 const require = createRequire(import.meta.url);
@@ -582,7 +582,7 @@ export class StatsProcessor extends events.EventEmitter {
         try {
             this._onIncoming(...args);
         } catch(e) {
-            captureExceptionOnce(e);
+            report.errorOnce(e);
         }
     }
 
@@ -905,7 +905,7 @@ export class StatsProcessor extends events.EventEmitter {
         try {
             this.initAthletesDB();
         } catch(e) {
-            captureExceptionOnce(e);
+            report.errorOnce(e);
             this.resetAthletesDB();
         }
         this._statesJob = this._statesProcessor();
@@ -1161,7 +1161,7 @@ export class StatsProcessor extends events.EventEmitter {
                 queueMicrotask(() => this.emit('nearby', nearby));
                 queueMicrotask(() => this.emit('groups', groups));
             } catch(e) {
-                captureExceptionOnce(e);
+                report.errorThrottled(e);
                 target += errBackoff++ * interval;
             }
         }

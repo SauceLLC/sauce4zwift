@@ -1,22 +1,52 @@
+
 let Sentry;
+let fingerprints = new Map();
 
 
 export function setSentry(s) {
     Sentry = s;
 }
 
+function fingerprintError(e) {
+    return `${e.constructor.name} ${e.name} ${e.message} ${e.stack}`;
+}
 
-let excs = new Set();
-export function captureExceptionOnce(e) {
-    const sig = [e.name, e.message, e.stack].join('');
-    if (!excs.has(sig)) {
-        excs.add(sig);
-        console.error('Error captured:', e);
-        if (Sentry) {
-            Sentry.captureException(e);
-        }
+export function errorOnce(e) {
+    const fp = fingerprintError(e);
+    if (!fingerprints.has(fp)) {
+        fingerprints.set(fp, 1);
+        error(e);
     } else {
-        console.warn('Error capture throttled:', e);
+        const count = fingerprints.get(fp);
+        console.warn(`Error report [throttled: ${count}]:`, e);
+    }
+}
+
+
+export function errorThrottled(e) {
+    const fp = fingerprintError(e);
+    const count = (fingerprints.get(fp) || 0) + 1;
+    fingerprints.set(fp, count);
+    if (Math.log2(count) % 1 === 0) { // power of two
+        error(e);
+    } else {
+        console.warn('Error report [throttled]:', e);
+    }
+}
+
+
+export function error(e) {
+    console.error('Error report:', e);
+    if (Sentry) {
+        Sentry.captureException(e);
+    }
+}
+
+
+export function message(msg) {
+    console.warn('Message report:', msg);
+    if (Sentry) {
+        Sentry.captureMessage(msg);
     }
 }
 
