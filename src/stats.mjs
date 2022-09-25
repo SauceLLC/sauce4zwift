@@ -265,20 +265,6 @@ export class StatsProcessor extends events.EventEmitter {
         this.on('removeListener', this.onRemoveListener.bind(this));
     }
 
-    onNewListener(event) {
-        if (event.startsWith('athlete/')) {
-            const ident = event.match(/athlete\/(.+)/)[1];
-            console.info("New athlete subscription:", ident);
-        }
-    }
-
-    onRemoveListener(event) {
-        if (event.startsWith('athlete/')) {
-            const ident = event.match(/athlete\/(.+)/)[1];
-            console.info("Removing athlete subscription:", ident);
-        }
-    }
-
     getEvent(id) {
         return this._recentEvents.get(id);
     }
