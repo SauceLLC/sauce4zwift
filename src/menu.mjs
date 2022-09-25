@@ -126,7 +126,9 @@ export function setAppMenu() {
 export function installTrayIcon() {
     const iconFile = os.platform() === 'darwin' ? 'mac-trayicon.png' : 'win-trayicon.png';
     tray = new Tray(nativeImage.createFromPath(path.join(appPath, 'images', iconFile)));
-    tray.setIgnoreDoubleClickEvents(true);
+    if (process.platform === 'win32') {
+        tray.on('click', ev => void tray.popUpContextMenu());
+    }
     tray.setToolTip(pkg.productName);
 }
 
