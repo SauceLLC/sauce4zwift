@@ -125,11 +125,13 @@ electron.ipcMain.on('subscribe', (ev, {event, domEvent, persistent, source='stat
     }
     function shutdown() {
         emitter.off(event, sendMessage);
-        for (const x of shutdownEvents) {
-            win.webContents.off(x, shutdown);
-        }
-        for (const [name, cb] of listeners) {
-            win.off(name, cb);
+        if (!win.isDestroyed()) {
+            for (const x of shutdownEvents) {
+                win.webContents.off(x, shutdown);
+            }
+            for (const [name, cb] of listeners) {
+                win.off(name, cb);
+            }
         }
         activeSubs.clear();
         // Must log last because of logs source which eats its own tail otherwise.
