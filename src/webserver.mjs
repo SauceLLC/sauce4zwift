@@ -210,6 +210,9 @@ async function _start({ip, port, rpcSources, statsProc}) {
                 'Content body should be JSON Array of arguments',
         }]);
     });
+    api.get('/rpc', (req, res) => {
+        res.send(Array.from(rpc.handlers.keys()).map(name => `${name}: [POST]`));
+    });
     const sp = statsProc;
     function getAthleteHandler(res, id) {
         const data = sp.getAthleteData(id);
