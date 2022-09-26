@@ -21,19 +21,23 @@ $header-height: 0.56in;
     src: url('../fonts/MaterialSymbolsRounded.woff2') format('woff2');
 }
 
+html {
+    --tilt: 0deg;
+}
+
 @keyframes pournshake {
     0%,
     60%,
-    100% { transform: translate(0, 0)           rotate(0)      scale(1);   }
-    30%  { transform: translate(0, 0)           rotate(180deg) scale(1.2); }
-    32%  { transform: translate(0.2em, 0.2em)   rotate(185deg) scale(1.2); }
-    34%  { transform: translate(-0.2em, 0)      rotate(175deg) scale(0.8); }
-    36%  { transform: translate(0.2em, 0.1em)   rotate(180deg) scale(1.2); }
-    38%  { transform: translate(-0.2em, -0.2em) rotate(185deg) scale(0.8); }
-    40%  { transform: translate(0.2em, 0.2em)   rotate(185deg) scale(1.2); }
-    42%  { transform: translate(-0.2em, 0)      rotate(175deg) scale(0.8); }
-    44%  { transform: translate(0.2em, 0.1em)   rotate(180deg) scale(1.2); }
-    46%  { transform: translate(-0.2em, -0.2em) rotate(185deg) scale(0.8); }
+    100% { transform: translate(0, 0)           rotate(var(--tilt))      scale(1);   }
+    30%  { transform: translate(0, 0)           rotate(calc(var(--tilt) + 180deg)) scale(1.2); }
+    32%  { transform: translate(0.2em, 0.2em)   rotate(calc(var(--tilt) + 185deg)) scale(1.2); }
+    34%  { transform: translate(-0.2em, 0)      rotate(calc(var(--tilt) + 175deg)) scale(0.8); }
+    36%  { transform: translate(0.2em, 0.1em)   rotate(calc(var(--tilt) + 180deg)) scale(1.2); }
+    38%  { transform: translate(-0.2em, -0.2em) rotate(calc(var(--tilt) + 185deg)) scale(0.8); }
+    40%  { transform: translate(0.2em, 0.2em)   rotate(calc(var(--tilt) + 185deg)) scale(1.2); }
+    42%  { transform: translate(-0.2em, 0)      rotate(calc(var(--tilt) + 175deg)) scale(0.8); }
+    44%  { transform: translate(0.2em, 0.1em)   rotate(calc(var(--tilt) + 180deg)) scale(1.2); }
+    46%  { transform: translate(-0.2em, -0.2em) rotate(calc(var(--tilt) + 185deg)) scale(0.8); }
 }
 
 img {
@@ -220,10 +224,6 @@ html {
         padding: 0;
         font-size: 18px;
 
-        body {
-            border-radius: 0 !important;
-        }
-
         #content {
             overflow: auto;
             overflow: overlay;
@@ -352,8 +352,9 @@ html body {
     }
 }
 
-html.noframe:not(.browser-mode) body {
+html.electron-mode > body {
     border-radius: 0.3rem;
+    border-radius: 3rem; // XXX
 }
 
 html:not(.browser-mode) body:not(.transparent-bg) {
@@ -373,16 +374,17 @@ html:not(:hover) #hintbar {
 
     .app-drag {
         app-region: initial;
-        -webkit-app-region: initial;
     }
+}
+
+html:not(.settings-page) #titlebar,
+#titlebar:not(.always-visible) {
+    position: absolute;
 }
 
 /* same size on all windows */
 #hintbar {
     font-size: 18px;
-}
-#titlebar header {
-    font-size: 22px;
 }
 
 .button-bar {
@@ -436,13 +438,6 @@ html:not(:hover) #hintbar {
     transition: max-height 300ms, padding 300ms;
     box-shadow: 0 1px 5px #0009;
 
-    &:not(.always-visible) {
-        position: absolute;
-    }
-    &.always-visible {
-        position: relative;
-    }
-
     .button {
         border-radius: 0.22em;
 
@@ -466,6 +461,7 @@ html:not(:hover) #hintbar {
     }
 
     header {
+        font-size: 22px;
         flex: 0 0 auto;
         max-width: 100%;
         display: flex;
@@ -474,16 +470,30 @@ html:not(:hover) #hintbar {
         height: $header-height;
         background-image: linear-gradient(to top, #222, #333);
 
+        .logo,
         .title,
         .filler {
             app-region: drag;
-            -webkit-app-region: drag;
             cursor: move;
             height: 100%;
         }
 
         .filler {
             flex: 1 1 0;
+        }
+
+        .logo {
+            padding: 0.4em 0 0.4em 0.2em;
+
+            img {
+                --tilt: -20deg;
+                transform: rotate(var(--tilt));
+                height: 100%;
+            }
+        }
+
+        .logo + .title {
+            padding-left: 0;
         }
 
         .title {
@@ -513,18 +523,6 @@ html:not(:hover) #hintbar {
             }
         }
 
-        .button.move {
-            height: 100%;
-            display: flex;
-            align-items: center;
-            padding: 0.3em 0 0.3em 0.15em;
-            background-color: transparent !important;
-
-            ms {
-                margin-bottom: 0;
-            }
-        }
-
         .buttons {
             flex: 0 0 auto;
             display: flex;
@@ -540,13 +538,8 @@ html:not(:hover) #hintbar {
     }
 }
 
-html.settings-page #titlebar {
-    position: relative; // XXX not sure why at this point?
-}
-
 .electron-mode .app-drag {
     app-region: drag;
-    -webkit-app-region: drag;
     cursor: move;
 }
 

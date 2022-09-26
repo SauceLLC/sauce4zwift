@@ -35,7 +35,7 @@ let overlayMode;
 if (window.isElectron) {
     overlayMode = !!window.electron.context.spec.overlay;
     doc.classList.toggle('overlay-mode', overlayMode);
-    doc.classList.toggle('noframe', overlayMode);
+    document.querySelector('#titlebar').classList.toggle('always-visible', overlayMode !== true);
 }
 
 

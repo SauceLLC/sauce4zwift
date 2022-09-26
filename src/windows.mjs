@@ -447,6 +447,9 @@ function handleNewSubWindow(parent, spec) {
             type: isLinux ? 'splash' : undefined,
             show: false,
             frame,
+            transparent: frame === false,
+            hasShadow: frame !== false,
+            roundedCorners: frame !== false,
             parent,
             ...bounds,
             webPreferences: {
@@ -477,9 +480,6 @@ function handleNewSubWindow(parent, spec) {
 function _openWindow(id, spec) {
     console.debug("Opening window:", id, spec.type);
     const overlayOptions = {
-        transparent: true,
-        hasShadow: false,
-        roundedCorners: false,  // macos only, we use page style instead.
         alwaysOnTop: true,
         maximizable: false,
         fullscreenable: false,
@@ -505,6 +505,8 @@ function _openWindow(id, spec) {
         type: isLinux ? 'splash' : undefined,
         show: false,
         frame: false,
+        transparent: true,
+        hasShadow: false,
         webPreferences: {
             sandbox: true,
             devTools: isDEV,

@@ -37,6 +37,32 @@ html {
     }
 }
 
+html:focus-within {
+    .logo {
+        img {
+            opacity: 0;
+            visibility: hidden;
+        }
+        ms {
+            opacity: 1;
+            visibility: visible;
+        }
+    }
+}
+
+html:not(:focus-within) {
+    .logo {
+        img {
+            opacity: 1;
+            visibility: visible;
+        }
+        ms {
+            opacity: 0;
+            visibility: hidden;
+        }
+    }
+}
+
 #content {
     display: flex;
     flex-direction: row;
@@ -44,21 +70,41 @@ html {
     overflow: hidden;
     flex: 1 1 100%;
     padding: 0.1em 0;
-}
 
-#content .button.move {
-    font-size: 1.4em;
-    padding: 0.2em 0.2em 0.2em 0.5rem;
-    overflow: hidden;
-    height: 100%;
-    display: flex;
-    align-items: center;
+    .logo {
+        margin-left: 0.1em;
+        position: relative;
+        height: 100%;
+        max-height: 1.8em;
+        padding: 0.2em;
+        width: 1.7em;
 
-    ms {
-        margin-bottom: 0;
-        font-weight: 300;
+        img,
+        ms {
+            transition: opacity 400ms, visibility 400ms;
+            height: 100%;
+        }
+
+        img {
+            --tilt: -20deg;
+            transform: rotate(var(--tilt));
+            animation: pournshake 5s;
+            animation-delay: 5s;
+        }
+        
+        ms {
+            position: absolute;
+            top: 0;
+            left: 0.2em;
+            font-size: 1.3em;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            font-weight: 300;
+        }
     }
 }
+
 
 .fields {
     padding: 0.2em 1em;

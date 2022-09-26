@@ -11,10 +11,6 @@ html {
 html:not(.overlay-mode) {
     padding: 0;
 
-    body {
-        border-radius: 0 !important;
-    }
-
     .overlay-only {
         display: none !important;
     }
