@@ -1841,6 +1841,13 @@ export class GameConnectionServer extends net.Server {
         this.emit('watch-command', id);
     }
 
+    async gamePacket(gamePacket) {
+        await this.sendCommands({
+            command: protos.CompanionToGameCommandType.PHONE_TO_GAME_PACKET,
+            gamePacket,
+        });
+    }
+
     async join(id) {
         await this.sendCommands({
             command: protos.CompanionToGameCommandType.JOIN_ANOTHER_PLAYER,
