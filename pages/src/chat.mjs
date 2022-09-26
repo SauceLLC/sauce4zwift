@@ -149,7 +149,7 @@ export async function main() {
             const name = [chat.firstName, chat.lastName].filter(x => x).join(' ');
             entry.style.setProperty('--message-hue', athleteHue(chat.from) + 'deg');
             entry.innerHTML = `
-                <a href="athlete.html?athleteId=${chat.from}&widthHint=900&heightHint=400" target="_blank"
+                <a href="athlete.html?athleteId=${chat.from}&width=800&height=350" target="_blank"
                    class="avatar"><img src="${chat.avatar || 'images/blankavatar.png'}"/></a>
                 <div class="content">
                     <div class="header">

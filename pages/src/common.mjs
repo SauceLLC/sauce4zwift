@@ -248,6 +248,14 @@ export function initInteractionListeners() {
     if (close) {
         close.addEventListener('click', ev => rpcCall('closeWindow'));
     }
+    const minimize = document.querySelector('#titlebar .button.minimize');
+    if (minimize) {
+        minimize.addEventListener('click', ev => rpcCall('minimizeWindow'));
+    }
+    const maximize = document.querySelector('#titlebar .button.maximize');
+    if (maximize) {
+        maximize.addEventListener('click', ev => rpcCall('maximizeWindow'));
+    }
     for (const el of document.querySelectorAll('.button[data-url]')) {
         el.addEventListener('click', ev => location.assign(el.dataset.url));
     }

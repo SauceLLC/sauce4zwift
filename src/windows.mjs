@@ -202,28 +202,31 @@ rpc.register(() => {
     }
 }, {name: 'showAllWindows'});
 
-rpc.register(function() {
-    const window = this.getOwnerBrowserWindow();
+rpc.register(function closeWindow() {
+    const win = this.getOwnerBrowserWindow();
     if (activeWindows.has(this)) {
-        const {win, spec} = activeWindows.get(this);
-        if (win !== window) {
-            console.error("window equality assertion error", win, window);
-        }
+        const {spec} = activeWindows.get(this);
         console.debug('Window close requested:', spec.id);
         win.close();
     } else {
         console.debug('Generic window close requested');
-        window.close();
+        win.close();
     }
-}, {name: 'closeWindow'});
+});
 
-rpc.register(function() {
-    const {win, spec} = activeWindows.get(this);
-    console.debug('Window close requested:', spec.id);
-    win.minimize();
-}, {name: 'minimizewindow'});
+rpc.register(function minimizeWindow() {
+    const win = this.getOwnerBrowserWindow();
+    if (win) {
+        win.minimize();
+    }
+});
 
-
+rpc.register(function maximizeWindow() {
+    const win = this.getOwnerBrowserWindow();
+    if (win) {
+        win.maximize();
+    }
+});
 
 rpc.register(pid => {
     for (const x of electron.BrowserWindow.getAllWindows()) {
