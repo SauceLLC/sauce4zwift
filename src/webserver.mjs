@@ -222,11 +222,19 @@ async function _start({ip, port, rpcSources, statsProc}) {
         res.json(data);
     }
     api.post('/rpc/:name', async (req, res) => {
-        const replyEnvelope = await rpc.invoke.call(null, req.params.name, ...req.body);
-        if (!replyEnvelope.success) {
-            res.status(400);
+        try {
+            const replyEnvelope = await rpc.invoke.call(null, req.params.name, ...req.body);
+            if (!replyEnvelope.success) {
+                res.status(400);
+            }
+            res.send(replyEnvelope);
+        } catch(e) {
+            res.status(500);
+            res.json({
+                error: "internal error",
+                message: e.message,
+            });
         }
-        res.send(replyEnvelope);
     });
     api.get('/athletes/self', (req, res) => getAthleteHandler(res, sp.athleteId));
     api.get('/athletes/watching', (req, res) => getAthleteHandler(res, sp.watching));
