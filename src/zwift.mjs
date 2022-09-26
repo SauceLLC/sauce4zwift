@@ -1758,6 +1758,10 @@ export class GameConnectionServer extends net.Server {
         await this.sendCommands({command: protos.CompanionToGameCommandType.WAVE});
     }
 
+    async powerup() {
+        await this.sendCommands({command: protos.CompanionToGameCommandType.ACTIVATE_POWER_UP});
+    }
+
     async say(what) {
         const cmd = {
             rideon: protos.CompanionToGameCommandType.RIDE_ON,
