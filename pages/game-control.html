@@ -34,35 +34,43 @@
                 Connection Status: <span class="status"></span>
             </header>
 
+            <div class="category">View:</div>
             <div class="button-group">
-                <div class="std button" data-call="changeCamera">Change camera</div>
+                <div class="std button" data-call="changeCamera">Camera <ms>cameraswitch</ms></div>
+                <div class="std button" data-call="takePicture">Picture <ms>photo_camera</ms></div>
+            </div>
+
+            <div class="category">Display:</div>
+            <div class="button-group">
+                <div class="std button" data-call="disableHUD">HUD Off <ms>layers_clear</ms></div>
+                <div class="std button" data-call="enableHUD">HUD On <ms>layers</ms></div>
+                <div class="std button" data-call="toggleGraphs">Power Graph <ms>area_chart</ms></div>
+            </div>
+
+            <div class="category">Gesture:</div>
+            <div class="button-group">
+                <div class="std button" data-call="wave">Wave <ms>waving_hand</ms></div>
+                <div class="std button" data-call="elbow">Elbow <ms>gesture</ms></div>
+            </div>
+
+            <div class="category">Shout:</div>
+            <div class="button-group">
+                <div class="std button" data-call="say" data-args='["rideon"]'>Ride On <ms>thumb_up</ms></div>
+                <div class="std button" data-call="say" data-args='["toast"]'>I'm toast <ms>breakfast_dining</ms></div>
+                <div class="std button" data-call="say" data-args='["nice"]'>Nice <ms>mood</ms></div>
+                <div class="std button" data-call="say" data-args='["hammertime"]'>Hammer time <ms>hardware</ms></div>
+                <div class="std button" data-call="say" data-args='["bringit"]'>Bring it <ms>sports_kabaddi</ms></div>
+            </div>
+
+            <div class="category">Direction:</div>
+            <div class="button-group">
+                <div class="std button" data-call="turnLeft">Left <ms>turn_left</ms></div>
+                <div class="std button danger" data-call="reverse">Reverse <ms>undo</ms></div>
+                <div class="std button" data-call="turnRight">Right <ms>turn_right</ms></div>
             </div>
 
             <div class="button-group">
-                <div class="std button" data-call="disableHUD">HUD Off</div>
-                <div class="std button" data-call="enableHUD">HUD On</div>
-                <div class="std button" data-call="toggleGraphs">Toggle Power/HR Graph</div>
-            </div>
-
-            <div class="button-group">
-                <div class="std button" data-call="wave">Wave</div>
-                <div class="std button" data-call="elbow">Elbow</div>
-            </div>
-
-            <div class="button-group">
-                <div class="std button" data-call="say" data-args='["rideon"]'>Ride On!</div>
-                <div class="std button" data-call="say" data-args='["toast"]'>I'm toast</div>
-                <div class="std button" data-call="say" data-args='["nice"]'>Nice!</div>
-                <div class="std button" data-call="say" data-args='["hammertime"]'>Hammer time!</div>
-                <div class="std button" data-call="say" data-args='["bringit"]'>Bring it!</div>
-            </div>
-
-            <div class="button-group">
-                <div class="std button" data-call="reverse">Reverse direction</div>
-            </div>
-
-            <div class="button-group">
-                <div class="std button" data-call="takePicture">Take Picture</div>
+                <div class="std xl primary button" data-call="powerup">Power UP! <ms>power</ms></div>
             </div>
         </div>
         <div id="hintbar">

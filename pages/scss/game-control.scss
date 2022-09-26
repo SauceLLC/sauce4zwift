@@ -10,7 +10,7 @@ html:not(.connected) {
     scroll-behavior: smooth;
     overflow: auto;
     overflow: overlay; // chromium only
-    font-size: 0.8em;
+    font-size: 0.6em;
 
     header {
         padding: 0.3em 0.4em;
@@ -21,7 +21,40 @@ html:not(.connected) {
         margin-bottom: 0.2em;
     }
 
+    .category {
+        font-weight: 800;
+        font-size: 1.1em;
+        font-variant: all-small-caps;
+        margin-left: 0.6rem;
+        line-height: 1;
+        text-shadow: 0 0 1px #000;
+        opacity: 0.9;
+    }
+
+    .category + .button-group {
+        margin-top: 0;
+    }
+
     .button-group {
         margin: 0.5em;
+
+        b {
+            writing-mode: vertical-lr;
+            text-align: center;
+        }
+    }
+
+    .button {
+        text-transform: uppercase;
+        font-weight: 700;
+        min-height: 3em;
+        padding-left: 0.4em;
+        padding-right: 0.4em;
+        text-align: center; // XXX tempted to make this std, makes wrapped text centered
+
+        ms {
+            padding-left: 0.5em;
+            margin-bottom: 0;
+        }
     }
 }
