@@ -320,18 +320,25 @@ export class Renderer {
         this._data = data;
     }
 
+    getAdjacentFieldIndex(field, offt=1) {
+        const cur = field.available.indexOf(field.active);
+        if (cur === -1) {
+            return 0;
+        }
+        const adjIdx = (cur + offt) % field.available.length;
+        return adjIdx < 0 ? field.available.length + adjIdx : adjIdx;
+    }
+
     rotateField(id, dir=1) {
         if (this.locked) {
             return;
         }
         const field = this.fields.get(id);
-        let idx = (field.available.indexOf(field.active) + dir) % field.available.length;
-        if (idx < 0) {
-            idx = field.available.length - 1;
-        }
+        const idx = this.getAdjacentFieldIndex(field, dir);
         storage.set(field.storageKey, idx);
         field.active = field.available[idx];
         console.debug('Switching field', id, idx);
+        this.setFieldTooltip(id);
         this.render({force: true});
     }
 
@@ -342,6 +349,7 @@ export class Renderer {
             const storageKey = `${this.id}-${id}`;
             this.fields.set(id, {
                 id,
+                el,
                 storageKey,
                 available: spec.fields,
                 active: spec.fields[storage.get(storageKey) || x.default] || spec.fields[0],
@@ -353,6 +361,21 @@ export class Renderer {
             });
             el.setAttribute('tabindex', 0);
             el.addEventListener('click', ev => this.rotateField(id));
+            this.setFieldTooltip(id);
+        }
+    }
+
+    setFieldTooltip(id) {
+        if (this.locked) {
+            return;
+        }
+        const field = this.fields.get(id);
+        const nextField = field.available[this.getAdjacentFieldIndex(field, 1)];
+        try {
+            const name = stripHTML(nextField.key() || nextField.label());
+            field.el.title = `Click to change field to: ${name}.  Or use Left/Right keys when focused.`;
+        } catch(e) {
+            console.error("Failed to get tooltip name for next field:", id, nextField, e);
         }
     }
 
@@ -682,6 +705,16 @@ export function sanitizeForAttr(raw) {
         return _saniEl.outerHTML.substr(13, _saniEl.outerHTML.length - 22);
     } finally {
         _saniEl.setAttribute('clean', '');
+    }
+}
+
+
+export function stripHTML(raw) {
+    _saniEl.innerHTML = raw;
+    try {
+        return _saniEl.textContent;
+    } finally {
+        _saniEl.textContent = '';
     }
 }
 
