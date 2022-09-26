@@ -4,6 +4,8 @@ import {sleep} from '../../shared/sauce/base.mjs';
 import * as report from '../../shared/report.mjs';
 import './sentry.js';
 
+const doc = document.documentElement;
+
 export let subscribe;
 let rpcCall;
 
@@ -40,7 +42,8 @@ function makeRPCError(errResp) {
 
 if (window.isElectron) {
     windowID = electron.context.id;
-    document.documentElement.classList.add('electron-mode');
+    doc.classList.add('electron-mode');
+    doc.classList.toggle('frame', !!electron.context.frame);
     const sendToElectron = function(name, data) {
         document.dispatchEvent(new CustomEvent('electron-message', {detail: {name, data}}));
     };
@@ -67,7 +70,7 @@ if (window.isElectron) {
         document.dispatchEvent(new CustomEvent('electron-rpc', {detail: {domEvent, name, args}}));
         return await resp;
     };
-    document.documentElement.addEventListener('click', async ev => {
+    doc.addEventListener('click', async ev => {
         const link = ev.target.closest('a[external][href]');
         if (link) {
             ev.preventDefault();
@@ -76,7 +79,7 @@ if (window.isElectron) {
     });
 } else {
     windowID = new URLSearchParams(location.search).get('id') || 'browser-def-id';
-    document.documentElement.classList.add('browser-mode');
+    doc.classList.add('browser-mode');
     const respHandlers = new Map();
     const subs = [];
     let uidInc = 1;
@@ -184,13 +187,12 @@ export function addOpenSettingsParam(key, value) {
 
 
 export function initInteractionListeners() {
-    const html = document.documentElement;
     const body = document.body;
     if (window.isElectron) {
         const spec = electron.context.spec;
         let customName = spec && spec.customName;
         if (customName) {
-            if (html.classList.contains('settings-page')) {
+            if (doc.classList.contains('settings-page')) {
                 customName += ' - Settings';
             }
             document.title = `${customName} - Sauce for Zwift™`;
@@ -205,21 +207,21 @@ export function initInteractionListeners() {
             body.classList.remove('transparent-bg');
             setTimeout(() => body.classList.add('transparent-bg'), 3000);
         }
-        html.classList.remove('highlight-window');
-        html.offsetWidth; // force layout
-        html.classList.add('highlight-window');
+        doc.classList.remove('highlight-window');
+        doc.offsetWidth; // force layout
+        doc.classList.add('highlight-window');
     });
-    if (!html.classList.contains('settings-mode') &&
-        !html.classList.contains('disable-settings-mode')) {
+    if (!doc.classList.contains('settings-mode') &&
+        !doc.classList.contains('disable-settings-mode')) {
         window.addEventListener('contextmenu', ev => {
             ev.preventDefault();
-            void html.classList.toggle('settings-mode');
+            void doc.classList.toggle('settings-mode');
         });
         window.addEventListener('blur', () =>
-            void html.classList.remove('settings-mode'));
+            void doc.classList.remove('settings-mode'));
         window.addEventListener('click', ev => {
             if (!ev.target.closest('#titlebar')) {
-                html.classList.remove('settings-mode');
+                doc.classList.remove('settings-mode');
             }
         });
         const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);

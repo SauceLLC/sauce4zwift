@@ -125,6 +125,8 @@ export async function render(el, tpl, tplData) {
         } else if (a.dataset.action === 'rideon') {
             await common.rpc.giveRideon(athleteId);
             tplData.rideonSent = true;
+        } else if (a.dataset.action === 'close') {
+            await common.rpc.closeWindow();
         } else {
             alert("Invalid command: " + a.dataset.action);
         }

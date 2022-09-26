@@ -24,8 +24,10 @@
     align-items: center;
 
     .name {
+        flex: 1;
         padding: 0.3em 0;
         margin-right: 0.6em;
+        app-region: drag;
 
         img {
             display: inline-block;
@@ -35,7 +37,6 @@
     }
 
     .buttons {
-        flex: 1;
         display: flex;
         justify-content: flex-end;
         align-items: center;
@@ -76,6 +77,9 @@
             }
             &[data-action="unfollow"].active {
                 color: #69ff94;
+            }
+            &[data-action="rideon"][disabled] {
+                color: #00ff00;
             }
 
             img {

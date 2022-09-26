@@ -21,6 +21,13 @@ const isMac = !isWindows && os.platform() === 'darwin';
 const isLinux = !isWindows && !isMac && os.platform() === 'linux';
 
 
+class SauceBrowserWindow extends electron.BrowserWindow {
+    constructor(options) {
+        super(options);
+        this.frame = options.frame !== false;
+    }
+}
+
 
 export const windowManifests = [{
     type: 'overview',
@@ -155,20 +162,22 @@ export function getMetaByWebContents(wc) {
 
 
 electron.ipcMain.on('getWindowContextSync', ev => {
-    let returnValue = {
+    const returnValue = {
         id: null,
         type: null,
     };
     try {
+        const win = ev.sender.getOwnerBrowserWindow();
+        returnValue.frame = win.frame;
         const m = getMetaByWebContents(ev.sender);
         if (m) {
             const manifest = windowManifestsByType[m.spec.type];
-            returnValue = {
+            Object.assign(returnValue, {
                 id: m.spec.id,
                 type: m.spec.type,
                 spec: m.spec,
                 manifest,
-            };
+            });
         }
     } finally {
         ev.returnValue = returnValue; // MUST set otherwise page blocks.
@@ -443,7 +452,7 @@ function handleNewSubWindow(parent, spec) {
         const display = getDisplayForWindow(parent);
         const bounds = getBoundsForDisplay(display, {width, height});
         const frame = q.has('frame') || !url.startsWith('file://');
-        const newWin = new electron.BrowserWindow({
+        const newWin = new SauceBrowserWindow({
             type: isLinux ? 'splash' : undefined,
             show: false,
             frame,
@@ -501,7 +510,7 @@ function _openWindow(id, spec) {
         ...spec.options,
         ...bounds,
     };
-    const win = new electron.BrowserWindow({
+    const win = new SauceBrowserWindow({
         type: isLinux ? 'splash' : undefined,
         show: false,
         frame: false,
@@ -569,7 +578,7 @@ export function openAllWindows() {
 export function makeCaptiveWindow(options={}, webPrefs={}) {
     const display = getCurrentDisplay();
     const bounds = getBoundsForDisplay(display, options);
-    const win = new electron.BrowserWindow({
+    const win = new SauceBrowserWindow({
         type: isLinux ? 'splash' : undefined,
         center: true,
         maximizable: false,
@@ -752,7 +761,7 @@ export async function zwiftLogin(options) {
 
 
 export async function welcomeSplash() {
-    const welcomeWin = new electron.BrowserWindow({
+    const welcomeWin = new SauceBrowserWindow({
         type: isLinux ? 'splash' : undefined,
         center: true,
         resizable: false,
@@ -815,7 +824,7 @@ export async function systemMessage(msg) {
     const height = 400;
     const y = (oBounds.y - dBounds.y < dBounds.height / 2) ? oBounds.y + oBounds.height : oBounds.y - height;
     const x = oBounds.x;
-    const sysWin = new electron.BrowserWindow({
+    const sysWin = new SauceBrowserWindow({
         type: isLinux ? 'splash' : undefined,
         width: oBounds.width,
         height,

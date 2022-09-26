@@ -121,6 +121,7 @@ export async function main() {
                     nations,
                     flags,
                     common,
+                    embedded: true,
                 });
             });
         }

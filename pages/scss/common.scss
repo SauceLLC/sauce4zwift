@@ -352,9 +352,8 @@ html body {
     }
 }
 
-html.electron-mode > body {
+html.electron-mode:not(.frame) > body {
     border-radius: 0.3rem;
-    border-radius: 3rem; // XXX
 }
 
 html:not(.browser-mode) body:not(.transparent-bg) {
@@ -377,8 +376,7 @@ html:not(:hover) #hintbar {
     }
 }
 
-html:not(.settings-page) #titlebar,
-#titlebar:not(.always-visible) {
+html:not(.settings-page) #titlebar:not(.always-visible) {
     position: absolute;
 }
 
@@ -469,6 +467,7 @@ html:not(.settings-page) #titlebar,
         justify-content: space-between;
         height: $header-height;
         background-image: linear-gradient(to top, #222, #333);
+        padding-right: 0.3em;
 
         .logo,
         .title,
@@ -516,10 +515,6 @@ html:not(.settings-page) #titlebar,
 
             ms {
                 font-weight: 300;
-            }
-
-            &:last-child {
-                margin-right: 0.3em;
             }
         }
 

@@ -52,6 +52,9 @@
                 <a title="Toggle marked state for this person.  Marked athletes will receieve extra attention and allow quick filtering.  Recommended for friends or foes in race situations."
                    data-action="toggleMarked" class="{{athlete.marked ? 'active' : ''}}"
                    href><ms>{{athlete.marked ? 'bookmark_added' : 'bookmark_add'}}</ms></a>
+                <% if (!obj.embedded) { %>
+                    <a href title="Close this window" data-action="close" class="electron-only"><ms>close</ms></a>
+                <% } %>
             </div>
         </header>
         <section>
