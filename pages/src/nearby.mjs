@@ -27,8 +27,7 @@ const weightClass = v => H.weightClass(v, {suffix: true, html: true});
 const pwr = v => H.power(v, {suffix: true, html: true});
 const hr = v => v ? num(v) + unit('bpm') : '-';
 const kj = (v, options) => v != null ? num(v, options) + unit('kJ') : '-';
-const pct = v => (v != null && !isNaN(v)) ? num(v) + unit('%') : '-';
-//const gapTime = (v, entry) => (H.duration(v, {short: true, html: true}) + (entry.isGapEst ? '<small> (est)</small>' : ''));
+const pct = v => (v != null && !isNaN(v) && v !== Infinity && v !== -Infinity) ? num(v) + unit('%') : '-';
 const gapTime = (v, entry) => ((v < 0 ? '-' : '') + H.timer(Math.abs(v)) + (entry.isGapEst ? '<small> (est)</small>' : ''));
 
 let overlayMode;
@@ -235,8 +234,8 @@ const fieldGroups = [{
          get: x => x.athlete && x.athlete.weight, fmt: weightClass},
         {id: 'level', defaultEn: false, label: 'Level', get: x => x.athlete && x.athlete.level,
          tooltip: 'The Zwift level of this athlete'},
-        {id: 'ftp', defaultEn: false, label: 'FTP', get: x => x.athlete && x.athlete.ftp, fmt: pwr,
-         tooltip: 'Functional Threshold Power'},
+        {id: 'ftp', defaultEn: false, label: 'FTP', get: x => x.athlete && x.athlete.ftp,
+         fmt: x => x ? pwr(x) : '-', tooltip: 'Functional Threshold Power'},
         {id: 'tss', defaultEn: false, label: 'TSS', get: x => x.stats.power.tss, fmt: num,
          tooltip: 'Training Stress Score'},
         {id: 'intensity-factor', defaultEn: false, label: 'Intensity Factor', headerLabel: 'IF',

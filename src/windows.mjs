@@ -224,7 +224,8 @@ rpc.register(function minimizeWindow() {
 rpc.register(function toggleMaximizeWindow() {
     const win = this.getOwnerBrowserWindow();
     if (win) {
-        if (win.isMaximized()) {
+        const maximized = isWindows ? win._maximizedWin32Hack : win.isMaximized();
+        if (maximized) {
             win.unmaximize();
         } else {
             win.maximize();
@@ -456,6 +457,7 @@ function handleNewSubWindow(parent, spec) {
         const q = new URLSearchParams((new URL(url)).search);
         const width = Number(q.get('width')) || undefined;
         const height = Number(q.get('height')) || undefined;
+        const isChildWindow = q.has('child-window');
         const display = getDisplayForWindow(parent);
         const bounds = getBoundsForDisplay(display, {width, height});
         const frame = q.has('frame') || !url.startsWith('file://');
@@ -466,7 +468,7 @@ function handleNewSubWindow(parent, spec) {
             transparent: frame === false,
             hasShadow: frame !== false,
             roundedCorners: frame !== false,
-            parent,
+            parent: isChildWindow ? parent : undefined,
             ...bounds,
             webPreferences: {
                 sandbox: true,
@@ -523,6 +525,7 @@ function _openWindow(id, spec) {
         frame: false,
         transparent: true,
         hasShadow: false,
+        roundedCorners: false,
         webPreferences: {
             sandbox: true,
             devTools: isDEV,
@@ -545,12 +548,21 @@ function _openWindow(id, spec) {
     handleNewSubWindow(win, spec);
     let saveStateTimeout;
     function onBoundsUpdate() {
+        if (isWindows) {
+            console.log("bound hack off");
+            win._maximizedWin32Hack = false;
+        }
         clearTimeout(saveStateTimeout);
         saveStateTimeout = setTimeout(() => updateWindow(id, {bounds: win.getBounds()}), 200);
     }
     win.on('page-title-updated', (ev, title) =>
             activeWindows.get(webContents).title = title.replace(/( - )?Sauce for Zwift™?$/, ''));
     win.on('move', onBoundsUpdate);
+    win.on('resize', onBoundsUpdate);
+    if (isWindows) {
+        win.on('maximized', () => { console.log('maxxxx');  win._maximizedWin32Hack = true;});
+        win.on('unmaximize', () => {console.log ("unmax");  win._maximizedWin32Hack = false;});
+    }
     win.on('resize', onBoundsUpdate);
     win.on('close', () => {
         activeWindows.delete(webContents);
