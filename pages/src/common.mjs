@@ -254,7 +254,7 @@ export function initInteractionListeners() {
     }
     const maximize = document.querySelector('#titlebar .button.maximize');
     if (maximize) {
-        maximize.addEventListener('click', ev => rpcCall('maximizeWindow'));
+        maximize.addEventListener('click', ev => rpcCall('toggleMaximizeWindow'));
     }
     for (const el of document.querySelectorAll('.button[data-url]')) {
         el.addEventListener('click', ev => location.assign(el.dataset.url));

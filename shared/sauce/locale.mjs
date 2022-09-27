@@ -258,6 +258,15 @@ function humanPower(p, options={}) {
 }
 
 
+function humanWkg(wkg, options={}) {
+    if (!_realNumber(wkg)) {
+        return '-';
+    }
+    const suffix = options.suffix ? options.html ? `<abbr class="unit">w/kg</abbr>` : 'w/kg' : '';
+    return humanNumber(wkg, {precision: 1, ...options}) + suffix;
+}
+
+
 function humanPace(kph, options={}) {
     if (!_realNumber(kph)) {
         return '-';
@@ -389,6 +398,7 @@ export const human = {
     number: humanNumber,
     pace: humanPace,
     power: humanPower,
+    wkg: humanWkg,
     place: humanPlace,
     distance: humanDistance,
     dayOfWeek: humanDayOfWeek,

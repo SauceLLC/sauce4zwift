@@ -52,7 +52,7 @@ html:not(.connected) {
         padding-right: 0.4em;
         text-align: center; // XXX tempted to make this std, makes wrapped text centered
 
-        ms {
+        ms:not([xl]) {
             padding-left: 0.5em;
             margin-bottom: 0;
         }

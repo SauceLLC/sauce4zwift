@@ -221,10 +221,14 @@ rpc.register(function minimizeWindow() {
     }
 });
 
-rpc.register(function maximizeWindow() {
+rpc.register(function toggleMaximizeWindow() {
     const win = this.getOwnerBrowserWindow();
     if (win) {
-        win.maximize();
+        if (win.isMaximized()) {
+            win.unmaximize();
+        } else {
+            win.maximize();
+        }
     }
 });
 
