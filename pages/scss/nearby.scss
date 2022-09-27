@@ -5,6 +5,10 @@ html {
         body {
             background: transparent !important;
         }
+
+        table thead {
+            background: var(--background-color);
+        }
     }
 }
 
