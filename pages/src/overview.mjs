@@ -15,6 +15,7 @@ function shortDuration(x) {
 
 const unit = x => `<abbr class="unit">${x}</abbr>`;
 
+
 function fmtDist(v) {
     if (v == null || v === Infinity || v === -Infinity || isNaN(v)) {
         return '-';
@@ -32,6 +33,22 @@ function fmtDur(v) {
         return '-';
     }
     return H.timer(v);
+}
+
+
+function fmtWkg(p, athlete) {
+    if (p == null || p === Infinity || p === -Infinity || isNaN(p) || !athlete || !athlete.ftp) {
+        return '-';
+    }
+    return H.number(p / athlete.weight, {precision: 1, fixed: true});
+}
+
+
+function fmtPct(p) {
+    if (p == null || p === Infinity || p === -Infinity || isNaN(p)) {
+        return '-';
+    }
+    return H.number(p * 100) + unit('%');
 }
 
 
@@ -284,8 +301,47 @@ function buildLayout() {
                 key: () => 'Power <small>(avg)</small>',
                 unit: () => 'w',
             }, {
+                value: x => fmtWkg(x.state && x.state.power, x.athlete),
+                key: () => `W/kg`,
+            }, {
+                value: x => fmtWkg(x.stats && x.stats.power.smooth[5], x.athlete),
+                key: () => `W/kg <small>(${shortDuration(5)})</small>`,
+            }, {
+                value: x => fmtWkg(x.stats && x.stats.power.smooth[15], x.athlete),
+                key: () => `W/kg <small>(${shortDuration(15)})</small>`,
+            }, {
+                value: x => fmtWkg(x.stats && x.stats.power.smooth[60], x.athlete),
+                key: () => `W/kg <small>(${shortDuration(60)})</small>`,
+            }, {
+                value: x => fmtWkg(x.stats && x.stats.power.smooth[300], x.athlete),
+                key: () => `W/kg <small>(${shortDuration(300)})</small>`,
+            }, {
+                value: x => fmtWkg(x.stats && x.stats.power.smooth[1200], x.athlete),
+                key: () => `W/kg <small>(${shortDuration(1200)})</small>`,
+            }, {
+                value: x => fmtWkg(x.stats && x.stats.power.peaks[5].avg, x.athlete),
+                key: () => `Peak W/kg <small>(${shortDuration(5)})</small>`,
+            }, {
+                value: x => fmtWkg(x.stats && x.stats.power.peaks[15].avg, x.athlete),
+                key: () => `Peak W/kg <small>(${shortDuration(15)})</small>`,
+            }, {
+                value: x => fmtWkg(x.stats && x.stats.power.peaks[60].avg, x.athlete),
+                key: () => `Peak W/kg <small>(${shortDuration(60)})</small>`,
+            }, {
+                value: x => fmtWkg(x.stats && x.stats.power.peaks[300].avg, x.athlete),
+                key: () => `Peak W/kg <small>(${shortDuration(300)})</small>`,
+            }, {
+                value: x => fmtWkg(x.stats && x.stats.power.peaks[1200].avg, x.athlete),
+                key: () => `Peak W/kg <small>(${shortDuration(1200)})</small>`,
+            }, {
+                value: x => fmtWkg(x.stats && x.stats.power.avg, x.athlete),
+                key: () => 'W/kg <small>(avg)</small>',
+            }, {
                 value: x => H.number(x.stats && x.stats.power.np),
                 key: () => 'NP',
+            }, {
+                value: x => fmtPct((x.stats && x.stats.power.np || 0) / (x.athlete && x.athlete.ftp)),
+                key: () => 'IF',
             }, {
                 value: x => H.number(x.stats && x.stats.power.max),
                 key: () => 'Power <small>(max)</small>',
