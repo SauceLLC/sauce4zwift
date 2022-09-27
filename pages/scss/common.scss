@@ -23,7 +23,14 @@ $header-height: 0.56in;
 
 html {
     --tilt: 0deg;
+
+    --theme-fg: #fff;
+    --theme-bg-start: #db0000de;
+    --theme-bg-end: #020e64d1;
+    --theme-alt-bg-start: #01052d70;
+    --theme-alt-bg-end: #0d117599;
 }
+
 
 @keyframes pournshake {
     0%,
@@ -343,23 +350,28 @@ body {
     color: white;
 }
 
-body.transparent-bg {
-    transition: background 200ms;
-}
-
 html body {
-    background-image: linear-gradient(135deg, #db0000de, transparent),
-                      linear-gradient(315deg, #020e64d1, transparent);
+    background-image: linear-gradient(135deg, var(--theme-bg-start), transparent),
+                      linear-gradient(315deg, var(--theme-bg-end), transparent);
 
     &.alt-background {
         background-image:
-            linear-gradient(135deg, #01052d70, transparent),
-            linear-gradient(315deg, #0d117599, transparent);
+            linear-gradient(135deg, var(--theme-alt-bg-start), transparent),
+            linear-gradient(315deg, var(--theme-alt-bg-end), transparent);
     }
 }
 
 html.electron-mode:not(.frame) > body {
     border-radius: 0.3rem;
+
+    #titlebar header {
+        .logo,
+        .title,
+        .filler {
+            app-region: drag;
+            cursor: move;
+        }
+    }
 }
 
 html:not(.browser-mode) body:not(.transparent-bg) {
@@ -376,9 +388,14 @@ html:not(:hover) #hintbar {
     max-height: 0;
     padding-top: 0;
     padding-bottom: 0;
+}
 
-    .app-drag {
-        app-region: initial;
+html:not(.settings-mode):not(.settings-page) #titlebar:not(.always-visible) header {
+    .logo,
+    .title,
+    .filler {
+        app-region: initial !important;
+        cursor: unset !important;
     }
 }
 
@@ -478,8 +495,6 @@ html:not(.settings-page) #titlebar:not(.always-visible) {
         .logo,
         .title,
         .filler {
-            app-region: drag;
-            cursor: move;
             height: 100%;
         }
 
