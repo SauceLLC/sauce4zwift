@@ -241,7 +241,7 @@ const fieldGroups = [{
          tooltip: 'Training Stress Score'},
         {id: 'intensity-factor', defaultEn: false, label: 'Intensity Factor', headerLabel: 'IF',
          tootltip: 'Normalized Power / FTP: A value of 100% means NP = FTP', get: x => x.stats.power.np,
-         fmt: (x, entry) => pct(x / (entry.athlete && entry.athlete.weight))},
+         fmt: (x, entry) => pct(x / (entry.athlete && entry.athlete.ftp) * 100)},
         {id: 'distance', defaultEn: false, label: 'Distance', headerLabel: 'Dist',
          get: x => x.state.distance, fmt: fmtDist},
         {id: 'event-distance', defaultEn: false, label: 'Event Distance', headerLabel: 'Ev Dist',
