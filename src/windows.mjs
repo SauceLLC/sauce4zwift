@@ -221,17 +221,6 @@ rpc.register(function minimizeWindow() {
     }
 });
 
-rpc.register(function toggleMaximizeWindow() {
-    const win = this.getOwnerBrowserWindow();
-    if (win) {
-        const maximized = isWindows ? win._maximizedWin32Hack : win.isMaximized();
-        if (maximized) {
-            win.unmaximize();
-        } else {
-            win.maximize();
-        }
-    }
-});
 
 rpc.register(pid => {
     for (const x of electron.BrowserWindow.getAllWindows()) {
@@ -548,21 +537,12 @@ function _openWindow(id, spec) {
     handleNewSubWindow(win, spec);
     let saveStateTimeout;
     function onBoundsUpdate() {
-        if (isWindows) {
-            console.log("bound hack off");
-            win._maximizedWin32Hack = false;
-        }
         clearTimeout(saveStateTimeout);
         saveStateTimeout = setTimeout(() => updateWindow(id, {bounds: win.getBounds()}), 200);
     }
     win.on('page-title-updated', (ev, title) =>
             activeWindows.get(webContents).title = title.replace(/( - )?Sauce for Zwift™?$/, ''));
     win.on('move', onBoundsUpdate);
-    win.on('resize', onBoundsUpdate);
-    if (isWindows) {
-        win.on('maximized', () => { console.log('maxxxx');  win._maximizedWin32Hack = true;});
-        win.on('unmaximize', () => {console.log ("unmax");  win._maximizedWin32Hack = false;});
-    }
     win.on('resize', onBoundsUpdate);
     win.on('close', () => {
         activeWindows.delete(webContents);
