@@ -18,8 +18,14 @@ let containerEl;
 const doc = document.documentElement;
 
 
+
 function pwrFmt(p) {
     return H.power(p, {suffix: true, html: true});
+}
+
+
+function wkgFmt(wkg) {
+    return H.wkg(wkg, {suffix: true, html: true});
 }
 
 
@@ -108,6 +114,12 @@ function render() {
 }
 
 
+function isAttack(power, groupPower) {
+    return settings.detectAttacks &&
+        (power > 650 || (power > 400 && power > groupPower * 2));
+}
+
+
 function renderZoomed(groups) {
     if (!groups) {
         return;
@@ -129,9 +141,13 @@ function renderZoomed(groups) {
     contentEl.style.setProperty('--total-athletes', athletes.length);  // visual only
     const athletesLabel = groupSize === 1 ? 'Athlete' : 'Athletes';
     const groupLabel = pos ? `${H.place(Math.abs(pos))} ${pos > 0 ? 'behind' : 'ahead'}` : 'Your Group';
+    const primaryFmt = {
+        power: ({power}) => pwrFmt(power),
+        wkg: ({power, weight}) => weight ? wkgFmt(power / weight) : pwrFmt(power),
+    }[settings.zoomedPrimaryField || 'power'];
     metaEl.innerHTML = [
         `${groupLabel}, ${groupSize} ${athletesLabel}`,
-        `${pwrFmt(group.power)}, ${spdFmt(group.speed)}`,
+        `${primaryFmt(group)}, ${spdFmt(group.speed)}`,
     ].map(x => `<div class="line">${x}</div>`).join('');
     const active = new Set();
     aheadEl.classList.toggle('visible', !!ahead);
@@ -148,7 +164,7 @@ function renderZoomed(groups) {
         active.add(i);
         const pos = getOrCreatePosition(i);
         pos.bubble.title = `Click for athlete details`;
-        pos.bubble.href = `athlete.html?athleteId=${athlete.athleteId}&width=900&height=375`;
+        pos.bubble.href = `athlete.html?athleteId=${athlete.athleteId}&width=800&height=340`;
         pos.el.classList.toggle('watching', !!athlete.watching);
         pos.el.style.setProperty('--athletes', 1);
         let label;
@@ -175,12 +191,9 @@ function renderZoomed(groups) {
             pos.bubble.innerHTML = `<img src="${avatar}"/>`;
         }
         const leftLines = [];
-        const attacker = settings.detectAttacks &&
-            athlete.state.power > 400 &&
-            (athlete.state.power / group.power) > 2;
-        if (attacker) {
+        if (isAttack(athlete.state.power, group.power)) {
             pos.el.classList.add('attn', 'attack');
-            leftLines.push(`<div class="line major attn">Attacking!</div>`);
+            leftLines.push(`<div class="line major attn">Attack!</div>`);
         } else {
             pos.el.classList.remove('attn', 'attack');
             if (fLast) {
@@ -190,7 +203,11 @@ function renderZoomed(groups) {
                 }
             }
         }
-        const rightLines = [`<div class="line">${pwrFmt(athlete.state.power)}</div>`];
+        const priLine = primaryFmt({
+            power: athlete.state.power,
+            weight: athlete.athlete && athlete.athlete.weight
+        });
+        const rightLines = [`<div class="line">${priLine}</div>`];
         const minorField = settings.zoomedSecondaryField || 'heartrate';
         if (minorField === 'heartrate') {
             if (athlete.state.heartrate) {
@@ -259,6 +276,10 @@ function renderGroups(groups) {
     if (centerIdx === -1) {
         return;
     }
+    const primaryFmt = {
+        power: ({power}) => pwrFmt(power),
+        wkg: ({power, weight}) => weight ? wkgFmt(power / weight) : pwrFmt(power),
+    }[settings.groupsPrimaryField || 'power'];
     const totAthletes = groups.reduce((agg, x) => agg + x.athletes.length, 0);
     contentEl.style.setProperty('--total-athletes', totAthletes);
     const athletesLabel = totAthletes === 1 ? 'Athlete' : 'Athletes';
@@ -293,26 +314,24 @@ function renderGroups(groups) {
         } else {
             label = H.number(group.athletes.length);
             let max = -Infinity;
+            let weight;
             for (const x of group.athletes) {
                 const p = x.stats.power.smooth[5];
                 if (p > max) {
                     max = p;
+                    weight = x.athlete && x.athlete.weight;
                 }
             }
-            const attacker = settings.detectAttacks &&
-                group.athletes.length > 1 &&
-                max > 400 &&
-                (max / group.power) > 2;
-            if (attacker) {
+            if (isAttack(max, group.power)) {
                 pos.el.classList.add('attn', 'attack');
-                leftLines.push(`<div class="line attn">Attacker!</div>`);
-                leftLines.push(`<div class="line minor attn">${pwrFmt(max)}</div>`);
+                leftLines.push(`<div class="line attn">Attack!</div>`);
+                leftLines.push(`<div class="line minor attn">${primaryFmt({power: max, weight})}</div>`);
             } else {
                 pos.el.classList.remove('attn', 'attack');
             }
         }
         pos.bubble.textContent = label;
-        rightLines.push(`<div class="line">${pwrFmt(group.power)}</div>`);
+        rightLines.push(`<div class="line">${primaryFmt(group)}</div>`);
         const minorField = settings.groupsSecondaryField || 'speed';
         if (minorField === 'heartrate') {
             if (group.heartrate) {
@@ -387,6 +406,8 @@ export async function main() {
         maxAhead: 4,
         maxBehind: 2,
         maxZoomed: 8,
+        groupsPrimaryField: 'power',
+        zoomedPrimaryField: 'power',
         groupsSecondaryField: 'speed',
         zoomedSecondaryField: 'draft',
         zoomedGapField: 'distance',
@@ -394,6 +415,16 @@ export async function main() {
         backgroundColor: '#00ff00',
         refreshInterval: 2,
     });
+    // XXX Need a migration system.
+    if (!settings.groupsPrimaryField) {
+        settings.groupsPrimaryField = 'power';
+        common.storage.set(settingsKey, settings);
+    }
+    // XXX Need a migration system.
+    if (!settings.zoomedPrimaryField) {
+        settings.zoomedPrimaryField = 'power';
+        common.storage.set(settingsKey, settings);
+    }
     setBackground(settings);
     contentEl.querySelector('.zoom-out').addEventListener('click', ev => {
         zoomedPosition = null;

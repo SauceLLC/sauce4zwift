@@ -23,8 +23,6 @@
                 <div class="title">Groups - Settings</div>
                 <div class="filler"></div>
                 <div class="buttons">
-                    <div title="Minimize" class="button minimize electron-only"><ms>minimize</ms></div>
-                    <div title="Maximize" class="button maximize electron-only"><ms>open_in_full</ms></div>
                     <div title="Close this window" class="button close electron-only"><ms>close</ms></div>
                 </div>
             </header>
@@ -35,6 +33,13 @@
                     <key>Refresh interval:</key>
                     <input type="number" min="0" step="1" name="refreshInterval"/> <small>(seconds)</small>
                 </label>
+                <label title="When powerful surges are detected attention will be drawn to the group or athlete">
+                    <key>Detect attacks:</key>
+                    <input type="checkbox" name="detectAttacks"/>
+                </label>
+
+                <hr/>
+
                 <label>
                     <key>Groups ahead:</key>
                     <input type="number" min="1" max="10" step="1" name="maxAhead"/>
@@ -43,12 +48,15 @@
                     <key>Groups behind:</key>
                     <input type="number" min="1" max="10" step="1" name="maxBehind"/>
                 </label>
-                <label title="When powerful surges are detected attention will be drawn to the group or athlete">
-                    <key>Detect attacks:</key>
-                    <input type="checkbox" name="detectAttacks"/>
+                <label>
+                    <key>Top groups field:</key>
+                    <select name="groupsPrimaryField">
+                        <option value="power">Power</option>
+                        <option value="wkg">W/kg</option>
+                    </select>
                 </label>
                 <label>
-                    <key>Extra groups field:</key>
+                    <key>Bottom groups field:</key>
                     <select name="groupsSecondaryField">
                         <option value="speed">Speed</option>
                         <option value="draft">Draft</option>
@@ -57,8 +65,18 @@
                         <option value="power-median">Median Power</option>
                     </select>
                 </label>
+
+                <hr/>
+
                 <label>
-                    <key>Extra zoomed field:</key>
+                    <key>Top zoomed field:</key>
+                    <select name="zoomedPrimaryField">
+                        <option value="power">Power</option>
+                        <option value="wkg">W/kg</option>
+                    </select>
+                </label>
+                <label>
+                    <key>Bottom zoomed field:</key>
                     <select name="zoomedSecondaryField">
                         <option value="speed">Speed</option>
                         <option value="draft">Draft</option>
@@ -67,12 +85,13 @@
                     </select>
                 </label>
                 <label>
-                    <key>Zoomed gap field:</key>
+                    <key>Zoomed gap metric:</key>
                     <select name="zoomedGapField">
                         <option value="time">Time</option>
                         <option value="distance">Distance</option>
                     </select>
                 </label>
+                <hr/>
                 <label title="Mostly useful for streamers using OBS window and browser sources">
                     <key>Solid background:</key>
                     <input type="checkbox" name="solidBackground"/>
