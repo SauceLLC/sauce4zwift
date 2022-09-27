@@ -313,8 +313,9 @@ class SauceApp extends EventEmitter {
 
     startGameConnectionServer(ip) {
         const gcs = new zwift.GameConnectionServer({ip, zwiftAPI});
-        registerRPCMethods(gcs, 'watch', 'join', 'teleportHome', 'say', 'wave', 'elbow', 'takePicture',
-            'changeCamera', 'enableHUD', 'disableHUD', 'chatMessage', 'reverse', 'toggleGraphs', 'sendCommands');
+        registerRPCMethods(gcs, 'watch', 'join', 'teleportHome', 'say', 'wave', 'elbow',
+            'takePicture', 'powerup', 'changeCamera', 'enableHUD', 'disableHUD', 'chatMessage',
+            'reverse', 'toggleGraphs', 'sendCommands', 'turnLeft', 'turnRight', 'goStraight');
         gcs.start().catch(report.error);
         return gcs;
     }
@@ -359,20 +360,20 @@ class SauceApp extends EventEmitter {
                 'This is usually an indicator that your Monitor Login is not the correct one. ' +
                 'Go to the main settings panel and logout if it is incorrect.');
         });
-        this.statsProc = new stats.StatsProcessor({zwiftAPI, gameMonitor});
+        let ip;
+        let gameConnection;
+        if (this.getSetting('gameConnectionEnabled') && !args.disableGameConnection) {
+            ip = ip || await getLocalRoutedIP();
+            gameConnection = this.startGameConnectionServer(ip);
+            // This isn't required but reduces latency..
+            gameConnection.on('watch-command', id => gameMonitor.setWatching(id));
+            this.gameConnection = gameConnection; // debug
+        }
+        rpcSources.gameConnection = gameConnection || new EventEmitter();
+        this.statsProc = new stats.StatsProcessor({zwiftAPI, gameMonitor, gameConnection});
         this.statsProc.start();
         rpcSources.stats = this.statsProc;
         rpcSources.app = this;
-        let ip;
-        if (this.getSetting('gameConnectionEnabled') && !args.disableGameConnection) {
-            ip = ip || await getLocalRoutedIP();
-            rpcSources.gameConnection = this.gameConnection = this.startGameConnectionServer(ip);
-            // This isn't required but reduces latency..
-            this.gameConnection.on('watch-command', id => gameMonitor.setWatching(id));
-        } else {
-            // Prevent errors for pages wanting this.
-            rpcSources.gameConnection = new EventEmitter();
-        }
         if (this.getSetting('webServerEnabled')) {
             ip = ip || await getLocalRoutedIP();
             this.webServerEnabled = true;

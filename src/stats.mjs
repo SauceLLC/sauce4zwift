@@ -261,6 +261,56 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.getGroupsData, {scope: this});
         rpc.register(this.getAthleteData, {scope: this});
         this._athleteSubs = new Map();
+        if (options.gameConnection) {
+            const gc = options.gameConnection;
+            gc.on('status', ({connected}) => this.onGameConnectionStatusChange(connected));
+            gc.on('powerup-activate', this.onPowerupActivate.bind(this));
+            gc.on('powerup-set', this.onPowerupSet.bind(this));
+            gc.on('custom-action-button', this.onCustomActionButton.bind(this));
+        }
+    }
+
+    onGameConnectionStatusChange(connected) {
+        const data = this._athleteData.get(this.athleteId);
+        if (data) {
+            data.gameState = {};
+        }
+    }
+
+    _getGameState() {
+        if (!this._athleteData.has(this.athleteId)) {
+            this._athleteData.set(this.athleteId, this._createAthleteData(this.athleteId), Date.now());
+            debugger;
+        }
+        const data = this._athleteData.get(this.athleteId);
+        if (!data.gameState) {
+            data.gameState = {};
+        }
+        return data.gameState;
+    }
+        
+    onPowerupSet({powerup}) {
+        const s = this._getGameState();
+        if (s) {
+            s.powerup = powerup;
+        }
+    }
+
+    onPowerupActivate() {
+        const s = this._getGameState();
+        if (s) {
+            s.powerup = null;
+        }
+    }
+
+    onCustomActionButton(info, command) {
+        const s = this._getGameState();
+        if (s) {
+            if (!s.buttons) {
+                s.buttons = {};
+            }
+            s.buttons[info.button] = info.state;
+        }
     }
 
     getEvent(id) {
@@ -1235,6 +1285,7 @@ export class StatsProcessor extends events.EventEmitter {
             latency: (Date.now() - state.ts) / 1000,
             eventPosition: data.eventPosition,
             eventParticipants: data.eventParticipants,
+            gameState: data.gameState,
             ...this._getRemaining(state),
             ...extra,
         };
@@ -1345,32 +1396,54 @@ export class StatsProcessor extends events.EventEmitter {
         if (!nearby.length) {
             return groups;
         }
-        let curGroup;
-        for (const x of nearby) {
-            if (!curGroup) {
-                curGroup = {athletes: [x]};
-            } else {
-                const last = curGroup.athletes[curGroup.athletes.length - 1];
-                const gap = x.gap - last.gap;
-                if (gap > 2) {
-                    curGroup.innerGap = gap;
-                    groups.push(curGroup);
-                    curGroup = {athletes: []};
-                }
-                curGroup.athletes.push(x);
+        let watchingIdx;
+        let curGroup = {
+            athletes: [],
+            weight: 0,
+            weightCount: 0,
+            power: 0,
+            draft: 0,
+            heartrate: 0,
+            heartrateCount: 0,
+        };
+        for (let i = 0, prevGap; i < nearby.length; i++) {
+            const x = nearby[i];
+            const innerGap = prevGap !== undefined ? x.gap - prevGap : 0;
+            if (innerGap > 2) {
+                curGroup.innerGap = innerGap;
+                groups.push(curGroup);
+                curGroup = {
+                    athletes: [],
+                    weight: 0,
+                    weightCount: 0,
+                    power: 0,
+                    draft: 0,
+                    heartrate: 0,
+                    heartrateCount: 0,
+                };
             }
-            curGroup.watching = curGroup.watching || x.athleteId === this.watching;
+            curGroup.athletes.push(x);
+            const weight = x.athlete && x.athlete.weight || 0;
+            curGroup.weight += weight;
+            curGroup.weightCount += !!weight;
+            curGroup.power += x.state.power || 0;
+            curGroup.draft += x.state.draft || 0;
+            curGroup.heartrate += x.state.heartrate || 0;
+            curGroup.heartrateCount += !!x.state.heartrate;
+            if (x.athleteId === this.watching) {
+                curGroup.watching = true;
+                watchingIdx = groups.length;
+            }
+            prevGap = x.gap;
         }
-        if (curGroup && curGroup.athletes.length) {
-            groups.push(curGroup);
-        }
-        const watchingIdx = groups.findIndex(x => x.watching);
+        groups.push(curGroup);
         for (let i = 0; i < groups.length; i++) {
             const x = groups[i];
-            x.power = sauce.data.avg(x.athletes.map(x => x.state.power));
-            x.draft = sauce.data.avg(x.athletes.map(x => x.state.draft));
+            x.weight /= x.weightCount;
+            x.power /= x.athletes.length;
+            x.draft /= x.athletes.length;
             x.speed = sauce.data.median(x.athletes.map(x => x.state.speed));
-            x.heartrate = sauce.data.avg(x.athletes.map(x => x.state.heartrate).filter(x => x));
+            x.heartrate /= x.heartrateCount;
             if (watchingIdx !== i) {
                 const edge = watchingIdx < i ? x.athletes[0] : x.athletes[x.athletes.length - 1];
                 x.isGapEst = edge.isGapEst;

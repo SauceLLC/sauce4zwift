@@ -1026,7 +1026,7 @@ enum CompanionToGameCommandType {
 
 message CompanionToGameCommand {
     required int32 seqno = 1;
-    required CompanionToGameCommandType command = 2;
+    required CompanionToGameCommandType type = 2;
     int64 subject = 3;
     string _f4 = 4;
     int64 profileRequestAthleteId = 5;
@@ -1042,7 +1042,7 @@ message CompanionToGameCommand {
     //BLEPeripheralResponse _f18 = 18;
     uint64 athleteId = 19;
     string _f20 = 20;
-    bytes gamePacket = 21; // it is a protobuf (usually?) but haven't sus'd it out
+    GamePacket gamePacket = 21;
     //BLEAdvertisement _f22 = 22;
 }
 
@@ -1069,11 +1069,11 @@ message PlayerInfo {
     uint64 athleteId = 1;
     int32 _f2 = 2; // seen 1
     Position position = 3;
-    string profile = 5;
-    uint64 id2XXX = 6; // watching ? XXX
+    string avatar = 5;
+    uint64 id2XXX = 6; // not watching, always the same it seems
     int32 _f7 = 7; // seen 1
     string fullName = 11;
-    int32 _f12XXXPower = 12; // power?
+    int32 _f12 = 12; // 86?
     float _f13 = 13; // seen -0.7938984036445618, -2.536346435546875
     int32 _f16 = 16; // seen u2 or s1, u1, s-1
     int32 _f18 = 18; // seen 0, 24 (for multi athletes)
@@ -1081,19 +1081,19 @@ message PlayerInfo {
     int32 _f20 = 20; // seen 0
 }
 
-message GTPC21_6_1 {
+message MappingDataEntry {
     int32 seqno = 1;
     repeated PlayerInfo playerInfos = 2;
-    int32 f3 = 3; // seen u10/s5 with playerinfo
+    int32 f3 = 3; // Seend 5 and 10
 }
 
-message GTPC21_6 {
-    repeated GTPC21_6_1 gtpc21_6_1 = 1;
+message MappingDataEntries {
+    repeated MappingDataEntry entries = 1;
 }
 
 message GTPC21_4 {
     int32 f1 = 1;
-    string f6 = 6;
+    string gameVersion = 6;
     int32 f7 = 7;
     int32 f8 = 8;
 }
@@ -1103,11 +1103,38 @@ message GTPC21_8 {
     int32 f2 = 2;
 }
 
+enum GamePacketType {
+    UNKNOWN = 0;
+    SPORTS_DATA_REQUEST = 1;
+    SPORTS_DATA_RESPONSE = 2;
+    GAME_SESSION_INFO = 3;
+    CLIENT_INFO = 4;
+    MAPPING_DATA = 5;
+    INTERSECTION_AHEAD = 6;
+    PLAYER_INFO = 7;
+    RIDE_ON_BOMB_REQUEST = 8;
+    RIDE_ON_BOMB_RESPONSE = 9;
+    EFFECT_REQUEST = 10;
+    WORKOUT_INFO = 11;
+    WORKOUT_STATE = 12;
+    PLAYER_FITNESS_INFO = 13;
+    WORKOUT_ACTION_REQUEST = 14;
+    CLIENT_ACTION = 15;
+    MEETUP_STATE = 16;
+    SEGMENT_RESULT_ADD = 17;
+    SEGMENT_RESULT_REMOVE = 18;
+    SEGMENT_RESULT_NEW_LEADER = 19;
+    PLAYER_ACTIVE_SEGMENTS = 20;
+    PLAYER_STOPWATCH_SEGMENT = 21;
+    BOOST_MODE_STATE = 22;
+    GAME_ACTION = 23;
+}
+
 message GamePacket {
-    int32 f1 = 1; // saw a 6 following a cam change once.
+    GamePacketType type = 1;
     GTPC21_4 gtpc21_4 = 4;
-    GTPC21_6 gtpc21_6 = 6;
-    string _f7 = 7;
+    MappingDataEntries mappingData = 6;
+    string _f7 = 7; // Saw set to empty string during intersection_ahead
     GTPC21_8 gtpc21_8 = 8;
 }
 
@@ -1130,11 +1157,18 @@ enum GameToCompanionCommandType {
 
 message GameToCompanionCommand {
     int32 seqno = 1;
-    GameToCompanionCommandType command = 2;
-    int32 f3 = 3;
-    int32 f4 = 4;
+    GameToCompanionCommandType type = 2;
+    int32 powerupArg = 3;
+    string powerup = 4;
     int32 f5 = 5;
-    int32 f6 = 6;
+    string powerupColor = 6; // is an actual hex number with 0x prefix
+    int32 customActionSubCommand = 8;
+    int32 customActionXXX_f9 = 9;
+    string customActionButton = 10;
+    string customActionButtonImage = 11;
+    string powerupBackgrounColor = 12;
+    int32 customActionXXX2_f13 = 13; // 0
+    SocialPlayerAction socialAction = 16;
     int32 f19 = 19; // saw 1 folling pairing_to
     GamePacket gamePacket = 21;
 }
@@ -1155,14 +1189,14 @@ message GameToCompanion {
     int32 replySeqno = 2;
     uint64 athleteId = 3;
     int32 _f4 = 4; // possibly bool
-    bytes _f5XXXProtobufsometimes = 5;  // massive amount of data
+    PlayerState playerState = 5;
     uint32 _f6 = 6; // possibly bool
-    int64 _f7 = 7;
+    int32 _f7 = 7; // possibly bool
     int64 _f8 = 8;
     repeated AltPlayerState altPlayerStates = 9; // XXX seen once or maybe I messed up here.
     int64 _f10 = 10;
     repeated GameToCompanionCommand commands = 11;
-    int64 _worldTimeXXX = 12;  // XXX Pretty sure, might be high prec time, investigate
+    int64 _worldTime = 12;
 }
 
 message TCPServer {

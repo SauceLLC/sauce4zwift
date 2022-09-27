@@ -1717,7 +1717,111 @@ export class GameConnectionServer extends net.Server {
         this.on('error', this.onError.bind(this));
         this.listenDone = new Promise(resolve => this.listen({address: this.ip, port: 0}, resolve));
         this._state = 'init';
+        const gct = protos.GameToCompanionCommandType;
+        this._commandHandlers = {
+            [gct.CLEAR_POWER_UP]: this.onUnhandledCommand,
+            [gct.SET_POWER_UP]: this.onPowerupSetCommand,
+            [gct.ACTIVATE_POWER_UP]: this.onPowerupActivateCommand,
+            [gct.CUSTOMIZE_ACTION_BUTTON]: this.onCustomActionButtonCommand,
+            [gct.SEND_IMAGE]: this.onUnhandledCommand,
+            [gct.SOCIAL_PLAYER_ACTION]: this.onSocialPlayerActionCommand,
+            [gct.DONT_USE_MOBILE_ALERT]: this.onUnhandledCommand,
+            [gct.BLEPERIPHERAL_REQUEST]: this.onUnhandledCommand,
+            [gct.PAIRING_STATUS]: this.onIgnoringCommand,
+            [gct.MOBILE_ALERT_CANCEL]: this.onUnhandledCommand,
+            [gct.DEFAULT_ACTIVITY_NAME]: this.onUnhandledCommand,
+            [gct.MOBILE_ALERT]: this.onUnhandledCommand,
+            [gct.PACKET]: this.onPacketCommand,
+        };
+        const gpt = protos.GamePacketType;
+        this._gamePacketHandlers = {
+            [gpt.SPORTS_DATA_REQUEST]: this.onUnhandledPacket,
+            [gpt.SPORTS_DATA_RESPONSE]: this.onUnhandledPacket,
+            [gpt.GAME_SESSION_INFO]: this.onUnhandledPacket,
+            [gpt.GAME_SESSION_INFO]: this.onUnhandledPacket,
+            [gpt.MAPPING_DATA]: this.onIgnoringPacket,
+            [gpt.INTERSECTION_AHEAD]: this.onUnhandledPacket,
+            [gpt.PLAYER_INFO]: this.onUnhandledPacket,
+            [gpt.RIDE_ON_BOMB_REQUEST]: this.onUnhandledPacket,
+            [gpt.RIDE_ON_BOMB_RESPONSE]: this.onUnhandledPacket,
+            [gpt.EFFECT_REQUEST]: this.onUnhandledPacket,
+            [gpt.WORKOUT_INFO]: this.onUnhandledPacket,
+            [gpt.WORKOUT_STATE]: this.onUnhandledPacket,
+            [gpt.PLAYER_FITNESS_INFO]: this.onUnhandledPacket,
+            [gpt.WORKOUT_ACTION_REQUEST]: this.onUnhandledPacket,
+            [gpt.CLIENT_ACTION]: this.onUnhandledPacket,
+            [gpt.MEETUP_STATE]: this.onUnhandledPacket,
+            [gpt.SEGMENT_RESULT_ADD]: this.onIgnoringPacket,
+            [gpt.SEGMENT_RESULT_REMOVE]: this.onIgnoringPacket,
+            [gpt.SEGMENT_RESULT_NEW_LEADER]: this.onIgnoringPacket,
+            [gpt.PLAYER_ACTIVE_SEGMENTS]: this.onUnhandledPacket,
+            [gpt.PLAYER_STOPWATCH_SEGMENT]: this.onUnhandledPacket,
+            [gpt.BOOST_MODE_STATE]: this.onUnhandledPacket,
+            [gpt.GAME_ACTION]: this.onUnhandledPacket,
+        };
     }
+
+    onPacketCommand(command) {
+        const gp = command.gamePacket;
+        const handler = this._gamePacketHandlers[gp.type];
+        if (!handler) {
+            console.error("Unexpected packet type:", gp.type, gp);
+            debugger;
+            return;
+        }
+        handler.call(this, gp, command);
+    }
+
+    onUnhandledCommand(command, gtc, buf) {
+        console.debug('Unhandled command', command);
+        console.debug(buf.toString('hex'));
+        console.debug(JSON.stringify(command.toJSON(), null, 2));
+    }
+
+    onIgnoringCommand() {}
+
+    onPowerupSetCommand(command) {
+        this.emit('powerup-set', command);
+    }
+
+    onPowerupActivateCommand(command) {
+        // NOTE this is fired on connection establish when we don't have a powerup.
+        // Effectively clearing the powerup for UI purposes.
+        this.emit('powerup-activate', command);
+    }
+
+    onCustomActionButtonCommand(command) {
+        if (command.customActionSubCommand === 23) {
+            if (command.customActionXXX_f9 || command.customActionButton) {
+                debugger; // assertion fail
+            }
+            return;
+        }
+        const info = {button: command.customActionButton};
+        if (info.button === 'HUD') {
+            info.state = command.customActionSubCommand === 1080 ? false : true;
+        }
+        console.info("Custom action!!!", info, command.toJSON());
+        this.emit('custom-action-button', info, command);
+    }
+
+    onSocialPlayerActionCommand(command) {
+        const sa = command.socialAction;
+        if (sa.type === protos.SocialPlayerActionType.TEXT_MESSAGE) {
+            this.emit('chat', sa, command);
+        } else if (sa.type === protos.SocialPlayerActionType.RIDE_ON) {
+            this.emit('rideon', sa, command);
+        } else if (sa.type === protos.SocialPlayerActionType.FLAG) {
+            this.emit('flag', sa, command);
+        }
+    }
+
+
+    onUnhandledPacket(packet) {
+        console.debug('unhandled packet', packet.toJSON());
+    }
+
+    onIgnoringPacket() {}
 
     async start() {
         try {
@@ -1747,46 +1851,46 @@ export class GameConnectionServer extends net.Server {
     }
 
     async changeCamera() {
-        await this.sendCommands({command: protos.CompanionToGameCommandType.CHANGE_CAMERA_ANGLE});
+        await this.sendCommands({type: 'CHANGE_CAMERA_ANGLE'});
     }
 
     async elbow() {
-        await this.sendCommands({command: protos.CompanionToGameCommandType.ELBOW_FLICK});
+        await this.sendCommands({type: 'ELBOW_FLICK'});
     }
 
     async wave() {
-        await this.sendCommands({command: protos.CompanionToGameCommandType.WAVE});
+        await this.sendCommands({type: 'WAVE'});
     }
 
     async powerup() {
-        await this.sendCommands({command: protos.CompanionToGameCommandType.ACTIVATE_POWER_UP});
+        await this.sendCommands({type: 'ACTIVATE_POWER_UP'});
     }
 
     async say(what) {
-        const cmd = {
-            rideon: protos.CompanionToGameCommandType.RIDE_ON,
-            bell: protos.CompanionToGameCommandType.BELL,
-            hammertime: protos.CompanionToGameCommandType.HAMMER_TIME,
-            toast: protos.CompanionToGameCommandType.TOAST,
-            nice: protos.CompanionToGameCommandType.NICE,
-            bringit: protos.CompanionToGameCommandType.BRING_IT,
-        }[what] || 6;
-        await this.sendCommands({
-            command: cmd,
-            subCommand: cmd,
-        });
+        const type = {
+            rideon: 'RIDE_ON',
+            bell: 'BELL',
+            hammertime: 'HAMMER_TIME',
+            toast: 'TOAST',
+            nice: 'NICE',
+            bringit: 'BRING_IT',
+        }[what];
+        if (!type) {
+            throw new TypeError(`Invalid say type: ${type}`);
+        }
+        await this.sendCommands({type});
     }
 
     async ringBell() {
-        await this.sendCommands({command: protos.CompanionToGameCommandType.BELL});
+        await this.sendCommands({type: 'BELL'});
     }
 
     async endRide() {
-        await this.sendCommands({command: protos.CompanionToGameCommandType.DONE_RIDING});
+        await this.sendCommands({type: 'DONE_RIDING'});
     }
 
     async takePicture() {
-        await this.sendCommands({command: protos.CompanionToGameCommandType.TAKE_SCREENSHOT});
+        await this.sendCommands({type: 'TAKE_SCREENSHOT'});
     }
 
     async enableHUD(en=true) {
@@ -1799,26 +1903,47 @@ export class GameConnectionServer extends net.Server {
 
     async _hud(en=true) {
         await this.sendCommands({
-            command: protos.CompanionToGameCommandType.CUSTOM_ACTION,
+            type: 'CUSTOM_ACTION',
             subCommand: en ? 1080 : 1081,
         });
     }
 
     async toggleGraphs() {
         await this.sendCommands({
-            command: protos.CompanionToGameCommandType.CUSTOM_ACTION,
+            type: 'CUSTOM_ACTION',
             subCommand: 1060,
         });
     }
 
+    async turnLeft() {
+        await this.sendCommands({
+            type: 'CUSTOM_ACTION',
+            subCommand: 1010,
+        });
+    }
+
+    async goStraight() {
+        await this.sendCommands({
+            type: 'CUSTOM_ACTION',
+            subCommand: 1011,
+        });
+    }
+
+    async turnRight() {
+        await this.sendCommands({
+            type: 'CUSTOM_ACTION',
+            subCommand: 1012,
+        });
+    }
+
     async reverse() {
-        await this.sendCommands({command: protos.CompanionToGameCommandType.U_TURN});
+        await this.sendCommands({type: 'U_TURN'});
     }
 
     async chatMessage(message, options={}) {
         const p = this.api.profile;
         await this.sendCommands({
-            command: protos.CompanionToGameCommandType.SOCIAL_PLAYER_ACTION,
+            type: 'SOCIAL_PLAYER_ACTION',
             socialAction: {
                 athleteId: p.id,
                 spaType: protos.SocialPlayerActionType.TEXT_MESSAGE,
@@ -1835,7 +1960,7 @@ export class GameConnectionServer extends net.Server {
 
     async watch(id) {
         await this.sendCommands({
-            command: protos.CompanionToGameCommandType.FAN_VIEW,
+            type: 'FAN_VIEW',
             subject: id,
         });
         this.emit('watch-command', id);
@@ -1843,28 +1968,36 @@ export class GameConnectionServer extends net.Server {
 
     async gamePacket(gamePacket) {
         await this.sendCommands({
-            command: protos.CompanionToGameCommandType.PHONE_TO_GAME_PACKET,
+            type: 'PHONE_TO_GAME_PACKET',
             gamePacket,
         });
     }
 
     async join(id) {
         await this.sendCommands({
-            command: protos.CompanionToGameCommandType.JOIN_ANOTHER_PLAYER,
+            type: 'JOIN_ANOTHER_PLAYER',
             subject: id,
         });
     }
 
     async teleportHome() {
-        await this.sendCommands({command: protos.CompanionToGameCommandType.TELEPORT_TO_START});
+        await this.sendCommands({type: 'TELEPORT_TO_START'});
     }
 
     async sendCommands(...commands) {
         return await this._send({
-            commands: commands.map(x => ({
-                seqno: this._cmdSeqno++,
-                ...x
-            }))
+            commands: commands.map(x => {
+                const type = typeof x.type === 'number' ? x.type :
+                    protos.CompanionToGameCommandType[x.type];
+                if (!type) {
+                    throw new TypeError(`Invalid command type: ${x.type}`);
+                }
+                return {
+                    seqno: this._cmdSeqno++,
+                    ...x,
+                    type,
+                };
+            })
         });
     }
 
@@ -1896,7 +2029,7 @@ export class GameConnectionServer extends net.Server {
         socket.on('error', this.onSocketError.bind(this));
         this.emit('status', this.getStatus());
         //await this.sendCommands({
-        //    command: protos.CompanionToGameCommandType.PAIRING_AS,
+        //    type: 'PAIRING_AS',
         //    athleteId: this.athleteId,
         //});
     }
@@ -1940,8 +2073,25 @@ export class GameConnectionServer extends net.Server {
     onMessage() {
         const buf = this._msgBuf;
         this._msgBuf = null;
-        const pb = protos.GameToCompanion.decode(buf);
-        this.emit('message', pb);
+        //console.debug(buf.toString('hex'));
+        try {
+            const gtc = protos.GameToCompanion.decode(buf);
+            if (gtc.playerState) {
+                queueMicrotask(() => this.emit('outgoing-player-state', gtc.playerState));
+            }
+            for (const x of gtc.commands) {
+                const handler = this._commandHandlers[x.type];
+                if (!handler) {
+                    console.error("Invalid command type:", x.type, x);
+                    debugger;
+                } else {
+                    queueMicrotask(() => handler.call(this, x, gtc, /*XXX*/ buf));
+                }
+            }
+        } catch(e) {
+            console.error("Invalid protobuf:", e);
+            debugger;
+        }
     }
 
     onSocketEnd() {
