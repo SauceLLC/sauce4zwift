@@ -223,7 +223,7 @@ rpc.register(function minimizeWindow() {
 
 
 rpc.register(pid => {
-    for (const x of electron.BrowserWindow.getAllWindows()) {
+    for (const x of electron.BaseWindow.getAllWindows().filter(x => x instanceof SauceBrowserWindow)) {
         let wc;
         try {
             wc = x.webContents;
