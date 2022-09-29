@@ -61,8 +61,12 @@ else
 endif
 
 publish: $(BUILD)
-	@echo Checking workspace for outstanding changes...
-	git status --porcelain | grep . && exit 1
+	@echo
+	@echo Double check this git status is acceptable...
+	@echo
+	git status
+	@echo
+	@sleep 5
 	GH_TOKEN="$${GH_TOKEN_SAUCE4ZWIFT_RELEASE}" npm run publish
 
 deps:

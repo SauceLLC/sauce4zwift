@@ -9,7 +9,6 @@ const pkg = require('../package.json');
 const {EventEmitter} = require('node:events');
 const {app, dialog, nativeTheme} = require('electron');
 const Sentry = require('@sentry/node');
-const {Dedupe} = require('@sentry/integrations');
 
 const logFileName = 'sauce.log';
 
@@ -244,11 +243,12 @@ async function initSentry(logEmitter) {
     const report = await import('../shared/report.mjs');
     report.setSentry(Sentry);
     const skipIntegrations = new Set(['OnUncaughtException', 'Console']);
+    debugger;
     Sentry.init({
         dsn: "https://df855be3c7174dc89f374ef0efaa6a92@o1166536.ingest.sentry.io/6257001",
         // Sentry changes the uncaught exc behavior to exit the process.  I think it may
         // be fixed in newer versions though.
-        integrations: data => [new Dedupe(), ...data.filter(x => !skipIntegrations.has(x.name))],
+        integrations: data => data.filter(x => !skipIntegrations.has(x.name)),
         beforeSend: report.beforeSentrySend,
     });
     process.on('uncaughtException', report.errorThrottled);

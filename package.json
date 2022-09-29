@@ -18,7 +18,6 @@
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
-    "@sentry/integrations": "6.19.6",
     "@sentry/node": "6.19.6",
     "better-sqlite3": "7.6.2",
     "electron-updater": "5.2.1",
@@ -67,6 +66,9 @@
       "!**/better-sqlite3/build/deps",
       "!**/better-sqlite3/deps",
       "!**/better-sqlite3/src",
+      "!node_modules/protobufjs/scripts",
+      "!node_modules/protobufjs/dist",
+      "!node_modules/xxhash-addon/src",
       "!node_modules/nan",
       "!node_modules/web-streams-polyfill",
       "!node_modules/@sentry/**/build",
