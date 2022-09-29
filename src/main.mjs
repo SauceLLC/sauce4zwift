@@ -459,7 +459,6 @@ function parseArgs() {
 async function checkForUpdates() {
     autoUpdater.disableWebInstaller = true;
     autoUpdater.autoDownload = false;
-    autoUpdater.allowPrerelease = false;
     let updateAvail;
     // Auto updater was written by an alien.  Must use events to affirm update status.
     autoUpdater.once('update-available', () => void (updateAvail = true));
