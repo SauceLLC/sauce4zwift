@@ -1,3 +1,4 @@
+@use 'color';
 @import 'charts';
 
 html {
@@ -224,14 +225,12 @@ html {
             padding: 0.35em;
             background-color: #495ce863;
             overflow: hidden;
-            mix-blend-mode: lighten;
             transition: opacity 200ms, visibility 200ms;
             transition-delay: 200ms;
             opacity: 0;
             visibility: hidden;
 
             .button-group {
-                mix-blend-mode: plus-lighter;
                 flex: 0 0 auto;
             }
         }
@@ -406,6 +405,7 @@ html.always-show-buttons #titlebar .button-bar {
                     border-radius: 1em;
                     aspect-ratio: 10 / 9;
                     background: #333;
+                    color: white;
                     box-shadow: 1px 1px 8px 1px #0007;
                 }
             }

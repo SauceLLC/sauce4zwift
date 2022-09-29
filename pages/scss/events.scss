@@ -1,3 +1,4 @@
+@use 'color';
 @import 'athlete_tpl';
 
 html {
@@ -19,7 +20,7 @@ html, body {
         position: sticky;
         z-index: 1;
         top: 0;
-        background-image: linear-gradient(to bottom, #0f1751, #941a1a);
+        background-image: linear-gradient(to bottom, color.shade(bg, -10%), color.shade(bg, 0%));
     }
 }
 
@@ -27,10 +28,15 @@ html, body {
 table {
     border-collapse: collapse;
 
+    thead th {
+        font-variant: all-small-caps;
+        font-weight: 500;
+    }
+
     &.events {
         > tbody > tr {
             &.started > td {
-                color: #aaa;
+                opacity: 0.5;
             }
 
             > td.type {
@@ -113,7 +119,7 @@ table {
                     padding-bottom: 1em;
 
                     > .container {
-                        background-color: #b929c330;
+                        background-color: color.shade(bg2, 60%, 10%);
                         padding: 1.5em;
                         border-radius: 0.28em;
                         box-shadow: 1px 1px 5px #0003;

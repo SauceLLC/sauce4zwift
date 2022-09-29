@@ -1,3 +1,5 @@
+@use 'color';
+
 html {
     padding: 0;
     font-size: clamp(12px, calc(14px + 10vh), 24px);
@@ -20,20 +22,20 @@ html {
         --center-gap-right: calc(50% + (var(--center-gap-size) / 2));
         background-image:
             linear-gradient(to right,
-                rgba(219, 0, 0, 0.8705882353),
+                color.shade(bg, 0%, 87%),
                 transparent var(--center-gap-offt),
                 transparent var(--center-gap-offt)),
             linear-gradient(to left,
-                rgba(2, 14, 100, 0.8196078431),
+                color.shade(bg2, 0%, 82%),
                 transparent var(--center-gap-offt),
                 transparent var(--center-gap-offt)),
             linear-gradient(to right,
-                #000,
-                #000 var(--center-gap-offt),
+                var(--theme-base-color),
+                var(--theme-base-color) var(--center-gap-offt),
                 transparent var(--center-gap-offt),
                 transparent var(--center-gap-right),
-                #000 var(--center-gap-right),
-                #000);
+                var(--theme-base-color) var(--center-gap-right),
+                var(--theme-base-color));
     }
 }
 

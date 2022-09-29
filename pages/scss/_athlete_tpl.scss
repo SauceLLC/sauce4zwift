@@ -1,3 +1,4 @@
+@use 'color';
 
 .athlete {
     display: flex;
@@ -19,7 +20,8 @@
     padding: 0.1em 0.7em;
     font-size: 1.6em;
     font-weight: bold;
-    background-image: linear-gradient(to top, #222, #333);
+    background-image: linear-gradient(to top, color.shade(bookend, 0%), color.shade(bookend, 12%));
+    color: color.shade(bookend, 100%);
     display: flex;
     align-items: center;
 
@@ -50,7 +52,6 @@
             transition: opacity 150ms;
             margin: -0.5em 0;
             padding-top: 0.15em;
-            color: #ddd;
 
             &[disabled] {
                 opacity: 0.3 !important;
@@ -70,16 +71,18 @@
                 }
             }
             &[data-action="toggleMarked"].active {
-                color: #69ff94;
+                color: color.shade(marked, -30%);
+                opacity: 1;
             }
             &[data-action="toggleMuted"].active {
-                color: #e14300;
+                color: color.get(negative);
             }
             &[data-action="unfollow"].active {
-                color: #69ff94;
+                color: color.get(following);
             }
             &[data-action="rideon"][disabled] {
-                color: #00ff00;
+                color: color.get(positive);
+                opacity: 1 !important;
             }
 
             img {

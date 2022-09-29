@@ -1,8 +1,9 @@
+@use 'color';
+
 html:not(.connected) {
     #content .button {
         pointer-events: none;
-        opacity: 0.6;
-        color: #444;
+        opacity: 0.5;
     }
 }
 
@@ -13,12 +14,14 @@ html:not(.connected) {
     font-size: 0.6em;
 
     header {
-        padding: 0.3em 0.4em;
-        background: #000a;
+        padding: 0.5em 1em;
+        background: color.shade(bookend, 5%, 90%);
         font-variant: all-small-caps;
+        font-size: 1.1em;
         font-weight: 600;
-        color: #eee;
+        color: color.shade(bookend, 80%);
         margin-bottom: 0.2em;
+        app-region: drag;
     }
 
     .category {

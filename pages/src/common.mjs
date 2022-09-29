@@ -818,6 +818,11 @@ export function badgeHue(name) {
 }
 
 
+export const rpc = new Proxy({}, {
+    get: (_, prop) => (...args) => rpcCall(prop, ...args)
+});
+
+
 rpcCall('getVersion').then(v => Sentry.setTag('version', v));
 rpcCall('getSentryAnonId').then(id => Sentry.setUser({id}));
 rpcCall('isDEV').then(isDEV => {
@@ -833,8 +838,19 @@ rpcCall('isDEV').then(isDEV => {
     }
 });
 
-export const rpc = new Proxy({}, {
-    get: (_, prop) => (...args) => rpcCall(prop, ...args)
+if (window.CSS) {
+    CSS.registerProperty({name: '--bg-opacity', syntax: '<number>', inherits: true, initialValue: 1});
+}
+
+const theme = storage.get('/theme');
+if (theme) {
+    doc.dataset.theme = theme;
+}
+
+storage.addEventListener('globalupdate', ev => {
+    if (ev.data.key === '/theme') {
+        doc.dataset.theme = ev.data.value;
+    }
 });
 
 window.rpc = rpc; // DEBUG

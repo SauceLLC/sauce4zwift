@@ -73,13 +73,42 @@ NOTE: Game Connection uses the Companion App protocol which only supports a sing
                          data-action="logout-zwift" data-id="monitor">Logout</div>
                     <span class="restart-required"></span>
                 </label>
-            </form>
+             </form>
 
             <form class="settings section">
                 <div class="title">Window Settings</div>
+                <label title="When no data is detected automatically hide windows"
+                       class="electron-only">
+                    <key>Auto hide windows:</key>
+                    <input type="checkbox" name="autoHideWindows"/>
+                </label>
+                <label>
+                    <key>Imperial units:</key>
+                    <input type="checkbox" name="/imperialUnits"/>
+                </label>
+                <label>
+                    <key>Theme:</key>
+                    <select name="/theme">
+                        <option value="">Default</option>
+                        <option value="bluepink">Ice Blue Pink</option>
+                        <option value="green">Green Lantern</option>
+                        <option value="burgundy">Ron Burgundy</option>
+                        <option value="light">Light</option>
+                        <option value="dark">Dark</option>
+                        <option value="transparent-light">Transparent - Light</option>
+                        <option value="transparent-dark">Transparent - Dark</option>
+                    </select>
+                </label>
+
+                <hr/>
+
                 <label>
                     <key>Left fields:</key>
                     <input type="number" min="0" max="10" step="1" name="leftFields"/>
+                </label>
+                <label title="Use this to respect the notch on a MacBookPro or avoid overlap with the Zwift HUD">
+                    <key>Center gap size:</key>
+                    <input type="number" name="centerGapSize" min="0" max="1000" step="1"/>
                 </label>
                 <label>
                     <key>Right fields:</key>
@@ -88,19 +117,6 @@ NOTE: Game Connection uses the Companion App protocol which only supports a sing
                 <label title="Prevent fields from rotating on click">
                     <key>Lock fields:</key>
                     <input type="checkbox" name="lockedFields"/>
-                </label>
-                <label>
-                    <key>Imperial units:</key>
-                    <input type="checkbox" name="/imperialUnits"/>
-                </label>
-                <label title="When no data is detected automatically hide windows"
-                       class="electron-only">
-                    <key>Auto hide windows:</key>
-                    <input type="checkbox" name="autoHideWindows"/>
-                </label>
-                <label title="Use this to respect the notch on a MacBookPro or avoid overlap with the Zwift HUD">
-                    <key>Center gap size:</key>
-                    <input type="number" name="centerGapSize" min="0" max="1000" step="1"/>
                 </label>
             </form>
 

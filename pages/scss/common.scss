@@ -1,3 +1,5 @@
+@use 'color';
+
 $header-height: 0.56in;
 
 @font-face {
@@ -21,17 +23,6 @@ $header-height: 0.56in;
     src: url('../fonts/MaterialSymbolsRounded.woff2') format('woff2');
 }
 
-html {
-    --tilt: 0deg;
-
-    --theme-fg: #fff;
-    --theme-bg-start: #db0000de;
-    --theme-bg-end: #020e64d1;
-    --theme-alt-bg-start: #01052d70;
-    --theme-alt-bg-end: #0d117599;
-}
-
-
 @keyframes pournshake {
     0%,
     60%,
@@ -46,6 +37,267 @@ html {
     44%  { transform: translate(0.2em, 0.1em)   rotate(calc(var(--tilt) + 180deg)) scale(1.2); }
     46%  { transform: translate(-0.2em, -0.2em) rotate(calc(var(--tilt) + 185deg)) scale(0.8); }
 }
+
+:root {
+    --tilt: 0deg;
+
+    --theme-base-color: #000;
+
+    --theme-bookend-hue: 0;
+    --theme-bookend-sat: 0%;
+    --theme-bookend-light: 13%;
+    --theme-bookend-shade-dir: 1;
+
+    --theme-bg-hue: 0;
+    --theme-bg-sat: 100%;
+    --theme-bg-light: 36%;
+    --theme-bg-shade-dir: 1;
+
+    --theme-bg2-hue: 233;
+    --theme-bg2-sat: 96%;
+    --theme-bg2-light: 15%;
+    --theme-bg2-shade-dir: 1;
+
+    --theme-bg-alt-hue: 235;
+    --theme-bg-alt-sat: 96%;
+    --theme-bg-alt-light: 4%;
+    --theme-bg-alt-shade-dir: 1;
+
+    --theme-bg-alt2-hue: 238;
+    --theme-bg-alt2-sat: 80%;
+    --theme-bg-alt2-light: 15%;
+    --theme-bg-alt2-shade-dir: 1;
+
+    --theme-fg-hue: 0;
+    --theme-fg-sat: 0%;
+    --theme-fg-light: 100%;
+    --theme-fg-shade-dir: -1;
+
+    --theme-primary-hue: 212;
+    --theme-primary-sat: 100%;
+    --theme-primary-light: 40%;
+    --theme-primary-shade-dir: 1;
+
+    --theme-following-hue: 125;
+    --theme-following-sat: 73%;
+    --theme-following-light: 57%;
+    --theme-following-shade-dir: -1;
+
+    --theme-marked-hue: 0;
+    --theme-marked-sat: 2%;
+    --theme-marked-light: 59%;
+    --theme-marked-shade-dir: -1;
+
+    --theme-negative-hue: 0;
+    --theme-negative-sat: 85%;
+    --theme-negative-light: 46%;
+    --theme-negative-shade-dir: 1;
+
+    --theme-positive-hue: 130;
+    --theme-positive-sat: 60%;
+    --theme-positive-light: 50%;
+    --theme-positive-shade-dir: 1;
+
+    --theme-button-bar-top-left: #1d0050de;
+    --theme-button-bar-bottom-right: #2b0078de;
+}
+
+html[data-theme="bluepink"] {
+    --theme-bg-hue: 204;
+    --theme-bg-sat: 100%;
+    --theme-bg-light: 40%;
+    --theme-bg-shade-dir: 1;
+
+    --theme-bg2-hue: 220;
+    --theme-bg2-sat: 70%;
+    --theme-bg2-light: 27%;
+    --theme-bg2-shade-dir: 1;
+
+    --theme-fg-hue: 0;
+    --theme-fg-sat: 0%;
+    --theme-fg-light: 100%;
+    --theme-fg-shade-dir: -1;
+
+    --theme-primary-hue: 354;
+    --theme-primary-sat: 87%;
+    --theme-primary-light: 52%;
+    --theme-primary-shade-dir: 1;
+
+    --theme-button-bar-top-left: #da072de0;
+    --theme-button-bar-bottom-right: #770333;
+}
+
+html[data-theme="burgundy"] {
+    --theme-bookend-hue: 25;
+    --theme-bookend-sat: 96%;
+    --theme-bookend-light: 15%;
+    --theme-bookend-shade-dir: 1;
+
+    --theme-bg-hue: 24;
+    --theme-bg-sat: 90%;
+    --theme-bg-light: 12%;
+    --theme-bg-shade-dir: 1;
+
+    --theme-bg2-hue: 20;
+    --theme-bg2-sat: 58%;
+    --theme-bg2-light: 16%;
+    --theme-bg2-shade-dir: 1;
+
+    --theme-bg-alt-hue: 0;
+    --theme-bg-alt-sat: 96%;
+    --theme-bg-alt-light: 35%;
+    --theme-bg-alt-shade-dir: 1;
+
+    --theme-bg-alt2-hue: 0;
+    --theme-bg-alt2-sat: 32%;
+    --theme-bg-alt2-light: 10%;
+    --theme-bg-alt2-shade-dir: 1;
+
+    --theme-fg-hue: 0;
+    --theme-fg-sat: 0%;
+    --theme-fg-light: 100%;
+    --theme-fg-shade-dir: -1;
+
+    --theme-primary-hue: 20;
+    --theme-primary-sat: 100%;
+    --theme-primary-light: 40%;
+    --theme-primary-shade-dir: 1;
+
+    --theme-negative-hue: 350;
+    --theme-negative-sat: 50%;
+    --theme-negative-light: 50%;
+    --theme-negative-shade-dir: 1;
+
+    --theme-button-bar-top-left: #937b19e0;
+    --theme-button-bar-bottom-right: #819443;
+}
+
+html[data-theme="green"] {
+    --theme-bg-hue: 132;
+    --theme-bg-sat: 73%;
+    --theme-bg-light: 43%;
+    --theme-bg-shade-dir: 1;
+
+    --theme-bg2-hue: 142;
+    --theme-bg2-sat: 50%;
+    --theme-bg2-light: 0%;
+    --theme-bg2-shade-dir: 1;
+
+    --theme-fg-hue: 0;
+    --theme-fg-sat: 0%;
+    --theme-fg-light: 100%;
+    --theme-fg-shade-dir: -1;
+
+    --theme-primary-hue: 0;
+    --theme-primary-sat: 0%;
+    --theme-primary-light: 10%;
+    --theme-primary-shade-dir: 1;
+
+    --theme-following-hue: 30;
+    --theme-following-sat: 73%;
+    --theme-following-light: 52%;
+    --theme-following-shade-dir: -1;
+
+    --theme-button-bar-top-left: #0008;
+    --theme-button-bar-bottom-right: #000;
+}
+
+html[data-theme="light"] {
+    --theme-base-color: #fff;
+
+    --theme-bg-hue: 0;
+    --theme-bg-sat: 0%;
+    --theme-bg-light: 98%;
+    --theme-bg-shade-dir: -1;
+
+    --theme-bg2-hue: 0;
+    --theme-bg2-sat: 0%;
+    --theme-bg2-light: 82%;
+    --theme-bg2-shade-dir: -1;
+
+    --theme-fg-hue: 0;
+    --theme-fg-sat: 0%;
+    --theme-fg-light: 20%;
+    --theme-fg-shade-dir: 1;
+
+    --theme-button-bar-top-left: #aaac;
+    --theme-button-bar-bottom-right: #ccc;
+}
+
+html[data-theme="transparent-light"] {
+    &:not(.settings-mode):not(.settings-page) body:not(.transparent-bg) {
+        --bg-opacity: 0;
+    }
+
+    --theme-base-color: transparent;
+
+    --theme-bg-hue: 0;
+    --theme-bg-sat: 0%;
+    --theme-bg-light: 98%;
+    --theme-bg-shade-dir: -1;
+
+    --theme-bg2-hue: 0;
+    --theme-bg2-sat: 0%;
+    --theme-bg2-light: 82%;
+    --theme-bg2-shade-dir: -1;
+
+    --theme-fg-hue: 0;
+    --theme-fg-sat: 0%;
+    --theme-fg-light: 20%;
+    --theme-fg-shade-dir: 1;
+
+    --theme-button-bar-top-left: #aaac;
+    --theme-button-bar-bottom-right: #ccc;
+}
+
+html[data-theme="dark"] {
+    --theme-base-color: #000;
+
+    --theme-bg-hue: 0;
+    --theme-bg-sat: 0%;
+    --theme-bg-light: 2%;
+    --theme-bg-shade-dir: 1;
+
+    --theme-bg2-hue: 0;
+    --theme-bg2-sat: 0%;
+    --theme-bg2-light: 18%;
+    --theme-bg2-shade-dir: 1;
+
+    --theme-fg-hue: 0;
+    --theme-fg-sat: 0%;
+    --theme-fg-light: 90%;
+    --theme-fg-shade-dir: -1;
+
+    --theme-button-bar-top-left: #333c;
+    --theme-button-bar-bottom-right: #555e;
+}
+
+html[data-theme="transparent-dark"] {
+    &:not(.settings-mode):not(.settings-page) body:not(.transparent-bg) {
+        --bg-opacity: 0;
+    }
+
+    --theme-base-color: transparent;
+
+    --theme-bg-hue: 0;
+    --theme-bg-sat: 0%;
+    --theme-bg-light: 2%;
+    --theme-bg-shade-dir: 1;
+
+    --theme-bg2-hue: 0;
+    --theme-bg2-sat: 0%;
+    --theme-bg2-light: 18%;
+    --theme-bg2-shade-dir: 1;
+
+    --theme-fg-hue: 0;
+    --theme-fg-sat: 0%;
+    --theme-fg-light: 90%;
+    --theme-fg-shade-dir: -1;
+
+    --theme-button-bar-top-left: #333b;
+    --theme-button-bar-bottom-right: #555e;
+}
+
 
 img {
     -webkit-user-select: none;
@@ -343,21 +595,25 @@ form label {
     }
 }
 
-body {
+html body {
+    --bg-opacity: 1;
     position: relative;
     display: flex;
     flex-direction: column;
-    color: white;
-}
-
-html body {
-    background-image: linear-gradient(135deg, var(--theme-bg-start), transparent),
-                      linear-gradient(315deg, var(--theme-bg-end), transparent);
+    color: color.get(fg);
+    transition: --bg-opacity 1s;
+    background-image: linear-gradient(135deg,
+        color.get(bg, calc(var(--bg-opacity) * 100%)),
+        color.get(bg2, calc(var(--bg-opacity) * 100%)));
+    //background-image: linear-gradient(135deg, color.get(bg, 87%), transparent),
+    //                  linear-gradient(315deg, color.get(bg2, 82%), transparent);
 
     &.alt-background {
-        background-image:
-            linear-gradient(135deg, var(--theme-alt-bg-start), transparent),
-            linear-gradient(315deg, var(--theme-alt-bg-end), transparent);
+        background-image: linear-gradient(135deg,
+            color.get(bg-alt, calc(var(--bg-opacity) * 100%)),
+            color.get(bg-alt2, calc(var(--bg-opacity) * 100%)));
+        //background-image: linear-gradient(135deg, color.get(bg-alt, 44%), transparent),
+        //                  linear-gradient(315deg, color.get(bg-alt2, 60%), transparent);
     }
 }
 
@@ -374,12 +630,11 @@ html.electron-mode:not(.frame) > body {
     }
 }
 
-html:not(.browser-mode) body:not(.transparent-bg) {
-    background-color: #000;
-}
-
 html:not(.browser-mode):not(:hover) body.transparent-bg {
-    background: transparent;
+    --bg-opacity: 0;
+}
+html:not(.browser-mode):hover body.transparent-bg {
+    --bg-opacity: 0.7 !important;
 }
 
 html:not(.settings-mode):not(.settings-page) #titlebar:not(.always-visible),
@@ -414,7 +669,7 @@ html:not(.settings-page) #titlebar:not(.always-visible) {
     align-items: center;
     justify-content: space-between;
     flex: 0 0 auto;
-    background-image: linear-gradient(135deg, #1d0050de, #2b0078de);
+    background-image: linear-gradient(135deg, var(--theme-button-bar-top-left), var(--theme-button-bar-bottom-right));
     overflow: hidden;
     font-size: 1rem;
 
@@ -489,7 +744,8 @@ html:not(.settings-page) #titlebar:not(.always-visible) {
         align-items: center;
         justify-content: space-between;
         height: $header-height;
-        background-image: linear-gradient(to top, #222, #333);
+        background-image: linear-gradient(to top, color.shade(bookend, 0%), color.shade(bookend, 12%));
+        color: color.shade(bookend, 100%);
         padding-right: 0.3em;
 
         .logo,
@@ -585,24 +841,25 @@ html:not(.settings-page) #titlebar:not(.always-visible) {
     transition: opacity 200ms, background 200ms;
 
     &.std {
+        --bg-from-color: #{color.shade(fg, 0%)};
+        --bg-to-color: #{color.shade(fg, 15%)};
         display: flex;
         align-items: center;
         justify-content: center;
         opacity: 1;
         color: #000;
-        --bg-from-color: #fff;
-        --bg-to-color: #cccb;
+        color: color.shade(fg, 100%);
         background-image: linear-gradient(180deg, var(--bg-from-color), var(--bg-to-color));
         border-radius: 0.25rem;
         margin: 0.1rem 0.2rem;
         padding: 0.1rem 1rem;
         box-shadow: none;
-        transition: box-shadow 100ms, --bg-from-color 100ms, --bg-to-color 100ms;
+        transition: box-shadow 100ms, --bg-from-color 150ms, --bg-to-color 150ms;
 
         &:hover {
-            box-shadow: 0.05rem 0.05rem 0.4rem 0 #0008;
-            --bg-from-color: #fff;
-            --bg-to-color: #ccc;
+            --bg-from-color: #{color.shade(fg, 0%)};
+            --bg-to-color: #{color.shade(fg, 5%)};
+            box-shadow: 0.05rem 0.05rem 0.4rem 0 #0004;
         }
 
         &:active {
@@ -610,24 +867,24 @@ html:not(.settings-page) #titlebar:not(.always-visible) {
         }
 
         &.danger {
-            --bg-from-color: #c22;
-            --bg-to-color: #a22b;
-            color: #eee;
+            --bg-from-color: #{color.shade(negative, 0%)};
+            --bg-to-color: #{color.shade(negative, -10%)};
+            color: color.shade(negative, 100%);
 
             &:hover {
-                --bg-from-color: #d11;
-                --bg-to-color: #b11b;
+                --bg-from-color: #{color.shade(negative, 5%)};
+                --bg-to-color: #{color.shade(negative, -5%)};
             }
         }
 
         &.primary {
-            --bg-from-color: #0060cb80;
-            --bg-to-color: #0060cbff;
-            color: #eee;
+            --bg-from-color: #{color.shade(primary, 0%)};
+            --bg-to-color: #{color.shade(primary, -10%)};
+            color: color.shade(primary, 100%);
 
             &:hover {
-                --bg-from-color: #0070db80;
-                --bg-to-color: #0070dbff;
+                --bg-from-color: #{color.shade(primary, 5%)};
+                --bg-to-color: #{color.shade(primary, -5%)};
             }
         }
 
@@ -659,8 +916,11 @@ html:not(.settings-page) #titlebar:not(.always-visible) {
     left: 0;
     z-index: 100;
     width: 100%;
-    background-image: linear-gradient(to top, #222, #333e 0.2em, #333d);
-    color: white;
+    background-image: linear-gradient(to top,
+        color.shade(bookend, 0%),
+        color.shade(bookend, 7%, 90%) 0.2em,
+        color.shade(bookend, 7%, 80%));
+    color: color.shade(bookend, 100%);
     overflow: hidden;
     max-height: 2em;
     transition: max-height 200ms, padding 200ms;
@@ -722,10 +982,10 @@ dialog {
     }
 
     header {
-        padding: 0.5em;
-        background-image: linear-gradient(to bottom, #444, #333);
+        background-image: linear-gradient(to top, color.shade(bookend, 0%), color.shade(bookend, 12%));
+        color: color.shade(bookend, 100%);
         font-size: 1.2em;
-        color: white;
+        padding: 0.5em;
     }
 
     form {

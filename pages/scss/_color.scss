@@ -1,47 +1,47 @@
 @function get($key, $alpha: 100%) {
     @return hsla(
-        var(--sauce-#{$key}-hue),
-        var(--sauce-#{$key}-sat),
-        var(--sauce-#{$key}-light),
+        var(--theme-#{$key}-hue),
+        var(--theme-#{$key}-sat),
+        var(--theme-#{$key}-light),
         $alpha);
 }
 
 @function alpha($key, $alpha) {
     @return hsla(
-        var(--sauce-#{$key}-hue),
-        var(--sauce-#{$key}-sat),
-        var(--sauce-#{$key}-light),
+        var(--theme-#{$key}-hue),
+        var(--theme-#{$key}-sat),
+        var(--theme-#{$key}-light),
         $alpha);
 }
 
 @function darken($key, $amount, $alpha: 100%) {
     @return hsla(
-        var(--sauce-#{$key}-hue),
-        var(--sauce-#{$key}-sat),
-        calc(var(--sauce-#{$key}-light) - #{$amount}),
+        var(--theme-#{$key}-hue),
+        var(--theme-#{$key}-sat),
+        calc(var(--theme-#{$key}-light) - #{$amount}),
         $alpha);
 }
 
 @function lighten($key, $amount, $alpha: 100%) {
     @return hsla(
-        var(--sauce-#{$key}-hue),
-        var(--sauce-#{$key}-sat),
-        calc(var(--sauce-#{$key}-light) + #{$amount}),
+        var(--theme-#{$key}-hue),
+        var(--theme-#{$key}-sat),
+        calc(var(--theme-#{$key}-light) + #{$amount}),
         $alpha);
 }
 
 @function shade($key, $amount, $alpha: 100%) {
     @return hsla(
-        var(--sauce-#{$key}-hue),
-        var(--sauce-#{$key}-sat),
-        calc(var(--sauce-#{$key}-light) + (#{$amount} * var(--sauce-#{$key}-shade-dir))),
+        var(--theme-#{$key}-hue),
+        var(--theme-#{$key}-sat),
+        calc(var(--theme-#{$key}-light) + (#{$amount} * var(--theme-#{$key}-shade-dir))),
         $alpha);
 }
 
 @function hue($key, $amount, $alpha: 100%, $shade: 0%) {
     @return hsla(
-        calc(var(--sauce-#{$key}-hue) + #{$amount}),
-        var(--sauce-#{$key}-sat),
-        calc(var(--sauce-#{$key}-light) + (#{$shade} * var(--sauce-#{$key}-shade-dir))),
+        calc(var(--theme-#{$key}-hue) + #{$amount}),
+        var(--theme-#{$key}-sat),
+        calc(var(--theme-#{$key}-light) + (#{$shade} * var(--theme-#{$key}-shade-dir))),
         $alpha);
 }

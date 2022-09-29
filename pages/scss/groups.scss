@@ -1,3 +1,5 @@
+@use 'color';
+
 $shadow-size: 0.4rem;
 $html-pad: 3px;
 $content-pad: 0.4rem;
@@ -31,6 +33,7 @@ html.settings-mode #meta.app-drag {
     font-variant-caps: all-small-caps;
     font-variant-numeric: tabular-nums;
     background: #111c;
+    color: #fff;
     border-radius: 1em;
     margin-right: $content-pad;
     margin-left: $content-pad;
@@ -156,10 +159,10 @@ html:not(.game-connection) {
             cursor: pointer;
             margin-right: 0.6em;
             text-shadow:
-                0 0 1px #000,
-                0 0 1px #000,
-                0 0 1px #000,
-                0 0 1px #000;
+                0 0 1px color.shade(fg, 100%),
+                0 0 1px color.shade(fg, 100%),
+                0 0 1px color.shade(fg, 100%),
+                0 0 1px color.shade(fg, 100%);
 
             &.hidden {
                 display: none;
@@ -387,14 +390,14 @@ html:not(.game-connection) {
     padding: 0 1.5px; // for text-shadow and subpixel rendering.
     line-height: 1.05;
     text-shadow:
-        0 0 1px #000,
-        0 0 1px #000,
-        0 0 1px #000,
-        0 0 1px #000,
-        0 0 1px #000,
-        0 0 1px #000,
-        0 0 1px #000,
-        0 0 1px #000;
+        0 0 1px color.shade(fg, 100%),
+        0 0 1px color.shade(fg, 100%),
+        0 0 1px color.shade(fg, 100%),
+        0 0 1px color.shade(fg, 100%),
+        0 0 1px color.shade(fg, 100%),
+        0 0 1px color.shade(fg, 100%),
+        0 0 1px color.shade(fg, 100%),
+        0 0 1px color.shade(fg, 100%);
 
     &.attn {
         margin-bottom: 0;

@@ -1,3 +1,5 @@
+@use 'color';
+
 html {
     &.solid-background {
         background: var(--background-color);
@@ -48,7 +50,7 @@ table {
         position: sticky;
         z-index: 1;
         top: 0;
-        background-image: linear-gradient(to bottom, #0f1751, #941a1a);
+        background-image: linear-gradient(to bottom, color.shade(bg, -10%), color.shade(bg, 0%));
 
         td {
             padding-top: 0.5em;
@@ -108,15 +110,15 @@ table {
         }
 
         &.marked {
-            background-image: linear-gradient(135deg, #999595bd, transparent);
+            background-image: linear-gradient(135deg, color.get(marked, 75%), color.shade(marked, 20%, 30%));
         }
 
         &.following {
-            background-image: linear-gradient(135deg, #42e24fd9, transparent);
+            background-image: linear-gradient(135deg, color.get(following, 80%), color.shade(following, 20%, 30%));
         }
 
         &.watching {
-            background-image: linear-gradient(135deg, #0c71d3cf, #2521aa47);
+            background-image: linear-gradient(135deg, color.get(primary, 85%), color.shade(primary, 20%, 20%));
         }
 
         &.hidden {
