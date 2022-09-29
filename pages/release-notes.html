@@ -137,8 +137,13 @@
                 .then(r => r.json());
 
 
+            function stripAlpha(v) {
+                return v.replace(/-.*$/, '');
+            }
+
+
             function fakeSHU(version) {
-                return Number(version.split('.').map(x => x.padStart(2, '0')).join(''));
+                return Number(stripAlpha(version).split('.').map(x => x.padStart(2, '0')).join(''));
             }
 
 
@@ -159,7 +164,7 @@
 
 
             function bigIntVersion(v) {
-                const ints = v.split('.').map(BigInt);
+                const ints = stripAlpha(v).split('.').map(BigInt);
                 if (ints.length > 4) {
                     throw new TypeError("Invalid version format: " + v);
                 }
