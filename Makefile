@@ -61,7 +61,9 @@ else
 endif
 
 publish: $(BUILD)
-	npm run publish
+	@echo Checking workspace for outstanding changes...
+	git status --porcelain | grep . && exit 1
+	GH_TOKEN="$${GH_TOKEN_SAUCE4ZWIFT_RELEASE}" npm run publish
 
 deps:
 	cp node_modules/echarts/dist/echarts.esm.js pages/deps/src/echarts.mjs
