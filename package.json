@@ -103,7 +103,8 @@
       "entitlementsInherit": "build/entitlements.mac.plist"
     },
     "linux": {
-      "target": "AppImage"
+      "target": "AppImage",
+      "category": "Game"
     },
     "afterSign": "build/scripts/notarize.js"
   }
