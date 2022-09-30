@@ -38,3 +38,9 @@ export async function main() {
     });
     updateConnStatus(await common.rpc.getGameConnectionStatus());
 }
+
+
+export async function settingsMain() {
+    common.initInteractionListeners();
+    await common.initSettingsForm('form')();
+}
