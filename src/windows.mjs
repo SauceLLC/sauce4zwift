@@ -429,16 +429,16 @@ function getBoundsForDisplay(display, {x, y, width, height, aspectRatio}) {
 }
 
 
-function handleNewSubWindow(parent, spec) {
+function handleNewSubWindow(parent, spec, webPrefs) {
     // These are target=... popups...
     const targetRefs = new Map();
     parent.webContents.on('new-window', (ev, url, target) => {
         ev.preventDefault();
         if (targetRefs.has(target)) {
             const targetWin = targetRefs.get(target).deref();
-            if (!targetWin) {
+            if (!targetWin || targetWin.isDestroyed()) {
                 targetRefs.delete(target);
-            } else if (!targetWin.isDestroyed()) {
+            } else {
                 _highlightWindow(targetWin);
                 return;
             }
@@ -461,23 +461,23 @@ function handleNewSubWindow(parent, spec) {
             ...bounds,
             webPreferences: {
                 sandbox: true,
-                devTools: isDEV,
                 preload: path.join(appPath, 'src', 'preload', 'common.js'),
+                webPrefs,
             }
         });
-        if (spec.overlay !== false) {
-            newWin.setAlwaysOnTop(true, 'pop-up-menu');
+        newWin.setMenuBarVisibility(false);
+        if (spec) {
+            if (spec.overlay !== false) {
+                newWin.setAlwaysOnTop(true, 'pop-up-menu');
+            }
+            subWindows.set(newWin.webContents, {win: newWin, spec, activeSubs: new Set()});
+            newWin.on('page-title-updated', (ev, title) =>
+                subWindows.get(newWin.webContents).title = title.replace(/( - )?Sauce for Zwift™?$/, ''));
         }
-        subWindows.set(newWin.webContents, {win: newWin, spec, activeSubs: new Set()});
         if (target && target !== '_blank') {
             targetRefs.set(target, new WeakRef(newWin));
         }
-        newWin.on('page-title-updated', (ev, title) =>
-            subWindows.get(newWin.webContents).title = title.replace(/( - )?Sauce for Zwift™?$/, ''));
         handleNewSubWindow(newWin, spec);
-        if (!isDEV) {
-            newWin.removeMenu();
-        }
         newWin.loadURL(url);
         newWin.show();
     });
@@ -517,7 +517,6 @@ function _openWindow(id, spec) {
         roundedCorners: false,
         webPreferences: {
             sandbox: true,
-            devTools: isDEV,
             preload: path.join(appPath, 'src', 'preload', 'common.js'),
             webgl: false,
             ...manifest.webPreferences,
@@ -525,10 +524,8 @@ function _openWindow(id, spec) {
         },
         ...options,
     });
+    win.setMenuBarVisibility(false);
     win.setBounds(bounds); // https://github.com/electron/electron/issues/10862
-    if (!isDEV) {
-        win.removeMenu();
-    }
     if (spec.overlay !== false) {
         win.setAlwaysOnTop(true, 'pop-up-menu');
     }
@@ -584,16 +581,14 @@ export function makeCaptiveWindow(options={}, webPrefs={}) {
         fullscreenable: false,
         webPreferences: {
             sandbox: true,
-            devTools: isDEV,
             preload: path.join(appPath, 'src', 'preload', 'common.js'),
             ...webPrefs,
         },
         ...options,
         ...bounds,
     });
-    if (!isDEV) {
-        win.removeMenu();
-    }
+    win.setMenuBarVisibility(false);
+    handleNewSubWindow(win, null, webPrefs);
     if (options.page) {
         win.loadFile(path.join(pagePath, options.page));
     } else if (options.pageURL) {
@@ -779,7 +774,6 @@ export async function welcomeSplash() {
         ...getCurrentDisplay().bounds,
         webPreferences: {
             sandbox: true,
-            devTools: isDEV,
             preload: path.join(appPath, 'src', 'preload', 'common.js'),
         },
     });
@@ -844,7 +838,6 @@ export async function systemMessage(msg) {
         alwaysOnTop: true,
         webPreferences: {
             sandbox: true,
-            devTools: isDEV,
             preload: path.join(appPath, 'src', 'preload', 'common.js'),
         },
     });
