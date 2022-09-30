@@ -849,6 +849,12 @@ export class StatsProcessor extends events.EventEmitter {
             }
             return false;
         }
+        if (state.eventSubgroupId) {
+            const sg = this._recentEventSubgroups.get(state.eventSubgroupId);
+            if (sg && sg.tags && sg.tags.includes('hidethehud')) {
+                return;
+            }
+        }
         ad.mostRecentState = state;
         const roadSig = this._roadSig(state);
         if (prevState) {
