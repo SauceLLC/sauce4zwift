@@ -1,19 +1,10 @@
-html {
-    font-size: 14px;
-    padding: 0;
-
-    body {
-        border-radius: 0;
-        background-image:
-            linear-gradient(135deg, #1727e952, transparent),
-            linear-gradient(315deg, #0d117599, transparent);
-    }
-}
+@use 'color';
 
 #content {
     overflow: auto; // fallback
     overflow: overlay; // Not in spec, but is perfect for chromium.
     padding: 1em;
+    font-size: 14px;
 
     section {
         display: flex;
@@ -47,7 +38,7 @@ html {
             .entry {
                 display: flex;
                 align-items: baseline;
-                color: #ddd;
+                color: color.shade(fg, 3%);
                 
                 key, value {
                     display: block;

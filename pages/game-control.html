@@ -10,7 +10,7 @@
 
         <script type="module">
             import {main} from './src/game-control.mjs';
-            addEventListener('DOMContentLoaded', main);
+            main();
         </script>
 
         <link rel="manifest" href="game-control-manifest.json"/>
@@ -25,6 +25,7 @@
                 <div class="title">Game Control</div>
                 <div class="filler"></div>
                 <div class="buttons">
+                    <div title="Minimize" class="button minimize electron-only"><ms>minimize</ms></div>
                     <div title="Close this window" class="button close electron-only"><ms>close</ms></div>
                 </div>
             </header>

@@ -1,6 +1,4 @@
 html {
-    padding: 0;
-
     &[data-level="info"] {
         table tr[data-level="debug"] {
             display: none !important;
@@ -18,13 +16,6 @@ html {
         table tr[data-level="warn"] {
             display: none !important;
         }
-    }
-
-    body {
-        border-radius: 0;
-        background-image:
-            linear-gradient(135deg, #1727e952, transparent),
-            linear-gradient(315deg, #0d117599, transparent);
     }
 }
 
@@ -63,7 +54,7 @@ header {
     scroll-snap-type: y proximity;
 
     table.logs {
-        font-size: 13px;
+        font-size: 14px;
         width: 100%;
         border-collapse: collapse;
 

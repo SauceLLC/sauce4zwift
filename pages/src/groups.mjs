@@ -4,11 +4,9 @@ import * as common from './common.mjs';
 const L = sauce.locale;
 const H = L.human;
 const positions = new Map();
-const settingsKey = 'groups-settings-v6';
 let zoomedPosition = common.storage.get('zoomedPosition');
-let imperial = common.storage.get('/imperialUnits');
+let imperial = common.settingsStore.get('/imperialUnits');
 L.setImperial(imperial);
-let settings;
 let curGroups;
 let contentEl;
 let metaEl;
@@ -17,6 +15,27 @@ let behindEl;
 let containerEl;
 const doc = document.documentElement;
 
+common.settingsStore.setDefault({
+    detectAttacks: true,
+    maxAhead: 4,
+    maxBehind: 2,
+    maxZoomed: 8,
+    groupsPrimaryField: 'power',
+    zoomedPrimaryField: 'power',
+    groupsSecondaryField: 'speed',
+    zoomedSecondaryField: 'draft',
+    zoomedGapField: 'distance',
+    solidBackground: false,
+    backgroundColor: '#00ff00',
+    refreshInterval: 2,
+});
+
+// XXX Need a migration system.
+common.settingsStore.get('groupsPrimaryField', 'power');
+common.settingsStore.get('zoomedPrimaryField', 'power');
+
+const settings = common.settingsStore.get();
+setBackground();
 
 
 function pwrFmt(p) {
@@ -384,7 +403,8 @@ function renderGroups(groups) {
 }
 
 
-function setBackground({solidBackground, backgroundColor}) {
+function setBackground() {
+    const {solidBackground, backgroundColor} = settings;
     doc.classList.toggle('solid-background', !!solidBackground);
     if (solidBackground) {
         doc.style.setProperty('--background-color', backgroundColor);
@@ -401,48 +421,18 @@ export async function main() {
     containerEl = document.querySelector('#container');
     aheadEl = document.querySelector('#ahead');
     behindEl = document.querySelector('#behind');
-    settings = common.storage.get(settingsKey, {
-        detectAttacks: true,
-        maxAhead: 4,
-        maxBehind: 2,
-        maxZoomed: 8,
-        groupsPrimaryField: 'power',
-        zoomedPrimaryField: 'power',
-        groupsSecondaryField: 'speed',
-        zoomedSecondaryField: 'draft',
-        zoomedGapField: 'distance',
-        solidBackground: false,
-        backgroundColor: '#00ff00',
-        refreshInterval: 2,
-    });
-    // XXX Need a migration system.
-    if (!settings.groupsPrimaryField) {
-        settings.groupsPrimaryField = 'power';
-        common.storage.set(settingsKey, settings);
-    }
-    // XXX Need a migration system.
-    if (!settings.zoomedPrimaryField) {
-        settings.zoomedPrimaryField = 'power';
-        common.storage.set(settingsKey, settings);
-    }
-    setBackground(settings);
     contentEl.querySelector('.zoom-out').addEventListener('click', ev => {
         zoomedPosition = null;
         common.storage.set('zoomedPosition', zoomedPosition);
         render();
     });
-    common.storage.addEventListener('update', ev => {
-        if (ev.data.key !== settingsKey) {
-            return;
+    common.settingsStore.addEventListener('changed', ev => {
+        const changed = ev.data.changed;
+        if (changed.has('/imperialUnits')) {
+            L.setImperial(imperial = changed.get('/imperialUnits'));
         }
-        settings = ev.data.value;
-        setBackground(settings);
+        setBackground();
         render();
-    });
-    common.storage.addEventListener('globalupdate', ev => {
-        if (ev.data.key === '/imperialUnits') {
-            L.setImperial(imperial = ev.data.value);
-        }
     });
     const gcs = await common.rpc.getGameConnectionStatus();
     if (gcs) {
@@ -468,5 +458,5 @@ export async function main() {
 
 export async function settingsMain() {
     common.initInteractionListeners();
-    await common.initSettingsForm('form', {settingsKey})();
+    await common.initSettingsForm('form')();
 }

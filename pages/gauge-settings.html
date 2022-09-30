@@ -13,7 +13,7 @@
 
         <script type="module">
             import {settingsMain} from './src/gauge.mjs';
-            addEventListener('DOMContentLoaded', settingsMain);
+            settingsMain();
         </script>
     </head>
     <body>
@@ -45,11 +45,11 @@
                     <key>Data smoothing:</key>
                     <select data-type="number" name="dataSmoothing">
                         <option value="0">None</option>
-                        <option value="5">5 seconds</option>
-                        <option value="15">15 seconds</option>
-                        <option value="60">1 minute</option>
-                        <option value="300">5 minutes</option>
-                        <option value="1200">20 minutes</option>
+                        <option value="5" data-period="short">5 seconds</option>
+                        <option value="15" data-period="short">15 seconds</option>
+                        <option value="60" data-period="long">1 minute</option>
+                        <option value="300" data-period="long">5 minutes</option>
+                        <option value="1200" data-period="long">20 minutes</option>
                     </select>
                 </label>
                 <!--<label>
@@ -72,6 +72,19 @@
                     <key>Transparency:</key>
                     <input type="range" name="gaugeTransparency" min="0" max="100" step="1"/>
                     <input type="text" name="gaugeTransparency" size="3"/>%
+                </label>
+                <label>
+                    <key>Theme override:</key>
+                    <select name="themeOverride">
+                        <option value="">Use app setting</option>
+                        <option value="bluepink">Ice Blue Pink</option>
+                        <option value="green">Green Lantern</option>
+                        <option value="burgundy">Ron Burgundy</option>
+                        <option value="light">Light</option>
+                        <option value="dark">Dark</option>
+                        <option value="transparent-light">Transparent - Light</option>
+                        <option value="transparent-dark">Transparent - Dark</option>
+                    </select>
                 </label>
                 <label title="Mostly useful for streamers using OBS window and browser sources">
                     <key>Solid background:</key>

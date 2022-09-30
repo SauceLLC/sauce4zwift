@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html tabindex="0">
+<html tabindex="0" data-settings-key="events-settings-v1">
     <head>
         <meta charset="utf-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
@@ -10,7 +10,7 @@
 
         <script type="module">
             import {main} from './src/events.mjs';
-            addEventListener('DOMContentLoaded', main);
+            main();
         </script>
 
         <link rel="manifest" href="events-manifest.json"/>
@@ -23,21 +23,12 @@
             <header>
                 <div class="logo"><img src="images/icon128.png"/></div>
                 <div class="title">Events</div>
+                <div class="filter"><input type="text" name="filter" placeholder="filter"></input></div>
                 <div class="filler"></div>
-                <!--<div class="filter"><input type="text" name="filter" placeholder="filter"></input></div>
-                <div class="sport">
-                    <select name="type">
-                        <option value="cycling">Cycling</option>
-                        <option value="running">Running</option>
-                    </select>
-                </div>
-                <div class="buttons">
-                    <div class="std button show-folder">Load older</div>
-                    <div class="std button clear">Load newer</div>
-                </div>
-                -->
                 <div class="buttons">
                     <div title="Minimize" class="button minimize electron-only"><ms>minimize</ms></div>
+                    <a class="button open-settings" href="events-settings.html?width=400&height=400&child-window"
+                       title="Open settings window" target="chat-settings"><ms>settings</ms></a>
                     <div title="Close this window" class="button close electron-only"><ms>close</ms></div>
                 </div>
             </header>

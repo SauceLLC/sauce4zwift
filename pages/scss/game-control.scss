@@ -7,6 +7,10 @@ html:not(.connected) {
     }
 }
 
+html.settings-mode #content header {
+    app-region: initial !important;
+}
+
 #content {
     scroll-behavior: smooth;
     overflow: auto;

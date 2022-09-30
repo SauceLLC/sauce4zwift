@@ -10,7 +10,7 @@
 
         <script type="module">
             import {main} from './src/gauge.mjs';
-            addEventListener('DOMContentLoaded', main);
+            main();
         </script>
 
         <link rel="manifest" href="gauge-manifest.json"/>
@@ -27,6 +27,7 @@
                 <div class="buttons">
                     <a class="button open-settings" href="gauge-settings.html?width=400&height=400&child-window"
                        title="Open settings window" target="gauge-settings"><ms>settings</ms></a>
+                    <div title="Minimize" class="button minimize electron-only"><ms>minimize</ms></div>
                     <div title="Close this window" class="button close electron-only"><ms>close</ms></div>
                 </div>
             </header>

@@ -5,6 +5,7 @@ import {theme} from './echarts-sauce-theme.mjs';
 
 echarts.registerTheme('sauce', theme);
 
+const doc = document.documentElement;
 const type = (new URLSearchParams(location.search)).get('t') || 'power';
 const title = {
     power: 'Power Gauge',
@@ -13,22 +14,8 @@ const title = {
     pace: 'Pace Gauge',
     wbal: 'W\'bal Gauge',
 }[type];
-const commonDefaultSettings = {
-    refreshInterval: 1,
-    dataSmoothing: 0,
-    showAverage: false,
-    showMax: false,
-    currentLap: false,
-    boringMode: false,
-    gaugeTransparency: 20,
-    solidBackground: false,
-    backgroundColor: '#00ff00',
-};
-
 const L = sauce.locale;
 const H = L.human;
-const settingsKey = `gauge-settings-v1-${type}`;
-let settings;
 let imperial = !!common.storage.get('/imperialUnits');
 L.setImperial(imperial);
 
@@ -91,9 +78,10 @@ const gaugeConfigs = {
             min: 70,
             max: 190,
         },
-        getValue: x => settings.dataSmoothing ? x.stats.hr.smooth[settings.dataSmoothing].avg : x.state.heartrate,
+        getValue: x => settings.dataSmoothing ? x.stats.hr.smooth[settings.dataSmoothing] : x.state.heartrate,
         getLabel: H.number,
         detailFormatter: x => `{value|${H.number(x)}}\n{unit|bpm}`,
+        longPeriods: true,
     },
     pace: {
         name: 'Pace',
@@ -103,9 +91,10 @@ const gaugeConfigs = {
             min: 0,
             max: 100,
         },
-        getValue: x => settings.dataSmoothing ? x.stats.speed.smooth[settings.dataSmoothing].avg : x.state.speed,
+        getValue: x => settings.dataSmoothing ? x.stats.speed.smooth[settings.dataSmoothing] : x.state.speed,
         getLabel: x => H.pace(x, {precision: 0}),
         detailFormatter: x => `{value|${H.pace(x, {precision: 0})}}\n{unit|${imperial ? 'mph' : 'kph'}}`,
+        longPeriods: true,
     },
     draft: {
         name: 'Draft',
@@ -115,9 +104,10 @@ const gaugeConfigs = {
             min: 0,
             max: 300,
         },
-        getValue: x => x.state.draft,
+        getValue: x => settings.dataSmoothing ? x.stats.draft.smooth[settings.dataSmoothing] : x.state.draft,
         getLabel: H.number,
         detailFormatter: x => `{value|${H.number(x)}}\n{unit|% boost}`,
+        longPeriods: true,
     },
     wbal: {
         name: 'W\'bal',
@@ -142,12 +132,31 @@ const gaugeConfigs = {
                 colorAlpha: [0.5, 0.9],
             },
         }],
+        noSmoothing: true,
     },
 };
 
+const config = gaugeConfigs[type];
+const settingsStore = new common.SettingsStore(`gauge-settings-v1-${type}`);
+const settings = settingsStore.get(null, {
+    refreshInterval: 1,
+    dataSmoothing: 0,
+    showAverage: false,
+    showMax: false,
+    currentLap: false,
+    boringMode: false,
+    gaugeTransparency: 20,
+    solidBackground: false,
+    backgroundColor: '#00ff00',
+    ...config.defaultSettings,
+});
+if (settings.themeOverride) {
+    doc.dataset.theme = settings.themeOverride;
+}
 
-function setBackground({solidBackground, backgroundColor}) {
-    const doc = document.documentElement;
+
+function setBackground() {
+    const {solidBackground, backgroundColor} = settings;
     doc.classList.toggle('solid-background', solidBackground);
     if (solidBackground) {
         doc.style.setProperty('--background-color', backgroundColor);
@@ -162,9 +171,7 @@ export async function main() {
     document.querySelector('#titlebar header .title').textContent = title;
     common.addOpenSettingsParam('t', type);
     common.initInteractionListeners();
-    const config = gaugeConfigs[type];
-    settings = common.storage.get(settingsKey, {...commonDefaultSettings, ...config.defaultSettings});
-    setBackground(settings);
+    setBackground();
     const content = document.querySelector('#content');
     const gauge = echarts.init(content.querySelector('.gauge'), 'sauce', {
         renderer: location.search.includes('svg') ? 'svg' : 'canvas',
@@ -345,21 +352,22 @@ export async function main() {
         renderer.render({force: true});
     });
     let reanimateTimeout;
-    common.storage.addEventListener('update', ev => {
-        settings = ev.data.value;
-        setBackground(settings);
+    settingsStore.addEventListener('changed', ev => {
+        const changed = ev.data.changed;
+        if (changed.has('/imperialUnits')) {
+            imperial = ev.data.value;
+            L.setImperial(imperial);
+        }
+        if (changed.has('themeOverride')) {
+            doc.dataset.theme = settings.themeOverride || settingsStore.get('/theme');
+        }
+        setBackground();
         renderer.fps = 1 / settings.refreshInterval;
         initGauge();
         gauge.setOption({series: [{animation: false}]});
         renderer.render({force: true});
         clearTimeout(reanimateTimeout);
         reanimateTimeout = setTimeout(() => gauge.setOption({series: [{animation: true}]}), 400);
-    });
-    common.storage.addEventListener('globalupdate', ev => {
-        if (ev.data.key === '/imperialUnits') {
-            imperial = ev.data.value;
-            L.setImperial(imperial);
-        }
     });
     common.subscribe('athlete/watching', watching => {
         renderer.setData(watching);
@@ -373,5 +381,13 @@ export async function settingsMain() {
     document.title = `${title} - Settings - Sauce for Zwift™`;
     document.querySelector('#titlebar header .title').textContent = `${title} - Settings`;
     common.initInteractionListeners();
-    await common.initSettingsForm('form', {settingsKey})();
+    const config = gaugeConfigs[type];
+    if (config.noSmoothing) {
+        document.querySelector('form [name="dataSmoothing"]').disabled = true;
+    }
+    if (config.longPeriods) {
+        Array.from(document.querySelectorAll('form [name="dataSmoothing"] [data-period="short"]'))
+            .map(x => x.disabled = true);
+    }
+    await common.initSettingsForm('form', {store: settingsStore})();
 }

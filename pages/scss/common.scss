@@ -215,9 +215,19 @@ html[data-theme="light"] {
     --theme-bg2-light: 82%;
     --theme-bg2-shade-dir: -1;
 
+    --theme-bg-alt-hue: 0;
+    --theme-bg-alt-sat: 10%;
+    --theme-bg-alt-light: 90%;
+    --theme-bg-alt-shade-dir: -1;
+
+    --theme-bg-alt2-hue: 0;
+    --theme-bg-alt2-sat: 12%;
+    --theme-bg-alt2-light: 81%;
+    --theme-bg-alt2-shade-dir: -1;
+
     --theme-fg-hue: 0;
     --theme-fg-sat: 0%;
-    --theme-fg-light: 20%;
+    --theme-fg-light: 15%;
     --theme-fg-shade-dir: 1;
 
     --theme-button-bar-top-left: #aaac;
@@ -225,7 +235,7 @@ html[data-theme="light"] {
 }
 
 html[data-theme="transparent-light"] {
-    &:not(.settings-mode):not(.settings-page) body:not(.transparent-bg) {
+    &:not(.settings-mode):not(.settings-page):not(.frame) body:not(.transparent-bg) {
         --bg-opacity: 0;
     }
 
@@ -241,9 +251,19 @@ html[data-theme="transparent-light"] {
     --theme-bg2-light: 82%;
     --theme-bg2-shade-dir: -1;
 
+    --theme-bg-alt-hue: 0;
+    --theme-bg-alt-sat: 10%;
+    --theme-bg-alt-light: 90%;
+    --theme-bg-alt-shade-dir: -1;
+
+    --theme-bg-alt2-hue: 0;
+    --theme-bg-alt2-sat: 12%;
+    --theme-bg-alt2-light: 81%;
+    --theme-bg-alt2-shade-dir: -1;
+
     --theme-fg-hue: 0;
     --theme-fg-sat: 0%;
-    --theme-fg-light: 20%;
+    --theme-fg-light: 15%;
     --theme-fg-shade-dir: 1;
 
     --theme-button-bar-top-left: #aaac;
@@ -273,7 +293,7 @@ html[data-theme="dark"] {
 }
 
 html[data-theme="transparent-dark"] {
-    &:not(.settings-mode):not(.settings-page) body:not(.transparent-bg) {
+    &:not(.settings-mode):not(.settings-page):not(.frame) body:not(.transparent-bg) {
         --bg-opacity: 0;
     }
 
@@ -542,13 +562,14 @@ input, select {
 input[type="number"] {
     width: 8ch;
 
-    // Remove silly number up/down things
-   -moz-appearance:textfield;
+    &.no-increment {
+        -moz-appearance: textfield;
 
-    &::-webkit-outer-spin-button,
-    &::-webkit-inner-spin-button {
-        -webkit-appearance: none;
-        margin: 0;
+        &::-webkit-outer-spin-button,
+        &::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
     }
 }
 
@@ -605,15 +626,11 @@ html body {
     background-image: linear-gradient(135deg,
         color.get(bg, calc(var(--bg-opacity) * 100%)),
         color.get(bg2, calc(var(--bg-opacity) * 100%)));
-    //background-image: linear-gradient(135deg, color.get(bg, 87%), transparent),
-    //                  linear-gradient(315deg, color.get(bg2, 82%), transparent);
 
     &.alt-background {
         background-image: linear-gradient(135deg,
             color.get(bg-alt, calc(var(--bg-opacity) * 100%)),
             color.get(bg-alt2, calc(var(--bg-opacity) * 100%)));
-        //background-image: linear-gradient(135deg, color.get(bg-alt, 44%), transparent),
-        //                  linear-gradient(315deg, color.get(bg-alt2, 60%), transparent);
     }
 }
 

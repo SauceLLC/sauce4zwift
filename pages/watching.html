@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html class="" tabindex="0">
+<html class="" tabindex="0" data-settings-key="watching-settings-v3">
     <head>
         <meta charset="utf-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
@@ -10,7 +10,7 @@
 
         <script type="module">
             import {main} from './src/watching.mjs';
-            addEventListener('DOMContentLoaded', main);
+            main();
         </script>
 
         <link rel="manifest" href="watching-manifest.json"/>
@@ -27,6 +27,7 @@
                 <div class="buttons">
                     <a class="button open-settings" href="watching-settings.html?width=380&height=720&child-window"
                        title="Open settings window" target="watching-settings"><ms>settings</ms></a>
+                    <div title="Minimize" class="button minimize electron-only"><ms>minimize</ms></div>
                     <div title="Close this window" class="button close electron-only"><ms>close</ms></div>
                 </div>
             </header>

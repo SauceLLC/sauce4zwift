@@ -17,7 +17,7 @@ html {
 }
 
 html.settings-mode #meta.app-drag {
-    -webkit-app-region: initial;
+    app-region: initial !important;
 }
 
 #meta {

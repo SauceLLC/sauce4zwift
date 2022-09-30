@@ -65,18 +65,14 @@
         <script type="module">
             import * as common from './src/common.mjs';
 
-            function main() {
-                document.querySelector('input[name="agree"]').addEventListener('click', async ev => {
-                    ev.preventDefault();
-                    await common.rpc.eulaConsent(true);
-                });
-                document.querySelector('input[name="decline"]').addEventListener('click', async ev => {
-                    ev.preventDefault();
-                    await common.rpc.eulaConsent(false);
-                });
-            }
-
-            addEventListener('DOMContentLoaded', main);
+            document.querySelector('input[name="agree"]').addEventListener('click', async ev => {
+                ev.preventDefault();
+                await common.rpc.eulaConsent(true);
+            });
+            document.querySelector('input[name="decline"]').addEventListener('click', async ev => {
+                ev.preventDefault();
+                await common.rpc.eulaConsent(false);
+            });
         </script>
     </head>
     <body class="">

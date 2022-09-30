@@ -4,12 +4,9 @@ import {render as athleteRender} from './athlete.mjs';
 
 const L = sauce.locale;
 //const H = L.human;
-const settingsKey = 'events-settings-v1';
-let imperial = common.storage.get('/imperialUnits');
+common.settingsStore.setDefault({});
+let imperial = common.settingsStore.get('/imperialUnits');
 L.setImperial(imperial);
-let settings;
-
-//const weightClass = v => H.weightClass(v, {suffix: true, html: true});
 
 
 function initExpanderTable(table, detailsCallback) {
@@ -59,7 +56,6 @@ async function getEventsWithRetry() {
             continue;
         }
         x.started = x.ts < now;
-        console.debug('event', x);
         events.set(x.id, x);
     }
     return events;
@@ -71,15 +67,6 @@ export async function main() {
     const pendingNationInit = common.initNationFlags();
     let gameConnectionStatus = await common.rpc.getGameConnectionStatus();
     common.subscribe('status', gcs => (gameConnectionStatus = gcs), {source: 'gameConnection'});
-    common.storage.addEventListener('globalupdate', ev => {
-        if (ev.data.key === '/imperialUnits') {
-            L.setImperial(imperial = ev.data.value);
-        }
-    });
-    settings = common.storage.get(settingsKey, {
-        sport: 'cycling',
-        hideEventTypes: [],
-    });
     const events = await getEventsWithRetry();
     const contentEl = await render(events);
     const eventDetailTpl = await sauce.template.getTemplate(`templates/event-details.html.tpl`);
@@ -92,11 +79,9 @@ export async function main() {
         }
         const route = await getRoute(event.routeId);
         const world = common.worldToNames[event.mapId || common.identToWorldId[route.world]];
-        console.log('route', route);
         const subgroups = await Promise.all(event.eventSubgroups.map(async sg => {
             const entrants = await common.rpc.getEventSubgroupEntrants(sg.id);
             const route = await getRoute(sg.routeId);
-            console.log('route', route);
             for (const x of entrants) {
                 athletes.set(x.id, x.athlete);
             }
@@ -126,6 +111,30 @@ export async function main() {
             });
         }
     });
+    document.querySelector('#titlebar input[name="filter"]').addEventListener('input', ev => {
+        const hide = new Set();
+        const search = ev.currentTarget.value;
+        let re;
+        try {
+            re = search && new RegExp(search, 'i');
+        } catch(e) {/*no-pragma*/}
+        if (re) {
+            for (const x of events.values()) {
+                if (!(`${x.name} ${x.type.replace(/_/g, ' ')} ${x.description}`).match(re)) {
+                    hide.add(x.id);
+                }
+            }
+        } else if (search) {
+            for (const x of events.values()) {
+                if (!(`${x.name} ${x.type.replace(/_/g, ' ')} ${x.description}`).toLowerCase().includes()) {
+                    hide.add(x.id);
+                }
+            }
+        }
+        for (const el of contentEl.querySelectorAll('table.events > tbody > tr[data-event-id]')) {
+            el.classList.toggle('hidden', hide.has(Number(el.dataset.eventId)));
+        }
+    });
 }
 
 
@@ -139,4 +148,10 @@ async function render(events) {
     contentEl.innerHTML = '';
     contentEl.append(frag);
     return contentEl;
+}
+
+
+export async function settingsMain() {
+    common.initInteractionListeners();
+    await common.initSettingsForm('form')();
 }

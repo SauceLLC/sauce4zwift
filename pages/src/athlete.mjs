@@ -49,6 +49,7 @@ function handleWPrimeEdit(el, {athleteId, athlete}, rerender) {
     const input = document.createElement('input');
     input.type = 'number';
     input.value = athlete.wPrime;
+    input.classList.add('no-increment');
     el.replaceChildren(input);
     let done;
     input.focus();

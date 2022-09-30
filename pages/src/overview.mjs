@@ -1,12 +1,19 @@
 import * as sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
 
+const doc = document.documentElement;
 const L = sauce.locale;
 const H = L.human;
-const settingsKey = 'overview-settings-v3';
-let settings;
 let imperial = !!common.storage.get('/imperialUnits');
 L.setImperial(imperial);
+
+common.settingsStore.setDefault({
+    leftFields: 2,
+    rightFields: 2,
+    lockedFields: false,
+    autoHideWindows: false,
+    centerGapSize: 0,
+});
 
 
 function shortDuration(x) {
@@ -73,36 +80,24 @@ export async function main() {
     common.initInteractionListeners();
     let lastData;
     let autoHideTimeout;
-    settings = common.storage.get(settingsKey, {
-        leftFields: 2,
-        rightFields: 2,
-        lockedFields: false,
-        autoHideWindows: false,
-        centerGapSize: 0,
-    });
-    document.documentElement.style.setProperty('--center-gap-size', settings.centerGapSize + 'px');
-    let renderer = buildLayout(settings);
-    common.storage.addEventListener('globalupdate', ev => {
-        if (ev.data.key === '/imperialUnits') {
-            imperial = ev.data.value;
-            L.setImperial(imperial);
-            renderer.render();
-        }
-    });
-    common.storage.addEventListener('update', ev => {
-        if (ev.data.key !== settingsKey) {
-            return;
-        }
-        if (settings.autoHideWindows !== ev.data.value.autoHideWindows) {
-            location.reload();  // Avoid state machine complications.
-            return;
-        }
-        const oldCenterGap = settings.centerGapSize;
-        settings = ev.data.value;
-        if (settings.centerGapSize !== oldCenterGap) {
-            document.documentElement.style.setProperty('--center-gap-size', settings.centerGapSize + 'px');
-            renderer.render({force: true});
-            return;
+    doc.style.setProperty('--center-gap-size', common.settingsStore.get('centerGapSize') + 'px');
+    let renderer = buildLayout();
+    common.settingsStore.addEventListener('changed', ev => {
+        for (const [k, v] of ev.data.changed.entries()) {
+            if (k === '/imperialUnits') {
+                imperial = v;
+                L.setImperial(imperial);
+                renderer.render();
+                return;
+            } else if (k === 'autoHideWindows') {
+                location.reload();  // Avoid state machine complications.
+                return;
+            } else if (k === 'centerGapSize') {
+                console.log("set gap", v);
+                doc.style.setProperty('--center-gap-size', `${v}px`);
+                renderer.render({force: true});
+                return;
+            }
         }
         if (renderer) {
             renderer.stop();
@@ -115,17 +110,17 @@ export async function main() {
         renderer.render();
     });
     document.querySelector('.button.show').addEventListener('click', () => {
-        document.documentElement.classList.remove('hidden');
+        doc.classList.remove('hidden');
         if (window.isElectron) {
-            document.documentElement.classList.remove('auto-hidden');
+            doc.classList.remove('auto-hidden');
             autoHidden = false;
             common.rpc.showAllWindows();
         }
     });
     document.querySelector('.button.hide').addEventListener('click', () => {
-        document.documentElement.classList.add('hidden');
+        doc.classList.add('hidden');
         if (window.isElectron) {
-            document.documentElement.classList.remove('auto-hidden');
+            doc.classList.remove('auto-hidden');
             autoHidden = false;
             common.rpc.hideAllWindows();
         }
@@ -137,25 +132,25 @@ export async function main() {
     let autoHidden;
     function autoHide() {
         autoHidden = true;
-        document.documentElement.classList.add('auto-hidden', 'hidden');
+        doc.classList.add('auto-hidden', 'hidden');
         console.debug("Auto hidding windows");
         common.rpc.hideAllWindows({autoHide: true});
     }
 
     function autoShow() {
         autoHidden = false;
-        document.documentElement.classList.remove('auto-hidden', 'hidden');
+        doc.classList.remove('auto-hidden', 'hidden');
         console.debug("Auto showing windows");
         common.rpc.showAllWindows({autoHide: true});
     }
 
     const autoHideWait = 4000;
-    if (window.isElectron && settings.autoHideWindows) {
+    if (window.isElectron && common.settingsStore.get('autoHideWindows')) {
         autoHideTimeout = setTimeout(autoHide, autoHideWait);
     }
     let lastUpdate = 0;
     common.subscribe('athlete/watching', watching => {
-        if (window.isElectron && settings.autoHideWindows &&
+        if (window.isElectron && common.settingsStore.get('autoHideWindows') &&
             (watching.state.speed || watching.state.cadence || watching.state.power)) {
             clearTimeout(autoHideTimeout);
             if (autoHidden) {
@@ -181,13 +176,13 @@ export async function main() {
 
 function buildLayout() {
     const content = document.querySelector('#content');
-    const renderer = new common.Renderer(content, {locked: settings.lockedFields});
+    const renderer = new common.Renderer(content, {locked: common.settingsStore.get('lockedFields')});
     let count = 1;
     for (const side of ['left', 'right']) {
         const fields = document.querySelector(`.fields.${side}`);
         const mapping = [];
         fields.innerHTML = '';
-        for (let i = 0; i < settings[`${side}Fields`]; i++) {
+        for (let i = 0; i < common.settingsStore.get(`${side}Fields`); i++) {
             const id = `${side}-${i}`;
             fields.insertAdjacentHTML('beforeend', `
                 <div class="field" data-field="${id}">
@@ -511,5 +506,5 @@ export async function settingsMain() {
     extraData.mainZwiftLogin = loginInfo && loginInfo.main && loginInfo.main.username;
     extraData.monitorZwiftLogin = loginInfo && loginInfo.monitor && loginInfo.monitor.username;
     await appSettingsUpdate(extraData);
-    await common.initSettingsForm('form.settings', {settingsKey})();
+    await common.initSettingsForm('form.settings')();
 }

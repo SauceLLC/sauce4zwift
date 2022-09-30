@@ -6,10 +6,44 @@ import {theme} from './echarts-sauce-theme.mjs';
 
 echarts.registerTheme('sauce', theme);
 
+common.settingsStore.setDefault({
+    lockedFields: false,
+    alwaysShowButtons: false,
+    solidBackground: false,
+    backgroundColor: '#00ff00',
+    screens: [{
+        id: 'default-screen-1',
+        sections: [{
+            type: 'large-data-fields',
+            id: 'default-large-data-fields',
+            groups: [{
+                id: 'default-power',
+                type: 'power',
+            }],
+        }, {
+            type: 'data-fields',
+            id: 'default-data-fields',
+            groups: [{
+                type: 'hr',
+                id: 'default-hr',
+            }],
+        }, {
+            type: 'split-data-fields',
+            id: 'default-split-data-fields',
+            groups: [{
+                type: 'cadence',
+                id: 'default-cadence',
+            }, {
+                type: 'draft',
+                id: 'default-draft',
+            }],
+        }],
+    }],
+});
+
 const doc = document.documentElement;
 const L = sauce.locale;
 const H = L.human;
-const settingsKey = 'watching-settings-v3';
 const maxLineChartLen = 60;
 const colors = {
     power: '#46f',
@@ -17,8 +51,7 @@ const colors = {
     pace: '#4e3',
 };
 
-let settings;
-let imperial = !!common.storage.get('/imperialUnits');
+const imperial = !!common.settingsStore.get('/imperialUnits');
 L.setImperial(imperial);
 
 const chartRefs = new Set();
@@ -597,41 +630,8 @@ function bindLineChart(lineChart, renderer) {
 
 export async function main() {
     common.initInteractionListeners();
-    settings = common.storage.get(settingsKey, {
-        lockedFields: false,
-        alwaysShowButtons: false,
-        solidBackground: false,
-        backgroundColor: '#00ff00',
-        screens: [{
-            id: 'default-screen-1',
-            sections: [{
-                type: 'large-data-fields',
-                id: 'default-large-data-fields',
-                groups: [{
-                    id: 'default-power',
-                    type: 'power',
-                }],
-            }, {
-                type: 'data-fields',
-                id: 'default-data-fields',
-                groups: [{
-                    type: 'hr',
-                    id: 'default-hr',
-                }],
-            }, {
-                type: 'split-data-fields',
-                id: 'default-split-data-fields',
-                groups: [{
-                    type: 'cadence',
-                    id: 'default-cadence',
-                }, {
-                    type: 'draft',
-                    id: 'default-draft',
-                }],
-            }],
-        }],
-    });
-    setBackground(settings);
+    setBackground();
+    const settings = common.settingsStore.get();
     doc.classList.toggle('always-show-buttons', !!settings.alwaysShowButtons);
     const content = document.querySelector('#content');
     const renderers = [];
@@ -704,7 +704,6 @@ export async function main() {
         renderer.setData({});
         renderer.render();
     }
-    common.storage.set(settingsKey, settings);
     const bbSelector = settings.alwaysShowButtons ? '.fixed.button-bar' : '#titlebar .button-bar';
     const prevBtn = document.querySelector(`${bbSelector} .button.prev-screen`);
     const nextBtn = document.querySelector(`${bbSelector} .button.next-screen`);
@@ -763,16 +762,10 @@ export async function main() {
             }
         }
     }, {capture: true});
-    common.storage.addEventListener('globalupdate', ev => {
-        if (ev.data.key === '/imperialUnits') {
-            imperial = ev.data.value;
-            L.setImperial(imperial);
-        }
-    });
-    common.storage.addEventListener('update', ev => {
-        if (ev.data.value.backgroundColor !== settings.backgroundColor) {
-            settings = ev.data.value;
-            setBackground(settings);
+    common.settingsStore.addEventListener('changed', ev => {
+        const changed = ev.data.changed;
+        if (changed.has('backgroundColor') && changed.size === 1) {
+            setBackground();
         } else {
             location.reload();
         }
@@ -802,6 +795,7 @@ async function initScreenSettings() {
     const delBtn = document.querySelector('main header .button[data-action="delete"]');
     document.querySelector('main .add-section select[name="type"]').innerHTML = Object.entries(sectionSpecs)
         .map(([type, {title}]) => `<option value="${type}">${title}</option>`).join('\n');
+    const settings = common.settingsStore.get();
 
     async function renderScreen() {
         sIndexEl.textContent = sIndex + 1;
@@ -833,7 +827,7 @@ async function initScreenSettings() {
                 id: `user-section-${settings.screens.length +1}-${Date.now()}`,
                 sections: []
             });
-            common.storage.set(settingsKey, settings);
+            common.settingsStore.set(null, settings);
             sIndex = settings.screens.length - 1;
             renderScreen();
         } else if (action === 'next') {
@@ -845,7 +839,7 @@ async function initScreenSettings() {
         } else if (action === 'delete') {
             settings.screens.splice(sIndex, 1);
             sIndex = Math.max(0, sIndex -1);
-            common.storage.set(settingsKey, settings);
+            common.settingsStore.set(null, settings);
             renderScreen();
         }
     });
@@ -861,7 +855,7 @@ async function initScreenSettings() {
                 type: Object.keys(groupSpecs)[i] || 'power',
             })),
         });
-        common.storage.set(settingsKey, settings);
+        common.settingsStore.set(null, settings);
         renderScreen();
     });
     activeScreenEl.addEventListener('click', ev => {
@@ -883,13 +877,13 @@ async function initScreenSettings() {
                 for (const g of d.querySelectorAll('select[name="group"]')) {
                     section.groups.find(x => x.id === g.dataset.id).type = g.value;
                 }
-                common.storage.set(settingsKey, settings);
+                common.settingsStore.set(null, settings);
                 renderScreen();
             }, {once: true});
             d.showModal();
         } else if (action === 'delete') {
             screen.sections.splice(screen.sections.findIndex(x => x.id === sectionId), 1);
-            common.storage.set(settingsKey, settings);
+            common.settingsStore.set(null, settings);
             renderScreen();
         } else {
             throw new TypeError("Invalid action: " + action);
@@ -899,7 +893,8 @@ async function initScreenSettings() {
 }
 
 
-function setBackground({solidBackground, backgroundColor}) {
+function setBackground() {
+    const {solidBackground, backgroundColor} = common.settingsStore.get();
     doc.classList.toggle('solid-background', !!solidBackground);
     if (solidBackground) {
         doc.style.setProperty('--background-color', backgroundColor);
@@ -911,8 +906,6 @@ function setBackground({solidBackground, backgroundColor}) {
 
 export async function settingsMain() {
     common.initInteractionListeners();
-    settings = common.storage.get(settingsKey);
-    await common.initSettingsForm('form#general', {settingsKey, storageData: settings})();
+    await common.initSettingsForm('form#general')();
     await initScreenSettings();
 }
-

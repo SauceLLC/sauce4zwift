@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html class="use-aspect-ratio" tabindex="0">
+<html class="use-aspect-ratio" tabindex="0" data-settings-key="groups-settings-v6">
     <head>
         <meta charset="utf-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
@@ -10,7 +10,7 @@
 
         <script type="module">
             import {main} from './src/groups.mjs';
-            addEventListener('DOMContentLoaded', main);
+            main();
         </script>
 
         <link rel="manifest" href="groups-manifest.json"/>
@@ -27,6 +27,7 @@
                 <div class="buttons">
                     <a class="button open-settings" href="groups-settings.html?width=400&height=540&child-window"
                        title="Open settings window" target="groups-settings"><ms>settings</ms></a>
+                    <div title="Minimize" class="button minimize electron-only"><ms>minimize</ms></div>
                     <div title="Close this window" class="button close electron-only"><ms>close</ms></div>
                 </div>
             </header>

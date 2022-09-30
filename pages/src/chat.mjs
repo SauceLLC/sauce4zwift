@@ -1,8 +1,13 @@
 import * as sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
 
+const doc = document.documentElement;
 const nearby = new Map();
-const settingsKey = 'chat-settings-v2';
+const settings = common.settingsStore.get(null, {
+    cleanup: 120,
+    solidBackground: false,
+    backgroundColor: '#00ff00',
+});
 
 const idleCallback = window.requestIdleCallback || (cb => setTimeout(cb, 0));
 
@@ -62,8 +67,8 @@ function liveDataFormatter(athlete) {
 }
 
 
-function setBackground({solidBackground, backgroundColor}) {
-    const doc = document.documentElement;
+function setBackground() {
+    const {solidBackground, backgroundColor} = settings;
     doc.classList.toggle('solid-background', solidBackground);
     if (solidBackground) {
         doc.style.setProperty('--background-color', backgroundColor);
@@ -77,20 +82,11 @@ export async function main() {
     common.initInteractionListeners();
     const content = document.querySelector('#content');
     liveDataTask(content);  // bg okay
-    let settings = common.storage.get(settingsKey, {
-        cleanup: 120,
-        solidBackground: false,
-        backgroundColor: '#00ff00',
-    });
     const fadeoutTime = 5;
     content.style.setProperty('--fadeout-time', `${fadeoutTime}s`);
-    setBackground(settings);
-    common.storage.addEventListener('update', ev => {
-        if (ev.data.key !== settingsKey) {
-            return;
-        }
-        settings = ev.data.value;
-        setBackground(settings);
+    setBackground();
+    common.settingsStore.addEventListener('changed', ev => {
+        setBackground();
         for (const el of document.querySelectorAll('.entry')) {
             if (el._resetCleanup) {
                 el._resetCleanup();
@@ -214,5 +210,5 @@ export async function main() {
 
 export async function settingsMain() {
     common.initInteractionListeners();
-    await common.initSettingsForm('form', {settingsKey})();
+    await common.initSettingsForm('form')();
 }

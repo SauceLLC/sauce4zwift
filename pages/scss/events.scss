@@ -39,6 +39,13 @@ table {
                 opacity: 0.5;
             }
 
+            &.hidden {
+                display: none;
+                + tr {
+                    display: none;
+                }
+            }
+
             > td.type {
                 font-variant: all-small-caps;
                 font-weight: 600;
@@ -102,10 +109,12 @@ table {
 
             &.expanded,
             &.details {
-                background-color: #0005 !important;
+                background-color: color.shade(bg2, 20%, 10%) !important;
             }
 
             &.expanded {
+                border-top: 0.2em solid color.shade(fg, 10%, 50%);
+
                 > td {
                     padding-top: 1em;
                     padding-bottom: 0.5em;
@@ -114,6 +123,8 @@ table {
             }
 
             &.details {
+                border-bottom: 0.2em solid color.shade(fg, 10%, 50%);
+
                 > td {
                     padding-top: 0.5em;
                     padding-bottom: 1em;

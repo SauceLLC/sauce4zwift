@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html class="use-aspect-ratio" tabindex="0">
+<html class="use-aspect-ratio" tabindex="0" data-settings-key="geo-settings-v1">
     <head>
         <meta charset="utf-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
@@ -10,7 +10,7 @@
 
         <script type="module">
             import {main} from './src/geo.mjs';
-            addEventListener('DOMContentLoaded', main);
+            main();
         </script>
 
         <link rel="manifest" href="geo-manifest.json"/>

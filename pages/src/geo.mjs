@@ -5,21 +5,14 @@ import {theme} from './echarts-sauce-theme.mjs';
 
 echarts.registerTheme('sauce', theme);
 
-/*const commonDefaultSettings = {
-    refreshInterval: 1,
-};*/
-
 const L = sauce.locale;
 const H = L.human;
-const settingsKey = `geo-settings-v1`;
-//let settings;
 let imperial = !!common.storage.get('/imperialUnits');
 L.setImperial(imperial);
 
 
 export async function main() {
     common.initInteractionListeners();
-    //settings = common.storage.get(settingsKey, {...commonDefaultSettings, ...config.defaultSettings});
     const content = document.querySelector('#content');
     const chart = echarts.init(content.querySelector('.scatter'), 'sauce', {
         renderer: location.search.includes('svg') ? 'svg' : 'canvas',
@@ -131,5 +124,5 @@ export async function main() {
 
 export async function settingsMain() {
     common.initInteractionListeners();
-    await common.initSettingsForm('form', {settingsKey})();
+    await common.initSettingsForm('form');
 }

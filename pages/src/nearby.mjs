@@ -5,12 +5,10 @@ const doc = document.documentElement;
 const L = sauce.locale;
 const H = L.human;
 const num = H.number;
-const settingsKey = 'nearby-settings-v3';
 const fieldsKey = 'nearby-fields-v2';
 let imperial = common.storage.get('/imperialUnits');
 L.setImperial(imperial);
 let eventSite = common.storage.get('/externalEventSite', 'zwift');
-let settings;
 let fieldStates;
 let nearbyData;
 let enFields;
@@ -20,6 +18,15 @@ let table;
 let tbody;
 let theadRow;
 let gameConnection;
+
+common.settingsStore.setDefault({
+    autoscroll: true,
+    refreshInterval: 2,
+    overlayMode: false,
+    fontScale: 1,
+    solidBackground: false,
+    backgroundColor: '#00ff00',
+});
 
 const unit = x => `<abbr class="unit">${x}</abbr>`;
 const spd = v => H.pace(v, {precision: 0, suffix: true, html: true});
@@ -35,6 +42,10 @@ if (window.isElectron) {
     overlayMode = !!window.electron.context.spec.overlay;
     doc.classList.toggle('overlay-mode', overlayMode);
     document.querySelector('#titlebar').classList.toggle('always-visible', overlayMode !== true);
+    if (common.settingsStore.get('overlayMode') !== overlayMode) {
+        // Sync settings to our actual window state, not going to risk updating the window now
+        common.settingsStore.set('overlayMode', overlayMode);
+    }
 }
 
 
@@ -433,8 +444,12 @@ const fieldGroups = [{
 export async function main() {
     common.initInteractionListeners();
     common.initNationFlags();  // bg okay
+    let onlyMarked = common.settingsStore.get('onlyMarked');
+    let onlySameCategory= common.settingsStore.get('onlySameCategory');
     let refresh;
-    const setRefresh = () => refresh = (settings.refreshInterval || 0) * 1000 - 100; // within 100ms is fine.
+    const setRefresh = () => {
+        refresh = (common.settingsStore.get('refreshInterval') || 0) * 1000 - 100; // within 100ms is fine.
+    };
     const gcs = await common.rpc.getGameConnectionStatus();
     gameConnection = !!(gcs && gcs.connected);
     doc.classList.toggle('game-connection', gameConnection);
@@ -442,26 +457,37 @@ export async function main() {
         gameConnection = gcs.connected;
         doc.classList.toggle('game-connection', gameConnection);
     }, {source: 'gameConnection'});
-    common.storage.addEventListener('update', async ev => {
-        if (ev.data.key === fieldsKey) {
-            fieldStates = ev.data.value;
-        } else if (ev.data.key === settingsKey) {
-            const oldSettings = settings;
-            settings = ev.data.value;
-            setBackground(settings);
-            if (window.isElectron && typeof settings.overlayMode === 'boolean') {
-                await common.rpc.updateWindow(window.electron.context.id, {overlay: settings.overlayMode});
-                if (settings.overlayMode !== oldSettings.overlayMode) {
-                    await common.rpc.reopenWindow(window.electron.context.id);
-                }
-            }
-        } else {
-            return;
+    common.settingsStore.addEventListener('changed', async ev => {
+        const changed = ev.data.changed;
+        if (changed.has('solidBackground') || changed.has('backgroundColor')) {
+            setBackground();
         }
-        setRefresh();
+        if (window.isElectron && changed.has('overlayMode')) {
+            await common.rpc.updateWindow(window.electron.context.id,
+                {overlay: changed.get('overlayMode')});
+            await common.rpc.reopenWindow(window.electron.context.id);
+        }
+        if (changed.has('refreshInterval')) {
+            setRefresh();
+        }
+        if (changed.has('onlyMarked')) {
+            onlyMarked = changed.get('onlyMarked');
+        }
+        if (changed.has('onlySameCategory')) {
+            onlySameCategory = changed.get('onlySameCategory');
+        }
         render();
         if (nearbyData) {
             renderData(nearbyData);
+        }
+    });
+    common.storage.addEventListener('update', async ev => {
+        if (ev.data.key === fieldsKey) {
+            fieldStates = ev.data.value;
+            render();
+            if (nearbyData) {
+                renderData(nearbyData);
+            }
         }
     });
     common.storage.addEventListener('globalupdate', ev => {
@@ -471,19 +497,7 @@ export async function main() {
             eventSite = ev.data.value;
         }
     });
-    settings = common.storage.get(settingsKey, {
-        autoscroll: true,
-        refreshInterval: 2,
-        overlayMode: false,
-        fontScale: 1,
-        solidBackground: false,
-        backgroundColor: '#00ff00',
-    });
-    if (window.isElectron && overlayMode !== settings.overlayMode) {
-        settings.overlayMode = overlayMode;
-        common.storage.set(settingsKey, settings);
-    }
-    setBackground(settings);
+    setBackground();
     const fields = [].concat(...fieldGroups.map(x => x.fields));
     fieldStates = common.storage.get(fieldsKey, Object.fromEntries(fields.map(x => [x.id, x.defaultEn])));
     render();
@@ -531,13 +545,13 @@ export async function main() {
             }
         }
     });
-    refresh = setRefresh();
+    setRefresh();
     let lastRefresh = 0;
     common.subscribe('nearby', data => {
-        if (settings.onlyMarked) {
+        if (onlyMarked) {
             data = data.filter(x => x.watching || (x.athlete && x.athlete.marked));
         }
-        if (settings.onlySameCategory) {
+        if (onlySameCategory) {
             const watching = data.find(x => x.watching);
             const sgid = watching && watching.state.eventSubgroupId;
             if (sgid) {
@@ -566,8 +580,8 @@ async function watch(athleteId) {
 
 
 function render() {
-    doc.classList.toggle('autoscroll', settings.autoscroll);
-    doc.style.setProperty('--font-scale', settings.fontScale || 1);
+    doc.classList.toggle('autoscroll', common.settingsStore.get('autoscroll'));
+    doc.style.setProperty('--font-scale', common.settingsStore.get('fontScale') || 1);
     const fields = [].concat(...fieldGroups.map(x => x.fields));
     enFields = fields.filter(x => fieldStates[x.id]);
     sortBy = common.storage.get('nearby-sort-by', 'gap');
@@ -687,7 +701,7 @@ function renderData(data, {recenter}={}) {
     while (row.nextElementSibling) {
         gentleClassToggle(row = row.nextElementSibling, 'hidden', true);
     }
-    if ((!frames++ || recenter) && settings.autoscroll) {
+    if ((!frames++ || recenter) && common.settingsStore.get('autoscroll')) {
         requestAnimationFrame(() => {
             const row = tbody.querySelector('tr.watching');
             if (row) {
@@ -698,7 +712,8 @@ function renderData(data, {recenter}={}) {
 }
 
 
-function setBackground({solidBackground, backgroundColor}) {
+function setBackground() {
+    const {solidBackground, backgroundColor} = common.settingsStore.get();
     doc.classList.toggle('solid-background', !!solidBackground);
     if (solidBackground) {
         doc.style.setProperty('--background-color', backgroundColor);
@@ -730,5 +745,5 @@ export async function settingsMain() {
             '</div>'
         ].join(''));
     }
-    await common.initSettingsForm('form#options', {settingsKey})();
+    await common.initSettingsForm('form#options')();
 }

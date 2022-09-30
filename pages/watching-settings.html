@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html class="settings-page" tabindex="0">
+<html class="settings-page" tabindex="0" data-settings-key="watching-settings-v3">
     <head>
         <meta charset="utf-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
@@ -14,7 +14,7 @@
 
         <script type="module">
             import {settingsMain} from './src/watching.mjs';
-            addEventListener('DOMContentLoaded', settingsMain);
+            settingsMain();
         </script>
     </head>
     <body>
@@ -38,6 +38,19 @@
                 <label title="Always show the button bar">
                     <key>Always show buttons:</key>
                     <input type="checkbox" name="alwaysShowButtons"/>
+                </label>
+                <label>
+                    <key>Theme override:</key>
+                    <select name="themeOverride">
+                        <option value="">Use app setting</option>
+                        <option value="bluepink">Ice Blue Pink</option>
+                        <option value="green">Green Lantern</option>
+                        <option value="burgundy">Ron Burgundy</option>
+                        <option value="light">Light</option>
+                        <option value="dark">Dark</option>
+                        <option value="transparent-light">Transparent - Light</option>
+                        <option value="transparent-dark">Transparent - Dark</option>
+                    </select>
                 </label>
                 <label title="Mostly useful for streamers using OBS window and browser sources">
                     <key>Solid background:</key>

@@ -1,18 +1,18 @@
 <!DOCTYPE html>
-<html class="settings-page" tabindex="0" data-settings-key="chat-settings-v2">
+<html class="settings-page" tabindex="0" data-settings-key="events-settings-v1">
     <head>
         <meta charset="utf-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
         <meta name="apple-mobile-web-app-capable" content="yes"/>
         <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
 
-        <title>Chat - Settings - Sauce for Zwift™</title>
+        <title>Events - Settings - Sauce for Zwift™</title>
 
         <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
         <link rel="stylesheet" href="css/common.css"/>
 
-        <script type="module">
-            import {settingsMain} from './src/chat.mjs';
+        <script type="module" defer="false">
+            import {settingsMain} from './src/events.mjs';
             settingsMain();
         </script>
     </head>
@@ -20,7 +20,7 @@
         <div id="titlebar">
             <header>
                 <div class="logo"><img src="images/icon128.png"/></div>
-                <div class="title">Chat - Settings</div>
+                <div class="title">Events - Settings</div>
                 <div class="filler"></div>
                 <div class="buttons">
                     <div title="Close this window" class="button close electron-only"><ms>close</ms></div>
@@ -29,10 +29,6 @@
         </div>
         <div id="settings">
             <form>
-                <label>
-                    <key>Message cleanup:</key>
-                    <input type="number" min="0" step="1" name="cleanup"/> <small>(seconds)</small>
-                </label>
                 <label>
                     <key>Theme override:</key>
                     <select name="themeOverride">
@@ -45,15 +41,6 @@
                         <option value="transparent-light">Transparent - Light</option>
                         <option value="transparent-dark">Transparent - Dark</option>
                     </select>
-                </label>
-                <label title="Mostly useful for streamers using OBS window and browser sources">
-                    <key>Solid background:</key>
-                    <input type="checkbox" name="solidBackground"/>
-                </label>
-                <label>
-                    <key>Background color:</key>
-                    <input type="color" name="backgroundColor" data-depends-on="solidBackground"/>
-                    <input type="text" name="backgroundColor" data-depends-on="solidBackground" size="7"/>
                 </label>
             </form>
         </div>
