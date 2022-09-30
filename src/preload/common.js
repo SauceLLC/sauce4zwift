@@ -29,3 +29,19 @@ document.addEventListener('electron-rpc', async ev => {
 const context = ipcRenderer.sendSync('getWindowContextSync');
 contextBridge.exposeInMainWorld('electron', {context});
 contextBridge.exposeInMainWorld('isElectron', true);
+
+function onReadyStateChange(ev) {
+    if (document.readyState === 'interactive') {
+        // Do some important DOM work before first paint to avoid flashing
+        document.removeEventListener('readystatechange', onReadyStateChange);
+        const doc = document.documentElement;
+        doc.classList.add('electron-mode');
+        doc.classList.toggle('frame', !!context.frame);
+        const theme = localStorage.getItem('/theme');
+        if (theme) {
+            doc.dataset.theme = JSON.parse(theme);
+        }
+    }
+}
+// Fires for interactive before defer scripts.
+document.addEventListener('readystatechange', onReadyStateChange);

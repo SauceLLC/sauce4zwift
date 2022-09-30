@@ -6,11 +6,6 @@ import './sentry.js';
 
 const doc = document.documentElement;
 
-export let subscribe;
-let rpcCall;
-
-let windowID;
-
 const worldCourseDescs = [
     {worldId: 1, courseId: 6, name: 'Watopia', ident: 'WATOPIA'},
     {worldId: 2, courseId: 2, name: 'Richmond', ident: 'RICHMOND'},
@@ -40,10 +35,11 @@ function makeRPCError(errResp) {
 }
 
 
+let rpcCall;
+let windowID;
+export let subscribe;
 if (window.isElectron) {
     windowID = electron.context.id;
-    doc.classList.add('electron-mode');
-    doc.classList.toggle('frame', !!electron.context.frame);
     const sendToElectron = function(name, data) {
         document.dispatchEvent(new CustomEvent('electron-message', {detail: {name, data}}));
     };
@@ -559,6 +555,102 @@ class LocalStorage extends EventTarget {
 export const storage = new LocalStorage();
 
 
+export class SettingsStore extends EventTarget {
+    constructor(settingsKey) {
+        super();
+        this.settingsKey = settingsKey;
+        this._storage = new LocalStorage();
+        this._settings = this._storage.get(this.settingsKey);
+        this._ephemeral = !this._settings;
+        if (this._ephemeral) {
+            this._settings = {};
+        }
+        this._storage.addEventListener('globalupdate', ev => {
+            const changeEv = new Event('changed');
+            changeEv.data = {changed: new Map([[ev.data.key, ev.data.value]])};
+            this.dispatchEvent(changeEv);
+        });
+        this._storage.addEventListener('update', ev => {
+            // These are only remote changes from other tabs.
+            if (ev.data.key !== this.settingsKey) {
+                return;
+            }
+            const origKeys = new Set(Object.keys(this._settings));
+            const changed = new Map();
+            for (const [k, v] of Object.entries(ev.data.value)) {
+                if (!origKeys.has(k)) {
+                    changed.set(k, v);
+                } else if (JSON.stringify(this._settings[k]) !== JSON.stringify(v)) {
+                    changed.set(k, v);
+                }
+                this._settings[k] = v;
+                origKeys.delete(k);
+            }
+            for (const k of origKeys) {
+                // set -> unset
+                changed.set(k, undefined);
+                delete this._settings[k];
+            }
+            const changeEv = new Event('changed');
+            changeEv.data = {changed};
+            this.dispatchEvent(changeEv);
+        });
+    }
+
+    setDefault(value) {
+        this.get(null, value);
+    }
+
+    get(key, def) {
+        if (key == null) {
+            if (this._ephemeral && def !== undefined) {
+                this.set(null, def);
+            }
+            return this._settings;
+        } else if (key[0] !== '/') {
+            if (def !== undefined && !Object.prototype.hasOwnProperty.call(this._settings, key)) {
+                this.set(key, def);
+            }
+            return this._settings[key];
+        } else {
+            const value = this._storage.get(key);
+            if (value === undefined && def !== undefined) {
+                this._storage.set(key, def);
+                return def;
+            } else {
+                return value;
+            }
+        }
+    }
+
+    set(key, value) {
+        if (key == null) {
+            Object.assign(this._settings, value);
+            this._ephemeral = false;
+            this._storage.set(this.settingsKey, this._settings);
+        } else if (key[0] !== '/') {
+            this._settings[key] = value;
+            this._ephemeral = false;
+            this._storage.set(this.settingsKey, this._settings);
+        } else {
+            // global
+            this._storage.set(key, value);
+        }
+    }
+
+    delete(key) {
+        debugger;
+        if (key[0] !== '/') {
+            this.set(key, undefined);
+        } else {
+            this._storage.delete(key);
+        }
+    }
+}
+export const settingsStore = doc.dataset.settingsKey && new SettingsStore(doc.dataset.settingsKey);
+
+
+
 function bindFormData(selector, storageIface, options={}) {
     const form = document.querySelector(selector);
     const fieldConnections = new Map();
@@ -641,15 +733,9 @@ function bindFormData(selector, storageIface, options={}) {
 export function initAppSettingsForm(selector) {
     let extraData;
     const storageIface = {
-        get: async name => {
-            if (extraData && Object.prototype.hasOwnProperty.call(extraData, name)) {
-                return extraData[name];
-            }
-            return await rpcCall('getSetting', name);
-        },
-        set: async (name, value) => {
-            return await rpcCall('setSetting', name, value);
-        },
+        get: async key => (extraData && Object.prototype.hasOwnProperty.call(extraData, key)) ?
+            extraData[key] : await rpcCall('getSetting', key),
+        set: async (key, value) => await rpcCall('setSetting', key, value),
     };
     const update = bindFormData(selector, storageIface);
     return async data => {
@@ -660,39 +746,16 @@ export function initAppSettingsForm(selector) {
 
 
 export function initSettingsForm(selector, options={}) {
-    const settingsKey = options.settingsKey;
-    if (!settingsKey) {
-        throw new TypeError('settingsKey required');
-    }
-    let storageData;
-    let allData;
+    let extraData;
+    const store = options.store || settingsStore;
     const storageIface = {
-        get: name => {
-            const isGlobal = name.startsWith('/');
-            return isGlobal ? storage.get(name) : allData[name];
-        },
-        set: (name, value) => {
-            const isGlobal = name.startsWith('/');
-            if (isGlobal) {
-                if (value === undefined) {
-                    storage.delete(name);
-                } else {
-                    storage.set(name, value);
-                }
-            } else {
-                if (value === undefined) {
-                    delete storageData[name];
-                } else {
-                    storageData[name] = value;
-                }
-                storage.set(settingsKey, storageData);
-            }
-        },
+        get: key => (extraData && Object.prototype.hasOwnProperty.call(extraData, key)) ?
+            extraData[key] : store.get(key),
+        set: (key, value) => store.set(key, value),
     };
     const update = bindFormData(selector, storageIface);
-    return async data => {
-        storageData = options.storageData || storage.get(settingsKey) || {};
-        allData = {...storageData, ...data};
+    return async x => {
+        extraData = x;
         await update();
     };
 }
@@ -842,15 +905,17 @@ if (window.CSS) {
     CSS.registerProperty({name: '--bg-opacity', syntax: '<number>', inherits: true, initialValue: 1});
 }
 
-const theme = storage.get('/theme');
-if (theme) {
-    doc.dataset.theme = theme;
-}
-
-storage.addEventListener('globalupdate', ev => {
-    if (ev.data.key === '/theme') {
-        doc.dataset.theme = ev.data.value;
+if (settingsStore) {
+    const themeOverride = settingsStore.get('themeOverride');
+    if (themeOverride) {
+        doc.dataset.theme = themeOverride;
     }
-});
+    settingsStore.addEventListener('changed', ev => {
+        const changed = ev.data.changed;
+        if (changed.has('themeOverride') || changed.has('/theme')) {
+            doc.dataset.theme = settingsStore.get('themeOverride') || settingsStore.get('/theme') || '';
+        }
+    });
+}
 
 window.rpc = rpc; // DEBUG
