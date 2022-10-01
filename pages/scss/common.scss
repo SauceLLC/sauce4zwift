@@ -318,6 +318,23 @@ html[data-theme="transparent-dark"] {
     --theme-button-bar-bottom-right: #555e;
 }
 
+html[data-theme="aqua"] {
+    --theme-base-color: #99f;
+    --theme-bookend-hue: 184;
+    --theme-bookend-sat: 47%;
+    --theme-bg-hue: 177;
+    --theme-bg-sat: 71%;
+    --theme-bg-light: 70%;
+    --theme-bg2-hue: 203;
+    --theme-bg2-light: 30%;
+    --theme-fg-hue: 20;
+    --theme-fg-sat: 30%;
+    --theme-fg-light: 10%;
+    --theme-fg-shade-dir: 1;
+    --theme-button-bar-top-left: #08c4a8de;
+    --theme-button-bar-bottom-right: #120d87de;
+}
+
 
 img {
     -webkit-user-select: none;
