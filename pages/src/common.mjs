@@ -348,7 +348,7 @@ export class Renderer {
                 el,
                 storageKey,
                 available: spec.fields,
-                active: spec.fields[storage.get(storageKey) || x.default] || spec.fields[0],
+                active: spec.fields[storage.get(storageKey)] || spec.fields[x.default] || spec.fields[0],
                 valueEl: el.querySelector('.value'),
                 labelEl: el.querySelector('.label'),
                 subLabelEl: el.querySelector('.sub-label'),
