@@ -69,8 +69,9 @@ ifndef WINBLOWS
 	@echo
 	@sleep 5
 	GH_TOKEN="$${GH_TOKEN_SAUCE4ZWIFT_RELEASE}" npm run publish
-endif
+else
 	npm run publish
+endif
 
 deps:
 	cp node_modules/echarts/dist/echarts.esm.js pages/deps/src/echarts.mjs
