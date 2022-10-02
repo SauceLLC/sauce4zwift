@@ -1,6 +1,6 @@
 import * as sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
-import {render as athleteRender} from './athlete.mjs';
+import {render as profileRender} from './profile.mjs';
 
 const L = sauce.locale;
 //const H = L.human;
@@ -9,20 +9,28 @@ let imperial = common.settingsStore.get('/imperialUnits');
 L.setImperial(imperial);
 
 
-function initExpanderTable(table, detailsCallback) {
+function initExpanderTable(table, expandCallback, cleanupCallback) {
+    let active;
     table.querySelector('tbody').addEventListener('click', ev => {
         const row = ev.target.closest('tr');
         if (!row || row.closest('table') !== table) {
             return;
         }
         if (row.classList.contains('summary')) {
+            if (active) {
+                if (cleanupCallback) {
+                    cleanupCallback(...active);
+                }
+                active = null;
+            }
             const shouldCollapse = row.classList.contains('expanded');
             table.querySelectorAll(':scope > tbody > tr.expanded').forEach(x => x.classList.remove('expanded'));
             const el = row.nextElementSibling.querySelector('.container');
             el.innerHTML = '';
             if (!shouldCollapse) {
                 row.classList.add('expanded');
-                detailsCallback(el, row);
+                expandCallback(el, row);
+                active = [el, row];
             }
         }
     });
@@ -70,7 +78,7 @@ export async function main() {
     const events = await getEventsWithRetry();
     const contentEl = await render(events);
     const eventDetailTpl = await sauce.template.getTemplate(`templates/event-details.html.tpl`);
-    const athleteDetailTpl = await sauce.template.getTemplate(`templates/athlete.html.tpl`);
+    const profileTpl = await sauce.template.getTemplate(`templates/profile.html.tpl`);
     const athletes = new Map();
     initExpanderTable(contentEl.querySelector('table'), async (eventDetailsEl, eventSummaryEl) => {
         const event = events.get(Number(eventSummaryEl.dataset.eventId));
@@ -97,9 +105,9 @@ export async function main() {
         }));
         const {nations, flags} = await pendingNationInit;
         for (const t of eventDetailsEl.querySelectorAll('table.expandable')) {
-            initExpanderTable(t, async (entrantDetailsEl, entrantSummaryEl) => {
+            initExpanderTable(t, async (el, entrantSummaryEl) => {
                 const athleteId = Number(entrantSummaryEl.dataset.id);
-                await athleteRender(entrantDetailsEl, athleteDetailTpl, {
+                el.cleanup = await profileRender(el, profileTpl, {
                     athleteId,
                     athlete: athletes.get(athleteId),
                     gameConnectionStatus,
@@ -108,7 +116,7 @@ export async function main() {
                     common,
                     embedded: true,
                 });
-            });
+            }, el => el.cleanup && el.cleanup());
         }
     });
     document.querySelector('#titlebar input[name="filter"]').addEventListener('input', ev => {
@@ -135,6 +143,10 @@ export async function main() {
             el.classList.toggle('hidden', hide.has(Number(el.dataset.eventId)));
         }
     });
+    const nearest = contentEl.querySelector('table.events > tbody > tr[data-event-id]:not(.started)');
+    if (nearest) {
+        nearest.scrollIntoView();
+    }
 }
 
 
