@@ -1,5 +1,5 @@
 @use 'color';
-@import 'athlete_tpl';
+@import 'profile_tpl';
 
 html {
     padding: 0;
@@ -35,6 +35,8 @@ table {
 
     &.events {
         > tbody > tr {
+            scroll-margin-top: 4.58em;  // roughly one extra row plus header height
+
             &.started > td {
                 opacity: 0.5;
             }
