@@ -240,12 +240,12 @@ rpc.register(function resizeWindow(width, height, options={}) {
             if (x < bounds.x) {
                 x = bounds.x;
             } else if (x + width > bounds.x + bounds.width) {
-                x = bounds.x - width;
+                x = bounds.x + bounds.width - width;
             }
             if (y < bounds.y) {
                 y = bounds.y;
             } else if (y + height > bounds.y + bounds.height) {
-                y = bounds.y - height;
+                y = bounds.y + bounds.height - height;
             }
             win.setPosition(x, y);
         }
