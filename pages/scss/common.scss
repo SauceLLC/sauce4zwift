@@ -335,6 +335,22 @@ html[data-theme="aqua"] {
     --theme-button-bar-bottom-right: #120d87de;
 }
 
+html[data-theme="watermelon"] {
+    --theme-base-color: #ff1300;
+    --theme-bookend-hue: 10;
+    --theme-bookend-sat: 100%;
+    --theme-bookend-light: 30%;
+    --theme-bg-hue: 118;
+    --theme-bg2-hue: 148;
+    --theme-bg2-sat: 98%;
+    --theme-bg2-light: 69%;
+    --theme-fg-light: 10%;
+    --theme-fg-shade-dir: 1;
+    --theme-primary-hue: 235;
+    --theme-button-bar-top-left: #eb0101de;
+    --theme-button-bar-bottom-right: #782f00de;
+}
+
 
 img {
     -webkit-user-select: none;
