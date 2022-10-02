@@ -221,6 +221,42 @@ rpc.register(function minimizeWindow() {
 });
 
 
+rpc.register(function resizeWindow(width, height, options={}) {
+    const win = this.getOwnerBrowserWindow();
+    if (win) {
+        let x, y;
+        if (options.constrainToDisplay) {
+            const bounds = getCurrentDisplay().bounds;
+            const aspectRatio = width / height;
+            if (width > bounds.width) {
+                width = bounds.width;
+                height = width / aspectRatio;
+            }
+            if (height > bounds.height) {
+                height = bounds.height;
+                width = height * aspectRatio;
+            }
+            [x, y] = win.getPosition();
+            if (x < bounds.x) {
+                x = bounds.x;
+            } else if (x + width > bounds.x + bounds.width) {
+                x = bounds.x - width;
+            }
+            if (y < bounds.y) {
+                y = bounds.y;
+            } else if (y + height > bounds.y + bounds.height) {
+                y = bounds.y - height;
+            }
+            win.setPosition(x, y);
+        }
+        win.setSize(Math.round(width), Math.round(height));
+        if (options.center) {
+            win.center();
+        }
+    }
+});
+
+
 rpc.register(pid => {
     for (const x of electron.BaseWindow.getAllWindows().filter(x => x instanceof SauceBrowserWindow)) {
         let wc;
@@ -356,7 +392,7 @@ function _highlightWindow(win) {
     } else {
         win.focus();
     }
-    win.webContents.send('browser-message', {domEvent: 'sauce-highlight-window'});
+    win.webContents.send('sauce-highlight-window');
 }
 
 
@@ -431,15 +467,18 @@ function getBoundsForDisplay(display, {x, y, width, height, aspectRatio}) {
 function handleNewSubWindow(parent, spec, webPrefs) {
     // These are target=... popups...
     const targetRefs = new Map();
-    parent.webContents.on('new-window', (ev, url, target) => {
-        ev.preventDefault();
+    parent.webContents.setWindowOpenHandler(({url, frameName: target, disposition}) => {
         if (targetRefs.has(target)) {
             const targetWin = targetRefs.get(target).deref();
             if (!targetWin || targetWin.isDestroyed()) {
                 targetRefs.delete(target);
             } else {
+                if (targetWin._url !== url) {
+                    targetWin._url = url;
+                    targetWin.loadURL(url);
+                }
                 _highlightWindow(targetWin);
-                return;
+                return {action: 'deny'};
             }
         }
         const q = new URLSearchParams((new URL(url)).search);
@@ -469,16 +508,18 @@ function handleNewSubWindow(parent, spec, webPrefs) {
             if (spec.overlay !== false) {
                 newWin.setAlwaysOnTop(true, 'pop-up-menu');
             }
-            subWindows.set(newWin.webContents, {win: newWin, spec, activeSubs: new Set()});
+            subWindows.set(newWin.webContents, {win: newWin, spec});
             newWin.on('page-title-updated', (ev, title) =>
                 subWindows.get(newWin.webContents).title = title.replace(/( - )?Sauce for Zwift™?$/, ''));
         }
         if (target && target !== '_blank') {
+            newWin._url = url;
             targetRefs.set(target, new WeakRef(newWin));
         }
         handleNewSubWindow(newWin, spec);
         newWin.loadURL(url);
         newWin.show();
+        return {action: 'deny'};
     });
 }
 
@@ -529,7 +570,7 @@ function _openWindow(id, spec) {
         win.setAlwaysOnTop(true, 'pop-up-menu');
     }
     const webContents = win.webContents;  // Save to prevent electron from killing us.
-    activeWindows.set(webContents, {win, spec, activeSubs: new Set()});
+    activeWindows.set(webContents, {win, spec});
     handleNewSubWindow(win, spec);
     let saveStateTimeout;
     function onBoundsUpdate() {

@@ -100,12 +100,11 @@
                 document.querySelector('.version-available').textContent = q.get('newVersion');
                 const progress = document.querySelector('progress');
                 const progressText = document.querySelector('.progress-text');
-                document.addEventListener('update-download-progress', ev => {
-                    const r = JSON.parse(ev.detail);
-                    const pct = Math.max(100, r.percent);
+                common.subscribe('download-progress', x => {
+                    const pct = Math.max(100, x.percent);
                     progress.value = pct;
-                    progressText.textContent = `${kb(r.total * (pct / 100))} / ${kb(r.total)} KB`;
-                });
+                    progressText.textContent = `${kb(x.total * (pct / 100))} / ${kb(x.total)} KB`;
+                }, {source: 'updater'});
             }
             main();
         </script>

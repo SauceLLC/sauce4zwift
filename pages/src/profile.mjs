@@ -167,7 +167,7 @@ export async function render(el, tpl, tplData) {
     }, 10000);
     await rerender();
     await getPlayerState();
-    const subId = await common.subscribe(`athletes/${athleteId}`, async data => updatePlayerState(data.state));
+    const subId = await common.subscribe(`athlete/${athleteId}`, data => updatePlayerState(data.state));
     return function cleanup() {
         clearInterval(pollInterval);
         common.unsubscribe(subId);

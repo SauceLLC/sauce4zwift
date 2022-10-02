@@ -143,7 +143,7 @@ export function updateTrayMenu() {
             });
             // Bit of a hack to get the preload context setup so overview settings function
             const id = Object.values(windows.getWindows()).find(x => x.type === 'overview').id;
-            windows.subWindows.set(win.webContents, {win, spec: {id, type: 'overview'}, activeSubs: new Set()});
+            windows.subWindows.set(win.webContents, {win, spec: {id, type: 'overview'}});
         },
     }, {
         label: '',

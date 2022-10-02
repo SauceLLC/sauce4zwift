@@ -1,34 +1,30 @@
 const {ipcRenderer, contextBridge} = require('electron');
 
-// Electron -> Browser Window
-ipcRenderer.on('browser-message', (_, o) =>
-    void document.dispatchEvent(new CustomEvent(o.domEvent, {detail: o.json})));
 
-// Browser Window -> Electron
-document.addEventListener('electron-message', ev =>
-    void ipcRenderer.send(ev.detail.name, ev.detail.data));
-
-// Browser Window -> Electron RPC
-document.addEventListener('electron-rpc', async ev => {
-    let resp;
-    try {
-        resp = await ipcRenderer.invoke('__rpc__', ev.detail.name, ...ev.detail.args);
-    } catch(e) {
-        resp = JSON.stringify({
-            success: false,
-            error: {
-                name: e.name,
-                message: e.message,
-                stack: e.stack,
-            }
-        });
+ipcRenderer.on('subscribe-port', (ev, subId) =>
+    window.postMessage({channel: 'subscribe-port', subId}, '*', ev.ports));
+ipcRenderer.on('sauce-highlight-window', () => {
+    console.debug("Highlight window request");
+    const doc = document.documentElement;
+    if (!doc || !document.body) {
+        return;
     }
-    document.dispatchEvent(new CustomEvent(ev.detail.domEvent, {detail: resp}));
+    if (document.body.classList.contains('transparent-bg')) {
+        document.body.classList.remove('transparent-bg');
+        setTimeout(() => document.body.classList.add('transparent-bg'), 3000);
+    }
+    doc.classList.remove('highlight-window');
+    doc.offsetWidth; // force layout
+    doc.classList.add('highlight-window');
 });
 
 const context = ipcRenderer.sendSync('getWindowContextSync');
-contextBridge.exposeInMainWorld('electron', {context});
+contextBridge.exposeInMainWorld('electron', {
+    context,
+    ipcInvoke: (...args) => ipcRenderer.invoke(...args),
+});
 contextBridge.exposeInMainWorld('isElectron', true);
+
 
 function onReadyStateChange(ev) {
     if (document.readyState === 'interactive') {

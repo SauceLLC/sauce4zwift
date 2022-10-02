@@ -27,6 +27,7 @@ let quiting;
 let sauceApp;
 const rpcSources = {
     windows: windows.eventEmitter,
+    updater: autoUpdater,
 };
 
 
@@ -83,48 +84,39 @@ electron.app.on('activate', async () => {
 });
 electron.app.on('before-quit', () => void (quiting = true));
 
-const serialCache = new WeakMap();
-electron.ipcMain.on('subscribe', (ev, {event, domEvent, persistent, source='stats'}) => {
-    const {win, activeSubs, spec} = windows.getMetaByWebContents(ev.sender);
-    // NOTE: Electron webContents.send is incredibly hard ON CPU and GC for deep objects.  Using JSON is
-    // a massive win for CPU and memory.
-    const sendMessage = data => {
-        let json = serialCache.get(data);
-        if (!json) {
-            json = JSON.stringify(data);
-            serialCache.set(data, json);
-        }
-        win.webContents.send('browser-message', {domEvent, json});
-    };
+
+function monitorWindowForEventSubs(win, id, subs) {
     // NOTE: MacOS emits show/hide AND restore/minimize but Windows only does restore/minimize
     const resumeEvents = ['responsive', 'show', 'restore'];
     const suspendEvents = ['unresponsive', 'hide', 'minimize'];
     const shutdownEvents = ['destroyed', 'did-start-loading'];
-    const emitter = rpcSources[source];
-    if (!emitter) {
-        throw new TypeError('Invalid emitter source: ' + source);
-    }
     const listeners = [];
-    function resume(who) {
-        if (!activeSubs.has(event)) {
-            if (who) {
-                console.debug("Resume subscription:", event, spec.id, who);
-            } else {
-                console.debug("Startup subscription:", event, spec.id);
+    const resume = (who) => {
+        for (const x of subs) {
+            if (!x.active) {
+                console.debug("Resume subscription:", x.event, id, who);
+                x.emitter.on(x.event, x.sendMessage);
+                x.active = true;
             }
-            emitter.on(event, sendMessage);
-            activeSubs.add(event);
         }
-    }
-    function suspend(who) {
-        if (activeSubs.has(event)) {
-            console.debug("Suspending subscription:", event, spec.id, who);
-            emitter.off(event, sendMessage);
-            activeSubs.delete(event);
+    };
+    const suspend = (who) => {
+        for (const x of subs) {
+            if (x.active && !x.persistent) {
+                console.debug("Suspending subscription:", x.event, id, who);
+                x.emitter.off(x.event, x.sendMessage);
+                x.active = false;
+            }
         }
-    }
-    function shutdown(ev) {
-        emitter.off(event, sendMessage);
+    };
+    const shutdown = () => {
+        for (const x of subs) {
+            if (x.active) {
+                x.emitter.off(x.event, x.sendMessage);
+            }
+            // Must be after off() because of logs source which eats its own tail otherwise.
+            console.debug("Shutdown subscription:", x.event, id);
+        }
         if (!win.isDestroyed()) {
             for (const x of shutdownEvents) {
                 win.webContents.off(x, shutdown);
@@ -133,29 +125,80 @@ electron.ipcMain.on('subscribe', (ev, {event, domEvent, persistent, source='stat
                 win.off(name, cb);
             }
         }
-        activeSubs.clear();
-        // Must log last because of logs source which eats its own tail otherwise.
-        console.debug("Shutdown subscription:", event, spec.id);
-    }
-    if (persistent || (win.isVisible() && !win.isMinimized())) {
-        resume();
-    }
+        subs.length = 0;
+    };
     for (const x of shutdownEvents) {
         win.webContents.once(x, shutdown);
     }
-    if (!persistent) {
-        for (const x of resumeEvents) {
-            const cb = ev => resume(x, ev);
-            win.on(x, cb);
-            listeners.push([x, cb]);
-        }
-        for (const x of suspendEvents) {
-            const cb = ev => suspend(x, ev);
-            win.on(x, cb);
-            listeners.push([x, cb]);
-        }
+    for (const x of resumeEvents) {
+        const cb = ev => resume(x, ev);
+        win.on(x, cb);
+        listeners.push([x, cb]);
     }
+    for (const x of suspendEvents) {
+        const cb = ev => suspend(x, ev);
+        win.on(x, cb);
+        listeners.push([x, cb]);
+    }
+}
+
+
+const serialCache = new WeakMap();
+const windowEventSubs = new WeakMap();
+let ipcSubIdInc = 1;
+electron.ipcMain.handle('subscribe', (ev, {event, persistent, source='stats'}) => {
+    const {win, spec} = windows.getMetaByWebContents(ev.sender);
+    const emitter = rpcSources[source];
+    if (!emitter) {
+        throw new TypeError('Invalid emitter source: ' + source);
+    }
+    const ch = new electron.MessageChannelMain();
+    const ourPort = ch.port1;
+    const theirPort = ch.port2;
+    // Using JSON is a massive win for CPU and memory.
+    const sendMessage = data => {
+        let json = serialCache.get(data);
+        if (!json) {
+            json = JSON.stringify(data);
+            serialCache.set(data, json);
+        }
+        ourPort.postMessage(json);
+    };
+    const subId = ipcSubIdInc++;
+    const sub = {subId, event, emitter, persistent, sendMessage};
+    let subs = windowEventSubs.get(win);
+    if (subs) {
+        subs.push(sub);
+    } else {
+        subs = [sub];
+        windowEventSubs.set(win, subs);
+        monitorWindowForEventSubs(win, spec.id, subs);
+    }
+    if (persistent || (win.isVisible() && !win.isMinimized())) {
+        emitter.on(event, sendMessage);
+        sub.active = true;
+        console.debug("Startup subscription:", event, spec.id);
+    } else {
+        console.debug("Added suspended subscription:", event, spec.id);
+    }
+    ev.sender.postMessage('subscribe-port', subId, [theirPort]);
+    return subId;
 });
+electron.ipcMain.handle('unsubscribe', (ev, {subId}) => {
+    const win = ev.sender.getOwnerBrowserWindow();
+    const subs = windowEventSubs.get(win);
+    if (!subs) {
+        return;
+    }
+    const idx = subs.findIndex(x => x.subId === subId);
+    if (idx === -1) {
+        return;
+    }
+    const sub = subs.splice(idx, 1)[0];
+    sub.emitter.off(sub.event, sub.sendMessage);
+    console.debug("Removed subscription:", sub.event);
+});
+electron.ipcMain.handle('rpc', (ev, name, ...args) => rpc.invoke.call(ev.sender, name, ...args));
 
 rpc.register(() => isDEV, {name: 'isDEV'});
 rpc.register(() => pkg.version, {name: 'getVersion'});
@@ -482,8 +525,6 @@ async function maybeDownloadAndInstallUpdate({version}) {
     }
     autoUpdater.on('download-progress', ev => {
         console.info('Sauce update download progress:', ev.percent);
-        confirmWin.webContents.send('browser-message',
-            {domEvent: 'update-download-progress', json: JSON.stringify(ev)});
     });
     try {
         await autoUpdater.downloadUpdate();

@@ -1,7 +1,3 @@
-import {createRequire} from 'node:module';
-const require = createRequire(import.meta.url);
-const {app, ipcMain} = require('electron');
-
 export const handlers = new Map();
 
 
@@ -52,8 +48,3 @@ export function register(fn, options={}) {
     }
     handlers.set(options.name || fn.name, {fn, scope: options.scope});
 }
-
-
-app.whenReady().then(() => {
-    ipcMain.handle('__rpc__', async (ev, name, ...args) => JSON.stringify(await invoke.call(ev.sender, name, ...args)));
-});

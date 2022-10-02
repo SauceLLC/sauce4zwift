@@ -28,43 +28,49 @@ export const identToWorldId = Object.fromEntries(worldCourseDescs.map(x => [x.id
 
 
 
-function makeRPCError(errResp) {
-    const e = new Error(`${errResp.error.name}: ${errResp.error.message}`);
-    e.stack = errResp.error.stack; // XXX merge with local stack too.
+function makeRPCError({name, message, stack}) {
+    const e = new Error(`${name}: ${message}`);
+    e.stack = stack;
     return e;
 }
 
 
 let rpcCall;
 let windowID;
+
 export let subscribe;
+export let unsubscribe;
+
 if (window.isElectron) {
+    const subs = new Map();
     windowID = electron.context.id;
-    const sendToElectron = function(name, data) {
-        document.dispatchEvent(new CustomEvent('electron-message', {detail: {name, data}}));
+    addEventListener('message', ev => {
+        if (ev.source === window && ev.data && ev.data.channel === 'subscribe-port') {
+            const port = ev.ports[0];
+            const desc = subs.get(ev.data.subId);
+            desc.port = port;
+            port.addEventListener('message', ev => desc.callback(JSON.parse(ev.data)));
+            port.start();
+        }
+    });
+    subscribe = async function(event, callback, options={}) {
+        const subId = await electron.ipcInvoke('subscribe', {event, ...options});
+        subs.set(subId, {callback});
+        return subId;
     };
-
-    let evId = 1;
-    subscribe = function(event, callback, options={}) {
-        const domEvent = `sauce-${event}-${evId++}`;
-        document.addEventListener(domEvent, ev => void callback(JSON.parse(ev.detail)));
-        sendToElectron('subscribe', {event, domEvent, ...options});
+    unsubscribe = async function(subId) {
+        await electron.ipcInvoke('unsubscribe', {subId});
+        const port = subs.get(subId).port;
+        port.close();
+        subs.delete(subId);
     };
-
     rpcCall = async function(name, ...args) {
-        const domEvent = `sauce-${name}-${evId++}`;
-        const resp = new Promise((resolve, reject) => {
-            document.addEventListener(domEvent, ev => {
-                const r = JSON.parse(ev.detail);
-                if (r.success) {
-                    resolve(r.value);
-                } else {
-                    reject(makeRPCError(r));
-                }
-            }, {once: true});
-        });
-        document.dispatchEvent(new CustomEvent('electron-rpc', {detail: {domEvent, name, args}}));
-        return await resp;
+        const env = await electron.ipcInvoke('rpc', name, ...args);
+        if (env.success) {
+            return env.value;
+        } else {
+            throw makeRPCError(env.error);
+        }
     };
     doc.addEventListener('click', async ev => {
         const link = ev.target.closest('a[external][href]');
@@ -77,9 +83,8 @@ if (window.isElectron) {
     windowID = new URLSearchParams(location.search).get('id') || 'browser-def-id';
     doc.classList.add('browser-mode');
     const respHandlers = new Map();
-    const subs = [];
+    const subs = new Map();
     let uidInc = 1;
-
     let errBackoff = 500;
     let wsp;
     const connectWebSocket = async function() {
@@ -115,7 +120,7 @@ if (window.isElectron) {
                 console.debug("WebSocket connected");
                 errBackoff = 500;
                 clearTimeout(tO);
-                for (const {event, callback, options} of subs) {
+                for (const {event, callback, options} of subs.values()) {
                     _subscribe(ws, event, callback, options);
                 }
                 resolve(ws);
@@ -123,31 +128,23 @@ if (window.isElectron) {
             });
         });
     };
-
     subscribe = async function(event, callback, options={}) {
         if (!wsp) {
             wsp = connectWebSocket();
         }
         const ws = await wsp;
-        await _subscribe(ws, event, callback, options);
-        subs.push({event, callback, options});
+        const subId = await _subscribe(ws, event, callback, options);
+        subs.set(subId, {event, callback, options});
+        return subId;
     };
-
-    rpcCall = async function(name, ...args) {
-        const f = await fetch(`/api/rpc/${name}`, {
-            method: 'POST',
-            headers: {"content-type": 'application/json'},
-            body: JSON.stringify(args),
-        });
-        const r = await f.json();
-        if (r.success) {
-            return r.value;
-        } else {
-            throw makeRPCError(r);
+    unsubscribe = async function(subId) {
+        if (!wsp) {
+            return;
         }
+        await _unsubscribe(await wsp, subId);
+        subs.delete(subId);
     };
-
-    const _subscribe = function(ws, event, callback, options={}) {
+    const _subscribe = async function(ws, event, callback, options={}) {
         const uid = uidInc++;
         const subId = uidInc++;
         let resolve, reject;
@@ -166,7 +163,29 @@ if (window.isElectron) {
                 }
             }
         }));
-        return p;
+        await p;
+        return subId;
+    };
+    const _unsubscribe = async function(ws, subId) {
+        const uid = uidInc++;
+        let resolve, reject;
+        const p = new Promise((_resolve, _reject) => (resolve = _resolve, reject = _reject));
+        respHandlers.set(uid, {resolve, reject});
+        ws.send(JSON.stringify({type: 'request', uid, data: {method: 'unsubscribe', arg: {subId}}}));
+        await p;
+    };
+    rpcCall = async function(name, ...args) {
+        const f = await fetch(`/api/rpc/${name}`, {
+            method: 'POST',
+            headers: {"content-type": 'application/json'},
+            body: JSON.stringify(args),
+        });
+        const r = await f.json();
+        if (r.success) {
+            return r.value;
+        } else {
+            throw makeRPCError(r.error);
+        }
     };
 }
 
@@ -183,7 +202,6 @@ export function addOpenSettingsParam(key, value) {
 
 
 export function initInteractionListeners() {
-    const body = document.body;
     if (window.isElectron) {
         const spec = electron.context.spec;
         let customName = spec && spec.customName;
@@ -198,15 +216,6 @@ export function initInteractionListeners() {
             }
         }
     }
-    document.addEventListener('sauce-highlight-window', () => {
-        if (body.classList.contains('transparent-bg')) {
-            body.classList.remove('transparent-bg');
-            setTimeout(() => body.classList.add('transparent-bg'), 3000);
-        }
-        doc.classList.remove('highlight-window');
-        doc.offsetWidth; // force layout
-        doc.classList.add('highlight-window');
-    });
     if (!doc.classList.contains('settings-mode') &&
         !doc.classList.contains('disable-settings-mode')) {
         window.addEventListener('contextmenu', ev => {

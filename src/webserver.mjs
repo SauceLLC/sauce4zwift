@@ -165,17 +165,19 @@ async function _start({ip, port, rpcSources, statsProc}) {
                         }`);
                     }
                 };
-                subs.set(subId, {event, cb, emitter});
+                subs.set(subId, {event, cb, emitter, source});
                 emitter.on(event, cb);
+                console.info(`WebSocket events: (${client}) [subscribe] ${source}.${event} subId:${subId}`);
                 return;
             } else if (method === 'unsubscribe') {
-                const subId = arg;
+                const {subId} = arg;
                 if (!subId) {
                     throw new TypeError('"subId" arg required');
                 }
-                const {event, cb, emitter} = subs.get(subId);
+                const {event, cb, emitter, source} = subs.get(subId);
                 subs.delete(subId);
                 emitter.off(event, cb);
+                console.info(`WebSocket events: (${client}) [unsubscribe] ${source}.${event} subId:${subId}`);
                 return;
             } else {
                 throw new TypeError('Invalid "method"');
@@ -186,7 +188,7 @@ async function _start({ip, port, rpcSources, statsProc}) {
                 emitter.off(event, cb);
             }
             subs.clear();
-            console.debug("WebSocket closed:", client);
+            console.info("WebSocket closed:", client);
         });
     });
     const api = express.Router();
