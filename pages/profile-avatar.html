@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+        <meta name="apple-mobile-web-app-capable" content="yes"/>
+        <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
+
+        <title>Profile Avatar - Sauce for Zwift™</title>
+
+        <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
+        <link rel="stylesheet" href="css/common.css"/>
+
+        <style>
+            #content {
+                overflow: hidden;
+            }
+            #content img {
+                object-fit: contain;
+                max-height: 100%;
+                max-width: 100%;
+            }
+        </style>
+
+        <script type="module">
+            import * as common from './src/common.mjs';
+
+            common.initInteractionListeners();
+
+            const q = new URLSearchParams(location.search);
+            const id = q.get('id');
+
+            async function main() {
+                if (!id) {
+                    document.querySelector('#content').textContent = 'Missing "id" paramater';
+                    return;
+                }
+                const profile = await common.rpc.getAthlete(id);
+                const img = document.querySelector('#content img');
+                if (window.isElectron) {
+                    img.addEventListener('load', async () => {
+                        await common.rpc.resizeWindow(img.naturalWidth, img.naturalHeight + img.offsetTop, {
+                            constrainToDisplay: true,
+                            keepInFrame: true,
+                        });
+                    });
+                }
+                img.src = profile.avatar;
+                document.querySelector('#titlebar .title').textContent = profile.sanitizedFullname;
+                document.title = profile.sanitizedFullname;
+            }
+            main();
+        </script>
+    </head>
+
+    <body>
+        <div id="titlebar" class="always-visible">
+            <header>
+                <div class="logo"><img src="images/icon128.png"/></div>
+                <div class="title">Profile Avatar</div>
+                <div class="filler"></div>
+                <div class="buttons">
+                    <div title="Minimize" class="button minimize electron-only"><ms>minimize</ms></div>
+                    <div title="Close this window" class="button close electron-only"><ms>close</ms></div>
+                </div>
+            </header>
+        </div>
+        <div id="content"><img/></div>
+    </body>
+</html>
