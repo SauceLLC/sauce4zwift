@@ -3,7 +3,7 @@ syntax = "proto3";
 
 message PlayerState {
     int32 athleteId = 1;
-    int64 _worldTime = 2;
+    uint64 _worldTime = 2;
     int32 distance = 3; // meters
     int32 roadLocation = 4; // Location on road in percent * 10,000.
     int32 laps = 5;
@@ -72,15 +72,15 @@ enum WorldUpdatePayloadType {
 }
 
 message WorldUpdate {
-    int64 _worldTime = 1;
+    uint64 _worldTime = 1;
     int32 realm = 2;
     WorldUpdatePayloadType _payloadType = 3;
     bytes _payload = 4;
-    int64 _worldTimeBorn = 5;
+    uint64 _worldTimeBorn = 5;
     int64 x = 6;
     int64 altitude = 7;
     int64 z = 8;
-    int64 _worldTimeExpire = 9;
+    uint64 _worldTimeExpire = 9;
     int64 relId = 10;
     int32 importance = 11;
     int64 _f12 = 12;
@@ -156,14 +156,14 @@ message Payload2 {
 
 message PayloadLeftWorld {
     int64 athleteId = 1;
-    int64 _worldTime = 2;
+    uint64 _worldTime = 2;
     bool multipleLogins = 3;
     bool _f4 = 4; // maybe bool
 }
 
 message PayloadLeftWorld2 {
     int64 athleteId = 1;
-    int64 _worldTime = 2;
+    uint64 _worldTime = 2;
     bool multipleLogins = 3;
     bool _f4 = 4; // maybe bool
 }
@@ -266,7 +266,7 @@ message PlayerSummaries {
 message ServerToClient {
     int32 realm = 1;
     int32 athleteId = 2;
-    int64 _worldTime = 3;
+    uint64 _worldTime = 3;
     int32 seqno = 4;
     int32 ackSeqno = 5;  // UDP ack to our previously sent seqno
     repeated PlayerState playerStates = 8;
@@ -1196,7 +1196,7 @@ message GameToCompanion {
     repeated AltPlayerState altPlayerStates = 9; // XXX seen once or maybe I messed up here.
     int64 _f10 = 10;
     repeated GameToCompanionCommand commands = 11;
-    int64 _worldTime = 12;
+    uint64 _worldTime = 12;
 }
 
 message TCPServer {
@@ -1226,7 +1226,7 @@ message SessionInfo {
 message ClientToServer {
     required int32 realm = 1;
     required int64 athleteId = 2;
-    int64 _worldTime = 3;
+    uint64 _worldTime = 3;
     required uint32 seqno = 4;
     uint32 _f5 = 5;
     int64 _f6 = 6;
