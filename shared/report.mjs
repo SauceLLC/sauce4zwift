@@ -18,6 +18,7 @@ export function errorOnce(e) {
         error(e);
     } else {
         const count = fingerprints.get(fp);
+        fingerprints.set(fp, count + 1);
         console.warn(`Error report [throttled: ${count}]:`, e);
     }
 }
