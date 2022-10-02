@@ -1,6 +1,7 @@
 import events from 'node:events';
 import path from 'node:path';
 import protobuf from 'protobufjs';
+import {worldTime} from './zwift.mjs';
 import {SqliteDatabase, deleteDatabase} from './db.mjs';
 import * as rpc from './rpc.mjs';
 import * as sauce from '../shared/sauce/index.mjs';
@@ -63,14 +64,6 @@ function splitNameAndTeam(name) {
         name.substr(m.index + m[0].length).trim()
     ].filter(x => x).join(' ');
     return [name, team];
-}
-
-
-function highPrecTimeConv(ts) {
-    // As seen on payload timestamps.
-    const dv = new DataView(new Uint32Array([ts.low, ts.high]).buffer);
-    const ns = dv.getBigUint64(0, /*le*/ true);
-    return +`${ns / 1000n}.${ns % 1000n}`; // Lossless conv to ms
 }
 
 
@@ -176,13 +169,13 @@ class DataCollector {
         }
     }
 
-    getStats(tsOffset, extra) {
+    getStats(wtOffset, extra) {
         const peaks = {};
         const smooth = {};
         for (const [p, {roll, peak}] of this.periodized.entries()) {
             peaks[p] = {
                 avg: peak ? peak.avg() : null,
-                ts: peak ? tsOffset + (peak.lastTime() * 1000): null
+                ts: peak ? worldTime.toTime(wtOffset + (peak.lastTime() * 1000)): null
             };
             smooth[p] = roll.avg();
         }
@@ -279,7 +272,7 @@ export class StatsProcessor extends events.EventEmitter {
 
     _getGameState() {
         if (!this._athleteData.has(this.athleteId)) {
-            this._athleteData.set(this.athleteId, this._createAthleteData(this.athleteId), Date.now());
+            this._athleteData.set(this.athleteId, this._createAthleteData(this.athleteId), worldTime.now());
             debugger;
         }
         const data = this._athleteData.get(this.athleteId);
@@ -420,7 +413,7 @@ export class StatsProcessor extends events.EventEmitter {
                 weight_setting: 'metric',
             });
         }
-        const {laps, tsOffset, mostRecentState} = this._athleteData.get(athleteId);
+        const {laps, wtOffset, mostRecentState} = this._athleteData.get(athleteId);
         const sport = {
             0: 'cycling',
             1: 'running',
@@ -429,7 +422,7 @@ export class StatsProcessor extends events.EventEmitter {
             event: 'timer',
             event_type: 'start',
             event_group: 0,
-            timestamp: tsOffset,
+            timestamp: wtOffset,
             data: 'manual',
         });
         let lapNumber = 0;
@@ -439,7 +432,7 @@ export class StatsProcessor extends events.EventEmitter {
                 throw new Error("Assertion failure about roll sizes being equal");
             }
             for (let i = 0; i < power.roll.size(); i++) {
-                lastTS = tsOffset + (power.roll.timeAt(i) * 1000);
+                lastTS = wtOffset + (power.roll.timeAt(i) * 1000);
                 const record = {timestamp: lastTS};
                 record.speed = speed.roll.valueAt(i) * 1000 / 3600;
                 record.heart_rate = +hr.roll.valueAt(i);
@@ -455,7 +448,7 @@ export class StatsProcessor extends events.EventEmitter {
                 event_type: 'stop',
                 sport,
                 timestamp: lastTS,
-                start_time: tsOffset + (power.roll.firstTime() * 1000),
+                start_time: wtOffset + (power.roll.firstTime() * 1000),
                 total_elapsed_time: elapsed,
                 total_timer_time: elapsed, // We can't really make a good assessment.
             };
@@ -468,12 +461,12 @@ export class StatsProcessor extends events.EventEmitter {
             timestamp: lastTS,
             data: 'manual',
         });
-        const elapsed = (lastTS - tsOffset) / 1000;
+        const elapsed = (lastTS - wtOffset) / 1000;
         fitParser.addMessage('session', {
             timestamp: lastTS,
             event: 'session',
             event_type: 'stop',
-            start_time: tsOffset,
+            start_time: wtOffset,
             sport,
             sub_sport: 'generic',
             total_elapsed_time: elapsed,
@@ -622,21 +615,13 @@ export class StatsProcessor extends events.EventEmitter {
 
     _onIncoming(packet) {
         for (const x of packet.worldUpdates) {
-            x.payloadType = protos.WorldUpdatePayloadType[x._payloadType];
-            if (!x.payloadType) {
-                console.warn("No enum type for:", x._payloadType);
-            } else if (x.payloadType[0] !== '_') {
-                const PayloadMsg = protos.get(x.payloadType);
-                if (!PayloadMsg) {
-                    throw new Error("Missing protobuf for type:", x.payloadType);
-                }
-                x.payload = PayloadMsg.decode(x._payload);
-                const ts = highPrecTimeConv(x.ts);
+            if (x.payloadType) {
                 if (x.payloadType === 'PayloadChatMessage') {
+                    const ts = x.ts.toNumber() / 1000;
                     this.handleChatPayload(x.payload, ts);
                 } else if (x.payloadType === 'PayloadRideOn') {
-                    this.handleRideOnPayload(x.payload, ts);
-                } else {
+                    this.handleRideOnPayload(x.payload);
+                } else if (x.payload) {
                     console.debug(x.payloadType, x.payload.toJSON());
                 }
             }
@@ -674,8 +659,8 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
-    handleRideOnPayload(payload, ts) {
-        this.emit('rideon', {...payload, ts});
+    handleRideOnPayload(payload) {
+        this.emit('rideon', payload);
         console.debug("RideOn:", payload);
     }
 
@@ -734,11 +719,11 @@ export class StatsProcessor extends events.EventEmitter {
             undefined;
         return {
             elapsed,
-            power: data.power.getStats(data.tsOffset, {np, tss, wBal}),
-            speed: data.speed.getStats(data.tsOffset),
-            hr: data.hr.getStats(data.tsOffset),
-            draft: data.draft.getStats(data.tsOffset),
-            cadence: data.cadence.getStats(data.tsOffset),
+            power: data.power.getStats(data.wtOffset, {np, tss, wBal}),
+            speed: data.speed.getStats(data.wtOffset),
+            hr: data.hr.getStats(data.wtOffset),
+            draft: data.draft.getStats(data.wtOffset),
+            cadence: data.cadence.getStats(data.wtOffset),
         };
     }
 
@@ -813,12 +798,12 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
-    _createAthleteData(athleteId, tsOffset) {
+    _createAthleteData(athleteId, wtOffset) {
         const collectors = this.makeDataCollectors();
         const start = monotonic();
         return {
             start,
-            tsOffset,
+            wtOffset,
             athleteId,
             mostRecentState: null,
             roadHistory: {
@@ -837,17 +822,18 @@ export class StatsProcessor extends events.EventEmitter {
 
     processState(state) {
         if (!this._athleteData.has(state.athleteId)) {
-            this._athleteData.set(state.athleteId, this._createAthleteData(state.athleteId, state.ts));
+            this._athleteData.set(state.athleteId, this._createAthleteData(state.athleteId, state.worldTime));
         }
         const ad = this._athleteData.get(state.athleteId);
         const prevState = ad.mostRecentState;
-        if (prevState && prevState.ts >= state.ts) {
-            if (prevState.ts === state.ts) {
-                this._stateDupCount++;
-            } else {
+        if (prevState) {
+            if (prevState.worldTime > state.worldTime) {
                 this._stateStaleCount++;
+                return false;
+            } else if (prevState.worldTime === state.worldTime) {
+                this._stateDupCount++;
+                return false;
             }
-            return false;
         }
         if (state.eventSubgroupId) {
             const sg = this._recentEventSubgroups.get(state.eventSubgroupId);
@@ -890,7 +876,7 @@ export class StatsProcessor extends events.EventEmitter {
         }
         ad.roadHistory.sig = roadSig;
         ad.roadHistory.timeline.push({
-            ts: state.ts,
+            wt: state.worldTime,
             roadCompletion: state.roadCompletion,
             distance: state.distance,
         });
@@ -904,7 +890,7 @@ export class StatsProcessor extends events.EventEmitter {
                 adjRoadDistEstimate(roadSig, 1000000 / rlDelta * mDelta);
             }
         }
-        const time = (state.ts - ad.tsOffset) / 1000;
+        const time = (state.worldTime - ad.wtOffset) / 1000;
         ad.power.add(time, state.power);
         ad.speed.add(time, state.speed);
         ad.hr.add(time, state.heartrate);
@@ -1098,7 +1084,7 @@ export class StatsProcessor extends events.EventEmitter {
             } else if (d < 0) {
                 const gapDistance = -d / 1000000 * roadDist;
                 return {reversed: true, previous: false, gapDistance};
-            } else if (aTail.ts < bTail.ts) {
+            } else if (aTail.wt < bTail.wt) {
                 return {reversed: false, previous: false, gapDistance: 0};
             } else {
                 return {reversed: true, previous: false, gapDistance: 0};
@@ -1153,10 +1139,10 @@ export class StatsProcessor extends events.EventEmitter {
                 let offt = 0;
                 if (prev) {
                     const dist = prev.roadCompletion - x.roadCompletion;
-                    const time = prev.ts - x.ts;
+                    const time = prev.wt - x.wt;
                     offt = (bTail.roadCompletion - x.roadCompletion) / dist * time;
                 }
-                return Math.abs((bTail.ts - x.ts - offt) / 1000);
+                return Math.abs((bTail.wt - x.wt - offt) / 1000);
             }
             prev = x;
         }
@@ -1288,7 +1274,6 @@ export class StatsProcessor extends events.EventEmitter {
             stats: this._getCollectorStats(data, athlete),
             laps: data.laps.map(x => this._getCollectorStats(x, athlete, /*isLap*/ true)),
             state: this._cleanState(state),
-            latency: (Date.now() - state.ts) / 1000,
             eventPosition: data.eventPosition,
             eventParticipants: data.eventParticipants,
             gameState: data.gameState,

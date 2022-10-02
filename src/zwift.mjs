@@ -7,7 +7,6 @@ import net from 'node:net';
 import dgram from 'node:dgram';
 import events from 'node:events';
 import crypto from 'node:crypto';
-import {sleep, locale} from '../shared/sauce/index.mjs';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
 const require = createRequire(import.meta.url);
@@ -18,14 +17,52 @@ protobuf.parse.defaults.keepCase = true;
 export const protos = protobuf.loadSync([path.join(__dirname, 'zwift.proto')]).root;
 protobuf.parse.defaults.keepCase = _case;
 
-const H = locale.human;
+
+class WorldTime extends events.EventEmitter {
+    constructor() {
+        super();
+        // Start with assumption that Date.now() is accurate but it will be tuned
+        // on each UDP connection.
+        this._epoch = 1414016074335;
+        this._offt = this._epoch;
+    }
+
+    now() {
+        return Date.now() - this._offt;
+    }
+
+    serverNow() {
+        return Date.now() + (this._epoch - this._offt);
+    }
+
+    toTime(wt) {
+        return wt + this._offt;
+    }
+
+    toServerTime(wt) {
+        return wt + this._epoch;
+    }
+
+    setOffset(offt) {
+        const diff = offt - this._offt;
+        console.debug("Shifting worldTime offset:", diff);
+        this._offt = Math.round(offt);
+        this.emit('offset', diff);
+    }
+}
+
+export const worldTime = new WorldTime();
+
+
+function zwiftCompatDate(date) {
+    return date && (date.toISOString().slice(0, -5) + 'Z');
+}
 
 
 // When game lags it can send huge values.  BLE testing suggests 240 is
 // their normal limit and they just drop values over this and send 1. So
 // we'll emulate that behavior.
 const cadenceMax = 240 * 1000000 / 60;
-const worldTimeOffset = 1414016074335;  // ms since zwift started production.
 const halfCircle = 1000000 * Math.PI;
 const pbProfilePrivacyFlags = {
     approvalRequired: 0x1,
@@ -65,6 +102,11 @@ export const courseToWorldIds = Object.fromEntries(worldCourseDescs.map(x => [x.
 export const worldToCourseIds = Object.fromEntries(worldCourseDescs.map(x => [x.worldId, x.courseId]));
 export const courseToNames = Object.fromEntries(worldCourseDescs.map(x => [x.courseId, x.name]));
 export const worldToNames = Object.fromEntries(worldCourseDescs.map(x => [x.worldId, x.name]));
+
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 
 export function decodePlayerStateFlags1(bits) {
@@ -162,43 +204,25 @@ export function encodePlayerStateFlags2(props) {
 export function processPlayerStateMessage(msg) {
     const flags1 = decodePlayerStateFlags1(msg._flags1);
     const flags2 = decodePlayerStateFlags2(msg._flags2);
+    const wt = msg._worldTime.toNumber();
+    const latency = worldTime.now() - wt;
     return {
         ...msg,
         ...flags1,
         ...flags2,
-        ts: worldTimeToTime(msg._worldTime),
+        worldTime: wt,
+        latency,
         progress: (msg._progress >> 8 & 0xff) / 0xff,
         workoutZone: (msg._progress & 0xF) || null,
         kj: msg._mwHours / 1000 / (1000 / 3600),
         heading: (((msg._heading + halfCircle) / (2 * halfCircle)) * 360) % 360,  // degrees
         speed: msg._speed / 1000000,  // km/h
-        joinTime: worldTimeToTime(msg._joinTime),
+        joinTime: msg._joinTime.toNumber(),
         cadence: (msg._cadenceUHz && msg._cadenceUHz < cadenceMax) ?
             Math.round(msg._cadenceUHz / 1000000 * 60) : 0,  // rpm
         eventDistance: msg._eventDistance / 100,  // meters
         roadCompletion: !flags1.reverse ? 1000000 - msg.roadLocation : msg.roadLocation,
     };
-}
-
-
-export function worldTimeToTime(wt) {
-    return wt ? (wt.toNumber() + worldTimeOffset) : null;
-}
-
-
-export function worldTimeToDate(wt) {
-    const ts = worldTimeToTime(wt);
-    return ts ? new Date(ts) : null;
-}
-
-
-export function dateToWorldTime(d) {
-    return d ? (d - worldTimeOffset) : 0;
-}
-
-
-function zwiftCompatDate(date) {
-    return date && (date.toISOString().slice(0, -5) + 'Z');
 }
 
 
@@ -262,7 +286,7 @@ export class ZwiftAPI {
 
     _schedRefresh(delay) {
         clearTimeout(this._nextRefresh);
-        console.debug(`Refresh Zwift token in:`, H.duration(delay / 1000));
+        console.debug(`Refresh Zwift token in: ${delay / 1000 | 0}s`);
         this._nextRefresh = setTimeout(this._refreshToken.bind(this), Math.min(0x7fffffff, delay));
     }
 
@@ -370,7 +394,7 @@ export class ZwiftAPI {
             ...options
         }));
         return Array.from(data.seeds).map(x => ({
-            expires: worldTimeToDate(x.expiryDate),
+            expiresWorldTime: x.expiryDate.toNumber(),
             nonce: seedToBuffer(x.nonce),
             seed: seedToBuffer(x.seed),
             sig: x.nonce ^ x.seed,
@@ -445,7 +469,7 @@ export class ZwiftAPI {
     convSegmentResult(x) {
         const ret = {
             ...x.toJSON(),
-            ts: worldTimeToDate(x._worldTime),
+            worldTime: x._worldTime.toNumber(),
             finishTime: x.finishTime && new Date(x.finishTime),
             segmentId: x._unsignedSegmentId.toSigned().toString()
         };
@@ -538,8 +562,8 @@ export class ZwiftAPI {
         // Be forewarned, this API is not stable.  It returns dups and skips entries on page boundaries.
         const urn = '/api/event-feed';
         const range = options.range || (2 * 3600 * 1000);
-        const from = +options.from || (Date.now() - range);
-        const to = +options.to || (Date.now() + range);
+        const from = +options.from || (worldTime.serverNow() - range);
+        const to = +options.to || (worldTime.serverNow() + range);
         const pageLimit = options.pageLimit ? options.pageLimit : 10;
         const limit = options.limit || 50;
         const query = {from, to, limit};
@@ -569,8 +593,8 @@ export class ZwiftAPI {
         // This endpoint is also unreliable and the from/to don't seem to do much.
         // Sometimes it returns all meetups, and sometimes just recent ones if any.
         const range = options.range || (1 * 3600 * 1000);
-        const start_date = +options.from || (Date.now() - range);
-        const end_date = +options.to || (Date.now() + range);
+        const start_date = +options.from || (worldTime.serverNow() - range);
+        const end_date = +options.to || (worldTime.serverNow() + range);
         const query = {start_date, end_date};
         return await this.fetchJSON('/api/private_event/feed', {query});
     }
@@ -941,6 +965,7 @@ class TCPChannel extends NetChannel {
         await new Promise(resolve => this.conn.write(wireBuf, resolve));
         this.sendCount++;
         this.emit('outPacket', pb);
+        return pb;
     }
 }
 
@@ -972,26 +997,53 @@ class UDPChannel extends NetChannel {
         this.sock.on('error', () => this.shutdown());
         await new Promise((resolve, reject) =>
             this.sock.connect(3024, this.ip, e => void (e ? reject(e) : resolve())));
-        let ACK;
-        const gotACK = new Promise(resolve => {
-            this.once('inPacket', packet => {
-                ACK = true;
-                resolve(packet.ackSeqno);
-            });
+        let syncStamps = new Map();
+        let complete = false;
+        const offsets = [];
+        const syncComplete = new Promise(resolve => {
+            const onPacket = packet => {
+                const now = Date.now();
+                const sent = syncStamps.get(packet.ackSeqno);
+                const latency = (now - sent) / 2;
+                const offt = now - packet._worldTime.toNumber() + latency;
+                offsets.push({latency, offt});
+                if (offsets.length === 5) {
+                    // SNTP ...
+                    offsets.sort((a, b) => a.latency - b.latency);
+                    const mean = offsets.reduce((a, x) => a + x.latency, 0) / offsets.length;
+                    const variance = offsets.map(x => (mean - x.latency) ** 2);
+                    const stddev = Math.sqrt(variance.reduce((a, x) => a + x, 0) / variance.length);
+                    const median = offsets[offsets.length / 2 | 0].latency;
+                    const validOffsets = offsets.filter(x => Math.abs(x.latency - median) < stddev);
+                    const meanOffset = validOffsets.reduce((a, x) => a + x.offt, 0) / validOffsets.length;
+                    worldTime.setOffset(meanOffset);
+                    this.off('inPacket', onPacket);
+                    complete = true;
+                    resolve();
+                }
+            };
+            this.on('inPacket', onPacket);
         });
-        for (let i = 0; i < 10 && !ACK; i++) {
+        for (let i = 0; i < 20 && !complete; i++) {
             // Send hankshake packets with `hello` option (full IV in AAD).  Even if they
             // are dropped the AES decrypt and IV state machine setup will succeed and pave the
             // way for sends that only require `seqno`, even with packet loss on this socket.
-            await this.sendPacket({
+            //
+            // The primary goal is to inform the servers we are here and ready for data,
+            // but if our clock is too far off they will ignore us, so we need to sync our
+            // worldTime offset too.  Some research on common game timer sync methods
+            // suggests SNTP should be fine here.
+            const ts = Date.now();
+            const {seqno} = await this.sendPacket({
                 athleteId: this.athleteId,
                 realm: 1,
                 _worldTime: 0,
             }, {hello: true});
-            await Promise.race([sleep(100 * (i + 1)), gotACK]);
+            syncStamps.set(seqno, ts);
+            await Promise.race([sleep(50 * i), syncComplete]);
         }
-        if (!ACK) {
-            console.error("Timeout waiting for handshake ACK:", this.toString());
+        if (!complete) {
+            console.error("Timeout waiting for handshake sync:", this.toString());
             this.shutdown();
             return;
         }
@@ -1010,7 +1062,8 @@ class UDPChannel extends NetChannel {
     onUDPData(buf) {
         this.tickleWatchdog();
         this.recvCount++;
-        this.emit('inPacket', protos.ServerToClient.decode(this.decrypt(buf)), this);
+        const stc = protos.ServerToClient.decode(this.decrypt(buf));
+        this.emit('inPacket', stc, this);
     }
 
     async sendPacket(props, options={}) {
@@ -1028,21 +1081,22 @@ class UDPChannel extends NetChannel {
             this.sock.send(wireBuf, e => void (e ? reject(e) : resolve())));
         this.sendCount++;
         this.emit('outPacket', pb);
+        return pb;
     }
 
     async sendPlayerState(state) {
-        const wt = dateToWorldTime(Date.now());
+        const _worldTime = worldTime.now();
         await this.sendPacket({
             athleteId: this.athleteId,
             realm: 1,
-            _worldTime: wt,
+            _worldTime,
             state: {
                 athleteId: this.athleteId,
-                _worldTime: wt,
+                _worldTime,
                 justWatching: true,
                 x: 0,
-                altitude: 0,
                 y: 0,
+                altitude: 0,
                 courseId: this.courseId,
                 ...state,
             }
@@ -1071,9 +1125,13 @@ export class GameMonitor extends events.EventEmitter {
         this.connectingTS = 0;
         this.connectingCount = 0;
         this._session = null;
-        this._setWatchingTS = 0;
+        this._setWatchingWorldTime = 0;
         this._lastGameStateUpdated = 0;
         this._lastWatchingStateUpdated = 0;
+        worldTime.on('offset', () => {
+            this._setWatchingWorldTime = 0;
+            this._schedHashSeedsRefresh();
+        });
         setInterval(() => console.info(this.toString()), 30000);
     }
 
@@ -1085,10 +1143,10 @@ export class GameMonitor extends events.EventEmitter {
         return `GameMonitor [game-id: ${this.gameAthleteId}, monitor-id: ${this.athleteId}]\n${pad}` + [
             `course-id:            ${this.courseId}`,
             `watching-id:          ${this.watchingAthleteId}`,
-            `connect-duration:     ${H.relDuration(this.connectingTS)}`,
+            `connect-duration:     ${(Date.now() - this.connectingTS) / 1000 | 0}s`,
             `connect-count:        ${this.connectingCount}`,
-            `last-game-state:      ${H.relTime(this._lastGameStateUpdated)}`,
-            `last-watching-state:  ${H.relTime(this._lastWatchingStateUpdated)}`,
+            `last-game-state:      ${Date.now() - this._lastGameStateUpdated | 0}ms ago`,
+            `last-watching-state:  ${Date.now() - this._lastWatchingStateUpdated | 0}ms ago`,
             `tcp-channel:`,        `${pad}${tcpCh}`,
             `udp-channels:`,       `${pad}${this._udpChannels.map(x => x.toString()).join(`\n${pad}${pad}`)}`,
         ].join('\n    ');
@@ -1101,13 +1159,13 @@ export class GameMonitor extends events.EventEmitter {
             pb: protos.LoginRequest.encode({aesKey}),
             protobuf: 'LoginResponse',
         });
-        const expires = new Date(Date.now() + (login.expiration * 60 * 1000));
+        const expiresMonotonic = Date.now() + (login.expiration * 60 * 1000);
         await sleep(1000); // No joke this is required (100ms works about 50% of the time)
         return {
             aesKey,
             relayId: login.relaySessionId,
             tcpServers: login.session.tcpConfig.servers,
-            expires,
+            expiresMonotonic,
         };
     }
 
@@ -1141,11 +1199,14 @@ export class GameMonitor extends events.EventEmitter {
 
     _schedHashSeedsRefresh(delay) {
         clearTimeout(this._refreshHashSeedsTimeout);
-        if (!delay) {
-            const lastHashExpires = this._hashSeeds.at(-1).expires;
-            delay = (lastHashExpires - Date.now()) / 2;
+        if (this._stopping || (!delay && !this._hashSeeds.length)) {
+            return;
         }
-        console.info(`Next hash seeds refresh:`, H.duration(delay / 1000));
+        if (!delay) {
+            const lastHashExpires = this._hashSeeds.at(-1).expiresWorldTime;
+            delay = (lastHashExpires - worldTime.now()) / 2;
+        }
+        console.info(`Next hash seeds refresh: ${delay / 1000 | 0}s`);
         this._refreshHashSeedsTimeout = setTimeout(this._refreshHashSeeds.bind(this), delay);
     }
 
@@ -1192,7 +1253,6 @@ export class GameMonitor extends events.EventEmitter {
     _setConnecting() {
         this.connectingTS = Date.now();
         this.connectingCount++;
-        this._verboseDebug = 0;
     }
 
     async connect() {
@@ -1274,7 +1334,7 @@ export class GameMonitor extends events.EventEmitter {
             // Use a load balancer unless we have enough info for a direct server.
             ip = this._udpServerPools.get(0).servers[0].ip;
             const lws = this._lastWatchingState;
-            if (lws && lws.courseId === this.courseId && Date.now() - lws.ts < 60000) {
+            if (lws && lws.courseId === this.courseId && worldTime.now() - lws.worldTime < 60000) {
                 const best = this.findBestUDPServer(lws);
                 if (best) {
                     ip = best.ip;
@@ -1283,10 +1343,12 @@ export class GameMonitor extends events.EventEmitter {
             }
         }
         const hashSeed = this._hashSeeds.at(-1);
-        const expires = Math.min(
-            hashSeed.expires - 120 * 1000,
-            this._session.expires - (this.sessionRestartSlack / 2));
-        if (expires < Date.now()) {
+        const hashSeedRemaining = hashSeed.expiresWorldTime - worldTime.now();
+        const sessionRemaining = this._session.expiresMonotonic - Date.now();
+        const expiresIn = Math.min(
+            hashSeedRemaining - 120 * 1000,
+            sessionRemaining - this.sessionRestartSlack / 2);
+        if (expiresIn < 0) {
             // Internal error
             throw new TypeError('Expired session or hash seeds');
         }
@@ -1298,8 +1360,8 @@ export class GameMonitor extends events.EventEmitter {
             hashSeed,
             isDirect,
         });
-        console.info(`Making new: ${ch} [expires: ${H.relDuration(expires, {short: true})}]`);
-        const expireTimeout = setTimeout(() => ch.shutdown(), expires - Date.now());
+        console.info(`Making new: ${ch} [expires in: ${expiresIn / 1000 | 0}s]`);
+        const expireTimeout = setTimeout(() => ch.shutdown(), expiresIn);
         ch.on('shutdown', () => {
             console.info("Shutdown:", ch.toString());
             clearTimeout(expireTimeout);
@@ -1330,9 +1392,8 @@ export class GameMonitor extends events.EventEmitter {
     _schedConnectRetry() {
         clearTimeout(this._connectRetryTimeout);
         this._disconnect();
-        const delay = Math.max(1000,
-            (this.connectingCount * 1000) - (Date.now() - this.connectingTS));
-        console.warn("Next connect retry:", H.duration(delay / 1000));
+        const delay = Math.max(1000, (this.connectingCount * 1000) - (Date.now() - this.connectingTS));
+        console.warn(`Next connect retry: ${delay / 1000 | 0}s`);
         this._connectRetryTimeout = setTimeout(this.connect.bind(this), delay);
     }
 
@@ -1352,8 +1413,8 @@ export class GameMonitor extends events.EventEmitter {
         }
         clearTimeout(this._sessionTimeout);
         this._session = session;
-        const renewDelay = session.expires - Date.now() - this.sessionRestartSlack;
-        console.debug("Session renewal scheduled for:", H.duration(renewDelay / 1000));
+        const renewDelay = session.expiresMonotonic - Date.now() - this.sessionRestartSlack;
+        console.debug(`Session renewal scheduled for: ${renewDelay / 1000 | 0}s`);
         this._sessionTimeout = setTimeout(this.renewSession.bind(this), renewDelay);
         if (!this.suspended && this.courseId) {
             this.setUDPChannel();
@@ -1367,13 +1428,29 @@ export class GameMonitor extends events.EventEmitter {
         if (this.suspended || this._stopping) {
             return;
         }
+        /*let precise;
+        const lws = this._lastWatchingState;
+        if (lws) {
+            precise = {
+                x: lws.x,
+                y: lws.y,
+                altitude: lws.altitude,
+                roadLocation: lws.roadLocation,
+                roadPosition: lws.roadPosition,
+                _speed: lws._speed,
+                _heading: lws._heading,
+                _flags1: encodePlayerStateFlags1({
+                    auxCourseId: lws.courseId,
+                    reverse: lws.reverse,
+                }),
+                _flags2: encodePlayerStateFlags2({roadId: lws.roadId}),
+            };
+        }
+        */
         for (const ch of this._udpChannels) {
             if (ch.active) {
                 try {
-                    await ch.sendPlayerState({
-                        watchingAthleteId: this.watchingAthleteId,
-                        ...this._extraPlayerState
-                    });
+                    await ch.sendPlayerState({watchingAthleteId: this.watchingAthleteId});
                     break;
                 } catch(e) {
                     if (!(e instanceof InactiveChannelError)) {
@@ -1480,7 +1557,7 @@ export class GameMonitor extends events.EventEmitter {
     }
 
     setWatching(athleteId) {
-        this._setWatchingTS = Date.now();
+        this._setWatchingWorldTime = worldTime.now();
         if (athleteId === this.watchingAthleteId) {
             return;
         }
@@ -1496,7 +1573,7 @@ export class GameMonitor extends events.EventEmitter {
             ch.active !== false &&
             ch.isDirect &&
             ch.courseId === this.courseId &&
-            ch.hashSeed.expires - Date.now() > 60000 &&
+            ch.hashSeed.expiresWorldTime - worldTime.now() > 60000 &&
             ch.relayId === this._session.relayId
         );
     }
@@ -1526,7 +1603,7 @@ export class GameMonitor extends events.EventEmitter {
             ch = this.makeUDPChannel(ip);
             queueMicrotask(() => this.establishUDPChannel(ch));
         }
-        this._udpChannels.unshift(ch); // XXX dubious to switch before establish finishes
+        this._udpChannels.unshift(ch);
     }
 
     async establishUDPChannel(ch) {
@@ -1557,6 +1634,15 @@ export class GameMonitor extends events.EventEmitter {
             }
             queueMicrotask(() => this.emit('udpServerPoolsUpdated', this._udpServerPools));
         }
+        for (let i = 0; i < pb.worldUpdates.length; i++) {
+            const x = pb.worldUpdates[i];
+            x.payloadType = protos.WorldUpdatePayloadType[x._payloadType];
+            if (!x.payloadType) {
+                console.warn("No enum type for:", x._payloadType);
+            } else if (x.payloadType[0] !== '_') {
+                x.payload = protos.get(x.payloadType).decode(x._payload);
+            }
+        }
         for (let i = 0; i < pb.playerStates.length; i++) {
             const state = pb.playerStates[i] = processPlayerStateMessage(pb.playerStates[i]);
             if (state.athleteId === this.gameAthleteId) {
@@ -1570,7 +1656,7 @@ export class GameMonitor extends events.EventEmitter {
     }
 
     _updateGameState(state) {
-        if (this._lastGameState && this._lastGameState.ts >= state.ts) {
+        if (this._lastGameState && this._lastGameState.worldTime >= state.worldTime) {
             return;
         }
         this._lastGameState = state;
@@ -1582,7 +1668,7 @@ export class GameMonitor extends events.EventEmitter {
             this.resume();
         }
         if (state.watchingAthleteId !== this.watchingAthleteId &&
-            state.ts > this._setWatchingTS) {
+            state.worldTime > this._setWatchingWorldTime) {
             this.setWatching(state.watchingAthleteId);
         }
         if (state.courseId !== this.courseId) {
@@ -1598,7 +1684,7 @@ export class GameMonitor extends events.EventEmitter {
 
     _setWatchingState(state) {
         const lws = this._lastWatchingState;
-        if (lws && lws.ts >= state.ts) {
+        if (lws && lws.worldTime >= state.worldTime) {
             // Dedup & filter stale
             return false;
         }
@@ -1609,13 +1695,11 @@ export class GameMonitor extends events.EventEmitter {
         }
         this._lastWatchingState = state;
         this._lastWatchingStateUpdated = Date.now();
-        const age = lws ? state.ts - lws.ts : 0;
+        const age = lws ? state.worldTime - lws.worldTime : 0;
         const connectTime = Date.now() - this.connectingTS;
         const active = state._speed || state.power || state._cadenceUHz;
         if (age > 3000 && connectTime > 30000 && active) {
             console.warn(`Slow watching state update: ${age}ms`, state);
-            this._verboseDebug++;
-            setTimeout(() => this._verboseDebug = this._verboseDebug && this._verboseDebug - 1, 90000);
         }
     }
 
@@ -1636,20 +1720,7 @@ export class GameMonitor extends events.EventEmitter {
         }
     }
 
-    findBestUDPServerDebug(arg) {
-        const server1 = this.findBestUDPServerNew(arg);
-        const server2 = this.findBestUDPServerOrig(arg);
-        if (server1 !== server2) {
-            console.warn("Different servers!!!!!", server1, server2, arg.x, arg.y);
-        }
-        return server1;
-    }
-
-    findBestUDPServer(arg) {
-        return this.findBestUDPServerNew(arg);
-    }
-
-    findBestUDPServerNew({x, y, courseId}) {
+    findBestUDPServer({x, y, courseId}) {
         if (!this._udpServerPools.has(courseId)) {
             return;
         }
@@ -1657,7 +1728,6 @@ export class GameMonitor extends events.EventEmitter {
         if (pool.useFirstInBounds) {
             return pool.servers.find(server => x <= server.xBound && y <= server.yBound);
         } else {
-            debugger;
             let closestServer;
             let closestDelta = Infinity;
             for (const server of pool.servers) {
@@ -1673,31 +1743,6 @@ export class GameMonitor extends events.EventEmitter {
             return closestServer;
         }
     }
-
-    findBestUDPServerOrig({x, y, courseId}) {
-        // This is just my best guess and seems to match the real game.
-        // If someone knows what the official algo is, please contact me!
-        if (!this._udpServerPools.has(courseId)) {
-            return;
-        }
-        const pool = this._udpServerPools.get(courseId);
-        const servers = Array.from(pool.servers)
-            .filter(s => x < s.xBound && y < s.yBound)
-            .sort((a, b) => {
-                const axDelta = a.xBound - x;
-                const ayDelta = a.yBound - y;
-                const aDist = Math.sqrt(axDelta ** 2 + ayDelta ** 2);
-                const bxDelta = b.xBound - x;
-                const byDelta = b.yBound - y;
-                const bDist = Math.sqrt(bxDelta ** 2 + byDelta ** 2);
-                return aDist - bDist;
-            });
-        if (this._verboseDebug) {
-            console.debug('VD server results:', {x, y, servers});
-        }
-        return servers[0];
-    }
-
 }
 
 
@@ -1766,7 +1811,6 @@ export class GameConnectionServer extends net.Server {
         const handler = this._gamePacketHandlers[gp.type];
         if (!handler) {
             console.error("Unexpected packet type:", gp.type, gp);
-            debugger;
             return;
         }
         handler.call(this, gp, command);
@@ -1792,9 +1836,6 @@ export class GameConnectionServer extends net.Server {
 
     onCustomActionButtonCommand(command) {
         if (command.customActionSubCommand === 23) {
-            if (command.customActionXXX_f9 || command.customActionButton) {
-                debugger; // assertion fail
-            }
             return;
         }
         const info = {button: command.customActionButton};
@@ -2083,14 +2124,12 @@ export class GameConnectionServer extends net.Server {
                 const handler = this._commandHandlers[x.type];
                 if (!handler) {
                     console.error("Invalid command type:", x.type, x);
-                    debugger;
                 } else {
                     queueMicrotask(() => handler.call(this, x, gtc, /*XXX*/ buf));
                 }
             }
         } catch(e) {
             console.error("Invalid protobuf:", e);
-            debugger;
         }
     }
 

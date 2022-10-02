@@ -15,7 +15,6 @@ const electron = require('electron');
 let quiting;
 electron.app.on('before-quit', () => quiting = true);
 
-const isDEV = !electron.app.isPackaged;
 const isWindows = os.platform() === 'win32';
 const isMac = !isWindows && os.platform() === 'darwin';
 const isLinux = !isWindows && !isMac && os.platform() === 'linux';

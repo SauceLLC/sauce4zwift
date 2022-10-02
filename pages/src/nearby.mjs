@@ -436,7 +436,7 @@ const fieldGroups = [{
         {id: 'direction', defaultEn: false, label: 'Direction', headerLabel: 'Dir',
          get: x => x.state.reverse, fmt: x => x ? '<ms>arrow_back</ms>' : '<ms>arrow_forward</ms>'},
         {id: 'latency', defaultEn: false, label: 'Latency',
-         get: x => x.latency, fmt: x => x ? H.number(x * 1000) + unit('ms') : '-'},
+         get: x => x.state.latency, fmt: x => x ? H.number(x) + unit('ms') : '-'},
     ],
 }];
 
