@@ -190,7 +190,7 @@ function clearSelection() {
 function athleteLink(id, content, options={}) {
     const debug = location.search.includes('debug') ? '&debug' : '';
     return `<a title="${options.title || ''}" class="athlete-link ${options.class || ''}"
-               href="athlete.html?athleteId=${id}&width=800&height=345${debug}"
+               href="profile.html?id=${id}&width=800&height=345${debug}"
                target="_blank">${content || ''}</a>`;
 }
 

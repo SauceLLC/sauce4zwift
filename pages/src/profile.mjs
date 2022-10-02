@@ -1,10 +1,10 @@
 import * as common from './common.mjs';
 import {locale, template} from '../../shared/sauce/index.mjs';
 
-const queryParams = new URLSearchParams(location.search);
+const q = new URLSearchParams(location.search);
 
 const H = locale.human;
-const athleteId = Number(queryParams.get('athleteId'));
+const athleteId = Number(q.get('id') || q.get('athleteId'));
 let gettingAthlete;
 let gettingTemplate;
 let gettingGameConnectionStatus;
@@ -13,7 +13,7 @@ let pendingInitNationFlags;
 
 export function init() {
     gettingAthlete = common.rpc.getAthlete(athleteId || 1, {refresh: true});
-    gettingTemplate = template.getTemplate('templates/athlete.html.tpl');
+    gettingTemplate = template.getTemplate('templates/profile.html.tpl');
     gettingGameConnectionStatus = common.rpc.getGameConnectionStatus();
     pendingInitNationFlags = common.initNationFlags();
     locale.setImperial(common.storage.get('/imperialUnits'));
@@ -90,7 +90,6 @@ async function exportFITActivity(athleteId) {
     }
 }
 
-
 export async function render(el, tpl, tplData) {
     const athleteId = tplData.athleteId;
     const rerender = async () => el.replaceChildren(...(await tpl(tplData)).children);
@@ -147,16 +146,11 @@ export async function render(el, tpl, tplData) {
             document.querySelector('.debug').textContent = JSON.stringify([state, tplData.athlete], null, 4);
         }
     }
-    // XXX nearby his extremely wasteful and limited in scope, need new system to subscribe to one
-    common.subscribe('nearby', async data => {
-        const ad = data.find(x => x.athleteId === athleteId);
-        if (!ad) {
+    async function getPlayerState() {
+        if (document.hidden) {
+            console.warn("hidden");
             return;
         }
-        console.log("update now");
-        updatePlayerState(ad.state);
-    });
-    async function getPlayerState() {
         console.debug("Using RPC get player state");
         const state = await common.rpc.getPlayerState(athleteId);
         if (state) {
@@ -164,7 +158,7 @@ export async function render(el, tpl, tplData) {
         }
     }
     // Backup for not nearby or in game.
-    setInterval(async () => {
+    const pollInterval = setInterval(async () => {
         const now = Date.now();
         if (now - lastUpdate < 9000) {
             return;
@@ -173,4 +167,9 @@ export async function render(el, tpl, tplData) {
     }, 10000);
     await rerender();
     await getPlayerState();
+    const subId = await common.subscribe(`athletes/${athleteId}`, async data => updatePlayerState(data.state));
+    return function cleanup() {
+        clearInterval(pollInterval);
+        common.unsubscribe(subId);
+    };
 }

@@ -1,4 +1,4 @@
-<div class="athlete">
+<div class="profile">
     <% if (!athlete) { %>
         <header class="title">
             <div class="name">
@@ -59,7 +59,7 @@
         </header>
         <section>
             <% if (athlete.avatar) { %>
-                <a class="avatar" href="{{athlete.avatar}}" external target="_blank">
+                <a class="avatar" href="profile-avatar.html?id={{athlete.id}}" target="profile-avatar">
                     <img src="{{athlete.avatar}}"/>
                 </a>
             <% } else { %>

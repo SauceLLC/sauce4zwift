@@ -183,7 +183,7 @@ function renderZoomed(groups) {
         active.add(i);
         const pos = getOrCreatePosition(i);
         pos.bubble.title = `Click for athlete details`;
-        pos.bubble.href = `athlete.html?athleteId=${athlete.athleteId}&width=800&height=340`;
+        pos.bubble.href = `profile.html?id=${athlete.athleteId}&width=800&height=340`;
         pos.el.classList.toggle('watching', !!athlete.watching);
         pos.el.style.setProperty('--athletes', 1);
         let label;
