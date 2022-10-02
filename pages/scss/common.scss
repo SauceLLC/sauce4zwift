@@ -807,7 +807,7 @@ html:not(.settings-page) #titlebar:not(.always-visible) {
         }
 
         .title {
-            flex: 0 0 auto;
+            flex: 0 1 auto;
             display: flex;
             align-items: center;
             font-size: 0.8em;
