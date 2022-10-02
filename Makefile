@@ -61,6 +61,7 @@ else
 endif
 
 publish: $(BUILD)
+ifndef WINBLOWS
 	@echo
 	@echo Double check this git status is acceptable...
 	@echo
@@ -68,6 +69,8 @@ publish: $(BUILD)
 	@echo
 	@sleep 5
 	GH_TOKEN="$${GH_TOKEN_SAUCE4ZWIFT_RELEASE}" npm run publish
+endif
+	npm run publish
 
 deps:
 	cp node_modules/echarts/dist/echarts.esm.js pages/deps/src/echarts.mjs
