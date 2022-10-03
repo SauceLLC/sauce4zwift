@@ -239,6 +239,9 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.resetStats, {scope: this});
         rpc.register(this.exportFIT, {scope: this});
         rpc.register(this.getAthlete, {scope: this});
+        rpc.register(this.getFolloweeAthletes, {scope: this});
+        rpc.register(this.getFollowerAthletes, {scope: this});
+        rpc.register(this.getMarkedAthletes, {scope: this});
         rpc.register(this.getEvent, {scope: this});
         rpc.register(this.getEvents, {scope: this});
         rpc.register(this.getEventSubgroup, {scope: this});
@@ -593,6 +596,31 @@ export class StatsProcessor extends events.EventEmitter {
         } else {
             return this.loadAthlete(id);
         }
+    }
+
+    async getFollowerAthletes() {
+        return (await this.zwiftAPI.getFollowers(this.athleteId)).map(x => {
+            return this.loadAthlete(x.followerProfile.id);
+        });
+    }
+
+    async getFolloweeAthletes() {
+        return (await this.zwiftAPI.getFollowees(this.athleteId)).map(x => {
+            return this.loadAthlete(x.followeeProfile.id);
+        });
+    }
+
+    async getMarkedAthletes() {
+        // XXX Obviously this is insane, but sqlite3 is so insanely fast it's actually fine for just now.
+        const stmt = this.athletesDB.prepare('SELECT * FROM athletes');
+        const marked = [];
+        for (const x of stmt.iterate()) {
+            const a = JSON.parse(x.data);
+            if (a.marked) {
+                marked.push(a);
+            }
+        }
+        return marked;
     }
 
     saveAthletes(records) {

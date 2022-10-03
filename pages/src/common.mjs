@@ -1,8 +1,10 @@
 /* global Sentry, electron */
 
-import {sleep} from '../../shared/sauce/base.mjs';
+import {sleep as _sleep} from '../../shared/sauce/base.mjs';
 import * as report from '../../shared/report.mjs';
 import './sentry.js';
+
+export const sleep = _sleep; // Come on ES6 modules, really!?
 
 const doc = document.documentElement;
 
