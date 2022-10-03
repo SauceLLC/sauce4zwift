@@ -74,12 +74,12 @@ html:not(:focus-within) {
     padding: 0.1em 0;
 
     .logo {
-        margin-left: 0.1em;
         position: relative;
         height: 100%;
-        max-height: 1.8em;
-        padding: 0.2em;
-        width: 1.7em;
+        padding: 0.4em 0 0.4em 0.2em;
+        display: flex;
+        align-items: center;
+        min-width: 1.4em; // for cross hairs when small
 
         img,
         ms {
@@ -92,13 +92,14 @@ html:not(:focus-within) {
             transform: rotate(var(--tilt));
             animation: pournshake 5s;
             animation-delay: 5s;
+            max-height: 1.8em;
         }
         
         ms {
             position: absolute;
             top: 0;
             left: 0.2em;
-            font-size: 1.3em;
+            font-size: 1.2em;
             overflow: hidden;
             display: flex;
             align-items: center;
@@ -107,16 +108,16 @@ html:not(:focus-within) {
     }
 }
 
+.filler {
+    flex: 1 1;
+    height: 100%;
+}
 
 .fields {
     padding: 0.2em 1em;
     display: flex;
     overflow: hidden;
-
-    &.right {
-        justify-content: flex-end;
-        flex: 1 1 auto;
-    }
+    flex: 0 0.1 auto;
 
     .field {
         flex: 0 0 0;
@@ -165,6 +166,9 @@ html:not(:focus-within) {
 
 header {
     white-space: nowrap;
+    height: 100%;
+    display: flex;
+    align-items: center;
 }
 
 .controls {
