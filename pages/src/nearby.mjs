@@ -437,6 +437,8 @@ const fieldGroups = [{
          get: x => x.state.reverse, fmt: x => x ? '<ms>arrow_back</ms>' : '<ms>arrow_forward</ms>'},
         {id: 'latency', defaultEn: false, label: 'Latency',
          get: x => x.state.latency, fmt: x => x ? H.number(x) + unit('ms') : '-'},
+        {id: 'power-up', defaultEn: false, label: 'Active Power Up', headerLabel: 'PU',
+         get: x => x.state.activePowerUp, fmt: x => x ? x.toLowerCase() : ''},
     ],
 }];
 

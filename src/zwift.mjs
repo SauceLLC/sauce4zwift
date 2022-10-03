@@ -76,14 +76,6 @@ const pbProfilePrivacyFlagsInverted = {
     displayAge: 0x40,
 };
 
-const powerUpEnum = {
-    0: 'FEATHER',
-    1: 'DRAFT',
-    4: 'BURRITO',
-    5: 'AERO',
-    6: 'GHOST',
-};
-
 const worldCourseDescs = [
     {worldId: 1, courseId: 6, name: 'Watopia'},
     {worldId: 2, courseId: 2, name: 'Richmond'},
@@ -154,6 +146,7 @@ export function encodePlayerStateFlags1(props) {
 }
 
 
+const powerUpsById = Object.fromEntries(Object.entries(protos.POWERUP_TYPE).map(([label, id]) => [id, label]));
 export function decodePlayerStateFlags2(bits) {
     const powerUping = bits & 0xf; // 15 = Not active, otherwise enum
     bits >>>= 4;
@@ -169,7 +162,7 @@ export function decodePlayerStateFlags2(bits) {
     bits >>>= 16;
     const _rem2 = bits; // XXX no idea
     return {
-        activePowerUp: powerUping === 0xf ? null : powerUpEnum[powerUping],
+        activePowerUp: powerUping === 0xf ? null : powerUpsById[powerUping],
         turning,
         overlapping,
         roadId,
@@ -193,8 +186,7 @@ export function encodePlayerStateFlags2(props) {
     bits <<= 4;
     let powerUping = 0xf; // hidden, but possibly by server, so maybe do include it?
     if (props.activePowerUp) {
-        const [t] = Object.entries(powerUpEnum).find(([v, k]) => k === props.activePowerUp);
-        powerUping = +t;
+        powerUping = protos.POWERUP_TYPE[props.activePowerUp];
     }
     bits |= powerUping & 0xf;
     return bits;
@@ -463,7 +455,11 @@ export class ZwiftAPI {
             }
             throw e;
         }
-        return processPlayerStateMessage(pb);
+        const state = processPlayerStateMessage(pb);
+        if (state.activePowerUp === 'NINJA' && state.athleteId !== this.profile.id) {
+            return;
+        }
+        return state;
     }
 
     convSegmentResult(x) {
@@ -1643,13 +1639,21 @@ export class GameMonitor extends events.EventEmitter {
                 x.payload = protos.get(x.payloadType).decode(x._payload);
             }
         }
+        const dropList = [];
         for (let i = 0; i < pb.playerStates.length; i++) {
             const state = pb.playerStates[i] = processPlayerStateMessage(pb.playerStates[i]);
             if (state.athleteId === this.gameAthleteId) {
                 queueMicrotask(() => this._updateGameState(state));
+            } else if (state.activePowerUp === 'NINJA') {
+                dropList.unshift(i);
             }
             if (state.athleteId === this.watchingAthleteId) {
                 queueMicrotask(() => this._updateWatchingState(state));
+            }
+        }
+        if (dropList.length) {
+            for (const i of dropList) {
+                pb.playerStates.splice(i, 1);
             }
         }
         queueMicrotask(() => this.emit('inPacket', pb));
