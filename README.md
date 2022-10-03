@@ -15,6 +15,9 @@ a bit annoying this does allow you to run S4Z on any device anywhere.
 <img src="assets/images/screenshot.jpg" width="640"/>
 <img src="assets/images/slideshow.webp" width="400"/>
 
+Great overview video from Si Bradeley:
+[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/NZNgZW6YCp0/0.jpg)](https://www.youtube.com/watch?v=NZNgZW6YCp0)
+
 
 Download for Mac / Windows:
 --------
