@@ -48,12 +48,10 @@
             }
 
             .gauges {
-                flex-wrap: wrap;
                 font-size: 0.8em;
+                flex-direction: column;
             }
             .gauges a {
-                display: inline-block;
-                padding-right: 0.5em;
             }
 
             a {
@@ -61,9 +59,10 @@
             }
 
             img.logo {
+                --tilt: -28deg;
                 display: inline-block;
-                margin: -0.5em 0.4em;
-                width: 2em;
+                margin: -0.8em 0.2em;
+                width: 2.5em;
                 animation: pournshake 6s infinite;
             }
 
@@ -79,25 +78,27 @@
         </h2>
         <h4>Windows</h4>
         <div class="windows primary">
-            <a href="/pages/overview.html">Overview</a>
-            <a href="/pages/watching.html">Currently Watching</a>
-            <a href="/pages/groups.html">Groups View</a>
-            <a href="/pages/nearby.html">Nearby Athletes</a>
-            <a href="/pages/events.html">Events</a>
-            <a href="/pages/chat.html">Chat Window</a>
-            <a href="/pages/game-control.html">Game Control</a>
+            <a href="/pages/watching.html"><ms>grid_view</ms> Currently Watching</a>
+            <a href="/pages/groups.html"><ms>scatter_plot</ms> Groups View</a>
+            <a href="/pages/nearby.html"><ms>table</ms> Nearby Athletes</a>
+            <a href="/pages/chat.html"><ms>chat</ms> Chat Window</a>
+            <a href="/pages/game-control.html"><ms>stadia_controller</ms> Game Control</a>
+            <a href="/pages/events.html"><ms>event</ms> Events</a>
+            <a href="/pages/athletes.html"><ms>person_search</ms> Athletes</a>
+            <br/>
+            <a href="/pages/overview-settings.html"><ms>settings</ms> Settings</a>
         </div>
         <h4>Gauges/Charts</h4>
         <div class="windows gauges">
-            <a href="/pages/gauge.html?t=power">Power Gauge</a>
-            <a href="/pages/gauge.html?t=hr">Heart Rate Gauge</a>
-            <a href="/pages/gauge.html?t=draft">Draft Gauge</a>
-            <a href="/pages/gauge.html?t=wbal">W'bal Gauge</a>
+            <a href="/pages/gauge.html?t=power"><ms>bolt</ms> Power Gauge</a>
+            <a href="/pages/gauge.html?t=hr"><ms>favorite</ms> Heart Rate Gauge</a>
+            <a href="/pages/gauge.html?t=draft"><ms>air</ms> Draft Gauge</a>
+            <a href="/pages/gauge.html?t=wbal"><ms>battery_5_bar</ms> W'bal Gauge</a>
         </div>
         <h4>Misc</h4>
         <div class="windows misc">
-            <a href="/pages/stats-for-nerds.html">Stats for Nerds</a>
-            <a href="/pages/logs.html">Debug Logs</a>
+            <a href="/pages/stats-for-nerds.html"><ms>receipt_long</ms> Stats for Nerds</a>
+            <a href="/pages/logs.html"><ms>notes</ms> Debug Logs</a>
         </div>
     </body>
 </html>
