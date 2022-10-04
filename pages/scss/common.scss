@@ -747,7 +747,7 @@ html:not(.settings-page) #titlebar:not(.always-visible) {
             opacity: 0.2;
         }
 
-        img {
+        > img {
             height: 1.2em !important;
             filter: invert(1);
         }
@@ -771,7 +771,7 @@ html:not(.settings-page) #titlebar:not(.always-visible) {
     .button {
         border-radius: 0.22em;
 
-        img {
+        > img {
             height: 0.85em;
             filter: invert(1);
         }
@@ -854,11 +854,9 @@ html:not(.settings-page) #titlebar:not(.always-visible) {
             display: flex;
             align-items: center;
 
-            .button {
-                img {
-                    height: 0.90em;
-                    filter: invert(1);
-                }
+            .button > img {
+                height: 0.90em;
+                filter: invert(1);
             }
         }
     }

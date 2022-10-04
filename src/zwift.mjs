@@ -345,7 +345,7 @@ export class ZwiftAPI {
 
     async fetchPaged(urn, options={}, headers) {
         const results = [];
-        let start = 0;
+        let start = options.start || 0;
         let pages = 0;
         const pageLimit = options.pageLimit ? options.pageLimit : 10;
         const query = options.query || new URLSearchParams();
@@ -514,6 +514,7 @@ export class ZwiftAPI {
         return await this.fetchPaged('/api/search/profiles', {
             method: 'POST',
             json: {query: searchText},
+            ...options
         });
     }
 

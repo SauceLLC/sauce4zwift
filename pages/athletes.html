@@ -26,7 +26,13 @@
                 <div class="filter"><input type="text" name="filter" placeholder="filter"></input></div>
                 <div class="filler"></div>
                 <div class="buttons">
-                    <div title="Search" class="button search"><ms>search</ms></div>
+                    <div title="Search" class="button search">
+                        <ms>search</ms>
+                        <div class="search-box">
+                            <input type="text" placeholder="search"/>
+                            <div class="results"></div>
+                        </div>
+                    </div>
                     <a class="button open-settings" href="athletes-settings.html?width=400&height=400&child-window"
                        title="Open settings window" target="athletes-settings"><ms>settings</ms></a>
                     <div title="Minimize" class="button minimize electron-only"><ms>minimize</ms></div>
@@ -34,6 +40,19 @@
                 </div>
             </header>
         </div>
-        <div id="content"></div>
+        <div id="content">
+            <section class="following">
+                <header>Following</header>
+                <div class="cards"></div>
+            </section>
+            <section class="marked">
+                <header>Marked</header>
+                <div class="cards"></div>
+            </section>
+            <section class="followers">
+                <header>Followers</header>
+                <div class="cards"></div>
+            </section>
+        </div>
     </body>
 </html>

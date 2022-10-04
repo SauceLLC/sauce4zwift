@@ -242,6 +242,7 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.getFolloweeAthletes, {scope: this});
         rpc.register(this.getFollowerAthletes, {scope: this});
         rpc.register(this.getMarkedAthletes, {scope: this});
+        rpc.register(this.searchAthletes, {scope: this});
         rpc.register(this.getEvent, {scope: this});
         rpc.register(this.getEvents, {scope: this});
         rpc.register(this.getEventSubgroup, {scope: this});
@@ -630,6 +631,15 @@ export class StatsProcessor extends events.EventEmitter {
             }
         }
         return marked;
+    }
+
+    async searchAthletes(searchText, options) {
+        const profiles = await this.zwiftAPI.searchProfiles(searchText, options);
+        return profiles.map(x => ({
+            id: x.id,
+            profile: x,
+            athlete: this.loadAthlete(x.id)
+        }));
     }
 
     saveAthletes(records) {
