@@ -492,17 +492,18 @@ export class StatsProcessor extends events.EventEmitter {
     _profileToAthlete(p) {
         const powerMeterSources = ['Power Meter', 'Smart Trainer'];
         const powerMeter = powerMeterSources.includes(p.powerSourceModel);
+        const minor = p.privacy && p.privacy.minor;
         const o = {
             firstName: p.firstName,
             lastName: p.lastName,
             ftp: p.ftp,
             type: p.playerType,
             countryCode: p.countryCode, // iso 3166
-            avatar: p.imageSrcLarge || p.imageSrc,
-            weight: p.weight ? p.weight / 1000 : undefined,
-            height: p.height ? p.height / 10 : undefined,
-            gender: p.male === false ? 'female' : 'male',
-            age: (p.privacy && p.privacy.displayAge) ? p.age : null,
+            avatar: !minor ? p.imageSrcLarge || p.imageSrc : undefined,
+            weight: !minor && p.weight ? p.weight / 1000 : undefined,
+            height: !minor && p.height ? p.height / 10 : undefined,
+            gender: !minor && p.male === false ? 'female' : 'male',
+            age: !minor && p.privacy && p.privacy.displayAge ? p.age : null,
             level: p.achievementLevel ? Math.floor(p.achievementLevel / 100) : undefined,
             powerMeter,
         };
@@ -599,15 +600,19 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     async getFollowerAthletes() {
-        return (await this.zwiftAPI.getFollowers(this.athleteId)).map(x => {
-            return this.loadAthlete(x.followerProfile.id);
-        });
+        return (await this.zwiftAPI.getFollowers(this.athleteId)).map(x => ({
+            id: x.followerProfile.id,
+            profile: x.followerProfile,
+            athlete: this.loadAthlete(x.followerProfile.id)
+        }));
     }
 
     async getFolloweeAthletes() {
-        return (await this.zwiftAPI.getFollowees(this.athleteId)).map(x => {
-            return this.loadAthlete(x.followeeProfile.id);
-        });
+        return (await this.zwiftAPI.getFollowees(this.athleteId)).map(x => ({
+            id: x.followeeProfile.id,
+            profile: x.followeeProfile,
+            athlete: this.loadAthlete(x.followeeProfile.id)
+        }));
     }
 
     async getMarkedAthletes() {
@@ -615,9 +620,13 @@ export class StatsProcessor extends events.EventEmitter {
         const stmt = this.athletesDB.prepare('SELECT * FROM athletes');
         const marked = [];
         for (const x of stmt.iterate()) {
-            const a = JSON.parse(x.data);
-            if (a.marked) {
-                marked.push(a);
+            const athlete = JSON.parse(x.data);
+            if (athlete.marked) {
+                marked.push({
+                    id: x.id,
+                    profile: null,
+                    athlete,
+                });
             }
         }
         return marked;
