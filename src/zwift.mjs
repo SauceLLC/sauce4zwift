@@ -691,7 +691,7 @@ const defaultHashSeed = {
 
 class NetChannel extends events.EventEmitter {
     static getConnInc() {
-        return this._connInc++; // Defined by subclasses so tcp and udp each have their own counter
+        return this._connInc++ % 0xffff; // Defined by subclasses so tcp and udp each have their own counter
     }
 
     constructor(options) {
@@ -1119,6 +1119,7 @@ export class GameMonitor extends events.EventEmitter {
         this._udpServerPools = new Map();
         this._starting = false;
         this._stopping = false;
+        this._errCount = 0;
         this.connectingTS = 0;
         this.connectingCount = 0;
         this._session = null;
@@ -1389,7 +1390,8 @@ export class GameMonitor extends events.EventEmitter {
     _schedConnectRetry() {
         clearTimeout(this._connectRetryTimeout);
         this._disconnect();
-        const delay = Math.max(1000, (this.connectingCount * 1000) - (Date.now() - this.connectingTS));
+        const backoffCount = Math.max(this.connectingCount, this._errCount);
+        const delay = Math.max(1000, (backoffCount * 1000) - (Date.now() - this.connectingTS));
         console.warn(`Next connect retry: ${delay / 1000 | 0}s`);
         this._connectRetryTimeout = setTimeout(this.connect.bind(this), delay);
     }
@@ -1421,29 +1423,18 @@ export class GameMonitor extends events.EventEmitter {
         }
     }
 
+    incErrorCount() {
+        this._errCount++;
+        if (this._errCount % 10 === 0) {
+            console.warn('Error count too high:', this._errCount);
+            this._schedConnectRetry();
+        }
+    }
+
     async broadcastPlayerState() {
         if (this.suspended || this._stopping) {
             return;
         }
-        /*let precise;
-        const lws = this._lastWatchingState;
-        if (lws) {
-            precise = {
-                x: lws.x,
-                y: lws.y,
-                altitude: lws.altitude,
-                roadLocation: lws.roadLocation,
-                roadPosition: lws.roadPosition,
-                _speed: lws._speed,
-                _heading: lws._heading,
-                _flags1: encodePlayerStateFlags1({
-                    auxCourseId: lws.courseId,
-                    reverse: lws.reverse,
-                }),
-                _flags2: encodePlayerStateFlags2({roadId: lws.roadId}),
-            };
-        }
-        */
         for (const ch of this._udpChannels) {
             if (ch.active) {
                 try {
@@ -1452,6 +1443,7 @@ export class GameMonitor extends events.EventEmitter {
                 } catch(e) {
                     if (!(e instanceof InactiveChannelError)) {
                         console.error('SendPlayerState error:', e);
+                        this.incErrorCount();
                     }
                 }
             }
@@ -1612,7 +1604,9 @@ export class GameMonitor extends events.EventEmitter {
                 console.warn("Channel became inactive during establish:", ch.toString(), e);
                 return;
             }
-            throw e;
+            console.error('Error during UDP establish:', e);
+            ch.shutdown();
+            this.incErrorCount();
         }
         console.info(`Established:`, ch.toString());
     }
