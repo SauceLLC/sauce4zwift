@@ -604,6 +604,32 @@ export class ZwiftAPI {
         return await this.fetchJSON(`/api/private_event/${id}`);
     }
 
+    async getEventSubgroupResults(id) {
+        let start = 0;
+        const limit = 50;  // 50 is max, but the endpoint is wicked fast
+        const results = [];
+        while (true) {
+            const data = await this.fetchJSON(`/api/race-results/entries`, {
+                query: {
+                    event_subgroup_id: id,
+                    start,
+                    limit,
+                },
+            });
+            for (const x of data.entries) {
+                // Yup you read it right, they are inverted. ):
+                x.profileData.gender = x.profileData.gender === 'FEMALE' ? 'MALE' : 'FEMALE';
+                x.profileData.male = x.profileData.gender === 'MALE';
+                results.push(x);
+            }
+            if (data.entries.length < limit) {
+                break;
+            }
+            start += data.entries.length;
+        }
+        return results;
+    }
+
     async getEventSubgroupEntrants(id) {
         const entrants = [];
         const limit = 100;
