@@ -1,5 +1,5 @@
 <% for (const x of obj) { %>
-    <a class="card athlete" href="profile.html?id={{x.id}}" target="profile">
+    <a class="card athlete" href="profile.html?id={{x.id}}&width=800&height=320" target="profile">
         <% if (x.athlete) { %>
             <% const a = x.athlete; %>
             <div class="avatar">

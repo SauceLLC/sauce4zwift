@@ -15,8 +15,9 @@ body {
 
     .search-box {
         position: absolute;
-        top: 0.5em;
-        right: 4em;
+        margin-top: 0.8em;
+        margin-left: 0.4em;
+        right: 0.4em;
         border-radius: 0.3em;
         background-color: color.shade(fg, 80%);
         border: 1px solid color.shade(fg, 30%, 40%);
