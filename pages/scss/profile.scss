@@ -5,24 +5,6 @@ html {
     font-size: 16px;
     -webkit-user-select: text;
     user-select: text;
-
-    &.embed {
-        background: none;
-
-        body {
-            background: none;
-            color: #222;
-
-            header {
-                background: #3333;
-                color: revert;
-
-                .buttons a {
-                    color: unset;
-                }
-            }
-        }
-    }
 }
 
 body {

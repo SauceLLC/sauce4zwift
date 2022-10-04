@@ -8,15 +8,15 @@
     <% } else { %>
         <header class="title">
             <div class="name">
+                <% if (athlete.type !== 'NORMAL') { %>
+                    <span class="special-badge">({{athlete.type.replace(/_/, ' ')}})</span>
+                <% } %>
                 <% if (athlete.countryCode) { %>
                     <img class="flag" src="{{flags[athlete.countryCode]}}"
                          title="{{nations[athlete.countryCode]}}"/>
                 <% } %>
                 {{athlete.sanitizedFullname}}
             </div>
-            <% if (athlete.type !== 'NORMAL') { %>
-                <span style="opacity: 0.9; font-size: 0.8em; font-weight: bold; font-variant: all-small-caps;">({{athlete.type.replace(/_/, ' ')}})</span>
-            <% } %>
             <div class="buttons">
                 <a href="https://zwiftpower.com/profile.php?z={{athleteId}}"
                    title="Open ZwiftPower profile"

@@ -22,6 +22,7 @@
         background-image: linear-gradient(to top, color.shade(bookend, 0%), color.shade(bookend, 12%));
         color: color.shade(bookend, 100%);
         display: flex;
+        flex-wrap: wrap;
         align-items: center;
 
         .name {
@@ -29,6 +30,18 @@
             padding: 0.3em 0;
             margin-right: 0.6em;
             app-region: drag;
+            position: relative;
+
+            .special-badge {
+                font-variant: all-small-caps;
+                font-size: 0.5em;
+                font-weight: 600;
+                color: gold;
+                position: absolute;
+                line-height: 1.1;
+                top: 0;
+                left: 0;
+            }
 
             img {
                 display: inline-block;
@@ -49,7 +62,7 @@
             a {
                 opacity: 0.80;
                 transition: opacity 150ms;
-                margin: -0.5em 0;
+                margin: -0.1em 0;
                 padding-top: 0.15em;
 
                 &[disabled] {

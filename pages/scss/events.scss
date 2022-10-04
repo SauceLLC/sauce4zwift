@@ -267,8 +267,8 @@ table {
 
 .details .container .profile {
     .avatar {
-        font-size: 0.5em;
-        flex-basis: 180px;
+        font-size: 0.6em;
+        flex-basis: 200px;
     }
 
     header.title {
@@ -277,8 +277,7 @@ table {
         color: #f0f0f0;
 
         .buttons {
-            padding: 0.5em;
-            float: left;
+            padding: 0.2em 0.5em 0;
         }
 
         .name {
