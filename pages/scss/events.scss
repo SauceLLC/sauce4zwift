@@ -107,6 +107,12 @@ table {
 
             &.summary {
                 cursor: pointer;
+
+                > td {
+                    white-space: nowrap;
+                    text-overflow: ellipsis;
+                    overflow: hidden;
+                }
             }
 
             &.expanded,
@@ -330,7 +336,7 @@ table {
                     position: absolute;
                     top: 0.2em;
                     left: 0.1em;
-                    width: 100%;
+                    width: calc(100% - 0.2em);
                     font-weight: 500;
                     overflow: hidden;
                     text-overflow: ellipsis;
@@ -338,7 +344,11 @@ table {
                 }
 
                 > td:not(.name) {
-                    padding-top: 3em;
+                    padding-top: 3rem;
+
+                    &:first-child {
+                        padding-left: 0.5em;
+                    }
                 }
             }
         }
