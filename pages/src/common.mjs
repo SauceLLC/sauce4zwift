@@ -912,7 +912,7 @@ rpcCall('isDEV').then(isDEV => {
     }
 });
 
-if (window.CSS) {
+if (window.CSS && CSS.registerProperty) {
     CSS.registerProperty({name: '--bg-opacity', syntax: '<number>', inherits: true, initialValue: 1});
 }
 
