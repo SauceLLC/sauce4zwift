@@ -8,24 +8,23 @@ pretty things.
 
 Requirements:
 --------
-As of July 2022 Sauce emulates a full encrypted game client that "watches" your real
-Zwift account.  As such, you'll need to create a second login (free is fine).  Although
-a bit annoying this does allow you to run S4Z on any device anywhere.
+As of July 2022 Sauce is a full encrypted game client that "watches" your normal
+Zwift account like a 2nd instance of Zwift itself.  As such, you'll need to create
+a second login (free is fine).  Although a bit annoying this does allow you to
+run S4Z on any device, anywhere.
 
+
+Download for Mac / Windows / Linux:
+--------
+### https://saucellc.io/products/sauce4zwift/download
+
+
+--------
 <img src="assets/images/screenshot.jpg" width="640"/>
 <img src="assets/images/slideshow.webp" width="400"/>
 
 Great overview video from Si Bradeley:
 [![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/NZNgZW6YCp0/0.jpg)](https://www.youtube.com/watch?v=NZNgZW6YCp0)
-
-
-Download for Mac / Windows:
---------
-### https://saucellc.io/products/sauce4zwift/download
-
-If you want a Linux build let me know and I'll consider doing releases for it too.
-All my development happens on a Linux machine, I just don't know how much interest
-people will have in it.
 
 
 Feature Highlights
