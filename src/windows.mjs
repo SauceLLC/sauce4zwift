@@ -468,6 +468,9 @@ function handleNewSubWindow(parent, spec, webPrefs) {
     // These are target=... popups...
     const targetRefs = new Map();
     parent.webContents.setWindowOpenHandler(({url, frameName: target, disposition}) => {
+        if (['save-to-disk', 'other'].includes(disposition)) {
+            return {action: 'allow'};
+        }
         if (targetRefs.has(target)) {
             const targetWin = targetRefs.get(target).deref();
             if (!targetWin || targetWin.isDestroyed()) {
@@ -628,7 +631,9 @@ export function makeCaptiveWindow(options={}, webPrefs={}) {
         ...bounds,
     });
     win.setMenuBarVisibility(false);
-    handleNewSubWindow(win, null, webPrefs);
+    if (!options.disableNewWindowHandler) {
+        handleNewSubWindow(win, null, webPrefs);
+    }
     if (options.page) {
         win.loadFile(path.join(pagePath, options.page));
     } else if (options.pageURL) {
@@ -712,6 +717,7 @@ export async function patronLink() {
         page: 'patron.html',
         width: 400,
         height: 720,
+        disableNewWindowHandler: true,
     }, {
         preload: path.join(appPath, 'src', 'preload', 'patron-link.js'),
         partition: 'persist:patreon',
