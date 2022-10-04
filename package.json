@@ -2,7 +2,7 @@
   "name": "sauce4zwift",
   "productName": "Sauce for Zwift™",
   "private": true,
-  "version": "0.10.8",
+  "version": "0.10.9",
   "description": "Overlay widgets and advanced instrumentation for the serious Zwifter.",
   "homepage": "https://saucellc.io",
   "author": "Sauce, LLC",
