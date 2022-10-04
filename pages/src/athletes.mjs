@@ -34,15 +34,23 @@ function onSearchClick(ev) {
 }
 
 
-async function onSearchInput(ev) {
-    const resultsEl = ev.currentTarget.parentElement.querySelector('.results');
-    let term = ev.currentTarget.value;
+let searchTimeout;
+function onSearchInput(ev) {
+    clearTimeout(searchTimeout);
+    const el = ev.currentTarget;
+    searchTimeout = setTimeout(() => _onSearchInput(el), 500);
+}
+
+
+async function _onSearchInput(el) {
+    const resultsEl = el.parentElement.querySelector('.results');
+    let term = el.value;
     if (term.length < 3) {
         resultsEl.innerHTML = '';
         return;
     }
     const athleteCards = await athleteCardsPromise;
-    const results = await common.rpc.searchAthletes(term, {pageLimit: 1, limit: 10, start: 0});
+    const results = await common.rpc.searchAthletes(term, {pageLimit: 1, limit: 50, start: 0});
     resultsEl.innerHTML = '';
     resultsEl.append(await athleteCards(results));
 }
