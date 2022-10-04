@@ -24,6 +24,7 @@ class SauceBrowserWindow extends electron.BrowserWindow {
     constructor(options) {
         super(options);
         this.frame = options.frame !== false;
+        this.specId = options.specId;
     }
 }
 
@@ -155,11 +156,6 @@ export const subWindows = new WeakMap();
 export const eventEmitter = new EventEmitter();
 
 
-export function getMetaByWebContents(wc) {
-    return activeWindows.get(wc) || subWindows.get(wc);
-}
-
-
 electron.ipcMain.on('getWindowContextSync', ev => {
     const returnValue = {
         id: null,
@@ -168,7 +164,7 @@ electron.ipcMain.on('getWindowContextSync', ev => {
     try {
         const win = ev.sender.getOwnerBrowserWindow();
         returnValue.frame = win.frame;
-        const m = getMetaByWebContents(ev.sender);
+        const m = activeWindows.get(ev.sender) || subWindows.get(ev.sender);
         if (m) {
             const manifest = windowManifestsByType[m.spec.type];
             Object.assign(returnValue, {
@@ -203,14 +199,8 @@ rpc.register(() => {
 
 rpc.register(function closeWindow() {
     const win = this.getOwnerBrowserWindow();
-    if (activeWindows.has(this)) {
-        const {spec} = activeWindows.get(this);
-        console.debug('Window close requested:', spec.id);
-        win.close();
-    } else {
-        console.debug('Generic window close requested');
-        win.close();
-    }
+    console.debug('Window close requested:', win.specId);
+    win.close();
 });
 
 rpc.register(function minimizeWindow() {
@@ -219,7 +209,6 @@ rpc.register(function minimizeWindow() {
         win.minimize();
     }
 });
-
 
 rpc.register(function resizeWindow(width, height, options={}) {
     const win = this.getOwnerBrowserWindow();
@@ -255,7 +244,6 @@ rpc.register(function resizeWindow(width, height, options={}) {
         }
     }
 });
-
 
 rpc.register(pid => {
     for (const x of electron.BaseWindow.getAllWindows().filter(x => x instanceof SauceBrowserWindow)) {
@@ -463,6 +451,28 @@ function getBoundsForDisplay(display, {x, y, width, height, aspectRatio}) {
     return {x, y, width, height};
 }
 
+export function isWithinDisplayBounds({x, y, width, height}) {
+    const centerX = x + (width || 0) / 2;
+    const centerY = y + (height || 0) / 2;
+    return electron.screen.getAllDisplays().some(({bounds}) =>
+        centerX >= bounds.x && centerX < bounds.x + bounds.width &&
+        centerY >= bounds.y && centerY < bounds.y + bounds.height);
+}
+
+
+export function getDisplayForWindow(win) {
+    const bounds = win.getBounds();
+    const centerX = Math.round(bounds.x + bounds.width / 2);
+    const centerY = Math.round(bounds.y + bounds.height / 2);
+    return electron.screen.getDisplayNearestPoint({x: centerX, y: centerY});
+}
+
+
+export function getCurrentDisplay() {
+    const point = electron.screen.getCursorScreenPoint();
+    return electron.screen.getDisplayNearestPoint(point) || electron.screen.getPrimaryDisplay();
+}
+
 
 function handleNewSubWindow(parent, spec, webPrefs) {
     // These are target=... popups...
@@ -492,6 +502,7 @@ function handleNewSubWindow(parent, spec, webPrefs) {
         const bounds = getBoundsForDisplay(display, {width, height});
         const frame = q.has('frame') || !url.startsWith('file://');
         const newWin = new SauceBrowserWindow({
+            specId: `${spec ? spec.id : 'generic'}-subwindow-${target}`,
             type: isLinux ? 'splash' : undefined,
             show: false,
             frame,
@@ -552,6 +563,7 @@ function _openWindow(id, spec) {
         ...bounds,
     };
     const win = new SauceBrowserWindow({
+        specId: id,
         type: isLinux ? 'splash' : undefined,
         show: false,
         frame: false,
@@ -614,10 +626,12 @@ export function openAllWindows() {
 }
 
 
+let captiveIdInc = 1;
 export function makeCaptiveWindow(options={}, webPrefs={}) {
     const display = getCurrentDisplay();
     const bounds = getBoundsForDisplay(display, options);
     const win = new SauceBrowserWindow({
+        specId: `captive-${captiveIdInc++}`,
         type: isLinux ? 'splash' : undefined,
         center: true,
         maximizable: false,
@@ -700,69 +714,6 @@ export async function showReleaseNotes() {
 }
 
 
-function scrubUA(win) {
-    // Prevent Patreon's datedome.co bot service from blocking us.
-    const ua = win.webContents.userAgent;
-    win.webContents.userAgent = ua.replace(/ SauceforZwift.*? /, ' ').replace(/ Electron\/.*? /, ' ');
-}
-
-
-export async function patronLink() {
-    let membership = storage.load('patron-membership');
-    if (membership && membership.patronLevel >= 10) {
-        // XXX Implement refresh once in a while.
-        return true;
-    }
-    const win = makeCaptiveWindow({
-        page: 'patron.html',
-        width: 400,
-        height: 720,
-        disableNewWindowHandler: true,
-    }, {
-        preload: path.join(appPath, 'src', 'preload', 'patron-link.js'),
-        partition: 'persist:patreon',
-    });
-    scrubUA(win);
-    let resolve;
-    electron.ipcMain.on('patreon-auth-code', (ev, code) => resolve({code}));
-    electron.ipcMain.on('patreon-special-token', (ev, token) => resolve({token}));
-    electron.ipcMain.on('patreon-reset-session', async () => {
-        win.webContents.session.clearStorageData();
-        win.webContents.session.clearCache();
-        electron.app.relaunch();
-        win.close();
-    });
-    win.on('closed', () => resolve({closed: true}));
-    while (true) {
-        const {code, token, closed} = await new Promise(_resolve => resolve = _resolve);
-        let isAuthed;
-        if (closed) {
-            return false;
-        } else if (token) {
-            membership = await patreon.getLegacyMembership(token);
-        } else {
-            isAuthed = code && await patreon.link(code);
-            membership = isAuthed && await patreon.getMembership();
-        }
-        if (membership && membership.patronLevel >= 10) {
-            storage.save('patron-membership', membership);
-            win.close();
-            return true;
-        } else {
-            const q = new URLSearchParams();
-            if (isAuthed) {
-                q.set('id', patreon.getUserId());
-                if (membership) {
-                    q.set('isPatron', true);
-                    q.set('patronLevel', membership.patronLevel);
-                }
-            }
-            win.loadURL(`file://${path.join(pagePath, 'non-patron.html')}?${q}`);
-        }
-    }
-}
-
-
 export async function zwiftLogin(options) {
     const win = makeCaptiveWindow({
         page: options.monitor ? 'zwift-monitor-login.html' : 'zwift-login.html',
@@ -802,6 +753,7 @@ export async function zwiftLogin(options) {
 
 export async function welcomeSplash() {
     const welcomeWin = new SauceBrowserWindow({
+        specId: `welcome-splash`,
         type: isLinux ? 'splash' : undefined,
         center: true,
         resizable: false,
@@ -833,26 +785,61 @@ export async function welcomeSplash() {
 }
 
 
-export function isWithinDisplayBounds({x, y, width, height}) {
-    const centerX = x + (width || 0) / 2;
-    const centerY = y + (height || 0) / 2;
-    return electron.screen.getAllDisplays().some(({bounds}) =>
-        centerX >= bounds.x && centerX < bounds.x + bounds.width &&
-        centerY >= bounds.y && centerY < bounds.y + bounds.height);
-}
-
-
-export function getDisplayForWindow(win) {
-    const bounds = win.getBounds();
-    const centerX = Math.round(bounds.x + bounds.width / 2);
-    const centerY = Math.round(bounds.y + bounds.height / 2);
-    return electron.screen.getDisplayNearestPoint({x: centerX, y: centerY});
-}
-
-
-export function getCurrentDisplay() {
-    const point = electron.screen.getCursorScreenPoint();
-    return electron.screen.getDisplayNearestPoint(point) || electron.screen.getPrimaryDisplay();
+export async function patronLink() {
+    let membership = storage.load('patron-membership');
+    if (membership && membership.patronLevel >= 10) {
+        // XXX Implement refresh once in a while.
+        return true;
+    }
+    const win = makeCaptiveWindow({
+        page: 'patron.html',
+        width: 400,
+        height: 720,
+        disableNewWindowHandler: true,
+    }, {
+        preload: path.join(appPath, 'src', 'preload', 'patron-link.js'),
+        partition: 'persist:patreon',
+    });
+    // Prevent Patreon's datedome.co bot service from blocking us.
+    const ua = win.webContents.userAgent;
+    win.webContents.userAgent = ua.replace(/ SauceforZwift.*? /, ' ').replace(/ Electron\/.*? /, ' ');
+    let resolve;
+    electron.ipcMain.on('patreon-reset-session', async () => {
+        win.webContents.session.clearStorageData();
+        win.webContents.session.clearCache();
+        electron.app.relaunch();
+        win.close();
+    });
+    electron.ipcMain.on('patreon-auth-code', (ev, code) => resolve({code}));
+    electron.ipcMain.on('patreon-special-token', (ev, token) => resolve({token}));
+    win.on('closed', () => resolve({closed: true}));
+    while (true) {
+        const {code, token, closed} = await new Promise(_resolve => resolve = _resolve);
+        let isAuthed;
+        if (closed) {
+            return false;
+        } else if (token) {
+            membership = await patreon.getLegacyMembership(token);
+        } else {
+            isAuthed = code && await patreon.link(code);
+            membership = isAuthed && await patreon.getMembership();
+        }
+        if (membership && membership.patronLevel >= 10) {
+            storage.save('patron-membership', membership);
+            win.close();
+            return true;
+        } else {
+            const q = new URLSearchParams();
+            if (isAuthed) {
+                q.set('id', patreon.getUserId());
+                if (membership) {
+                    q.set('isPatron', true);
+                    q.set('patronLevel', membership.patronLevel);
+                }
+            }
+            win.loadURL(`file://${path.join(pagePath, 'non-patron.html')}?${q}`);
+        }
+    }
 }
 
 
@@ -864,6 +851,7 @@ export async function systemMessage(msg) {
     const y = (oBounds.y - dBounds.y < dBounds.height / 2) ? oBounds.y + oBounds.height : oBounds.y - height;
     const x = oBounds.x;
     const sysWin = new SauceBrowserWindow({
+        specId: `system-message`,
         type: isLinux ? 'splash' : undefined,
         width: oBounds.width,
         height,

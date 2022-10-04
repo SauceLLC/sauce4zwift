@@ -85,7 +85,7 @@ electron.app.on('activate', async () => {
 electron.app.on('before-quit', () => void (quiting = true));
 
 
-function monitorWindowForEventSubs(win, id, subs) {
+function monitorWindowForEventSubs(win, subs) {
     // NOTE: MacOS emits show/hide AND restore/minimize but Windows only does restore/minimize
     const resumeEvents = ['responsive', 'show', 'restore'];
     const suspendEvents = ['unresponsive', 'hide', 'minimize'];
@@ -94,7 +94,7 @@ function monitorWindowForEventSubs(win, id, subs) {
     const resume = (who) => {
         for (const x of subs) {
             if (!x.active) {
-                console.debug("Resume subscription:", x.event, id, who);
+                console.debug("Resume subscription:", x.event, win.specId, who);
                 x.emitter.on(x.event, x.sendMessage);
                 x.active = true;
             }
@@ -103,7 +103,7 @@ function monitorWindowForEventSubs(win, id, subs) {
     const suspend = (who) => {
         for (const x of subs) {
             if (x.active && !x.persistent) {
-                console.debug("Suspending subscription:", x.event, id, who);
+                console.debug("Suspending subscription:", x.event, win.specId, who);
                 x.emitter.off(x.event, x.sendMessage);
                 x.active = false;
             }
@@ -115,7 +115,7 @@ function monitorWindowForEventSubs(win, id, subs) {
                 x.emitter.off(x.event, x.sendMessage);
             }
             // Must be after off() because of logs source which eats its own tail otherwise.
-            console.debug("Shutdown subscription:", x.event, id);
+            console.debug("Shutdown subscription:", x.event, win.specId);
         }
         if (!win.isDestroyed()) {
             for (const x of shutdownEvents) {
@@ -147,7 +147,7 @@ const serialCache = new WeakMap();
 const windowEventSubs = new WeakMap();
 let ipcSubIdInc = 1;
 electron.ipcMain.handle('subscribe', (ev, {event, persistent, source='stats'}) => {
-    const {win, spec} = windows.getMetaByWebContents(ev.sender);
+    const win = ev.sender.getOwnerBrowserWindow();
     const emitter = rpcSources[source];
     if (!emitter) {
         throw new TypeError('Invalid emitter source: ' + source);
@@ -172,18 +172,19 @@ electron.ipcMain.handle('subscribe', (ev, {event, persistent, source='stats'}) =
     } else {
         subs = [sub];
         windowEventSubs.set(win, subs);
-        monitorWindowForEventSubs(win, spec.id, subs);
+        monitorWindowForEventSubs(win, subs);
     }
     if (persistent || (win.isVisible() && !win.isMinimized())) {
         emitter.on(event, sendMessage);
         sub.active = true;
-        console.debug("Startup subscription:", event, spec.id);
+        console.debug("Startup subscription:", event, win.specId);
     } else {
-        console.debug("Added suspended subscription:", event, spec.id);
+        console.debug("Added suspended subscription:", event, win.specId);
     }
     ev.sender.postMessage('subscribe-port', subId, [theirPort]);
     return subId;
 });
+
 electron.ipcMain.handle('unsubscribe', (ev, {subId}) => {
     const win = ev.sender.getOwnerBrowserWindow();
     const subs = windowEventSubs.get(win);
