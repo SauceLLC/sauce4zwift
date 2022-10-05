@@ -110,6 +110,7 @@ function monitorWindowForEventSubs(win, subs) {
         }
     };
     const shutdown = () => {
+        windowEventSubs.delete(win);
         for (const x of subs) {
             if (x.active) {
                 x.emitter.off(x.event, x.sendMessage);
