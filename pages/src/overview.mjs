@@ -104,9 +104,7 @@ export async function main() {
             renderer = null;
         }
         renderer = buildLayout();
-        if (lastData) {
-            renderer.setData(lastData);
-        }
+        renderer.setData(lastData || {});
         renderer.render();
     });
     document.querySelector('.button.show').addEventListener('click', () => {
