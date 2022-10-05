@@ -45,7 +45,9 @@ class WorldTime extends events.EventEmitter {
 
     setOffset(offt) {
         const diff = offt - this._offt;
-        console.debug("Shifting worldTime offset:", diff);
+        if (Math.abs(diff) > 5000) {
+            console.warn("Shifting worldTime offset:", diff);
+        }
         this._offt = Math.round(offt);
         this.emit('offset', diff);
     }
@@ -1152,9 +1154,16 @@ export class GameMonitor extends events.EventEmitter {
         this._setWatchingWorldTime = 0;
         this._lastGameStateUpdated = 0;
         this._lastWatchingStateUpdated = 0;
-        worldTime.on('offset', () => {
-            this._setWatchingWorldTime = 0;
-            this._schedHashSeedsRefresh();
+        worldTime.on('offset', diff => {
+            const dev = Math.abs(diff);
+            if (dev > 200) {
+                // Otherwise we could be stuck watching the wrong athlete.
+                this._setWatchingWorldTime = 0;
+                if (dev > 5000) {
+                    // Uses worldTime for expiration.
+                    this._schedHashSeedsRefresh();
+                }
+            }
         });
         setInterval(() => console.info(this.toString()), 30000);
     }
@@ -1374,6 +1383,7 @@ export class GameMonitor extends events.EventEmitter {
             sessionRemaining - this.sessionRestartSlack / 2);
         if (expiresIn < 0) {
             // Internal error
+            console.error('Expired session or hash seeds:', expiresIn, hashSeedRemaining, sessionRemaining);
             throw new TypeError('Expired session or hash seeds');
         }
         const ch = new UDPChannel({
