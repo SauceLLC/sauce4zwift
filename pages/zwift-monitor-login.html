@@ -32,9 +32,14 @@
             }
 
             img.logo {
-                height: 120px;
+                height: 100px;
                 transform: rotate(-20deg);
-                margin-right: 2em;
+                margin: -30px 0.4em -30px 1em;
+                display: inline-block;
+            }
+
+            h1 {
+                margin-bottom: 1.4em;
             }
 
             body > header {
@@ -87,6 +92,10 @@
                 align-self: center;
             }
 
+            .button {
+                display: inline-flex !important;
+            }
+
             header a {
                 text-decoration: underline;
             }
@@ -95,20 +104,29 @@
 
     <body>
         <header>
-            <img class="logo" src="images/logo_vert_120x320.png"/>
             <div>
-                <h1>Zwift Monitor Login</h1>
+                <h1><img class="logo" src="images/logo_vert_120x320.png"/>
+                    Zwift Monitor Login</h1>
                 <p>
-                    A second login is required for Sauce to work properly since July 2022.
-                   <i><b>You do NOT need to be a paying member for this second login.</b></i>
+                    <b>A second, unique, Zwift account is required for Sauce to work properly.</b>
+                    <br/><br/>
+                    If you need to create the second account (likely) please review...
+                    <ul>
+                        <li>This does NOT need to be a paid account</li>
+                        <li>Only fill out the first form, then close the window</li>
+                        <li>Disregard the trial period notices, they don't matter</li>
+                        <li>I recommand an email alias such as, "my.email+saucealias@foobar.com"</li>
+                    </ul>
                 </p>
-                <p>
-                    <a href="https://www.zwift.com/create-account" target="_blank"><b>Create your second account here</b></a>
-                    and then fill out the form below when you're done.
-                </p>
+                <div>
+                    <center><a class="std button primary" href="https://www.zwift.com/create-account"
+                       target="_blank">Create second account with Zwift</a></center>
+                </div>
+                <br/>
             </div>
         </header>
         <main>
+            <p>Once you're finished with account creation, or if you already have a second account, login below...</p>
             <form name="zwift-login-for-sauce">
                 <label>
                     <key>Username:</key>
@@ -121,7 +139,6 @@
                 <input type="submit" value="Monitor Login to Zwift"/>
                 <div class="error"></div>
             </form>
-            <i class="fearnot">Hopefully someday this will not be required, but for now this is the only way I've found to make things work perfectly.</i>
         </main>
     </body>
     <script>

@@ -6,7 +6,7 @@
         <meta name="apple-mobile-web-app-capable" content="yes"/>
         <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
 
-        <title>The Net - Sauce for Zwift™</title>
+        <title>Enter Code - Sauce for Zwift™</title>
 
         <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
         <link rel="stylesheet" href="css/common.css"/>
@@ -18,7 +18,6 @@
             }
 
             body {
-                border-radius: 0;
                 padding: 2em;
                 display: flex;
                 align-items: center;
@@ -48,19 +47,23 @@
                 margin-top: 1em;
                 margin-bottom: 0.5em;
             }
+
+            input[type="submit"] {
+                margin-top: 0.5em;
+                width: 100%;
+            }
         </style>
     </head>
 
     <body>
         <header>
             <img class="logo" src="images/logo_vert_120x320.png"/>
-            <h3>Greetings blessed one!</h3>
         </header>
         <main>
-            <h4>Enter your special token below</h4>
+            <h4>Enter your special code below</h4>
 
             <form id="specialtoken">
-                <input type="text" autocomplete="off" name="specialtoken"/>
+                <input type="text" autocomplete="off" name="specialtoken" placeholder="your code here"/>
                 <input type="submit"/>
             </form>
         </main>

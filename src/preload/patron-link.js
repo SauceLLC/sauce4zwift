@@ -14,22 +14,10 @@ document.addEventListener('DOMContentLoaded', () => {
             location.assign(`https://www.patreon.com/oauth2/authorize?${q}`);
         });
     }
-    const net = document.querySelector('a.net');
-    if (net) {
-        const __ =  '\x73\x68\x69\x66\x74';
-        const ___ =  '\x4b\x65\x79';
-        const ____ =  '\x63\x74\x72\x6c';
-        let a51;
-        const i9 = _ => void (a51 = _[__ + ___] && _[____ + ___]);
-        document.addEventListener('\x6b' + ___.substr(1) + '\x64\x6f\x77\x6e', i9);
-        document.addEventListener('\x6b' + ___.substr(1) + '\x75\x70', i9);
-        net.addEventListener('pointerdown', ev => {
-            if (!a51) {
-                document.dispatchEvent(new Event('ahahah'));
-                document.documentElement.classList.add('ahahah');
-            } else {
-                location.assign('patron-a51.html');
-            }
+    const code = document.querySelector('.button.code');
+    if (code) {
+        code.addEventListener('click', ev => {
+            location.assign('patron-code.html');
         });
     }
 

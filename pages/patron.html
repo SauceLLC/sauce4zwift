@@ -4,7 +4,7 @@
         <meta charset="utf-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
         <meta name="apple-mobile-web-app-capable" content="yes"/>
-        <meta http-equiv="Content-Security-Policy" content="script-src 'self' https://www.youtube.com 'unsafe-inline';"/>
+        <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
 
         <title>Link with Patreon - Sauce for Zwift™</title>
 
@@ -17,32 +17,7 @@
                 font-size: 16px;
             }
 
-            html.ahahah {
-                pointer-events: none;
-            }
-
-            html.ahahah #ahahah {
-                position: fixed;
-                z-index: 1000;
-                visibility: visible;
-                opacity: 1;
-                margin: -100px 0;
-                width: 100%;
-                height: calc(100% + 200px);
-            }
-            #ahahah {
-                z-index: -1000;
-                visibility: hidden;
-                opacity: 0;
-                width: 0;
-                height: 0;
-                pointer-events: none;
-                transition: opacity 1s, visibility 1s;
-                transition-delay: 1s;
-            }
-
             body {
-                border-radius: 0;
                 padding: 2em;
                 display: flex;
                 align-items: center;
@@ -61,6 +36,12 @@
                 justify-content: center;
             }
 
+            .note {
+                text-align: center;
+                font-size: 0.9em;
+                padding: 1em 0;
+            }
+
             body > main {
                 display: flex;
                 align-items: center;
@@ -68,40 +49,17 @@
                 flex-direction: column;
             }
 
-            .big-button { 
-                border-radius: 0.3em;
-                padding: 0.4em 1em;
-                margin-top: 1em;
-                margin-bottom: 1em;
-                border: none;
-                font-size: 18px;
-                opacity: 0.88;
-                background-color: #fffe;
-                outline: none; 
-                cursor: pointer;
-                user-select: none;
-                transition: 200ms opacity, 100ms box-shadow;
-            }
-            .big-button:hover {
-                opacity: 1;
-                box-shadow: 1px 1px 4px 0 #0004;
-            }
-            .big-button:active {
-                box-shadow: inset 0 0 10px 0 #0009;
-            }
-
             h4, h5 {
                 margin-top: 1em;
                 margin-bottom: 0.5em;
             }
 
-            .net {
-                position: fixed;
-                right: 1.2em;
-                bottom: 1.2em;
-                opacity: 0.6;
-                font-size: 12px;
-                text-decoration: none;
+            .button.primary {
+                margin-bottom: 1em;
+            }
+
+            .button.code {
+                display: inline-block;
             }
         </style>
 
@@ -136,27 +94,6 @@
                     ev.preventDefault();
                     requestAnimationFrame(() => btn.classList.add('pressed'));
                 });
-
-                let yt;
-                window.onYouTubePlayerAPIReady = function() {
-                    yt = new YT.Player('ahahah', {
-                        videoId: 'g_vZasFzMN4',
-                        playerVars: {
-                            cc_load_policy: 0,
-                            controls: 0,
-                            disablekb: 1,
-                            enablejsapi: 1,
-                            fs: 0,
-                            iv_load_policy: 3, // don't show
-                            modestbranding: 1,
-                            rel: 0,
-                        }
-                    });
-                }
-                const script = document.createElement('script');
-                script.src = "https://www.youtube.com/player_api";
-                document.querySelector('head').append(script);
-                document.addEventListener('ahahah', () => yt.playVideo());
             }
             main();
         </script>
@@ -170,15 +107,17 @@
         <main>
             <h4>To use Sauce for Zwift™ you need to be a <a external href="https://www.patreon.com/bePatron?u=32064618"><i>Sauce Member</i> on our Patreon</a> first.</h4>
 
-            <h4>Without this support I will become financially derelict and swiftly banished from society. 😞</h4>
+            <h5>Without this support I will become financially derelict and swiftly banished from society. 😞</h5>
 
-            <h4>Once you've helped to prevent my ruin and make the world an ever so slightly better place use the button below to...</h4>
-            <button class="big-button patron-link">Link with Patreon</button>
+            <br/>
+            <i class="note">NOTE: Facebook login does not work but you can use email/password instead.</i>
 
-            <br/><br/><small>For assistance send an email to
+            <div class="std button xl patron-link primary">Link with Patreon</div>
+
+            <br/>
+            <h5>OR if you have a code: <a href="patron-a51.html" class="std button code">Enter Code</a>
+            <br/><br/><br/><small>For assistance send an email to
             <a external href="mailto:support@saucellc.io">support@saucellc.io</a>.</small>
         </main>
-        <a class="net" href="javascript:void(0)">π</a>
-        <div id="ahahah"></div>
     </body>
 </html>
