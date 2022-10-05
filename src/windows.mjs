@@ -717,8 +717,8 @@ export async function showReleaseNotes() {
 export async function zwiftLogin(options) {
     const win = makeCaptiveWindow({
         page: options.monitor ? 'zwift-monitor-login.html' : 'zwift-login.html',
-        width: 460,
-        height: 600,
+        width: options.monitor ? 500 : 460,
+        height: options.monitor ? 720 : 500,
         show: false,
     }, {
         preload: path.join(appPath, 'src', 'preload', 'zwift-login.js'),
