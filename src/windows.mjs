@@ -447,6 +447,16 @@ function getBoundsForDisplay(display, {x, y, width, height, aspectRatio}) {
         width = width || defaultWidth;
         height = height || defaultHeight;
     }
+    // Make sure it fits...
+    const finalAspectRatio = width / height;
+    if (width > dSize.width) {
+        width = dSize.width;
+        height = width / finalAspectRatio;
+    }
+    if (height > dSize.height) {
+        height = dSize.height;
+        width = height * finalAspectRatio;
+    }
     ({x, y} = _getPositionForDisplay(display, {x, y, width, height}));
     return {x, y, width, height};
 }
