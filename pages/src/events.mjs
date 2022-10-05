@@ -12,6 +12,9 @@ L.setImperial(imperial);
 function initExpanderTable(table, expandCallback, cleanupCallback) {
     let active;
     table.querySelector('tbody').addEventListener('click', ev => {
+        if (ev.target.closest('a')) {
+            return;
+        }
         const row = ev.target.closest('tr');
         if (!row || row.closest('table') !== table) {
             return;

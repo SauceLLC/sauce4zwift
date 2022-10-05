@@ -29,29 +29,34 @@
             <table class="entrants expandable">
                 <thead>
                     <tr>
-                        <th title="Likely in game now">Active</th>
-                        <th title="Has a power meter">Power</th>
+                        <th></th>
+                        <th>ZP</th>
                         <th>Name</th>
                         <th>Team</th>
                         <th>FTP</th>
                         <th>Weight</th>
-                        <th>ID</th>
                     </tr>
                 </thead>
                 <tbody>
                     <% for (const {id, athlete, likelyInGame} of sg.entrants) { %>
                         <tr data-id="{{id}}" class="summary">
-                            <td><% if (likelyInGame) { %><ms class="in-game">check_circle</ms><% } %></td>
-                            <td><% if (athlete.powerMeter) { %><ms>bolt</ms><% } %></td>
+                            <td>
+                                <% if (athlete.marked) { %><ms class="marked" title="Is marked">bookmark_added</ms><% } %>
+                                <% if (athlete.following) { %><ms class="following" title="You are following">follow_the_signs</ms><% } %>
+                                <% if (likelyInGame) { %><ms title="Likely in game" class="in-game">check_circle</ms><% } %>
+                                <% if (athlete.powerMeter) { %><ms class="power" title="Has power meter">bolt</ms><% } %>
+                                <% if (athlete.gender === 'female') { %><ms class="female" title="Is female">female</ms><% } %>
+                            </td>
+                            <td><a title="Open profile on Zwift Power"
+                                   href="https://zwiftpower.com/profile.php?z={{id}}"
+                                   target="_blank" external><ms>open_in_new</ms></a></td>
                             <td>{{athlete.sanitizedFullname}}</td>
                             <td><% if (athlete.team) { %>{-teamBadge(athlete.team)-}<% } %></td>
                             <td>{-humanPower(athlete.ftp, {suffix: true, html: true})-}</td>
                             <td>{-humanWeightClass(athlete.weight, {suffix: true, html: true})-}</td>
-                            <td><a title="Open profile on Zwift Power"
-                                href="https://zwiftpower.com/profile.php?z={{id}}" target="_blank" external>{{id}}</a></td>
                         </tr>
                         <tr class="details">
-                            <td colspan="7"><div class="container"></div></td>
+                            <td colspan="6"><div class="container"></div></td>
                         </tr>
                     <% } %>
                 </tbody>

@@ -2,8 +2,6 @@
 @import 'charts';
 
 html {
-    font-size: clamp(10px, 7vw, 48px);
-
     &.solid-background {
         background: var(--background-color);
 

@@ -1,6 +1,6 @@
 @use 'color';
 
-$header-height: 0.56in;
+$header-height: 13mm;
 
 @font-face {
     font-family: 'Jost';
@@ -497,14 +497,14 @@ a {
     display: none;
 }
 ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 2.5mm;
+    height: 2.5mm;
 }
 ::-webkit-scrollbar-track {
     background-color: #1114;
 }
 ::-webkit-scrollbar-thumb {
-    border-radius: 4px;
+    border-radius: 1mm;
     background-color: #eeec;
 }
 ::-webkit-scrollbar-thumb:hover {
@@ -525,10 +525,10 @@ html {
     --aspect-ratio: 9 / 16;
     padding: 3px; /* Required in windows to allow resize handles */
     background-color: rgba(127, 127, 127, 0.002); /* Using full transparency breaks on windows */
-    font-size: clamp(10px, 7vw, 30px);
+    font-size: clamp(2.2mm, 7vw, 18mm);
 
     &.use-aspect-ratio {
-        font-size: clamp(10px, 8vw, calc(var(--aspect-ratio) * 8 * 1vh));
+        font-size: clamp(2.2mm, 8vw, calc(var(--aspect-ratio) * 8 * 1vh));
     }
 
     &.browser-mode {
@@ -538,7 +538,10 @@ html {
 
     &.settings-page {
         padding: 0;
-        font-size: 18px;
+
+        &, body {
+            font-size: 4.2mm;
+        }
 
         #content {
             overflow: auto;
@@ -548,7 +551,6 @@ html {
 }
 
 #settings {
-    font-size: 16px;
     padding: 0.5em 0.8em;
     overflow: auto;
     overflow: overlay;
@@ -672,7 +674,7 @@ html body {
 }
 
 html.electron-mode:not(.frame) > body {
-    border-radius: 0.3rem;
+    border-radius: 2mm;
 
     #titlebar header {
         .logo,
@@ -714,7 +716,7 @@ html:not(.settings-page) #titlebar:not(.always-visible) {
 
 /* same size on all windows */
 #hintbar {
-    font-size: 18px;
+    font-size: 5mm;
 }
 
 .button-bar {
@@ -791,7 +793,7 @@ html:not(.settings-page) #titlebar:not(.always-visible) {
     }
 
     header {
-        font-size: 22px;
+        font-size: 5.2mm;
         flex: 0 0 auto;
         max-width: 100%;
         display: flex;
@@ -859,6 +861,14 @@ html:not(.settings-page) #titlebar:not(.always-visible) {
                 filter: invert(1);
             }
         }
+
+        input, select {
+            font-size: 0.7em;
+            margin: 0 0 0 1em;
+            background: #111;
+            color: #fff;
+            border-color: #3333;
+        }
     }
 }
 
@@ -887,6 +897,10 @@ html:not(.settings-page) #titlebar:not(.always-visible) {
     }
 }
 
+a.std.button {
+    text-decoration: none;
+}
+
 .button {
     cursor: pointer;
     opacity: 0.80;
@@ -902,7 +916,7 @@ html:not(.settings-page) #titlebar:not(.always-visible) {
         color: #000;
         color: color.shade(fg, 100%);
         background-image: linear-gradient(180deg, var(--bg-from-color), var(--bg-to-color));
-        border-radius: 0.25rem;
+        border-radius: 0.15rem;
         margin: 0.1rem 0.2rem;
         padding: 0.1rem 1rem;
         box-shadow: none;
@@ -1085,7 +1099,7 @@ dialog {
 footer.legal {
     flex: 1 0 auto;
     padding: 1em;
-    font-size: 12px;
+    font-size: 3.4mm;
     display: flex;
     align-items: flex-end;
     justify-content: center;

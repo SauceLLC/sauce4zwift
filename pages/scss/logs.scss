@@ -1,3 +1,7 @@
+html, body {
+    font-size: 3.5mm;
+}
+
 html {
     &[data-level="info"] {
         table tr[data-level="debug"] {
@@ -22,18 +26,10 @@ html {
 header {
     flex-wrap: wrap;
 
-    input, select {
-        font-size: 0.8em;
-        margin: 0 0 0 1em;
-        background: #111;
-        color: #fff;
-        border-color: #3333;
-    }
-
     .count {
         font-variant: tabular-nums;
         font-weight: 600;
-        font-size: 0.8em;
+        font-size: 0.7em;
         margin: 0 0.6em;
         color: #fffd;
     }
@@ -54,7 +50,6 @@ header {
     scroll-snap-type: y proximity;
 
     table.logs {
-        font-size: 14px;
         width: 100%;
         border-collapse: collapse;
 

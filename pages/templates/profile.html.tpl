@@ -42,12 +42,12 @@
                    data-action="rideon"><ms>thumb_up</ms></a>
                 <% if (athlete.following) { %>
                     <a title="You are following this athlete, click to unfollow" href class="active"
-                       data-action="unfollow"><ms>group</ms></a>
+                       data-action="unfollow"><ms>follow_the_signs</ms></a>
                 <% } else if (athlete.followRequest) { %>
                     <a title="Follow request sent" disabled class=""><ms>pending</ms></a>
                 <% } else { %>
                     <a title="You are not following this athlete, click to follow" href
-                       data-action="follow"><ms>group_add</ms></a>
+                       data-action="follow"><ms>follow_the_signs</ms></a>
                 <% } %>
                 <a title="Toggle marked state for this person.  Marked athletes will receieve extra attention and allow quick filtering.  Recommended for friends or foes in race situations."
                    data-action="toggleMarked" class="{{athlete.marked ? 'active' : ''}}"

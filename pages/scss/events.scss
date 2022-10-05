@@ -3,14 +3,10 @@
 
 html {
     padding: 0;
-
-    body {
-        border-radius: 0 !important;
-    }
 }
 
 html, body {
-    font-size: 14px;
+    font-size: 4.2mm;
 }
 
 #content > table {
@@ -53,6 +49,10 @@ table {
                 font-weight: 600;
             }
 
+            > td.name {
+                max-width: 30vw;
+            }
+
             > td.groups {
                 font-size: 0.7em;
 
@@ -69,7 +69,8 @@ table {
         margin-left: 0.1em;
     }
 
-    th, td {
+    > thead > tr > th,
+    > tbody > tr > td {
         padding: 0.4em;
         text-align: left;
 
@@ -172,7 +173,7 @@ table {
 
     .subgroups {
         .event-subgroup {
-            margin: 1em 0;
+            margin: 1em 0 2em;
             padding: 1em;
             background: #0300001f;
             border-radius: 0.3em;
@@ -184,9 +185,13 @@ table {
                 align-items: center;
 
                 .badge {
-                    font-size: 1.5em;
+                    font-size: 1.4em;
                     margin-right: 0.3em;
                     align-self: flex-start;
+                }
+
+                .name {
+                    font-weight: 600;
                 }
             }
         }
@@ -202,8 +207,22 @@ table {
             }
 
             ms.in-game {
-                color: #25e325;
-                font-weight: 600;
+            }
+
+            ms.power {
+                color: gold;
+            }
+
+            ms.female {
+                color: #eb09eb;
+            }
+
+            ms.following {
+                color: color.get(following);
+            }
+
+            ms.marked {
+                color: color.get(marked);
             }
 
             .details {
@@ -252,16 +271,6 @@ table {
 
 #titlebar {
     position: initial !important;
-
-    header {
-        input[type="text"], select {
-            font-size: 0.8em;
-            margin: 0 0 0 1em;
-            background: #111;
-            color: #fff;
-            border-color: #3333;
-        }
-    }
 }
 
 #content {
@@ -293,9 +302,24 @@ table {
 }
 
 @media only screen and (max-width: 600px)  {
+    html, body {
+        font-size: 3.7mm;
+    }
+
     table {
         table-layout: fixed;
         width: 100%;
+
+        > thead > tr > th,
+        > tbody > tr > td {
+            &:first-child {
+                padding-left: 0.5em;
+            }
+
+            &:last-child {
+                padding-right: 0.5em;
+            }
+        }
 
         td[colspan] {
             padding-top: 0 !important;
@@ -312,9 +336,9 @@ table {
         }
 
         &.events {
+
             > thead > tr > {
-                th.name,
-                th.id {
+                th.name {
                     visibility: hidden;
                     width: 0;
                     padding: 0;
@@ -322,21 +346,19 @@ table {
                 }
             }
 
-            > tbody > tr {
+            > tbody > tr.summary {
                 position: relative;
 
-                > td.id {
-                    visibility: hidden;
-                    width: 0;
-                    padding: 0;
-                    margin: 0;
+                &.expanded > td.name {
+                    padding-top: 0.2em;
                 }
 
                 > td.name {
+                    max-width: initial;
                     position: absolute;
                     top: 0.2em;
-                    left: 0.1em;
-                    width: calc(100% - 0.2em);
+                    left: 0.4em;
+                    width: calc(100% - 0.8em);
                     font-weight: 500;
                     overflow: hidden;
                     text-overflow: ellipsis;
@@ -344,11 +366,23 @@ table {
                 }
 
                 > td:not(.name) {
-                    padding-top: 3rem;
+                    padding-top: 2.1rem;
+                    padding-bottom: 0.5rem;
+                }
+            }
+        }
 
-                    &:first-child {
-                        padding-left: 0.5em;
-                    }
+        .subgroups .event-subgroup header .name {
+            padding: 0.7em 0.2em 0;
+        }
+
+        &.entrants {
+            > thead > tr {
+                th.active,
+                th.power {
+                    opacity: 0;
+                    visibility: hidden;
+                    width: 1em;
                 }
             }
         }
