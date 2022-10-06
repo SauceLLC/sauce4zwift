@@ -1,15 +1,16 @@
 <% for (const x of obj) { %>
-    <a class="card athlete" href="profile.html?id={{x.id}}&width=800&height=320" target="profile">
+    <% const athlete = x.athlete || {}; %>
+    <a class="card athlete {{athlete.marked ? 'marked' : ''}} {{athlete.following ? 'following' : ''}} {{athlete.follower ? 'follower' : ''}}"
+       href="profile.html?id={{x.id}}&width=800&height=320" target="profile">
         <% if (x.athlete) { %>
-            <% const a = x.athlete; %>
             <div class="avatar">
-                <% if (a.avatar) { %>
-                    <img src="{{a.avatar}}"/>
+                <% if (athlete.avatar) { %>
+                    <img src="{{athlete.avatar}}"/>
                 <% } else {%>
                     <img src="images/blankavatar.png"/>
                 <% } %>
             </div>
-            <div class="line">{{a.sanitizedFullname}}</div>
+            <div class="line">{{athlete.sanitizedFullname}}</div>
         <% } else if (x.profile) { %>
             <% const p = x.profile; %>
             <div class="avatar">

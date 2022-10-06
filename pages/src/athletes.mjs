@@ -64,7 +64,7 @@ export async function main() {
     const athleteCards = await athleteCardsPromise;
     const contentEl = document.querySelector('#content');
     await Promise.all([
-        common.rpc.getFolloweeAthletes().then(async x =>
+        common.rpc.getFollowingAthletes().then(async x =>
             contentEl.querySelector('section.following .cards').append(await athleteCards(x))),
         common.rpc.getFollowerAthletes().then(async x =>
             contentEl.querySelector('section.followers .cards').append(await athleteCards(x))),
