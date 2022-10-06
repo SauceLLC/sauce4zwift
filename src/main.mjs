@@ -276,6 +276,8 @@ class SauceApp extends EventEmitter {
         rpc.register(function() {
             _this._resetStorageState.call(_this, /*sender*/ this);
         }, {name: 'resetStorageState'});
+        rpc.register(() => electron.session.defaultSession.flushStorageData(),
+            {name: 'flushSessionStorage'});
         registerRPCMethods(this, 'getSetting', 'setSetting', 'pollMetrics', 'getDebugInfo',
             'getGameConnectionStatus');
     }

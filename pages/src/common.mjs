@@ -501,6 +501,13 @@ export class Renderer {
 }
 
 
+let storageFlushTimeout;
+function schedStorageFlush() {
+    clearTimeout(storageFlushTimeout);
+    storageFlushTimeout = setTimeout(() => rpcCall('flushSessionStorage'), 500);
+}
+
+
 class LocalStorage extends EventTarget {
     constructor() {
         super();
@@ -545,6 +552,7 @@ class LocalStorage extends EventTarget {
         key = key[0] === '/' ? key : this.prefix + key;
         if (value === undefined) {
             localStorage.removeItem(key);
+            schedStorageFlush();
         } else {
             this._set(key, value);
         }
@@ -556,11 +564,13 @@ class LocalStorage extends EventTarget {
             throw new TypeError('Non JSON serializable value');
         }
         localStorage.setItem(fqKey, json);
+        schedStorageFlush();
     }
 
     delete(key) {
         key = key[0] === '/' ? key : this.prefix + key;
         localStorage.removeItem(key);
+        schedStorageFlush();
     }
 }
 export const storage = new LocalStorage();
