@@ -66,14 +66,57 @@ body {
             flex-wrap: wrap;
         }
 
+        $markedGradient: linear-gradient(135deg, color.get(marked, 100%), color.get(marked, 100%) 8%, transparent 8%);
+        $followerGradient: linear-gradient(-135deg, color.get(follower, 80%), color.get(follower, 80%) 8%, transparent 8%);
+        $followingGradient: linear-gradient(-135deg, color.get(following, 80%), color.get(following, 80%) 8%, transparent 8%);
+        $followingGradientAlt: linear-gradient(135deg, color.get(following, 80%), color.get(following, 80%) 8%, transparent 8%);
+
         &.following .card {
             background-color: color.shade(following, 0%, 60%);
+
+            &.follower {
+                background-image: $followerGradient;
+            }
+
+            &.marked {
+                background-image: $markedGradient;
+            }
+
+            &.follower.marked {
+                background-image: $followerGradient, $markedGradient;
+            }
         }
+
         &.marked .card {
             background-color: color.get(marked, 50%);
+
+            &.follower {
+                background-image: $followerGradient;
+            }
+
+            &.following {
+                background-image: $followingGradientAlt;
+            }
+
+            &.follower.following {
+                background-image: $followerGradient, $followingGradientAlt;
+            }
         }
+
         &.followers .card {
-            background-color: color.get(bg, 30%);
+            background-color: color.get(follower, 50%);
+
+            &.following {
+                background-image: $followingGradient;
+            }
+
+            &.marked {
+                background-image: $markedGradient;
+            }
+
+            &.following.marked {
+                background-image: $followingGradient, $markedGradient;
+            }
         }
     }
 }
