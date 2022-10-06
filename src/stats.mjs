@@ -239,7 +239,7 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.resetStats, {scope: this});
         rpc.register(this.exportFIT, {scope: this});
         rpc.register(this.getAthlete, {scope: this});
-        rpc.register(this.getFolloweeAthletes, {scope: this});
+        rpc.register(this.getFollowingAthletes, {scope: this});
         rpc.register(this.getFollowerAthletes, {scope: this});
         rpc.register(this.getMarkedAthletes, {scope: this});
         rpc.register(this.searchAthletes, {scope: this});
@@ -509,6 +509,7 @@ export class StatsProcessor extends events.EventEmitter {
             powerMeter,
         };
         if (p.socialFacts) {
+            o.follower = p.socialFacts.followeeStatusOfLoggedInPlayer === 'IS_FOLLOWING';
             o.following = p.socialFacts.followerStatusOfLoggedInPlayer === 'IS_FOLLOWING';
             o.followRequest = p.socialFacts.followerStatusOfLoggedInPlayer === 'REQUESTS_TO_FOLLOW';
             o.favorite = p.socialFacts.isFavoriteOfLoggedInPlayer;
@@ -608,8 +609,8 @@ export class StatsProcessor extends events.EventEmitter {
         }));
     }
 
-    async getFolloweeAthletes() {
-        return (await this.zwiftAPI.getFollowees(this.athleteId)).map(x => ({
+    async getFollowingAthletes() {
+        return (await this.zwiftAPI.getFollowing(this.athleteId)).map(x => ({
             id: x.followeeProfile.id,
             profile: x.followeeProfile,
             athlete: this.loadAthlete(x.followeeProfile.id)
@@ -1011,9 +1012,9 @@ export class StatsProcessor extends events.EventEmitter {
         // at startup to try and fill in the gaps.
         setTimeout(this._zwiftMetaSync.bind(this), this._zwiftMetaRefresh);
         this._zwiftMetaRefresh = Math.min(30 * 60 * 1000, this._zwiftMetaRefresh * 2);
-        const followees = await this.zwiftAPI.getFollowees(this.athleteId);
+        const following = await this.zwiftAPI.getFollowing(this.athleteId);
         const updates = [];
-        for (const x of followees) {
+        for (const x of following) {
             const p = x.followeeProfile;
             if (p) {
                 updates.push([p.id, this._updateAthlete(p.id, this._profileToAthlete(p))]);

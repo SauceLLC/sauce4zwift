@@ -520,7 +520,7 @@ export class ZwiftAPI {
         });
     }
 
-    async getFollowees(athleteId, options={}) {
+    async getFollowing(athleteId, options={}) {
         return await this.fetchPaged(`/api/profiles/${athleteId}/followees`);
     }
 
