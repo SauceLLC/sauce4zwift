@@ -101,7 +101,7 @@ message PayloadSegmentResult {
     int64 id = 1;
     int32 athleteId = 2;
     int32 realm = 3;
-    int32 courseId = 4; // XXX double check this is relay server course
+    int32 worldId = 4;
     uint64 _unsignedSegmentId = 5;
     uint32 eventSubgroupId = 6;
     string firstName = 7;

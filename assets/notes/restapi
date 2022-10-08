@@ -1,1 +1,0 @@
-await zwiftAPI.fetchJSON('/api/events/subgroups/entrants/3748351?type=all&participation=registered')
