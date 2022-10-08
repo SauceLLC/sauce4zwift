@@ -86,11 +86,11 @@ const worldCourseDescs = [
     {worldId: 5, courseId: 9, name: 'Innsbruck'},
     {worldId: 6, courseId: 10, name: 'Bologna'},
     {worldId: 7, courseId: 11, name: 'Yorkshire'},
-    {worldId: 8, courseId: 12, name: 'Crit City'}, // XXX guess
+    {worldId: 8, courseId: 12, name: 'Crit City'},
     {worldId: 9, courseId: 13, name: 'Makuri Islands'},
     {worldId: 10, courseId: 14, name: 'France'},
     {worldId: 11, courseId: 15, name: 'Paris'},
-    {worldId: 12, courseId: 16, name: 'Gravel Mountain'}, // XXX guess
+    {worldId: 12, courseId: 16, name: 'Gravel Mountain'},
 ];
 export const courseToWorldIds = Object.fromEntries(worldCourseDescs.map(x => [x.courseId, x.worldId]));
 export const worldToCourseIds = Object.fromEntries(worldCourseDescs.map(x => [x.worldId, x.courseId]));
