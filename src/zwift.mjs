@@ -505,7 +505,9 @@ export class ZwiftAPI {
         if (options.best) {
             query['only-best'] = 'true';
         }
-        return (await this.fetchPB('/api/segment-results', {query, protobuf: 'SegmentResults'})).results;
+        const data = (await this.fetchPB('/api/segment-results', {query, protobuf: 'SegmentResults'})).results;
+        data.sort((a, b) => a.elapsed - b.elapsed);
+        return data;
     }
 
     async getGameInfo() {
