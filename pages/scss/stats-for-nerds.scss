@@ -38,7 +38,7 @@
             .entry {
                 display: flex;
                 align-items: baseline;
-                color: color.shade(fg, 3%);
+                color: color.shade(fg-alt, 3%);
                 
                 key, value {
                     display: block;
