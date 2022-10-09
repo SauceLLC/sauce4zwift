@@ -48,6 +48,11 @@ $header-height: 13mm;
     --theme-bookend-light: 13%;
     --theme-bookend-shade-dir: 1;
 
+    --theme-fg-hue: 0;
+    --theme-fg-sat: 0%;
+    --theme-fg-light: 100%;
+    --theme-fg-shade-dir: -1;
+
     --theme-bg-hue: 0;
     --theme-bg-sat: 100%;
     --theme-bg-light: 36%;
@@ -58,6 +63,11 @@ $header-height: 13mm;
     --theme-bg2-light: 15%;
     --theme-bg2-shade-dir: 1;
 
+    --theme-fg-alt-hue: 0;
+    --theme-fg-alt-sat: 0%;
+    --theme-fg-alt-light: 100%;
+    --theme-fg-alt-shade-dir: -1;
+ 
     --theme-bg-alt-hue: 235;
     --theme-bg-alt-sat: 96%;
     --theme-bg-alt-light: 4%;
@@ -67,11 +77,6 @@ $header-height: 13mm;
     --theme-bg-alt2-sat: 80%;
     --theme-bg-alt2-light: 15%;
     --theme-bg-alt2-shade-dir: 1;
-
-    --theme-fg-hue: 0;
-    --theme-fg-sat: 0%;
-    --theme-fg-light: 100%;
-    --theme-fg-shade-dir: -1;
 
     --theme-primary-hue: 212;
     --theme-primary-sat: 100%;
@@ -118,11 +123,6 @@ html[data-theme="bluepink"] {
     --theme-bg2-light: 27%;
     --theme-bg2-shade-dir: 1;
 
-    --theme-fg-hue: 0;
-    --theme-fg-sat: 0%;
-    --theme-fg-light: 100%;
-    --theme-fg-shade-dir: -1;
-
     --theme-primary-hue: 354;
     --theme-primary-sat: 87%;
     --theme-primary-light: 52%;
@@ -158,11 +158,6 @@ html[data-theme="burgundy"] {
     --theme-bg-alt2-light: 10%;
     --theme-bg-alt2-shade-dir: 1;
 
-    --theme-fg-hue: 0;
-    --theme-fg-sat: 0%;
-    --theme-fg-light: 100%;
-    --theme-fg-shade-dir: -1;
-
     --theme-primary-hue: 20;
     --theme-primary-sat: 100%;
     --theme-primary-light: 40%;
@@ -188,11 +183,6 @@ html[data-theme="green"] {
     --theme-bg2-light: 0%;
     --theme-bg2-shade-dir: 1;
 
-    --theme-fg-hue: 0;
-    --theme-fg-sat: 0%;
-    --theme-fg-light: 100%;
-    --theme-fg-shade-dir: -1;
-
     --theme-primary-hue: 0;
     --theme-primary-sat: 0%;
     --theme-primary-light: 10%;
@@ -210,41 +200,61 @@ html[data-theme="green"] {
 html[data-theme="light"] {
     --theme-base-color: #fff;
 
-    --theme-bg-hue: 0;
-    --theme-bg-sat: 0%;
-    --theme-bg-light: 98%;
-    --theme-bg-shade-dir: -1;
-
-    --theme-bg2-hue: 0;
-    --theme-bg2-sat: 0%;
-    --theme-bg2-light: 82%;
-    --theme-bg2-shade-dir: -1;
-
-    --theme-bg-alt-hue: 0;
-    --theme-bg-alt-sat: 10%;
-    --theme-bg-alt-light: 90%;
-    --theme-bg-alt-shade-dir: -1;
-
-    --theme-bg-alt2-hue: 0;
-    --theme-bg-alt2-sat: 12%;
-    --theme-bg-alt2-light: 81%;
-    --theme-bg-alt2-shade-dir: -1;
+    --theme-bookend-hue: 5;
+    --theme-bookend-sat: 80%;
+    --theme-bookend-light: 30%;
+    --theme-bookend-shade-dir: 1;
 
     --theme-fg-hue: 0;
     --theme-fg-sat: 0%;
     --theme-fg-light: 15%;
     --theme-fg-shade-dir: 1;
+
+    --theme-bg-hue: 0;
+    --theme-bg-sat: 0%;
+    --theme-bg-light: 100%;
+    --theme-bg-shade-dir: -1;
+
+    --theme-bg2-hue: 0;
+    --theme-bg2-sat: 0%;
+    --theme-bg2-light: 84%;
+    --theme-bg2-shade-dir: -1;
+
+    --theme-fg-alt-hue: 0;
+    --theme-fg-alt-sat: 0%;
+    --theme-fg-alt-light: 15%;
+    --theme-fg-alt-shade-dir: -1;
+
+    --theme-bg-alt-hue: 0;
+    --theme-bg-alt-sat: 0%;
+    --theme-bg-alt-light: 100%;
+    --theme-bg-alt-shade-dir: 1;
+
+    --theme-bg-alt2-hue: 0;
+    --theme-bg-alt2-sat: 0%;
+    --theme-bg-alt2-light: 80%;
+    --theme-bg-alt2-shade-dir: 1;
 
     --theme-button-bar-top-left: #aaac;
     --theme-button-bar-bottom-right: #ccc;
 }
 
 html[data-theme="transparent-light"] {
-    &:not(.settings-mode):not(.settings-page):not(.frame) body:not(.transparent-bg) {
+    &:not(.settings-mode):not(.settings-page):not(.frame) body:not(.transparent-bg):not(.alt-background) {
         --bg-opacity: 0;
     }
 
     --theme-base-color: transparent;
+
+    --theme-bookend-hue: 5;
+    --theme-bookend-sat: 80%;
+    --theme-bookend-light: 30%;
+    --theme-bookend-shade-dir: 1;
+
+    --theme-fg-hue: 0;
+    --theme-fg-sat: 0%;
+    --theme-fg-light: 15%;
+    --theme-fg-shade-dir: 1;
 
     --theme-bg-hue: 0;
     --theme-bg-sat: 0%;
@@ -256,20 +266,20 @@ html[data-theme="transparent-light"] {
     --theme-bg2-light: 82%;
     --theme-bg2-shade-dir: -1;
 
+    --theme-fg-alt-hue: 0;
+    --theme-fg-alt-sat: 0%;
+    --theme-fg-alt-light: 15%;
+    --theme-fg-alt-shade-dir: -1;
+
     --theme-bg-alt-hue: 0;
-    --theme-bg-alt-sat: 10%;
-    --theme-bg-alt-light: 90%;
-    --theme-bg-alt-shade-dir: -1;
+    --theme-bg-alt-sat: 0%;
+    --theme-bg-alt-light: 100%;
+    --theme-bg-alt-shade-dir: 1;
 
     --theme-bg-alt2-hue: 0;
-    --theme-bg-alt2-sat: 12%;
-    --theme-bg-alt2-light: 81%;
-    --theme-bg-alt2-shade-dir: -1;
-
-    --theme-fg-hue: 0;
-    --theme-fg-sat: 0%;
-    --theme-fg-light: 15%;
-    --theme-fg-shade-dir: 1;
+    --theme-bg-alt2-sat: 0%;
+    --theme-bg-alt2-light: 80%;
+    --theme-bg-alt2-shade-dir: 1;
 
     --theme-button-bar-top-left: #aaac;
     --theme-button-bar-bottom-right: #ccc;
@@ -278,6 +288,11 @@ html[data-theme="transparent-light"] {
 html[data-theme="dark"] {
     --theme-base-color: #000;
 
+    --theme-fg-hue: 0;
+    --theme-fg-sat: 0%;
+    --theme-fg-light: 90%;
+    --theme-fg-shade-dir: -1;
+
     --theme-bg-hue: 0;
     --theme-bg-sat: 0%;
     --theme-bg-light: 2%;
@@ -287,22 +302,22 @@ html[data-theme="dark"] {
     --theme-bg2-sat: 0%;
     --theme-bg2-light: 18%;
     --theme-bg2-shade-dir: 1;
-
-    --theme-fg-hue: 0;
-    --theme-fg-sat: 0%;
-    --theme-fg-light: 90%;
-    --theme-fg-shade-dir: -1;
 
     --theme-button-bar-top-left: #333c;
     --theme-button-bar-bottom-right: #555e;
 }
 
 html[data-theme="transparent-dark"] {
-    &:not(.settings-mode):not(.settings-page):not(.frame) body:not(.transparent-bg) {
+    &:not(.settings-mode):not(.settings-page):not(.frame) body:not(.transparent-bg):not(.alt-background) {
         --bg-opacity: 0;
     }
 
     --theme-base-color: transparent;
+
+    --theme-fg-hue: 0;
+    --theme-fg-sat: 0%;
+    --theme-fg-light: 90%;
+    --theme-fg-shade-dir: -1;
 
     --theme-bg-hue: 0;
     --theme-bg-sat: 0%;
@@ -313,11 +328,6 @@ html[data-theme="transparent-dark"] {
     --theme-bg2-sat: 0%;
     --theme-bg2-light: 18%;
     --theme-bg2-shade-dir: 1;
-
-    --theme-fg-hue: 0;
-    --theme-fg-sat: 0%;
-    --theme-fg-light: 90%;
-    --theme-fg-shade-dir: -1;
 
     --theme-button-bar-top-left: #333b;
     --theme-button-bar-bottom-right: #555e;
@@ -325,33 +335,49 @@ html[data-theme="transparent-dark"] {
 
 html[data-theme="aqua"] {
     --theme-base-color: #99f;
-    --theme-bookend-hue: 184;
-    --theme-bookend-sat: 47%;
-    --theme-bg-hue: 177;
-    --theme-bg-sat: 71%;
-    --theme-bg-light: 70%;
-    --theme-bg2-hue: 203;
-    --theme-bg2-light: 30%;
+
     --theme-fg-hue: 20;
     --theme-fg-sat: 30%;
     --theme-fg-light: 10%;
     --theme-fg-shade-dir: 1;
+
+    --theme-bookend-hue: 184;
+    --theme-bookend-sat: 47%;
+
+    --theme-bg-hue: 177;
+    --theme-bg-sat: 71%;
+    --theme-bg-light: 70%;
+
+    --theme-bg2-hue: 203;
+    --theme-bg2-light: 30%;
+
+    --theme-fg-alt-hue: 0;
+    --theme-fg-alt-sat: 0%;
+    --theme-fg-alt-light: 100%;
+    --theme-fg-alt-shade-dir: -1;
+
     --theme-button-bar-top-left: #08c4a8de;
     --theme-button-bar-bottom-right: #120d87de;
 }
 
 html[data-theme="watermelon"] {
     --theme-base-color: #ff1300;
+
+    --theme-fg-light: 10%;
+    --theme-fg-shade-dir: 1;
+
     --theme-bookend-hue: 10;
     --theme-bookend-sat: 100%;
     --theme-bookend-light: 30%;
+
     --theme-bg-hue: 118;
+
     --theme-bg2-hue: 148;
     --theme-bg2-sat: 98%;
     --theme-bg2-light: 69%;
-    --theme-fg-light: 10%;
-    --theme-fg-shade-dir: 1;
+
     --theme-primary-hue: 235;
+
     --theme-button-bar-top-left: #eb0101de;
     --theme-button-bar-bottom-right: #782f00de;
 }
@@ -672,6 +698,7 @@ html body {
         color.get(bg2, calc(var(--bg-opacity) * 100%)));
 
     &.alt-background {
+        color: color.get(fg-alt);
         background-image: linear-gradient(135deg,
             color.get(bg-alt, calc(var(--bg-opacity) * 100%)),
             color.get(bg-alt2, calc(var(--bg-opacity) * 100%)));
