@@ -1,9 +1,9 @@
 import * as sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
 import * as echarts from '../deps/src/echarts.mjs';
-import {theme} from './echarts-sauce-theme.mjs';
+import {cssColor, getTheme} from './echarts-sauce-theme.mjs';
 
-echarts.registerTheme('sauce', theme);
+echarts.registerTheme('sauce', getTheme('dynamic'));
 
 const doc = document.documentElement;
 const type = (new URLSearchParams(location.search)).get('t') || 'power';
@@ -165,6 +165,7 @@ const settings = settingsStore.get(null, {
     ...config.defaultSettings,
 });
 common.themeInit(settingsStore);
+doc.classList.remove('hidden-during-load');
 
 
 function setBackground() {
@@ -185,9 +186,7 @@ export async function main() {
     common.initInteractionListeners();
     setBackground();
     const content = document.querySelector('#content');
-    const gauge = echarts.init(content.querySelector('.gauge'), 'sauce', {
-        renderer: location.search.includes('svg') ? 'svg' : 'canvas',
-    });
+    const gauge = echarts.init(content.querySelector('.gauge'), 'sauce', {renderer: 'svg'});
     let relSize;
     const initGauge = () => {
         // Can't use em for most things on gauges. :(
@@ -314,19 +313,19 @@ export async function main() {
                 detail: {
                     valueAnimation: true,
                     formatter: config.detailFormatter,
-                    textShadowColor: '#000',
-                    textShadowBlur: 3 * relSize,
+                    textShadowColor: cssColor('fg', 1, 0.4),
+                    textShadowBlur: 1 * relSize,
                     offsetCenter: [0, '33%'],
                     rich: {
                         value: {
-                            color: '#fffd',
+                            color: cssColor('fg', 0),
                             fontSize: 80 * relSize,
                             fontWeight: 'bold',
                             lineHeight: 60 * relSize,
                         },
                         unit: {
-                            fontSize: 20 * relSize,
-                            color: '#fff9',
+                            fontSize: 18 * relSize,
+                            color: cssColor('fg', 0, 0.88),
                             lineHeight: 16 * relSize,
                         }
                     }
@@ -347,11 +346,11 @@ export async function main() {
                 name: config.name,
                 title: {
                     offsetCenter: [0, '-20%'],
-                    color: '#fff9',
+                    color: cssColor('fg', 0, 0.9),
                     fontSize: 50 * relSize,
                     fontWeight: 700,
-                    textShadowColor: '#0009',
-                    textShadowBlur: 3 * relSize,
+                    textShadowColor: cssColor('fg', 1, 0.4),
+                    textShadowBlur: 2 * relSize,
                 },
                 value: config.getValue(data),
             }];

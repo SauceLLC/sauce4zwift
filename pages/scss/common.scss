@@ -52,6 +52,10 @@ html {
         }
     }
 
+    &.hidden-during-load {
+        display: none;
+    }
+
     &.electron-mode {
         &:not(:hover) > body.transparent-bg {
             --bg-opacity: 0;

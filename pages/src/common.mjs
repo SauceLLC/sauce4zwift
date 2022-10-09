@@ -83,7 +83,6 @@ if (window.isElectron) {
     });
 } else {
     windowID = new URLSearchParams(location.search).get('id') || 'browser-def-id';
-    doc.classList.add('browser-mode');
     const respHandlers = new Map();
     const subs = new Map();
     let uidInc = 1;
@@ -867,7 +866,7 @@ export function fmtBattery(pct, options={}) {
 
 
 export async function initNationFlags() {
-    const r = await fetch('deps/src/countries.json');
+    const r = await fetch('../shared/deps/data/countries.json');
     if (!r.ok) {
         throw new Error('Failed to get country data: ' + r.status);
     }

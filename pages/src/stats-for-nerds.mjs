@@ -1,9 +1,9 @@
 import * as sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
 import * as echarts from '../deps/src/echarts.mjs';
-import {theme} from './echarts-sauce-theme.mjs';
+import {cssColor, getTheme} from './echarts-sauce-theme.mjs';
 
-echarts.registerTheme('sauce', theme);
+echarts.registerTheme('sauce', getTheme('dynamic-alt'));
 
 const L = sauce.locale;
 const H = L.human;
@@ -24,9 +24,7 @@ async function makeMetricCharts(proc, el) {
     gaugeEl.classList.add('chart',  'gauge');
     el.appendChild(lineEl);
     el.appendChild(gaugeEl);
-    const lineChart = echarts.init(lineEl, 'sauce', {
-        renderer: location.search.includes('svg') ? 'svg' : 'canvas',
-    });
+    const lineChart = echarts.init(lineEl, 'sauce', {renderer: 'svg'});
     const cpuSoftCeil = 100;
     const memSoftCeil = 2048;
     const options = {
@@ -113,9 +111,7 @@ async function makeMetricCharts(proc, el) {
         }]
     };
     lineChart.setOption(options);
-    const gaugeChart = new echarts.init(gaugeEl, 'sauce', {
-        renderer: location.search.includes('svg') ? 'svg' : 'canvas',
-    });
+    const gaugeChart = new echarts.init(gaugeEl, 'sauce', {renderer: 'svg'});
     const commonGaugeSeries = {
         type: 'gauge',
         radius: '95%',
@@ -337,11 +333,9 @@ export async function main() {
             });
             const gaugeTitle = {
                 offsetCenter: [0, '-40%'],
-                color: '#fffa',
+                color: cssColor('fg-alt', 0, 0.9),
                 fontSize: 12,
                 fontWeight: 700,
-                textShadowColor: '#000',
-                textShadowBlur: 3,
             };
             charts.gauge.setOption({
                 series: [{

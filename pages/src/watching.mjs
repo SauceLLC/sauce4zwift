@@ -1,10 +1,5 @@
 import * as sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
-import * as charts from './charts.mjs';
-import * as echarts from '../deps/src/echarts.mjs';
-import {theme} from './echarts-sauce-theme.mjs';
-
-echarts.registerTheme('sauce', theme);
 
 common.settingsStore.setDefault({
     lockedFields: false,
@@ -162,10 +157,17 @@ function makeSmoothHRField(period) {
 }
 
 
-function createStatHistoryChart(el, sectionId) {
-    const lineChart = echarts.init(el, 'sauce', {
-        renderer: location.search.includes('svg') ? 'svg' : 'canvas',
-    });
+let _themeRegistered = 0;
+async function createStatHistoryChart(el, sectionId) {
+    const [charts, echarts, theme] = await Promise.all([
+        import('./charts.mjs'),
+        import('../deps/src/echarts.mjs'),
+        import('./echarts-sauce-theme.mjs'),
+    ]);
+    if (!_themeRegistered++) {
+        echarts.registerTheme('sauce', theme.getTheme('dynamic'));
+    }
+    const lineChart = echarts.init(el, 'sauce', {renderer: 'svg'});
     const powerSoftDomain = [0, 700];
     const hrSoftDomain = [70, 190];
     const paceSoftDomain = [0, 100];
@@ -694,7 +696,7 @@ export async function main() {
                     });
                 }
             } else if (sectionType === 'line-chart') {
-                const lineChart = createStatHistoryChart(
+                const lineChart = await createStatHistoryChart(
                     sectionEl.querySelector('.chart-holder.ec'),
                     sectionEl.dataset.sectionId);
                 bindLineChart(lineChart, renderer);
