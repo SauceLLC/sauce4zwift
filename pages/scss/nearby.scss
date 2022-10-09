@@ -15,19 +15,13 @@ html {
 }
 
 html:not(.overlay-mode) {
-    padding: 0;
-
     .overlay-only {
         display: none !important;
     }
-
-    header .app-drag {
-        cursor: initial !important;
-    }
 }
 
-html, body {
-    font-size: 14px;
+html {
+    font-size: 3.75mm;
 }
 
 html:not(.game-connection) {

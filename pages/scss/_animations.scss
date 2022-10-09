@@ -1,0 +1,36 @@
+:root {
+    --tilt: 0deg;
+}
+
+@keyframes pournshake {
+    0%,
+    60%,
+    100% { transform: translate(0, 0)           rotate(var(--tilt))      scale(1);   }
+    30%  { transform: translate(0, 0)           rotate(calc(var(--tilt) + 180deg)) scale(1.2); }
+    32%  { transform: translate(0.2em, 0.2em)   rotate(calc(var(--tilt) + 185deg)) scale(1.2); }
+    34%  { transform: translate(-0.2em, 0)      rotate(calc(var(--tilt) + 175deg)) scale(0.8); }
+    36%  { transform: translate(0.2em, 0.1em)   rotate(calc(var(--tilt) + 180deg)) scale(1.2); }
+    38%  { transform: translate(-0.2em, -0.2em) rotate(calc(var(--tilt) + 185deg)) scale(0.8); }
+    40%  { transform: translate(0.2em, 0.2em)   rotate(calc(var(--tilt) + 185deg)) scale(1.2); }
+    42%  { transform: translate(-0.2em, 0)      rotate(calc(var(--tilt) + 175deg)) scale(0.8); }
+    44%  { transform: translate(0.2em, 0.1em)   rotate(calc(var(--tilt) + 180deg)) scale(1.2); }
+    46%  { transform: translate(-0.2em, -0.2em) rotate(calc(var(--tilt) + 185deg)) scale(0.8); }
+}
+
+@keyframes highlight {
+    from {
+        filter: brightness(1);
+    }
+
+    33% {
+        filter: brightness(0.80);
+    }
+
+    66% {
+        filter: brightness(1.20);
+    }
+
+    to {
+        filter: brightness(1);
+    }
+}
