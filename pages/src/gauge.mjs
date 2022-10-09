@@ -12,6 +12,7 @@ const title = {
     hr: 'Heart Rate Gauge',
     draft: 'Draft Gauge',
     pace: 'Pace Gauge',
+    cadence: 'Cadence Gauge',
     wbal: 'W\'bal Gauge',
 }[type];
 const L = sauce.locale;
@@ -96,6 +97,19 @@ const gaugeConfigs = {
         detailFormatter: x => `{value|${H.pace(x, {precision: 0})}}\n{unit|${imperial ? 'mph' : 'kph'}}`,
         longPeriods: true,
     },
+    cadence: {
+        name: 'Cadence',
+        color: '#ee3',
+        ticks: 10,
+        defaultSettings: {
+            min: 40,
+            max: 140,
+        },
+        getValue: x => x.state.cadence,
+        getLabel: H.number,
+        detailFormatter: x => `{value|${H.number(x)}}\n{unit|rpm}`,
+        longPeriods: true,
+    },
     draft: {
         name: 'Draft',
         color: '#930',
@@ -150,9 +164,7 @@ const settings = settingsStore.get(null, {
     backgroundColor: '#00ff00',
     ...config.defaultSettings,
 });
-if (settings.themeOverride) {
-    doc.dataset.theme = settings.themeOverride;
-}
+common.themeInit(settingsStore);
 
 
 function setBackground() {
@@ -357,9 +369,6 @@ export async function main() {
         if (changed.has('/imperialUnits')) {
             imperial = ev.data.value;
             L.setImperial(imperial);
-        }
-        if (changed.has('themeOverride')) {
-            doc.dataset.theme = settings.themeOverride || settingsStore.get('/theme');
         }
         setBackground();
         renderer.fps = 1 / settings.refreshInterval;
