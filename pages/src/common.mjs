@@ -657,6 +657,9 @@ export class SettingsStore extends EventTarget {
             // global
             this._storage.set(key, value);
         }
+        const ev = new Event('set');
+        ev.data = {key, value};
+        this.dispatchEvent(ev);
     }
 
     delete(key) {
@@ -666,6 +669,9 @@ export class SettingsStore extends EventTarget {
         } else {
             this._storage.delete(key);
         }
+        const ev = new Event('delete');
+        ev.data = {key};
+        this.dispatchEvent(ev);
     }
 }
 export const settingsStore = doc.dataset.settingsKey && new SettingsStore(doc.dataset.settingsKey);
@@ -907,6 +913,34 @@ export const rpc = new Proxy({}, {
 });
 
 
+export function themeInit(settingsStore) {
+    const themeOverride = settingsStore.get('themeOverride');
+    if (themeOverride) {
+        doc.dataset.theme = themeOverride;
+    } else if (!window.isElectron) {
+        // Electron already did this in preload to avoid paint flashing.
+        const theme = settingsStore.get('/theme');
+        if (theme) {
+            doc.dataset.theme = theme;
+        }
+    }
+    // For remote updates...
+    settingsStore.addEventListener('changed', ev => {
+        const changed = ev.data.changed;
+        if (changed.has('themeOverride') || changed.has('/theme')) {
+            doc.dataset.theme = settingsStore.get('themeOverride') || settingsStore.get('/theme') || '';
+        }
+    });
+    // For local updates...
+    settingsStore.addEventListener('set', ev => {
+        const key = ev.data.key;
+        if (key === 'themeOverride' || key === '/theme') {
+            doc.dataset.theme = settingsStore.get('themeOverride') || settingsStore.get('/theme') || '';
+        }
+    });
+}
+
+
 rpcCall('getVersion').then(v => Sentry.setTag('version', v));
 rpcCall('getSentryAnonId').then(id => Sentry.setUser({id}));
 rpcCall('isDEV').then(isDEV => {
@@ -927,16 +961,7 @@ if (window.CSS && CSS.registerProperty) {
 }
 
 if (settingsStore) {
-    const themeOverride = settingsStore.get('themeOverride');
-    if (themeOverride) {
-        doc.dataset.theme = themeOverride;
-    }
-    settingsStore.addEventListener('changed', ev => {
-        const changed = ev.data.changed;
-        if (changed.has('themeOverride') || changed.has('/theme')) {
-            doc.dataset.theme = settingsStore.get('themeOverride') || settingsStore.get('/theme') || '';
-        }
-    });
+    themeInit(settingsStore);
 }
 
 window.rpc = rpc; // DEBUG
