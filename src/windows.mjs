@@ -105,6 +105,13 @@ export const windowManifests = [{
     prettyDesc: 'Car style heart rate gauge',
     options: {width: 0.20, aspectRatio: 0.8},
 }, {
+    type: 'cadence-gauge',
+    groupTitle: 'Gauges',
+    pageURL: 'gauge.html?t=cadence',
+    prettyName: 'Cadence Gauge',
+    prettyDesc: 'Car style cadence gauge',
+    options: {width: 0.20, aspectRatio: 0.8},
+}, {
     type: 'wbal-gauge',
     groupTitle: 'Gauges',
     pageURL: 'gauge.html?t=wbal',
