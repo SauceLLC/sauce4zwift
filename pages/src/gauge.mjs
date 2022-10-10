@@ -20,7 +20,7 @@ const H = L.human;
 let imperial = !!common.storage.get('/imperialUnits');
 L.setImperial(imperial);
 
-const defaultAxisColorBands = [[1, '#0008']];
+const defaultAxisColorBands = [[1, cssColor('fg', 1, 0.2)]];
 
 
 let _wPrime;
@@ -205,7 +205,7 @@ export async function main() {
                         r: 270 * relSize,
                     },
                     style: {
-                        shadowColor: '#000a',
+                        shadowColor: cssColor('fg', 1, 2/3),
                         shadowBlur: 5 * relSize,
                         fill: {
                             type: 'linear',
@@ -255,7 +255,7 @@ export async function main() {
                     lineStyle: {
                         color: defaultAxisColorBands,
                         width: 60 * relSize,
-                        shadowColor: '#0007',
+                        shadowColor: cssColor('fg', 1, 0.5),
                         shadowBlur: 8 * relSize,
                     },
                 },
@@ -274,40 +274,39 @@ export async function main() {
                     distance: 70 * relSize,
                     fontSize: 20 * relSize,
                     formatter: config.getLabel,
-                    textShadowColor: '#000',
+                    textShadowColor: cssColor('fg', 1, 0.5),
                     textShadowBlur: 1 * relSize,
                 },
                 pointer: settings.boringMode ? {
                     // NOTE: Important that all are set so it's not an update
                     icon: null,
-                    width: 7 * relSize,
-                    length: 190 * relSize,
+                    width: 6 * relSize,
+                    length: 180 * relSize,
                     offsetCenter: [0, 0],
                     itemStyle: {
                         color: config.color,
                         opacity: 0.9,
-                        borderColor: '#000',
+                        borderColor: cssColor('fg', 0, 0.9),
                         borderWidth: 2 * relSize,
-                        shadowColor: '#0007',
-                        shadowBlur: 8 * relSize,
+                        shadowColor: cssColor('fg', 1, 0.4),
+                        shadowBlur: 4 * relSize,
                     },
                 } : {
                     width: 70 * relSize,
-                    length: 200 * relSize,
+                    length: 180 * relSize,
                     icon: 'image://./images/logo_vert_120x320.png',
                     offsetCenter: [0, '10%'],
-                    itemStyle: {
-                        opacity: 0.9,
-                    },
                 },
                 anchor: settings.boringMode ? {
-                    show: true,
                     showAbove: true,
+                    show: true,
                     size: 25 * relSize,
                     itemStyle: {
-                        color: '#aaa',
-                        borderColor: '#222',
-                        borderWidth: 5 * relSize,
+                        color: config.color,
+                        borderColor: cssColor('fg', 0, 0.9),
+                        borderWidth: 2 * relSize,
+                        shadowColor: cssColor('fg', 1, 0.5),
+                        shadowBlur: 4 * relSize,
                     }
                 } : {show: false},
                 detail: {
@@ -315,13 +314,13 @@ export async function main() {
                     formatter: config.detailFormatter,
                     textShadowColor: cssColor('fg', 1, 0.4),
                     textShadowBlur: 1 * relSize,
-                    offsetCenter: [0, '33%'],
+                    offsetCenter: [0, '32%'],
                     rich: {
                         value: {
-                            color: cssColor('fg', 0),
+                            color: cssColor('fg'),
                             fontSize: 80 * relSize,
                             fontWeight: 'bold',
-                            lineHeight: 60 * relSize,
+                            lineHeight: 70 * relSize,
                         },
                         unit: {
                             fontSize: 18 * relSize,
@@ -345,9 +344,9 @@ export async function main() {
             series.data = [{
                 name: config.name,
                 title: {
-                    offsetCenter: [0, '-20%'],
+                    offsetCenter: [0, '-30%'],
                     color: cssColor('fg', 0, 0.9),
-                    fontSize: 50 * relSize,
+                    fontSize: 80 * relSize * (1 - (config.name.length / 6) * 0.3),
                     fontWeight: 700,
                     textShadowColor: cssColor('fg', 1, 0.4),
                     textShadowBlur: 2 * relSize,

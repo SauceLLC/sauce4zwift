@@ -222,9 +222,9 @@ function genDynamicTheme({fg='fg', bg='bg'}={}) {
                 borderWidth: 0,
                 borderColor: cssColor(fg, 0, 0.74),
             },
-            splitLine: {lineStyle: {color: cssColor(fg, 0, 2/3)}},
+            splitLine: {lineStyle: {color: cssColor(fg, 0, 0.3)}},
             axisLabel: {
-                color: cssColor(fg, 0, 2/3),
+                color: cssColor(fg, 0, 0.9),
                 fontSize: '0.6em',
             },
             detail: {
