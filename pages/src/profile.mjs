@@ -137,6 +137,7 @@ export async function render(el, tpl, tplData) {
         lastUpdate = Date.now();
         const liveEls = Object.fromEntries(Array.from(el.querySelectorAll('.live'))
             .map(x => [x.dataset.id, x]));
+        liveEls.world.textContent = common.courseToNames[state.courseId];
         liveEls.power.innerHTML = H.power(state.power, {suffix: true, html: true});
         liveEls.speed.innerHTML = H.pace(state.speed, {suffix: true, html: true});
         liveEls.hr.textContent = H.number(state.heartrate);

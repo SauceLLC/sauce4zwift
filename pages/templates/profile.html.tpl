@@ -84,10 +84,12 @@
                 <div class="row p2">
                     <key>Threshold</key>
                     FTP: {-humanPower(athlete.ftp, {suffix: true, html: true})-},
-                    W':<a href="javascript:void(0)" class="wprime">{{athlete.wPrime ? humanNumber(athlete.wPrime / 1000) + 'kJ' : '-'}}</a>
+                    W':<a title="Click to edit - Press Enter to save"
+                          href="javascript:void(0)" class="wprime">{{athlete.wPrime ? humanNumber(athlete.wPrime / 1000) + 'kJ' : '-'}}</a>
                 </div>
             </div>
             <div class="info live">
+                <div class="row p2"><key>World</key><span class="live" data-id="world">-</span></div>
                 <div class="row p2"><key>Power</key><span class="live" data-id="power">-</span></div>
                 <div class="row p2"><key>Speed</key><span class="live" data-id="speed">-</span></div>
                 <div class="row p2"><key>HR</key><span class="live" data-id="hr">-</span><abbr class="unit">bpm</abbr></div>
