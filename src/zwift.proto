@@ -535,7 +535,7 @@ enum PowerType {
 
 message PlayerProfile {
     int64 id = 1;
-    int32 realm = 2;
+    int32 worldId = 2;
     string email = 3;
     string firstName = 4;
     string lastName = 5;

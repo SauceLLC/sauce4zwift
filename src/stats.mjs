@@ -1,20 +1,17 @@
 import events from 'node:events';
 import path from 'node:path';
-import protobuf from 'protobufjs';
+import fs from 'node:fs';
 import {worldTime} from './zwift.mjs';
 import {SqliteDatabase, deleteDatabase} from './db.mjs';
 import * as rpc from './rpc.mjs';
 import * as sauce from '../shared/sauce/index.mjs';
 import * as report from '../shared/report.mjs';
+import * as zwift from './zwift.mjs';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const _case = protobuf.parse.defaults.keepCase;
-protobuf.parse.defaults.keepCase = true;
-export const protos = protobuf.loadSync([path.join(__dirname, 'zwift.proto')]).root;
-protobuf.parse.defaults.keepCase = _case;
 
 
 const monotonic = performance.now;
@@ -209,6 +206,16 @@ class ExtendedRollingPower extends sauce.power.RollingPower {
         }
         return r;
     }
+}
+
+
+const segmentsByWorld = new Map();
+function getSegmentsForWorld(worldId) {
+    if (!segmentsByWorld.has(worldId)) {
+        const fname = path.join(__dirname, `../shared/deps/data/world-segments-${worldId}.json`);
+        segmentsByWorld.set(worldId, JSON.parse(fs.readFileSync(fname)));
+    }
+    return segmentsByWorld.get(worldId);
 }
 
 
@@ -951,6 +958,10 @@ export class StatsProcessor extends events.EventEmitter {
         curLap.draft.resize(time);
         curLap.cadence.resize(time);
         ad.updated = monotonic();
+        this._stateProcessCount++;
+        if (this.athleteId === state.athleteId) {
+            this.handleSelfState(state);
+        }
         if (this.watching === state.athleteId && this.listenerCount('athlete/watching')) {
             this.emit('athlete/watching', this._formatAthleteEntry(ad));
         }
@@ -960,7 +971,21 @@ export class StatsProcessor extends events.EventEmitter {
         if (this.listenerCount(`athlete/${state.athleteId}`)) {
             this.emit(`athlete/${state.athleteId}`, this._formatAthleteEntry(ad));
         }
-        this._stateProcessCount++;
+    }
+
+    handleSelfState(state) {
+        const worldId = zwift.courseToWorldIds[state.courseId];
+        const segments = getSegmentsForWorld(worldId);
+        const reverse = !state.reverse;  // looks like we're backwards (I suspected so)
+        let nearOrOn;
+        // Road position is betweeen -5,000 and 1,005,000 but the range is 1,000,000, normalize it...
+        const p = (state.roadLocation < 0 ? 1_000_000 + state.roadLocation : state.roadLocation % 1_000_000) / 1_000_000;
+        if (reverse) {
+            nearOrOn = segments.filter(x => x.roadFinish <= p);
+        } else {
+            nearOrOn = segments.filter(x => x.roadFinish >= p);
+        }
+        //console.debug("so cool it's me!", reverse, p, nearOrOn.map(x => x.roadFinish - p));
     }
 
     async resetAthletesDB() {

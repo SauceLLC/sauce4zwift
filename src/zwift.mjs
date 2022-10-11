@@ -186,7 +186,7 @@ export function encodePlayerStateFlags2(props) {
         LEFT: 2,
     }[props.turning] || 0;
     bits <<= 4;
-    let powerUping = 0xf; // hidden, but possibly by server, so maybe do include it?
+    let powerUping = 0xf;
     if (props.activePowerUp) {
         powerUping = protos.POWERUP_TYPE[props.activePowerUp];
     }
@@ -667,6 +667,21 @@ export class ZwiftAPI {
             method: 'POST',
             pb: protos.WorldUpdate.encode(attrs),
         });
+    }
+
+    async setInGameFields(fields) {
+        const id = this.profile.id;
+        const resp = await this.fetch(`/api/profiles/${id}/in-game-fields`, {
+            method: 'PUT',
+            pb: protos.PlayerProfile.encode({
+                id,
+                ...fields,
+            }),
+        });
+        if (!resp.ok) {
+            throw new Error(resp.status);
+        }
+        return resp;
     }
 }
 
@@ -1214,8 +1229,8 @@ export class GameMonitor extends events.EventEmitter {
             this.gameAthleteId = await this.getRandomAthleteId();
         }
         const s = await this.api.getPlayerState(this.gameAthleteId);
+        this.setCourse(s ? s.courseId : null);
         if (s) {
-            this.courseId = s.courseId;
             this.setWatching(s.watchingAthleteId);
             if (s.watchingAthleteId === this.gameAthleteId) {
                 // Optimize first connect when watching self (common) by allowing
@@ -1223,7 +1238,6 @@ export class GameMonitor extends events.EventEmitter {
                 this._setWatchingState(s);
             }
         } else {
-            this.courseId = null;
             this.setWatching(this.gameAthleteId);
         }
     }
@@ -1262,14 +1276,6 @@ export class GameMonitor extends events.EventEmitter {
         }
     }
 
-    async logout() {
-        // XXX does this do anything?
-        const resp = await this.api.fetch('/api/users/logout', {method: 'POST'});
-        if (!resp.ok) {
-            throw new Error("Game client logout failed:" + await resp.text());
-        }
-    }
-
     start() {
         if (this._starting) {
             throw new TypeError('invalid state');
@@ -1282,7 +1288,7 @@ export class GameMonitor extends events.EventEmitter {
     stop() {
         console.info("Stopping Zwift Game Monitor...");
         this._stopping = true;
-        this._disconnect();
+        this.disconnect();
     }
 
     _setConnecting() {
@@ -1332,7 +1338,7 @@ export class GameMonitor extends events.EventEmitter {
         await this.activateSession(session);
     }
 
-    _disconnect() {
+    disconnect() {
         clearInterval(this._playerStateInterval);
         clearTimeout(this._sessionTimeout);
         clearTimeout(this._refreshHashSeedsTimeout);
@@ -1427,7 +1433,7 @@ export class GameMonitor extends events.EventEmitter {
 
     _schedConnectRetry() {
         clearTimeout(this._connectRetryTimeout);
-        this._disconnect();
+        this.disconnect();
         const backoffCount = Math.max(this.connectingCount, this._errCount);
         const delay = Math.max(1000, (backoffCount * 1000) - (Date.now() - this.connectingTS));
         console.warn(`Next connect retry: ${delay / 1000 | 0}s`);
@@ -1714,9 +1720,14 @@ export class GameMonitor extends events.EventEmitter {
     }
 
     setCourse(courseId) {
-        console.warn(`Moving to ${courseToNames[courseId]}, courseId: ${courseId}`);
         this.courseId = courseId;
-        this.setUDPChannel();
+        if (courseId) {
+            console.info(`Moving to ${courseToNames[courseId]}, courseId: ${courseId}`);
+            //this.api.setInGameFields({worldId: courseToWorldIds[courseId]});  // bg ok
+            if (this._session) {
+                this.setUDPChannel();
+            }
+        }
     }
 
     _setWatchingState(state) {
