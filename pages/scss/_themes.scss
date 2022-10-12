@@ -53,7 +53,7 @@
 
     --theme-marked-hue: 0;
     --theme-marked-sat: 2%;
-    --theme-marked-light: 59%;
+    --theme-marked-light: 90%;
     --theme-marked-shade-dir: -1;
 
     --theme-negative-hue: 0;
@@ -333,6 +333,11 @@ html[data-theme="watermelon"] {
     --theme-bg2-hue: 148;
     --theme-bg2-sat: 98%;
     --theme-bg2-light: 69%;
+
+    --theme-following-hue: 0;
+    --theme-following-sat: 100%;
+    --theme-following-light: 40%;
+    --theme-following-shade-dir: 1;
 
     --theme-primary-hue: 235;
 
