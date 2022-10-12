@@ -80,6 +80,7 @@ html:not(:focus-within) {
         display: flex;
         align-items: center;
         min-width: 1.4em; // for cross hairs when small
+        flex: 0 0 auto;
 
         img,
         ms {
