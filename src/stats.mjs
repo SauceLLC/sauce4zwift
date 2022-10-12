@@ -212,7 +212,7 @@ class ExtendedRollingPower extends sauce.power.RollingPower {
 const segmentsByWorld = new Map();
 function getSegmentsForWorld(worldId) {
     if (!segmentsByWorld.has(worldId)) {
-        const fname = path.join(__dirname, `../shared/deps/data/world-segments-${worldId}.json`);
+        const fname = path.join(__dirname, `../shared/deps/data/segments-${worldId}.json`);
         segmentsByWorld.set(worldId, JSON.parse(fs.readFileSync(fname)));
     }
     return segmentsByWorld.get(worldId);
