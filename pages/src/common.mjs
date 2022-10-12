@@ -4,6 +4,14 @@ import {sleep as _sleep} from '../../shared/sauce/base.mjs';
 import * as report from '../../shared/report.mjs';
 import './sentry.js';
 
+if (!Array.prototype.at) {
+    // Old browsers like chromium 86 used by vmix.
+    Array.prototype.at = function(idx) {
+        idx |= 0;
+        return idx < 0 ? this[this.length + idx] : this[idx];
+    };
+}
+
 export const sleep = _sleep; // Come on ES6 modules, really!?
 
 const doc = document.documentElement;
