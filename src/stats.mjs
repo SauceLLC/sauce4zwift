@@ -942,7 +942,7 @@ export class StatsProcessor extends events.EventEmitter {
             const mDelta = cur.distance - hist.distance;
             const rlDelta = cur.roadCompletion - hist.roadCompletion;
             if (mDelta && rlDelta) {
-                adjRoadDistEstimate(roadSig, 1000000 / rlDelta * mDelta);
+                adjRoadDistEstimate(roadSig, 1e6 / rlDelta * mDelta);
             }
         }
         const time = (state.worldTime - ad.wtOffset) / 1000;
@@ -976,16 +976,15 @@ export class StatsProcessor extends events.EventEmitter {
     handleSelfState(state) {
         const worldId = zwift.courseToWorldIds[state.courseId];
         const segments = getSegmentsForWorld(worldId);
-        const reverse = !state.reverse;  // looks like we're backwards (I suspected so)
+        const reverse = state.reverse;  // looks like we're backwards (I suspected so)
         let nearOrOn;
-        // Road position is betweeen -5,000 and 1,005,000 but the range is 1,000,000, normalize it...
-        const p = (state.roadLocation < 0 ? 1_000_000 + state.roadLocation : state.roadLocation % 1_000_000) / 1_000_000;
+        const p = (state.roadLocation - 5000) / 1e6;
         if (reverse) {
             nearOrOn = segments.filter(x => x.roadFinish <= p);
         } else {
             nearOrOn = segments.filter(x => x.roadFinish >= p);
         }
-        //console.debug("so cool it's me!", reverse, p, nearOrOn.map(x => x.roadFinish - p));
+        console.debug("so cool it's me!", this.rps, reverse, p, nearOrOn.map(x => x.roadFinish - p));
     }
 
     async resetAthletesDB() {
@@ -1146,16 +1145,16 @@ export class StatsProcessor extends events.EventEmitter {
             // Test for lapping cases where inverted is closer
             const roadDist = roadDistEstimates[a.sig] || 0;
             if (d < -500000 && a.prevSig === b.sig) {
-                const gapDistance = (1000000 + d) / 1000000 * roadDist;
+                const gapDistance = (1e6 + d) / 1e6 * roadDist;
                 return {reversed: false, previous: true, gapDistance};
             } else if (d > 500000 && b.prevSig === a.sig) {
-                const gapDistance = (1000000 - d) / 1000000 * roadDist;
+                const gapDistance = (1e6 - d) / 1e6 * roadDist;
                 return {reversed: true, previous: true, gapDistance};
             } else if (d > 0) {
-                const gapDistance = d / 1000000 * roadDist;
+                const gapDistance = d / 1e6 * roadDist;
                 return {reversed: false, previous: false, gapDistance};
             } else if (d < 0) {
-                const gapDistance = -d / 1000000 * roadDist;
+                const gapDistance = -d / 1e6 * roadDist;
                 return {reversed: true, previous: false, gapDistance};
             } else if (aTail.wt < bTail.wt) {
                 return {reversed: false, previous: false, gapDistance: 0};
@@ -1177,7 +1176,7 @@ export class StatsProcessor extends events.EventEmitter {
                 const d = bPrevTail.roadCompletion - aComp;
                 if (d >= 0 && (d2 === undefined || d < d2)) {
                     const roadDist = roadDistEstimates[b.prevSig] || 0;
-                    const gapDistance = (d / 1000000 * roadDist) + (bTail.distance - bPrevTail.distance);
+                    const gapDistance = (d / 1e6 * roadDist) + (bTail.distance - bPrevTail.distance);
                     return {reversed: true, previous: true, gapDistance};
                 }
             }
@@ -1186,7 +1185,7 @@ export class StatsProcessor extends events.EventEmitter {
                 // is not relevant.  Probably need to check on something funky like crit city or japan.
                 const aPrevTail = a.prevTimeline[a.prevTimeline.length - 1];
                 const roadDist = roadDistEstimates[a.prevSig] || 0;
-                const gapDistance = (d2 / 1000000 * roadDist) + (aTail.distance - aPrevTail.distance);
+                const gapDistance = (d2 / 1e6 * roadDist) + (aTail.distance - aPrevTail.distance);
                 return {reversed: false, previous: true, gapDistance};
             }
         }

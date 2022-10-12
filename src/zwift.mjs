@@ -64,8 +64,8 @@ function zwiftCompatDate(date) {
 // When game lags it can send huge values.  BLE testing suggests 240 is
 // their normal limit and they just drop values over this and send 1. So
 // we'll emulate that behavior.
-const cadenceMax = 240 * 1000000 / 60;
-const halfCircle = 1000000 * Math.PI;
+const cadenceMax = 240 * 1e6 / 60;
+const halfCircle = 1e6 * Math.PI;
 const pbProfilePrivacyFlags = {
     approvalRequired: 0x1,
     minor: 0x2,
@@ -108,9 +108,9 @@ export function decodePlayerStateFlags1(bits) {
     bits >>>= 1;
     const companionApp = !!(bits & 0x1);
     bits >>>= 1;
-    const reverse = !!(bits & 0x1);
+    const reverse = !(bits & 0x1);  // It's actually a forward bit
     bits >>>= 1;
-    const reversing = !!(bits & 0x1);
+    const uTurn = !!(bits & 0x1);
     bits >>>= 1;
     const _b4_15 = bits & 0xfff;
     bits >>>= 12;
@@ -120,7 +120,7 @@ export function decodePlayerStateFlags1(bits) {
     return {
         powerMeter,
         companionApp,
-        reversing,
+        uTurn,
         reverse,
         _b4_15,
         auxCourseId,
@@ -137,9 +137,9 @@ export function encodePlayerStateFlags1(props) {
     bits <<= 12;
     bits |= props._b4_15 & 0xfff;
     bits <<= 1;
-    bits |= props.reversing;
+    bits |= props.uTurn;
     bits <<= 1;
-    bits |= props.reverse;
+    bits |= !props.reverse;
     bits <<= 1;
     bits |= props.companionApp;
     bits <<= 1;
@@ -200,6 +200,7 @@ export function processPlayerStateMessage(msg) {
     const flags2 = decodePlayerStateFlags2(msg._flags2);
     const wt = msg._worldTime.toNumber();
     const latency = worldTime.now() - wt;
+    const adjRoadLoc = msg.roadLocation - 5000;  // It's 5,000 -> 1,005,000
     return {
         ...msg,
         ...flags1,
@@ -210,12 +211,12 @@ export function processPlayerStateMessage(msg) {
         workoutZone: (msg._progress & 0xF) || null,
         kj: msg._mwHours / 1000 / (1000 / 3600),
         heading: (((msg._heading + halfCircle) / (2 * halfCircle)) * 360) % 360,  // degrees
-        speed: msg._speed / 1000000,  // km/h
+        speed: msg._speed / 1e6,  // km/h
         joinTime: msg._joinTime.toNumber(),
         cadence: (msg._cadenceUHz && msg._cadenceUHz < cadenceMax) ?
-            Math.round(msg._cadenceUHz / 1000000 * 60) : 0,  // rpm
+            Math.round(msg._cadenceUHz / 1e6 * 60) : 0,  // rpm
         eventDistance: msg._eventDistance / 100,  // meters
-        roadCompletion: !flags1.reverse ? 1000000 - msg.roadLocation : msg.roadLocation,
+        roadCompletion: flags1.reverse ? 1e6 - adjRoadLoc : adjRoadLoc,
     };
 }
 
