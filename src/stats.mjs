@@ -975,16 +975,50 @@ export class StatsProcessor extends events.EventEmitter {
 
     handleSelfState(state) {
         const worldId = zwift.courseToWorldIds[state.courseId];
-        const segments = getSegmentsForWorld(worldId);
-        const reverse = state.reverse;  // looks like we're backwards (I suspected so)
-        let nearOrOn;
+        const segments = getSegmentsForWorld(worldId).filter(x =>
+            x.roadId === state.roadId && (state.reverse ?
+                x.roadStartReverse != null : x.roadStartForward) != null);
         const p = (state.roadLocation - 5000) / 1e6;
-        if (reverse) {
-            nearOrOn = segments.filter(x => x.roadFinish <= p);
-        } else {
-            nearOrOn = segments.filter(x => x.roadFinish >= p);
+        segments.sort((a, b) => {
+            const aNearest = Math.min(
+                Math.abs((state.reverse ? a.roadStartReverse : a.roadStartForward) - p),
+                Math.abs(a.roadFinish - p));
+            const bNearest = Math.min(
+                Math.abs((state.reverse ? b.roadStartReverse : b.roadStartForward) - p),
+                Math.abs(b.roadFinish - p));
+            return aNearest < bNearest ? -1 : 1;
+        });
+        //console.debug("so cool it's me!", reverse, p, nearOrOn.map(x => x.roadFinish - p));
+        for (const x of segments) {
+            if (state.reverse) {
+                x.position = (p - x.roadFinish) / (x.roadStartReverse - x.roadFinish);
+            } else {
+                x.position = (x.roadFinish - p) / (x.roadFinish - x.roadStartForward);
+            }
         }
-        console.debug("so cool it's me!", this.rps, reverse, p, nearOrOn.map(x => x.roadFinish - p));
+        const relSegments = segments.map(x => {
+            let position;
+            let name;
+            let id;
+            let distance;
+            let start;
+            if (state.reverse) {
+                position = (p - x.roadFinish) / (x.roadStartReverse - x.roadFinish);
+                name = x.friendlyNameReverse || x.name;
+                id = x.idReverse;
+                distance = x.distanceReverse;
+                start = x.roadStartReverse;
+            } else {
+                position = (x.roadFinish - p) / (x.roadFinish - x.roadStartForward);
+                name = x.friendlyNameForward || x.name;
+                id = x.idForward;
+                distance = x.distanceForward;
+                start = x.roadStartForward;
+            }
+            return {position, name, id, distance, reverse: state.reverse, start, finish: x.roadFinish};
+        });
+        this.emit('segments', relSegments);
+        console.log(p, relSegments);
     }
 
     async resetAthletesDB() {
