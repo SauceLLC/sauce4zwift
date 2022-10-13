@@ -158,28 +158,28 @@ export function decodePlayerStateFlags2(bits) {
         2: 'LEFT',
     }[bits & 0x3];
     bits >>>= 2;
-    const overlapping = bits & 0x1;  // or near junction or recently on junction.  It's unclear.
-    bits >>>= 1;
+    const turnChoice = bits & 0x3;  // 1 = unanswered turn choice
+    bits >>>= 2;
     const roadId = bits & 0xffff;
     bits >>>= 16;
-    const _rem2 = bits; // XXX no idea
+    const _rem = bits; // XXX Something about having altered a route choice or reversed for bit 1
     return {
         activePowerUp: powerUping === 0xf ? null : powerUpsById[powerUping],
         turning,
-        overlapping,
+        turnChoice,
         roadId,
-        _rem2,
+        _rem,
     };
 }
 
 
 export function encodePlayerStateFlags2(props) {
     let bits = 0;
-    bits |= props._rem2 & 0x1ff;
+    bits |= props._rem & 0xff;
     bits <<= 16;
     bits |= props.roadId & 0xffff;
-    bits <<= 1;
-    bits |= props.overlapping;
+    bits <<= 2;
+    bits |= props.turnChoice & 0x3;
     bits <<= 2;
     bits |= {
         RIGHT: 1,
