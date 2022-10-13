@@ -167,7 +167,7 @@ async function _start({ip, port, rpcSources, statsProc}) {
                 };
                 subs.set(subId, {event, cb, emitter, source});
                 emitter.on(event, cb);
-                console.info(`WebSocket events: (${client}) [subscribe] ${source}.${event} subId:${subId}`);
+                console.info(`WebSocket events: (${client}) [subscribe] ${source} ${event} subId:${subId}`);
                 return;
             } else if (method === 'unsubscribe') {
                 const {subId} = arg;
@@ -177,7 +177,7 @@ async function _start({ip, port, rpcSources, statsProc}) {
                 const {event, cb, emitter, source} = subs.get(subId);
                 subs.delete(subId);
                 emitter.off(event, cb);
-                console.info(`WebSocket events: (${client}) [unsubscribe] ${source}.${event} subId:${subId}`);
+                console.info(`WebSocket events: (${client}) [unsubscribe] ${source} ${event} subId:${subId}`);
                 return;
             } else {
                 throw new TypeError('Invalid "method"');
