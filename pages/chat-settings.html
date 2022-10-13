@@ -29,9 +29,13 @@
         </div>
         <div id="settings">
             <form>
-                <label>
+                <label title="Remove old messages after this many seconds. Set to zero to never remove them.">
                     <key>Message cleanup:</key>
                     <input type="number" min="0" step="1" name="cleanup"/> <small>(seconds)</small>
+                </label>
+                <label title="Put most recent messages on top">
+                    <key>Reverse order:</key>
+                    <input type="checkbox" name="reverseOrder"/>
                 </label>
                 <label>
                     <key>Theme override:</key>

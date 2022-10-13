@@ -6,6 +6,7 @@ const nearby = new Map();
 const settings = common.settingsStore.get(null, {
     cleanup: 120,
     solidBackground: false,
+    reverseOrder: false,
     backgroundColor: '#00ff00',
 });
 
@@ -84,9 +85,11 @@ export async function main() {
     liveDataTask(content);  // bg okay
     const fadeoutTime = 5;
     content.style.setProperty('--fadeout-time', `${fadeoutTime}s`);
+    content.classList.toggle('reverse-order', settings.reverseOrder === true);
     setBackground();
     common.settingsStore.addEventListener('changed', ev => {
         setBackground();
+        content.classList.toggle('reverse-order', settings.reverseOrder === true);
         for (const el of document.querySelectorAll('.entry')) {
             if (el._resetCleanup) {
                 el._resetCleanup();

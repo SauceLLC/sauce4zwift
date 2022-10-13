@@ -19,6 +19,10 @@ body {
     overflow-y: overlay; // chromium only, but way better
     scroll-snap-type: y proximity;
 
+    &.reverse-order {
+        flex-direction: column-reverse;
+    }
+
     > *:first-child {
         /* https://bugs.chromium.org/p/chromium/issues/detail?id=411624 */
         margin-top: auto;  /* Shift to bottom when unscrolled */
