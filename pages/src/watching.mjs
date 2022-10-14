@@ -78,15 +78,31 @@ function humanWkg(v, athlete) {
 const unit = x => `<abbr class="unit">${x}</abbr>`;
 
 
-function fmtDist(v) {
+function _fmtDist(v) {
     if (v == null || v === Infinity || v === -Infinity || isNaN(v)) {
-        return '-';
+        return ['-', ''];
     } else if (Math.abs(v) < 1000) {
         const suffix = unit(imperial ? 'ft' : 'm');
-        return H.number(imperial ? v / L.metersPerFoot : v) + suffix;
+        return [H.number(imperial ? v / L.metersPerFoot : v), suffix];
     } else {
-        return H.distance(v, {precision: 1, suffix: true, html: true});
+        return H.distance(v, {precision: 1, suffix: true}).split(/([a-z]+)/i);
     }
+}
+
+
+function fmtDist(v) {
+    const [val, u] = _fmtDist(v);
+    return `${val}${unit(u)}`;
+}
+
+
+function fmtDistValue(v) {
+    return _fmtDist(v)[0];
+}
+
+
+function fmtDistUnits(v) {
+    return _fmtDist(v)[1];
 }
 
 
@@ -419,7 +435,12 @@ const groupSpecs = {
             makePeakPowerField(60, -2),
             makePeakPowerField(300, -2),
             makePeakPowerField(1200, -2),
-        ],
+        {
+            value: x => H.number(x.stats && x.stats.power.np && x.stats.power.np / x.stats.power.avg,
+                {precision: 1, fixed: true}),
+            label: () => 'vi',
+            key: () => 'VI',
+        }],
     },
     hr: {
         title: 'Heart Rate',
@@ -556,6 +577,10 @@ const groupSpecs = {
             value: x => x.remainingMetric === 'distance' ? fmtDist(x.remaining) : fmtDur(x.remaining),
             label: () => 'finish',
             key: () => 'Finish',
+        }, {
+            value: x => x.remainingMetric === 'distance' ? fmtDist(x.state && x.state.eventDistance) : fmtDur(x.state && x.state.time),
+            label: x => (x && x.remainingMetric === 'distance') ? 'dist' : 'timer',
+            key: x => (x && x.remainingMetric === 'distance') ? 'Dist' : 'Timer',
         }]
     }
 };

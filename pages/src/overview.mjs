@@ -336,6 +336,9 @@ function buildLayout() {
                 value: x => fmtPct((x.stats && x.stats.power.np || 0) / (x.athlete && x.athlete.ftp)),
                 key: () => 'IF',
             }, {
+                value: x => H.number(x.stats && x.stats.power.np / x.stats.power.avg, {precision: 1, fixed: true}),
+                key: () => 'VI',
+            }, {
                 value: x => H.number(x.stats && x.stats.power.max),
                 key: () => 'Power <small>(max)</small>',
                 unit: () => 'w',

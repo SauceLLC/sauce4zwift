@@ -425,7 +425,7 @@ export class Renderer {
         const field = this.fields.get(id);
         const nextField = field.available[this.getAdjacentFieldIndex(field, 1)];
         try {
-            const name = stripHTML(nextField.key() || nextField.label());
+            const name = stripHTML(nextField.key(this._data) || nextField.label(this._data));
             field.el.title = `Click to change field to: ${name}.  Or use Left/Right keys when focused.`;
         } catch(e) {
             console.error("Failed to get tooltip name for next field:", id, nextField, e);
