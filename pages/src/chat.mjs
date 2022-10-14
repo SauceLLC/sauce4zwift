@@ -128,14 +128,12 @@ export async function main() {
                 clearTimeout(to);
                 to = setTimeout(() => {
                     el.classList.add('fadeout');
-                    setTimeout(() => {
-                        el.remove();
-                        chatEls.delete(el);
-                        if (!chatEls.size) {
-                            console.info("Unsubscribe from:", athleteId);
-                            common.unsubscribe(`athlete/${athleteId}`, handleAthleteData);
-                        }
-                    }, fadeoutTime * 1000);
+                    chatEls.delete(el);
+                    if (!chatEls.size) {
+                        console.info("Unsubscribe from:", athleteId);
+                        common.unsubscribe(`athlete/${athleteId}`, handleAthleteData);
+                    }
+                    setTimeout(() => el.remove(), fadeoutTime * 1000);
                 }, (settings.cleanup - (age || 0)) * 1000);
             };
             el._resetCleanup();
