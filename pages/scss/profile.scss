@@ -1,23 +1,21 @@
 @import 'profile_tpl';
 
 html {
-    padding: 0;
-    font-size: 16px;
-    -webkit-user-select: text;
-    user-select: text;
-}
-
-body {
-    border-radius: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    overflow: auto;
-    overflow: overlay;
+    font-size: 4mm;
 }
 
 body > main {
     display: flex;
     flex-direction: column;
     flex: 1 1;
+    max-height: 100%;
+
+    > .profile {
+        max-height: 100%;
+
+        section {
+            overflow: auto;
+            overflow: overlay;
+        }
+    }
 }
