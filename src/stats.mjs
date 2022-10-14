@@ -979,46 +979,32 @@ export class StatsProcessor extends events.EventEmitter {
             x.roadId === state.roadId && (state.reverse ?
                 x.roadStartReverse != null : x.roadStartForward) != null);
         const p = (state.roadLocation - 5000) / 1e6;
-        segments.sort((a, b) => {
-            const aNearest = Math.min(
-                Math.abs((state.reverse ? a.roadStartReverse : a.roadStartForward) - p),
-                Math.abs(a.roadFinish - p));
-            const bNearest = Math.min(
-                Math.abs((state.reverse ? b.roadStartReverse : b.roadStartForward) - p),
-                Math.abs(b.roadFinish - p));
-            return aNearest < bNearest ? -1 : 1;
-        });
-        //console.debug("so cool it's me!", reverse, p, nearOrOn.map(x => x.roadFinish - p));
-        for (const x of segments) {
-            if (state.reverse) {
-                x.position = (p - x.roadFinish) / (x.roadStartReverse - x.roadFinish);
-            } else {
-                x.position = (x.roadFinish - p) / (x.roadFinish - x.roadStartForward);
-            }
-        }
         const relSegments = segments.map(x => {
-            let position;
-            let name;
-            let id;
-            let distance;
-            let start;
+            let progress, proximity;
             if (state.reverse) {
-                position = (p - x.roadFinish) / (x.roadStartReverse - x.roadFinish);
-                name = x.friendlyNameReverse || x.name;
-                id = x.idReverse;
-                distance = x.distanceReverse;
-                start = x.roadStartReverse;
+                progress = (p >= x.roadFinish && p <= x.roadStartReverse) ?
+                    1 - (p - x.roadFinish) / (x.roadStartReverse - x.roadFinish) : null;
+                proximity = progress !== null ? 0 : p < x.roadFinish ? p - x.roadFinish : x.roadStartReverse - p;
             } else {
-                position = (x.roadFinish - p) / (x.roadFinish - x.roadStartForward);
-                name = x.friendlyNameForward || x.name;
-                id = x.idForward;
-                distance = x.distanceForward;
-                start = x.roadStartForward;
+                progress = (p <= x.roadFinish && p >= x.roadStartForward) ?
+                    1 - (x.roadFinish - p) / (x.roadFinish - x.roadStartForward) : null;
+                proximity = progress !== null ? 0 : p > x.roadFinish ? p - x.roadFinish : x.roadStartForward - p;
             }
-            return {position, name, id, distance, reverse: state.reverse, start, finish: x.roadFinish};
+            return {
+                progress,
+                proximity,
+                reverse: state.reverse,
+                finish: x.roadFinish,
+                loop: x.requiresAllCheckpoints,
+                name: (state.reverse ? x.friendlyNameReverse : x.friendlyNameForward) || x.name,
+                id: state.reverse ? x.idReverse : x.idForward,
+                distance: state.reverse ? x.distanceReverse : x.distanceForward,
+                start: state.reverse ? x.roadStartReverse : x.roadStartForward,
+            };
         });
+        relSegments.sort((a, b) => a.proximity - b.proximity);
         this.emit('segments', relSegments);
-        console.log(p, relSegments);
+        console.log(state.roadId, state.turnChoice, state._rem, p, relSegments);
     }
 
     async resetAthletesDB() {

@@ -39,7 +39,7 @@
     "sass": "1.54.4",
     "world_countries_lists": "2.6.0",
     "zwift-data": "1.17.0",
-    "zwift-utils": "https://github.com/SauceLLC/zwift-utils.git#5d47021b"
+    "zwift-utils": "https://github.com/SauceLLC/zwift-utils.git#15d45eb46"
   },
   "build": {
     "appId": "io.saucellc.sauce4zwift",
