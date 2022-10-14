@@ -83,6 +83,7 @@ export async function main() {
     const eventDetailTpl = await sauce.template.getTemplate(`templates/event-details.html.tpl`);
     const profileTpl = await sauce.template.getTemplate(`templates/profile.html.tpl`);
     const athletes = new Map();
+    const cleanupCallbacks = new Set();
     initExpanderTable(contentEl.querySelector('table'), async (eventDetailsEl, eventSummaryEl) => {
         const event = events.get(Number(eventSummaryEl.dataset.eventId));
         if (!event.routeId) {
@@ -108,9 +109,10 @@ export async function main() {
         }));
         const {nations, flags} = await pendingNationInit;
         for (const t of eventDetailsEl.querySelectorAll('table.expandable')) {
+            let cleanup;
             initExpanderTable(t, async (el, entrantSummaryEl) => {
                 const athleteId = Number(entrantSummaryEl.dataset.id);
-                el.cleanup = await profileRender(el, profileTpl, {
+                cleanup = await profileRender(el, profileTpl, {
                     athleteId,
                     athlete: athletes.get(athleteId),
                     gameConnectionStatus,
@@ -119,7 +121,19 @@ export async function main() {
                     common,
                     embedded: true,
                 });
-            }, el => el.cleanup && el.cleanup());
+                cleanupCallbacks.add(cleanup);
+            }, () => {
+                if (cleanup) {
+                    cleanupCallbacks.delete(cleanup);
+                    cleanup();
+                }
+            });
+        }
+    }, () => {
+        const cleanups = Array.from(cleanupCallbacks);
+        cleanupCallbacks.clear();
+        for (const cb of cleanups) {
+            cb();
         }
     });
     document.querySelector('#titlebar input[name="filter"]').addEventListener('input', ev => {

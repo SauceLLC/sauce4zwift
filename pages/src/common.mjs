@@ -71,6 +71,7 @@ if (window.isElectron) {
         }
     });
     subscribe = async function(event, callback, options={}) {
+        console.info("Event subscribe:", event);
         const descr = {event, callback};
         subs.push(descr);
         const subId = await electron.ipcInvoke('subscribe', {event, ...options});
@@ -79,6 +80,7 @@ if (window.isElectron) {
         }
     };
     unsubscribe = async function(event, callback) {
+        console.info("Event unsubscribe:", event);
         const descrIdx = subs.findIndex(x => x.event === event && x.callback === callback);
         if (descrIdx === -1) {
             throw new TypeError("not found");
@@ -163,6 +165,7 @@ if (window.isElectron) {
         });
     };
     subscribe = async function(event, callback, options={}) {
+        console.info("Event subscribe:", event);
         if (!wsp) {
             wsp = connectWebSocket();
         }
@@ -175,6 +178,7 @@ if (window.isElectron) {
         }
     };
     unsubscribe = async function(event, callback) {
+        console.info("Event unsubscribe:", event);
         const descrIdx = subs.findIndex(x => x.event === event && x.callback === callback);
         if (descrIdx === -1) {
             throw new TypeError("not found");

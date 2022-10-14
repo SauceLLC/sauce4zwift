@@ -118,7 +118,6 @@ export async function main() {
         }
         const chatEls = athleteChatElements.get(athleteId);
         if (!chatEls.size) {
-            console.info("Subscribe to:", athleteId);
             common.subscribe(`athlete/${athleteId}`, handleAthleteData);
         }
         chatEls.add(el);
@@ -130,7 +129,6 @@ export async function main() {
                     el.classList.add('fadeout');
                     chatEls.delete(el);
                     if (!chatEls.size) {
-                        console.info("Unsubscribe from:", athleteId);
                         common.unsubscribe(`athlete/${athleteId}`, handleAthleteData);
                     }
                     setTimeout(() => el.remove(), fadeoutTime * 1000);
