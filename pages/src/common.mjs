@@ -52,27 +52,45 @@ export let subscribe;
 export let unsubscribe;
 
 if (window.isElectron) {
-    const subs = new Map();
     windowID = electron.context.id;
+    const subs = [];
     addEventListener('message', ev => {
         if (ev.source === window && ev.data && ev.data.channel === 'subscribe-port') {
+            const descr = subs.find(x => x.subId === ev.data.subId);
+            if (!descr || descr.deleted) {
+                return;
+            }
             const port = ev.ports[0];
-            const desc = subs.get(ev.data.subId);
-            desc.port = port;
-            port.addEventListener('message', ev => desc.callback(JSON.parse(ev.data)));
+            descr.port = port;
+            port.addEventListener('message', ev => {
+                if (!descr.deleted) {
+                    descr.callback(JSON.parse(ev.data));
+                }
+            });
             port.start();
         }
     });
     subscribe = async function(event, callback, options={}) {
+        const descr = {event, callback};
+        subs.push(descr);
         const subId = await electron.ipcInvoke('subscribe', {event, ...options});
-        subs.set(subId, {callback});
-        return subId;
+        if (!descr.deleted) {
+            descr.subId = subId;
+        }
     };
-    unsubscribe = async function(subId) {
-        await electron.ipcInvoke('unsubscribe', {subId});
-        const port = subs.get(subId).port;
-        port.close();
-        subs.delete(subId);
+    unsubscribe = async function(event, callback) {
+        const descrIdx = subs.findIndex(x => x.event === event && x.callback === callback);
+        if (descrIdx === -1) {
+            throw new TypeError("not found");
+        }
+        const [descr] = subs.splice(descrIdx, 1);
+        descr.deleted = true;
+        if (descr.port) {
+            descr.port.close();
+        }
+        if (descr.subId) {
+            await electron.ipcInvoke('unsubscribe', {subId: descr.subId});
+        }
     };
     rpcCall = async function(name, ...args) {
         const env = await electron.ipcInvoke('rpc', name, ...args);
@@ -92,7 +110,7 @@ if (window.isElectron) {
 } else {
     windowID = new URLSearchParams(location.search).get('id') || 'browser-def-id';
     const respHandlers = new Map();
-    const subs = new Map();
+    const subs = [];
     let uidInc = 1;
     let errBackoff = 500;
     let wsp;
@@ -100,37 +118,44 @@ if (window.isElectron) {
         const ws = new WebSocket(`ws://${location.host}/api/ws/events`);
         ws.addEventListener('message', ev => {
             const envelope = JSON.parse(ev.data);
-            const {resolve, reject} = respHandlers.get(envelope.uid);
-            if (!resolve) {
-                console.error("Websocket Protocol Error:", envelope.error || envelope.data);
-                return;
-            }
+            const handler = respHandlers.get(envelope.uid);
             if (envelope.type === 'response') {
                 respHandlers.delete(envelope.uid);
             }
-            if (envelope.success) {
-                resolve(envelope.data);
-            } else {
-                reject(new Error(envelope.error));
+            if (handler) {
+                if (envelope.success) {
+                    handler.resolve(envelope.data);
+                } else {
+                    handler.reject(new Error(envelope.error));
+                }
             }
         });
         ws.addEventListener('close', ev => {
             errBackoff = Math.min(errBackoff * 1.1, 60000);
             console.warn('WebSocket connection issue: retry in', (errBackoff / 1000).toFixed(1), 's');
+            for (const x of subs) {
+                x.disconnected = true;
+            }
             wsp = sleep(errBackoff).then(connectWebSocket);
             document.dispatchEvent(new CustomEvent('sauce-ws-status', {detail: 'disconnected'}));
         });
         const tO = setTimeout(() => ws.close(), 5000);
-        ws.addEventListener('error', ev => {
-            clearTimeout(tO);
-        });
+        ws.addEventListener('error', ev => clearTimeout(tO));
         return await new Promise(resolve => {
             ws.addEventListener('open', () => {
                 console.debug("WebSocket connected");
                 errBackoff = 500;
                 clearTimeout(tO);
-                for (const {event, callback, options} of subs.values()) {
-                    _subscribe(ws, event, callback, options);
+                for (const descr of subs) {
+                    if (descr.deleted || !descr.disconnected) {
+                        continue;
+                    }
+                    _subscribe(ws, descr.event, descr.callback, descr.options).then(subId => {
+                        if (!descr.deleted && descr.disconnected) {
+                            descr.subId = subId;
+                            delete descr.disconnected;
+                        }
+                    });
                 }
                 resolve(ws);
                 document.dispatchEvent(new CustomEvent('sauce-ws-status', {detail: 'connected'}));
@@ -141,17 +166,27 @@ if (window.isElectron) {
         if (!wsp) {
             wsp = connectWebSocket();
         }
+        const descr = {event, callback, options};
+        subs.push(descr);
         const ws = await wsp;
         const subId = await _subscribe(ws, event, callback, options);
-        subs.set(subId, {event, callback, options});
-        return subId;
-    };
-    unsubscribe = async function(subId) {
-        if (!wsp) {
-            return;
+        if (!descr.deleted) {
+            descr.subId = subId;
         }
-        await _unsubscribe(await wsp, subId);
-        subs.delete(subId);
+    };
+    unsubscribe = async function(event, callback) {
+        const descrIdx = subs.findIndex(x => x.event === event && x.callback === callback);
+        if (descrIdx === -1) {
+            throw new TypeError("not found");
+        }
+        const [descr] = subs.splice(descrIdx, 1);
+        descr.deleted = true;
+        if (descr.subId) {
+            respHandlers.delete(descr.subId);
+            if (wsp) {
+                await _unsubscribe(await wsp, descr.subId);
+            }
+        }
     };
     const _subscribe = async function(ws, event, callback, options={}) {
         const uid = uidInc++;
