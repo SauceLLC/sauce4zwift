@@ -1,33 +1,28 @@
 import * as sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
 
+const H = sauce.locale.human;
+
 const doc = document.documentElement;
-const nearby = new Map();
 const settings = common.settingsStore.get(null, {
     cleanup: 120,
     solidBackground: false,
     reverseOrder: false,
     backgroundColor: '#00ff00',
 });
+const athleteChatElements = new Map();
 
-const idleCallback = window.requestIdleCallback || (cb => setTimeout(cb, 0));
-
-// GC for nearby data...
 setInterval(() => {
-    idleCallback(() => {
-        const now = Date.now();
-        let i = 0;
-        for (const [k, {ts}] of nearby.entries()) {
-            if (now - ts > 300 * 1000) {
-                i++;
-                nearby.delete(k);
+    for (const els of athleteChatElements.values()) {
+        for (const el of els) {
+            const age = fmtAge(Number(el.dataset.ts));
+            if (el._lastAge !== age) {
+                el.querySelector('.header .age').innerHTML = age;
+                el._lastAge = age;
             }
         }
-        if (i) {
-            console.debug(`Garbage collected ${i} nearby entries`);
-        }
-    });
-}, 3000);
+    }
+}, 5000);
 
 
 function athleteHue(id) {
@@ -35,24 +30,35 @@ function athleteHue(id) {
 }
 
 
-async function liveDataTask(content) {
-    while (true) {
-        for (const x of content.querySelectorAll('.live')) {
-            const athlete = x.closest('[data-from]').dataset.from;
-            x.innerText = liveDataFormatter(Number(athlete));
+function fmtAge(ts) {
+    const age = (Date.now() - ts) / 1000 | 0;
+    if (age < 15) {
+        return 'now';
+    }
+    const precision = age < 60 ? 1 : age < 3600 ? 60 : 3600;
+    return H.relTime(ts, {short: true, precision, html: true});
+}
+
+
+function fmtGap(gap) {
+    const d = H.duration(Math.abs(gap), {short: true, seperator: ' '});
+    const placement = gap > 0 ? 'behind' : 'ahead';
+    return `${d} ${placement}`;
+}
+
+
+function handleAthleteData(data) {
+    const liveText = liveDataFormatter(data);
+    for (const el of athleteChatElements.get(data.athleteId)) {
+        if (el._lastLiveText !== liveText) {
+            el.querySelector('.live').innerText = liveText;
+            el._lastLiveText = liveText;
         }
-        await sauce.sleep(1000);
     }
 }
 
 
-function humanDuration(t) {
-    return sauce.locale.human.duration(t, {short: true, seperator: ' '});
-}
-
-
-function liveDataFormatter(athlete) {
-    const data = nearby.get(athlete);
+function liveDataFormatter(data) {
     if (!data) {
         return '';
     }
@@ -62,7 +68,7 @@ function liveDataFormatter(athlete) {
     ];
     const gap = data.gap;
     if (gap != null) {
-        items.push(humanDuration(Math.abs(gap)) + (gap > 0 ? ' behind' : ' ahead'));
+        items.push(fmtGap(gap));
     }
     return items.filter(x => x != null).join(', ');
 }
@@ -82,7 +88,6 @@ function setBackground() {
 export async function main() {
     common.initInteractionListeners();
     const content = document.querySelector('#content');
-    liveDataTask(content);  // bg okay
     const fadeoutTime = 5;
     content.style.setProperty('--fadeout-time', `${fadeoutTime}s`);
     content.classList.toggle('reverse-order', settings.reverseOrder === true);
@@ -104,17 +109,33 @@ export async function main() {
     }
 
 
-    function addContentEntry(el, age) {
+    function addContentEntry(athleteId, el, age) {
         content.appendChild(el);
         void el.offsetLeft; // force layout/reflow so we can trigger animation.
         el.classList.add('slidein');
+        if (!athleteChatElements.has(athleteId)) {
+            athleteChatElements.set(athleteId, new Set());
+        }
+        const chatEls = athleteChatElements.get(athleteId);
+        if (!chatEls.size) {
+            console.info("Subscribe to:", athleteId);
+            common.subscribe(`athlete/${athleteId}`, handleAthleteData);
+        }
+        chatEls.add(el);
         if (settings.cleanup) {
             let to;
             el._resetCleanup = () => {
                 clearTimeout(to);
                 to = setTimeout(() => {
                     el.classList.add('fadeout');
-                    setTimeout(() => el.remove(), fadeoutTime * 1000);
+                    setTimeout(() => {
+                        el.remove();
+                        chatEls.delete(el);
+                        if (!chatEls.size) {
+                            console.info("Unsubscribe from:", athleteId);
+                            common.unsubscribe(`athlete/${athleteId}`, handleAthleteData);
+                        }
+                    }, fadeoutTime * 1000);
                 }, (settings.cleanup - (age || 0)) * 1000);
             };
             el._resetCleanup();
@@ -137,10 +158,10 @@ export async function main() {
         }
         const entry = document.createElement('div');
         entry.dataset.from = chat.from;
+        entry.dataset.ts = chat.ts;
         entry.classList.add('entry');
         if (chat.to) {
             entry.classList.add('private');
-            console.warn("XXX validate it's to us.  I think it must be though.", chat.to);
         } else {
             entry.classList.add('public');
         }
@@ -154,29 +175,26 @@ export async function main() {
                     <div class="header">
                         <div class="name">${common.sanitize(name)}</div>
                         ${common.teamBadge(chat.team)}
+                        <span class="age">${fmtAge(chat.ts)}</span>
                     </div>
-                    <div class="live">${liveDataFormatter(chat.from)}</div>
+                    <div class="live"></div>
                     <div class="message">
                         <div class="chunk">${common.sanitize(chat.message)}</div>
                     </div>
                 </div>
             `;
         } else {
-            const initials = [chat.firstName[0].toUpperCase(), chat.lastName[0].toUpperCase()].filter(x => x).join('');
+            const initials = [chat.firstName[0].toUpperCase(), chat.lastName[0].toUpperCase()]
+                .filter(x => x).join('');
             entry.classList.add('muted');
             entry.innerHTML = `<div class="content">Muted message from ${initials}</div>`;
         }
         entry.addEventListener('dblclick', async () => {
             await common.rpc.watch(chat.from);
         });
-        addContentEntry(entry, age);
+        addContentEntry(chat.from, entry, age);
     }
 
-    common.subscribe('nearby', data => {
-        for (const x of data) {
-            nearby.set(x.athleteId, x);
-        }
-    });
     for (const x of (await common.rpc.getChatHistory()).reverse()) {
         const age = (Date.now() - x.ts) / 1000;
         if (settings.cleanup && age > settings.cleanup) {
@@ -196,12 +214,11 @@ export async function main() {
             () => `My ${_(w.bodyPart)} has ${_(w.verbPast)} to ${_(w.place)}.`,
         ];
         for (let i = 1; i < 100; i++) {
-            const from = Array.from(nearby.keys())[Math.floor(Math.random() * nearby.size / 10)] || 0;
             onChatMessage({
                 firstName: _([...w.celebrityF, ...w.celebrityM]),
                 lastName: '',
                 message: _(phrases)(),
-                from,
+                from: Math.random() * 5 | 0,
                 to: 0,
                 avatar: 'images/blankavatar.png',
             });

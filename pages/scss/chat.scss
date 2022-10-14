@@ -21,11 +21,17 @@ body {
 
     &.reverse-order {
         flex-direction: column-reverse;
-    }
 
-    > *:first-child {
-        /* https://bugs.chromium.org/p/chromium/issues/detail?id=411624 */
-        margin-top: auto;  /* Shift to bottom when unscrolled */
+        > *:first-child {
+            /* https://bugs.chromium.org/p/chromium/issues/detail?id=411624 */
+            margin-bottom: auto;  /* Shift to top when unscrolled */
+        }
+    }
+    &:not(.reverse-order) {
+        > *:first-child {
+            /* https://bugs.chromium.org/p/chromium/issues/detail?id=411624 */
+            margin-top: auto;  /* Shift to bottom when unscrolled */
+        }
     }
     > :last-child {
         scroll-snap-align: end;
@@ -115,11 +121,19 @@ body {
         }
 
         .badge {
+            margin-left: 0.4em;
+            white-space: nowrap;
+
             &:empty {
                 display: none;
             }
+        }
 
-            margin-left: 0.4em;
+        .age {
+            padding-left: 0.5em;
+            flex: 1 0 auto;
+            text-align: end;
+            opacity: 0.7;
         }
     }
 
