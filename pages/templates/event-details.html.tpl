@@ -18,6 +18,9 @@
         <div class="event-subgroup" data-event-subgroup-id="{{sg.id}}">
             <header>
                 {-eventBadge(sg.subgroupLabel)-}
+                <% if (sg.startOffset) { %>
+                    <div>Starts: +{-humanDuration(sg.startOffset / 1000)-}</div>
+                <% } %>
                 <% if (sg.durationInSeconds) { %>
                     <div>Duration: {-humanTimer(sg.durationInSeconds, {suffix: true, html: true})-}</div>
                 <% } else { %>

@@ -1110,7 +1110,6 @@ export class StatsProcessor extends events.EventEmitter {
                 x.routeDistance = this._getRouteDistance(route, x.laps);
                 x.routeClimbing = this._getRouteClimbing(route, x.laps);
             }
-            x.ts = new Date(x.eventStart).getTime();
             x.allTags = this._parseEventTags(x);
             this._recentEvents.set(x.id, x);
             if (x.eventSubgroups) {
@@ -1120,6 +1119,7 @@ export class StatsProcessor extends events.EventEmitter {
                         sg.routeDistance = this._getRouteDistance(route, sg.laps);
                         sg.routeClimbing = this._getRouteClimbing(route, sg.laps);
                     }
+                    sg.startOffset = +(new Date(sg.eventSubgroupStart)) - +(new Date(x.eventStart));
                     sg.allTags = new Set([...this._parseEventTags(sg), ...x.allTags]);
                     this._recentEventSubgroups.set(sg.id, {
                         event: x,
@@ -1135,7 +1135,6 @@ export class StatsProcessor extends events.EventEmitter {
             x.type = 'EVENT_TYPE_MEETUP';
             x.totalEntrantCount = x.acceptedTotalCount;
             x.eventSubgroups = [];
-            x.ts = new Date(x.eventStart).getTime();
             x.allTags = this._parseEventTags(x);
             this._recentEvents.set(x.id, x);
             if (x.eventSubgroupId) {
@@ -1363,7 +1362,7 @@ export class StatsProcessor extends events.EventEmitter {
                 const eventEnd = +(new Date(sg.eventSubgroupStart || sg.eventStart)) +
                     (sg.durationInSeconds * 1000);
                 return {
-                    remaining: (eventEnd - Date.now()) / 1000,
+                    remaining: eventEnd - (state.time * 1000),
                     remainingMetric: 'time',
                     remainingType: 'event',
                 };
