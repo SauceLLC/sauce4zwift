@@ -900,7 +900,7 @@ export class StatsProcessor extends events.EventEmitter {
                 ad.privacy = {};
                 if (state.athleteId !== this.athleteId) {
                     ad.privacy.hideWBal = sg.allTags.has('hidewbal');
-                    ad.privacy.hideFTP = sg.allTags.has('hideftp') || true;
+                    ad.privacy.hideFTP = sg.allTags.has('hideftp');
                 }
                 ad.disabled = sg.allTags.has('hidethehud') || sg.allTags.has('nooverlays');
             }
