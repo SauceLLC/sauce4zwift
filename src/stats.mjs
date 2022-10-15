@@ -594,17 +594,23 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     async getAthlete(id, options={}) {
+        let athlete;
         if (this.zwiftAPI.isAuthenticated()) {
             if (!options.refresh) {
-                return this.loadAthlete(id);
+                athlete = this.loadAthlete(id);
             } else {
                 const p = await this.zwiftAPI.getProfile(id);
                 if (p) {
-                    return this.updateAthlete(p.id, this._profileToAthlete(p));
+                    athlete = this.updateAthlete(p.id, this._profileToAthlete(p));
                 }
             }
         } else {
-            return this.loadAthlete(id);
+            athlete = this.loadAthlete(id);
+        }
+        if (athlete) {
+            const ad = this._athleteData.get(id);
+            const hideFTP = ad && ad.privacy.hideFTP;
+            return hideFTP ? {...athlete, ftp: null} : athlete;
         }
     }
 
@@ -761,15 +767,12 @@ export class StatsProcessor extends events.EventEmitter {
         return `${state.courseId},${state.roadId},${state.reverse}`;
     }
 
-    _getCollectorStats(data, athlete, isLap) {
+    _getCollectorStats(data, athlete, privacy) {
         const end = data.end || monotonic();
         const elapsed = (end - data.start) / 1000;
         const np = data.power.roll.np({force: true});
-        if (!isLap && data.power.roll.wBal === undefined && athlete && athlete.ftp && athlete.wPrime) {
-            data.power.roll.setWPrime(athlete.ftp, athlete.wPrime);
-        }
-        const wBal = data.power.roll.wBal;
-        const tss = np && athlete && athlete.ftp ?
+        const wBal = privacy.hideWBal ? undefined : data.power.roll.wBal;
+        const tss = (!privacy.hideFTP && np && athlete && athlete.ftp) ?
             sauce.power.calcTSS(np, data.power.roll.active(), athlete.ftp) :
             undefined;
         return {
@@ -860,6 +863,7 @@ export class StatsProcessor extends events.EventEmitter {
             start,
             wtOffset,
             athleteId,
+            privacy: {},
             mostRecentState: null,
             roadHistory: {
                 sig: null,
@@ -892,9 +896,22 @@ export class StatsProcessor extends events.EventEmitter {
         }
         if (state.eventSubgroupId) {
             const sg = this._recentEventSubgroups.get(state.eventSubgroupId);
-            if (sg && sg.tags && sg.tags.includes('hidethehud')) {
-                return;
+            if (sg !== ad.eventSubgroup) {
+                ad.privacy = {};
+                if (state.athleteId !== this.athleteId) {
+                    ad.privacy.hideWBal = sg.allTags.has('hidewbal');
+                    ad.privacy.hideFTP = sg.allTags.has('hideftp') || true;
+                }
+                ad.disabled = sg.allTags.has('hidethehud') || sg.allTags.has('nooverlays');
             }
+            ad.eventSubgroup = sg;
+        } else if (ad.eventSubgroup) {
+            ad.eventSubgroup = null;
+            ad.privacy = {};
+            ad.disabled = false;
+        }
+        if (ad.disabled) {
+            return;
         }
         ad.mostRecentState = state;
         const roadSig = this._roadSig(state);
@@ -1047,6 +1064,17 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
+    _parseEventTags(eventOrSubgroup) {
+        const tags = new Set(eventOrSubgroup.tags || []);
+        const desc = eventOrSubgroup.description;
+        if (desc) {
+            for (const x of desc.matchAll(/\B#([a-z]+[a-z0-9]*)\b/gi)) {
+                tags.add(x[1].toLowerCase());
+            }
+        }
+        return tags;
+    }
+
     async _zwiftMetaSync() {
         if (!this._active || !this.zwiftAPI.isAuthenticated()) {
             console.warn("Skipping social network update because not logged into zwift");
@@ -1083,6 +1111,7 @@ export class StatsProcessor extends events.EventEmitter {
                 x.routeClimbing = this._getRouteClimbing(route, x.laps);
             }
             x.ts = new Date(x.eventStart).getTime();
+            x.allTags = this._parseEventTags(x);
             this._recentEvents.set(x.id, x);
             if (x.eventSubgroups) {
                 for (const sg of x.eventSubgroups) {
@@ -1091,6 +1120,7 @@ export class StatsProcessor extends events.EventEmitter {
                         sg.routeDistance = this._getRouteDistance(route, sg.laps);
                         sg.routeClimbing = this._getRouteClimbing(route, sg.laps);
                     }
+                    sg.allTags = new Set([...this._parseEventTags(sg), ...x.allTags]);
                     this._recentEventSubgroups.set(sg.id, {
                         event: x,
                         route: this._routes.get(sg.routeId),
@@ -1106,6 +1136,7 @@ export class StatsProcessor extends events.EventEmitter {
             x.totalEntrantCount = x.acceptedTotalCount;
             x.eventSubgroups = [];
             x.ts = new Date(x.eventStart).getTime();
+            x.allTags = this._parseEventTags(x);
             this._recentEvents.set(x.id, x);
             if (x.eventSubgroupId) {
                 // Meetups are basicaly a hybrid event/subgroup
@@ -1357,18 +1388,26 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
-    _formatAthleteEntry(data, extra) {
-        const athlete = this.loadAthlete(data.athleteId);
-        const state = data.mostRecentState;
+    _formatAthleteEntry(ad, extra) {
+        let athlete = this.loadAthlete(ad.athleteId);
+        if (athlete) {
+            if (ad.privacy.hideFTP) {
+                athlete = {...athlete, ftp: null};
+            } else if (ad.power.roll.wBal == null && athlete.ftp && athlete.wPrime) {
+                // Lazy update w' since athlete data is async..
+                ad.power.roll.setWPrime(athlete.ftp, athlete.wPrime);
+            }
+        }
+        const state = ad.mostRecentState;
         return {
             athleteId: state.athleteId,
             athlete,
-            stats: this._getCollectorStats(data, athlete),
-            laps: data.laps.map(x => this._getCollectorStats(x, athlete, /*isLap*/ true)),
+            stats: this._getCollectorStats(ad, athlete, ad.privacy),
+            laps: ad.laps.map(x => this._getCollectorStats(x, athlete, ad.privacy)),
             state: this._cleanState(state),
-            eventPosition: data.eventPosition,
-            eventParticipants: data.eventParticipants,
-            gameState: data.gameState,
+            eventPosition: ad.eventPosition,
+            eventParticipants: ad.eventParticipants,
+            gameState: ad.gameState,
             ...this._getRemaining(state),
             ...extra,
         };
