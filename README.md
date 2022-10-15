@@ -19,6 +19,13 @@ Download for Mac / Windows / Linux:
 ### https://saucellc.io/products/sauce4zwift/download
 
 
+Event Organizer Hashtags
+--------
+**For Event Organizers only:**
+Control Sauce behavior for your events with these tags.
+#### https://saucellc.io/products/sauce4zwift/event_hashtags
+
+
 --------
 <img src="assets/images/screenshot.jpg" width="640"/>
 <img src="assets/images/slideshow.webp" width="400"/>
@@ -45,6 +52,8 @@ Feature Highlights
    * Peak Averages (5s, 5min, etc) for most metrics (power, hr, etc)
    * NP, TSS, kJ
    * Laps
+ * Controllable by event organizers:
+  * Add hashtags to your event description to control Sauce for athletes in your event
  * Highly configurable:
    * Dynamic scaling of almost every component to suit all needs
    * Chroma key support for OBS streamers
