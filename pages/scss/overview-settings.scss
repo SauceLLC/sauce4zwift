@@ -101,3 +101,116 @@
         margin-bottom: 0.2em;
     }
 }
+
+@keyframes floatingfranker {
+    from { margin-bottom: 0em; }
+    50% { margin-bottom: 20px; }
+    to { margin-bottom: 0em; }
+}
+
+@keyframes moveyfranker {
+    from { transform: rotate3d(0); }
+    20% { transform: rotate3d(1, 1, -3, 15deg); }
+    50% { transform: rotate3d(-1, -1, 4, -15deg); }
+    80% { transform: rotate3d(2, 1, 6, 20deg); }
+    to { transform: rotate3d(0); }
+}
+
+$frankshadowfilter: drop-shadow(2px 2px 20px #000a);
+
+@keyframes chromafranker {
+    from { filter: $frankshadowfilter; }
+    5% { filter: $frankshadowfilter saturate(2); }
+    10% { filter: $frankshadowfilter saturate(0); }
+    15% { filter: $frankshadowfilter saturate(2) hue-rotate(30deg); }
+    20% { filter: $frankshadowfilter saturate(2) hue-rotate(-30deg); }
+    24% { filter: $frankshadowfilter saturate(3) hue-rotate(60deg) brightness(1.2); }
+    28% { filter: $frankshadowfilter saturate(3) hue-rotate(-60deg) brightness(0.8); }
+    32% { filter: $frankshadowfilter saturate(4) hue-rotate(360deg) brightness(1.5); }
+    36% { filter: $frankshadowfilter saturate(4) hue-rotate(-360deg) brightness(0.5); }
+    40% { filter: $frankshadowfilter saturate(5) hue-rotate(360deg) brightness(1.5); }
+    43% { filter: $frankshadowfilter saturate(5) hue-rotate(-360deg) brightness(0.5); }
+    46% { filter: $frankshadowfilter saturate(5) hue-rotate(360deg) brightness(1.5); }
+    49% { filter: $frankshadowfilter saturate(5) hue-rotate(-360deg) brightness(0.5); }
+    52% { filter: $frankshadowfilter saturate(5) hue-rotate(360deg) brightness(1.5); }
+    54% { filter: $frankshadowfilter saturate(5) hue-rotate(-360deg) brightness(0.5); }
+    56% { filter: $frankshadowfilter saturate(5) hue-rotate(360deg) brightness(1.5); }
+    58% { filter: $frankshadowfilter saturate(5) hue-rotate(-360deg) brightness(0.5); }
+    60% { filter: $frankshadowfilter saturate(5) hue-rotate(720deg) brightness(1.5); }
+    62% { filter: $frankshadowfilter saturate(5) hue-rotate(-720deg) brightness(0.5); }
+    64% { filter: $frankshadowfilter saturate(5) hue-rotate(720deg) brightness(1.5); }
+    66% { filter: $frankshadowfilter saturate(5) hue-rotate(-720deg) brightness(0.5); }
+    68% { filter: $frankshadowfilter saturate(5) hue-rotate(720deg) brightness(1.5); }
+    70% { filter: $frankshadowfilter saturate(5) hue-rotate(-720deg) brightness(0.5); }
+    72% { filter: $frankshadowfilter saturate(5) hue-rotate(1080deg) brightness(1.5); }
+    74% { filter: $frankshadowfilter saturate(5) hue-rotate(-1080deg) brightness(0.5); }
+    76% { filter: $frankshadowfilter saturate(5) hue-rotate(1080deg) brightness(1.5); }
+    78% { filter: $frankshadowfilter saturate(5) hue-rotate(-1080deg) brightness(0.5); }
+    80% { filter: $frankshadowfilter saturate(5) hue-rotate(1080deg) brightness(1.5); }
+    82% { filter: $frankshadowfilter saturate(5) hue-rotate(-1080deg) brightness(0.5); }
+    84% { filter: $frankshadowfilter saturate(5) hue-rotate(1080deg) brightness(1.5); }
+    86% { filter: $frankshadowfilter saturate(5) hue-rotate(-1080deg) brightness(0.5); }
+    88% { filter: $frankshadowfilter saturate(5) hue-rotate(1080deg) brightness(1.5); }
+    90% { filter: $frankshadowfilter saturate(5) hue-rotate(-1080deg) brightness(0.5); }
+    92% { filter: $frankshadowfilter saturate(5) hue-rotate(360deg) brightness(1.5); }
+    94% { filter: $frankshadowfilter saturate(5) hue-rotate(-360deg) brightness(0.5); }
+    96% { filter: $frankshadowfilter saturate(5) hue-rotate(60deg) brightness(1.5); }
+    98% { filter: $frankshadowfilter saturate(5) hue-rotate(-60deg) brightness(0.5); }
+    to { filter: $frankshadowfilter; }
+}
+
+@keyframes pumpyfranker {
+    from { transform: scale(1) rotate3d(0); }
+    33% { transform: scale(1.25) rotate3d(0, 0, 0, 25deg); }
+    66% { transform: scale(1.50) rotate3d(0, 0, 0, -25deg); }
+    to { transform: scale(1) rotate3d(0); }
+}
+
+@keyframes blendyfranker {
+    from { mix-blend-mode: inherit; }
+    10% { mix-blend-mode: color-burn; }
+    20% { mix-blend-mode: color-dodge; }
+    30% { mix-blend-mode: darken; }
+    40% { mix-blend-mode: difference; }
+    45% { mix-blend-mode: exclusion; }
+    50% { mix-blend-mode: hard-light; }
+    55% { mix-blend-mode: luminosity; }
+    60% { mix-blend-mode: multiply; }
+    65% { mix-blend-mode: overlay; }
+    70% { mix-blend-mode: plus-lighter; }
+    80% { mix-blend-mode: screen; }
+    90% { mix-blend-mode: soft-light; }
+    from { mix-blend-mode: inherit; }
+}
+
+img.great-and-powerful {
+    position: fixed;
+    z-index: 100000;
+    width: 125%;
+    max-height: 90%;
+    object-fit: contain;
+    bottom: -110%;
+    left: -25%;
+    filter: $frankshadowfilter;
+    transition: bottom 3s;
+
+    &.approves {
+        bottom: -100px;
+        animation:
+            floatingfranker 4s infinite,
+            moveyfranker 15s infinite,
+            chromafranker 30s infinite,
+            pumpyfranker 300ms infinite,
+            blendyfranker 2s infinite;
+        animation-timing-function: cubic-bezier(0.46, 0.03, 0.52, 0.96), ease-in-out, linear, linear, linear;
+        animation-delay: 3s, 10s, 32s, 45s, 60s;
+
+        &::before {
+            content: 'The great and powerful Frank approves of your window name.';
+        }
+
+        &::after {
+            content: 'That is all.';
+        }
+    }
+}

@@ -440,6 +440,21 @@ export async function settingsMain() {
                     const customName = common.sanitize(input.value);
                     await common.rpc.updateWindow(id, {customName});
                     await renderWindowsPanel();
+                    if (customName.match(/frank/i)) {
+                        const img = document.createElement('img');
+                        img.src = 'images/great_and_powerful.webp';
+                        img.classList.add('great-and-powerful');
+                        img.addEventListener('load', () => img.classList.add('approves'));
+                        document.body.appendChild(img);
+                        const aud = document.createElement('audio');
+                        aud.innerHTML = `<source src="sounds/great_and_powerful.ogg" type="audio/ogg"/>`;
+                        aud.autoplay = true;
+                        document.body.appendChild(aud);
+                        setTimeout(() => {
+                            img.remove();
+                            aud.remove();
+                        }, 120 * 1000);
+                    }
                 };
                 input.addEventListener('blur', save);
                 input.addEventListener('keydown', ev => {
