@@ -178,17 +178,10 @@ $frankshadowfilter: drop-shadow(2px 2px 20px #000a);
 .great-and-powerful-bubble {
     position: fixed;
     z-index: 100002;
-    font-family: 'Gochi Hand';
-    font-size: 2.2em;
-    width: 500px;
-    height: 314px;
-    color: black;
-    word-spacing: 0.2em;
-    letter-spacing: 0.1em;
-    font-weight: 600;
-    text-align: center;
+    width: 400px;
+    height: 224px;
     top: 0;
-    left: calc(50% - 250px);
+    left: calc(50% - 200px);
     background-image: url(../images/great_and_powerful_bubble.webp);
     background-size: 100%;
     background-repeat: no-repeat;
@@ -197,30 +190,26 @@ $frankshadowfilter: drop-shadow(2px 2px 20px #000a);
     opacity: 0;
     transition: opacity 1s;
     transition-delay: 3s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
 
     &.approves {
         opacity: 0.92;
     }
 
-    &::before {
-        content: '';
-        float: left;
-        height: 100%;
-        width: 50%;
-        shape-outside: url(../images/great_and_powerful_bubble_mask_left.webp);
-    }
-
     .words {
-        padding: 1em;
-        padding-top: 2em;
-    }
-
-    .rightmask::before {
-        content: '';
-        float: right;
-        height: 100%;
-        width: 50%;
-        shape-outside: url(../images/great_and_powerful_bubble_mask_right.webp);
+        overflow: hidden;
+        margin: 15px 19px 32px 17px; // Based on rough edges of bubble image
+        padding: 0.6em;
+        color: black;
+        font-family: 'Gochi Hand';
+        font-size: 1.8em;
+        word-spacing: 0.2em;
+        letter-spacing: 0.1em;
+        font-weight: 600;
+        text-align: center;
     }
 }
 
