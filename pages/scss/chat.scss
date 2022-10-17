@@ -86,9 +86,9 @@ body {
         box-shadow: 0 0 0 1px #0002;
 
         img {
-            object-fit: contain;
+            object-fit: cover;
             width: 100%;
-            max-height: 100%;
+            height: 100%;
         }
     }
 
