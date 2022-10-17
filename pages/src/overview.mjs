@@ -410,6 +410,53 @@ async function renderWindowsPanel() {
 }
 
 
+async function frank() {
+    const bubble = document.createElement('div');
+    const img = document.createElement('img');
+    img.src = 'images/great_and_powerful.webp';
+    img.classList.add('great-and-powerful');
+    img.addEventListener('load', () => {
+        img.classList.add('approves');
+        bubble.classList.add('approves');
+    });
+    bubble.classList.add('great-and-powerful-bubble');
+    const words = document.createElement('div');
+    words.classList.add('words');
+    bubble.innerHTML = '<span class="rightmask"></span>';
+    bubble.append(words)
+    words.textContent = 'The great and powerful Frank approves of your life choices!!!';
+    const aud = document.createElement('audio');
+    aud.innerHTML = `<source src="sounds/great_and_powerful.ogg" type="audio/ogg"/>`;
+    aud.autoplay = true;
+    document.body.append(img);
+    document.body.append(bubble);
+    document.body.append(aud);
+    let active = true;
+    setTimeout(() => {
+        active = false;
+        img.remove();
+        bubble.remove();
+        aud.remove();
+    }, 110 * 1000);
+    await sauce.sleep(12000);
+    words.textContent = 'Let us celebrate this joyous occasion with my favorite song!';
+    await sauce.sleep(19000);
+    words.textContent = 'Now we Disco!';
+    await sauce.sleep(2800);
+    let discos = 1;
+    while (active) {
+        words.textContent = '';
+        await sauce.sleep(60);
+        if (discos++ > 10) {
+            discos = 1;
+        }
+        for (let i = 0; i < discos; i++) {
+            words.textContent += ' DISCO! ';
+        }
+        await sauce.sleep(400);
+    }
+}
+
 
 export async function settingsMain() {
     common.initInteractionListeners();
@@ -431,6 +478,7 @@ export async function settingsMain() {
                 input.title = 'Press Enter to save or Escape';
                 td.innerHTML = '';
                 td.appendChild(input);
+                input.focus();
                 let actionTaken;
                 const save = async () => {
                     if (actionTaken) {
@@ -441,19 +489,7 @@ export async function settingsMain() {
                     await common.rpc.updateWindow(id, {customName});
                     await renderWindowsPanel();
                     if (customName.match(/frank/i)) {
-                        const img = document.createElement('img');
-                        img.src = 'images/great_and_powerful.webp';
-                        img.classList.add('great-and-powerful');
-                        img.addEventListener('load', () => img.classList.add('approves'));
-                        document.body.appendChild(img);
-                        const aud = document.createElement('audio');
-                        aud.innerHTML = `<source src="sounds/great_and_powerful.ogg" type="audio/ogg"/>`;
-                        aud.autoplay = true;
-                        document.body.appendChild(aud);
-                        setTimeout(() => {
-                            img.remove();
-                            aud.remove();
-                        }, 120 * 1000);
+                        frank();
                     }
                 };
                 input.addEventListener('blur', save);
