@@ -2,7 +2,7 @@
   "name": "sauce4zwift",
   "productName": "Sauce for Zwift™",
   "private": true,
-  "version": "0.10.9",
+  "version": "0.11.0-alpha.1",
   "description": "Overlay widgets and advanced instrumentation for the serious Zwifter.",
   "homepage": "https://saucellc.io",
   "author": "Sauce, LLC",
@@ -29,6 +29,9 @@
     "protobufjs": "7.0.0",
     "xxhash-addon": "2.0.1"
   },
+  "optionalDependencies": {
+    "zwift-utils": "https://github.com/SauceLLC/wift-utils.git#15d45eb46"
+  },
   "devDependencies": {
     "@sentry/browser": "6.19.6",
     "echarts": "5.3.3",
@@ -38,8 +41,7 @@
     "eslint": "8.21.0",
     "sass": "1.54.4",
     "world_countries_lists": "2.6.0",
-    "zwift-data": "1.17.0",
-    "zwift-utils": "https://github.com/SauceLLC/zwift-utils.git#15d45eb46"
+    "zwift-data": "1.17.0"
   },
   "build": {
     "appId": "io.saucellc.sauce4zwift",
@@ -70,10 +72,12 @@
       "!node_modules/protobufjs/scripts",
       "!node_modules/protobufjs/dist",
       "!node_modules/xxhash-addon/src",
+      "!node_modules/xxhash-addon/xxHash",
       "!node_modules/nan",
       "!node_modules/web-streams-polyfill",
       "!node_modules/@sentry/**/build",
       "!node_modules/@sentry/**/esm",
+      "!node_modules/zwift-utils",
       "!**/*.ts.map",
       "!node_modules/typed-emitter",
       "!node_modules/rxjs",
