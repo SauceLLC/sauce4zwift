@@ -1,5 +1,4 @@
 /* global Buffer */
-
 import fetch from 'node-fetch';
 import protobuf from 'protobufjs';
 import path from 'node:path';
@@ -96,6 +95,22 @@ export const courseToWorldIds = Object.fromEntries(worldCourseDescs.map(x => [x.
 export const worldToCourseIds = Object.fromEntries(worldCourseDescs.map(x => [x.worldId, x.courseId]));
 export const courseToNames = Object.fromEntries(worldCourseDescs.map(x => [x.courseId, x.name]));
 export const worldToNames = Object.fromEntries(worldCourseDescs.map(x => [x.worldId, x.name]));
+
+
+function decodeGroupEventUserRegistered(buf) {
+    return {
+        athleteId: buf.readUInt32LE(8),
+        subgroupId: buf.readUInt32LE(16),
+        unknownFlags1: buf.readUInt32LE(20),
+        unknownFlags2: buf.readUInt32LE(24),
+        unknownFlags3: buf.readUInt32LE(28),
+        worldTime: buf.readDoubleLE(32),
+    };
+}
+
+const binaryWorldUpdatePayloads = {
+    groupEventUserRegistered: decodeGroupEventUserRegistered,
+};
 
 
 function sleep(ms) {
@@ -1676,7 +1691,17 @@ export class GameMonitor extends events.EventEmitter {
             if (!x.payloadType) {
                 console.warn("No enum type for:", x._payloadType);
             } else if (x.payloadType[0] !== '_') {
-                x.payload = protos.get(x.payloadType).decode(x._payload);
+                const payloadProto = protos.get(x.payloadType);
+                if (payloadProto) {
+                    x.payload = protos.get(x.payloadType).decode(x._payload);
+                } else {
+                    const handler = binaryWorldUpdatePayloads[x.payloadType];
+                    if (!handler) {
+                        console.warn("No protobuf for:", x.payloadType, x._payload.toString('hex'));
+                    } else {
+                        x.payload = handler(x._payload, x.payloadType);
+                    }
+                }
             }
         }
         const dropList = [];

@@ -213,7 +213,11 @@ const segmentsByWorld = new Map();
 function getSegmentsForWorld(worldId) {
     if (!segmentsByWorld.has(worldId)) {
         const fname = path.join(__dirname, `../shared/deps/data/segments-${worldId}.json`);
-        segmentsByWorld.set(worldId, JSON.parse(fs.readFileSync(fname)));
+        try {
+            segmentsByWorld.set(worldId, JSON.parse(fs.readFileSync(fname)));
+        } catch(e) {
+            segmentsByWorld.set(worldId, []);
+        }
     }
     return segmentsByWorld.get(worldId);
 }
@@ -683,7 +687,7 @@ export class StatsProcessor extends events.EventEmitter {
                 } else if (x.payloadType === 'PayloadRideOn') {
                     this.handleRideOnPayload(x.payload);
                 } else if (x.payload) {
-                    console.debug(x.payloadType, x.payload.toJSON());
+                    console.debug(x.payloadType, x.payload);
                 }
             }
         }
