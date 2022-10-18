@@ -96,10 +96,24 @@ export async function start(options={}) {
 }
 
 
+const _jsonWeakMap = new WeakMap();
+function jsonCache(data) {
+    // Use with caution.  The data arg must be deep frozen
+    let json = _jsonWeakMap.get(data);
+    if (!json) {
+        json = JSON.stringify(data);
+        _jsonWeakMap.set(data, json);
+    }
+    return json;
+}
+
+
 async function _start({ip, port, rpcSources, statsProc}) {
     app = express();
-    app.set('json spaces', 2);
-    app.use(express.json());
+    app.use((req, res, next) => {
+        req.start = performance.now();
+        next();
+    });
     server = http.createServer(app);
     const webSocketServer = expressWebSocketPatch(app, server).getWss();
     // workaround https://github.com/websockets/ws/issues/2023
@@ -127,7 +141,6 @@ async function _start({ip, port, rpcSources, statsProc}) {
         cacheControl: true,
         setHeaders: res => res.setHeader('Cache-Control', cacheDisabled)
     }));
-    const serialCache = new WeakMap();
     router.ws('/api/ws/events', (ws, req) => {
         const client = req.client.remoteAddress;
         console.info("WebSocket connected:", client);
@@ -151,17 +164,12 @@ async function _start({ip, port, rpcSources, statsProc}) {
                         ws.close();
                         ws = null;
                     } else if (ws) {
-                        let json = serialCache.get(data);
-                        if (!json) {
-                            json = JSON.stringify(data);
-                            serialCache.set(data, json);
-                        }
                         // Saves heaps of CPU when we have many clients on same event
                         ws.send(`{
                             "success": true,
                             "type": "event",
                             "uid": ${JSON.stringify(subId)},
-                            "data": ${json}
+                            "data": ${jsonCache(data)}
                         }`);
                     }
                 };
@@ -196,25 +204,31 @@ async function _start({ip, port, rpcSources, statsProc}) {
     api.use((req, res, next) => {
         res.on('finish', () => {
             const client = req.client.remoteAddress;
-            console.debug(`Web API request: (${client}) [${req.method}] ${req.originalUrl} -> ${res.statusCode}`);
+            const elapsed = (performance.now() - req.start).toFixed(1);
+            const msg = `HTTP API request: (${client}) [${req.method}] ${req.originalUrl} -> ${res.statusCode}, ${elapsed}ms`;
+            if (res.statusCode >= 400) {
+                console.error(msg);
+            } else {
+                console.debug(msg);
+            }
         });
         next();
     });
     api.get('/', (req, res) => {
-        res.send([{
+        res.send(JSON.stringify([{
             'athletes': '[GET] Information for all active athletes',
             'athletes/<id>': '[GET] Information for specific athlete',
             'athletes/self': '[GET] Information for the logged in athlete',
             'athletes/watching': '[GET] Information for athlete being watched',
             'nearby': '[GET] Information for all nearby athletes',
             'groups': '[GET] Information for all nearby groups',
+            'rpc': '[GET] List available RPC resources',
             'rpc/<name>': '[POST] Make an RPC call into the backend. ' +
                 'Content body should be JSON Array of arguments',
-        }]);
+        }], null, 4));
     });
-    api.get('/rpc', (req, res) => {
-        res.send(Array.from(rpc.handlers.keys()).map(name => `${name}: [POST]`));
-    });
+    api.get('/rpc', (req, res) =>
+        res.send(JSON.stringify(Array.from(rpc.handlers.keys()).map(name => `${name}: [POST]`), null, 4)));
     const sp = statsProc;
     function getAthleteHandler(res, id) {
         const data = sp.getAthleteData(id);
@@ -242,8 +256,10 @@ async function _start({ip, port, rpcSources, statsProc}) {
     api.get('/athletes/watching', (req, res) => getAthleteHandler(res, sp.watching));
     api.get('/athletes/:id', (req, res) => getAthleteHandler(res, Number(req.params.id)));
     api.get('/athletes', (req, res) => res.send(sp.getAthletesData()));
-    api.get('/nearby', (req, res) => res.send(sp.getNearbyData()));
-    api.get('/groups', (req, res) => res.send(sp.getGroupsData()));
+    api.get('/nearby', (req, res) =>
+        res.send(sp._mostRecentNearby ? jsonCache(sp._mostRecentNearby) : '[]'));
+    api.get('/groups', (req, res) =>
+        res.send(sp._mostRecentGroups ? jsonCache(sp._mostRecentGroups) : '[]'));
     api.use((e, req, res, next) => {
         res.status(500);
         res.json({
@@ -267,7 +283,7 @@ async function _start({ip, port, rpcSources, statsProc}) {
                 server.listen(port);
             });
             console.info(`Web server started at: http://${ip}:${port}/`);
-            console.debug(`  Web API at: http://${ip}:${port}/api`);
+            console.debug(`  HTTP API at: http://${ip}:${port}/api`);
             console.debug(`  WebSocket API at: http://${ip}:${port}/api/ws/events`);
             return;
         } catch(e) {
