@@ -92,6 +92,7 @@ async function makeMetricCharts(proc, el) {
             name: 'CPU',
             type: 'line',
             showSymbol: false,
+            animation: false,
             emphasis: {disabled: true},
             tooltip: {
                 valueFormatter: x => H.number(x) + '%'
@@ -102,6 +103,7 @@ async function makeMetricCharts(proc, el) {
             name: 'Memory',
             type: 'line',
             showSymbol: false,
+            animation: false,
             emphasis: {disabled: true},
             yAxisIndex: 1,
             tooltip: {
@@ -115,6 +117,7 @@ async function makeMetricCharts(proc, el) {
     const commonGaugeSeries = {
         type: 'gauge',
         radius: '95%',
+        animation: false,
         axisLine: {
             roundCap: true,
             lineStyle: {
