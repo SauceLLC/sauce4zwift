@@ -45,7 +45,7 @@ const gaugeConfigs = {
             min: 0,
             max: 700,
         },
-        color: '#35e',
+        defaultColor: '#35e',
         getValue: x => settings.dataSmoothing ? x.stats.power.smooth[settings.dataSmoothing] : x.state.power,
         getAvgValue: x =>
             (settings.currentLap ? x.stats.laps.at(-1).power : x.stats.power).avg,
@@ -73,7 +73,7 @@ const gaugeConfigs = {
     },
     hr: {
         name: 'Heart Rate',
-        color: '#d22',
+        defaultColor: '#d22',
         ticks: 8,
         defaultSettings: {
             min: 70,
@@ -86,7 +86,7 @@ const gaugeConfigs = {
     },
     pace: {
         name: 'Pace',
-        color: '#273',
+        defaultColor: '#273',
         ticks: imperial ? 6 : 10,
         defaultSettings: {
             min: 0,
@@ -99,7 +99,7 @@ const gaugeConfigs = {
     },
     cadence: {
         name: 'Cadence',
-        color: '#ee3',
+        defaultColor: '#ee3',
         ticks: 10,
         defaultSettings: {
             min: 40,
@@ -112,7 +112,7 @@ const gaugeConfigs = {
     },
     draft: {
         name: 'Draft',
-        color: '#930',
+        defaultColor: '#930',
         ticks: 6,
         defaultSettings: {
             min: 0,
@@ -125,7 +125,7 @@ const gaugeConfigs = {
     },
     wbal: {
         name: 'W\'bal',
-        color: '#555',
+        defaultColor: '#555',
         ticks: 10,
         defaultSettings: {
             min: 0,
@@ -162,10 +162,13 @@ const settings = settingsStore.get(null, {
     gaugeTransparency: 20,
     solidBackground: false,
     backgroundColor: '#00ff00',
+    colorOverride: false,
+    color: '#7700ff',
     ...config.defaultSettings,
 });
 common.themeInit(settingsStore);
 doc.classList.remove('hidden-during-load');
+config.color = settings.colorOverride ? settings.color : config.defaultColor;
 
 
 function setBackground() {
@@ -175,6 +178,15 @@ function setBackground() {
         doc.style.setProperty('--background-color', backgroundColor);
     } else {
         doc.style.removeProperty('--background-color');
+    }
+}
+
+
+function colorAlpha(color, alpha) {
+    if (color.length <= 5) {
+        return color.slice(0, 4) + alpha[0];
+    } else {
+        return color.slice(0, 7) + alpha.padStart(2, alpha[0]);
     }
 }
 
@@ -218,7 +230,7 @@ export async function main() {
                                 color: '#000',
                             }, {
                                 offset: 0.5,
-                                color: config.color + 'f',
+                                color: colorAlpha(config.color, 'f'),
                             }, {
                                 offset: 0.75,
                                 color: config.color,
@@ -248,7 +260,7 @@ export async function main() {
                     show: true,
                     width: 60 * relSize,
                     itemStyle: !config.visualMap ? {
-                        color: config.axisColorBands ? '#fff3' : config.color + '4',
+                        color: config.axisColorBands ? '#fff3' : colorAlpha(config.color, '4'),
                     } : undefined,
                 },
                 axisLine: {
@@ -365,8 +377,11 @@ export async function main() {
     settingsStore.addEventListener('changed', ev => {
         const changed = ev.data.changed;
         if (changed.has('/imperialUnits')) {
-            imperial = ev.data.value;
+            imperial = changed.get('/imperialUnits');
             L.setImperial(imperial);
+        }
+        if (changed.has('color') || changed.has('colorOverride')) {
+            config.color = settings.colorOverride ? settings.color : config.defaultColor;
         }
         setBackground();
         renderer.fps = 1 / settings.refreshInterval;
