@@ -138,8 +138,9 @@ html {
 
     .sub {
         font-size: 0.6em;
-        display: flex;
-        flex-direction: column;
+        display: grid;
+        grid-template-columns: auto auto auto;
+        align-items: baseline;
         position: relative;
     }
 
@@ -149,6 +150,7 @@ html {
         line-height: 1.1;
         display: block;
         font-variant: all-small-caps;
+        grid-column: 1 / 4;
     }
 
     [data-field].full-height {
@@ -200,8 +202,7 @@ html {
     }
 
     .field-row {
-        display: flex;
-        align-items: baseline;
+        display: contents;
     }
 }
 
@@ -289,8 +290,6 @@ html {
 .field-row .key {
     font-size: 0.60rem;
     margin-right: 0.3em;
-    text-align: right;
-    min-width: 8ch;
     opacity: 0.88;
     position: relative;
 
