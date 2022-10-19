@@ -86,10 +86,10 @@ NOTE: Game Connection uses the Companion App protocol which only supports a sing
                     <key>Imperial units:</key>
                     <input type="checkbox" name="/imperialUnits"/>
                 </label>
-                <label>
-                    <key>Theme:</key>
+                <label title="The default theme for all windows">
+                    <key>Default Theme:</key>
                     <select name="/theme">
-                        <option value="">Default</option>
+                        <option value="">Sauce</option>
                         <option value="bluepink">Ice Blue Pink</option>
                         <option value="green">Green Lantern</option>
                         <option value="burgundy">Ron Burgundy</option>
@@ -120,6 +120,23 @@ NOTE: Game Connection uses the Companion App protocol which only supports a sing
                     <key>Lock fields:</key>
                     <input type="checkbox" name="lockedFields"/>
                 </label>
+                <label>
+                    <key>Theme override:</key>
+                    <select name="themeOverride">
+                        <option value="">Use app setting</option>
+                        <option value="sauce">Sauce</option>
+                        <option value="bluepink">Ice Blue Pink</option>
+                        <option value="green">Green Lantern</option>
+                        <option value="burgundy">Ron Burgundy</option>
+                        <option value="aqua">Aqua Salad</option>
+                        <option value="watermelon">Watermelon</option>
+                        <option value="light">Light</option>
+                        <option value="dark">Dark</option>
+                        <option value="transparent-light">Transparent - Light</option>
+                        <option value="transparent-dark">Transparent - Dark</option>
+                    </select>
+                </label>
+
             </form>
 
             <div id="windows" class="section">
