@@ -1,10 +1,13 @@
 @use 'color';
 
+html {
+    font-size: 4mm;
+}
+
 #content {
     overflow: auto; // fallback
     overflow: overlay; // Not in spec, but is perfect for chromium.
     padding: 1em;
-    font-size: 14px;
 
     section {
         display: flex;

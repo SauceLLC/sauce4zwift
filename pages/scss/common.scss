@@ -18,6 +18,13 @@
 }
 
 @font-face {
+    font-family: 'Saira';
+    src: url('../fonts/Saira.woff2') format('woff2');
+    font-style: normal;
+    font-weight: 100 900;
+}
+
+@font-face {
     font-family: 'Material Symbols Rounded';
     font-style: normal;
     font-weight: 100 700;
@@ -34,6 +41,7 @@ html {box-sizing: border-box;}
 html {
     --aspect-ratio: 9 / 16;
     font-family: 'Jost', sans-serif;
+    font-family: 'Saira', sans-serif;
     width: 100%;
     height: 100%;
     padding: 2px;
@@ -106,7 +114,7 @@ html {
     }
 
     &.settings-page {
-        font-size: 4.2mm;
+        font-size: 4.1mm;
 
         #content {
             overflow: auto;
@@ -349,7 +357,7 @@ form label {
     }
 
     header {
-        font-size: 5.2mm;
+        font-size: 5.1mm;
         flex: 0 0 auto;
         max-width: 100%;
         display: flex;
@@ -654,10 +662,11 @@ footer.legal {
     flex: 1 0 auto;
     padding: 1em;
     font-size: 3.4mm;
+    font-variation-settings: "wdth" 85;
     display: flex;
     align-items: flex-end;
     justify-content: center;
-    opacity: 0.5;
+    opacity: 0.7;
     width: 100%;
 
     > * {

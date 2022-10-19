@@ -319,8 +319,17 @@ html {
         text-align: center;
 
         &::after {
-            content: '...';
+            content: '-';
         }
+    }
+
+    &.wide {
+        font-size: 0.94em;
+        font-variation-settings: "wdth" 94;
+    }
+    &.very-wide {
+        font-size: 0.90em;
+        font-variation-settings: "wdth" 90;
     }
 }
 

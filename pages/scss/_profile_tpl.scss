@@ -16,9 +16,8 @@
     }
 
     > header {
-        padding: 0.1em 0.7em;
-        font-size: 1.6em;
-        font-weight: bold;
+        padding: 0.125em 0.7em;
+        font-size: 1.40em;
         background-image: linear-gradient(to top, color.shade(bookend, 0%), color.shade(bookend, 12%));
         color: color.shade(bookend, 100%);
         display: flex;
@@ -31,14 +30,15 @@
             margin-right: 0.6em;
             app-region: drag;
             position: relative;
+            font-size: 0.9em;
 
             .special-badge {
                 font-variant: all-small-caps;
-                font-size: 0.5em;
+                font-size: 0.65em;
                 font-weight: 600;
                 color: gold;
                 position: absolute;
-                line-height: 1.1;
+                line-height: 1;
                 top: 0;
                 left: 0;
             }
