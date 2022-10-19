@@ -35,8 +35,7 @@ function fmtAge(ts) {
     if (age < 15) {
         return 'now';
     }
-    const precision = age < 60 ? 1 : age < 3600 ? 60 : 3600;
-    return H.relTime(ts, {short: true, precision, html: true});
+    return H.relTime(ts, {short: true, maxParts: 1, html: true});
 }
 
 
@@ -216,6 +215,7 @@ export async function main() {
                 message: _(phrases)(),
                 from: Math.random() * 5 | 0,
                 to: 0,
+                ts: Date.now(),
                 avatar: 'images/blankavatar.png',
             });
             await sauce.sleep(1000 * i);
