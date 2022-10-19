@@ -28,67 +28,57 @@ const hdUnits = {
     today: 'today',
 };
 
-
-/*function isRoughlyEqual(a, b, sameness) {
-    sameness = sameness || 0.01;
-    const delta = Math.abs(a - b);
-    return delta < sameness;
-}*/
+const humanEmpty = '-';
 
 
 function humanDuration(elapsed, options={}) {
-    const min = 60;
-    const hour = min * 60;
-    const day = hour * 24;
-    const week = day * 7;
-    const year = day * 365;
-    const units = [
-        ['year', year],
-        ['week', week],
-        ['day', day],
-        ['hour', hour],
-        ['min', min],
+    if (!_realNumber(elapsed)) {
+        return humanEmpty;
+    }
+    let units = [
+        ['year', 365 * 86400],
+        ['week', 7 * 86400],
+        ['day', 86400],
+        ['hour', 3600],
+        ['min', 60],
         ['sec', 1]
-    ].filter(([, period]) =>
-        (options.maxPeriod ? period <= options.maxPeriod : true) &&
-        (options.minPeriod ? period >= options.minPeriod : true));
+    ];
+    if (options.maxPeriod || options.minPeriod) {
+        units = units.filter(([, period]) =>
+            (options.maxPeriod ? period <= options.maxPeriod : true) &&
+            (options.minPeriod ? period >= options.minPeriod : true));
+    }
+    const maxParts = options.maxParts === undefined ? 2 : options.maxParts;
+    const negative = elapsed < 0;
+    elapsed = Math.abs(elapsed); // Always use abs() to convert -0 to 0.
+    elapsed = options.precision ? Number(elapsed.toFixed(options.precision)) : Math.round(elapsed);
     const stack = [];
-    const precision = options.precision || 1;
-    const sign = elapsed < 0 ? '-' : '';
-    // XXX completely broken. :(
-    elapsed = Math.round(Math.abs(elapsed) / precision) * precision;
-    let i = 0;
-    for (let [key, period] of units) {
-        i++;
-        if (precision > period) {
-            break;
-        }
-        if (elapsed >= period || (!stack.length && i === units.length)) {
-            if (elapsed >= 2 * period || elapsed < period) {
-                key += 's';
+    for (let i = 0; i < units.length && stack.length < maxParts; i++) {
+        let [key, period] = units[i];
+        const isLast = i === units.length - 1;
+        if (elapsed >= period || isLast) {
+            const val = isLast || stack.length === maxParts - 1 ?
+                humanNumber(elapsed / period, {precision: options.precision}) :
+                humanNumber(Math.floor(elapsed / period));
+            if (val !== '0' || (isLast && !stack.length)) {
+                key += val !== '1' ? 's' : '';
+                const unit = options.short ? hdUnits[key][0] : ` ${hdUnits[key]}`;
+                const suffix = options.html ? `<abbr class="unit">${unit}</abbr>` : unit;
+                stack.push(`${val}${suffix}`);
             }
-            let unit = ' ' + hdUnits[key];
-            if (options.short) {
-                unit = unit.substr(1, 1);
-            }
-            const suffix = options.html ? `<abbr class="unit">${unit}</abbr>` : unit;
-            let val;
-            if (options.digits && units[units.length - 1][1] === period) {
-                val = humanNumber(elapsed / period, {precision: options.digits});
-            } else {
-                val = humanNumber(Math.floor(elapsed / period));
-            }
-            stack.push(`${val}${suffix}`);
             elapsed %= period;
         }
     }
-    return sign + stack.slice(0, 2).join(options.seperator || ', ');
+    return (negative ? '-' : '') + stack.join(options.seperator || ', ');
 }
 
 
 function humanRelDuration(date, options={}) {
     if (!(date instanceof Date)) {
         date = new Date(date);
+    }
+    if (isNaN(date)) {
+        return humanEmpty;
     }
     const elapsed = (Date.now() - date.getTime()) / 1000;
     return humanDuration(Math.abs(elapsed), options);
@@ -98,6 +88,9 @@ function humanRelDuration(date, options={}) {
 function humanRelTime(date, options={}) {
     if (!(date instanceof Date)) {
         date = new Date(date);
+    }
+    if (isNaN(date)) {
+        return humanEmpty;
     }
     const elapsed = (Date.now() - date.getTime()) / 1000;
     const duration = humanDuration(Math.abs(elapsed), options);
@@ -132,6 +125,9 @@ function humanDate(date, options={}) {
     if (!(date instanceof Date)) {
         date = new Date(date);
     }
+    if (isNaN(date)) {
+        return humanEmpty;
+    }
     const style = options.style || 'default';
     return _intlDateFormats[style].format(date);
 }
@@ -144,19 +140,30 @@ function humanTime(date, options={}) {
     if (!(date instanceof Date)) {
         date = new Date(date);
     }
+    if (isNaN(date)) {
+        return humanEmpty;
+    }
     const style = options.style || 'default';
     return _intlTimeFormats[style].format(date);
 }
 
 
 function humanTimer(elapsed, options={}) {
-    elapsed = elapsed || 0;
-    const endSlice = options.ms ? 12 : 8;
-    let s = (new Date(elapsed * 1000)).toISOString().substr(11, endSlice);
-    if (!options.full) {
-        s = s.replace(/^00:/, '');
+    if (!_realNumber(elapsed)) {
+        return humanEmpty;
     }
-    return s;
+    elapsed = elapsed || 0;
+    const hours = elapsed / 3600 | 0;
+    const mins = elapsed % 3600 / 60 | 0;
+    const secsStr = (options.ms ? elapsed % 60 | 0 : Math.round(elapsed % 60)).toString();
+    const msStr = options.ms ? Math.round(elapsed % 1 * 1000).toString().padStart(3, '0') : '';
+    if (hours) {
+        return `${hours}:${mins.toString().padStart(2, '0')}:${secsStr.padStart(2, '0')}${msStr}`;
+    } else if (mins) {
+        return `${mins}:${secsStr.padStart(2, '0')}${msStr}`;
+    } else {
+        return `${secsStr}${msStr}`;
+    }
 }
 
 
@@ -210,48 +217,23 @@ function humanDayOfWeek(sunOfft, options={}) {
 
 
 function humanNumber(value, options={}) {
-    if (typeof options === 'number') {
-        throw new TypeError("Legacy humanNumber usage");
-    }
-    if (value == null || value === '') {
-        return '-';
-    }
     let n = Number(value);
-    if (isNaN(n)) {
-        return '-';
+    if (!_realNumber(n)) {
+        return humanEmpty;
     }
-    const prec = options.precision;
-    if (prec !== null) {
-        if (!prec) {
-            n = Math.round(n);
-        } else if (!options.fixed) {
-            // Will convert 1.0 -> 1
-            if (n < 0) {
-                // Work around wonky toFixed spec that rounds down for negatives
-                n = -Number((-n).toFixed(prec));
-            } else {
-                n = Number(n.toFixed(prec));
-            }
-        }
-    }
-    if (Object.is(n, -0)) {
-        n = 0;
-    }
-    if (options.fixed) {
-        const fmtr = new Intl.NumberFormat(undefined, {
-            maximumFractionDigits: prec,
-            minimumFractionDigits: prec
-        });
-        return fmtr.format(n);
-    } else {
-        return n.toLocaleString();
-    }
+    const precision = options.precision || 0;
+    const v = n.toLocaleString(undefined, {
+        useGrouping: n >= 10000 || n <= -10000,
+        maximumFractionDigits: precision,
+        minimumFractionDigits: options.fixed ? precision : undefined,
+    });
+    return v === '-0' ? '0' : v;
 }
 
 
 function humanPower(p, options={}) {
     if (!_realNumber(p)) {
-        return '-';
+        return humanEmpty;
     }
     const suffix = options.suffix ? options.html ? `<abbr class="unit">w</abbr>` : 'w' : '';
     return humanNumber(p, options) + suffix;
@@ -260,7 +242,7 @@ function humanPower(p, options={}) {
 
 function humanWkg(wkg, options={}) {
     if (!_realNumber(wkg)) {
-        return '-';
+        return humanEmpty;
     }
     const suffix = options.suffix ? options.html ? `<abbr class="unit">w/kg</abbr>` : 'w/kg' : '';
     return humanNumber(wkg, {precision: 1, ...options}) + suffix;
@@ -269,18 +251,25 @@ function humanWkg(wkg, options={}) {
 
 function humanPace(kph, options={}) {
     if (!_realNumber(kph)) {
-        return '-';
+        return humanEmpty;
     }
-    const unit = imperial ? 'mph' : 'kph';
-    const suffix = options.suffix ? options.html ? `<abbr class="unit">${unit}</abbr>` : unit : '';
-    return humanNumber(imperial ? kph * 1000 / metersPerMile : kph,
-        {fixed: true, precision: 1, ...options}) + suffix;
+    const sport = options.sport || 'cycling';
+    if (sport === 'cycling') {
+        const unit = imperial ? 'mph' : 'kph';
+        const suffix = options.suffix ? options.html ? `<abbr class="unit">${unit}</abbr>` : unit : '';
+        return humanNumber(imperial ? kph * 1000 / metersPerMile : kph,
+            {fixed: true, precision: 1, ...options}) + suffix;
+    } else {
+        const unit = imperial ? '/mi' : '/km';
+        const suffix = options.suffix ? options.html ? `<abbr class="unit">${unit}</abbr>` : unit : '';
+        return humanTimer(3600 / (imperial ? kph * 1000 / metersPerMile : kph), options) + suffix;
+    }
 }
 
 
 function humanDistance(meters, options={}) {
     if (!_realNumber(meters)) {
-        return '-';
+        return humanEmpty;
     }
     const unit = imperial ? 'mi' : 'km';
     const suffix = options.suffix ? options.html ? `<abbr class="unit">${unit}</abbr>` : unit : '';
@@ -290,13 +279,13 @@ function humanDistance(meters, options={}) {
 
 
 function _realNumber(n) {
-    return n != null && n < Infinity && n > -Infinity && !isNaN(n);
+    return n != null && n < Infinity && n > -Infinity && !isNaN(n) && n !== '';
 }
 
 
 function humanWeight(kg, options={}) {
     if (!_realNumber(kg)) {
-        return '-';
+        return humanEmpty;
     }
     const unit = imperial ? 'lbs' : 'kg';
     const suffix = options.suffix ? options.html ? `<abbr class="unit">${unit}</abbr>` : unit : '';
@@ -307,7 +296,7 @@ function humanWeight(kg, options={}) {
 
 function humanWeightClass(kg, options={}) {
     if (!_realNumber(kg)) {
-        return '-';
+        return humanEmpty;
     }
     const unit = imperial ? 'lbs' : 'kg';
     const suffix = options.suffix ? options.html ? `<abbr class="unit">${unit}</abbr>` : unit : '';
@@ -322,7 +311,7 @@ function humanWeightClass(kg, options={}) {
 
 function humanHeight(cm, options={}) {
     if (!_realNumber(cm)) {
-        return '-';
+        return humanEmpty;
     }
     if (imperial) {
         const feet = cm / 100 / 0.3048;
@@ -338,7 +327,7 @@ function humanHeight(cm, options={}) {
 
 function humanElevation(meters, options={}) {
     if (!_realNumber(meters)) {
-        return '-';
+        return humanEmpty;
     }
     const unit = imperial ? 'ft' : 'm';
     const suffix = options.suffix ? options.html ? `<abbr class="unit">${unit}</abbr>` : unit : '';
@@ -355,7 +344,7 @@ const placeSuffixes = {
 };
 function humanPlace(p, options={}) {
     if (!p) {
-        return '-';
+        return humanEmpty;
     }
     const suffix = placeSuffixes[placePluralRules.select(p)];
     const hp = humanNumber(p);
@@ -406,5 +395,4 @@ export const human = {
     datetime: humanDateTime,
     time: humanTime,
     timer: humanTimer,
-    //stride: humanStride,
 };
