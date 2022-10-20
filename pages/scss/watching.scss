@@ -90,11 +90,8 @@ html {
         font-size: 1.7em;
     }
 
-    &.data-fields {
-        font-size: 1.3em;
-    }
-
-    &.split {
+    &.data-fields,
+    &.split-data-fields {
         font-size: 1.3em;
     }
 
@@ -114,10 +111,6 @@ html {
 
     &:last-child {
         margin-bottom: 0;
-    }
-
-    &.no-heading {
-        padding-top: 0.2rem;
     }
 
     &.no-side-margin {

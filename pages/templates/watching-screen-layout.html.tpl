@@ -80,7 +80,7 @@
                 <% } %>
             <!-- leave section div open -->
         <% } else if (section.type === 'split-data-fields') { %>
-            <div class="screen-section columns no-heading {{section.type}}" data-section-type="{{section.type}}"
+            <div class="screen-section columns {{section.type}}" data-section-type="{{section.type}}"
                  data-base-section-type="{{baseSectionType}}" data-section-id="{{section.id}}">
                 <% for (const group of section.groups) { %>
                     <div class="sub" data-group-type="{{group.type}}" data-group-id="{{group.id}}">
@@ -116,7 +116,7 @@
                 <% } %>
             <!-- leave section div open -->
         <% } else if (section.type === 'line-chart') { %>
-            <div class="screen-section no-heading no-side-margin {{section.type}}"
+            <div class="screen-section no-side-margin {{section.type}}"
                  data-section-type="{{section.type}}" data-base-section-type="{{baseSectionType}}"
                  data-section-id="{{section.id}}">
                 <div class="chart-holder ec">

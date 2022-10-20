@@ -46,8 +46,10 @@ const colors = {
     pace: '#4e3',
 };
 
-const imperial = !!common.settingsStore.get('/imperialUnits');
+let imperial = !!common.settingsStore.get('/imperialUnits');
 L.setImperial(imperial);
+let eventMetric = 'distance';
+let sport = 'cycling';
 
 const chartRefs = new Set();
 
@@ -61,8 +63,12 @@ function resizeCharts() {
         }
     }
 }
-
 addEventListener('resize', resizeCharts);
+
+
+function speedUnit() {
+    return sport === 'cycling' ? imperial ? 'mph' : 'kph' : imperial ? '/mi' : '/km';
+}
 
 
 function shortDuration(x) {
@@ -230,6 +236,7 @@ async function createStatHistoryChart(el, sectionId) {
         },
         tooltip: {
             trigger: 'axis',
+            axisPointer: {label: {formatter: () => ''}}
         },
         xAxis: [{
             show: false,
@@ -279,14 +286,14 @@ async function createStatHistoryChart(el, sectionId) {
             }
         }, {
             id: 'pace',
-            name: 'Pace',
+            name: 'Speed',
             type: 'line',
             z: 2,
             showSymbol: false,
             emphasis: {disabled: true},
             yAxisIndex: 2,
             tooltip: {
-                valueFormatter: x => H.pace(x, {precision: 0, suffix: true}),
+                valueFormatter: x => H.pace(x, {precision: 0, suffix: true, sport}),
             },
             areaStyle: {},
             lineStyle: {
@@ -491,39 +498,39 @@ const groupSpecs = {
         backgroundImage: 'url(../images/fa/solar-system-duotone.svg)',
         fields: [{
             value: x => H.number(x.state && x.state.cadence),
-            label: () => 'rpm',
+            label: () => sport === 'cycling' ? 'rpm' : 'spm',
             key: () => 'Current',
-            unit: () => 'rpm',
+            unit: () => sport === 'cycling' ? 'rpm' : 'spm',
         }, {
             value: x => H.number(x.stats && x.stats.cadence.avg || null),
             label: () => 'avg',
             key: () => 'Avg',
-            unit: () => 'rpm',
+            unit: () => sport === 'cycling' ? 'rpm' : 'spm',
         }, {
             value: x => H.number(x.stats && x.stats.cadence.max || null),
             label: () => 'max',
             key: () => 'Max',
-            unit: () => 'rpm',
+            unit: () => sport === 'cycling' ? 'rpm' : 'spm',
         }, {
             value: x => H.number(x.laps && x.laps.at(-1).cadence.avg || null), // XXX check if null is req
             label: () => 'lap avg',
             key: () => 'Lap Avg',
-            unit: () => 'rpm',
+            unit: () => sport === 'cycling' ? 'rpm' : 'spm',
         }, {
             value: x => H.number(x.laps && x.laps.at(-1).cadence.max || null), // XXX check if null is req
             label: () => 'lap max',
             key: () => 'Lap Max',
-            unit: () => 'rpm',
+            unit: () => sport === 'cycling' ? 'rpm' : 'spm',
         }, {
             value: x => H.number(x.laps && x.laps.length > 1 && x.laps.at(-2).cadence.avg || null), // XXX check if null is req
             label: () => ['last lap', 'avg'],
             key: () => 'Last Lap',
-            unit: () => 'rpm',
+            unit: () => sport === 'cycling' ? 'rpm' : 'spm',
         }, {
             value: x => H.number(x.laps && x.laps.at(-1).cadence.max || null), // XXX check if null is req
             label: () => ['last lap', 'max'],
             key: () => '<small>Last Lap Max</small>',
-            unit: () => 'rpm',
+            unit: () => sport === 'cycling' ? 'rpm' : 'spm',
         }],
     },
     draft: {
@@ -574,15 +581,56 @@ const groupSpecs = {
             label: () => 'place',
             key: () => 'Place',
         }, {
-            value: x => x.remainingMetric === 'distance' ? fmtDist(x.remaining) : fmtDur(x.remaining),
+            value: x => eventMetric === 'distance' ? fmtDist(x.remaining) : fmtDur(x.remaining),
             label: () => 'finish',
             key: () => 'Finish',
         }, {
-            value: x => x.remainingMetric === 'distance' ? fmtDist(x.state && x.state.eventDistance) : fmtDur(x.state && x.state.time),
-            label: x => (x && x.remainingMetric === 'distance') ? 'dist' : 'timer',
-            key: x => (x && x.remainingMetric === 'distance') ? 'Dist' : 'Timer',
+            value: x => eventMetric === 'distance' ?
+                fmtDist(x.state && x.state.eventDistance) : fmtDur(x.state && x.state.time),
+            label: () => eventMetric === 'distance' ? 'dist' : 'timer',
+            key: () => eventMetric === 'distance' ? 'Dist' : 'Timer',
         }]
-    }
+    },
+    pace: {
+        title: 'Speed',
+        backgroundImage: 'url(../images/fa/tachometer-duotone.svg)',
+        fields: [{
+            value: x => H.pace(x.state && x.state.speed, {sport}),
+            label: speedUnit,
+            key: () => 'Current',
+            unit: speedUnit,
+        }, {
+            value: x => H.pace(x.stats && x.stats.speed.avg, {sport}),
+            label: () => 'avg',
+            key: () => 'Avg',
+            unit: speedUnit,
+        }, {
+            value: x => H.pace(x.stats && x.stats.speed.max, {sport}),
+            label: () => 'max',
+            key: () => 'Max',
+            unit: speedUnit,
+        }, {
+            value: x => H.pace(x.laps && x.laps.at(-1).speed.avg, {sport}),
+            label: () => 'lap avg',
+            key: () => 'Lap Avg',
+            unit: speedUnit,
+        }, {
+            value: x => H.pace(x.laps && x.laps.at(-1).speed.max, {sport}),
+            label: () => 'lap max',
+            key: () => 'Lap Max',
+            unit: speedUnit,
+        }, {
+            value: x => H.pace(x.laps && x.laps.length > 1 && x.laps.at(-2).speed.avg, {sport}),
+            label: () => ['last lap', 'avg'],
+            key: () => 'Last Lap',
+            unit: speedUnit,
+        }, {
+            value: x => H.pace(x.laps && x.laps.at(-1).speed.max, {sport}),
+            label: () => ['last lap', 'max'],
+            key: () => '<small>Last Lap Max</small>',
+            unit: speedUnit,
+        }],
+    },
 };
 
 
@@ -648,6 +696,7 @@ function bindLineChart(lineChart, renderer) {
             }, {
                 data: chartData.hr,
             }, {
+                name: sport === 'cycling' ? 'Speed' : 'Pace',
                 data: chartData.pace,
             }]
         });
@@ -791,8 +840,14 @@ export async function main() {
     }, {capture: true});
     common.settingsStore.addEventListener('changed', ev => {
         const changed = ev.data.changed;
-        if (changed.has('backgroundColor') && changed.size === 1) {
-            setBackground();
+        if (changed.size === 1) {
+            if (changed.has('backgroundColor')) {
+                setBackground();
+            } else if (changed.has('/imperialUnits')) {
+                imperial = changed.get('/imperialUnits');
+            } else {
+                location.reload();
+            }
         } else {
             location.reload();
         }
@@ -801,6 +856,11 @@ export async function main() {
     common.subscribe('athlete/watching', watching => {
         const force = watching.athleteId !== athleteId;
         athleteId = watching.athleteId;
+        sport = {
+            0: 'cycling',
+            1: 'running',
+        }[watching.state.sport] || 'other';
+        eventMetric = watching.remainingMetric || 'distance';
         for (const x of renderers) {
             x.setData(watching);
             if (x.backgroundRender || !x._contentEl.classList.contains('hidden')) {

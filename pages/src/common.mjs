@@ -476,6 +476,12 @@ export class Renderer {
                         const candidate = value != null && !Number.isNaN(value) ? value : '';
                         if (field.valueEl.innerHTML !== candidate) {
                             field.valueEl.innerHTML = candidate;
+                            const width = candidate.length;
+                            if (field.valueEl._width !== width) {
+                                field.valueEl._width = width;
+                                field.valueEl.classList.toggle('wide', width > 3);
+                                field.valueEl.classList.toggle('very-wide', width > 5);
+                            }
                         }
                         if (field.labelEl) {
                             let labels = '';

@@ -27,7 +27,7 @@ const staticTheme = {
     textStyle: {
         overflow: 'truncate',
         ellipsis: '…',
-        fontFamily: 'Jost',  // inherit only works for svg
+        fontFamily: 'inherit',
         fontSize: '1em',
     },
     label: {
