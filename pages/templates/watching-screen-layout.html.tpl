@@ -15,10 +15,10 @@
                 <div class="sub">
                     <heading class="group-title">{{group.title || groupSpecs[group.type].title}}</heading>
                     <div class="field-row" data-default="1" data-field="{{section.id}}-{{group.id}}-0">
-                        <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
+                        <div class="key" tabindex="0"></div><div class="value" tabindex="0"></div><abbr class="unit"></abbr>
                     </div>
                     <div class="field-row" data-default="2" data-field="{{section.id}}-{{group.id}}-1">
-                        <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
+                        <div class="key" tabindex="0"></div><div class="value" tabindex="0"></div><abbr class="unit"></abbr>
                     </div>
                 </div>
                 <div class="full-height" data-default="0" data-field="{{section.id}}-{{group.id}}-2">
@@ -86,10 +86,10 @@
                     <div class="sub" data-group-type="{{group.type}}" data-group-id="{{group.id}}">
                         <heading class="group-title">{{group.title || groupSpecs[group.type].title}}</heading>
                         <div class="field-row" data-default="0" data-field="{{section.id}}-{{group.id}}-0">
-                            <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
+                            <div class="key" tabindex="0"></div><div class="value" tabindex="0"></div><abbr class="unit"></abbr>
                         </div>
                         <div class="field-row" data-default="1" data-field="{{section.id}}-{{group.id}}-1">
-                            <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
+                            <div class="key" tabindex="0"></div><div class="value" tabindex="0"></div><abbr class="unit"></abbr>
                         </div>
                     </div>
                 <% } %>

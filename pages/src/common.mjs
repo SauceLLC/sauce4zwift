@@ -359,7 +359,7 @@ export class Renderer {
             return;
         }
         const dir = {ArrowRight: 1, ArrowLeft: -1}[ev.key];
-        const id = document.activeElement.dataset.field;
+        const id = document.activeElement.closest('[data-field]').dataset.field;
         if (dir && id) {
             this.rotateField(id, dir);
         }
