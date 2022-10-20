@@ -422,7 +422,7 @@ async function frank() {
     bubble.classList.add('great-and-powerful-bubble');
     const words = document.createElement('div');
     words.classList.add('words');
-    bubble.append(words)
+    bubble.append(words);
     words.textContent = 'The great and powerful Frank approves of your life choices!!!';
     const aud = document.createElement('audio');
     aud.innerHTML = `<source src="sounds/great_and_powerful.ogg" type="audio/ogg"/>`;

@@ -102,16 +102,6 @@ function fmtDist(v) {
 }
 
 
-function fmtDistValue(v) {
-    return _fmtDist(v)[0];
-}
-
-
-function fmtDistUnits(v) {
-    return _fmtDist(v)[1];
-}
-
-
 function fmtDur(v) {
     if (v == null || v === Infinity || v === -Infinity || isNaN(v)) {
         return '-';
