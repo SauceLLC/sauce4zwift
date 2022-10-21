@@ -6,6 +6,8 @@ const L = sauce.locale;
 const H = L.human;
 let imperial = !!common.storage.get('/imperialUnits');
 L.setImperial(imperial);
+let eventMetric = 'distance';
+let sport = 'cycling';
 
 common.settingsStore.setDefault({
     leftFields: 2,
@@ -14,6 +16,21 @@ common.settingsStore.setDefault({
     autoHideWindows: false,
     centerGapSize: 0,
 });
+
+
+function fmtPace(x) {
+    return H.pace(x, {sport, precision: 0});
+}
+
+
+function speedUnit() {
+    return sport === 'cycling' ? imperial ? 'mph' : 'kph' : imperial ? '/mi' : '/km';
+}
+
+
+function speedLabel() {
+    return sport === 'cycling' ? 'Speed' : 'Pace';
+}
 
 
 function shortDuration(x) {
@@ -160,6 +177,11 @@ export async function main() {
         if (watching.state.eventSubgroupId) {
             watching.eventSubgroup = getEventSubgroup(watching.state.eventSubgroupId);
         }
+        sport = {
+            0: 'cycling',
+            1: 'running',
+        }[watching.state.sport] || 'other';
+        eventMetric = watching.remainingMetric || 'distance';
         renderer.setData(watching);
         const ts = Date.now();
         if (ts - lastUpdate > 500) {
@@ -222,17 +244,17 @@ function buildLayout() {
                 key: () => 'FTP',
                 unit: () => 'w'
             }, {
-                value: x => H.pace(x.state && x.state.speed),
-                key: () => 'Speed',
-                unit: () => imperial ? 'mph' : 'kph',
+                value: x => fmtPace(x.state && x.state.speed),
+                key: speedLabel,
+                unit: speedUnit,
             }, {
-                value: x => H.pace(x.stats && x.stats.speed.avg),
-                key: () => 'Speed <small>(avg)</small>',
-                unit: () => imperial ? 'mph' : 'kph',
+                value: x => fmtPace(x.stats && x.stats.speed.avg),
+                key: () => `${speedLabel()} <small>(avg)</small>`,
+                unit: speedUnit,
             }, {
-                value: x => H.pace(x.stats && x.stats.speed.smooth[60]),
-                key: () => `Speed <small>(${shortDuration(60)})</small>`,
-                unit: () => imperial ? 'mph' : 'kph',
+                value: x => fmtPace(x.stats && x.stats.speed.smooth[60]),
+                key: () => `${speedLabel()} <small>(${shortDuration(60)})</small>`,
+                unit: speedUnit,
             }, {
                 value: x => H.number(x.state && x.state.heartrate),
                 key: () => 'HR',
