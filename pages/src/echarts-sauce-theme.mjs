@@ -27,7 +27,7 @@ const staticTheme = {
     textStyle: {
         overflow: 'truncate',
         ellipsis: '…',
-        fontFamily: 'inherit',
+        fontFamily: 'Saira',
         fontSize: '1em',
     },
     label: {
