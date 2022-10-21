@@ -51,6 +51,12 @@ L.setImperial(imperial);
 let eventMetric = 'distance';
 let sport = 'cycling';
 
+
+function cadenceUnit() {
+    return sport === 'cycling' ? 'rpm' : 'spm';
+}
+
+
 const chartRefs = new Set();
 
 function resizeCharts() {
@@ -77,6 +83,9 @@ function shortDuration(x) {
 
 
 function humanWkg(v, athlete) {
+    if (v == null || v === false) {
+        return '-';
+    }
     return H.number(v / (athlete && athlete.weight), {precision: 1, fixed: 1});
 }
 
@@ -102,6 +111,16 @@ function fmtDist(v) {
 }
 
 
+function fmtDistValue(v) {
+    return _fmtDist(v)[0];
+}
+
+
+function fmtDistUnit(v) {
+    return _fmtDist(v)[1];
+}
+
+
 function fmtDur(v) {
     if (v == null || v === Infinity || v === -Infinity || isNaN(v)) {
         return '-';
@@ -113,8 +132,8 @@ function fmtDur(v) {
 function makePeakPowerField(period, lap) {
     const duration = shortDuration(period);
     const lapLabel = {
-        '-1': 'Lap',
-        '-2': 'Last Lap',
+        '-1': '(lap)',
+        '-2': '(last lap)',
     }[lap];
     return {
         value: x => {
@@ -141,7 +160,7 @@ function makePeakPowerField(period, lap) {
             }
             return label;
         },
-        key: () => lap ? `Peak ${duration}<tiny> (${lapLabel})</tiny>` : `Peak ${duration}`,
+        key: () => lap ? `Peak ${duration}<tiny>${lapLabel}</tiny>` : `Peak ${duration}`,
         unit: () => 'w',
     };
 }
@@ -151,7 +170,7 @@ function makeSmoothPowerField(period) {
     const duration = shortDuration(period);
     return {
         value: x => H.number(x.stats && x.stats.power.smooth[period]),
-        label: () => duration + ' watts',
+        label: () => duration,
         key: () => duration,
         unit: () => 'w',
     };
@@ -162,7 +181,7 @@ function makeSmoothHRField(period) {
     const duration = shortDuration(period);
     return {
         value: x => H.number(x.stats && x.stats.hr.smooth[period]),
-        label: () => duration + ' bpm',
+        label: () => duration,
         key: () => duration,
         unit: () => 'bpm',
     };
@@ -336,8 +355,7 @@ const groupSpecs = {
         backgroundImage: 'url(../images/fa/bolt-duotone.svg)',
         fields: [{
             value: x => H.number(x.state && x.state.power),
-            label: () => 'watts',
-            key: () => 'Watts',
+            key: () => 'Current',
             unit: () => 'w',
         }, {
             value: x => H.number(x.stats && x.stats.power.avg),
@@ -350,9 +368,9 @@ const groupSpecs = {
             key: () => 'Max',
             unit: () => 'w',
         }, {
-           value: x => humanWkg(x.state && x.state.power, x.athlete),
-            label: () => 'w/kg',
-            key: () => 'W/kg',
+            value: x => humanWkg(x.state && x.state.power, x.athlete),
+            key: () => 'Current',
+            unit: () => 'w/kg',
         }, {
             value: x => H.number(x.stats && x.stats.power.np),
             label: () => 'np',
@@ -374,28 +392,28 @@ const groupSpecs = {
             makePeakPowerField(1200),
         {
             value: x => H.number(x.laps && x.laps.at(-1).power.avg),
-            label: () => 'lap avg',
-            key: () => 'Lap Avg',
+            label: () => 'lap',
+            key: () => 'Lap',
             unit: () => 'w',
         }, {
             value: x => humanWkg(x.laps && x.laps.at(-1).power.avg, x.athlete),
-            label: () => ['lap avg', 'w/kg'],
-            key: () => 'Lap Avg',
+            label: () => 'lap',
+            key: () => 'Lap',
             unit: () => 'w/kg',
         }, {
             value: x => H.number(x.laps && x.laps.at(-1).power.max),
-            label: () => 'lap max',
-            key: () => 'Lap Max',
+            label: () => ['max', '(lap)'],
+            key: () => 'Max<tiny>(lap)</tiny>',
             unit: () => 'w',
         }, {
             value: x => humanWkg(x.laps && x.laps.at(-1).power.max, x.athlete),
-            label: () => ['lap max', 'w/kg'],
-            key: () => 'Lap Max',
+            label: () => ['max', '(lap)'],
+            key: () => 'Max<tiny>(lap)</tiny>',
             unit: () => 'w/kg',
         }, {
             value: x => H.number(x.laps && x.laps.at(-1).power.np),
-            label: () => 'lap np',
-            key: () => 'Lap NP',
+            label: () => ['np', '(lap)'],
+            key: () => 'NP<tiny>(lap)</tiny>',
         },
             makePeakPowerField(5, -1),
             makePeakPowerField(15, -1),
@@ -403,29 +421,29 @@ const groupSpecs = {
             makePeakPowerField(300, -1),
             makePeakPowerField(1200, -1),
         {
-            value: x => H.number(x.laps && x.laps.length > 1 && x.laps.at(-2).power.avg),
-            label: () => ['last lap', 'avg'],
+            value: x => H.number(x.laps && x.laps.length > 1 && x.laps.at(-2).power.avg || null),
+            label: () => 'last lap',
             key: () => 'Last Lap',
             unit: () => 'w',
         }, {
             value: x => humanWkg(x.laps && x.laps.length > 1 && x.laps.at(-2).power.avg, x.athlete),
-            label: () => ['last lap', 'avg w/kg'],
+            label: () => 'last lap',
             key: () => 'Last Lap',
             unit: () => 'w/kg',
         }, {
-            value: x => H.number(x.laps && x.laps.length > 1 && x.laps.at(-2).power.max),
-            label: () => ['last lap', 'max'],
-            key: () => '<small>Last Lap Max</small>',
+            value: x => H.number(x.laps && x.laps.length > 1 && x.laps.at(-2).power.max || null),
+            label: () => ['max', '(last lap)'],
+            key: () => 'Max<tiny>(last lap)</tiny>',
             unit: () => 'w',
         }, {
             value: x => humanWkg(x.laps && x.laps.length > 1 && x.laps.at(-2).power.max, x.athlete),
-            label: () => ['last lap', 'max w/kg'],
-            key: () => '<small>Last Lap Max</small>',
+            label: () => ['max', '(last lap)'],
+            key: () => 'Max<tiny>(last lap)</tiny>',
             unit: () => 'w/kg',
         }, {
-            value: x => H.number(x.laps && x.laps.length > 1 && x.laps.at(-2).power.np),
-            label: () => ['last lap', 'np'],
-            key: () => '<small>Last Lap NP</small>',
+            value: x => H.number(x.laps && x.laps.length > 1 && x.laps.at(-2).power.np || null),
+            label: () => ['np', '(last lap)'],
+            key: () => 'NP<tiny>(last lap)</tiny>',
         },
             makePeakPowerField(5, -2),
             makePeakPowerField(15, -2),
@@ -444,7 +462,6 @@ const groupSpecs = {
         backgroundImage: 'url(../images/fa/heartbeat-duotone.svg)',
         fields: [{
             value: x => H.number(x.state && x.state.heartrate || null),
-            label: () => 'bpm',
             key: () => 'Current',
             unit: () => 'bpm',
         }, {
@@ -462,24 +479,24 @@ const groupSpecs = {
             makeSmoothHRField(300),
             makeSmoothHRField(1200),
         {
-            value: x => H.number(x.laps && x.laps.at(-1).hr.avg || null), // XXX check if null is req
-            label: () => 'lap avg',
-            key: () => 'Lap Avg',
+            value: x => H.number(x.laps && x.laps.at(-1).hr.avg || null),
+            label: () => 'lap',
+            key: () => 'Lap',
             unit: () => 'bpm',
         }, {
-            value: x => H.number(x.laps && x.laps.at(-1).hr.max || null), // XXX check if null is req
-            label: () => 'lap max',
-            key: () => 'Lap Max',
+            value: x => H.number(x.laps && x.laps.at(-1).hr.max || null),
+            label: () => ['max', '(lap)'],
+            key: () => 'Max<tiny>(lap)</tiny>',
             unit: () => 'bpm',
         }, {
-            value: x => H.number(x.laps && x.laps.length > 1 && x.laps.at(-2).hr.avg || null), // XXX check if null is req
-            label: () => ['last lap', 'avg'],
+            value: x => H.number(x.laps && x.laps.length > 1 && x.laps.at(-2).hr.avg || null),
+            label: () => 'last lap',
             key: () => 'Last Lap',
             unit: () => 'bpm',
         }, {
-            value: x => H.number(x.laps && x.laps.at(-1).hr.max || null), // XXX check if null is req
-            label: () => ['last lap', 'max'],
-            key: () => '<small>Last Lap Max</small>',
+            value: x => H.number(x.laps && x.laps.length > 1 && x.laps.at(-2).hr.max || null),
+            label: () => ['max', '(last lap)'],
+            key: () => 'Max<tiny>(last lap)</tiny>',
             unit: () => 'bpm',
         }],
     },
@@ -488,39 +505,38 @@ const groupSpecs = {
         backgroundImage: 'url(../images/fa/solar-system-duotone.svg)',
         fields: [{
             value: x => H.number(x.state && x.state.cadence),
-            label: () => sport === 'cycling' ? 'rpm' : 'spm',
             key: () => 'Current',
-            unit: () => sport === 'cycling' ? 'rpm' : 'spm',
+            unit: cadenceUnit,
         }, {
             value: x => H.number(x.stats && x.stats.cadence.avg || null),
             label: () => 'avg',
             key: () => 'Avg',
-            unit: () => sport === 'cycling' ? 'rpm' : 'spm',
+            unit: cadenceUnit,
         }, {
             value: x => H.number(x.stats && x.stats.cadence.max || null),
             label: () => 'max',
             key: () => 'Max',
-            unit: () => sport === 'cycling' ? 'rpm' : 'spm',
+            unit: cadenceUnit,
         }, {
-            value: x => H.number(x.laps && x.laps.at(-1).cadence.avg || null), // XXX check if null is req
-            label: () => 'lap avg',
-            key: () => 'Lap Avg',
-            unit: () => sport === 'cycling' ? 'rpm' : 'spm',
+            value: x => H.number(x.laps && x.laps.at(-1).cadence.avg || null),
+            label: () => 'lap',
+            key: () => 'Lap',
+            unit: cadenceUnit,
         }, {
-            value: x => H.number(x.laps && x.laps.at(-1).cadence.max || null), // XXX check if null is req
-            label: () => 'lap max',
-            key: () => 'Lap Max',
-            unit: () => sport === 'cycling' ? 'rpm' : 'spm',
+            value: x => H.number(x.laps && x.laps.at(-1).cadence.max || null),
+            label: () => ['max', '(lap)'],
+            key: () => 'Max<tiny>(lap)</tiny>',
+            unit: cadenceUnit,
         }, {
-            value: x => H.number(x.laps && x.laps.length > 1 && x.laps.at(-2).cadence.avg || null), // XXX check if null is req
-            label: () => ['last lap', 'avg'],
+            value: x => H.number(x.laps && x.laps.length > 1 && x.laps.at(-2).cadence.avg || null),
+            label: () => 'last lap',
             key: () => 'Last Lap',
-            unit: () => sport === 'cycling' ? 'rpm' : 'spm',
+            unit: cadenceUnit,
         }, {
-            value: x => H.number(x.laps && x.laps.at(-1).cadence.max || null), // XXX check if null is req
-            label: () => ['last lap', 'max'],
-            key: () => '<small>Last Lap Max</small>',
-            unit: () => sport === 'cycling' ? 'rpm' : 'spm',
+            value: x => H.number(x.laps && x.laps.length > 1 && x.laps.at(-2).cadence.max || null),
+            label: () => ['max', '(last lap)'],
+            key: () => 'Max<tiny>(last lap)</tiny>',
+            unit: cadenceUnit,
         }],
     },
     draft: {
@@ -528,7 +544,6 @@ const groupSpecs = {
         backgroundImage: 'url(../images/fa/wind-duotone.svg)',
         fields: [{
             value: x => H.number(x.state && x.state.draft),
-            label: () => '%',
             key: () => 'Current',
             unit: () => '%',
         }, {
@@ -543,23 +558,23 @@ const groupSpecs = {
             unit: () => '%',
         }, {
             value: x => H.number(x.laps && x.laps.at(-1).draft.avg),
-            label: () => 'lap avg',
-            key: () => 'Lap Avg',
+            label: () => 'lap',
+            key: () => 'Lap',
             unit: () => '%',
         }, {
             value: x => H.number(x.laps && x.laps.at(-1).draft.max),
-            label: () => 'lap max',
-            key: () => 'Lap Max',
+            label: () => ['max', '(lap)'],
+            key: () => 'Max<tiny>(lap)</tiny>',
             unit: () => '%',
         }, {
-            value: x => H.number(x.laps && x.laps.length > 1 && x.laps.at(-2).draft.avg),
-            label: () => ['last lap', 'avg'],
+            value: x => H.number(x.laps && x.laps.length > 1 && x.laps.at(-2).draft.avg || null),
+            label: () => 'last lap',
             key: () => 'Last Lap',
             unit: () => '%',
         }, {
-            value: x => H.number(x.laps && x.laps.length > 1 && x.laps.at(-2).draft.max),
-            label: () => ['last lap', 'max'],
-            key: () => '<small>Last Lap Max</small>',
+            value: x => H.number(x.laps && x.laps.length > 1 && x.laps.at(-2).draft.max || null),
+            label: () => ['max', '(last lap)'],
+            key: () => 'Max<tiny>(last lap)</tiny>',
             unit: () => '%',
         }],
     },
@@ -571,14 +586,16 @@ const groupSpecs = {
             label: () => 'place',
             key: () => 'Place',
         }, {
-            value: x => eventMetric === 'distance' ? fmtDist(x.remaining) : fmtDur(x.remaining),
+            value: x => eventMetric === 'distance' ? fmtDistValue(x.remaining) : fmtDur(x.remaining),
             label: () => 'finish',
             key: () => 'Finish',
+            unit: x => eventMetric === 'distance' ? fmtDistUnit(x && x.state && x.state.eventDistance) : '',
         }, {
             value: x => eventMetric === 'distance' ?
-                fmtDist(x.state && x.state.eventDistance) : fmtDur(x.state && x.state.time),
+                fmtDistValue(x.state && x.state.eventDistance) : fmtDur(x.state && x.state.time),
             label: () => eventMetric === 'distance' ? 'dist' : 'timer',
-            key: () => eventMetric === 'distance' ? 'Dist' : 'Timer',
+            key: x => eventMetric === 'distance' ? 'Dist' : 'Timer',
+            unit: x => eventMetric === 'distance' ? fmtDistUnit(x && x.state && x.state.eventDistance) : '',
         }]
     },
     pace: {
@@ -601,23 +618,23 @@ const groupSpecs = {
             unit: speedUnit,
         }, {
             value: x => H.pace(x.laps && x.laps.at(-1).speed.avg, {sport}),
-            label: () => 'lap avg',
-            key: () => 'Lap Avg',
+            label: () => 'lap',
+            key: () => 'Lap',
             unit: speedUnit,
         }, {
             value: x => H.pace(x.laps && x.laps.at(-1).speed.max, {sport}),
-            label: () => 'lap max',
-            key: () => 'Lap Max',
+            label: () => ['max', '(lap)'],
+            key: () => 'Max<tiny>(lap)</tiny>',
             unit: speedUnit,
         }, {
             value: x => H.pace(x.laps && x.laps.length > 1 && x.laps.at(-2).speed.avg, {sport}),
-            label: () => ['last lap', 'avg'],
+            label: () => 'last lap',
             key: () => 'Last Lap',
             unit: speedUnit,
         }, {
-            value: x => H.pace(x.laps && x.laps.at(-1).speed.max, {sport}),
-            label: () => ['last lap', 'max'],
-            key: () => '<small>Last Lap Max</small>',
+            value: x => H.pace(x.laps && x.laps.length > 1 && x.laps.at(-2).speed.max, {sport}),
+            label: () => ['max', '(last lap)'],
+            key: () => 'Max<tiny>(last lap)</tiny>',
             unit: speedUnit,
         }],
     },

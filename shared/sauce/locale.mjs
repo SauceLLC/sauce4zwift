@@ -31,6 +31,11 @@ const hdUnits = {
 const humanEmpty = '-';
 
 
+function _realNumber(n) {
+    return n != null && n < Infinity && n > -Infinity && !isNaN(n) && n !== '';
+}
+
+
 function humanDuration(elapsed, options={}) {
     if (!_realNumber(elapsed)) {
         return humanEmpty;
@@ -217,10 +222,10 @@ function humanDayOfWeek(sunOfft, options={}) {
 
 
 function humanNumber(value, options={}) {
-    let n = Number(value);
-    if (!_realNumber(n)) {
+    if (!_realNumber(value)) {
         return humanEmpty;
     }
+    let n = Number(value);
     const precision = options.precision || 0;
     const v = n.toLocaleString(undefined, {
         useGrouping: n >= 10000 || n <= -10000,
@@ -275,11 +280,6 @@ function humanDistance(meters, options={}) {
     const suffix = options.suffix ? options.html ? `<abbr class="unit">${unit}</abbr>` : unit : '';
     return humanNumber(imperial ? meters / metersPerMile : meters / 1000,
         {fixed: true, precision: 1, ...options}) + suffix;
-}
-
-
-function _realNumber(n) {
-    return n != null && n < Infinity && n > -Infinity && !isNaN(n) && n !== '';
 }
 
 

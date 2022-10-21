@@ -23,7 +23,7 @@
                 </div>
                 <div class="full-height" data-default="0" data-field="{{section.id}}-{{group.id}}-2">
                     <div class="value"></div>
-                    <div class="label"></div>
+                    <div class="line"><div class="label"></div><div class="unit"></div></div>
                     <div class="sub-label"></div>
                 </div>
                 <% if (obj.configuring) { %>
@@ -56,8 +56,11 @@
                 <div class="full-height" data-default="0" data-field="{{section.id}}-{{group.id}}-0">
                     <heading class="group-title">{{group.title || groupSpecs[group.type].title}}</heading>
                     <div class="value"></div>
-                    <div class="label"></div>
-                    <div class="sub-label"></div>
+                    <div class="line">
+                        <div class="label"></div>
+                        <div class="unit"></div>
+                        <div class="sub-label"></div>
+                    </div>
                 </div>
                 <% if (obj.configuring) { %>
                     <dialog class="edit">

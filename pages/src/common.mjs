@@ -479,8 +479,11 @@ export class Renderer {
                             const width = candidate.length;
                             if (field.valueEl._width !== width) {
                                 field.valueEl._width = width;
-                                field.valueEl.classList.toggle('wide', width > 3);
-                                field.valueEl.classList.toggle('very-wide', width > 5);
+                                field.valueEl.classList.toggle('x-wide', width > 2);
+                                field.valueEl.classList.toggle('x2-wide', width > 3);
+                                field.valueEl.classList.toggle('x3-wide', width > 4);
+                                field.valueEl.classList.toggle('x4-wide', width > 6);
+                                field.valueEl.classList.toggle('x5-wide', width > 9);
                             }
                         }
                         if (field.labelEl) {

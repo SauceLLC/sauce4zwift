@@ -102,7 +102,7 @@ html {
     }
 
     &:not(:last-child) {
-        border-bottom: 1px solid #fff9;
+        border-bottom: 0.002em solid #fff5;
     }
 
     &:first-child {
@@ -148,14 +148,19 @@ html {
 
     [data-field].full-height {
         position: relative;
-        font-size: 1.65em;
-        font-weight: bold;
+        font-size: 2em;
+        font-weight: 800;
         display: flex;
         flex-direction: column;
         align-items: flex-end;
-        line-height: 1;
+
+        .line {
+            display: flex;
+            align-items: baseline;
+        }
 
         .label,
+        .unit,
         .sub-label {
             font-size: 0.55rem;
             line-height: 1;
@@ -163,27 +168,31 @@ html {
             opacity: 0.82;
             text-align: right;
             font-variant-numeric: tabular-nums;
+
+            &:empty {
+                margin: 0;
+            }
+        }
+
+        .sub-label:not(:empty) {
+            font-size: 0.48rem;
+            opacity: 0.8;
+            margin-top: 0.32rem;
+            line-height: 0.2;
+        }
+
+        .value {
+            line-height: 0.9;
         }
 
         small {
             font-size: 0.5em;
             text-align: right;
         }
-
-        .sub-label {
-            font-size: 0.45rem;
-            opacity: 0.7;
-            margin-top: 1em;
-            line-height: 0;
-
-            &:empty {
-                margin: 0;
-            }
-        }
     }
 
     &.single-data-field {
-        font-size: 2.5em;
+        font-size: 3em;
 
         [data-field] {
             align-items: center;
@@ -285,6 +294,8 @@ html {
     margin-right: 0.3em;
     opacity: 0.88;
     position: relative;
+    margin-bottom: 0.33em;
+    min-width: 8ex;
 
     &::after {
         content: ':';
@@ -293,11 +304,13 @@ html {
 
     tiny {
         display: block;
-        font-size: 0.65em;
+        white-space: nowrap;
+        font-size: 0.76em;
         position: absolute;
-        right: 0.5em;
-        top: 75%;
+        left: 0.1em;
+        bottom: -0.90em;
         font-variant: all-petite-caps;
+        font-weight: 600;
     }
 }
 
@@ -305,25 +318,27 @@ html {
     font-variant: tabular-nums;
     text-align: right;
     min-width: 3ch;
-    text-overflow: clip;
-    overflow: hidden;
 
     &:empty {
-        text-align: center;
-
         &::after {
             content: '-';
         }
     }
 
-    &.wide {
-        font-size: 0.94em;
-        font-variation-settings: "wdth" 94;
-    }
-    &.very-wide {
-        font-size: 0.90em;
-        font-variation-settings: "wdth" 90;
-    }
+    &.x-wide { font-variation-settings: "wdth" 96; }
+    &.x2-wide { font-variation-settings: "wdth" 92; }
+    &.x3-wide { font-variation-settings: "wdth" 86; }
+    &.x4-wide { font-variation-settings: "wdth" 78; }
+    &.x5-wide { font-variation-settings: "wdth" 70; }
+}
+
+.full-height .value {
+    &.x-wide { font-size: 0.96em; }
+    &.x2-wide { font-size: 0.90em; }
+    &.x3-wide { font-size: 0.82em; }
+    &.x3-wide { font-size: 0.72em; }
+    &.x4-wide { font-size: 0.62em; }
+    &.x5-wide { font-size: 0.50em; }
 }
 
 
