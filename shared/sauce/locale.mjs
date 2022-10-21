@@ -74,7 +74,11 @@ function humanDuration(elapsed, options={}) {
             elapsed %= period;
         }
     }
-    return (negative ? '-' : '') + stack.join(options.seperator || ', ');
+    if (stack.length) {
+        return ((negative && stack[0][0] !== '0') ? '-' : '') + stack.join(options.seperator || ', ');
+    } else {
+        return '-';
+    }
 }
 
 
