@@ -12,6 +12,8 @@ html {
 }
 
 #content {
+    overflow-y: overlay;
+
     > .screen {
         &.hidden {
             display: none;
