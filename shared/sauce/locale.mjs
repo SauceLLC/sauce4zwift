@@ -244,8 +244,9 @@ function humanPower(p, options={}) {
     if (!_realNumber(p)) {
         return humanEmpty;
     }
+    const sep = options.suffix && options.seperator || '';
     const suffix = options.suffix ? options.html ? `<abbr class="unit">w</abbr>` : 'w' : '';
-    return humanNumber(p, options) + suffix;
+    return humanNumber(p, options) + sep + suffix;
 }
 
 
@@ -253,8 +254,9 @@ function humanWkg(wkg, options={}) {
     if (!_realNumber(wkg)) {
         return humanEmpty;
     }
+    const sep = options.suffix && options.seperator || '';
     const suffix = options.suffix ? options.html ? `<abbr class="unit">w/kg</abbr>` : 'w/kg' : '';
-    return humanNumber(wkg, {precision: 1, ...options}) + suffix;
+    return humanNumber(wkg, {precision: 1, ...options}) + sep + suffix;
 }
 
 
@@ -262,16 +264,17 @@ function humanPace(kph, options={}) {
     if (!_realNumber(kph)) {
         return humanEmpty;
     }
+    const sep = options.suffix && options.seperator || '';
     const sport = options.sport || 'cycling';
-    if (sport === 'cycling') {
+    if (sport === 'running') {
+        const unit = imperial ? '/mi' : '/km';
+        const suffix = options.suffix ? options.html ? `<abbr class="unit">${unit}</abbr>` : unit : '';
+        return humanTimer(3600 / (imperial ? kph * 1000 / metersPerMile : kph), options) + sep + suffix;
+    } else {
         const unit = imperial ? 'mph' : 'kph';
         const suffix = options.suffix ? options.html ? `<abbr class="unit">${unit}</abbr>` : unit : '';
         return humanNumber(imperial ? kph * 1000 / metersPerMile : kph,
-            {fixed: true, precision: 1, ...options}) + suffix;
-    } else {
-        const unit = imperial ? '/mi' : '/km';
-        const suffix = options.suffix ? options.html ? `<abbr class="unit">${unit}</abbr>` : unit : '';
-        return humanTimer(3600 / (imperial ? kph * 1000 / metersPerMile : kph), options) + suffix;
+            {fixed: true, ...options}) + sep + suffix;
     }
 }
 
@@ -281,9 +284,10 @@ function humanDistance(meters, options={}) {
         return humanEmpty;
     }
     const unit = imperial ? 'mi' : 'km';
+    const sep = options.suffix && options.seperator || '';
     const suffix = options.suffix ? options.html ? `<abbr class="unit">${unit}</abbr>` : unit : '';
     return humanNumber(imperial ? meters / metersPerMile : meters / 1000,
-        {fixed: true, precision: 1, ...options}) + suffix;
+        {fixed: true, precision: 1, ...options}) + sep + suffix;
 }
 
 
@@ -292,9 +296,10 @@ function humanWeight(kg, options={}) {
         return humanEmpty;
     }
     const unit = imperial ? 'lbs' : 'kg';
+    const sep = options.suffix && options.seperator || '';
     const suffix = options.suffix ? options.html ? `<abbr class="unit">${unit}</abbr>` : unit : '';
     return humanNumber(imperial ? kg * kgsPerLbs : kg,
-        {precision: 1, ...options}) + suffix;
+        {precision: 1, ...options}) + sep + suffix;
 }
 
 
@@ -303,13 +308,14 @@ function humanWeightClass(kg, options={}) {
         return humanEmpty;
     }
     const unit = imperial ? 'lbs' : 'kg';
+    const sep = options.suffix && options.seperator || '';
     const suffix = options.suffix ? options.html ? `<abbr class="unit">${unit}</abbr>` : unit : '';
     const v = imperial ? kg * kgsPerLbs : kg;
     const range = imperial ? 20 : 10;
     const vOfRange = v / range;
     const lower = Math.floor(vOfRange) * range;
     const upper = (vOfRange % 1) ? Math.ceil(vOfRange) * range : (vOfRange + 1) * range;
-    return `${humanNumber(lower)} - ${humanNumber(upper)}${suffix}`;
+    return `${humanNumber(lower)} - ${humanNumber(upper)}${sep}${suffix}`;
 }
 
 
@@ -334,8 +340,9 @@ function humanElevation(meters, options={}) {
         return humanEmpty;
     }
     const unit = imperial ? 'ft' : 'm';
+    const sep = options.suffix && options.seperator || '';
     const suffix = options.suffix ? options.html ? `<abbr class="unit">${unit}</abbr>` : unit : '';
-    return humanNumber(imperial ? meters * metersPerFoot : meters, options) + suffix;
+    return humanNumber(imperial ? meters * metersPerFoot : meters, options) + sep + suffix;
 }
 
 
