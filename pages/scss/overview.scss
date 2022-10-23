@@ -129,7 +129,7 @@ html:not(:focus-within) {
         .key {
             font-weight: 500;
             display: inline-flex;
-            align-items: center;
+            align-items: baseline;
             white-space: nowrap;
 
             &::after {
