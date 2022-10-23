@@ -214,179 +214,226 @@ function buildLayout() {
         renderer.addRotatingFields({
             mapping,
             fields: [{
+                id: 'time-lap',
                 value: x => H.timer(x.laps && x.laps.at(-1).elapsed),
                 key: () => 'Lap Time',
             }, {
+                id: 'time-elapsed',
                 value: x => H.timer(x.stats && x.stats.elapsed),
                 key: () => 'Time',
             }, {
+                id: 'rideons',
                 value: x => H.number(x.state && x.state.rideons),
                 key: () => 'Ride Ons',
             }, {
+                id: 'energy',
                 value: x => H.number(x.state && x.state.kj),
                 key: () => 'Energy',
                 unit: () => 'kJ',
             }, {
+                id: 'wbal',
                 value: x => (x.stats && x.stats.power.wBal != null && x.athlete && x.athlete.wPrime) ?
                     common.fmtBattery(x.stats.power.wBal / x.athlete.wPrime) +
                         H.number(x.stats.power.wBal / 1000, {precision: 1}) : '-',
                 key: () => 'W\'bal',
                 unit: () => 'kJ',
             }, {
+                id: 'tss',
                 value: x => H.number(x.stats && x.stats.power.tss),
                 key: () => 'TSS',
             }, {
+                id: 'weight',
                 value: x => H.weightClass(x.athlete && x.athlete.weight),
                 key: () => 'Weight',
                 unit: () => imperial ? 'lbs' : 'kg',
             }, {
+                id: 'ftp',
                 value: x => H.number(x.athlete && x.athlete.ftp),
                 key: () => 'FTP',
                 unit: () => 'w'
             }, {
+                id: 'spd-cur',
                 value: x => fmtPace(x.state && x.state.speed),
                 key: speedLabel,
                 unit: speedUnit,
             }, {
+                id: 'spd-avg',
                 value: x => fmtPace(x.stats && x.stats.speed.avg),
                 key: () => `${speedLabel()} <small>(avg)</small>`,
                 unit: speedUnit,
             }, {
+                id: 'spd-smooth-60',
                 value: x => fmtPace(x.stats && x.stats.speed.smooth[60]),
                 key: () => `${speedLabel()} <small>(${shortDuration(60)})</small>`,
                 unit: speedUnit,
             }, {
+                id: 'hr-cur',
                 value: x => H.number(x.state && x.state.heartrate),
                 key: () => 'HR',
                 unit: () => 'bpm',
             }, {
+                id: 'hr-avg',
                 value: x => H.number(x.stats && x.stats.hr.avg),
                 key: () => 'HR <small>(avg)</small>',
                 unit: () => 'bpm',
             }, {
+                id: 'hr-smooth-60',
                 value: x => H.number(x.stats && x.stats.hr.smooth[60]),
                 key: () => `HR <small>(${shortDuration(60)})</small>`,
                 unit: () => 'bpm',
             }, {
+                id: 'pwr-cur',
                 value: x => H.number(x.state && x.state.power),
                 key: () => `Power`,
                 unit: () => 'w',
             }, {
+                id: 'pwr-smooth-5',
                 value: x => H.number(x.stats && x.stats.power.smooth[5]),
                 key: () => `Power <small>(${shortDuration(5)})</small>`,
                 unit: () => 'w',
             }, {
+                id: 'pwr-smooth-15',
                 value: x => H.number(x.stats && x.stats.power.smooth[15]),
                 key: () => `Power <small>(${shortDuration(15)})</small>`,
                 unit: () => 'w',
             }, {
+                id: 'pwr-smooth-60',
                 value: x => H.number(x.stats && x.stats.power.smooth[60]),
                 key: () => `Power <small>(${shortDuration(60)})</small>`,
                 unit: () => 'w',
             }, {
+                id: 'pwr-smooth-300',
                 value: x => H.number(x.stats && x.stats.power.smooth[300]),
                 key: () => `Power <small>(${shortDuration(300)})</small>`,
                 unit: () => 'w',
             }, {
+                id: 'pwr-smooth-1200',
                 value: x => H.number(x.stats && x.stats.power.smooth[1200]),
                 key: () => `Power <small>(${shortDuration(1200)})</small>`,
                 unit: () => 'w',
             }, {
+                id: 'pwr-peak-5',
                 value: x => H.number(x.stats && x.stats.power.peaks[5].avg),
                 key: () => `Peak Power <small>(${shortDuration(5)})</small>`,
                 unit: () => 'w',
             }, {
+                id: 'pwr-peak-15',
                 value: x => H.number(x.stats && x.stats.power.peaks[15].avg),
                 key: () => `Peak Power <small>(${shortDuration(15)})</small>`,
                 unit: () => 'w',
             }, {
+                id: 'pwr-peak-60',
                 value: x => H.number(x.stats && x.stats.power.peaks[60].avg),
                 key: () => `Peak Power <small>(${shortDuration(60)})</small>`,
                 unit: () => 'w',
             }, {
+                id: 'pwr-peak-300',
                 value: x => H.number(x.stats && x.stats.power.peaks[300].avg),
                 key: () => `Peak Power <small>(${shortDuration(300)})</small>`,
                 unit: () => 'w',
             }, {
+                id: 'pwr-peak-1200',
                 value: x => H.number(x.stats && x.stats.power.peaks[1200].avg),
                 key: () => `Peak Power <small>(${shortDuration(1200)})</small>`,
                 unit: () => 'w',
             }, {
+                id: 'pwr-avg',
                 value: x => H.number(x.stats && x.stats.power.avg),
                 key: () => 'Power <small>(avg)</small>',
                 unit: () => 'w',
             }, {
+                id: 'pwr-cur-wkg',
                 value: x => fmtWkg(x.state && x.state.power, x.athlete),
                 key: () => `W/kg`,
             }, {
+                id: 'pwr-smooth-5-wkg',
                 value: x => fmtWkg(x.stats && x.stats.power.smooth[5], x.athlete),
                 key: () => `W/kg <small>(${shortDuration(5)})</small>`,
             }, {
+                id: 'pwr-smooth-15-wkg',
                 value: x => fmtWkg(x.stats && x.stats.power.smooth[15], x.athlete),
                 key: () => `W/kg <small>(${shortDuration(15)})</small>`,
             }, {
+                id: 'pwr-smooth-60-wkg',
                 value: x => fmtWkg(x.stats && x.stats.power.smooth[60], x.athlete),
                 key: () => `W/kg <small>(${shortDuration(60)})</small>`,
             }, {
+                id: 'pwr-smooth-300-wkg',
                 value: x => fmtWkg(x.stats && x.stats.power.smooth[300], x.athlete),
                 key: () => `W/kg <small>(${shortDuration(300)})</small>`,
             }, {
+                id: 'pwr-smooth-1200-wkg',
                 value: x => fmtWkg(x.stats && x.stats.power.smooth[1200], x.athlete),
                 key: () => `W/kg <small>(${shortDuration(1200)})</small>`,
             }, {
+                id: 'pwr-peak-5-wkg',
                 value: x => fmtWkg(x.stats && x.stats.power.peaks[5].avg, x.athlete),
                 key: () => `Peak W/kg <small>(${shortDuration(5)})</small>`,
             }, {
+                id: 'pwr-peak-15-wkg',
                 value: x => fmtWkg(x.stats && x.stats.power.peaks[15].avg, x.athlete),
                 key: () => `Peak W/kg <small>(${shortDuration(15)})</small>`,
             }, {
+                id: 'pwr-peak-60-wkg',
                 value: x => fmtWkg(x.stats && x.stats.power.peaks[60].avg, x.athlete),
                 key: () => `Peak W/kg <small>(${shortDuration(60)})</small>`,
             }, {
+                id: 'pwr-peak-300-wkg',
                 value: x => fmtWkg(x.stats && x.stats.power.peaks[300].avg, x.athlete),
                 key: () => `Peak W/kg <small>(${shortDuration(300)})</small>`,
             }, {
+                id: 'pwr-peak-1200-wkg',
                 value: x => fmtWkg(x.stats && x.stats.power.peaks[1200].avg, x.athlete),
                 key: () => `Peak W/kg <small>(${shortDuration(1200)})</small>`,
             }, {
+                id: 'pwr-avg-wkg',
                 value: x => fmtWkg(x.stats && x.stats.power.avg, x.athlete),
                 key: () => 'W/kg <small>(avg)</small>',
             }, {
+                id: 'pwr-np',
                 value: x => H.number(x.stats && x.stats.power.np),
                 key: () => 'NP',
             }, {
+                id: 'pwr-if',
                 value: x => fmtPct((x.stats && x.stats.power.np || 0) / (x.athlete && x.athlete.ftp)),
                 key: () => 'IF',
             }, {
+                id: 'pwr-vi',
                 value: x => H.number(x.stats && x.stats.power.np / x.stats.power.avg, {precision: 1, fixed: true}),
                 key: () => 'VI',
             }, {
+                id: 'pwr-max',
                 value: x => H.number(x.stats && x.stats.power.max),
                 key: () => 'Power <small>(max)</small>',
                 unit: () => 'w',
             }, {
+                id: 'ev-place',
                 value: x => x.eventPosition ? `${H.place(x.eventPosition, {html: true})}/<small>${x.eventParticipants}</small>`: '-',
                 key: () => 'Place',
             }, {
+                id: 'ev-fin',
                 value: x => x.remainingMetric === 'distance' ? fmtDist(x.remaining) : fmtDur(x.remaining),
                 key: () => 'Finish',
             }, {
+                id: 'ev-dst',
                 value: x => x.state ? (x.remainingMetric === 'distance' ?
                     `${fmtDist(x.state.eventDistance)}/${fmtDist(x.state.eventDistance + x.remaining)}` :
                     fmtDist(x.state.eventDistance)) : '-',
                 key: () => 'Event Dist',
             }, {
+                id: 'dst',
                 value: x => fmtDist(x.state && x.state.distance),
                 key: () => 'Dist',
             }, {
+                id: 'ev-name',
                 value: x => x.eventSubgroup ? x.eventSubgroup.name : '-',
                 key: () => 'Event',
             }, {
+                id: 'rt-name',
                 value: x => x.eventSubgroup ?
                     ((x.eventSubgroup.laps && x.eventSubgroup.laps > 1) ? `${x.eventSubgroup.laps} x ` : '') +
                     x.eventSubgroup.route.name : '-',
                 key: () => 'Route',
-
             }],
         });
     }
