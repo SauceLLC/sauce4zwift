@@ -11,6 +11,27 @@ html {
     }
 }
 
+.screen-section.line-chart {
+    padding-top: 0.4rem; // clearance for labels which overflow
+
+    .s-chart-legend {
+        position: absolute;
+        width: 100%;
+        bottom: 0;
+        left: 0;
+        opacity: 0;
+        transition: opacity 400ms;
+        background: color.shade(fg, 100%, 0.7);
+        pointer-events: none;
+    }
+
+    &:focus .s-chart-legend {
+        pointer-events: initial;
+        opacity: 1;
+        z-index: 10;
+    }
+}
+
 #content {
     overflow-y: overlay;
 
@@ -123,6 +144,14 @@ html {
     .chart-holder {
         font-size: 0.7rem;
         height: 6em;
+
+        > div {
+            overflow: visible !important;
+
+            svg {
+                overflow: visible;
+            }
+        }
 
         .bb-tooltip {
             tr:first-child {
@@ -288,6 +317,9 @@ html {
     }
 
     dialog.edit {
+        input, select {
+            margin-left: 0.3em;
+        }
     }
 }
 

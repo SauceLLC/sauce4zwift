@@ -7,34 +7,38 @@ export class SauceLegend {
         this.chart = chart;
         this.hiddenStorageKey = hiddenStorageKey;
         this.hidden = new Set(hiddenStorageKey && common.storage.get(hiddenStorageKey) || []);
-        const {series, color} = chart.getOption();
-        el.innerHTML = series.map((x, i) => {
-            const hidden = this.hidden.has(x.name);
+        this.render();
+        el.addEventListener('click', ev => this.onLegendClick(ev));
+    }
+
+    render() {
+        const {series, color} = this.chart.getOption();
+        this.el.innerHTML = series.map((x, i) => {
+            const hidden = this.hidden.has(x.id);
             if (hidden) {
-                chart.dispatchAction({type: 'legendUnSelect', name: x.name});
+                this.chart.dispatchAction({type: 'legendUnSelect', name: x.name});
             }
             return `
-                <div class="s-legend-item ${hidden ? 'hidden' : ''}" data-name="${x.name}">
+                <div class="s-legend-item ${hidden ? 'hidden' : ''}" data-id="${x.id}" data-name="${x.name}">
                     <div class="color" style="background-color: ${color[i]};"></div>
                     <div class="label">${x.name}</div>
                 </div>
             `;
         }).join('\n');
-        el.addEventListener('click', ev => this.onLegendClick(ev));
     }
 
     onLegendClick(ev) {
-        const item = ev.target.closest('.s-legend-item[data-name]');
+        const item = ev.target.closest('.s-legend-item[data-id]');
         if (!item) {
             return;
         }
-        const name = item.dataset.name;
-        this.chart.dispatchAction({type: 'legendToggleSelect', name});
+        this.chart.dispatchAction({type: 'legendToggleSelect', name: item.dataset.name});
         item.classList.toggle('hidden');
-        if (this.hidden.has(name)) {
-            this.hidden.delete(name);
+        const id = item.dataset.id;
+        if (this.hidden.has(id)) {
+            this.hidden.delete(id);
         } else {
-            this.hidden.add(name);
+            this.hidden.add(id);
         }
         if (this.hiddenStorageKey) {
             common.storage.set(this.hiddenStorageKey, Array.from(this.hidden));

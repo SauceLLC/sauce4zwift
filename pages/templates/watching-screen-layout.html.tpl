@@ -13,7 +13,8 @@
                  data-group-type="{{group.type}}" data-group-id="{{group.id}}"
                  style="--background-image: {{spec.backgroundImage}};">
                 <div class="sub">
-                    <heading class="group-title">{{group.title || groupSpecs[group.type].title}}</heading>
+                    <% const title = group.title || groupSpecs[group.type].title; %>
+                    <heading class="group-title">{{typeof title === 'function' ? title() : title}}</heading>
                     <div class="field-row" data-default="1" data-field="{{section.id}}-{{group.id}}-0">
                         <div class="key" tabindex="0"></div><div class="value" tabindex="0"></div><abbr class="unit"></abbr>
                     </div>
@@ -34,7 +35,8 @@
                             <label>Data Group:
                                 <select name="group" data-id="{{group.id}}">
                                     <% for (const [type, g] of Object.entries(groupSpecs)) { %>
-                                        <option value="{{type}}" {{group.type === type ? 'selected' : ''}}>{{g.title}}</option>
+                                        <option value="{{type}}" {{group.type === type ? 'selected' : ''}}
+                                            >{{typeof g.title === 'function' ? g.title() : g.title}}</option>
                                     <% } %>
                                 </select>
                             </label>
@@ -54,7 +56,8 @@
                  data-group-type="{{group.type}}" data-group-id="{{group.id}}"
                  style="--background-image: {{spec.backgroundImage}};">
                 <div class="full-height" data-default="0" data-field="{{section.id}}-{{group.id}}-0">
-                    <heading class="group-title">{{group.title || groupSpecs[group.type].title}}</heading>
+                    <% const title = group.title || groupSpecs[group.type].title; %>
+                    <heading class="group-title">{{typeof title === 'function' ? title() : title}}</heading>
                     <div class="value"></div>
                     <div class="line">
                         <div class="label"></div>
@@ -70,7 +73,8 @@
                             <label>Data Group:
                                 <select name="group" data-id="{{group.id}}">
                                     <% for (const [type, g] of Object.entries(groupSpecs)) { %>
-                                        <option value="{{type}}" {{group.type === type ? 'selected' : ''}}>{{g.title}}</option>
+                                        <option value="{{type}}" {{group.type === type ? 'selected' : ''}}
+                                            >{{typeof g.title === 'function' ? g.title() : g.title}}</option>
                                     <% } %>
                                 </select>
                             </label>
@@ -87,7 +91,8 @@
                  data-base-section-type="{{baseSectionType}}" data-section-id="{{section.id}}">
                 <% for (const group of section.groups) { %>
                     <div class="sub" data-group-type="{{group.type}}" data-group-id="{{group.id}}">
-                        <heading class="group-title">{{group.title || groupSpecs[group.type].title}}</heading>
+                        <% const title = group.title || groupSpecs[group.type].title; %>
+                        <heading class="group-title">{{typeof title === 'function' ? title() : title}}</heading>
                         <div class="field-row" data-default="0" data-field="{{section.id}}-{{group.id}}-0">
                             <div class="key" tabindex="0"></div><div class="value" tabindex="0"></div><abbr class="unit"></abbr>
                         </div>
@@ -105,7 +110,8 @@
                                 <label>{{!i ? 'Left' : 'Right'}} fields:
                                     <select name="group" data-id="{{group.id}}">
                                         <% for (const [type, g] of Object.entries(groupSpecs)) { %>
-                                            <option value="{{type}}" {{group.type === type ? 'selected' : ''}}>{{g.title}}</option>
+                                            <option value="{{type}}" {{group.type === type ? 'selected' : ''}}
+                                                >{{typeof g.title === 'function' ? g.title() : g.title}}</option>
                                         <% } %>
                                     </select>
                                 </label>
@@ -119,7 +125,7 @@
                 <% } %>
             <!-- leave section div open -->
         <% } else if (section.type === 'line-chart') { %>
-            <div class="screen-section no-side-margin {{section.type}}"
+            <div class="screen-section {{section.type}}" tabindex="0"
                  data-section-type="{{section.type}}" data-base-section-type="{{baseSectionType}}"
                  data-section-id="{{section.id}}">
                 <div class="chart-holder ec">
@@ -129,11 +135,38 @@
                 </div>
                 <div class="s-chart-legend"></div>
                 <% if (obj.configuring) { %>
+                    <% const settings = section.settings || sectionSpecs[section.type].defaultSettings || {}; %>
                     <dialog class="edit">
                         <header>Edit Section: {{sectionIndex +1 }}</header>
                         <form method="dialog">
                             <label>Type: {{sectionSpecs[section.type].title}}</label>
-                            <label><i>No configuration for line chart (yet)</i></label>
+                            <label>Data points to show:
+                                <input name="dataPoints" type="number" placeholder="auto"
+                                       value="{{settings.dataPoints || ''}}"/>
+                            </label>
+                            <small><i>Leave blank for automatic mode</i></small>
+                            <hr/>
+                            <label>Enable Power: <input type="checkbox" name="powerEn"
+                                {{settings.powerEn ? 'checked' : ''}}/></label>
+                            <label>Enable Heart Rate: <input type="checkbox" name="hrEn"
+                                {{settings.hrEn ? 'checked' : ''}}/></label>
+                            <label>Enable Speed: <input type="checkbox" name="speedEn"
+                                {{settings.speedEn ? 'checked' : ''}}/></label>
+                            <label>Enable Cadence: <input type="checkbox" name="cadenceEn"
+                                {{settings.cadenceEn ? 'checked' : ''}}/></label>
+                            <label>Enable W'bal: <input type="checkbox" name="wbalEn"
+                                {{settings.wbalEn ? 'checked' : ''}}/></label>
+                            <hr/>
+                            <label>Show max value from:
+                                <select name="markMax">
+                                    <option {{!settings.markMax ? 'selected' : ''}} value="">-</option>
+                                    <option {{settings.markMax === 'power' ? 'selected' : ''}} value="power">Power</option>
+                                    <option {{settings.markMax === 'hr' ? 'selected' : ''}} value="hr">Heart Rate</option>
+                                    <option {{settings.markMax === 'speed' ? 'selected' : ''}} value="speed">Speed</option>
+                                    <option {{settings.markMax === 'cadence' ? 'selected' : ''}} value="cadence">Cadence</option>
+                                    <option {{settings.markMax === 'wbal' ? 'selected' : ''}} value="wbal">W'bal (minimum)</option>
+                                </select>
+                            </label>
                             <footer>
                                 <button value="cancel">Cancel</button>
                                 <button value="save" class="primary">Save</button>

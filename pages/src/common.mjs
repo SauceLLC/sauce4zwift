@@ -355,12 +355,14 @@ export class Renderer {
     }
 
     onKeyDown(ev) {
-        if (this.locked || !document.activeElement || !this._contentEl.contains(document.activeElement)) {
+        const dir = {ArrowRight: 1, ArrowLeft: -1}[ev.key];
+        const activeEl = document.activeElement;
+        if (!dir || this.locked || !activeEl || !this._contentEl.contains(activeEl)) {
             return;
         }
-        const dir = {ArrowRight: 1, ArrowLeft: -1}[ev.key];
-        const id = document.activeElement.closest('[data-field]').dataset.field;
-        if (dir && id) {
+        const dataField = activeEl.closest('[data-field]');
+        const id = dataField && dataField.dataset.field;
+        if (id) {
             this.rotateField(id, dir);
         }
     }

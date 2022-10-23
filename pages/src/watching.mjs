@@ -39,17 +39,445 @@ common.settingsStore.setDefault({
 const doc = document.documentElement;
 const L = sauce.locale;
 const H = L.human;
-const maxLineChartLen = 60;
-const colors = {
-    power: '#46f',
-    hr: '#e22',
-    pace: '#4e3',
-};
-
+const defaultLineChartLen = Math.ceil(window.innerWidth / 2);
+const chartRefs = new Set();
 let imperial = !!common.settingsStore.get('/imperialUnits');
 L.setImperial(imperial);
 let eventMetric = 'distance';
 let sport = 'cycling';
+
+const sectionSpecs = {
+    'large-data-fields': {
+        title: 'Data Fields (large)',
+        baseType: 'data-fields',
+        groups: 1,
+    },
+    'data-fields': {
+        title: 'Data Fields',
+        baseType: 'data-fields',
+        groups: 1,
+    },
+    'split-data-fields': {
+        title: 'Split Data Fields',
+        baseType: 'data-fields',
+        groups: 2,
+    },
+    'single-data-field': {
+        title: 'Single Data Field',
+        baseType: 'single-data-field',
+        groups: 1,
+    },
+    'line-chart': {
+        title: 'Line Chart',
+        baseType: 'chart',
+        alwaysRender: true,
+        defaultSettings: {
+            powerEn: true,
+            hrEn: true,
+            speedEn: true,
+            cadenceEn: false,
+            wbalEn: false,
+            markMax: 'power',
+        },
+    }
+};
+
+const groupSpecs = {
+    power: {
+        title: 'Power',
+        backgroundImage: 'url(../images/fa/bolt-duotone.svg)',
+        fields: [{
+            id: 'pwr-cur',
+            value: x => H.number(x.state && x.state.power),
+            key: () => 'Current',
+            unit: () => 'w',
+        }, {
+            id: 'pwr-avg',
+            value: x => H.number(x.stats && x.stats.power.avg),
+            label: () => 'avg',
+            key: () => 'Avg',
+            unit: () => 'w',
+        }, {
+            id: 'pwr-max',
+            value: x => H.number(x.stats && x.stats.power.max),
+            label: () => 'max',
+            key: () => 'Max',
+            unit: () => 'w',
+        }, {
+            id: 'pwr-cur-wkg',
+            value: x => humanWkg(x.state && x.state.power, x.athlete),
+            key: () => 'Current',
+            unit: () => 'w/kg',
+        }, {
+            id: 'pwr-np',
+            value: x => H.number(x.stats && x.stats.power.np),
+            label: () => 'np',
+            key: () => 'NP',
+        }, {
+            id: 'pwr-tss',
+            value: x => H.number(x.stats && x.stats.power.tss),
+            label: () => 'tss',
+            key: () => 'TSS',
+        },
+            makeSmoothPowerField(5),
+            makeSmoothPowerField(15),
+            makeSmoothPowerField(60),
+            makeSmoothPowerField(300),
+            makeSmoothPowerField(1200),
+            makePeakPowerField(5),
+            makePeakPowerField(15),
+            makePeakPowerField(60),
+            makePeakPowerField(300),
+            makePeakPowerField(1200),
+        {
+            id: 'pwr-lap-avg',
+            value: x => H.number(x.laps && x.laps.at(-1).power.avg),
+            label: () => 'lap',
+            key: () => 'Lap',
+            unit: () => 'w',
+        }, {
+            id: 'pwr-lap-wkg',
+            value: x => humanWkg(x.laps && x.laps.at(-1).power.avg, x.athlete),
+            label: () => 'lap',
+            key: () => 'Lap',
+            unit: () => 'w/kg',
+        }, {
+            id: 'pwr-lap-max',
+            value: x => H.number(x.laps && x.laps.at(-1).power.max),
+            label: () => ['max', '(lap)'],
+            key: () => 'Max<tiny>(lap)</tiny>',
+            unit: () => 'w',
+        }, {
+            id: 'pwr-lap-max-wkg',
+            value: x => humanWkg(x.laps && x.laps.at(-1).power.max, x.athlete),
+            label: () => ['max', '(lap)'],
+            key: () => 'Max<tiny>(lap)</tiny>',
+            unit: () => 'w/kg',
+        }, {
+            id: 'pwr-lap-np',
+            value: x => H.number(x.laps && x.laps.at(-1).power.np),
+            label: () => ['np', '(lap)'],
+            key: () => 'NP<tiny>(lap)</tiny>',
+        },
+            makePeakPowerField(5, -1),
+            makePeakPowerField(15, -1),
+            makePeakPowerField(60, -1),
+            makePeakPowerField(300, -1),
+            makePeakPowerField(1200, -1),
+        {
+            id: 'pwr-last-avg',
+            value: x => H.number(x.laps && x.laps.length > 1 && x.laps.at(-2).power.avg || null),
+            label: () => 'last lap',
+            key: () => 'Last Lap',
+            unit: () => 'w',
+        }, {
+            id: 'pwr-last-avg-wkg',
+            value: x => humanWkg(x.laps && x.laps.length > 1 && x.laps.at(-2).power.avg, x.athlete),
+            label: () => 'last lap',
+            key: () => 'Last Lap',
+            unit: () => 'w/kg',
+        }, {
+            id: 'pwr-last-max',
+            value: x => H.number(x.laps && x.laps.length > 1 && x.laps.at(-2).power.max || null),
+            label: () => ['max', '(last lap)'],
+            key: () => 'Max<tiny>(last lap)</tiny>',
+            unit: () => 'w',
+        }, {
+            id: 'pwr-last-max-wkg',
+            value: x => humanWkg(x.laps && x.laps.length > 1 && x.laps.at(-2).power.max, x.athlete),
+            label: () => ['max', '(last lap)'],
+            key: () => 'Max<tiny>(last lap)</tiny>',
+            unit: () => 'w/kg',
+        }, {
+            id: 'pwr-last-np',
+            value: x => H.number(x.laps && x.laps.length > 1 && x.laps.at(-2).power.np || null),
+            label: () => ['np', '(last lap)'],
+            key: () => 'NP<tiny>(last lap)</tiny>',
+        },
+            makePeakPowerField(5, -2),
+            makePeakPowerField(15, -2),
+            makePeakPowerField(60, -2),
+            makePeakPowerField(300, -2),
+            makePeakPowerField(1200, -2),
+        {
+            id: 'pwr-vi',
+            value: x => H.number(x.stats && x.stats.power.np && x.stats.power.np / x.stats.power.avg,
+                {precision: 1, fixed: true}),
+            label: () => 'vi',
+            key: () => 'VI',
+        }, {
+            id: 'pwr-wbal',
+            value: x => H.number(x.stats && (x.stats.power.wBal / 1000), {precision: 1, fixed: true}),
+            label: () => 'w\'bal',
+            key: () => 'W\'bal',
+            unit: () => 'kJ',
+        }],
+    },
+    hr: {
+        title: 'Heart Rate',
+        backgroundImage: 'url(../images/fa/heartbeat-duotone.svg)',
+        fields: [{
+            id: 'hr-cur',
+            value: x => H.number(x.state && x.state.heartrate || null),
+            key: () => 'Current',
+            unit: () => 'bpm',
+        }, {
+            id: 'hr-avg',
+            value: x => H.number(x.stats && x.stats.hr.avg || null), // XXX check the null is required
+            label: () => 'avg',
+            key: () => 'Avg',
+            unit: () => 'bpm',
+        }, {
+            id: 'hr-max',
+            value: x => H.number(x.stats && x.stats.hr.max || null),
+            label: () => 'max',
+            key: () => 'Max',
+            unit: () => 'bpm',
+        },
+            makeSmoothHRField(60),
+            makeSmoothHRField(300),
+            makeSmoothHRField(1200),
+        {
+            id: 'hr-lap-avg',
+            value: x => H.number(x.laps && x.laps.at(-1).hr.avg || null),
+            label: () => 'lap',
+            key: () => 'Lap',
+            unit: () => 'bpm',
+        }, {
+            id: 'hr-lap-max',
+            value: x => H.number(x.laps && x.laps.at(-1).hr.max || null),
+            label: () => ['max', '(lap)'],
+            key: () => 'Max<tiny>(lap)</tiny>',
+            unit: () => 'bpm',
+        }, {
+            id: 'hr-last-avg',
+            value: x => H.number(x.laps && x.laps.length > 1 && x.laps.at(-2).hr.avg || null),
+            label: () => 'last lap',
+            key: () => 'Last Lap',
+            unit: () => 'bpm',
+        }, {
+            id: 'hr-last-max',
+            value: x => H.number(x.laps && x.laps.length > 1 && x.laps.at(-2).hr.max || null),
+            label: () => ['max', '(last lap)'],
+            key: () => 'Max<tiny>(last lap)</tiny>',
+            unit: () => 'bpm',
+        }],
+    },
+    cadence: {
+        title: 'Cadence',
+        backgroundImage: 'url(../images/fa/solar-system-duotone.svg)',
+        fields: [{
+            id: 'cad-cur',
+            value: x => H.number(x.state && x.state.cadence),
+            key: () => 'Current',
+            unit: cadenceUnit,
+        }, {
+            id: 'cad-avg',
+            value: x => H.number(x.stats && x.stats.cadence.avg || null),
+            label: () => 'avg',
+            key: () => 'Avg',
+            unit: cadenceUnit,
+        }, {
+            id: 'cad-max',
+            value: x => H.number(x.stats && x.stats.cadence.max || null),
+            label: () => 'max',
+            key: () => 'Max',
+            unit: cadenceUnit,
+        }, {
+            id: 'cad-lap-avg',
+            value: x => H.number(x.laps && x.laps.at(-1).cadence.avg || null),
+            label: () => 'lap',
+            key: () => 'Lap',
+            unit: cadenceUnit,
+        }, {
+            id: 'cad-lap-max',
+            value: x => H.number(x.laps && x.laps.at(-1).cadence.max || null),
+            label: () => ['max', '(lap)'],
+            key: () => 'Max<tiny>(lap)</tiny>',
+            unit: cadenceUnit,
+        }, {
+            id: 'cad-last-avg',
+            value: x => H.number(x.laps && x.laps.length > 1 && x.laps.at(-2).cadence.avg || null),
+            label: () => 'last lap',
+            key: () => 'Last Lap',
+            unit: cadenceUnit,
+        }, {
+            id: 'cad-last-max',
+            value: x => H.number(x.laps && x.laps.length > 1 && x.laps.at(-2).cadence.max || null),
+            label: () => ['max', '(last lap)'],
+            key: () => 'Max<tiny>(last lap)</tiny>',
+            unit: cadenceUnit,
+        }],
+    },
+    draft: {
+        title: 'Draft',
+        backgroundImage: 'url(../images/fa/wind-duotone.svg)',
+        fields: [{
+            id: 'draft-cur',
+            value: x => H.number(x.state && x.state.draft),
+            key: () => 'Current',
+            unit: () => '%',
+        }, {
+            id: 'draft-avg',
+            value: x => H.number(x.stats && x.stats.draft.avg),
+            label: () => 'avg',
+            key: () => 'Avg',
+            unit: () => '%',
+        }, {
+            id: 'draft-max',
+            value: x => H.number(x.stats && x.stats.draft.max),
+            label: () => 'max',
+            key: () => 'Max',
+            unit: () => '%',
+        }, {
+            id: 'draft-lap-avg',
+            value: x => H.number(x.laps && x.laps.at(-1).draft.avg),
+            label: () => 'lap',
+            key: () => 'Lap',
+            unit: () => '%',
+        }, {
+            id: 'draft-lap-max',
+            value: x => H.number(x.laps && x.laps.at(-1).draft.max),
+            label: () => ['max', '(lap)'],
+            key: () => 'Max<tiny>(lap)</tiny>',
+            unit: () => '%',
+        }, {
+            id: 'draft-last-avg',
+            value: x => H.number(x.laps && x.laps.length > 1 && x.laps.at(-2).draft.avg || null),
+            label: () => 'last lap',
+            key: () => 'Last Lap',
+            unit: () => '%',
+        }, {
+            id: 'draft-last-max',
+            value: x => H.number(x.laps && x.laps.length > 1 && x.laps.at(-2).draft.max || null),
+            label: () => ['max', '(last lap)'],
+            key: () => 'Max<tiny>(last lap)</tiny>',
+            unit: () => '%',
+        }],
+    },
+    event: {
+        title: 'Event',
+        backgroundImage: 'url(../images/fa/flag-checkered-duotone.svg)',
+        fields: [{
+            id: 'ev-place',
+            value: x => H.place(x.eventPosition, {html: true}),
+            label: () => 'place',
+            key: () => 'Place',
+        }, {
+            id: 'ev-finish',
+            value: x => eventMetric === 'distance' ? fmtDistValue(x.remaining) : fmtDur(x.remaining),
+            label: () => 'finish',
+            key: () => 'Finish',
+            unit: x => eventMetric === 'distance' ? fmtDistUnit(x && x.state && x.state.eventDistance) : '',
+        }, {
+            id: 'ev-dst',
+            value: x => eventMetric === 'distance' ?
+                fmtDistValue(x.state && x.state.eventDistance) : fmtDur(x.state && x.state.time),
+            label: () => eventMetric === 'distance' ? 'dist' : 'timer',
+            key: x => eventMetric === 'distance' ? 'Dist' : 'Timer',
+            unit: x => eventMetric === 'distance' ? fmtDistUnit(x && x.state && x.state.eventDistance) : '',
+        }]
+    },
+    pace: {
+        title: speedLabel,
+        backgroundImage: 'url(../images/fa/tachometer-duotone.svg)',
+        fields: [{
+            id: 'pace-cur',
+            value: x => fmtPace(x.state && x.state.speed),
+            key: () => 'Current',
+            unit: speedUnit,
+        }, {
+            id: 'pace-avg',
+            value: x => fmtPace(x.stats && x.stats.speed.avg),
+            label: () => 'avg',
+            key: () => 'Avg',
+            unit: speedUnit,
+        }, {
+            id: 'pace-max',
+            value: x => fmtPace(x.stats && x.stats.speed.max),
+            label: () => 'max',
+            key: () => 'Max',
+            unit: speedUnit,
+        }, {
+            id: 'pace-lap-avg',
+            value: x => fmtPace(x.laps && x.laps.at(-1).speed.avg),
+            label: () => 'lap',
+            key: () => 'Lap',
+            unit: speedUnit,
+        }, {
+            id: 'pace-lap-max',
+            value: x => fmtPace(x.laps && x.laps.at(-1).speed.max),
+            label: () => ['max', '(lap)'],
+            key: () => 'Max<tiny>(lap)</tiny>',
+            unit: speedUnit,
+        }, {
+            id: 'pace-last-avg',
+            value: x => fmtPace(x.laps && x.laps.length > 1 && x.laps.at(-2).speed.avg),
+            label: () => 'last lap',
+            key: () => 'Last Lap',
+            unit: speedUnit,
+        }, {
+            id: 'pace-last-max',
+            value: x => fmtPace(x.laps && x.laps.length > 1 && x.laps.at(-2).speed.max),
+            label: () => ['max', '(last lap)'],
+            key: () => 'Max<tiny>(last lap)</tiny>',
+            unit: speedUnit,
+        }],
+    },
+};
+
+const lineChartFields = [{
+    id: 'power',
+    name: 'Power',
+    color: '#46f',
+    domain: [0, 700],
+    rangeAlpha: [0.4, 1],
+    points: Array.from(new Array(1000)).map(x => 400 * Math.random()),
+    get: x => x.state.power || 0,
+    fmt: x => H.power(x, {seperator: ' ', suffix: true}),
+}, {
+    id: 'hr',
+    name: 'HR',
+    color: '#e22',
+    domain: [70, 190],
+    rangeAlpha: [0.1, 0.7],
+    points: [],
+    get: x => x.state.heartrate || 0,
+    fmt: x => H.number(x) + ' bpm',
+}, {
+    id: 'speed',
+    name: speedLabel,
+    color: '#4e3',
+    domain: [0, 100],
+    rangeAlpha: [0.1, 0.8],
+    points: [],
+    get: x => x.state.speed || 0,
+    fmt: x => fmtPace(x, {seperator: ' ', suffix: true}),
+}, {
+    id: 'cadence',
+    name: 'Cadence',
+    color: '#ee3',
+    domain: [0, 140],
+    rangeAlpha: [0.1, 0.8],
+    points: [],
+    get: x => x.state.cadence || 0,
+    fmt: x => H.number(x) + (sport === 'running' ? ' spm' : ' rpm'),
+}, {
+    id: 'wbal',
+    name: 'W\'bal',
+    color: '#4ee',
+    domain: [0, 22000],
+    rangeAlpha: [0.1, 0.8],
+    points: [],
+    get: x => x.stats.power.wBal || 0,
+    fmt: x => H.number(x / 1000) + ' kJ',
+    markMin: true,
+}];
+
+
+function unit(x) {
+    return `<abbr class="unit">${x}</abbr>`;
+}
 
 
 function cadenceUnit() {
@@ -57,23 +485,25 @@ function cadenceUnit() {
 }
 
 
-const chartRefs = new Set();
-
-function resizeCharts() {
-    for (const r of chartRefs) {
-        const c = r.deref();
-        if (!c) {
-            chartRefs.delete(r);
-        } else {
-            c.resize();
-        }
-    }
+async function getTpl(name) {
+    return await sauce.template.getTemplate(`templates/${name}.html.tpl`);
 }
-addEventListener('resize', resizeCharts);
+
+
+function speedLabel() {
+    return sport === 'running' ? 'Pace' : 'Speed';
+}
 
 
 function speedUnit() {
-    return sport === 'cycling' ? imperial ? 'mph' : 'kph' : imperial ? '/mi' : '/km';
+    return sport === 'running' ?
+        imperial ? '/mi' : '/km' :
+        imperial ? 'mph' : 'kph';
+}
+
+
+function fmtPace(x, options) {
+    return H.pace(x, {precision: 0, sport, ...options});
 }
 
 
@@ -90,9 +520,6 @@ function humanWkg(v, athlete) {
 }
 
 
-const unit = x => `<abbr class="unit">${x}</abbr>`;
-
-
 function _fmtDist(v) {
     if (v == null || v === Infinity || v === -Infinity || isNaN(v)) {
         return ['-', ''];
@@ -105,10 +532,10 @@ function _fmtDist(v) {
 }
 
 
-function fmtDist(v) {
+/*function fmtDist(v) {
     const [val, u] = _fmtDist(v);
     return `${val}${unit(u)}`;
-}
+}*/
 
 
 function fmtDistValue(v) {
@@ -136,6 +563,7 @@ function makePeakPowerField(period, lap) {
         '-2': '(last lap)',
     }[lap];
     return {
+        id: `power-peak-${period}`,
         value: x => {
             const data = x.laps && x.stats && (lap ? x.laps.at(lap) : x.stats);
             const o = data && data.power.peaks[period];
@@ -169,6 +597,7 @@ function makePeakPowerField(period, lap) {
 function makeSmoothPowerField(period) {
     const duration = shortDuration(period);
     return {
+        id: `power-smooth-${period}`,
         value: x => H.number(x.stats && x.stats.power.smooth[period]),
         label: () => duration,
         key: () => duration,
@@ -180,6 +609,7 @@ function makeSmoothPowerField(period) {
 function makeSmoothHRField(period) {
     const duration = shortDuration(period);
     return {
+        id: `hr-smooth-${period}`,
         value: x => H.number(x.stats && x.stats.hr.smooth[period]),
         label: () => duration,
         key: () => duration,
@@ -189,7 +619,7 @@ function makeSmoothHRField(period) {
 
 
 let _themeRegistered = 0;
-async function createStatHistoryChart(el, sectionId) {
+async function createLineChart(el, sectionId, settings) {
     const [charts, echarts, theme] = await Promise.all([
         import('./charts.mjs'),
         import('../deps/src/echarts.mjs'),
@@ -197,121 +627,59 @@ async function createStatHistoryChart(el, sectionId) {
     ]);
     if (!_themeRegistered++) {
         echarts.registerTheme('sauce', theme.getTheme('dynamic'));
+        addEventListener('resize', resizeCharts);
     }
+    const fields = lineChartFields.filter(x => settings[x.id + 'En']);
     const lineChart = echarts.init(el, 'sauce', {renderer: 'svg'});
-    const powerSoftDomain = [0, 700];
-    const hrSoftDomain = [70, 190];
-    const paceSoftDomain = [0, 100];
     const visualMapCommon = {
         show: false,
         type: 'continuous',
         hoverLink: false,
     };
+    const seriesCommon = {
+        type: 'line',
+        animation: false,  // looks better and saves gobs of CPU
+        showSymbol: false,
+        emphasis: {disabled: true},
+        areaStyle: {},
+    };
+    const dataPoints = settings.dataPoints || defaultLineChartLen;
     const options = {
-        color: [colors.power, colors.hr, colors.pace],
-        visualMap: [{
+        color: fields.map(f => f.color),
+        visualMap: fields.map((f, i) => ({
             ...visualMapCommon,
-            seriesIndex: 0,
-            min: powerSoftDomain[0],
-            max: powerSoftDomain[1],
-            inRange: {
-                colorAlpha: [0.4, 1],
-            },
-        }, {
-            ...visualMapCommon,
-            seriesIndex: 1,
-            min: hrSoftDomain[0],
-            max: hrSoftDomain[1],
-            inRange: {
-                colorAlpha: [0.1, 0.7],
-            },
-        }, {
-            ...visualMapCommon,
-            seriesIndex: 2,
-            min: paceSoftDomain[0],
-            max: paceSoftDomain[1],
-            inRange: {
-                colorAlpha: [0.1, 0.8],
-            },
-        }],
-        grid: {
-            top: 20,
-            left: 24,
-            right: 24,
-            bottom: 2,
-        },
-        legend: {
-            show: false, // need to enable actions.
-        },
+            seriesIndex: i,
+            min: f.domain[0],
+            max: f.domain[1],
+            inRange: {colorAlpha: f.rangeAlpha},
+        })),
+        grid: {top: 0, left: 0, right: 0, bottom: 0},
+        legend: {show: false},
         tooltip: {
             trigger: 'axis',
             axisPointer: {label: {formatter: () => ''}}
         },
         xAxis: [{
             show: false,
-            data: Array.from(new Array(maxLineChartLen)).map((x, i) => i),
+            data: Array.from(new Array(dataPoints)).map((x, i) => i),
         }],
-        yAxis: [{
+        yAxis: fields.map(f => ({
             show: false,
-            min: powerSoftDomain[0],
-            max: x => Math.max(powerSoftDomain[1], x.max),
-        }, {
-            show: false,
-            min: x => Math.min(hrSoftDomain[0], x.min),
-            max: x => Math.max(hrSoftDomain[1], x.max),
-        }, {
-            show: false,
-            min: x => Math.min(paceSoftDomain[0], x.min),
-            max: x => Math.max(paceSoftDomain[1], x.max),
-        }],
-        series: [{
-            id: 'power',
-            name: 'Power',
-            type: 'line',
-            z: 4,
-            showSymbol: false,
-            emphasis: {disabled: true},
-            tooltip: {
-                valueFormatter: x => H.power(x, {suffix: true}),
-            },
-            areaStyle: {},
-            lineStyle: {
-                color: colors.power,
-            }
-        }, {
-            id: 'hr',
-            name: 'HR',
-            type: 'line',
-            z: 3,
-            showSymbol: false,
-            emphasis: {disabled: true},
-            yAxisIndex: 1,
-            tooltip: {
-                valueFormatter: x => H.number(x) + 'bpm'
-            },
-            areaStyle: {},
-            lineStyle: {
-                color: colors.hr,
-            }
-        }, {
-            id: 'pace',
-            name: 'Speed',
-            type: 'line',
-            z: 2,
-            showSymbol: false,
-            emphasis: {disabled: true},
-            yAxisIndex: 2,
-            tooltip: {
-                valueFormatter: x => H.pace(x, {precision: 0, suffix: true, sport}),
-            },
-            areaStyle: {},
-            lineStyle: {
-                color: colors.pace,
-            }
-        }]
+            min: x => Math.min(f.domain[0], x.min),
+            max: x => Math.max(f.domain[1], x.max),
+        })),
+        series: fields.map((f, i) => ({
+            ...seriesCommon,
+            id: f.id,
+            name: typeof f.name === 'function' ? f.name() : f.name,
+            z: fields.length - i + 1,
+            yAxisIndex: i,
+            tooltip: {valueFormatter: f.fmt},
+            lineStyle: {color: f.color},
+        })),
     };
     lineChart.setOption(options);
-    new charts.SauceLegend({
+    lineChart._sauceLegend = new charts.SauceLegend({
         el: el.nextElementSibling,
         chart: lineChart,
         hiddenStorageKey: `watching-hidden-graph-p${sectionId}`,
@@ -320,340 +688,13 @@ async function createStatHistoryChart(el, sectionId) {
     return lineChart;
 }
 
-const sectionSpecs = {
-    'large-data-fields': {
-        title: 'Data Fields (large)',
-        baseType: 'data-fields',
-        groups: 1,
-    },
-    'data-fields': {
-        title: 'Data Fields',
-        baseType: 'data-fields',
-        groups: 1,
-    },
-    'split-data-fields': {
-        title: 'Split Data Fields',
-        baseType: 'data-fields',
-        groups: 2,
-    },
-    'single-data-field': {
-        title: 'Single Data Field',
-        baseType: 'single-data-field',
-        groups: 1,
-    },
-    'line-chart': {
-        title: 'Line Chart',
-        baseType: 'chart',
-        groups: 1,
-        alwaysRender: true,
-    }
-};
 
-const groupSpecs = {
-    power: {
-        title: 'Power',
-        backgroundImage: 'url(../images/fa/bolt-duotone.svg)',
-        fields: [{
-            value: x => H.number(x.state && x.state.power),
-            key: () => 'Current',
-            unit: () => 'w',
-        }, {
-            value: x => H.number(x.stats && x.stats.power.avg),
-            label: () => 'avg',
-            key: () => 'Avg',
-            unit: () => 'w',
-        }, {
-            value: x => H.number(x.stats && x.stats.power.max),
-            label: () => 'max',
-            key: () => 'Max',
-            unit: () => 'w',
-        }, {
-            value: x => humanWkg(x.state && x.state.power, x.athlete),
-            key: () => 'Current',
-            unit: () => 'w/kg',
-        }, {
-            value: x => H.number(x.stats && x.stats.power.np),
-            label: () => 'np',
-            key: () => 'NP',
-        }, {
-            value: x => H.number(x.stats && x.stats.power.tss),
-            label: () => 'tss',
-            key: () => 'TSS',
-        },
-            makeSmoothPowerField(5),
-            makeSmoothPowerField(15),
-            makeSmoothPowerField(60),
-            makeSmoothPowerField(300),
-            makeSmoothPowerField(1200),
-            makePeakPowerField(5),
-            makePeakPowerField(15),
-            makePeakPowerField(60),
-            makePeakPowerField(300),
-            makePeakPowerField(1200),
-        {
-            value: x => H.number(x.laps && x.laps.at(-1).power.avg),
-            label: () => 'lap',
-            key: () => 'Lap',
-            unit: () => 'w',
-        }, {
-            value: x => humanWkg(x.laps && x.laps.at(-1).power.avg, x.athlete),
-            label: () => 'lap',
-            key: () => 'Lap',
-            unit: () => 'w/kg',
-        }, {
-            value: x => H.number(x.laps && x.laps.at(-1).power.max),
-            label: () => ['max', '(lap)'],
-            key: () => 'Max<tiny>(lap)</tiny>',
-            unit: () => 'w',
-        }, {
-            value: x => humanWkg(x.laps && x.laps.at(-1).power.max, x.athlete),
-            label: () => ['max', '(lap)'],
-            key: () => 'Max<tiny>(lap)</tiny>',
-            unit: () => 'w/kg',
-        }, {
-            value: x => H.number(x.laps && x.laps.at(-1).power.np),
-            label: () => ['np', '(lap)'],
-            key: () => 'NP<tiny>(lap)</tiny>',
-        },
-            makePeakPowerField(5, -1),
-            makePeakPowerField(15, -1),
-            makePeakPowerField(60, -1),
-            makePeakPowerField(300, -1),
-            makePeakPowerField(1200, -1),
-        {
-            value: x => H.number(x.laps && x.laps.length > 1 && x.laps.at(-2).power.avg || null),
-            label: () => 'last lap',
-            key: () => 'Last Lap',
-            unit: () => 'w',
-        }, {
-            value: x => humanWkg(x.laps && x.laps.length > 1 && x.laps.at(-2).power.avg, x.athlete),
-            label: () => 'last lap',
-            key: () => 'Last Lap',
-            unit: () => 'w/kg',
-        }, {
-            value: x => H.number(x.laps && x.laps.length > 1 && x.laps.at(-2).power.max || null),
-            label: () => ['max', '(last lap)'],
-            key: () => 'Max<tiny>(last lap)</tiny>',
-            unit: () => 'w',
-        }, {
-            value: x => humanWkg(x.laps && x.laps.length > 1 && x.laps.at(-2).power.max, x.athlete),
-            label: () => ['max', '(last lap)'],
-            key: () => 'Max<tiny>(last lap)</tiny>',
-            unit: () => 'w/kg',
-        }, {
-            value: x => H.number(x.laps && x.laps.length > 1 && x.laps.at(-2).power.np || null),
-            label: () => ['np', '(last lap)'],
-            key: () => 'NP<tiny>(last lap)</tiny>',
-        },
-            makePeakPowerField(5, -2),
-            makePeakPowerField(15, -2),
-            makePeakPowerField(60, -2),
-            makePeakPowerField(300, -2),
-            makePeakPowerField(1200, -2),
-        {
-            value: x => H.number(x.stats && x.stats.power.np && x.stats.power.np / x.stats.power.avg,
-                {precision: 1, fixed: true}),
-            label: () => 'vi',
-            key: () => 'VI',
-        }],
-    },
-    hr: {
-        title: 'Heart Rate',
-        backgroundImage: 'url(../images/fa/heartbeat-duotone.svg)',
-        fields: [{
-            value: x => H.number(x.state && x.state.heartrate || null),
-            key: () => 'Current',
-            unit: () => 'bpm',
-        }, {
-            value: x => H.number(x.stats && x.stats.hr.avg || null), // XXX check the null is required
-            label: () => 'avg',
-            key: () => 'Avg',
-            unit: () => 'bpm',
-        }, {
-            value: x => H.number(x.stats && x.stats.hr.max || null),
-            label: () => 'max',
-            key: () => 'Max',
-            unit: () => 'bpm',
-        },
-            makeSmoothHRField(60),
-            makeSmoothHRField(300),
-            makeSmoothHRField(1200),
-        {
-            value: x => H.number(x.laps && x.laps.at(-1).hr.avg || null),
-            label: () => 'lap',
-            key: () => 'Lap',
-            unit: () => 'bpm',
-        }, {
-            value: x => H.number(x.laps && x.laps.at(-1).hr.max || null),
-            label: () => ['max', '(lap)'],
-            key: () => 'Max<tiny>(lap)</tiny>',
-            unit: () => 'bpm',
-        }, {
-            value: x => H.number(x.laps && x.laps.length > 1 && x.laps.at(-2).hr.avg || null),
-            label: () => 'last lap',
-            key: () => 'Last Lap',
-            unit: () => 'bpm',
-        }, {
-            value: x => H.number(x.laps && x.laps.length > 1 && x.laps.at(-2).hr.max || null),
-            label: () => ['max', '(last lap)'],
-            key: () => 'Max<tiny>(last lap)</tiny>',
-            unit: () => 'bpm',
-        }],
-    },
-    cadence: {
-        title: 'Cadence',
-        backgroundImage: 'url(../images/fa/solar-system-duotone.svg)',
-        fields: [{
-            value: x => H.number(x.state && x.state.cadence),
-            key: () => 'Current',
-            unit: cadenceUnit,
-        }, {
-            value: x => H.number(x.stats && x.stats.cadence.avg || null),
-            label: () => 'avg',
-            key: () => 'Avg',
-            unit: cadenceUnit,
-        }, {
-            value: x => H.number(x.stats && x.stats.cadence.max || null),
-            label: () => 'max',
-            key: () => 'Max',
-            unit: cadenceUnit,
-        }, {
-            value: x => H.number(x.laps && x.laps.at(-1).cadence.avg || null),
-            label: () => 'lap',
-            key: () => 'Lap',
-            unit: cadenceUnit,
-        }, {
-            value: x => H.number(x.laps && x.laps.at(-1).cadence.max || null),
-            label: () => ['max', '(lap)'],
-            key: () => 'Max<tiny>(lap)</tiny>',
-            unit: cadenceUnit,
-        }, {
-            value: x => H.number(x.laps && x.laps.length > 1 && x.laps.at(-2).cadence.avg || null),
-            label: () => 'last lap',
-            key: () => 'Last Lap',
-            unit: cadenceUnit,
-        }, {
-            value: x => H.number(x.laps && x.laps.length > 1 && x.laps.at(-2).cadence.max || null),
-            label: () => ['max', '(last lap)'],
-            key: () => 'Max<tiny>(last lap)</tiny>',
-            unit: cadenceUnit,
-        }],
-    },
-    draft: {
-        title: 'Draft',
-        backgroundImage: 'url(../images/fa/wind-duotone.svg)',
-        fields: [{
-            value: x => H.number(x.state && x.state.draft),
-            key: () => 'Current',
-            unit: () => '%',
-        }, {
-            value: x => H.number(x.stats && x.stats.draft.avg),
-            label: () => 'avg',
-            key: () => 'Avg',
-            unit: () => '%',
-        }, {
-            value: x => H.number(x.stats && x.stats.draft.max),
-            label: () => 'max',
-            key: () => 'Max',
-            unit: () => '%',
-        }, {
-            value: x => H.number(x.laps && x.laps.at(-1).draft.avg),
-            label: () => 'lap',
-            key: () => 'Lap',
-            unit: () => '%',
-        }, {
-            value: x => H.number(x.laps && x.laps.at(-1).draft.max),
-            label: () => ['max', '(lap)'],
-            key: () => 'Max<tiny>(lap)</tiny>',
-            unit: () => '%',
-        }, {
-            value: x => H.number(x.laps && x.laps.length > 1 && x.laps.at(-2).draft.avg || null),
-            label: () => 'last lap',
-            key: () => 'Last Lap',
-            unit: () => '%',
-        }, {
-            value: x => H.number(x.laps && x.laps.length > 1 && x.laps.at(-2).draft.max || null),
-            label: () => ['max', '(last lap)'],
-            key: () => 'Max<tiny>(last lap)</tiny>',
-            unit: () => '%',
-        }],
-    },
-    event: {
-        title: 'Event',
-        backgroundImage: 'url(../images/fa/flag-checkered-duotone.svg)',
-        fields: [{
-            value: x => H.place(x.eventPosition, {html: true}),
-            label: () => 'place',
-            key: () => 'Place',
-        }, {
-            value: x => eventMetric === 'distance' ? fmtDistValue(x.remaining) : fmtDur(x.remaining),
-            label: () => 'finish',
-            key: () => 'Finish',
-            unit: x => eventMetric === 'distance' ? fmtDistUnit(x && x.state && x.state.eventDistance) : '',
-        }, {
-            value: x => eventMetric === 'distance' ?
-                fmtDistValue(x.state && x.state.eventDistance) : fmtDur(x.state && x.state.time),
-            label: () => eventMetric === 'distance' ? 'dist' : 'timer',
-            key: x => eventMetric === 'distance' ? 'Dist' : 'Timer',
-            unit: x => eventMetric === 'distance' ? fmtDistUnit(x && x.state && x.state.eventDistance) : '',
-        }]
-    },
-    pace: {
-        title: 'Speed',
-        backgroundImage: 'url(../images/fa/tachometer-duotone.svg)',
-        fields: [{
-            value: x => H.pace(x.state && x.state.speed, {sport}),
-            label: speedUnit,
-            key: () => 'Current',
-            unit: speedUnit,
-        }, {
-            value: x => H.pace(x.stats && x.stats.speed.avg, {sport}),
-            label: () => 'avg',
-            key: () => 'Avg',
-            unit: speedUnit,
-        }, {
-            value: x => H.pace(x.stats && x.stats.speed.max, {sport}),
-            label: () => 'max',
-            key: () => 'Max',
-            unit: speedUnit,
-        }, {
-            value: x => H.pace(x.laps && x.laps.at(-1).speed.avg, {sport}),
-            label: () => 'lap',
-            key: () => 'Lap',
-            unit: speedUnit,
-        }, {
-            value: x => H.pace(x.laps && x.laps.at(-1).speed.max, {sport}),
-            label: () => ['max', '(lap)'],
-            key: () => 'Max<tiny>(lap)</tiny>',
-            unit: speedUnit,
-        }, {
-            value: x => H.pace(x.laps && x.laps.length > 1 && x.laps.at(-2).speed.avg, {sport}),
-            label: () => 'last lap',
-            key: () => 'Last Lap',
-            unit: speedUnit,
-        }, {
-            value: x => H.pace(x.laps && x.laps.length > 1 && x.laps.at(-2).speed.max, {sport}),
-            label: () => ['max', '(last lap)'],
-            key: () => 'Max<tiny>(last lap)</tiny>',
-            unit: speedUnit,
-        }],
-    },
-};
-
-
-async function getTpl(name) {
-    return await sauce.template.getTemplate(`templates/${name}.html.tpl`);
-}
-
-
-function bindLineChart(lineChart, renderer) {
-    const chartData = {
-        pace: [],
-        hr: [],
-        power: [],
-    };
+function bindLineChart(lineChart, renderer, settings) {
+    const fields = lineChartFields.filter(x => settings[x.id + 'En']);
+    const dataPoints = settings.dataPoints || defaultLineChartLen;
     let dataCount = 0;
     let lastRender = 0;
+    let oldSport;
     renderer.addCallback(data => {
         const now = Date.now();
         if (now - lastRender < 900) {
@@ -661,53 +702,202 @@ function bindLineChart(lineChart, renderer) {
         }
         lastRender = now;
         if (data && data.state) {
-            chartData.power.push(data.state.power || 0);
-            chartData.hr.push(data.state.heartrate || 0);
-            chartData.pace.push(data.state.speed || 0);
-            if (chartData.power.length > maxLineChartLen) {
-                chartData.power.shift();
-                chartData.hr.shift();
-                chartData.pace.shift();
+            for (const x of fields) {
+                x.points.push(x.get(data));
+                while (x.points.length > dataPoints) {
+                    x.points.shift();
+                }
             }
         }
-        const maxPower = sauce.data.max(chartData.power);
-        const maxPIndex = chartData.power.indexOf(maxPower);
         lineChart.setOption({
             xAxis: [{
-                data: [...sauce.data.range(maxLineChartLen)].map(i =>
-                    (dataCount > maxLineChartLen ? dataCount - maxLineChartLen : 0) + i),
+                data: [...sauce.data.range(dataPoints)].map(i =>
+                    (dataCount > dataPoints ? dataCount - dataPoints : 0) + i),
             }],
-            series: [{
-                data: chartData.power,
-                markLine: {
+            series: fields.map(field => ({
+                data: field.points,
+                name: typeof field.name === 'function' ? field.name() : field.name,
+                markLine: settings.markMax === field.id ? {
                     symbol: 'none',
                     data: [{
-                        name: 'Max',
-                        xAxis: maxPIndex,
+                        name: field.markMin ? 'Min' : 'Max',
+                        xAxis: field.points.indexOf(sauce.data[field.markMin ? 'min' : 'max'](field.points)),
                         label: {
                             formatter: x => {
                                 const nbsp ='\u00A0';
                                 return [
                                     ''.padStart(Math.max(0, 5 - x.value), nbsp),
                                     nbsp, nbsp, // for unit offset
-                                    H.power(chartData.power[x.value], {suffix: true}),
-                                    ''.padEnd(Math.max(0, x.value - (maxLineChartLen - 1) + 5), nbsp)
+                                    field.fmt(field.points[x.value]),
+                                    ''.padEnd(Math.max(0, x.value - (dataPoints - 1) + 5), nbsp)
                                 ].join('');
                             },
                         },
-                        emphasis: {
-                            disabled: true,
-                        },
+                        emphasis: {disabled: true},
                     }],
-                },
-            }, {
-                data: chartData.hr,
-            }, {
-                name: sport === 'cycling' ? 'Speed' : 'Pace',
-                data: chartData.pace,
-            }]
+                } : undefined,
+            })),
         });
+        if (oldSport !== sport) {
+            oldSport = sport;
+            lineChart._sauceLegend.render();
+        }
     });
+}
+
+
+function resizeCharts() {
+    for (const r of chartRefs) {
+        const c = r.deref();
+        if (!c) {
+            chartRefs.delete(r);
+        } else {
+            c.resize();
+        }
+    }
+}
+
+
+function setBackground() {
+    const {solidBackground, backgroundColor} = common.settingsStore.get();
+    doc.classList.toggle('solid-background', !!solidBackground);
+    if (solidBackground) {
+        doc.style.setProperty('--background-color', backgroundColor);
+    } else {
+        doc.style.removeProperty('--background-color');
+    }
+}
+
+
+async function initScreenSettings() {
+    const layoutTpl = await getTpl('watching-screen-layout');
+    let sIndex = 0;
+    const activeScreenEl = document.querySelector('main .active-screen');
+    const sIndexEl = document.querySelector('.sIndex');
+    const sLenEl = document.querySelector('.sLen');
+    const prevBtn = document.querySelector('main header .button[data-action="prev"]');
+    const nextBtn = document.querySelector('main header .button[data-action="next"]');
+    const delBtn = document.querySelector('main header .button[data-action="delete"]');
+    document.querySelector('main .add-section select[name="type"]').innerHTML = Object.entries(sectionSpecs)
+        .map(([type, {title}]) => `<option value="${type}">${title}</option>`).join('\n');
+    const settings = common.settingsStore.get();
+
+    async function renderScreen() {
+        sIndexEl.textContent = sIndex + 1;
+        const sLen = settings.screens.length;
+        sLenEl.textContent = sLen;
+        const screen = settings.screens[sIndex];
+        const screenEl = (await layoutTpl({
+            screen,
+            sIndex,
+            groupSpecs,
+            sectionSpecs,
+            configuring: true
+        })).querySelector('.screen');
+        activeScreenEl.innerHTML = '';
+        activeScreenEl.appendChild(screenEl);
+        prevBtn.classList.toggle('disabled', sIndex === 0);
+        nextBtn.classList.toggle('disabled', sIndex === sLen - 1);
+        delBtn.classList.toggle('disabled', sLen === 1);
+    }
+
+    document.querySelector('main header .button-group').addEventListener('click', ev => {
+        const btn = ev.target.closest('.button-group .button');
+        const action = btn && btn.dataset.action;
+        if (!action) {
+            return;
+        }
+        if (action === 'add') {
+            settings.screens.push({
+                id: `user-section-${settings.screens.length +1}-${Date.now()}`,
+                sections: []
+            });
+            common.settingsStore.set(null, settings);
+            sIndex = settings.screens.length - 1;
+            renderScreen();
+        } else if (action === 'next') {
+            sIndex++;
+            renderScreen();
+        } else if (action === 'prev') {
+            sIndex--;
+            renderScreen();
+        } else if (action === 'delete') {
+            settings.screens.splice(sIndex, 1);
+            sIndex = Math.max(0, sIndex -1);
+            common.settingsStore.set(null, settings);
+            renderScreen();
+        }
+    });
+    document.querySelector('main .add-section input[type="button"]').addEventListener('click', ev => {
+        ev.preventDefault();
+        const type = ev.currentTarget.closest('.add-section').querySelector('select[name="type"]').value;
+        const screen = settings.screens[sIndex];
+        const sectionSpec = sectionSpecs[type];
+        screen.sections.push({
+            type,
+            id: `user-section-${Date.now()}`,
+            groups: sectionSpec.groups ? Array.from(new Array(sectionSpec.groups)).map((_, i) => ({
+                id: `user-group-${i}-${Date.now()}`,
+                type: Object.keys(groupSpecs)[i] || 'power',
+            })) : undefined,
+            settings: {...sectionSpec.defaultSettings},
+        });
+        common.settingsStore.set(null, settings);
+        renderScreen();
+    });
+    activeScreenEl.addEventListener('click', ev => {
+        const btn = ev.target.closest('.screen-section .button-group .button');
+        const action = btn && btn.dataset.action;
+        if (!action) {
+            return;
+        }
+        const sectionEl = btn.closest('.screen-section');
+        const sectionId = sectionEl.dataset.sectionId;
+        const screen = settings.screens[sIndex];
+        if (action === 'edit') {
+            const d = sectionEl.querySelector('dialog.edit');
+            d.addEventListener('close', ev => {
+                if (d.returnValue !== 'save') {
+                    return;
+                }
+                const section = screen.sections.find(x => x.id === sectionId);
+                if (!section.settings) {
+                    section.settings = {...sectionSpecs[section.type].defaultSettings};
+                }
+                // Groups are special...
+                for (const x of d.querySelectorAll('select[name="group"]')) {
+                    section.groups.find(x => x.id === x.dataset.id).type = x.value;
+                }
+                // Everything else is a generic setting...
+                for (const x of d.querySelectorAll('select:not([name="group"])')) {
+                    let value = x.value === '' ? undefined : x.value;
+                    if (value !== undefined && x.dataset.type === 'number') {
+                        value = Number(value);
+                    }
+                    section.settings[x.name] = value;
+                }
+                for (const x of d.querySelectorAll('input[type="number"]')) {
+                    section.settings[x.name] = x.value === '' ? undefined : Number(x.value);
+                }
+                for (const x of d.querySelectorAll('input[type="checkbox"]')) {
+                    section.settings[x.name] = !!x.checked;
+                }
+                for (const x of d.querySelectorAll('input[type="text"]')) {
+                    section.settings[x.name] = x.value || undefined;
+                }
+                common.settingsStore.set(null, settings);
+                renderScreen();
+            }, {once: true});
+            d.showModal();
+        } else if (action === 'delete') {
+            screen.sections.splice(screen.sections.findIndex(x => x.id === sectionId), 1);
+            common.settingsStore.set(null, settings);
+            renderScreen();
+        } else {
+            throw new TypeError("Invalid action: " + action);
+        }
+    });
+    await renderScreen();
 }
 
 
@@ -740,9 +930,12 @@ export async function main() {
             locked: settings.lockedFields,
             backgroundRender: screen.sections.some(x => sectionSpecs[x.type].alwaysRender),
         });
-        for (const sectionEl of screenEl.querySelectorAll('[data-section-id]')) {
-            const sectionType = sectionEl.dataset.sectionType;
-            if (sectionSpecs[sectionType].baseType === 'data-fields') {
+        for (const section of screen.sections) {
+            const sectionSpec = sectionSpecs[section.type];
+            const baseType = sectionSpec.baseType;
+            const settings = section.settings || {...sectionSpec.defaultSettings};
+            const sectionEl = screenEl.querySelector(`[data-section-id="${section.id}"]`);
+            if (baseType === 'data-fields') {
                 const groups = [
                     sectionEl.dataset.groupId ? sectionEl : null,
                     ...sectionEl.querySelectorAll('[data-group-id]')
@@ -753,13 +946,18 @@ export async function main() {
                         const id = fieldEl.dataset.field;
                         mapping.push({id, default: Number(fieldEl.dataset.default || i)});
                     }
+                    const groupSpec = groupSpecs[groupEl.dataset.groupType];
                     renderer.addRotatingFields({
                         el: groupEl,
                         mapping,
-                        fields: groupSpecs[groupEl.dataset.groupType].fields,
+                        fields: groupSpec.fields,
                     });
+                    if (typeof groupSpec.title === 'function') {
+                        const titleEl = groupEl.querySelector('.group-title');
+                        renderer.addCallback(() => titleEl.innerHTML = groupSpec.title());
+                    }
                 }
-            } else if (sectionSpecs[sectionType].baseType === 'single-data-field') {
+            } else if (baseType === 'single-data-field') {
                 const groups = [
                     sectionEl.dataset.groupId ? sectionEl : null,
                     ...sectionEl.querySelectorAll('[data-group-id]')
@@ -770,17 +968,29 @@ export async function main() {
                         const id = fieldEl.dataset.field;
                         mapping.push({id, default: Number(fieldEl.dataset.default || i)});
                     }
+                    const groupSpec = groupSpecs[groupEl.dataset.groupType];
                     renderer.addRotatingFields({
                         el: groupEl,
                         mapping,
-                        fields: groupSpecs[groupEl.dataset.groupType].fields,
+                        fields: groupSpec.fields,
                     });
+                    if (typeof groupSpec.title === 'function') {
+                        const titleEl = groupEl.querySelector('.group-title');
+                        renderer.addCallback(() => titleEl.innerHTML = groupSpec.title());
+                    }
                 }
-            } else if (sectionType === 'line-chart') {
-                const lineChart = await createStatHistoryChart(
-                    sectionEl.querySelector('.chart-holder.ec'),
-                    sectionEl.dataset.sectionId);
-                bindLineChart(lineChart, renderer);
+            } else if (baseType === 'chart') {
+                if (section.type === 'line-chart') {
+                    const lineChart = await createLineChart(
+                        sectionEl.querySelector('.chart-holder.ec'),
+                        sectionEl.dataset.sectionId,
+                        settings);
+                    bindLineChart(lineChart, renderer, settings);
+                } else {
+                    console.error("Invalid chart type:", section.type);
+                }
+            } else {
+                console.error("Invalid base type:", baseType);
             }
         }
         renderers.push(renderer);
@@ -875,126 +1085,6 @@ export async function main() {
             }
         }
     }, {persistent: persistentData});
-}
-
-
-async function initScreenSettings() {
-    const layoutTpl = await getTpl('watching-screen-layout');
-    let sIndex = 0;
-    const activeScreenEl = document.querySelector('main .active-screen');
-    const sIndexEl = document.querySelector('.sIndex');
-    const sLenEl = document.querySelector('.sLen');
-    const prevBtn = document.querySelector('main header .button[data-action="prev"]');
-    const nextBtn = document.querySelector('main header .button[data-action="next"]');
-    const delBtn = document.querySelector('main header .button[data-action="delete"]');
-    document.querySelector('main .add-section select[name="type"]').innerHTML = Object.entries(sectionSpecs)
-        .map(([type, {title}]) => `<option value="${type}">${title}</option>`).join('\n');
-    const settings = common.settingsStore.get();
-
-    async function renderScreen() {
-        sIndexEl.textContent = sIndex + 1;
-        const sLen = settings.screens.length;
-        sLenEl.textContent = sLen;
-        const screen = settings.screens[sIndex];
-        const screenEl = (await layoutTpl({
-            screen,
-            sIndex,
-            groupSpecs,
-            sectionSpecs,
-            configuring: true
-        })).querySelector('.screen');
-        activeScreenEl.innerHTML = '';
-        activeScreenEl.appendChild(screenEl);
-        prevBtn.classList.toggle('disabled', sIndex === 0);
-        nextBtn.classList.toggle('disabled', sIndex === sLen - 1);
-        delBtn.classList.toggle('disabled', sLen === 1);
-    }
-
-    document.querySelector('main header .button-group').addEventListener('click', ev => {
-        const btn = ev.target.closest('.button-group .button');
-        const action = btn && btn.dataset.action;
-        if (!action) {
-            return;
-        }
-        if (action === 'add') {
-            settings.screens.push({
-                id: `user-section-${settings.screens.length +1}-${Date.now()}`,
-                sections: []
-            });
-            common.settingsStore.set(null, settings);
-            sIndex = settings.screens.length - 1;
-            renderScreen();
-        } else if (action === 'next') {
-            sIndex++;
-            renderScreen();
-        } else if (action === 'prev') {
-            sIndex--;
-            renderScreen();
-        } else if (action === 'delete') {
-            settings.screens.splice(sIndex, 1);
-            sIndex = Math.max(0, sIndex -1);
-            common.settingsStore.set(null, settings);
-            renderScreen();
-        }
-    });
-    document.querySelector('main .add-section input[type="button"]').addEventListener('click', ev => {
-        ev.preventDefault();
-        const type = ev.currentTarget.closest('.add-section').querySelector('select[name="type"]').value;
-        const screen = settings.screens[sIndex];
-        screen.sections.push({
-            type,
-            id: `user-section-${Date.now()}`,
-            groups: Array.from(new Array(sectionSpecs[type].groups)).map((_, i) => ({
-                id: `user-group-${i}-${Date.now()}`,
-                type: Object.keys(groupSpecs)[i] || 'power',
-            })),
-        });
-        common.settingsStore.set(null, settings);
-        renderScreen();
-    });
-    activeScreenEl.addEventListener('click', ev => {
-        const btn = ev.target.closest('.screen-section .button-group .button');
-        const action = btn && btn.dataset.action;
-        if (!action) {
-            return;
-        }
-        const sectionEl = btn.closest('.screen-section');
-        const sectionId = sectionEl.dataset.sectionId;
-        const screen = settings.screens[sIndex];
-        if (action === 'edit') {
-            const d = sectionEl.querySelector('dialog.edit');
-            d.addEventListener('close', ev => {
-                if (d.returnValue !== 'save') {
-                    return;
-                }
-                const section = screen.sections.find(x => x.id === sectionId);
-                for (const g of d.querySelectorAll('select[name="group"]')) {
-                    section.groups.find(x => x.id === g.dataset.id).type = g.value;
-                }
-                common.settingsStore.set(null, settings);
-                renderScreen();
-            }, {once: true});
-            d.showModal();
-        } else if (action === 'delete') {
-            screen.sections.splice(screen.sections.findIndex(x => x.id === sectionId), 1);
-            common.settingsStore.set(null, settings);
-            renderScreen();
-        } else {
-            throw new TypeError("Invalid action: " + action);
-        }
-    });
-    await renderScreen();
-}
-
-
-function setBackground() {
-    const {solidBackground, backgroundColor} = common.settingsStore.get();
-    doc.classList.toggle('solid-background', !!solidBackground);
-    if (solidBackground) {
-        doc.style.setProperty('--background-color', backgroundColor);
-    } else {
-        doc.style.removeProperty('--background-color');
-    }
 }
 
 
