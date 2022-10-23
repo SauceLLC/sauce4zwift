@@ -24,11 +24,11 @@ const worldCourseDescs = [
     {worldId: 5, courseId: 9, name: 'Innsbruck', ident: 'INNSBRUCK'},
     {worldId: 6, courseId: 10, name: 'Bologna', ident: 'BOLOGNATT'},
     {worldId: 7, courseId: 11, name: 'Yorkshire', ident: 'YORKSHIRE'},
-    {worldId: 8, courseId: 12, name: 'Crit City', ident: 'CRITCITY'}, // XXX guess
+    {worldId: 8, courseId: 12, name: 'Crit City', ident: 'CRITCITY'},
     {worldId: 9, courseId: 13, name: 'Makuri Islands', ident: 'MAKURIISLANDS'},
     {worldId: 10, courseId: 14, name: 'France', ident: 'FRANCE'},
     {worldId: 11, courseId: 15, name: 'Paris', ident: 'PARIS'},
-    {worldId: 12, courseId: 16, name: 'Gravel Mountain', ident: 'GRAVEL MOUNTAIN'}, // XXX guess
+    {worldId: 12, courseId: 16, name: 'Gravel Mountain', ident: 'GRAVEL MOUNTAIN'},
 ];
 export const courseToWorldIds = Object.fromEntries(worldCourseDescs.map(x => [x.courseId, x.worldId]));
 export const worldToCourseIds = Object.fromEntries(worldCourseDescs.map(x => [x.worldId, x.courseId]));
@@ -384,16 +384,17 @@ export class Renderer {
         return adjIdx < 0 ? field.available.length + adjIdx : adjIdx;
     }
 
-    rotateField(id, dir=1) {
+    rotateField(groupId, dir=1) {
         if (this.locked) {
             return;
         }
-        const field = this.fields.get(id);
+        const field = this.fields.get(groupId);
         const idx = this.getAdjacentFieldIndex(field, dir);
-        storage.set(field.storageKey, idx);
         field.active = field.available[idx];
-        console.debug('Switching field', id, idx);
-        this.setFieldTooltip(id);
+        const id = field.active.id || idx;
+        storage.set(field.storageKey, id);
+        console.debug('Switching field', groupId, id);
+        this.setFieldTooltip(groupId);
         this.render({force: true});
     }
 
@@ -402,12 +403,19 @@ export class Renderer {
             const id = x.id;
             const el = (spec.el || this._contentEl).querySelector(`[data-field="${x.id}"]`);
             const storageKey = `${this.id}-${id}`;
+            let savedId = storage.get(storageKey);
+            if (savedId == null) {
+                savedId = x.default;
+            }
+            const active = typeof savedId === 'number' ?
+                spec.fields[savedId] :
+                spec.fields.find(x => x.id === savedId);
             this.fields.set(id, {
                 id,
                 el,
                 storageKey,
                 available: spec.fields,
-                active: spec.fields[storage.get(storageKey)] || spec.fields[x.default] || spec.fields[0],
+                active: active || spec.fields[0],
                 valueEl: el.querySelector('.value'),
                 labelEl: el.querySelector('.label'),
                 subLabelEl: el.querySelector('.sub-label'),
