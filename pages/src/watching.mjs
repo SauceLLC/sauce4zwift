@@ -432,7 +432,7 @@ const lineChartFields = [{
     color: '#46f',
     domain: [0, 700],
     rangeAlpha: [0.4, 1],
-    points: Array.from(new Array(1000)).map(x => 400 * Math.random()),
+    points: [],
     get: x => x.state.power || 0,
     fmt: x => H.power(x, {seperator: ' ', suffix: true}),
 }, {
