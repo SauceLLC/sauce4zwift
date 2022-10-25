@@ -1,5 +1,6 @@
 import express from 'express';
 import * as rpc from './rpc.mjs';
+import * as mods from './mods.mjs';
 import expressWebSocketPatch from 'express-ws';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -269,6 +270,29 @@ async function _start({ip, port, rpcSources, statsProc}) {
     });
     api.all('*', (req, res) => res.status(404).json(null));
     router.use('/api', api);
+    if (mods.available) {
+        for (const mod of mods.available) {
+            if (!mod.manifest.web_root) {
+                continue;
+            }
+            const modRouter = express.Router();
+            try {
+                const urn = '/' + path.join(mod.dir, mod.manifest.web_root);
+                const fullPath = path.join(mod.modPath, mod.manifest.web_root);
+                console.warn('Adding Mod web root:', '/mods/' + urn, '->', fullPath);
+                modRouter.use(urn, express.static(fullPath, {
+                    cacheControl: true,
+                    setHeaders: res => {
+                        res.setHeader('Cache-Control', cacheDisabled);
+                        res.setHeader('Access-Control-Allow-Origin', '*');
+                    }
+                }));
+                router.use('/mods', modRouter);
+            } catch(e) {
+                console.error('Failed to add mod web root:', mod, e);
+            }
+        }
+    }
     router.all('*', (req, res) => res.status(404).send('Invalid URL'));
     app.use(router);
     let retries = 0;

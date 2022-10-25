@@ -139,7 +139,8 @@ export function updateTrayMenu() {
                 width: 500,
                 height: 0.8,
                 page: 'overview-settings.html',
-                frame: false
+                frame: false,
+                transparent: true,
             });
             // Bit of a hack to get the preload context setup so overview settings function
             const id = Object.values(windows.getWindows()).find(x => x.type === 'overview').id;

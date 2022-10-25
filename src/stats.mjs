@@ -650,7 +650,6 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _loadMarkedAthletes() {
-        const s = Date.now();
         const stmt = this.athletesDB.prepare(
             `SELECT athletes.id ` +
             `FROM athletes, json_each(athletes.data, '$.marked') ` +
@@ -659,7 +658,6 @@ export class StatsProcessor extends events.EventEmitter {
         for (const x of stmt.iterate()) {
             this._markedIds.add(x.id);
         }
-        console.error(Date.now() - s);
     }
 
 

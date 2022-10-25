@@ -13,6 +13,7 @@ import {createRequire} from 'node:module';
 import * as secrets from './secrets.mjs';
 import * as zwift from './zwift.mjs';
 import * as windows from './windows.mjs';
+import * as mods from './mods.mjs';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
@@ -618,6 +619,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId}) {
     if (updateInfo && await maybeDownloadAndInstallUpdate(updateInfo)) {
         return; // updated, will restart
     }
+    mods.init();
     await sauceApp.start(args);
     console.debug('Startup bench:', Date.now() - s);
     if (!args.headless) {
@@ -635,3 +637,4 @@ global.zwiftMonitorAPI = zwiftMonitorAPI;
 global.windows = windows;
 global.electron = electron;
 global.report = report;
+global.mods = mods;

@@ -4,6 +4,7 @@ import {fileURLToPath} from 'node:url';
 import * as storage from './storage.mjs';
 import * as patreon from './patreon.mjs';
 import * as rpc from './rpc.mjs';
+import * as mods from './mods.mjs';
 import {EventEmitter} from 'node:events';
 import {sleep} from '../shared/sauce/base.mjs';
 import {createRequire} from 'node:module';
@@ -18,6 +19,8 @@ electron.app.on('before-quit', () => quiting = true);
 const isWindows = os.platform() === 'win32';
 const isMac = !isWindows && os.platform() === 'darwin';
 const isLinux = !isWindows && !isMac && os.platform() === 'linux';
+const modContentScripts = [];
+const modContentStyle = [];
 
 
 class SauceBrowserWindow extends electron.BrowserWindow {
@@ -136,7 +139,7 @@ export const windowManifests = [{
     overlay: false,
 }];
 rpc.register(() => windowManifests, {name: 'getWindowManifests'});
-const windowManifestsByType = Object.fromEntries(windowManifests.map(x => [x.type, x]));
+const windowManifestsByType = new Map(windowManifests.map(x => [x.type, x]));
 
 const defaultWindows = [{
     id: 'default-overview-1',
@@ -173,7 +176,7 @@ electron.ipcMain.on('getWindowContextSync', ev => {
         returnValue.frame = win.frame;
         const m = activeWindows.get(ev.sender) || subWindows.get(ev.sender);
         if (m) {
-            const manifest = windowManifestsByType[m.spec.type];
+            const manifest = windowManifestsByType.get(m.spec.type);
             Object.assign(returnValue, {
                 id: m.spec.id,
                 type: m.spec.type,
@@ -188,7 +191,7 @@ electron.ipcMain.on('getWindowContextSync', ev => {
 
 rpc.register(() => {
     for (const {win, spec} of activeWindows.values()) {
-        const manifest = windowManifestsByType[spec.type];
+        const manifest = windowManifestsByType.get(spec.type);
         if (!manifest.alwaysVisible && spec.overlay !== false) {
             win.hide();
         }
@@ -197,7 +200,7 @@ rpc.register(() => {
 
 rpc.register(() => {
     for (const {win, spec} of activeWindows.values()) {
-        const manifest = windowManifestsByType[spec.type];
+        const manifest = windowManifestsByType.get(spec.type);
         if (!manifest.alwaysVisible && spec.overlay !== false) {
             win.showInactive();
         }
@@ -358,7 +361,7 @@ rpc.register(removeWindow);
 
 export function createWindow({id, type, options, ...state}) {
     id = id || `user-${type}-${Date.now()}-${Math.round(Math.random() * 1000)}`;
-    const manifest = windowManifestsByType[type];
+    const manifest = windowManifestsByType.get(type);
     setWindow(id, {
         ...manifest,
         id,
@@ -562,7 +565,7 @@ function _openWindow(id, spec) {
         maximizable: false,
         fullscreenable: false,
     };
-    const manifest = windowManifestsByType[spec.type];
+    const manifest = windowManifestsByType.get(spec.type);
     let bounds = spec.bounds || spec.position; // XXX spec.position is the legacy prop, remove in a few rels
     const inBounds = !bounds || isWithinDisplayBounds(bounds);
     if (!inBounds) {
@@ -610,7 +613,7 @@ function _openWindow(id, spec) {
         saveStateTimeout = setTimeout(() => updateWindow(id, {bounds: win.getBounds()}), 200);
     }
     win.on('page-title-updated', (ev, title) =>
-            activeWindows.get(webContents).title = title.replace(/( - )?Sauce for Zwift™?$/, ''));
+        activeWindows.get(webContents).title = title.replace(/( - )?Sauce for Zwift™?$/, ''));
     win.on('move', onBoundsUpdate);
     win.on('resize', onBoundsUpdate);
     win.on('close', () => {
@@ -619,13 +622,24 @@ function _openWindow(id, spec) {
             updateWindow(id, {closed: true});
         }
     });
+    if (modContentScripts.length) {
+        for (const x of modContentScripts) {
+            webContents.on('did-finish-load', () => webContents.executeJavaScript(x));
+        }
+    }
+    if (modContentStyle.length) {
+        for (const x of modContentStyle) {
+            webContents.on('did-finish-load', () => webContents.insertCSS(x));
+        }
+    }
     if (spec.page) {
-        win.loadFile(path.join(pagePath, spec.page));
+        win.loadFile(path.join(manifest.pagePath || pagePath, spec.page));
     } else if (spec.pageURL) {
-        win.loadURL(`file://${path.join(pagePath, spec.pageURL)}`);
+        win.loadURL(`file://${path.join(manifest.pagePath || pagePath, spec.pageURL)}`);
     } else if (spec.url) {
         win.loadURL(spec.url);
     } else {
+        win.close();
         throw new TypeError("No page or pageURL defined");
     }
     win.show();
@@ -633,11 +647,31 @@ function _openWindow(id, spec) {
 }
 
 
+let _loadedMods;
 export function openAllWindows() {
+    if (!_loadedMods) {
+        _loadedMods = true;
+        try {
+            const manifests = mods.getWindowManifests();
+            windowManifests.push(...manifests);
+            windowManifestsByType.clear();
+            for (const x of windowManifests) {
+                windowManifestsByType.set(x.type, x);
+            }
+            modContentScripts.push(...mods.getWindowContentScripts());
+            modContentStyle.push(...mods.getWindowContentStyle());
+        } catch(e) {
+            console.error("Failed to load mod window data", e);
+        }
+    }
     for (const [id, spec] of Object.entries(getWindows())) {
-        const manifest = windowManifestsByType[spec.type];
-        if (manifest.alwaysVisible || !spec.closed) {
-            _openWindow(id, spec);
+        const manifest = windowManifestsByType.get(spec.type);
+        if (manifest && (manifest.alwaysVisible || !spec.closed)) {
+            try {
+                _openWindow(id, spec);
+            } catch(e) {
+                console.error("Failed to open window", id, spec, e);
+            }
         }
     }
 }
