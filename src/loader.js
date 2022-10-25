@@ -277,7 +277,7 @@ async function initSentry(logEmitter) {
 (async () => {
     const logMeta = initLogging();
     nativeTheme.themeSource = 'dark';
-    if (os.platform() === 'win32') {
+    if (os.platform() === 'win32' && !settings.forceEnableGPU) {
         console.debug("Disable GPU Compositing for windows");
         app.commandLine.appendSwitch('disable-gpu-compositing');
     }
