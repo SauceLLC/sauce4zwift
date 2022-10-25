@@ -70,6 +70,8 @@ Feature Highlights
  * Web server access to all the widgets.
    * Port 1080 by default (configurable) e.g. http://localhost:1080
    * REST / WebSocket API for programmers
+ * Mods / Plugins supported
+   * See https://github.com/saucellc/sauce4zwift-mod-example for details
 
 
 Release Notes
