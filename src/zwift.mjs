@@ -365,7 +365,7 @@ export class ZwiftAPI {
         const results = [];
         let start = options.start || 0;
         let pages = 0;
-        const pageLimit = options.pageLimit ? options.pageLimit : 10;
+        const pageLimit = options.pageLimit == null ? 10 : options.pageLimit;
         const query = options.query || new URLSearchParams();
         const limit = options.limit || 100;
         query.set('limit', limit);
@@ -375,7 +375,12 @@ export class ZwiftAPI {
             for (const x of page) {
                 results.push(x);
             }
-            if (page.length < limit || ++pages >= pageLimit) {
+            if (options.onPage && page.length) {
+                if (await options.onPage(page) === false) {
+                    break;
+                }
+            }
+            if (page.length < limit || (pageLimit && ++pages >= pageLimit)) {
                 break;
             }
             start = results.length;
@@ -539,11 +544,11 @@ export class ZwiftAPI {
     }
 
     async getFollowing(athleteId, options={}) {
-        return await this.fetchPaged(`/api/profiles/${athleteId}/followees`);
+        return await this.fetchPaged(`/api/profiles/${athleteId}/followees`, options);
     }
 
     async getFollowers(athleteId, options={}) {
-        return await this.fetchPaged(`/api/profiles/${athleteId}/followers`);
+        return await this.fetchPaged(`/api/profiles/${athleteId}/followers`, options);
     }
 
     async _setFollowing(them, us) {
