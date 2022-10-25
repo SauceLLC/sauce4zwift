@@ -245,6 +245,9 @@ export class StatsProcessor extends events.EventEmitter {
         this._routes = new Map();
         this._mostRecentNearby = [];
         this._mostRecentGroups = [];
+        this._markedIds = new Set();
+        this._followingIds = new Set();
+        this._followerIds = new Set();
         rpc.register(this.updateAthlete, {scope: this});
         rpc.register(this.startLap, {scope: this});
         rpc.register(this.resetStats, {scope: this});
@@ -571,6 +574,13 @@ export class StatsProcessor extends events.EventEmitter {
         if (wPrimeUpdated) {
             this.updateAthleteWPrime(id, d);
         }
+        if (data.marked !== undefined) {
+            if (data.marked) {
+                this._markedIds.add(id);
+            } else {
+                this._markedIds.delete(id);
+            }
+        }
         return d;
     }
 
@@ -618,47 +628,40 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
-    async getFollowerAthletes() {
-        return (await this.zwiftAPI.getFollowers(this.athleteId)).map(x => ({
-            id: x.followerProfile.id,
-            profile: x.followerProfile,
-            athlete: this.loadAthlete(x.followerProfile.id)
-        }));
-    }
-
-    async getFollowingAthletes() {
-        return (await this.zwiftAPI.getFollowing(this.athleteId)).map(x => ({
-            id: x.followeeProfile.id,
-            profile: x.followeeProfile,
-            athlete: this.loadAthlete(x.followeeProfile.id)
-        }));
-    }
-
-    async getMarkedAthletes() {
-        // XXX Obviously this is insane, but sqlite3 is so insanely fast it's actually fine for just now.
-        const stmt = this.athletesDB.prepare('SELECT * FROM athletes');
-        const marked = [];
-        for (const x of stmt.iterate()) {
-            const athlete = JSON.parse(x.data);
-            if (athlete.marked) {
-                marked.push({
-                    id: x.id,
-                    profile: null,
-                    athlete,
-                });
-            }
-        }
-        return marked;
-    }
-
     async searchAthletes(searchText, options) {
         const profiles = await this.zwiftAPI.searchProfiles(searchText, options);
         return profiles.map(x => ({
             id: x.id,
             profile: x,
-            athlete: this.loadAthlete(x.id)
+            athlete: this.loadAthlete(x.id),
         }));
     }
+
+    async getFollowerAthletes() {
+        return Array.from(this._followerIds).map(id => ({id, athlete: this.loadAthlete(id)}));
+    }
+
+    async getFollowingAthletes() {
+        return Array.from(this._followingIds).map(id => ({id, athlete: this.loadAthlete(id)}));
+    }
+
+    async getMarkedAthletes() {
+        return Array.from(this._markedIds).map(id => ({id, athlete: this.loadAthlete(id)}));
+    }
+
+    _loadMarkedAthletes() {
+        const s = Date.now();
+        const stmt = this.athletesDB.prepare(
+            `SELECT athletes.id ` +
+            `FROM athletes, json_each(athletes.data, '$.marked') ` +
+            `WHERE json_each.value`);
+        this._markedIds.clear();
+        for (const x of stmt.iterate()) {
+            this._markedIds.add(x.id);
+        }
+        console.error(Date.now() - s);
+    }
+
 
     saveAthletes(records) {
         const stmt = this.athletesDB.prepare('INSERT OR REPLACE INTO athletes (id, data) VALUES(?, ?)');
@@ -1025,7 +1028,7 @@ export class StatsProcessor extends events.EventEmitter {
         });
         relSegments.sort((a, b) => a.proximity - b.proximity);
         this.emit('segments', relSegments);
-        console.log(state.roadId, state.turnChoice, state._rem, p, relSegments);
+        //console.log(state.roadId, state.turnChoice, state._rem, p, relSegments);
     }
 
     async resetAthletesDB() {
@@ -1037,6 +1040,7 @@ export class StatsProcessor extends events.EventEmitter {
     initAthletesDB() {
         this.athletesDB = getDB();
         this.getAthleteStmt = this.athletesDB.prepare('SELECT data FROM athletes WHERE id = ?');
+        queueMicrotask(() => this._loadMarkedAthletes());
     }
 
     start() {
@@ -1054,12 +1058,13 @@ export class StatsProcessor extends events.EventEmitter {
         this.gameMonitor.on('watching-athlete', this.setWatching.bind(this));
         this.gameMonitor.start();
         this._zwiftMetaRefresh = 60000;
-        queueMicrotask(() => this._zwiftMetaSync());
+        this._zwiftMetaId = setTimeout(() => this._zwiftMetaSync(), 0);
     }
 
     async stop() {
         this._active = false;
         clearInterval(this._gcInterval);
+        clearTimeout(this._zwiftMetaId);
         this._gcInterval = null;
         try {
             await this._statesJob;
@@ -1079,26 +1084,20 @@ export class StatsProcessor extends events.EventEmitter {
         return tags;
     }
 
-    async _zwiftMetaSync() {
+    _zwiftMetaSync() {
         if (!this._active || !this.zwiftAPI.isAuthenticated()) {
             console.warn("Skipping social network update because not logged into zwift");
             return;
         }
-        // The event feed APIs are horribly broken so we need to refresh more often
-        // at startup to try and fill in the gaps.
-        setTimeout(this._zwiftMetaSync.bind(this), this._zwiftMetaRefresh);
-        this._zwiftMetaRefresh = Math.min(30 * 60 * 1000, this._zwiftMetaRefresh * 2);
-        const following = await this.zwiftAPI.getFollowing(this.athleteId);
-        const updates = [];
-        for (const x of following) {
-            const p = x.followeeProfile;
-            if (p) {
-                updates.push([p.id, this._updateAthlete(p.id, this._profileToAthlete(p))]);
-            }
-        }
-        if (updates.length) {
-            this.saveAthletes(updates);
-        }
+        this.__zwiftMetaSync().finally(() => {
+            // The event feed APIs are horribly broken so we need to refresh more often
+            // at startup to try and fill in the gaps.
+            this._zwiftMetaId = setTimeout(() => this._zwiftMetaSync(), this._zwiftMetaRefresh);
+            this._zwiftMetaRefresh = Math.min(30 * 60 * 1000, this._zwiftMetaRefresh * 2);
+        });
+    }
+
+    async __zwiftMetaSync() {
         if (!this._routes.size) {
             const gameInfo = await this.zwiftAPI.getGameInfo();
             for (const x of gameInfo.maps) {
@@ -1150,19 +1149,71 @@ export class StatsProcessor extends events.EventEmitter {
                 });
             }
         }
-        console.info(`Updated zwift data for ${updates.length} followees, ` +
-            `${someEvents.length} events, ${someMeetups.length} meetups`);
+        let backoff = 100;
+        let absent = new Set(this._followingIds);
+        await this.zwiftAPI.getFollowing(this.athleteId, {
+            pageLimit: 0,
+            onPage: async page => {
+                const updates = [];
+                for (const x of page) {
+                    const p = x.followeeProfile;
+                    if (p) {
+                        this._followingIds.add(p.id);
+                        absent.delete(p.id);
+                        updates.push([p.id, this._updateAthlete(p.id, this._profileToAthlete(p))]);
+                    }
+                }
+                if (updates.length) {
+                    this.saveAthletes(updates);
+                }
+                await sauce.sleep(backoff *= 1.5);
+            }
+        });
+        for (const x of absent) {
+            this._followingIds.remove(x);
+        }
+        backoff = 100;
+        absent = new Set(this._followerIds);
+        await this.zwiftAPI.getFollowers(this.athleteId, {
+            pageLimit: 0,
+            onPage: async page => {
+                const updates = [];
+                for (const x of page) {
+                    const p = x.followerProfile;
+                    if (p) {
+                        this._followerIds.add(p.id);
+                        absent.delete(p.id);
+                        updates.push([p.id, this._updateAthlete(p.id, this._profileToAthlete(p))]);
+                    }
+                }
+                if (updates.length) {
+                    this.saveAthletes(updates);
+                }
+                await sauce.sleep(backoff *= 1.5);
+            }
+        });
+        for (const x of absent) {
+            this._followerIds.remove(x);
+        }
+        console.info(`Updated meta data for ${this._followingIds.size} following, ` +
+            `${this._followerIds.size} followers, ${someEvents.length} events, ` +
+            `${someMeetups.length} meetups`);
     }
 
     async setFollowing(athleteId) {
         const resp = await this.zwiftAPI._setFollowing(athleteId, this.athleteId);
+        const following = resp.status === 'IS_FOLLOWING';
+        if (following) {
+            this._followingIds.add(Number(athleteId));
+        }
         return this.updateAthlete(athleteId, {
-            following: resp.status === 'IS_FOLLOWING',
+            following,
             followRequest: resp.status === 'REQUESTS_TO_FOLLOW',
         });
     }
 
     async setNotFollowing(athleteId) {
+        this._followingIds.delete(Number(athleteId));
         await this.zwiftAPI._setNotFollowing(athleteId, this.athleteId);
         return this.updateAthlete(athleteId, {
             following: false,
