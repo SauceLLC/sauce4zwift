@@ -54,6 +54,15 @@ async function _onSearchInput(el) {
     resultsEl.innerHTML = '';
     resultsEl.append(await athleteCards(results));
 }
+
+
+function onHeaderClickDelegate(ev) {
+    const header = ev.target.closest('header');
+    const section = header && header.closest('section');
+    if (header && section) {
+        section.classList.toggle('compressed');
+    }
+}
  
 
 export async function main() {
@@ -63,6 +72,7 @@ export async function main() {
     document.querySelector('#titlebar .search-box input').addEventListener('input', onSearchInput);
     const athleteCards = await athleteCardsPromise;
     const contentEl = document.querySelector('#content');
+    contentEl.addEventListener('click', onHeaderClickDelegate);
     await Promise.all([
         common.rpc.getFollowingAthletes().then(async x =>
             contentEl.querySelector('section.following .cards').append(await athleteCards(x))),

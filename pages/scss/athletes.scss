@@ -46,24 +46,62 @@ html {
     overflow: overlay;
 
     section {
-        margin: 1em;
-        padding-bottom: 1em;
+        margin: 0.5em 1em;
+        padding-bottom: 0.5em;
 
         &:not(:last-child) {
-            border-bottom: 1px solid color.shade(fg, 0%, 20%);
+            border-bottom: 0.02em solid color.shade(fg, 0%, 10%);
         }
 
         header {
-            margin: 0.3em 8px;
+            margin: 0.3em 0.3rem;
+            padding: 0.1em 0.4em 0.3em;
             font-variant: all-small-caps;
             font-size: 1.4em;
             font-weight: bold;
             color: color.shade(fg, 10%);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            border-radius: 0.28em;
+            justify-content: space-between;
+            background-color: color.shade(fg, 100%, 0.1);
+
+            ms {
+                margin-left: 0.1em;
+                font-size: 0.8em;
+                margin-right: 0.2em;
+            }
+
+            &:hover {
+                background-color: color.shade(fg, 100%, 0.2);
+            }
+        }
+
+        &.compressed {
+            .expanded-only {
+                display: none;
+            }
+
+            .cards {
+                max-height: 0;
+                overflow: hidden;
+                transition-timing-function: cubic-bezier(0, 0, 0, 1);
+            }
+        }
+
+        &:not(.compressed) .compressed-only {
+            display: none;
         }
 
         .cards {
             display: flex;
             flex-wrap: wrap;
+            max-height: 800vh;
+            overflow: auto;
+            overflow: overlay;
+            transition: max-height 500ms;
+            transition-timing-function: cubic-bezier(0, 0, 1, 0);
         }
 
         $markedGradient: linear-gradient(135deg, color.get(marked, 100%), color.get(marked, 100%) 8%, transparent 8%);
@@ -123,7 +161,7 @@ html {
 
 .card {
     width: 8.4em;
-    margin: 8px;
+    margin: 0.5rem;
     padding: 0.5em;
     overflow: hidden;
     background-color: color.shade(bg, 10%, 10%);
