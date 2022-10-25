@@ -277,9 +277,9 @@ async function _start({ip, port, rpcSources, statsProc}) {
             }
             const modRouter = express.Router();
             try {
-                const urn = '/' + path.join(mod.dir, mod.manifest.web_root);
+                const urn = path.join('/', mod.dir, mod.manifest.web_root);
                 const fullPath = path.join(mod.modPath, mod.manifest.web_root);
-                console.warn('Adding Mod web root:', '/mods/' + urn, '->', fullPath);
+                console.warn('Adding Mod web root:', '/mods' + urn, '->', fullPath);
                 modRouter.use(urn, express.static(fullPath, {
                     cacheControl: true,
                     setHeaders: res => {
