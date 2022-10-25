@@ -34,6 +34,7 @@ const manifestSchema = {
             description: {type: 'string', desc: 'Extra optional info about the mod'},
             always_visible: {type: 'boolean', desc: 'Override the hide/show button'},
             overlay: {type: 'boolean', desc: 'Set to make window stay on top of normal windows'},
+            frame: {type: 'boolean', desc: 'Includes OS frame borders and title bar'},
             default_bounds: {
                 type: 'object',
                 desc: 'Default placement and size of the mod window',
@@ -150,6 +151,7 @@ export function getWindowManifests() {
                             x: bounds.x,
                             y: bounds.y,
                             aspectRatio: bounds.aspect_ratio,
+                            frame: x.frame,
                         },
                         alwaysVisible: x.alwaysVisible,
                         overlay: x.overlay,
