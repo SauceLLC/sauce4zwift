@@ -604,7 +604,7 @@ function render() {
     theadRow = table.querySelector('thead tr');
     theadRow.innerHTML = enFields.map(x =>
         `<td data-id="${x.id}"
-             title="${common.sanitizeForAttr(x.tooltip || x.label || '')}"
+             title="${common.sanitizeAttr(x.tooltip || x.label || '')}"
              class="${sortBy === x.id ? 'sorted ' + sortDirClass : ''}"
              >${x.headerLabel || x.label}` +
                 `<ms class="sort-asc">arrow_drop_up</ms>` +
@@ -744,7 +744,7 @@ export async function settingsMain() {
             '<div class="field-group">',
                 `<div class="title">${label}:</div>`,
                 ...fields.map(x => `
-                    <label title="${common.sanitizeForAttr(x.tooltip || '')}">
+                    <label title="${common.sanitizeAttr(x.tooltip || '')}">
                         <key>${x.label}</key>
                         <input type="checkbox" name="${x.id}" ${fieldStates[x.id] ? 'checked' : ''}/>
                     </label>

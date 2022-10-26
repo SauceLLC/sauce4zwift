@@ -11,9 +11,36 @@
         <link id="favicon" rel="shortcut icon" href="/pages/images/favicon.png"/>
         <link rel="stylesheet" href="/pages/css/common.css"/>
 
+        <script type="module">
+            import {sanitizeAttr, stripHTML} from './src/common.mjs';
+
+            async function main() {
+                const mods = await (await fetch('/api/mods')).json();
+                if (mods && mods.length) {
+                    for (const {manifest, dir} of mods) {
+                        if (!manifest || !manifest.web_root || !manifest.windows || !manifest.windows.length) {
+                            continue;
+                        }
+                        const windows = manifest.windows.map(x =>
+                            `<a href="/mods/${dir}/${x.page}"
+                                title="${sanitizeAttr(stripHTML(x.description))}"><ms>construction</ms>
+                                    ${stripHTML(x.name)}</a>`);
+                        document.querySelector('.end').insertAdjacentHTML('beforebegin',
+                            `<h4 title="${sanitizeAttr(stripHTML(manifest.description))}">[MOD] ${stripHTML(manifest.name)}</h4>
+                             <div class="windows mod-group">${windows.join('\n')}</div>`);
+                    }
+                }
+            }
+            main();
+        </script>
+
         <style>
             html {
                 font-size: 4.8mm;
+            }
+
+            .mods:not('.active') {
+                display: none;
             }
 
             html > body {
@@ -34,21 +61,11 @@
                 display: flex;
                 align-items: flex-start;
                 margin-left: 1rem;
+                flex-direction: column;
+                font-size: 0.9em;
             }
 
             .primary {
-                font-size: 1em;
-                flex-direction: column;
-            }
-
-            .misc {
-                font-size: 0.9em;
-                flex-direction: column;
-            }
-
-            .gauges {
-                font-size: 0.9em;
-                flex-direction: column;
             }
 
             a {
@@ -73,7 +90,7 @@
             Sauce for Zwift™
             <img class="logo" src="images/icon256.png"/>
         </h2>
-        <h4>Windows</h4>
+        <h4>Main</h4>
         <div class="windows primary">
             <a href="/pages/watching.html"><ms>grid_view</ms> Currently Watching</a>
             <a href="/pages/groups.html"><ms>scatter_plot</ms> Groups View</a>
@@ -94,7 +111,7 @@
             <a href="/pages/gauge.html?t=cadence"><ms>cycle</ms> Cadence Gauge</a>
             <a href="/pages/gauge.html?t=wbal"><ms>battery_5_bar</ms> W'bal Gauge</a>
         </div>
-        <h4>Misc</h4>
+        <h4 class="end">Misc</h4>
         <div class="windows misc">
             <a href="/pages/stats-for-nerds.html"><ms>receipt_long</ms> Stats for Nerds</a>
             <a href="/pages/logs.html"><ms>notes</ms> Debug Logs</a>

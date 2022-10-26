@@ -60,7 +60,7 @@ async function makeMetricCharts(proc, el) {
         },
         title: [{
             left: 'left',
-            text: `${spec ? (spec.prettyName + ' ') : ''}${subWindow ? 'Sub ' : ''}` +
+            text: `${spec ? (common.stripHTML(spec.prettyName) + ' ') : ''}${subWindow ? 'Sub ' : ''}` +
                 `${decodedNames[proc.type] || proc.name || proc.type}` +
                 `${title ? ` (${title})` : ''}, PID: ${proc.pid}`,
         }],

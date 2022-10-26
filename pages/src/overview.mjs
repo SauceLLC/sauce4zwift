@@ -450,12 +450,12 @@ async function renderWindowsPanel() {
     el.querySelector('table.active-windows tbody').innerHTML = windows.map(x => {
         const desc = descs[x.type] || {
             prettyName: `Unknown window: ${x.type}`,
-            prettyDesc: common.sanitizeForAttr(JSON.stringify(x, null, 4)),
+            prettyDesc: common.sanitizeAttr(JSON.stringify(x, null, 4)),
         };
         return `
             <tr data-id="${x.id}" class="window ${x.closed ? 'closed' : 'open'}"
-                title="${desc.prettyDesc}\n\nDouble click/tap to ${x.closed ? 'reopen' : 'focus'}">
-                <td class="name">${x.customName || desc.prettyName}<a class="link edit-name"
+                title="${common.sanitizeAttr(desc.prettyDesc)}\n\nDouble click/tap to ${x.closed ? 'reopen' : 'focus'}">
+                <td class="name">${common.stripHTML(x.customName || desc.prettyName)}<a class="link edit-name"
                     title="Edit name"><ms>edit</ms></a></td>
                 <td class="state">${x.closed ? 'Closed' : 'Open'}</td>
                 <td class="btn"><a title="Reopen this window" class="link restore"
@@ -473,8 +473,9 @@ async function renderWindowsPanel() {
         mGroups.get(m.groupTitle).push(m);
     }
     el.querySelector('.add-new select').innerHTML = Array.from(mGroups.entries()).map(([title, ms]) =>
-        `<optgroup label="${title || 'Main'}">${ms.map(x =>
-            `<option title="${x.prettyDesc}" value="${x.type}">${x.prettyName}</option>`)}</optgroup>`
+        `<optgroup label="${common.sanitizeAttr(common.stripHTML(title)) || 'Main'}">${ms.map(x =>
+            `<option title="${common.sanitizeAttr(common.stripHTML(x.prettyDesc))}"
+                     value="${x.type}">${common.stripHTML(x.prettyName)}</option>`)}</optgroup>`
     ).join('');
 }
 
