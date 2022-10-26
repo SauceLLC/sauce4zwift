@@ -1,37 +1,52 @@
 
 let Sentry;
-let fingerprints = new Map();
+const fingerprints = new Map();
 
 
 export function setSentry(s) {
     Sentry = s;
 }
 
+
 function fingerprintError(e) {
     return `${e.constructor.name} ${e.name} ${e.message} ${e.stack}`;
 }
 
-export function errorOnce(e) {
+
+function incErrorRef(e) {
     const fp = fingerprintError(e);
-    if (!fingerprints.has(fp)) {
-        fingerprints.set(fp, 1);
+    const count = (fingerprints.get(fp) || 0) + 1;
+    fingerprints.set(fp, count);
+    return count;
+}
+
+
+function _throttledLog(e, count) {
+    const eps = count / performance.now() * 1000;
+    const logEvery = Math.round(5 / (1 / eps));  // max log rate is 1 msg every 5 seconds
+    console.debug(count, logEvery, eps);
+    if (logEvery < 1 || count % logEvery === 0) {
+        console.error(`Error report [throttled: ${count}]:`, e);
+    }
+}
+
+
+export function errorOnce(e) {
+    const count = incErrorRef(e);
+    if (count === 1) {
         error(e);
     } else {
-        const count = fingerprints.get(fp);
-        fingerprints.set(fp, count + 1);
-        console.warn(`Error report [throttled: ${count}]:`, e);
+        _throttledLog(e, count);
     }
 }
 
 
 export function errorThrottled(e) {
-    const fp = fingerprintError(e);
-    const count = (fingerprints.get(fp) || 0) + 1;
-    fingerprints.set(fp, count);
+    const count = incErrorRef(e);
     if (Math.log2(count) % 1 === 0) { // power of two
         error(e);
     } else {
-        console.warn(`Error report [throttled: ${count}]:`, e);
+        _throttledLog(e, count);
     }
 }
 
@@ -42,6 +57,9 @@ export function error(e) {
         Sentry.captureException(e);
     }
 }
+
+
+
 
 
 export function message(msg) {
