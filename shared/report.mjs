@@ -24,7 +24,6 @@ function incErrorRef(e) {
 function _throttledLog(e, count) {
     const eps = count / performance.now() * 1000;
     const logEvery = Math.round(5 / (1 / eps));  // max log rate is 1 msg every 5 seconds
-    console.debug(count, logEvery, eps);
     if (logEvery < 1 || count % logEvery === 0) {
         console.error(`Error report [throttled: ${count}]:`, e);
     }
