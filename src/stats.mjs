@@ -357,6 +357,15 @@ export class StatsProcessor extends events.EventEmitter {
         return this._chatHistory.map(x => {
             const athlete = this._athletesCache.get(x.from);
             x.muted = (athlete && athlete.muted != null) ? athlete.muted : x.muted;
+            if (x.eventSubgroup) {
+                const sg = this._recentEventSubgroups.get(x.eventSubgroup);
+                if (sg.invitedLeaders && sg.invitedLeaders.includes(x.from)) {
+                    x.eventLeader = true;
+                }
+                if (sg.invitedSweepers && sg.invitedSweepers.includes(x.from)) {
+                    x.eventSweeper = true;
+                }
+            }
             return x;
         });
     }
@@ -740,6 +749,15 @@ export class StatsProcessor extends events.EventEmitter {
         }
         const athlete = this.loadAthlete(payload.from);
         const chat = {...payload, ts};
+        if (chat.eventSubgroup) {
+            const sg = this._recentEventSubgroups.get(chat.eventSubgroup);
+            if (sg.invitedLeaders && sg.invitedLeaders.includes(chat.from)) {
+                chat.eventLeader = true;
+            }
+            if (sg.invitedSweepers && sg.invitedSweepers.includes(chat.from)) {
+                chat.eventSweeper = true;
+            }
+        }
         if (athlete) {
             // back compat with old dbs
             const nameArr = athlete.sanitizedName || athlete.name || ['', ''];
@@ -752,8 +770,8 @@ export class StatsProcessor extends events.EventEmitter {
         }
         console.debug('Chat:', chat.firstName || '', chat.lastName || '', chat.message);
         this._chatHistory.unshift(chat);
-        if (this._chatHistory.length > 50) {
-            this._chatHistory.length = 50;
+        if (this._chatHistory.length > 1000) {
+            this._chatHistory.length = 1000;
         }
         this.emit('chat', chat);
     }
@@ -1408,13 +1426,17 @@ export class StatsProcessor extends events.EventEmitter {
         return route.leadinAscentInMeters + (route.ascentInMeters * (laps || 1));
     }
 
-    _getRemaining(state) {
+    _getEventOrRouteInfo(state) {
         const sg = state.eventSubgroupId && this._recentEventSubgroups.get(state.eventSubgroupId);
         if (sg) {
+            const eventLeader = sg.invitedLeaders && sg.invitedLeaders.includes(state.athleteId);
+            const eventSweeper = sg.invitedSweepers && sg.invitedSweepers.includes(state.athleteId);
             if (sg.durationInSeconds) {
                 const eventEnd = +(new Date(sg.eventSubgroupStart || sg.eventStart)) +
                     (sg.durationInSeconds * 1000);
                 return {
+                    eventLeader,
+                    eventSweeper,
                     remaining: eventEnd - (state.time * 1000),
                     remainingMetric: 'time',
                     remainingType: 'event',
@@ -1422,6 +1444,8 @@ export class StatsProcessor extends events.EventEmitter {
             } else {
                 const distance = sg.distanceInMeters || this._getRouteDistance(sg.route, sg.laps);
                 return {
+                    eventLeader,
+                    eventSweeper,
                     remaining: distance - state.eventDistance,
                     remainingMetric: 'distance',
                     remainingType: 'event',
@@ -1460,7 +1484,7 @@ export class StatsProcessor extends events.EventEmitter {
             eventPosition: ad.eventPosition,
             eventParticipants: ad.eventParticipants,
             gameState: ad.gameState,
-            ...this._getRemaining(state),
+            ...this._getEventOrRouteInfo(state),
             ...extra,
         };
     }

@@ -444,6 +444,10 @@ const fieldGroups = [{
          get: x => x.state.latency, fmt: x => x ? H.number(x) + unit('ms') : '-'},
         {id: 'power-up', defaultEn: false, label: 'Active Power Up', headerLabel: 'PU',
          get: x => x.state.activePowerUp, fmt: x => x ? x.toLowerCase() : ''},
+        {id: 'event-leader', defaultEn: false, label: 'Event Leader', headerLabel: '<ms>star</ms>',
+         get: x => x.eventLeader, fmt: x => x ? '<ms style="color: gold">star</ms>' : ''},
+        {id: 'event-sweeper', defaultEn: false, label: 'Event Sweeper', headerLabel: '<ms>mop</ms>',
+         get: x => x.eventSweeper, fmt: x => x ? '<ms style="color: darkred">mop</ms>' : ''},
     ],
 }];
 
