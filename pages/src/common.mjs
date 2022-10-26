@@ -854,22 +854,12 @@ export function initSettingsForm(selector, options={}) {
 
 
 const _saniEl = document.createElement('span');
-export function sanitizeForAttr(raw) {
+export function sanitizeAttr(raw) {
     _saniEl.setAttribute('clean', raw);
     try {
         return _saniEl.outerHTML.substr(13, _saniEl.outerHTML.length - 22);
     } finally {
         _saniEl.setAttribute('clean', '');
-    }
-}
-
-
-export function stripHTML(raw) {
-    _saniEl.innerHTML = raw;
-    try {
-        return _saniEl.textContent;
-    } finally {
-        _saniEl.textContent = '';
     }
 }
 
@@ -880,6 +870,19 @@ export function sanitize(raw) {
         return _saniEl.innerHTML;
     } finally {
         _saniEl.textContent = '';
+    }
+}
+
+
+const _stripper = new DOMParser();
+export function stripHTML(input) {
+    // Escaped HTML turns into HTML so we must run until all the HTML is gone...
+    while (true) {
+        let output = _stripper.parseFromString(input, 'text/html').body.textContent || '';
+        if (output === input) {
+            return output;
+        }
+        input = output;
     }
 }
 
@@ -896,7 +899,7 @@ export function teamBadge(t) {
 let _nations, _flags;
 export function fmtFlag(code) {
     if (code && _flags && _flags[code]) {
-        const nation = sanitizeForAttr(_nations[code]);
+        const nation = sanitizeAttr(_nations[code]);
         return `<img src="${_flags[code]}" title="${nation}"/>`;
     } else {
         return '-';
