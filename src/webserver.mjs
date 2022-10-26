@@ -203,6 +203,7 @@ async function _start({ip, port, rpcSources, statsProc}) {
     const api = express.Router();
     api.use(express.json());
     api.use((req, res, next) => {
+        res.setHeader('Content-Type', 'application/json');
         res.on('finish', () => {
             const client = req.client.remoteAddress;
             const elapsed = (performance.now() - req.start).toFixed(1);
@@ -226,10 +227,12 @@ async function _start({ip, port, rpcSources, statsProc}) {
             'rpc': '[GET] List available RPC resources',
             'rpc/<name>': '[POST] Make an RPC call into the backend. ' +
                 'Content body should be JSON Array of arguments',
+            'mods': '[GET] List available mods (i.e. plugins)',
         }], null, 4));
     });
     api.get('/rpc', (req, res) =>
         res.send(JSON.stringify(Array.from(rpc.handlers.keys()).map(name => `${name}: [POST]`), null, 4)));
+    api.get('/mods', (req, res) => res.send(JSON.stringify(mods.available, null, 4)));
     const sp = statsProc;
     function getAthleteHandler(res, id) {
         const data = sp.getAthleteData(id);

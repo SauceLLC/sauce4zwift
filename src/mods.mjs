@@ -1,11 +1,14 @@
 import path from 'node:path';
 import fs from 'node:fs';
+import * as rpc from './rpc.mjs';
 import {createRequire} from 'node:module';
 
 const require = createRequire(import.meta.url);
 const electron = require('electron');
 
 export const available = [];
+
+rpc.register(() => available, {name: 'listAvailableMods'});
 
 
 function isSafePath(p, _, modPath) {
@@ -142,7 +145,7 @@ export function getWindowManifests() {
                         type: `${dir}-${x.id}`,
                         page: x.page,
                         pagePath: modPath,
-                        groupTitle: `[MOD]: ${x.name}`,
+                        groupTitle: `[MOD]: ${manifest.name}`,
                         prettyName: x.name,
                         prettyDesc: x.description,
                         options: {
@@ -169,11 +172,13 @@ export function getWindowManifests() {
 export function getWindowContentScripts() {
     const scripts = [];
     for (const {manifest, modPath} of available) {
-        for (const x of manifest.content_js) {
-            try {
-                scripts.push(fs.readFileSync(path.join(modPath, x), 'utf8'));
-            } catch(e) {
-                console.error("Failed to load content script:", x, e);
+        if (manifest.content_js) {
+            for (const x of manifest.content_js) {
+                try {
+                    scripts.push(fs.readFileSync(path.join(modPath, x), 'utf8'));
+                } catch(e) {
+                    console.error("Failed to load content script:", x, e);
+                }
             }
         }
     }
@@ -184,11 +189,13 @@ export function getWindowContentScripts() {
 export function getWindowContentStyle() {
     const css = [];
     for (const {manifest, modPath} of available) {
-        for (const x of manifest.content_css) {
-            try {
-                css.push(fs.readFileSync(path.join(modPath, x), 'utf8'));
-            } catch(e) {
-                console.error("Failed to load content style:", x, e);
+        if (manifest.content_css) {
+            for (const x of manifest.content_css) {
+                try {
+                    css.push(fs.readFileSync(path.join(modPath, x), 'utf8'));
+                } catch(e) {
+                    console.error("Failed to load content style:", x, e);
+                }
             }
         }
     }
