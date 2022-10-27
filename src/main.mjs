@@ -300,10 +300,7 @@ class SauceApp extends EventEmitter {
         }
         this._settings[key] = value;
         storage.save(this._settingsKey, this._settings);
-        this.emit('setting-change', {
-            key,
-            value
-        });
+        this.emit('setting-change', {key, value});
     }
 
     _getMetrics(reentrant) {

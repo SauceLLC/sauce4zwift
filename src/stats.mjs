@@ -7,6 +7,7 @@ import * as rpc from './rpc.mjs';
 import * as sauce from '../shared/sauce/index.mjs';
 import * as report from '../shared/report.mjs';
 import * as zwift from './zwift.mjs';
+import {getApp} from './main.mjs';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
 const require = createRequire(import.meta.url);
@@ -248,6 +249,12 @@ export class StatsProcessor extends events.EventEmitter {
         this._markedIds = new Set();
         this._followingIds = new Set();
         this._followerIds = new Set();
+        const app = getApp();
+        this._resetOnEvent = !!app.getSetting('resetOnEvent') || true; // XXX
+        this._lapOnEvent = !!app.getSetting('lapOnEvent');
+        this._lapOnInterval = !!app.getSetting('lapOnInterval');
+        this._lapIntervalMetric = app.getSetting('lapIntervalMetric');
+        this._lapIntervalValue = app.getSetting('lapIntervalValue');
         rpc.register(this.updateAthlete, {scope: this});
         rpc.register(this.startLap, {scope: this});
         rpc.register(this.resetStats, {scope: this});
@@ -388,21 +395,25 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     startLap() {
-        console.debug("User requested lap start");
-        const now = monotonic();
-        for (const data of this._athleteData.values()) {
-            const lastLap = data.laps.at(-1);
-            lastLap.end = now;
-            Object.assign(lastLap, this.cloneDataCollectors(lastLap));
-            data.laps.push({
-                start: now,
-                ...this.cloneDataCollectors(data, {reset: true}),
-            });
+        console.debug("Starting new lap...");
+        for (const x of this._athleteData.values()) {
+            this.startAthleteLap(x);
         }
     }
 
+    startAthleteLap(ad) {
+        const now = monotonic();
+        const lastLap = ad.laps.at(-1);
+        lastLap.end = now;
+        Object.assign(lastLap, this.cloneDataCollectors(lastLap));
+        ad.laps.push({
+            start: now,
+            ...this.cloneDataCollectors(ad, {reset: true}),
+        });
+    }
+
     resetStats() {
-        console.debug("User requested stats reset");
+        console.debug("Reseting stats...");
         this._athleteData.clear();
     }
 
@@ -902,6 +913,37 @@ export class StatsProcessor extends events.EventEmitter {
         };
     }
 
+    _resetAthleteData(ad, wtOffset) {
+        const collectors = this.makeDataCollectors();
+        const start = monotonic();
+        Object.assign(ad, {
+            start,
+            wtOffset,
+            laps: [{
+                start,
+                ...this.cloneDataCollectors(collectors, {reset: true})
+            }],
+            ...collectors,
+        });
+    }
+
+    triggerEventStart(ad, state) {
+        console.warn("XXX trigger event start for athlete: ", ad, state.time, state);
+        ad.eventStartPending = false;
+        if (this._resetOnEvent) {
+            this._resetAthleteData(ad, state.worldTime);
+        } else if (this._lapOnEvent) {
+            this.startAthleteLap(ad);
+        }
+    }
+
+    triggerEventEnd(ad, state) {
+        console.warn("XXX trigger event END for athlete: ", ad, state.time, state);
+        if (this._resetOnEvent || this._lapOnEvent) {
+            this.startAthleteLap(ad);
+        }
+    }
+
     processState(state) {
         if (!this._athleteData.has(state.athleteId)) {
             this._athleteData.set(state.athleteId, this._createAthleteData(state.athleteId, state.worldTime));
@@ -917,21 +959,31 @@ export class StatsProcessor extends events.EventEmitter {
                 return false;
             }
         }
-        if (state.eventSubgroupId) {
-            const sg = this._recentEventSubgroups.get(state.eventSubgroupId);
+        const noSubgroup = null;
+        const sg = this._recentEventSubgroups.get(state.eventSubgroupId) || noSubgroup;
+        if (sg) {
             if (sg !== ad.eventSubgroup) {
+                ad.eventSubgroup = sg;
                 ad.privacy = {};
                 if (state.athleteId !== this.athleteId) {
                     ad.privacy.hideWBal = sg.allTags.has('hidewbal');
                     ad.privacy.hideFTP = sg.allTags.has('hideftp');
                 }
                 ad.disabled = sg.allTags.has('hidethehud') || sg.allTags.has('nooverlays');
+                if (state.time) {
+                    this.triggerEventStart(ad, state);
+                } else {
+                    ad.eventStartPending = true;
+                }
+            } else if (ad.eventStartPending && state.time) {
+                this.triggerEventStart(ad, state);
             }
-            ad.eventSubgroup = sg;
         } else if (ad.eventSubgroup) {
-            ad.eventSubgroup = null;
+            ad.eventSubgroup = noSubgroup;
             ad.privacy = {};
             ad.disabled = false;
+            ad.eventStartPending = false;
+            this.triggerEventEnd(ad, state);
         }
         if (ad.disabled) {
             return;
@@ -1432,12 +1484,11 @@ export class StatsProcessor extends events.EventEmitter {
             const eventLeader = sg.invitedLeaders && sg.invitedLeaders.includes(state.athleteId);
             const eventSweeper = sg.invitedSweepers && sg.invitedSweepers.includes(state.athleteId);
             if (sg.durationInSeconds) {
-                const eventEnd = +(new Date(sg.eventSubgroupStart || sg.eventStart)) +
-                    (sg.durationInSeconds * 1000);
+                const eventEnd = +(new Date(sg.eventSubgroupStart || sg.eventStart)) + (sg.durationInSeconds * 1000);
                 return {
                     eventLeader,
                     eventSweeper,
-                    remaining: eventEnd - (state.time * 1000),
+                    remaining: (eventEnd - Date.now()) / 1000,
                     remainingMetric: 'time',
                     remainingType: 'event',
                 };
@@ -1500,7 +1551,7 @@ export class StatsProcessor extends events.EventEmitter {
 
     _computeNearby() {
         const watchingData = this._athleteData.get(this.watching);
-        if (!watchingData) {
+        if (!watchingData || !watchingData.mostRecentState) {
             return [];
         }
         const watching = {data: watchingData, gap: 0, isGapEst: false, rp: {gapDistance: 0}};
@@ -1508,7 +1559,7 @@ export class StatsProcessor extends events.EventEmitter {
         // dangerous, so we use a weighted function that's seeded (skewed) to the
         // the watching rider.
         const refSpeedForEstimates = makeExpWeighted(10); // maybe mv up and reuse? XXX
-        const watchingSpeed = watching.data.mostRecentState.speed;
+        const watchingSpeed = watchingData.mostRecentState.speed;
         if (watchingSpeed > 1) {
             refSpeedForEstimates(watchingSpeed);
         }
@@ -1522,11 +1573,11 @@ export class StatsProcessor extends events.EventEmitter {
                 if ((filterStopped && !data.mostRecentState.speed) || age > 10000) {
                     continue;
                 }
-                const rp = this.compareRoadPositions(data, watching.data);
+                const rp = this.compareRoadPositions(data, watchingData);
                 if (rp === null) {
                     continue;
                 }
-                const gap = this._realGap(rp, data, watching.data);
+                const gap = this._realGap(rp, data, watchingData);
                 if (rp.reversed) {
                     behind.push({data, rp, gap});
                 } else {
