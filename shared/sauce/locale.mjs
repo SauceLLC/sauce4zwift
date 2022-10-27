@@ -169,7 +169,7 @@ function humanTimer(elapsed, options={}) {
     const msStr = options.ms ? Math.round(elapsed % 1 * 1000).toString().padStart(3, '0') : '';
     if (hours) {
         return `${hours}:${mins.toString().padStart(2, '0')}:${secsStr.padStart(2, '0')}${msStr}`;
-    } else if (mins) {
+    } else if (mins || options.long) {
         return `${mins}:${secsStr.padStart(2, '0')}${msStr}`;
     } else {
         return `${secsStr}${msStr}`;

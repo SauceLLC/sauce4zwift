@@ -132,7 +132,7 @@ html:not(:focus-within) {
             align-items: baseline;
             white-space: nowrap;
 
-            &::after {
+            &:not(:empty)::after {
                 content: ':';
             }
 

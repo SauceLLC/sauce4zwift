@@ -439,9 +439,10 @@ export class Renderer {
         }
         const field = this.fields.get(id);
         const nextField = field.available[this.getAdjacentFieldIndex(field, 1)];
+        const tooltip = field.tooltip ? field.tooltip + '\n\n' : '';
         try {
-            const name = stripHTML(fGet(nextField.key, this._data) || fGet(nextField.label, this._data));
-            field.el.title = `Click to change field to: ${name}.  Or use Left/Right keys when focused.`;
+            const name = stripHTML(fGet(nextField.key, this._data) || fGet(nextField.label, this._data) || nextField.id);
+            field.el.title = `${tooltip}Click to change field to: ${name}.  Or use Left/Right keys when focused.`;
         } catch(e) {
             console.error("Failed to get tooltip name for next field:", id, nextField, e);
         }

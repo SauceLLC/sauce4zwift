@@ -18,6 +18,11 @@ common.settingsStore.setDefault({
 });
 
 
+function isRealNumber(v) {
+    return !(v == null || v === Infinity || v === -Infinity || isNaN(v));
+}
+
+
 function fmtPace(x) {
     return H.pace(x, {sport, precision: 0});
 }
@@ -41,7 +46,7 @@ const unit = x => `<abbr class="unit">${x}</abbr>`;
 
 
 function fmtDist(v) {
-    if (v == null || v === Infinity || v === -Infinity || isNaN(v)) {
+    if (!isRealNumber(v)) {
         return '-';
     } else if (Math.abs(v) < 1000) {
         const suffix = unit(imperial ? 'ft' : 'm');
@@ -52,16 +57,25 @@ function fmtDist(v) {
 }
 
 
-function fmtDur(v) {
-    if (v == null || v === Infinity || v === -Infinity || isNaN(v)) {
+function fmtElevation(v) {
+    if (!isRealNumber(v)) {
         return '-';
     }
-    return H.timer(v);
+    const suffix = unit(imperial ? 'ft' : 'm');
+    return H.number(imperial ? v / L.metersPerFoot : v) + suffix;
+}
+
+
+function fmtDur(v) {
+    if (!isRealNumber(v)) {
+        return '-';
+    }
+    return H.timer(v, {long: true});
 }
 
 
 function fmtWkg(p, athlete) {
-    if (p == null || p === Infinity || p === -Infinity || isNaN(p) || !athlete || !athlete.ftp) {
+    if (!isRealNumber(p) || !athlete || !athlete.ftp) {
         return '-';
     }
     return H.number(p / athlete.weight, {precision: 1, fixed: true});
@@ -69,7 +83,7 @@ function fmtWkg(p, athlete) {
 
 
 function fmtPct(p) {
-    if (p == null || p === Infinity || p === -Infinity || isNaN(p)) {
+    if (!isRealNumber(p)) {
         return '-';
     }
     return H.number(p * 100) + unit('%');
@@ -215,11 +229,11 @@ function buildLayout() {
             mapping,
             fields: [{
                 id: 'time-lap',
-                value: x => H.timer(x.laps && x.laps.at(-1).elapsed),
+                value: x => fmtDur(x.laps && x.laps.at(-1).elapsed),
                 key: 'Lap Time',
             }, {
                 id: 'time-elapsed',
-                value: x => H.timer(x.stats && x.stats.elapsed),
+                value: x => fmtDur(x.stats && x.stats.elapsed),
                 key: 'Time',
             }, {
                 id: 'rideons',
@@ -434,6 +448,20 @@ function buildLayout() {
                     ((x.eventSubgroup.laps && x.eventSubgroup.laps > 1) ? `${x.eventSubgroup.laps} x ` : '') +
                     x.eventSubgroup.route.name : '-',
                 key: 'Route',
+            }, {
+                id: 'el-gain',
+                value: x => fmtElevation(x.state && x.state.climbing),
+                key: 'Climbed',
+            }, {
+                // XXX after a release or two with the id system move this to the top
+                id: 'time-session',
+                value: x => fmtDur(x.state && x.state.time),
+                key: 'Session',
+            }, {
+                // XXX after a release or two with the id system move this to the top
+                id: 'clock',
+                value: x => new Date().toLocaleTimeString(),
+                key: '',
             }],
         });
     }
