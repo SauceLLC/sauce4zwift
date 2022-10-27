@@ -1,3 +1,4 @@
+import {LRUCache} from './base.mjs';
 
 let imperial = false;
 export function setImperial(en) {
@@ -225,18 +226,36 @@ function humanDayOfWeek(sunOfft, options={}) {
 }
 
 
-function humanNumber(value, options={}) {
+function _humanNumber(value, precision, fixed) {
     if (!_realNumber(value)) {
         return humanEmpty;
     }
     let n = Number(value);
-    const precision = options.precision || 0;
     const v = n.toLocaleString(undefined, {
         useGrouping: n >= 10000 || n <= -10000,
         maximumFractionDigits: precision,
-        minimumFractionDigits: options.fixed ? precision : undefined,
+        minimumFractionDigits: fixed ? precision : undefined,
     });
     return v === '-0' ? '0' : v;
+}
+
+
+const _hnLRU = new LRUCache(4096);
+function humanNumber(value, options={}) {
+    const precision = options.precision || 0;
+    const fixed = options.fixed;
+    if (!precision) {
+        // Improve LRU hit rate..
+        value = Math.round(value);
+    }
+    const sig = `${typeof value} ${value} ${precision} ${fixed}`;
+    if (!_hnLRU.has(sig)) {
+        const r = _humanNumber(value, precision, fixed);
+        _hnLRU.set(sig, r);
+        return r;
+    } else {
+        return _hnLRU.get(sig);
+    }
 }
 
 
