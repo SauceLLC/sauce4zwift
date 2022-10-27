@@ -318,6 +318,11 @@ export function initInteractionListeners() {
 }
 
 
+function fGet(fnOrValue, ...args) {
+    return (typeof fnOrValue === 'function') ? fnOrValue(...args) : fnOrValue;
+}
+
+
 export class Renderer {
     constructor(contentEl, options={}) {
         this._contentEl = contentEl;
@@ -435,7 +440,7 @@ export class Renderer {
         const field = this.fields.get(id);
         const nextField = field.available[this.getAdjacentFieldIndex(field, 1)];
         try {
-            const name = stripHTML(nextField.key(this._data) || nextField.label(this._data));
+            const name = stripHTML(fGet(nextField.key, this._data) || fGet(nextField.label, this._data));
             field.el.title = `Click to change field to: ${name}.  Or use Left/Right keys when focused.`;
         } catch(e) {
             console.error("Failed to get tooltip name for next field:", id, nextField, e);
@@ -479,7 +484,7 @@ export class Renderer {
                     for (const field of this.fields.values()) {
                         let value = '';
                         try {
-                            value = field.active.value(this._data);
+                            value = fGet(field.active.value, this._data);
                         } catch(e) {
                             report.errorThrottled(e);
                         }
@@ -499,7 +504,7 @@ export class Renderer {
                         if (field.labelEl) {
                             let labels = '';
                             try {
-                                labels = field.active.label ? field.active.label(this._data) : '';
+                                labels = field.active.label ? fGet(field.active.label, this._data) : '';
                             } catch(e) {
                                 report.errorThrottled(e);
                             }
@@ -525,7 +530,7 @@ export class Renderer {
                         if (field.keyEl) {
                             let key = '';
                             try {
-                                key = field.active.key ? field.active.key(this._data) : '';
+                                key = field.active.key ? fGet(field.active.key, this._data) : '';
                             } catch(e) {
                                 report.errorThrottled(e);
                             }
@@ -537,7 +542,7 @@ export class Renderer {
                             let unit = '';
                             try {
                                 unit = (value != null && value !== '-' && field.active.unit) ?
-                                    field.active.unit(this._data) : '';
+                                    fGet(field.active.unit, this._data) : '';
                             } catch(e) {
                                 report.errorThrottled(e);
                             }
