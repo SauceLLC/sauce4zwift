@@ -228,6 +228,7 @@ export function processPlayerStateMessage(msg) {
         heading: (((msg._heading + halfCircle) / (2 * halfCircle)) * 360) % 360,  // degrees
         speed: msg._speed / 1e6,  // km/h
         joinTime: msg._joinTime.toNumber(),
+        sport: protos.Sport[msg.sport].toLowerCase(),
         cadence: (msg._cadenceUHz && msg._cadenceUHz < cadenceMax) ?
             Math.round(msg._cadenceUHz / 1e6 * 60) : 0,  // rpm
         eventDistance: msg._eventDistance / 100,  // meters

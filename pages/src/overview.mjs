@@ -29,12 +29,12 @@ function fmtPace(x) {
 
 
 function speedUnit() {
-    return sport === 'cycling' ? imperial ? 'mph' : 'kph' : imperial ? '/mi' : '/km';
+    return sport === 'running' ? imperial ? '/mi' : '/km' : imperial ? 'mph' : 'kph';
 }
 
 
 function speedLabel() {
-    return sport === 'cycling' ? 'Speed' : 'Pace';
+    return sport === 'running' ? 'Pace' : 'Speed';
 }
 
 
@@ -191,10 +191,7 @@ export async function main() {
         if (watching.state.eventSubgroupId) {
             watching.eventSubgroup = getEventSubgroup(watching.state.eventSubgroupId);
         }
-        sport = {
-            0: 'cycling',
-            1: 'running',
-        }[watching.state.sport] || 'other';
+        sport = watching.state.sport || 'cycling';
         eventMetric = watching.remainingMetric || 'distance';
         renderer.setData(watching);
         const ts = Date.now();
@@ -426,11 +423,11 @@ function buildLayout() {
                 key: 'Place',
             }, {
                 id: 'ev-fin',
-                value: x => x.remainingMetric === 'distance' ? fmtDist(x.remaining) : fmtDur(x.remaining),
+                value: x => eventMetric === 'distance' ? fmtDist(x.remaining) : fmtDur(x.remaining),
                 key: 'Finish',
             }, {
                 id: 'ev-dst',
-                value: x => x.state ? (x.remainingMetric === 'distance' ?
+                value: x => x.state ? (eventMetric === 'distance' ?
                     `${fmtDist(x.state.eventDistance)}/${fmtDist(x.state.eventDistance + x.remaining)}` :
                     fmtDist(x.state.eventDistance)) : '-',
                 key: 'Event Dist',

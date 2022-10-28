@@ -481,7 +481,7 @@ function unit(x) {
 
 
 function cadenceUnit() {
-    return sport === 'cycling' ? 'rpm' : 'spm';
+    return sport === 'running' ? 'spm' : 'rpm';
 }
 
 
@@ -1093,10 +1093,7 @@ export async function main() {
     common.subscribe('athlete/watching', watching => {
         const force = watching.athleteId !== athleteId;
         athleteId = watching.athleteId;
-        sport = {
-            0: 'cycling',
-            1: 'running',
-        }[watching.state.sport] || 'other';
+        sport = watching.state.sport || 'cycling';
         eventMetric = watching.remainingMetric || 'distance';
         for (const x of renderers) {
             x.setData(watching);

@@ -29,7 +29,7 @@ common.settingsStore.setDefault({
 });
 
 const unit = x => `<abbr class="unit">${x}</abbr>`;
-const spd = v => H.pace(v, {precision: 0, suffix: true, html: true});
+const spd = (v, entry) => H.pace(v, {precision: 0, suffix: true, html: true, sport: entry.state.sport});
 const weightClass = v => H.weightClass(v, {suffix: true, html: true});
 const pwr = v => H.power(v, {suffix: true, html: true});
 const hr = v => v ? num(v) + unit('bpm') : '-';

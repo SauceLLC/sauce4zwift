@@ -28,7 +28,7 @@ message PlayerState {
     float y = 27; // cartesian meters
     int32 watchingAthleteId = 28;
     int32 eventSubgroupId = 29;
-    int32 sport = 31; // 0 = biking, 1 = running
+    Sport sport = 31;
     float _eventDistance = 34; // cm
     int32 courseId = 35;
     //int32 f36XXX = 36; // low vals like 56,121 maybe segment/route/course/road related, seems to increment with route

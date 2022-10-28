@@ -960,9 +960,9 @@ export class StatsProcessor extends events.EventEmitter {
             }
         }
         const noSubgroup = null;
-        const sg = this._recentEventSubgroups.get(state.eventSubgroupId) || noSubgroup;
+        const sg = state.eventSubgroupId && this._recentEventSubgroups.get(state.eventSubgroupId) || noSubgroup;
         if (sg) {
-            if (sg !== ad.eventSubgroup) {
+            if (!ad.eventSubgroup || sg.id !== ad.eventSubgroup.id) {
                 ad.eventSubgroup = sg;
                 ad.privacy = {};
                 if (state.athleteId !== this.athleteId) {
