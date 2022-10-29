@@ -278,6 +278,9 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.getNearbyData, {scope: this});
         rpc.register(this.getGroupsData, {scope: this});
         rpc.register(this.getAthleteData, {scope: this});
+        rpc.register(this.getAthleteLaps, {scope: this});
+        rpc.register(this.getAthleteSegments, {scope: this});
+        rpc.register(this.getAthleteStreams, {scope: this});
         this._athleteSubs = new Map();
         if (options.gameConnection) {
             const gc = options.gameConnection;
@@ -382,8 +385,52 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     getAthleteData(id) {
-        const data = this._athleteData.get(id);
-        return data ? this._formatAthleteEntry(data) : null;
+        const ad = this._athleteData.get(id);
+        return ad ? this._formatAthleteEntry(ad) : null;
+    }
+
+    getAthleteLaps(id) {
+        const ad = this._athleteData.get(id);
+        if (!ad) {
+            return null;
+        }
+        return this._getAthleteLaps(ad.laps, ad);
+    }
+
+    getAthleteSegments(id) {
+        const ad = this._athleteData.get(id);
+        if (!ad) {
+            return null;
+        }
+        return this._getAthleteLaps(ad.segments, ad);
+    }
+
+    _getAthleteLaps(lapish, ad) {
+        let athlete = this.loadAthlete(ad.athleteId);
+        if (athlete && ad.privacy.hideFTP) {
+            // XXX refactor this into some func or into loadAthlete
+            athlete = {...athlete, ftp: null};
+        }
+        return lapish.map(x => ({
+            stats: this._getCollectorStats(x, ad.wtOffset, athlete, ad.privacy),
+            startIndex: x.power.roll._offt,
+            endIndex: x.power.roll._length - 1,
+        }));
+    }
+
+    getAthleteStreams(id) {
+        const ad = this._athleteData.get(id);
+        if (!ad) {
+            return null;
+        }
+        const cs = ad.collectors;
+        return {
+            power: cs.power.roll.values(),
+            speed: cs.speed.roll.values(),
+            hr: cs.hr.roll.values(),
+            cadence: cs.cadence.roll.values(),
+            draft: cs.draft.roll.values(),
+        };
     }
 
     getNearbyData() {
@@ -408,7 +455,7 @@ export class StatsProcessor extends events.EventEmitter {
         Object.assign(lastLap, this.cloneDataCollectors(lastLap));
         ad.laps.push({
             start: now,
-            ...this.cloneDataCollectors(ad, {reset: true}),
+            ...this.cloneDataCollectors(ad.collectors, {reset: true}),
         });
     }
 
@@ -624,7 +671,7 @@ export class StatsProcessor extends events.EventEmitter {
         if (!ad || !ftp || !wPrime) {
             return;
         }
-        ad.power.roll.setWPrime(ftp, wPrime);
+        ad.collectors.power.roll.setWPrime(ftp, wPrime);
     }
 
     async getAthlete(id, options={}) {
@@ -801,21 +848,21 @@ export class StatsProcessor extends events.EventEmitter {
         return `${state.courseId},${state.roadId},${state.reverse}`;
     }
 
-    _getCollectorStats(data, athlete, privacy) {
-        const end = data.end || monotonic();
-        const elapsed = (end - data.start) / 1000;
-        const np = data.power.roll.np({force: true});
-        const wBal = privacy.hideWBal ? undefined : data.power.roll.wBal;
+    _getCollectorStats(cs, wtOffset, athlete, privacy) {
+        const end = cs.end || monotonic();
+        const elapsed = (end - cs.start) / 1000;
+        const np = cs.power.roll.np({force: true});
+        const wBal = privacy.hideWBal ? undefined : cs.power.roll.wBal;
         const tss = (!privacy.hideFTP && np && athlete && athlete.ftp) ?
-            sauce.power.calcTSS(np, data.power.roll.active(), athlete.ftp) :
+            sauce.power.calcTSS(np, cs.power.roll.active(), athlete.ftp) :
             undefined;
         return {
             elapsed,
-            power: data.power.getStats(data.wtOffset, {np, tss, wBal}),
-            speed: data.speed.getStats(data.wtOffset),
-            hr: data.hr.getStats(data.wtOffset),
-            draft: data.draft.getStats(data.wtOffset),
-            cadence: data.cadence.getStats(data.wtOffset),
+            power: cs.power.getStats(wtOffset, {np, tss, wBal}),
+            speed: cs.speed.getStats(wtOffset),
+            hr: cs.hr.getStats(wtOffset),
+            cadence: cs.cadence.getStats(wtOffset),
+            draft: cs.draft.getStats(wtOffset),
         };
     }
 
@@ -905,11 +952,13 @@ export class StatsProcessor extends events.EventEmitter {
                 timeline: [],
                 prevTimeline: null,
             },
+            collectors,
             laps: [{
                 start,
                 ...this.cloneDataCollectors(collectors, {reset: true})
             }],
-            ...collectors,
+            activeSegments: new Set(),
+            segments: [],
         };
     }
 
@@ -919,11 +968,11 @@ export class StatsProcessor extends events.EventEmitter {
         Object.assign(ad, {
             start,
             wtOffset,
+            collectors,
             laps: [{
                 start,
                 ...this.cloneDataCollectors(collectors, {reset: true})
             }],
-            ...collectors,
         });
     }
 
@@ -1038,17 +1087,25 @@ export class StatsProcessor extends events.EventEmitter {
             }
         }
         const time = (state.worldTime - ad.wtOffset) / 1000;
-        ad.power.add(time, state.power);
-        ad.speed.add(time, state.speed);
-        ad.hr.add(time, state.heartrate);
-        ad.draft.add(time, state.draft);
-        ad.cadence.add(time, state.cadence);
+        ad.collectors.power.add(time, state.power);
+        ad.collectors.speed.add(time, state.speed);
+        ad.collectors.hr.add(time, state.heartrate);
+        ad.collectors.draft.add(time, state.draft);
+        ad.collectors.cadence.add(time, state.cadence);
         const curLap = ad.laps[ad.laps.length - 1];
         curLap.power.resize(time);
         curLap.speed.resize(time);
         curLap.hr.resize(time);
         curLap.draft.resize(time);
         curLap.cadence.resize(time);
+        for (const idx of ad.activeSegments) {
+            const s = ad.segments[idx];
+            s.power.resize(time);
+            s.speed.resize(time);
+            s.hr.resize(time);
+            s.draft.resize(time);
+            s.cadence.resize(time);
+        }
         ad.updated = monotonic();
         this._stateProcessCount++;
         if (this.athleteId === state.athleteId) {
@@ -1520,17 +1577,17 @@ export class StatsProcessor extends events.EventEmitter {
         if (athlete) {
             if (ad.privacy.hideFTP) {
                 athlete = {...athlete, ftp: null};
-            } else if (ad.power.roll.wBal == null && athlete.ftp && athlete.wPrime) {
+            } else if (ad.collectors.power.roll.wBal == null && athlete.ftp && athlete.wPrime) {
                 // Lazy update w' since athlete data is async..
-                ad.power.roll.setWPrime(athlete.ftp, athlete.wPrime);
+                ad.collectors.power.roll.setWPrime(athlete.ftp, athlete.wPrime);
             }
         }
         const state = ad.mostRecentState;
         return {
             athleteId: state.athleteId,
             athlete,
-            stats: this._getCollectorStats(ad, athlete, ad.privacy),
-            laps: ad.laps.map(x => this._getCollectorStats(x, athlete, ad.privacy)),
+            stats: this._getCollectorStats(ad.collectors, ad.wtOffset, athlete, ad.privacy),
+            laps: ad.laps.map(x => this._getCollectorStats(x, ad.wtOffset, athlete, ad.privacy)),
             state: this._cleanState(state),
             eventPosition: ad.eventPosition,
             eventParticipants: ad.eventParticipants,
@@ -1540,12 +1597,12 @@ export class StatsProcessor extends events.EventEmitter {
         };
     }
 
-    _formatNearbyEntry({data, isGapEst, rp, gap}) {
-        return this._formatAthleteEntry(data, {
+    _formatNearbyEntry({ad, isGapEst, rp, gap}) {
+        return this._formatAthleteEntry(ad, {
             gap,
             gapDistance: rp.gapDistance,
             isGapEst: isGapEst ? true : undefined,
-            watching: data.athleteId === this.watching ? true : undefined,
+            watching: ad.athleteId === this.watching ? true : undefined,
         });
     }
 
@@ -1554,7 +1611,7 @@ export class StatsProcessor extends events.EventEmitter {
         if (!watchingData || !watchingData.mostRecentState) {
             return [];
         }
-        const watching = {data: watchingData, gap: 0, isGapEst: false, rp: {gapDistance: 0}};
+        const watching = {ad: watchingData, gap: 0, isGapEst: false, rp: {gapDistance: 0}};
         // We need to use a speed value for estimates and just using one value is
         // dangerous, so we use a weighted function that's seeded (skewed) to the
         // the watching rider.
@@ -1567,24 +1624,24 @@ export class StatsProcessor extends events.EventEmitter {
         const filterStopped = !!watchingSpeed;
         const ahead = [];
         const behind = [];
-        for (const data of this._athleteData.values()) {
-            if (data.athleteId !== this.watching) {
-                const age = monotonic() - data.updated;
-                if ((filterStopped && !data.mostRecentState.speed) || age > 10000) {
+        for (const ad of this._athleteData.values()) {
+            if (ad.athleteId !== this.watching) {
+                const age = monotonic() - ad.updated;
+                if ((filterStopped && !ad.mostRecentState.speed) || age > 10000) {
                     continue;
                 }
-                const rp = this.compareRoadPositions(data, watchingData);
+                const rp = this.compareRoadPositions(ad, watchingData);
                 if (rp === null) {
                     continue;
                 }
-                const gap = this._realGap(rp, data, watchingData);
+                const gap = this._realGap(rp, ad, watchingData);
                 if (rp.reversed) {
-                    behind.push({data, rp, gap});
+                    behind.push({ad, rp, gap});
                 } else {
-                    ahead.push({data, rp, gap});
+                    ahead.push({ad, rp, gap});
                 }
             }
-            this.maybeUpdateAthleteFromServer(data.athleteId);
+            this.maybeUpdateAthleteFromServer(ad.athleteId);
         }
 
         ahead.sort((a, b) => b.rp.gapDistance - a.rp.gapDistance);
@@ -1593,9 +1650,9 @@ export class StatsProcessor extends events.EventEmitter {
         for (let i = ahead.length - 1; i >= 0; i--) {
             const x = ahead[i];
             const adjacent = ahead[i + 1] || watching;
-            const speedRef = refSpeedForEstimates(x.data.mostRecentState.speed);
+            const speedRef = refSpeedForEstimates(x.ad.mostRecentState.speed);
             if (x.gap == null) {
-                let incGap = this.realGap(x.data, adjacent.data);
+                let incGap = this.realGap(x.ad, adjacent.ad);
                 if (incGap == null) {
                     const incGapDist = x.rp.gapDistance - adjacent.rp.gapDistance;
                     incGap = speedRef ? incGapDist / (speedRef * 1000 / 3600) : 0;
@@ -1610,9 +1667,9 @@ export class StatsProcessor extends events.EventEmitter {
         for (let i = 0; i < behind.length; i++) {
             const x = behind[i];
             const adjacent = behind[i - 1] || watching;
-            const speedRef = refSpeedForEstimates(x.data.mostRecentState.speed);
+            const speedRef = refSpeedForEstimates(x.ad.mostRecentState.speed);
             if (x.gap == null) {
-                let incGap = this.realGap(adjacent.data, x.data);
+                let incGap = this.realGap(adjacent.ad, x.ad);
                 if (incGap == null) {
                     const incGapDist = x.rp.gapDistance - adjacent.rp.gapDistance;
                     incGap = speedRef ? incGapDist / (speedRef * 1000 / 3600) : 0;
@@ -1715,11 +1772,11 @@ export class StatsProcessor extends events.EventEmitter {
             activeAthletesSize: this._athleteData.size,
             activeAthleteDataPoints: Array.from(this._athleteData.values())
                 .map(x =>
-                    x.power.roll.size() +
-                    x.speed.roll.size() +
-                    x.hr.roll.size() +
-                    x.hr.roll.size() +
-                    x.draft.roll.size())
+                    x.collectors.power.roll.size() +
+                    x.collectors.speed.roll.size() +
+                    x.collectors.hr.roll.size() +
+                    x.collectors.draft.roll.size() +
+                    x.collectors.cadence.roll.size())
                 .reduce((agg, c) => agg + c, 0),
             athletesCacheSize: this._athletesCache.size,
         };

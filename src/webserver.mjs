@@ -200,6 +200,27 @@ async function _start({ip, port, rpcSources, statsProc}) {
             console.info("WebSocket closed:", client);
         });
     });
+    const sp = statsProc;
+    function getAthleteHandler(res, id) {
+        id = id === 'self' ? sp.athleteId : id === 'watching' ? sp.watching : Number(id);
+        const data = sp.getAthleteData(id);
+        data ? res.json(data) : res.status(404).json(null);
+    }
+    function getLapsHandler(res, id) {
+        id = id === 'self' ? sp.athleteId : id === 'watching' ? sp.watching : Number(id);
+        const data = sp.getAthleteLaps(id);
+        data ? res.json(data) : res.status(404).json(null);
+    }
+    function getSegmentsHandler(res, id) {
+        id = id === 'self' ? sp.athleteId : id === 'watching' ? sp.watching : Number(id);
+        const data = sp.getAthleteSegments(id);
+        data ? res.json(data) : res.status(404).json(null);
+    }
+    function getStreamsHandler(res, id) {
+        id = id === 'self' ? sp.athleteId : id === 'watching' ? sp.watching : Number(id);
+        const data = sp.getAthleteStreams(id);
+        data ? res.json(data) : res.status(404).json(null);
+    }
     const api = express.Router();
     api.use(express.json());
     api.use((req, res, next) => {
@@ -218,29 +239,54 @@ async function _start({ip, port, rpcSources, statsProc}) {
     });
     api.get('/', (req, res) => {
         res.send(JSON.stringify([{
-            'athletes': '[GET] Information for all active athletes',
-            'athletes/<id>': '[GET] Information for specific athlete',
-            'athletes/self': '[GET] Information for the logged in athlete',
-            'athletes/watching': '[GET] Information for athlete being watched',
-            'nearby': '[GET] Information for all nearby athletes',
-            'groups': '[GET] Information for all nearby groups',
-            'rpc': '[GET] List available RPC resources',
-            'rpc/<name>': '[POST] Make an RPC call into the backend. ' +
+            'athlete/stats/v1/<id>|self|watching': '[GET] Current stats for an athlete in the game',
+            'athlete/laps/v1/<id>|self|watching': '[GET] Lap data for an athlete',
+            'athlete/segments/v1/<id>|self|watching': '[GET] Segments data for an athlete',
+            'athlete/streams/v1/<id>|self|watching': '[GET] Stream data (power, cadence, etc..) for an athlete',
+            'nearby/v1': '[GET] Information for all nearby athletes',
+            'groups/v1': '[GET] Information for all nearby groups',
+            'rpc/v1': '[GET] List available RPC resources',
+            'rpc/v1/<name>': '[POST] Make an RPC call into the backend. ' +
                 'Content body should be JSON Array of arguments',
-            'mods': '[GET] List available mods (i.e. plugins)',
+            'mods/v1': '[GET] List available mods (i.e. plugins)',
+            // DEPRECATED...
+            'athletes': '[GET] Information for all active athletes (DEPRECATED)',
+            'athletes/<id>|self|watching': '[GET] Information for a specific athlete (DEPRECATED)',
+            'nearby': '[GET] Information for all nearby athletes (DEPRECATED)',
+            'groups': '[GET] Information for all nearby groups (DEPRECATED)',
+            'rpc': '[GET] List available RPC resources (DEPRECATED)',
+            'rpc/<name>': '[POST] Make an RPC call into the backend. ' +
+                'Content body should be JSON Array of arguments (DEPRECATED)',
         }], null, 4));
     });
-    api.get('/rpc', (req, res) =>
-        res.send(JSON.stringify(Array.from(rpc.handlers.keys()).map(name => `${name}: [POST]`), null, 4)));
-    api.get('/mods', (req, res) => res.send(JSON.stringify(mods.available, null, 4)));
-    const sp = statsProc;
-    function getAthleteHandler(res, id) {
-        const data = sp.getAthleteData(id);
-        if (!data) {
-            res.status(404);
+    api.get('/athlete/stats/v1/:id', (req, res) => getAthleteHandler(res, req.params.id));
+    api.get('/athlete/laps/v1/:id', (req, res) => getLapsHandler(res, req.params.id));
+    api.get('/athlete/segments/v1/:id', (req, res) => getSegmentsHandler(res, req.params.id));
+    api.get('/athlete/streams/v1/:id', (req, res) => getStreamsHandler(res, req.params.id));
+    api.get('/nearby/v1', (req, res) =>
+        res.send(sp._mostRecentNearby ? jsonCache(sp._mostRecentNearby) : '[]'));
+    api.get('/groups/v1', (req, res) =>
+        res.send(sp._mostRecentGroups ? jsonCache(sp._mostRecentGroups) : '[]'));
+    api.post('/rpc/v1/:name', async (req, res) => {
+        try {
+            const replyEnvelope = await rpc.invoke.call(null, req.params.name, ...req.body);
+            if (!replyEnvelope.success) {
+                res.status(400);
+            }
+            res.send(replyEnvelope);
+        } catch(e) {
+            res.status(500);
+            res.json({
+                error: "internal error",
+                message: e.message,
+            });
         }
-        res.json(data);
-    }
+    });
+    api.get('/rpc/v1', (req, res) =>
+        res.send(JSON.stringify(Array.from(rpc.handlers.keys()).map(name => `${name}: [POST]`), null, 4)));
+    api.get('/mods/v1', (req, res) => res.send(JSON.stringify(mods.available, null, 4)));
+
+    // DEPRECATED...
     api.post('/rpc/:name', async (req, res) => {
         try {
             const replyEnvelope = await rpc.invoke.call(null, req.params.name, ...req.body);
@@ -256,14 +302,16 @@ async function _start({ip, port, rpcSources, statsProc}) {
             });
         }
     });
-    api.get('/athletes/self', (req, res) => getAthleteHandler(res, sp.athleteId));
-    api.get('/athletes/watching', (req, res) => getAthleteHandler(res, sp.watching));
-    api.get('/athletes/:id', (req, res) => getAthleteHandler(res, Number(req.params.id)));
+    api.get('/rpc', (req, res) =>
+        res.send(JSON.stringify(Array.from(rpc.handlers.keys()).map(name => `${name}: [POST]`), null, 4)));
+    api.get('/athletes/:id', (req, res) => getAthleteHandler(res, req.params.id));
     api.get('/athletes', (req, res) => res.send(sp.getAthletesData()));
     api.get('/nearby', (req, res) =>
         res.send(sp._mostRecentNearby ? jsonCache(sp._mostRecentNearby) : '[]'));
     api.get('/groups', (req, res) =>
         res.send(sp._mostRecentGroups ? jsonCache(sp._mostRecentGroups) : '[]'));
+    // END DEPRECATED
+
     api.use((e, req, res, next) => {
         res.status(500);
         res.json({
