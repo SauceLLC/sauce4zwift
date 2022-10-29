@@ -56,7 +56,7 @@ enum WorldUpdatePayloadType {
     _flag = 106;
     _broadcastRideLeaderAction = 108;
     groupEventUserRegistered = 109;
-    _notableMoment = 110;
+    notableMoment = 110;
     handleLateJoinRequest = 111;
     _handleRouteHashRequest = 112;
     _fenceStats = 113;

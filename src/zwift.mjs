@@ -108,8 +108,16 @@ function decodeGroupEventUserRegistered(buf) {
     };
 }
 
+
+function decodeNotableMoment(buf) {
+    console.warn("Figure this out (notable momment):", buf.toString('hex'));
+    return {};
+}
+
+
 const binaryWorldUpdatePayloads = {
     groupEventUserRegistered: decodeGroupEventUserRegistered,
+    notableMoment: decodeNotableMoment,
 };
 
 
