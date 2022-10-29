@@ -226,12 +226,12 @@ function buildLayout() {
             mapping,
             fields: [{
                 id: 'time-lap',
-                value: x => fmtDur(x.laps && x.laps.at(-1).elapsed),
+                value: x => fmtDur(x.laps && x.laps.at(-1).elapsed || 0),
                 key: 'Lap Time',
             }, {
                 id: 'time-elapsed',
-                value: x => fmtDur(x.stats && x.stats.elapsed),
-                key: 'Time',
+                value: x => fmtDur(x.stats && x.stats.elapsed || 0),
+                key: 'Elapsed',
             }, {
                 id: 'rideons',
                 value: x => H.number(x.state && x.state.rideons),
@@ -450,9 +450,14 @@ function buildLayout() {
                 value: x => fmtElevation(x.state && x.state.climbing),
                 key: 'Climbed',
             }, {
+                id: 'draft-cur',
+                value: x => fmtPct(x.state && x.state.draft),
+                key: 'Draft',
+
+            }, {
                 // XXX after a release or two with the id system move this to the top
                 id: 'time-session',
-                value: x => fmtDur(x.state && x.state.time),
+                value: x => fmtDur(x.state && x.state.time || 0),
                 key: 'Session',
             }, {
                 // XXX after a release or two with the id system move this to the top
@@ -498,7 +503,7 @@ async function renderWindowsPanel() {
         mGroups.get(m.groupTitle).push(m);
     }
     el.querySelector('.add-new select').innerHTML = Array.from(mGroups.entries()).map(([title, ms]) =>
-        `<optgroup label="${common.sanitizeAttr(common.stripHTML(title)) || 'Main'}">${ms.map(x =>
+        `<optgroup label="${common.sanitizeAttr(common.stripHTML(title || 'Main'))}">${ms.map(x =>
             `<option title="${common.sanitizeAttr(common.stripHTML(x.prettyDesc))}"
                      value="${x.type}">${common.stripHTML(x.prettyName)}</option>`)}</optgroup>`
     ).join('');
