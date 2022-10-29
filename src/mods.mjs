@@ -61,7 +61,22 @@ const manifestSchema = {
 
 export function init() {
     available.length = 0;
-    const modRoot = fs.realpathSync(path.join(electron.app.getPath('documents'), 'SauceMods'));
+    try {
+        _init();
+    } catch(e) {
+        console.error("Mods init error:", e);
+    }
+}
+
+
+function _init() {
+    let modRoot = path.join(electron.app.getPath('documents'), 'SauceMods');
+    try {
+        modRoot = fs.realpathSync(modRoot);
+    } catch(e) {
+        console.warn('No mods found in:', modRoot);
+        return;
+    }
     if (fs.existsSync(modRoot) && fs.statSync(modRoot).isDirectory()) {
         for (const x of fs.readdirSync(modRoot)) {
             const modPath = fs.realpathSync(path.join(modRoot, x));
@@ -92,7 +107,6 @@ export function init() {
             console.info("Found mod:", x.manifest.name, x.manifest.version, `(${x.dir})`);
         }
     }
-    return available;
 }
 
 
