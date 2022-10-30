@@ -174,8 +174,82 @@ a {
     overflow: auto;
     overflow: overlay;
 
+    &.tabbed {
+        margin-top: 0.2em;
+        padding: 0 0 0.5em 0;
+        display: flex;
+        flex-direction: column;
+
+        header.tabs {
+            display: flex;
+            flex: 1 1 100%;
+
+            .tab {
+                font-size: 1.2em;
+                font-weight: 500;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-variant: all-small-caps;
+                flex: 1 0 0;
+                padding: 0.2em;
+                transition: color 200ms, background 200ms;
+                border-color: color.shade(fg, 10%, 0.6);
+                border-width: 0.1rem;
+                border-style: solid;
+                background-clip: padding-box;
+
+                &:not(.active) {
+                    cursor: pointer;
+                    color: color.shade(fg, 15%);
+                    border-left-style: none;
+                    border-right-style: none;
+                    border-top-color: transparent;
+                    background-image: linear-gradient(to top, color.shade(fg, 0%, 0.1), transparent);
+
+                    &:hover {
+                        color: color.get(fg);
+                        background-color: color.shade(fg, 0%, 0.1);
+                    }
+                }
+
+                &.active {
+                    border-bottom-color: transparent;
+                    border-top-left-radius: 0.32em;
+                    border-top-right-radius: 0.32em;
+                    background-image: linear-gradient(to bottom, color.shade(fg, 100%, 0.3), transparent);
+
+                    &:first-child {
+                        border-left-color: transparent;
+                        border-top-left-radius: 0;
+                    }
+
+                    &:last-child {
+                        border-right-color: transparent;
+                        border-top-right-radius: 0;
+                    }
+                }
+            }
+        }
+
+        > .tab {
+            padding: 0.5em 1.2em;
+            border-bottom: none !important;
+
+            &:not(.active) {
+                display: none;
+            }
+        }
+    }
+
     > .section {
         padding: 0.5em;
+
+        .desc {
+            padding: 1em 0 1.5em;
+            color: color.shade(fg, 5%);
+            font-weight: 600;
+        }
 
         &:not(:last-child) {
             border-bottom: 1px solid #fff2;
@@ -231,46 +305,88 @@ input[type="number"] {
     }
 }
 
-form label {
-    display: flex;
-    align-items: center;
-    margin-bottom: 0.4em;
+form {
+    label {
+        display: flex;
+        align-items: center;
+        margin-bottom: 0.4em;
+        
+        &.disabled {
+            opacity: 0.4;
+        }
 
-    &.disabled {
-        opacity: 0.4;
+        &.indent key {
+            padding-left: 0.8em;
+        }
+
+        &.edited .restart-required::after {
+            content: 'Restart Required';
+            font-variant: all-small-caps;
+            display: inline-block;
+            font-size: 0.9em;
+            margin-left: 0.2em;
+            margin-right: 0.2em;
+            color: #e5d82b;
+            font-weight: 500;
+        }
+
+        &.edited[warning] {
+            flex-wrap: wrap;
+
+            &::after {
+                content: attr(warning);
+                white-space: pre-wrap;
+                display: block;
+                margin: 0.2em 0.5em;
+                padding: 0.5em 0.8em;
+                font-size: 0.9em;
+                background-color: color.shade(fg, 100%, 0.3);
+                border-radius: 0.28em;
+                color: white;
+                flex: 1 1 100%;
+            }
+        }
+
+        key {
+            display: inline-block;
+            margin-right: 0.4em;
+            min-width: 16ch;
+
+            + input[type="checkbox"] {
+                margin-left: 1px;
+            }
+            + span {
+                margin-left: 2px;
+            }
+
+            img.fa {
+                filter: invert(0.9);
+                width: 1em;
+            }
+        }
+
+        input, select {
+            margin-right: 0.2em;
+        }
     }
 
-    &.edited .restart-required::after {
-        content: 'Restart Required';
-        font-variant: all-small-caps;
-        display: inline-block;
+    warning {
+        display: block;
+        font-style: oblique;
         font-size: 0.9em;
-        margin-left: 0.2em;
-        margin-right: 0.2em;
-        color: #e5d82b;
-        font-weight: 500;
-    }
+        font-weight: 300;
+        color: yellow;
+        opacity: 1;
+        transition: opacity 2s;
+        transition-delay: 3s;
 
-    key {
-        display: inline-block;
-        margin-right: 0.4em;
-        min-width: 16ch;
-
-        + input[type="checkbox"] {
-            margin-left: 1px;
-        }
-        + span {
-            margin-left: 2px;
+        &:not([disabled]) {
+            padding: 0 1em 0.5em 1em;
+            opacity: 0;
         }
 
-        img.fa {
-            filter: invert(0.9);
-            width: 1em;
+        &[disabled] {
         }
-    }
-
-    input, select {
-        margin-right: 0.2em;
     }
 }
 
@@ -522,6 +638,18 @@ a.std.button {
                 --bg-from-color: #{color.shade(primary, 5%)};
                 --bg-to-color: #{color.shade(primary, -5%)};
             }
+        }
+
+        &.small {
+            font-size: 0.88em;
+            padding-left: 0.5rem;
+            padding-right: 0.5rem;
+        }
+
+        &.xs {
+            font-size: 0.80em;
+            padding-left: 0.5rem;
+            padding-right: 0.5rem;
         }
 
         &.large {

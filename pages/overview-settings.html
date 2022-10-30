@@ -28,64 +28,116 @@
                 </div>
             </header>
         </div>
-        <div id="settings">
-            <form class="app-settings section">
-                <div class="title">App Settings</div>
+        <div id="settings" class="tabbed">
+            <header class="tabs">
+                <div class="title tab active">App / General</div>
+                <div class="title tab">Window Settings</div>
+                <div class="title tab">Active Windows</div>
+            </header>
+            <form class="app-settings section tab active">
+
+                <div class="title">About:</div>
+
                 <label>
                     <key>Version:</key>
                     <span class="display-field" name="version"></span>
-                </label>
-                <label title="Access Sauce for Zwift from any browser on your network">
-                    <key>Enable Web Server:</key>
-                    <input type="checkbox" name="webServerEnabled"/>
-                    <span class="restart-required"></span>
-                </label>
-                <label>
-                    <key>Web Server Port:</key>
-                    <input data-depends-on="webServerEnabled" type="number" size="5"
-                           name="webServerPort"/>
-                    <span class="restart-required"></span>
                 </label>
                 <label>
                     <key>Web Server URL:</key>
                     <a href external target="_blank" class="display-field" name="webServerURL"
                        data-depends-on="webServerEnabled"></a>
                 </label>
-                <label title="Game Connection allows Sauce to perform optional functions like switching the athlete being watched.
+                <label class="login" title="This should be the account you use for the real Zwift game">
+                    <key>Main Zwift Login:</key>
+                    <span class="display-field" name="mainZwiftLogin">-</span>
+                    <div title="You will be asked to login again on restart."
+                         class="std button xs" data-action="logout-zwift" data-id="main">Logout</div>
+                    <span class="restart-required"></span>
+                </label>
+                <label class="login" title="This should be a UNIQUE second account only used by Sauce">
+                    <key>Monitor Zwift Login:</key>
+                    <span class="display-field" name="monitorZwiftLogin">-</span>
+                    <div title="You will be asked to login again on restart."
+                         class="std button xs" data-action="logout-zwift" data-id="monitor">Logout</div>
+                    <span class="restart-required"></span>
+                </label>
 
-NOTE: Game Connection uses the Companion App protocol which only supports a single connection.  If you require use of the Zwift Companion App DO NOT enable this feature.">
+                <hr/>
+
+                <div class="title">General:</div>
+
+                <label title="Access Sauce for Zwift from any browser on your network">
+                    <key>Web Server:</key>
+                    <input type="checkbox" name="webServerEnabled"/>
+                    <span class="restart-required"></span>
+                </label>
+                <label class="indent">
+                    <key>Port:</key>
+                    <input data-depends-on="webServerEnabled" type="number" size="5"
+                           name="webServerPort"/>
+                    <span class="restart-required"></span>
+                </label>
+                <label title="Game Connection allows Sauce to perform optional functions like switching the athlete being watched."
+                       warning="CAUTION: Game Connection uses the Companion App protocol which only supports a single connection.
+
+If you require the Zwift Companion App's Game mode, DO NOT enable this feature.">
                     <key>Game Connection:</key>
                     <input type="checkbox" name="gameConnectionEnabled"/>
                     <span class="restart-required"></span>
                     <span class="display-field" name="gameConnectionStatus"></span>
                 </label>
-                <label>
-                    <key>Main Zwift Login:</key>
-                    <span class="display-field" name="mainZwiftLogin">-</span>
-                    <div class="std button" title="Clear stored info for this account.  You will be prompted for a new login."
-                         data-action="logout-zwift" data-id="main">Logout</div>
-                    <span class="restart-required"></span>
-                </label>
-                <label>
-                    <key>Monitor Zwift Login:</key>
-                    <span class="display-field" name="monitorZwiftLogin">-</span>
-                    <div class="std button" title="Clear stored info for this account.  You will be prompted for a new login."
-                         data-action="logout-zwift" data-id="monitor">Logout</div>
-                    <span class="restart-required"></span>
-                </label>
-             </form>
 
-            <form class="settings section">
-                <div class="title">Window Settings</div>
-                <label title="When no data is detected automatically hide windows"
-                       class="electron-only">
-                    <key>Auto hide windows:</key>
-                    <input type="checkbox" name="autoHideWindows"/>
+                <hr/>
+
+                <div class="title">Stats:</div>
+
+                <label title="Automatically start and stop a lap for events">
+                    <key>Auto lap events:</key>
+                    <input type="checkbox" name="autoLapEvents" data-depends-on="!autoResetEvents"/>
+                    <span class="restart-required"></span>
                 </label>
-                <label>
-                    <key>Imperial units:</key>
-                    <input type="checkbox" name="/imperialUnits"/>
+                <label title="Automatically reset data when an event starts and trigger a lap on end">
+                    <key>Auto reset for events:</key>
+                    <input type="checkbox" name="autoResetEvents" data-depends-on="!autoLapEvents"/>
+                    <span class="restart-required"></span>
                 </label>
+                <label title="Automatically trigger laps at a time or distance marker">
+                    <key>Auto lap:</key>
+                    <input type="checkbox" name="autoLap"/>
+                    <span class="restart-required"></span>
+                </label>
+                <label class="indent">
+                    <key>Mode:</key>
+                    <select name="autoLapMetric" data-depends-on="autoLap">
+                        <option value="distance">Distance</option>
+                        <option value="time">Time</option>
+                    </select>
+                    <span class="restart-required"></span>
+                </label>
+                <label class="indent">
+                    <key>Interval:</key>
+                    <input type="number" min="0" name="autoLapInterval" data-depends-on="autoLap"/>
+                    <span class="lap-units" name="autoLapInterval">seconds</span>
+                    <span class="restart-required"></span>
+                </label>
+ 
+                <hr class="electron-only"/>
+
+                <div class="section electron-only">
+                    <div class="title">Maintenance:</div>
+                    <div class="action-buttons">
+                        <div class="std button danger" title="Reset window positions and configuration to defaults"
+                             data-action="reset-state">Reset to defaults</div>
+                        <div class="std button" title="Clear the athlete cache database"
+                             data-action="reset-athletes-db">Clear Athletes Cache</div>
+                        <div class="std button" data-action="restart">Restart</div>
+                    </div>
+                </div>
+            </form>
+
+            <form class="settings section tab">
+                <div class="title">All windows:</div>
+
                 <label title="The default theme for all windows">
                     <key>Default Theme:</key>
                     <select name="/theme">
@@ -101,8 +153,19 @@ NOTE: Game Connection uses the Companion App protocol which only supports a sing
                         <option value="transparent-dark">Transparent - Dark</option>
                     </select>
                 </label>
+                <label>
+                    <key>Imperial units:</key>
+                    <input type="checkbox" name="/imperialUnits"/>
+                </label>
+                <label title="When no data is detected automatically hide windows"
+                       class="electron-only">
+                    <key>Auto hide windows:</key>
+                    <input type="checkbox" name="autoHideWindows"/>
+                </label>
 
                 <hr/>
+
+                <div class="title">Overview window:</div>
 
                 <label>
                     <key>Left fields:</key>
@@ -139,28 +202,17 @@ NOTE: Game Connection uses the Companion App protocol which only supports a sing
 
             </form>
 
-            <div id="windows" class="section">
-                <div class="title">Active Windows</div>
+            <div id="windows" class="section tab">
+                <div class="add-new">
+                    <div class="title">Add a new window:</div>
+                    <select name="type"></select>
+                    <input type="button" value="Create"/>
+                </div>
+                <div class="title">Manage existing windows:</div>
                 <table class="active-windows">
                     <thead><tr><th>Name</th><th>State</th><th></th><th></th></tr></thead>
                     <tbody></tbody>
                 </table>
-                <div class="add-new">
-                    <div class="title">Add a new window</div>
-                    <select name="type"></select>
-                    <input type="button" value="Create"/>
-                </div>
-            </div>
-
-            <div class="section electron-only">
-                <div class="title">Maintenance</div>
-                <div class="action-buttons">
-                    <div class="std button danger" title="Reset window positions and configuration to defaults"
-                         data-action="reset-state">Reset to defaults</div>
-                    <div class="std button" title="Clear the athlete cache database"
-                         data-action="reset-athletes-db">Clear Athletes Cache</div>
-                    <div class="std button" data-action="restart">Restart</div>
-                </div>
             </div>
         </div>
 

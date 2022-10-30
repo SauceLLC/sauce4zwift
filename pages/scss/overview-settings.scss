@@ -3,6 +3,10 @@
 #windows {
     font-size: 16px;
 
+    .add-new {
+        margin-bottom: 1em;
+    }
+
     table {
         width: 100%;
         border-radius: 0.28em;
@@ -241,6 +245,19 @@ img.great-and-powerful {
 
         &::after {
             content: 'That is all.';
+        }
+    }
+}
+
+form {
+    label.login {
+        max-width: 100%;
+        overflow: hidden;
+
+        .display-field {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex: 0 1 auto;
         }
     }
 }

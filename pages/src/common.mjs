@@ -1,6 +1,6 @@
 /* global Sentry, electron */
-
 import {sleep as _sleep} from '../../shared/sauce/base.mjs';
+import * as locale from '../../shared/sauce/locale.mjs';
 import * as report from '../../shared/report.mjs';
 import './sentry.js';
 
@@ -37,17 +37,9 @@ export const worldToNames = Object.fromEntries(worldCourseDescs.map(x => [x.worl
 export const identToWorldId = Object.fromEntries(worldCourseDescs.map(x => [x.ident, x.worldId]));
 
 
-
-function makeRPCError({name, message, stack}) {
-    const e = new Error(`${name}: ${message}`);
-    e.stack = stack;
-    return e;
-}
-
-
 let rpcCall;
 let windowID;
-
+export let imperialUnits;
 export let subscribe;
 export let unsubscribe;
 
@@ -110,7 +102,8 @@ if (window.isElectron) {
         }
     });
 } else {
-    windowID = new URLSearchParams(location.search).get('id') || 'browser-def-id';
+    const q = new URLSearchParams(location.search);
+    windowID = q.get('windowId') || 'browser-def-id';
     const respHandlers = new Map();
     const subs = [];
     let uidInc = 1;
@@ -238,6 +231,13 @@ if (window.isElectron) {
 }
 
 
+function makeRPCError({name, message, stack}) {
+    const e = new Error(`${name}: ${message}`);
+    e.stack = stack;
+    return e;
+}
+
+
 export function addOpenSettingsParam(key, value) {
     for (const el of document.querySelectorAll('a.open-settings')) {
         const url = new URL(el.href);
@@ -314,6 +314,21 @@ export function initInteractionListeners() {
     }
     for (const el of document.querySelectorAll('.button[data-ext-url]')) {
         el.addEventListener('click', ev => window.open(el.dataset.extUrl, '_blank', 'popup,width=999,height=333'));
+    }
+    for (const el of document.querySelectorAll('.tabbed header.tabs')) {
+        const tabs = Array.from(el.querySelectorAll(':scope > .tab'));
+        const sections = Array.from(el.closest('.tabbed').querySelectorAll(':scope > .tab'));
+        el.addEventListener('click', ev => {
+            const tab = ev.target.closest('.tab');
+            if (!tab) {
+                return;
+            }
+            for (let i = 0; i < tabs.length; i++) {
+                const active = tabs[i] === tab;
+                tabs[i].classList.toggle('active', active);
+                sections[i].classList.toggle('active', active);
+            }
+        });
     }
 }
 
@@ -687,6 +702,8 @@ export class SettingsStore extends EventTarget {
             changeEv.data = {changed};
             this.dispatchEvent(changeEv);
         });
+        imperialUnits = this.get('/imperialUnits');
+        locale.setImperial(imperialUnits);
     }
 
     setDefault(value) {
@@ -772,7 +789,15 @@ function bindFormData(selector, storageIface, options={}) {
                 for (const x of el.dependants) {
                     const d = x.dataset.dependsOn;
                     x.disabled = d.startsWith('!') ? el.checked : !el.checked;
-                    x.closest('label').classList.toggle('disabled', x.disabled);
+                    if (x.disabled) {
+                        x.setAttribute('disabled', 'disabled');
+                    } else {
+                        x.removeAttribute('disabled');
+                    }
+                    const parentLabel = x.closest('label');
+                    if (parentLabel) {
+                        parentLabel.classList.toggle('disabled', x.disabled);
+                    }
                 }
             }
             await storageIface.set(el.name, val);
@@ -818,7 +843,15 @@ function bindFormData(selector, storageIface, options={}) {
             const dependsOn = el.dataset.dependsOn;
             const depEl = form.querySelector(`[name="${dependsOn.replace(/^!/, '')}"]`);
             el.disabled = dependsOn.startsWith('!') ? depEl.checked : !depEl.checked;
-            el.closest('label').classList.toggle('disabled', el.disabled);
+            if (el.disabled) {
+                el.setAttribute('disabled', 'disabled');
+            } else {
+                el.removeAttribute('disabled');
+            }
+            const parentLabel = el.closest('label');
+            if (parentLabel) {
+                parentLabel.classList.toggle('disabled', el.disabled);
+            }
             if (!depEl.dependants) {
                 depEl.dependants = new Set();
             }
@@ -1010,6 +1043,37 @@ export function themeInit(settingsStore) {
         const key = ev.data.key;
         if (key === 'themeOverride' || key === '/theme') {
             doc.dataset.theme = settingsStore.get('themeOverride') || settingsStore.get('/theme') || '';
+        }
+    });
+}
+
+
+export function initExpanderTable(table, expandCallback, cleanupCallback) {
+    let active;
+    table.querySelector('tbody').addEventListener('click', ev => {
+        if (ev.target.closest('a')) {
+            return;
+        }
+        const row = ev.target.closest('tr');
+        if (!row || row.closest('table') !== table) {
+            return;
+        }
+        if (row.classList.contains('summary')) {
+            if (active) {
+                if (cleanupCallback) {
+                    cleanupCallback(...active);
+                }
+                active = null;
+            }
+            const shouldCollapse = row.classList.contains('expanded');
+            table.querySelectorAll(':scope > tbody > tr.expanded').forEach(x => x.classList.remove('expanded'));
+            const el = row.nextElementSibling.querySelector('.container');
+            el.innerHTML = '';
+            if (!shouldCollapse) {
+                row.classList.add('expanded');
+                expandCallback(el, row);
+                active = [el, row];
+            }
         }
     });
 }

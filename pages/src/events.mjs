@@ -9,37 +9,6 @@ let imperial = common.settingsStore.get('/imperialUnits');
 L.setImperial(imperial);
 
 
-function initExpanderTable(table, expandCallback, cleanupCallback) {
-    let active;
-    table.querySelector('tbody').addEventListener('click', ev => {
-        if (ev.target.closest('a')) {
-            return;
-        }
-        const row = ev.target.closest('tr');
-        if (!row || row.closest('table') !== table) {
-            return;
-        }
-        if (row.classList.contains('summary')) {
-            if (active) {
-                if (cleanupCallback) {
-                    cleanupCallback(...active);
-                }
-                active = null;
-            }
-            const shouldCollapse = row.classList.contains('expanded');
-            table.querySelectorAll(':scope > tbody > tr.expanded').forEach(x => x.classList.remove('expanded'));
-            const el = row.nextElementSibling.querySelector('.container');
-            el.innerHTML = '';
-            if (!shouldCollapse) {
-                row.classList.add('expanded');
-                expandCallback(el, row);
-                active = [el, row];
-            }
-        }
-    });
-}
-
-
 const _fetchingRoutes = new Map();
 async function getRoute(id) {
     if (!_fetchingRoutes.has(id)) {
@@ -85,7 +54,7 @@ export async function main() {
     const profileTpl = await sauce.template.getTemplate(`templates/profile.html.tpl`);
     const athletes = new Map();
     const cleanupCallbacks = new Set();
-    initExpanderTable(contentEl.querySelector('table'), async (eventDetailsEl, eventSummaryEl) => {
+    common.initExpanderTable(contentEl.querySelector('table'), async (eventDetailsEl, eventSummaryEl) => {
         const event = events.get(Number(eventSummaryEl.dataset.eventId));
         if (!event.routeId) {
             debugger;
@@ -111,7 +80,7 @@ export async function main() {
         const {nations, flags} = await pendingNationInit;
         for (const t of eventDetailsEl.querySelectorAll('table.expandable')) {
             let cleanup;
-            initExpanderTable(t, async (el, entrantSummaryEl) => {
+            common.initExpanderTable(t, async (el, entrantSummaryEl) => {
                 const athleteId = Number(entrantSummaryEl.dataset.id);
                 cleanup = await profileRender(el, profileTpl, {
                     athleteId,
