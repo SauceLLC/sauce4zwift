@@ -127,14 +127,16 @@ class DataCollector {
                 totV += this._bufferedValues[i];
             }
             // XXX check perf and maybe replace with 1 second idealized version as micro opt
-            // XXX2 sometimes this will be the same ts and the prev entry.  If there is a gap and we only have a few datapoints
-            // then we will round down. Maybe we can always round up?  More testing!
+            // XXX2 sometimes this will be the same ts and the prev entry.  If there is a gap
+            // and we only have a few datapoints then we will round down. Maybe we can always
+            // round up?  More testing!
             const adjTime = Math.round(this._bufferedTimes[this._bufferedLen - 1] / idealGap) * idealGap;
             const adjValue = Math.round(totV / this._bufferedLen);
             this._add(adjTime, adjValue);
             this._bufferedTimes[0] = time;
             this._bufferedValues[0] = value;
             this._bufferedLen = 1;
+            return true;
         }
     }
 
@@ -384,25 +386,26 @@ export class StatsProcessor extends events.EventEmitter {
         return Array.from(this._athleteData.values()).map(this._formatAthleteEntry.bind(this));
     }
 
+    _realAthleteId(ident) {
+        return ident === 'self' ?
+            this.athleteId :
+            ident === 'watching' ?
+                this.watching : Number(ident);
+    }
+
     getAthleteData(id) {
-        const ad = this._athleteData.get(id);
+        const ad = this._athleteData.get(this._realAthleteId(id));
         return ad ? this._formatAthleteEntry(ad) : null;
     }
 
     getAthleteLaps(id) {
-        const ad = this._athleteData.get(id);
-        if (!ad) {
-            return null;
-        }
-        return this._getAthleteLaps(ad.laps, ad);
+        const ad = this._athleteData.get(this._realAthleteId(id));
+        return ad ? this._getAthleteLaps(ad.laps, ad) : null;
     }
 
     getAthleteSegments(id) {
-        const ad = this._athleteData.get(id);
-        if (!ad) {
-            return null;
-        }
-        return this._getAthleteLaps(ad.segments, ad);
+        const ad = this._athleteData.get(this._realAthleteId(id));
+        return ad ? this._getAthleteLaps(ad.segments, ad) : null;
     }
 
     _getAthleteLaps(lapish, ad) {
@@ -411,25 +414,31 @@ export class StatsProcessor extends events.EventEmitter {
             // XXX refactor this into some func or into loadAthlete
             athlete = {...athlete, ftp: null};
         }
+        const now = monotonic();
         return lapish.map(x => ({
             stats: this._getCollectorStats(x, ad.wtOffset, athlete, ad.privacy),
             startIndex: x.power.roll._offt,
             endIndex: x.power.roll._length - 1,
+            start: x.start,
+            end: x.end,
+            elapsed: ((x.end || now) - x.start) / 1000,
         }));
     }
 
     getAthleteStreams(id) {
-        const ad = this._athleteData.get(id);
+        const ad = this._athleteData.get(this._realAthleteId(id));
         if (!ad) {
             return null;
         }
         const cs = ad.collectors;
         return {
+            time: cs.power.roll.times(),
             power: cs.power.roll.values(),
             speed: cs.speed.roll.values(),
             hr: cs.hr.roll.values(),
             cadence: cs.cadence.roll.values(),
             draft: cs.draft.roll.values(),
+            ...ad.streams,
         };
     }
 
@@ -946,6 +955,10 @@ export class StatsProcessor extends events.EventEmitter {
             athleteId,
             privacy: {},
             mostRecentState: null,
+            streams: {
+                distance: [],
+                coordinates: [],
+            },
             roadHistory: {
                 sig: null,
                 prevSig: null,
@@ -974,6 +987,11 @@ export class StatsProcessor extends events.EventEmitter {
                 ...this.cloneDataCollectors(collectors, {reset: true})
             }],
         });
+        ad.activeSegments.clear();
+        ad.segments.length = 0;
+        for (const x of Object.values(ad.streams)) {
+            x.length = 0;
+        }
     }
 
     triggerEventStart(ad, state) {
@@ -1087,11 +1105,15 @@ export class StatsProcessor extends events.EventEmitter {
             }
         }
         const time = (state.worldTime - ad.wtOffset) / 1000;
-        ad.collectors.power.add(time, state.power);
+        const bufFlushed = ad.collectors.power.add(time, state.power);
         ad.collectors.speed.add(time, state.speed);
         ad.collectors.hr.add(time, state.heartrate);
         ad.collectors.draft.add(time, state.draft);
         ad.collectors.cadence.add(time, state.cadence);
+        if (bufFlushed) {
+            ad.streams.distance.push(state.distance);
+            ad.streams.coordinates.push({x: state.x, y: state.y, z: state.altitude});
+        }
         const curLap = ad.laps[ad.laps.length - 1];
         curLap.power.resize(time);
         curLap.speed.resize(time);
