@@ -201,9 +201,9 @@ async function _start({ip, port, rpcSources, statsProc}) {
         });
     });
     const sp = statsProc;
-    function getAthleteHandler(res, id) {
+    function getStatsHandler(res, id) {
         id = id === 'self' ? sp.athleteId : id === 'watching' ? sp.watching : Number(id);
-        const data = sp.getAthleteData(id);
+        const data = sp.getAthleteStats(id);
         data ? res.json(data) : res.status(404).json(null);
     }
     function getLapsHandler(res, id) {
@@ -221,6 +221,22 @@ async function _start({ip, port, rpcSources, statsProc}) {
         const data = sp.getAthleteStreams(id);
         data ? res.json(data) : res.status(404).json(null);
     }
+    const apiDirectory = JSON.stringify([{
+        'athlete/stats/v1/<id>|self|watching': '[GET] Current stats for an athlete in the game',
+        'athlete/laps/v1/<id>|self|watching': '[GET] Lap data for an athlete',
+        'athlete/segments/v1/<id>|self|watching': '[GET] Segments data for an athlete',
+        'athlete/streams/v1/<id>|self|watching': '[GET] Stream data (power, cadence, etc..) for an athlete',
+        'nearby/v1': '[GET] Information for all nearby athletes',
+        'groups/v1': '[GET] Information for all nearby groups',
+        'rpc/v1': '[GET] List available RPC resources',
+        'rpc/v1/<name>': '[POST] Make an RPC call into the backend. ' +
+            'Content body should be JSON Array of arguments',
+        'rpc/v1/<name>/[<arg1>, <arg2>, ...<argN>]': '[GET] Simple mode RPC call into the backend. ' +
+            'CAUTION: Types are inferred based on value.  Values of null, undefined, true, false, NaN, ' +
+            'Infinity and -Infinity are converted to their native JavaScript counterpart.  Number-like ' +
+            'values are converted to the native number type.  For advanced call patterns use the POST method.',
+        'mods/v1': '[GET] List available mods (i.e. plugins)',
+    }], null, 4);
     const api = express.Router();
     api.use(express.json());
     api.use((req, res, next) => {
@@ -237,29 +253,8 @@ async function _start({ip, port, rpcSources, statsProc}) {
         });
         next();
     });
-    api.get('/', (req, res) => {
-        res.send(JSON.stringify([{
-            'athlete/stats/v1/<id>|self|watching': '[GET] Current stats for an athlete in the game',
-            'athlete/laps/v1/<id>|self|watching': '[GET] Lap data for an athlete',
-            'athlete/segments/v1/<id>|self|watching': '[GET] Segments data for an athlete',
-            'athlete/streams/v1/<id>|self|watching': '[GET] Stream data (power, cadence, etc..) for an athlete',
-            'nearby/v1': '[GET] Information for all nearby athletes',
-            'groups/v1': '[GET] Information for all nearby groups',
-            'rpc/v1': '[GET] List available RPC resources',
-            'rpc/v1/<name>': '[POST] Make an RPC call into the backend. ' +
-                'Content body should be JSON Array of arguments',
-            'mods/v1': '[GET] List available mods (i.e. plugins)',
-            // DEPRECATED...
-            'athletes': '[GET] Information for all active athletes (DEPRECATED)',
-            'athletes/<id>|self|watching': '[GET] Information for a specific athlete (DEPRECATED)',
-            'nearby': '[GET] Information for all nearby athletes (DEPRECATED)',
-            'groups': '[GET] Information for all nearby groups (DEPRECATED)',
-            'rpc': '[GET] List available RPC resources (DEPRECATED)',
-            'rpc/<name>': '[POST] Make an RPC call into the backend. ' +
-                'Content body should be JSON Array of arguments (DEPRECATED)',
-        }], null, 4));
-    });
-    api.get('/athlete/stats/v1/:id', (req, res) => getAthleteHandler(res, req.params.id));
+    api.get('/', (req, res) => res.send(apiDirectory));
+    api.get('/athlete/stats/v1/:id', (req, res) => getStatsHandler(res, req.params.id));
     api.get('/athlete/laps/v1/:id', (req, res) => getLapsHandler(res, req.params.id));
     api.get('/athlete/segments/v1/:id', (req, res) => getSegmentsHandler(res, req.params.id));
     api.get('/athlete/streams/v1/:id', (req, res) => getStreamsHandler(res, req.params.id));
@@ -267,6 +262,43 @@ async function _start({ip, port, rpcSources, statsProc}) {
         res.send(sp._mostRecentNearby ? jsonCache(sp._mostRecentNearby) : '[]'));
     api.get('/groups/v1', (req, res) =>
         res.send(sp._mostRecentGroups ? jsonCache(sp._mostRecentGroups) : '[]'));
+    api.get('/rpc/v1/:name*', async (req, res) => {
+        const natives = {
+            'null': null,
+            'undefined': undefined,
+            'true': true,
+            'false': false,
+            'NaN': NaN,
+            'Infinity': Infinity,
+            '-Infinity': -Infinity,
+        };
+        try {
+            const args = req.params[0].split('/').slice(1).map(x => {
+                if (Object.prototype.hasOwnProperty.call(natives, x)) {
+                    return natives[x];
+                } else {
+                    const n = Number(x);
+                    if (!Number.isNaN(n) && n.toString() === x) {
+                        return n;
+                    } else {
+                        return x;
+                    }
+                }
+            });
+            console.log(req.params, args);
+            const replyEnvelope = await rpc.invoke.call(null, req.params.name, ...args);
+            if (!replyEnvelope.success) {
+                res.status(400);
+            }
+            res.send(replyEnvelope);
+        } catch(e) {
+            res.status(500);
+            res.json({
+                error: "internal error",
+                message: e.message,
+            });
+        }
+    });
     api.post('/rpc/v1/:name', async (req, res) => {
         try {
             const replyEnvelope = await rpc.invoke.call(null, req.params.name, ...req.body);
@@ -283,7 +315,7 @@ async function _start({ip, port, rpcSources, statsProc}) {
         }
     });
     api.get('/rpc/v1', (req, res) =>
-        res.send(JSON.stringify(Array.from(rpc.handlers.keys()).map(name => `${name}: [POST]`), null, 4)));
+        res.send(JSON.stringify(Array.from(rpc.handlers.keys()).map(name => `${name}: [POST,GET]`), null, 4)));
     api.get('/mods/v1', (req, res) => res.send(JSON.stringify(mods.available, null, 4)));
 
     // DEPRECATED...
@@ -302,10 +334,7 @@ async function _start({ip, port, rpcSources, statsProc}) {
             });
         }
     });
-    api.get('/rpc', (req, res) =>
-        res.send(JSON.stringify(Array.from(rpc.handlers.keys()).map(name => `${name}: [POST]`), null, 4)));
-    api.get('/athletes/:id', (req, res) => getAthleteHandler(res, req.params.id));
-    api.get('/athletes', (req, res) => res.send(sp.getAthletesData()));
+    api.get('/athletes/:id', (req, res) => getStatsHandler(res, req.params.id));
     api.get('/nearby', (req, res) =>
         res.send(sp._mostRecentNearby ? jsonCache(sp._mostRecentNearby) : '[]'));
     api.get('/groups', (req, res) =>
@@ -319,7 +348,7 @@ async function _start({ip, port, rpcSources, statsProc}) {
             message: e.message,
         });
     });
-    api.all('*', (req, res) => res.status(404).json(null));
+    api.all('*', (req, res) => res.status(404).send(apiDirectory));
     router.use('/api', api);
     if (mods.available) {
         for (const mod of mods.available) {
