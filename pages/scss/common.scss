@@ -92,12 +92,14 @@ html {
         }
     }
 
-    &:not(.settings-mode):not(.settings-page) #titlebar:not(.always-visible),
-    &.settings-mode #hintbar,
-    &:not(:hover) #hintbar {
+    &:not(.settings-mode):not(.settings-page) #titlebar:not(.always-visible) {
         max-height: 0;
         padding-top: 0;
         padding-bottom: 0;
+    }
+
+    &:hover #hintbar {
+        animation: brief-max-height 4s 1s;
     }
 
     &:not(.settings-mode):not(.settings-page) #titlebar:not(.always-visible) header {
@@ -194,18 +196,17 @@ a {
                 flex: 1 0 0;
                 padding: 0.2em;
                 transition: color 200ms, background 200ms;
-                border-color: color.shade(fg, 10%, 0.6);
-                border-width: 0.1rem;
+                border-color: color.shade(fg, 0%, 0.5);
+                border-width: 0.09rem;
                 border-style: solid;
                 background-clip: padding-box;
 
                 &:not(.active) {
                     cursor: pointer;
-                    color: color.shade(fg, 15%);
+                    color: color.shade(fg, 20%, 90%);
                     border-left-style: none;
                     border-right-style: none;
                     border-top-color: transparent;
-                    background-image: linear-gradient(to top, color.shade(fg, 0%, 0.1), transparent);
 
                     &:hover {
                         color: color.get(fg);
@@ -217,7 +218,7 @@ a {
                     border-bottom-color: transparent;
                     border-top-left-radius: 0.32em;
                     border-top-right-radius: 0.32em;
-                    background-image: linear-gradient(to bottom, color.shade(fg, 100%, 0.3), transparent);
+                    background-image: linear-gradient(to bottom, color.shade(fg, 100%, 0.5), transparent 80%);
 
                     &:first-child {
                         border-left-color: transparent;
@@ -388,11 +389,6 @@ form {
         &[disabled] {
         }
     }
-}
-
-/* same size on all windows */
-#hintbar {
-    font-size: 5mm;
 }
 
 .button-bar {
@@ -666,29 +662,48 @@ a.std.button {
     }
 }
 
+@keyframes brief-max-height {
+    from { max-height: 0; }
+    20% { max-height: 2em; }
+    90% { max-height: 2em; }
+    to { max-height: 0; }
+}
+
 #hintbar {
+    $basebarHeight: 1.5mm;
+    font-size: 5mm;
     position: absolute;
     bottom: 0;
     left: 0;
     z-index: 100;
     width: 100%;
-    background-image: linear-gradient(to top,
-        color.shade(bookend, 0%),
-        color.shade(bookend, 7%, 90%) 0.2em,
-        color.shade(bookend, 7%, 80%));
+    pointer-events: none;
     color: color.shade(bookend, 100%);
     overflow: hidden;
-    max-height: 2em;
-    transition: max-height 200ms, padding 200ms;
+    max-height: 0;
     display: flex;
     align-items: center;
     justify-content: center;
     -webkit-user-select: none;
     user-select: none;
+    background-image: linear-gradient(to top,
+        color.shade(bookend, 0%, 90%),
+        color.shade(bookend, 0%, 70%) $basebarHeight,
+        transparent $basebarHeight);
 
     .hint {
-        font-size: 0.72em;
-        padding-bottom: 0.16em;
+        font-size: 0.82em;
+        line-height: 1;
+        padding: 0.2em 1.2em 0.3em;
+        border-top-left-radius: 0.4em;
+        border-top-right-radius: 0.4em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        background-image: linear-gradient(to top,
+            transparent $basebarHeight,
+            color.shade(bookend, 0%, 70%) $basebarHeight,
+            color.shade(bookend, 0%, 90%));
 
         &::after {
             content: 'Right click for controls';
