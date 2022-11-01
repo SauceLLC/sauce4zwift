@@ -251,11 +251,11 @@ export class StatsProcessor extends events.EventEmitter {
         this._followingIds = new Set();
         this._followerIds = new Set();
         const app = getApp();
-        this._resetOnEvent = !!app.getSetting('resetOnEvent') || true; // XXX
-        this._lapOnEvent = !!app.getSetting('lapOnEvent');
-        this._lapOnInterval = !!app.getSetting('lapOnInterval');
-        this._lapIntervalMetric = app.getSetting('lapIntervalMetric');
-        this._lapIntervalValue = app.getSetting('lapIntervalValue');
+        this._autoResetEvents = !!app.getSetting('autoResetEvents');
+        this._autoLapEvents = !!app.getSetting('autoLapEvents');
+        this._autoLap = !!app.getSetting('autoLap');
+        this._autoLapMetric = app.getSetting('autoLapMetric');
+        this._autoLapInterval = app.getSetting('autoLapInterval');
         rpc.register(this.updateAthlete, {scope: this});
         rpc.register(this.startLap, {scope: this});
         rpc.register(this.resetStats, {scope: this});
@@ -887,14 +887,13 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     cloneDataCollectors(collectors, options={}) {
-        return {
-            start: options.reset ? monotonic() : collectors.start,
-            power: collectors.power.clone(options),
-            speed: collectors.speed.clone(options),
-            hr: collectors.hr.clone(options),
-            cadence: collectors.cadence.clone(options),
-            draft: collectors.draft.clone(options),
-        };
+        const types = ['power', 'speed', 'hr', 'cadence', 'draft'];
+        const bucket = {start: options.reset ? monotonic() : collectors.start};
+        for (const x of types) {
+            collectors[x].flushBuffered();
+            bucket[x] = collectors[x].clone(options);
+        }
+        return bucket;
     }
 
     maybeUpdateAthleteFromServer(athleteId) {
@@ -985,25 +984,27 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     triggerEventStart(ad, state) {
-        console.warn("XXX trigger event start for athlete: ", ad, state.time, state);
         ad.eventStartPending = false;
-        if (this._resetOnEvent) {
+        if (this._autoResetEvents) {
+            console.warn("Event start triggering reset for:", ad.athleteId);
             this._resetAthleteData(ad, state.worldTime);
-        } else if (this._lapOnEvent) {
+        } else if (this._autoLapEvents) {
+            console.warn("Event start triggering lap for:", ad.athleteId);
             this.startAthleteLap(ad);
         }
     }
 
     triggerEventEnd(ad, state) {
-        console.warn("XXX trigger event END for athlete: ", ad, state.time, state);
-        if (this._resetOnEvent || this._lapOnEvent) {
+        if (this._autoResetEvents || this._autoLapEvents) {
+            console.warn("Event end triggering lap for:", ad.athleteId);
             this.startAthleteLap(ad);
         }
     }
 
     processState(state) {
         if (!this._athleteData.has(state.athleteId)) {
-            this._athleteData.set(state.athleteId, this._createAthleteData(state.athleteId, state.worldTime));
+            this._athleteData.set(state.athleteId,
+                this._createAthleteData(state.athleteId, state.worldTime));
         }
         const ad = this._athleteData.get(state.athleteId);
         const prevState = ad.mostRecentState;
@@ -1017,7 +1018,9 @@ export class StatsProcessor extends events.EventEmitter {
             }
         }
         const noSubgroup = null;
-        const sg = state.eventSubgroupId && this._recentEventSubgroups.get(state.eventSubgroupId) || noSubgroup;
+        const sg = state.eventSubgroupId &&
+            this._recentEventSubgroups.get(state.eventSubgroupId) ||
+            noSubgroup;
         if (sg) {
             if (!ad.eventSubgroup || sg.id !== ad.eventSubgroup.id) {
                 ad.eventSubgroup = sg;
