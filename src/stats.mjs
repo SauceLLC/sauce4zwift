@@ -118,33 +118,35 @@ class DataCollector {
 
     flushBuffered() {
         if (!this._bufferedLen) {
-            return false;
+            return 0;
         }
         const value = this._bufferedSum / this._bufferedLen;
-        this._add(this._bufferedEnd, this.round ? Math.round(value) : value);
+        const count = this._add(this._bufferedEnd, this.round ? Math.round(value) : value);
         this._bufferedLen = 0;
         this._bufferedSum = 0;
-        return true;
+        return count;
     }
 
     add(time, value) {
-        let flushed = false;
+        let count = 0;
         if (time - this._bufferedStart >= this.roll.idealGap) {
-            flushed = this.flushBuffered();
+            count = this.flushBuffered();
             this._bufferedStart = time;
         }
         this._bufferedEnd = time;
         this._bufferedSum += value;
         this._bufferedLen++;
-        return flushed;
+        return count;
     }
 
     _add(time, value) {
+        const len = this.roll._length;
         this.roll.add(time, value);
         if (value > this._maxValue) {
             this._maxValue = value;
         }
         this._resizePeriodized();
+        return this.roll._length - len;
     }
 
     resize() {
@@ -460,7 +462,7 @@ export class StatsProcessor extends events.EventEmitter {
 
     startAthleteLap(ad) {
         const now = monotonic();
-        const lastLap = ad.laps.at(-1);
+        const lastLap = ad.laps[ad.laps.length - 1];
         lastLap.end = now;
         Object.assign(lastLap, this.cloneDataCollectors(lastLap));
         ad.laps.push(this.cloneDataCollectors(ad.collectors, {reset: true}));
@@ -857,10 +859,10 @@ export class StatsProcessor extends events.EventEmitter {
 
     _getCollectorStats(cs, wtOffset, athlete, privacy) {
         const end = cs.end || monotonic();
-        const elapsedTime = Math.round((end - cs.start) / 1000);
+        const elapsedTime = (end - cs.start) / 1000;
         const np = cs.power.roll.np({force: true});
         const wBal = privacy.hideWBal ? undefined : cs.power.roll.wBal;
-        const activeTime = cs.power.roll.active(); // XXX handle runs too
+        const activeTime = cs.power.roll.active();
         const tss = (!privacy.hideFTP && np && athlete && athlete.ftp) ?
             sauce.power.calcTSS(np, activeTime, athlete.ftp) :
             undefined;
@@ -892,7 +894,6 @@ export class StatsProcessor extends events.EventEmitter {
         const types = ['power', 'speed', 'hr', 'cadence', 'draft'];
         const bucket = {start: options.reset ? monotonic() : collectors.start};
         for (const x of types) {
-            collectors[x].flushBuffered();
             bucket[x] = collectors[x].clone(options);
         }
         return bucket;
@@ -1137,24 +1138,26 @@ export class StatsProcessor extends events.EventEmitter {
 
     _recordAthleteStats(state, ad) {
         if (!state.power && !state.speed) {
-            const bufFlushed = ad.collectors.power.flushBuffered();
-            if (bufFlushed) {
+            const addCount = ad.collectors.power.flushBuffered();
+            if (addCount) {
                 ad.collectors.speed.flushBuffered();
                 ad.collectors.hr.flushBuffered();
                 ad.collectors.draft.flushBuffered();
                 ad.collectors.cadence.flushBuffered();
-                ad.streams.distance.push(state.distance);
-                ad.streams.coordinates.push({x: state.x, y: state.y, z: state.altitude});
+                for (let i = 0; i < addCount; i++) {
+                    ad.streams.distance.push(state.distance);
+                    ad.streams.coordinates.push({x: state.x, y: state.y, z: state.altitude});
+                }
             }
             return;
         }
         const time = (state.worldTime - ad.wtOffset) / 1000;
-        const bufFlushed = ad.collectors.power.add(time, state.power);
+        const addCount = ad.collectors.power.add(time, state.power);
         ad.collectors.speed.add(time, state.speed);
         ad.collectors.hr.add(time, state.heartrate);
         ad.collectors.draft.add(time, state.draft);
         ad.collectors.cadence.add(time, state.cadence);
-        if (bufFlushed) {
+        for (let i = 0; i < addCount; i++) {
             ad.streams.distance.push(state.distance);
             ad.streams.coordinates.push({x: state.x, y: state.y, z: state.altitude});
         }

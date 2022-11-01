@@ -17,6 +17,7 @@ message PlayerState {
     int32 lean = 14;
     int32 climbing = 15;
     int32 time = 16;
+    uint32 frameHue = 18;
     uint32 _flags1 = 19; // Packed with info parsed in user code
     uint32 _flags2 = 20; // Packed with info parsed in user code
     uint32 _progress = 21; // 16-32 are some sort of inverse mask when set, 8-16 is pct progress, 0 is workout
