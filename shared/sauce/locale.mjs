@@ -54,10 +54,13 @@ function humanDuration(elapsed, options={}) {
             (options.maxPeriod ? period <= options.maxPeriod : true) &&
             (options.minPeriod ? period >= options.minPeriod : true));
     }
-    const maxParts = options.maxParts === undefined ? 2 : options.maxParts;
-    const negative = elapsed < 0;
-    elapsed = Math.abs(elapsed); // Always use abs() to convert -0 to 0.
     elapsed = options.precision ? Number(elapsed.toFixed(options.precision)) : Math.round(elapsed);
+    let sign = '';
+    if (elapsed < 0) {
+        sign = '-';
+        elapsed = -elapsed;
+    }
+    const maxParts = options.maxParts === undefined ? 2 : options.maxParts;
     const stack = [];
     for (let i = 0; i < units.length && stack.length < maxParts; i++) {
         let [key, period] = units[i];
@@ -76,7 +79,7 @@ function humanDuration(elapsed, options={}) {
         }
     }
     if (stack.length) {
-        return ((negative && stack[0][0] !== '0') ? '-' : '') + stack.join(options.seperator || ', ');
+        return sign + stack.join(options.seperator || ', ');
     } else {
         return '-';
     }
@@ -163,16 +166,24 @@ function humanTimer(elapsed, options={}) {
         return humanEmpty;
     }
     elapsed = elapsed || 0;
+    if (!options.ms) {
+        elapsed = Math.round(elapsed);
+    }
+    let sign = '';
+    if (elapsed < 0) {
+        elapsed = -elapsed;
+        sign = '-';
+    }
     const hours = elapsed / 3600 | 0;
     const mins = elapsed % 3600 / 60 | 0;
-    const secsStr = (options.ms ? elapsed % 60 | 0 : Math.round(elapsed % 60)).toString();
-    const msStr = options.ms ? Math.round(elapsed % 1 * 1000).toString().padStart(3, '0') : '';
+    const secsStr = (elapsed % 60 | 0).toString();
+    const msStr = options.ms ? '.' + Math.round(elapsed % 1 * 1000).toString().padStart(3, '0') : '';
     if (hours) {
-        return `${hours}:${mins.toString().padStart(2, '0')}:${secsStr.padStart(2, '0')}${msStr}`;
+        return `${sign}${hours}:${mins.toString().padStart(2, '0')}:${secsStr.padStart(2, '0')}${msStr}`;
     } else if (mins || options.long) {
-        return `${mins}:${secsStr.padStart(2, '0')}${msStr}`;
+        return `${sign}${mins}:${secsStr.padStart(2, '0')}${msStr}`;
     } else {
-        return `${secsStr}${msStr}`;
+        return `${sign}${secsStr}${msStr}`;
     }
 }
 
