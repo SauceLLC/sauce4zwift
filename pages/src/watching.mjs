@@ -1082,7 +1082,7 @@ export async function main() {
                 setBackground();
             } else if (changed.has('/imperialUnits')) {
                 imperial = changed.get('/imperialUnits');
-            } else {
+            } else if (!changed.has('/theme')) {
                 location.reload();
             }
         } else {
