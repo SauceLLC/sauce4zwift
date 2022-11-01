@@ -87,9 +87,11 @@ class DataCollector {
         if (options._cloning) {
             return;
         }
+        this.round = options.round;
         const defOptions = {idealGap: 1, maxGap: 15, active: true};
-        this._bufferedTimes = new Array();
-        this._bufferedValues = new Array();
+        this._bufferedStart = 0;
+        this._bufferedEnd = 0;
+        this._bufferedSum = 0;
         this._bufferedLen = 0;
         this.roll = new Klass(null, {...defOptions, ...options});
         this.periodized = new Map(periods.map(period => [period, {
@@ -114,30 +116,27 @@ class DataCollector {
         return instance;
     }
 
-    add(time, value) {
-        const elapsed = this._bufferedLen ? time - this._bufferedTimes[0] : 0;
-        const idealGap = this.roll.idealGap;
-        if (elapsed < idealGap) {
-            const i = this._bufferedLen++;
-            this._bufferedTimes[i] = time;
-            this._bufferedValues[i] = value;
-        } else {
-            let totV = 0;
-            for (let i = 0; i < this._bufferedLen; i++) {
-                totV += this._bufferedValues[i];
-            }
-            // XXX check perf and maybe replace with 1 second idealized version as micro opt
-            // XXX2 sometimes this will be the same ts and the prev entry.  If there is a gap
-            // and we only have a few datapoints then we will round down. Maybe we can always
-            // round up?  More testing!
-            const adjTime = Math.round(this._bufferedTimes[this._bufferedLen - 1] / idealGap) * idealGap;
-            const adjValue = Math.round(totV / this._bufferedLen);
-            this._add(adjTime, adjValue);
-            this._bufferedTimes[0] = time;
-            this._bufferedValues[0] = value;
-            this._bufferedLen = 1;
-            return true;
+    flushBuffered() {
+        if (!this._bufferedLen) {
+            return false;
         }
+        const value = this._bufferedSum / this._bufferedLen;
+        this._add(this._bufferedEnd, this.round ? Math.round(value) : value);
+        this._bufferedLen = 0;
+        this._bufferedSum = 0;
+        return true;
+    }
+
+    add(time, value) {
+        let flushed = false;
+        if (time - this._bufferedStart >= this.roll.idealGap) {
+            flushed = this.flushBuffered();
+            this._bufferedStart = time;
+        }
+        this._bufferedEnd = time;
+        this._bufferedSum += value;
+        this._bufferedLen++;
+        return flushed;
     }
 
     _add(time, value) {
@@ -279,7 +278,7 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.getPlayerState, {scope: this});
         rpc.register(this.getNearbyData, {scope: this});
         rpc.register(this.getGroupsData, {scope: this});
-        rpc.register(this.getAthleteData, {scope: this});
+        rpc.register(this.getAthleteStats, {scope: this});
         rpc.register(this.getAthleteLaps, {scope: this});
         rpc.register(this.getAthleteSegments, {scope: this});
         rpc.register(this.getAthleteStreams, {scope: this});
@@ -383,7 +382,7 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     getAthletesData() {
-        return Array.from(this._athleteData.values()).map(this._formatAthleteEntry.bind(this));
+        return Array.from(this._athleteData.values()).map(this._formatAthleteStats.bind(this));
     }
 
     _realAthleteId(ident) {
@@ -393,9 +392,9 @@ export class StatsProcessor extends events.EventEmitter {
                 this.watching : Number(ident);
     }
 
-    getAthleteData(id) {
+    getAthleteStats(id) {
         const ad = this._athleteData.get(this._realAthleteId(id));
-        return ad ? this._formatAthleteEntry(ad) : null;
+        return ad ? this._formatAthleteStats(ad) : null;
     }
 
     getAthleteLaps(id) {
@@ -462,10 +461,7 @@ export class StatsProcessor extends events.EventEmitter {
         const lastLap = ad.laps.at(-1);
         lastLap.end = now;
         Object.assign(lastLap, this.cloneDataCollectors(lastLap));
-        ad.laps.push({
-            start: now,
-            ...this.cloneDataCollectors(ad.collectors, {reset: true}),
-        });
+        ad.laps.push(this.cloneDataCollectors(ad.collectors, {reset: true}));
     }
 
     resetStats() {
@@ -859,14 +855,16 @@ export class StatsProcessor extends events.EventEmitter {
 
     _getCollectorStats(cs, wtOffset, athlete, privacy) {
         const end = cs.end || monotonic();
-        const elapsed = (end - cs.start) / 1000;
+        const elapsedTime = Math.round((end - cs.start) / 1000);
         const np = cs.power.roll.np({force: true});
         const wBal = privacy.hideWBal ? undefined : cs.power.roll.wBal;
+        const activeTime = cs.power.roll.active(); // XXX handle runs too
         const tss = (!privacy.hideFTP && np && athlete && athlete.ftp) ?
-            sauce.power.calcTSS(np, cs.power.roll.active(), athlete.ftp) :
+            sauce.power.calcTSS(np, activeTime, athlete.ftp) :
             undefined;
         return {
-            elapsed,
+            elapsedTime,
+            activeTime,
             power: cs.power.getStats(wtOffset, {np, tss, wBal}),
             speed: cs.speed.getStats(wtOffset),
             hr: cs.hr.getStats(wtOffset),
@@ -879,16 +877,18 @@ export class StatsProcessor extends events.EventEmitter {
         const periods = [5, 15, 60, 300, 1200];
         const longPeriods = periods.filter(x => x >= 60);
         return {
-            power: new DataCollector(ExtendedRollingPower, periods, {inlineNP: true}),
+            start: monotonic(),
+            power: new DataCollector(ExtendedRollingPower, periods, {inlineNP: true, round: true}),
             speed: new DataCollector(sauce.data.RollingAverage, longPeriods, {ignoreZeros: true}),
-            hr: new DataCollector(sauce.data.RollingAverage, longPeriods, {ignoreZeros: true}),
-            cadence: new DataCollector(sauce.data.RollingAverage, [], {ignoreZeros: true}),
-            draft: new DataCollector(sauce.data.RollingAverage, longPeriods),
+            hr: new DataCollector(sauce.data.RollingAverage, longPeriods, {ignoreZeros: true, round: true}),
+            cadence: new DataCollector(sauce.data.RollingAverage, [], {ignoreZeros: true, round: true}),
+            draft: new DataCollector(sauce.data.RollingAverage, longPeriods, {round: true}),
         };
     }
 
     cloneDataCollectors(collectors, options={}) {
         return {
+            start: options.reset ? monotonic() : collectors.start,
             power: collectors.power.clone(options),
             speed: collectors.speed.clone(options),
             hr: collectors.hr.clone(options),
@@ -948,9 +948,7 @@ export class StatsProcessor extends events.EventEmitter {
 
     _createAthleteData(athleteId, wtOffset) {
         const collectors = this.makeDataCollectors();
-        const start = monotonic();
         return {
-            start,
             wtOffset,
             athleteId,
             privacy: {},
@@ -966,10 +964,7 @@ export class StatsProcessor extends events.EventEmitter {
                 prevTimeline: null,
             },
             collectors,
-            laps: [{
-                start,
-                ...this.cloneDataCollectors(collectors, {reset: true})
-            }],
+            laps: [this.cloneDataCollectors(collectors, {reset: true})],
             activeSegments: new Set(),
             segments: [],
         };
@@ -977,15 +972,10 @@ export class StatsProcessor extends events.EventEmitter {
 
     _resetAthleteData(ad, wtOffset) {
         const collectors = this.makeDataCollectors();
-        const start = monotonic();
         Object.assign(ad, {
-            start,
             wtOffset,
             collectors,
-            laps: [{
-                start,
-                ...this.cloneDataCollectors(collectors, {reset: true})
-            }],
+            laps: [this.cloneDataCollectors(collectors, {reset: true})],
         });
         ad.activeSegments.clear();
         ad.segments.length = 0;
@@ -1055,7 +1045,27 @@ export class StatsProcessor extends events.EventEmitter {
         if (ad.disabled) {
             return;
         }
+        this._recordAthleteRoadHistory(state, ad);
+        this._recordAthleteStats(state, ad);
         ad.mostRecentState = state;
+        ad.updated = monotonic();
+        this._stateProcessCount++;
+        if (this.athleteId === state.athleteId) {
+            this.handleSelfState(state);
+        }
+        if (this.watching === state.athleteId && this.listenerCount('athlete/watching')) {
+            this.emit('athlete/watching', this._formatAthleteStats(ad));
+        }
+        if (this.athleteId === state.athleteId && this.listenerCount('athlete/self')) {
+            this.emit('athlete/self', this._formatAthleteStats(ad));
+        }
+        if (this.listenerCount(`athlete/${state.athleteId}`)) {
+            this.emit(`athlete/${state.athleteId}`, this._formatAthleteStats(ad));
+        }
+    }
+
+    _recordAthleteRoadHistory(state, ad) {
+        const prevState = ad.mostRecentState;
         const roadSig = this._roadSig(state);
         if (prevState) {
             let shiftHistory;
@@ -1104,6 +1114,21 @@ export class StatsProcessor extends events.EventEmitter {
                 adjRoadDistEstimate(roadSig, 1e6 / rlDelta * mDelta);
             }
         }
+    }
+
+    _recordAthleteStats(state, ad) {
+        if (!state.power && !state.speed) {
+            const bufFlushed = ad.collectors.power.flushBuffered();
+            if (bufFlushed) {
+                ad.collectors.speed.flushBuffered();
+                ad.collectors.hr.flushBuffered();
+                ad.collectors.draft.flushBuffered();
+                ad.collectors.cadence.flushBuffered();
+                ad.streams.distance.push(state.distance);
+                ad.streams.coordinates.push({x: state.x, y: state.y, z: state.altitude});
+            }
+            return;
+        }
         const time = (state.worldTime - ad.wtOffset) / 1000;
         const bufFlushed = ad.collectors.power.add(time, state.power);
         ad.collectors.speed.add(time, state.speed);
@@ -1127,20 +1152,6 @@ export class StatsProcessor extends events.EventEmitter {
             s.hr.resize(time);
             s.draft.resize(time);
             s.cadence.resize(time);
-        }
-        ad.updated = monotonic();
-        this._stateProcessCount++;
-        if (this.athleteId === state.athleteId) {
-            this.handleSelfState(state);
-        }
-        if (this.watching === state.athleteId && this.listenerCount('athlete/watching')) {
-            this.emit('athlete/watching', this._formatAthleteEntry(ad));
-        }
-        if (this.athleteId === state.athleteId && this.listenerCount('athlete/self')) {
-            this.emit('athlete/self', this._formatAthleteEntry(ad));
-        }
-        if (this.listenerCount(`athlete/${state.athleteId}`)) {
-            this.emit(`athlete/${state.athleteId}`, this._formatAthleteEntry(ad));
         }
     }
 
@@ -1594,7 +1605,7 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
-    _formatAthleteEntry(ad, extra) {
+    _formatAthleteStats(ad, extra) {
         let athlete = this.loadAthlete(ad.athleteId);
         if (athlete) {
             if (ad.privacy.hideFTP) {
@@ -1605,11 +1616,17 @@ export class StatsProcessor extends events.EventEmitter {
             }
         }
         const state = ad.mostRecentState;
+        let lap, lastLap;
+        if (ad.laps.length > 1) {
+            lap = this._getCollectorStats(ad.laps[ad.laps.length - 1], ad.wtOffset, athlete, ad.privacy);
+            lastLap = this._getCollectorStats(ad.laps[ad.laps.length - 2], ad.wtOffset, athlete, ad.privacy);
+        }
         return {
             athleteId: state.athleteId,
             athlete,
             stats: this._getCollectorStats(ad.collectors, ad.wtOffset, athlete, ad.privacy),
-            laps: ad.laps.map(x => this._getCollectorStats(x, ad.wtOffset, athlete, ad.privacy)),
+            lap,
+            lastLap,
             state: this._cleanState(state),
             eventPosition: ad.eventPosition,
             eventParticipants: ad.eventParticipants,
@@ -1620,7 +1637,7 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _formatNearbyEntry({ad, isGapEst, rp, gap}) {
-        return this._formatAthleteEntry(ad, {
+        return this._formatAthleteStats(ad, {
             gap,
             gapDistance: rp.gapDistance,
             isGapEst: isGapEst ? true : undefined,
@@ -1798,7 +1815,9 @@ export class StatsProcessor extends events.EventEmitter {
                     x.collectors.speed.roll.size() +
                     x.collectors.hr.roll.size() +
                     x.collectors.draft.roll.size() +
-                    x.collectors.cadence.roll.size())
+                    x.collectors.cadence.roll.size() +
+                    x.streams.distance.length +
+                    x.streams.coordinates.length)
                 .reduce((agg, c) => agg + c, 0),
             athletesCacheSize: this._athletesCache.size,
         };
