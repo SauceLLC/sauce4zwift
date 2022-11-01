@@ -136,8 +136,8 @@ export function updateTrayMenu() {
         label: 'Settings',
         click: () => {
             const win = windows.makeCaptiveWindow({
-                width: 500,
-                height: 0.8,
+                width: 520,
+                height: 860,
                 page: 'overview-settings.html',
                 frame: false,
                 transparent: true,
