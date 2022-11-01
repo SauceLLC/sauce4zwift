@@ -76,7 +76,15 @@ const pbProfilePrivacyFlags = {
 const pbProfilePrivacyFlagsInverted = {
     displayAge: 0x40,
 };
-
+const sportsEnum = Object.fromEntries(Object.entries(protos.Sport).map(([k, v]) => [v, k.toLowerCase()]));
+const powerUpsEnum = Object.fromEntries(Object.entries(protos.POWERUP_TYPE)
+    .map(([label, id]) => [id, label]));
+powerUpsEnum[0xf] = null;  // masked
+const turningEnum = {
+    0: null,
+    1: 'RIGHT',
+    2: 'LEFT',
+}
 const worldCourseDescs = [
     {worldId: 1, courseId: 6, name: 'Watopia'},
     {worldId: 2, courseId: 2, name: 'Richmond'},
@@ -127,27 +135,14 @@ function sleep(ms) {
 
 
 export function decodePlayerStateFlags1(bits) {
-    const powerMeter = !!(bits & 0x1);
-    bits >>>= 1;
-    const companionApp = !!(bits & 0x1);
-    bits >>>= 1;
-    const reverse = !(bits & 0x1);  // It's actually a forward bit
-    bits >>>= 1;
-    const uTurn = !!(bits & 0x1);
-    bits >>>= 1;
-    const _b4_15 = bits & 0xfff;
-    bits >>>= 12;
-    const auxCourseId = bits & 0xff;
-    bits >>>= 8;
-    const rideons = bits;
     return {
-        powerMeter,
-        companionApp,
-        uTurn,
-        reverse,
-        _b4_15,
-        auxCourseId,
-        rideons,
+        powerMeter: !!(bits & 0b1),
+        companionApp: !!(bits & 0b10),
+        reverse: !(bits & 0b100),  // It's actually a forward bit
+        uTurn: !!(bits & 0b1000),
+        _b4_15: bits >>> 4 & 0xfff,
+        auxCourseId: bits >>> 16 & 0xff,
+        rideons: bits >>> 24,
     };
 }
 
@@ -171,27 +166,13 @@ export function encodePlayerStateFlags1(props) {
 }
 
 
-const powerUpsById = Object.fromEntries(Object.entries(protos.POWERUP_TYPE).map(([label, id]) => [id, label]));
 export function decodePlayerStateFlags2(bits) {
-    const powerUping = bits & 0xf; // 15 = Not active, otherwise enum
-    bits >>>= 4;
-    const turning = {
-        0: null,
-        1: 'RIGHT',
-        2: 'LEFT',
-    }[bits & 0x3];
-    bits >>>= 2;
-    const turnChoice = bits & 0x3;  // 1 = unanswered turn choice
-    bits >>>= 2;
-    const roadId = bits & 0xffff;
-    bits >>>= 16;
-    const _rem = bits; // XXX Something about having altered a route choice or reversed for bit 1
     return {
-        activePowerUp: powerUping === 0xf ? null : powerUpsById[powerUping],
-        turning,
-        turnChoice,
-        roadId,
-        _rem,
+        activePowerUp: powerUpsEnum[bits & 0xf],
+        turning: turningEnum[bits >>> 4 & 0x3],
+        turnChoice: bits >>> 6 & 0x3,
+        roadId: bits >>> 8 & 0xffff,
+        _rem: bits >>> 24,
     };
 }
 
@@ -236,7 +217,7 @@ export function processPlayerStateMessage(msg) {
         heading: (((msg._heading + halfCircle) / (2 * halfCircle)) * 360) % 360,  // degrees
         speed: msg._speed / 1e6,  // km/h
         joinTime: msg._joinTime.toNumber(),
-        sport: protos.Sport[msg.sport].toLowerCase(),
+        sport: sportsEnum[msg.sport],
         cadence: (msg._cadenceUHz && msg._cadenceUHz < cadenceMax) ?
             Math.round(msg._cadenceUHz / 1e6 * 60) : 0,  // rpm
         eventDistance: msg._eventDistance / 100,  // meters
