@@ -35,7 +35,7 @@ const pwr = v => H.power(v, {suffix: true, html: true});
 const hr = v => v ? num(v) + unit('bpm') : '-';
 const kj = (v, options) => v != null ? num(v, options) + unit('kJ') : '-';
 const pct = v => (v != null && !isNaN(v) && v !== Infinity && v !== -Infinity) ? num(v) + unit('%') : '-';
-const gapTime = (v, entry) => ((v < 0 ? '-' : '') + H.timer(Math.abs(v)) + (entry.isGapEst ? '<small> (est)</small>' : ''));
+const gapTime = (v, entry) => H.timer(v) + (entry.isGapEst ? '<small> (est)</small>' : '');
 
 let overlayMode;
 if (window.isElectron) {
