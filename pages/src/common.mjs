@@ -803,6 +803,17 @@ function bindFormData(selector, storageIface, options={}) {
             await storageIface.set(el.name, val);
         });
     }
+    for (const el of form.querySelectorAll('select')) {
+        el.addEventListener('change', async ev => {
+            let val;
+            if (el.dataset.type === 'number') {
+                val = el.value ? Number(el.value) : undefined;
+            } else {
+                val = el.value || undefined;
+            }
+            await storageIface.set(el.name, val);
+        });
+    }
     return async function update() {
         for (const el of form.querySelectorAll('input')) {
             const name = el.name;
@@ -817,6 +828,11 @@ function bindFormData(selector, storageIface, options={}) {
                 el.value = val == null ? '' : val;
             }
         }
+        for (const el of form.querySelectorAll('select')) {
+            const name = el.name;
+            const val = await storageIface.get(name);
+            el.value = val == null ? '' : val;
+        }
         for (const el of form.querySelectorAll('.display-field[name]')) {
             const name = el.getAttribute('name');
             const val = await storageIface.get(name);
@@ -824,20 +840,6 @@ function bindFormData(selector, storageIface, options={}) {
             if (el.hasAttribute('href')) {
                 el.href = val;
             }
-        }
-        for (const el of form.querySelectorAll('select')) {
-            const name = el.name;
-            const val = await storageIface.get(name);
-            el.value = val == null ? '' : val;
-            el.addEventListener('change', async ev => {
-                let val;
-                if (el.dataset.type === 'number') {
-                    val = el.value ? Number(el.value) : undefined;
-                } else {
-                    val = el.value || undefined;
-                }
-                await storageIface.set(name, val);
-            });
         }
         for (const el of form.querySelectorAll('[data-depends-on]')) {
             const dependsOn = el.dataset.dependsOn;
@@ -861,12 +863,21 @@ function bindFormData(selector, storageIface, options={}) {
 }
 
 
+async function setAppSetting(key, value) {
+    await rpcCall('setSetting', key, value);
+    doc.dispatchEvent
+    const ev = new Event('app-setting-set');
+    ev.data = {key, value};
+    document.dispatchEvent(ev);
+}
+
+
 export function initAppSettingsForm(selector) {
     let extraData;
     const storageIface = {
         get: async key => (extraData && Object.prototype.hasOwnProperty.call(extraData, key)) ?
             extraData[key] : await rpcCall('getSetting', key),
-        set: async (key, value) => await rpcCall('setSetting', key, value),
+        set: async (key, value) => await setAppSetting(key, value),
     };
     const update = bindFormData(selector, storageIface);
     return async data => {
