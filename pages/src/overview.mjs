@@ -633,7 +633,6 @@ export async function settingsMain() {
         } else if (btn.dataset.action === 'restart') {
             await common.rpc.restart();
         } else if (btn.dataset.action === 'logout-zwift') {
-            debugger;
             const id = btn.dataset.id;
             await common.rpc.zwiftLogout(id);
             extraData[`${id}ZwiftLogin`] = '<LOGGED OUT>';
@@ -645,6 +644,14 @@ export async function settingsMain() {
     common.subscribe('set-windows', renderWindowsPanel, {source: 'windows'});
     extraData.webServerURL = await common.rpc.getWebServerURL();
     const appSettingsUpdate = common.initAppSettingsForm('form.app-settings');
+    document.addEventListener('app-setting-set', ev => {
+        if (ev.data.key === 'autoLapMetric') {
+            extraData.autoLapIntervalUnits = ev.data.value === 'time' ? 'seconds' : 'meters';
+            appSettingsUpdate(extraData);
+        }
+    });
+    extraData.autoLapIntervalUnits = await common.rpc.getSetting('autoLapMetric') === 'time' ?
+        'seconds' : 'meters';
     const gcs = await common.rpc.getGameConnectionStatus();
     if (gcs) {
         extraData.gameConnectionStatus = gcs.state;
