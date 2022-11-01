@@ -886,7 +886,7 @@ async function initScreenSettings() {
                 }
                 // Groups are special...
                 for (const x of d.querySelectorAll('select[name="group"]')) {
-                    section.groups.find(x => x.id === x.dataset.id).type = x.value;
+                    section.groups.find(xx => xx.id === x.dataset.id).type = x.value;
                 }
                 // Everything else is a generic setting...
                 for (const x of d.querySelectorAll('select:not([name="group"])')) {
