@@ -84,7 +84,7 @@ const turningEnum = {
     0: null,
     1: 'RIGHT',
     2: 'LEFT',
-}
+};
 const worldCourseDescs = [
     {worldId: 1, courseId: 6, name: 'Watopia'},
     {worldId: 2, courseId: 2, name: 'Richmond'},

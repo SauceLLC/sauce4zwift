@@ -865,7 +865,6 @@ function bindFormData(selector, storageIface, options={}) {
 
 async function setAppSetting(key, value) {
     await rpcCall('setSetting', key, value);
-    doc.dispatchEvent
     const ev = new Event('app-setting-set');
     ev.data = {key, value};
     document.dispatchEvent(ev);
