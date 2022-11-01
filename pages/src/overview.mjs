@@ -226,11 +226,11 @@ function buildLayout() {
             mapping,
             fields: [{
                 id: 'time-lap',
-                value: x => fmtDur(x.laps && x.laps.at(-1).elapsed || 0),
+                value: x => fmtDur((x.lap || x.stats) && (x.lap || x.stats).elapsedTime || 0),
                 key: 'Lap Time',
             }, {
                 id: 'time-elapsed',
-                value: x => fmtDur(x.stats && x.stats.elapsed || 0),
+                value: x => fmtDur(x.stats && x.stats.elapsedTime || 0),
                 key: 'Elapsed',
             }, {
                 id: 'rideons',
