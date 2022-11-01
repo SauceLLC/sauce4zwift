@@ -646,12 +646,12 @@ export async function settingsMain() {
     const appSettingsUpdate = common.initAppSettingsForm('form.app-settings');
     document.addEventListener('app-setting-set', ev => {
         if (ev.data.key === 'autoLapMetric') {
-            extraData.autoLapIntervalUnits = ev.data.value === 'time' ? 'seconds' : 'meters';
+            extraData.autoLapIntervalUnits = ev.data.value === 'time' ? 'mins' : 'km';
             appSettingsUpdate(extraData);
         }
     });
     extraData.autoLapIntervalUnits = await common.rpc.getSetting('autoLapMetric') === 'time' ?
-        'seconds' : 'meters';
+        'mins' : 'km';
     const gcs = await common.rpc.getGameConnectionStatus();
     if (gcs) {
         extraData.gameConnectionStatus = gcs.state;

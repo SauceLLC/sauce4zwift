@@ -253,9 +253,11 @@ export class StatsProcessor extends events.EventEmitter {
         const app = getApp();
         this._autoResetEvents = !!app.getSetting('autoResetEvents');
         this._autoLapEvents = !!app.getSetting('autoLapEvents');
-        this._autoLap = !!app.getSetting('autoLap');
-        this._autoLapMetric = app.getSetting('autoLapMetric');
-        this._autoLapInterval = app.getSetting('autoLapInterval');
+        const autoLap = !!app.getSetting('autoLap');
+        this._autoLapMetric = autoLap ? app.getSetting('autoLapMetric') : undefined;
+        const autoLapFactor = this._autoLapMetric === 'distance' ? 1000 : 60;
+        this._autoLapInterval = autoLap ? app.getSetting('autoLapInterval') * autoLapFactor : undefined;
+        this._autoLap = !!(autoLap && this._autoLapMetric && this._autoLapInterval);
         rpc.register(this.updateAthlete, {scope: this});
         rpc.register(this.startLap, {scope: this});
         rpc.register(this.resetStats, {scope: this});
@@ -1048,6 +1050,9 @@ export class StatsProcessor extends events.EventEmitter {
         if (ad.disabled) {
             return;
         }
+        if (this._autoLap) {
+            this._autoLapCheck(state, ad);
+        }
         this._recordAthleteRoadHistory(state, ad);
         this._recordAthleteStats(state, ad);
         ad.mostRecentState = state;
@@ -1064,6 +1069,17 @@ export class StatsProcessor extends events.EventEmitter {
         }
         if (this.listenerCount(`athlete/${state.athleteId}`)) {
             this.emit(`athlete/${state.athleteId}`, this._formatAthleteStats(ad));
+        }
+    }
+
+    _autoLapCheck(state, ad) {
+        const mark = this._autoLapMetric === 'distance' ? state.distance : state.time;
+        if (ad.autoLapMark === undefined) {
+            ad.autoLapMark = mark;
+        } else if (mark - ad.autoLapMark >= this._autoLapInterval) {
+            console.debug("Auto lap triggered for:", ad.athleteId);
+            ad.autoLapMark = mark;
+            this.startAthleteLap(ad);
         }
     }
 
@@ -1220,6 +1236,14 @@ export class StatsProcessor extends events.EventEmitter {
         this.gameMonitor.start();
         this._zwiftMetaRefresh = 60000;
         this._zwiftMetaId = setTimeout(() => this._zwiftMetaSync(), 0);
+        if (this._autoResetEvents) {
+            console.info("Auto reset for events enabled");
+        } else if (this._autoLapEvents) {
+            console.info("Auto lap for events enabled");
+        }
+        if (this._autoLap) {
+            console.info("Auto interval lap enabled:", this._autoLapMetric, this._autoLapInterval);
+        }
     }
 
     async stop() {
