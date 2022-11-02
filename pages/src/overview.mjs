@@ -451,7 +451,7 @@ function buildLayout() {
                 key: 'Climbed',
             }, {
                 id: 'draft-cur',
-                value: x => fmtPct(x.state && x.state.draft),
+                value: x => fmtPct(x.state && x.state.draft / 100),
                 key: 'Draft',
 
             }, {
