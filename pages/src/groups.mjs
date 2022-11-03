@@ -230,16 +230,15 @@ function renderZoomed(groups) {
         const minorField = settings.zoomedSecondaryField || 'heartrate';
         if (minorField === 'heartrate') {
             if (athlete.state.heartrate) {
-                rightLines.push(`<div class="line minor">${H.number(athlete.state.heartrate)}<abbr class="unit">bpm</abbr></div>`);
+                rightLines.push(`<div class="line minor">${H.number(athlete.state.heartrate, {suffix: 'bpm', html: true})}</div>`);
             }
         } else if (minorField === 'draft') {
             if (athlete.state.draft != null) {
-                rightLines.push(`<div class="line minor">${H.number(athlete.state.draft)}<abbr class="unit">% (draft)</abbr></div>`);
+                rightLines.push(`<div class="line minor">${H.number(athlete.state.draft, {suffix: '% (draft)', html: true})}</div>`);
             }
         } else if (minorField === 'speed') {
             if (athlete.state.speed != null) {
-                const unit = imperial ? 'mph' : 'kph';
-                rightLines.push(`<div class="line minor">${H.pace(athlete.state.speed, {precision: 0})}<abbr class="unit">${unit}</abbr></div>`);
+                rightLines.push(`<div class="line minor">${H.pace(athlete.state.speed, {precision: 0, suffix: true, html: true})}</div>`);
             }
         } else if (minorField === 'power-60s') {
             const p = athlete.stats.power.smooth[60];
@@ -354,16 +353,15 @@ function renderGroups(groups) {
         const minorField = settings.groupsSecondaryField || 'speed';
         if (minorField === 'heartrate') {
             if (group.heartrate) {
-                rightLines.push(`<div class="line minor">${H.number(group.heartrate)}<abbr class="unit">bpm</abbr></div>`);
+                rightLines.push(`<div class="line minor">${H.number(group.heartrate, {suffix: 'bpm', html: true})}</div>`);
             }
         } else if (minorField === 'draft') {
             if (group.draft != null) {
-                rightLines.push(`<div class="line minor">${H.number(group.draft)}<abbr class="unit">% (draft)</abbr></div>`);
+                rightLines.push(`<div class="line minor">${H.number(group.draft, {suffix: '% (draft)', html: true})}</div>`);
             }
         } else if (minorField === 'speed') {
             if (group.speed != null) {
-                const unit = imperial ? 'mph' : 'kph';
-                rightLines.push(`<div class="line minor">${H.pace(group.speed, {precision: 0})}<abbr class="unit">${unit}</abbr></div>`);
+                rightLines.push(`<div class="line minor">${H.pace(group.speed, {precision: 0, suffix: true, html: true})}</div>`);
             }
         } else if (minorField === 'power-highest') {
             const highest = sauce.data.max(group.athletes.map(x => x.state.power));

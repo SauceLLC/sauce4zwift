@@ -94,9 +94,7 @@ async function makeMetricCharts(proc, el) {
             showSymbol: false,
             animation: false,
             emphasis: {disabled: true},
-            tooltip: {
-                valueFormatter: x => H.number(x) + '%'
-            },
+            tooltip: {valueFormatter: x => H.number(x, {suffix: '%'})},
             areaStyle: {},
         }, {
             id: 'mem',
@@ -106,9 +104,7 @@ async function makeMetricCharts(proc, el) {
             animation: false,
             emphasis: {disabled: true},
             yAxisIndex: 1,
-            tooltip: {
-                valueFormatter: x => H.number(x) + 'MB'
-            },
+            tooltip: {valueFormatter: x => H.number(x, {suffix: 'MB'})},
             areaStyle: {},
         }]
     };
@@ -133,9 +129,7 @@ async function makeMetricCharts(proc, el) {
         pointer: {
             length: 40,
             width: 3,
-            itemStyle: {
-                icon: 'circle',
-            }
+            itemStyle: {icon: 'circle'}
         },
         anchor: {
             show: true,
@@ -147,15 +141,9 @@ async function makeMetricCharts(proc, el) {
                 borderWidth: 3,
             }
         },
-        axisTick: {
-            show: false,
-        },
-        splitLine: {
-            show: false,
-        },
-        axisLabel: {
-            show: false,
-        },
+        axisTick: {show: false},
+        splitLine: {show: false},
+        axisLabel: {show: false},
         data: [],
     };
     gaugeChart.setOption({
@@ -190,9 +178,7 @@ async function makeMetricCharts(proc, el) {
             min: 0,
             max: cpuSoftCeil,
             center: ['30%', '60%'],
-            itemStyle: {
-                color: '#fc3',
-            },
+            itemStyle: {color: '#fc3'},
             detail: {
                 offsetCenter: [0, '50%'],
                 formatter: '{value}%',
@@ -205,12 +191,10 @@ async function makeMetricCharts(proc, el) {
             min: 0,
             max: memSoftCeil,
             center: ['70%', '60%'],
-            itemStyle: {
-                color: '#33f',
-            },
+            itemStyle: {color: '#33f'},
             detail: {
                 offsetCenter: [0, '50%'],
-                formatter: x => H.number(x) + 'MB',
+                formatter: x => H.number(x, {suffix: 'MB'}),
             },
         }],
     });
@@ -228,20 +212,19 @@ const friendlyPlatforms = {
 };
 
 
-const unit = x => `<abbr class="unit">${x}</abbr>`;
 const debugFormatters = {
     uptime: x => H.timer(x.app.uptime),
     version: x => x.app.version,
-    appCPU: x => H.number((x.app.cpu.user + x.app.cpu.system) / 1000000 / x.app.uptime * 100) + unit('%'),
-    appMemHeap: x => H.number(x.app.mem.heapTotal / MB) + unit('MB'),
+    appCPU: x => H.number((x.app.cpu.user + x.app.cpu.system) / 1000000 / x.app.uptime * 100, {suffix: '%', html: true}),
+    appMemHeap: x => H.number(x.app.mem.heapTotal / MB, {suffix: 'MB', html: true}),
     os: x => `${friendlyPlatforms[x.sys.platform]} ${x.sys.productVersion}`,
     arch: x => `${x.sys.arch}`,
     sysUptime: x => H.duration(x.sys.uptime, {short: true}),
-    sysMem: x => H.number(x.sys.mem.total / 1024 / 1024) + unit('GB'),
+    sysMem: x => H.number(x.sys.mem.total / 1024 / 1024, {suffix: 'GB', html: true}),
     gpu: x => x.gpu.gpu_compositing,
     statesDropped: x => H.number(x.stats.stateDupCount) + ' / ' + H.number(x.stats.stateStaleCount),
-    dbRowsAthletes: x => H.number(x.databases.find(x => x.tableName === 'athletes').rows) + unit('rows'),
-    dbRowsSettings: x => H.number(x.databases.find(x => x.tableName === 'store').rows) + unit('rows'),
+    dbRowsAthletes: x => H.number(x.databases.find(x => x.tableName === 'athletes').rows, {suffix: 'rows', html: true}),
+    dbRowsSettings: x => H.number(x.databases.find(x => x.tableName === 'store').rows, {suffix: 'rows', html: true}),
 };
 function defaultDebugFormatter(path) {
     return data => {
@@ -325,7 +308,7 @@ export async function main() {
                             xAxis: maxMemIndex,
                             label: {
                                 position: maxMemIndex > maxLen / 2 ? 'insideEndTop' : 'insideEndBottom',
-                                formatter: x => `${H.number(datas.mem[x.value])}MB`
+                                formatter: x => H.number(datas.mem[x.value], {suffix: 'MB'}),
                             },
                             emphasis: {
                                 disabled: true,
