@@ -3,10 +3,9 @@
 @mixin legend($selector) {
     #{$selector} {
         display: flex;
+        flex-wrap: wrap;
         align-items: center;
-        justify-content: center;
-        overflow: auto;
-        overflow: overlay;
+        justify-content: space-evenly;
         max-width: 100%;
 
         .s-legend-item {
