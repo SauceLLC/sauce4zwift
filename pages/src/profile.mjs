@@ -4,7 +4,7 @@ import {locale, template} from '../../shared/sauce/index.mjs';
 const q = new URLSearchParams(location.search);
 
 const H = locale.human;
-const athleteId = Number(q.get('id') || q.get('athleteId'));
+const ident = q.get('id') || q.get('athleteId') || 'self';
 let gettingAthlete;
 let gettingTemplate;
 let gettingGameConnectionStatus;
@@ -12,7 +12,7 @@ let pendingInitNationFlags;
 
 
 export function init() {
-    gettingAthlete = common.rpc.getAthlete(athleteId || 1, {refresh: true});
+    gettingAthlete = common.rpc.getAthlete(ident, {refresh: true});
     gettingTemplate = template.getTemplate('templates/profile.html.tpl');
     gettingGameConnectionStatus = common.rpc.getGameConnectionStatus();
     pendingInitNationFlags = common.initNationFlags();
@@ -33,7 +33,7 @@ export async function main() {
     const debug = location.search.includes('debug');
     const tplData = {
         debug,
-        athleteId,
+        athleteId: athlete && athlete.id,
         athlete,
         gameConnectionStatus,
         nations,
