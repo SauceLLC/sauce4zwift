@@ -261,3 +261,12 @@ form {
         }
     }
 }
+
+img.avatar {
+    object-fit: cover;
+    width: 1.5em;
+    display: inline-block;
+    background: #fff;
+    margin: -0.5em 0.5em -0.5em 0.2em;
+    border-radius: 50%;
+}
