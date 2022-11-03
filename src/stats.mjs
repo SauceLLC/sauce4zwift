@@ -437,15 +437,21 @@ export class StatsProcessor extends events.EventEmitter {
 
     getAthleteLaps(id) {
         const ad = this._athleteData.get(this._realAthleteId(id));
+        if (!ad) {
+            return null;
+        }
+        return ad.laps.map(x => this._formatLapish(x, ad, athlete));
         const athlete = this.loadAthlete(ad.athleteId);
-        return ad ? ad.laps.map(x => this._formatLapish(x, ad, athlete)) : null;
     }
 
     getAthleteSegments(id) {
         const ad = this._athleteData.get(this._realAthleteId(id));
+        if (!ad) {
+            return null;
+        }
         const athlete = this.loadAthlete(ad.athleteId);
-        return ad ? ad.segments.map(x => this._formatLapish(x, ad, athlete,
-            {segment: allSegments.get(x.id)})) : null;
+        return ad.segments.map(x => this._formatLapish(x, ad, athlete,
+            {segment: allSegments.get(x.id)}));
     }
 
     _formatLapish(lapish, ad, athlete, extra) {
@@ -730,6 +736,7 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     async getAthlete(id, options={}) {
+        id = this._realAthleteId(id);
         let athlete;
         if (this.zwiftAPI.isAuthenticated()) {
             if (!options.refresh) {
@@ -1246,11 +1253,9 @@ export class StatsProcessor extends events.EventEmitter {
                     console.debug("Segment completed", x);
                     this.stopSegment(ad, x.id);
                 }
-            } else {
-                if (progress != null && progress < 0.05) {
-                    console.debug("Segment started", progress, x);
-                    this.startSegment(ad, x.id);
-                }
+            } else if (progress != null && progress < 0.05) {
+                console.debug("Segment started", progress, x);
+                this.startSegment(ad, x.id);
             }
         }
     }
