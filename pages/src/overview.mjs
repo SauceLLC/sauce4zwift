@@ -557,9 +557,7 @@ async function frank() {
 }
 
 
-export async function settingsMain() {
-    common.initInteractionListeners();
-    const extraData = {version: await common.rpc.getVersion()};
+async function initWindowsPanel() {
     await renderWindowsPanel();
     const winsEl = document.querySelector('#windows');
     winsEl.querySelector('table tbody').addEventListener('click', async ev => {
@@ -621,6 +619,12 @@ export async function settingsMain() {
         const id = await common.rpc.createWindow({type});
         await common.rpc.openWindow(id);
     });
+}
+
+
+export async function settingsMain() {
+    common.initInteractionListeners();
+    const extraData = {version: await common.rpc.getVersion()};
     document.addEventListener('click', async ev => {
         const btn = ev.target.closest('.button[data-action]');
         if (!btn) {
@@ -643,6 +647,11 @@ export async function settingsMain() {
     });
     common.subscribe('set-windows', renderWindowsPanel, {source: 'windows'});
     extraData.webServerURL = await common.rpc.getWebServerURL();
+    const athlete = await common.rpc.getAthlete('self', {refresh: true});
+    extraData.profileDesc = athlete && athlete.sanitizedFullname;
+    if (athlete) {
+        document.querySelector('img.avatar').src = athlete.avatar || 'images/blankavatar.png';
+    }
     const appSettingsUpdate = common.initAppSettingsForm('form.app-settings');
     document.addEventListener('app-setting-set', ev => {
         if (ev.data.key === 'autoLapMetric') {
@@ -665,4 +674,5 @@ export async function settingsMain() {
     extraData.monitorZwiftLogin = loginInfo && loginInfo.monitor && loginInfo.monitor.username;
     await appSettingsUpdate(extraData);
     await common.initSettingsForm('form.settings')();
+    await initWindowsPanel();
 }
