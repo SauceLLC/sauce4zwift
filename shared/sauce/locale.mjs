@@ -251,17 +251,20 @@ function _humanNumber(value, precision, fixed) {
 }
 
 
-const _hnLRU = new LRUCache(4096);
+const _hnLRU = new LRUCache(4096 * 16);
 function humanNumber(value, options={}) {
     const precision = options.precision || 0;
-    const fixed = options.fixed;
+    const sep = options.seperator || '';
     if (!precision) {
         // Improve LRU hit rate..
         value = Math.round(value);
     }
-    const sig = `${typeof value} ${value} ${precision} ${fixed}`;
+    const sig = `${typeof value} ${value} ${precision} ${options.fixed} ${options.suffix} ${options.html} ${sep}`;
     if (!_hnLRU.has(sig)) {
-        const r = _humanNumber(value, precision, fixed);
+        let r = _humanNumber(value, precision, options.fixed);
+        if (typeof options.suffix === 'string') {
+            r = r + sep + (options.html ? `<abbr class="unit">${options.suffix}</abbr>` : options.suffix);
+        }
         _hnLRU.set(sig, r);
         return r;
     } else {
