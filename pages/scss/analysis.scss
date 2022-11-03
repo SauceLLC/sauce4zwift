@@ -1,0 +1,287 @@
+@use 'color';
+@use 'charts';
+@import 'profile_tpl';
+
+html {
+    padding: 0;
+    font-size: 4.1mm;
+}
+
+img.avatar {
+    object-fit: cover;
+    width: 2em;
+    height: 2em;
+    margin: -0.5em 0.5em -0.5em -0.5em;
+    border-radius: 50%;
+    background-color: white;
+}
+
+#content {
+    overflow: auto;
+    overflow: overlay;
+}
+
+#content > section {
+    margin: 2em;
+    border-radius: 0.33em;
+    overflow: hidden;
+    flex: 0 0 auto;
+
+    > header {
+        display: flex;
+        align-items: center;
+        padding: 1rem 2rem;
+        font-size: 1.4em;
+        font-variant: all-small-caps;
+        font-weight: 600;
+        background-color: color.shade(fg, 100%, 0.4);
+
+        ms {
+            padding-right: 0.2em;
+            align-self: flex-end;
+        }
+    }
+
+    > main {
+        padding: 1rem 2rem 2rem;
+        background-color: color.shade(fg, 100%, 0.2);
+
+    }
+}
+
+// XXX shared with events, make common...
+main > table {
+    user-select: text;
+    table-layout: fixed;
+
+    > thead {
+        position: sticky;
+        z-index: 1;
+        top: 0;
+        background-image: linear-gradient(to bottom, color.shade(bg, -10%), color.shade(bg, 0%));
+    }
+}
+
+.chart-holder {
+    @include charts.legend(".legend");
+}
+
+section.summary {
+    .chart {
+        height: 10em;
+    }
+
+    .more-stats .stats {
+        margin: 0.2em 1em 0.2em 0;
+    }
+}
+
+ .more-stats {
+    display: flex;
+    flex-wrap: wrap;
+
+    .stats {
+        flex: 0 1 auto;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        background-color: color.shade(fg, 100%, 0.2);
+        padding: 1em;
+        border-radius: 0.33em;
+        margin: 1em;
+
+        key {
+            grid-column: 1;
+            margin-right: 0.5em;
+        }
+        value {
+            grid-column: 2;
+        }
+    }
+}
+
+table.expandable.laps,
+table.expandable.segments {
+    > tbody > tr.details > td > .container {
+        $more-stats-width: 250px;
+        display: flex;
+        flex-wrap: wrap;
+        padding: 1em;
+        align-items: center;
+
+         .more-stats {
+            flex: 0 1 $more-stats-width;
+        }
+
+        .chart-holder {
+            position: relative;
+            flex: 1 1 calc(100% - $more-stats-width - 2px);
+            overflow: hidden;
+            min-width: 300px;
+
+            .chart {
+                height: 10em;
+            }
+        }
+    }
+}
+
+// XXX shared with events, make common...
+table {
+    border-collapse: collapse;
+    width: 100%;
+
+    thead th {
+        font-variant: all-small-caps;
+        font-weight: 500;
+    }
+
+    abbr.unit {
+        font-size: 0.82em;
+        opacity: 0.8;
+        margin-left: 0.1em;
+    }
+
+    > thead > tr > th,
+    > tbody > tr > td {
+        padding: 0.4em;
+        text-align: left;
+
+        &:first-child {
+            padding-left: 1.5em;
+        }
+        &:last-child {
+            padding-right: 1.5em;
+        }
+    }
+
+    tbody tr {
+        transition: background 100ms;
+
+        &:hover {
+            background-color: #0355;
+        }
+    }
+
+    &.expandable {
+        > tbody > tr {
+            &:nth-child(4n - 1) {
+                background-color: #0001;
+
+                &:hover {
+                    background-color: #0354;
+                }
+            }
+
+            &:nth-child(2n - 1) {
+                &:not(.expanded) + tr {
+                    display: none;
+                }
+            }
+
+            &.summary {
+                cursor: pointer;
+
+                > td {
+                    white-space: nowrap;
+                    text-overflow: ellipsis;
+                    overflow: hidden;
+                }
+            }
+
+            &.expanded,
+            &.details {
+                background-color: color.shade(bg2, 20%, 10%) !important;
+            }
+
+            &.expanded {
+                border-top: 0.2em solid color.shade(fg, 10%, 50%);
+
+                > td {
+                    padding-top: 1em;
+                    padding-bottom: 0.5em;
+                    font-weight: bold;
+                }
+            }
+
+            &.details {
+                border-bottom: 0.2em solid color.shade(fg, 10%, 50%);
+
+                > td {
+                    padding-top: 0.5em;
+                    padding-bottom: 1em;
+
+                    > .container {
+                        background-color: color.shade(bg2, 60%, 10%);
+                        padding: 1.5em;
+                        border-radius: 0.28em;
+                        box-shadow: 1px 1px 5px #0003;
+
+                        &:empty {
+                            min-height: 5em;
+
+                            &::after {
+                                font-size: 2em;
+                                content: 'Loading...'
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@media only screen and (max-width: 600px)  {
+    html, body {
+        font-size: 3.7mm;
+    }
+
+    .more-stats {
+        flex-grow: 1 !important;
+
+        .stats {
+            margin: 0.5em !important;
+            width: 100%;
+        }
+    }
+
+    img.avatar {
+        margin-left: 0.2em;
+    }
+
+    #content > section {
+        margin: 0;
+
+        > header,
+        > main {
+            padding-left: 0.5rem;
+            padding-right: 0.5rem;
+        }
+    }
+ 
+    table {
+        table-layout: fixed;
+        width: 100%;
+
+        > thead > tr > th,
+        > tbody > tr > td {
+            &:first-child {
+                padding-left: 0.5em;
+            }
+
+            &:last-child {
+                padding-right: 0.5em;
+            }
+        }
+
+        td[colspan] {
+            padding-top: 0 !important;
+            padding-left: 0;
+            padding-right: 0;
+
+            > .container {
+                padding: 0.4em !important;
+            }
+        }
+    }
+}
