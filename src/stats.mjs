@@ -440,8 +440,8 @@ export class StatsProcessor extends events.EventEmitter {
         if (!ad) {
             return null;
         }
-        return ad.laps.map(x => this._formatLapish(x, ad, athlete));
         const athlete = this.loadAthlete(ad.athleteId);
+        return ad.laps.map(x => this._formatLapish(x, ad, athlete));
     }
 
     getAthleteSegments(id) {
