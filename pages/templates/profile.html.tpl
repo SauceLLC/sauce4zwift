@@ -85,7 +85,7 @@
                     <key>Threshold</key>
                     FTP: {-humanPower(athlete.ftp, {suffix: true, html: true})-},
                     W':<a title="Click to edit - Press Enter to save"
-                          href="javascript:void(0)" class="wprime">{{athlete.wPrime ? humanNumber(athlete.wPrime / 1000) + 'kJ' : '-'}}</a>
+                          href="javascript:void(0)" class="wprime">{-humanNumber(athlete.wPrime / 1000, {suffix: 'kJ', html: true})-}</a>
                 </div>
             </div>
             <div class="info live">
