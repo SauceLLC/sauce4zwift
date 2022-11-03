@@ -1,5 +1,5 @@
 @use 'color';
-@import 'charts';
+@use 'charts';
 
 html {
     &.solid-background {
@@ -13,22 +13,27 @@ html {
 
 .screen-section.line-chart {
     padding-top: 0.4rem; // clearance for labels which overflow
+    @include charts.legend(".s-chart-legend");
 
     .s-chart-legend {
+        background: color.shade(fg, 100%, 0.7);
+        font-size: 0.75rem;
+        transition: opacity 400ms;
+        opacity: 0;
+        pointer-events: none;
         position: absolute;
-        width: 100%;
         bottom: 0;
         left: 0;
-        opacity: 0;
-        transition: opacity 400ms;
-        background: color.shade(fg, 100%, 0.7);
-        pointer-events: none;
+        width: 100%;
+
+        .s-legend-item {
+            font-size: 0.8em;
+        }
     }
 
     &:focus .s-chart-legend {
-        pointer-events: initial;
         opacity: 1;
-        z-index: 10;
+        pointer-events: initial;
     }
 }
 

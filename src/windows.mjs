@@ -59,7 +59,13 @@ export const windowManifests = [{
     prettyName: 'Chat',
     prettyDesc: 'Chat dialog from nearby athletes',
     options: {width: 0.18, aspectRatio: 2},
-}, {
+},/* {
+    type: 'segments',
+    page: 'segments.html',
+    prettyName: 'Segments',
+    prettyDesc: 'View current and nearby segment information',
+    options: {width: 300, aspectRatio: 3},
+}, */{
     type: 'nearby',
     page: 'nearby.html',
     prettyName: 'Nearby Athletes',
@@ -72,6 +78,13 @@ export const windowManifests = [{
     prettyName: 'Events',
     prettyDesc: 'Event listings and entrant information',
     options: {width: 900, height: 0.8},
+    overlay: false,
+}, {
+    type: 'analysis',
+    page: 'analysis.html',
+    prettyName: 'Analysis',
+    prettyDesc: 'Analyze your session laps, segments and other stats',
+    options: {width: 900, height: 600},
     overlay: false,
 }, {
     type: 'game-control',
@@ -600,7 +613,13 @@ function _openWindow(id, spec) {
         ...options,
     });
     win.setMenuBarVisibility(false);
-    win.setBounds(bounds); // https://github.com/electron/electron/issues/10862
+    try {
+        win.setBounds(bounds); // https://github.com/electron/electron/issues/10862
+    } catch(e) {
+        // If the value is something like 9000, setBounds() throws.  Just carry on as the
+        // user may have had some crazy wide multi monitor setup and now does not.
+        console.error("Set bounds error:", e);
+    }
     if (spec.overlay !== false) {
         win.setAlwaysOnTop(true, 'pop-up-menu');
     }
