@@ -17,6 +17,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const monotonic = performance.now;
 const roadDistEstimates = {};
+const allSegments = new Map();
 
 
 let _db;
@@ -78,6 +79,11 @@ function adjRoadDistEstimate(sig, raw) {
         _roadDistExpFuncs[sig] = makeExpWeighted(100);
     }
     return roadDistEstimates[sig] = _roadDistExpFuncs[sig](raw);
+}
+
+
+function getRoadSig(courseId, roadId, reverse) {
+    return courseId << 18 | roadId << 1 | reverse;
 }
 
 
@@ -213,17 +219,45 @@ class ExtendedRollingPower extends sauce.power.RollingPower {
 }
 
 
-const segmentsByWorld = new Map();
-function getSegmentsForWorld(worldId) {
-    if (!segmentsByWorld.has(worldId)) {
-        const fname = path.join(__dirname, `../shared/deps/data/segments-${worldId}.json`);
-        try {
-            segmentsByWorld.set(worldId, JSON.parse(fs.readFileSync(fname)));
-        } catch(e) {
-            segmentsByWorld.set(worldId, []);
+const _segmentsByRoadSig = {};
+const _segmentsByWorld = {};
+function getNearbySegments(courseId, roadSig) {
+    if (_segmentsByRoadSig[roadSig] === undefined) {
+        const worldId = zwift.courseToWorldIds[courseId];
+        if (_segmentsByWorld[worldId] === undefined) {
+            const fname = path.join(__dirname, `../shared/deps/data/segments-${worldId}.json`);
+            try {
+                _segmentsByWorld[worldId] = JSON.parse(fs.readFileSync(fname));
+            } catch(e) {
+                _segmentsByWorld[worldId] = [];
+            }
+            for (const x of _segmentsByWorld[worldId]) {
+                for (const dir of ['Forward', 'Reverse']) {
+                    if (x['id' + dir]) {
+                        const reverse = dir === 'Reverse';
+                        const segSig = getRoadSig(courseId, x.roadId, reverse);
+                        if (!_segmentsByRoadSig[segSig]) {
+                            _segmentsByRoadSig[segSig] = [];
+                        }
+                        const segment = {
+                            ...x,
+                            reverse,
+                            id: x['id' + dir],
+                            distance: x['distance' + dir],
+                            friendlyName: x['friendlyName' + dir],
+                            roadStart: x['roadStart' + dir],
+                        };
+                        _segmentsByRoadSig[segSig].push(segment);
+                        allSegments.set(segment.id, segment);
+                    }
+                }
+            }
+        }
+        if (_segmentsByRoadSig[roadSig] === undefined) {
+            _segmentsByRoadSig[roadSig] = null;
         }
     }
-    return segmentsByWorld.get(worldId);
+    return _segmentsByRoadSig[roadSig];
 }
 
 
@@ -403,29 +437,27 @@ export class StatsProcessor extends events.EventEmitter {
 
     getAthleteLaps(id) {
         const ad = this._athleteData.get(this._realAthleteId(id));
-        return ad ? this._getAthleteLaps(ad.laps, ad) : null;
+        const athlete = this.loadAthlete(ad.athleteId);
+        return ad ? ad.laps.map(x => this._formatLapish(x, ad, athlete)) : null;
     }
 
     getAthleteSegments(id) {
         const ad = this._athleteData.get(this._realAthleteId(id));
-        return ad ? this._getAthleteLaps(ad.segments, ad) : null;
+        const athlete = this.loadAthlete(ad.athleteId);
+        return ad ? ad.segments.map(x => this._formatLapish(x, ad, athlete,
+            {segment: allSegments.get(x.id)})) : null;
     }
 
-    _getAthleteLaps(lapish, ad) {
-        let athlete = this.loadAthlete(ad.athleteId);
-        if (athlete && ad.privacy.hideFTP) {
-            // XXX refactor this into some func or into loadAthlete
-            athlete = {...athlete, ftp: null};
-        }
-        const now = monotonic();
-        return lapish.map(x => ({
-            stats: this._getCollectorStats(x, ad.wtOffset, athlete, ad.privacy),
-            startIndex: x.power.roll._offt,
-            endIndex: x.power.roll._length - 1,
-            start: x.start,
-            end: x.end,
-            elapsed: ((x.end || now) - x.start) / 1000,
-        }));
+    _formatLapish(lapish, ad, athlete, extra) {
+        return {
+            stats: this._getCollectorStats(lapish, ad, athlete),
+            startIndex: lapish.power.roll._offt,
+            endIndex: lapish.power.roll._length - 1,
+            start: lapish.start,
+            end: lapish.end,
+            sport: lapish.sport,
+            ...extra,
+        };
     }
 
     getAthleteStreams(id) {
@@ -466,6 +498,20 @@ export class StatsProcessor extends events.EventEmitter {
         lastLap.end = now;
         Object.assign(lastLap, this.cloneDataCollectors(lastLap));
         ad.laps.push(this.cloneDataCollectors(ad.collectors, {reset: true}));
+    }
+
+    startSegment(ad, id) {
+        const segment = this.cloneDataCollectors(ad.collectors, {reset: true});
+        segment.id = id;
+        ad.segments.push(segment);
+        ad.activeSegments.set(id, segment);
+        return segment;
+    }
+
+    stopSegment(ad, id) {
+        const segment = ad.activeSegments.get(id);
+        segment.end = monotonic();
+        ad.activeSegments.delete(id);
     }
 
     resetStats() {
@@ -854,34 +900,35 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _roadSig(state) {
-        return `${state.courseId},${state.roadId},${state.reverse}`;
+        return getRoadSig(state.courseId, state.roadId, state.reverse);
     }
 
-    _getCollectorStats(cs, wtOffset, athlete, privacy) {
+    _getCollectorStats(cs, ad, athlete) {
         const end = cs.end || monotonic();
         const elapsedTime = (end - cs.start) / 1000;
         const np = cs.power.roll.np({force: true});
-        const wBal = privacy.hideWBal ? undefined : cs.power.roll.wBal;
+        const wBal = ad.privacy.hideWBal ? undefined : cs.power.roll.wBal;
         const activeTime = cs.power.roll.active();
-        const tss = (!privacy.hideFTP && np && athlete && athlete.ftp) ?
+        const tss = (!ad.privacy.hideFTP && np && athlete && athlete.ftp) ?
             sauce.power.calcTSS(np, activeTime, athlete.ftp) :
             undefined;
         return {
             elapsedTime,
             activeTime,
-            power: cs.power.getStats(wtOffset, {np, tss, wBal}),
-            speed: cs.speed.getStats(wtOffset),
-            hr: cs.hr.getStats(wtOffset),
-            cadence: cs.cadence.getStats(wtOffset),
-            draft: cs.draft.getStats(wtOffset),
+            power: cs.power.getStats(ad.wtOffset, {np, tss, wBal}),
+            speed: cs.speed.getStats(ad.wtOffset),
+            hr: cs.hr.getStats(ad.wtOffset),
+            cadence: cs.cadence.getStats(ad.wtOffset),
+            draft: cs.draft.getStats(ad.wtOffset),
         };
     }
 
-    makeDataCollectors() {
+    makeDataCollectors(sport='cycling') {
         const periods = [5, 15, 60, 300, 1200];
         const longPeriods = periods.filter(x => x >= 60);
         return {
             start: monotonic(),
+            sport,
             power: new DataCollector(ExtendedRollingPower, periods, {inlineNP: true, round: true}),
             speed: new DataCollector(sauce.data.RollingAverage, longPeriods, {ignoreZeros: true}),
             hr: new DataCollector(sauce.data.RollingAverage, longPeriods, {ignoreZeros: true, round: true}),
@@ -892,7 +939,10 @@ export class StatsProcessor extends events.EventEmitter {
 
     cloneDataCollectors(collectors, options={}) {
         const types = ['power', 'speed', 'hr', 'cadence', 'draft'];
-        const bucket = {start: options.reset ? monotonic() : collectors.start};
+        const bucket = {
+            start: options.reset ? monotonic() : collectors.start,
+            sport: collectors.sport,
+        };
         for (const x of types) {
             bucket[x] = collectors[x].clone(options);
         }
@@ -948,8 +998,8 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
-    _createAthleteData(athleteId, wtOffset) {
-        const collectors = this.makeDataCollectors();
+    _createAthleteData(athleteId, wtOffset, sport='cycling') {
+        const collectors = this.makeDataCollectors(sport);
         return {
             wtOffset,
             athleteId,
@@ -967,13 +1017,14 @@ export class StatsProcessor extends events.EventEmitter {
             },
             collectors,
             laps: [this.cloneDataCollectors(collectors, {reset: true})],
-            activeSegments: new Set(),
+            activeSegments: new Map(),
             segments: [],
         };
     }
 
     _resetAthleteData(ad, wtOffset) {
-        const collectors = this.makeDataCollectors();
+        const sport = ad.mostRecentState ? ad.mostRecentState.sport : 'cycling';
+        const collectors = this.makeDataCollectors(sport);
         Object.assign(ad, {
             wtOffset,
             collectors,
@@ -1007,7 +1058,7 @@ export class StatsProcessor extends events.EventEmitter {
     processState(state) {
         if (!this._athleteData.has(state.athleteId)) {
             this._athleteData.set(state.athleteId,
-                this._createAthleteData(state.athleteId, state.worldTime));
+                this._createAthleteData(state.athleteId, state.worldTime, state.sport));
         }
         const ad = this._athleteData.get(state.athleteId);
         const prevState = ad.mostRecentState;
@@ -1051,17 +1102,16 @@ export class StatsProcessor extends events.EventEmitter {
         if (ad.disabled) {
             return;
         }
+        const roadSig = this._roadSig(state);
         if (this._autoLap) {
             this._autoLapCheck(state, ad);
         }
-        this._recordAthleteRoadHistory(state, ad);
+        this._activeSegmentCheck(state, ad, roadSig);
+        this._recordAthleteRoadHistory(state, ad, roadSig);
         this._recordAthleteStats(state, ad);
         ad.mostRecentState = state;
         ad.updated = monotonic();
         this._stateProcessCount++;
-        if (this.athleteId === state.athleteId) {
-            this.handleSelfState(state);
-        }
         if (this.watching === state.athleteId && this.listenerCount('athlete/watching')) {
             this.emit('athlete/watching', this._formatAthleteStats(ad));
         }
@@ -1084,9 +1134,8 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
-    _recordAthleteRoadHistory(state, ad) {
+    _recordAthleteRoadHistory(state, ad, roadSig) {
         const prevState = ad.mostRecentState;
-        const roadSig = this._roadSig(state);
         if (prevState) {
             let shiftHistory;
             if (roadSig !== ad.roadHistory.sig) {
@@ -1167,8 +1216,7 @@ export class StatsProcessor extends events.EventEmitter {
         curLap.hr.resize(time);
         curLap.draft.resize(time);
         curLap.cadence.resize(time);
-        for (const idx of ad.activeSegments) {
-            const s = ad.segments[idx];
+        for (const s of ad.activeSegments.values()) {
             s.power.resize(time);
             s.speed.resize(time);
             s.hr.resize(time);
@@ -1177,38 +1225,58 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
-    handleSelfState(state) {
-        const worldId = zwift.courseToWorldIds[state.courseId];
-        const segments = getSegmentsForWorld(worldId).filter(x =>
-            x.roadId === state.roadId && (state.reverse ?
-                x.roadStartReverse != null : x.roadStartForward) != null);
+    _activeSegmentCheck(state, ad, roadSig) {
+        const segments = getNearbySegments(state.courseId, roadSig);
+        if (!segments || !segments.length) {
+            return;
+        }
+        const p = (state.roadLocation - 5000) / 1e6;
+        for (let i = 0; i < segments.length; i++) {
+            const x = segments[i];
+            let progress;
+            if (state.reverse) {
+                progress = (p >= x.roadFinish && p <= x.roadStart) ?
+                    1 - (p - x.roadFinish) / (x.roadStart - x.roadFinish) : null;
+            } else {
+                progress = (p <= x.roadFinish && p >= x.roadStart) ?
+                    1 - (x.roadFinish - p) / (x.roadFinish - x.roadStart) : null;
+            }
+            if (ad.activeSegments.has(x.id)) {
+                if (progress == null) {
+                    console.debug("Segment completed", x);
+                    this.stopSegment(ad, x.id);
+                }
+            } else {
+                if (progress != null && progress < 0.05) {
+                    console.debug("Segment started", progress, x);
+                    this.startSegment(ad, x.id);
+                }
+            }
+        }
+    }
+
+    _formatNearbySegments(ad, roadSig) {
+        const state = ad.mostRecentState;
+        const segments = getNearbySegments(state.courseId, roadSig);
+        if (!segments || !segments.length) {
+            return [];
+        }
         const p = (state.roadLocation - 5000) / 1e6;
         const relSegments = segments.map(x => {
             let progress, proximity;
             if (state.reverse) {
-                progress = (p >= x.roadFinish && p <= x.roadStartReverse) ?
-                    1 - (p - x.roadFinish) / (x.roadStartReverse - x.roadFinish) : null;
-                proximity = progress !== null ? 0 : p < x.roadFinish ? p - x.roadFinish : x.roadStartReverse - p;
+                progress = (p >= x.roadFinish && p <= x.roadStart) ?
+                    1 - (p - x.roadFinish) / (x.roadStart - x.roadFinish) : null;
+                proximity = progress !== null ? 0 : p < x.roadFinish ? p - x.roadFinish : x.roadStart - p;
             } else {
                 progress = (p <= x.roadFinish && p >= x.roadStartForward) ?
-                    1 - (x.roadFinish - p) / (x.roadFinish - x.roadStartForward) : null;
-                proximity = progress !== null ? 0 : p > x.roadFinish ? p - x.roadFinish : x.roadStartForward - p;
+                    1 - (x.roadFinish - p) / (x.roadFinish - x.roadStart) : null;
+                proximity = progress !== null ? 0 : p > x.roadFinish ? p - x.roadFinish : x.roadStart - p;
             }
-            return {
-                progress,
-                proximity,
-                reverse: state.reverse,
-                finish: x.roadFinish,
-                loop: x.requiresAllCheckpoints,
-                name: (state.reverse ? x.friendlyNameReverse : x.friendlyNameForward) || x.name,
-                id: state.reverse ? x.idReverse : x.idForward,
-                distance: state.reverse ? x.distanceReverse : x.distanceForward,
-                start: state.reverse ? x.roadStartReverse : x.roadStartForward,
-            };
+            return {...x, progress, proximity};
         });
         relSegments.sort((a, b) => a.proximity - b.proximity);
-        this.emit('segments', relSegments);
-        //console.log(state.roadId, state.turnChoice, state._rem, p, relSegments);
+        return relSegments;
     }
 
     async resetAthletesDB() {
@@ -1648,13 +1716,13 @@ export class StatsProcessor extends events.EventEmitter {
         const state = ad.mostRecentState;
         let lap, lastLap;
         if (ad.laps.length > 1) {
-            lap = this._getCollectorStats(ad.laps[ad.laps.length - 1], ad.wtOffset, athlete, ad.privacy);
-            lastLap = this._getCollectorStats(ad.laps[ad.laps.length - 2], ad.wtOffset, athlete, ad.privacy);
+            lap = this._getCollectorStats(ad.laps[ad.laps.length - 1], ad, athlete);
+            lastLap = this._getCollectorStats(ad.laps[ad.laps.length - 2], ad, athlete);
         }
         return {
             athleteId: state.athleteId,
             athlete,
-            stats: this._getCollectorStats(ad.collectors, ad.wtOffset, athlete, ad.privacy),
+            stats: this._getCollectorStats(ad.collectors, ad, athlete),
             lap,
             lastLap,
             state: this._cleanState(state),
