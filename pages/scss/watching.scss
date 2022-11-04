@@ -13,6 +13,7 @@ html {
 
 .screen-section.line-chart {
     padding-top: 0.4rem; // clearance for labels which overflow
+    outline-style: none;
     @include charts.legend(".s-chart-legend");
 
     .s-chart-legend {

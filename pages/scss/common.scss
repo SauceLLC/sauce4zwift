@@ -37,6 +37,12 @@ html {box-sizing: border-box;}
     box-sizing: inherit;
 }
 
+:focus-visible {
+    outline-style: solid;
+    outline-width: 2.5px;
+    outline-offset: 2px;
+    outline-color: color.shade(primary, 10%, 0.92);
+}
 
 html {
     --aspect-ratio: 9 / 16;
@@ -284,12 +290,7 @@ input, select {
     border-radius: 0.28em;
     font-size: 0.9em;
     background-color: #fcfcfc;
-    outline-color: #08f;
     border-style: solid;
-
-    &:focus {
-        outline-style: solid;
-    }
 }
 
 input[type="number"] {
