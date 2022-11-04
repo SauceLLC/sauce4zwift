@@ -154,6 +154,8 @@
                                 {{settings.speedEn ? 'checked' : ''}}/></label>
                             <label>Enable Cadence: <input type="checkbox" name="cadenceEn"
                                 {{settings.cadenceEn ? 'checked' : ''}}/></label>
+                            <label>Enable Draft: <input type="checkbox" name="draftEn"
+                                {{settings.draftEn ? 'checked' : ''}}/></label>
                             <label>Enable W'bal: <input type="checkbox" name="wbalEn"
                                 {{settings.wbalEn ? 'checked' : ''}}/></label>
                             <hr/>
@@ -164,6 +166,7 @@
                                     <option {{settings.markMax === 'hr' ? 'selected' : ''}} value="hr">Heart Rate</option>
                                     <option {{settings.markMax === 'speed' ? 'selected' : ''}} value="speed">Speed</option>
                                     <option {{settings.markMax === 'cadence' ? 'selected' : ''}} value="cadence">Cadence</option>
+                                    <option {{settings.markMax === 'draft' ? 'selected' : ''}} value="draft">Draft</option>
                                     <option {{settings.markMax === 'wbal' ? 'selected' : ''}} value="wbal">W'bal (minimum)</option>
                                 </select>
                             </label>

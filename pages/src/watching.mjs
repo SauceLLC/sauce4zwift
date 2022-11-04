@@ -76,6 +76,7 @@ const sectionSpecs = {
             hrEn: true,
             speedEn: true,
             cadenceEn: false,
+            draft: false,
             wbalEn: false,
             markMax: 'power',
         },
@@ -462,6 +463,15 @@ const lineChartFields = [{
     points: [],
     get: x => x.state.cadence || 0,
     fmt: x => H.number(x) + (sport === 'running' ? ' spm' : ' rpm'),
+}, {
+    id: 'draft',
+    name: 'Draft',
+    color: '#e88853',
+    domain: [0, 300],
+    rangeAlpha: [0.1, 0.9],
+    points: [],
+    get: x => x.state.draft || 0,
+    fmt: x => H.number(x, {suffix: ' %'}),
 }, {
     id: 'wbal',
     name: 'W\'bal',

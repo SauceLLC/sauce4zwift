@@ -25,7 +25,7 @@
                 </div>
             </div>
         <% } %>
-        <div class="chart-holder" tabindex="0">
+        <div class="chart-holder">
             <div class="chart"></div>
             <div class="legend horizontal"></div>
         </div>
