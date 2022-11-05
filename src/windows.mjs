@@ -536,7 +536,6 @@ function handleNewSubWindow(parent, spec, webPrefs) {
         const frame = q.has('frame') || !url.startsWith('file://');
         const newWin = new SauceBrowserWindow({
             specId: `${spec ? spec.id : 'generic'}-subwindow-${target}`,
-            type: isLinux ? 'splash' : undefined,
             show: false,
             frame,
             transparent: frame === false,
@@ -597,7 +596,6 @@ function _openWindow(id, spec) {
     };
     const win = new SauceBrowserWindow({
         specId: id,
-        type: isLinux ? 'splash' : undefined,
         show: false,
         frame: false,
         transparent: true,
@@ -702,7 +700,6 @@ export function makeCaptiveWindow(options={}, webPrefs={}) {
     const bounds = getBoundsForDisplay(display, options);
     const win = new SauceBrowserWindow({
         specId: `captive-${captiveIdInc++}`,
-        type: isLinux ? 'splash' : undefined,
         center: true,
         maximizable: false,
         fullscreenable: false,
