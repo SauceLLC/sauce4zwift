@@ -181,6 +181,9 @@ html {
         display: block;
         font-variant: all-small-caps;
         grid-column: 1 / 4;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;;
     }
 
     [data-field].full-height {

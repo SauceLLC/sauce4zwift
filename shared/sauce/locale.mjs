@@ -388,9 +388,12 @@ const placeSuffixes = {
 };
 function humanPlace(p, options={}) {
     if (!p) {
-        return humanEmpty;
+        return options.suffixOnly ? '' : humanEmpty;
     }
     const suffix = placeSuffixes[placePluralRules.select(p)];
+    if (options.suffixOnly) {
+        return suffix;
+    }
     const hp = humanNumber(p);
     if (options.html) {
         return `${hp}<abbr class="unit">${suffix}</abbr>`;

@@ -6,7 +6,7 @@ const L = sauce.locale;
 const H = L.human;
 let imperial = !!common.storage.get('/imperialUnits');
 L.setImperial(imperial);
-let eventMetric = 'distance';
+let eventMetric;
 let sport = 'cycling';
 
 common.settingsStore.setDefault({
@@ -24,7 +24,7 @@ function isRealNumber(v) {
 
 
 function fmtPace(x) {
-    return H.pace(x, {sport, precision: 0});
+    return H.pace(x, {sport, precision: 1});
 }
 
 
@@ -192,7 +192,7 @@ export async function main() {
             watching.eventSubgroup = getEventSubgroup(watching.state.eventSubgroupId);
         }
         sport = watching.state.sport || 'cycling';
-        eventMetric = watching.remainingMetric || 'distance';
+        eventMetric = watching.remainingMetric;
         renderer.setData(watching);
         const ts = Date.now();
         if (ts - lastUpdate > 500) {
@@ -227,7 +227,7 @@ function buildLayout() {
             fields: [{
                 id: 'time-lap',
                 value: x => fmtDur((x.lap || x.stats) && (x.lap || x.stats).elapsedTime || 0),
-                key: 'Lap Time',
+                key: 'Time <small>(lap)</small>',
             }, {
                 id: 'time-elapsed',
                 value: x => fmtDur(x.stats && x.stats.elapsedTime || 0),
@@ -423,14 +423,15 @@ function buildLayout() {
                 key: 'Place',
             }, {
                 id: 'ev-fin',
-                value: x => eventMetric === 'distance' ? fmtDist(x.remaining) : fmtDur(x.remaining),
+                value: x => eventMetric ? eventMetric === 'distance' ? fmtDist(x.remaining) : fmtDur(x.remaining) : '-',
                 key: 'Finish',
             }, {
                 id: 'ev-dst',
+                tooltip: () => 'far spray',
                 value: x => x.state ? (eventMetric === 'distance' ?
                     `${fmtDist(x.state.eventDistance)}/${fmtDist(x.state.eventDistance + x.remaining)}` :
                     fmtDist(x.state.eventDistance)) : '-',
-                key: 'Event Dist',
+                key: () => eventMetric ? 'Dist <small>(event)</small>' : 'Dist <small>(session)</small>',
             }, {
                 id: 'dst',
                 value: x => fmtDist(x.state && x.state.distance),
@@ -453,12 +454,11 @@ function buildLayout() {
                 id: 'draft-cur',
                 value: x => fmtPct(x.state && x.state.draft / 100),
                 key: 'Draft',
-
             }, {
                 // XXX after a release or two with the id system move this to the top
                 id: 'time-session',
                 value: x => fmtDur(x.state && x.state.time || 0),
-                key: 'Session',
+                key: 'Time',
             }, {
                 // XXX after a release or two with the id system move this to the top
                 id: 'clock',

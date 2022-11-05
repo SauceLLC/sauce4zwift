@@ -43,7 +43,8 @@ const defaultLineChartLen = Math.ceil(window.innerWidth / 2);
 const chartRefs = new Set();
 let imperial = !!common.settingsStore.get('/imperialUnits');
 L.setImperial(imperial);
-let eventMetric = 'distance';
+let eventMetric;
+let eventSubgroup;
 let sport = 'cycling';
 
 const sectionSpecs = {
@@ -357,16 +358,16 @@ const groupSpecs = {
         }],
     },
     event: {
-        title: 'Event',
+        title: x => eventSubgroup && eventSubgroup.name || 'Event',
         backgroundImage: 'url(../images/fa/flag-checkered-duotone.svg)',
         fields: [{
             id: 'ev-place',
-            value: x => H.place(x.eventPosition, {html: true}),
-            label: 'place',
+            value: x => H.number(x.eventPosition),
             key: 'Place',
+            unit: x => H.place(x.eventPosition, {suffixOnly: true})
         }, {
             id: 'ev-finish',
-            value: x => eventMetric === 'distance' ? fmtDistValue(x.remaining) : fmtDur(x.remaining),
+            value: x => eventMetric ? eventMetric === 'distance' ? fmtDistValue(x.remaining) : fmtDur(x.remaining) : '-',
             label: 'finish',
             key: 'Finish',
             unit: x => eventMetric === 'distance' ? fmtDistUnit(x && x.state && x.state.eventDistance) : '',
@@ -374,8 +375,8 @@ const groupSpecs = {
             id: 'ev-dst',
             value: x => eventMetric === 'distance' ?
                 fmtDistValue(x.state && x.state.eventDistance) : fmtDur(x.state && x.state.time),
-            label: () => eventMetric === 'distance' ? 'dist' : 'timer',
-            key: x => eventMetric === 'distance' ? 'Dist' : 'Timer',
+            label: () => eventMetric === 'distance' ? 'dist' : 'time',
+            key: x => eventMetric === 'distance' ? 'Dist' : 'Time',
             unit: x => eventMetric === 'distance' ? fmtDistUnit(x && x.state && x.state.eventDistance) : '',
         }]
     },
@@ -523,7 +524,7 @@ function speedUnit() {
 
 
 function fmtPace(x, options) {
-    return H.pace(x, {precision: 0, sport, ...options});
+    return H.pace(x, {precision: 1, sport, ...options});
 }
 
 
@@ -655,6 +656,23 @@ function makeSmoothHRField(period) {
         key: duration,
         unit: 'bpm',
     };
+}
+
+
+const _events = new Map();
+function getEventSubgroup(id) {
+    if (!_events.has(id)) {
+        _events.set(id, null);
+        common.rpc.getEventSubgroup(id).then(x => {
+            if (x) {
+                _events.set(id, x);
+            } else {
+                // leave it null but allow retry later
+                setTimeout(() => _events.delete(id), 30000);
+            }
+        });
+    }
+    return _events.get(id);
 }
 
 
@@ -994,7 +1012,12 @@ export async function main() {
                     });
                     if (typeof groupSpec.title === 'function') {
                         const titleEl = groupEl.querySelector('.group-title');
-                        renderer.addCallback(() => titleEl.innerHTML = groupSpec.title());
+                        renderer.addCallback(() => {
+                            const title = groupSpec.title() || '';
+                            if (common.softInnerHTML(titleEl, title)) {
+                                titleEl.title = title;
+                            }
+                        });
                     }
                 }
             } else if (baseType === 'single-data-field') {
@@ -1016,7 +1039,12 @@ export async function main() {
                     });
                     if (typeof groupSpec.title === 'function') {
                         const titleEl = groupEl.querySelector('.group-title');
-                        renderer.addCallback(() => titleEl.innerHTML = groupSpec.title());
+                        renderer.addCallback(() => {
+                            const title = groupSpec.title() || '';
+                            if (common.softInnerHTML(titleEl, title)) {
+                                titleEl.title = title;
+                            }
+                        });
                     }
                 }
             } else if (baseType === 'chart') {
@@ -1114,7 +1142,8 @@ export async function main() {
         const force = watching.athleteId !== athleteId;
         athleteId = watching.athleteId;
         sport = watching.state.sport || 'cycling';
-        eventMetric = watching.remainingMetric || 'distance';
+        eventMetric = watching.remainingMetric;
+        eventSubgroup = getEventSubgroup(watching.state.eventSubgroupId);
         for (const x of renderers) {
             x.setData(watching);
             if (x.backgroundRender || !x._contentEl.classList.contains('hidden')) {

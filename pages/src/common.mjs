@@ -249,6 +249,15 @@ export function addOpenSettingsParam(key, value) {
 }
 
 
+export function softInnerHTML(el, html) {
+    if (el._softInnerHTML !== html) {
+        el.innerHTML = html;
+        el._softInnerHTML = html;
+        return true;
+    }
+}
+
+
 export function initInteractionListeners() {
     if (window.isElectron) {
         const spec = electron.context.spec;
@@ -505,8 +514,7 @@ export class Renderer {
                             report.errorThrottled(e);
                         }
                         const candidate = value != null && !Number.isNaN(value) ? value : '';
-                        if (field.valueEl.innerHTML !== candidate) {
-                            field.valueEl.innerHTML = candidate;
+                        if (softInnerHTML(field.valueEl, candidate)) {
                             const width = candidate.length;
                             if (field.valueEl._width !== width) {
                                 field.valueEl._width = width;
@@ -525,22 +533,13 @@ export class Renderer {
                                 report.errorThrottled(e);
                             }
                             if (Array.isArray(labels)) {
-                                if (field.labelEl.innerHTML !== labels[0]) {
-                                    field.labelEl.innerHTML = labels[0];
-                                }
+                                softInnerHTML(field.labelEl, labels[0]);
                                 if (field.subLabelEl) {
-                                    const candidate = labels.length > 1 ? labels[1] : '';
-                                    if (field.subLabelEl.innerHTML !== candidate) {
-                                        field.subLabelEl.innerHTML = candidate;
-                                    }
+                                    softInnerHTML(field.subLabelEl, labels.length > 1 ? labels[1] : '');
                                 }
                             } else {
-                                if (field.labelEl.innerHTML !== labels) {
-                                    field.labelEl.innerHTML = labels;
-                                }
-                                if (field.subLabelEl.innerHTML) {
-                                    field.subLabelEl.innerHTML = '';
-                                }
+                                softInnerHTML(field.labelEl, labels);
+                                softInnerHTML(field.subLabelEl, '');
                             }
                         }
                         if (field.keyEl) {
@@ -550,9 +549,7 @@ export class Renderer {
                             } catch(e) {
                                 report.errorThrottled(e);
                             }
-                            if (field.keyEl.innerHTML !== key) {
-                                field.keyEl.innerHTML = key;
-                            }
+                            softInnerHTML(field.keyEl, key);
                         }
                         if (field.unitEl) {
                             let unit = '';
@@ -562,9 +559,7 @@ export class Renderer {
                             } catch(e) {
                                 report.errorThrottled(e);
                             }
-                            if (field.unitEl.innerHTML !== unit) {
-                                field.unitEl.innerHTML = unit;
-                            }
+                            softInnerHTML(field.unitEl, unit);
                         }
                     }
                     for (const cb of this._callbacks) {
