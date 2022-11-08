@@ -283,7 +283,7 @@ const fieldGroups = [{
          get: x => x.state.eventSubgroupId, fmt: fmtEvent},
         {id: 'route', defaultEn: false, label: 'Route', headerLabel: '<ms>route</ms>',
          get: getRoute, fmt: fmtRoute},
-        {id: 'progress', defaultEn: false, label: 'Route/Workout %', headerLabel: 'RT/WO %',
+        {id: 'progress', defaultEn: false, label: 'Route %', headerLabel: 'RT %',
          get: x => x.state.progress * 100, fmt: pct},
         {id: 'workout-zone', defaultEn: false, label: 'Workout Zone', headerLabel: 'Zone',
          get: x => x.state.workoutZone, fmt: x => x || '-'},
