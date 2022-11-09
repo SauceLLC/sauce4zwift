@@ -41,15 +41,15 @@
     --theme-primary-light: 40%;
     --theme-primary-shade-dir: 1;
 
-    --theme-following-hue: 125;
-    --theme-following-sat: 73%;
-    --theme-following-light: 57%;
-    --theme-following-shade-dir: -1;
+    --theme-following-hue: 140;
+    --theme-following-sat: 100%;
+    --theme-following-light: 40%;
+    --theme-following-shade-dir: 1;
 
     --theme-follower-hue: 225;
-    --theme-follower-sat: 73%;
-    --theme-follower-light: 57%;
-    --theme-follower-shade-dir: -1;
+    --theme-follower-sat: 70%;
+    --theme-follower-light: 50%;
+    --theme-follower-shade-dir: 1;
 
     --theme-marked-hue: 0;
     --theme-marked-sat: 2%;
@@ -193,6 +193,8 @@ html[data-theme="light"] {
     --theme-bg-alt2-light: 80%;
     --theme-bg-alt2-shade-dir: 1;
 
+    --theme-following-shade-dir: -1;
+
     --theme-button-bar-top-left: #aaac;
     --theme-button-bar-bottom-right: #ccc;
 }
@@ -238,6 +240,8 @@ html[data-theme="transparent-light"] {
     --theme-bg-alt2-sat: 0%;
     --theme-bg-alt2-light: 80%;
     --theme-bg-alt2-shade-dir: 1;
+
+    --theme-following-shade-dir: -1;
 
     --theme-button-bar-top-left: #aaac;
     --theme-button-bar-bottom-right: #ccc;

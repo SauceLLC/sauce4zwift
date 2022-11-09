@@ -110,7 +110,8 @@ html {
         $followingGradientAlt: linear-gradient(135deg, color.get(following, 80%), color.get(following, 80%) 8%, transparent 8%);
 
         &.following .card {
-            background-color: color.shade(following, 0%, 60%);
+            background-color: color.shade(following, 0%, 80%);
+            color: color.shade(following, 100%);
 
             &.follower {
                 background-image: $followerGradient;
@@ -126,7 +127,8 @@ html {
         }
 
         &.marked .card {
-            background-color: color.get(marked, 50%);
+            background-color: color.get(marked, 80%);
+            color: color.shade(marked, 100%);
 
             &.follower {
                 background-image: $followerGradient;
@@ -142,7 +144,8 @@ html {
         }
 
         &.followers .card {
-            background-color: color.get(follower, 50%);
+            background-color: color.get(follower, 80%);
+            color: color.shade(follower, 100%);
 
             &.following {
                 background-image: $followingGradient;
