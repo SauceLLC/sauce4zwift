@@ -869,8 +869,8 @@ export class StatsProcessor extends events.EventEmitter {
         }
         const athlete = this.loadAthlete(payload.from);
         const chat = {...payload, ts};
-        if (chat.eventSubgroup) {
-            const sg = this._recentEventSubgroups.get(chat.eventSubgroup);
+        const sg = chat.eventSubgroup && this._recentEventSubgroups.get(chat.eventSubgroup);
+        if (sg) {
             if (sg.invitedLeaders && sg.invitedLeaders.includes(chat.from)) {
                 chat.eventLeader = true;
             }
