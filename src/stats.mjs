@@ -1431,7 +1431,7 @@ export class StatsProcessor extends events.EventEmitter {
             }
         });
         for (const x of absent) {
-            this._followingIds.remove(x);
+            this._followingIds.delete(x);
         }
         backoff = 100;
         absent = new Set(this._followerIds);
@@ -1454,7 +1454,7 @@ export class StatsProcessor extends events.EventEmitter {
             }
         });
         for (const x of absent) {
-            this._followerIds.remove(x);
+            this._followerIds.delete(x);
         }
         console.info(`Updated meta data for ${this._followingIds.size} following, ` +
             `${this._followerIds.size} followers, ${someEvents.length} events, ` +
