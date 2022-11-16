@@ -103,7 +103,7 @@ if (window.isElectron) {
     });
 } else {
     const q = new URLSearchParams(location.search);
-    windowID = q.get('windowId') || 'browser-def-id';
+    windowID = q.get('windowId') || q.get('windowid') || 'browser-def-id';
     const respHandlers = new Map();
     const subs = [];
     let uidInc = 1;
@@ -298,7 +298,7 @@ export function initInteractionListeners() {
         }
     }
     if (!window.isElectron) {
-        addOpenSettingsParam('id', windowID);
+        addOpenSettingsParam('windowId', windowID);
         if (navigator.userAgent.match(/ OBS\//)) {
             console.info("Enabling OBS hack to avoid broken tabs handling");
             for (const x of document.querySelectorAll('a[target]')) {
