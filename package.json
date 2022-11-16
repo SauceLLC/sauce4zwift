@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@sentry/node": "6.19.6",
-    "better-sqlite3": "github:WiseLibs/better-sqlite3#pull/870/head",
+    "better-sqlite3": "7.6.2",
     "electron-updater": "5.2.1",
     "express": "4.18.1",
     "express-ws": "5.0.2",
@@ -35,8 +35,8 @@
   "devDependencies": {
     "@sentry/browser": "6.19.6",
     "echarts": "5.4.0",
-    "electron": "21.0.1",
-    "electron-builder": "24.0.0-alpha.3",
+    "electron": "19.0.9",
+    "electron-builder": "23.3.3",
     "electron-notarize": "1.2.1",
     "eslint": "8.26.0",
     "sass": "1.56.0",
