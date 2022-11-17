@@ -15,7 +15,7 @@
             import {sanitizeAttr, stripHTML} from './src/common.mjs';
 
             async function main() {
-                const mods = await (await fetch('/api/mods')).json();
+                const mods = await (await fetch('/api/mods/v1')).json();
                 if (mods && mods.length) {
                     for (const {manifest, dir} of mods) {
                         if (!manifest || !manifest.web_root || !manifest.windows || !manifest.windows.length) {
