@@ -1094,8 +1094,6 @@ rpcCall('isDEV').then(isDEV => {
             beforeSend: report.beforeSentrySend,
             integrations: arr => arr.filter(x => !['Breadcrumbs', 'TryCatch'].includes(x.name)),
         });
-    } else {
-        console.debug("Sentry disabled for dev mode");
     }
 });
 

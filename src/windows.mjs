@@ -34,7 +34,7 @@ class SauceBrowserWindow extends electron.BrowserWindow {
 
 export const windowManifests = [{
     type: 'overview',
-    page: 'overview.html',
+    file: '/pages/overview.html',
     prettyName: 'Overview',
     prettyDesc: 'Main top window for overall control and stats',
     private: true,
@@ -43,101 +43,107 @@ export const windowManifests = [{
     alwaysVisible: true,
 }, {
     type: 'watching',
-    page: 'watching.html',
+    file: '/pages/watching.html',
     prettyName: 'Currently Watching',
     prettyDesc: 'Replacement window for stats of the athlete being watched',
     options: {width: 0.18, aspectRatio: 1},
 }, {
     type: 'groups',
-    page: 'groups.html',
+    file: '/pages/groups.html',
     prettyName: 'Groups',
     prettyDesc: 'A zoomable view of groups of athletes',
     options: {width: 0.15, height: 0.65},
 }, {
     type: 'chat',
-    page: 'chat.html',
+    file: '/pages/chat.html',
     prettyName: 'Chat',
     prettyDesc: 'Chat dialog from nearby athletes',
     options: {width: 0.18, aspectRatio: 2},
 },/* {
     type: 'segments',
-    page: 'segments.html',
+    file: '/pages/segments.html',
     prettyName: 'Segments',
     prettyDesc: 'View current and nearby segment information',
     options: {width: 300, aspectRatio: 3},
 }, */{
     type: 'nearby',
-    page: 'nearby.html',
+    file: '/pages/nearby.html',
     prettyName: 'Nearby Athletes',
     prettyDesc: 'A sortable data table of nearby athletes',
     options: {width: 900, height: 0.8},
     overlay: false,
 }, {
     type: 'events',
-    page: 'events.html',
+    file: '/pages/events.html',
     prettyName: 'Events',
     prettyDesc: 'Event listings and entrant information',
     options: {width: 900, height: 0.8},
     overlay: false,
 }, {
     type: 'analysis',
-    page: 'analysis.html',
+    file: '/pages/analysis.html',
     prettyName: 'Analysis',
     prettyDesc: 'Analyze your session laps, segments and other stats',
     options: {width: 900, height: 600},
     overlay: false,
 }, {
     type: 'game-control',
-    page: 'game-control.html',
+    file: '/pages/game-control.html',
     prettyName: 'Game Control',
     prettyDesc: 'Control game actions like view, shouting, HUD toggle, etc',
     options: {width: 300, aspectRatio: 1.65},
 }, {
     type: 'power-gauge',
     groupTitle: 'Gauges',
-    pageURL: 'gauge.html?t=power',
+    file: '/pages/gauge.html',
+    query: {t: 'power'},
     prettyName: 'Power Gauge',
     prettyDesc: 'Car style power (watts) gauge',
     options: {width: 0.20, aspectRatio: 0.8},
 }, {
     type: 'draft-gauge',
     groupTitle: 'Gauges',
-    pageURL: 'gauge.html?t=draft',
+    file: '/pages/gauge.html',
+    query: {t: 'draft'},
     prettyName: 'Draft Gauge',
     prettyDesc: 'Car style draft (% power reduction) gauge',
     options: {width: 0.20, aspectRatio: 0.8},
 }, {
     type: 'pace-gauge',
     groupTitle: 'Gauges',
-    pageURL: 'gauge.html?t=pace',
+    file: '/pages/gauge.html',
+    query: {t: 'pace'},
     prettyName: 'Pace Gauge',
     prettyDesc: 'Car style pace/speed gauge',
     options: {width: 0.20, aspectRatio: 0.8},
 }, {
     type: 'hr-gauge',
     groupTitle: 'Gauges',
-    pageURL: 'gauge.html?t=hr',
+    file: '/pages/gauge.html',
+    query: {t: 'hr'},
     prettyName: 'Heart Rate Gauge',
     prettyDesc: 'Car style heart rate gauge',
     options: {width: 0.20, aspectRatio: 0.8},
 }, {
     type: 'cadence-gauge',
     groupTitle: 'Gauges',
-    pageURL: 'gauge.html?t=cadence',
+    file: '/pages/gauge.html',
+    query: {t: 'cadence'},
     prettyName: 'Cadence Gauge',
     prettyDesc: 'Car style cadence gauge',
     options: {width: 0.20, aspectRatio: 0.8},
 }, {
     type: 'wbal-gauge',
     groupTitle: 'Gauges',
-    pageURL: 'gauge.html?t=wbal',
+    file: '/pages/gauge.html',
+    query: {t: 'wbal'},
     prettyName: 'W\'bal Gauge',
     prettyDesc: 'Car style W\'bal gauge',
     options: {width: 0.20, aspectRatio: 0.8},
 }, {
     type: 'stats-for-nerds',
     groupTitle: 'Misc',
-    page: 'stats-for-nerds.html',
+    file: '/pages/stats-for-nerds.html',
     prettyName: 'Stats for Nerds',
     prettyDesc: 'Debug info (cpu/mem) about Sauce',
     options: {width: 900, height: 600},
@@ -145,7 +151,7 @@ export const windowManifests = [{
 }, {
     type: 'logs',
     groupTitle: 'Misc',
-    page: 'logs.html',
+    file: '/pages/logs.html',
     prettyName: 'Debug Logs',
     prettyDesc: 'Internal logs from the Sauce app for debugging and support',
     options: {width: 900, height: 600},
@@ -173,11 +179,27 @@ const defaultWindows = [{
 
 // NEVER use app.getAppPath() it uses asar for universal builds
 const appPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const pagePath = path.join(appPath, 'pages');
 export const activeWindows = new Map();
 export const subWindows = new WeakMap();
 export const eventEmitter = new EventEmitter();
 
+electron.protocol.interceptFileProtocol('file', (request, callback) => {
+    let file = fileURLToPath(request.url);
+    let rootPath = appPath;
+    if (file.startsWith('/mods/')) {
+        for (const x of mods.available) {
+            const prefix = `/mods/${x.dir}/`;
+            if (file.startsWith(prefix)) {
+                rootPath = x.modPath;
+                file = file.substr(prefix.length);
+                break;
+            }
+        }
+    }
+    const page = path.join(rootPath, file);
+    console.warn('XXX check normalize on win32', request.url, file, page);
+    callback(page);
+});
 
 electron.ipcMain.on('getWindowContextSync', ev => {
     const returnValue = {
@@ -649,16 +671,9 @@ function _openWindow(id, spec) {
             webContents.on('did-finish-load', () => webContents.insertCSS(x));
         }
     }
-    if (spec.page) {
-        win.loadFile(path.join(manifest.pagePath || pagePath, spec.page));
-    } else if (spec.pageURL) {
-        win.loadURL(`file://${path.join(manifest.pagePath || pagePath, spec.pageURL)}`);
-    } else if (spec.url) {
-        win.loadURL(spec.url);
-    } else {
-        win.close();
-        throw new TypeError("No page or pageURL defined");
-    }
+    const query = manifest.query;
+    console.warn('XXX check query', query, manifest, spec);
+    win.loadFile(manifest.file, {query});
     win.show();
     return win;
 }
@@ -715,10 +730,9 @@ export function makeCaptiveWindow(options={}, webPrefs={}) {
     if (!options.disableNewWindowHandler) {
         handleNewSubWindow(win, null, webPrefs);
     }
-    if (options.page) {
-        win.loadFile(path.join(pagePath, options.page));
-    } else if (options.pageURL) {
-        win.loadURL(`file://${path.join(pagePath, options.pageURL)}`);
+    if (options.file) {
+        const query = options.query;
+        win.loadFile(options.file, {query});
     }
     return win;
 }
@@ -728,7 +742,7 @@ export async function eulaConsent() {
     if (storage.load('eula-consent')) {
         return true;
     }
-    const win = makeCaptiveWindow({page: 'eula.html'});
+    const win = makeCaptiveWindow({file: '/pages/eula.html'});
     let closed;
     const consenting = new Promise(resolve => {
         rpc.register(async agree => {
@@ -752,7 +766,8 @@ export async function eulaConsent() {
 
 export async function updateConfirmationWindow(version) {
     const win = makeCaptiveWindow({
-        pageURL: `update.html?newVersion=v${version}`,
+        file: '/pages/update.html',
+        query: {newVersion: `v${version}`},
         width: 400,
         height: 440,
     });
@@ -773,7 +788,7 @@ export async function updateConfirmationWindow(version) {
 
 export async function showReleaseNotes() {
     const win = makeCaptiveWindow({
-        page: 'release-notes.html',
+        file: '/pages/release-notes.html',
         width: 512,
         height: 600,
     });
@@ -783,7 +798,7 @@ export async function showReleaseNotes() {
 
 export async function zwiftLogin(options) {
     const win = makeCaptiveWindow({
-        page: options.monitor ? 'zwift-monitor-login.html' : 'zwift-login.html',
+        file: options.monitor ? '/pages/zwift-monitor-login.html' : '/pages/zwift-login.html',
         width: options.monitor ? 500 : 460,
         height: options.monitor ? 720 : 500,
         show: false,
@@ -846,7 +861,7 @@ export async function welcomeSplash() {
     welcomeWin.excludedFromShownWindowsMenu = true;
     welcomeWin.setAlwaysOnTop(true, 'screen-saver');
     welcomeWin.setIgnoreMouseEvents(true);
-    welcomeWin.loadFile(path.join(pagePath, 'welcome.html'));
+    welcomeWin.loadFile('/pages/welcome.html');
     welcomeWin.show();
     return await sleep(16500).then(() => welcomeWin.close());
 }
@@ -859,7 +874,7 @@ export async function patronLink() {
         return true;
     }
     const win = makeCaptiveWindow({
-        page: 'patron.html',
+        file: '/pages/patron.html',
         width: 400,
         height: 720,
         disableNewWindowHandler: true,
@@ -896,15 +911,15 @@ export async function patronLink() {
             win.close();
             return true;
         } else {
-            const q = new URLSearchParams();
+            const query = {};
             if (isAuthed) {
-                q.set('id', patreon.getUserId());
+                query.id = patreon.getUserId();
                 if (membership) {
-                    q.set('isPatron', true);
-                    q.set('patronLevel', membership.patronLevel);
+                    query.isPatron = true;
+                    query.patronLevel = membership.patronLevel;
                 }
             }
-            win.loadURL(`file://${path.join(pagePath, 'non-patron.html')}?${q}`);
+            win.loadFile('/pages/non-patron.html', {query});
         }
     }
 }
@@ -946,6 +961,6 @@ export async function systemMessage(msg) {
     sysWin.excludedFromShownWindowsMenu = true;
     sysWin.setAlwaysOnTop(true, 'screen-saver');
     sysWin.setIgnoreMouseEvents(true);
-    sysWin.loadFile(path.join(pagePath, 'system-message.html'));
+    sysWin.loadFile('/pages/system-message.html');
     sysWin.show();
 }
