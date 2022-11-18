@@ -738,19 +738,14 @@ export class StatsProcessor extends events.EventEmitter {
 
     async getAthlete(id, options={}) {
         id = this._realAthleteId(id);
-        let athlete;
-        if (this.zwiftAPI.isAuthenticated()) {
-            if (!options.refresh) {
-                athlete = this.loadAthlete(id);
-            } else {
-                const p = await this.zwiftAPI.getProfile(id);
-                if (p) {
-                    athlete = this.updateAthlete(p.id, this._profileToAthlete(p));
-                }
+        if (options.refresh && this.zwiftAPI.isAuthenticated()) {
+            const updating = this.zwiftAPI.getProfile(id).then(p =>
+                (p && this.updateAthlete(id, this._profileToAthlete(p))));
+            if (!options.noWait) {
+                await updating;
             }
-        } else {
-            athlete = this.loadAthlete(id);
         }
+        const athlete = this.loadAthlete(id);
         if (athlete) {
             const ad = this._athleteData.get(id);
             const hideFTP = ad && ad.privacy.hideFTP;

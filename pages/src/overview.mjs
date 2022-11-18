@@ -647,7 +647,7 @@ export async function settingsMain() {
     });
     common.subscribe('set-windows', renderWindowsPanel, {source: 'windows'});
     extraData.webServerURL = await common.rpc.getWebServerURL();
-    const athlete = await common.rpc.getAthlete('self', {refresh: true});
+    const athlete = await common.rpc.getAthlete('self', {refresh: true, noWait: true});
     extraData.profileDesc = athlete && athlete.sanitizedFullname;
     if (athlete) {
         document.querySelector('img.avatar').src = athlete.avatar || 'images/blankavatar.png';
