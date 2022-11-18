@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html class="use-aspect-ratio hidden-during-load" tabindex="0">
+    <head>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+        <meta name="apple-mobile-web-app-capable" content="yes"/>
+        <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
+
+        <title>Power Gauge - Sauce for Zwift™</title>
+
+        <script type="module">
+            import {main} from '../src/gauge.mjs';
+            main();
+        </script>
+
+        <link rel="manifest" href="power-manifest.json"/>
+        <link id="favicon" rel="shortcut icon" href="../images/favicon.png"/>
+        <link rel="stylesheet" href="../css/common.css"/>
+        <link rel="stylesheet" href="../css/gauge.css"/>
+    </head>
+    <body class="transparent-bg">
+        <div id="titlebar">
+            <header>
+                <div class="logo"><img src="../images/icon128.png"/></div>
+                <div class="title">Power Gauge</div>
+                <div class="filler"></div>
+                <div class="buttons">
+                    <a class="button open-settings" href="settings.html?width=420&height=460&child-window"
+                       title="Open settings window" target="gauge-settings"><ms>settings</ms></a>
+                    <div title="Minimize" class="button minimize electron-only"><ms>minimize</ms></div>
+                    <div title="Close this window" class="button close electron-only"><ms>close</ms></div>
+                </div>
+            </header>
+        </div>
+        <div id="content">
+            <div class="gauge"></div>
+        </div>
+        <div id="hintbar">
+            <div class="hint"></div>
+        </div>
+    </body>
+</html>

@@ -1,10 +1,10 @@
 {
-    "short_name": "Gauge",
-    "name": "Sauce for Zwift™ - Gauge",
+    "short_name": "W'bal Gauge",
+    "name": "Sauce for Zwift™ - W'bal Gauge",
     "background_color": "black",
     "theme_color": "black",
-    "description": "Sauce for Zwift - Gauge Window",
-    "start_url": "/pages/gauge.html",
+    "description": "Sauce for Zwift - W'bal Gauge Window",
+    "start_url": "/pages/gauges/wbal.html",
     "display": "standalone",
     "orientation": "any",
     "icons": [{
