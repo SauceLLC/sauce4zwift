@@ -6,17 +6,11 @@ import {cssColor, getTheme} from './echarts-sauce-theme.mjs';
 echarts.registerTheme('sauce', getTheme('dynamic'));
 
 const doc = document.documentElement;
-const type = (new URLSearchParams(location.search)).get('t') || 'power';
-const title = {
-    power: 'Power Gauge',
-    hr: 'Heart Rate Gauge',
-    draft: 'Draft Gauge',
-    pace: 'Pace Gauge',
-    cadence: 'Cadence Gauge',
-    wbal: 'W\'bal Gauge',
-}[type];
+const page = location.pathname.split('/').at(-1).split('.')[0];
+const type = (new URLSearchParams(location.search)).get('t') || page || 'power';
 const L = sauce.locale;
 const H = L.human;
+let sport = 'cycling';
 let imperial = !!common.storage.get('/imperialUnits');
 L.setImperial(imperial);
 
@@ -85,7 +79,7 @@ const gaugeConfigs = {
         longPeriods: true,
     },
     pace: {
-        name: 'Pace',
+        name: 'Speed',
         defaultColor: '#273',
         ticks: imperial ? 6 : 10,
         defaultSettings: {
@@ -93,8 +87,11 @@ const gaugeConfigs = {
             max: 100,
         },
         getValue: x => settings.dataSmoothing ? x.stats.speed.smooth[settings.dataSmoothing] : x.state.speed,
-        getLabel: x => H.pace(x, {precision: 0}),
-        detailFormatter: x => `{value|${H.pace(x, {precision: 0})}}\n{unit|${imperial ? 'mph' : 'kph'}}`,
+        getLabel: x => H.pace(x, {precision: 0, sport}),
+        detailFormatter: x => {
+            const unit = sport === 'running' ? (imperial ? '/mi' : '/km') : (imperial ? 'mph' : 'kph');
+            return `{value|${H.pace(x, {precision: 1, sport})}}\n{unit|${unit}}`;
+        },
         longPeriods: true,
     },
     cadence: {
@@ -192,8 +189,6 @@ function colorAlpha(color, alpha) {
 
 
 export async function main() {
-    document.title = `${title} - Sauce for Zwift™`;
-    document.querySelector('#titlebar header .title').textContent = title;
     common.addOpenSettingsParam('t', type);
     common.initInteractionListeners();
     setBackground();
@@ -306,7 +301,7 @@ export async function main() {
                 } : {
                     width: 70 * relSize,
                     length: 180 * relSize,
-                    icon: 'image://./images/logo_vert_120x320.png',
+                    icon: 'image://../images/logo_vert_120x320.png',
                     offsetCenter: [0, '10%'],
                 },
                 anchor: settings.boringMode ? {
@@ -392,6 +387,10 @@ export async function main() {
         reanimateTimeout = setTimeout(() => gauge.setOption({series: [{animation: true}]}), 400);
     });
     common.subscribe('athlete/watching', watching => {
+        sport = watching.state.sport;
+        if (type === 'pace') {
+            config.name = sport === 'running' ? 'Pace' : 'Speed';
+        }
         renderer.setData(watching);
         renderer.render();
     });
@@ -400,8 +399,6 @@ export async function main() {
 
 
 export async function settingsMain() {
-    document.title = `${title} - Settings - Sauce for Zwift™`;
-    document.querySelector('#titlebar header .title').textContent = `${title} - Settings`;
     common.initInteractionListeners();
     const config = gaugeConfigs[type];
     if (config.noSmoothing) {
