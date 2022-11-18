@@ -12,7 +12,7 @@ rpc.register(() => available, {name: 'listAvailableMods'});
 
 
 function isSafePath(p, _, modPath) {
-    return !!p.match(/^[.a-z]+[a-z0-9_\-./]*$/i) && !p.match(/\.\./) &&
+    return !!p.match(/^[a-z0-9]+[a-z0-9_\-./]*$/i) && !p.match(/\.\./) &&
         fs.realpathSync(path.join(modPath, p)).startsWith(modPath);
 }
 
@@ -30,8 +30,15 @@ const manifestSchema = {
         type: 'object',
         isArray: true,
         schema: {
-            page: {type: 'string', required: true, desc: 'Path to web page html file',
+            file: {type: 'string', required: true, desc: 'Path to web page html file',
                 valid: isSafePath},
+            query: {
+                type: 'object',
+                desc: 'Query argument key/value pairs, i.e. {"foo": "bar"} => ?foo=bar',
+                schema: {
+                    "*": {type: 'string', desc: "Value of query argument"},
+                }
+            },
             id: {type: 'string', required: true, desc: 'Unique identifier for this window'},
             name: {type: 'string', required: true, desc: 'Name to show in listings'},
             description: {type: 'string', desc: 'Extra optional info about the mod'},
@@ -92,6 +99,7 @@ function _init() {
                     manifest = JSON.parse(fs.readFileSync(manifestPath));
                     validateManifest(manifest, modPath);
                     available.push({manifest, dir: x, modPath});
+                    console.info('Added mod:', manifest.name, '/mods/' + x, '->', modPath);
                 } catch(e) {
                     console.error('Invalid manifest.json for:', x, e);
                 }
@@ -101,11 +109,7 @@ function _init() {
         }
     }
     if (!available.length) {
-        console.info("No mods found in:", modRoot);
-    } else {
-        for (const x of available) {
-            console.info("Found mod:", x.manifest.name, x.manifest.version, `(${x.dir})`);
-        }
+        console.info("No (valid) mods found at:", modRoot);
     }
 }
 
@@ -121,10 +125,10 @@ function validateSchema(obj, modPath, schema) {
     } 
     const required = new Set(Object.entries(schema).filter(([_, x]) => x.required).map(([k]) => k));
     for (const [k, v] of Object.entries(obj)) {
-        if (!Object.prototype.hasOwnProperty.call(schema, k)) {
+        if (!schema['*'] && !Object.prototype.hasOwnProperty.call(schema, k)) {
             throw TypeError("Unexpected key: " + k);
         }
-        const info = schema[k];
+        const info = schema[k] || schema['*'];
         if (info.isArray && !Array.isArray(v)) {
             throw TypeError(`Invalid type: "${k}" should be an array`);
         }
@@ -150,15 +154,15 @@ function validateSchema(obj, modPath, schema) {
 
 export function getWindowManifests() {
     const winManifests = [];
-    for (const {manifest, dir, modPath} of available) {
+    for (const {manifest, dir} of available) {
         if (manifest.windows) {
             for (const x of manifest.windows) {
                 const bounds = x.default_bounds || {};
                 try {
                     winManifests.push({
                         type: `${dir}-${x.id}`,
-                        page: x.page,
-                        pagePath: modPath,
+                        file: `/mods/${dir}/${x.file}`,
+                        query: x.query,
                         groupTitle: `[MOD]: ${manifest.name}`,
                         prettyName: x.name,
                         prettyDesc: x.description,
