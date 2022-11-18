@@ -22,7 +22,7 @@
                             continue;
                         }
                         const windows = manifest.windows.map(x =>
-                            `<a href="/mods/${dir}/${x.page}"
+                            `<a href="/mods/${dir}/${x.file}"
                                 title="${sanitizeAttr(stripHTML(x.description))}"><ms>construction</ms>
                                     ${stripHTML(x.name)}</a>`);
                         document.querySelector('.end').insertAdjacentHTML('beforebegin',
