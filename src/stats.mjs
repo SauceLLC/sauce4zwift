@@ -266,6 +266,7 @@ export class StatsProcessor extends events.EventEmitter {
         super();
         this.zwiftAPI = options.zwiftAPI;
         this.gameMonitor = options.gameMonitor;
+        this.disableGameMonitor = options.args.disableMonitor;
         this.setMaxListeners(100);
         this.athleteId = null;
         this.watching = null;
@@ -1307,9 +1308,11 @@ export class StatsProcessor extends events.EventEmitter {
         this._statesJob = this._statesProcessor();
         this._gcInterval = setInterval(this.gcStates.bind(this), 32768);
         this.athleteId = this.zwiftAPI.profile.id;
-        this.gameMonitor.on('inPacket', this.onIncoming.bind(this));
-        this.gameMonitor.on('watching-athlete', this.setWatching.bind(this));
-        this.gameMonitor.start();
+        if (!this.disableGameMonitor) {
+            this.gameMonitor.on('inPacket', this.onIncoming.bind(this));
+            this.gameMonitor.on('watching-athlete', this.setWatching.bind(this));
+            this.gameMonitor.start();
+        }
         this._zwiftMetaRefresh = 60000;
         this._zwiftMetaId = setTimeout(() => this._zwiftMetaSync(), 0);
         if (this._autoResetEvents) {
