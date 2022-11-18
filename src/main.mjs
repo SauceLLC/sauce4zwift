@@ -415,7 +415,7 @@ class SauceApp extends EventEmitter {
             this.gameConnection = gameConnection; // debug
         }
         rpcSources.gameConnection = gameConnection || new EventEmitter();
-        this.statsProc = new stats.StatsProcessor({zwiftAPI, gameMonitor, gameConnection});
+        this.statsProc = new stats.StatsProcessor({zwiftAPI, gameMonitor, gameConnection, args});
         this.statsProc.start();
         rpcSources.stats = this.statsProc;
         rpcSources.app = this;
@@ -471,7 +471,8 @@ function snakeToCamelCase(v) {
 function parseArgs() {
     const iter = process.argv.values();
     const args = {};
-    const switches = ['help', 'headless', 'force-login', 'random-watch', 'disable-game-connection'];
+    const switches = ['help', 'headless', 'force-login', 'random-watch', 'disable-game-connection',
+        'disable-monitor'];
     const options = ['host', 'athlete-id'];
     for (let x of iter) {
         if (!x.startsWith('--')) {
