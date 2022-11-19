@@ -1160,8 +1160,8 @@ class UDPChannel extends NetChannel {
 
 export class GameMonitor extends events.EventEmitter {
 
-    stateRefreshDelay = 3000;  // Rate limit is 2000 and we might need to do 2
-    sessionRestartSlack = 300 * 1000;
+    _stateRefreshDelayMin = 3000;
+    _sessionRestartSlack = 300 * 1000;
 
     constructor(options={}) {
         super();
@@ -1182,6 +1182,7 @@ export class GameMonitor extends events.EventEmitter {
         this._setWatchingWorldTime = 0;
         this._lastGameStateUpdated = 0;
         this._lastWatchingStateUpdated = 0;
+        this._stateRefreshDelay = this._stateRefreshDelayMin;
         worldTime.on('offset', diff => {
             const dev = Math.abs(diff);
             if (dev > 200) {
@@ -1201,13 +1202,16 @@ export class GameMonitor extends events.EventEmitter {
             this._session.tcpChannel.toString() :
             'none';
         const pad = '    ';
+        const lgs = this._lastGameStateUpdated ? (Date.now() - this._lastGameStateUpdated | 0) : '- ';
+        const lws = this._lastWatchingStateUpdated ? (Date.now() - this._lastWatchingStateUpdated | 0) : '- ';
         return `GameMonitor [game-id: ${this.gameAthleteId}, monitor-id: ${this.athleteId}]\n${pad}` + [
             `course-id:            ${this.courseId}`,
             `watching-id:          ${this.watchingAthleteId}`,
             `connect-duration:     ${(Date.now() - this.connectingTS) / 1000 | 0}s`,
             `connect-count:        ${this.connectingCount}`,
-            `last-game-state:      ${Date.now() - this._lastGameStateUpdated | 0}ms ago`,
-            `last-watching-state:  ${Date.now() - this._lastWatchingStateUpdated | 0}ms ago`,
+            `last-game-state:      ${lgs}ms ago`,
+            `last-watching-state:  ${lws}ms ago`,
+            `state-refresh-delay:  ${this._stateRefreshDelay | 0}ms`,
             `tcp-channel:`,        `${pad}${tcpCh}`,
             `udp-channels:`,       `${pad}${this._udpChannels.map(x => x.toString()).join(`\n${pad}${pad}`)}`,
         ].join('\n    ');
@@ -1325,7 +1329,7 @@ export class GameMonitor extends events.EventEmitter {
         await this.establishTCPChannel(session);
         await this.activateSession(session);
         this._schedHashSeedsRefresh();
-        this._refreshStatesTimeout = setTimeout(this._refreshStates.bind(this), this.stateRefreshDelay);
+        this._refreshStatesTimeout = setTimeout(() => this._refreshStates(), this._stateRefreshDelay);
         this._playerStateInterval = setInterval(this.broadcastPlayerState.bind(this), 1000);
     }
 
@@ -1399,7 +1403,7 @@ export class GameMonitor extends events.EventEmitter {
         const sessionRemaining = this._session.expiresMonotonic - Date.now();
         const expiresIn = Math.min(
             hashSeedRemaining - 120 * 1000,
-            sessionRemaining - this.sessionRestartSlack / 2);
+            sessionRemaining - this._sessionRestartSlack / 2);
         if (expiresIn < 0) {
             // Internal error
             console.error('Expired session or hash seeds:', expiresIn, hashSeedRemaining, sessionRemaining);
@@ -1467,7 +1471,7 @@ export class GameMonitor extends events.EventEmitter {
         }
         clearTimeout(this._sessionTimeout);
         this._session = session;
-        const renewDelay = session.expiresMonotonic - Date.now() - this.sessionRestartSlack;
+        const renewDelay = session.expiresMonotonic - Date.now() - this._sessionRestartSlack;
         console.debug(`Session renewal scheduled for: ${renewDelay / 1000 | 0}s`);
         this._sessionTimeout = setTimeout(this.renewSession.bind(this), renewDelay);
         if (!this.suspended && this.courseId) {
@@ -1535,24 +1539,26 @@ export class GameMonitor extends events.EventEmitter {
             return;
         }
         const id = this._refreshStatesTimeout;
-        let delay = this.stateRefreshDelay;
         try {
             await this._refreshGameState();
             if (this.gameAthleteId !== this.watchingAthleteId) {
                 await this._refreshWatchingState();
             }
+            this._stateRefreshDelay = Math.max(this._stateRefreshDelayMin, this._stateRefreshDelay * 0.999);
         } catch(e) {
-            console.error("Refresh states error:", e);
-            delay *= 2;
+            this._stateRefreshDelay *= 1.15;
+            if (e.status !== 429) {
+                console.error("Refresh states error:", e);
+            }
         }
         if (!this._stopping && id === this._refreshStatesTimeout) {
-            this._refreshStatesTimeout = setTimeout(this._refreshStates.bind(this), delay);
+            this._refreshStatesTimeout = setTimeout(() => this._refreshStates(), this._stateRefreshDelay);
         }
     }
 
     async _refreshGameState() {
         const age = Date.now() - this._lastGameStateUpdated;
-        if (age < this.stateRefreshDelay * 0.95) {
+        if (age < this._stateRefreshDelay * 0.95) {
             // Optimized out by data stream
             return;
         }
@@ -1582,7 +1588,7 @@ export class GameMonitor extends events.EventEmitter {
 
     async _refreshWatchingState() {
         if (this.suspended || this._stopping ||
-            Date.now() - this._lastWatchingStateUpdated < this.stateRefreshDelay * 0.95) {
+            Date.now() - this._lastWatchingStateUpdated < this._stateRefreshDelay * 0.95) {
             return;
         }
         console.warn("Fallback to API fetch of watching state:", this.watchingAthleteId);
