@@ -17,12 +17,12 @@
             async function main() {
                 const mods = await (await fetch('/api/mods/v1')).json();
                 if (mods && mods.length) {
-                    for (const {manifest, dir} of mods) {
+                    for (const {manifest, id} of mods) {
                         if (!manifest || !manifest.web_root || !manifest.windows || !manifest.windows.length) {
                             continue;
                         }
                         const windows = manifest.windows.map(x =>
-                            `<a href="/mods/${dir}/${x.file}"
+                            `<a href="/mods/${id}/${x.file}"
                                 title="${sanitizeAttr(stripHTML(x.description))}"><ms>construction</ms>
                                     ${stripHTML(x.name)}</a>`);
                         document.querySelector('.end').insertAdjacentHTML('beforebegin',

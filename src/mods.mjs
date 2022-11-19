@@ -19,6 +19,7 @@ function isSafePath(p, _, modPath) {
 
 const manifestSchema = {
     manifest_version: {type: 'number', required: true, desc: 'Manifest version', valid: x => x === 1},
+    id: {type: 'string', desc: 'Optional ID for this mod, defaults to the directory name'},
     name: {type: 'string', required: true, desc: 'Pretty name of the mod'},
     description: {type: 'string', required: true, desc: 'Description of the mod'},
     version: {type: 'string', required: true, desc: 'Mod version, i.e. 1.2.3'},
@@ -98,7 +99,7 @@ function _init() {
                 try {
                     manifest = JSON.parse(fs.readFileSync(manifestPath));
                     validateManifest(manifest, modPath);
-                    available.push({manifest, dir: x, modPath});
+                    available.push({manifest, id: manifest.id || x, modPath});
                     console.info('Added mod:', manifest.name, '/mods/' + x, '->', modPath);
                 } catch(e) {
                     console.error('Invalid manifest.json for:', x, e);
@@ -154,14 +155,14 @@ function validateSchema(obj, modPath, schema) {
 
 export function getWindowManifests() {
     const winManifests = [];
-    for (const {manifest, dir} of available) {
+    for (const {manifest, id} of available) {
         if (manifest.windows) {
             for (const x of manifest.windows) {
                 const bounds = x.default_bounds || {};
                 try {
                     winManifests.push({
-                        type: `${dir}-${x.id}`,
-                        file: `/mods/${dir}/${x.file}`,
+                        type: `${id}-${x.id}`,
+                        file: `/mods/${id}/${x.file}`,
                         query: x.query,
                         groupTitle: `[MOD]: ${manifest.name}`,
                         prettyName: x.name,
@@ -178,7 +179,7 @@ export function getWindowManifests() {
                         overlay: x.overlay,
                     });
                 } catch(e) {
-                    console.error("Failed to create window manifest for mod:", dir, x.id, e);
+                    console.error("Failed to create window manifest for mod:", id, x.id, e);
                 }
             }
         }

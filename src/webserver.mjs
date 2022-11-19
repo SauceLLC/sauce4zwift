@@ -8,6 +8,14 @@ import http from 'node:http';
 
 const MAX_BUFFERED_PER_SOCKET = 8 * 1024 * 1024;
 const WD = path.dirname(fileURLToPath(import.meta.url));
+console.error(WD);
+console.error(WD);
+console.error(WD);
+console.error(WD);
+console.error(WD);
+console.error(WD);
+console.error(WD);
+console.error(WD);
 let app;
 let server;
 let starting;
@@ -357,7 +365,7 @@ async function _start({ip, port, rpcSources, statsProc}) {
             }
             const modRouter = express.Router();
             try {
-                const urn = path.join('/', mod.dir, mod.manifest.web_root);
+                const urn = path.posix.join('/', mod.id, mod.manifest.web_root);
                 const fullPath = path.join(mod.modPath, mod.manifest.web_root);
                 console.warn('Adding Mod web root:', '/mods' + urn, '->', fullPath);
                 modRouter.use(urn, express.static(fullPath, {

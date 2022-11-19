@@ -185,10 +185,12 @@ export const eventEmitter = new EventEmitter();
 
 electron.protocol.interceptFileProtocol('file', (request, callback) => {
     let file = fileURLToPath(request.url);
+    const root = path.parse(file).root;
+    file = file.substr(root.length);
     let rootPath = appPath;
-    if (file.startsWith('/mods/')) {
+    if (file.startsWith('mods' + path.sep)) {
         for (const x of mods.available) {
-            const prefix = `/mods/${x.dir}/`;
+            const prefix = path.normalize(`mods/${x.id}/`);
             if (file.startsWith(prefix)) {
                 rootPath = x.modPath;
                 file = file.substr(prefix.length);
