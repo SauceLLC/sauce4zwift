@@ -8,14 +8,6 @@ import http from 'node:http';
 
 const MAX_BUFFERED_PER_SOCKET = 8 * 1024 * 1024;
 const WD = path.dirname(fileURLToPath(import.meta.url));
-console.error(WD);
-console.error(WD);
-console.error(WD);
-console.error(WD);
-console.error(WD);
-console.error(WD);
-console.error(WD);
-console.error(WD);
 let app;
 let server;
 let starting;

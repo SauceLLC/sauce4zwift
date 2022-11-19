@@ -198,9 +198,7 @@ electron.protocol.interceptFileProtocol('file', (request, callback) => {
             }
         }
     }
-    const page = path.join(rootPath, file);
-    console.warn('XXX check normalize on win32', request.url, file, page);
-    callback(page);
+    callback(path.join(rootPath, file));
 });
 
 electron.ipcMain.on('getWindowContextSync', ev => {
