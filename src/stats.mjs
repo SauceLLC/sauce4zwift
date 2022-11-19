@@ -812,8 +812,6 @@ export class StatsProcessor extends events.EventEmitter {
                     this.handleChatPayload(x.payload, ts);
                 } else if (x.payloadType === 'PayloadRideOn') {
                     this.handleRideOnPayload(x.payload);
-                } else if (x.payload) {
-                    console.debug(x.payloadType, x.payload);
                 }
             }
         }
@@ -824,9 +822,6 @@ export class StatsProcessor extends events.EventEmitter {
             if (x.athleteId === this.watching) {
                 this._watchingRoadSig = this._roadSig(x);
             }
-        }
-        if (packet.playerSummaries) {
-            debugger;
         }
         if (packet.expungeReason) {
             console.error("Expunged:", packet.expungeReason);
@@ -1246,11 +1241,9 @@ export class StatsProcessor extends events.EventEmitter {
             }
             if (ad.activeSegments.has(x.id)) {
                 if (progress == null) {
-                    console.debug("Segment completed", x);
                     this.stopSegment(ad, x.id);
                 }
             } else if (progress != null && progress < 0.05) {
-                console.debug("Segment started", progress, x);
                 this.startSegment(ad, x.id);
             }
         }
@@ -1732,6 +1725,7 @@ export class StatsProcessor extends events.EventEmitter {
             eventPosition: ad.eventPosition,
             eventParticipants: ad.eventParticipants,
             gameState: ad.gameState,
+            gap: ad.gap,
             ...this._getEventOrRouteInfo(state),
             ...extra,
         };
@@ -1749,6 +1743,9 @@ export class StatsProcessor extends events.EventEmitter {
     _computeNearby() {
         const watchingData = this._athleteData.get(this.watching);
         if (!watchingData || !watchingData.mostRecentState) {
+            for (const ad of this._athleteData.values()) {
+                ad.gap = undefined;
+            }
             return [];
         }
         const watching = {ad: watchingData, gap: 0, isGapEst: false, rp: {gapDistance: 0}};
@@ -1765,6 +1762,7 @@ export class StatsProcessor extends events.EventEmitter {
         const ahead = [];
         const behind = [];
         for (const ad of this._athleteData.values()) {
+            ad.gap = undefined;
             if (ad.athleteId !== this.watching) {
                 const age = monotonic() - ad.updated;
                 if ((filterStopped && !ad.mostRecentState.speed) || age > 10000) {
@@ -1802,6 +1800,7 @@ export class StatsProcessor extends events.EventEmitter {
                 x.gap = -x.gap;
                 x.isGapEst = false;
             }
+            x.ad.gap = x.gap; // XXX we can unify this with some eval
             x.rp.gapDistance = -x.rp.gapDistance;
         }
         for (let i = 0; i < behind.length; i++) {
@@ -1818,6 +1817,7 @@ export class StatsProcessor extends events.EventEmitter {
             } else {
                 x.isGapEst = false;
             }
+            x.ad.gap = x.gap; // XXX we can unify this with some eval
         }
 
         const nearby = [];
