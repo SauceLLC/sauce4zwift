@@ -95,48 +95,42 @@ export const windowManifests = [{
 }, {
     type: 'power-gauge',
     groupTitle: 'Gauges',
-    file: '/pages/gauge.html',
-    query: {t: 'power'},
+    file: '/pages/gauges/power.html',
     prettyName: 'Power Gauge',
     prettyDesc: 'Car style power (watts) gauge',
     options: {width: 0.20, aspectRatio: 0.8},
 }, {
     type: 'draft-gauge',
     groupTitle: 'Gauges',
-    file: '/pages/gauge.html',
-    query: {t: 'draft'},
+    file: '/pages/gauges/draft.html',
     prettyName: 'Draft Gauge',
     prettyDesc: 'Car style draft (% power reduction) gauge',
     options: {width: 0.20, aspectRatio: 0.8},
 }, {
     type: 'pace-gauge',
     groupTitle: 'Gauges',
-    file: '/pages/gauge.html',
-    query: {t: 'pace'},
-    prettyName: 'Pace Gauge',
+    file: '/pages/gauges/pace.html',
+    prettyName: 'Speed Gauge',
     prettyDesc: 'Car style pace/speed gauge',
     options: {width: 0.20, aspectRatio: 0.8},
 }, {
     type: 'hr-gauge',
     groupTitle: 'Gauges',
-    file: '/pages/gauge.html',
-    query: {t: 'hr'},
+    file: '/pages/gauges/hr.html',
     prettyName: 'Heart Rate Gauge',
     prettyDesc: 'Car style heart rate gauge',
     options: {width: 0.20, aspectRatio: 0.8},
 }, {
     type: 'cadence-gauge',
     groupTitle: 'Gauges',
-    file: '/pages/gauge.html',
-    query: {t: 'cadence'},
+    file: '/pages/gauges/cadence.html',
     prettyName: 'Cadence Gauge',
     prettyDesc: 'Car style cadence gauge',
     options: {width: 0.20, aspectRatio: 0.8},
 }, {
     type: 'wbal-gauge',
     groupTitle: 'Gauges',
-    file: '/pages/gauge.html',
-    query: {t: 'wbal'},
+    file: '/pages/gauges/wbal.html',
     prettyName: 'W\'bal Gauge',
     prettyDesc: 'Car style W\'bal gauge',
     options: {width: 0.20, aspectRatio: 0.8},
@@ -185,8 +179,8 @@ export const eventEmitter = new EventEmitter();
 
 electron.protocol.interceptFileProtocol('file', (request, callback) => {
     let file = fileURLToPath(request.url);
-    const root = path.parse(file).root;
-    file = file.substr(root.length);
+    const fInfo = path.parse(file);
+    file = file.substr(fInfo.root.length);
     let rootPath = appPath;
     if (file.startsWith('mods' + path.sep)) {
         for (const x of mods.available) {
@@ -197,6 +191,15 @@ electron.protocol.interceptFileProtocol('file', (request, callback) => {
                 break;
             }
         }
+    }
+    // This allows files to be loaded like watching.___id-here___.html which ensures
+    // some settings like zoom factor are unique to each window.
+    let m;
+    if (fInfo.ext === '.html' && (m = fInfo.name.match(/.\.___.+___$/))) {
+        const p = path.parse(file);
+        p.name = p.name.substr(0, m.index + 1);
+        p.base = undefined;
+        file = path.format(p);
     }
     callback(path.join(rootPath, file));
 });
@@ -672,7 +675,10 @@ function _openWindow(id, spec) {
         }
     }
     const query = manifest.query;
-    win.loadFile(manifest.file, {query});
+    const p = path.parse(manifest.file);
+    p.name += `.___${id}___`;
+    p.base = undefined;
+    win.loadFile(path.format(p), {query});
     win.show();
     return win;
 }
