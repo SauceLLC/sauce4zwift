@@ -110,7 +110,8 @@ if (window.isElectron) {
     let errBackoff = 500;
     let wsp;
     const connectWebSocket = async function() {
-        const ws = new WebSocket(`ws://${location.host}/api/ws/events`);
+        const schema = location.protocol === 'https:' ? 'wss' : 'ws';
+        const ws = new WebSocket(`${schema}://${location.host}/api/ws/events`);
         ws.addEventListener('message', ev => {
             const envelope = JSON.parse(ev.data);
             const handler = respHandlers.get(envelope.uid);
