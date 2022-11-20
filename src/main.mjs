@@ -77,12 +77,6 @@ electron.app.on('second-instance', (ev,_, __, {type}) => {
         quit();
     }
 });
-electron.app.on('activate', async () => {
-    // Clicking on the app icon..
-    if (electron.BrowserWindow.getAllWindows().length === 0) {
-        windows.openAllWindows();
-    }
-});
 electron.app.on('before-quit', () => void (quiting = true));
 
 
