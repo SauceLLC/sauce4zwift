@@ -177,7 +177,12 @@ export const activeWindows = new Map();
 export const subWindows = new WeakMap();
 export const eventEmitter = new EventEmitter();
 
-electron.protocol.interceptFileProtocol('file', (request, callback) => {
+const patreonSession = electron.session.fromPartition('persist:patreon');
+patreonSession.protocol.interceptFileProtocol('file', onInterceptFileProtocol);
+electron.protocol.interceptFileProtocol('file', onInterceptFileProtocol);
+
+
+function onInterceptFileProtocol(request, callback) {
     let file = fileURLToPath(request.url);
     const fInfo = path.parse(file);
     file = file.substr(fInfo.root.length);
@@ -202,7 +207,8 @@ electron.protocol.interceptFileProtocol('file', (request, callback) => {
         file = path.format(p);
     }
     callback(path.join(rootPath, file));
-});
+}
+
 
 electron.ipcMain.on('getWindowContextSync', ev => {
     const returnValue = {
