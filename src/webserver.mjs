@@ -352,7 +352,7 @@ async function _start({ip, port, rpcSources, statsProc}) {
     router.use('/api', api);
     if (mods.available) {
         for (const mod of mods.available) {
-            if (!mod.manifest.web_root) {
+            if (!mod.enabled || !mod.manifest.web_root) {
                 continue;
             }
             const modRouter = express.Router();

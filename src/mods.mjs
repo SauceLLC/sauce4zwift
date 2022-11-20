@@ -1,14 +1,30 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import * as rpc from './rpc.mjs';
+import * as storage from './storage.mjs';
 import {createRequire} from 'node:module';
 
 const require = createRequire(import.meta.url);
 const electron = require('electron');
 
+const settingsKey = 'mod-settings';
+const settings = storage.load(settingsKey) || {};
+
 export const available = [];
 
-rpc.register(() => available, {name: 'listAvailableMods'});
+rpc.register(() => available, {name: 'getAvailableMods'});
+rpc.register(() => available.filter(x => x.enabled), {name: 'getEnabledMods'});
+rpc.register((id, enabled) => {
+    const mod = available.find(x => x.id === id);
+    if (!mod) {
+        throw new Error('Mod ID not found');
+    }
+    if (!settings[id]) {
+        settings[id] = {};
+    }
+    mod.enabled = settings[id].enabled = enabled;
+    storage.save(settingsKey, settings);
+}, {name: 'setModEnabled'});
 
 
 function isSafePath(p, _, modPath) {
@@ -23,7 +39,8 @@ const manifestSchema = {
     name: {type: 'string', required: true, desc: 'Pretty name of the mod'},
     description: {type: 'string', required: true, desc: 'Description of the mod'},
     version: {type: 'string', required: true, desc: 'Mod version, i.e. 1.2.3'},
-    homepage_url: {type: 'string', desc: 'Homepage/support URL for mod'},
+    author: {type: 'string', desc: 'Author name or company'},
+    website_url: {type: 'string', desc: 'External URL related to the mod'},
     web_root: {type: 'string', desc: 'Sub directory containing web assets.', valid: isSafePath},
     content_js: {type: 'string', isArray: true, desc: 'Scripts to execute in all windows', valid: isSafePath},
     content_css: {type: 'string', isArray: true, desc: 'CSS to load in all windows', valid: isSafePath},
@@ -42,7 +59,7 @@ const manifestSchema = {
             },
             id: {type: 'string', required: true, desc: 'Unique identifier for this window'},
             name: {type: 'string', required: true, desc: 'Name to show in listings'},
-            description: {type: 'string', desc: 'Extra optional info about the mod'},
+            description: {type: 'string', desc: 'Extra optional info about the window'},
             always_visible: {type: 'boolean', desc: 'Override the hide/show button'},
             overlay: {type: 'boolean', desc: 'Set to make window stay on top of normal windows'},
             frame: {type: 'boolean', desc: 'Includes OS frame borders and title bar'},
@@ -99,8 +116,11 @@ function _init() {
                 try {
                     manifest = JSON.parse(fs.readFileSync(manifestPath));
                     validateManifest(manifest, modPath);
-                    available.push({manifest, id: manifest.id || x, modPath});
-                    console.info('Added mod:', manifest.name, '/mods/' + x, '->', modPath);
+                    const id = manifest.id || x;
+                    const enabled = !!(settings[id] && settings[id].enabled);
+                    available.push({manifest, enabled, id, modPath});
+                    console.info(`Added mod: (${manifest.name}) ` +
+                        `[${enabled ? 'ENABLED' : 'DISABLED'}] /mods/${id} -> ${modPath}`);
                 } catch(e) {
                     console.error('Invalid manifest.json for:', x, e);
                 }
@@ -155,8 +175,8 @@ function validateSchema(obj, modPath, schema) {
 
 export function getWindowManifests() {
     const winManifests = [];
-    for (const {manifest, id} of available) {
-        if (manifest.windows) {
+    for (const {enabled, manifest, id} of available) {
+        if (enabled && manifest.windows) {
             for (const x of manifest.windows) {
                 const bounds = x.default_bounds || {};
                 try {
@@ -190,8 +210,8 @@ export function getWindowManifests() {
 
 export function getWindowContentScripts() {
     const scripts = [];
-    for (const {manifest, modPath} of available) {
-        if (manifest.content_js) {
+    for (const {enabled, manifest, modPath} of available) {
+        if (enabled && manifest.content_js) {
             for (const x of manifest.content_js) {
                 try {
                     scripts.push(fs.readFileSync(path.join(modPath, x), 'utf8'));
@@ -207,8 +227,8 @@ export function getWindowContentScripts() {
 
 export function getWindowContentStyle() {
     const css = [];
-    for (const {manifest, modPath} of available) {
-        if (manifest.content_css) {
+    for (const {enabled, manifest, modPath} of available) {
+        if (enabled && manifest.content_css) {
             for (const x of manifest.content_css) {
                 try {
                     css.push(fs.readFileSync(path.join(modPath, x), 'utf8'));

@@ -471,6 +471,64 @@ function buildLayout() {
 }
 
 
+async function renderAvailableMods() {
+    const mods = await common.rpc.getAvailableMods();
+    const el = document.querySelector('#mods-container');
+    if (!mods || !mods.length) {
+        el.innerHTML = '';
+        return;
+    }
+    const html = [];
+    const ids = {};
+    for (const {manifest, id, enabled} of mods) {
+        if (!manifest) {
+            continue;
+        }
+        const safeId = common.sanitizeAttr(id);
+        ids[safeId] = id;
+        html.push(`
+            <div class="mod" data-id="${safeId}">
+                <div class="title">
+                    <div>
+                        <span class="name">${common.stripHTML(manifest.name)}</span>
+                        <span class="version">(v${manifest.version})</span>
+                    </div>
+                    <label class="enabled">
+                        Enabled
+                        <input type="checkbox" ${enabled ? 'checked' : ''}/>
+                        <span class="restart-required">Restart Required</span>
+                    </label>
+                </div>
+                <div class="info">${common.stripHTML(manifest.description)}</div>
+        `);
+        if (manifest.author || manifest.website_url) {
+            html.push('<div class="pb">');
+            if (manifest.author) {
+                html.push(`<div class="author">Author: ${common.stripHTML(manifest.author)}</div>`);
+            }
+            if (manifest.website_url) {
+                const url = common.sanitizeAttr(common.stripHTML(manifest.website_url));
+                html.push(`<div class="website"><a href="${url}"
+                    target="_blank" external>Website <ms>open_in_new</ms></a>`);
+            }
+            html.push('</div>');
+        }
+        html.push(`</div>`);
+    }
+    el.innerHTML = html.join('');
+    el.addEventListener('click', async ev => {
+        const label = ev.target.closest('label.enabled');
+        if (!label) {
+            return;
+        }
+        const enabled = label.querySelector('input').checked;
+        const id = ids[ev.target.closest('.mod[data-id]').dataset.id];
+        await common.rpc.setModEnabled(id, enabled);
+        label.querySelector('.restart-required').style.display = 'initial';
+    });
+}
+
+
 async function renderWindowsPanel() {
     const windows = Object.values(await common.rpc.getWindows()).filter(x => !x.private);
     const manifests = await common.rpc.getWindowManifests();
@@ -489,7 +547,7 @@ async function renderWindowsPanel() {
                     title="Edit name"><ms>edit</ms></a></td>
                 <td class="state">${x.closed ? 'Closed' : 'Open'}</td>
                 <td class="btn"><a title="Reopen this window" class="link restore"
-                    ><ms>open_in_new</ms></a></td>
+                    ><ms>add_box</ms></a></td>
                 <td class="btn" title="Delete this window and its settings"
                     ><a class="link delete"><ms>delete_forever</ms></a></td>
             </tr>
@@ -558,7 +616,10 @@ async function frank() {
 
 
 async function initWindowsPanel() {
-    await renderWindowsPanel();
+    await Promise.all([
+        renderWindowsPanel(),
+        renderAvailableMods(),
+    ]);
     const winsEl = document.querySelector('#windows');
     winsEl.querySelector('table tbody').addEventListener('click', async ev => {
         const link = ev.target.closest('a.link');
