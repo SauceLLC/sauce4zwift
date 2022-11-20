@@ -600,7 +600,7 @@ function _openWindow(id, spec) {
         fullscreenable: false,
     };
     const manifest = windowManifestsByType.get(spec.type);
-    let bounds = spec.bounds || spec.position; // XXX spec.position is the legacy prop, remove in a few rels
+    let bounds = spec.bounds;
     const inBounds = !bounds || isWithinDisplayBounds(bounds);
     if (!inBounds) {
         console.warn("Reseting window that is out of bounds:", bounds);
@@ -672,7 +672,6 @@ function _openWindow(id, spec) {
         }
     }
     const query = manifest.query;
-    console.warn('XXX check query', query, manifest, spec);
     win.loadFile(manifest.file, {query});
     win.show();
     return win;
