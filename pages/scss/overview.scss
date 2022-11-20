@@ -127,7 +127,6 @@ html:not(:focus-within) {
         align-items: center;
 
         .key {
-            font-weight: 500;
             display: inline-flex;
             align-items: baseline;
             white-space: nowrap;
@@ -138,7 +137,7 @@ html:not(:focus-within) {
 
             small {
                 padding-left: 0.15em;
-                font-weight: 400;
+                font-weight: 300;
                 font-size: 0.9em;
             }
         }
@@ -182,14 +181,11 @@ header {
     margin-right: 0.3em;
 
     .button {
-        padding-left: 0.33em;
-        padding-right: 0.33em;
+        padding-left: 0.28em;
+        padding-right: 0.28em;
         border-radius: 0.3em;
+        opacity: 1;
         transition: opacity 200ms, background 200ms;
-
-        &:not(:last-child) {
-            padding-right: 0.3em;
-        }
 
         &:hover {
             background-color: #fff3;
@@ -202,7 +198,7 @@ header {
         ms {
             margin-top: 0.15em;
             font-size: 1.4em;
-            font-weight: 300;
+            font-weight: 200;
         }
     }
 
@@ -215,9 +211,9 @@ header {
 
     .auto-hidden-label {
         font-variant: small-caps;
-        font-weight: bold;
+        font-weight: 500;
         font-size: 0.6em;
-        opacity: 0.78;
+        opacity: 0.86;
         text-align: center;
         margin-left: 0.15em;
         margin-right: 0.1em;
