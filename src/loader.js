@@ -280,9 +280,6 @@ async function initSentry(logEmitter) {
     if (os.platform() === 'win32' && !settings.forceEnableGPU) {
         console.debug("Disable GPU Compositing for windows");
         app.commandLine.appendSwitch('disable-gpu-compositing');
-    } else if {
-        // XXX
-        app.commandLine.appendSwitch('ignore-gpu-blocklist');
     }
     // Use non-electron naming for windows updater.
     // https://github.com/electron-userland/electron-builder/issues/2700
