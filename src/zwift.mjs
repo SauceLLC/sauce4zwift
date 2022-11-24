@@ -632,8 +632,6 @@ export class ZwiftAPI {
                 },
             });
             for (const x of data.entries) {
-                // Yup you read it right, they are inverted. ):
-                x.profileData.gender = x.profileData.gender === 'FEMALE' ? 'MALE' : 'FEMALE';
                 x.profileData.male = x.profileData.gender === 'MALE';
                 results.push(x);
             }
