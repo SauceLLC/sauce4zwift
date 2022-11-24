@@ -1146,7 +1146,6 @@ export class StatsProcessor extends events.EventEmitter {
                         shiftHistory = true;
                     } else {
                         // Stopped and wiggling backwards. For safety we just nuke hist.
-                        console.debug('Wiggler detected:', delta, state.athleteId);
                         ad.roadHistory.timeline.length = 0;
                     }
                 }

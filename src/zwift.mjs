@@ -118,7 +118,7 @@ function decodeGroupEventUserRegistered(buf) {
 
 
 function decodeNotableMoment(buf) {
-    console.warn("Figure this out (notable momment):", buf.toString('hex'));
+    console.devWarn("Figure this out (notable momment):", buf.toString('hex'));
     return {};
 }
 
@@ -388,7 +388,7 @@ export class ZwiftAPI {
         const ProtoBuf = protos.get(options.protobuf);
         const data = Buffer.from(await r.arrayBuffer());
         if (options.debug) {
-            console.debug('PB API DEBUG', urn, data.toString('hex'));
+            console.dev('PB API DEBUG', urn, data.toString('hex'));
         }
         return ProtoBuf.decode(data);
     }
@@ -1426,7 +1426,7 @@ export class GameMonitor extends events.EventEmitter {
             if (i !== -1) {
                 this._udpChannels.splice(i, 1);
                 if (!this.suspended && this._session && (i === 0 || !this._udpChannels.length)) {
-                    console.debug("Last/primary channel shutdown");
+                    console.info("Last/primary channel shutdown");
                     this.setUDPChannel();
                 }
             }
@@ -1472,7 +1472,7 @@ export class GameMonitor extends events.EventEmitter {
         clearTimeout(this._sessionTimeout);
         this._session = session;
         const renewDelay = session.expiresMonotonic - Date.now() - this._sessionRestartSlack;
-        console.debug(`Session renewal scheduled for: ${renewDelay / 1000 | 0}s`);
+        console.info(`Session renewal scheduled for: ${renewDelay / 1000 | 0}s`);
         this._sessionTimeout = setTimeout(this.renewSession.bind(this), renewDelay);
         if (!this.suspended && this.courseId) {
             this.setUDPChannel();

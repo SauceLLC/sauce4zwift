@@ -1,6 +1,6 @@
 Error.stackTraceLimit = 25;
 
-console.info('\n\n\n\nStarting...');
+console.info('Starting...');
 
 const os = require('node:os');
 const path = require('node:path');
@@ -60,7 +60,6 @@ function rotateLogFiles(limit=5) {
         if (newFName === fName) {
             continue;
         }
-        console.debug('Rotate log file:', fName, newFName);
         fs.renameSync(userDataPath(fName), userDataPath(newFName));
     }
 }
@@ -122,9 +121,6 @@ function monkeyPatchConsoleWithEmitter() {
             Error.stackTraceLimit = saveTraceLimit;
             const stack = o.stack;
             const fileMatch = stack.match(/([^/\\: (]+:[0-9]+):[0-9]+\)?$/);
-            if (!fileMatch) {
-                debugger;
-            }
             emitter.emit('message', {
                 seqno: seqno++,
                 date: new Date(),
@@ -160,6 +156,11 @@ function initLogging() {
             logQueue.shift();
         }
     });
+    console.dev = app.isPackaged ? () => undefined : console.debug;
+    console.devDebug = app.isPackaged ? () => undefined : console.debug;
+    console.devInfo = app.isPackaged ? () => undefined : console.info;
+    console.devWarn = app.isPackaged ? () => undefined : console.warn;
+    console.devError = app.isPackaged ? () => undefined : console.error;
     if (rotateErr) {
         console.error('Log rotate error:', rotateErr);
     }
