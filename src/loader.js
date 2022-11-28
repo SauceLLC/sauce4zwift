@@ -246,7 +246,6 @@ async function initSentry(logEmitter) {
     const report = await import('../shared/report.mjs');
     report.setSentry(Sentry);
     const skipIntegrations = new Set(['OnUncaughtException', 'Console']);
-    debugger;
     Sentry.init({
         dsn: "https://df855be3c7174dc89f374ef0efaa6a92@o1166536.ingest.sentry.io/6257001",
         // Sentry changes the uncaught exc behavior to exit the process.  I think it may
