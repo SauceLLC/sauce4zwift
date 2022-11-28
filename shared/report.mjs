@@ -58,9 +58,6 @@ export function error(e) {
 }
 
 
-
-
-
 export function message(msg) {
     console.warn('Message report:', msg);
     if (Sentry) {
