@@ -410,7 +410,7 @@ function buildLayout() {
                 key: 'IF',
             }, {
                 id: 'pwr-vi',
-                value: x => H.number(x.stats && x.stats.power.np / x.stats.power.avg, {precision: 1, fixed: true}),
+                value: x => H.number(x.stats && x.stats.power.np / x.stats.power.avg, {precision: 2, fixed: true}),
                 key: 'VI',
             }, {
                 id: 'pwr-max',

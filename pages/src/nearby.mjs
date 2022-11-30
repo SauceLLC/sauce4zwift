@@ -329,7 +329,7 @@ const fieldGroups = [{
          get: x => x.stats.power.np, fmt: fmtWkg},
         {id: 'pwr-vi', defaultEn: true, label: 'Variability Index', headerLabel: 'VI',
          get: x => x.stats.power.np / x.stats.power.avg, tooltip: 'NP / Avg-Power',
-         fmt: x => num(x, {precision: 1, fixed: true})},
+         fmt: x => num(x, {precision: 2, fixed: true})},
         {id: 'power-lap', defaultEn: false, label: 'Lap Average', headerLabel: 'Pwr (lap)',
          get: x => x.laps.at(-1).power.avg, fmt: pwr},
         {id: 'wkg-lap', defaultEn: false, label: 'Lap W/kg Average', headerLabel: 'W/kg (lap)',

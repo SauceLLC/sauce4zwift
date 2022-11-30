@@ -204,7 +204,7 @@ const groupSpecs = {
         {
             id: 'pwr-vi',
             value: x => H.number(x.stats && x.stats.power.np && x.stats.power.np / x.stats.power.avg,
-                {precision: 1, fixed: true}),
+                {precision: 2, fixed: true}),
             label: 'vi',
             key: 'VI',
         }, {
