@@ -576,7 +576,7 @@ function handleNewSubWindow(parent, spec, webPrefs) {
             ...bounds,
             webPreferences: {
                 sandbox: true,
-                preload: path.join(appPath, 'src', 'preload', 'common.js'),
+                preload: path.join(appPath, 'src/preload/common.js'),
                 webPrefs,
             }
         });
@@ -598,6 +598,31 @@ function handleNewSubWindow(parent, spec, webPrefs) {
         newWin.show();
         return {action: 'deny'};
     });
+}
+
+
+export async function settingsExport() {
+    const win = new electron.BrowserWindow({
+        show: false,
+        webPreferences: {
+            sandbox: true,
+            preload: path.join(appPath, 'src/preload/storage-proxy.js'),
+        }
+    });
+    const p = new Promise(resolve => win.webContents.on('ipc-message',
+        (ev, ch, localStorage) => resolve(localStorage)));
+    let windowStorage;
+    try {
+        win.webContents.on('did-finish-load', () => win.webContents.send('export'));
+        win.loadFile('/pages/dummy.html');
+        windowStorage = await p;
+    } finally {
+        win.destroy();
+    }
+    return {
+        windowConfig: storage.load('windows'),
+        windowStorage,
+    };
 }
 
 
@@ -634,7 +659,7 @@ function _openWindow(id, spec) {
         roundedCorners: false,
         webPreferences: {
             sandbox: true,
-            preload: path.join(appPath, 'src', 'preload', 'common.js'),
+            preload: path.join(appPath, 'src/preload/common.js'),
             webgl: false,
             ...manifest.webPreferences,
             ...spec.webPreferences,
@@ -731,7 +756,7 @@ export function makeCaptiveWindow(options={}, webPrefs={}) {
         fullscreenable: false,
         webPreferences: {
             sandbox: true,
-            preload: path.join(appPath, 'src', 'preload', 'common.js'),
+            preload: path.join(appPath, 'src/preload/common.js'),
             ...webPrefs,
         },
         ...options,
@@ -814,7 +839,7 @@ export async function zwiftLogin(options) {
         height: options.monitor ? 720 : 500,
         show: false,
     }, {
-        preload: path.join(appPath, 'src', 'preload', 'zwift-login.js'),
+        preload: path.join(appPath, 'src/preload/zwift-login.js'),
     });
     let closed;
     let setDone;
@@ -865,7 +890,7 @@ export async function welcomeSplash() {
         ...getCurrentDisplay().bounds,
         webPreferences: {
             sandbox: true,
-            preload: path.join(appPath, 'src', 'preload', 'common.js'),
+            preload: path.join(appPath, 'src/preload/common.js'),
         },
     });
     welcomeWin.removeMenu();
@@ -890,7 +915,7 @@ export async function patronLink() {
         height: 720,
         disableNewWindowHandler: true,
     }, {
-        preload: path.join(appPath, 'src', 'preload', 'patron-link.js'),
+        preload: path.join(appPath, 'src/preload/patron-link.js'),
         partition: 'persist:patreon',
     });
     // Prevent Patreon's datedome.co bot service from blocking us.
@@ -965,7 +990,7 @@ export async function systemMessage(msg) {
         alwaysOnTop: true,
         webPreferences: {
             sandbox: true,
-            preload: path.join(appPath, 'src', 'preload', 'common.js'),
+            preload: path.join(appPath, 'src/preload/common.js'),
         },
     });
     sysWin.removeMenu();
