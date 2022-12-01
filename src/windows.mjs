@@ -28,7 +28,7 @@ let swappingProfiles;
 
 electron.app.on('window-all-closed', () => {
     if (app.started && !app.quiting && !swappingProfiles) {
-        quit();
+        electron.app.quit();
     }
 });
 
