@@ -695,12 +695,13 @@ export class StatsProcessor extends events.EventEmitter {
             data.wPrime = 20000; // Po-boy migration
         }
         const wPrimeUpdated = data.wPrime !== undefined && data.wPrime !== d.wPrime;
+        const cpUpdated = data.cp !== undefined && data.cp !== d.cp;
         for (const [k, v] of Object.entries(data)) {
             if (v !== undefined) {
                 d[k] = v;
             }
         }
-        if (wPrimeUpdated) {
+        if (wPrimeUpdated || cpUpdated ) {
             this.updateAthleteWPrime(id, d);
         }
         if (data.marked !== undefined) {

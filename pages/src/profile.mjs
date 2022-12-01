@@ -73,6 +73,33 @@ function handleWPrimeEdit(el, {athleteId, athlete}, rerender) {
     });
 }
 
+function handleCPEdit(el, {athleteId, athlete}, rerender) {
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.value = athlete.cp ? athlete.cp : athlete.ftp;
+    input.classList.add('no-increment');
+    el.replaceChildren(input);
+    let done;
+    input.focus();
+    document.addEventListener('keydown', async ev => {
+        if (done) {
+            return;
+        }
+        if (ev.key === 'Enter') {
+            done = true;
+            const cp = Number(input.value);
+            if (isNaN(cp)) {
+                alert('Invalid number');
+            }
+            await common.rpc.updateAthlete(athleteId, {cp});
+            athlete.cp = cp;
+            rerender();
+        } else if (ev.key === 'Escape') {
+            done = true;
+            rerender();
+        }
+    });
+}
 
 async function exportFITActivity(athleteId) {
     const fitData = await common.rpc.exportFIT(athleteId);
@@ -100,6 +127,10 @@ export async function render(el, tpl, tplData) {
             if (wp) {
                 handleWPrimeEdit(wp, tplData, rerender);
             }
+            const cp = ev.target.closest('a.cp');
+            if (cp) {
+                handleCPEdit(cp, tplData, rerender);
+            }            
             return;
         }
         ev.preventDefault();
