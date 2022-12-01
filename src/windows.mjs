@@ -417,8 +417,6 @@ export function activateProfile(id) {
             if (win !== sourceWin && win.spec && win.webContents.session === activeProfileSession) {
                 win.suspendUpdates = true;
                 win.close();
-            } else {
-                console.error(" no close ", win);
             }
         }
         for (const x of profiles) {
