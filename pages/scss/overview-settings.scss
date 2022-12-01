@@ -11,10 +11,11 @@
     table {
         width: 100%;
         border-radius: 0.28em;
-        background: #0003;
+        background-color: color.shade(fg, 100%, 15%);
         margin-bottom: 1em;
         border-collapse: collapse;
         font-size: 0.9em;
+        overflow: hidden;
 
         thead tr {
             th {
@@ -25,17 +26,22 @@
         }
 
         tbody tr:nth-child(odd) {
-            background-color: #0003;
+            background-color: color.shade(fg, 100%, 10%);
         }
 
         tbody tr {
-            &.closed {
-                opacity: 0.80;
+            &.active {
+                font-weight: bold;
+                background-color: color.get(primary, 80%) !important;
+                color: color.shade(primary, 100%) !important;
+            }
 
+            &.closed {
+                opacity: 0.75;
             }
 
             &:not(.closed) {
-                .link.restore {
+                .link.win-restore {
                     display: none;
                 }
 
@@ -45,8 +51,7 @@
             }
 
             &:hover {
-                cursor: pointer;
-                background-color: #1119;
+                background-color: color.shade(fg, 100%, 40%);
             }
         }
 
@@ -60,13 +65,13 @@
         }
 
         a.link {
-            opacity: 0.8;
-            transition: opacity 100ms;
-            margin: 0 0.4em;
+            opacity: 0.85;
+            transition: opacity 200ms;
             display: inline-block;
             cursor: pointer;
 
             ms {
+                margin: 0 0.4em;
                 font-weight: 600;
             }
 
@@ -76,7 +81,6 @@
 
             &.danger {
                 color: #f41616;
-                color: color.get(danger);
             }
 
             &:hover {

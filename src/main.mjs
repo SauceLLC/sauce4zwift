@@ -23,13 +23,15 @@ const isDEV = !electron.app.isPackaged;
 const zwiftAPI = new zwift.ZwiftAPI();
 const zwiftMonitorAPI = new zwift.ZwiftAPI();
 
-let started;
-let quiting;
 let sauceApp;
 const rpcSources = {
     windows: windows.eventEmitter,
     updater: autoUpdater,
 };
+
+
+export let started;
+export let quiting;
 
 
 export function getApp() {
@@ -66,11 +68,6 @@ try {
     ]).finally(() => quit(1));
 }
 
-electron.app.on('window-all-closed', () => {
-    if (started) {
-        quit();
-    }
-});
 electron.app.on('second-instance', (ev,_, __, {type}) => {
     if (type === 'quit') {
         console.warn("Another instance requested us to quit.");

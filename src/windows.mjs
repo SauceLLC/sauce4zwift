@@ -9,12 +9,10 @@ import {EventEmitter} from 'node:events';
 import {sleep} from '../shared/sauce/base.mjs';
 import {createRequire} from 'node:module';
 import * as menu from './menu.mjs';
+import * as app from './main.mjs';
 
 const require = createRequire(import.meta.url);
 const electron = require('electron');
-
-let quiting;
-electron.app.on('before-quit', () => quiting = true);
 
 const isWindows = os.platform() === 'win32';
 const isMac = !isWindows && os.platform() === 'darwin';
@@ -26,6 +24,13 @@ const sessions = new Map();
 let profiles;
 let activeProfile;
 let activeProfileSession;
+let swappingProfiles;
+
+electron.app.on('window-all-closed', () => {
+    if (app.started && !app.quiting && !swappingProfiles) {
+        quit();
+    }
+});
 
 
 class SauceBrowserWindow extends electron.BrowserWindow {
@@ -405,19 +410,25 @@ export function activateProfile(id) {
         console.warn("Profile already active");
         return activeProfile;
     }
-    const sourceWin = this.getOwnerBrowserWindow();
-    for (const win of SauceBrowserWindow.getAllWindows()) {
-        if (win !== sourceWin && win.spec && win.webContents.session === activeProfileSession) {
-            win.close();
-        } else {
-            console.error(" no close ", win);
+    swappingProfiles = true;
+    try {
+        const sourceWin = this.getOwnerBrowserWindow();
+        for (const win of SauceBrowserWindow.getAllWindows()) {
+            if (win !== sourceWin && win.spec && win.webContents.session === activeProfileSession) {
+                win.suspendUpdates = true;
+                win.close();
+            } else {
+                console.error(" no close ", win);
+            }
         }
+        for (const x of profiles) {
+            x.active = x.id === id;
+        }
+        activeProfile = profiles.find(x => x.active);
+        activeProfileSession = loadSession(activeProfile.id);
+    } finally {
+        swappingProfiles = false;
     }
-    for (const x of profiles) {
-        x.active = x.id === id;
-    }
-    activeProfile = profiles.find(x => x.active);
-    activeProfileSession = loadSession(activeProfile.id);
     openAllWindows();
 }
 rpc.register(activateProfile);
@@ -456,6 +467,9 @@ rpc.register(getWindows);
 
 let _windowsUpdatedTimeout;
 export function setWindows(wins) {
+    if (app.quiting || swappingProfiles) {
+        return;
+    }
     if (!activeProfile) {
         initProfiles();
     }
@@ -482,6 +496,9 @@ rpc.register(setWindow);
 
 export function updateWindow(id, updates) {
     const w = getWindow(id);
+    if (app.quiting || swappingProfiles) {
+        return w;
+    }
     Object.assign(w, updates);
     setWindow(id, w);
     if ('closed' in updates) {
@@ -794,7 +811,7 @@ function _openWindow(id, spec) {
     win.on('move', onBoundsUpdate);
     win.on('resize', onBoundsUpdate);
     win.on('close', () => {
-        if (!quiting && !manifest.alwaysVisible) {
+        if (!manifest.alwaysVisible) {
             updateWindow(id, {closed: true});
         }
     });

@@ -476,15 +476,12 @@ async function renderProfiles() {
     const el = document.querySelector('#windows');
     el.querySelector('table.profiles tbody').innerHTML = profiles.map(x => {
         return `
-            <tr data-id="${x.id}" class="profile ${x.active ? 'active' : ''}">
+            <tr data-id="${x.id}" class="profile ${x.active ? 'active' : 'closed'}">
                 <td class="name">${common.stripHTML(x.name)}<a class="link profile-edit-name"
                     title="Edit name"><ms>edit</ms></a></td>
                 <td class="windows">${H.number(Object.keys(x.windows).length)}</td>
-                <td class="btn">` + (x.active ?
-                    `<a title="This is the current profile"><ms>toggle_on</ms></a>` : 
-                    `<a title="Switch to this profile" class="link primary profile-select"><ms>toggle_off</ms></a>`) +
-               `</td>
-                <td class="btn" title="Delete this window and its settings"
+                <td class="btn">${x.active ? 'Current' : '<a class="link profile-select">Activate</a>'}</td>
+                <td class="btn" title="Delete this profile"
                     ><a class="link danger profile-delete"><ms>delete_forever</ms></a></td>
             </tr>
         `;
@@ -644,80 +641,82 @@ async function initWindowsPanel() {
     ]);
     const winsEl = document.querySelector('#windows');
     winsEl.addEventListener('submit', ev => ev.preventDefault());
-    winsEl.querySelector('table tbody').addEventListener('click', async ev => {
-        const link = ev.target.closest('a.link');
-        if (link) {
-            const id = ev.target.closest('[data-id]').dataset.id;
-            if (link.classList.contains('win-restore')) {
-                await common.rpc.openWindow(id);
-            } else if (link.classList.contains('profile-select')) {
-                await common.rpc.activateProfile(id);
-            } else if (link.classList.contains('win-delete')) {
-                await common.rpc.removeWindow(id);
-            } else if (link.classList.contains('profile-delete')) {
-                await common.rpc.removeProfile(id);
-            } else if (link.classList.contains('win-edit-name')) {
-                const td = ev.target.closest('td');
-                const input = document.createElement('input');
-                input.value = td.childNodes[0].textContent;
-                input.title = 'Press Enter to save or Escape';
-                td.innerHTML = '';
-                td.appendChild(input);
-                input.focus();
-                let actionTaken;
-                const save = async () => {
-                    if (actionTaken) {
-                        return;
-                    }
+    winsEl.addEventListener('click', async ev => {
+        const link = ev.target.closest('table a.link');
+        if (!link) {
+            return;
+        }
+        const id = ev.target.closest('[data-id]').dataset.id;
+        if (link.classList.contains('win-restore')) {
+            await common.rpc.openWindow(id);
+        } else if (link.classList.contains('profile-select')) {
+            await common.rpc.activateProfile(id);
+            await renderProfiles();
+        } else if (link.classList.contains('win-delete')) {
+            await common.rpc.removeWindow(id);
+        } else if (link.classList.contains('profile-delete')) {
+            await common.rpc.removeProfile(id);
+            await renderProfiles();
+        } else if (link.classList.contains('win-edit-name')) {
+            const td = ev.target.closest('td');
+            const input = document.createElement('input');
+            input.value = td.childNodes[0].textContent;
+            input.title = 'Press Enter to save or Escape';
+            td.innerHTML = '';
+            td.appendChild(input);
+            input.focus();
+            let actionTaken;
+            const save = async () => {
+                if (actionTaken) {
+                    return;
+                }
+                actionTaken = true;
+                const customName = common.sanitize(input.value);
+                await common.rpc.updateWindow(id, {customName});
+                await renderWindows();
+                if (customName.match(/frank/i)) {
+                    frank();
+                }
+            };
+            input.addEventListener('blur', save);
+            input.addEventListener('keydown', ev => {
+                if (ev.code === 'Enter') {
+                    save();
+                } if (ev.code === 'Escape') {
                     actionTaken = true;
-                    const customName = common.sanitize(input.value);
-                    await common.rpc.updateWindow(id, {customName});
-                    await renderWindows();
-                    if (customName.match(/frank/i)) {
-                        frank();
-                    }
-                };
-                input.addEventListener('blur', save);
-                input.addEventListener('keydown', ev => {
-                    if (ev.code === 'Enter') {
-                        save();
-                    } if (ev.code === 'Escape') {
-                        actionTaken = true;
-                        renderWindows();
-                    }
-                });
-            } else if (link.classList.contains('profile-edit-name')) {
-                const td = ev.target.closest('td');
-                const input = document.createElement('input');
-                input.value = td.childNodes[0].textContent;
-                input.title = 'Press Enter to save or Escape';
-                td.innerHTML = '';
-                td.appendChild(input);
-                input.focus();
-                let actionTaken;
-                const save = async () => {
-                    if (actionTaken) {
-                        return;
-                    }
+                    renderWindows();
+                }
+            });
+        } else if (link.classList.contains('profile-edit-name')) {
+            const td = ev.target.closest('td');
+            const input = document.createElement('input');
+            input.value = td.childNodes[0].textContent;
+            input.title = 'Press Enter to save or Escape';
+            td.innerHTML = '';
+            td.appendChild(input);
+            input.focus();
+            let actionTaken;
+            const save = async () => {
+                if (actionTaken) {
+                    return;
+                }
+                actionTaken = true;
+                const name = common.sanitize(input.value);
+                await common.rpc.renameProfile(id, name);
+                await renderProfiles();
+            };
+            input.addEventListener('blur', save);
+            input.addEventListener('keydown', ev => {
+                if (ev.code === 'Enter') {
+                    save();
+                } if (ev.code === 'Escape') {
                     actionTaken = true;
-                    const name = common.sanitize(input.value);
-                    await common.rpc.renameProfile(id, name);
-                    await renderProfiles();
-                };
-                input.addEventListener('blur', save);
-                input.addEventListener('keydown', ev => {
-                    if (ev.code === 'Enter') {
-                        save();
-                    } if (ev.code === 'Escape') {
-                        actionTaken = true;
-                        renderProfiles();
-                    }
-                });
-            }
-
+                    renderProfiles();
+                }
+            });
         }
     });
-    winsEl.querySelector('table tbody').addEventListener('dblclick', async ev => {
+    winsEl.querySelector('table.active-windows tbody').addEventListener('dblclick', async ev => {
         const row = ev.target.closest('tr[data-id]');
         if (!row || ev.target.closest('a.link.delete') || ev.target.closest('input')) {
             return;
@@ -734,6 +733,20 @@ async function initWindowsPanel() {
         const type = ev.currentTarget.closest('.add-new').querySelector('select').value;
         const id = await common.rpc.createWindow({type});
         await common.rpc.openWindow(id);
+    });
+    winsEl.addEventListener('click', async ev => {
+        const btn = ev.target.closest('.button[data-action]');
+        if (!btn) {
+            return;
+        }
+        if (btn.dataset.action === 'profile-create') {
+            await common.rpc.createProfile();
+            await renderProfiles();
+        } else if (btn.dataset.action === 'profile-import') {
+            await common.rpc.createProfile();
+        } else if (btn.dataset.action === 'profile-export') {
+            await common.rpc.export();
+        }
     });
 }
 
@@ -759,8 +772,6 @@ export async function settingsMain() {
             btn.closest('label').classList.add('edited');
             btn.remove();
             await appSettingsUpdate(extraData);
-        } else if (btn.dataset.action === 'profile-create') {
-            await common.rpc.createProfile(); // XXX
         }
     });
     common.subscribe('set-windows', renderWindows, {source: 'windows'});
