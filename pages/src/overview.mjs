@@ -471,6 +471,27 @@ function buildLayout() {
 }
 
 
+async function renderProfiles() {
+    const profiles = await common.rpc.getProfiles();
+    const el = document.querySelector('#windows');
+    el.querySelector('table.profiles tbody').innerHTML = profiles.map(x => {
+        return `
+            <tr data-id="${x.id}" class="profile ${x.active ? 'active' : ''}">
+                <td class="name">${common.stripHTML(x.name)}<a class="link profile-edit-name"
+                    title="Edit name"><ms>edit</ms></a></td>
+                <td class="windows">${H.number(Object.keys(x.windows).length)}</td>
+                <td class="btn">` + (x.active ?
+                    `<a title="This is the current profile"><ms>toggle_on</ms></a>` : 
+                    `<a title="Switch to this profile" class="link primary profile-select"><ms>toggle_off</ms></a>`) +
+               `</td>
+                <td class="btn" title="Delete this window and its settings"
+                    ><a class="link danger profile-delete"><ms>delete_forever</ms></a></td>
+            </tr>
+        `;
+    }).join('\n');
+}
+
+
 async function renderAvailableMods() {
     const mods = await common.rpc.getAvailableMods();
     const el = document.querySelector('#mods-container');
@@ -529,7 +550,7 @@ async function renderAvailableMods() {
 }
 
 
-async function renderWindowsPanel() {
+async function renderWindows() {
     const windows = Object.values(await common.rpc.getWindows()).filter(x => !x.private);
     const manifests = await common.rpc.getWindowManifests();
     const el = document.querySelector('#windows');
@@ -543,13 +564,13 @@ async function renderWindowsPanel() {
         return `
             <tr data-id="${x.id}" class="window ${x.closed ? 'closed' : 'open'}"
                 title="${common.sanitizeAttr(desc.prettyDesc)}\n\nDouble click/tap to ${x.closed ? 'reopen' : 'focus'}">
-                <td class="name">${common.stripHTML(x.customName || desc.prettyName)}<a class="link edit-name"
+                <td class="name">${common.stripHTML(x.customName || desc.prettyName)}<a class="link win-edit-name"
                     title="Edit name"><ms>edit</ms></a></td>
                 <td class="state">${x.closed ? 'Closed' : 'Open'}</td>
-                <td class="btn"><a title="Reopen this window" class="link restore"
+                <td class="btn"><a title="Reopen this window" class="link win-restore"
                     ><ms>add_box</ms></a></td>
                 <td class="btn" title="Delete this window and its settings"
-                    ><a class="link delete"><ms>delete_forever</ms></a></td>
+                    ><a class="link danger win-delete"><ms>delete_forever</ms></a></td>
             </tr>
         `;
     }).join('\n');
@@ -617,19 +638,25 @@ async function frank() {
 
 async function initWindowsPanel() {
     await Promise.all([
-        renderWindowsPanel(),
+        renderProfiles(),
+        renderWindows(),
         renderAvailableMods(),
     ]);
     const winsEl = document.querySelector('#windows');
+    winsEl.addEventListener('submit', ev => ev.preventDefault());
     winsEl.querySelector('table tbody').addEventListener('click', async ev => {
         const link = ev.target.closest('a.link');
         if (link) {
             const id = ev.target.closest('[data-id]').dataset.id;
-            if (link.classList.contains('restore')) {
+            if (link.classList.contains('win-restore')) {
                 await common.rpc.openWindow(id);
-            } else if (link.classList.contains('delete')) {
+            } else if (link.classList.contains('profile-select')) {
+                await common.rpc.activateProfile(id);
+            } else if (link.classList.contains('win-delete')) {
                 await common.rpc.removeWindow(id);
-            } else if (link.classList.contains('edit-name')) {
+            } else if (link.classList.contains('profile-delete')) {
+                await common.rpc.removeProfile(id);
+            } else if (link.classList.contains('win-edit-name')) {
                 const td = ev.target.closest('td');
                 const input = document.createElement('input');
                 input.value = td.childNodes[0].textContent;
@@ -645,7 +672,7 @@ async function initWindowsPanel() {
                     actionTaken = true;
                     const customName = common.sanitize(input.value);
                     await common.rpc.updateWindow(id, {customName});
-                    await renderWindowsPanel();
+                    await renderWindows();
                     if (customName.match(/frank/i)) {
                         frank();
                     }
@@ -656,10 +683,38 @@ async function initWindowsPanel() {
                         save();
                     } if (ev.code === 'Escape') {
                         actionTaken = true;
-                        renderWindowsPanel();
+                        renderWindows();
+                    }
+                });
+            } else if (link.classList.contains('profile-edit-name')) {
+                const td = ev.target.closest('td');
+                const input = document.createElement('input');
+                input.value = td.childNodes[0].textContent;
+                input.title = 'Press Enter to save or Escape';
+                td.innerHTML = '';
+                td.appendChild(input);
+                input.focus();
+                let actionTaken;
+                const save = async () => {
+                    if (actionTaken) {
+                        return;
+                    }
+                    actionTaken = true;
+                    const name = common.sanitize(input.value);
+                    await common.rpc.renameProfile(id, name);
+                    await renderProfiles();
+                };
+                input.addEventListener('blur', save);
+                input.addEventListener('keydown', ev => {
+                    if (ev.code === 'Enter') {
+                        save();
+                    } if (ev.code === 'Escape') {
+                        actionTaken = true;
+                        renderProfiles();
                     }
                 });
             }
+
         }
     });
     winsEl.querySelector('table tbody').addEventListener('dblclick', async ev => {
@@ -704,9 +759,11 @@ export async function settingsMain() {
             btn.closest('label').classList.add('edited');
             btn.remove();
             await appSettingsUpdate(extraData);
+        } else if (btn.dataset.action === 'profile-create') {
+            await common.rpc.createProfile(); // XXX
         }
     });
-    common.subscribe('set-windows', renderWindowsPanel, {source: 'windows'});
+    common.subscribe('set-windows', renderWindows, {source: 'windows'});
     extraData.webServerURL = await common.rpc.getWebServerURL();
     const athlete = await common.rpc.getAthlete('self', {refresh: true, noWait: true});
     extraData.profileDesc = athlete && athlete.sanitizedFullname;

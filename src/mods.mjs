@@ -8,7 +8,7 @@ const require = createRequire(import.meta.url);
 const electron = require('electron');
 
 const settingsKey = 'mod-settings';
-const settings = storage.load(settingsKey) || {};
+const settings = storage.get(settingsKey) || {};
 
 export const available = [];
 
@@ -23,7 +23,7 @@ rpc.register((id, enabled) => {
         settings[id] = {};
     }
     mod.enabled = settings[id].enabled = enabled;
-    storage.save(settingsKey, settings);
+    storage.set(settingsKey, settings);
 }, {name: 'setModEnabled'});
 
 

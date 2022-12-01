@@ -21,13 +21,28 @@ const isMac = !isWindows && os.platform() === 'darwin';
 const isLinux = !isWindows && !isMac && os.platform() === 'linux';
 const modContentScripts = [];
 const modContentStyle = [];
+const sessions = new Map();
+
+let profiles;
+let activeProfile;
+let activeProfileSession;
 
 
 class SauceBrowserWindow extends electron.BrowserWindow {
+    static getAllWindows() {
+        return electron.BaseWindow.getAllWindows().filter(x => x instanceof this);
+    }
+
     constructor(options) {
         super(options);
         this.frame = options.frame !== false;
-        this.specId = options.specId;
+        this.spec = options.spec;
+        this.subWindow = options.subWindow;
+    }
+
+    ident() {
+        return (this.subWindow ? '[sub-window] ' : '') +
+            this.spec ? `specId:${this.spec.id}` : `id:${this.id}`;
     }
 }
 
@@ -173,13 +188,19 @@ const defaultWindows = [{
 
 // NEVER use app.getAppPath() it uses asar for universal builds
 const appPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-export const activeWindows = new Map();
-export const subWindows = new WeakMap();
 export const eventEmitter = new EventEmitter();
 
-const patreonSession = electron.session.fromPartition('persist:patreon');
-patreonSession.protocol.interceptFileProtocol('file', onInterceptFileProtocol);
-electron.protocol.interceptFileProtocol('file', onInterceptFileProtocol);
+
+export function loadSession(name, options={}) {
+    if (sessions.has(name)) {
+        return sessions.get(name);
+    }
+    const persist = options.persist !== false;
+    const s = electron.session.fromPartition(name && ((persist ? 'persist:' : '') + name));
+    s.protocol.interceptFileProtocol('file', onInterceptFileProtocol);
+    sessions.set(name, s);
+    return s;
+}
 
 
 function onInterceptFileProtocol(request, callback) {
@@ -209,6 +230,7 @@ function onInterceptFileProtocol(request, callback) {
     callback(path.join(rootPath, file));
 }
 
+electron.protocol.interceptFileProtocol('file', onInterceptFileProtocol);
 
 electron.ipcMain.on('getWindowContextSync', ev => {
     const returnValue = {
@@ -218,14 +240,12 @@ electron.ipcMain.on('getWindowContextSync', ev => {
     try {
         const win = ev.sender.getOwnerBrowserWindow();
         returnValue.frame = win.frame;
-        const m = activeWindows.get(ev.sender) || subWindows.get(ev.sender);
-        if (m) {
-            const manifest = windowManifestsByType.get(m.spec.type);
+        if (win.spec) {
             Object.assign(returnValue, {
-                id: m.spec.id,
-                type: m.spec.type,
-                spec: m.spec,
-                manifest,
+                id: win.spec.id,
+                type: win.spec.type,
+                spec: win.spec,
+                manifest: windowManifestsByType.get(win.spec.type),
             });
         }
     } finally {
@@ -234,18 +254,18 @@ electron.ipcMain.on('getWindowContextSync', ev => {
 });
 
 rpc.register(() => {
-    for (const {win, spec} of activeWindows.values()) {
-        const manifest = windowManifestsByType.get(spec.type);
-        if (!manifest.alwaysVisible && spec.overlay !== false) {
+    for (const win of SauceBrowserWindow.getAllWindows()) {
+        const manifest = windowManifestsByType.get(win.spec && win.spec.type);
+        if (manifest && !manifest.alwaysVisible && win.spec.overlay !== false) {
             win.hide();
         }
     }
 }, {name: 'hideAllWindows'});
 
 rpc.register(() => {
-    for (const {win, spec} of activeWindows.values()) {
-        const manifest = windowManifestsByType.get(spec.type);
-        if (!manifest.alwaysVisible && spec.overlay !== false) {
+    for (const win of SauceBrowserWindow.getAllWindows()) {
+        const manifest = windowManifestsByType.get(win.spec && win.spec.type);
+        if (manifest && !manifest.alwaysVisible && win.spec.overlay !== false) {
             win.showInactive();
         }
     }
@@ -253,7 +273,7 @@ rpc.register(() => {
 
 rpc.register(function closeWindow() {
     const win = this.getOwnerBrowserWindow();
-    console.debug('Window close requested:', win.specId);
+    console.debug('Window close requested:', win.ident());
     win.close();
 });
 
@@ -300,65 +320,147 @@ rpc.register(function resizeWindow(width, height, options={}) {
 });
 
 rpc.register(pid => {
-    for (const x of electron.BaseWindow.getAllWindows().filter(x => x instanceof SauceBrowserWindow)) {
-        let wc;
-        try {
-            wc = x.webContents;
-        } catch(e) {
+    for (const win of SauceBrowserWindow.getAllWindows()) {
+        if (win.webContents.getOSProcessId() !== pid) {
             continue;
         }
-        if (wc.getOSProcessId() !== pid) {
-            continue;
-        }
-        let w;
-        let subWindow;
-        if (activeWindows.has(wc)) {
-            w = activeWindows.get(wc);
-            subWindow = false;
-        } else if (subWindows.has(wc)) {
-            w = subWindows.get(wc);
-            subWindow = true;
-        }
-        if (w) {
-            return {
-                spec: w.spec,
-                title: w.title,
-                subWindow,
-            };
-        }
+        return {
+            spec: win.spec,
+            title: win.webContents.getTitle().replace(/( - )?Sauce for Zwift™?$/, ''),
+            subWindow: win.subWindow,
+        };
     }
 }, {name: 'getWindowInfoForPID'});
 
 
 export function getActiveWindow(id) {
-    for (const w of activeWindows.values()) {
-        if (w.spec.id === id) {
-            return w.win;
-        }
-    }
+    return SauceBrowserWindow.getAllWindows().find(x =>
+        !x.subWindow && (x.spec && x.spec.id === id));
 }
 
 
-let _windows;
-export function getWindows() {
-    if (!_windows) {
-        _windows = storage.load('windows');
-        if (!_windows) {
-            _windows = {};
-            for (const x of defaultWindows) {
-                createWindow(x);
-            }
+function initProfiles() {
+    if (profiles) {
+        throw new Error("Already activated");
+    }
+    profiles = storage.get('window-profiles');
+    if (!profiles || !profiles.length) {
+        const legacy = storage.get('windows');
+        if (legacy) {
+            console.warn("Upgrading legacy window mgmt system to profiles system...");
+            profiles = [{
+                id: `legacy-migrated-${Date.now()}`,
+                name: 'Default',
+                active: true,
+                windows: legacy,
+            }];
+            storage.remove('windows');
+        } else {
+            const profile = _createProfile('Default', 'default');
+            profile.active = true;
+            profiles = [profile];
+        }
+        storage.set('window-profiles', profiles);
+    }
+    activeProfile = profiles.find(x => x.active);
+    activeProfileSession = loadSession(activeProfile.id);
+}
+
+
+export function getProfiles() {
+    if (!profiles) {
+        initProfiles();
+    }
+    return profiles;
+}
+rpc.register(getProfiles);
+
+
+export function createProfile(name='New Profile', ident='custom') {
+    const profile = _createProfile(name, ident);
+    profiles.push(profile);
+    storage.set('window-profiles', profiles);
+    return profile;
+}
+rpc.register(createProfile);
+
+
+function _createProfile(name, ident) {
+    const windows = {};
+    for (const x of defaultWindows) {
+        const [id, data] = initWindow(x);
+        windows[id] = data;
+    }
+    return {
+        id: `${ident}-${Date.now()}-${Math.random() * 10000000 | 0}`,
+        name,
+        active: false,
+        windows,
+    };
+}
+
+
+export function activateProfile(id) {
+    if (activeProfile && activeProfile.id === id) {
+        console.warn("Profile already active");
+        return activeProfile;
+    }
+    const sourceWin = this.getOwnerBrowserWindow();
+    for (const win of SauceBrowserWindow.getAllWindows()) {
+        if (win !== sourceWin && win.spec && win.webContents.session === activeProfileSession) {
+            win.close();
+        } else {
+            console.error(" no close ", win);
         }
     }
-    return _windows;
+    for (const x of profiles) {
+        x.active = x.id === id;
+    }
+    activeProfile = profiles.find(x => x.active);
+    activeProfileSession = loadSession(activeProfile.id);
+    openAllWindows();
+}
+rpc.register(activateProfile);
+
+
+export function renameProfile(id, name) {
+    for (const x of profiles) {
+        if (x.id === id) {
+            x.name = name;
+        }
+    }
+    storage.set('window-profiles', profiles);
+}
+rpc.register(renameProfile);
+
+
+export function removeProfile(id) {
+    const idx = profiles.findIndex(x => x.id === id);
+    if (idx === -1) {
+        throw new Error("Invalid profile id");
+    }
+    profiles.splice(idx, 1);
+    storage.set('window-profiles', profiles);
+}
+rpc.register(removeProfile);
+
+
+export function getWindows() {
+    if (!activeProfile) {
+        initProfiles();
+    }
+    return activeProfile.windows;
 }
 rpc.register(getWindows);
 
 
 let _windowsUpdatedTimeout;
 export function setWindows(wins) {
-    _windows = wins;
-    storage.save('windows', _windows);
+    if (!activeProfile) {
+        initProfiles();
+    }
+    activeProfile.windows = wins;
+    storage.set('window-profiles', profiles);
     clearTimeout(_windowsUpdatedTimeout);
     _windowsUpdatedTimeout = setTimeout(() => eventEmitter.emit('set-windows', wins), 200);
 }
@@ -403,16 +505,25 @@ export function removeWindow(id) {
 rpc.register(removeWindow);
 
 
-export function createWindow({id, type, options, ...state}) {
-    id = id || `user-${type}-${Date.now()}-${Math.round(Math.random() * 1000)}`;
+function initWindow({id, type, options, ...state}) {
+    id = id || `user-${type}-${Date.now()}-${Math.random() * 1000000 | 0}`;
     const manifest = windowManifestsByType.get(type);
-    setWindow(id, {
-        ...manifest,
+    return [
         id,
-        type,
-        options,
-        ...state,
-    });
+        {
+            ...manifest,
+            id,
+            type,
+            options,
+            ...state,
+        }
+    ];
+}
+
+
+export function createWindow(options) {
+    const [id, data] = initWindow(options);
+    setWindow(id, data);
     setTimeout(menu.updateTrayMenu, 100);
     return id;
 }
@@ -566,9 +677,10 @@ function handleNewSubWindow(parent, spec, webPrefs) {
         const bounds = getBoundsForDisplay(display, {width, height});
         const frame = q.has('frame') || !url.startsWith('file://');
         const newWin = new SauceBrowserWindow({
-            specId: `${spec ? spec.id : 'generic'}-subwindow-${target}`,
-            show: false,
+            subWindow: true,
+            spec,
             frame,
+            show: false,
             transparent: frame === false,
             hasShadow: frame !== false,
             roundedCorners: frame !== false,
@@ -577,23 +689,18 @@ function handleNewSubWindow(parent, spec, webPrefs) {
             webPreferences: {
                 sandbox: true,
                 preload: path.join(appPath, 'src/preload/common.js'),
-                webPrefs,
+                ...webPrefs,
             }
         });
         newWin.setMenuBarVisibility(false);
-        if (spec) {
-            if (spec.overlay !== false) {
-                newWin.setAlwaysOnTop(true, 'pop-up-menu');
-            }
-            subWindows.set(newWin.webContents, {win: newWin, spec});
-            newWin.on('page-title-updated', (ev, title) =>
-                subWindows.get(newWin.webContents).title = title.replace(/( - )?Sauce for Zwift™?$/, ''));
+        if (spec && spec.overlay !== false) {
+            newWin.setAlwaysOnTop(true, 'pop-up-menu');
         }
         if (target && target !== '_blank') {
             newWin._url = url;
             targetRefs.set(target, new WeakRef(newWin));
         }
-        handleNewSubWindow(newWin, spec);
+        handleNewSubWindow(newWin, spec, webPrefs);
         newWin.loadURL(url);
         newWin.show();
         return {action: 'deny'};
@@ -601,7 +708,7 @@ function handleNewSubWindow(parent, spec, webPrefs) {
 }
 
 
-export async function settingsExport() {
+export async function getWindowsStorage() {
     const win = new electron.BrowserWindow({
         show: false,
         webPreferences: {
@@ -611,18 +718,17 @@ export async function settingsExport() {
     });
     const p = new Promise(resolve => win.webContents.on('ipc-message',
         (ev, ch, localStorage) => resolve(localStorage)));
-    let windowStorage;
+    let localStorage;
     try {
         win.webContents.on('did-finish-load', () => win.webContents.send('export'));
         win.loadFile('/pages/dummy.html');
-        windowStorage = await p;
+        localStorage = await p;
     } finally {
-        win.destroy();
+        if (!win.isDestroyed()) {
+            win.destroy();
+        }
     }
-    return {
-        windowConfig: storage.load('windows'),
-        windowStorage,
-    };
+    return {localStorage};
 }
 
 
@@ -651,7 +757,7 @@ function _openWindow(id, spec) {
         ...bounds,
     };
     const win = new SauceBrowserWindow({
-        specId: id,
+        spec,
         show: false,
         frame: false,
         transparent: true,
@@ -663,6 +769,7 @@ function _openWindow(id, spec) {
             webgl: false,
             ...manifest.webPreferences,
             ...spec.webPreferences,
+            session: activeProfileSession,
         },
         ...options,
     });
@@ -678,19 +785,15 @@ function _openWindow(id, spec) {
         win.setAlwaysOnTop(true, 'pop-up-menu');
     }
     const webContents = win.webContents;  // Save to prevent electron from killing us.
-    activeWindows.set(webContents, {win, spec});
-    handleNewSubWindow(win, spec);
+    handleNewSubWindow(win, spec, {session: activeProfileSession});
     let saveStateTimeout;
     function onBoundsUpdate() {
         clearTimeout(saveStateTimeout);
         saveStateTimeout = setTimeout(() => updateWindow(id, {bounds: win.getBounds()}), 200);
     }
-    win.on('page-title-updated', (ev, title) =>
-        activeWindows.get(webContents).title = title.replace(/( - )?Sauce for Zwift™?$/, ''));
     win.on('move', onBoundsUpdate);
     win.on('resize', onBoundsUpdate);
     win.on('close', () => {
-        activeWindows.delete(webContents);
         if (!quiting && !manifest.alwaysVisible) {
             updateWindow(id, {closed: true});
         }
@@ -745,12 +848,11 @@ export function openAllWindows() {
 }
 
 
-let captiveIdInc = 1;
 export function makeCaptiveWindow(options={}, webPrefs={}) {
     const display = getCurrentDisplay();
     const bounds = getBoundsForDisplay(display, options);
+    const session = webPrefs.session || activeProfileSession;
     const win = new SauceBrowserWindow({
-        specId: `captive-${captiveIdInc++}`,
         center: true,
         maximizable: false,
         fullscreenable: false,
@@ -758,13 +860,14 @@ export function makeCaptiveWindow(options={}, webPrefs={}) {
             sandbox: true,
             preload: path.join(appPath, 'src/preload/common.js'),
             ...webPrefs,
+            session,
         },
         ...options,
         ...bounds,
     });
     win.setMenuBarVisibility(false);
     if (!options.disableNewWindowHandler) {
-        handleNewSubWindow(win, null, webPrefs);
+        handleNewSubWindow(win, null, {...webPrefs, session});
     }
     if (options.file) {
         const query = options.query;
@@ -775,7 +878,7 @@ export function makeCaptiveWindow(options={}, webPrefs={}) {
 
 
 export async function eulaConsent() {
-    if (storage.load('eula-consent')) {
+    if (storage.get('eula-consent')) {
         return true;
     }
     const win = makeCaptiveWindow({file: '/pages/eula.html'});
@@ -783,7 +886,7 @@ export async function eulaConsent() {
     const consenting = new Promise(resolve => {
         rpc.register(async agree => {
             if (agree === true) {
-                storage.save('eula-consent', true);
+                storage.set('eula-consent', true);
                 resolve(true);
             } else {
                 console.warn("User does not agree to EULA");
@@ -871,7 +974,6 @@ export async function zwiftLogin(options) {
 
 export async function welcomeSplash() {
     const welcomeWin = new SauceBrowserWindow({
-        specId: `welcome-splash`,
         type: isLinux ? 'splash' : undefined,
         center: true,
         resizable: false,
@@ -904,7 +1006,7 @@ export async function welcomeSplash() {
 
 
 export async function patronLink() {
-    let membership = storage.load('patron-membership');
+    let membership = storage.get('patron-membership');
     if (membership && membership.patronLevel >= 10) {
         // XXX Implement refresh once in a while.
         return true;
@@ -916,7 +1018,7 @@ export async function patronLink() {
         disableNewWindowHandler: true,
     }, {
         preload: path.join(appPath, 'src/preload/patron-link.js'),
-        partition: 'persist:patreon',
+        session: loadSession('patreon'),
     });
     // Prevent Patreon's datedome.co bot service from blocking us.
     const ua = win.webContents.userAgent;
@@ -943,7 +1045,7 @@ export async function patronLink() {
             membership = isAuthed && await patreon.getMembership();
         }
         if (membership && membership.patronLevel >= 10) {
-            storage.save('patron-membership', membership);
+            storage.set('patron-membership', membership);
             win.close();
             return true;
         } else {
@@ -962,14 +1064,13 @@ export async function patronLink() {
 
 
 export async function systemMessage(msg) {
-    const overviewWin = Array.from(activeWindows.values()).find(x => x.spec.type === 'overview').win;
+    const overviewWin = SauceBrowserWindow.getAllWindows().find(x => x.spec && x.spec.type === 'overview');
     const oBounds = overviewWin.getBounds();
     const dBounds = getDisplayForWindow(overviewWin).bounds;
     const height = 400;
     const y = (oBounds.y - dBounds.y < dBounds.height / 2) ? oBounds.y + oBounds.height : oBounds.y - height;
     const x = oBounds.x;
     const sysWin = new SauceBrowserWindow({
-        specId: `system-message`,
         type: isLinux ? 'splash' : undefined,
         width: oBounds.width,
         height,

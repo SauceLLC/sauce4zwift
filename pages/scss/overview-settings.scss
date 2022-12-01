@@ -70,8 +70,13 @@
                 font-weight: 600;
             }
 
-            &.delete {
+            &.primary {
+                color: color.get(primary);
+            }
+
+            &.danger {
                 color: #f41616;
+                color: color.get(danger);
             }
 
             &:hover {

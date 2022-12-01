@@ -56,7 +56,7 @@ rpc.register(restart);
 
 
 try {
-    storage.load(0);
+    storage.get(0);
 } catch(e) {
     quiting = true;
     console.error('Storage error:', e);
@@ -89,7 +89,7 @@ function monitorWindowForEventSubs(win, subs) {
     const resume = (who) => {
         for (const x of subs) {
             if (!x.active) {
-                console.debug("Resume subscription:", x.event, win.specId, who);
+                console.debug("Resume subscription:", x.event, win.ident(), who);
                 x.emitter.on(x.event, x.sendMessage);
                 x.active = true;
             }
@@ -98,7 +98,7 @@ function monitorWindowForEventSubs(win, subs) {
     const suspend = (who) => {
         for (const x of subs) {
             if (x.active && !x.persistent) {
-                console.debug("Suspending subscription:", x.event, win.specId, who);
+                console.debug("Suspending subscription:", x.event, win.spec.id, who);
                 x.emitter.off(x.event, x.sendMessage);
                 x.active = false;
             }
@@ -111,7 +111,7 @@ function monitorWindowForEventSubs(win, subs) {
                 x.emitter.off(x.event, x.sendMessage);
             }
             // Must be after off() because of logs source which eats its own tail otherwise.
-            console.debug("Shutdown subscription:", x.event, win.specId);
+            console.debug("Shutdown subscription:", x.event, win.ident());
         }
         if (!win.isDestroyed()) {
             for (const x of shutdownEvents) {
@@ -173,9 +173,9 @@ electron.ipcMain.handle('subscribe', (ev, {event, persistent, source='stats'}) =
     if (persistent || (win.isVisible() && !win.isMinimized())) {
         emitter.on(event, sendMessage);
         sub.active = true;
-        console.debug("Startup subscription:", event, win.specId);
+        console.debug("Startup subscription:", event, win.ident());
     } else {
-        console.debug("Added suspended subscription:", event, win.specId);
+        console.debug("Added suspended subscription:", event, win.ident());
     }
     ev.sender.postMessage('subscribe-port', subId, [theirPort]);
     return subId;
@@ -279,21 +279,21 @@ class SauceApp extends EventEmitter {
 
     getSetting(key, def) {
         if (!this._settings) {
-            this._settings = storage.load(this._settingsKey) || {...this._defaultSettings};
+            this._settings = storage.get(this._settingsKey) || {...this._defaultSettings};
         }
         if (!Object.prototype.hasOwnProperty.call(this._settings, key) && def !== undefined) {
             this._settings[key] = def;
-            storage.save(this._settingsKey, this._settings);
+            storage.set(this._settingsKey, this._settings);
         }
         return this._settings[key];
     }
 
     setSetting(key, value) {
         if (!this._settings) {
-            this._settings = storage.load(this._settingsKey) || {...this._defaultSettings};
+            this._settings = storage.get(this._settingsKey) || {...this._defaultSettings};
         }
         this._settings[key] = value;
-        storage.save(this._settingsKey, this._settings);
+        storage.set(this._settingsKey, this._settings);
         this.emit('setting-change', {key, value});
     }
 
@@ -379,6 +379,11 @@ class SauceApp extends EventEmitter {
             const patreonSession = electron.session.fromPartition('persist:patreon');
             await patreonSession.clearStorageData();
             await patreonSession.clearCache();
+            for (const {id} of windows.getProfiles()) {
+                const s = windows.loadSession(id);
+                await s.clearStorageData();
+                await s.clearCache();
+            }
             restart();
         }
     }
