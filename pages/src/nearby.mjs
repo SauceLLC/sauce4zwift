@@ -247,6 +247,8 @@ const fieldGroups = [{
          tooltip: 'The Zwift level of this athlete'},
         {id: 'ftp', defaultEn: false, label: 'FTP', get: x => x.athlete && x.athlete.ftp,
          fmt: x => x ? pwr(x) : '-', tooltip: 'Functional Threshold Power'},
+        {id: 'cp', defaultEn: false, label: 'CP', get: x => x.athlete && x.athlete.cp,
+         fmt: x => x ? pwr(x) : '-', tooltip: 'Critical Power'},
         {id: 'tss', defaultEn: false, label: 'TSS', get: x => x.stats.power.tss, fmt: num,
          tooltip: 'Training Stress Score'},
         {id: 'intensity-factor', defaultEn: false, label: 'Intensity Factor', headerLabel: 'IF',
