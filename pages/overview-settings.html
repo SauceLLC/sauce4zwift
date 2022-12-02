@@ -207,33 +207,30 @@ If you require the Zwift Companion App's Game mode, DO NOT enable this feature."
             </form>
 
             <form id="windows" class="section tab">
-                <div class="title">Profiles:</div>
-                <table class="profiles">
-                    <thead><tr><th>Name</th><th>Windows</th><th></th><th></th></tr></thead>
+                <div class="title">Active Windows:</div>
+
+                <table class="active-windows">
+                    <thead><tr><th>Name</th><th>Status</th><th></th><th></th></tr></thead>
                     <tbody></tbody>
                 </table>
-                <div class="action-buttons">
-                    <div class="std small primary button" data-action="profile-create">Create new profile</div>
-                    <div class="std small button" data-action="profile-import">Import from file</div>
-                    <div class="std small button" data-action="profile-export">Export to file</div>
-                </div>
-
-                <hr/>
 
                 <div class="add-new">
-                    <div class="title">Add a new window:</div>
+                    <div class="title">Add new window:</div>
                     <select name="type"></select>
                     <input type="button" value="Create"/>
                 </div>
 
                 <hr/>
 
-                <div class="title">Manage existing windows:</div>
-
-                <table class="active-windows">
-                    <thead><tr><th>Name</th><th>Status</th><th></th><th></th></tr></thead>
+                <div class="title">Profiles:</div>
+                <table class="profiles">
+                    <thead><tr><th>Name</th><th>Windows</th><th></th><th></th><th></th><th></th></tr></thead>
                     <tbody></tbody>
                 </table>
+                <div class="action-buttons">
+                    <div class="std small button" data-action="profile-create">Create new profile</div>
+                    <div class="std small button" data-action="profile-import">Import from file</div>
+                </div>
 
                 <hr/>
 

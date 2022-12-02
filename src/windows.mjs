@@ -368,6 +368,11 @@ function initProfiles() {
         storage.set('window-profiles', profiles);
     }
     activeProfile = profiles.find(x => x.active);
+    if (!activeProfile) {
+        console.warn('No default profile found: Using first entry...');
+        activeProfile = profiles[0];
+        activeProfile.active = true;
+    }
     activeProfileSession = loadSession(activeProfile.id);
 }
 
@@ -412,7 +417,7 @@ export function activateProfile(id) {
     }
     swappingProfiles = true;
     try {
-        const sourceWin = this.getOwnerBrowserWindow();
+        const sourceWin = this && this.getOwnerBrowserWindow();
         for (const win of SauceBrowserWindow.getAllWindows()) {
             if (win !== sourceWin && win.spec && win.webContents.session === activeProfileSession) {
                 win.suspendUpdates = true;
@@ -448,8 +453,14 @@ export function removeProfile(id) {
     if (idx === -1) {
         throw new Error("Invalid profile id");
     }
-    profiles.splice(idx, 1);
+    if (profiles.length < 2) {
+        throw new Error("Cannot remove last profile");
+    }
+    const profile = profiles.splice(idx, 1)[0];
     storage.set('window-profiles', profiles);
+    if (profile.active) {
+        activateProfile(profiles[0].id);
+    }
 }
 rpc.register(removeProfile);
 
@@ -582,6 +593,45 @@ export function openWindow(id) {
     _openWindow(id, spec);
 }
 rpc.register(openWindow);
+
+
+export async function exportProfile(id) {
+    const profile = profiles.find(x => x.id === id);
+    if (!profile) {
+        throw new Error("Profile not found");
+    }
+    const session = loadSession(id);
+    const storage = await getWindowsStorage(session);
+    return {
+        version: 1,
+        profile: {...JSON.parse(JSON.stringify(profile)), active: undefined, id: undefined},
+        storage,
+    };
+}
+rpc.register(exportProfile);
+
+
+export async function cloneProfile(id) {
+    const data = await exportProfile(id);
+    data.profile.name += ' [COPY]';
+    return await importProfile(data);
+}
+rpc.register(cloneProfile);
+
+
+export async function importProfile(data) {
+    if (!data || data.version !== 1) {
+        throw new TypeError('Invalid data or unsupported version');
+    }
+    const profile = data.profile;
+    profile.id = `import-${Date.now()}-${Math.random() * 10000000 | 0}`;
+    profile.active = false;
+    profiles.push(profile);
+    const session = loadSession(profile.id);
+    await setWindowsStorage(data.storage, session);
+    return profile;
+}
+rpc.register(importProfile);
 
 
 function _getPositionForDisplay(display, {x, y, width, height}) {
@@ -723,27 +773,53 @@ function handleNewSubWindow(parent, spec, webPrefs) {
 }
 
 
-export async function getWindowsStorage() {
+export async function getWindowsStorage(session) {
+    session || activeProfileSession;
     const win = new electron.BrowserWindow({
         show: false,
         webPreferences: {
             sandbox: true,
+            session,
             preload: path.join(appPath, 'src/preload/storage-proxy.js'),
         }
     });
     const p = new Promise(resolve => win.webContents.on('ipc-message',
-        (ev, ch, localStorage) => resolve(localStorage)));
-    let localStorage;
+        (ev, ch, storage) => resolve(storage)));
+    let storage;
     try {
         win.webContents.on('did-finish-load', () => win.webContents.send('export'));
         win.loadFile('/pages/dummy.html');
-        localStorage = await p;
+        storage = await p;
     } finally {
         if (!win.isDestroyed()) {
             win.destroy();
         }
     }
-    return {localStorage};
+    return storage;
+}
+
+
+export async function setWindowsStorage(storage, session) {
+    session || activeProfileSession;
+    const win = new electron.BrowserWindow({
+        show: false,
+        webPreferences: {
+            sandbox: true,
+            session,
+            preload: path.join(appPath, 'src/preload/storage-proxy.js'),
+        }
+    });
+    const p = new Promise((resolve, reject) => win.webContents.on('ipc-message',
+        (ev, ch, success) => success ? resolve() : reject()));
+    try {
+        win.webContents.on('did-finish-load', () => win.webContents.send('import', storage));
+        win.loadFile('/pages/dummy.html');
+        await p;
+    } finally {
+        if (!win.isDestroyed()) {
+            win.destroy();
+        }
+    }
 }
 
 
