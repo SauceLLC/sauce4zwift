@@ -52,7 +52,7 @@ const template = [{
     label: 'Help',
     submenu: [{
         label: 'Sauce Home Page',
-        click: () => shell.openExternal('https://saucellc.io/')
+        click: () => shell.openExternal('https://sauce.llc')
     }]
 }];
 
