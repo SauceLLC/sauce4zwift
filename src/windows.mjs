@@ -47,7 +47,7 @@ class SauceBrowserWindow extends electron.BrowserWindow {
 
     ident() {
         return (this.subWindow ? '[sub-window] ' : '') +
-            this.spec ? `specId:${this.spec.id}` : `id:${this.id}`;
+            (this.spec ? `specId:${this.spec.id}` : `id:${this.id}`);
     }
 }
 
@@ -354,7 +354,7 @@ function initProfiles() {
         if (legacy) {
             console.warn("Upgrading legacy window mgmt system to profiles system...");
             profiles = [{
-                id: `legacy-migrated-${Date.now()}`,
+                id: null,  // Keep using default session
                 name: 'Default',
                 active: true,
                 windows: legacy,
@@ -435,6 +435,12 @@ export function activateProfile(id) {
     openAllWindows();
 }
 rpc.register(activateProfile);
+
+
+function flushSessionStorage() {
+    activeProfileSession.flushStorageData();
+}
+rpc.register(flushSessionStorage);
 
 
 export function renameProfile(id, name) {

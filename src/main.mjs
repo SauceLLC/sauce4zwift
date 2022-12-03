@@ -268,8 +268,6 @@ class SauceApp extends EventEmitter {
         rpc.register(function() {
             _this._resetStorageState.call(_this, /*sender*/ this);
         }, {name: 'resetStorageState'});
-        rpc.register(() => electron.session.defaultSession.flushStorageData(),
-            {name: 'flushSessionStorage'});
         registerRPCMethods(this, 'getSetting', 'setSetting', 'pollMetrics', 'getDebugInfo',
             'getGameConnectionStatus');
     }
@@ -566,6 +564,9 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId}) {
             if (lastVersion) {
                 console.info("Sauce recently updated");
                 await electron.session.defaultSession.clearCache();
+                for (const {id} of windows.getProfiles()) {
+                    await windows.loadSession(id).clearCache();
+                }
                 await windows.showReleaseNotes();
             } else {
                 console.info("First time invocation: Welcome to Sauce for Zwift");
