@@ -257,6 +257,7 @@ export async function main() {
             await sauce.sleep(1000);
             continue;
         }
+        const cpuCount = debugInfo.sys.cpus.length;
         for (const el of debugEl.querySelectorAll('value[data-id]')) {
             const fmt = debugFormatters[el.dataset.id] || defaultDebugFormatter(el.dataset.id);
             el.innerHTML = fmt(debugInfo);
@@ -271,9 +272,6 @@ export async function main() {
                     charts: await makeMetricCharts(x, el),
                     el,
                     datas: {
-                        //cpu: [...sauce.data.range(maxLen - 10)].map(i => 25 + Math.sin(i / 3) * 25),
-                        //mem: [...sauce.data.range(maxLen - 10)].map(i => 150 + Math.cos(i / 10) * 100),
-                        //count: maxLen - 10, // Match ^^^
                         cpu: [],
                         mem: [],
                         count: 0,
@@ -282,7 +280,7 @@ export async function main() {
             }
             unused.delete(x.pid);
             const {charts, datas} = allCharts.get(x.pid);
-            const cpu = Math.round(x.cpu.percentCPUUsage * 10);  // XXX why is it 10x off?
+            const cpu = Math.round(x.cpu.percentCPUUsage * cpuCount);
             const mem = Number((x.memory.workingSetSize / 1024).toFixed(1));  // MB
             datas.cpu.push(cpu);
             datas.mem.push(mem);
