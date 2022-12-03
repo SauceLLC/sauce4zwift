@@ -20,6 +20,7 @@ const isLinux = !isWindows && !isMac && os.platform() === 'linux';
 const modContentScripts = [];
 const modContentStyle = [];
 const sessions = new Map();
+const magicLegacySessionId = '___LEGACY-SESSION___';
 
 let profiles;
 let activeProfile;
@@ -201,7 +202,8 @@ export function loadSession(name, options={}) {
         return sessions.get(name);
     }
     const persist = options.persist !== false;
-    const s = electron.session.fromPartition(name && ((persist ? 'persist:' : '') + name));
+    const partition = name !== magicLegacySessionId ? (persist ? 'persist:' : '') + name : '';
+    const s = electron.session.fromPartition(partition);
     s.protocol.interceptFileProtocol('file', onInterceptFileProtocol);
     sessions.set(name, s);
     return s;
@@ -354,7 +356,7 @@ function initProfiles() {
         if (legacy) {
             console.warn("Upgrading legacy window mgmt system to profiles system...");
             profiles = [{
-                id: null,  // Keep using default session
+                id: magicLegacySessionId,
                 name: 'Default',
                 active: true,
                 windows: legacy,
