@@ -179,10 +179,9 @@ export async function main() {
                 </div>
             `;
         } else {
-            const initials = [chat.firstName[0].toUpperCase(), chat.lastName[0].toUpperCase()]
-                .filter(x => x).join('');
+            const name = [chat.firstName, chat.lastName].filter(x => x).join('');
             entry.classList.add('muted');
-            entry.innerHTML = `<div class="content">Muted message from ${initials}</div>`;
+            entry.innerHTML = `<div class="content">Muted message from ${name}</div>`;
         }
         entry.addEventListener('dblclick', async () => {
             await common.rpc.watch(chat.from);

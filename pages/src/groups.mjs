@@ -192,12 +192,8 @@ function renderZoomed(groups) {
         let team;
         if (athlete.athlete) {
             const a = athlete.athlete;
-            team = a.team;  // hehehe
-            if (a.sanitizedName && a.sanitizedName.length) {
-                fLast = a.sanitizedName.length > 1 ?
-                    [a.sanitizedName[0][0], a.sanitizedName[1]].filter(x => x).join('. ') :
-                    fLast = a.sanitizedName[0];
-            }
+            team = a.team;  // lol
+            fLast = a.fLast;
             if (a.avatar) {
                 avatar = a.avatar;
             } else {

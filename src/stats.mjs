@@ -690,7 +690,16 @@ export class StatsProcessor extends events.EventEmitter {
         }
         d.sanitizedName = (saniFirst || saniLast) ? [saniFirst, saniLast].filter(x => x) : null;
         d.sanitizedFullname = d.sanitizedName && d.sanitizedName.join(' ');
-        d.initials = d.sanitizedName ? d.sanitizedName.map(x => x[0]).join('').toUpperCase() : null;
+        if (d.sanitizedName) {
+            const n = d.sanitizedName;
+            d.initials = n
+                .map(x => String.fromCodePoint(x.codePointAt(0)))
+                .join('')
+                .toUpperCase();
+            d.fLast = n.length > 1 ? `${String.fromCodePoint(n[0].codePointAt(0))}.${n[1]}` : n[0];
+        } else {
+            d.fLast = d.initials = null;
+        }
         if (d.wPrime === undefined && data.wPrime === undefined) {
             data.wPrime = 20000; // Po-boy migration
         }
