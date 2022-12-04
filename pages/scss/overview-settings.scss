@@ -72,7 +72,7 @@
 
             ms {
                 margin: 0 0.4em;
-                font-weight: 600;
+                font-weight: 500;
             }
 
             &.primary {
@@ -85,6 +85,10 @@
 
             &:hover {
                 opacity: 1;
+
+                ms {
+                    font-weight: 800;
+                }
             }
         }
 

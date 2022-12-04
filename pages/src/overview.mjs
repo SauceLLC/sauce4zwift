@@ -481,6 +481,10 @@ async function renderProfiles() {
                     title="Edit name"><ms>edit</ms></a></td>
                 <td class="windows">${H.number(Object.keys(x.windows).length)}</td>
                 <td class="btn">${x.active ? 'Current' : '<a class="link profile-select">Activate</a>'}</td>
+                <td class="btn" title="Export this profile to a file"
+                    ><a class="link profile-export"><ms>download</ms></a></td>
+                <td class="btn" title="Duplicate this profile"
+                    ><a class="link profile-clone"><ms>file_copy</ms></a></td>
                 <td class="btn" title="Delete this profile"
                     ><a class="link danger profile-delete"><ms>delete_forever</ms></a></td>
             </tr>
@@ -652,11 +656,29 @@ async function initWindowsPanel() {
         } else if (link.classList.contains('profile-select')) {
             await common.rpc.activateProfile(id);
             await renderProfiles();
+            await renderWindows();
         } else if (link.classList.contains('win-delete')) {
             await common.rpc.removeWindow(id);
         } else if (link.classList.contains('profile-delete')) {
-            await common.rpc.removeProfile(id);
+            await common.rpc.removeProfile(id).catch(e => alert(`Remove Error\n\n${e.message}`));
             await renderProfiles();
+        } else if (link.classList.contains('profile-clone')) {
+            await common.rpc.cloneProfile(id).catch(e => alert(`Clone Error\n\n${e.message}`));
+            await renderProfiles();
+        } else if (link.classList.contains('profile-export')) {
+            const data = await common.rpc.exportProfile(id);
+            const f = new File([JSON.stringify(data)], `${data.profile.name}.json`, {type: 'application/json'});
+            const l = document.createElement('a');
+            l.download = f.name;
+            l.style.display = 'none';
+            l.href = URL.createObjectURL(f);
+            try {
+                document.body.appendChild(l);
+                l.click();
+            } finally {
+                URL.revokeObjectURL(l.href);
+                l.remove();
+            }
         } else if (link.classList.contains('win-edit-name')) {
             const td = ev.target.closest('td');
             const input = document.createElement('input');
@@ -743,9 +765,27 @@ async function initWindowsPanel() {
             await common.rpc.createProfile();
             await renderProfiles();
         } else if (btn.dataset.action === 'profile-import') {
-            await common.rpc.createProfile();
-        } else if (btn.dataset.action === 'profile-export') {
-            await common.rpc.export();
+            const fileEl = document.createElement('input');
+            fileEl.type = 'file';
+            fileEl.accept='.json';
+            fileEl.addEventListener('change', async ev => {
+                fileEl.remove();
+                const f = fileEl.files[0];
+                if (!f) {
+                    return;
+                }
+                try {
+                    const data = JSON.parse(await f.text());
+                    await common.rpc.importProfile(data);
+                    await renderProfiles();
+                    alert(`Successfully Imported: \n\n${data.profile.name}`);
+                } catch(e) {
+                    alert(`Import Error\n\n${e.message}`);
+                    throw e;
+                }
+            });
+            document.body.append(fileEl);
+            fileEl.click();
         }
     });
 }

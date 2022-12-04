@@ -121,19 +121,6 @@ function fmtName(name, entry) {
 }
 
 
-function fmtInitials(initials, entry) {
-    let badge;
-    const sgid = entry.state.eventSubgroupId;
-    if (sgid) {
-        const sg = lazyGetSubgroup(sgid);
-        if (sg) {
-            badge = common.eventBadge(sg.subgroupLabel);
-        }
-    }
-    return athleteLink(entry.athleteId, (badge || '') + common.sanitize(initials || '-'));
-}
-
-
 function fmtRoute({route, laps}) {
     if (!route) {
         return '-';
@@ -206,23 +193,6 @@ function fmtActions() {
                title="Watch this athlete"><ms>video_camera_front</ms></a>`;
 }
 
-function fmtFLastName(names, entry) {
-    if (!names) {
-        return '';
-    }
-    let name;
-    if (names.length > 1) {
-        if (names[0].length) {
-            name = `${names[0][0]}.${names[1]}`;
-        } else {
-            name = names[1];
-        }
-    } else {
-        name = names[0];
-    }
-    return fmtName(name, entry);
-}
-
 
 const fieldGroups = [{
     group: 'athlete',
@@ -235,10 +205,10 @@ const fieldGroups = [{
          get: x => x.athlete && x.athlete.countryCode, fmt: common.fmtFlag},
         {id: 'name', defaultEn: true, label: 'Name', get: x => x.athlete && x.athlete.sanitizedFullname,
          fmt: fmtName},
-        {id: 'f-last', defaultEn: false, label: 'F. Last', get: x => x.athlete &&
-            x.athlete.sanitizedName, fmt: fmtFLastName},
+        {id: 'f-last', defaultEn: false, label: 'F. Last', get: x => x.athlete && x.athlete.fLast,
+         fmt: fmtName},
         {id: 'initials', defaultEn: false, label: 'Name Initials', headerLabel: ' ',
-         get: x => x.athlete && x.athlete.initials, fmt: fmtInitials},
+         get: x => x.athlete && x.athlete.initials, fmt: fmtName},
         {id: 'team', defaultEn: false, label: 'Team', get: x => x.athlete && x.athlete.team,
          fmt: common.teamBadge},
         {id: 'weight-class', defaultEn: false, label: 'Weight Class', headerLabel: 'Weight',
