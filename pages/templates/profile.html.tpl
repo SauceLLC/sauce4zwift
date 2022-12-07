@@ -85,8 +85,21 @@
                     <key>Threshold</key>
                     FTP: {-humanPower(athlete.ftp, {suffix: true, html: true})-},
                     W':<a title="Click to edit - Press Enter to save"
-                          href="javascript:void(0)" class="wprime">{-humanNumber(athlete.wPrime / 1000, {suffix: 'kJ', html: true})-}</a>
-                </div>
+                        href="javascript:void(0)" class="wprime">{-humanNumber(athlete.wPrime / 1000, {suffix: 'kJ', html: true})-}</a>
+                </div>                
+                <% if (athlete.cp) { %>
+                    <div class="row p2">
+                        <key></key>
+                        CP:<a title="Click to edit - Press Enter to save"
+                            href="javascript:void(0)" class="cp">{-humanPower(athlete.cp, {suffix: true, html: true})-}</a>
+                    </div>
+                <% } else{ %>
+                    <div class="row p2">
+                        <key></key>
+                        CP: <a title="Click to edit - Press Enter to save"
+                            href="javascript:void(0)" class="cp">{-humanPower(athlete.ftp, {suffix: true, html: true})-}</a>
+                    </div>
+                <% } %>
             </div>
             <div class="info live">
                 <div class="row p2"><key>World</key><span class="live" data-id="world">-</span></div>

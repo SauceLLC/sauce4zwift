@@ -704,12 +704,13 @@ export class StatsProcessor extends events.EventEmitter {
             data.wPrime = 20000; // Po-boy migration
         }
         const wPrimeUpdated = data.wPrime !== undefined && data.wPrime !== d.wPrime;
+        const cpUpdated = data.cp !== undefined && data.cp !== d.cp;
         for (const [k, v] of Object.entries(data)) {
             if (v !== undefined) {
                 d[k] = v;
             }
         }
-        if (wPrimeUpdated) {
+        if (wPrimeUpdated || cpUpdated ) {
             this.updateAthleteWPrime(id, d);
         }
         if (data.marked !== undefined) {
@@ -737,12 +738,14 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
-    updateAthleteWPrime(id, {ftp, wPrime}) {
+    updateAthleteWPrime(id, {cp, ftp, wPrime}) {
         const ad = this._athleteData.get(id);
-        if (!ad || !ftp || !wPrime) {
-            return;
+        if (ad && cp && wPrime) {
+            ad.collectors.power.roll.setWPrime(cp, wPrime);
+        } else if (ad && ftp && wPrime) {
+            ad.collectors.power.roll.setWPrime(ftp, wPrime);
         }
-        ad.collectors.power.roll.setWPrime(ftp, wPrime);
+        //ad.collectors.power.roll.setWPrime(ftp, wPrime);
     }
 
     async getAthlete(id, options={}) {
@@ -1712,6 +1715,9 @@ export class StatsProcessor extends events.EventEmitter {
         if (athlete) {
             if (ad.privacy.hideFTP) {
                 athlete = {...athlete, ftp: null};
+            } else if (ad.collectors.power.roll.wBal == null && athlete.cp && athlete.wPrime) {
+                // Lazy update w' since athlete data is async..
+                ad.collectors.power.roll.setWPrime(athlete.cp, athlete.wPrime);
             } else if (ad.collectors.power.roll.wBal == null && athlete.ftp && athlete.wPrime) {
                 // Lazy update w' since athlete data is async..
                 ad.collectors.power.roll.setWPrime(athlete.ftp, athlete.wPrime);
