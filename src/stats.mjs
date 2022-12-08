@@ -740,12 +740,9 @@ export class StatsProcessor extends events.EventEmitter {
 
     updateAthleteWPrime(id, {cp, ftp, wPrime}) {
         const ad = this._athleteData.get(id);
-        if (ad && cp && wPrime) {
-            ad.collectors.power.roll.setWPrime(cp, wPrime);
-        } else if (ad && ftp && wPrime) {
-            ad.collectors.power.roll.setWPrime(ftp, wPrime);
+        if (ad && (cp || ftp) && wPrime) {
+            ad.collectors.power.roll.setWPrime(cp || ftp, wPrime);
         }
-        //ad.collectors.power.roll.setWPrime(ftp, wPrime);
     }
 
     async getAthlete(id, options={}) {
@@ -1715,12 +1712,9 @@ export class StatsProcessor extends events.EventEmitter {
         if (athlete) {
             if (ad.privacy.hideFTP) {
                 athlete = {...athlete, ftp: null};
-            } else if (ad.collectors.power.roll.wBal == null && athlete.cp && athlete.wPrime) {
+            } else if (ad.collectors.power.roll.wBal == null && (athlete.cp || athlete.ftp) && athlete.wPrime) {
                 // Lazy update w' since athlete data is async..
-                ad.collectors.power.roll.setWPrime(athlete.cp, athlete.wPrime);
-            } else if (ad.collectors.power.roll.wBal == null && athlete.ftp && athlete.wPrime) {
-                // Lazy update w' since athlete data is async..
-                ad.collectors.power.roll.setWPrime(athlete.ftp, athlete.wPrime);
+                ad.collectors.power.roll.setWPrime(athlete.cp || athlete.ftp, athlete.wPrime);
             }
         }
         const state = ad.mostRecentState;

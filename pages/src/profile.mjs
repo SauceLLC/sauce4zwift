@@ -45,10 +45,12 @@ export async function main() {
 }
 
 
-function handleWPrimeEdit(el, {athleteId, athlete}, rerender) {
+function handleInlineEdit(el, {athleteId, athlete}, rerender) {
+    const key = el.dataset.key;
+    const type = el.dataset.type;
     const input = document.createElement('input');
-    input.type = 'number';
-    input.value = athlete.wPrime;
+    input.type = type;
+    input.value = athlete[key];
     input.classList.add('no-increment');
     el.replaceChildren(input);
     let done;
@@ -59,12 +61,18 @@ function handleWPrimeEdit(el, {athleteId, athlete}, rerender) {
         }
         if (ev.key === 'Enter') {
             done = true;
-            const wPrime = Number(input.value);
-            if (isNaN(wPrime)) {
-                alert('Invalid number');
+            let v;
+            if (type === 'number') {
+                v = Number(input.value);
+                if (isNaN(v)) {
+                    alert('Invalid number');
+                    return;
+                }
+            } else {
+                throw new TypeError("unimplemented");
             }
-            await common.rpc.updateAthlete(athleteId, {wPrime});
-            athlete.wPrime = wPrime;
+            await common.rpc.updateAthlete(athleteId, {[key]: v});
+            athlete[key] = v;
             rerender();
         } else if (ev.key === 'Escape') {
             done = true;
@@ -73,33 +81,6 @@ function handleWPrimeEdit(el, {athleteId, athlete}, rerender) {
     });
 }
 
-function handleCPEdit(el, {athleteId, athlete}, rerender) {
-    const input = document.createElement('input');
-    input.type = 'number';
-    input.value = athlete.cp ? athlete.cp : athlete.ftp;
-    input.classList.add('no-increment');
-    el.replaceChildren(input);
-    let done;
-    input.focus();
-    document.addEventListener('keydown', async ev => {
-        if (done) {
-            return;
-        }
-        if (ev.key === 'Enter') {
-            done = true;
-            const cp = Number(input.value);
-            if (isNaN(cp)) {
-                alert('Invalid number');
-            }
-            await common.rpc.updateAthlete(athleteId, {cp});
-            athlete.cp = cp;
-            rerender();
-        } else if (ev.key === 'Escape') {
-            done = true;
-            rerender();
-        }
-    });
-}
 
 async function exportFITActivity(athleteId) {
     const fitData = await common.rpc.exportFIT(athleteId);
@@ -117,20 +98,17 @@ async function exportFITActivity(athleteId) {
     }
 }
 
+
 export async function render(el, tpl, tplData) {
     const athleteId = tplData.athleteId;
     const rerender = async () => el.replaceChildren(...(await tpl(tplData)).children);
     el.addEventListener('click', async ev => {
         const a = ev.target.closest('header a[data-action]');
         if (!a) {
-            const wp = ev.target.closest('a.wprime');
-            if (wp) {
-                handleWPrimeEdit(wp, tplData, rerender);
+            const editable = ev.target.closest('.inline-edit');
+            if (editable) {
+                handleInlineEdit(editable, tplData, rerender);
             }
-            const cp = ev.target.closest('a.cp');
-            if (cp) {
-                handleCPEdit(cp, tplData, rerender);
-            }            
             return;
         }
         ev.preventDefault();
