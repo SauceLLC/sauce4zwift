@@ -531,7 +531,7 @@ async function renderAvailableMods() {
             if (manifest.website_url) {
                 const url = common.sanitizeAttr(common.stripHTML(manifest.website_url));
                 html.push(`<div class="website"><a href="${url}"
-                    target="_blank" external>Website <ms>open_in_new</ms></a>`);
+                    target="_blank" external>Website <ms>open_in_new</ms></a></div>`);
             }
             html.push('</div>');
         }

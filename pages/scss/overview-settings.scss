@@ -292,13 +292,17 @@ img.avatar {
 
     .mod {
         border-radius: 0.33em;
-        padding: 0.8em;
-        background: color.shade(bg, 10%, 20%);
+        padding: 0.5em 0.7em;
+        background-color: #710a57;
+        color: white;
+        font-size: 0.9em;
+        margin-bottom: 1em;
     }
 
     .title {
         display: flex;
         justify-content: space-between;
+        padding: 0;
     }
 
     .name {
