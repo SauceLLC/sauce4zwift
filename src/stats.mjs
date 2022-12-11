@@ -208,11 +208,35 @@ class ExtendedRollingPower extends sauce.power.RollingPower {
         }
     }
 
+    setCogganZones(cp) {
+        // fetch coggan zones for given cp
+        this._cogganZones = sauce.power.cogganZones(cp);
+        // prepare coggan zones data
+        this.cogganZonesDuration = {z1: 0, z2: 0, z3: 0, z4: 0, z5: 0, z6: 0, z7: 0}
+    }
+
+    getActCogganZone(value){
+        const actzone = value < this._cogganZones.z1 ? 'z1' : 
+                        value < this._cogganZones.z2 ? 'z2' :
+                        value < this._cogganZones.z3 ? 'z3' :
+                        value < this._cogganZones.z4 ? 'z4' :
+                        value < this._cogganZones.z5 ? 'z5' :
+                        value < this._cogganZones.z6 ? 'z6' :
+                        'z7';
+        return actzone;
+    }
+
     _add(time, value) {
         const r = super._add(time, value);
         if (this._wBalIncrementor) {
             // NOTE This doesn't not support any resizing
             this.wBal = this._wBalIncrementor(value);
+        }
+        if (this._cogganZones) {
+            //check active zone
+            const actzone = this.getActCogganZone(value);
+            // increment corresponding value
+            this.cogganZonesDuration = {...this.cogganZonesDuration,  [actzone]:(this.cogganZonesDuration[actzone] +1 ) };
         }
         return r;
     }
@@ -743,6 +767,7 @@ export class StatsProcessor extends events.EventEmitter {
         const ad = this._athleteData.get(id);
         if (ad && (cp || ftp) && wPrime) {
             ad.collectors.power.roll.setWPrime(cp || ftp, wPrime);
+            ad.collectors.power.roll.setCogganZones(cp || ftp);
         }
     }
 
@@ -1728,6 +1753,7 @@ export class StatsProcessor extends events.EventEmitter {
             } else if (ad.collectors.power.roll.wBal == null && (athlete.cp || athlete.ftp) && athlete.wPrime) {
                 // Lazy update w' since athlete data is async..
                 ad.collectors.power.roll.setWPrime(athlete.cp || athlete.ftp, athlete.wPrime);
+                ad.collectors.power.roll.setCogganZones(athlete.cp || athlete.ftp);
             }
         }
         const state = ad.mostRecentState;
