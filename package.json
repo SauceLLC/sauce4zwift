@@ -2,7 +2,7 @@
   "name": "sauce4zwift",
   "productName": "Sauce for Zwift™",
   "private": true,
-  "version": "0.11.1",
+  "version": "0.11.2-alpha-1",
   "description": "Overlay widgets and advanced instrumentation for the serious Zwifter.",
   "homepage": "https://saucellc.io",
   "author": "Sauce, LLC",
@@ -19,13 +19,13 @@
   },
   "dependencies": {
     "@sentry/node": "6.19.6",
-    "better-sqlite3": "7.6.2",
-    "electron-updater": "5.2.1",
-    "express": "4.18.1",
+    "better-sqlite3": "8.0.1",
+    "electron-updater": "5.3.0",
+    "express": "4.18.2",
     "express-ws": "5.0.2",
     "jsfit": "https://github.com/SauceLLC/jsfit.git#617a6e1087",
     "keytar": "7.9.0",
-    "node-fetch": "3.2.10",
+    "node-fetch": "3.3.0",
     "protobufjs": "7.1.2",
     "xxhash-addon": "2.0.1"
   },
@@ -34,14 +34,14 @@
   },
   "devDependencies": {
     "@sentry/browser": "6.19.6",
-    "echarts": "5.4.0",
-    "electron": "19.1.8",
-    "electron-builder": "23.3.3",
+    "echarts": "5.4.1",
+    "electron": "22.0.0",
+    "electron-builder": "24.0.0-alpha.7",
     "electron-notarize": "1.2.1",
-    "eslint": "8.26.0",
-    "sass": "1.56.0",
+    "eslint": "8.29.0",
+    "sass": "1.56.2",
     "world_countries_lists": "2.6.0",
-    "zwift-data": "1.19.0"
+    "zwift-data": "1.20.1"
   },
   "build": {
     "appId": "io.saucellc.sauce4zwift",
