@@ -2,21 +2,6 @@
 @import 'themes';
 @import 'animations';
 
-
-@font-face {
-    font-family: 'Jost';
-    src: url('../fonts/Jost-VariableFont_wght.woff2') format('woff2');
-    font-style: normal;
-    font-weight: 100 900;
-}
-
-@font-face {
-    font-family: 'Jost';
-    font-style: italic;
-    src: url('../fonts/Jost-Italic-VariableFont_wght.woff2') format('woff2');
-    font-weight: 100 900;
-}
-
 @font-face {
     font-family: 'Saira';
     src: url('../fonts/Saira.woff2') format('woff2');
@@ -46,7 +31,6 @@ html {box-sizing: border-box;}
 
 html {
     --aspect-ratio: 9 / 16;
-    //font-family: 'Jost', sans-serif;
     font-family: 'Saira', sans-serif;
     width: 100%;
     height: 100%;

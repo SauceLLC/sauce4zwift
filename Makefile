@@ -81,7 +81,7 @@ else
 	mkdir -f pages/deps/flags
 	mkdir -f shared/deps/data
 endif
-	cp node_modules/echarts/dist/echarts.esm.js pages/deps/src/echarts.mjs
+	cp node_modules/echarts/dist/echarts.esm.min.js pages/deps/src/echarts.mjs
 	cp -r node_modules/world_countries_lists/data/flags/64x64/*.png pages/deps/flags/
 	cp node_modules/world_countries_lists/data/countries/_combined/world.json shared/deps/data/countries.json
 	cp node_modules/zwift-data/lib/esm/routes.js shared/deps/routes.mjs

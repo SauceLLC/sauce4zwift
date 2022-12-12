@@ -68,6 +68,7 @@
       "!pages/scss",
       "!**/xxhash-addon/bin",
       "!**/keytar/bin",
+      "!**/keytar/node_modules",
       "!**/better-sqlite3/bin",
       "!**/better-sqlite3/build/Release/*.a",
       "!**/better-sqlite3/build/Release/*.lib",
