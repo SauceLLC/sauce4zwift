@@ -931,7 +931,8 @@ class TCPChannel extends NetChannel {
                 callback: this.onTCPData.bind(this),
             }
         });
-        this.conn.setKeepAlive(true, 15000);
+        // Note: do not use setKeepAlive...
+        // https://github.com/nodejs/node/issues/40764
         await new Promise((resolve, reject) => {
             this.conn.once('connect', resolve);
             this.conn.once('error', reject);
