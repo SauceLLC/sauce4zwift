@@ -116,6 +116,7 @@
           "universal"
         ]
       },
+      "notarize": false,
       "category": "public.app-category.healthcare-fitness",
       "identity": "Sauce, LLC (7P47F44SKP)",
       "hardenedRuntime": true,
@@ -127,6 +128,7 @@
       "target": "AppImage",
       "category": "Game"
     },
+    "afterPack": "build/scripts/patch-sign.js",
     "afterSign": "build/scripts/notarize.js"
   }
 }
