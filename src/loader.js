@@ -25,8 +25,8 @@ if (fs.existsSync(userDataPath('loader_settings.json'))) {
 }
 
 
-function saveSettings() {
-    fs.writeFileSync(userDataPath('loader_settings.json'), JSON.stringify(settings));
+function saveSettings(data) {
+    fs.writeFileSync(userDataPath('loader_settings.json'), JSON.stringify(data));
 }
 
 
@@ -208,7 +208,7 @@ async function checkMacOSInstall() {
     }
     const {response, checkboxChecked} = await dialog.showMessageBox({
         type: 'question',
-        message: 'Sauce for Zwift needs to be located in the /Applications folder.' +
+        message: 'Sauce for Zwift needs to be located in the /Applications folder.\n\n' +
             'Would your like to move it there now?',
         buttons: ['No, I\'m a rebel', 'Yes, thank you'],
         checkboxLabel: 'Don\'t ask again',
@@ -219,7 +219,7 @@ async function checkMacOSInstall() {
         console.warn("User opted out of moving app to the Applications folder");
         if (checkboxChecked) {
             settings.isIgnoringImproperInstall = true;
-            saveSettings();
+            saveSettings(settings);
         }
     } else {
         try {
@@ -259,7 +259,7 @@ async function initSentry(logEmitter) {
     if (!id) {
         id = Array.from(crypto.randomBytes(16)).map(x => String.fromCharCode(97 + (x % 26))).join('');
         settings.sentryId = id;
-        saveSettings();
+        saveSettings(settings);
     }
     Sentry.setUser({id});
     app.on('before-quit', () => Sentry.flush());
@@ -277,8 +277,13 @@ async function initSentry(logEmitter) {
 (async () => {
     const logMeta = initLogging();
     nativeTheme.themeSource = 'dark';
-    if (os.platform() === 'win32' && !settings.forceEnableGPU) {
-        console.debug("Disable GPU Compositing for windows");
+    if (settings.gpuEnabled === undefined) {
+        settings.gpuEnabled = settings.forceEnableGPU == null ?
+            os.platform() !== 'win32' : settings.forceEnableGPU;
+        delete settings.forceEnableGPU;
+    }
+    if (!settings.gpuEnabled) {
+        console.debug("Disable GPU Compositing");
         app.commandLine.appendSwitch('disable-gpu-compositing');
     }
     // Use non-electron naming for windows updater.
@@ -293,7 +298,12 @@ async function initSentry(logEmitter) {
         return;
     }
     const main = await import('./main.mjs');
-    await main.main({sentryAnonId, ...logMeta});
+    await main.main({
+        sentryAnonId,
+        ...logMeta,
+        loaderSettings: settings,
+        saveLoaderSettings: saveSettings
+    });
 })().catch(async e => {
     console.error('Startup Error:', e.stack);
     await dialog.showErrorBox('Sauce Startup Error', e.stack);

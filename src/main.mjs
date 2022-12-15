@@ -538,7 +538,9 @@ async function maybeDownloadAndInstallUpdate({version}) {
     return true;
 }
 
-export async function main({logEmitter, logFile, logQueue, sentryAnonId}) {
+
+export async function main({logEmitter, logFile, logQueue, sentryAnonId,
+                            loaderSettings, saveLoaderSettings}) {
     const s = Date.now();
     const args = parseArgs();
     if (quiting) {
@@ -551,6 +553,11 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId}) {
         rpc.register(() => electron.shell.showItemInFolder(logFile), {name: 'showLogInFolder'});
     }
     rpc.register(() => sentryAnonId, {name: 'getSentryAnonId'});
+    rpc.register(key => loaderSettings[key], {name: 'getLoaderSetting'});
+    rpc.register((key, value) => {
+        loaderSettings[key] = value;
+        saveLoaderSettings(loaderSettings);
+    }, {name: 'setLoaderSetting'});
     sauceApp = new SauceApp();
     global.app = sauceApp;  // devTools debug
     if (!args.headless) {

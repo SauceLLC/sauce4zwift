@@ -838,6 +838,20 @@ export async function settingsMain() {
             await appSettingsUpdate(extraData);
         }, {source: 'gameConnection'});
     }
+    extraData.gpuEnabled = await common.rpc.getLoaderSetting('gpuEnabled');
+    document.querySelector('form').addEventListener('input', async ev => {
+        const el = ev.target.closest('[data-store="loader"]');
+        if (!el) {
+            return;
+        }
+        ev.stopPropagation();
+        el.closest('label').classList.add('edited');
+        if (el.type === 'checkbox') {
+            await common.rpc.setLoaderSetting(el.name, el.checked);
+        } else {
+            throw new TypeError("Unsupported");
+        }
+    }, {capture: true});
     const loginInfo = await common.rpc.getZwiftLoginInfo();
     extraData.mainZwiftLogin = loginInfo && loginInfo.main && loginInfo.main.username;
     extraData.monitorZwiftLogin = loginInfo && loginInfo.monitor && loginInfo.monitor.username;
