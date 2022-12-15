@@ -278,6 +278,7 @@ export class StatsProcessor extends events.EventEmitter {
         this._profileFetchIds = new Set();
         this._pendingProfileFetches = [];
         this._profileFetchCount = 0;
+        this._profileFetchBackoff = 100;
         this._chatHistory = [];
         this._recentEvents = new Map();
         this._recentEventSubgroups = new Map();
@@ -992,22 +993,22 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     async runAthleteProfileUpdater() {
-        let errBackoff = 1000;
         while (this._pendingProfileFetches.length) {
             const batch = Array.from(this._pendingProfileFetches);
             this._pendingProfileFetches.length = 0;
             this._profileFetchCount += batch.length;
             try {
                 await this._updateAthleteProfilesFromServer(batch);
-                await sauce.sleep(100);
+                this._profileFetchBackoff = 100;
             } catch(e) {
                 if (e.name === 'FetchError') {
                     console.warn("Network problem while collecting profiles:", e.message);
                 } else {
                     console.error("Error while collecting profiles:", e);
                 }
-                await sauce.sleep(errBackoff *= 1.15);
+                this._profileFetchBackoff *= 1.5;
             }
+            await sauce.sleep(this._profileFetchBackoff);
         }
     }
 
