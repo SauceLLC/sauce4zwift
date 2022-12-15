@@ -1315,7 +1315,11 @@ export class GameMonitor extends events.EventEmitter {
         try {
             await this._connect();
         } catch(e) {
-            console.error('Connection attempt failed:', e);
+            if (e.name === 'FetchError') {
+                console.warn('Connection attempt network problem:', e.message);
+            } else {
+                console.error('Connection attempt failed:', e);
+            }
             this._schedConnectRetry();
         }
     }
@@ -1448,7 +1452,7 @@ export class GameMonitor extends events.EventEmitter {
     _schedConnectRetry() {
         clearTimeout(this._connectRetryTimeout);
         this.disconnect();
-        const backoffCount = Math.max(this.connectingCount, this._errCount);
+        const backoffCount = this.connectingCount + this._errCount;
         const delay = Math.max(1000, (backoffCount * 1000) - (Date.now() - this.connectingTS));
         console.warn(`Next connect retry: ${delay / 1000 | 0}s`);
         this._connectRetryTimeout = setTimeout(this.connect.bind(this), delay);
@@ -1500,7 +1504,11 @@ export class GameMonitor extends events.EventEmitter {
                     break;
                 } catch(e) {
                     if (!(e instanceof InactiveChannelError)) {
-                        console.error('SendPlayerState error:', e);
+                        if (e.code && e.syscall) {
+                            console.warn('SendPlayerState network problem:', e.syscall, e.code);
+                        } else {
+                            console.error('SendPlayerState error:', e);
+                        }
                         this.incErrorCount();
                     }
                 }
@@ -1547,7 +1555,11 @@ export class GameMonitor extends events.EventEmitter {
         } catch(e) {
             this._stateRefreshDelay *= 1.15;
             if (e.status !== 429) {
-                console.error("Refresh states error:", e);
+                if (e.name === 'FetchError') {
+                    console.warn("Refresh states network problem:", e.message);
+                } else {
+                    console.error("Refresh states error:", e);
+                }
             }
         }
         if (!this._stopping && id === this._refreshStatesTimeout) {
