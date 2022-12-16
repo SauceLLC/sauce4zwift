@@ -9,6 +9,7 @@ const settings = common.settingsStore.get(null, {
     solidBackground: false,
     reverseOrder: false,
     backgroundColor: '#00ff00',
+    messageTransparency: 0,
 });
 const athleteChatElements = new Map();
 
@@ -120,21 +121,20 @@ export async function main() {
             common.subscribe(`athlete/${athleteId}`, handleAthleteData);
         }
         chatEls.add(el);
-        if (settings.cleanup) {
-            let to;
-            el._resetCleanup = () => {
-                clearTimeout(to);
-                to = setTimeout(() => {
-                    el.classList.add('fadeout');
-                    chatEls.delete(el);
-                    if (!chatEls.size) {
-                        common.unsubscribe(`athlete/${athleteId}`, handleAthleteData);
-                    }
-                    setTimeout(() => el.remove(), fadeoutTime * 1000);
-                }, (settings.cleanup - (age || 0)) * 1000);
-            };
-            el._resetCleanup();
-        }
+        let to;
+        el._resetCleanup = () => {
+            clearTimeout(to);
+            to = settings.cleanup ? setTimeout(() => {
+                el.classList.add('fadeout');
+                chatEls.delete(el);
+                el._resetCleanup = null;
+                if (!chatEls.size) {
+                    common.unsubscribe(`athlete/${athleteId}`, handleAthleteData);
+                }
+                setTimeout(() => el.remove(), fadeoutTime * 1000);
+            }, (settings.cleanup - (age || 0)) * 1000) : null;
+        };
+        el._resetCleanup();
     }
 
 
