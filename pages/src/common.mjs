@@ -819,22 +819,30 @@ function bindFormData(selector, storageIface, options={}) {
             fieldConnections.get(name).add(el);
             const val = await storageIface.get(name);
             if (el.type === 'checkbox') {
-                el.checked = val;
+                if (val !== undefined) {
+                    el.checked = val;
+                }
             } else {
-                el.value = val == null ? '' : val;
+                if (val !== undefined) {
+                    el.value = val == null ? '' : val;
+                }
             }
         }
         for (const el of form.querySelectorAll('select')) {
             const name = el.name;
             const val = await storageIface.get(name);
-            el.value = val == null ? '' : val;
+            if (val !== undefined) {
+                el.value = val == null ? '' : val;
+            }
         }
         for (const el of form.querySelectorAll('.display-field[name]')) {
             const name = el.getAttribute('name');
             const val = await storageIface.get(name);
-            el.textContent = val;
-            if (el.hasAttribute('href')) {
-                el.href = val;
+            if (val !== undefined) {
+                el.textContent = val;
+                if (el.hasAttribute('href')) {
+                    el.href = val;
+                }
             }
         }
         for (const el of form.querySelectorAll('[data-depends-on]')) {
