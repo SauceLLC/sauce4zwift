@@ -6,6 +6,8 @@ html {
             background: transparent;
         }
     }
+
+    --message-background-opacity: 0.7; // Just a fallback
 }
 
 body {
@@ -43,13 +45,13 @@ body {
     --message-hue: 0deg;
     flex: 0 0 auto;
     display: flex;
-    background-color: hsla(var(--message-hue), 80%, 40%, 0.7);
+    background-color: hsla(var(--message-hue), 80%, 40%, var(--message-background-opacity));
     color: #fff;
     align-items: flex-start;  /* workaround a scroll issue with large content */
     font-size: 0.85em;
     margin-bottom: 0.3rem;
     border-radius: 0.33em;
-    box-shadow: 1px 1px 5px 0 #0004;
+    box-shadow: 1px 1px 5px 0 rgba(0, 0, 0, calc(var(--message-background-opacity) * 0.5));
     max-height: 0;
     transition: max-height 1s, opacity var(--fadeout-time);
     overflow: hidden;
@@ -58,12 +60,11 @@ body {
         background-color: #3336;
 
         .content {
-            padding: 0.2em 1em;
+            padding: 0.2em 0.5em;
             font-size: 0.8em;
             justify-content: center;
             font-variant: all-small-caps;
-            font-weight: bold;
-            opacity: 0.9;
+            font-weight: 500;
         }
     }
 

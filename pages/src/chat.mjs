@@ -9,7 +9,7 @@ const settings = common.settingsStore.get(null, {
     solidBackground: false,
     reverseOrder: false,
     backgroundColor: '#00ff00',
-    messageTransparency: 0,
+    messageTransparency: 30,
 });
 const athleteChatElements = new Map();
 
@@ -85,6 +85,13 @@ function setBackground() {
 }
 
 
+function setMsgOpacity() {
+    const {messageTransparency} = settings;
+    const opacity = messageTransparency == null ? 0.7 : 1 - (messageTransparency / 100);
+    doc.style.setProperty('--message-background-opacity', opacity);
+}
+
+
 export async function main() {
     common.initInteractionListeners();
     const content = document.querySelector('#content');
@@ -92,8 +99,10 @@ export async function main() {
     content.style.setProperty('--fadeout-time', `${fadeoutTime}s`);
     content.classList.toggle('reverse-order', settings.reverseOrder === true);
     setBackground();
+    setMsgOpacity();
     common.settingsStore.addEventListener('changed', ev => {
         setBackground();
+        setMsgOpacity();
         content.classList.toggle('reverse-order', settings.reverseOrder === true);
         for (const el of document.querySelectorAll('.entry')) {
             if (el._resetCleanup) {
@@ -109,27 +118,34 @@ export async function main() {
     }
 
 
-    function addContentEntry(athleteId, el, age) {
+    function addContentEntry({athleteId, muted}, el, age, options={}) {
         content.appendChild(el);
-        void el.offsetLeft; // force layout/reflow so we can trigger animation.
+        if (!options.skipAnimation) {
+            void el.offsetLeft; // force layout/reflow so we can trigger animation.
+        }
         el.classList.add('slidein');
-        if (!athleteChatElements.has(athleteId)) {
-            athleteChatElements.set(athleteId, new Set());
+        let chatEls;
+        if (!muted) {
+            if (!athleteChatElements.has(athleteId)) {
+                athleteChatElements.set(athleteId, new Set());
+            }
+            chatEls = athleteChatElements.get(athleteId);
+            if (!chatEls.size) {
+                common.subscribe(`athlete/${athleteId}`, handleAthleteData);
+            }
+            chatEls.add(el);
         }
-        const chatEls = athleteChatElements.get(athleteId);
-        if (!chatEls.size) {
-            common.subscribe(`athlete/${athleteId}`, handleAthleteData);
-        }
-        chatEls.add(el);
         let to;
         el._resetCleanup = () => {
             clearTimeout(to);
             to = settings.cleanup ? setTimeout(() => {
                 el.classList.add('fadeout');
-                chatEls.delete(el);
                 el._resetCleanup = null;
-                if (!chatEls.size) {
-                    common.unsubscribe(`athlete/${athleteId}`, handleAthleteData);
+                if (chatEls) {
+                    chatEls.delete(el);
+                    if (!chatEls.size) {
+                        common.unsubscribe(`athlete/${athleteId}`, handleAthleteData);
+                    }
                 }
                 setTimeout(() => el.remove(), fadeoutTime * 1000);
             }, (settings.cleanup - (age || 0)) * 1000) : null;
@@ -138,18 +154,20 @@ export async function main() {
     }
 
 
-    function onChatMessage(chat, age) {
+    function onChatMessage(chat, age, options) {
         const lastEntry = getLastEntry();
         if (lastEntry && Number(lastEntry.dataset.from) === chat.from &&
             !lastEntry.classList.contains('fadeout')) {
-            const chunk = document.createElement('div');
-            chunk.classList.add('chunk');
-            chunk.textContent = chat.message;
-            lastEntry.querySelector('.message').appendChild(chunk);
-            if (lastEntry._resetCleanup) {
-                lastEntry._resetCleanup();
+            if (!chat.muted) {
+                const chunk = document.createElement('div');
+                chunk.classList.add('chunk');
+                chunk.textContent = chat.message;
+                lastEntry.querySelector('.message').appendChild(chunk);
+                if (lastEntry._resetCleanup) {
+                    lastEntry._resetCleanup();
+                }
             }
-            return;
+            return lastEntry;
         }
         const entry = document.createElement('div');
         entry.dataset.from = chat.from;
@@ -181,20 +199,25 @@ export async function main() {
         } else {
             const name = [chat.firstName, chat.lastName].filter(x => x).join('');
             entry.classList.add('muted');
-            entry.innerHTML = `<div class="content">Muted message from ${name}</div>`;
+            entry.innerHTML = `<div class="content">Muted message from: ${common.sanitize(name)}</div>`;
         }
         entry.addEventListener('dblclick', async () => {
             await common.rpc.watch(chat.from);
         });
-        addContentEntry(chat.from, entry, age);
+        addContentEntry(chat, entry, age, options);
+        return entry;
     }
 
+    let mostRecent;
     for (const x of (await common.rpc.getChatHistory()).reverse()) {
         const age = (Date.now() - x.ts) / 1000;
         if (settings.cleanup && age > settings.cleanup) {
             continue;
         }
-        onChatMessage(x, age);
+        mostRecent = onChatMessage(x, age, {skipAnimation: true});
+    }
+    if (mostRecent) {
+        mostRecent.scrollIntoView();
     }
     common.subscribe('chat', onChatMessage, {persistent: true});
 

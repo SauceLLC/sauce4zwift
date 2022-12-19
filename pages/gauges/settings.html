@@ -70,24 +70,12 @@
                 </label>
                 <label>
                     <key>Theme override:</key>
-                    <select name="themeOverride">
-                        <option value="">Use app setting</option>
-                        <option value="sauce">Sauce</option>
-                        <option value="bluepink">Ice Blue Pink</option>
-                        <option value="green">Green Lantern</option>
-                        <option value="burgundy">Ron Burgundy</option>
-                        <option value="aqua">Aqua Salad</option>
-                        <option value="watermelon">Watermelon</option>
-                        <option value="light">Light</option>
-                        <option value="dark">Dark</option>
-                        <option value="transparent-light">Transparent - Light</option>
-                        <option value="transparent-dark">Transparent - Dark</option>
-                    </select>
+                    <select is="sauce-theme" override></select>
                 </label>
                 <label class="electron-only">
                     <key>Transparency:</key>
                     <input type="range" name="gaugeTransparency" min="0" max="100" step="1"/>
-                    <input type="text" name="gaugeTransparency" size="3"/>%
+                    <input type="number" name="gaugeTransparency" style="--size: 4"/>%
                 </label>
                 <label>
                     <key>Color override:</key>

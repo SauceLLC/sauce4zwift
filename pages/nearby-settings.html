@@ -69,7 +69,7 @@
                 <label>
                     <key>Font scaling:</key>
                     <input type="range" name="fontScale" min="0.5" max="2" step="0.25"/>
-                    <input type="text" name="fontScale" size="3"/>
+                    <input type="number" name="fontScale" style="--size: 4"/>
                 </label>
                 <label title="Filter the list to only show athletes you've marked">
                     <key>Only marked athletes:</key>
@@ -92,19 +92,7 @@
                 </label>
                 <label>
                     <key>Theme override:</key>
-                    <select name="themeOverride">
-                        <option value="">Use app setting</option>
-                        <option value="sauce">Sauce</option>
-                        <option value="bluepink">Ice Blue Pink</option>
-                        <option value="green">Green Lantern</option>
-                        <option value="burgundy">Ron Burgundy</option>
-                        <option value="aqua">Aqua Salad</option>
-                        <option value="watermelon">Watermelon</option>
-                        <option value="light">Light</option>
-                        <option value="dark">Dark</option>
-                        <option value="transparent-light">Transparent - Light</option>
-                        <option value="transparent-dark">Transparent - Dark</option>
-                    </select>
+                    <select is="sauce-theme" override></select>
                 </label>
                 <label title="Mostly useful for streamers using OBS window and browser sources">
                     <key>Solid background:</key>

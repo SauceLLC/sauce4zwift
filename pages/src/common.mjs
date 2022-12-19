@@ -4,6 +4,10 @@ import * as locale from '../../shared/sauce/locale.mjs';
 import * as report from '../../shared/report.mjs';
 import './sentry.js';
 
+export const sleep = _sleep; // Come on ES6 modules, really!?
+export * from './custom-elements.mjs';
+
+
 if (!Array.prototype.at) {
     // Old browsers like chromium 86 used by vmix.
     Array.prototype.at = function(idx) {
@@ -11,8 +15,6 @@ if (!Array.prototype.at) {
         return idx < 0 ? this[this.length + idx] : this[idx];
     };
 }
-
-export const sleep = _sleep; // Come on ES6 modules, really!?
 
 const doc = document.documentElement;
 

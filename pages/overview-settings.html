@@ -149,18 +149,7 @@ If you require the Zwift Companion App's Game mode, DO NOT enable this feature."
 
                 <label title="The default theme for all windows">
                     <key>Default Theme:</key>
-                    <select name="/theme">
-                        <option value="">Sauce</option>
-                        <option value="bluepink">Ice Blue Pink</option>
-                        <option value="green">Green Lantern</option>
-                        <option value="burgundy">Ron Burgundy</option>
-                        <option value="aqua">Aqua Salad</option>
-                        <option value="watermelon">Watermelon</option>
-                        <option value="light">Light</option>
-                        <option value="dark">Dark</option>
-                        <option value="transparent-light">Transparent - Light</option>
-                        <option value="transparent-dark">Transparent - Dark</option>
-                    </select>
+                    <select is="sauce-theme"></select>
                 </label>
                 <label>
                     <key>Imperial units:</key>
@@ -194,21 +183,8 @@ If you require the Zwift Companion App's Game mode, DO NOT enable this feature."
                 </label>
                 <label>
                     <key>Theme override:</key>
-                    <select name="themeOverride">
-                        <option value="">Use app setting</option>
-                        <option value="sauce">Sauce</option>
-                        <option value="bluepink">Ice Blue Pink</option>
-                        <option value="green">Green Lantern</option>
-                        <option value="burgundy">Ron Burgundy</option>
-                        <option value="aqua">Aqua Salad</option>
-                        <option value="watermelon">Watermelon</option>
-                        <option value="light">Light</option>
-                        <option value="dark">Dark</option>
-                        <option value="transparent-light">Transparent - Light</option>
-                        <option value="transparent-dark">Transparent - Dark</option>
-                    </select>
+                    <select is="sauce-theme" override></select>
                 </label>
-
             </form>
 
             <form id="windows" class="section tab">

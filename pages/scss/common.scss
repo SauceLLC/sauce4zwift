@@ -269,25 +269,33 @@ form {
     }
 }
 
+$input-horiz-pad: 0.2em;
+$input-border: 1px;
+
 input, select {
-    padding: 0.2em 0.2em;
+    padding: 0 $input-horiz-pad;
     border-radius: 0.28em;
-    font-size: 0.9em;
+    border: $input-border solid color.shade(fg, 80%, 0.8);
+    font-size: 0.88em;
     background-color: #fcfcfc;
-    border-style: solid;
+    font-family: inherit;
+}
+
+input[type="color"] {
+    padding: revert;
+    block-size: calc(1.58em + #{$input-border * 2});  // hand tuned to match our font input height.
 }
 
 input[type="number"] {
-    width: 8ch;
+    --size: 7;
+    width: calc(var(--size) * 1ch + #{$input-horiz-pad * 2});
 
-    &.no-increment {
-        -moz-appearance: textfield;
+    -moz-appearance: textfield;
 
-        &::-webkit-outer-spin-button,
-        &::-webkit-inner-spin-button {
-            -webkit-appearance: none;
-            margin: 0;
-        }
+    &::-webkit-outer-spin-button,
+    &::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
     }
 }
 
