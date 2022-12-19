@@ -2,11 +2,10 @@
 import {sleep as _sleep} from '../../shared/sauce/base.mjs';
 import * as locale from '../../shared/sauce/locale.mjs';
 import * as report from '../../shared/report.mjs';
+import * as elements from './custom-elements.mjs';
 import './sentry.js';
 
 export const sleep = _sleep; // Come on ES6 modules, really!?
-export * from './custom-elements.mjs';
-
 
 if (!Array.prototype.at) {
     // Old browsers like chromium 86 used by vmix.
@@ -1092,6 +1091,14 @@ export function initExpanderTable(table, expandCallback, cleanupCallback) {
             }
         }
     });
+}
+
+
+export function addTheme(entry) {
+    elements.themes.push(entry);
+    for (const el of document.querySelectorAll('select[is="sauce-theme"]')) {
+        el.update();
+    }
 }
 
 

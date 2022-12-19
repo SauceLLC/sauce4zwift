@@ -17,16 +17,14 @@ export const themes = [
 class ThemeSelect extends HTMLSelectElement {
     constructor() {
         super();
-        let _themes;
-        let name;
-        if (this.hasAttribute('override')) {
-            _themes = [{id: '', name: 'Use app setting'}, ...themes];
-            name = 'themeOverride';
-        } else {
-            _themes = themes.map(x => x.id === 'sauce' ? {...x, id: ''} : x);
-            name = '/theme';
-        }
-        this.setAttribute('name', name);
+        this.setAttribute('name', this.hasAttribute('override') ? 'themeOverride' : '/theme');
+        this.render();
+    }
+
+    render() {
+        const _themes = this.hasAttribute('override') ?
+            [{id: '', name: 'Use app setting'}, ...themes] :
+            themes.map(x => x.id === 'sauce' ? {...x, id: ''} : x);
         const groups = new Map();
         for (const x of _themes) {
             if (!groups.has(x.group)) {
@@ -50,6 +48,13 @@ class ThemeSelect extends HTMLSelectElement {
                 parent.append(option);
             }
         }
+    }
+
+    update() {
+        while (this.childNodes.length) {
+            this.removeChild(this.childNodes[0]);
+        }
+        this.render();
     }
 }
 

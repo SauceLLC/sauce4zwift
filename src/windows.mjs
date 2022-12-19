@@ -774,6 +774,16 @@ function handleNewSubWindow(parent, spec, webPrefs) {
             targetRefs.set(target, new WeakRef(newWin));
         }
         handleNewSubWindow(newWin, spec, webPrefs);
+        if (modContentScripts.length) {
+            for (const x of modContentScripts) {
+                newWin.webContents.on('did-finish-load', () => newWin.webContents.executeJavaScript(x));
+            }
+        }
+        if (modContentStyle.length) {
+            for (const x of modContentStyle) {
+                newWin.webContents.on('did-finish-load', () => newWin.webContents.insertCSS(x));
+            }
+        }
         newWin.loadURL(url);
         newWin.show();
         return {action: 'deny'};
