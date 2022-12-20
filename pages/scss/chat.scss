@@ -39,6 +39,9 @@ body {
         scroll-snap-align: end;
         scroll-margin-block-end: 1rem;
     }
+    &.right-align {
+        align-items: flex-end;
+    }
 }
 
 .entry {

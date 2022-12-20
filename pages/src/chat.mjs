@@ -8,6 +8,7 @@ const settings = common.settingsStore.get(null, {
     cleanup: 120,
     solidBackground: false,
     reverseOrder: false,
+    rightAlign: false,
     backgroundColor: '#00ff00',
     messageTransparency: 30,
 });
@@ -98,12 +99,14 @@ export async function main() {
     const fadeoutTime = 5;
     content.style.setProperty('--fadeout-time', `${fadeoutTime}s`);
     content.classList.toggle('reverse-order', settings.reverseOrder === true);
+    content.classList.toggle('right-align', settings.rightAlign === true);
     setBackground();
     setMsgOpacity();
     common.settingsStore.addEventListener('changed', ev => {
         setBackground();
         setMsgOpacity();
         content.classList.toggle('reverse-order', settings.reverseOrder === true);
+        content.classList.toggle('right-align', settings.rightAlign === true);
         for (const el of document.querySelectorAll('.entry')) {
             if (el._resetCleanup) {
                 el._resetCleanup();
