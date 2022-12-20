@@ -762,54 +762,90 @@ export class SettingsStore extends EventTarget {
 export const settingsStore = doc.dataset.settingsKey && new SettingsStore(doc.dataset.settingsKey);
 
 
+function parseDependsOn(dependsOn) {
+    const m = dependsOn.match(/^(!)?([a-z0-9]+?)((==|!=|>|<|>=|<=)([a-z0-9]+?))?$/i);
+    if (!m) {
+        throw new Error("Invalid depends-on grammer field");
+    }
+    const negate = !!m[1];
+    const name = m[2];
+    const operator = m[4];
+    const value = m[5];
+    return {negate, name, operator, value};
+}
+
+
+function compareDependsOn(a, operator, b) {
+    return (
+        operator === '==' ? a == b :
+        operator === '!=' ? a != b :
+        operator === '>=' ? a >= b :
+        operator === '<=' ? a <= b :
+        operator === '>' ? a > b :
+        operator === '<' ? a < b :
+        !!b
+    );
+}
+
+
+function updateDependants(el) {
+    for (const x of el.dependants) {
+        const d = x.dataset.dependsOn;
+        let negate, operator, value;
+        try {
+            ({negate, operator, value} = parseDependsOn(d));
+        } catch(e) {
+            console.error("Invalid depends-on grammer field", d, e);
+            continue;
+        }
+        const elValue = el.type === 'checkbox' ? el.checked : el.value;
+        const enabled = compareDependsOn(value, operator, elValue);
+        if (negate ? !enabled : enabled) {
+            x.disabled = false;
+            x.removeAttribute('disabled');
+        } else {
+            x.disabled = true;
+            x.setAttribute('disabled', 'disabled');
+        }
+        const parentLabel = x.closest('label');
+        if (parentLabel) {
+            parentLabel.classList.toggle('disabled', x.disabled);
+        }
+    }
+}
+
 
 function bindFormData(selector, storageIface, options={}) {
     const form = document.querySelector(selector);
     const fieldConnections = new Map();
+    async function onFieldUpdate(el, ev) {
+        const baseType = {
+            range: 'number',
+        }[el.type] || el.type;
+        const val = (({
+            number: () => el.value ? Number(el.value) : undefined,
+            checkbox: () => el.checked,
+        }[baseType]) || (() => el.value || undefined))();
+        el.closest('label').classList.add('edited');
+        for (const x of fieldConnections.get(el.name)) {
+            if (!Object.is(x, el)) {
+                if (x.type === 'checkbox') {
+                    x.checked = val;
+                } else {
+                    x.value = val;
+                }
+            }
+        }
+        if (el.dependants) {
+            updateDependants(el);
+        }
+        await storageIface.set(el.name, val);
+    }
     for (const el of form.querySelectorAll('input')) {
-        el.addEventListener('input', async ev => {
-            const baseType = {
-                range: 'number',
-            }[el.type] || el.type;
-            const val = (({
-                number: () => el.value ? Number(el.value) : undefined,
-                checkbox: () => el.checked,
-            }[baseType]) || (() => el.value || undefined))();
-            el.closest('label').classList.add('edited');
-            for (const x of fieldConnections.get(el.name)) {
-                if (!Object.is(x, el)) {
-                    x.value = el.value;
-                    x.checked = el.checked;
-                }
-            }
-            if (el.dependants) {
-                for (const x of el.dependants) {
-                    const d = x.dataset.dependsOn;
-                    x.disabled = d.startsWith('!') ? el.checked : !el.checked;
-                    if (x.disabled) {
-                        x.setAttribute('disabled', 'disabled');
-                    } else {
-                        x.removeAttribute('disabled');
-                    }
-                    const parentLabel = x.closest('label');
-                    if (parentLabel) {
-                        parentLabel.classList.toggle('disabled', x.disabled);
-                    }
-                }
-            }
-            await storageIface.set(el.name, val);
-        });
+        el.addEventListener('input', onFieldUpdate.bind(null, el));
     }
     for (const el of form.querySelectorAll('select')) {
-        el.addEventListener('change', async ev => {
-            let val;
-            if (el.dataset.type === 'number') {
-                val = el.value ? Number(el.value) : undefined;
-            } else {
-                val = el.value || undefined;
-            }
-            await storageIface.set(el.name, val);
-        });
+        el.addEventListener('change', onFieldUpdate.bind(null, el));
     }
     return async function update() {
         for (const el of form.querySelectorAll('input')) {
@@ -831,6 +867,10 @@ function bindFormData(selector, storageIface, options={}) {
         }
         for (const el of form.querySelectorAll('select')) {
             const name = el.name;
+            if (!fieldConnections.has(name)) {
+                fieldConnections.set(name, new Set());
+            }
+            fieldConnections.get(name).add(el);
             const val = await storageIface.get(name);
             if (val !== undefined) {
                 el.value = val == null ? '' : val;
@@ -848,12 +888,26 @@ function bindFormData(selector, storageIface, options={}) {
         }
         for (const el of form.querySelectorAll('[data-depends-on]')) {
             const dependsOn = el.dataset.dependsOn;
-            const depEl = form.querySelector(`[name="${dependsOn.replace(/^!/, '')}"]`);
-            el.disabled = dependsOn.startsWith('!') ? depEl.checked : !depEl.checked;
-            if (el.disabled) {
-                el.setAttribute('disabled', 'disabled');
-            } else {
+            let negate, name, operator, value;
+            try {
+                ({negate, name, operator, value} = parseDependsOn(dependsOn));
+            } catch(e) {
+                console.error("Invalid depends-on grammer field", dependsOn, e);
+                continue;
+            }
+            const depEl = form.querySelector(`[name="${name}"]`);
+            if (!depEl) {
+                console.error("Field depends-on missing field", dependsOn);
+                continue;
+            }
+            const depValue = depEl.type === 'checkbox' ? depEl.checked : depEl.value;
+            const enabled = compareDependsOn(value, operator, depValue);
+            if (negate ? !enabled : enabled) {
+                el.disabled = false;
                 el.removeAttribute('disabled');
+            } else {
+                el.disabled = true;
+                el.setAttribute('disabled', 'disabled');
             }
             const parentLabel = el.closest('label');
             if (parentLabel) {
