@@ -52,6 +52,7 @@ function handleInlineEdit(el, {athleteId, athlete}, rerender) {
     const input = document.createElement('input');
     input.type = type;
     input.value = athlete[key];
+    input.classList.add('hide-spinner');
     el.replaceChildren(input);
     let done;
     input.focus();

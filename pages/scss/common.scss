@@ -293,12 +293,14 @@ input[type="number"] {
     --size: 7;
     width: calc(var(--size) * 1ch + #{$input-horiz-pad * 2});
 
-    -moz-appearance: textfield;
+    &.hide-spinner {
+        -moz-appearance: textfield;
 
-    &::-webkit-outer-spin-button,
-    &::-webkit-inner-spin-button {
-        -webkit-appearance: none;
-        margin: 0;
+        &::-webkit-outer-spin-button,
+        &::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
     }
 }
 
