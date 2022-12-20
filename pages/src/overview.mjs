@@ -89,6 +89,12 @@ function fmtPct(p) {
     return H.number(p * 100) + unit('%');
 }
 
+function fmtLap(v) {
+    if (!isRealNumber(v)) {
+        return '-';
+    }
+    return H.number(v+1);
+}
 
 const _events = new Map();
 function getEventSubgroup(id) {
@@ -232,6 +238,14 @@ function buildLayout() {
                 id: 'time-elapsed',
                 value: x => fmtDur(x.stats && x.stats.elapsedTime || 0),
                 key: 'Elapsed',
+            }, {
+                id: 'team',
+                value: x => x.athlete && x.athlete.team || '-',
+                key: 'Team',
+            }, {
+                id: 'level',
+                value: x => H.number(x.athlete && x.athlete.level),
+                key: 'Level',
             }, {
                 id: 'rideons',
                 value: x => H.number(x.state && x.state.rideons),
@@ -437,6 +451,14 @@ function buildLayout() {
                 value: x => fmtDist(x.state && x.state.distance),
                 key: 'Dist',
             }, {
+                id: 'game-laps',
+                value: x => fmtLap(x.state && x.state.laps || null),
+                key: 'Laps',
+            }, {
+                id: 'progress',
+                value: x => fmtPct(x.state && x.state.progress || 0),
+                key: 'Route',
+            },{
                 id: 'ev-name',
                 value: x => x.eventSubgroup ? x.eventSubgroup.name : '-',
                 key: 'Event',
