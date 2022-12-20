@@ -834,13 +834,39 @@ export function calcPwHrDecoupling(wattsStream, timeStream, hrStream) {
 
 
 export function cogganZones(ftp) {
+    // from is exclusive and to is inclusive..
+    return [
+        {zone: "Z1", from: 0, to: ftp * 0.55},          // Active Recovery
+        {zone: "Z2", from: ftp * 0.55, to: ftp * 0.75}, // Endurance
+        {zone: "Z3", from: ftp * 0.75, to: ftp * 0.90}, // Tempo
+        {zone: "Z4", from: ftp * 0.90, to: ftp * 1.05}, // Threshold
+        {zone: "Z5", from: ftp * 1.05, to: ftp * 1.20}, // V02Max
+        {zone: "Z6", from: ftp * 1.20, to: ftp * 1.50}, // Anaerobic
+        {zone: "Z7", from: ftp * 1.50, to: Infinity},   // Neuromuscular
+    ];
+}
+
+
+export function polarizedZones(ftp) {
+    // from is exclusive and to is inclusive..
+    return [
+        {zone: "Z1", from: ftp * 0.40, to: ftp * 0.80}, // Low intensity
+        {zone: "Z2", from: ftp * 0.80, to: ftp * 1.00}, // Moderate Intensity
+        {zone: "Z3", from: ftp * 1.00, to: Infinity},   // High Intensity
+    ];
+}
+
+
+export function sweetspotZone(ftp, options={}) {
+    const type = options.type || 'fascat';
+    // from is exclusive and to is inclusive..
+    const ranges = {
+        coggan: [0.88, 0.93],
+        fascat: [0.84, 0.97],
+    };
     return {
-        z1: ftp * 0.55, // Active Recovery
-        z2: ftp * 0.75, // Endurance
-        z3: ftp * 0.90, // Tempo
-        z4: ftp * 1.05, // Threshold
-        z5: ftp * 1.20, // V02Max
-        z6: ftp * 1.50, // Anaerobic
-        z7: Infinity,   // Neuromuscular
+        zone: 'SS',
+        from: ftp * ranges[type][0],
+        to: ftp * ranges[type][1],
     };
 }
