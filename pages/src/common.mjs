@@ -841,14 +841,14 @@ function bindFormData(selector, storageIface, options={}) {
         }
         await storageIface.set(el.name, val);
     }
-    for (const el of form.querySelectorAll('input')) {
+    for (const el of form.querySelectorAll('input,textarea')) {
         el.addEventListener('input', onFieldUpdate.bind(null, el));
     }
     for (const el of form.querySelectorAll('select')) {
         el.addEventListener('change', onFieldUpdate.bind(null, el));
     }
     return async function update() {
-        for (const el of form.querySelectorAll('input')) {
+        for (const el of form.querySelectorAll('input,select,textarea')) {
             const name = el.name;
             if (!fieldConnections.has(name)) {
                 fieldConnections.set(name, new Set());
@@ -863,17 +863,6 @@ function bindFormData(selector, storageIface, options={}) {
                 if (val !== undefined) {
                     el.value = val == null ? '' : val;
                 }
-            }
-        }
-        for (const el of form.querySelectorAll('select')) {
-            const name = el.name;
-            if (!fieldConnections.has(name)) {
-                fieldConnections.set(name, new Set());
-            }
-            fieldConnections.get(name).add(el);
-            const val = await storageIface.get(name);
-            if (val !== undefined) {
-                el.value = val == null ? '' : val;
             }
         }
         for (const el of form.querySelectorAll('.display-field[name]')) {
