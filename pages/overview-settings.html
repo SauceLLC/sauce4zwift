@@ -129,6 +129,34 @@ If you require the Zwift Companion App's Game mode, DO NOT enable this feature."
                     <span class="display-field" name="autoLapIntervalUnits"></span>
                     <span class="restart-required"></span>
                 </label>
+
+                <label>
+                    <key>Power Zones:</key>
+                    <select name="powerZonesType">
+                        <option value="coggan">Coggan 7 Zones</option>
+                        <option value="polarized">Polarized 3 Zones</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                    <span class="restart-required"></span>
+                </label>
+
+                <label class="custom-power-zones" data-depends-on="powerZonesType==custom">
+                    <key>Custom Power Zones:</key>
+                    <textarea name="customPowerZones">[
+    {"zone": "Z1", "from": 0, "to": 0.5},
+    {"zone": "Z1", "from": 0.5, "to": 1.0}
+]</textarea>
+                </label>
+
+                <label>
+                    <key>Sweet Spot Zone:</key>
+                    <select name="sweetspotType">
+                        <option value="">Disabled</option>
+                        <option value="coggan">Coggan 88% -&gt; 93% of FTP</option>
+                        <option value="fascat">FasCat 84% -&gt; 97% of FTP</option>
+                    </select>
+                    <span class="restart-required"></span>
+                </label>
  
                 <hr class="electron-only"/>
 

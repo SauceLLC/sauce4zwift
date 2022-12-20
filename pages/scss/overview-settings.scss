@@ -123,6 +123,19 @@
     }
 }
 
+.custom-power-zones {
+    width: 100%;
+
+    textarea {
+        flex: 1 1 auto;
+        height: 10ch;
+    }
+    &.disabled {
+        display: none;
+    }
+}
+
+
 @keyframes floatingfranker {
     from { margin-bottom: 0em; }
     50% { margin-bottom: 20px; }
