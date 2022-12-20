@@ -32,6 +32,17 @@ function wBalDetailFormatter(x) {
 }
 
 
+const powerZonesColorRange = [
+    ['#444d', '#444d'],
+    ['#24d', '#24d3'],
+    ['#5b5', '#5b53'],
+    ['#dd3', '#dd33'],
+    ['#fa0', '#fa03'],
+    ['#b22', '#b223'],
+    ['#407', '#4073'],
+];
+
+
 const gaugeConfigs = {
     power: {
         name: 'Power',
@@ -48,20 +59,35 @@ const gaugeConfigs = {
         getLabel: H.number,
         detailFormatter: x => `{value|${H.power(x)}}\n{unit|watts}`,
         axisColorBands: data => {
-            if (data.athlete && data.athlete.ftp) {
-                const zones = sauce.power.cogganZones(data.athlete.ftp);
+            if (!data.powerZones) {
+                return;
+            }
+            try {
                 const min = settings.min;
                 const delta = settings.max - min;
-                const p = gaugeConfigs.power.getValue(data);
-                return [
-                    [(zones.z1 - min) / delta, '#444d'],
-                    [(zones.z2 - min) / delta, p > zones.z1 ? '#24d' : '#24d3'],
-                    [(zones.z3 - min) / delta, p > zones.z2 ? '#5b5' : '#5b53'],
-                    [(zones.z4 - min) / delta, p > zones.z3 ? '#dd3' : '#dd33'],
-                    [(zones.z5 - min) / delta, p > zones.z4 ? '#fa0' : '#fa03'],
-                    [(zones.z6 - min) / delta, p > zones.z5 ? '#b22' : '#b223'],
-                    [(zones.z7 - min) / delta, p > zones.z6 ? '#407' : '#4073'],
-                ];
+                const power = gaugeConfigs.power.getValue(data);
+                const flatZones = data.powerZones.filter((x, i) =>
+                    !i || x.from >= (data.powerZones[i - 1].to || Infinity));
+                if (flatZones[0].from > 0) {
+                    // Always pad in case of non zero offset (i.e. fake active recovery zone)
+                    flatZones.unshift({zone: '', from: 0, to: flatZones[0].from});
+                }
+                const bands = flatZones.map((x, i) => {
+                    const to = x.to == null ? Infinity : x.to;
+                    const from = x.from || 0;
+                    const colorIdx = (i / flatZones.length) * powerZonesColorRange.length | 0;
+                    return [
+                        Math.min(1, Math.max(0, (to - min) / delta)),
+                        powerZonesColorRange[colorIdx][power < from ? 1 : 0]
+                    ];
+                });
+                if (bands[bands.length - 1][0] < 1) {
+                    bands.push([1, '#0005']);
+                }
+                return bands;
+            } catch(e) {
+                // XXX Not loving this code qual, run it in scared mode
+                console.error("Color band bug:", e);
             }
         },
     },

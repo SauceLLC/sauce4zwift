@@ -375,11 +375,11 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _getCustomPowerZones(ftp) {
-        return this._customPowerZones.map(x => ({
+        return this._customPowerZones ? this._customPowerZones.map(x => ({
             zone: x.zone,
             from: x.from == null ? 0 : x.from * ftp,
             to: x.to == null ? Infinity : x.to * ftp,
-        }));
+        })) : sauce.power.cogganZones(ftp);
     }
 
     onGameConnectionStatusChange(connected) {
