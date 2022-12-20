@@ -318,12 +318,12 @@ export class StatsProcessor extends events.EventEmitter {
         this._autoLap = !!(autoLap && this._autoLapMetric && this._autoLapInterval);
         this.powerZonesType = app.getSetting('powerZonesType', 'coggan');
         this.sweetspotType = app.getSetting('sweetspotType');
-        this._customPowerZones = app.getSetting('customPowerZones');
-        this.getPowerZones = {
-            coggan: sauce.power.cogganZones,
-            polarized: sauce.power.polarizedZones,
-            custom: this._getCustomPowerZones.bind(this),
-        }[this.powerZonesType] || sauce.power.cogganZones;
+        try {
+            this._customPowerZones = JSON.parse(app.getSetting('customPowerZones'));
+        } catch(e) {
+            console.error("Custom power zones are invalid:", e);
+            this._customPowerZones = null;
+        }
         rpc.register(this.getPowerZones, {scope: this});
         rpc.register(this.updateAthlete, {scope: this});
         rpc.register(this.startLap, {scope: this});
@@ -361,11 +361,24 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
+    getPowerZones(ftp) {
+        const baseZonesFunc = {
+            coggan: sauce.power.cogganZones,
+            polarized: sauce.power.polarizedZones,
+            custom: this._getCustomPowerZones.bind(this),
+        }[this.powerZonesType] || sauce.power.cogganZones;
+        const zones = baseZonesFunc(ftp);
+        if (this.sweetspotType) {
+            zones.push(sauce.power.sweetspotZone(ftp, {type: this.sweetspotType}));
+        }
+        return zones;
+    }
+
     _getCustomPowerZones(ftp) {
         return this._customPowerZones.map(x => ({
             zone: x.zone,
-            from: x.from * ftp,
-            to: x.to * ftp,
+            from: x.from == null ? 0 : x.from * ftp,
+            to: x.to == null ? Infinity : x.to * ftp,
         }));
     }
 
@@ -379,7 +392,6 @@ export class StatsProcessor extends events.EventEmitter {
     _getGameState() {
         if (!this._athleteData.has(this.athleteId)) {
             this._athleteData.set(this.athleteId, this._createAthleteData(this.athleteId), worldTime.now());
-            debugger;
         }
         const data = this._athleteData.get(this.athleteId);
         if (!data.gameState) {
@@ -760,7 +772,8 @@ export class StatsProcessor extends events.EventEmitter {
         if (ftpUpdated) {
             ad = ad || this._athleteData.get(id);
             if (ad) {
-                ad.collectors.power.roll.setZones(d.ftp ? this.getPowerZones(d.ftp) : null);
+                ad.powerZones = d.ftp ? this.getPowerZones(d.ftp) : null;
+                ad.collectors.power.roll.setZones(ad.powerZones);
             }
         }
         // /XXX
@@ -1775,7 +1788,8 @@ export class StatsProcessor extends events.EventEmitter {
                     ad.collectors.power.roll.setWPrime(athlete.cp || athlete.ftp, athlete.wPrime);
                 }
                 if (ad.collectors.power.roll.timeInZones == null && athlete.ftp) {
-                    ad.collectors.power.roll.setZones(athlete.ftp ? this.getPowerZones(athlete.ftp) : null);
+                    ad.powerZones = athlete.ftp ? this.getPowerZones(athlete.ftp) : null;
+                    ad.collectors.power.roll.setZones(ad.powerZones);
                 }
             }
         }
@@ -1796,6 +1810,7 @@ export class StatsProcessor extends events.EventEmitter {
             eventParticipants: ad.eventParticipants,
             gameState: ad.gameState,
             gap: ad.gap,
+            powerZones: ad.powerZones,
             ...this._getEventOrRouteInfo(state),
             ...extra,
         };
