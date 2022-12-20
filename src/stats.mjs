@@ -208,35 +208,31 @@ class ExtendedRollingPower extends sauce.power.RollingPower {
         }
     }
 
-    setCogganZones(cp) {
-        // fetch coggan zones for given cp
-        this._cogganZones = sauce.power.cogganZones(cp);
-        // prepare coggan zones data
-        this.cogganZonesDuration = {z1: 0, z2: 0, z3: 0, z4: 0, z5: 0, z6: 0, z7: 0}
-    }
-
-    getActCogganZone(value){
-        const actzone = value < this._cogganZones.z1 ? 'z1' : 
-                        value < this._cogganZones.z2 ? 'z2' :
-                        value < this._cogganZones.z3 ? 'z3' :
-                        value < this._cogganZones.z4 ? 'z4' :
-                        value < this._cogganZones.z5 ? 'z5' :
-                        value < this._cogganZones.z6 ? 'z6' :
-                        'z7';
-        return actzone;
+    setZones(zones) {
+        this._zones = zones;
+        this.timeInZones = zones ? zones.map(x => ({zone: x.zone, time: 0})) : undefined;
     }
 
     _add(time, value) {
+        const prevTime = this._times[this._length - 1];
+        const elapsed = time - prevTime;
         const r = super._add(time, value);
-        if (this._wBalIncrementor) {
-            // NOTE This doesn't not support any resizing
-            this.wBal = this._wBalIncrementor(value);
-        }
-        if (this._cogganZones) {
-            //check active zone
-            const actzone = this.getActCogganZone(value);
-            // increment corresponding value
-            this.cogganZonesDuration = {...this.cogganZonesDuration,  [actzone]:(this.cogganZonesDuration[actzone] +1 ) };
+        if (elapsed) {
+            if (this._wBalIncrementor) {
+                // NOTE This doesn't not support any resizing
+                for (let i = 0; i < elapsed; i++) {
+                    this.wBal = this._wBalIncrementor(value);
+                }
+            }
+            if (this._zones) {
+                // NOTE This doesn't not support any resizing
+                for (let i = 0; i < this._zones.length; i++) {
+                    const z = this._zones[i];
+                    if (value > z.from && value <= z.to) {
+                        this.timeInZones[i].time += elapsed;
+                    }
+                }
+            }
         }
         return r;
     }
@@ -320,6 +316,15 @@ export class StatsProcessor extends events.EventEmitter {
         const autoLapFactor = this._autoLapMetric === 'distance' ? 1000 : 60;
         this._autoLapInterval = autoLap ? app.getSetting('autoLapInterval') * autoLapFactor : undefined;
         this._autoLap = !!(autoLap && this._autoLapMetric && this._autoLapInterval);
+        this.powerZonesType = app.getSetting('powerZonesType', 'coggan');
+        this.sweetspotType = app.getSetting('sweetspotType');
+        this._customPowerZones = app.getSetting('customPowerZones');
+        this.getPowerZones = {
+            coggan: sauce.power.cogganZones,
+            polarized: sauce.power.polarizedZones,
+            custom: this._getCustomPowerZones.bind(this),
+        }[this.powerZonesType] || sauce.power.cogganZones;
+        rpc.register(this.getPowerZones, {scope: this});
         rpc.register(this.updateAthlete, {scope: this});
         rpc.register(this.startLap, {scope: this});
         rpc.register(this.resetStats, {scope: this});
@@ -354,6 +359,14 @@ export class StatsProcessor extends events.EventEmitter {
             gc.on('powerup-set', this.onPowerupSet.bind(this));
             gc.on('custom-action-button', this.onCustomActionButton.bind(this));
         }
+    }
+
+    _getCustomPowerZones(ftp) {
+        return this._customPowerZones.map(x => ({
+            zone: x.zone,
+            from: x.from * ftp,
+            to: x.to * ftp,
+        }));
     }
 
     onGameConnectionStatusChange(connected) {
@@ -725,19 +738,32 @@ export class StatsProcessor extends events.EventEmitter {
         } else {
             d.fLast = d.initials = null;
         }
+        // XXX generalize the props that are updated and emit an event.
         if (d.wPrime === undefined && data.wPrime === undefined) {
             data.wPrime = 20000; // Po-boy migration
         }
         const wPrimeUpdated = data.wPrime !== undefined && data.wPrime !== d.wPrime;
         const cpUpdated = data.cp !== undefined && data.cp !== d.cp;
+        const ftpUpdated = data.ftp !== undefined && data.ftp !== d.ftp;
         for (const [k, v] of Object.entries(data)) {
             if (v !== undefined) {
                 d[k] = v;
             }
         }
-        if (wPrimeUpdated || cpUpdated ) {
-            this.updateAthleteWPrime(id, d);
+        let ad;
+        if (wPrimeUpdated || cpUpdated) {
+            ad = this._athleteData.get(id);
+            if (ad && (d.cp || d.ftp) && d.wPrime) {
+                ad.collectors.power.roll.setWPrime(d.cp || d.ftp, d.wPrime);
+            }
         }
+        if (ftpUpdated) {
+            ad = ad || this._athleteData.get(id);
+            if (ad) {
+                ad.collectors.power.roll.setZones(d.ftp ? this.getPowerZones(d.ftp) : null);
+            }
+        }
+        // /XXX
         if (data.marked !== undefined) {
             if (data.marked) {
                 this._markedIds.add(id);
@@ -760,14 +786,6 @@ export class StatsProcessor extends events.EventEmitter {
             return data;
         } else {
             this._athletesCache.set(id, null);
-        }
-    }
-
-    updateAthleteWPrime(id, {cp, ftp, wPrime}) {
-        const ad = this._athleteData.get(id);
-        if (ad && (cp || ftp) && wPrime) {
-            ad.collectors.power.roll.setWPrime(cp || ftp, wPrime);
-            ad.collectors.power.roll.setCogganZones(cp || ftp);
         }
     }
 
@@ -941,6 +959,7 @@ export class StatsProcessor extends events.EventEmitter {
         const elapsedTime = (end - cs.start) / 1000;
         const np = cs.power.roll.np({force: true});
         const wBal = ad.privacy.hideWBal ? undefined : cs.power.roll.wBal;
+        const timeInZones = ad.privacy.hideFTP ? undefined : cs.power.roll.timeInZones;
         const activeTime = cs.power.roll.active();
         const tss = (!ad.privacy.hideFTP && np && athlete && athlete.ftp) ?
             sauce.power.calcTSS(np, activeTime, athlete.ftp) :
@@ -948,7 +967,7 @@ export class StatsProcessor extends events.EventEmitter {
         return {
             elapsedTime,
             activeTime,
-            power: cs.power.getStats(ad.wtOffset, {np, tss, wBal}),
+            power: cs.power.getStats(ad.wtOffset, {np, tss, wBal, timeInZones}),
             speed: cs.speed.getStats(ad.wtOffset),
             hr: cs.hr.getStats(ad.wtOffset),
             cadence: cs.cadence.getStats(ad.wtOffset),
@@ -1750,10 +1769,14 @@ export class StatsProcessor extends events.EventEmitter {
         if (athlete) {
             if (ad.privacy.hideFTP) {
                 athlete = {...athlete, ftp: null};
-            } else if (ad.collectors.power.roll.wBal == null && (athlete.cp || athlete.ftp) && athlete.wPrime) {
-                // Lazy update w' since athlete data is async..
-                ad.collectors.power.roll.setWPrime(athlete.cp || athlete.ftp, athlete.wPrime);
-                ad.collectors.power.roll.setCogganZones(athlete.cp || athlete.ftp);
+            } else {
+                if (ad.collectors.power.roll.wBal == null && (athlete.cp || athlete.ftp) && athlete.wPrime) {
+                    // Lazy update athlete accumulator data is async..
+                    ad.collectors.power.roll.setWPrime(athlete.cp || athlete.ftp, athlete.wPrime);
+                }
+                if (ad.collectors.power.roll.timeInZones == null && athlete.ftp) {
+                    ad.collectors.power.roll.setZones(athlete.ftp ? this.getPowerZones(athlete.ftp) : null);
+                }
             }
         }
         const state = ad.mostRecentState;
