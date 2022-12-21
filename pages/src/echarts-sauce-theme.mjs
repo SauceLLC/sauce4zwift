@@ -259,6 +259,9 @@ function genDynamicTheme({fg='fg', bg='bg'}={}) {
             axisLabel: {
                 show: true,
                 color: cssColor(fg, 0, 0.8),
+                fontSize: '0.7em',
+                fontWeight: 600,
+                margin: 12,
             },
             splitLine: {
                 show: false,
@@ -272,19 +275,22 @@ function genDynamicTheme({fg='fg', bg='bg'}={}) {
         valueAxis: {
             axisLine: {
                 show: true,
-                lineStyle: {color: "rgba(255,255,255,0.5)"}
+                lineStyle: {color: cssColor(fg, 0, 0.5)},
             },
             axisTick: {
                 show: true,
-                lineStyle: {color: "rgba(255,255,255,0.25)"}
+                lineStyle: {color: cssColor(fg, 0, 0.25)},
             },
             axisLabel: {
                 show: true,
-                color: "rgba(255,255,255,0.8)"
+                color: cssColor(fg, 0, 0.8),
+                fontSize: '0.7em',
+                fontWeight: 600,
+                margin: 12,
             },
             splitLine: {
                 show: true,
-                lineStyle: {color: ["rgba(255,255,255,0.25)"]}
+                lineStyle: {color: cssColor(fg, 0, 0.15)},
             },
             splitArea: {
                 show: false,

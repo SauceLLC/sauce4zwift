@@ -81,7 +81,15 @@ const sectionSpecs = {
             wbalEn: false,
             markMax: 'power',
         },
-    }
+    },
+    'time-in-zones': {
+        title: 'Time in Zones',
+        baseType: 'time-in-zones',
+        defaultSettings: {
+            style: 'horiz-bar',
+            type: 'power',
+        },
+    },
 };
 
 const groupSpecs = {
@@ -569,11 +577,11 @@ function fmtDistUnit(v) {
 }
 
 
-function fmtDur(v) {
+function fmtDur(v, options) {
     if (v == null || v === Infinity || v === -Infinity || isNaN(v)) {
         return '-';
     }
-    return H.timer(v);
+    return H.timer(v, options);
 }
 
 
@@ -800,6 +808,79 @@ function bindLineChart(lineChart, renderer, settings) {
             oldSport = sport;
             lineChart._sauceLegend.render();
         }
+    });
+}
+
+
+async function createTimeInZonesVertBars(el, sectionId, settings, renderer) {
+    const [echarts, theme] = await Promise.all([
+        import('../deps/src/echarts.mjs'),
+        import('./echarts-sauce-theme.mjs'),
+    ]);
+    if (!_themeRegistered++) {
+        echarts.registerTheme('sauce', theme.getTheme('dynamic'));
+        addEventListener('resize', resizeCharts);
+    }
+    const chart = echarts.init(el, 'sauce', {renderer: 'svg'});
+    chart.setOption({
+        grid: {top: '5%', left: '7%', right: '3%', bottom: '3%', containLabel: true},
+        animation: false,
+        xAxis: {type: 'category'},
+        yAxis: {
+            type: 'value',
+            min: 0,
+            splitNumber: 2,
+            minInterval: 60,
+            axisLabel: {
+                formatter: fmtDur,
+                rotate: 50
+            }
+        },
+        series: [{
+            type: 'bar',
+            barWidth: '90%',
+            tooltip: {valueFormatter: x => fmtDur(x, {long: true})},
+        }],
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: {
+                type: 'shadow',
+            }
+        },
+    });
+    chartRefs.add(new WeakRef(chart));
+    let colors;
+    let athleteId;
+    let lastRender = 0;
+    renderer.addCallback(data => {
+        const now = Date.now();
+        if (!data || now - lastRender < 900) {
+            return;
+        }
+        const extraOptions = {};
+        if (data.athleteId !== athleteId) {
+            athleteId = data.athleteId;
+            colors = common.getPowerZoneColors(data.powerZones);
+            Object.assign(extraOptions, {xAxis: {data: data.powerZones.map(x => x.zone)}});
+        }
+        if (!colors) {
+            return;
+        }
+        lastRender = now;
+        chart.setOption({
+            ...extraOptions,
+            series: [{
+                data: data.stats.power.timeInZones.map(x => ({
+                    value: x.time,
+                    itemStyle: {
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            {offset: 0, color: colors[x.zone]},
+                            {offset: 1, color: colors[x.zone] + '8'},
+                        ]),
+                    },
+                })),
+            }],
+        });
     });
 }
 
@@ -1056,6 +1137,20 @@ export async function main() {
                     bindLineChart(lineChart, renderer, settings);
                 } else {
                     console.error("Invalid chart type:", section.type);
+                }
+            } else if (baseType === 'time-in-zones') {
+                if (section.type === 'time-in-zones') {
+                    const el = sectionEl.querySelector('.zones-holder');
+                    const id = sectionEl.dataset.sectionId;
+                    if (settings.style === 'vert-bars') {
+                        await createTimeInZonesVertBars(el, id, settings, renderer);
+                    } else if (settings.style === 'pie') {
+                        await createTimeInZonesPie(el, id, settings, renderer);
+                    } else {
+                        await createTimeInZonesHorizBar(el, id, settings, renderer);
+                    }
+                } else {
+                    console.error("Invalid time-in-zones type:", section.type);
                 }
             } else {
                 console.error("Invalid base type:", baseType);

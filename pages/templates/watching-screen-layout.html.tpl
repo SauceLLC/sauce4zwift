@@ -178,6 +178,46 @@
                     </dialog>
                 <% } %>
             <!-- leave section div open -->
+        <% } else if (section.type === 'time-in-zones') { %>
+            <div class="screen-section {{section.type}}" tabindex="0"
+                 data-section-type="{{section.type}}" data-base-section-type="{{baseSectionType}}"
+                 data-section-id="{{section.id}}">
+                <div class="zones-holder">
+                    <% if (obj.configuring) { %>
+                        <img class="example" src="images/examples/sauce-time-in-zones.png"/>
+                    <% } %>
+                </div>
+                <% if (obj.configuring) { %>
+                    <% const settings = section.settings || sectionSpecs[section.type].defaultSettings || {}; %>
+                    <dialog class="edit">
+                        <header>Edit Section: {{sectionIndex +1 }}</header>
+                        <form method="dialog">
+                            <label>Type: {{sectionSpecs[section.type].title}}</label>
+                            <hr/>
+                            <label>Type
+                                <select name="type">
+                                    <option {{settings.type === 'power' ? 'selected' : ''}} value="power">Power</option>
+                                    <option disabled {{settings.type === 'hr' ? 'selected' : ''}} value="hr">Heart Rate (Soon)</option>
+                                </select>
+                            </label>
+                            <label>Style
+                                <select name="style">
+                                    <option {{settings.style === 'horiz-bar' ? 'selected' : ''}}
+                                            value="horiz-bar">Horizontal Bar</option>
+                                    <option {{settings.style === 'vert-bars' ? 'selected' : ''}}
+                                            value="vert-bars">Vertical Bars</option>
+                                    <option {{settings.style === 'pie' ? 'selected' : ''}}
+                                            value="pie">Pie Chart</option>
+                                </select>
+                            </label>
+                            <footer>
+                                <button value="cancel">Cancel</button>
+                                <button value="save" class="primary">Save</button>
+                            </footer>
+                        </form>
+                    </dialog>
+                <% } %>
+            <!-- leave section div open -->
         <% } else { %>
             <div class="screen-section" data-section-type="{{section.type}}"
                  data-base-section-type="{{baseSectionType}}" data-section-id="{{section.id}}">
