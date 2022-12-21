@@ -1137,6 +1137,35 @@ export function initExpanderTable(table, expandCallback, cleanupCallback) {
 }
 
 
+// These work best with coggan zones can be used for polarized too
+export const powerZonesColorSpectrum = [
+    '#444',
+    '#24d',
+    '#5b5',
+    '#dd3',
+    '#fa0',
+    '#b22',
+    '#407',
+];
+const powerZonesColorRange = 1.5;  // 150% of FTP
+
+
+export function getPowerZoneColors(powerZones) {
+    const normals = powerZones.filter(x => !x.overlap);
+    const colors = {};
+    for (let i = 0; i < normals.length; i++) {
+        const idx = (i / normals.length) * powerZonesColorSpectrum.length | 0;
+        colors[normals[i].zone] = powerZonesColorSpectrum[idx];
+    }
+    for (const x of powerZones.filter(x => x.overlap)) {
+        const avg = ((x.to || 2) - (x.from || 0)) / 2 + (x.from || 0);
+        const idx = Math.max(0, powerZonesColorRange / avg * powerZonesColorSpectrum.length | 0);
+        colors[x.zone] = powerZonesColorSpectrum[idx % powerZonesColorSpectrum.length];
+    }
+    return colors;
+}
+
+
 export function addTheme(entry) {
     elements.themes.push(entry);
     for (const el of document.querySelectorAll('select[is="sauce-theme"]')) {

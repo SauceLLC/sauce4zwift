@@ -209,8 +209,15 @@ class ExtendedRollingPower extends sauce.power.RollingPower {
     }
 
     setZones(zones) {
-        this._zones = zones;
-        this.timeInZones = zones ? zones.map(x => ({zone: x.zone, time: 0})) : undefined;
+        if (zones) {
+            // Move overlapping zones (sweetspot) to bottom so we can break sooner in accumulator
+            this._zones = zones.map(x => ({...x, from: x.from || 0, to: x.to || Infinity}));
+            this._zones.sort((a, b) => a.overlap && !b.overlap ? 1 : 0);
+            this.timeInZones = this._zones.map(x => ({zone: x.zone, time: 0}));
+        } else {
+            this._zones = undefined;
+            this.timeInZones = undefined;
+        }
     }
 
     _add(time, value) {
@@ -226,10 +233,13 @@ class ExtendedRollingPower extends sauce.power.RollingPower {
             }
             if (this._zones) {
                 // NOTE This doesn't not support any resizing
-                for (let i = 0; i < this._zones.length; i++) {
+                for (let i = this._zones.length - 1; i >= 0; i--) {
                     const z = this._zones[i];
                     if (value > z.from && value <= z.to) {
                         this.timeInZones[i].time += elapsed;
+                        if (!z.overlap) {
+                            break;
+                        }
                     }
                 }
             }

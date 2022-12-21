@@ -842,7 +842,7 @@ export function cogganZones(ftp) {
         {zone: "Z4", from: ftp * 0.90, to: ftp * 1.05}, // Threshold
         {zone: "Z5", from: ftp * 1.05, to: ftp * 1.20}, // V02Max
         {zone: "Z6", from: ftp * 1.20, to: ftp * 1.50}, // Anaerobic
-        {zone: "Z7", from: ftp * 1.50, to: Infinity},   // Neuromuscular
+        {zone: "Z7", from: ftp * 1.50, to: null},       // Neuromuscular
     ];
 }
 
@@ -852,7 +852,7 @@ export function polarizedZones(ftp) {
     return [
         {zone: "Z1", from: ftp * 0.40, to: ftp * 0.80}, // Low intensity
         {zone: "Z2", from: ftp * 0.80, to: ftp * 1.00}, // Moderate Intensity
-        {zone: "Z3", from: ftp * 1.00, to: Infinity},   // High Intensity
+        {zone: "Z3", from: ftp * 1.00, to: null},       // High Intensity
     ];
 }
 
@@ -868,5 +868,6 @@ export function sweetspotZone(ftp, options={}) {
         zone: 'SS',
         from: ftp * ranges[type][0],
         to: ftp * ranges[type][1],
+        overlap: true,
     };
 }

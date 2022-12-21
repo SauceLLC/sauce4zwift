@@ -32,17 +32,6 @@ function wBalDetailFormatter(x) {
 }
 
 
-const powerZonesColorRange = [
-    ['#444d', '#444d'],
-    ['#24d', '#24d3'],
-    ['#5b5', '#5b53'],
-    ['#dd3', '#dd33'],
-    ['#fa0', '#fa03'],
-    ['#b22', '#b223'],
-    ['#407', '#4073'],
-];
-
-
 const gaugeConfigs = {
     power: {
         name: 'Power',
@@ -66,22 +55,18 @@ const gaugeConfigs = {
                 const min = settings.min;
                 const delta = settings.max - min;
                 const power = gaugeConfigs.power.getValue(data);
-                const flatZones = data.powerZones.filter((x, i) =>
-                    !i || x.from >= (data.powerZones[i - 1].to || Infinity));
-                if (flatZones[0].from > 0) {
+                const normZones = data.powerZones.filter(x => !x.overlap);
+                if (normZones[0].from > 0) {
                     // Always pad in case of non zero offset (i.e. fake active recovery zone)
-                    flatZones.unshift({zone: '', from: 0, to: flatZones[0].from});
+                    normZones.unshift({zone: '', from: 0, to: normZones[0].from});
                 }
-                const bands = flatZones.map((x, i) => {
-                    const to = x.to == null ? Infinity : x.to;
-                    const from = x.from || 0;
-                    const colorIdx = (i / flatZones.length) * powerZonesColorRange.length | 0;
-                    return [
-                        Math.min(1, Math.max(0, (to - min) / delta)),
-                        powerZonesColorRange[colorIdx][power < from ? 1 : 0]
-                    ];
-                });
+                const zoneColors = common.getPowerZoneColors(normZones);
+                const bands = normZones.map(x => [
+                    Math.min(1, Math.max(0, ((x.to || Infinity) - min) / delta)),
+                    zoneColors[x.zone] + (power < (x.from || 0) ? '3' : '')
+                ]);
                 if (bands[bands.length - 1][0] < 1) {
+                    // Unlikely custom zones with none Infinite final zone
                     bands.push([1, '#0005']);
                 }
                 return bands;
