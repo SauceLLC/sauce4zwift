@@ -140,7 +140,10 @@ async function _start({ip, port, rpcSources, statsProc}) {
     }));
     router.use('/shared/', express.static(`${WD}/../shared`, {
         cacheControl: true,
-        setHeaders: res => res.setHeader('Cache-Control', cacheDisabled)
+        setHeaders: res => {
+            res.setHeader('Cache-Control', cacheDisabled);
+            res.setHeader('Access-Control-Allow-Origin', '*');
+        }
     }));
     router.ws('/api/ws/events', (ws, req) => {
         const client = req.client.remoteAddress;
