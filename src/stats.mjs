@@ -329,7 +329,8 @@ export class StatsProcessor extends events.EventEmitter {
         this.powerZonesType = app.getSetting('powerZonesType', 'coggan');
         this.sweetspotType = app.getSetting('sweetspotType');
         try {
-            this._customPowerZones = JSON.parse(app.getSetting('customPowerZones'));
+            const cpzRaw = app.getSetting('customPowerZones');
+            this._customPowerZones = cpzRaw ? JSON.parse(cpzRaw) : null;
         } catch(e) {
             console.error("Custom power zones are invalid:", e);
             this._customPowerZones = null;
