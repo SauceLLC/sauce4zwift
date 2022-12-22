@@ -1,22 +1,27 @@
 
 export class Color {
     static fromRGB(r, g, b, a=1) {
-        // Credit: https://www.30secondsofcode.org/js/s/rgb-to-hsl
-        r = r < 1 ? r : r / 255;
-        g = g < 1 ? g : g / 255;
-        b = b < 1 ? b : b / 255;
-        const l = Math.max(r, g, b);
-        const s = l - Math.min(r, g, b);
-        const h = s ?
-            l === r ?
-                (g - b) / s :
-                l === g ?
-                    2 + (b - r) / s :
-                    4 + (r - g) / s :
-                0;
-        return new this(60 * h < 0 ? 60 * h + 360 : 60 * h,
-            100 * (s ? (l <= 0.5 ? s / (2 * l - s) : s / (2 - (2 * l - s))) : 0),
-            (100 * (2 * l - s)) / 2, a);
+        const maxC = Math.max(r, g, b);
+        const minC = Math.min(r, g, b);
+        const d = maxC - minC;
+        let h = 0;
+        if (!d) {
+            h = 0;
+        } else if (maxC == r) {
+            h = ((g - b) / d) % 6;
+        } else if (maxC == g) {
+            h = (b - r) / d + 2;
+        } else {
+            h = (r - g) / d + 4;
+        }
+        h = Math.round(h * 60);
+        if (h < 0) {
+            h += 360;
+        }
+        h /= 360;
+        const l = (maxC + minC) / 2;
+        const s = d ? d / (1 - Math.abs(2 * l - 1)) : 0;
+        return new this(h, s, l, a);
     }
 
     constructor(h, s, l, a=1) {
@@ -26,8 +31,40 @@ export class Color {
         this.a = a;
     }
 
+    clone() {
+        return new this.constructor(this.h, this.s, this.l, this.a);
+    }
+
+    alpha(a) {
+        const c = this.clone();
+        c.a = a;
+        return c;
+    }
+
+    light(l) {
+        const c = this.clone();
+        c.l = l;
+        return c;
+    }
+
+    saturation(s) {
+        const c = this.clone();
+        c.s = s;
+        return c;
+    }
+
+    hue(h) {
+        const c = this.clone();
+        c.h = h;
+        return c;
+    }
+
     toString() {
-        return `hsla(${Math.round(this.h)}deg, ${Math.round(this.s)}%, ${Math.round(this.l)}%, ${this.a})`;
+        const h = Math.round(this.h * 360);
+        const s = Math.round(this.s * 100);
+        const l = Math.round(this.l * 100);
+        const a = Math.round(this.a * 100);
+        return `hsla(${h}deg, ${s}%, ${l}%, ${a}%)`;
     }
 }
 
