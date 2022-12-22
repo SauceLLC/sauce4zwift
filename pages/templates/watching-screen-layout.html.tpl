@@ -197,15 +197,17 @@
                             <label>Type
                                 <select name="type">
                                     <option {{settings.type === 'power' ? 'selected' : ''}} value="power">Power</option>
-                                    <option disabled {{settings.type === 'hr' ? 'selected' : ''}} value="hr">Heart Rate (Soon)</option>
+                                    <option disabled {{settings.type === 'hr' ? 'selected' : ''}} value="hr">Heart Rate (Soon Nordy!)</option>
                                 </select>
                             </label>
                             <label>Style
                                 <select name="style">
-                                    <option {{settings.style === 'horiz-bar' ? 'selected' : ''}}
-                                            value="horiz-bar">Horizontal Bar</option>
                                     <option {{settings.style === 'vert-bars' ? 'selected' : ''}}
                                             value="vert-bars">Vertical Bars</option>
+                                    <option {{settings.style === 'horiz-bar' ? 'selected' : ''}}
+                                            value="horiz-bar">Horizontal Bar</option>
+                                    <option {{settings.style === 'horiz-bar-minimal' ? 'selected' : ''}}
+                                            value="horiz-bar-minimal">Horizontal Bar (minimal)</option>
                                     <option {{settings.style === 'pie' ? 'selected' : ''}}
                                             value="pie">Pie Chart</option>
                                 </select>

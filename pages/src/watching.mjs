@@ -1,5 +1,6 @@
 import * as sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
+import * as color from './color.mjs';
 
 common.settingsStore.setDefault({
     lockedFields: false,
@@ -86,7 +87,7 @@ const sectionSpecs = {
         title: 'Time in Zones',
         baseType: 'time-in-zones',
         defaultSettings: {
-            style: 'horiz-bar',
+            style: 'vert-bars',
             type: 'power',
         },
     },
@@ -684,17 +685,25 @@ function getEventSubgroup(id) {
 }
 
 
-let _themeRegistered = 0;
-async function createLineChart(el, sectionId, settings) {
-    const [charts, echarts, theme] = await Promise.all([
-        import('./charts.mjs'),
-        import('../deps/src/echarts.mjs'),
-        import('./echarts-sauce-theme.mjs'),
-    ]);
-    if (!_themeRegistered++) {
-        echarts.registerTheme('sauce', theme.getTheme('dynamic'));
-        addEventListener('resize', resizeCharts);
+let _echartsLoading;
+async function importEcharts() {
+    if (!_echartsLoading) {
+        _echartsLoading = Promise.all([
+            import('../deps/src/echarts.mjs'),
+            import('./echarts-sauce-theme.mjs'),
+        ]).then(([ec, theme]) => {
+            ec.registerTheme('sauce', theme.getTheme('dynamic'));
+            addEventListener('resize', resizeCharts);
+            return ec;
+        });
     }
+    return await _echartsLoading;
+}
+
+
+async function createLineChart(el, sectionId, settings) {
+    const echarts = await importEcharts();
+    const charts = await import('./charts.mjs');
     const fields = lineChartFields.filter(x => settings[x.id + 'En']);
     const lineChart = echarts.init(el, 'sauce', {renderer: 'svg'});
     const visualMapCommon = {
@@ -813,18 +822,11 @@ function bindLineChart(lineChart, renderer, settings) {
 
 
 async function createTimeInZonesVertBars(el, sectionId, settings, renderer) {
-    const [echarts, theme] = await Promise.all([
-        import('../deps/src/echarts.mjs'),
-        import('./echarts-sauce-theme.mjs'),
-    ]);
-    if (!_themeRegistered++) {
-        echarts.registerTheme('sauce', theme.getTheme('dynamic'));
-        addEventListener('resize', resizeCharts);
-    }
+    el.classList.add('vert-bars');
+    const echarts = await importEcharts();
     const chart = echarts.init(el, 'sauce', {renderer: 'svg'});
     chart.setOption({
         grid: {top: '5%', left: '7%', right: '3%', bottom: '3%', containLabel: true},
-        animation: false,
         xAxis: {type: 'category'},
         yAxis: {
             type: 'value',
@@ -854,7 +856,175 @@ async function createTimeInZonesVertBars(el, sectionId, settings, renderer) {
     let lastRender = 0;
     renderer.addCallback(data => {
         const now = Date.now();
-        if (!data || now - lastRender < 900) {
+        if (!data || !data.stats || now - lastRender < 900) {
+            return;
+        }
+        const extraOptions = {};
+        if (data.athleteId !== athleteId) {
+            athleteId = data.athleteId;
+            colors = common.getPowerZoneColors(data.powerZones);
+            Object.assign(extraOptions, {xAxis: {data: data.powerZones.map(x => x.zone)}});
+        }
+        if (!colors) {
+            return;
+        }
+        lastRender = now;
+        chart.setOption({
+            ...extraOptions,
+            series: [{
+                data: data.stats.power.timeInZones.map(x => ({
+                    value: x.time,
+                    itemStyle: {
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            {offset: 0, color: colors[x.zone]},
+                            {offset: 1, color: colors[x.zone] + '8'},
+                        ]),
+                    },
+                })),
+            }],
+        });
+    });
+}
+
+
+async function createTimeInZonesHorizBar(el, sectionId, settings, renderer) {
+    el.classList.add('horiz-bar');
+    const echarts = await importEcharts();
+    const chart = echarts.init(el, 'sauce', {renderer: 'svg'});
+    chart.setOption({
+        //grid: {top: '5%', left: '7%', right: '3%', bottom: '3%', containLabel: true},
+        xAxis: {type: 'value'},
+            /*axisLabel: {
+                formatter: fmtDur,
+                rotate: 50
+            }*/
+        yAxis: {
+            type: 'category',
+        },
+        series: [{
+            type: 'bar',
+            stack: 'foo',
+            barWidth: '90%',
+            tooltip: {valueFormatter: x => fmtDur(x, {long: true})},
+        }],
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: {
+                type: 'shadow',
+            }
+        },
+    });
+    chartRefs.add(new WeakRef(chart));
+    let colors;
+    let normZones;
+    let athleteId;
+    let lastRender = 0;
+    renderer.addCallback(data => {
+        const now = Date.now();
+        if (!data || !data.stats || now - lastRender < 900) {
+            return;
+        }
+        const extraOptions = {};
+        if (data.athleteId !== athleteId) {
+            athleteId = data.athleteId;
+            colors = common.getPowerZoneColors(data.powerZones);
+            normZones = new Set(data.powerZones.filter(x => !x.overlap).map(x => x.zone));
+            //Object.assign(extraOptions, {xAxis: {data: data.powerZones.map(x => x.zone)}});
+        }
+        if (!colors) {
+            return;
+        }
+        lastRender = now;
+        chart.setOption({
+            ...extraOptions,
+            series: data.stats.power.timeInZones.filter(x => normZones.has(x.zone)).map(x => ({
+                type: 'bar',
+                stack: 'x',
+                data: [{
+                    value: x.time,
+                    itemStyle: {
+                        color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
+                            {offset: 0, color: colors[x.zone]},
+                            {offset: 1, color: colors[x.zone] + '8'},
+                        ]),
+                    },
+                }]
+            })),
+        });
+    });
+}
+
+
+async function createTimeInZonesHorizBarMinimal(el, sectionId, settings, renderer) {
+    el.classList.add('horiz-bar-minimal');
+    let colors;
+    let normZones;
+    let athleteId;
+    let lastRender = 0;
+    renderer.addCallback(data => {
+        const now = Date.now();
+        if (!data || !data.stats || now - lastRender < 900) {
+            return;
+        }
+        if (data.athleteId !== athleteId) {
+            athleteId = data.athleteId;
+            colors = common.getPowerZoneColors(data.powerZones);
+            normZones = new Set(data.powerZones.filter(x => !x.overlap).map(x => x.zone));
+            el.innerHTML = '';
+            for (const x of data.stats.power.timeInZones.filter(x => normZones.has(x.zone))) {
+                const c = color.parse(colors[x.zone]);
+                el.innerHTML += `<div class="zone" data-zone="${x.zone}" ` +
+                    `style="--theme-zone-color-hue: ${c.h}deg; --theme-zone-color-sat: ${c.s}%; --theme-zone-color-light: ${c.l}%;"></div>`;
+            }
+        }
+        const totalTime = data.stats.power.timeInZones.reduce((x, agg) => agg + x.time, 0);
+        for (const x of data.stats.power.timeInZones.filter(x => normZones.has(x.zone))) {
+            el.querySelector(`[data-zone="${x.zone}"]`).style.flexGrow = x.time / totalTime;
+        }
+        if (!colors) {
+            return;
+        }
+        lastRender = now;
+    });
+}
+
+
+async function createTimeInZonesPie(el, sectionId, settings, renderer) {
+    el.classList.add('pie');
+    const echarts = await importEcharts();
+    const chart = echarts.init(el, 'sauce', {renderer: 'svg'});
+    chart.setOption({
+        grid: {top: '5%', left: '7%', right: '3%', bottom: '3%', containLabel: true},
+        xAxis: {type: 'category'},
+        yAxis: {
+            type: 'value',
+            min: 0,
+            splitNumber: 2,
+            minInterval: 60,
+            axisLabel: {
+                formatter: fmtDur,
+                rotate: 50
+            }
+        },
+        series: [{
+            type: 'bar',
+            barWidth: '90%',
+            tooltip: {valueFormatter: x => fmtDur(x, {long: true})},
+        }],
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: {
+                type: 'shadow',
+            }
+        },
+    });
+    chartRefs.add(new WeakRef(chart));
+    let colors;
+    let athleteId;
+    let lastRender = 0;
+    renderer.addCallback(data => {
+        const now = Date.now();
+        if (!data || !data.stats || now - lastRender < 900) {
             return;
         }
         const extraOptions = {};
@@ -1146,6 +1316,8 @@ export async function main() {
                         await createTimeInZonesVertBars(el, id, settings, renderer);
                     } else if (settings.style === 'pie') {
                         await createTimeInZonesPie(el, id, settings, renderer);
+                    } else if (settings.style === 'horiz-bar-minimal') {
+                        await createTimeInZonesHorizBarMinimal(el, id, settings, renderer);
                     } else {
                         await createTimeInZonesHorizBar(el, id, settings, renderer);
                     }

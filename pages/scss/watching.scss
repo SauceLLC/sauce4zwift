@@ -167,8 +167,32 @@ html {
     }
 
     .zones-holder {
-        height: 7em;
-        font-size: 0.7rem;
+        &.vert-bars {
+            height: 7em;
+            font-size: 0.7rem;
+        }
+
+        &.horiz-bar {
+            height: 3em;
+            font-size: 0.7rem;
+        }
+
+        &.pie {
+            height: 5em;
+            font-size: 0.7rem;
+        }
+
+        &.horiz-bar-minimal {
+            font-size: 0.7rem;
+            display: flex;
+
+            .zone {
+                transition: flex 400ms;
+                flex: 1 1 0;
+                height: 1em;
+                background-color: color.get(zone-color);
+            }
+        }
     }
 
     .sub {
