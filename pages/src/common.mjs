@@ -1144,7 +1144,7 @@ export const powerZonesColorSpectrum = [
     {ftp: 0.975, color: '#dd3'},
     {ftp: 1.125, color: '#fa0'},
     {ftp: 1.350, color: '#b22'},
-    {ftp: 1.175, color: '#407'},
+    {ftp: 1.750, color: '#407'},
 ];
 
 
