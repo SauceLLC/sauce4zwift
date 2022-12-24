@@ -856,6 +856,7 @@ async function createTimeInZonesVertBars(el, sectionId, settings, renderer) {
     let colors;
     let athleteId;
     let lastRender = 0;
+    let zones;
     renderer.addCallback(data => {
         const now = Date.now();
         if (!data || !data.stats || !data.powerZones || now - lastRender < 900) {
@@ -870,6 +871,7 @@ async function createTimeInZonesVertBars(el, sectionId, settings, renderer) {
                     {offset: 0, color: x.toString()},
                     {offset: 1, color: x.alpha(0.8).toString()}
                 ]));
+            zones = data.powerZones;
             Object.assign(extraOptions, {xAxis: {data: data.powerZones.map(x => x.zone)}});
         }
         chart.setOption({
@@ -882,6 +884,16 @@ async function createTimeInZonesVertBars(el, sectionId, settings, renderer) {
             }],
         });
     });
+    let highlighted = 0;
+    setInterval(() => {
+        if (!zones || el.querySelector(':hover')) {
+            return;
+        }
+        chart.dispatchAction({type: 'downplay', seriesIndex: 0, dataIndex: highlighted});
+        highlighted = (highlighted + 1) % zones.length;
+        chart.dispatchAction({type: 'highlight', seriesIndex: 0, dataIndex: highlighted});
+        chart.dispatchAction({type: 'showTip', seriesIndex: 0, dataIndex: highlighted});
+    }, 4000);
 }
 
 
@@ -889,11 +901,22 @@ async function createTimeInZonesHorizBar(el, sectionId, settings, renderer) {
     el.classList.add('horiz-bar');
     const echarts = await importEcharts();
     const chart = echarts.init(el, 'sauce', {renderer: 'svg'});
+    let totalTime;
     chart.setOption({
         grid: {top: '5%', left: '0', right: '0', bottom: '3%', containLabel: false},
         tooltip: {
             position: 'inside',
             className: 'ec-tooltip',
+        },
+        label: {
+            show: true,
+            formatter: ({name, value}) => {
+                if (totalTime && value / totalTime > 0.08) {
+                    return name;
+                } else {
+                    return '';
+                }
+            },
         },
         xAxis: {
             show: false,
@@ -926,6 +949,7 @@ async function createTimeInZonesHorizBar(el, sectionId, settings, renderer) {
             normZones = new Set(data.powerZones.filter(x => !x.overlap).map(x => x.zone));
         }
         const zones = data.stats.power.timeInZones.filter(x => normZones.has(x.zone));
+        totalTime = zones.reduce((agg, x) => agg + x.time, 0);
         chart.setOption({
             series: zones.map(x => ({
                 type: 'bar',
@@ -1455,14 +1479,14 @@ export async function main() {
                 stats: {
                     power: {
                         timeInZones: [
-                            {zone: 'Z1', time: 333 * Math.random()},
-                            {zone: 'Z2', time: 333 * Math.random()},
-                            {zone: 'Z3', time: 333 * Math.random()},
-                            {zone: 'Z4', time: 333 * Math.random()},
-                            {zone: 'Z5', time: 333 * Math.random()},
-                            {zone: 'Z6', time: 333 * Math.random()},
-                            {zone: 'Z7', time: 333 * Math.random()},
-                            {zone: 'SS', time: 333 * Math.random()},
+                            {zone: 'Z1', time: 2 + 100 * Math.random()},
+                            {zone: 'Z2', time: 2 + 100 * Math.random()},
+                            {zone: 'Z3', time: 2 + 100 * Math.random()},
+                            {zone: 'Z4', time: 2 + 100 * Math.random()},
+                            {zone: 'Z5', time: 2 + 100 * Math.random()},
+                            {zone: 'Z6', time: 2 + 100 * Math.random()},
+                            {zone: 'Z7', time: 2 + 100 * Math.random()},
+                            {zone: 'SS', time: 2 + 100 * Math.random()},
                         ]
                     }
                 }
