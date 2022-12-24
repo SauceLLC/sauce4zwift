@@ -188,7 +188,9 @@ function genDynamicTheme({fg='fg', bg='bg'}={}) {
     const theme = JSON.parse(JSON.stringify(staticTheme));
     return Object.assign(theme, {
         label: {
-            color: cssColor(fg, 0, 0.9),
+            color: cssColor(fg, 0, 0.80),
+            fontWeight: 600,
+            fontSize: '0.8em',
             textBorderColor: 'transparent',
             textBorderWidth: 0,
         },
@@ -209,7 +211,7 @@ function genDynamicTheme({fg='fg', bg='bg'}={}) {
             itemStyle: {
                 borderWidth: 0,
                 borderColor: cssColor(fg, 0, 0.74),
-            }
+            },
         },
         parallel: {
             itemStyle: {
@@ -306,12 +308,12 @@ function genDynamicTheme({fg='fg', bg='bg'}={}) {
         legend: {textStyle: {color: "rgba(255,255,255,0.92)"}},
         tooltip: {
             confine: true,
-            backgroundColor: cssColor(fg, 0.9, 0.92),
+            backgroundColor: cssColor(fg, 0.9, 0.86),
             borderColor: cssColor(fg, 0.1, 0.5),
             textStyle: {
-                color: cssColor(fg, 0.1),
+                color: cssColor(fg, 0),
             },
-            padding: 6,
+            padding: 10,
             axisPointer: {
                 lineStyle: {
                     color: cssColor(fg, 0, 0.68),

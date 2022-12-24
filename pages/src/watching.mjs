@@ -731,6 +731,7 @@ async function createLineChart(el, sectionId, settings) {
         grid: {top: 0, left: 0, right: 0, bottom: 0},
         legend: {show: false},
         tooltip: {
+            className: 'ec-tooltip',
             trigger: 'axis',
             axisPointer: {label: {formatter: () => ''}}
         },
@@ -826,7 +827,14 @@ async function createTimeInZonesVertBars(el, sectionId, settings, renderer) {
     const echarts = await importEcharts();
     const chart = echarts.init(el, 'sauce', {renderer: 'svg'});
     chart.setOption({
-        grid: {top: '5%', left: '7%', right: '3%', bottom: '3%', containLabel: true},
+        grid: {top: '5%', left: '5%', right: '4', bottom: '3%', containLabel: true},
+        tooltip: {
+            className: 'ec-tooltip',
+            trigger: 'axis',
+            axisPointer: {
+                type: 'shadow',
+            }
+        },
         xAxis: {type: 'category'},
         yAxis: {
             type: 'value',
@@ -843,18 +851,11 @@ async function createTimeInZonesVertBars(el, sectionId, settings, renderer) {
             barWidth: '90%',
             tooltip: {valueFormatter: x => fmtDur(x, {long: true})},
         }],
-        tooltip: {
-            trigger: 'axis',
-            axisPointer: {
-                type: 'shadow',
-            }
-        },
     });
     chartRefs.add(new WeakRef(chart));
     let colors;
     let athleteId;
     let lastRender = 0;
-    let normZones;
     renderer.addCallback(data => {
         const now = Date.now();
         if (!data || !data.stats || !data.powerZones || now - lastRender < 900) {
@@ -869,13 +870,12 @@ async function createTimeInZonesVertBars(el, sectionId, settings, renderer) {
                     {offset: 0, color: x.toString()},
                     {offset: 1, color: x.alpha(0.8).toString()}
                 ]));
-            normZones = new Set(data.powerZones.filter(x => !x.overlap).map(x => x.zone));
             Object.assign(extraOptions, {xAxis: {data: data.powerZones.map(x => x.zone)}});
         }
         chart.setOption({
             ...extraOptions,
             series: [{
-                data: data.stats.power.timeInZones.filter(x => normZones.has(x.zone)).map(x => ({
+                data: data.stats.power.timeInZones.map(x => ({
                     value: x.time,
                     itemStyle: {color: colors[x.zone]},
                 })),
@@ -890,26 +890,19 @@ async function createTimeInZonesHorizBar(el, sectionId, settings, renderer) {
     const echarts = await importEcharts();
     const chart = echarts.init(el, 'sauce', {renderer: 'svg'});
     chart.setOption({
-        //grid: {top: '5%', left: '7%', right: '3%', bottom: '3%', containLabel: true},
-        xAxis: {type: 'value'},
-            /*axisLabel: {
-                formatter: fmtDur,
-                rotate: 50
-            }*/
-        yAxis: {
-            type: 'category',
-        },
-        series: [{
-            type: 'bar',
-            stack: 'foo',
-            barWidth: '90%',
-            tooltip: {valueFormatter: x => fmtDur(x, {long: true})},
-        }],
+        grid: {top: '5%', left: '0', right: '0', bottom: '3%', containLabel: false},
         tooltip: {
-            trigger: 'axis',
-            axisPointer: {
-                type: 'shadow',
-            }
+            position: 'inside',
+            className: 'ec-tooltip',
+        },
+        xAxis: {
+            show: false,
+            type: 'value',
+            max: 'dataMax',
+        },
+        yAxis: {
+            show: false,
+            type: 'category',
         },
     });
     chartRefs.add(new WeakRef(chart));
@@ -923,7 +916,6 @@ async function createTimeInZonesHorizBar(el, sectionId, settings, renderer) {
             return;
         }
         lastRender = now;
-        const extraOptions = {};
         if (data.athleteId !== athleteId) {
             athleteId = data.athleteId;
             colors = powerZoneColors(data.powerZones, x =>
@@ -932,17 +924,20 @@ async function createTimeInZonesHorizBar(el, sectionId, settings, renderer) {
                     {offset: 1, color: x.alpha(0.8).toString()}
                 ]));
             normZones = new Set(data.powerZones.filter(x => !x.overlap).map(x => x.zone));
-            //Object.assign(extraOptions, {xAxis: {data: data.powerZones.map(x => x.zone)}});
         }
+        const zones = data.stats.power.timeInZones.filter(x => normZones.has(x.zone));
         chart.setOption({
-            ...extraOptions,
-            series: data.stats.power.timeInZones.filter(x => normZones.has(x.zone)).map(x => ({
+            series: zones.map(x => ({
                 type: 'bar',
-                stack: 'x',
+                stack: 'zones',
+                tooltip: {
+                    valueFormatter: x => fmtDur(x, {long: true})
+                },
                 data: [{
                     value: x.time,
+                    name: x.zone,
                     itemStyle: {color: colors[x.zone]},
-                }]
+                }],
             })),
         });
     });
@@ -990,13 +985,22 @@ async function createTimeInZonesPie(el, sectionId, settings, renderer) {
     const chart = echarts.init(el, 'sauce', {renderer: 'svg'});
     chart.setOption({
         //grid: {top: '5%', left: '7%', right: '3%', bottom: '3%', containLabel: true},
-        tooltip: {},
+        tooltip: {
+            position: (pos, params, dom, {x, width}, {viewSize}) => {
+                const centerX = x + width / 2;
+                return centerX < viewSize[0] / 2 ? 'left' : 'right';
+            },
+            className: 'ec-tooltip'
+        },
         series: [{
             type: 'pie',
             radius: ['30%', '90%'],
-            label: {show: false},
+            minShowLabelAngle: 20,
+            label: {
+                show: true,
+                position: 'inner',
+            },
             tooltip: {
-                position: 'inside',
                 valueFormatter: x => fmtDur(x, {long: true})
             },
             emphasis: {
@@ -1041,14 +1045,14 @@ async function createTimeInZonesPie(el, sectionId, settings, renderer) {
     });
     let highlighted = 0;
     setInterval(() => {
-        if (!normZones) {
+        if (!normZones || el.querySelector(':hover')) {
             return;
         }
         chart.dispatchAction({type: 'downplay', seriesIndex: 0, dataIndex: highlighted});
         highlighted = (highlighted + 1) % normZones.size;
         chart.dispatchAction({type: 'highlight', seriesIndex: 0, dataIndex: highlighted});
         chart.dispatchAction({type: 'showTip', seriesIndex: 0, dataIndex: highlighted});
-    }, 5000);
+    }, 4000);
 }
 
 
@@ -1412,7 +1416,7 @@ export async function main() {
         }
     });
     let athleteId;
-    common.subscribe('athlete/watching', watching => {
+    common.subscribe('NOathlete/watching', watching => {
         const force = watching.athleteId !== athleteId;
         athleteId = watching.athleteId;
         sport = watching.state.sport || 'cycling';
@@ -1425,6 +1429,49 @@ export async function main() {
             }
         }
     }, {persistent: persistentData});
+    setInterval(() => {
+        for (const x of renderers) {
+            x.setData({
+                athleteId: 11,
+                state: {
+                    power: 100 + (Math.random() * 400),
+                    heartrate: 100 + Math.random() * 100,
+                    speed: Math.random() * 100,
+                },
+                powerZones: [
+                    /*{zone: 'Z1', from: 0.4, to: 0.8},
+                    {zone: 'Z2', from: 0.8, to: 1},
+                    {zone: 'Z3', from: 1, to: null},
+                    */
+                    {zone: 'Z1', from: 0, to: 0.55},
+                    {zone: 'Z2', from: 0.55, to: 0.75},
+                    {zone: 'Z3', from: 0.75, to: 0.90},
+                    {zone: 'Z4', from: 0.90, to: 1.05},
+                    {zone: 'Z5', from: 1.05, to: 1.20},
+                    {zone: 'Z6', from: 1.2, to: 1.50},
+                    {zone: 'Z7', from: 1.5, to: null},
+                    {zone: 'SS', overlap: true, from: 0.85, to: 0.92}
+                ],
+                stats: {
+                    power: {
+                        timeInZones: [
+                            {zone: 'Z1', time: 333 * Math.random()},
+                            {zone: 'Z2', time: 333 * Math.random()},
+                            {zone: 'Z3', time: 333 * Math.random()},
+                            {zone: 'Z4', time: 333 * Math.random()},
+                            {zone: 'Z5', time: 333 * Math.random()},
+                            {zone: 'Z6', time: 333 * Math.random()},
+                            {zone: 'Z7', time: 333 * Math.random()},
+                            {zone: 'SS', time: 333 * Math.random()},
+                        ]
+                    }
+                }
+            });
+            if (x.backgroundRender || !x._contentEl.classList.contains('hidden')) {
+                x.render();
+            }
+        }
+    }, 1000);
 }
 
 

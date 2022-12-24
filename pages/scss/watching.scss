@@ -38,6 +38,59 @@ html {
     }
 }
 
+.ec-tooltip {
+    font: unset !important;
+    font-variant-numeric: tabular-nums !important;
+    font-size: 0.8em !important;
+    box-shadow: 1px 1px 5px 0 #0006 !important;
+
+    * {
+        font-size: 1em !important;
+    }
+
+    // XXX rewrite the echarts tooltip, this is a hack
+    div {
+        //display: flex !important;
+        //align-items: center;
+
+        // Begin horrible CSS hack.
+        // Echarts doesn't put classes on any of their spagetti old school tooltip html. :(
+        // Two items: key above \n (dot, value)
+        span:first-of-type:nth-last-of-type(2) {
+            // dot...
+            width: 0.7em !important;
+            height: 0.7em !important;
+            border-radius: 50% !important;
+
+            ~ span:nth-of-type(2) { // value
+                margin-left: 0.4em !important;
+                font-weight: 600 !important;
+            }
+        }
+
+        // Three items: dot, key value
+        span:first-of-type:nth-last-of-type(3) {
+            // dot...
+            width: 0.7em !important;
+            height: 0.7em !important;
+            border-radius: 50% !important;
+
+            ~ span:nth-of-type(2) { // key
+                font-weight: 400 !important;
+
+                &::after {
+                    content: ':';
+                }
+            }
+
+            ~ span:nth-of-type(3) { // value
+                margin-left: 0.4em !important;
+                font-weight: 600 !important;
+            }
+        }
+    }
+}
+
 #content {
     overflow-y: overlay;
 
@@ -158,15 +211,10 @@ html {
                 overflow: visible;
             }
         }
-
-        .bb-tooltip {
-            tr:first-child {
-                display: none;
-            }
-        }
     }
 
     .zones-holder {
+
         &.vert-bars {
             height: 7em;
             font-size: 0.7rem;
