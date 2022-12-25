@@ -868,7 +868,7 @@ async function createTimeInZonesVertBars(el, sectionId, settings, renderer) {
             colors = powerZoneColors(data.powerZones, x =>
                 new echarts.graphic.LinearGradient(0, 0, 1, 1, [
                     {offset: 0, color: x.toString()},
-                    {offset: 1, color: x.alpha(0.4).toString()}
+                    {offset: 1, color: x.alpha(0.5).toString()}
                 ]));
             Object.assign(extraOptions, {xAxis: {data: data.powerZones.map(x => x.zone)}});
         }
@@ -932,7 +932,7 @@ async function createTimeInZonesHorizBar(el, sectionId, settings, renderer) {
             colors = powerZoneColors(data.powerZones, x =>
                 new echarts.graphic.LinearGradient(0, 0, 1, 1, [
                     {offset: 0, color: x.toString()},
-                    {offset: 1, color: x.alpha(0.4).toString()}
+                    {offset: 1, color: x.alpha(0.6).toString()}
                 ]));
             normZones = new Set(data.powerZones.filter(x => !x.overlap).map(x => x.zone));
         }
@@ -979,7 +979,7 @@ async function createTimeInZonesHorizBarMinimal(el, sectionId, settings, rendere
                     `--theme-zone-color-hue: ${Math.round(c.h * 360)}deg; ` +
                     `--theme-zone-color-sat: ${Math.round(c.s * 100)}%; ` +
                     `--theme-zone-color-light: ${Math.round(c.l * 100)}%; ` +
-                    `"></div>`;
+                    `"><span>${x.zone}</span></div>`;
             }
         }
         const zones = data.stats.power.timeInZones.filter(x => normZones.has(x.zone));
@@ -1036,7 +1036,7 @@ async function createTimeInZonesPie(el, sectionId, settings, renderer) {
             colors = powerZoneColors(data.powerZones, x => 
                 new echarts.graphic.LinearGradient(0, 0, 1, 1, [
                     {offset: 0, color: x.toString()},
-                    {offset: 1, color: x.alpha(0.4).toString()}
+                    {offset: 1, color: x.alpha(0.6).toString()}
                 ]));
             normZones = new Set(data.powerZones.filter(x => !x.overlap).map(x => x.zone));
         }

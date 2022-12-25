@@ -214,14 +214,13 @@ html {
     }
 
     .zones-holder {
-
         &.vert-bars {
             height: 7em;
             font-size: 0.7rem;
         }
 
         &.horiz-bar {
-            height: 3em;
+            height: 2em;
             font-size: 0.7rem;
         }
 
@@ -235,10 +234,20 @@ html {
             display: flex;
 
             .zone {
-                transition: flex 400ms;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 0.8em;
+                font-weight: 600;
+                color: color.get(fg, 0.8);
+                overflow: hidden;
+                text-overflow: ellipsis;
+                transition: flex 600ms;
                 flex: 1 1 0;
-                height: 1em;
-                background-color: color.get(zone-color);
+                height: 2.6em;
+                background-image: linear-gradient(135deg,
+                    color.get(zone-color),
+                    color.get(zone-color, 0.6));
             }
         }
     }
