@@ -856,7 +856,6 @@ async function createTimeInZonesVertBars(el, sectionId, settings, renderer) {
     let colors;
     let athleteId;
     let lastRender = 0;
-    let zones;
     renderer.addCallback(data => {
         const now = Date.now();
         if (!data || !data.stats || !data.powerZones || now - lastRender < 900) {
@@ -867,11 +866,10 @@ async function createTimeInZonesVertBars(el, sectionId, settings, renderer) {
         if (data.athleteId !== athleteId) {
             athleteId = data.athleteId;
             colors = powerZoneColors(data.powerZones, x =>
-                new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                new echarts.graphic.LinearGradient(0, 0, 1, 1, [
                     {offset: 0, color: x.toString()},
-                    {offset: 1, color: x.alpha(0.8).toString()}
+                    {offset: 1, color: x.alpha(0.4).toString()}
                 ]));
-            zones = data.powerZones;
             Object.assign(extraOptions, {xAxis: {data: data.powerZones.map(x => x.zone)}});
         }
         chart.setOption({
@@ -884,16 +882,6 @@ async function createTimeInZonesVertBars(el, sectionId, settings, renderer) {
             }],
         });
     });
-    let highlighted = 0;
-    setInterval(() => {
-        if (!zones || el.querySelector(':hover')) {
-            return;
-        }
-        chart.dispatchAction({type: 'downplay', seriesIndex: 0, dataIndex: highlighted});
-        highlighted = (highlighted + 1) % zones.length;
-        chart.dispatchAction({type: 'highlight', seriesIndex: 0, dataIndex: highlighted});
-        chart.dispatchAction({type: 'showTip', seriesIndex: 0, dataIndex: highlighted});
-    }, 4000);
 }
 
 
@@ -903,7 +891,7 @@ async function createTimeInZonesHorizBar(el, sectionId, settings, renderer) {
     const chart = echarts.init(el, 'sauce', {renderer: 'svg'});
     let totalTime;
     chart.setOption({
-        grid: {top: '5%', left: '0', right: '0', bottom: '3%', containLabel: false},
+        grid: {top: '-20', left: '0', right: '0', bottom: '-20'},
         tooltip: {
             position: 'inside',
             className: 'ec-tooltip',
@@ -942,9 +930,9 @@ async function createTimeInZonesHorizBar(el, sectionId, settings, renderer) {
         if (data.athleteId !== athleteId) {
             athleteId = data.athleteId;
             colors = powerZoneColors(data.powerZones, x =>
-                new echarts.graphic.LinearGradient(0, 0, 1, 0, [
+                new echarts.graphic.LinearGradient(0, 0, 1, 1, [
                     {offset: 0, color: x.toString()},
-                    {offset: 1, color: x.alpha(0.8).toString()}
+                    {offset: 1, color: x.alpha(0.4).toString()}
                 ]));
             normZones = new Set(data.powerZones.filter(x => !x.overlap).map(x => x.zone));
         }
@@ -1010,10 +998,6 @@ async function createTimeInZonesPie(el, sectionId, settings, renderer) {
     chart.setOption({
         //grid: {top: '5%', left: '7%', right: '3%', bottom: '3%', containLabel: true},
         tooltip: {
-            position: (pos, params, dom, {x, width}, {viewSize}) => {
-                const centerX = x + width / 2;
-                return centerX < viewSize[0] / 2 ? 'left' : 'right';
-            },
             className: 'ec-tooltip'
         },
         series: [{
@@ -1050,9 +1034,9 @@ async function createTimeInZonesPie(el, sectionId, settings, renderer) {
         if (data.athleteId !== athleteId) {
             athleteId = data.athleteId;
             colors = powerZoneColors(data.powerZones, x => 
-                new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                new echarts.graphic.LinearGradient(0, 0, 1, 1, [
                     {offset: 0, color: x.toString()},
-                    {offset: 1, color: x.alpha(0.8).toString()}
+                    {offset: 1, color: x.alpha(0.4).toString()}
                 ]));
             normZones = new Set(data.powerZones.filter(x => !x.overlap).map(x => x.zone));
         }
@@ -1065,18 +1049,7 @@ async function createTimeInZonesPie(el, sectionId, settings, renderer) {
                 })),
             }],
         });
-        window.chart = chart;
     });
-    let highlighted = 0;
-    setInterval(() => {
-        if (!normZones || el.querySelector(':hover')) {
-            return;
-        }
-        chart.dispatchAction({type: 'downplay', seriesIndex: 0, dataIndex: highlighted});
-        highlighted = (highlighted + 1) % normZones.size;
-        chart.dispatchAction({type: 'highlight', seriesIndex: 0, dataIndex: highlighted});
-        chart.dispatchAction({type: 'showTip', seriesIndex: 0, dataIndex: highlighted});
-    }, 4000);
 }
 
 
