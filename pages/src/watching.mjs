@@ -979,13 +979,15 @@ async function createTimeInZonesHorizBarMinimal(el, sectionId, settings, rendere
                     `--theme-zone-color-hue: ${Math.round(c.h * 360)}deg; ` +
                     `--theme-zone-color-sat: ${Math.round(c.s * 100)}%; ` +
                     `--theme-zone-color-light: ${Math.round(c.l * 100)}%; ` +
-                    `"><span>${x.zone}</span></div>`;
+                    `"><span>${x.zone}</span><span class="extra"></span></div>`;
             }
         }
         const zones = data.stats.power.timeInZones.filter(x => normZones.has(x.zone));
         const totalTime = zones.reduce((agg, x) => agg + x.time, 0);
         for (const x of zones) {
-            el.querySelector(`[data-zone="${x.zone}"]`).style.flexGrow = x.time / totalTime;
+            const zoneEl = el.querySelector(`[data-zone="${x.zone}"]`);
+            zoneEl.style.flexGrow = x.time / totalTime;
+            zoneEl.querySelector('.extra').textContent = H.duration(x.time, {short: true, seperator: ' '});
         }
     });
 }
