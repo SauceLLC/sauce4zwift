@@ -225,26 +225,28 @@ html {
         }
     }
 
+    &.time-in-zones {
+        border: none;
+    }
+
     .zones-holder {
         &.vert-bars {
             height: 7em;
             font-size: 0.7rem;
         }
 
-        &.horiz-bar {
-            height: 2em;
-            font-size: 0.7rem;
-        }
-
         &.pie {
-            height: 10em;
+            padding: 0 1em;
+            margin: -1em 0;
+            width: 100%;
+            aspect-ratio: 1 / 1;
             font-size: 0.7rem;
+            align-items: center;
         }
 
-        &.horiz-bar-minimal {
+        &.horiz-bar {
             font-size: 0.7rem;
             display: flex;
-
 
             .zone {
                 container: zone / inline-size;
@@ -252,9 +254,9 @@ html {
                 align-items: center;
                 justify-content: center;
                 font-size: 0.8em;
-                color: color.get(fg, 0.8);
+                color: color.shade(zone-color, 100%, 0.8);
                 overflow: hidden;
-                transition: flex 500ms;
+                transition: flex 200ms;
                 flex: 1 1 0;
                 height: 2.6em;
                 background-image: linear-gradient(135deg,
@@ -270,6 +272,7 @@ html {
                     padding-left: 0.3em;
                     font-weight: 300;
                     font-size: 0.9em;
+                    font-variant-numeric: tabular-nums;
 
                     &::before {
                         content: '| ';
@@ -391,7 +394,8 @@ html {
 
         img.example {
             width: 100%;
-            max-height: 100%;
+            height: 100%;
+            object-fit: contain;
         }
 
         &:hover,
@@ -577,6 +581,10 @@ html.always-show-buttons #titlebar .button-bar {
                     background: #333;
                     color: white;
                     box-shadow: 1px 1px 8px 1px #0007;
+
+                    &.configuring {
+                        width: 14em;
+                    }
                 }
             }
 

@@ -10,6 +10,7 @@ const page = location.pathname.split('/').at(-1).split('.')[0];
 const type = (new URLSearchParams(location.search)).get('t') || page || 'power';
 const L = sauce.locale;
 const H = L.human;
+let powerZones;
 let sport = 'cycling';
 let imperial = !!common.storage.get('/imperialUnits');
 L.setImperial(imperial);
@@ -48,32 +49,32 @@ const gaugeConfigs = {
         getLabel: H.number,
         detailFormatter: x => `{value|${H.power(x)}}\n{unit|watts}`,
         axisColorBands: data => {
-            if (!data.powerZones) {
+            if (powerZones === undefined) {
+                powerZones = null;
+                common.rpc.getPowerZones(1).then(zones => powerZones = zones);
                 return;
             }
-            try {
-                const min = settings.min;
-                const delta = settings.max - min;
-                const power = gaugeConfigs.power.getValue(data);
-                const normZones = data.powerZones.filter(x => !x.overlap);
-                if (normZones[0].from > 0) {
-                    // Always pad in case of non zero offset (i.e. fake active recovery zone)
-                    normZones.unshift({zone: '', from: 0, to: normZones[0].from});
-                }
-                const zoneColors = common.getPowerZoneColors(normZones);
-                const bands = normZones.map(x => [
-                    Math.min(1, Math.max(0, ((x.to || Infinity) - min) / delta)),
-                    zoneColors[x.zone] + (power < (x.from || 0) ? '3' : '')
-                ]);
-                if (bands[bands.length - 1][0] < 1) {
-                    // Unlikely custom zones with none Infinite final zone
-                    bands.push([1, '#0005']);
-                }
-                return bands;
-            } catch(e) {
-                // XXX Not loving this code qual, run it in scared mode
-                console.error("Color band bug:", e);
+            if (!powerZones || !data.athlete || !data.athlete.ftp) {
+                return;
             }
+            const min = settings.min;
+            const delta = settings.max - min;
+            const power = gaugeConfigs.power.getValue(data);
+            const normZones = powerZones.filter(x => !x.overlap);
+            if (normZones[0].from > 0) {
+                // Always pad in case of non zero offset (i.e. fake active recovery zone)
+                normZones.unshift({zone: '', from: 0, to: normZones[0].from});
+            }
+            const zoneColors = common.getPowerZoneColors(normZones);
+            const bands = normZones.map(x => [
+                Math.min(1, Math.max(0, ((x.to || Infinity) * data.athlete.ftp - min) / delta)),
+                zoneColors[x.zone] + (power / data.athlete.ftp < (x.from || 0) ? '3' : '')
+            ]);
+            if (bands[bands.length - 1][0] < 1) {
+                // Unlikely custom zones with none Infinite final zone
+                bands.push([1, '#0005']);
+            }
+            return bands;
         },
     },
     hr: {

@@ -182,9 +182,15 @@
             <div class="screen-section {{section.type}}" tabindex="0"
                  data-section-type="{{section.type}}" data-base-section-type="{{baseSectionType}}"
                  data-section-id="{{section.id}}">
-                <div class="zones-holder">
+                <div class="zones-holder {{section.settings.style}}">
                     <% if (obj.configuring) { %>
-                        <img class="example" src="images/examples/sauce-time-in-zones.png"/>
+                        <% if (section.settings.style === 'vert-bars') { %>
+                            <img class="example" src="images/examples/power-zones-vert-chart.png"/>
+                        <% } else if (section.settings.style === 'horiz-bar') { %>
+                            <img class="example" src="images/examples/power-zones-horiz-chart.png"/>
+                        <% } else { %>
+                            <img class="example" src="images/examples/power-zones-pie-chart.png"/>
+                        <% } %>
                     <% } %>
                 </div>
                 <% if (obj.configuring) { %>
@@ -206,8 +212,6 @@
                                             value="vert-bars">Vertical Bars</option>
                                     <option {{settings.style === 'horiz-bar' ? 'selected' : ''}}
                                             value="horiz-bar">Horizontal Bar</option>
-                                    <option {{settings.style === 'horiz-bar-minimal' ? 'selected' : ''}}
-                                            value="horiz-bar-minimal">Horizontal Bar (minimal)</option>
                                     <option {{settings.style === 'pie' ? 'selected' : ''}}
                                             value="pie">Pie Chart</option>
                                 </select>

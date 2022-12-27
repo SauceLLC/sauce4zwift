@@ -1138,13 +1138,13 @@ export function initExpanderTable(table, expandCallback, cleanupCallback) {
 
 
 export const powerZonesColorSpectrum = [
-    {ftp: 0.275, color: '#444'},
-    {ftp: 0.650, color: '#24d'},
-    {ftp: 0.825, color: '#5b5'},
-    {ftp: 0.975, color: '#dd3'},
-    {ftp: 1.125, color: '#fa0'},
-    {ftp: 1.350, color: '#b22'},
-    {ftp: 1.750, color: '#407'},
+    {midPct: 0.275, color: '#444'},
+    {midPct: 0.650, color: '#24d'},
+    {midPct: 0.825, color: '#5b5'},
+    {midPct: 0.975, color: '#dd3'},
+    {midPct: 1.125, color: '#fa0'},
+    {midPct: 1.350, color: '#b22'},
+    {midPct: 1.750, color: '#407'},
 ];
 
 
@@ -1152,8 +1152,8 @@ export function getPowerZoneColors(powerZones) {
     const colors = {};
     const available = Array.from(powerZonesColorSpectrum);
     for (const x of powerZones) {
-        const avg = ((x.to || 2) - (x.from || 0)) / 2 + (x.from || 0);
-        available.sort((a, b) => Math.abs(a.ftp - avg) - Math.abs(b.ftp - avg));
+        const midPct = ((x.to || 2) - (x.from || 0)) / 2 + (x.from || 0);
+        available.sort((a, b) => Math.abs(a.midPct - midPct) - Math.abs(b.midPct - midPct));
         colors[x.zone] = available[0].color;
     }
     return colors;

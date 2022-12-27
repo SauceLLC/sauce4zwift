@@ -783,8 +783,7 @@ export class StatsProcessor extends events.EventEmitter {
         if (ftpUpdated) {
             ad = ad || this._athleteData.get(id);
             if (ad) {
-                ad.powerZones = d.ftp ? this.getPowerZones(d.ftp) : null;
-                ad.collectors.power.roll.setZones(ad.powerZones);
+                ad.collectors.power.roll.setZones(d.ftp ? this.getPowerZones(d.ftp) : null);
             }
         }
         // /XXX
@@ -1799,8 +1798,7 @@ export class StatsProcessor extends events.EventEmitter {
                     ad.collectors.power.roll.setWPrime(athlete.cp || athlete.ftp, athlete.wPrime);
                 }
                 if (ad.collectors.power.roll.timeInZones == null && athlete.ftp) {
-                    ad.powerZones = athlete.ftp ? this.getPowerZones(athlete.ftp) : null;
-                    ad.collectors.power.roll.setZones(ad.powerZones);
+                    ad.collectors.power.roll.setZones(athlete.ftp ? this.getPowerZones(athlete.ftp) : null);
                 }
             }
         }
@@ -1821,7 +1819,6 @@ export class StatsProcessor extends events.EventEmitter {
             eventParticipants: ad.eventParticipants,
             gameState: ad.gameState,
             gap: ad.gap,
-            powerZones: ad.powerZones,
             ...this._getEventOrRouteInfo(state),
             ...extra,
         };

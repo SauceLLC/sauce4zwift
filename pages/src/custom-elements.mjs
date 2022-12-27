@@ -51,11 +51,23 @@ class ThemeSelect extends HTMLSelectElement {
     }
 
     update() {
-        while (this.childNodes.length) {
+        while (this.childNodes) {
             this.removeChild(this.childNodes[0]);
         }
         this.render();
     }
 }
-
 customElements.define('sauce-theme', ThemeSelect, {extends: 'select'});
+
+
+class RowEditor extends Element {
+    constructor() {
+        super();
+        this.setAttribute('name', this.hasAttribute('override') ? 'themeOverride' : '/theme');
+        this.render();
+    }
+
+    render() {
+    }
+}
+customElements.define('sauce-row-editor', RowEditor);
