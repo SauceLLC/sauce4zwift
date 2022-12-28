@@ -497,7 +497,7 @@ const lineChartFields = [{
 
 
 function curLap(x) {
-    return x && (x.lap || x.stats);
+    return x && x.lap;
 }
 
 
@@ -831,9 +831,7 @@ async function createTimeInZonesVertBars(el, sectionId, settings, renderer) {
         tooltip: {
             className: 'ec-tooltip',
             trigger: 'axis',
-            axisPointer: {
-                type: 'shadow',
-            }
+            axisPointer: {type: 'shadow'}
         },
         xAxis: {type: 'category'},
         yAxis: {
@@ -1361,25 +1359,14 @@ export async function main() {
             for (const x of renderers) {
                 x.setData({
                     athleteId: 11,
+                    athlete: {
+                        ftp: 300,
+                    },
                     state: {
                         power: 100 + (Math.random() * 400),
                         heartrate: 100 + Math.random() * 100,
                         speed: Math.random() * 100,
                     },
-                    powerZones: [
-                        /*{zone: 'Z1', from: 0.4, to: 0.8},
-                        {zone: 'Z2', from: 0.8, to: 1},
-                        {zone: 'Z3', from: 1, to: null},
-                        */
-                        {zone: 'Z1', from: 0, to: 0.55},
-                        {zone: 'Z2', from: 0.55, to: 0.75},
-                        {zone: 'Z3', from: 0.75, to: 0.90},
-                        {zone: 'Z4', from: 0.90, to: 1.05},
-                        {zone: 'Z5', from: 1.05, to: 1.20},
-                        {zone: 'Z6', from: 1.2, to: 1.50},
-                        {zone: 'Z7', from: 1.5, to: null},
-                        {zone: 'SS', overlap: true, from: 0.85, to: 0.92}
-                    ],
                     stats: {
                         power: {
                             timeInZones: [
@@ -1390,7 +1377,7 @@ export async function main() {
                                 {zone: 'Z5', time: 2 + 100 * Math.random()},
                                 {zone: 'Z6', time: 2 + 100 * Math.random()},
                                 {zone: 'Z7', time: 2 + 100 * Math.random()},
-                                {zone: 'SS', time: 2 + 100 * Math.random()},
+                                //{zone: 'SS', time: 2 + 100 * Math.random()},
                             ]
                         }
                     }

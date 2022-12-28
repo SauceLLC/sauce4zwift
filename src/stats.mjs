@@ -1803,15 +1803,15 @@ export class StatsProcessor extends events.EventEmitter {
             }
         }
         const state = ad.mostRecentState;
-        const stats = this._getCollectorStats(ad.collectors, ad, athlete);
-        const lap = ad.laps.length ? this._getCollectorStats(ad.laps[ad.laps.length - 1], ad, athlete) : stats;
+        const lapCount = ad.laps.length;
         return {
             athleteId: state.athleteId,
             athlete,
-            stats,
-            lap,
-            lastLap: ad.laps.length > 1 ?
+            stats: this._getCollectorStats(ad.collectors, ad, athlete),
+            lap: this._getCollectorStats(ad.laps[ad.laps.length - 1], ad, athlete),
+            lastLap: lapCount > 1 ?
                 this._getCollectorStats(ad.laps[ad.laps.length - 2], ad, athlete) : null,
+            lapCount,
             state: this._cleanState(state),
             eventPosition: ad.eventPosition,
             eventParticipants: ad.eventParticipants,

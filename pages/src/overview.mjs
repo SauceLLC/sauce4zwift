@@ -453,7 +453,13 @@ function buildLayout() {
             }, {
                 id: 'game-laps',
                 value: x => fmtLap(x.state && x.state.laps || null),
-                key: 'Laps',
+                tooltip: 'Zwift route lap number',
+                key: 'Lap <small>(zwift)</small>',
+            }, {
+                id: 'sauce-laps',
+                value: x => fmtLap(x.lapCount),
+                tooltip: 'Sauce stats lap number',
+                key: 'Lap <small>(sauce)</small>',
             }, {
                 id: 'progress',
                 value: x => fmtPct(x.state && x.state.progress || 0),
