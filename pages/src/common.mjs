@@ -301,8 +301,9 @@ export function initInteractionListeners() {
     }
     if (!window.isElectron) {
         addOpenSettingsParam('windowId', windowID);
-        if (navigator.userAgent.match(/ OBS\//)) {
-            console.info("Enabling OBS hack to avoid broken tabs handling");
+        const isFirefoxIFrame = location !== parent.location && navigator.userAgent.match(/ Firefox/);
+        if (isFirefoxIFrame || navigator.userAgent.match(/ OBS\//)) {
+            console.info("Enabling hack to avoid broken tabs handling");
             for (const x of document.querySelectorAll('a[target]')) {
                 x.removeAttribute('target');
             }
@@ -517,7 +518,7 @@ export class Renderer {
                         }
                         const candidate = value != null && !Number.isNaN(value) ? value : '';
                         if (softInnerHTML(field.valueEl, candidate)) {
-                            const width = candidate.length;
+                            const width = field.valueEl.textContent.length;
                             if (field.valueEl._width !== width) {
                                 field.valueEl._width = width;
                                 field.valueEl.classList.toggle('x-wide', width > 2);
