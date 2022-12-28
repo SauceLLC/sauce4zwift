@@ -213,8 +213,16 @@ export async function main() {
 
 function buildLayout() {
     const content = document.querySelector('#content');
-    const renderer = new common.Renderer(content, {locked: common.settingsStore.get('lockedFields')});
-    let count = 1;
+    const renderer = new common.Renderer(content, {
+        locked: common.settingsStore.get('lockedFields'),
+        id: 'normal',
+    });
+    const defaults = {
+        'left-0': 'rideons',
+        'left-1': 'energy',
+        'right-0': 'pwr-np',
+        'right-1': 'wbal',
+    };
     for (const side of ['left', 'right']) {
         const fields = document.querySelector(`.fields.${side}`);
         const mapping = [];
@@ -226,15 +234,11 @@ function buildLayout() {
                     <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
                 </div>
             `);
-            mapping.push({id, default: count++});
+            mapping.push({id, default: defaults[id] || 'time-elapsed'});
         }
         renderer.addRotatingFields({
             mapping,
             fields: [{
-                id: 'time-lap',
-                value: x => fmtDur((x.lap || x.stats) && (x.lap || x.stats).elapsedTime || 0),
-                key: 'Time <small>(lap)</small>',
-            }, {
                 id: 'time-elapsed',
                 value: x => fmtDur(x.stats && x.stats.elapsedTime || 0),
                 key: 'Elapsed',
@@ -242,6 +246,10 @@ function buildLayout() {
                 id: 'time-session',
                 value: x => fmtDur(x.state && x.state.time || 0),
                 key: 'Time',
+            }, {
+                id: 'time-lap',
+                value: x => fmtDur((x.lap || x.stats) && (x.lap || x.stats).elapsedTime || 0),
+                key: 'Time <small>(lap)</small>',
             }, {
                 id: 'clock',
                 value: x => new Date().toLocaleTimeString(),
