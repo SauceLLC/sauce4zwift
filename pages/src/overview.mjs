@@ -93,7 +93,7 @@ function fmtLap(v) {
     if (!isRealNumber(v)) {
         return '-';
     }
-    return H.number(v+1);
+    return H.number(v + 1);
 }
 
 const _events = new Map();
@@ -519,7 +519,7 @@ function buildLayout() {
                 key: 'Lap <small>(zwift)</small>',
             }, {
                 id: 'sauce-laps',
-                value: x => fmtLap(x.lapCount),
+                value: x => fmtLap(x.lapCount - 1),
                 tooltip: 'Sauce stats lap number',
                 key: 'Lap <small>(sauce)</small>',
             }, {
