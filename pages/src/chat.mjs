@@ -121,14 +121,15 @@ export async function main() {
     }
 
 
-    function addContentEntry({athleteId, muted}, el, age, options={}) {
+    function addContentEntry(chat, el, age, options={}) {
+        const athleteId = chat.from;
         content.appendChild(el);
         if (!options.skipAnimation) {
             void el.offsetLeft; // force layout/reflow so we can trigger animation.
         }
         el.classList.add('slidein');
         let chatEls;
-        if (!muted) {
+        if (!chat.muted) {
             if (!athleteChatElements.has(athleteId)) {
                 athleteChatElements.set(athleteId, new Set());
             }
