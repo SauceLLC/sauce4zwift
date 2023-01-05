@@ -107,7 +107,7 @@ async function compile(text, settingsOverrides) {
         (settings.evaluate || noMatch).source,
     ].join('|') + '|$', 'g');
     const code = [`
-        return async function sauceTemplateRander({locale, escape, helpers, localeMessages, statics}, obj) {
+        return async function sauceTemplateRender({locale, escape, helpers, localeMessages, statics}, obj) {
             let __t; // tmp
             const __p = []; // output buffer
             with ({...helpers, ...obj}) {
