@@ -1,0 +1,45 @@
+@use 'color';
+
+sauce-row-editor {
+    --columns: 3;
+    display: grid;
+    grid-template-columns: repeat(var(--columns, 1fr));
+
+    header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-variant: all-small-caps;
+        font-weight: 600;
+        padding-bottom: 0.5em;
+        grid-column: 1 / calc(var(--columns) + 1);
+    }
+
+    row {
+        display: contents;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.2em 0.4em;
+        border-radius: 0.28em;
+
+        &:hover {
+            background-color: color.shade(fg, 100%, 0.15);
+        }
+    }
+
+    a {
+        &:not([disabled]) {
+            cursor: pointer;
+            opacity: 0.8;
+            transition: opacity 200ms;
+
+            &:hover {
+                opacity: 1;
+            }
+        }
+
+        &[disabled] {
+            opacity: 0.4;
+        }
+    }
+}

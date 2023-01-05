@@ -60,14 +60,10 @@ class ThemeSelect extends HTMLSelectElement {
 customElements.define('sauce-theme', ThemeSelect, {extends: 'select'});
 
 
-class RowEditor extends Element {
+class RowEditor extends HTMLElement {
     constructor() {
         super();
-        this.setAttribute('name', this.hasAttribute('override') ? 'themeOverride' : '/theme');
-        this.render();
-    }
-
-    render() {
+        this.style.setProperty('--columns', this.querySelector('row').children.length);
     }
 }
 customElements.define('sauce-row-editor', RowEditor);
