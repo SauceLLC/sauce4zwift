@@ -25,7 +25,7 @@ message PlayerState {
     bool justWatching = 23;
     int32 _mwHours = 24; // milliwatt/hours of energy
     float x = 25; // cartesian meters
-    float altitude = 26;
+    float z = 26; // ??? XXX
     float y = 27; // cartesian meters
     int32 watchingAthleteId = 28;
     int32 eventSubgroupId = 29;
