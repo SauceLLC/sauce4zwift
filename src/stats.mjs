@@ -1144,14 +1144,27 @@ export class StatsProcessor extends events.EventEmitter {
         const ad = this._athleteData.get(state.athleteId);
         const prevState = ad.mostRecentState;
         if (prevState) {
-            if (prevState.worldTime > state.worldTime) {
+            const elapsed = state.worldTime - prevState.worldTime;
+            if (elapsed < 0) {
                 this._stateStaleCount++;
                 return false;
-            } else if (prevState.worldTime === state.worldTime) {
+            } else if (elapsed === 0) {
                 this._stateDupCount++;
                 return false;
             }
+            state.elapsed = elapsed;
+            const dst = Math.sqrt((prevState.x - state.x) ** 2 + (prevState.y - state.y) ** 2);
+            const elevationChange = state.altitude - prevState.altitude;
+            const distanceChange = state.distance - prevState.distance;
+            const distanceChange2 = state.eventDistance - prevState.eventDistance;
+            state.grade = ((elevationChange / distanceChange) * 100).toFixed(1);
+            state.grade2 = ((elevationChange / distanceChange2) * 100).toFixed(1);
+            state.grade3 = ((elevationChange / dst) * 100).toFixed(1);
+            state.distance_change1 = distanceChange;
+            state.distance_change2 = distanceChange2;
+            state.distance_change3 = dst;
         }
+        state.mapurl = `https://maps.google.com/maps?q=${state.latlng[0]},${state.latlng[1]}&z=17`;
         const noSubgroup = null;
         const sg = state.eventSubgroupId &&
             this._recentEventSubgroups.get(state.eventSubgroupId) ||

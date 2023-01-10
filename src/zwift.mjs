@@ -1,11 +1,12 @@
 /* global Buffer */
-import fetch from 'node-fetch';
-import protobuf from 'protobufjs';
 import path from 'node:path';
 import net from 'node:net';
+import fs from 'node:fs';
 import dgram from 'node:dgram';
 import events from 'node:events';
 import crypto from 'node:crypto';
+import fetch from 'node-fetch';
+import protobuf from 'protobufjs';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
 const require = createRequire(import.meta.url);
@@ -103,6 +104,14 @@ export const courseToWorldIds = Object.fromEntries(worldCourseDescs.map(x => [x.
 export const worldToCourseIds = Object.fromEntries(worldCourseDescs.map(x => [x.worldId, x.courseId]));
 export const courseToNames = Object.fromEntries(worldCourseDescs.map(x => [x.courseId, x.name]));
 export const worldToNames = Object.fromEntries(worldCourseDescs.map(x => [x.worldId, x.name]));
+
+export const worldMetas = {};
+try {
+    const worldListFile = path.join(__dirname, `../shared/deps/data/worldlist.json`);
+    for (const x of JSON.parse(fs.readFileSync(worldListFile))) {
+        worldMetas[x.networkID] = x;
+    }
+} catch(e) {/*no-pragma*/}
 
 
 function decodeGroupEventUserRegistered(buf) {
@@ -205,6 +214,7 @@ export function processPlayerStateMessage(msg) {
     const wt = msg._worldTime.toNumber();
     const latency = worldTime.now() - wt;
     const adjRoadLoc = msg.roadLocation - 5000;  // It's 5,000 -> 1,005,000
+    const worldMeta = worldMetas[msg.courseId];
     return {
         ...msg,
         ...flags1,
@@ -222,6 +232,11 @@ export function processPlayerStateMessage(msg) {
             Math.round(msg._cadenceUHz / 1e6 * 60) : 0,  // rpm
         eventDistance: msg._eventDistance / 100,  // meters
         roadCompletion: flags1.reverse ? 1e6 - adjRoadLoc : adjRoadLoc,
+        latlng: worldMeta ? [
+            -(msg.y / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
+            (msg.x / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset
+        ] : null,
+        altitude: worldMeta ? (msg.z - worldMeta.waterPlaneLevel) / 10 * worldMeta.physicsSlopeScale : null
     };
 }
 
@@ -1148,7 +1163,7 @@ class UDPChannel extends NetChannel {
                 justWatching: true,
                 x: 0,
                 y: 0,
-                altitude: 0,
+                z: 0,
                 courseId: this.courseId,
                 ...state,
             }
@@ -1379,7 +1394,7 @@ export class GameMonitor extends events.EventEmitter {
 
     async establishTCPChannel(session) {
         const servers = session.tcpServers.filter(x => x.realm === 0 && x.courseId === 0);
-        const ip = servers[0].ip;
+        const ip = servers[Math.random() * servers.length | 0].ip;
         console.info(`Establishing TCP channel to:`, ip);
         session.tcpChannel = new TCPChannel({ip, session});
         session.tcpChannel.on('shutdown', this.onTCPChannelShutdown.bind(this));
