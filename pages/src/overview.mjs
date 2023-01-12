@@ -743,7 +743,7 @@ async function initWindowsPanel() {
             await renderProfiles();
         } else if (link.classList.contains('profile-export')) {
             const data = await common.rpc.exportProfile(id);
-            const f = new File([JSON.stringify(data)], `${data.profile.name}.json`, {type: 'application/json'});
+            const f = new File([JSON.stringify(data, null, 4)], `${data.profile.name}.json`, {type: 'application/json'});
             const l = document.createElement('a');
             l.download = f.name;
             l.style.display = 'none';
