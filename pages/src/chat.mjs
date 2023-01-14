@@ -64,8 +64,8 @@ function liveDataFormatter(data) {
         return '';
     }
     const items = [
-        data.stats.power.smooth[15] != null ? Math.round(data.stats.power.smooth[15]).toLocaleString() + 'w' : null,
-        data.state.heartrate ? data.state.heartrate.toLocaleString() + 'bpm' : null,
+        data.stats.power.smooth[15] != null ? H.power(data.stats.power.smooth[15], {suffix: true}) : null,
+        data.state.heartrate ? H.number(data.state.heartrate) + 'bpm' : null,
     ];
     const gap = data.gap;
     if (gap != null) {
