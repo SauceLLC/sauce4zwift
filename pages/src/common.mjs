@@ -1033,7 +1033,7 @@ export function fmtBattery(pct, options={}) {
 
 
 export async function initNationFlags() {
-    const r = await fetch('../shared/deps/data/countries.json');
+    const r = await fetch('/shared/deps/data/countries.json');
     if (!r.ok) {
         throw new Error('Failed to get country data: ' + r.status);
     }
