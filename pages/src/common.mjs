@@ -1169,6 +1169,13 @@ export function addTheme(entry) {
 }
 
 
+export function coordDistance([x1, y1], [x2, y2]) {
+    const xd = x2 - x1;
+    const yd = y2 - y1;
+    return Math.sqrt(xd * xd + yd * yd);
+}
+
+
 rpcCall('getVersion').then(v => Sentry.setTag('version', v));
 rpcCall('getSentryAnonId').then(id => Sentry.setUser({id}));
 rpcCall('isDEV').then(isDEV => {

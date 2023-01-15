@@ -87,11 +87,11 @@ const turningEnum = {
     2: 'LEFT',
 };
 const worldCourseDescs = [
-    {worldId: 1, courseId: 6, name: 'Watopia'},
+    {worldId: 1, courseId: 6, name: 'Watopia', altitudeHackOfft: -80},
     {worldId: 2, courseId: 2, name: 'Richmond'},
     {worldId: 3, courseId: 7, name: 'London'},
     {worldId: 4, courseId: 8, name: 'New York'},
-    {worldId: 5, courseId: 9, name: 'Innsbruck'},
+    {worldId: 5, courseId: 9, name: 'Innsbruck', altitudeHackOfft: 15},
     {worldId: 6, courseId: 10, name: 'Bologna'},
     {worldId: 7, courseId: 11, name: 'Yorkshire'},
     {worldId: 8, courseId: 12, name: 'Crit City'},
@@ -109,7 +109,8 @@ export const worldMetas = {};
 try {
     const worldListFile = path.join(__dirname, `../shared/deps/data/worldlist.json`);
     for (const x of JSON.parse(fs.readFileSync(worldListFile))) {
-        worldMetas[x.networkID] = x;
+        x.altitudeHackOfft = worldCourseDescs.find(xx => x.courseID === xx.courseId).altitudeHackOfft || 0;
+        worldMetas[x.courseID] = x;
     }
 } catch(e) {/*no-pragma*/}
 
@@ -236,7 +237,10 @@ export function processPlayerStateMessage(msg) {
             -(msg.y / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
             (msg.x / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset
         ] : null,
-        altitude: worldMeta ? (msg.z - worldMeta.waterPlaneLevel) / 10 * worldMeta.physicsSlopeScale : null
+        altitude: worldMeta ?
+            ((msg.z + worldMeta.waterPlaneLevel) / 100 * worldMeta.physicsSlopeScale) +
+                worldMeta.altitudeHackOfft :
+            null
     };
 }
 
