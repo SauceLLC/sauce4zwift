@@ -157,6 +157,7 @@ export async function main() {
     let gaps;
     let grades;
     let worldMeta;
+    let nodes;
     let markAnimationDuration;
     renderer.addCallback(async nearby => {
         if (!nearby) {
@@ -165,6 +166,8 @@ export async function main() {
         /*mapChart.setOption({series: [{
             data: nearby.map(x => ({value: [x.state.x, x.state.y], obj: x}))
         }]});*/
+        nearby.sort((a, b) => a.athleted - b.athleteId);
+        nearby.sort((a, b) => a.watching ? 1 : b.watching ? -1 : 0);
         const watching = nearby.find(x => x.watching);
         if (watching.state.courseId !== courseId) {
             courseId = watching.state.courseId;
@@ -176,7 +179,7 @@ export async function main() {
         if (!road || watching.state.roadId !== road.id || reverse !== watching.state.reverse) {
             road = roads[watching.state.roadId];
             reverse = watching.state.reverse;
-            const nodes = Array.from(road.nodes).map(({pos}) => [
+            nodes = Array.from(road.nodes).map(({pos}) => [
                 pos[0] / 100, // meters
                 pos[1] / 100, // meters
                 (pos[2] + worldMeta.waterPlaneLevel) / 100 * worldMeta.physicsSlopeScale + 
@@ -192,7 +195,7 @@ export async function main() {
             console.info({gaps, grades}, gaps.reduce((agg, x) => agg + x, 0));
             markAnimationDuration = 400;
             elevationProfile.setOption({series: [{
-                data: nodes.map((x, i) => [distances[i], x[2], grades[i]]),
+                data: nodes.map((x, i) => [distances[i], x[2]]),
             }]});
         }
         elevationProfile.setOption({series: [{
@@ -204,11 +207,15 @@ export async function main() {
                     const fracIdx = distances.length * (x.state.roadCompletion / 1000000);
                     const nextGap = gaps[fracIdx | 0 + 1] || 0;
                     const distance = distances[fracIdx | 0] + nextGap * (fracIdx % 1);
+                    const yPos = Math.max(
+                        x.state.altitude,
+                        nodes[fracIdx | 0][2],
+                        nextGap ? nodes[fracIdx | 0 + 1][2] : -Infinity
+                    ) + 2;
                     return {
                         name: x.athleteId,
-                        coord: [distance, x.state.altitude],
+                        coord: [distance, yPos],
                         symbolSize: x.watching ? 40 : 20,
-                        symbolOffset: [0, x.watching ? '-30%' : '-15%'],
                         itemStyle: {
                             color: x.watching ? '#f54e' : '#fff6',
                             borderWidth: x.watching ? 2 : 0,

@@ -87,11 +87,11 @@ const turningEnum = {
     2: 'LEFT',
 };
 const worldCourseDescs = [
-    {worldId: 1, courseId: 6, name: 'Watopia', altitudeHackOfft: -80},
+    {worldId: 1, courseId: 6, name: 'Watopia'},
     {worldId: 2, courseId: 2, name: 'Richmond'},
     {worldId: 3, courseId: 7, name: 'London'},
     {worldId: 4, courseId: 8, name: 'New York'},
-    {worldId: 5, courseId: 9, name: 'Innsbruck', altitudeHackOfft: 15},
+    {worldId: 5, courseId: 9, name: 'Innsbruck'},
     {worldId: 6, courseId: 10, name: 'Bologna'},
     {worldId: 7, courseId: 11, name: 'Yorkshire'},
     {worldId: 8, courseId: 12, name: 'Crit City'},
