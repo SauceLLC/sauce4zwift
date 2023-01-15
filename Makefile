@@ -86,7 +86,7 @@ endif
 	cp node_modules/world_countries_lists/data/countries/_combined/world.json shared/deps/data/countries.json
 	cp node_modules/zwift-data/lib/esm/routes.js shared/deps/routes.mjs
 	cp node_modules/zwift-data/lib/esm/segments.js shared/deps/segments.mjs
-	-cp node_modules/zwift-utils/dist/*.json shared/deps/data/
+	-cp -r node_modules/zwift-utils/dist/* shared/deps/data/
 
 sass:
 	$(NPATH)/sass pages/scss:pages/css

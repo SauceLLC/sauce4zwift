@@ -30,12 +30,12 @@
     "xxhash-addon": "2.0.1"
   },
   "optionalDependencies": {
-    "zwift-utils": "https://github.com/SauceLLC/zwift-utils.git#48257bcc4e2d47"
+    "zwift-utils": "https://github.com/SauceLLC/zwift-utils.git#40d8947ee0"
   },
   "devDependencies": {
     "@sentry/browser": "6.19.6",
     "echarts": "5.4.1",
-    "electron": "22.0.0",
+    "electron": "22.0.1",
     "electron-builder": "24.0.0-alpha.7",
     "electron-notarize": "1.2.1",
     "eslint": "8.29.0",

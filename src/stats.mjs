@@ -255,7 +255,7 @@ function getNearbySegments(courseId, roadSig) {
     if (_segmentsByRoadSig[roadSig] === undefined) {
         const worldId = zwift.courseToWorldIds[courseId];
         if (_segmentsByWorld[worldId] === undefined) {
-            const fname = path.join(__dirname, `../shared/deps/data/segments-${worldId}.json`);
+            const fname = path.join(__dirname, `../shared/deps/data/worlds/${worldId}/segments.json`);
             try {
                 _segmentsByWorld[worldId] = JSON.parse(fs.readFileSync(fname));
             } catch(e) {
@@ -1153,14 +1153,13 @@ export class StatsProcessor extends events.EventEmitter {
                 return false;
             }
             state.elapsed = elapsed;
-            const dst = Math.sqrt((prevState.x - state.x) ** 2 + (prevState.y - state.y) ** 2);
+            const dst = Math.sqrt((prevState.x - state.x) ** 2 + (prevState.y - state.y) ** 2) / 100;
+            state.zChange = state.z - prevState.z;
             const elevationChange = state.altitude - prevState.altitude;
-            const distanceChange = state.distance - prevState.distance;
             const distanceChange2 = state.eventDistance - prevState.eventDistance;
-            state.grade = ((elevationChange / distanceChange) * 100).toFixed(1);
+            state.elevationChange = elevationChange;
             state.grade2 = ((elevationChange / distanceChange2) * 100).toFixed(1);
             state.grade3 = ((elevationChange / dst) * 100).toFixed(1);
-            state.distance_change1 = distanceChange;
             state.distance_change2 = distanceChange2;
             state.distance_change3 = dst;
         }
