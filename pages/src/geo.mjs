@@ -195,7 +195,7 @@ export async function main() {
             console.info({gaps, grades}, gaps.reduce((agg, x) => agg + x, 0));
             markAnimationDuration = 400;
             elevationProfile.setOption({series: [{
-                data: nodes.map((x, i) => [distances[i], x[2]]),
+                data: nodes.map((x, i) => [distances[i], x[2], grades[i]]),
             }]});
         }
         elevationProfile.setOption({series: [{
