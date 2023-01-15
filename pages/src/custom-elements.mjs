@@ -64,6 +64,25 @@ class RowEditor extends HTMLElement {
     constructor() {
         super();
         this.style.setProperty('--columns', this.querySelector('row').children.length);
+        this.addEventListener('click', this.onClick.bind(this));
+        this.addEventListener('input', this.onInput.bind(this));
+        this.addEventListener('select', this.onSelect.bind(this));
+    }
+
+    onClick(ev) {
+        if (ev.target.closest('a[remove]')) {
+            debugger;
+        } else if (ev.target.closest('a[add]')) {
+            debugger;
+        }
+    }
+
+    onInput(ev) {
+        debugger;
+    }
+
+    onSelect(ev) {
+        debugger;
     }
 }
 customElements.define('sauce-row-editor', RowEditor);
