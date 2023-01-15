@@ -109,8 +109,7 @@ export const worldMetas = {};
 try {
     const worldListFile = path.join(__dirname, `../shared/deps/data/worldlist.json`);
     for (const x of JSON.parse(fs.readFileSync(worldListFile))) {
-        x.altitudeHackOfft = worldCourseDescs.find(xx => x.courseID === xx.courseId).altitudeHackOfft || 0;
-        worldMetas[x.courseID] = x;
+        worldMetas[x.courseId] = x;
     }
 } catch(e) {/*no-pragma*/}
 
@@ -239,7 +238,7 @@ export function processPlayerStateMessage(msg) {
         ] : null,
         altitude: worldMeta ?
             ((msg.z + worldMeta.waterPlaneLevel) / 100 * worldMeta.physicsSlopeScale) +
-                worldMeta.altitudeHackOfft :
+                worldMeta.altitudeHackOffset :
             null
     };
 }

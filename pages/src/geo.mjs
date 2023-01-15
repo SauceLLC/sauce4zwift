@@ -17,7 +17,9 @@ async function createElevationProfile() {
         {renderer: 'svg'});
     chart.setOption({
         tooltip: {
-            //trigger: 'axis',
+            trigger: 'axis',
+            formatter: ([{value}]) => value ?
+                `${H.elevation(value[1], {suffix: true})}\n${H.number(value[2] * 100, {suffix: '%'})}` : '',
         },
         xAxis: {
             type: 'value',
@@ -29,13 +31,25 @@ async function createElevationProfile() {
         dataZoom: [{
             type: 'inside',
         }],
-        yAxis: {type: 'value'},
+        yAxis: {
+            type: 'value',
+            min: x => Math.max(0, x.min - 20),
+            max: x => Math.max(x.max, x.min + 200),
+            axisLabel: {
+                formatter: x => H.elevation(x, {suffix: true})
+            },
+        },
         series: [{
             name: 'Elevation',
             smooth: 0.5,
             type: 'line',
             symbol: 'none',
             areaStyle: {},
+            encode: {
+                x: 0,
+                y: 1,
+                tooltip: [0, 1, 2]
+            }
         }]
     });
     return chart;
@@ -46,7 +60,7 @@ async function createMapCanvas() {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     const img = document.createElement('img');
-    const world = (await (await fetch('/shared/deps/data/worldlist.json')).json()).find(x => x.networkID === 9);
+    const world = (await (await fetch('/shared/deps/data/worldlist.json')).json()).find(x => x.courseId === 9);
     const imgLoad = new Promise(resolve => img.addEventListener('load', resolve));
     img.src = '/pages/images/maps/world-5.png';
     await imgLoad;
@@ -129,6 +143,7 @@ async function createMapChart() {
 
 export async function main() {
     common.initInteractionListeners();
+    const worldList = await (await fetch('/shared/deps/data/worldlist.json')).json();
     const elevationProfile = await createElevationProfile();
     //const mapChart = await createMapChart();
     //const mapCanvas = await createMapCanvas();
@@ -141,6 +156,8 @@ export async function main() {
     let distances;
     let gaps;
     let grades;
+    let worldMeta;
+    let markAnimationDuration;
     renderer.addCallback(async nearby => {
         if (!nearby) {
             return;
@@ -154,29 +171,34 @@ export async function main() {
             road = null;
             const worldId = common.courseToWorldIds[courseId];
             roads = (await (await fetch(`/shared/deps/data/worlds/${worldId}/roads.json`)).json());
+            worldMeta = worldList.find(x => x.courseId === courseId);
         }
         if (!road || watching.state.roadId !== road.id || reverse !== watching.state.reverse) {
             road = roads[watching.state.roadId];
             reverse = watching.state.reverse;
-            const nodes = Array.from(road.nodes);
+            const nodes = Array.from(road.nodes).map(({pos}) => [
+                pos[0] / 100, // meters
+                pos[1] / 100, // meters
+                (pos[2] + worldMeta.waterPlaneLevel) / 100 * worldMeta.physicsSlopeScale + 
+                    worldMeta.altitudeHackOffset
+            ]);
             if (reverse) {
                 nodes.reverse();
             }
-            gaps = nodes.map((x, i) => i ? common.coordDistance(x.pos, nodes[i - 1].pos) : 0);
+            gaps = nodes.map((x, i) => i ? common.coordDistance(x, nodes[i - 1]) : 0);
             distances = [];
             gaps.forEach((x, i) => distances[i] = i ? distances[i - 1] + gaps[i] : 0);
-            grades = nodes.map((x, i) => i ? (x.pos[2] - nodes[i - 1].pos[2]) / gaps[i] : 0);
+            grades = nodes.map(([x, y, z], i) => i ? (z - nodes[i - 1][2]) / gaps[i] : 0);
             console.info({gaps, grades}, gaps.reduce((agg, x) => agg + x, 0));
-            elevationProfile.setOption({
-                series: [{
-                    data: nodes.map((x, i) => [distances[i], x.pos[2]]),
-                }]
-            });
+            markAnimationDuration = 400;
+            elevationProfile.setOption({series: [{
+                data: nodes.map((x, i) => [distances[i], x[2], grades[i]]),
+            }]});
         }
         elevationProfile.setOption({series: [{
             markPoint: {
                 itemStyle: {borderColor: '#000'},
-                animationDurationUpdate: 1000,
+                animationDurationUpdate: markAnimationDuration,
                 animationEasingUpdate: 'linear',
                 data: nearby.filter(x => x.state.roadId === road.id && x.state.reverse === reverse).map(x => {
                     const fracIdx = distances.length * (x.state.roadCompletion / 1000000);
@@ -184,7 +206,7 @@ export async function main() {
                     const distance = distances[fracIdx | 0] + nextGap * (fracIdx % 1);
                     return {
                         name: x.athleteId,
-                        coord: [distance, x.state.z],
+                        coord: [distance, x.state.altitude],
                         symbolSize: x.watching ? 40 : 20,
                         symbolOffset: [0, x.watching ? '-30%' : '-15%'],
                         itemStyle: {
@@ -195,6 +217,7 @@ export async function main() {
                 }),
             },
         }]});
+        markAnimationDuration = Math.min(2000, markAnimationDuration * 1.2);
     });
     addEventListener('resize', () => {
         elevationProfile.resize();
