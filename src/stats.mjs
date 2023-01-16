@@ -621,31 +621,36 @@ export class StatsProcessor extends events.EventEmitter {
                 weight_setting: 'metric',
             });
         }
-        const {laps, wtOffset, mostRecentState} = this._athleteData.get(athleteId);
+        const {laps, streams, wtOffset, mostRecentState} = this._athleteData.get(athleteId);
+        const tsOffset = zwift.worldTime.toTime(wtOffset);
         const sport = {
-            0: 'cycling',
-            1: 'running',
-        }[mostRecentState ? mostRecentState.sport : 0] || 'generic';
+            'cycling': 'cycling',
+            'running': 'running',
+        }[mostRecentState ? mostRecentState.sport : 'cycling'] || 'generic';
         fitParser.addMessage('event', {
             event: 'timer',
             event_type: 'start',
             event_group: 0,
-            timestamp: wtOffset,
+            timestamp: tsOffset,
             data: 'manual',
         });
         let lapNumber = 0;
         let lastTS;
+        let offt = 0;
         for (const {power, speed, cadence, hr} of laps) {
             if ([speed, cadence, hr].some(x => x.roll.size() !== power.roll.size())) {
                 throw new Error("Assertion failure about roll sizes being equal");
             }
-            for (let i = 0; i < power.roll.size(); i++) {
-                lastTS = wtOffset + (power.roll.timeAt(i) * 1000);
+            for (let i = 0; i < power.roll.size(); i++, offt++) {
+                lastTS = tsOffset + (power.roll.timeAt(i) * 1000);
                 const record = {timestamp: lastTS};
                 record.speed = speed.roll.valueAt(i) * 1000 / 3600;
                 record.heart_rate = +hr.roll.valueAt(i);
                 record.cadence = Math.round(cadence.roll.valueAt(i));
                 record.power = Math.round(power.roll.valueAt(i));
+                record.distance = streams.distance[offt];
+                record.altitude = streams.altitude[offt];
+                [record.position_lat, record.position_long] = streams.latlng[offt];
                 fitParser.addMessage('record', record);
             }
             const elapsed = power.roll.lastTime() - power.roll.firstTime();
@@ -656,7 +661,7 @@ export class StatsProcessor extends events.EventEmitter {
                 event_type: 'stop',
                 sport,
                 timestamp: lastTS,
-                start_time: wtOffset + (power.roll.firstTime() * 1000),
+                start_time: tsOffset + (power.roll.firstTime() * 1000),
                 total_elapsed_time: elapsed,
                 total_timer_time: elapsed, // We can't really make a good assessment.
             };
@@ -669,12 +674,12 @@ export class StatsProcessor extends events.EventEmitter {
             timestamp: lastTS,
             data: 'manual',
         });
-        const elapsed = (lastTS - wtOffset) / 1000;
+        const elapsed = (lastTS - tsOffset) / 1000;
         fitParser.addMessage('session', {
             timestamp: lastTS,
             event: 'session',
             event_type: 'stop',
-            start_time: wtOffset,
+            start_time: tsOffset,
             sport,
             sub_sport: 'generic',
             total_elapsed_time: elapsed,
@@ -1088,7 +1093,8 @@ export class StatsProcessor extends events.EventEmitter {
             mostRecentState: null,
             streams: {
                 distance: [],
-                coordinates: [],
+                altitude: [],
+                latlng: [],
             },
             roadHistory: {
                 sig: null,
@@ -1283,7 +1289,8 @@ export class StatsProcessor extends events.EventEmitter {
                 ad.collectors.cadence.flushBuffered();
                 for (let i = 0; i < addCount; i++) {
                     ad.streams.distance.push(state.distance);
-                    ad.streams.coordinates.push({x: state.x, y: state.y, z: state.altitude});
+                    ad.streams.altitude.push(state.altitude);
+                    ad.streams.latlng.push(state.latlng);
                 }
             }
             return;
@@ -1296,7 +1303,8 @@ export class StatsProcessor extends events.EventEmitter {
         ad.collectors.cadence.add(time, state.cadence);
         for (let i = 0; i < addCount; i++) {
             ad.streams.distance.push(state.distance);
-            ad.streams.coordinates.push({x: state.x, y: state.y, z: state.altitude});
+            ad.streams.altitude.push(state.altitude);
+            ad.streams.latlng.push(state.latlng);
         }
         const curLap = ad.laps[ad.laps.length - 1];
         curLap.power.resize(time);
@@ -2016,8 +2024,7 @@ export class StatsProcessor extends events.EventEmitter {
                     x.collectors.hr.roll.size() +
                     x.collectors.draft.roll.size() +
                     x.collectors.cadence.roll.size() +
-                    x.streams.distance.length +
-                    x.streams.coordinates.length)
+                    Object.values(x.streams).reduce((agg, x) => agg + x.length, 0))
                 .reduce((agg, c) => agg + c, 0),
             athletesCacheSize: this._athletesCache.size,
         };
