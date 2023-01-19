@@ -865,17 +865,17 @@ function _openWindow(id, spec) {
         ...spec.options,
         ...bounds,
     };
+    const frame = !!options.frame;
     const win = new SauceBrowserWindow({
         spec,
         show: false,
-        frame: false,
-        transparent: true,
-        hasShadow: false,
-        roundedCorners: false,
+        frame,
+        transparent: frame === false,
+        hasShadow: frame !== false,
+        roundedCorners: frame !== false,
         webPreferences: {
             sandbox: true,
             preload: path.join(appPath, 'src/preload/common.js'),
-            webgl: false,
             ...manifest.webPreferences,
             ...spec.webPreferences,
             session: activeProfileSession,
