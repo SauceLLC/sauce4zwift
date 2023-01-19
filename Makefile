@@ -79,8 +79,8 @@ ifndef WINBLOWS
 	mkdir -p shared/deps/data
 	-cp -r node_modules/zwift-utils/dist/* shared/deps/data/
 else
-	mkdir -f pages/deps/flags
-	mkdir -f shared/deps/data
+	mkdir -f pages/deps/flags > $$null
+	mkdir -f shared/deps/data > $$null
 	-cp -r -Force node_modules/zwift-utils/dist/* shared/deps/data/
 endif
 	cp node_modules/echarts/dist/echarts.esm.min.js pages/deps/src/echarts.mjs
