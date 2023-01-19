@@ -35,13 +35,13 @@
   "devDependencies": {
     "@sentry/browser": "6.19.6",
     "echarts": "5.4.1",
-    "electron": "22.0.1",
+    "electron": "22.0.3",
     "electron-builder": "24.0.0-alpha.7",
     "electron-notarize": "1.2.1",
-    "eslint": "8.29.0",
-    "sass": "1.56.2",
+    "eslint": "8.32.0",
+    "sass": "1.57.1",
     "world_countries_lists": "2.6.0",
-    "zwift-data": "1.20.1"
+    "zwift-data": "1.20.2"
   },
   "build": {
     "appId": "io.saucellc.sauce4zwift",
