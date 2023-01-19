@@ -638,14 +638,15 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     for (const mod of mods.init()) {
         if (mod.isNew) {
             const enable = await confirmDialog({
-                title: 'New MOD Found',
-                message: `A new MOD was found.  Would you like to enable this MOD now?\n\n` +
-                    `Only do this if you trust the author and intentionally added it to your system`,
+                title: 'New Sauce MOD Found',
+                message: `A new Sauce MOD was found.\n\nWould you like to enable it now?`,
                 detail: [
-                    mod.manifest.name,
-                    mod.manifest.description,
-                    'By: ' + mod.manifest.author || '<Unknown Author>',
-                ].filter(x => x).join('\n'),
+                    '   Name: ' + mod.manifest.name,
+                    '   Desc: ' + (mod.manifest.description || '-'),
+                    '   Author: ' + (mod.manifest.author || '<Unknown>'),
+                    '',
+                    `Only enable this if you trust the author and intentionally added it.`,
+                ].join('\n'),
                 confirmButton: 'Enable Now',
                 cancelButton: 'Ignore',
             });
