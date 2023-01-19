@@ -89,6 +89,11 @@ function fmtDist(v) {
 }
 
 
+function fmtElevation(v) {
+    return H.elevation(v, {suffix: true, html: true});
+}
+
+
 function fmtDur(v) {
     if (v == null || v === Infinity || v === -Infinity || isNaN(v)) {
         return '-';
@@ -244,6 +249,10 @@ const fieldGroups = [{
     label: 'Event / Road',
     fields: [
         {id: 'gap', defaultEn: true, label: 'Gap', get: x => x.gap, fmt: gapTime},
+        {id: 'gap-distance', defaultEn: false, label: 'Gap (dist)', get: x => x.gapDistance, fmt: fmtDist},
+        {id: 'grade', defaultEn: false, label: 'Grade', get: x => x.state.grade, fmt: pct},
+        {id: 'altitude', defaultEn: false, label: 'Altitude', headerLabel: 'Alt', get: x => x.state.altitude,
+         fmt: fmtElevation},
         {id: 'gap-distance', defaultEn: false, label: 'Gap (dist)', get: x => x.gapDistance, fmt: fmtDist},
         {id: 'game-laps', defaultEn: false, label: 'Game Lap', headerLabel: 'Z Lap',
          get: x => x.state.laps + 1, fmt: num},

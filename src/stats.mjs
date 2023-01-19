@@ -681,7 +681,7 @@ export class StatsProcessor extends events.EventEmitter {
             event_type: 'stop',
             start_time: tsOffset,
             sport,
-            sub_sport: 'generic',
+            sub_sport: 'virtual_activity',
             total_elapsed_time: elapsed,
             total_timer_time: elapsed,  // We don't really know
             first_lap_index: 0,
@@ -1163,6 +1163,8 @@ export class StatsProcessor extends events.EventEmitter {
                 (state.eventDistance - prevState.eventDistance) :
                 (state.distance - prevState.distance);
             state.grade = distanceChange ? (elevationChange / distanceChange) : prevState.grade;
+            // Leaving around because it's pretty darn useful for debugging...
+            //state.mapurl = `https://maps.google.com/maps?q=${state.latlng[0]},${state.latlng[1]}&z=17`;
         } else {
             state.grade = 0;
         }
