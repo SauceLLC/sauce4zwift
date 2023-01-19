@@ -14,17 +14,20 @@ export const available = [];
 
 rpc.register(() => available, {name: 'getAvailableMods'});
 rpc.register(() => available.filter(x => x.enabled), {name: 'getEnabledMods'});
-rpc.register((id, enabled) => {
+
+
+export function setEnabled(id, enabled) {
     const mod = available.find(x => x.id === id);
     if (!mod) {
-        throw new Error('Mod ID not found');
+        throw new Error('ID not found');
     }
     if (!settings[id]) {
         settings[id] = {};
     }
     mod.enabled = settings[id].enabled = enabled;
     storage.set(settingsKey, settings);
-}, {name: 'setModEnabled'});
+}
+rpc.register(setEnabled, {name: 'setModEnabled'});
 
 
 function isSafePath(p, _, modPath) {
@@ -38,7 +41,7 @@ const manifestSchema = {
     id: {type: 'string', desc: 'Optional ID for this mod, defaults to the directory name'},
     name: {type: 'string', required: true, desc: 'Pretty name of the mod'},
     description: {type: 'string', required: true, desc: 'Description of the mod'},
-    version: {type: 'string', required: true, desc: 'Mod version, i.e. 1.2.3'},
+    version: {type: 'string', required: true, desc: 'MOD version, i.e. 1.2.3'},
     author: {type: 'string', desc: 'Author name or company'},
     website_url: {type: 'string', desc: 'External URL related to the mod'},
     web_root: {type: 'string', desc: 'Sub directory containing web assets.', valid: isSafePath},
@@ -89,17 +92,19 @@ export function init() {
     try {
         _init();
     } catch(e) {
-        console.error("Mods init error:", e);
+        console.error("MODS init error:", e);
     }
+    return available;
 }
 
 
 function _init() {
     let modRoot = path.join(electron.app.getPath('documents'), 'SauceMods');
     try {
+        fs.mkdirSync(modRoot, {recursive: true});
         modRoot = fs.realpathSync(modRoot);
     } catch(e) {
-        console.warn('No mods found in:', modRoot);
+        console.warn('MODS folder uncreatable:', modRoot, e);
         return;
     }
     if (fs.existsSync(modRoot) && fs.statSync(modRoot).isDirectory()) {
@@ -117,10 +122,11 @@ function _init() {
                     manifest = JSON.parse(fs.readFileSync(manifestPath));
                     validateManifest(manifest, modPath);
                     const id = manifest.id || x;
-                    const enabled = !!(settings[id] && settings[id].enabled);
-                    available.push({manifest, enabled, id, modPath});
-                    console.info(`Added mod: (${manifest.name}) ` +
-                        `[${enabled ? 'ENABLED' : 'DISABLED'}] /mods/${id} -> ${modPath}`);
+                    const isNew = !settings[id];
+                    const enabled = !isNew && !!settings[id].enabled;
+                    available.push({manifest, isNew, enabled, id, modPath});
+                    console.info(`Found MOD: (${manifest.name}) ` +
+                        `[${enabled ? 'ENABLED' : 'DISABLED'}] ${id} -> ${modPath}`);
                 } catch(e) {
                     console.error('Invalid manifest.json for:', x, e);
                 }

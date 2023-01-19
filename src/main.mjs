@@ -77,6 +77,22 @@ electron.app.on('second-instance', (ev,_, __, {type}) => {
 electron.app.on('before-quit', () => void (quiting = true));
 
 
+async function confirmDialog(options) {
+    if (!options || !options.title || !options.message) {
+        throw new TypeError("title and message options required");
+    }
+    const {response} = await electron.dialog.showMessageBox(options.sender && options.sender.getOwnerBrowserWindow(), {
+        type: 'question',
+        // NOTE: Order matters, don't mess with this..
+        buttons: [options.confirmButton || 'Confirm', options.cancelButton || 'Cancel'],
+        defaultId: 1,
+        cancelId: 1,
+        ...options,
+    });
+    return response === 0;
+}
+
+
 function monitorWindowForEventSubs(win, subs) {
     // NOTE: MacOS emits show/hide AND restore/minimize but Windows only does restore/minimize
     const resumeEvents = ['responsive', 'show', 'restore'];
@@ -355,16 +371,14 @@ class SauceApp extends EventEmitter {
     }
 
     async _resetStorageState(sender) {
-        const {response} = await electron.dialog.showMessageBox(sender.getOwnerBrowserWindow(), {
-            type: 'question',
+        const confirmed = await confirmDialog({
             title: 'Confirm Reset State',
             message: 'This operation will reset all settings completely.\n\n' +
                 'Are you sure you want continue?',
-            buttons: ['Yes, reset to defaults', 'Cancel'],
-            defaultId: 1,
-            cancelId: 1,
+            confirmButton: 'Yes, reset to defaults',
+            sender,
         });
-        if (response === 0) {
+        if (confirmed) {
             console.warn('Reseting state and restarting...');
             await storage.reset();
             await secrets.remove('zwift-login');
@@ -621,7 +635,23 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     if (updateInfo && await maybeDownloadAndInstallUpdate(updateInfo)) {
         return; // updated, will restart
     }
-    mods.init();
+    for (const mod of mods.init()) {
+        if (mod.isNew) {
+            const enable = await confirmDialog({
+                title: 'New MOD Found',
+                message: `A new MOD was found.  Would you like to enable this MOD now?\n\n` +
+                    `Only do this if you trust the author and intentionally added it to your system`,
+                detail: [
+                    mod.manifest.name,
+                    mod.manifest.description,
+                    'By: ' + mod.manifest.author || '<Unknown Author>',
+                ].filter(x => x).join('\n'),
+                confirmButton: 'Enable Now',
+                cancelButton: 'Ignore',
+            });
+            mods.setEnabled(mod.id, enable);
+        }
+    }
     await sauceApp.start(args);
     console.debug('Startup bench:', Date.now() - s);
     if (!args.headless) {
