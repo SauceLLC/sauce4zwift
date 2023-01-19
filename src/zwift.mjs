@@ -104,7 +104,6 @@ export const courseToWorldIds = Object.fromEntries(worldCourseDescs.map(x => [x.
 export const worldToCourseIds = Object.fromEntries(worldCourseDescs.map(x => [x.worldId, x.courseId]));
 export const courseToNames = Object.fromEntries(worldCourseDescs.map(x => [x.courseId, x.name]));
 export const worldToNames = Object.fromEntries(worldCourseDescs.map(x => [x.worldId, x.name]));
-
 export const worldMetas = {};
 try {
     const worldListFile = path.join(__dirname, `../shared/deps/data/worldlist.json`);
@@ -232,13 +231,16 @@ export function processPlayerStateMessage(msg) {
             Math.round(msg._cadenceUHz / 1e6 * 60) : 0,  // rpm
         eventDistance: msg._eventDistance / 100,  // meters
         roadCompletion: flags1.reverse ? 1e6 - adjRoadLoc : adjRoadLoc,
-        latlng: worldMeta ? [
+        latlng: worldMeta ? worldMeta.flippedHack ? [
+            (msg.x / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
+            (msg.y / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset
+        ] : [
             -(msg.y / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
             (msg.x / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset
         ] : null,
         altitude: worldMeta ?
             ((msg.z + worldMeta.waterPlaneLevel) / 100 * worldMeta.physicsSlopeScale) +
-                worldMeta.altitudeHackOffset :
+                worldMeta.altitudeOffsetHack :
             null
     };
 }
@@ -1518,7 +1520,7 @@ export class GameMonitor extends events.EventEmitter {
         for (const ch of this._udpChannels) {
             if (ch.active) {
                 try {
-                    await ch.sendPlayerState({watchingAthleteId: this.watchingAthleteId});
+                    await ch.sendPlayerState({watchingAthleteId: this.watchingAthleteId, ...this.watchingStateExtra});
                     break;
                 } catch(e) {
                     if (!(e instanceof InactiveChannelError)) {
