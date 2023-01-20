@@ -804,9 +804,9 @@ export async function getWindowsStorage(session) {
     const p = new Promise(resolve => win.webContents.on('ipc-message',
         (ev, ch, storage) => resolve(storage)));
     let storage;
+    win.webContents.on('did-finish-load', () => win.webContents.send('export'));
+    win.loadFile('/pages/dummy.html');
     try {
-        win.webContents.on('did-finish-load', () => win.webContents.send('export'));
-        win.loadFile('/pages/dummy.html');
         storage = await p;
     } finally {
         if (!win.isDestroyed()) {
@@ -829,9 +829,9 @@ export async function setWindowsStorage(storage, session) {
     });
     const p = new Promise((resolve, reject) => win.webContents.on('ipc-message',
         (ev, ch, success) => success ? resolve() : reject()));
+    win.webContents.on('did-finish-load', () => win.webContents.send('import', storage));
+    win.loadFile('/pages/dummy.html');
     try {
-        win.webContents.on('did-finish-load', () => win.webContents.send('import', storage));
-        win.loadFile('/pages/dummy.html');
         await p;
     } finally {
         if (!win.isDestroyed()) {
@@ -1068,12 +1068,41 @@ export async function zwiftLogin(options) {
         closed = true;
         setDone();
     });
-    electron.ipcMain.on('zwift-creds', onCreds);
+    win.webContents.ipc.on('zwift-creds', onCreds);
+    win.show();
     try {
-        win.show();
         return await done;
     } finally {
-        electron.ipcMain.off('zwift-creds', onCreds);
+        if (!closed) {
+            win.close();
+        }
+    }
+}
+
+
+export async function confirmDialog(options) {
+    const modal = !!options.parent;
+    const win = makeCaptiveWindow({
+        file: '/pages/confirm-dialog.html',
+        width: options.width || 400,
+        height: options.height || 500,
+        show: false,
+        modal,
+        parent: options.parent,
+        spec: {options: {...options, parent: undefined}},
+    });
+    let closed;
+    const done = new Promise(resolve => {
+        win.on('closed', () => {
+            closed = true;
+            resolve(false);
+        });
+        win.webContents.ipc.handle('confirm-dialog-response', (ev, confirmed) => resolve(confirmed));
+    });
+    win.show();
+    try {
+        return await done;
+    } finally {
         if (!closed) {
             win.close();
         }
@@ -1133,14 +1162,14 @@ export async function patronLink() {
     const ua = win.webContents.userAgent;
     win.webContents.userAgent = ua.replace(/ SauceforZwift.*? /, ' ').replace(/ Electron\/.*? /, ' ');
     let resolve;
-    electron.ipcMain.on('patreon-reset-session', async () => {
+    win.webContents.ipc.on('patreon-reset-session', async () => {
         win.webContents.session.clearStorageData();
         win.webContents.session.clearCache();
         electron.app.relaunch();
         win.close();
     });
-    electron.ipcMain.on('patreon-auth-code', (ev, code) => resolve({code}));
-    electron.ipcMain.on('patreon-special-token', (ev, token) => resolve({token}));
+    win.webContents.ipc.on('patreon-auth-code', (ev, code) => resolve({code}));
+    win.webContents.ipc.on('patreon-special-token', (ev, token) => resolve({token}));
     win.on('closed', () => resolve({closed: true}));
     while (true) {
         const {code, token, closed} = await new Promise(_resolve => resolve = _resolve);

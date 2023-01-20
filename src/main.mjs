@@ -77,22 +77,6 @@ electron.app.on('second-instance', (ev,_, __, {type}) => {
 electron.app.on('before-quit', () => void (quiting = true));
 
 
-async function confirmDialog(options) {
-    if (!options || !options.title || !options.message) {
-        throw new TypeError("title and message options required");
-    }
-    const {response} = await electron.dialog.showMessageBox(options.sender && options.sender.getOwnerBrowserWindow(), {
-        type: 'question',
-        // NOTE: Order matters, don't mess with this..
-        buttons: [options.confirmButton || 'Confirm', options.cancelButton || 'Cancel'],
-        defaultId: 1,
-        cancelId: 1,
-        ...options,
-    });
-    return response === 0;
-}
-
-
 function monitorWindowForEventSubs(win, subs) {
     // NOTE: MacOS emits show/hide AND restore/minimize but Windows only does restore/minimize
     const resumeEvents = ['responsive', 'show', 'restore'];
@@ -371,12 +355,14 @@ class SauceApp extends EventEmitter {
     }
 
     async _resetStorageState(sender) {
-        const confirmed = await confirmDialog({
+        const confirmed = await windows.confirmDialog({
             title: 'Confirm Reset State',
-            message: 'This operation will reset all settings completely.\n\n' +
-                'Are you sure you want continue?',
+            message: '<h3>This operation will reset ALL settings completely!</h3>' +
+                '<h4>Are you sure you want continue?</h4>',
             confirmButton: 'Yes, reset to defaults',
-            sender,
+            confirmClass: 'danger',
+            parent: sender.getOwnerBrowserWindow(),
+            height: 300,
         });
         if (confirmed) {
             console.warn('Reseting state and restarting...');
@@ -637,18 +623,18 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     }
     for (const mod of mods.init()) {
         if (mod.isNew) {
-            const enable = await confirmDialog({
+            const enable = await windows.confirmDialog({
                 title: 'New Sauce MOD Found',
-                message: `A new Sauce MOD was found.\n\nWould you like to enable it now?`,
-                detail: [
-                    '   Name: ' + mod.manifest.name,
-                    '   Desc: ' + (mod.manifest.description || '-'),
-                    '   Author: ' + (mod.manifest.author || '<Unknown>'),
-                    '',
-                    `Only enable this if you trust the author and intentionally added it.`,
-                ].join('\n'),
+                message: `<h3>New Sauce MOD was found:</h3><h4>Would you like to enable it now?</h4>`,
+                detail: `
+                    <b>${mod.manifest.name} </b> | by: ${(mod.manifest.author || '<Unknown>')}
+                    <hr/>
+                    <small>${mod.manifest.description || ''}</small>
+                `,
+                footer: `<b>CAUTION:</b> Only enable this if you trust the author and have intentionally added it.`,
                 confirmButton: 'Enable Now',
                 cancelButton: 'Ignore',
+                confirmClass: 'danger',
             });
             mods.setEnabled(mod.id, enable);
         }
