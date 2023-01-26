@@ -1,4 +1,9 @@
+html {
+    --aspect-ratio: 1 / 2;
+}
+
 #content {
+    max-height: 100%;
     overflow: auto;
     overflow: overlay;
 
@@ -12,19 +17,51 @@
         background-repeat: no-repeat;
     }
 
-    .map-canvas {
-        display: none;
-        aspect-ratio: 1 / 1;
+    .map-canvas-scroll {
+        flex: 0 0 auto;
+        width: 100%;
         font-variant-numeric: tabular-nums;
-        max-width: 100%;
-        max-height: 100%;
-        background-size: contain;
-        background-repeat: no-repeat;
+        aspect-ratio: 1 / 1;
+        overflow: auto;
+        overflow: overlay;
+
+        .map-canvas {
+            zoom: 0.5;
+            border: 2px solid red;
+            background: pink;
+            position: relative;
+            display: flex; // prevents weird padding issues with canvas child
+
+            .dot {
+                --size: 10px;
+                --x-offt: 1415px;
+                --y-offt: 1006px;
+                position: absolute;
+                border-radius: 50%;
+                border: 2px solid black;
+                width: var(--size);
+                height: var(--size);
+                left: calc(0% + var(--x-offt) + var(--x) - (var(--size) / 2));
+                top: calc(0% + var(--y-offt) + var(--y) - (var(--size) / 2));
+                background: #fff8;
+                transition: left 1s, top 1s;
+                transition-timing-function: linear;
+
+                &.watching {
+                    background: #f22a;
+                    --size: 20px;
+                }
+            }
+        }
+
+        canvas {}
     }
 
     .elevation-profile {
+        flex: 0 0 auto;
         aspect-ratio: 3 / 1;
         font-variant-numeric: tabular-nums;
         width: 100%;
+        overflow: hidden;  // echarts rounds up sometimes and makes a scrollbar
     }
 }
