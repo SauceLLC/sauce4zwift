@@ -24,9 +24,9 @@ message PlayerState {
     int64 _joinTime = 22;
     bool justWatching = 23;
     int32 _mwHours = 24; // milliwatt/hours of energy
-    float x = 25; // cartesian meters
-    float z = 26; // ??? XXX
-    float y = 27; // cartesian meters
+    float x = 25;
+    float z = 26;
+    float y = 27;
     int32 watchingAthleteId = 28;
     int32 eventSubgroupId = 29;
     Sport sport = 31;
@@ -819,17 +819,17 @@ message Achievements {
 }
 
 message DropInWorld {
-    required uint64 id = 1;
+    required int32 realm = 1;
     string name = 2;
     int32 courseId = 3;
     bool _f4 = 4;
-    uint64 zwifters = 5;
+    uint32 zwifters = 5;
     uint64 _worldTime = 6;
     uint64 realTime = 7;
     repeated DropInPlayer proPlayers = 8;
     repeated DropInPlayer followees = 9;
     repeated DropInPlayer others = 10;
-    uint64 maxZwifters = 11; //stored as int32
+    uint32 maxZwifters = 11;
     repeated DropInPlayer pacerBots = 12;
 }
 
@@ -838,22 +838,22 @@ message DropInWorldList {
 }
 
 message DropInPlayer {
-    required uint64 id = 1;
+    required uint32 athleteId = 1;
     required string firstName = 2;
     required string lastName = 3;
-    uint64 distance = 4;
-    uint64 time = 5;
-    uint64 countryCode = 6;
+    uint32 distance = 4;
+    uint32 time = 5;
+    uint32 countryCode = 6;
     PlayerType playerType = 7;
     Sport sport = 8;
-    bool _f9 = 9;
+    bool male = 9;
     bool _f10 = 10;
-    uint64 _f11 = 11;
-    uint64 power = 12;
-    uint64 _f13 = 13;
+    uint32 _f11 = 11;
+    uint32 power = 12;
+    uint32 _f13 = 13; // Some sort of time: typically 3600
     float x = 14;
-    float yAltitude = 15;
-    float z = 16;
+    float z = 15;
+    float y = 16;
     uint32 routeId = 17;
     uint32 ridePower = 18;
     uint32 speed = 19;
