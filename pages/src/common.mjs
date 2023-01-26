@@ -557,9 +557,11 @@ export class Renderer {
                         }
                         if (field.unitEl) {
                             let unit = '';
+                            // Hide unit if there is no value but only if there is no key field too.
+                            const showUnit = field.active.unit &&
+                                ((value != null && value !== '-') || !field.keyEl);
                             try {
-                                unit = (value != null && value !== '-' && field.active.unit) ?
-                                    fGet(field.active.unit, this._data) : '';
+                                unit = showUnit ? fGet(field.active.unit, this._data) : '';
                             } catch(e) {
                                 report.errorThrottled(e);
                             }

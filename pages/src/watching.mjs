@@ -104,11 +104,22 @@ const groupSpecs = {
             key: 'Current',
             unit: 'w',
         }, {
+            id: 'pwr-cur-wkg',
+            value: x => humanWkg(x.state && x.state.power, x.athlete),
+            key: 'Current',
+            unit: 'w/kg',
+        }, {
             id: 'pwr-avg',
             value: x => H.number(x.stats && x.stats.power.avg),
             label: 'avg',
             key: 'Avg',
             unit: 'w',
+        }, {
+            id: 'pwr-avg-wkg',
+            value: x => humanWkg(x.state && x.stats.power.avg, x.athlete),
+            label: 'avg',
+            key: 'Avg',
+            unit: 'w/kg',
         }, {
             id: 'pwr-max',
             value: x => H.number(x.stats && x.stats.power.max),
@@ -116,9 +127,10 @@ const groupSpecs = {
             key: 'Max',
             unit: 'w',
         }, {
-            id: 'pwr-cur-wkg',
-            value: x => humanWkg(x.state && x.state.power, x.athlete),
-            key: 'Current',
+            id: 'pwr-max-wkg',
+            value: x => humanWkg(x.state && x.stats.power.max, x.athlete),
+            label: 'max',
+            key: 'Max',
             unit: 'w/kg',
         }, {
             id: 'pwr-np',

@@ -390,8 +390,9 @@ class SauceApp extends EventEmitter {
     async start(args) {
         const gameMonitor = this.gameMonitor = new zwift.GameMonitor({
             zwiftMonitorAPI,
-            gameAthleteId: args.athleteId || zwiftAPI.profile.id,
+            gameAthleteId: args.overrideAthleteId || zwiftAPI.profile.id,
             randomWatch: args.randomWatch,
+            dropinCourseId: args.dropinCourseId,
         });
         gameMonitor.on('multiple-logins', () => {
             electron.dialog.showErrorBox('Multiple Logins Detected',
@@ -401,7 +402,7 @@ class SauceApp extends EventEmitter {
         });
         let ip;
         let gameConnection;
-        if (this.getSetting('gameConnectionEnabled') && !args.disableGameConnection) {
+        if (this.getSetting('gameConnectionEnabled')) {
             ip = ip || await getLocalRoutedIP();
             gameConnection = this.startGameConnectionServer(ip);
             // This isn't required but reduces latency..
@@ -465,9 +466,8 @@ function snakeToCamelCase(v) {
 function parseArgs() {
     const iter = process.argv.values();
     const args = {};
-    const switches = ['help', 'headless', 'force-login', 'random-watch', 'disable-game-connection',
-        'disable-monitor'];
-    const options = ['host', 'athlete-id'];
+    const switches = ['help', 'headless', 'force-login', 'random-watch', 'disable-monitor'];
+    const options = ['host', 'override-athlete-id', 'dropin-course-id'];
     for (let x of iter) {
         if (!x.startsWith('--')) {
             continue;
