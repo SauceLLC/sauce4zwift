@@ -1,7 +1,6 @@
 import * as sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
 import * as ec from '../deps/src/echarts.mjs';
-//window.echarts = Object.fromEntries(Object.entries(ec));
 import * as theme from './echarts-sauce-theme.mjs';
 
 ec.registerTheme('sauce', theme.getTheme('dynamic'));
@@ -47,6 +46,7 @@ async function createElevationProfile(renderer) {
         },
         series: [{
             name: 'Elevation',
+            smooth: 1,
             type: 'line',
             symbol: 'none',
             areaStyle: {},
@@ -137,12 +137,14 @@ async function createMapCanvas(renderer) {
     const mapEl = document.querySelector('.map-canvas');
     const dotsEl = mapEl.querySelector('.dots');
     const canvas = mapEl.querySelector('canvas');
+    const imgTest = mapEl.querySelector('img');
     const ctx = canvas.getContext('2d');
     const worldList = await (await fetch('/shared/deps/data/worldlist.json')).json();
     let courseId;
     let worldMeta;
     // XXX...
-    let worldId = 13;
+    let worldId = 1;
+    imgTest.src = 'https://cdn.zwift.com/static/images/maps/MiniMap_Watopia.png';
     worldMeta = worldList.find(x => x.worldId === worldId);
     const roads = (await (await fetch(`/shared/deps/data/worlds/${worldId}/roads.json`)).json());
     for (const r of Object.values(roads)) {

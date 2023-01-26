@@ -33,6 +33,7 @@ html {
             position: relative;
     
             .dots {
+                z-index: 3;
                 position: absolute;
                 left: var(--x-offt);
                 top: var(--y-offt);
@@ -114,7 +115,17 @@ html {
             }
         }
 
-        canvas {}
+        canvas {
+            z-index: 1;
+        }
+
+        img.minimap {
+            z-index: 2;
+            mix-blend-mode: hard-light;
+            position: absolute;
+            left: 0;
+            top: 0;
+        }
     }
 
     .elevation-profile {
