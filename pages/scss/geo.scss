@@ -26,30 +26,90 @@ html {
         overflow: overlay;
 
         .map-canvas {
-            zoom: 0.5;
+            zoom: 0.25; // XXX
             border: 2px solid red;
             background: pink;
-            position: relative;
             display: flex; // prevents weird padding issues with canvas child
-
-            .dot {
-                --size: 10px;
-                --x-offt: 1415px;
-                --y-offt: 1006px;
+            position: relative;
+    
+            .dots {
                 position: absolute;
-                border-radius: 50%;
-                border: 2px solid black;
-                width: var(--size);
-                height: var(--size);
-                left: calc(0% + var(--x-offt) + var(--x) - (var(--size) / 2));
-                top: calc(0% + var(--y-offt) + var(--y) - (var(--size) / 2));
-                background: #fff8;
-                transition: left 1s, top 1s;
-                transition-timing-function: linear;
+                left: var(--x-offt);
+                top: var(--y-offt);
 
-                &.watching {
-                    background: #f22a;
-                    --size: 20px;
+                &[data-world-id="1"] {
+                    --x-offt: 3987px;
+                    --y-offt: 1014px;
+                    transform: rotate(-90deg);
+                }
+                &[data-world-id="2"] {
+                    --x-offt: 2236px;
+                    --y-offt: 1856px;
+                    transform: rotate(-90deg);
+                }
+                &[data-world-id="3"] {
+                    --x-offt: 324px;
+                    --y-offt: 1856px;
+                }
+                &[data-world-id="4"] {
+                    --x-offt: 1873px;
+                    --y-offt: 2682px;
+                }
+                &[data-world-id="5"] {
+                    --x-offt: 1415px;
+                    --y-offt: 1006px;
+                }
+                &[data-world-id="6"] {
+                    --x-offt: 3082px;
+                    --y-offt: 1939px;
+                }
+                &[data-world-id="7"] {
+                    --x-offt: 2850px;
+                    --y-offt: 1840px;
+                }
+                &[data-world-id="8"] {
+                    --x-offt: 2003px;
+                    --y-offt: 2010px;
+                }
+                &[data-world-id="9"] {
+                    --x-offt: 5485px;
+                    --y-offt: 3724px;
+                }
+                &[data-world-id="10"] {
+                    --x-offt: 1641px;
+                    --y-offt: 1476px;
+                }
+                &[data-world-id="11"] {
+                    --x-offt: 2048px;
+                    --y-offt: 2048px;
+                }
+                &[data-world-id="12"] {
+                    --x-offt: 2090px;
+                    --y-offt: 6107px;
+                }
+                &[data-world-id="13"] {
+                    --x-offt: 2888px;
+                    --y-offt: 2049px;
+                }
+                .dot {
+                    --radius: 5px;
+                    --border-size: 2px;
+                    position: absolute;
+                    border-radius: 50%;
+                    border: var(--border-size) solid #000c;
+                    width: calc(var(--radius) * 2);
+                    height: calc(var(--radius) * 2);
+                    left: calc(var(--x) - var(--radius));
+                    top: calc(var(--y) - var(--radius));
+                    background-color: #fff8;
+                    transition: left 1s, top 1s;
+                    transition-timing-function: linear;
+
+                    &.watching {
+                        background-color: #f22a;
+                        --radius: 8px;
+                        --border-size: 4px;
+                    }
                 }
             }
         }

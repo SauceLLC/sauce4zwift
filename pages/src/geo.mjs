@@ -134,12 +134,28 @@ async function createElevationProfile(renderer) {
 
 async function createMapCanvas(renderer) {
     const tileSize = 4096;
-    const canvas = document.querySelector('.map-canvas > canvas');
+    const mapEl = document.querySelector('.map-canvas');
+    const dotsEl = mapEl.querySelector('.dots');
+    const canvas = mapEl.querySelector('canvas');
     const ctx = canvas.getContext('2d');
     const worldList = await (await fetch('/shared/deps/data/worldlist.json')).json();
     let courseId;
     let worldMeta;
-    let roads;
+    // XXX...
+    let worldId = 13;
+    worldMeta = worldList.find(x => x.worldId === worldId);
+    const roads = (await (await fetch(`/shared/deps/data/worlds/${worldId}/roads.json`)).json());
+    for (const r of Object.values(roads)) {
+        for (const [x, y] of r.coords) {
+            const dot = document.createElement('div');
+            dot.classList.add('dot');
+            dotsEl.append(dot);
+            dot.style.setProperty('--x', `${(x / worldMeta.tileScale) * tileSize}px`);
+            dot.style.setProperty('--y', `${(y / worldMeta.tileScale) * tileSize}px`);
+        }
+    }
+    // /XXX
+
     let reset;
     const dots = new Map();
     renderer.addCallback(async nearby => {
@@ -149,9 +165,10 @@ async function createMapCanvas(renderer) {
         const watching = nearby.find(x => x.watching);
         if (watching.state.courseId !== courseId) {
             courseId = watching.state.courseId;
-            worldMeta = worldList.find(x => x.courseId === courseId);
-            const worldId = common.courseToWorldIds[courseId];
-            roads = (await (await fetch(`/shared/deps/data/worlds/${worldId}/roads.json`)).json());
+            // XXX
+            //worldMeta = worldList.find(x => x.courseId === courseId);
+            //const worldId = common.courseToWorldIds[courseId];
+            dotsEl.dataset.worldId = worldId;
             let xStart = Infinity, xEnd = -Infinity, yStart = Infinity, yEnd = -Infinity;
             for (const m of worldMeta.minimap) {
                 const size = m.scale * tileSize;
@@ -177,11 +194,10 @@ async function createMapCanvas(renderer) {
                     tileSize * tile.scale,
                     tileSize * tile.scale);
                 ctx.restore();
-                await sauce.sleep(100);
             }
             ctx.restore();
             if (worldId === 1) {
-                document.querySelector('.map-canvas').style.transform = 'transform: rotate(90deg) translate(-933px, 3716px);';
+                //document.querySelector('.map-canvas').style.transform = 'transform: rotate(90deg) translate(-933px, 3716px);';
             }
 
 
@@ -201,27 +217,18 @@ async function createMapCanvas(renderer) {
         }
         //reset();
         for (const x of nearby) {
-            if (!dots.has(x.athleteId) || true) {
+            if (!dots.has(x.athleteId)) {
                 const dot = document.createElement('div');
                 dot.classList.add('dot');
                 dot.classList.toggle('watching', !!x.watching);
                 dot.dataset.athleteId = x.athleteId;
-                document.querySelector('.map-canvas').append(dot);
+                dotsEl.append(dot);
                 dots.set(x.athleteId, dot);
             }
             const dot = dots.get(x.athleteId);
             dot.lastSeen = Date.now();
             dot.style.setProperty('--x', `${(x.state.x / worldMeta.tileScale) * tileSize}px`);
             dot.style.setProperty('--y', `${(x.state.y / worldMeta.tileScale) * tileSize}px`);
-        }
-        for (const r of Object.values(roads)) {
-            for (const [x, y] of r.coords) {
-                const dot = document.createElement('div');
-                dot.classList.add('dot');
-                document.querySelector('.map-canvas').append(dot);
-                dot.style.setProperty('--x', `${(x / worldMeta.tileScale) * tileSize}px`);
-                dot.style.setProperty('--y', `${(y / worldMeta.tileScale) * tileSize}px`);
-            }
         }
     });
 }
