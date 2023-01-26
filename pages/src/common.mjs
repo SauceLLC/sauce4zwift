@@ -30,6 +30,7 @@ const worldCourseDescs = [
     {worldId: 10, courseId: 14, name: 'France', ident: 'FRANCE'},
     {worldId: 11, courseId: 15, name: 'Paris', ident: 'PARIS'},
     {worldId: 12, courseId: 16, name: 'Gravel Mountain', ident: 'GRAVEL MOUNTAIN'},
+    {worldId: 13, courseId: 17, name: 'Scotland', ident: 'SCOTLAND'},
 ];
 export const courseToWorldIds = Object.fromEntries(worldCourseDescs.map(x => [x.courseId, x.worldId]));
 export const worldToCourseIds = Object.fromEntries(worldCourseDescs.map(x => [x.worldId, x.courseId]));

@@ -99,6 +99,7 @@ const worldCourseDescs = [
     {worldId: 10, courseId: 14, name: 'France'},
     {worldId: 11, courseId: 15, name: 'Paris'},
     {worldId: 12, courseId: 16, name: 'Gravel Mountain'},
+    {worldId: 13, courseId: 17, name: 'Scotland'},
 ];
 export const courseToWorldIds = Object.fromEntries(worldCourseDescs.map(x => [x.courseId, x.worldId]));
 export const worldToCourseIds = Object.fromEntries(worldCourseDescs.map(x => [x.worldId, x.courseId]));
@@ -110,7 +111,7 @@ try {
     for (const x of JSON.parse(fs.readFileSync(worldListFile))) {
         worldMetas[x.courseId] = x;
     }
-} catch(e) {/*no-pragma*/}
+} catch {/*no-pragma*/}
 
 
 function decodeGroupEventUserRegistered(buf) {
@@ -207,14 +208,21 @@ export function encodePlayerStateFlags2(props) {
 }
 
 
+function vectorDistance(a, b) {
+    const xd = b[0] - a[0];
+    const yd = b[1] - a[1];
+    const zd = b[2] - a[2];
+    return Math.sqrt(xd * xd + yd * yd + zd * zd);
+}
+
+
 export function processPlayerStateMessage(msg) {
     const flags1 = decodePlayerStateFlags1(msg._flags1);
     const flags2 = decodePlayerStateFlags2(msg._flags2);
     const wt = msg._worldTime.toNumber();
     const latency = worldTime.now() - wt;
     const adjRoadLoc = msg.roadLocation - 5000;  // It's 5,000 -> 1,005,000
-    const worldMeta = worldMetas[msg.courseId];
-    return {
+    const state = {
         ...msg,
         ...flags1,
         ...flags2,
@@ -231,18 +239,31 @@ export function processPlayerStateMessage(msg) {
             Math.round(msg._cadenceUHz / 1e6 * 60) : 0,  // rpm
         eventDistance: msg._eventDistance / 100,  // meters
         roadCompletion: flags1.reverse ? 1e6 - adjRoadLoc : adjRoadLoc,
-        latlng: worldMeta ? worldMeta.flippedHack ? [
+        latlng: null,
+        altitude: null,
+        grade: null,
+    };
+    const worldMeta = worldMetas[msg.courseId];
+    if (worldMeta) {
+        state.latlng = worldMeta.flippedHack ? [
             (msg.x / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
             (msg.y / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset
         ] : [
             -(msg.y / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
             (msg.x / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset
-        ] : null,
-        altitude: worldMeta ?
-            ((msg.z + worldMeta.waterPlaneLevel) / 100 * worldMeta.physicsSlopeScale) +
-                worldMeta.altitudeOffsetHack :
-            null
-    };
+        ];
+        state.altitude = ((msg.z + worldMeta.waterPlaneLevel) / 100 * worldMeta.physicsSlopeScale) +
+            worldMeta.altitudeOffsetHack;
+        const road = worldMeta.roads && worldMeta.roads[state.roadId];
+        if (road) {
+            const idx = Math.max(0, Math.round(adjRoadLoc / 1e6 * road.coords.length));
+            const distances = road.coords.map(x => vectorDistance(x, [state.x, state.y, state.z]));
+            const nearest = distances.indexOf(Math.min(...distances));
+            state.grade2 = road.grades[nearest] * (state.reverse ? -1 : 1);
+            state.grade3 = road.grades_smooth[nearest] * (state.reverse ? -1 : 1);
+        }
+    }
+    return state;
 }
 
 
@@ -543,6 +564,10 @@ export class ZwiftAPI {
 
     async getGameInfo() {
         return await this.fetchJSON(`/api/game_info`, {apiVersion: '2.6'});
+    }
+
+    async getDropInWorldList() {
+        return (await this.fetchPB(`/relay/dropin`, {protobuf: 'DropInWorldList'})).worlds;
     }
 
     async searchProfiles(searchText, options={}) {
@@ -1781,7 +1806,16 @@ export class GameMonitor extends events.EventEmitter {
         this.courseId = courseId;
         if (courseId) {
             console.info(`Moving to ${courseToNames[courseId]}, courseId: ${courseId}`);
-            //this.api.setInGameFields({worldId: courseToWorldIds[courseId]});  // bg ok
+            const worldMeta = worldMetas[courseId];
+            if (worldMeta && !worldMeta.roads) {
+                const worldId = courseToWorldIds[courseId];
+                const roadsFile = path.join(__dirname, `../shared/deps/data/worlds/${worldId}/roads.json`);
+                try {
+                    worldMeta.roads = JSON.parse(fs.readFileSync(roadsFile));
+                } catch {
+                    worldMeta.roads = {};
+                }
+            }
             if (this._session) {
                 this.setUDPChannel();
             }
