@@ -208,21 +208,14 @@ export function encodePlayerStateFlags2(props) {
 }
 
 
-function vectorDistance(a, b) {
-    const xd = b[0] - a[0];
-    const yd = b[1] - a[1];
-    const zd = b[2] - a[2];
-    return Math.sqrt(xd * xd + yd * yd + zd * zd);
-}
-
-
 export function processPlayerStateMessage(msg) {
     const flags1 = decodePlayerStateFlags1(msg._flags1);
     const flags2 = decodePlayerStateFlags2(msg._flags2);
     const wt = msg._worldTime.toNumber();
     const latency = worldTime.now() - wt;
     const adjRoadLoc = msg.roadLocation - 5000;  // It's 5,000 -> 1,005,000
-    const state = {
+    const worldMeta = worldMetas[msg.courseId];
+    return {
         ...msg,
         ...flags1,
         ...flags2,
@@ -239,31 +232,16 @@ export function processPlayerStateMessage(msg) {
             Math.round(msg._cadenceUHz / 1e6 * 60) : 0,  // rpm
         eventDistance: msg._eventDistance / 100,  // meters
         roadCompletion: flags1.reverse ? 1e6 - adjRoadLoc : adjRoadLoc,
-        latlng: null,
-        altitude: null,
-        grade: null,
+        latlng: worldMeta ?
+            worldMeta.flippedHack ?
+                [(msg.x / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
+                 (msg.y / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset] :
+                [-(msg.y / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
+                (msg.x / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset] :
+            null,
+        altitude: worldMeta ? (msg.z + worldMeta.waterPlaneLevel) / 100 *
+            worldMeta.physicsSlopeScale + worldMeta.altitudeOffsetHack : null,
     };
-    const worldMeta = worldMetas[msg.courseId];
-    if (worldMeta) {
-        state.latlng = worldMeta.flippedHack ? [
-            (msg.x / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
-            (msg.y / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset
-        ] : [
-            -(msg.y / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
-            (msg.x / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset
-        ];
-        state.altitude = ((msg.z + worldMeta.waterPlaneLevel) / 100 * worldMeta.physicsSlopeScale) +
-            worldMeta.altitudeOffsetHack;
-        const road = worldMeta.roads && worldMeta.roads[state.roadId];
-        if (road) {
-            const idx = Math.max(0, Math.round(adjRoadLoc / 1e6 * road.coords.length));
-            const distances = road.coords.map(x => vectorDistance(x, [state.x, state.y, state.z]));
-            const nearest = distances.indexOf(Math.min(...distances));
-            state.grade2 = road.grades[nearest] * (state.reverse ? -1 : 1);
-            state.grade3 = road.grades_smooth[nearest] * (state.reverse ? -1 : 1);
-        }
-    }
-    return state;
 }
 
 
@@ -1212,7 +1190,23 @@ export class GameMonitor extends events.EventEmitter {
         this.api = options.zwiftMonitorAPI;
         this.athleteId = this.api.profile.id;
         this.randomWatch = options.randomWatch;
-        this.gameAthleteId = options.gameAthleteId;
+        this.dropinCourseId = options.dropinCourseId;
+        if (this.dropinCourseId) {
+            this.watchingStateExtra = {
+                justWatching: false,
+                _speed: 0,
+                _cadenceUHz: 0,
+                _heading: 0,
+                roadLocation: 5000,
+                power: 0,
+                roadPosition: 0,
+                _flags1: encodePlayerStateFlags1({
+                    auxCourseId: this.dropinCourseId,
+                    powerMeter: 1
+                }),
+            };
+        }
+        this.gameAthleteId = this.dropinCourseId ? this.athleteId : options.gameAthleteId;
         this.watchingAthleteId = null;
         this.courseId = null;
         this._udpChannels = [];
@@ -1279,25 +1273,31 @@ export class GameMonitor extends events.EventEmitter {
     }
 
     async getRandomAthleteId() {
-        const inWorld = (await this.api.fetchJSON('/relay/worlds/1')).friendsInWorld;
-        return inWorld[0].playerId;
+        const worlds = (await this.api.getDropInWorldList()).filter(x => x.others.length);
+        const world = worlds[Math.random() * worlds.length | 0];
+        return world.others[0].athleteId;
     }
 
     async initPlayerState() {
         if (this.randomWatch) {
             this.gameAthleteId = await this.getRandomAthleteId();
         }
-        const s = await this.api.getPlayerState(this.gameAthleteId);
-        this.setCourse(s ? s.courseId : null);
-        if (s) {
-            this.setWatching(s.watchingAthleteId);
-            if (s.watchingAthleteId === this.gameAthleteId) {
-                // Optimize first connect when watching self (common) by allowing
-                // setUDPChannel to use best UDP server immediately..
-                this._setWatchingState(s);
-            }
+        if (this.dropinCourseId) {
+            this.setCourse(this.dropinCourseId);
+            this.setWatching(this.athleteId);
         } else {
-            this.setWatching(this.gameAthleteId);
+            const s = await this.api.getPlayerState(this.gameAthleteId);
+            this.setCourse(s ? s.courseId : null);
+            if (s) {
+                this.setWatching(s.watchingAthleteId);
+                if (s.watchingAthleteId === this.gameAthleteId) {
+                    // Optimize first connect when watching self (common) by allowing
+                    // setUDPChannel to use best UDP server immediately..
+                    this._setWatchingState(s);
+                }
+            } else {
+                this.setWatching(this.gameAthleteId);
+            }
         }
     }
 
@@ -1377,8 +1377,10 @@ export class GameMonitor extends events.EventEmitter {
         await this.establishTCPChannel(session);
         await this.activateSession(session);
         this._schedHashSeedsRefresh();
-        this._refreshStatesTimeout = setTimeout(() => this._refreshStates(), this._stateRefreshDelay);
         this._playerStateInterval = setInterval(this.broadcastPlayerState.bind(this), 1000);
+        if (!this.dropinCourseId) {
+            this._refreshStatesTimeout = setTimeout(() => this._refreshStates(), this._stateRefreshDelay);
+        }
     }
 
     async renewSession() {
@@ -1545,7 +1547,8 @@ export class GameMonitor extends events.EventEmitter {
         for (const ch of this._udpChannels) {
             if (ch.active) {
                 try {
-                    await ch.sendPlayerState({watchingAthleteId: this.watchingAthleteId, ...this.watchingStateExtra});
+                    await ch.sendPlayerState({watchingAthleteId: this.watchingAthleteId,
+                        ...this.watchingStateExtra});
                     break;
                 } catch(e) {
                     if (!(e instanceof InactiveChannelError)) {
