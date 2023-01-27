@@ -115,6 +115,7 @@ async function createElevationProfile(renderer) {
                         colorStops: road.distances.map((x, i) => ({
                             offset: x / distance,
                             color: Color.fromRGB(Math.abs(road.grades[i] / 0.10), 0, 0.15, 0.95).toString(),
+                            //color: new Color(0.33 - Math.min(1, Math.abs(road.grades[i] / 0.10)) * (120 / 360), 0.5, 0.5, 0.95).toString(),
                         })),
                     },
                 },
@@ -208,12 +209,13 @@ async function createMapCanvas(renderer) {
             return;
         }
         const watching = nearby.find(x => x.watching);
+        mapEl.style.setProperty('--heading', watching.state.heading);
         if (watching.state.courseId !== courseId) {
             courseId = watching.state.courseId;
             worldMeta = worldList.find(x => x.courseId === courseId);
             const worldDesc = common.worldCourseDescs.find(x => x.courseId === courseId);
             const worldId = common.courseToWorldIds[courseId];
-            dotsEl.dataset.worldId = worldId;
+            mapEl.dataset.worldId = worldId;
             imgTest.src = `https://cdn.zwift.com/static/images/maps/MiniMap_${worldDesc.minimapKey}.png`;
             let xStart = Infinity, xEnd = -Infinity, yStart = Infinity, yEnd = -Infinity;
             for (const m of worldMeta.minimap) {
@@ -242,19 +244,25 @@ async function createMapCanvas(renderer) {
             }
             ctx.restore();
         }
-        for (const x of nearby) {
-            if (!dots.has(x.athleteId)) {
+        for (const entry of nearby) {
+            if (!dots.has(entry.athleteId)) {
                 const dot = document.createElement('div');
                 dot.classList.add('dot');
-                dot.classList.toggle('watching', !!x.watching);
-                dot.dataset.athleteId = x.athleteId;
+                dot.classList.toggle('watching', !!entry.watching);
+                dot.dataset.athleteId = entry.athleteId;
                 dotsEl.append(dot);
-                dots.set(x.athleteId, dot);
+                dots.set(entry.athleteId, dot);
             }
-            const dot = dots.get(x.athleteId);
+            const dot = dots.get(entry.athleteId);
             dot.lastSeen = Date.now();
-            dot.style.setProperty('--x', `${(x.state.x / worldMeta.tileScale) * tileSize}px`);
-            dot.style.setProperty('--y', `${(x.state.y / worldMeta.tileScale) * tileSize}px`);
+            const x = (entry.state.x / worldMeta.tileScale) * tileSize;
+            const y = (entry.state.y / worldMeta.tileScale) * tileSize;
+            dot.style.setProperty('--x', `${x}px`);
+            dot.style.setProperty('--y', `${y}px`);
+            if (entry.watching) {
+                mapEl.style.setProperty('--watching-x', `${y}px`);
+                mapEl.style.setProperty('--watching-y', `${-x}px`);
+            }
         }
     });
 }

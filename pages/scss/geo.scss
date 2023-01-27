@@ -26,72 +26,82 @@ html {
         overflow: overlay;
 
         .map-canvas {
-            zoom: 0.25; // XXX
+            --heading: 0;
+            zoom: 0.15; // XXX
+            transform: rotate(calc(var(--heading) * 1deg));
+            transform-origin: calc(var(--x-offt) + var(--watching-x)) calc(var(--y-offt) + var(--watching-y));
             border: 2px solid red;
             background: pink;
             display: flex; // prevents weird padding issues with canvas child
             position: relative;
-    
+
+            &[data-world-id="1"] {
+                --x-offt: 3987px;
+                --y-offt: 1014px;
+
+                .dots {
+                    transform: rotate(-90deg);
+                }
+            }
+            &[data-world-id="2"] {
+                --x-offt: 2236px;
+                --y-offt: 1856px;
+
+                .dots {
+                    transform: rotate(-90deg);
+                }
+            }
+            &[data-world-id="3"] {
+                --x-offt: 324px;
+                --y-offt: 1856px;
+            }
+            &[data-world-id="4"] {
+                --x-offt: 1873px;
+                --y-offt: 2682px;
+            }
+            &[data-world-id="5"] {
+                --x-offt: 1415px;
+                --y-offt: 1006px;
+            }
+            &[data-world-id="6"] {
+                --x-offt: 3082px;
+                --y-offt: 1939px;
+            }
+            &[data-world-id="7"] {
+                --x-offt: 2850px;
+                --y-offt: 1840px;
+            }
+            &[data-world-id="8"] {
+                --x-offt: 2003px;
+                --y-offt: 2010px;
+            }
+            &[data-world-id="9"] {
+                --x-offt: 5485px;
+                --y-offt: 3724px;
+            }
+            &[data-world-id="10"] {
+                --x-offt: 1641px;
+                --y-offt: 1476px;
+            }
+            &[data-world-id="11"] {
+                --x-offt: 2048px;
+                --y-offt: 2048px;
+            }
+            &[data-world-id="12"] {
+                --x-offt: 2090px;
+                --y-offt: 6107px;
+            }
+            &[data-world-id="13"] {
+                --x-offt: 2888px;
+                --y-offt: 2049px;
+            }
+   
             .dots {
                 z-index: 3;
                 position: absolute;
                 left: var(--x-offt);
                 top: var(--y-offt);
 
-                &[data-world-id="1"] {
-                    --x-offt: 3987px;
-                    --y-offt: 1014px;
-                    transform: rotate(-90deg);
-                }
-                &[data-world-id="2"] {
-                    --x-offt: 2236px;
-                    --y-offt: 1856px;
-                    transform: rotate(-90deg);
-                }
-                &[data-world-id="3"] {
-                    --x-offt: 324px;
-                    --y-offt: 1856px;
-                }
-                &[data-world-id="4"] {
-                    --x-offt: 1873px;
-                    --y-offt: 2682px;
-                }
-                &[data-world-id="5"] {
-                    --x-offt: 1415px;
-                    --y-offt: 1006px;
-                }
-                &[data-world-id="6"] {
-                    --x-offt: 3082px;
-                    --y-offt: 1939px;
-                }
-                &[data-world-id="7"] {
-                    --x-offt: 2850px;
-                    --y-offt: 1840px;
-                }
-                &[data-world-id="8"] {
-                    --x-offt: 2003px;
-                    --y-offt: 2010px;
-                }
-                &[data-world-id="9"] {
-                    --x-offt: 5485px;
-                    --y-offt: 3724px;
-                }
-                &[data-world-id="10"] {
-                    --x-offt: 1641px;
-                    --y-offt: 1476px;
-                }
-                &[data-world-id="11"] {
-                    --x-offt: 2048px;
-                    --y-offt: 2048px;
-                }
-                &[data-world-id="12"] {
-                    --x-offt: 2090px;
-                    --y-offt: 6107px;
-                }
-                &[data-world-id="13"] {
-                    --x-offt: 2888px;
-                    --y-offt: 2049px;
-                }
                 .dot {
                     --radius: 5px;
                     --border-size: 2px;
