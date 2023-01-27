@@ -1,5 +1,6 @@
 import * as sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
+import {Color} from './color.mjs';
 import * as ec from '../deps/src/echarts.mjs';
 import * as theme from './echarts-sauce-theme.mjs';
 
@@ -27,6 +28,9 @@ async function createElevationProfile(renderer) {
             trigger: 'axis',
             formatter: ([{value}]) => value ?
                 `${H.elevation(value[1], {suffix: true})}\n${H.number(value[2] * 100, {suffix: '%'})}` : '',
+            axisPointer: {
+                z: -1,
+            },
         },
         xAxis: {
             type: 'value',
@@ -46,7 +50,7 @@ async function createElevationProfile(renderer) {
         },
         series: [{
             name: 'Elevation',
-            smooth: 1,
+            smooth: 0.5,
             type: 'line',
             symbol: 'none',
             areaStyle: {},
@@ -57,10 +61,14 @@ async function createElevationProfile(renderer) {
             },
             markLine: {
                 symbol: 'none',
+                silent: true,
                 label: {
                     position: 'start',
                     distance: 10,
                     formatter: x => H.elevation(x.value, {suffix: true}),
+                    fontSize: '0.5em',
+                },
+                lineStyle: {
                 },
                 data: [{
                     type: 'min',
@@ -74,9 +82,7 @@ async function createElevationProfile(renderer) {
     let roads;
     let road;
     let reverse;
-    let worldMeta;
     let markAnimationDuration;
-    const worldList = await (await fetch('/shared/deps/data/worldlist.json')).json();
     renderer.addCallback(async _nearby => {
         if (!_nearby || !_nearby.length) {
             return;
@@ -90,17 +96,48 @@ async function createElevationProfile(renderer) {
             road = null;
             const worldId = common.courseToWorldIds[courseId];
             roads = (await (await fetch(`/shared/deps/data/worlds/${worldId}/roads.json`)).json());
-            worldMeta = worldList.find(x => x.courseId === courseId);
         }
         if (!road || watching.state.roadId !== road.id || reverse !== watching.state.reverse) {
             road = roads[watching.state.roadId];
             reverse = watching.state.reverse;
             chart.setOption({xAxis: {inverse: reverse}});
-            markAnimationDuration = 20; // reset to render is not uber-slow
+            // XXX 200 when done validating
+            markAnimationDuration = 20; // reset so render is not uber-slow
+            const distance = road.distances[road.distances.length - 1];
             chart.setOption({series: [{
-                data: road.coords.map((x, i) => [road.distances[i], road.elevations[i], road.grades[i]]),
+                areaStyle: {
+                    color:  {
+                        type: 'linear',
+                        x: reverse ? 1 : 0,
+                        y: 0,
+                        x2: reverse ? 0 : 1,
+                        y2: 0,
+                        colorStops: road.distances.map((x, i) => ({
+                            offset: x / distance,
+                            color: Color.fromRGB(Math.abs(road.grades[i] / 0.10), 0, 0.15, 0.95).toString(),
+                        })),
+                    },
+                },
+                data: road.distances.map((x, i) =>
+                    [x, road.elevations[i], road.grades[i] * (reverse ? -1 : 1)]),
             }]});
         }
+        const markEmphasisLabel = params => {
+            if (!params || !params.data || !params.data.name) {
+                return;
+            }
+            const data = nearby.find(x => x.athleteId === params.data.name);
+            if (!data) {
+                return;
+            }
+            const items = [
+                data.athlete && data.athlete.fLast,
+                data.stats.power.smooth[5] != null ? H.power(data.stats.power.smooth[5], {suffix: true}) : null,
+                data.state.heartrate ? H.number(data.state.heartrate, {suffix: 'bpm'}) : null,
+                data.gap ? H.duration(data.gap, {short: true, seperator: ' '}) : null,
+            ];
+            return items.filter(x => x != null).join(', ');
+        };
         chart.setOption({series: [{
             markPoint: {
                 itemStyle: {borderColor: '#000'},
@@ -122,6 +159,14 @@ async function createElevationProfile(renderer) {
                             color: x.watching ? '#f54e' : '#fff6',
                             borderWidth: x.watching ? 2 : 0,
                         },
+                        emphasis: {
+                            label: {
+                                show: true,
+                                fontSize: '0.6em',
+                                position: 'top',
+                                formatter: markEmphasisLabel,
+                            }
+                        }
                     };
                 }),
             },
@@ -141,10 +186,9 @@ async function createMapCanvas(renderer) {
     const ctx = canvas.getContext('2d');
     const worldList = await (await fetch('/shared/deps/data/worldlist.json')).json();
     let courseId;
-    let worldMeta;
     // XXX...
-    let worldId = 1;
-    imgTest.src = 'https://cdn.zwift.com/static/images/maps/MiniMap_Watopia.png';
+    /*let worldId = 1;
+    let worldMeta;
     worldMeta = worldList.find(x => x.worldId === worldId);
     const roads = (await (await fetch(`/shared/deps/data/worlds/${worldId}/roads.json`)).json());
     for (const r of Object.values(roads)) {
@@ -155,10 +199,9 @@ async function createMapCanvas(renderer) {
             dot.style.setProperty('--x', `${(x / worldMeta.tileScale) * tileSize}px`);
             dot.style.setProperty('--y', `${(y / worldMeta.tileScale) * tileSize}px`);
         }
-    }
+    }*/
     // /XXX
-
-    let reset;
+    let worldMeta;
     const dots = new Map();
     renderer.addCallback(async nearby => {
         if (!nearby || !nearby.length) {
@@ -167,10 +210,11 @@ async function createMapCanvas(renderer) {
         const watching = nearby.find(x => x.watching);
         if (watching.state.courseId !== courseId) {
             courseId = watching.state.courseId;
-            // XXX
-            //worldMeta = worldList.find(x => x.courseId === courseId);
-            //const worldId = common.courseToWorldIds[courseId];
+            worldMeta = worldList.find(x => x.courseId === courseId);
+            const worldDesc = common.worldCourseDescs.find(x => x.courseId === courseId);
+            const worldId = common.courseToWorldIds[courseId];
             dotsEl.dataset.worldId = worldId;
+            imgTest.src = `https://cdn.zwift.com/static/images/maps/MiniMap_${worldDesc.minimapKey}.png`;
             let xStart = Infinity, xEnd = -Infinity, yStart = Infinity, yEnd = -Infinity;
             for (const m of worldMeta.minimap) {
                 const size = m.scale * tileSize;
@@ -185,7 +229,6 @@ async function createMapCanvas(renderer) {
             ctx.clearRect(0, 0, width, height);
             ctx.imageSmoothingQuality = 'high';
             const img = new Image();
-            const vertDir = worldMeta.flippedHack ? -1 : 1;
             for (const tile of worldMeta.minimap) {
                 img.src = `/shared/deps/data/worlds/${worldId}/${tile.file}`;
                 await img.decode();
@@ -198,26 +241,7 @@ async function createMapCanvas(renderer) {
                 ctx.restore();
             }
             ctx.restore();
-            if (worldId === 1) {
-                //document.querySelector('.map-canvas').style.transform = 'transform: rotate(90deg) translate(-933px, 3716px);';
-            }
-
-
-            /* Save because has magical innsbrook numbers... :( XXX
-             *           watopia magic: -933px, 3716px;
-            reset = () => {
-                ctx.restore();
-                ctx.clearRect(0, 0, width, height);
-                ctx.save();
-                ctx.scale(1, -1);
-                ctx.drawImage(img, 0, -height);
-                ctx.restore();
-                ctx.save();
-                ctx.translate(1415, 1006);
-            };
-            */
         }
-        //reset();
         for (const x of nearby) {
             if (!dots.has(x.athleteId)) {
                 const dot = document.createElement('div');

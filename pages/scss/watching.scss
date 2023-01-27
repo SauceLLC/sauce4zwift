@@ -9,10 +9,43 @@ html {
             background: transparent !important;
         }
     }
+
+    &.column-layout {
+        font-size: clamp(2.2mm, 15vh, 18mm);
+
+        .screen {
+            flex-direction: row;
+            align-items: stretch;
+            flex: 1 1 0;
+        }
+
+        .screen-section {
+            padding-left: 0.3rem;
+            flex: 1 1 0;
+        }
+
+        .page-title {
+            font-size: 5em;
+        }
+    }
+
+    &:not(.column-layout) {
+        [data-base-section-type="data-fields"] + [data-base-section-type="data-fields"] {
+            border-top: 0.002em solid #fff5;
+        }
+
+        .screen-section {
+            padding-top: 0.3rem;
+
+            &:last-child {
+                margin-bottom: 0;
+            }
+        }
+    }
 }
 
 .screen-section.line-chart {
-    padding-top: 0.4rem; // clearance for labels which overflow
+    padding-top: 0.5rem !important; // clearance for labels which overflow
     outline-style: none;
     @include charts.legend(".s-chart-legend");
 
@@ -116,6 +149,9 @@ html {
 }
 
 .screen {
+    display: flex;
+    flex-direction: column;
+
     .page-title {
         position: absolute;
         top: 0;
@@ -156,8 +192,7 @@ html {
 .screen-section {
     display: flex;
     flex-direction: column;
-    margin: 0.2rem 0.5rem 0;
-    padding: 0 0 0.6rem;
+    margin: 0.2rem 0.5rem;
     position: relative;
 
     &.large-data-fields,
@@ -195,23 +230,6 @@ html {
         align-items: center;
     }
 
-    &:not(:last-child) {
-        border-bottom: 0.002em solid #fff5;
-    }
-
-    &:first-child {
-        margin-top: 0.3rem;
-    }
-
-    &:last-child {
-        margin-bottom: 0;
-    }
-
-    &.no-side-margin {
-        margin-left:0;
-        margin-right:0;
-    }
-
     .chart-holder {
         font-size: 0.7rem;
         height: 6em;
@@ -227,12 +245,16 @@ html {
 
     &.time-in-zones {
         border: none;
+        margin-left: 0;
+        margin-right: 0;
     }
 
     .zones-holder {
         &.vert-bars {
             height: 7em;
             font-size: 0.7rem;
+            margin-left: 0.2rem; // the left labels are always padded a bit
+            margin-right: 0.4rem;
         }
 
         &.pie {
@@ -242,11 +264,17 @@ html {
             aspect-ratio: 1 / 1;
             font-size: 0.7rem;
             align-items: center;
+            margin-left: 0.5rem;
+            margin-right: 0.5rem;
         }
 
         &.horiz-bar {
             font-size: 0.7rem;
             display: flex;
+            margin-left: 0.4rem;
+            margin-right: 0.4rem;
+            border-radius: 0.28em;
+            overflow: hidden;
 
             .zone {
                 container: zone / inline-size;

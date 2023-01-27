@@ -17,20 +17,20 @@ if (!Array.prototype.at) {
 
 const doc = document.documentElement;
 
-const worldCourseDescs = [
-    {worldId: 1, courseId: 6, name: 'Watopia', ident: 'WATOPIA'},
-    {worldId: 2, courseId: 2, name: 'Richmond', ident: 'RICHMOND'},
-    {worldId: 3, courseId: 7, name: 'London', ident: 'LONDON'},
-    {worldId: 4, courseId: 8, name: 'New York', ident: 'NEWYORK'},
-    {worldId: 5, courseId: 9, name: 'Innsbruck', ident: 'INNSBRUCK'},
-    {worldId: 6, courseId: 10, name: 'Bologna', ident: 'BOLOGNATT'},
-    {worldId: 7, courseId: 11, name: 'Yorkshire', ident: 'YORKSHIRE'},
-    {worldId: 8, courseId: 12, name: 'Crit City', ident: 'CRITCITY'},
-    {worldId: 9, courseId: 13, name: 'Makuri Islands', ident: 'MAKURIISLANDS'},
-    {worldId: 10, courseId: 14, name: 'France', ident: 'FRANCE'},
-    {worldId: 11, courseId: 15, name: 'Paris', ident: 'PARIS'},
-    {worldId: 12, courseId: 16, name: 'Gravel Mountain', ident: 'GRAVEL MOUNTAIN'},
-    {worldId: 13, courseId: 17, name: 'Scotland', ident: 'SCOTLAND'},
+export const worldCourseDescs = [
+    {worldId: 1, courseId: 6, name: 'Watopia', ident: 'WATOPIA', minimapKey: 'Watopia'},
+    {worldId: 2, courseId: 2, name: 'Richmond', ident: 'RICHMOND', minimapKey: 'Richmond'},
+    {worldId: 3, courseId: 7, name: 'London', ident: 'LONDON', minimapKey: 'London'},
+    {worldId: 4, courseId: 8, name: 'New York', ident: 'NEWYORK', minimapKey: 'NewYork'},
+    {worldId: 5, courseId: 9, name: 'Innsbruck', ident: 'INNSBRUCK', minimapKey: 'Innsbruck'},
+    {worldId: 6, courseId: 10, name: 'Bologna', ident: 'BOLOGNATT', minimapKey: 'Bologna'},
+    {worldId: 7, courseId: 11, name: 'Yorkshire', ident: 'YORKSHIRE', minimapKey: 'Yorkshire'},
+    {worldId: 8, courseId: 12, name: 'Crit City', ident: 'CRITCITY', minimapKey: 'CritCity'},
+    {worldId: 9, courseId: 13, name: 'Makuri Islands', ident: 'MAKURIISLANDS', minimapKey: 'Japan'},
+    {worldId: 10, courseId: 14, name: 'France', ident: 'FRANCE', minimapKey: 'France'},
+    {worldId: 11, courseId: 15, name: 'Paris', ident: 'PARIS', minimapKey: 'Champs'},
+    {worldId: 12, courseId: 16, name: 'Gravel Mountain', ident: 'GRAVEL MOUNTAIN', minimapKey: 'GravelMountain'},
+    {worldId: 13, courseId: 17, name: 'Scotland', ident: 'SCOTLAND', minimapKey: 'Scotland'},
 ];
 export const courseToWorldIds = Object.fromEntries(worldCourseDescs.map(x => [x.courseId, x.worldId]));
 export const worldToCourseIds = Object.fromEntries(worldCourseDescs.map(x => [x.worldId, x.courseId]));

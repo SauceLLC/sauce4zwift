@@ -7,6 +7,7 @@ common.settingsStore.setDefault({
     alwaysShowButtons: false,
     solidBackground: false,
     backgroundColor: '#00ff00',
+    columnLayout: false,
     screens: [{
         id: 'default-screen-1',
         sections: [{
@@ -839,7 +840,7 @@ async function createTimeInZonesVertBars(el, sectionId, settings, renderer) {
     const echarts = await importEcharts();
     const chart = echarts.init(el, 'sauce', {renderer: 'svg'});
     chart.setOption({
-        grid: {top: '5%', left: '5%', right: '4', bottom: '3%', containLabel: true},
+        grid: {top: '5%', left: '6%', right: '4', bottom: '3%', containLabel: true},
         tooltip: {
             className: 'ec-tooltip',
             trigger: 'axis',
@@ -853,7 +854,8 @@ async function createTimeInZonesVertBars(el, sectionId, settings, renderer) {
             minInterval: 60,
             axisLabel: {
                 formatter: fmtDur,
-                rotate: 50
+                rotate: 50,
+                fontSize: '0.6em',
             }
         },
         series: [{
@@ -1015,14 +1017,16 @@ function resizeCharts() {
 }
 
 
-function setBackground() {
-    const {solidBackground, backgroundColor} = common.settingsStore.get();
+function setStyles() {
+    const {solidBackground, backgroundColor, columnLayout} = common.settingsStore.get();
+    doc.classList.toggle('column-layout', !!columnLayout);
     doc.classList.toggle('solid-background', !!solidBackground);
     if (solidBackground) {
         doc.style.setProperty('--background-color', backgroundColor);
     } else {
         doc.style.removeProperty('--background-color');
     }
+    requestAnimationFrame(resizeCharts);
 }
 
 
@@ -1160,7 +1164,7 @@ async function initScreenSettings() {
 
 export async function main() {
     common.initInteractionListeners();
-    setBackground();
+    setStyles();
     const settings = common.settingsStore.get();
     doc.classList.toggle('always-show-buttons', !!settings.alwaysShowButtons);
     const content = document.querySelector('#content');
@@ -1340,8 +1344,8 @@ export async function main() {
     common.settingsStore.addEventListener('changed', ev => {
         const changed = ev.data.changed;
         if (changed.size === 1) {
-            if (changed.has('backgroundColor')) {
-                setBackground();
+            if (changed.has('backgroundColor') || changed.has('columnLayout')) {
+                setStyles();
             } else if (changed.has('/imperialUnits')) {
                 imperial = changed.get('/imperialUnits');
             } else if (!changed.has('/theme')) {
