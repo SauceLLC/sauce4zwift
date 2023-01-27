@@ -13,6 +13,10 @@ html {
     &.column-layout {
         font-size: clamp(2.2mm, 15vh, 18mm);
 
+        .single-data-field {
+            font-size: 1.8em;
+        }
+
         .screen {
             flex-direction: row;
             align-items: stretch;
@@ -22,6 +26,7 @@ html {
         .screen-section {
             padding-left: 0.3rem;
             flex: 1 1 0;
+            justify-content: center;
         }
 
         .page-title {
