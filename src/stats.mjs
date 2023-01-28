@@ -359,6 +359,7 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.getNearbyData, {scope: this});
         rpc.register(this.getGroupsData, {scope: this});
         rpc.register(this.getAthleteStats, {scope: this});
+        rpc.register(this.updateAthleteStats, {scope: this});
         rpc.register(this.getAthleteLaps, {scope: this});
         rpc.register(this.getAthleteSegments, {scope: this});
         rpc.register(this.getAthleteStreams, {scope: this});
@@ -495,6 +496,18 @@ export class StatsProcessor extends events.EventEmitter {
     getAthleteStats(id) {
         const ad = this._athleteData.get(this._realAthleteId(id));
         return ad ? this._formatAthleteStats(ad) : null;
+    }
+
+    updateAthleteStats(id, updates) {
+        const ad = this._athleteData.get(this._realAthleteId(id));
+        if (!ad) {
+            return null;
+        }
+        if (!ad.extra) {
+            ad.extra = {};
+        }
+        Object.assign(ad.extra, updates);
+        return this._formatAthleteStats(ad);
     }
 
     getAthleteLaps(id) {
@@ -1805,7 +1818,7 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
-    _formatAthleteStats(ad, extra) {
+    _formatAthleteStats(ad) {
         let athlete = this.loadAthlete(ad.athleteId);
         if (athlete) {
             if (ad.privacy.hideFTP) {
@@ -1823,6 +1836,7 @@ export class StatsProcessor extends events.EventEmitter {
         const state = ad.mostRecentState;
         const lapCount = ad.laps.length;
         return {
+            watching: ad.athleteId === this.watching ? true : undefined,
             athleteId: state.athleteId,
             athlete,
             stats: this._getCollectorStats(ad.collectors, ad, athlete),
@@ -1835,34 +1849,31 @@ export class StatsProcessor extends events.EventEmitter {
             eventParticipants: ad.eventParticipants,
             gameState: ad.gameState,
             gap: ad.gap,
+            gapDistance: ad.gapDistance,
+            isGapEst: ad.isGapEst ? true : undefined,
             ...this._getEventOrRouteInfo(state),
-            ...extra,
+            ...ad.extra,
         };
     }
 
-    _formatNearbyEntry({ad, isGapEst, rp, gap}) {
-        return this._formatAthleteStats(ad, {
-            gap,
-            gapDistance: rp.gapDistance,
-            isGapEst: isGapEst ? true : undefined,
-            watching: ad.athleteId === this.watching ? true : undefined,
-        });
-    }
-
     _computeNearby() {
-        const watchingData = this._athleteData.get(this.watching);
-        if (!watchingData || !watchingData.mostRecentState) {
+        const watching = this._athleteData.get(this.watching);
+        if (!watching || !watching.mostRecentState) {
             for (const ad of this._athleteData.values()) {
                 ad.gap = undefined;
+                ad.gapDistance = undefined;
+                ad.isGapEst = undefined;
             }
             return [];
         }
-        const watching = {ad: watchingData, gap: 0, isGapEst: false, rp: {gapDistance: 0}};
+        watching.gap = 0;
+        watching.gapDistance = 0;
+        watching.isGapEst = undefined;
         // We need to use a speed value for estimates and just using one value is
         // dangerous, so we use a weighted function that's seeded (skewed) to the
         // the watching rider.
         const refSpeedForEstimates = makeExpWeighted(10); // maybe mv up and reuse? XXX
-        const watchingSpeed = watchingData.mostRecentState.speed;
+        const watchingSpeed = watching.mostRecentState.speed;
         if (watchingSpeed > 1) {
             refSpeedForEstimates(watchingSpeed);
         }
@@ -1871,75 +1882,74 @@ export class StatsProcessor extends events.EventEmitter {
         const ahead = [];
         const behind = [];
         for (const ad of this._athleteData.values()) {
-            ad.gap = undefined;
             if (ad.athleteId !== this.watching) {
                 const age = monotonic() - ad.updated;
                 if ((filterStopped && !ad.mostRecentState.speed) || age > 10000) {
                     continue;
                 }
-                const rp = this.compareRoadPositions(ad, watchingData);
+                const rp = this.compareRoadPositions(ad, watching);
                 if (rp === null) {
+                    ad.gap = undefined;
+                    ad.gapDistance = undefined;
+                    ad.isGapEst = true;
                     continue;
                 }
-                const gap = this._realGap(rp, ad, watchingData);
+                ad.gap = this._realGap(rp, ad, watching);
+                ad.gapDistance = rp.gapDistance;
+                ad.isGapEst = ad.gap == null;
                 if (rp.reversed) {
-                    behind.push({ad, rp, gap});
+                    behind.push(ad);
                 } else {
-                    ahead.push({ad, rp, gap});
+                    ahead.push(ad);
                 }
             }
             this.maybeUpdateAthleteFromServer(ad.athleteId);
         }
 
-        ahead.sort((a, b) => b.rp.gapDistance - a.rp.gapDistance);
-        behind.sort((a, b) => a.rp.gapDistance - b.rp.gapDistance);
+        ahead.sort((a, b) => b.gapDistance - a.gapDistance);
+        behind.sort((a, b) => a.gapDistance - b.gapDistance);
 
         for (let i = ahead.length - 1; i >= 0; i--) {
             const x = ahead[i];
             const adjacent = ahead[i + 1] || watching;
-            const speedRef = refSpeedForEstimates(x.ad.mostRecentState.speed);
+            const speedRef = refSpeedForEstimates(x.mostRecentState.speed);
             if (x.gap == null) {
-                let incGap = this.realGap(x.ad, adjacent.ad);
+                let incGap = this.realGap(x, adjacent);
                 if (incGap == null) {
-                    const incGapDist = x.rp.gapDistance - adjacent.rp.gapDistance;
+                    const incGapDist = x.gapDistance - adjacent.gapDistance;
                     incGap = speedRef ? incGapDist / (speedRef * 1000 / 3600) : 0;
                 }
                 x.gap = adjacent.gap - incGap;
             } else {
                 x.gap = -x.gap;
-                x.isGapEst = false;
             }
-            x.ad.gap = x.gap; // XXX we can unify this with some eval
-            x.rp.gapDistance = -x.rp.gapDistance;
+            x.gapDistance = -x.gapDistance;
         }
         for (let i = 0; i < behind.length; i++) {
             const x = behind[i];
             const adjacent = behind[i - 1] || watching;
-            const speedRef = refSpeedForEstimates(x.ad.mostRecentState.speed);
+            const speedRef = refSpeedForEstimates(x.mostRecentState.speed);
             if (x.gap == null) {
-                let incGap = this.realGap(adjacent.ad, x.ad);
+                let incGap = this.realGap(adjacent, x);
                 if (incGap == null) {
-                    const incGapDist = x.rp.gapDistance - adjacent.rp.gapDistance;
+                    const incGapDist = x.gapDistance - adjacent.gapDistance;
                     incGap = speedRef ? incGapDist / (speedRef * 1000 / 3600) : 0;
                 }
                 x.gap = adjacent.gap + incGap;
-            } else {
-                x.isGapEst = false;
             }
-            x.ad.gap = x.gap; // XXX we can unify this with some eval
         }
 
         const nearby = [];
         const maxGap = 15 * 60;
         for (let i = 0; i < ahead.length; i++) {
             if (ahead[i].gap > -maxGap) {
-                nearby.push(this._formatNearbyEntry(ahead[i]));
+                nearby.push(this._formatAthleteStats(ahead[i]));
             }
         }
-        nearby.push(this._formatNearbyEntry(watching));
+        nearby.push(this._formatAthleteStats(watching));
         for (let i = 0; i < behind.length; i++) {
             if (behind[i].gap < maxGap) {
-                nearby.push(this._formatNearbyEntry(behind[i]));
+                nearby.push(this._formatAthleteStats(behind[i]));
             }
         }
         nearby.sort((a, b) => a.gap - b.gap);
