@@ -179,70 +179,83 @@ async function createElevationProfile(renderer) {
 
 
 async function createMapCanvas(renderer) {
-    const tileSize = 4096;
     const mapEl = document.querySelector('.map-canvas');
+    let zoom = 0.20;
+    mapEl.style.setProperty('--zoom', zoom);
+    mapEl.addEventListener('wheel', ev => {
+        if (ev.ctrlKey && ev.deltaY) {
+            zoom = Math.max(0.10, Math.min(1.5, zoom - ev.deltaY / 5000));
+            ev.preventDefault();
+        }
+        mapEl.style.setProperty('--zoom', zoom);
+    });
+    let dragging;
+    let dragX = 0;
+    let dragY = 0;
+    mapEl.addEventListener('pointerdown', ev => {
+        if (dragging) {
+            return;
+        }
+        ev.preventDefault();
+        dragging = true;
+        let lastX  = ev.clientX;
+        let lastY = ev.clientY;
+        const onPointerMove = ev => {
+            const deltaX = ev.clientX - lastX;
+            const deltaY = ev.clientY - lastY;
+            dragX += 1 / zoom * deltaX;
+            dragY += 1 / zoom * deltaY;
+            lastX = ev.clientX;
+            lastY = ev.clientY;
+            mapEl.style.setProperty('--drag-x-offt', `${dragX}px`);
+            mapEl.style.setProperty('--drag-y-offt', `${dragY}px`);
+            console.log({dragX, dragY});
+        };
+        document.addEventListener('pointermove', onPointerMove);
+        document.addEventListener('pointerup', () => {
+            console.log("cancel up");
+            dragging = false;
+            document.removeEventListener('pointermove', onPointerMove);
+        }, {once: true});
+        document.addEventListener('pointercancel', () => {
+            console.log("cancel pointer");
+            dragging = false;
+            document.removeEventListener('pointermove', onPointerMove);
+        }, {once: true});
+    });
     const dotsEl = mapEl.querySelector('.dots');
-    const canvas = mapEl.querySelector('canvas');
-    const imgTest = mapEl.querySelector('img');
-    const ctx = canvas.getContext('2d');
+    const mapImg = mapEl.querySelector('img');
     const worldList = await (await fetch('/shared/deps/data/worldlist.json')).json();
     let courseId;
-    // XXX...
-    /*let worldId = 1;
     let worldMeta;
-    worldMeta = worldList.find(x => x.worldId === worldId);
-    const roads = (await (await fetch(`/shared/deps/data/worlds/${worldId}/roads.json`)).json());
-    for (const r of Object.values(roads)) {
-        for (const [x, y] of r.coords) {
-            const dot = document.createElement('div');
-            dot.classList.add('dot');
-            dotsEl.append(dot);
-            dot.style.setProperty('--x', `${(x / worldMeta.tileScale) * tileSize}px`);
-            dot.style.setProperty('--y', `${(y / worldMeta.tileScale) * tileSize}px`);
-        }
-    }*/
-    // /XXX
-    let worldMeta;
+    let mapScale;
     const dots = new Map();
     renderer.addCallback(async nearby => {
         if (!nearby || !nearby.length) {
             return;
         }
         const watching = nearby.find(x => x.watching);
+        //watching.state.courseId = 17;
         mapEl.style.setProperty('--heading', watching.state.heading);
         if (watching.state.courseId !== courseId) {
             courseId = watching.state.courseId;
             worldMeta = worldList.find(x => x.courseId === courseId);
             const worldDesc = common.worldCourseDescs.find(x => x.courseId === courseId);
+            mapImg.classList.toggle('rotate-hack', !!worldDesc.mapRotateHack);
             const worldId = common.courseToWorldIds[courseId];
+            mapScale = worldDesc.mapScale;
             mapEl.dataset.worldId = worldId;
-            imgTest.src = `https://cdn.zwift.com/static/images/maps/MiniMap_${worldDesc.minimapKey}.png`;
-            let xStart = Infinity, xEnd = -Infinity, yStart = Infinity, yEnd = -Infinity;
-            for (const m of worldMeta.minimap) {
-                const size = m.scale * tileSize;
-                xEnd = Math.max(xEnd, tileSize * m.xOffset + size);
-                yEnd = Math.max(yEnd, tileSize * m.yOffset + size);
-                xStart = Math.min(xStart, tileSize * m.xOffset);
-                yStart = Math.min(yStart, tileSize * m.yOffset);
+            mapImg.src = `https://cdn.zwift.com/static/images/maps/MiniMap_${worldDesc.mapKey}.png`;
+            const roads = (await (await fetch(`/shared/deps/data/worlds/${worldId}/roads.json`)).json());
+            for (const r of Object.values(roads)) {
+                for (const [x, y] of r.coords) {
+                    const dot = document.createElement('div');
+                    dot.classList.add('dot');
+                    dotsEl.append(dot);
+                    dot.style.setProperty('--x', `${(x / worldMeta.tileScale) * mapScale}px`);
+                    dot.style.setProperty('--y', `${(y / worldMeta.tileScale) * mapScale}px`);
+                }
             }
-            const width = canvas.width = xEnd - xStart;
-            const height = canvas.height = yEnd - yStart;
-            ctx.save();
-            ctx.clearRect(0, 0, width, height);
-            ctx.imageSmoothingQuality = 'high';
-            const img = new Image();
-            for (const tile of worldMeta.minimap) {
-                img.src = `/shared/deps/data/worlds/${worldId}/${tile.file}`;
-                await img.decode();
-                ctx.save();
-                ctx.drawImage(img,
-                    tile.xOffset * tileSize - xStart,
-                    tile.yOffset * tileSize - yStart,
-                    tileSize * tile.scale,
-                    tileSize * tile.scale);
-                ctx.restore();
-            }
-            ctx.restore();
         }
         for (const entry of nearby) {
             if (!dots.has(entry.athleteId)) {
@@ -255,13 +268,13 @@ async function createMapCanvas(renderer) {
             }
             const dot = dots.get(entry.athleteId);
             dot.lastSeen = Date.now();
-            const x = (entry.state.x / worldMeta.tileScale) * tileSize;
-            const y = (entry.state.y / worldMeta.tileScale) * tileSize;
+            const x = (entry.state.x / worldMeta.tileScale) * mapScale;
+            const y = (entry.state.y / worldMeta.tileScale) * mapScale;
             dot.style.setProperty('--x', `${x}px`);
             dot.style.setProperty('--y', `${y}px`);
             if (entry.watching) {
-                mapEl.style.setProperty('--watching-x', `${y}px`);
-                mapEl.style.setProperty('--watching-y', `${-x}px`);
+                mapEl.style.setProperty('--watching-x', `${x}px`);
+                mapEl.style.setProperty('--watching-y', `${y}px`);
             }
         }
     });

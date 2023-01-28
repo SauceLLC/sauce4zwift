@@ -18,19 +18,19 @@ if (!Array.prototype.at) {
 const doc = document.documentElement;
 
 export const worldCourseDescs = [
-    {worldId: 1, courseId: 6, name: 'Watopia', ident: 'WATOPIA', minimapKey: 'Watopia'},
-    {worldId: 2, courseId: 2, name: 'Richmond', ident: 'RICHMOND', minimapKey: 'Richmond'},
-    {worldId: 3, courseId: 7, name: 'London', ident: 'LONDON', minimapKey: 'London'},
-    {worldId: 4, courseId: 8, name: 'New York', ident: 'NEWYORK', minimapKey: 'NewYork'},
-    {worldId: 5, courseId: 9, name: 'Innsbruck', ident: 'INNSBRUCK', minimapKey: 'Innsbruck'},
-    {worldId: 6, courseId: 10, name: 'Bologna', ident: 'BOLOGNATT', minimapKey: 'Bologna'},
-    {worldId: 7, courseId: 11, name: 'Yorkshire', ident: 'YORKSHIRE', minimapKey: 'Yorkshire'},
-    {worldId: 8, courseId: 12, name: 'Crit City', ident: 'CRITCITY', minimapKey: 'CritCity'},
-    {worldId: 9, courseId: 13, name: 'Makuri Islands', ident: 'MAKURIISLANDS', minimapKey: 'Japan'},
-    {worldId: 10, courseId: 14, name: 'France', ident: 'FRANCE', minimapKey: 'France'},
-    {worldId: 11, courseId: 15, name: 'Paris', ident: 'PARIS', minimapKey: 'Champs'},
-    {worldId: 12, courseId: 16, name: 'Gravel Mountain', ident: 'GRAVEL MOUNTAIN', minimapKey: 'GravelMountain'},
-    {worldId: 13, courseId: 17, name: 'Scotland', ident: 'SCOTLAND', minimapKey: 'Scotland'},
+    {worldId: 1, courseId: 6, name: 'Watopia', ident: 'WATOPIA', mapKey: 'Watopia', mapScale: 8192, mapRotateHack: true},
+    {worldId: 2, courseId: 2, name: 'Richmond', ident: 'RICHMOND', mapKey: 'Richmond', mapScale: 4096, mapRotateHack: true},
+    {worldId: 3, courseId: 7, name: 'London', ident: 'LONDON', mapKey: 'London', mapScale: 4096},
+    {worldId: 4, courseId: 8, name: 'New York', ident: 'NEWYORK', mapKey: 'NewYork', mapScale: 4096},
+    {worldId: 5, courseId: 9, name: 'Innsbruck', ident: 'INNSBRUCK', mapKey: 'Innsbruck', mapScale: 4096},
+    {worldId: 6, courseId: 10, name: 'Bologna', ident: 'BOLOGNATT', mapKey: 'Bologna', mapScale: 4096},
+    {worldId: 7, courseId: 11, name: 'Yorkshire', ident: 'YORKSHIRE', mapKey: 'Yorkshire', mapScale: 4096},
+    {worldId: 8, courseId: 12, name: 'Crit City', ident: 'CRITCITY', mapKey: 'CritCity', mapScale: 2048},
+    {worldId: 9, courseId: 13, name: 'Makuri Islands', ident: 'MAKURIISLANDS', mapKey: 'Japan', mapScale: 4096},
+    {worldId: 10, courseId: 14, name: 'France', ident: 'FRANCE', mapKey: 'France', mapScale: 8196},
+    {worldId: 11, courseId: 15, name: 'Paris', ident: 'PARIS', mapKey: 'Champs', mapScale: 2048},
+    {worldId: 12, courseId: 16, name: 'Gravel Mountain', ident: 'GRAVEL MOUNTAIN', mapKey: 'GravelMountain', mapScale: 2048},
+    {worldId: 13, courseId: 17, name: 'Scotland', ident: 'SCOTLAND', mapKey: 'Scotland', mapScale: 4096},
 ];
 export const courseToWorldIds = Object.fromEntries(worldCourseDescs.map(x => [x.courseId, x.worldId]));
 export const worldToCourseIds = Object.fromEntries(worldCourseDescs.map(x => [x.worldId, x.courseId]));
@@ -219,7 +219,7 @@ if (window.isElectron) {
         await p;
     };
     rpcCall = async function(name, ...args) {
-        const f = await fetch(`/api/rpc/${name}`, {
+        const f = await fetch(`/api/rpc/v1/${name}`, {
             method: 'POST',
             headers: {"content-type": 'application/json'},
             body: JSON.stringify(args),

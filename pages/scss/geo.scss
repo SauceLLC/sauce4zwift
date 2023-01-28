@@ -7,49 +7,40 @@ html {
     overflow: auto;
     overflow: overlay;
 
-    .map-chart {
-        display: none;
-        aspect-ratio: 1 / 1;
-        font-variant-numeric: tabular-nums;
-        max-width: 100%;
-        max-height: 100%;
-        background-size: contain;
-        background-repeat: no-repeat;
-    }
-
     .map-canvas-scroll {
-        flex: 0 0 auto;
+        flex: 1 1 auto;
         width: 100%;
+        overflow: hidden;
         font-variant-numeric: tabular-nums;
         aspect-ratio: 1 / 1;
         overflow: auto;
         overflow: overlay;
+        position: relative;
+        background: blue;
+        border: 2px solid green;
+        padding: 2em;
 
         .map-canvas {
             --heading: 0;
-            zoom: 0.15; // XXX
-            transform: rotate(calc(var(--heading) * 1deg));
-            transform-origin: calc(var(--x-offt) + var(--watching-x)) calc(var(--y-offt) + var(--watching-y));
+            --drag-x-offt: 0px;
+            --drag-y-offt: 0px;
+            zoom: var(--zoom); // XXX use scale or whatever for better GPU use
+            //transform: rotate(calc(var(--heading) * 1deg));
+            //transform-origin: calc(var(--x-offt) + var(--watching-x)) calc(var(--y-offt) + var(--watching-y));
             border: 2px solid red;
             background: pink;
             display: flex; // prevents weird padding issues with canvas child
-            position: relative;
+            position: absolute;
+            left: calc(var(--drag-x-offt) + var(--x-offt) + var(--watching-x));
+            top: calc(var(--drag-y-offt) + var(--y-offt) + var(--watching-y));
 
             &[data-world-id="1"] {
                 --x-offt: 3987px;
                 --y-offt: 1014px;
-
-                .dots {
-                    transform: rotate(-90deg);
-                }
             }
             &[data-world-id="2"] {
                 --x-offt: 2236px;
                 --y-offt: 1856px;
-
-                .dots {
-                    transform: rotate(-90deg);
-                }
             }
             &[data-world-id="3"] {
                 --x-offt: 324px;
@@ -72,24 +63,24 @@ html {
                 --y-offt: 1840px;
             }
             &[data-world-id="8"] {
-                --x-offt: 2003px;
-                --y-offt: 2010px;
+                --x-offt: 1000px;
+                --y-offt: 1006px;
             }
             &[data-world-id="9"] {
                 --x-offt: 5485px;
                 --y-offt: 3724px;
             }
             &[data-world-id="10"] {
-                --x-offt: 1641px;
-                --y-offt: 1476px;
+                --x-offt: 3282px;
+                --y-offt: 2954px;
             }
             &[data-world-id="11"] {
                 --x-offt: 2048px;
                 --y-offt: 2048px;
             }
             &[data-world-id="12"] {
-                --x-offt: 2090px;
-                --y-offt: 6107px;
+                --x-offt: 1044px;
+                --y-offt: 3054px;
             }
             &[data-world-id="13"] {
                 --x-offt: 2888px;
@@ -131,14 +122,18 @@ html {
 
         img.minimap {
             z-index: 2;
-            mix-blend-mode: hard-light;
             position: absolute;
             left: 0;
             top: 0;
+
+            &.rotate-hack {
+                transform: rotate(90deg);
+            }
         }
     }
 
     .elevation-profile {
+        display: none; // XXX
         flex: 0 0 auto;
         aspect-ratio: 3 / 1;
         font-variant-numeric: tabular-nums;
