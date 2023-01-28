@@ -4,12 +4,14 @@ import * as mods from './mods.mjs';
 import expressWebSocketPatch from 'express-ws';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import fs from 'node:fs';
 import http from 'node:http';
+import https from 'node:https';
 
 const MAX_BUFFERED_PER_SOCKET = 8 * 1024 * 1024;
 const WD = path.dirname(fileURLToPath(import.meta.url));
+const servers = [];
 let app;
-let server;
 let starting;
 let stopping;
 let running;
@@ -45,7 +47,7 @@ function wrapWebSocketMessage(ws, callback) {
 
 
 export async function restart() {
-    if (starting) {
+    if (running) {
         await stop();
     }
     start();
@@ -53,20 +55,16 @@ export async function restart() {
 
 
 export async function stop() {
-    if (stopping || starting) {
+    if (stopping) {
         throw new Error("Invalid state");
     }
     stopping = true;
-    const s = server;
-    server = null;
-    app = null;
-    try {
-        if (s) {
-            await closeServer(s);
-        }
-    } finally {
-        stopping = false;
+    for (const s of servers) {
+        await closeServer(s);
     }
+    servers.length = 0;
+    app = null;
+    stopping = false;
     running = false;
 }
 
@@ -77,23 +75,19 @@ async function closeServer(s) {
 
 
 export async function start(options={}) {
-    if (starting || starting || running) {
+    if (starting || running) {
         throw new Error("Invalid state");
     }
     starting = true;
     try {
         await _start(options);
     } catch(e) {
-        const s = server;
-        server = null;
-        app = null;
-        if (s) {
-            running = await closeServer(s);
-        }
+        await stop();
         throw e;
     } finally {
         starting = false;
     }
+    running = true;
 }
 
 
@@ -115,10 +109,22 @@ async function _start({ip, port, rpcSources, statsProc}) {
         req.start = performance.now();
         next();
     });
-    server = http.createServer(app);
-    const webSocketServer = expressWebSocketPatch(app, server).getWss();
-    // workaround https://github.com/websockets/ws/issues/2023
-    webSocketServer.on('error', () => void 0);
+    servers.push(http.createServer(app));
+    let key, cert;
+    try {
+        key = fs.readFileSync(path.join(WD, '../https/key.pem'));
+        cert = fs.readFileSync(path.join(WD, '../https/cert.pem'));
+    } catch(e) {/*no-pragma*/}
+    if (key && cert) {
+        servers.push(https.createServer({key, cert}, app));
+    } else {
+        console.warn("No certs found for TLS server");
+    }
+    for (const s of servers) {
+        const webSocketServer = expressWebSocketPatch(app, s).getWss();
+        // workaround https://github.com/websockets/ws/issues/2023
+        webSocketServer.on('error', () => void 0);
+    }
     const cacheDisabled = 'no-cache, no-store, must-revalidate';
     const cacheEnabled = 'public, max-age=3600, s-maxage=900';
     const router = express.Router();
@@ -320,30 +326,6 @@ async function _start({ip, port, rpcSources, statsProc}) {
     api.get('/rpc/v1', (req, res) =>
         res.send(JSON.stringify(Array.from(rpc.handlers.keys()).map(name => `${name}: [POST,GET]`), null, 4)));
     api.get('/mods/v1', (req, res) => res.send(JSON.stringify(mods.available, null, 4)));
-
-    // DEPRECATED...
-    api.post('/rpc/:name', async (req, res) => {
-        try {
-            const replyEnvelope = await rpc.invoke.call(null, req.params.name, ...req.body);
-            if (!replyEnvelope.success) {
-                res.status(400);
-            }
-            res.send(replyEnvelope);
-        } catch(e) {
-            res.status(500);
-            res.json({
-                error: "internal error",
-                message: e.message,
-            });
-        }
-    });
-    api.get('/athletes/:id', (req, res) => getStatsHandler(res, req.params.id));
-    api.get('/nearby', (req, res) =>
-        res.send(sp._mostRecentNearby ? jsonCache(sp._mostRecentNearby) : '[]'));
-    api.get('/groups', (req, res) =>
-        res.send(sp._mostRecentGroups ? jsonCache(sp._mostRecentGroups) : '[]'));
-    // END DEPRECATED
-
     api.use((e, req, res, next) => {
         res.status(500);
         res.json({
@@ -379,33 +361,37 @@ async function _start({ip, port, rpcSources, statsProc}) {
     router.all('*', (req, res) => res.status(404).send('Invalid URL'));
     app.use(router);
     let retries = 0;
-    while (retries < 20) {
-        let res, rej;
-        try {
-            await new Promise((_res, _rej) => {
-                res = _res;
-                rej = _rej;
-                server.on('listening', res);
-                server.on('error', rej);
-                server.listen(port);
-            });
-            console.info(`Web server started at: http://${ip}:${port}/`);
-            console.debug(`  HTTP API at: http://${ip}:${port}/api`);
-            console.debug(`  WebSocket API at: http://${ip}:${port}/api/ws/events`);
-            return;
-        } catch(e) {
-            if (e.code === 'EADDRINUSE') {
-                console.warn('Web server port not available, will retry...');
-                server.close();
-                await sleep(1000 * ++retries);
-            } else {
-                throw e;
+    startup:
+    for (const [i, server] of servers.entries()) {
+        const serverPort = port + i;
+        while (retries < 20) {
+            let res, rej;
+            try {
+                await new Promise((_res, _rej) => {
+                    res = _res;
+                    rej = _rej;
+                    server.on('listening', res);
+                    server.on('error', rej);
+                    server.listen(serverPort);
+                });
+                const s = (server.key && server.cert) ? 's' : '';
+                console.info(`Web server started at: http${s}://${ip}:${serverPort}/`);
+                console.debug(`  HTTP API at: http${s}://${ip}:${serverPort}/api`);
+                console.debug(`  WebSocket API at: ws${s}://${ip}:${serverPort}/api/ws/events`);
+                continue startup;
+            } catch(e) {
+                if (e.code === 'EADDRINUSE') {
+                    console.warn('Web server port not available, will retry...');
+                    server.close();
+                    await sleep(1000 * ++retries);
+                } else {
+                    throw e;
+                }
+            } finally {
+                server.off('listening', res);
+                server.off('error', rej);
             }
-        } finally {
-            server.off('listening', res);
-            server.off('error', rej);
         }
+        console.error(`Web server failed to startup at: http://${ip}:${serverPort}/`);
     }
-    console.error(`Web server failed to startup at: http://${ip}:${port}/`);
-    return true;
 }
