@@ -18,7 +18,7 @@ if (!Array.prototype.at) {
 const doc = document.documentElement;
 
 export const worldCourseDescs = [
-    {worldId: 1, courseId: 6, name: 'Watopia', ident: 'WATOPIA', mapKey: 'Watopia', mapScale: 8192, mapRotateHack: true},
+    {worldId: 1, courseId: 6, name: 'Watopia', ident: 'WATOPIA', mapKey: 'Watopia', mapScale: 4096, mapRotateHack: true},
     {worldId: 2, courseId: 2, name: 'Richmond', ident: 'RICHMOND', mapKey: 'Richmond', mapScale: 4096, mapRotateHack: true},
     {worldId: 3, courseId: 7, name: 'London', ident: 'LONDON', mapKey: 'London', mapScale: 4096},
     {worldId: 4, courseId: 8, name: 'New York', ident: 'NEWYORK', mapKey: 'NewYork', mapScale: 4096},

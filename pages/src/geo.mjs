@@ -179,37 +179,47 @@ async function createElevationProfile(renderer) {
 
 
 async function createMapCanvas(renderer) {
+    const scrollEl = document.querySelector('.map-canvas-scroll');
     const mapEl = document.querySelector('.map-canvas');
-    let zoom = 0.20;
+    let zoom = 1;
     mapEl.style.setProperty('--zoom', zoom);
-    mapEl.addEventListener('wheel', ev => {
-        if (ev.ctrlKey && ev.deltaY) {
-            zoom = Math.max(0.10, Math.min(1.5, zoom - ev.deltaY / 5000));
+    let zoomAF;
+    scrollEl.addEventListener('wheel', ev => {
+        if (ev.deltaY) {
+            zoom = Math.max(0.10, Math.min(1.5, zoom - ev.deltaY / 2000));
             ev.preventDefault();
+            cancelAnimationFrame(zoomAF);
+            zoomAF = requestAnimationFrame(() => {
+                //mapEl.style.setProperty('--anchor-x', `${ev.pageX - window.innerWidth / 2}px`);
+                //mapEl.style.setProperty('--anchor-y', `${ev.pageY - window.innerHeight / 2}px`);
+                mapEl.style.setProperty('--zoom', zoom);
+            });
         }
-        mapEl.style.setProperty('--zoom', zoom);
     });
     let dragging;
     let dragX = 0;
     let dragY = 0;
-    mapEl.addEventListener('pointerdown', ev => {
+    let dragAF;
+    scrollEl.addEventListener('pointerdown', ev => {
         if (dragging) {
             return;
         }
         ev.preventDefault();
         dragging = true;
-        let lastX  = ev.clientX;
-        let lastY = ev.clientY;
+        let lastX  = ev.pageX;
+        let lastY = ev.pageY;
         const onPointerMove = ev => {
-            const deltaX = ev.clientX - lastX;
-            const deltaY = ev.clientY - lastY;
-            dragX += 1 / zoom * deltaX;
-            dragY += 1 / zoom * deltaY;
-            lastX = ev.clientX;
-            lastY = ev.clientY;
-            mapEl.style.setProperty('--drag-x-offt', `${dragX}px`);
-            mapEl.style.setProperty('--drag-y-offt', `${dragY}px`);
-            console.log({dragX, dragY});
+            cancelAnimationFrame(dragAF);
+            dragAF = requestAnimationFrame(() => {
+                const deltaX = ev.pageX - lastX;
+                const deltaY = ev.pageY - lastY;
+                dragX += 1 / zoom * deltaX;
+                dragY += 1 / zoom * deltaY;
+                lastX = ev.pageX;
+                lastY = ev.pageY;
+                mapEl.style.setProperty('--drag-x-offt', `${dragX}px`);
+                mapEl.style.setProperty('--drag-y-offt', `${dragY}px`);
+            });
         };
         document.addEventListener('pointermove', onPointerMove);
         document.addEventListener('pointerup', () => {
@@ -228,30 +238,45 @@ async function createMapCanvas(renderer) {
     const worldList = await (await fetch('/shared/deps/data/worldlist.json')).json();
     let courseId;
     let worldMeta;
+    let worldDesc;
+    let width = 4096;
+    let height = 4096;
     let mapScale;
+    let lastHeading = 0;
     const dots = new Map();
     renderer.addCallback(async nearby => {
+        if (window.foo++ > 10) {
+            return;
+        }
         if (!nearby || !nearby.length) {
             return;
         }
         const watching = nearby.find(x => x.watching);
-        //watching.state.courseId = 17;
-        mapEl.style.setProperty('--heading', watching.state.heading);
+        //watching.state.courseId = 14;
         if (watching.state.courseId !== courseId) {
             courseId = watching.state.courseId;
             worldMeta = worldList.find(x => x.courseId === courseId);
-            const worldDesc = common.worldCourseDescs.find(x => x.courseId === courseId);
-            mapImg.classList.toggle('rotate-hack', !!worldDesc.mapRotateHack);
+            worldDesc = common.worldCourseDescs.find(x => x.courseId === courseId);
             const worldId = common.courseToWorldIds[courseId];
             mapScale = worldDesc.mapScale;
             mapEl.dataset.worldId = worldId;
             mapImg.src = `https://cdn.zwift.com/static/images/maps/MiniMap_${worldDesc.mapKey}.png`;
+            //mapImg.src = `/pages/images/MiniMap_${worldDesc.mapKey}-quads.png`;
             const roads = (await (await fetch(`/shared/deps/data/worlds/${worldId}/roads.json`)).json());
+            await mapImg.decode();
+            width = mapImg.width;
+            height = mapImg.height;
+            mapEl.style.setProperty('--width', `${width}px`);
+            mapEl.style.setProperty('--height', `${height}px`);
             for (const r of Object.values(roads)) {
-                for (const [x, y] of r.coords) {
+                continue;
+                for (let [x, y] of r.coords) {
                     const dot = document.createElement('div');
                     dot.classList.add('dot');
                     dotsEl.append(dot);
+                    if (worldDesc.mapRotateHack) {
+                        [x, y] = [y, -x];
+                    }
                     dot.style.setProperty('--x', `${(x / worldMeta.tileScale) * mapScale}px`);
                     dot.style.setProperty('--y', `${(y / worldMeta.tileScale) * mapScale}px`);
                 }
@@ -268,18 +293,24 @@ async function createMapCanvas(renderer) {
             }
             const dot = dots.get(entry.athleteId);
             dot.lastSeen = Date.now();
-            const x = (entry.state.x / worldMeta.tileScale) * mapScale;
-            const y = (entry.state.y / worldMeta.tileScale) * mapScale;
+            let x = (entry.state.x / worldMeta.tileScale) * mapScale;
+            let y = (entry.state.y / worldMeta.tileScale) * mapScale;
+            if (worldDesc.mapRotateHack) {
+                [x, y] = [y, -x];
+            }
             dot.style.setProperty('--x', `${x}px`);
             dot.style.setProperty('--y', `${y}px`);
             if (entry.watching) {
-                mapEl.style.setProperty('--watching-x', `${x}px`);
-                mapEl.style.setProperty('--watching-y', `${y}px`);
+                mapEl.style.setProperty('--anchor-x', `${x}px`);
+                mapEl.style.setProperty('--anchor-y', `${y}px`);
             }
         }
+        console.log(watching.state.heading);
+        mapEl.style.setProperty('--heading', `${watching.state.heading}deg`);
     });
 }
 
+window.foo = 1;
 
 export async function main() {
     common.initInteractionListeners();

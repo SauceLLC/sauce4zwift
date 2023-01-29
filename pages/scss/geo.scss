@@ -8,31 +8,43 @@ html {
     overflow: overlay;
 
     .map-canvas-scroll {
-        flex: 1 1 auto;
+        flex: 1 1 0;
         width: 100%;
-        overflow: hidden;
+        height: 100%;
         font-variant-numeric: tabular-nums;
-        aspect-ratio: 1 / 1;
-        overflow: auto;
-        overflow: overlay;
+        overflow: hidden;
         position: relative;
-        background: blue;
-        border: 2px solid green;
-        padding: 2em;
+        background-color: green;
+        touch-action: none;
 
         .map-canvas {
-            --heading: 0;
+            --heading: 0deg;
             --drag-x-offt: 0px;
             --drag-y-offt: 0px;
-            zoom: var(--zoom); // XXX use scale or whatever for better GPU use
-            //transform: rotate(calc(var(--heading) * 1deg));
-            //transform-origin: calc(var(--x-offt) + var(--watching-x)) calc(var(--y-offt) + var(--watching-y));
-            border: 2px solid red;
-            background: pink;
-            display: flex; // prevents weird padding issues with canvas child
+            --zoom-pointer-x: 0px;
+            --zoom-pointer-y: 0px;
             position: absolute;
-            left: calc(var(--drag-x-offt) + var(--x-offt) + var(--watching-x));
-            top: calc(var(--drag-y-offt) + var(--y-offt) + var(--watching-y));
+            //transform-origin: 4096px 2048px;
+            //transform-origin: 2048px 1024px;
+            //transform: rotate(var(--heading));
+            //transform-origin: calc(var(--x-offt) + var(--watching-x)) calc(var(--y-offt) + var(--watching-y));
+            //left: calc(var(--drag-x-offt) + var(--x-offt) + var(--watching-x));
+            //top: calc(var(--drag-y-offt) + var(--y-offt) + var(--watching-y));
+            transform:
+                scale(var(--zoom))
+                translate(
+                    calc(var(--drag-x-offt) - var(--x-offt) - var(--anchor-x)),
+                    calc(var(--drag-y-offt) - var(--y-offt) - var(--anchor-y))
+                )
+                rotate(calc(-90deg + var(--heading)));
+            ;
+            transform-origin:
+                calc((var(--anchor-x) + var(--x-offt)))
+                calc((var(--anchor-y) + var(--y-offt)));
+            transition: transform 1s, transform-origin 1s;
+            transition-timing-function: linear;
+            left: 50%;
+            top: 50%;
 
             &[data-world-id="1"] {
                 --x-offt: 3987px;
@@ -92,6 +104,8 @@ html {
                 position: absolute;
                 left: var(--x-offt);
                 top: var(--y-offt);
+                width: 100%;
+                height: 100%;
 
                 .dot {
                     --radius: 5px;
@@ -125,10 +139,6 @@ html {
             position: absolute;
             left: 0;
             top: 0;
-
-            &.rotate-hack {
-                transform: rotate(90deg);
-            }
         }
     }
 
