@@ -60,7 +60,8 @@ export async function main() {
             debugger;
         }
         const route = await getRoute(event.routeId);
-        const world = common.worldToNames[event.mapId || common.identToWorldId[route.world]];
+        const worldList = await common.getWorldList();
+        const world = worldList.find(x => event.mapId ? x.worldId === event.mapId : x.ident === route.world);
         const subgroups = await Promise.all(event.eventSubgroups.map(async sg => {
             const entrants = await common.rpc.getEventSubgroupEntrants(sg.id);
             const route = await getRoute(sg.routeId);
@@ -71,7 +72,7 @@ export async function main() {
         }));
         eventDetailsEl.append(await eventDetailTpl({
             event,
-            world,
+            world: world ? world.name : '',
             route,
             subgroups,
             teamBadge: common.teamBadge,
