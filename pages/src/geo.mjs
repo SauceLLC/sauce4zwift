@@ -10,6 +10,7 @@ const L = sauce.locale;
 const H = L.human;
 let imperial = !!common.storage.get('/imperialUnits');
 L.setImperial(imperial);
+const gettingWorldList = common.getWorldList();
 
 
 function vectorDistance(a, b) {
@@ -83,6 +84,7 @@ async function createElevationProfile(renderer) {
     let road;
     let reverse;
     let markAnimationDuration;
+    const worldList = await gettingWorldList;
     renderer.addCallback(async _nearby => {
         if (!_nearby || !_nearby.length) {
             return;
@@ -94,8 +96,8 @@ async function createElevationProfile(renderer) {
         if (watching.state.courseId !== courseId) {
             courseId = watching.state.courseId;
             road = null;
-            const worldId = common.courseToWorldIds[courseId];
-            roads = (await (await fetch(`/shared/deps/data/worlds/${worldId}/roads.json`)).json());
+            const worldId = worldList.find(x => x.courseId === courseId).worldId;
+            roads = await common.getRoads(worldId);
         }
         if (!road || watching.state.roadId !== road.id || reverse !== watching.state.reverse) {
             road = roads[watching.state.roadId];
@@ -178,109 +180,141 @@ async function createElevationProfile(renderer) {
 }
 
 
+function constrainZoom(zoom) {
+    return Math.max(0.10, Math.min(1.75, zoom));
+}
+
+
 async function createMapCanvas(renderer) {
     const scrollEl = document.querySelector('.map-canvas-scroll');
     const mapEl = document.querySelector('.map-canvas');
     let zoom = 1;
-    mapEl.style.setProperty('--zoom', zoom);
+    scrollEl.style.setProperty('--zoom', zoom);
     let zoomAF;
+    let zoomDone;
     scrollEl.addEventListener('wheel', ev => {
         if (ev.deltaY) {
-            zoom = Math.max(0.10, Math.min(1.5, zoom - ev.deltaY / 2000));
             ev.preventDefault();
+            zoom = constrainZoom(zoom - ev.deltaY / 2000);
             cancelAnimationFrame(zoomAF);
             zoomAF = requestAnimationFrame(() => {
-                //mapEl.style.setProperty('--anchor-x', `${ev.pageX - window.innerWidth / 2}px`);
-                //mapEl.style.setProperty('--anchor-y', `${ev.pageY - window.innerHeight / 2}px`);
-                mapEl.style.setProperty('--zoom', zoom);
+                if (zoomDone) {
+                    clearTimeout(zoomDone);
+                } else {
+                    scrollEl.classList.add('zooming');
+                }
+                scrollEl.classList.add('zooming');
+                scrollEl.style.setProperty('--zoom', zoom);
+                // Lazy re-enable of animations to avoid need for forced paint
+                zoomDone = setTimeout(() => {
+                    zoomDone = null;
+                    scrollEl.classList.remove('zooming');
+                }, 50);
             });
         }
     });
-    let dragging;
     let dragX = 0;
     let dragY = 0;
     let dragAF;
+    let pointerEvent1;
+    let pointerEvent2;
     scrollEl.addEventListener('pointerdown', ev => {
-        if (dragging) {
+        console.log(ev);
+        if (ev.button !== 0 || (pointerEvent1 && pointerEvent2)) {
             return;
         }
         ev.preventDefault();
-        dragging = true;
+        if (pointerEvent1) {
+            pointerEvent2 = ev;
+            scrollEl.classList.remove('dragging');
+            scrollEl.classList.add('zooming');
+            return;
+        } else {
+            pointerEvent1 = ev;
+        }
+        scrollEl.classList.add('dragging');
         let lastX  = ev.pageX;
         let lastY = ev.pageY;
         const onPointerMove = ev => {
-            cancelAnimationFrame(dragAF);
-            dragAF = requestAnimationFrame(() => {
-                const deltaX = ev.pageX - lastX;
-                const deltaY = ev.pageY - lastY;
-                dragX += 1 / zoom * deltaX;
-                dragY += 1 / zoom * deltaY;
-                lastX = ev.pageX;
-                lastY = ev.pageY;
-                mapEl.style.setProperty('--drag-x-offt', `${dragX}px`);
-                mapEl.style.setProperty('--drag-y-offt', `${dragY}px`);
-            });
+            if (!pointerEvent2) {
+                cancelAnimationFrame(dragAF);
+                dragAF = requestAnimationFrame(() => {
+                    const deltaX = ev.pageX - lastX;
+                    const deltaY = ev.pageY - lastY;
+                    dragX += 1 / zoom * deltaX;
+                    dragY += 1 / zoom * deltaY;
+                    lastX = ev.pageX;
+                    lastY = ev.pageY;
+                    scrollEl.style.setProperty('--drag-x-offt', `${dragX}px`);
+                    scrollEl.style.setProperty('--drag-y-offt', `${dragY}px`);
+                });
+            } else {
+                console.log(ev);
+                let otherEvent;
+                if (ev.pointerId === pointerEvent1.pointerId) {
+                    otherEvent = pointerEvent1;
+                    pointerEvent1 = ev;
+                } else if (ev.pointerId === pointerEvent2.pointerId) {
+                    otherEvent = pointerEvent2;
+                    pointerEvent2 = ev;
+                } else {
+                    // third finger, ignore
+                    return;
+                }
+                ev.distance = Math.sqrt((ev.pageX - otherEvent.pageX) ** 2 + (ev.pageY - otherEvent.pageY) ** 2);
+                const deltaDistance = ev.distance - (otherEvent.distance || 0);
+                console.log('zooming', deltaDistance);
+                zoom = constrainZoom(zoom - deltaDistance / 200);
+                scrollEl.style.setProperty('--zoom', zoom);
+            }
+        };
+        const onPointerDone = ev => {
+            scrollEl.classList.remove(pointerEvent2 ? 'zooming' : 'dragging');
+            document.removeEventListener('pointermove', onPointerMove);
+            pointerEvent1 = pointerEvent2 = null;
         };
         document.addEventListener('pointermove', onPointerMove);
-        document.addEventListener('pointerup', () => {
-            console.log("cancel up");
-            dragging = false;
-            document.removeEventListener('pointermove', onPointerMove);
-        }, {once: true});
-        document.addEventListener('pointercancel', () => {
-            console.log("cancel pointer");
-            dragging = false;
-            document.removeEventListener('pointermove', onPointerMove);
-        }, {once: true});
+        document.addEventListener('pointerup', onPointerDone, {once: true});
+        document.addEventListener('pointercancel', onPointerDone, {once: true});
     });
     const dotsEl = mapEl.querySelector('.dots');
     const mapImg = mapEl.querySelector('img');
-    const worldList = await (await fetch('/shared/deps/data/worldlist.json')).json();
     let courseId;
     let worldMeta;
-    let worldDesc;
-    let width = 4096;
-    let height = 4096;
     let mapScale;
+    let headingRotations = 0;
     let lastHeading = 0;
     const dots = new Map();
+    const worldList = await gettingWorldList;
     renderer.addCallback(async nearby => {
-        if (window.foo++ > 10) {
-            return;
-        }
         if (!nearby || !nearby.length) {
             return;
         }
         const watching = nearby.find(x => x.watching);
-        //watching.state.courseId = 14;
+        //watching.state.courseId = 17;
         if (watching.state.courseId !== courseId) {
+            scrollEl.classList.add('zooming'); // Disable animation
             courseId = watching.state.courseId;
             worldMeta = worldList.find(x => x.courseId === courseId);
-            worldDesc = common.worldCourseDescs.find(x => x.courseId === courseId);
-            const worldId = common.courseToWorldIds[courseId];
-            mapScale = worldDesc.mapScale;
-            mapEl.dataset.worldId = worldId;
-            mapImg.src = `https://cdn.zwift.com/static/images/maps/MiniMap_${worldDesc.mapKey}.png`;
-            //mapImg.src = `/pages/images/MiniMap_${worldDesc.mapKey}-quads.png`;
-            const roads = (await (await fetch(`/shared/deps/data/worlds/${worldId}/roads.json`)).json());
-            await mapImg.decode();
-            width = mapImg.width;
-            height = mapImg.height;
-            mapEl.style.setProperty('--width', `${width}px`);
-            mapEl.style.setProperty('--height', `${height}px`);
+            mapScale = worldMeta.mapScale;
+            scrollEl.style.setProperty('--x-offt', `${worldMeta.mapOffsetX}px`);
+            scrollEl.style.setProperty('--y-offt', `${worldMeta.mapOffsetY}px`);
+            mapImg.src = `https://cdn.zwift.com/static/images/maps/MiniMap_${worldMeta.mapKey}.png`;
+            const roads = await common.getRoads(worldMeta.worldId);
             for (const r of Object.values(roads)) {
                 continue;
                 for (let [x, y] of r.coords) {
                     const dot = document.createElement('div');
-                    dot.classList.add('dot');
+                    dot.classList.add('dot', 'watching');
                     dotsEl.append(dot);
-                    if (worldDesc.mapRotateHack) {
+                    if (worldMeta.mapRotateHack) {
                         [x, y] = [y, -x];
                     }
                     dot.style.setProperty('--x', `${(x / worldMeta.tileScale) * mapScale}px`);
                     dot.style.setProperty('--y', `${(y / worldMeta.tileScale) * mapScale}px`);
                 }
             }
+            requestAnimationFrame(() => (scrollEl.offsetWidth, scrollEl.classList.remove('zooming')));
         }
         for (const entry of nearby) {
             if (!dots.has(entry.athleteId)) {
@@ -295,7 +329,7 @@ async function createMapCanvas(renderer) {
             dot.lastSeen = Date.now();
             let x = (entry.state.x / worldMeta.tileScale) * mapScale;
             let y = (entry.state.y / worldMeta.tileScale) * mapScale;
-            if (worldDesc.mapRotateHack) {
+            if (worldMeta.mapRotateHack) {
                 [x, y] = [y, -x];
             }
             dot.style.setProperty('--x', `${x}px`);
@@ -305,12 +339,16 @@ async function createMapCanvas(renderer) {
                 mapEl.style.setProperty('--anchor-y', `${y}px`);
             }
         }
-        console.log(watching.state.heading);
-        mapEl.style.setProperty('--heading', `${watching.state.heading}deg`);
+        let heading = watching.state.heading;
+        if (Math.abs(lastHeading - heading) > 180) {
+            headingRotations += Math.sign(lastHeading - heading);
+        }
+        console.log(heading, lastHeading - heading, headingRotations, heading + headingRotations * 360);
+        mapEl.style.setProperty('--heading', `${heading + headingRotations * 360}deg`);
+        lastHeading = heading;
     });
 }
 
-window.foo = 1;
 
 export async function main() {
     common.initInteractionListeners();

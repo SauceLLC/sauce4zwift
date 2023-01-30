@@ -17,25 +17,31 @@ if (!Array.prototype.at) {
 
 const doc = document.documentElement;
 
+// XXX DEPRECATED...
 export const worldCourseDescs = [
-    {worldId: 1, courseId: 6, name: 'Watopia', ident: 'WATOPIA', mapKey: 'Watopia', mapScale: 4096, mapRotateHack: true},
-    {worldId: 2, courseId: 2, name: 'Richmond', ident: 'RICHMOND', mapKey: 'Richmond', mapScale: 4096, mapRotateHack: true},
-    {worldId: 3, courseId: 7, name: 'London', ident: 'LONDON', mapKey: 'London', mapScale: 4096},
-    {worldId: 4, courseId: 8, name: 'New York', ident: 'NEWYORK', mapKey: 'NewYork', mapScale: 4096},
-    {worldId: 5, courseId: 9, name: 'Innsbruck', ident: 'INNSBRUCK', mapKey: 'Innsbruck', mapScale: 4096},
-    {worldId: 6, courseId: 10, name: 'Bologna', ident: 'BOLOGNATT', mapKey: 'Bologna', mapScale: 4096},
-    {worldId: 7, courseId: 11, name: 'Yorkshire', ident: 'YORKSHIRE', mapKey: 'Yorkshire', mapScale: 4096},
-    {worldId: 8, courseId: 12, name: 'Crit City', ident: 'CRITCITY', mapKey: 'CritCity', mapScale: 2048},
-    {worldId: 9, courseId: 13, name: 'Makuri Islands', ident: 'MAKURIISLANDS', mapKey: 'Japan', mapScale: 4096},
-    {worldId: 10, courseId: 14, name: 'France', ident: 'FRANCE', mapKey: 'France', mapScale: 8196},
-    {worldId: 11, courseId: 15, name: 'Paris', ident: 'PARIS', mapKey: 'Champs', mapScale: 2048},
-    {worldId: 12, courseId: 16, name: 'Gravel Mountain', ident: 'GRAVEL MOUNTAIN', mapKey: 'GravelMountain', mapScale: 2048},
-    {worldId: 13, courseId: 17, name: 'Scotland', ident: 'SCOTLAND', mapKey: 'Scotland', mapScale: 4096},
+    {worldId: 1, courseId: 6, name: 'Watopia', ident: 'WATOPIA'},
+    {worldId: 2, courseId: 2, name: 'Richmond', ident: 'RICHMOND'},
+    {worldId: 3, courseId: 7, name: 'London', ident: 'LONDON'},
+    {worldId: 4, courseId: 8, name: 'New York', ident: 'NEWYORK'},
+    {worldId: 5, courseId: 9, name: 'Innsbruck', ident: 'INNSBRUCK'},
+    {worldId: 6, courseId: 10, name: 'Bologna', ident: 'BOLOGNATT'},
+    {worldId: 7, courseId: 11, name: 'Yorkshire', ident: 'YORKSHIRE'},
+    {worldId: 8, courseId: 12, name: 'Crit City', ident: 'CRITCITY'},
+    {worldId: 9, courseId: 13, name: 'Makuri Islands', ident: 'MAKURIISLANDS'},
+    {worldId: 10, courseId: 14, name: 'France', ident: 'FRANCE'},
+    {worldId: 11, courseId: 15, name: 'Paris', ident: 'PARIS'},
+    {worldId: 12, courseId: 16, name: 'Gravel Mountain', ident: 'GRAVEL MOUNTAIN'},
+    {worldId: 13, courseId: 17, name: 'Scotland', ident: 'SCOTLAND'},
 ];
+// XXX DEPRECATED...
 export const courseToWorldIds = Object.fromEntries(worldCourseDescs.map(x => [x.courseId, x.worldId]));
+// XXX DEPRECATED...
 export const worldToCourseIds = Object.fromEntries(worldCourseDescs.map(x => [x.worldId, x.courseId]));
+// XXX DEPRECATED...
 export const courseToNames = Object.fromEntries(worldCourseDescs.map(x => [x.courseId, x.name]));
+// XXX DEPRECATED...
 export const worldToNames = Object.fromEntries(worldCourseDescs.map(x => [x.worldId, x.name]));
+// XXX DEPRECATED...
 export const identToWorldId = Object.fromEntries(worldCourseDescs.map(x => [x.ident, x.worldId]));
 
 
@@ -238,6 +244,36 @@ function makeRPCError({name, message, stack}) {
     const e = new Error(`${name}: ${message}`);
     e.stack = stack;
     return e;
+}
+
+
+let _worldList;
+export async function getWorldList() {
+    if (!_worldList) {
+        const r = await fetch('/shared/deps/data/worldlist.json');
+        if (!r.ok) {
+            console.error("Failed to get worldlist:", r.status);
+            _worldList = [];
+        } else {
+            _worldList = await r.json();
+        }
+    }
+    return _worldList;
+}
+
+
+const _roads = new Map();
+export async function getRoads(worldId) {
+    if (!_roads.has(worldId)) {
+        const r = await fetch(`/shared/deps/data/worlds/${worldId}/roads.json`);
+        if (!r.ok) {
+            console.error("Failed to get roads for:", worldId, r.status);
+            _roads.set(worldId, []);
+        } else {
+            _roads.set(worldId, await r.json());
+        }
+    }
+    return _roads.get(worldId);
 }
 
 
