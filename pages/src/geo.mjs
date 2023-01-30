@@ -218,8 +218,8 @@ async function createMapCanvas(renderer) {
     let dragAF;
     let pointerEvent1;
     let pointerEvent2;
+    let lastDistance;
     scrollEl.addEventListener('pointerdown', ev => {
-        console.log(ev);
         if (ev.button !== 0 || (pointerEvent1 && pointerEvent2)) {
             return;
         }
@@ -228,6 +228,9 @@ async function createMapCanvas(renderer) {
             pointerEvent2 = ev;
             scrollEl.classList.remove('dragging');
             scrollEl.classList.add('zooming');
+            lastDistance = Math.sqrt(
+                (ev.pageX - pointerEvent1.pageX) ** 2 +
+                (ev.pageY - pointerEvent1.pageY) ** 2);
             return;
         } else {
             pointerEvent1 = ev;
@@ -249,22 +252,23 @@ async function createMapCanvas(renderer) {
                     scrollEl.style.setProperty('--drag-y-offt', `${dragY}px`);
                 });
             } else {
-                console.log(ev);
                 let otherEvent;
                 if (ev.pointerId === pointerEvent1.pointerId) {
-                    otherEvent = pointerEvent1;
+                    otherEvent = pointerEvent2;
                     pointerEvent1 = ev;
                 } else if (ev.pointerId === pointerEvent2.pointerId) {
-                    otherEvent = pointerEvent2;
+                    otherEvent = pointerEvent1;
                     pointerEvent2 = ev;
                 } else {
                     // third finger, ignore
                     return;
                 }
-                ev.distance = Math.sqrt((ev.pageX - otherEvent.pageX) ** 2 + (ev.pageY - otherEvent.pageY) ** 2);
-                const deltaDistance = ev.distance - (otherEvent.distance || 0);
-                console.log('zooming', deltaDistance);
-                zoom = constrainZoom(zoom - deltaDistance / 200);
+                const distance = Math.sqrt(
+                    (ev.pageX - otherEvent.pageX) ** 2 +
+                    (ev.pageY - otherEvent.pageY) ** 2);
+                const deltaDistance = distance - lastDistance;
+                lastDistance = distance;
+                zoom = constrainZoom(zoom + deltaDistance / 600);
                 scrollEl.style.setProperty('--zoom', zoom);
             }
         };
@@ -343,7 +347,6 @@ async function createMapCanvas(renderer) {
         if (Math.abs(lastHeading - heading) > 180) {
             headingRotations += Math.sign(lastHeading - heading);
         }
-        console.log(heading, lastHeading - heading, headingRotations, heading + headingRotations * 360);
         mapEl.style.setProperty('--heading', `${heading + headingRotations * 360}deg`);
         lastHeading = heading;
     });
