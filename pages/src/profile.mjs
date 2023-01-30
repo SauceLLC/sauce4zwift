@@ -7,6 +7,7 @@ const H = locale.human;
 const ident = q.get('id') || q.get('athleteId') || 'self';
 let gettingAthlete;
 let gettingTemplate;
+let gettingWorldList;
 let gettingGameConnectionStatus;
 let pendingInitNationFlags;
 
@@ -14,6 +15,7 @@ let pendingInitNationFlags;
 export function init() {
     gettingAthlete = common.rpc.getAthlete(ident, {refresh: true});
     gettingTemplate = template.getTemplate('templates/profile.html.tpl');
+    gettingWorldList = common.getWorldList();
     gettingGameConnectionStatus = common.rpc.getGameConnectionStatus();
     pendingInitNationFlags = common.initNationFlags();
     locale.setImperial(common.storage.get('/imperialUnits'));
@@ -103,6 +105,7 @@ async function exportFITActivity(athleteId) {
 export async function render(el, tpl, tplData) {
     const athleteId = tplData.athleteId;
     const rerender = async () => el.replaceChildren(...(await tpl(tplData)).children);
+    const worldList = await gettingWorldList;
     el.addEventListener('click', async ev => {
         const a = ev.target.closest('header a[data-action]');
         if (!a) {
@@ -145,9 +148,10 @@ export async function render(el, tpl, tplData) {
     let lastUpdate = 0;
     function updatePlayerState(state) {
         lastUpdate = Date.now();
+        const world = worldList.find(x => x.courseId === state.courseId);
         const liveEls = Object.fromEntries(Array.from(el.querySelectorAll('.live'))
             .map(x => [x.dataset.id, x]));
-        liveEls.world.textContent = common.courseToNames[state.courseId];
+        liveEls.world.textContent = world ? world.name : '-';
         liveEls.power.innerHTML = H.power(state.power, {suffix: true, html: true});
         liveEls.speed.innerHTML = H.pace(state.speed, {suffix: true, html: true});
         liveEls.hr.textContent = H.number(state.heartrate);
