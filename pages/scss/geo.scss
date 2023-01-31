@@ -58,6 +58,16 @@ html {
                     calc((var(--x-offt) + var(--anchor-x)) / var(--zoom) * -1 + var(--drag-x-offt)),
                     calc((var(--y-offt) + var(--anchor-y)) / var(--zoom) * -1 + var(--drag-y-offt))
                 )
+                perspective(calc((1 / var(--zoom)) * 1000px))
+                rotateX(70deg)
+                rotate(calc(-90deg + var(--heading)));
+            ;
+            transform:
+                scale(var(--zoom))
+                translate(
+                    calc((var(--x-offt) + var(--anchor-x)) / var(--zoom) * -1 + var(--drag-x-offt)),
+                    calc((var(--y-offt) + var(--anchor-y)) / var(--zoom) * -1 + var(--drag-y-offt))
+                )
                 rotate(calc(-90deg + var(--heading)));
             ;
             transform-origin:

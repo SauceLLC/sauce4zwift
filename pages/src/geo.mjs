@@ -24,6 +24,7 @@ function vectorDistance(a, b) {
 
 
 async function createElevationProfile(renderer) {
+    return;
     const chart = ec.init(document.querySelector('#content .elevation-profile'), 'sauce',
         {renderer: 'svg'});
     chart.setOption({
