@@ -3,6 +3,7 @@ const {ipcRenderer, contextBridge} = require('electron');
 
 ipcRenderer.on('subscribe-port', (ev, subId) =>
     window.postMessage({channel: 'subscribe-port', subId}, '*', ev.ports));
+
 ipcRenderer.on('sauce-highlight-window', () => {
     console.debug("Highlight window request");
     const doc = document.documentElement;

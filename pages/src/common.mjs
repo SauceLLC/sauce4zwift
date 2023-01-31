@@ -54,34 +54,50 @@ export let unsubscribe;
 if (window.isElectron) {
     windowID = electron.context.id;
     const subs = [];
+    const pendingPorts = new Map();
     addEventListener('message', ev => {
         if (ev.source === window && ev.data && ev.data.channel === 'subscribe-port') {
-            const descr = subs.find(x => x.subId === ev.data.subId);
-            if (!descr || descr.deleted) {
+            const subId = ev.data.subId;
+            const descr = subs.find(x => x.subId === subId);
+            if (descr && descr.deleted) {
                 return;
             }
             const port = ev.ports[0];
-            descr.port = port;
-            port.addEventListener('message', ev => {
-                if (!descr.deleted) {
-                    descr.callback(JSON.parse(ev.data));
-                }
-            });
-            port.start();
+            if (!descr) {
+                // Port arrived before ipcInvoke finished (rare but normal)
+                pendingPorts.set(subId, port);
+            } else {
+                descr.port = port;
+                port.addEventListener('message', descr.handler);
+                port.start();
+            }
         }
     });
     subscribe = async function(event, callback, options={}) {
-        console.info("Event subscribe:", event);
+        console.debug("Event subscribe:", event);
         const descr = {event, callback};
+        descr.handler = ev => {
+            if (!descr.deleted) {
+                callback(JSON.parse(ev.data));
+            }
+        };
         subs.push(descr);
         const subId = await electron.ipcInvoke('subscribe', {event, ...options});
         if (!descr.deleted) {
             descr.subId = subId;
+            if (pendingPorts.has(subId)) {
+                const port = pendingPorts.get(subId);
+                pendingPorts.delete(subId);
+                // The order varies, sometimes the port shows up before ipcInvoke is back.
+                descr.port = port;
+                port.addEventListener('message', descr.handler);
+                port.start();
+            }
         }
     };
     unsubscribe = async function(event, callback) {
-        console.info("Event unsubscribe:", event);
-        const descrIdx = subs.findIndex(x => x.event === event && x.callback === callback);
+        console.debug("Event unsubscribe:", event);
+        const descrIdx = subs.findIndex(x => x.event === event && (!callback || x.callback === callback));
         if (descrIdx === -1) {
             throw new TypeError("not found");
         }
