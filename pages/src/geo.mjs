@@ -1,5 +1,6 @@
 import * as sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
+import * as map from './map.mjs';
 import {Color} from './color.mjs';
 import * as ec from '../deps/src/echarts.mjs';
 import * as theme from './echarts-sauce-theme.mjs';
@@ -11,6 +12,7 @@ const H = L.human;
 let imperial = !!common.storage.get('/imperialUnits');
 L.setImperial(imperial);
 const gettingWorldList = common.getWorldList();
+const settings = common.settingsStore.get();
 
 
 function vectorDistance(a, b) {
@@ -180,192 +182,80 @@ async function createElevationProfile(renderer) {
 }
 
 
-function constrainZoom(zoom) {
-    return Math.max(0.10, Math.min(1.75, zoom));
-}
-
-
-async function createMapCanvas(renderer) {
-    const scrollEl = document.querySelector('.map-canvas-scroll');
-    const mapEl = document.querySelector('.map-canvas');
-    let zoom = 1;
-    scrollEl.style.setProperty('--zoom', zoom);
-    let zoomAF;
-    let zoomDone;
-    scrollEl.addEventListener('wheel', ev => {
-        if (ev.deltaY) {
-            ev.preventDefault();
-            zoom = constrainZoom(zoom - ev.deltaY / 2000);
-            cancelAnimationFrame(zoomAF);
-            zoomAF = requestAnimationFrame(() => {
-                if (zoomDone) {
-                    clearTimeout(zoomDone);
-                } else {
-                    scrollEl.classList.add('zooming');
-                }
-                scrollEl.classList.add('zooming');
-                scrollEl.style.setProperty('--zoom', zoom);
-                // Lazy re-enable of animations to avoid need for forced paint
-                zoomDone = setTimeout(() => {
-                    zoomDone = null;
-                    scrollEl.classList.remove('zooming');
-                }, 50);
-            });
-        }
-    });
-    let dragX = 0;
-    let dragY = 0;
-    let dragAF;
-    let pointerEvent1;
-    let pointerEvent2;
-    let lastDistance;
-    scrollEl.addEventListener('pointerdown', ev => {
-        if (ev.button !== 0 || (pointerEvent1 && pointerEvent2)) {
-            return;
-        }
-        ev.preventDefault();
-        if (pointerEvent1) {
-            pointerEvent2 = ev;
-            scrollEl.classList.remove('dragging');
-            scrollEl.classList.add('zooming');
-            lastDistance = Math.sqrt(
-                (ev.pageX - pointerEvent1.pageX) ** 2 +
-                (ev.pageY - pointerEvent1.pageY) ** 2);
-            return;
-        } else {
-            pointerEvent1 = ev;
-        }
-        scrollEl.classList.add('dragging');
-        let lastX  = ev.pageX;
-        let lastY = ev.pageY;
-        const onPointerMove = ev => {
-            if (!pointerEvent2) {
-                cancelAnimationFrame(dragAF);
-                dragAF = requestAnimationFrame(() => {
-                    const deltaX = ev.pageX - lastX;
-                    const deltaY = ev.pageY - lastY;
-                    dragX += 1 / zoom * deltaX;
-                    dragY += 1 / zoom * deltaY;
-                    lastX = ev.pageX;
-                    lastY = ev.pageY;
-                    scrollEl.style.setProperty('--drag-x-offt', `${dragX}px`);
-                    scrollEl.style.setProperty('--drag-y-offt', `${dragY}px`);
-                });
-            } else {
-                let otherEvent;
-                if (ev.pointerId === pointerEvent1.pointerId) {
-                    otherEvent = pointerEvent2;
-                    pointerEvent1 = ev;
-                } else if (ev.pointerId === pointerEvent2.pointerId) {
-                    otherEvent = pointerEvent1;
-                    pointerEvent2 = ev;
-                } else {
-                    // third finger, ignore
-                    return;
-                }
-                const distance = Math.sqrt(
-                    (ev.pageX - otherEvent.pageX) ** 2 +
-                    (ev.pageY - otherEvent.pageY) ** 2);
-                const deltaDistance = distance - lastDistance;
-                lastDistance = distance;
-                zoom = constrainZoom(zoom + deltaDistance / 600);
-                scrollEl.style.setProperty('--zoom', zoom);
-            }
-        };
-        const onPointerDone = ev => {
-            scrollEl.classList.remove(pointerEvent2 ? 'zooming' : 'dragging');
-            document.removeEventListener('pointermove', onPointerMove);
-            pointerEvent1 = pointerEvent2 = null;
-        };
-        document.addEventListener('pointermove', onPointerMove);
-        document.addEventListener('pointerup', onPointerDone, {once: true});
-        document.addEventListener('pointercancel', onPointerDone, {once: true});
-    });
-    const dotsEl = mapEl.querySelector('.dots');
-    const mapImg = mapEl.querySelector('img');
-    let courseId;
-    let worldMeta;
-    let mapScale;
-    let headingRotations = 0;
-    let lastHeading = 0;
-    const dots = new Map();
-    const worldList = await gettingWorldList;
-    renderer.addCallback(async nearby => {
-        if (!nearby || !nearby.length) {
-            return;
-        }
-        const watching = nearby.find(x => x.watching);
-        //watching.state.courseId = 17;
-        if (watching.state.courseId !== courseId) {
-            scrollEl.classList.add('zooming'); // Disable animation
-            courseId = watching.state.courseId;
-            worldMeta = worldList.find(x => x.courseId === courseId);
-            mapScale = worldMeta.mapScale;
-            scrollEl.style.setProperty('--x-offt', `${worldMeta.mapOffsetX}px`);
-            scrollEl.style.setProperty('--y-offt', `${worldMeta.mapOffsetY}px`);
-            mapImg.src = `https://cdn.zwift.com/static/images/maps/MiniMap_${worldMeta.mapKey}.png`;
-            const roads = await common.getRoads(worldMeta.worldId);
-            for (const r of Object.values(roads)) {
-                continue;
-                for (let [x, y] of r.coords) {
-                    const dot = document.createElement('div');
-                    dot.classList.add('dot', 'watching');
-                    dotsEl.append(dot);
-                    if (worldMeta.mapRotateHack) {
-                        [x, y] = [y, -x];
-                    }
-                    dot.style.setProperty('--x', `${(x / worldMeta.tileScale) * mapScale}px`);
-                    dot.style.setProperty('--y', `${(y / worldMeta.tileScale) * mapScale}px`);
-                }
-            }
-            requestAnimationFrame(() => (scrollEl.offsetWidth, scrollEl.classList.remove('zooming')));
-        }
-        for (const entry of nearby) {
-            if (!dots.has(entry.athleteId)) {
-                const dot = document.createElement('div');
-                dot.classList.add('dot');
-                dot.classList.toggle('watching', !!entry.watching);
-                dot.dataset.athleteId = entry.athleteId;
-                dotsEl.append(dot);
-                dots.set(entry.athleteId, dot);
-            }
-            const dot = dots.get(entry.athleteId);
-            dot.lastSeen = Date.now();
-            let x = (entry.state.x / worldMeta.tileScale) * mapScale;
-            let y = (entry.state.y / worldMeta.tileScale) * mapScale;
-            if (worldMeta.mapRotateHack) {
-                [x, y] = [y, -x];
-            }
-            dot.style.setProperty('--x', `${x}px`);
-            dot.style.setProperty('--y', `${y}px`);
-            if (entry.watching) {
-                mapEl.style.setProperty('--anchor-x', `${x}px`);
-                mapEl.style.setProperty('--anchor-y', `${y}px`);
-            }
-        }
-        let heading = watching.state.heading;
-        if (Math.abs(lastHeading - heading) > 180) {
-            headingRotations += Math.sign(lastHeading - heading);
-        }
-        mapEl.style.setProperty('--heading', `${heading + headingRotations * 360}deg`);
-        lastHeading = heading;
-    });
-}
-
 
 export async function main() {
     common.initInteractionListeners();
     const content = document.querySelector('#content');
     const renderer = new common.Renderer(content);
     const elevationProfile = await createElevationProfile(renderer);
-    await createMapCanvas(renderer);
+    const zwiftMap = new map.SauceZwiftMap({
+        el: document.querySelector('.map'),
+        worldList: await gettingWorldList,
+        zoom: settings.zoom,
+    });
+    let settingsSaveTimeout;
+    zwiftMap.addEventListener('zoom', ev => {
+        clearTimeout(settingsSaveTimeout);
+        settings.zoom = ev.zoom;
+        settingsSaveTimeout = setTimeout(() => common.settingsStore.set(null, settings), 100);
+    });
     addEventListener('resize', () => {
         elevationProfile.resize();
         renderer.render({force: true});
     });
+    let courseId;
+    let watchingHandler = null;
+    const preciseMax = 10;
+    const preciseSubs = new Set();
+    common.subscribe('athlete/self', data => {
+        if (data.state.courseId !== courseId) {
+            courseId = data.state.courseId;
+            zwiftMap.setCourse(courseId);
+        }
+        if (!!data.watching !== !watchingHandler) {
+            if (watchingHandler) {
+                console.warn("XXX un sub watching");
+                common.unsubscribe('athlete/watching', watchingHandler);
+                watchingHandler = null;
+            } else {
+                console.warn("XXX sub watching");
+                watchingHandler = data => {
+                    zwiftMap.renderAthleteData([data]);
+                    zwiftMap.setHeading(data.state.heading);
+                };
+                common.subscribe('athlete/watching', watchingHandler);
+            }
+        }
+        zwiftMap.renderAthleteData([data]);
+        if (!watchingHandler) {
+            zwiftMap.setHeading(data.state.heading);
+        }
+    });
+    function renderSingleAthleteOnMap(data) {
+        zwiftMap.renderAthleteData([data]);
+    }
     common.subscribe('nearby', nearby => {
         renderer.setData(nearby);
         renderer.render();
+        if (nearby && courseId) {
+            const byGap = Array.from(nearby).sort((a, b) => Math.abs(a.gap) - Math.abs(b.gap));
+            const nearMarks = new Set();
+            for (let i = 0; i < Math.min(preciseMax, byGap.length); i++) { 
+                const x = byGap[i];
+                if (!preciseSubs.has(x.athleteId)) {
+                    preciseSubs.add(x.athleteId);
+                    common.subscribe(`athlete/${x.athleteId}`, renderSingleAthleteOnMap);
+                }
+                nearMarks.add(x.athleteId);
+            }
+            for (const x of preciseSubs) {
+                if (!nearMarks.has(x)) {
+                    preciseSubs.delete(x);
+                    common.unsubscribe(`athlete/${x}`, renderSingleAthleteOnMap);
+                }
+            }
+            zwiftMap.renderAthleteData(nearby.filter(x => !(x.self || self.watching || preciseSubs.has(x.athleteId))));
+        }
     });
     renderer.render();
 }

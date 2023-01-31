@@ -2,14 +2,31 @@ html {
     --aspect-ratio: 1 / 2;
 }
 
+@keyframes sparkle {
+    0% {
+        filter: brightness(1);
+    }
+    25% {
+        filter: brightness(var(--sparkle-intensity)) drop-shadow(0px 0px 6px var(--sparkle-color));
+    }
+    75% {
+        filter: brightness(1 / var(--sparkle-intensity));
+    }
+    100% {
+        filter: brightness(1);
+    }
+}
+
 #content {
     max-height: 100%;
     overflow: auto;
     overflow: overlay;
 
-    .map-canvas-scroll {
+    .sauce-map-container {
         --drag-x-offt: 0px;
         --drag-y-offt: 0px;
+        --anchor-x: 0px;
+        --anchor-y: 0px;
         --heading: 0deg;
         flex: 1 1 0;
         width: 100%;
@@ -23,19 +40,18 @@ html {
         &.dragging {
             cursor: move;
 
-            .map-canvas {
+            .sauce-map {
                 transition-duration: 0s;
             }
         }
 
-        &.zooming .map-canvas {
+        &.zooming .sauce-map {
             transition-duration: 0s;
         }
 
-        .map-canvas {
+        .sauce-map {
             touch-action: none;  // disable native touch handling on mobile devices.
             position: absolute;
-            //will-change: transform, transform-origin;  // XXX test if helps 
             transform:
                 scale(var(--zoom))
                 translate(
@@ -54,7 +70,7 @@ html {
             top: 50%;
 
             .dots {
-                z-index: 3;
+                z-index: 2;
                 position: absolute;
                 left: var(--x-offt);
                 top: var(--y-offt);
@@ -62,36 +78,94 @@ html {
                 height: 100%;
 
                 .dot {
-                    --radius: 5px;
-                    --border-size: 2px;
+                    --radius: 3.5px;
+                    --border-size: 1.5px;
+                    --sparkle-intensity: 1;
+                    --sparkle-color: transparent;
+                    animation-timing-function: linear;
                     position: absolute;
                     border-radius: 50%;
-                    border: var(--border-size) solid #000c;
+                    border: var(--border-size) solid #5a94ff;
                     width: calc(var(--radius) * 2);
                     height: calc(var(--radius) * 2);
                     left: calc(-1 * var(--radius));
                     top: calc(-1 * var(--radius));
                     transform: translate(var(--x), var(--y));
-                    background-color: #fff8;
+                    background-color: #fffa;
                     transition: transform;
-                    transition-duration: 1s;
+                    transition-duration: 1020ms;
                     transition-timing-function: linear;
+                    cursor: pointer;
+
+                    &.fast {
+                        transition-duration: 300ms;
+                    }
+                    &.slow {
+                        transition-duration: 2000ms;
+                    }
+
+                    &:not([data-power-level="z1"]) {
+                        animation: sparkle 700ms infinite;
+                    }
+                    &[data-power-level="z2"] {
+                        --sparkle-color: #fff2;
+                        --sparkle-intensity: 1.05;
+                    }
+                    &[data-power-level="z3"] {
+                        --sparkle-color: #fff5;
+                        --sparkle-intensity: 1.08;
+                    }
+                    &[data-power-level="z4"] {
+                        --sparkle-color: #fff9;
+                        --sparkle-intensity: 1.1;
+                    }
+                    &[data-power-level="z5"] {
+                        --sparkle-color: #fffc;
+                        --sparkle-intensity: 1.2;
+                    }
+                    &[data-power-level="z6"] {
+                        --sparkle-color: #ff7900;
+                        --sparkle-intensity: 1.3;
+                    }
 
                     &.watching {
-                        background-color: #f22a;
+                        background-color: #3162ffcc;
+                        border-color: #fff;
+                        z-index: 4;
+                        --radius: 7px;
+                        --border-size: 2px;
+                    }
+
+                    &.self {
+                        background-color: #f22c;
+                        border-color: #fff;
+                        z-index: 5;
                         --radius: 8px;
-                        --border-size: 4px;
+                        --border-size: 3px;
+                    }
+
+                    &.leader {
+                        background-color: #ffd91f8c;
+                        border-color: #000d;
+                        z-index: 3;
+                        --border-size: 1.5px;
+                    }
+
+                    &.sweeper {
+                        background-color: #f1262675;
+                        border-color: #dc3c10cc;
+                        z-index: 2;
+                    }
+
+                    &:hover {
+                        filter: brightness(1.1) contrast(1.2) saturate(1.2);
                     }
                 }
             }
         }
 
-        canvas {
-            z-index: 1;
-        }
-
         img.minimap {
-            z-index: 2;
+            z-index: 1;
             position: absolute;
             left: 0;
             top: 0;
