@@ -55,6 +55,7 @@ export class SauceZwiftMap extends EventTarget {
             return;
         }
         ev.preventDefault();
+        this.trackingPaused = true;
         this.adjZoom(-ev.deltaY / 2000);
         cancelAnimationFrame(this.wheelState.nextAnimFrame);
         this.wheelState.nextAnimFrame = requestAnimationFrame(() => {
@@ -67,9 +68,10 @@ export class SauceZwiftMap extends EventTarget {
             this.el.style.setProperty('--zoom', this.zoom);
             // Lazy re-enable of animations to avoid need for forced paint
             this.wheelState.done = setTimeout(() => {
+                this.trackingPaused = false;
                 this.wheelState.done = null;
                 this.el.classList.remove('zooming');
-            }, 50);
+            }, 100);
         });
     }
 
@@ -79,6 +81,7 @@ export class SauceZwiftMap extends EventTarget {
             return;
         }
         ev.preventDefault();
+        this.trackingPaused = true;
         if (state.ev1) {
             state.ev2 = ev;
             this.el.classList.remove('dragging');
@@ -138,6 +141,7 @@ export class SauceZwiftMap extends EventTarget {
         this.el.classList.remove(this.pointerState.ev2 ? 'zooming' : 'dragging');
         document.removeEventListener('pointermove', this.onPointerMoveBound);
         this.pointerState.ev1 = this.pointerState.ev2 = null;
+        this.trackingPaused = false;
     }
 
     setCourse(courseId) {
@@ -221,7 +225,7 @@ export class SauceZwiftMap extends EventTarget {
             }
             dot.style.setProperty('--x', `${x}px`);
             dot.style.setProperty('--y', `${y}px`);
-            if (entry.watching) {
+            if (entry.watching && !this.trackingPaused) {
                 this.mapEl.style.setProperty('--anchor-x', `${x}px`);
                 this.mapEl.style.setProperty('--anchor-y', `${y}px`);
             }
@@ -235,11 +239,15 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     setHeading(heading) {
+        if (this.trackingPaused) {
+            return false;
+        }
         if (Math.abs(this.lastHeading - heading) > 180) {
             this.headingRotations += Math.sign(this.lastHeading - heading);
         }
         this.mapEl.style.setProperty('--heading', `${heading + this.headingRotations * 360}deg`);
         this.lastHeading = heading;
+        return true;
     }
 }
 
