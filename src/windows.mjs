@@ -21,6 +21,7 @@ const modContentScripts = [];
 const modContentStyle = [];
 const sessions = new Map();
 const magicLegacySessionId = '___LEGACY-SESSION___';
+const profilesKey = 'window-profiles';
 
 let profiles;
 let activeProfile;
@@ -80,13 +81,13 @@ export const windowManifests = [{
     prettyName: 'Chat',
     prettyDesc: 'Chat dialog from nearby athletes',
     options: {width: 0.18, aspectRatio: 2},
-},/* {
-    type: 'segments',
-    file: '/pages/segments.html',
-    prettyName: 'Segments',
-    prettyDesc: 'View current and nearby segment information',
-    options: {width: 300, aspectRatio: 3},
-}, */{
+}, {
+    type: 'geo',
+    file: '/pages/geo.html',
+    prettyName: 'Map and Profile',
+    prettyDesc: 'Map and of nearby athletes with optional profile',
+    options: {width: 0.20, aspectRatio: 1},
+}, {
     type: 'nearby',
     file: '/pages/nearby.html',
     prettyName: 'Nearby Athletes',
@@ -190,6 +191,10 @@ const defaultWindows = [{
     id: 'default-chat-1',
     type: 'chat',
     options: {x: 320, y: 230},
+}, {
+    id: 'default-geo-1',
+    type: 'geo',
+    options: {x: -8, y: 40},
 }];
 
 // NEVER use app.getAppPath() it uses asar for universal builds
@@ -350,7 +355,7 @@ function initProfiles() {
     if (profiles) {
         throw new Error("Already activated");
     }
-    profiles = storage.get('window-profiles');
+    profiles = storage.get(profilesKey);
     if (!profiles || !profiles.length) {
         const legacy = storage.get('windows');
         if (legacy) {
@@ -367,7 +372,7 @@ function initProfiles() {
             profile.active = true;
             profiles = [profile];
         }
-        storage.set('window-profiles', profiles);
+        storage.set(profilesKey, profiles);
     }
     activeProfile = profiles.find(x => x.active);
     if (!activeProfile) {
@@ -391,7 +396,7 @@ rpc.register(getProfiles);
 export function createProfile(name='New Profile', ident='custom') {
     const profile = _createProfile(name, ident);
     profiles.push(profile);
-    storage.set('window-profiles', profiles);
+    storage.set(profilesKey, profiles);
     return profile;
 }
 rpc.register(createProfile);
@@ -431,6 +436,7 @@ export function activateProfile(id) {
         }
         activeProfile = profiles.find(x => x.active);
         activeProfileSession = loadSession(activeProfile.id);
+        storage.set(profilesKey, profiles);
     } finally {
         swappingProfiles = false;
     }
@@ -451,7 +457,7 @@ export function renameProfile(id, name) {
             x.name = name;
         }
     }
-    storage.set('window-profiles', profiles);
+    storage.set(profilesKey, profiles);
 }
 rpc.register(renameProfile);
 
@@ -465,7 +471,7 @@ export function removeProfile(id) {
         throw new Error("Cannot remove last profile");
     }
     const profile = profiles.splice(idx, 1)[0];
-    storage.set('window-profiles', profiles);
+    storage.set(profilesKey, profiles);
     if (profile.active) {
         activateProfile(profiles[0].id);
     }
@@ -491,7 +497,7 @@ export function setWindows(wins) {
         initProfiles();
     }
     activeProfile.windows = wins;
-    storage.set('window-profiles', profiles);
+    storage.set(profilesKey, profiles);
     clearTimeout(_windowsUpdatedTimeout);
     _windowsUpdatedTimeout = setTimeout(() => eventEmitter.emit('set-windows', wins), 200);
 }
