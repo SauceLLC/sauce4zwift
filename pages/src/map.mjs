@@ -43,7 +43,7 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     adjZoom(adj) {
-        this.zoom = Math.max(0.10, Math.min(10, this.zoom + adj));
+        this.zoom = Math.max(0.30, Math.min(5, this.zoom + adj));
         const ev = new Event('zoom');
         ev.zoom = this.zoom;
         this.dispatchEvent(ev);

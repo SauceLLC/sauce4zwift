@@ -201,7 +201,7 @@ export async function main() {
         settingsSaveTimeout = setTimeout(() => common.settingsStore.set(null, settings), 100);
     });
     addEventListener('resize', () => {
-        elevationProfile.resize();
+        //elevationProfile.resize();
         renderer.render({force: true});
     });
     let courseId;
