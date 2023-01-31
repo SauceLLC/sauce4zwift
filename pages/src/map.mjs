@@ -164,7 +164,7 @@ export class SauceZwiftMap extends EventTarget {
         for (const r of Object.values(roads)) {
             for (let [x, y] of r.coords) {
                 const dot = document.createElement('div');
-                dot.classList.add('dot', 'watching');
+                dot.classList.add('dot');
                 this.dotsEl.append(dot);
                 if (this.worldMeta.mapRotateHack) {
                     [x, y] = [y, -x];
