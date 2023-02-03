@@ -50,6 +50,8 @@ let windowID;
 export let imperialUnits;
 export let subscribe;
 export let unsubscribe;
+let schedStorageFlush;
+
 
 if (window.isElectron) {
     windowID = electron.context.id;
@@ -125,6 +127,11 @@ if (window.isElectron) {
             await rpcCall('openExternalLink', link.href);
         }
     });
+    let storageFlushTimeout;
+    schedStorageFlush = () => {
+        clearTimeout(storageFlushTimeout);
+        storageFlushTimeout = setTimeout(() => rpcCall('flushSessionStorage'), 500);
+    }
 } else {
     const q = new URLSearchParams(location.search);
     windowID = q.get('windowId') || q.get('windowid') || 'browser-def-id';
@@ -253,6 +260,7 @@ if (window.isElectron) {
             throw makeRPCError(r.error);
         }
     };
+    schedStorageFlush = () => undefined;
 }
 
 
@@ -640,13 +648,6 @@ export class Renderer {
 }
 
 
-let storageFlushTimeout;
-function schedStorageFlush() {
-    clearTimeout(storageFlushTimeout);
-    storageFlushTimeout = setTimeout(() => rpcCall('flushSessionStorage'), 500);
-}
-
-
 class LocalStorage extends EventTarget {
     constructor() {
         super();
@@ -874,7 +875,11 @@ function updateDependants(el) {
 function bindFormData(selector, storageIface, options={}) {
     const form = document.querySelector(selector);
     const fieldConnections = new Map();
+    let updateCalled;
     async function onFieldUpdate(el, ev) {
+        if (!updateCalled) {
+            console.error("You forgot to call the update() callback returned by bindFormData");
+        }
         const baseType = {
             range: 'number',
         }[el.type] || el.type;
@@ -904,6 +909,7 @@ function bindFormData(selector, storageIface, options={}) {
         el.addEventListener('change', onFieldUpdate.bind(null, el));
     }
     return async function update() {
+        updateCalled = true;
         for (const el of form.querySelectorAll('input,select,textarea')) {
             const name = el.name;
             if (!fieldConnections.has(name)) {

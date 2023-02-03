@@ -21,7 +21,7 @@ export class SauceZwiftMap extends EventTarget {
             lastX: null,
             lastY: null,
         };
-        el.classList.add('sauce-map-container');
+        el.classList.add('sauce-map-container', 'loading');
         this.mapEl = document.createElement('div');
         this.mapEl.classList.add('sauce-map');
         this.dotsEl = document.createElement('div');
@@ -37,9 +37,33 @@ export class SauceZwiftMap extends EventTarget {
         this.headingRotations = 0;
         this.lastHeading = 0;
         this.dots = new Map();
-        el.style.setProperty('--zoom', this.zoom);
+        this.style = 'default';
+        this.updateZoom();
         el.addEventListener('wheel', this.onWheelZoom.bind(this));
         el.addEventListener('pointerdown', this.onPointerDown.bind(this));
+    }
+
+    setStyle(style) {
+        this.style = style;
+        if (!this.loading && this.worldMeta) {
+            this.setCourse(this.worldMeta.courseId);
+        }
+    }
+
+    setOpacity(v) {
+        this.el.style.setProperty('--opacity', v);
+    }
+
+    setTiltShift(en) {
+        this.el.classList.toggle('tilt-shift', !!en);
+    }
+
+    setTiltShiftAngle(deg) {
+        this.mapEl.style.setProperty('--tilt-shift-angle', `${deg}deg`);
+    }
+
+    updateZoom() {
+        this.el.style.setProperty('--zoom', this.zoom);
     }
 
     adjZoom(adj) {
@@ -65,7 +89,7 @@ export class SauceZwiftMap extends EventTarget {
                 this.el.classList.add('zooming');
             }
             this.el.classList.add('zooming');
-            this.el.style.setProperty('--zoom', this.zoom);
+            this.updateZoom();
             // Lazy re-enable of animations to avoid need for forced paint
             this.wheelState.done = setTimeout(() => {
                 this.trackingPaused = false;
@@ -133,7 +157,8 @@ export class SauceZwiftMap extends EventTarget {
                 (ev.pageY - otherEvent.pageY) ** 2);
             const deltaDistance = distance - state.lastDistance;
             state.lastDistance = distance;
-            this.el.style.setProperty('--zoom', this.adjZoom(deltaDistance / 600));
+            this.adjZoom(deltaDistance / 600);
+            this.updateZoom();
         }
     }
 
@@ -145,30 +170,43 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     setCourse(courseId) {
-        this.el.classList.add('zooming'); // Disable animation
+        this.el.classList.add('loading'); // Disable animation
         this.worldMeta = this.worldList.find(x => x.courseId === courseId);
         this.el.style.setProperty('--x-offt', `${this.worldMeta.mapOffsetX}px`);
         this.el.style.setProperty('--y-offt', `${this.worldMeta.mapOffsetY}px`);
-        this.imgEl.src = `https://cdn.zwift.com/static/images/maps/MiniMap_${this.worldMeta.mapKey}.png`;
+        const suffix = {
+            default: '',
+            neon: '-neon',
+            neonBlack: '-neon',
+        }[this.style];
+        if (this.style.endsWith('Black')) {
+            this.imgEl.style.setProperty('background-color', 'black');
+        } else {
+            this.imgEl.style.removeProperty('background-color');
+        }
+        this.imgEl.src = `/pages/deps/maps/world${this.worldMeta.worldId}${suffix}.webp`;
         for (const x of this.dots.values()) {
             x.remove();
         }
         this.dots.clear();
-        if (location.search.includes('testing')) {
-            this.renderRoadsForTesting();
-        }
-        requestAnimationFrame(() => {
+        this.imgEl.decode().then(() => requestAnimationFrame(() => {
             this.el.offsetWidth;
-            this.el.classList.remove('zooming');
-        });
+            this.el.classList.remove('loading');
+        }));
     }
 
-    async renderRoadsForTesting() {
+    async renderRoads(ids) {
         const roads = await common.getRoads(this.worldMeta.worldId);
-        for (const r of Object.values(roads)) {
-            for (let [x, y] of r.coords) {
+        ids = ids || Object.keys(roads);
+        for (const id of ids) {
+            const road = roads[id];
+            if (!road) {
+                console.error("Road not found:", id);
+                continue;
+            }
+            for (let [x, y] of road.coords) {
                 const dot = document.createElement('div');
-                dot.classList.add('dot');
+                dot.classList.add('dot', 'leader');
                 this.dotsEl.append(dot);
                 if (this.worldMeta.mapRotateHack) {
                     [x, y] = [y, -x];
@@ -180,6 +218,9 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     renderAthleteData(data) {
+        if (!this.worldMeta) {
+            return;
+        }
         const now = Date.now();
         for (const entry of data) {
             if (!this.dots.has(entry.athleteId)) {
@@ -196,6 +237,8 @@ export class SauceZwiftMap extends EventTarget {
             dot.classList.toggle('watching', !!entry.watching && !entry.self);
             dot.classList.toggle('leader', !!entry.eventLeader);
             dot.classList.toggle('sweeper', !!entry.eventSweeper);
+            dot.classList.toggle('marked', entry.athlete ? !!entry.athlete.marked : false);
+            dot.classList.toggle('following', entry.athlete ? !!entry.athlete.following : false);
             const age = entry.state.worldTime - dot.wt;
             if (age) {
                 dot.classList.toggle('fast', age < 250);

@@ -76,12 +76,16 @@ endif
 deps:
 ifndef WINBLOWS
 	mkdir -p pages/deps/flags
+	mkdir -p pages/deps/maps
 	mkdir -p shared/deps/data
 	-cp -r node_modules/zwift-utils/dist/* shared/deps/data/
+	-cp -r node_modules/zwift-utils/assets/world*.webp pages/deps/maps/
 else
 	mkdir -f pages/deps/flags > $$null
+	mkdir -f pages/deps/maps > $$null
 	mkdir -f shared/deps/data > $$null
 	-cp -r -Force node_modules/zwift-utils/dist/* shared/deps/data/
+	-cp -r -Force node_modules/zwift-utils/assets/world*.webp pages/deps/maps/
 endif
 	cp node_modules/echarts/dist/echarts.esm.min.js pages/deps/src/echarts.mjs
 	cp node_modules/world_countries_lists/data/flags/64x64/*.png pages/deps/flags/

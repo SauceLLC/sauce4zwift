@@ -7,11 +7,24 @@ import * as theme from './echarts-sauce-theme.mjs';
 
 ec.registerTheme('sauce', theme.getTheme('dynamic'));
 
+const doc = document.documentElement;
 const L = sauce.locale;
 const H = L.human;
 let imperial = !!common.storage.get('/imperialUnits');
 L.setImperial(imperial);
 const gettingWorldList = common.getWorldList();
+
+common.settingsStore.setDefault({
+    profileOverlay: true,
+    mapStyle: 'default',
+    lowLatency: false,
+    tiltShift: false,
+    tiltShiftAngle: 10,
+    solidBackground: false,
+    transparency: 0,
+    backgroundColor: '#00ff00',
+});
+
 const settings = common.settingsStore.get();
 
 
@@ -23,10 +36,8 @@ function vectorDistance(a, b) {
 }
 
 
-async function createElevationProfile(renderer) {
-    return;
-    const chart = ec.init(document.querySelector('#content .elevation-profile'), 'sauce',
-        {renderer: 'svg'});
+async function createElevationProfile(el) {
+    const chart = ec.init(el, 'sauce', {renderer: 'svg'});
     chart.setOption({
         tooltip: {
             trigger: 'axis',
@@ -88,7 +99,7 @@ async function createElevationProfile(renderer) {
     let reverse;
     let markAnimationDuration;
     const worldList = await gettingWorldList;
-    renderer.addCallback(async _nearby => {
+    chart.update = async _nearby => {
         if (!_nearby || !_nearby.length) {
             return;
         }
@@ -178,17 +189,25 @@ async function createElevationProfile(renderer) {
             },
         }]});
         //markAnimationDuration = Math.min(1200, markAnimationDuration * 1.3);
-    });
+    };
     return chart;
 }
 
 
+function setStyles() {
+    const {solidBackground, backgroundColor} = common.settingsStore.get();
+    doc.classList.toggle('solid-background', !!solidBackground);
+    if (solidBackground) {
+        doc.style.setProperty('--background-color', backgroundColor);
+    } else {
+        doc.style.removeProperty('--background-color');
+    }
+}
+
 
 export async function main() {
     common.initInteractionListeners();
-    const content = document.querySelector('#content');
-    const renderer = new common.Renderer(content);
-    const elevationProfile = await createElevationProfile(renderer);
+    const elevationProfile = await createElevationProfile(document.querySelector('.elevation-profile'));
     const zwiftMap = new map.SauceZwiftMap({
         el: document.querySelector('.map'),
         worldList: await gettingWorldList,
@@ -200,13 +219,22 @@ export async function main() {
         settings.zoom = ev.zoom;
         settingsSaveTimeout = setTimeout(() => common.settingsStore.set(null, settings), 100);
     });
+    zwiftMap.setStyle(settings.mapStyle);
+    zwiftMap.setOpacity(1 - 1 / (100 / settings.transparency));
+    zwiftMap.setTiltShift(settings.tiltShift);
+    zwiftMap.setTiltShiftAngle(settings.tiltShiftAngle);
     addEventListener('resize', () => {
-        //elevationProfile.resize();
-        renderer.render({force: true});
+        elevationProfile.resize();
     });
+    const urlQuery = new URLSearchParams(location.search);
+    if (urlQuery.has('testing')) {
+        zwiftMap.setCourse(+urlQuery.get('testing') || 6);
+        zwiftMap.renderRoads();
+        return;
+    }
     let courseId;
     let watchingHandler = null;
-    const preciseMax = 10;
+    let preciseMax = settings.lowLatency ? 10 : 0;
     const preciseSubs = new Set();
     common.subscribe('athlete/self', data => {
         if (data.state.courseId !== courseId) {
@@ -215,11 +243,9 @@ export async function main() {
         }
         if (!!data.watching !== !watchingHandler) {
             if (watchingHandler) {
-                console.warn("XXX un sub watching");
                 common.unsubscribe('athlete/watching', watchingHandler);
                 watchingHandler = null;
             } else {
-                console.warn("XXX sub watching");
                 watchingHandler = data => {
                     zwiftMap.renderAthleteData([data]);
                     zwiftMap.setHeading(data.state.heading);
@@ -232,37 +258,50 @@ export async function main() {
             zwiftMap.setHeading(data.state.heading);
         }
     });
-    function renderSingleAthleteOnMap(data) {
-        zwiftMap.renderAthleteData([data]);
-    }
+    const renderSingleAthleteOnMap = data => zwiftMap.renderAthleteData([data]);
     common.subscribe('nearby', nearby => {
-        renderer.setData(nearby);
-        renderer.render();
-        if (nearby && courseId) {
-            const byGap = Array.from(nearby).sort((a, b) => Math.abs(a.gap) - Math.abs(b.gap));
-            const nearMarks = new Set();
-            for (let i = 0; i < Math.min(preciseMax, byGap.length); i++) { 
-                const x = byGap[i];
-                if (!preciseSubs.has(x.athleteId)) {
-                    preciseSubs.add(x.athleteId);
-                    common.subscribe(`athlete/${x.athleteId}`, renderSingleAthleteOnMap);
-                }
-                nearMarks.add(x.athleteId);
+        const byGap = Array.from(nearby).sort((a, b) => Math.abs(a.gap) - Math.abs(b.gap));
+        const nearMarks = new Set();
+        for (let i = 0; i < Math.min(preciseMax, byGap.length); i++) {
+            const x = byGap[i];
+            if (!preciseSubs.has(x.athleteId)) {
+                preciseSubs.add(x.athleteId);
+                common.subscribe(`athlete/${x.athleteId}`, renderSingleAthleteOnMap);
             }
-            for (const x of preciseSubs) {
-                if (!nearMarks.has(x)) {
-                    preciseSubs.delete(x);
-                    common.unsubscribe(`athlete/${x}`, renderSingleAthleteOnMap);
-                }
+            nearMarks.add(x.athleteId);
+        }
+        for (const x of preciseSubs) {
+            if (!nearMarks.has(x)) {
+                preciseSubs.delete(x);
+                common.unsubscribe(`athlete/${x}`, renderSingleAthleteOnMap);
             }
-            zwiftMap.renderAthleteData(nearby.filter(x => !(x.self || self.watching || preciseSubs.has(x.athleteId))));
+        }
+        zwiftMap.renderAthleteData(nearby.filter(x =>
+            !(x.self || self.watching || preciseSubs.has(x.athleteId))));
+    });
+    common.settingsStore.addEventListener('changed', async ev => {
+        const changed = ev.data.changed;
+        if (changed.has('solidBackground') || changed.has('backgroundColor')) {
+            setStyles();
+        } else if (changed.has('transparency')) {
+            zwiftMap.setOpacity(1 - 1 / (100 / changed.get('transparency')));
+        } else if (changed.has('mapStyle')) {
+            zwiftMap.setStyle(changed.get('mapStyle'));
+        } else if (changed.has('lowLatency')) {
+            preciseMax = 10;
+        } else if (changed.has('tiltShift')) {
+            zwiftMap.setTiltShift(changed.get('tiltShift'));
+        } else if (changed.has('tiltShiftAngle')) {
+            zwiftMap.setTiltShiftAngle(changed.get('tiltShiftAngle'));
         }
     });
-    renderer.render();
 }
 
 
 export async function settingsMain() {
     common.initInteractionListeners();
-    await common.initSettingsForm('form');
+    (await common.initSettingsForm('form'))();
 }
+
+
+setStyles();
