@@ -97,7 +97,9 @@ function jsonCache(data) {
     let json = _jsonWeakMap.get(data);
     if (!json) {
         json = JSON.stringify(data);
-        _jsonWeakMap.set(data, json);
+        if (typeof data === 'object') {
+            _jsonWeakMap.set(data, json);
+        }
     }
     return json;
 }

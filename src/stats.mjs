@@ -358,8 +358,10 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.getPlayerState, {scope: this});
         rpc.register(this.getNearbyData, {scope: this});
         rpc.register(this.getGroupsData, {scope: this});
-        rpc.register(this.getAthleteStats, {scope: this});
-        rpc.register(this.updateAthleteStats, {scope: this});
+        rpc.register(this.getAthleteStats, {scope: this}); // DEPRECATED
+        rpc.register(this.getAthleteData, {scope: this});
+        rpc.register(this.updateAthleteStats, {scope: this}); // DEPRECATED
+        rpc.register(this.updateAthleteData, {scope: this});
         rpc.register(this.getAthleteLaps, {scope: this});
         rpc.register(this.getAthleteSegments, {scope: this});
         rpc.register(this.getAthleteStreams, {scope: this});
@@ -483,7 +485,7 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     getAthletesData() {
-        return Array.from(this._athleteData.values()).map(this._formatAthleteStats.bind(this));
+        return Array.from(this._athleteData.values()).map(this._formatAthleteData.bind(this));
     }
 
     _realAthleteId(ident) {
@@ -494,11 +496,21 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     getAthleteStats(id) {
+        console.warn("DEPRECATED: use `getAthleteData`");
+        return this.getAthleteData(id);
+    }
+
+    getAthleteData(id) {
         const ad = this._athleteData.get(this._realAthleteId(id));
-        return ad ? this._formatAthleteStats(ad) : null;
+        return ad ? this._formatAthleteData(ad) : null;
     }
 
     updateAthleteStats(id, updates) {
+        console.warn("DEPRECATED: use `updateAthleteData`");
+        return this.updateAthleteData(id, updates);
+    }
+    
+    updateAthleteData(id, updates) {
         const ad = this._athleteData.get(this._realAthleteId(id));
         if (!ad) {
             return null;
@@ -507,7 +519,7 @@ export class StatsProcessor extends events.EventEmitter {
             ad.extra = {};
         }
         Object.assign(ad.extra, updates);
-        return this._formatAthleteStats(ad);
+        return this._formatAthleteData(ad);
     }
 
     getAthleteLaps(id) {
@@ -909,10 +921,12 @@ export class StatsProcessor extends events.EventEmitter {
                 }
             }
         }
+        let hasStates;
         for (const x of packet.playerStates) {
             if (this.processState(x) === false) {
                 continue;
             }
+            hasStates = true;
             if (x.athleteId === this.watching) {
                 this._watchingRoadSig = this._roadSig(x);
             }
@@ -936,6 +950,9 @@ export class StatsProcessor extends events.EventEmitter {
                     ad.eventParticipants = ep.activeAthleteCount;
                 }
             }
+        }
+        if (hasStates && this.listenerCount('states')) {
+            this.emit('states', packet.playerStates);
         }
     }
 
@@ -1223,13 +1240,13 @@ export class StatsProcessor extends events.EventEmitter {
         ad.updated = monotonic();
         this._stateProcessCount++;
         if (this.watching === state.athleteId && this.listenerCount('athlete/watching')) {
-            this.emit('athlete/watching', this._formatAthleteStats(ad));
+            this.emit('athlete/watching', this._formatAthleteData(ad));
         }
         if (this.athleteId === state.athleteId && this.listenerCount('athlete/self')) {
-            this.emit('athlete/self', this._formatAthleteStats(ad));
+            this.emit('athlete/self', this._formatAthleteData(ad));
         }
         if (this.listenerCount(`athlete/${state.athleteId}`)) {
-            this.emit(`athlete/${state.athleteId}`, this._formatAthleteStats(ad));
+            this.emit(`athlete/${state.athleteId}`, this._formatAthleteData(ad));
         }
     }
 
@@ -1818,7 +1835,7 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
-    _formatAthleteStats(ad) {
+    _formatAthleteData(ad) {
         let athlete = this.loadAthlete(ad.athleteId);
         if (athlete) {
             if (ad.privacy.hideFTP) {
@@ -1944,13 +1961,13 @@ export class StatsProcessor extends events.EventEmitter {
         const maxGap = 15 * 60;
         for (let i = 0; i < ahead.length; i++) {
             if (ahead[i].gap > -maxGap) {
-                nearby.push(this._formatAthleteStats(ahead[i]));
+                nearby.push(this._formatAthleteData(ahead[i]));
             }
         }
-        nearby.push(this._formatAthleteStats(watching));
+        nearby.push(this._formatAthleteData(watching));
         for (let i = 0; i < behind.length; i++) {
             if (behind[i].gap < maxGap) {
-                nearby.push(this._formatAthleteStats(behind[i]));
+                nearby.push(this._formatAthleteData(behind[i]));
             }
         }
         nearby.sort((a, b) => a.gap - b.gap);
