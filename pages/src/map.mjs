@@ -8,6 +8,43 @@ function createElementSVG(name, attrs={}) {
     }
     return el;
 }
+ 
+
+function hypotenuse(a, b) {
+    const dx = b[0] - a[0];
+    const dy = b[1] - a[1];
+    return {
+        distance: Math.sqrt(dx * dx + dy * dy),
+        angle: Math.atan2(dy, dx)
+    }
+}
+
+
+function controlPoint(current, previous, next, reverse, smoothing) {
+    const p = previous || current;
+    const n = next || current;
+    let {distance, angle} = hypotenuse(p, n);
+    if (reverse) {
+        angle += Math.PI;
+    }
+    const length = distance * smoothing;
+    const x = current[0] + Math.cos(angle) * length;
+    const y = current[1] + Math.sin(angle) * length;
+    return [x, y];
+}
+
+
+function bezierCommand(point, i, a, smoothing) {
+    const cps = controlPoint(a[i - 1], a[i - 2], point, false, smoothing);
+    const cpe = controlPoint(point, a[i - 1], a[i + 1], true, smoothing);
+    return `C ${cps[0]},${cps[1]} ${cpe[0]},${cpe[1]} ${point[0]},${point[1]}`;
+}
+
+
+function smoothPath(points, smoothing=0.2) {
+    return points.reduce((acc, [x, y], i, a) =>
+        i === 0 ? `M ${x},${y}` : `${acc} ${bezierCommand([x, y], i, a, smoothing)}`, '');
+}
 
 
 export class SauceZwiftMap extends EventTarget {
@@ -35,7 +72,7 @@ export class SauceZwiftMap extends EventTarget {
         this.mapEl.classList.add('sauce-map');
         this.dotsEl = document.createElement('div');
         this.dotsEl.classList.add('dots');
-        this.svgEl = createElementSVG('svg', {viewBox: '0 0 4000 4000'});
+        this.svgEl = createElementSVG('svg');
         this.imgEl = document.createElement('img');
         this.imgEl.classList.add('minimap');
         this.mapEl.append(this.dotsEl, this.svgEl, this.imgEl);
@@ -140,7 +177,6 @@ export class SauceZwiftMap extends EventTarget {
             state.ev1 = ev;
         }
         this.el.classList.add('moving');
-        state.rotating = ev.ctrlKey;
         state.lastX  = ev.pageX;
         state.lastY = ev.pageY;
         document.addEventListener('pointermove', this.onPointerMoveBound);
@@ -153,18 +189,14 @@ export class SauceZwiftMap extends EventTarget {
         if (!state.ev2) {
             cancelAnimationFrame(state.nextAnimFrame);
             state.nextAnimFrame = requestAnimationFrame(() => {
-                if (state.rotating) {
-                    this.setHeadingOffset(Math.atan((ev.pageY - state.lastY) / (ev.pageX - state.lastX)) * 360);
-                } else {
-                    const deltaX = ev.pageX - state.lastX;
-                    const deltaY = ev.pageY - state.lastY;
-                    this.dragX += 1 / this.zoom * deltaX;
-                    this.dragY += 1 / this.zoom * deltaY;
-                    state.lastX = ev.pageX;
-                    state.lastY = ev.pageY;
-                    this.el.style.setProperty('--drag-x-offt', `${this.dragX}px`);
-                    this.el.style.setProperty('--drag-y-offt', `${this.dragY}px`);
-                }
+                const deltaX = ev.pageX - state.lastX;
+                const deltaY = ev.pageY - state.lastY;
+                this.dragX += 1 / this.zoom * deltaX;
+                this.dragY += 1 / this.zoom * deltaY;
+                state.lastX = ev.pageX;
+                state.lastY = ev.pageY;
+                this.el.style.setProperty('--drag-x-offt', `${this.dragX}px`);
+                this.el.style.setProperty('--drag-y-offt', `${this.dragY}px`);
             });
         } else {
             let otherEvent;
@@ -211,6 +243,7 @@ export class SauceZwiftMap extends EventTarget {
         const {minX, minY, tileScale, mapScale, anchorX, anchorY} = this.worldMeta;
         this.el.style.setProperty('--x-offt', -(minX + anchorX) / tileScale * mapScale + 'px');
         this.el.style.setProperty('--y-offt', -(minY + anchorY) / tileScale * mapScale + 'px');
+        this._setHeading(0);
         this.updateMapImage();
         for (const x of this.dots.values()) {
             x.remove();
@@ -245,11 +278,9 @@ export class SauceZwiftMap extends EventTarget {
         }
     }
 
-    async renderRoadsSVGUNfinishedXXX(ids) {
+    async renderRoadsSVG(ids) {
         const roads = await common.getRoads(this.worldMeta.worldId);
         ids = ids || Object.keys(roads);
-        const tileScale = this.worldMeta.tileScale;
-        const mapScale = this.worldMeta.mapScale;
         for (const id of ids) {
             const road = roads[id];
             if (!road) {
@@ -258,7 +289,7 @@ export class SauceZwiftMap extends EventTarget {
             }
             const path = createElementSVG('path', {
                 "fill": 'transparent',
-                "stroke": 'currentColor',
+                "stroke": '#fffc',
                 "stroke-width": 2000,
                 "stroke-linecap": 'round',
                 "stroke-linejoin": 'round',
@@ -268,32 +299,20 @@ export class SauceZwiftMap extends EventTarget {
                 if (this.worldMeta.mapRotateHack) {
                     [x, y] = [y, -x];
                 }
-                let x = state.x / this.worldMeta.tileScale * this.worldMeta.mapScale;
-                let y = state.y / this.worldMeta.tileScale * this.worldMeta.mapScale;
-                d.push(`${x} ${y}`);
+                d.push([x, y]);
             }
-            console.log(road);
-            path.setAttribute('d', 'M ' + d.join(' L ') + (road.looped ? ' Z' : ''));
+            path.setAttribute('d', smoothPath(d) + (road.looped ? ' Z' : ''));
             this.svgEl.append(path);
         }
-        this.svgEl.setAttribute('viewBox', [-tileScale, -tileScale, tileScale, tileScale].join(' '));
-        this.svgEl.setAttribute('preserveAspectRatio', 'xMinYMin meet');
-        this.svgEl.append(createElementSVG('circle', {
-            cx: 0,
-            cy: 0,
-            r: tileScale / 2,
-            fill: '#f003'
-        }));
-        /*this.svgEl.append(createElementSVG('path', {
-            "stroke": 'currentColor',
-            "stroke-width": 2000,
-            "d": "M -100000 100000 L 100000 100000 L 100000 -100000 L -100000 -100000 Z"
-        }));*/
-        
-        console.log(this.worldMeta);
+        this.svgEl.setAttribute('viewBox', [
+            this.worldMeta.minX + this.worldMeta.anchorX,
+            this.worldMeta.minY + this.worldMeta.anchorY,
+            this.worldMeta.maxX - this.worldMeta.minX,
+            this.worldMeta.maxY - this.worldMeta.minY,
+        ].join(' '));
     }
 
-    async renderRoads(ids) {
+    async renderRoadsDots(ids) {
         const roads = await common.getRoads(this.worldMeta.worldId);
         ids = ids || Object.keys(roads);
         const tileScale = this.worldMeta.tileScale;
@@ -414,20 +433,20 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     setHeadingOffset(deg) {
-        console.log(deg);
         this.headingOfft = deg || 0;
-        this._setHeading(this.lastHeading);
+        this._setHeading(this.lastHeading, true);
     }
 
-    _setHeading(heading) {
-        if (this.trackingPaused) {
+    _setHeading(heading, force) {
+        if (!force && this.trackingPaused) {
             return false;
         }
         if (Math.abs(this.lastHeading - heading) > 180) {
             this.headingRotations += Math.sign(this.lastHeading - heading);
         }
         const mapAdj = this.worldMeta.rotateMinimap ? 0 : -90;
-        this.mapEl.style.setProperty('--heading', `${heading + this.headingRotations * 360 + this.headingOfft + mapAdj}deg`);
+        this.mapEl.style.setProperty('--heading',
+            `${heading + this.headingRotations * 360 + this.headingOfft + mapAdj}deg`);
         this.lastHeading = heading;
         return true;
     }

@@ -230,7 +230,10 @@ export async function main() {
     const urlQuery = new URLSearchParams(location.search);
     if (urlQuery.has('testing')) {
         zwiftMap.setCourse(+urlQuery.get('testing') || 6);
-        zwiftMap.renderRoads();
+        zwiftMap.renderRoadsSVG();
+        //zwiftMap.renderRoadsDots();
+        let i = 0;
+        setInterval(() => zwiftMap.setHeadingOffset(i+=5), 1000);
         return;
     }
     let courseId;
@@ -275,8 +278,7 @@ export async function main() {
             zwiftMap.setSparkle(changed.get('sparkle'));
         }
     });
-    let i = 0;
-    zwiftMap.renderRoads();
+    //let i = 0;
     //setInterval(() => zwiftMap.setHeadingOffset(i+=5), 1000);
 }
 

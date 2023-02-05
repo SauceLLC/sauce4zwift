@@ -198,15 +198,12 @@
         }
 
         > svg {
-            display: none;
-            border: 20px solid green;
             z-index: 2;
             position: absolute;
-            left: var(--x-offt);
-            top: var(--y-offt);
+            left: 0;
+            top: 0;
             width: 100%;
             height: 100%;
-            overflow: visible; // XXX
         }
 
         > img.minimap {
