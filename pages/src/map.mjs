@@ -1,6 +1,15 @@
 import * as common from './common.mjs';
 
 
+function createElementSVG(name, attrs={}) {
+    const el = document.createElementNS('http://www.w3.org/2000/svg', name);
+    for (const [key, value] of Object.entries(attrs)) {
+        el.setAttribute(key, value);
+    }
+    return el;
+}
+
+
 export class SauceZwiftMap extends EventTarget {
     constructor({el, worldList, zoom=1}) {
         super();
@@ -26,17 +35,22 @@ export class SauceZwiftMap extends EventTarget {
         this.mapEl.classList.add('sauce-map');
         this.dotsEl = document.createElement('div');
         this.dotsEl.classList.add('dots');
+        this.svgEl = createElementSVG('svg', {viewBox: '0 0 4000 4000'});
         this.imgEl = document.createElement('img');
         this.imgEl.classList.add('minimap');
-        this.mapEl.append(this.dotsEl, this.imgEl);
+        this.mapEl.append(this.dotsEl, this.svgEl, this.imgEl);
         el.append(this.mapEl);
         this.onPointerMoveBound = this.onPointerMove.bind(this);
         this.onPointerDoneBound = this.onPointerDone.bind(this);
+        this.watchingId = null;
+        this.athleteId = null;
         this.courseId = null;
         this.worldMeta = null;
         this.headingRotations = 0;
         this.lastHeading = 0;
+        this.headingOfft = 0;
         this.dots = new Map();
+        this.athleteCache = new Map();
         this.style = 'default';
         this.updateZoom();
         el.addEventListener('wheel', this.onWheelZoom.bind(this));
@@ -44,9 +58,14 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     setStyle(style) {
-        this.style = style;
+        this.style = style || 'default';
+        if (this.style.endsWith('Black')) {
+            this.imgEl.style.setProperty('background-color', 'black');
+        } else {
+            this.imgEl.style.removeProperty('background-color');
+        }
         if (!this.loading && this.worldMeta) {
-            this.setCourse(this.worldMeta.courseId);
+            this.updateMapImage();
         }
     }
 
@@ -62,12 +81,16 @@ export class SauceZwiftMap extends EventTarget {
         this.mapEl.style.setProperty('--tilt-shift-angle', `${deg}deg`);
     }
 
+    setSparkle(en) {
+        this.el.classList.toggle('sparkle', !!en);
+    }
+
     updateZoom() {
         this.el.style.setProperty('--zoom', this.zoom);
     }
 
     adjZoom(adj) {
-        this.zoom = Math.max(0.30, Math.min(5, this.zoom + adj));
+        this.zoom = Math.max(0.03, Math.min(5, this.zoom + adj));
         const ev = new Event('zoom');
         ev.zoom = this.zoom;
         this.dispatchEvent(ev);
@@ -80,7 +103,7 @@ export class SauceZwiftMap extends EventTarget {
         }
         ev.preventDefault();
         this.trackingPaused = true;
-        this.adjZoom(-ev.deltaY / 2000);
+        this.adjZoom(-ev.deltaY / 3000 * this.zoom);
         cancelAnimationFrame(this.wheelState.nextAnimFrame);
         this.wheelState.nextAnimFrame = requestAnimationFrame(() => {
             if (this.wheelState.done) {
@@ -88,7 +111,6 @@ export class SauceZwiftMap extends EventTarget {
             } else {
                 this.el.classList.add('zooming');
             }
-            this.el.classList.add('zooming');
             this.updateZoom();
             // Lazy re-enable of animations to avoid need for forced paint
             this.wheelState.done = setTimeout(() => {
@@ -108,7 +130,7 @@ export class SauceZwiftMap extends EventTarget {
         this.trackingPaused = true;
         if (state.ev1) {
             state.ev2 = ev;
-            this.el.classList.remove('dragging');
+            this.el.classList.remove('moving');
             this.el.classList.add('zooming');
             state.lastDistance = Math.sqrt(
                 (ev.pageX - state.ev1.pageX) ** 2 +
@@ -117,7 +139,8 @@ export class SauceZwiftMap extends EventTarget {
         } else {
             state.ev1 = ev;
         }
-        this.el.classList.add('dragging');
+        this.el.classList.add('moving');
+        state.rotating = ev.ctrlKey;
         state.lastX  = ev.pageX;
         state.lastY = ev.pageY;
         document.addEventListener('pointermove', this.onPointerMoveBound);
@@ -130,17 +153,20 @@ export class SauceZwiftMap extends EventTarget {
         if (!state.ev2) {
             cancelAnimationFrame(state.nextAnimFrame);
             state.nextAnimFrame = requestAnimationFrame(() => {
-                const deltaX = ev.pageX - state.lastX;
-                const deltaY = ev.pageY - state.lastY;
-                this.dragX += 1 / this.zoom * deltaX;
-                this.dragY += 1 / this.zoom * deltaY;
-                state.lastX = ev.pageX;
-                state.lastY = ev.pageY;
-                this.el.style.setProperty('--drag-x-offt', `${this.dragX}px`);
-                this.el.style.setProperty('--drag-y-offt', `${this.dragY}px`);
+                if (state.rotating) {
+                    this.setHeadingOffset(Math.atan((ev.pageY - state.lastY) / (ev.pageX - state.lastX)) * 360);
+                } else {
+                    const deltaX = ev.pageX - state.lastX;
+                    const deltaY = ev.pageY - state.lastY;
+                    this.dragX += 1 / this.zoom * deltaX;
+                    this.dragY += 1 / this.zoom * deltaY;
+                    state.lastX = ev.pageX;
+                    state.lastY = ev.pageY;
+                    this.el.style.setProperty('--drag-x-offt', `${this.dragX}px`);
+                    this.el.style.setProperty('--drag-y-offt', `${this.dragY}px`);
+                }
             });
         } else {
-            console.log("pinch zooming", ev);
             let otherEvent;
             if (ev.pointerId === state.ev1.pointerId) {
                 otherEvent = state.ev2;
@@ -163,10 +189,19 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     onPointerDone(ev) {
-        this.el.classList.remove(this.pointerState.ev2 ? 'zooming' : 'dragging');
+        this.el.classList.remove(this.pointerState.ev2 ? 'zooming' : 'moving');
         document.removeEventListener('pointermove', this.onPointerMoveBound);
         this.pointerState.ev1 = this.pointerState.ev2 = null;
         this.trackingPaused = false;
+    }
+
+    updateMapImage() {
+        const suffix = {
+            default: '',
+            neon: '-neon',
+            neonBlack: '-neon',
+        }[this.style];
+        this.imgEl.src = `https://www.sauce.llc/products/sauce4zwift/maps/world${this.worldMeta.worldId}${suffix}.webp`;
     }
 
     setCourse(courseId) {
@@ -174,121 +209,195 @@ export class SauceZwiftMap extends EventTarget {
         this.worldMeta = this.worldList.find(x => x.courseId === courseId);
         this.el.style.setProperty('--x-offt', `${this.worldMeta.mapOffsetX}px`);
         this.el.style.setProperty('--y-offt', `${this.worldMeta.mapOffsetY}px`);
-        const suffix = {
-            default: '',
-            neon: '-neon',
-            neonBlack: '-neon',
-        }[this.style];
-        if (this.style.endsWith('Black')) {
-            this.imgEl.style.setProperty('background-color', 'black');
-        } else {
-            this.imgEl.style.removeProperty('background-color');
-        }
-        this.imgEl.src = `/pages/deps/maps/world${this.worldMeta.worldId}${suffix}.webp`;
+        this.updateMapImage();
         for (const x of this.dots.values()) {
             x.remove();
         }
         this.dots.clear();
+        this.athleteCache.clear();
         this.imgEl.decode().then(() => requestAnimationFrame(() => {
             this.el.offsetWidth;
             this.el.classList.remove('loading');
         }));
     }
 
+    setWatching(id) {
+        if (this.watchingId && this.dots.has(this.watchingId)) {
+            this.dots.get(this.watchingId).classList.remove('watching');
+        }
+        this.watchingId = id;
+        if (this.watchingId && this.watchingId !== this.athleteId && this.dots.has(this.watchingId)) {
+            this.dots.get(this.watchingId).classList.add('watching');
+        }
+    }
+
+    setAthleteId(id) {
+        if (this.athleteId && this.dots.has(this.athleteId)) {
+            this.dots.get(this.athleteId).classList.remove('self');
+        }
+        this.athleteId = id;
+        if (this.athleteId && this.dots.has(this.athleteId)) {
+            const dot = this.dots.get(this.athleteId);
+            dot.classList.remove('watching');
+            dot.classList.add('self');
+        }
+    }
+
     async renderRoads(ids) {
         const roads = await common.getRoads(this.worldMeta.worldId);
         ids = ids || Object.keys(roads);
+        const tileScale = this.worldMeta.tileScale;
+        const mapScale = this.worldMeta.mapScale;
         for (const id of ids) {
             const road = roads[id];
             if (!road) {
                 console.error("Road not found:", id);
                 continue;
             }
+            const path = createElementSVG('path', {
+                "fill": 'transparent',
+                "stroke": 'currentColor',
+                "stroke-width": 2000,
+                "stroke-linecap": 'round',
+                "stroke-linejoin": 'round',
+            });
+            const d = [];
             for (let [x, y] of road.coords) {
-                const dot = document.createElement('div');
-                dot.classList.add('dot', 'leader');
-                this.dotsEl.append(dot);
                 if (this.worldMeta.mapRotateHack) {
                     [x, y] = [y, -x];
                 }
-                dot.style.setProperty('--x', `${(x / this.worldMeta.tileScale) * this.worldMeta.mapScale}px`);
-                dot.style.setProperty('--y', `${(y / this.worldMeta.tileScale) * this.worldMeta.mapScale}px`);
+                let X = x / tileScale * mapScale;
+                let Y = y / tileScale * mapScale;
+                d.push(`${x} ${y}`);
             }
+            console.log(road);
+            path.setAttribute('d', 'M ' + d.join(' L ') + (road.looped ? ' Z' : ''));
+            this.svgEl.append(path);
         }
+        this.svgEl.setAttribute('viewBox', [-tileScale, -tileScale, tileScale, tileScale].join(' '));
+        this.svgEl.setAttribute('preserveAspectRatio', 'xMinYMin meet');
+        this.svgEl.append(createElementSVG('circle', {
+            cx: 0,
+            cy: 0,
+            r: tileScale / 2,
+            fill: '#f003'
+        }));
+        /*this.svgEl.append(createElementSVG('path', {
+            "stroke": 'currentColor',
+            "stroke-width": 2000,
+            "d": "M -100000 100000 L 100000 100000 L 100000 -100000 L -100000 -100000 Z"
+        }));*/
+        
+        console.log(this.worldMeta);
     }
 
-    renderAthleteData(data) {
-        if (!this.worldMeta) {
-            return;
-        }
+    renderAthleteStates(states) {
         const now = Date.now();
-        for (const entry of data) {
-            if (!this.dots.has(entry.athleteId)) {
+        for (const state of states) {
+            if (!this.dots.has(state.athleteId)) {
+                const isSelf = state.athleteId === this.athleteId;
                 const dot = document.createElement('div');
                 dot.classList.add('dot');
-                dot.dataset.athleteId = entry.athleteId;
+                dot.classList.toggle('self', isSelf);
+                dot.classList.toggle('watching', !isSelf && state.athleteId === this.watchingId);
+                dot.dataset.athleteId = state.athleteId;
                 dot.lastSeen = now;
-                dot.wt = entry.state.worldTime;
+                dot.wt = state.worldTime;
                 this.dotsEl.append(dot);
-                this.dots.set(entry.athleteId, dot);
+                this.dots.set(state.athleteId, dot);
             }
-            const dot = this.dots.get(entry.athleteId);
-            dot.classList.toggle('self', !!entry.self);
-            dot.classList.toggle('watching', !!entry.watching && !entry.self);
-            dot.classList.toggle('leader', !!entry.eventLeader);
-            dot.classList.toggle('sweeper', !!entry.eventSweeper);
-            dot.classList.toggle('marked', entry.athlete ? !!entry.athlete.marked : false);
-            dot.classList.toggle('following', entry.athlete ? !!entry.athlete.following : false);
-            const age = entry.state.worldTime - dot.wt;
+            const dot = this.dots.get(state.athleteId);
+            const age = state.worldTime - dot.wt;
             if (age) {
                 dot.classList.toggle('fast', age < 250);
                 dot.classList.toggle('slow', age > 1500);
             }
             let powerLevel;
-            if (entry.state.power < 100) {
+            if (state.power < 100) {
                 powerLevel = 'z1';
-            } else if (entry.state.power < 200) {
+            } else if (state.power < 200) {
                 powerLevel = 'z2';
-            } else if (entry.state.power < 300) {
+            } else if (state.power < 300) {
                 powerLevel = 'z3';
-            } else if (entry.state.power < 400) {
+            } else if (state.power < 400) {
                 powerLevel = 'z4';
-            } else if (entry.state.power < 500) {
+            } else if (state.power < 500) {
                 powerLevel = 'z5';
             } else {
                 powerLevel = 'z6';
             }
             dot.dataset.powerLevel = powerLevel;
-            dot.wt = entry.state.worldTime;
+            dot.wt = state.worldTime;
             dot.lastSeen = now;
-            let x = (entry.state.x / this.worldMeta.tileScale) * this.worldMeta.mapScale;
-            let y = (entry.state.y / this.worldMeta.tileScale) * this.worldMeta.mapScale;
+            let x = state.x / this.worldMeta.tileScale * this.worldMeta.mapScale;
+            let y = state.y / this.worldMeta.tileScale * this.worldMeta.mapScale;
             if (this.worldMeta.mapRotateHack) {
                 [x, y] = [y, -x];
             }
             dot.style.setProperty('--x', `${x}px`);
             dot.style.setProperty('--y', `${y}px`);
-            if (entry.watching && !this.trackingPaused) {
+            if (state.athleteId === this.watchingId && !this.trackingPaused) {
                 this.mapEl.style.setProperty('--anchor-x', `${x}px`);
                 this.mapEl.style.setProperty('--anchor-y', `${y}px`);
+                this._setHeading(state.heading);
             }
         }
         for (const [athleteId, dot] of this.dots.entries()) {
-            if (now - dot.lastSeen > 10000) {
+            if (now - dot.lastSeen > 15000) {
                 dot.remove();
                 this.dots.delete(athleteId);
             }
         }
+        this._lazyUpdateAthleteDetails(states.map(x => x.athleteId));
     }
 
-    setHeading(heading) {
+    _lazyUpdateAthleteDetails(ids) {
+        const now = Date.now();
+        for (const id of ids) {
+            const dot = this.dots.get(id);
+            if (!dot) {
+                continue;
+            }
+            const entry = this.athleteCache.get(id) || {ts: 0, data: null};
+            const update = ad => {
+                dot.classList.toggle('leader', !!ad.eventLeader);
+                dot.classList.toggle('sweeper', !!ad.eventSweeper);
+                dot.classList.toggle('marked', ad.athlete ? !!ad.athlete.marked : false);
+                dot.classList.toggle('following', ad.athlete ? !!ad.athlete.following : false);
+                entry.data = ad;
+            };
+            if (now - entry.ts > 30000 + Math.random() * 60000) {
+                entry.ts = now;
+                this.athleteCache.set(id, entry);
+                common.rpc.getAthleteData(id).then(update);
+            } else if (entry.data) {
+                update(entry.data);
+            } else {
+                console.warn("verified debounce, yay", id);
+            }
+        }
+        for (const [id, entry] of this.athleteCache.entries()) {
+            if (now - entry.ts > 300000) {
+                this.athleteCache.delete(id);
+            }
+        }
+    }
+
+    setHeadingOffset(deg) {
+        console.log(deg);
+        this.headingOfft = deg || 0;
+        this._setHeading(this.lastHeading);
+    }
+
+    _setHeading(heading) {
         if (this.trackingPaused) {
             return false;
         }
         if (Math.abs(this.lastHeading - heading) > 180) {
             this.headingRotations += Math.sign(this.lastHeading - heading);
         }
-        this.mapEl.style.setProperty('--heading', `${heading + this.headingRotations * 360}deg`);
+        const mapAdj = this.worldMeta.rotateMinimap ? 0 : -90;
+        this.mapEl.style.setProperty('--heading', `${heading + this.headingRotations * 360 + this.headingOfft + mapAdj}deg`);
         this.lastHeading = heading;
         return true;
     }
