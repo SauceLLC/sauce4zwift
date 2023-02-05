@@ -201,14 +201,16 @@ export class SauceZwiftMap extends EventTarget {
             neon: '-neon',
             neonBlack: '-neon',
         }[this.style];
-        this.imgEl.src = `https://www.sauce.llc/products/sauce4zwift/maps/world${this.worldMeta.worldId}${suffix}.webp`;
+        this.imgEl.src = `https://www.sauce.llc/products/sauce4zwift/maps/world` +
+            `${this.worldMeta.worldId}${suffix}.webp`;
     }
 
     setCourse(courseId) {
         this.el.classList.add('loading'); // Disable animation
         this.worldMeta = this.worldList.find(x => x.courseId === courseId);
-        this.el.style.setProperty('--x-offt', `${this.worldMeta.mapOffsetX}px`);
-        this.el.style.setProperty('--y-offt', `${this.worldMeta.mapOffsetY}px`);
+        const {minX, minY, tileScale, mapScale, anchorX, anchorY} = this.worldMeta;
+        this.el.style.setProperty('--x-offt', -(minX + anchorX) / tileScale * mapScale + 'px');
+        this.el.style.setProperty('--y-offt', -(minY + anchorY) / tileScale * mapScale + 'px');
         this.updateMapImage();
         for (const x of this.dots.values()) {
             x.remove();
@@ -243,7 +245,7 @@ export class SauceZwiftMap extends EventTarget {
         }
     }
 
-    async renderRoads(ids) {
+    async renderRoadsSVGUNfinishedXXX(ids) {
         const roads = await common.getRoads(this.worldMeta.worldId);
         ids = ids || Object.keys(roads);
         const tileScale = this.worldMeta.tileScale;
@@ -266,8 +268,8 @@ export class SauceZwiftMap extends EventTarget {
                 if (this.worldMeta.mapRotateHack) {
                     [x, y] = [y, -x];
                 }
-                let X = x / tileScale * mapScale;
-                let Y = y / tileScale * mapScale;
+                let x = state.x / this.worldMeta.tileScale * this.worldMeta.mapScale;
+                let y = state.y / this.worldMeta.tileScale * this.worldMeta.mapScale;
                 d.push(`${x} ${y}`);
             }
             console.log(road);
@@ -289,6 +291,34 @@ export class SauceZwiftMap extends EventTarget {
         }));*/
         
         console.log(this.worldMeta);
+    }
+
+    async renderRoads(ids) {
+        const roads = await common.getRoads(this.worldMeta.worldId);
+        ids = ids || Object.keys(roads);
+        const tileScale = this.worldMeta.tileScale;
+        const mapScale = this.worldMeta.mapScale;
+        for (const id of ids) {
+            const road = roads[id];
+            if (!road) {
+                console.error("Road not found:", id);
+                continue;
+            }
+            for (let [x, y] of road.coords) {
+                if (this.worldMeta.mapRotateHack) {
+                    [x, y] = [y, -x];
+                }
+                let X = x / this.worldMeta.tileScale * this.worldMeta.mapScale;
+                let Y = y / this.worldMeta.tileScale * this.worldMeta.mapScale;
+                const dot = document.createElement('div');
+                dot.classList.add('dot', 'leader');
+                dot.style.setProperty('--x', `${X}px`);
+                dot.style.setProperty('--y', `${Y}px`);
+                this.dotsEl.append(dot);
+            }
+            if (id > 30)
+                break;
+        }
     }
 
     renderAthleteStates(states) {
