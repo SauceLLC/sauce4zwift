@@ -131,7 +131,7 @@ if (window.isElectron) {
     schedStorageFlush = () => {
         clearTimeout(storageFlushTimeout);
         storageFlushTimeout = setTimeout(() => rpcCall('flushSessionStorage'), 500);
-    }
+    };
 } else {
     const q = new URLSearchParams(location.search);
     windowID = q.get('windowId') || q.get('windowid') || 'browser-def-id';

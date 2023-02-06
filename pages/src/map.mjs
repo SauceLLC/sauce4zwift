@@ -48,11 +48,13 @@ function smoothPath(points, smoothing=0.2) {
 
 
 export class SauceZwiftMap extends EventTarget {
-    constructor({el, worldList, zoom=1}) {
+    constructor({el, worldList, zoom=1, zoomMin=0.25, zoomMax=4}) {
         super();
         this.el = el;
         this.worldList = worldList;
         this.zoom = zoom;
+        this.zoomMin = zoomMin;
+        this.zoomMax = zoomMax;
         this.wheelState = {
             nextAnimFrame: null,
             done: null,
@@ -131,7 +133,7 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     adjZoom(adj) {
-        this.zoom = Math.max(0.03, Math.min(5, this.zoom + adj));
+        this.zoom = Math.max(this.zoomMin, Math.min(this.zoomMax, this.zoom + adj));
         const ev = new Event('zoom');
         ev.zoom = this.zoom;
         this.dispatchEvent(ev);
@@ -283,9 +285,14 @@ export class SauceZwiftMap extends EventTarget {
         }
     }
 
+    fixWorldPos(pos) {
+        // Maybe zomday I'll know why...
+        return this.worldMeta.mapRotateHack ? [pos[1], -pos[0], pos[2]] : pos;
+    }
+
     async renderRoadsSVG(ids) {
-        this.svgEl.innerHTML = '';
         const roads = await common.getRoads(this.worldMeta.worldId);
+        this.svgEl.innerHTML = '';
         ids = ids || Object.keys(roads);
         const defs = createElementSVG('defs');
         const scale = 0.01;
@@ -296,20 +303,34 @@ export class SauceZwiftMap extends EventTarget {
                 console.error("Road not found:", id);
                 continue;
             }
-            const path = createElementSVG('path', {id: `road-path-${id}`});
             const d = [];
             for (const node of road.nodes) {
-                let [x, y] = node.pos;
-                if (this.worldMeta.mapRotateHack) {
-                    [x, y] = [y, -x];
-                }
+                const [x, y] = this.fixWorldPos(node.pos);
                 d.push([x * scale, y * scale]);
             }
-            path.setAttribute('d', smoothPath(d) + (road.looped ? ' Z' : ''));
-            defs.append(path);
+            const path = createElementSVG('path', {
+                id: `road-path-${id}`,
+                d: smoothPath(d) + (road.looped ? ' Z' : ''),
+            });
+            const clip = createElementSVG('clipPath', {id: `road-clip-${id}`});
+            let boxMin = this.fixWorldPos(road.boxMin);
+            let boxMax = this.fixWorldPos(road.boxMax);
+            if (this.worldMeta.mapRotateHack) {
+                [boxMin, boxMax] = [boxMax, boxMin];
+            }
+            console.log(boxMin, boxMax);
+            const clipBox = createElementSVG('path', {
+                d: `M ${boxMin[0] * scale} ${boxMin[1] * scale} H ${boxMax[0] * scale} V ${boxMax[1] * scale} H ${boxMin[0] * scale} Z`,
+            });
+            clip.append(clipBox);
+            defs.append(path, clip);
             for (const x of ['gutter', 'road']) {
-                const use = createElementSVG('use', {class: x});
-                use.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', `#road-path-${id}`);
+                const use = createElementSVG('use', {
+                    "class": x,
+                    "clip-path": `url(#road-clip-${id})`,
+                    "href": `#road-path-${id}`,
+                });
+                //use.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', `#road-path-${id}`);
                 this.svgEl.append(use);
             }
         }
@@ -331,12 +352,9 @@ export class SauceZwiftMap extends EventTarget {
                 continue;
             }
             for (const node of road.nodes) {
-                let [x, y] = node.pos;
-                if (this.worldMeta.mapRotateHack) {
-                    [x, y] = [y, -x];
-                }
-                let X = x / this.worldMeta.tileScale * this.worldMeta.mapScale;
-                let Y = y / this.worldMeta.tileScale * this.worldMeta.mapScale;
+                const [x, y] = this.fixWorldPos(node.pos);
+                const X = x / this.worldMeta.tileScale * this.worldMeta.mapScale;
+                const Y = y / this.worldMeta.tileScale * this.worldMeta.mapScale;
                 const dot = document.createElement('div');
                 dot.classList.add('dot', 'leader');
                 dot.style.setProperty('--x', `${X}px`);
@@ -386,11 +404,9 @@ export class SauceZwiftMap extends EventTarget {
             dot.dataset.powerLevel = powerLevel;
             dot.wt = state.worldTime;
             dot.lastSeen = now;
-            let x = state.x / this.worldMeta.tileScale * this.worldMeta.mapScale;
-            let y = state.y / this.worldMeta.tileScale * this.worldMeta.mapScale;
-            if (this.worldMeta.mapRotateHack) {
-                [x, y] = [y, -x];
-            }
+            const pos = this.fixWorldPos([state.x, state.y]);
+            const x = pos[0] / this.worldMeta.tileScale * this.worldMeta.mapScale;
+            const y = pos[1] / this.worldMeta.tileScale * this.worldMeta.mapScale;
             dot.style.setProperty('--x', `${x}px`);
             dot.style.setProperty('--y', `${y}px`);
             if (state.athleteId === this.watchingId && !this.trackingPaused) {

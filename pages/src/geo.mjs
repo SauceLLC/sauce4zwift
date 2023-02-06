@@ -230,10 +230,6 @@ export async function main() {
     const urlQuery = new URLSearchParams(location.search);
     if (urlQuery.has('testing')) {
         zwiftMap.setCourse(+urlQuery.get('testing') || 6);
-        zwiftMap.renderRoadsSVG();
-        //zwiftMap.renderRoadsDots();
-        let i = 0;
-        setInterval(() => zwiftMap.setHeadingOffset(i+=5), 1000);
         return;
     }
     let courseId;

@@ -212,17 +212,16 @@
 
             .gutter, .road {
                 fill: none;
-                stroke-linejoin: round;
-                stroke-linecap: round;
             }
 
             .gutter {
                 stroke: #000a;
                 stroke-width: 30px;
+                mix-blend-mode: color;
             }
 
             .road {
-                stroke: #fffa;
+                stroke: #ddd;
                 stroke-width: 20px;
             }
         }
