@@ -56,7 +56,7 @@
     &.tilt-shift .sauce-map {
         --tilt-shift-angle: 10deg;
         transform: $transform-translate $transform-scale
-            perspective(calc((1 / var(--zoom)) * 1000px))
+            perspective(calc((1 / var(--zoom)) * 800px))
             rotateX(calc(var(--zoom) * var(--tilt-shift-angle)))
             $transform-rotate;
     }

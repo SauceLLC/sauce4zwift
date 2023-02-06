@@ -48,7 +48,7 @@ function smoothPath(points, smoothing=0.2) {
 
 
 export class SauceZwiftMap extends EventTarget {
-    constructor({el, worldList, zoom=1, zoomMin=0.25, zoomMax=4}) {
+    constructor({el, worldList, zoom=1, zoomMin=0.25, zoomMax=4.5}) {
         super();
         this.el = el;
         this.worldList = worldList;
@@ -146,7 +146,7 @@ export class SauceZwiftMap extends EventTarget {
         }
         ev.preventDefault();
         this.trackingPaused = true;
-        this.adjZoom(-ev.deltaY / 3000 * this.zoom);
+        this.adjZoom(-ev.deltaY / 4000 * this.zoom);
         cancelAnimationFrame(this.wheelState.nextAnimFrame);
         this.wheelState.nextAnimFrame = requestAnimationFrame(() => {
             if (this.wheelState.done) {
@@ -318,7 +318,6 @@ export class SauceZwiftMap extends EventTarget {
             if (this.worldMeta.mapRotateHack) {
                 [boxMin, boxMax] = [boxMax, boxMin];
             }
-            console.log(boxMin, boxMax);
             const clipBox = createElementSVG('path', {
                 d: `M ${boxMin[0] * scale} ${boxMin[1] * scale} H ${boxMax[0] * scale} V ${boxMax[1] * scale} H ${boxMin[0] * scale} Z`,
             });
@@ -445,8 +444,6 @@ export class SauceZwiftMap extends EventTarget {
                 common.rpc.getAthleteData(id).then(update);
             } else if (entry.data) {
                 update(entry.data);
-            } else {
-                console.warn("verified debounce, yay", id);
             }
         }
         for (const [id, entry] of this.athleteCache.entries()) {
@@ -468,7 +465,7 @@ export class SauceZwiftMap extends EventTarget {
         if (Math.abs(this.lastHeading - heading) > 180) {
             this.headingRotations += Math.sign(this.lastHeading - heading);
         }
-        const mapAdj = this.worldMeta.rotateMinimap ? 0 : -90;
+        const mapAdj = this.worldMeta.rotateRouteSelect ? 0 : -90;
         this.mapEl.style.setProperty('--heading',
             `${heading + this.headingRotations * 360 + this.headingOfft + mapAdj}deg`);
         this.lastHeading = heading;
