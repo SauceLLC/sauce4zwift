@@ -42,8 +42,11 @@
         }
     }
 
-    &.loading * {
-        transition-duration: 0ms !important;
+    &.loading,
+    &.hidden {
+         * {
+            transition-duration: 0ms !important;
+        }
     }
 
     &.zooming .sauce-map {
@@ -204,6 +207,24 @@
             top: 0;
             width: 100%;
             height: 100%;
+            shape-rendering: optimizespeed;
+            shape-rendering: geometricprecision;
+
+            .gutter, .road {
+                fill: none;
+                stroke-linejoin: round;
+                stroke-linecap: round;
+            }
+
+            .gutter {
+                stroke: #000a;
+                stroke-width: 30px;
+            }
+
+            .road {
+                stroke: #fffa;
+                stroke-width: 20px;
+            }
         }
 
         > img.minimap {

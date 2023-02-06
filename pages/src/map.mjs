@@ -16,7 +16,7 @@ function hypotenuse(a, b) {
     return {
         distance: Math.sqrt(dx * dx + dy * dy),
         angle: Math.atan2(dy, dx)
-    }
+    };
 }
 
 
@@ -92,6 +92,10 @@ export class SauceZwiftMap extends EventTarget {
         this.updateZoom();
         el.addEventListener('wheel', this.onWheelZoom.bind(this));
         el.addEventListener('pointerdown', this.onPointerDown.bind(this));
+        document.addEventListener('visibilitychange', () => {
+            this.el.classList.toggle('hidden', document.visibilityState !== 'visible');
+        });
+        this.el.classList.toggle('hidden', document.visibilityState !== 'visible');
     }
 
     setStyle(style) {
@@ -250,10 +254,11 @@ export class SauceZwiftMap extends EventTarget {
         }
         this.dots.clear();
         this.athleteCache.clear();
-        this.imgEl.decode().then(() => requestAnimationFrame(() => {
+        this.renderRoadsSVG();
+        this.imgEl.decode().then(() => {
             this.el.offsetWidth;
             this.el.classList.remove('loading');
-        }));
+        });
     }
 
     setWatching(id) {
@@ -279,51 +284,54 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     async renderRoadsSVG(ids) {
+        this.svgEl.innerHTML = '';
         const roads = await common.getRoads(this.worldMeta.worldId);
         ids = ids || Object.keys(roads);
+        const defs = createElementSVG('defs');
+        const scale = 0.01;
+        this.svgEl.append(defs);
         for (const id of ids) {
             const road = roads[id];
             if (!road) {
                 console.error("Road not found:", id);
                 continue;
             }
-            const path = createElementSVG('path', {
-                "fill": 'transparent',
-                "stroke": '#fffc',
-                "stroke-width": 2000,
-                "stroke-linecap": 'round',
-                "stroke-linejoin": 'round',
-            });
+            const path = createElementSVG('path', {id: `road-path-${id}`});
             const d = [];
-            for (let [x, y] of road.coords) {
+            for (const node of road.nodes) {
+                let [x, y] = node.pos;
                 if (this.worldMeta.mapRotateHack) {
                     [x, y] = [y, -x];
                 }
-                d.push([x, y]);
+                d.push([x * scale, y * scale]);
             }
             path.setAttribute('d', smoothPath(d) + (road.looped ? ' Z' : ''));
-            this.svgEl.append(path);
+            defs.append(path);
+            for (const x of ['gutter', 'road']) {
+                const use = createElementSVG('use', {class: x});
+                use.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', `#road-path-${id}`);
+                this.svgEl.append(use);
+            }
         }
         this.svgEl.setAttribute('viewBox', [
-            this.worldMeta.minX + this.worldMeta.anchorX,
-            this.worldMeta.minY + this.worldMeta.anchorY,
-            this.worldMeta.maxX - this.worldMeta.minX,
-            this.worldMeta.maxY - this.worldMeta.minY,
+            (this.worldMeta.minX + this.worldMeta.anchorX) * scale,
+            (this.worldMeta.minY + this.worldMeta.anchorY) * scale,
+            (this.worldMeta.maxX - this.worldMeta.minX) * scale,
+            (this.worldMeta.maxY - this.worldMeta.minY) * scale,
         ].join(' '));
     }
 
     async renderRoadsDots(ids) {
         const roads = await common.getRoads(this.worldMeta.worldId);
         ids = ids || Object.keys(roads);
-        const tileScale = this.worldMeta.tileScale;
-        const mapScale = this.worldMeta.mapScale;
         for (const id of ids) {
             const road = roads[id];
             if (!road) {
                 console.error("Road not found:", id);
                 continue;
             }
-            for (let [x, y] of road.coords) {
+            for (const node of road.nodes) {
+                let [x, y] = node.pos;
                 if (this.worldMeta.mapRotateHack) {
                     [x, y] = [y, -x];
                 }

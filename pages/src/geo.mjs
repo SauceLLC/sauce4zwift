@@ -162,7 +162,7 @@ async function createElevationProfile(el) {
                 animationEasingUpdate: 'linear',
                 data: nearby.filter(x => x.state.roadId === road.id && x.state.reverse === reverse).map(x => {
                     // XXX
-                    const distances = road.coords.map(c => vectorDistance(c, [x.state.x, x.state.y, x.state.z]));
+                    const distances = road.nodes.map(c => vectorDistance(c.pos, [x.state.x, x.state.y, x.state.z]));
                     const nearest = distances.indexOf(Math.min(...distances));
                     const distance = road.distances[nearest];
                     if (x.watching) {
