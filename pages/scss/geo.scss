@@ -1,5 +1,6 @@
 @use 'color';
 @import 'map';
+@import 'elevation';
 
 html {
     --aspect-ratio: 1 / 2;
@@ -22,18 +23,14 @@ html {
     overflow: auto;
     overflow: overlay;
 
-    .sauce-map-container {
+    > .map {
         flex: 1 1 0;
         width: 100%;
         height: 100%;
     }
 
-    .elevation-profile {
+    > .elevation-profile {
         flex: 0 0 auto;
-        aspect-ratio: 3 / 1;
-        font-variant-numeric: tabular-nums;
-        width: 100%;
-        overflow: hidden;  // echarts rounds up sometimes and makes a scrollbar
         position: absolute;
         left: 0;
         bottom: 0;

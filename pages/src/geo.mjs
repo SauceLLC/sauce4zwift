@@ -1,18 +1,12 @@
 import * as sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
 import * as map from './map.mjs';
-import {Color} from './color.mjs';
-import * as ec from '../deps/src/echarts.mjs';
-import * as theme from './echarts-sauce-theme.mjs';
-
-ec.registerTheme('sauce', theme.getTheme('dynamic'));
+import * as elevation from './elevation.mjs';
 
 const doc = document.documentElement;
 const L = sauce.locale;
-const H = L.human;
 let imperial = !!common.storage.get('/imperialUnits');
 L.setImperial(imperial);
-const gettingWorldList = common.getWorldList();
 
 common.settingsStore.setDefault({
     profileOverlay: true,
@@ -28,172 +22,6 @@ common.settingsStore.setDefault({
 const settings = common.settingsStore.get();
 
 
-function vectorDistance(a, b) {
-    const xd = b[0] - a[0];
-    const yd = b[1] - a[1];
-    const zd = b[2] - a[2];
-    return Math.sqrt(xd * xd + yd * yd + zd * zd);
-}
-
-
-async function createElevationProfile(el) {
-    const chart = ec.init(el, 'sauce', {renderer: 'svg'});
-    chart.setOption({
-        tooltip: {
-            trigger: 'axis',
-            formatter: ([{value}]) => value ?
-                `${H.elevation(value[1], {suffix: true})}\n${H.number(value[2] * 100, {suffix: '%'})}` : '',
-            axisPointer: {
-                z: -1,
-            },
-        },
-        xAxis: {
-            type: 'value',
-            boundaryGap: false,
-            show: false,
-            min: 'dataMin',
-            max: 'dataMax',
-        },
-        dataZoom: [{
-            type: 'inside',
-        }],
-        yAxis: {
-            show: false,
-            type: 'value',
-            min: x => Math.max(0, x.min - 20),
-            max: x => Math.max(x.max, x.min + 200),
-        },
-        series: [{
-            name: 'Elevation',
-            smooth: 0.5,
-            type: 'line',
-            symbol: 'none',
-            areaStyle: {},
-            encode: {
-                x: 0,
-                y: 1,
-                tooltip: [0, 1, 2]
-            },
-            markLine: {
-                symbol: 'none',
-                silent: true,
-                label: {
-                    position: 'start',
-                    distance: 10,
-                    formatter: x => H.elevation(x.value, {suffix: true}),
-                    fontSize: '0.5em',
-                },
-                lineStyle: {
-                },
-                data: [{
-                    type: 'min',
-                }, {
-                    type: 'max',
-                }]
-            }
-        }]
-    });
-    let courseId;
-    let roads;
-    let road;
-    let reverse;
-    let markAnimationDuration;
-    const worldList = await gettingWorldList;
-    chart.update = async _nearby => {
-        if (!_nearby || !_nearby.length) {
-            return;
-        }
-        const nearby = Array.from(_nearby);
-        nearby.sort((a, b) => a.athleteId - b.athleteId);  // stablize by athlete not gap.
-        nearby.sort((a, b) => a.watching ? 1 : b.watching ? -1 : 0); // put Watching mark on top
-        const watching = nearby.find(x => x.watching);
-        if (watching.state.courseId !== courseId) {
-            courseId = watching.state.courseId;
-            road = null;
-            const worldId = worldList.find(x => x.courseId === courseId).worldId;
-            roads = await common.getRoads(worldId);
-        }
-        if (!road || watching.state.roadId !== road.id || reverse !== watching.state.reverse) {
-            road = roads[watching.state.roadId];
-            reverse = watching.state.reverse;
-            chart.setOption({xAxis: {inverse: reverse}});
-            // XXX 200 when done validating
-            markAnimationDuration = 20; // reset so render is not uber-slow
-            const distance = road.distances[road.distances.length - 1];
-            chart.setOption({series: [{
-                areaStyle: {
-                    color:  {
-                        type: 'linear',
-                        x: reverse ? 1 : 0,
-                        y: 0,
-                        x2: reverse ? 0 : 1,
-                        y2: 0,
-                        colorStops: road.distances.map((x, i) => ({
-                            offset: x / distance,
-                            color: Color.fromRGB(Math.abs(road.grades[i] / 0.10), 0, 0.15, 0.95).toString(),
-                            //color: new Color(0.33 - Math.min(1, Math.abs(road.grades[i] / 0.10)) * (120 / 360), 0.5, 0.5, 0.95).toString(),
-                        })),
-                    },
-                },
-                data: road.distances.map((x, i) =>
-                    [x, road.elevations[i], road.grades[i] * (reverse ? -1 : 1)]),
-            }]});
-        }
-        const markEmphasisLabel = params => {
-            if (!params || !params.data || !params.data.name) {
-                return;
-            }
-            const data = nearby.find(x => x.athleteId === params.data.name);
-            if (!data) {
-                return;
-            }
-            const items = [
-                data.athlete && data.athlete.fLast,
-                data.stats.power.smooth[5] != null ? H.power(data.stats.power.smooth[5], {suffix: true}) : null,
-                data.state.heartrate ? H.number(data.state.heartrate, {suffix: 'bpm'}) : null,
-                data.gap ? H.duration(data.gap, {short: true, seperator: ' '}) : null,
-            ];
-            return items.filter(x => x != null).join(', ');
-        };
-        chart.setOption({series: [{
-            markPoint: {
-                itemStyle: {borderColor: '#000'},
-                animationDurationUpdate: markAnimationDuration,
-                animationEasingUpdate: 'linear',
-                data: nearby.filter(x => x.state.roadId === road.id && x.state.reverse === reverse).map(x => {
-                    // XXX
-                    const distances = road.nodes.map(c => vectorDistance(c.pos, [x.state.x, x.state.y, x.state.z]));
-                    const nearest = distances.indexOf(Math.min(...distances));
-                    const distance = road.distances[nearest];
-                    if (x.watching) {
-                        //console.log(nearest, distance, distances);
-                    }
-                    return {
-                        name: x.athleteId,
-                        coord: [distance, x.state.altitude + 2],
-                        symbolSize: x.watching ? 40 : 20,
-                        itemStyle: {
-                            color: x.watching ? '#f54e' : '#fff6',
-                            borderWidth: x.watching ? 2 : 0,
-                        },
-                        emphasis: {
-                            label: {
-                                show: true,
-                                fontSize: '0.6em',
-                                position: 'top',
-                                formatter: markEmphasisLabel,
-                            }
-                        }
-                    };
-                }),
-            },
-        }]});
-        //markAnimationDuration = Math.min(1200, markAnimationDuration * 1.3);
-    };
-    return chart;
-}
-
-
 function setBackground() {
     const {solidBackground, backgroundColor} = common.settingsStore.get();
     doc.classList.toggle('solid-background', !!solidBackground);
@@ -204,13 +32,10 @@ function setBackground() {
     }
 }
 
-
-export async function main() {
-    common.initInteractionListeners();
-    const elevationProfile = await createElevationProfile(document.querySelector('.elevation-profile'));
+function createZwiftMap({worldList}) {
     const zwiftMap = new map.SauceZwiftMap({
         el: document.querySelector('.map'),
-        worldList: await gettingWorldList,
+        worldList,
         zoom: settings.zoom,
     });
     let settingsSaveTimeout;
@@ -224,39 +49,81 @@ export async function main() {
     zwiftMap.setTiltShift(settings.tiltShift);
     zwiftMap.setTiltShiftAngle(settings.tiltShiftAngle || 10);
     zwiftMap.setSparkle(settings.sparkle);
-    addEventListener('resize', () => {
-        elevationProfile.resize();
+    return zwiftMap;
+}
+
+
+function createElevationProfile({worldList}) {
+    const elProfile = new elevation.SauceElevationProfile({
+        el: document.querySelector('.elevation-profile'),
+        worldList,
     });
+    return elProfile;
+}
+
+
+async function initSelfAthlete({zwiftMap, elProfile}) {
+    const selfAthlete = await common.rpc.getAthleteData('self');
+    if (!selfAthlete) {
+        return;
+    }
+    zwiftMap.setAthleteId(selfAthlete.athleteId);
+    elProfile.setAthleteId(selfAthlete.athleteId);
+    let watchingId;
+    if (!selfAthlete.watching) {
+        const watchingAthlete = await common.rpc.getAthleteData('watching');
+        watchingId = watchingAthlete.athleteId;
+    } else {
+        watchingId = selfAthlete.athleteId;
+    }
+    console.info("Watching:", watchingId);
+    zwiftMap.setWatching(watchingId);
+    elProfile.setWatching(watchingId);
+    return selfAthlete;
+}
+
+
+export async function main() {
+    common.initInteractionListeners();
+    const worldList = await common.getWorldList();
+    const zwiftMap = createZwiftMap({worldList});
+    const elProfile = createElevationProfile({worldList});
     const urlQuery = new URLSearchParams(location.search);
     if (urlQuery.has('testing')) {
         zwiftMap.setCourse(+urlQuery.get('testing') || 6);
         return;
     }
-    let courseId;
-    common.subscribe('watching-athlete-change', athleteId => {
+    let selfAthlete;
+    common.subscribe('watching-athlete-change', async athleteId => {
         console.info("Now watching:", athleteId);
+        if (!selfAthlete) {
+            selfAthlete = await initSelfAthlete({zwiftMap, elProfile});
+        }
         zwiftMap.setWatching(athleteId);
+        elProfile.setWatching(athleteId);
     });
-    common.subscribe('states', states => {
-        if (states.length && states[0].courseId !== courseId) {
-            courseId = states[0].courseId;
-            zwiftMap.setCourse(courseId);
+    common.subscribe('states', async states => {
+        if (!selfAthlete) {
+            selfAthlete = await initSelfAthlete({zwiftMap, elProfile});
         }
         zwiftMap.renderAthleteStates(states);
+        elProfile.renderAthleteStates(states);
     });
-    const selfAthlete = await common.rpc.getAthleteData('self');
-    if (selfAthlete) {
-        zwiftMap.setAthleteId(selfAthlete.athleteId);
-        if (!selfAthlete.watching) {
-            const watchingAthlete = await common.rpc.getAthleteData('watching');
-            console.info("Watching:", watchingAthlete.athleteId);
-            zwiftMap.setWatching(watchingAthlete.athleteId);
-        } else {
-            console.info("Watching self:", selfAthlete.athleteId);
-            zwiftMap.setWatching(selfAthlete.athleteId);
-        }
-    } else {
+    selfAthlete = await initSelfAthlete({zwiftMap, elProfile});
+    if (!selfAthlete) {
+        console.info("User not active, starting demo mode...");
         zwiftMap.setCourse(6);
+        elProfile.setCourse(6);
+        let i = 0;
+        const updateHeading = () => {
+            if (selfAthlete) {
+                zwiftMap.setHeadingOffset(0);
+            } else {
+                zwiftMap.setHeadingOffset(i += 5);
+                setTimeout(updateHeading, 1000);
+            }
+        };
+        updateHeading();
     }
     common.settingsStore.addEventListener('changed', async ev => {
         const changed = ev.data.changed;
@@ -274,8 +141,6 @@ export async function main() {
             zwiftMap.setSparkle(changed.get('sparkle'));
         }
     });
-    //let i = 0;
-    //setInterval(() => zwiftMap.setHeadingOffset(i+=5), 1000);
 }
 
 

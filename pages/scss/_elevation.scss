@@ -1,0 +1,13 @@
+.sauce-elevation-profile-container {
+    aspect-ratio: 3 / 1;
+    font-variant-numeric: tabular-nums;
+    overflow: hidden;  // echarts rounds up sometimes and makes a scrollbar
+    width: 100%;
+
+    /*
+    svg * {
+        transition: transform 300ms;
+        transition-timing-function: linear;
+    }
+    */
+}

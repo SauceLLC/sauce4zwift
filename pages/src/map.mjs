@@ -244,6 +244,7 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     setCourse(courseId) {
+        this.courseId = courseId;
         this.el.classList.add('loading'); // Disable animation
         this.worldMeta = this.worldList.find(x => x.courseId === courseId);
         const {minX, minY, tileScale, mapScale, anchorX, anchorY} = this.worldMeta;
@@ -264,22 +265,22 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     setWatching(id) {
-        if (this.watchingId && this.dots.has(this.watchingId)) {
+        if (this.watchingId != null && this.dots.has(this.watchingId)) {
             this.dots.get(this.watchingId).classList.remove('watching');
         }
         this.watchingId = id;
-        if (this.watchingId && this.watchingId !== this.athleteId && this.dots.has(this.watchingId)) {
-            this.dots.get(this.watchingId).classList.add('watching');
+        if (id != null && id !== this.athleteId && this.dots.has(id)) {
+            this.dots.get(id).classList.add('watching');
         }
     }
 
     setAthleteId(id) {
-        if (this.athleteId && this.dots.has(this.athleteId)) {
+        if (this.athleteId != null && this.dots.has(this.athleteId)) {
             this.dots.get(this.athleteId).classList.remove('self');
         }
         this.athleteId = id;
-        if (this.athleteId && this.dots.has(this.athleteId)) {
-            const dot = this.dots.get(this.athleteId);
+        if (id != null && this.dots.has(id)) {
+            const dot = this.dots.get(id);
             dot.classList.remove('watching');
             dot.classList.add('self');
         }
@@ -367,6 +368,16 @@ export class SauceZwiftMap extends EventTarget {
 
     renderAthleteStates(states) {
         const now = Date.now();
+        if (this.watchingId == null) {
+            return;
+        }
+        const watching = states.find(x => x.athleteId === this.watchingId);
+        if (!watching && this.courseId == null) {
+            return;
+        } else if (watching && watching.courseId !== this.courseId) {
+            console.debug("Setting new course from states render:", watching.courseId);
+            this.setCourse(watching.courseId);
+        }
         for (const state of states) {
             if (!this.dots.has(state.athleteId)) {
                 const isSelf = state.athleteId === this.athleteId;
