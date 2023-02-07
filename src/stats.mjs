@@ -300,6 +300,7 @@ export class StatsProcessor extends events.EventEmitter {
         this.setMaxListeners(100);
         this.athleteId = null;
         this.watching = null;
+        this.emitStatesMinRefresh = 200;
         this._athleteData = new Map();
         this._athletesCache = new Map();
         this._stateProcessCount = 0;
@@ -318,6 +319,9 @@ export class StatsProcessor extends events.EventEmitter {
         this._markedIds = new Set();
         this._followingIds = new Set();
         this._followerIds = new Set();
+        this._pendingEgressStates = [];
+        this._lastEgressStates = 0;
+        this._timeoutEgressStates = null;
         const app = getApp();
         this._autoResetEvents = !!app.getSetting('autoResetEvents');
         this._autoLapEvents = !!app.getSetting('autoLapEvents');
@@ -923,19 +927,17 @@ export class StatsProcessor extends events.EventEmitter {
                 }
             }
         }
-        let hasStates;
+        const hasStatesListener = !!this.listenerCount('states');
         for (const x of packet.playerStates) {
             if (this.processState(x) === false) {
                 continue;
             }
-            hasStates = true;
             if (x.athleteId === this.watching) {
                 this._watchingRoadSig = this._roadSig(x);
             }
-        }
-        if (packet.expungeReason) {
-            console.error("Expunged:", packet.expungeReason);
-            debugger;
+            if (hasStatesListener) {
+                this._pendingEgressStates.push(x);
+            }
         }
         if (packet.eventPositions) {
             const ep = packet.eventPositions;
@@ -953,8 +955,21 @@ export class StatsProcessor extends events.EventEmitter {
                 }
             }
         }
-        if (hasStates && this.listenerCount('states')) {
-            this.emit('states', packet.playerStates);
+        if (this._pendingEgressStates.length && !this._timeoutEgressStates) {
+            const now = monotonic();
+            const delay = this.emitStatesMinRefresh - (now - this._lastEgressStates);
+            if (delay > 0) {
+                this._timeoutEgressStates = setTimeout(() => {
+                    this._timeoutEgressStates = null;
+                    this._lastEgressStates = monotonic();
+                    this.emit('states', this._pendingEgressStates.map(x => this._cleanState(x)));
+                    this._pendingEgressStates.length = 0;
+                }, delay);
+            } else {
+                this.emit('states', this._pendingEgressStates.map(x => this._cleanState(x)));
+                this._pendingEgressStates.length = 0;
+                this._lastEgressStates = now;
+            }
         }
     }
 
