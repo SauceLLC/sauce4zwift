@@ -484,10 +484,6 @@ export class StatsProcessor extends events.EventEmitter {
         });
     }
 
-    getAthletesData() {
-        return Array.from(this._athleteData.values()).map(this._formatAthleteData.bind(this));
-    }
-
     _realAthleteId(ident) {
         return ident === 'self' ?
             this.athleteId :
@@ -498,6 +494,12 @@ export class StatsProcessor extends events.EventEmitter {
     getAthleteStats(id) {
         console.warn("DEPRECATED: use `getAthleteData`");
         return this.getAthleteData(id);
+    }
+
+    getAthletesData(ids) {
+        return ids ?
+            ids.map(x => this.getAthleteData(x)) :
+            Array.from(this._athleteData.values()).map(x => this._formatAthleteData(x));
     }
 
     getAthleteData(id) {
