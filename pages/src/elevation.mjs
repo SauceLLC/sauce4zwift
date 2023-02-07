@@ -28,7 +28,8 @@ export class SauceElevationProfile {
         el.classList.add('sauce-elevation-profile-container');
         this.chart = ec.init(el, 'sauce', {renderer: 'svg'});
         this.chart.setOption({
-            animation: false, // We'll use css transitions instead.
+            //animation: false, // We'll use css transitions instead.
+            grid: {top: 0, right: 0, bottom: 0, left: 0},
             tooltip: {
                 trigger: 'axis',
                 formatter: ([{value}]) => value ?
@@ -188,14 +189,12 @@ export class SauceElevationProfile {
             mark.state = state;
             mark.lastSeen = now;
         }
-        /*clearTimeout(this._refreshTimeout);
+        clearTimeout(this._refreshTimeout);
         if (now - this._lastRender < this.refresh) {
-            console.debug("defer render");
             this._refreshTimeout = setTimeout(() => this.renderAthleteStates([]),
                 this.refresh - (now - this._lastRender));
             return;
-        }*/
-            console.debug("doit render");
+        }
         this._lastRender = now;
         const marks = Array.from(this.marks.values()).filter(x =>
             x.state.roadId === this.road.id && x.state.reverse === this.reverse);

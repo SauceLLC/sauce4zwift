@@ -68,7 +68,9 @@ async function initSelfAthlete({zwiftMap, elProfile}) {
         return;
     }
     zwiftMap.setAthleteId(selfAthlete.athleteId);
-    elProfile.setAthleteId(selfAthlete.athleteId);
+    if (elProfile) {
+        elProfile.setAthleteId(selfAthlete.athleteId);
+    }
     let watchingId;
     if (!selfAthlete.watching) {
         const watchingAthlete = await common.rpc.getAthleteData('watching');
@@ -78,7 +80,9 @@ async function initSelfAthlete({zwiftMap, elProfile}) {
     }
     console.info("Watching:", watchingId);
     zwiftMap.setWatching(watchingId);
-    elProfile.setWatching(watchingId);
+    if (elProfile) {
+        elProfile.setWatching(watchingId);
+    }
     return selfAthlete;
 }
 
@@ -87,7 +91,7 @@ export async function main() {
     common.initInteractionListeners();
     const worldList = await common.getWorldList();
     const zwiftMap = createZwiftMap({worldList});
-    const elProfile = createElevationProfile({worldList});
+    const elProfile = settings.profileOverlay && createElevationProfile({worldList});
     const urlQuery = new URLSearchParams(location.search);
     if (urlQuery.has('testing')) {
         zwiftMap.setCourse(+urlQuery.get('testing') || 6);
@@ -100,20 +104,26 @@ export async function main() {
             selfAthlete = await initSelfAthlete({zwiftMap, elProfile});
         }
         zwiftMap.setWatching(athleteId);
-        elProfile.setWatching(athleteId);
+        if (elProfile) {
+            elProfile.setWatching(athleteId);
+        }
     });
     common.subscribe('states', async states => {
         if (!selfAthlete) {
             selfAthlete = await initSelfAthlete({zwiftMap, elProfile});
         }
         zwiftMap.renderAthleteStates(states);
-        elProfile.renderAthleteStates(states);
+        if (elProfile) {
+            elProfile.renderAthleteStates(states);
+        }
     });
     selfAthlete = await initSelfAthlete({zwiftMap, elProfile});
     if (!selfAthlete) {
         console.info("User not active, starting demo mode...");
         zwiftMap.setCourse(6);
-        elProfile.setCourse(6);
+        if (elProfile) {
+            elProfile.setCourse(6);
+        }
         let i = 0;
         const updateHeading = () => {
             if (selfAthlete) {
@@ -139,6 +149,8 @@ export async function main() {
             zwiftMap.setTiltShiftAngle(changed.get('tiltShiftAngle'));
         } else if (changed.has('sparkle')) {
             zwiftMap.setSparkle(changed.get('sparkle'));
+        } else if (changed.has('profileOverlay')) {
+            location.reload();
         }
     });
 }
