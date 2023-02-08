@@ -53,6 +53,18 @@ export class Color {
         return c;
     }
 
+    lighten(ld) {
+        const c = this.clone();
+        c.l += ld;
+        return c;
+    }
+
+    saturate(sd) {
+        const c = this.clone();
+        c.s += sd;
+        return c;
+    }
+
     hue(h) {
         const c = this.clone();
         c.h = h;

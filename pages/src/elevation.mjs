@@ -28,7 +28,6 @@ export class SauceElevationProfile {
         el.classList.add('sauce-elevation-profile-container');
         this.chart = ec.init(el, 'sauce', {renderer: 'svg'});
         this.chart.setOption({
-            //animation: false, // We'll use css transitions instead.
             grid: {top: 0, right: 0, bottom: 0, left: 0},
             tooltip: {
                 trigger: 'axis',
@@ -86,7 +85,6 @@ export class SauceElevationProfile {
         this.roads = null;
         this.road = null;
         this.reverse = null;
-        this.markAnimationDuration = null;
         this.marks = new Map();
         this._statesQueue = [];
         this._busy = false;
@@ -134,8 +132,6 @@ export class SauceElevationProfile {
         this.road = this.roads[id];
         this.reverse = reverse;
         this.chart.setOption({xAxis: {inverse: reverse}});
-        // XXX 200 when done validating
-        this.markAnimationDuration = 300; // reset so render is not uber-slow
         const distance = this.road.distances[this.road.distances.length - 1];
         this.chart.setOption({series: [{
             areaStyle: {
@@ -145,12 +141,16 @@ export class SauceElevationProfile {
                     y: 0,
                     x2: reverse ? 0 : 1,
                     y2: 0,
-                    colorStops: this.road.distances.map((x, i) => ({
-                        offset: x / distance,
-                        color: Color.fromRGB(Math.abs(this.road.grades[i] / 0.10), 0, 0.15, 0.95).toString(),
-                        //color: new Color(0.33 - Math.min(1, Math.abs(this.road.grades[i] / 0.10)) *
-                        //120 / 360), 0.5, 0.5, 0.95).toString(),
-                    })),
+                    colorStops: this.road.distances.map((x, i) => {
+                        const steepness = Math.abs(this.road.grades[i] / 0.12);
+                        const color = Color.fromRGB(steepness, 0.4, 0.5 * steepness)
+                            .lighten(-0.25)
+                            .saturate(steepness - 0.33);
+                        return {
+                            offset: x / distance,
+                            color: color.toString(),
+                        };
+                    }),
                 },
             },
             data: this.road.distances.map((x, i) =>
@@ -160,12 +160,10 @@ export class SauceElevationProfile {
 
     async renderAthleteStates(states) {
         if (this.watchingId == null || this._busy) {
-            console.warn("Deferring states proc:", this.watchingId, this._busy);
             return;
         }
         const watching = states.find(x => x.athleteId === this.watchingId);
         if (!watching && this.courseId == null) {
-            console.warn("Deferring states proc ALT:", watching, this.courseId);
             return;
         } else if (watching) {
             if (watching.courseId !== this.courseId) {
@@ -201,8 +199,7 @@ export class SauceElevationProfile {
         this.chart.setOption({series: [{
             markPoint: {
                 itemStyle: {borderColor: '#000'},
-                animationDurationUpdate: this.markAnimationDuration,
-                animationEasingUpdate: 'linear',
+                animation: false,
                 data: marks.map(({state}) => {
                     // XXX
                     const distances = this.road.nodes.map(c => vectorDistance(c.pos, [state.x, state.y, state.z]));
@@ -229,7 +226,6 @@ export class SauceElevationProfile {
                 }),
             },
         }]});
-        //this.markAnimationDuration = Math.min(1200, this.markAnimationDuration * 1.3);
         for (const [athleteId, mark] of this.marks.entries()) {
             if (now - mark.lastSeen > 15000) {
                 this.marks.delete(athleteId);
