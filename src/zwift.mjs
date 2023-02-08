@@ -1507,18 +1507,22 @@ export class GameMonitor extends events.EventEmitter {
     }
 
     async activateSession(session) {
+        const error = new Promise((_, reject) => {
+            session.tcpChannel.once('shutdown', () => reject(new Error("shutdown")));
+            setTimeout(() => reject(new Error('timeout')), 30000);
+        });
         const udpServersPending = this._udpServerPools.size ||
             new Promise(resolve => this.once('udpServerPoolsUpdated', resolve));
         // This packet causes Zwift to close any other TCP connections for this athlete.
         // Also any UDP channels for those relay sessions will stop flowing.
         console.info("Activating session with:", session.tcpChannel.toString());
-        await session.tcpChannel.sendPacket({
+        await Promise.race([error, session.tcpChannel.sendPacket({
             athleteId: this.athleteId,
             _worldTime: 0,
             largWaTime: 0,
-        }, {hello: true});
+        }, {hello: true})]);
         if (udpServersPending) {
-            await udpServersPending;
+            await Promise.race([error, udpServersPending]);
         }
         clearTimeout(this._sessionTimeout);
         this._session = session;
