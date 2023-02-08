@@ -14,6 +14,7 @@ import * as secrets from './secrets.mjs';
 import * as zwift from './zwift.mjs';
 import * as windows from './windows.mjs';
 import * as mods from './mods.mjs';
+import {parseArgs} from './argparse.mjs';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
@@ -392,9 +393,8 @@ class SauceApp extends EventEmitter {
     async start(args) {
         const gameMonitor = this.gameMonitor = new zwift.GameMonitor({
             zwiftMonitorAPI,
-            gameAthleteId: args.overrideAthleteId || zwiftAPI.profile.id,
+            gameAthleteId: args.athleteId || zwiftAPI.profile.id,
             randomWatch: args.randomWatch,
-            dropinCourseId: args.dropinCourseId,
         });
         gameMonitor.on('multiple-logins', () => {
             electron.dialog.showErrorBox('Multiple Logins Detected',
@@ -459,45 +459,6 @@ async function zwiftAuthenticate(options) {
 }
 
 
-function snakeToCamelCase(v) {
-    return v.split(/[_-]/).map((x, i) =>
-        i ? x[0].toUpperCase() + x.substr(1) : x).join('');
-}
-
-
-function parseArgs() {
-    const iter = process.argv.values();
-    const args = {};
-    const switches = ['help', 'headless', 'force-login', 'random-watch', 'disable-monitor'];
-    const options = ['host', 'override-athlete-id', 'dropin-course-id'];
-    for (let x of iter) {
-        if (!x.startsWith('--')) {
-            continue;
-        }
-        x = x.substr(2);
-        if (switches.includes(x)) {
-            args[snakeToCamelCase(x)] = true;
-        } else if (options.includes(x)) {
-            let value = iter.next().value;
-            if (value === undefined) {
-                throw new TypeError('Missing value for option: ' + x);
-            }
-            if (Number(value).toString() === value) {
-                value = Number(value);
-            }
-            args[snakeToCamelCase(x)] = value;
-        }
-    }
-    if (args.help) {
-        console.warn(`Usage: ${process.argv[0]} ` +
-            switches.map(x => `[--${x}]`).join(' ') + ' ' +
-            options.map(x => `[--${x} VALUE]`).join(' '));
-        quit(1);
-    }
-    return args;
-}
-
-
 async function checkForUpdates() {
     autoUpdater.disableWebInstaller = true;
     autoUpdater.autoDownload = false;
@@ -544,8 +505,22 @@ async function maybeDownloadAndInstallUpdate({version}) {
 export async function main({logEmitter, logFile, logQueue, sentryAnonId,
                             loaderSettings, saveLoaderSettings}) {
     const s = Date.now();
-    const args = parseArgs();
-    if (quiting) {
+    const args = parseArgs([
+        {arg: 'headless', type: 'switch',
+         help: 'Do not open windows (unless required on startup)'},
+        {arg: 'force-login', type: 'switch',
+         help: 'Re-login to Zwift accounts'},
+        {arg: 'disable-monitor', type: 'switch',
+         help: 'Do not start the Zwift monitor (no data)'},
+        {arg: 'host', type: 'str', label: 'HOSTNAME',
+         help: 'Use alternate server for Zwift (i.e. zwift-offline)'},
+        {arg: 'athlete-id', type: 'num', label: 'ATHLETE_ID',
+         help: 'Override the athlete ID for the main Zwift account'},
+        {arg: 'random-watch', type: 'num', optional: true, label: 'COURSE_ID',
+         help: 'Watch random athlete; optionally specify a Course ID to choose the athlete from'},
+    ]);
+    if (args.help) {
+        quit();
         return;
     }
     if (logEmitter) {
