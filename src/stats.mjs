@@ -365,6 +365,7 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.getGroupsData, {scope: this});
         rpc.register(this.getAthleteStats, {scope: this}); // DEPRECATED
         rpc.register(this.getAthleteData, {scope: this});
+        rpc.register(this.getAthletesData, {scope: this});
         rpc.register(this.updateAthleteStats, {scope: this}); // DEPRECATED
         rpc.register(this.updateAthleteData, {scope: this});
         rpc.register(this.getAthleteLaps, {scope: this});

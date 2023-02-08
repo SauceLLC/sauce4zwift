@@ -212,28 +212,32 @@ async function _start({ip, port, rpcSources, statsProc}) {
         });
     });
     const sp = statsProc;
-    function getStatsHandler(res, id) {
+    function getAthleteStatsHandler(res, id) {
+        console.warn("DEPRECATED: use /api/athletes/v1/ instead");
+        return getAthleteDataHandler(res, id);
+    }
+    function getAthleteDataHandler(res, id) {
         id = id === 'self' ? sp.athleteId : id === 'watching' ? sp.watching : Number(id);
-        const data = sp.getAthleteStats(id);
+        const data = sp.getAthleteData(id);
         data ? res.json(data) : res.status(404).json(null);
     }
-    function getLapsHandler(res, id) {
+    function getAthleteLapsHandler(res, id) {
         id = id === 'self' ? sp.athleteId : id === 'watching' ? sp.watching : Number(id);
         const data = sp.getAthleteLaps(id);
         data ? res.json(data) : res.status(404).json(null);
     }
-    function getSegmentsHandler(res, id) {
+    function getAthleteSegmentsHandler(res, id) {
         id = id === 'self' ? sp.athleteId : id === 'watching' ? sp.watching : Number(id);
         const data = sp.getAthleteSegments(id);
         data ? res.json(data) : res.status(404).json(null);
     }
-    function getStreamsHandler(res, id) {
+    function getAthleteStreamsHandler(res, id) {
         id = id === 'self' ? sp.athleteId : id === 'watching' ? sp.watching : Number(id);
         const data = sp.getAthleteStreams(id);
         data ? res.json(data) : res.status(404).json(null);
     }
     const apiDirectory = JSON.stringify([{
-        'athlete/stats/v1/<id>|self|watching': '[GET] Current stats for an athlete in the game',
+        'athlete/v1/<id>|self|watching': '[GET] Current data for an athlete in the game',
         'athlete/laps/v1/<id>|self|watching': '[GET] Lap data for an athlete',
         'athlete/segments/v1/<id>|self|watching': '[GET] Segments data for an athlete',
         'athlete/streams/v1/<id>|self|watching': '[GET] Stream data (power, cadence, etc..) for an athlete',
@@ -265,10 +269,11 @@ async function _start({ip, port, rpcSources, statsProc}) {
         next();
     });
     api.get('/', (req, res) => res.send(apiDirectory));
-    api.get('/athlete/stats/v1/:id', (req, res) => getStatsHandler(res, req.params.id));
-    api.get('/athlete/laps/v1/:id', (req, res) => getLapsHandler(res, req.params.id));
-    api.get('/athlete/segments/v1/:id', (req, res) => getSegmentsHandler(res, req.params.id));
-    api.get('/athlete/streams/v1/:id', (req, res) => getStreamsHandler(res, req.params.id));
+    api.get('/athlete/stats/v1/:id', (req, res) => getAthleteStatsHandler(res, req.params.id)); // DEPRECATED
+    api.get('/athlete/v1/:id', (req, res) => getAthleteDataHandler(res, req.params.id));
+    api.get('/athlete/laps/v1/:id', (req, res) => getAthleteLapsHandler(res, req.params.id));
+    api.get('/athlete/segments/v1/:id', (req, res) => getAthleteSegmentsHandler(res, req.params.id));
+    api.get('/athlete/streams/v1/:id', (req, res) => getAthleteStreamsHandler(res, req.params.id));
     api.get('/nearby/v1', (req, res) =>
         res.send(sp._mostRecentNearby ? jsonCache(sp._mostRecentNearby) : '[]'));
     api.get('/groups/v1', (req, res) =>
