@@ -297,6 +297,7 @@ export class StatsProcessor extends events.EventEmitter {
         this.zwiftAPI = options.zwiftAPI;
         this.gameMonitor = options.gameMonitor;
         this.disableGameMonitor = options.args.disableMonitor;
+        this.randomWatch = options.args.randomWatch != null;
         this.setMaxListeners(100);
         this.athleteId = null;
         this.watching = null;
@@ -1016,6 +1017,9 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     setWatching(athleteId) {
+        if (this.randomWatch) {
+            this.athleteId = athleteId;
+        }
         if (athleteId === this.watching) {
             return;
         }

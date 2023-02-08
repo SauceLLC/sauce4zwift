@@ -1272,15 +1272,16 @@ export class GameMonitor extends events.EventEmitter {
         };
     }
 
-    async getRandomAthleteId() {
-        const worlds = (await this.api.getDropInWorldList()).filter(x => x.others.length);
+    async getRandomAthleteId(courseId) {
+        const worlds = (await this.api.getDropInWorldList()).filter(x =>
+            x.others.length && (typeof courseId !== 'number' || x.courseId === courseId));
         const world = worlds[Math.random() * worlds.length | 0];
-        return world.others[0].athleteId;
+        return world ? world.others[Math.random() * world.others.length | 0].athleteId : null;
     }
 
     async initPlayerState() {
-        if (this.randomWatch) {
-            this.gameAthleteId = await this.getRandomAthleteId();
+        if (this.randomWatch != null) {
+            this.gameAthleteId = await this.getRandomAthleteId(this.randomWatch);
         }
         if (this.dropinCourseId) {
             this.setCourse(this.dropinCourseId);
@@ -1623,11 +1624,13 @@ export class GameMonitor extends events.EventEmitter {
         }
         const state = await this.api.getPlayerState(this.gameAthleteId);
         if (!state) {
-            if (!this.suspended && age > 15 * 1000) {
-                // Stop harassing the UDP channel..
-                this.suspend();
-                if (this.randomWatch) {
-                    this.gameAthleteId = await this.getRandomAthleteId();
+            if (age > 15 * 1000) {
+                if (this.randomWatch != null) {
+                    this.gameAthleteId = await this.getRandomAthleteId(this.randomWatch);
+                    console.info("Switching to new random athlete:", this.gameAthleteId);
+                } else {
+                    // Stop harassing the UDP channel..
+                    this.suspend();
                 }
             }
         } else {
@@ -1671,9 +1674,6 @@ export class GameMonitor extends events.EventEmitter {
             return;
         }
         this.watchingAthleteId = athleteId;
-        if (this.randomWatch) {
-            this.gameAthleteId = athleteId;
-        }
         this.emit("watching-athlete", athleteId);
     }
 
