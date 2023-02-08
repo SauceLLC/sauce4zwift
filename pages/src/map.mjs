@@ -434,28 +434,44 @@ export class SauceZwiftMap extends EventTarget {
         this._lazyUpdateAthleteDetails(states.map(x => x.athleteId));
     }
 
+    _updateDotAthleteData(dot, ad) {
+        dot.classList.toggle('leader', !!ad.eventLeader);
+        dot.classList.toggle('sweeper', !!ad.eventSweeper);
+        dot.classList.toggle('marked', ad.athlete ? !!ad.athlete.marked : false);
+        dot.classList.toggle('following', ad.athlete ? !!ad.athlete.following : false);
+    }
+
     _lazyUpdateAthleteDetails(ids) {
         const now = Date.now();
+        const refresh = [];
         for (const id of ids) {
             const dot = this.dots.get(id);
             if (!dot) {
                 continue;
             }
             const entry = this.athleteCache.get(id) || {ts: 0, data: null};
-            const update = ad => {
-                dot.classList.toggle('leader', !!ad.eventLeader);
-                dot.classList.toggle('sweeper', !!ad.eventSweeper);
-                dot.classList.toggle('marked', ad.athlete ? !!ad.athlete.marked : false);
-                dot.classList.toggle('following', ad.athlete ? !!ad.athlete.following : false);
-                entry.data = ad;
-            };
             if (now - entry.ts > 30000 + Math.random() * 60000) {
                 entry.ts = now;
                 this.athleteCache.set(id, entry);
-                common.rpc.getAthleteData(id).then(update);
+                refresh.push(id);
             } else if (entry.data) {
-                update(entry.data);
+                this._updateDotAthleteData(dot, entry.data);
             }
+        }
+        if (refresh.length) {
+            common.rpc.getAthletesData(refresh).then(ads => {
+                for (const [i, ad] of ads.entries()) {
+                    const id = ids[i];
+                    const dot = this.dots.get(id);
+                    if (ad && dot) {
+                        dot.classList.toggle('leader', !!ad.eventLeader);
+                        dot.classList.toggle('sweeper', !!ad.eventSweeper);
+                        dot.classList.toggle('marked', ad.athlete ? !!ad.athlete.marked : false);
+                        dot.classList.toggle('following', ad.athlete ? !!ad.athlete.following : false);
+                    }
+                    this.athleteCache.get(id).data = ad;
+                }
+            });
         }
         for (const [id, entry] of this.athleteCache.entries()) {
             if (now - entry.ts > 300000) {
