@@ -28,6 +28,7 @@ common.settingsStore.setDefault({
     solidBackground: false,
     backgroundColor: '#00ff00',
     refreshInterval: 2,
+    hideHeader: false,
 });
 
 // XXX Need a migration system.
@@ -164,10 +165,10 @@ function renderZoomed(groups) {
         power: ({power}) => pwrFmt(power),
         wkg: ({power, weight}) => weight ? wkgFmt(power / weight) : pwrFmt(power),
     }[settings.zoomedPrimaryField || 'power'];
-    metaEl.innerHTML = [
+    common.softInnerHTML(metaEl, [
         `${groupLabel}, ${groupSize} ${athletesLabel}`,
         `${primaryFmt(group)}, ${spdFmt(group.speed)}`,
-    ].map(x => `<div class="line">${x}</div>`).join('');
+    ].map(x => `<div class="line">${x}</div>`).join(''));
     const active = new Set();
     aheadEl.classList.toggle('visible', !!ahead);
     if (ahead) {
@@ -297,7 +298,7 @@ function renderGroups(groups) {
     const totAthletes = groups.reduce((agg, x) => agg + x.athletes.length, 0);
     contentEl.style.setProperty('--total-athletes', totAthletes);
     const athletesLabel = totAthletes === 1 ? 'Athlete' : 'Athletes';
-    metaEl.innerHTML = `<div class="line">${totAthletes} ${athletesLabel}</div>`;
+    common.softInnerHTML(metaEl, `<div class="line">${totAthletes} ${athletesLabel}</div>`);
     const active = new Set();
     aheadEl.classList.toggle('visible', !!ahead);
     if (ahead) {
@@ -398,12 +399,20 @@ function renderGroups(groups) {
 
 
 function setBackground() {
-    const {solidBackground, backgroundColor} = settings;
-    doc.classList.toggle('solid-background', !!solidBackground);
-    if (solidBackground) {
-        doc.style.setProperty('--background-color', backgroundColor);
+    doc.classList.toggle('solid-background', !!settings.solidBackground);
+    if (settings.solidBackground) {
+        doc.style.setProperty('--background-color', settings.backgroundColor);
     } else {
         doc.style.removeProperty('--background-color');
+    }
+    if (settings.aspectRatio != null) {
+        doc.style.setProperty('--aspect-ratio', `${settings.aspectRatio} / 8`);
+    }
+    if (settings.horizMode != null) {
+        doc.classList.toggle('horizontal', settings.horizMode);
+    }
+    if (settings.hideHeader != null) {
+        doc.classList.toggle('hide-header', settings.hideHeader);
     }
 }
 
@@ -424,9 +433,10 @@ export async function main() {
         const changed = ev.data.changed;
         if (changed.has('/imperialUnits')) {
             L.setImperial(imperial = changed.get('/imperialUnits'));
+        } else {
+            setBackground();
+            render();
         }
-        setBackground();
-        render();
     });
     const gcs = await common.rpc.getGameConnectionStatus();
     if (gcs) {

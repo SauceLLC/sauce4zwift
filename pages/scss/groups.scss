@@ -14,16 +14,28 @@ html {
             background: transparent;
         }
     }
-}
 
-html.settings-mode #meta.app-drag {
-    app-region: initial !important;
+    &.horizontal {
+        font-size: clamp(2.2mm, 8vw, 1 / var(--aspect-ratio) * 8vh);
+
+        #container {
+            flex-direction: row;
+        }
+    }
+
+    &.settings-mode #meta.app-drag {
+        app-region: initial !important;
+    }
+
+    &.hide-header #meta {
+        display: none;
+    }
 }
 
 #meta {
     position: relative;
     margin-top: $content-pad;
-    padding: 0.30em 0.5em 0.55em;
+    padding: 0.30em 1em 0.55em;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -37,6 +49,7 @@ html.settings-mode #meta.app-drag {
     border-radius: 1em;
     margin-right: $content-pad;
     margin-left: $content-pad;
+    align-self: center; // Dont' fill width;
 
     &:empty::before {
         content: 'Groups Window';
@@ -52,6 +65,8 @@ html.settings-mode #meta.app-drag {
         overflow: hidden;
         text-overflow: ellipsis;
         max-width: 100%;
+        min-width: 10ex;
+        text-align: center;
     }
 
     abbr.unit {

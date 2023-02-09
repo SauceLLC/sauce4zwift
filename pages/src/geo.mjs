@@ -21,6 +21,23 @@ common.settingsStore.setDefault({
 
 const settings = common.settingsStore.get();
 
+let initDone;
+let watchingId;
+let zwiftMap;
+let elProfile;
+
+
+const fields = [{
+    id: 'grade',
+    value: x => H.percent(x && x.grade),
+    key: 'Grade',
+    unit: '%',
+}, {
+    id: 'altitude',
+    value: x => H.elevation(x && x.altitude, {suffix: true}),
+    key: 'Altitude',
+}];
+
 
 function setBackground() {
     const {solidBackground, backgroundColor} = common.settingsStore.get();
@@ -31,6 +48,7 @@ function setBackground() {
         doc.style.removeProperty('--background-color');
     }
 }
+
 
 function createZwiftMap({worldList}) {
     const zwiftMap = new map.SauceZwiftMap({
@@ -54,41 +72,55 @@ function createZwiftMap({worldList}) {
 
 
 function createElevationProfile({worldList}) {
-    const elProfile = new elevation.SauceElevationProfile({
+    return new elevation.SauceElevationProfile({
         el: document.querySelector('.elevation-profile'),
         worldList,
     });
-    return elProfile;
 }
 
 
-async function initSelfAthlete({zwiftMap, elProfile}) {
-    const selfAthlete = await common.rpc.getAthleteData('self');
-    if (!selfAthlete) {
-        return;
-    }
-    zwiftMap.setAthleteId(selfAthlete.athleteId);
+function setWatching(id) {
+    console.info("Now watching:", id);
+    watchingId = id;
+    zwiftMap.setAthleteId(id);
     if (elProfile) {
-        elProfile.setAthleteId(selfAthlete.athleteId);
+        elProfile.setAthleteId(id);
     }
-    let watchingId;
-    if (!selfAthlete.watching) {
-        const watchingAthlete = await common.rpc.getAthleteData('watching');
-        watchingId = watchingAthlete.athleteId;
+}
+
+
+async function initSelfAthlete() {
+    const ad = await common.rpc.getAthleteData('self');
+    if (!ad) {
+        return false;
+    }
+    zwiftMap.setAthleteId(ad.athleteId);
+    if (elProfile) {
+        elProfile.setAthleteId(ad.athleteId);
+    }
+    if (!ad.watching) {
+        const watching = await common.rpc.getAthleteData('watching');
+        setWatching(watching.athleteId);
     } else {
-        watchingId = selfAthlete.athleteId;
+        setWatching(ad.athleteId);
     }
-    console.info("Watching:", watchingId);
-    zwiftMap.setWatching(watchingId);
-    if (elProfile) {
-        elProfile.setWatching(watchingId);
-    }
-    return selfAthlete;
+    return true;
 }
 
 
 export async function main() {
     common.initInteractionListeners();
+    const fieldRenderer = new common.Renderer(document.querySelector('#content'), {
+        fps: null,
+        //locked: settings.lockedFields,
+    });
+    renderer.addRotatingFields({
+        el: groupEl,
+        mapping,
+        fields: groupSpec.fields,
+
+    });
+
     const worldList = await common.getWorldList();
     const zwiftMap = createZwiftMap({worldList});
     const elProfile = settings.profileOverlay && createElevationProfile({worldList});
@@ -97,28 +129,27 @@ export async function main() {
         zwiftMap.setCourse(+urlQuery.get('testing') || 6);
         return;
     }
-    let selfAthlete;
     common.subscribe('watching-athlete-change', async athleteId => {
-        console.info("Now watching:", athleteId);
-        if (!selfAthlete) {
-            selfAthlete = await initSelfAthlete({zwiftMap, elProfile});
+        if (!initDone) {
+            initDone = await initSelfAthlete();
         }
-        zwiftMap.setWatching(athleteId);
-        if (elProfile) {
-            elProfile.setWatching(athleteId);
-        }
+        setWatching(athleteId);
     });
     common.subscribe('states', async states => {
-        if (!selfAthlete) {
-            selfAthlete = await initSelfAthlete({zwiftMap, elProfile});
+        if (!initDone) {
+            initDone = await initSelfAthlete({zwiftMap, elProfile});
         }
         zwiftMap.renderAthleteStates(states);
         if (elProfile) {
             elProfile.renderAthleteStates(states);
         }
+        const watching = states.find(x => x.athleteId === watchingId);
+        if (watching) {
+            document.documentElement.
+        }
     });
-    selfAthlete = await initSelfAthlete({zwiftMap, elProfile});
-    if (!selfAthlete) {
+    initDone = await initSelfAthlete({zwiftMap, elProfile});
+    if (!initDone) {
         console.info("User not active, starting demo mode...");
         zwiftMap.setCourse(6);
         if (elProfile) {
@@ -126,7 +157,7 @@ export async function main() {
         }
         let i = 0;
         const updateHeading = () => {
-            if (selfAthlete) {
+            if (initDone) {
                 zwiftMap.setHeadingOffset(0);
             } else {
                 zwiftMap.setHeadingOffset(i += 5);

@@ -874,6 +874,12 @@ function updateDependants(el) {
 
 function bindFormData(selector, storageIface, options={}) {
     const form = document.querySelector(selector);
+    const now = Date.now();
+    for (const x of form.querySelectorAll('[data-added]')) {
+        if (now - Number(x.dataset.added) < 14 * 86400000) {
+            x.classList.add('new');
+        }
+    }
     const fieldConnections = new Map();
     let updateCalled;
     async function onFieldUpdate(el, ev) {

@@ -6,6 +6,11 @@ export function setImperial(en) {
 }
 
 
+export function isImperial() {
+    return imperial;
+}
+
+
 export const metersPerMile = 1609.344;
 export const metersPerFoot = 0.3048;
 export const kgsPerLbs = 2.20462;
