@@ -73,7 +73,7 @@ export async function getMembership(options={}) {
 }
 
 export async function getLegacyMembership(token) {
-    const r = await fetch('https://sauce.llc/patrons.json');
+    const r = await fetch('https://www.sauce.llc/patrons.json');
     const patrons = await r.json();
     if (patrons[token]) {
         return {
