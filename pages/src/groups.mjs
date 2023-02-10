@@ -29,6 +29,7 @@ common.settingsStore.setDefault({
     backgroundColor: '#00ff00',
     refreshInterval: 2,
     hideHeader: false,
+    labelAngle: 50,
 });
 
 // XXX Need a migration system.
@@ -37,6 +38,17 @@ common.settingsStore.get('zoomedPrimaryField', 'power');
 
 const settings = common.settingsStore.get();
 setBackground();
+
+
+function setMaxPositions() {
+    let v;
+    if (zoomedPosition != null) {
+        v = settings.maxZoomed || 8;
+    } else {
+        v = (settings.maxAhead || 0) + (settings.maxBehind || 0) + 1;
+    }
+    doc.style.setProperty('--max-positions', v);
+}
 
 
 function pwrFmt(p) {
@@ -61,10 +73,8 @@ function getOrCreatePosition(relPos) {
         el.style.setProperty('--rel-pos', relPos);
         el.innerHTML = `
             <div class="desc left empty">
-                <div class="actions">
-                    <ms data-action="watch" title="Watch">video_camera_front</ms>
-                </div>
                 <div class="lines"></div>
+                <div class="actions"><ms data-action="watch" title="Watch">video_camera_front</ms></div>
             </div>
             <a class="bubble" target="_blank"></a>
             <div class="desc right empty">
@@ -106,6 +116,7 @@ function getOrCreatePosition(relPos) {
                 ev.preventDefault();
                 zoomedPosition = relPos;
                 common.storage.set('zoomedPosition', zoomedPosition);
+                setMaxPositions();
                 render();
             }
         });
@@ -267,7 +278,7 @@ function renderZoomed(groups) {
         pos.gap.leftLine.textContent = dur ? dur : '';
         pos.gap.el.classList.toggle('alone', !gap);
         pos.gap.el.classList.toggle('has-label', !!dur);
-        pos.actions.watch.classList.toggle('hidden', athlete.watching);
+        pos.actions.watch.classList.toggle('hidden', !!athlete.watching);
         if (!athlete.watching) {
             pos.watchTarget = athlete.athleteId;
         }
@@ -387,7 +398,7 @@ function renderGroups(groups) {
         pos.gap.el.classList.toggle('has-label', !!innerGap);
         const dur = innerGap && H.duration(Math.abs(gap), {short: true, seperator: ' '});
         pos.gap.leftLine.textContent = dur ? (gap > 0 ? '+' : '-') + dur : '';
-        pos.actions.watch.classList.toggle('hidden', group.watching);
+        pos.actions.watch.classList.toggle('hidden', !!group.watching);
         if (!group.watching) {
             pos.watchTarget = group.athletes[Math.trunc(group.athletes.length / 2)].athleteId;
         }
@@ -405,15 +416,16 @@ function setBackground() {
     } else {
         doc.style.removeProperty('--background-color');
     }
-    if (settings.aspectRatio != null) {
-        doc.style.setProperty('--aspect-ratio', `${settings.aspectRatio} / 8`);
-    }
     if (settings.horizMode != null) {
         doc.classList.toggle('horizontal', settings.horizMode);
     }
     if (settings.hideHeader != null) {
         doc.classList.toggle('hide-header', settings.hideHeader);
     }
+    if (settings.labelAngle != null) {
+        doc.style.setProperty('--label-angle', settings.labelAngle);
+    }
+    setMaxPositions();
 }
 
 
@@ -427,16 +439,16 @@ export async function main() {
     contentEl.querySelector('.zoom-out').addEventListener('click', ev => {
         zoomedPosition = null;
         common.storage.set('zoomedPosition', zoomedPosition);
+        setMaxPositions();
         render();
     });
     common.settingsStore.addEventListener('changed', ev => {
         const changed = ev.data.changed;
         if (changed.has('/imperialUnits')) {
             L.setImperial(imperial = changed.get('/imperialUnits'));
-        } else {
-            setBackground();
-            render();
         }
+        setBackground();
+        render();
     });
     const gcs = await common.rpc.getGameConnectionStatus();
     if (gcs) {
