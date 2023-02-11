@@ -37,6 +37,21 @@
                     <key>Detect attacks:</key>
                     <input type="checkbox" name="detectAttacks"/>
                 </label>
+                <label>
+                    <key data-added="1675909070124">Horizontal mode:</key>
+                    <input type="checkbox" name="horizMode"/>
+                </label>
+                <label>
+                    <key data-added="1675909070124">Label angle:</key>
+                    <input type="range" name="labelAngle" min="0" max="90" value="50" step="1"
+                           data-depends-on="horizMode"/>
+                    <input type="number" name="labelAngle" value="60" style="--size: 5"
+                           data-depends-on="horizMode"/> degrees
+                </label>
+                <label title="Hide the top header containing overall information">
+                    <key data-added="1675909070124">Hide header:</key>
+                    <input type="checkbox" name="hideHeader"/>
+                </label>
 
                 <hr/>
                 <div class="title">Groups View</div>
@@ -100,22 +115,6 @@
                 </label>
 
                 <hr/>
-
-                <label>
-                    <key data-added="1675909070124">Horizontal mode:</key>
-                    <input type="checkbox" name="horizMode"/>
-                </label>
-                <label>
-                    <key data-added="1675909070124">Label angle:</key>
-                    <input type="range" name="labelAngle" min="0" max="90" value="50" step="1"
-                           data-depends-on="horizMode"/>
-                    <input type="number" name="labelAngle" value="60" style="--size: 5"
-                           data-depends-on="horizMode"/> degrees
-                </label>
-                <label title="Hide the top header containing overall information">
-                    <key data-added="1675909070124">Hide header:</key>
-                    <input type="checkbox" name="hideHeader"/>
-                </label>
 
                 <label>
                     <key>Theme override:</key>

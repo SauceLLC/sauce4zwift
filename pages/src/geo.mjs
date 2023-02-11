@@ -110,7 +110,7 @@ async function initSelfAthlete() {
 
 export async function main() {
     common.initInteractionListeners();
-    const fieldRenderer = new common.Renderer(document.querySelector('#content'), {
+    const fieldRenderer = new common.Renderer(document.querySelector('#content .field'), {
         fps: null,
         //locked: settings.lockedFields,
     });

@@ -51,8 +51,8 @@ function setMaxPositions() {
 }
 
 
-function pwrFmt(p) {
-    return H.power(p, {suffix: true, html: true});
+function pwrFmt(p, options) {
+    return H.power(p, {suffix: true, html: true, ...options});
 }
 
 
@@ -77,34 +77,26 @@ function getOrCreatePosition(relPos) {
                 <div class="actions"><ms data-action="watch" title="Watch">video_camera_front</ms></div>
             </div>
             <a class="bubble" target="_blank"></a>
-            <div class="desc right empty">
-                <div class="lines"></div>
-            </div>
+            <div class="desc right empty"><div class="lines"></div></div>
         `;
         const gap = document.createElement('div');
         gap.classList.add('gap');
         gap.style.setProperty('--rel-pos', relPos);
-        gap.innerHTML = `
-            <div class="desc">
-                <div class="lines">
-                    <div class="line time"></div>
-                    <div class="line minor est" title="Estimated gap">(est)</div>
-                </div>
-            </div>
-        `;
+        gap.innerHTML = `<div class="desc"><div class="lines"></div></div>`;
         containerEl.appendChild(el);
         containerEl.appendChild(gap);
         const nodes = {
             watchTarget: null,
             el,
+            bubble: el.querySelector('.bubble'),
             leftDesc: el.querySelector('.desc.left'),
             leftLines: el.querySelector('.desc.left .lines'),
             rightDesc: el.querySelector('.desc.right'),
             rightLines: el.querySelector('.desc.right .lines'),
-            bubble: el.querySelector('.bubble'),
             gap: {
                 el: gap,
-                leftLine: gap.querySelector('.lines .line.time'),
+                desc: gap.querySelector('.desc'),
+                lines: gap.querySelector('.desc .lines'),
             },
             actions: {
                 watch: el.querySelector('[data-action="watch"]'),
@@ -145,9 +137,14 @@ function render() {
 }
 
 
-function isAttack(power, groupPower) {
+function isAttack(power, groupPower=Infinity) {
     return settings.detectAttacks &&
         (power > 650 || (power > 400 && power > groupPower * 2));
+}
+
+
+function fmtLine(html, classes='', title='') {
+    return `<div class="line ${classes}" title="${title}">${html}</div>`;
 }
 
 
@@ -212,19 +209,15 @@ function renderZoomed(groups) {
                 label = a.initials;
             }
         }
-        if (label) {
-            pos.bubble.textContent = label;
-        } else {
-            pos.bubble.innerHTML = `<img src="${avatar}"/>`;
-        }
+        common.softInnerHTML(pos.bubble, label || `<img src="${avatar}"/>`);
         const leftLines = [];
-        if (isAttack(athlete.state.power, group.power)) {
-            pos.el.classList.add('attn', 'attack');
-            leftLines.push(`<div class="line major attn">Attack!</div>`);
+        const attacking = isAttack(athlete.state.power, group.power);
+        pos.el.classList.toggle('attn', attacking);
+        if (attacking) {
+            leftLines.push(fmtLine('Attack!', 'major attn'));
         } else {
-            pos.el.classList.remove('attn', 'attack');
             if (fLast) {
-                leftLines.push(`<div class="line minor">${fLast}</div>`);
+                leftLines.push(fmtLine(fLast, 'minor', fLast));
                 if (team) {
                     leftLines.push(common.teamBadge(team));
                 }
@@ -234,38 +227,33 @@ function renderZoomed(groups) {
             power: athlete.state.power,
             weight: athlete.athlete && athlete.athlete.weight
         });
-        const rightLines = [`<div class="line">${priLine}</div>`];
+        const rightLines = [fmtLine(priLine)];
         const minorField = settings.zoomedSecondaryField || 'heartrate';
         if (minorField === 'heartrate') {
             if (athlete.state.heartrate) {
-                rightLines.push(`<div class="line minor">${H.number(athlete.state.heartrate, {suffix: 'bpm', html: true})}</div>`);
+                rightLines.push(fmtLine(H.number(athlete.state.heartrate,
+                    {suffix: 'bpm', html: true}), 'minor'));
             }
         } else if (minorField === 'draft') {
             if (athlete.state.draft != null) {
-                rightLines.push(`<div class="line minor">${H.number(athlete.state.draft, {suffix: '% (draft)', html: true})}</div>`);
+                rightLines.push(fmtLine(H.number(athlete.state.draft,
+                    {suffix: '% <ms large>air</ms>', html: true}), 'minor', 'Draft'));
             }
         } else if (minorField === 'speed') {
             if (athlete.state.speed != null) {
-                rightLines.push(`<div class="line minor">${H.pace(athlete.state.speed, {precision: 0, suffix: true, html: true})}</div>`);
+                rightLines.push(fmtLine(H.pace(athlete.state.speed,
+                    {precision: 0, suffix: true, html: true}), 'minor'));
             }
         } else if (minorField === 'power-60s') {
             const p = athlete.stats.power.smooth[60];
             if (p != null) {
-                rightLines.push(`<div class="line minor">${pwrFmt(p)} ` +
-                    `<abbr class="unit">(1m)</abbr></div>`);
+                rightLines.push(fmtLine(pwrFmt(p), 'minor', '60s smoothed power'));
             }
         }
-        pos.leftLines.innerHTML = leftLines.join('');
-        pos.leftDesc.classList.toggle('empty', !leftLines.length);
-        pos.rightLines.innerHTML = rightLines.join('');
-        pos.rightDesc.classList.toggle('empty', !rightLines.length);
         const gap = next ? Math.abs(next.gap - athlete.gap) : 0;
-        pos.gap.el.style.setProperty('--inner-gap', gap);
-        pos.gap.el.style.setProperty('--outer-gap', gap);
-        pos.gap.el.style.setProperty('--gap-sign', -1);
-        let dur;
-        pos.gap.el.classList.toggle('real', true);
+        let gapLine = '';
         if (gap) {
+            let dur;
             if (settings.zoomedGapField === 'time') {
                 dur = gap > 0.5 && (H.number(gap) + 's');
             } else {
@@ -274,10 +262,17 @@ function renderZoomed(groups) {
                 dur = gapDistance && gapDistance > 2 &&
                     (H.number(gapDistance * (imperial ? 3.28084 : 1)) + units);
             }
+            gapLine = fmtLine(dur ? dur : '');
         }
-        pos.gap.leftLine.textContent = dur ? dur : '';
-        pos.gap.el.classList.toggle('alone', !gap);
-        pos.gap.el.classList.toggle('has-label', !!dur);
+        common.softInnerHTML(pos.leftLines, leftLines.join(''));
+        common.softInnerHTML(pos.rightLines, rightLines.join(''));
+        common.softInnerHTML(pos.gap.lines, gapLine);
+        pos.leftDesc.classList.toggle('empty', !leftLines.length);
+        pos.rightDesc.classList.toggle('empty', !rightLines.length);
+        pos.gap.desc.classList.toggle('empty', !gapLine);
+        pos.gap.el.style.setProperty('--inner-gap', gap);
+        pos.gap.el.style.setProperty('--outer-gap', gap);
+        pos.gap.el.style.setProperty('--gap-sign', -1);
         pos.actions.watch.classList.toggle('hidden', !!athlete.watching);
         if (!athlete.watching) {
             pos.watchTarget = athlete.athleteId;
@@ -309,16 +304,16 @@ function renderGroups(groups) {
     const totAthletes = groups.reduce((agg, x) => agg + x.athletes.length, 0);
     contentEl.style.setProperty('--total-athletes', totAthletes);
     const athletesLabel = totAthletes === 1 ? 'Athlete' : 'Athletes';
-    common.softInnerHTML(metaEl, `<div class="line">${totAthletes} ${athletesLabel}</div>`);
+    common.softInnerHTML(metaEl, fmtLine(`${totAthletes} ${athletesLabel}`));
     const active = new Set();
-    aheadEl.classList.toggle('visible', !!ahead);
     if (ahead) {
         aheadEl.textContent = `+${ahead} ahead`;
     }
-    behindEl.classList.toggle('visible', !!behind);
     if (behind) {
         behindEl.textContent = `+${behind} behind`;
     }
+    aheadEl.classList.toggle('visible', !!ahead);
+    behindEl.classList.toggle('visible', !!behind);
     for (const [i, group] of groups.entries()) {
         // NOTE: gap measurement is always to the next group or null.
         const next = groups[i + 1];
@@ -332,11 +327,17 @@ function renderGroups(groups) {
         pos.el.classList.toggle('watching', !!group.watching);
         pos.el.style.setProperty('--athletes', group.athletes.length);
         let label;
+        let attacking = false;
         const leftLines = [];
         const rightLines = [];
         if (group.athletes.length === 1 && group.athletes[0].athlete) {
             label = group.athletes[0].athlete.initials || '1';
-            pos.el.classList.remove('attn', 'attack');
+            attacking = isAttack(group.power);
+            if (attacking) {
+                const weight = group.athletes[0].athlete.weight;
+                leftLines.push(fmtLine('Attack!', 'attn'));
+                leftLines.push(fmtLine(primaryFmt({power: group.power, weight}), 'minor attn'));
+            }
         } else {
             label = H.number(group.athletes.length);
             let max = -Infinity;
@@ -348,56 +349,66 @@ function renderGroups(groups) {
                     weight = x.athlete && x.athlete.weight;
                 }
             }
-            if (isAttack(max, group.power)) {
-                pos.el.classList.add('attn', 'attack');
-                leftLines.push(`<div class="line attn">Attack!</div>`);
-                leftLines.push(`<div class="line minor attn">${primaryFmt({power: max, weight})}</div>`);
-            } else {
-                pos.el.classList.remove('attn', 'attack');
+            attacking = isAttack(max, group.power);
+            if (attacking) {
+                leftLines.push(fmtLine('Attack!', 'attn'));
+                leftLines.push(fmtLine(primaryFmt({power: max, weight}), 'minor attn'));
             }
         }
+        pos.el.classList.toggle('attn', attacking);
         pos.bubble.textContent = label;
-        rightLines.push(`<div class="line">${primaryFmt(group)}</div>`);
+        rightLines.push(fmtLine(primaryFmt(group), '', 'Group average'));
         const minorField = settings.groupsSecondaryField || 'speed';
         if (minorField === 'heartrate') {
             if (group.heartrate) {
-                rightLines.push(`<div class="line minor">${H.number(group.heartrate, {suffix: 'bpm', html: true})}</div>`);
+                rightLines.push(fmtLine(H.number(group.heartrate,
+                    {suffix: 'bpm', html: true}), 'minor'));
             }
         } else if (minorField === 'draft') {
             if (group.draft != null) {
-                rightLines.push(`<div class="line minor">${H.number(group.draft, {suffix: '% (draft)', html: true})}</div>`);
+                rightLines.push(fmtLine(H.number(group.draft,
+                    {suffix: '% <ms large>air</ms>', html: true}), 'minor', 'Draft'));
             }
         } else if (minorField === 'speed') {
             if (group.speed != null) {
-                rightLines.push(`<div class="line minor">${H.pace(group.speed, {precision: 0, suffix: true, html: true})}</div>`);
+                rightLines.push(fmtLine(H.pace(group.speed,
+                    {precision: 0, suffix: true, html: true}), 'minor'));
             }
-        } else if (minorField === 'power-highest') {
-            const highest = sauce.data.max(group.athletes.map(x => x.state.power));
-            if (highest != null) {
-                rightLines.push(`<div class="line minor">${pwrFmt(highest)} ` +
-                    `<abbr class="unit">(highest)</abbr></div>`);
-            }
-        } else if (minorField === 'power-median') {
-            const med = sauce.data.median(group.athletes.map(x => x.state.power));
-            if (med != null) {
-                rightLines.push(`<div class="line minor">${pwrFmt(med)} ` +
-                    `<abbr class="unit">(median)</abbr></div>`);
+        } else if (group.athletes.length > 1 || settings.groupsPrimaryField !== 'power') {
+            if (minorField === 'power-highest') {
+                const highest = sauce.data.max(group.athletes.map(x => x.state.power));
+                if (highest != null) {
+                    rightLines.push(fmtLine(pwrFmt(highest, {suffix: '!'}), 'minor',
+                        'Highest individual power'));
+                }
+            } else if (minorField === 'power-median') {
+                const med = sauce.data.median(group.athletes.map(x => x.state.power));
+                if (med != null) {
+                    rightLines.push(fmtLine(pwrFmt(med, {suffix: 'M'}), 'minor', 'Median group power'));
+                }
             }
         }
-        pos.leftLines.innerHTML = leftLines.join('');
-        pos.leftDesc.classList.toggle('empty', !leftLines.length);
-        pos.rightLines.innerHTML = rightLines.join('');
-        pos.rightDesc.classList.toggle('empty', !rightLines.length);
         const innerGap = next ? group.innerGap : 0;
         const gap = relPos < 0 ? group.gap : next ? next.gap : 0;
+        const dur = innerGap && H.duration(Math.abs(gap), {short: true, seperator: ' '});
+        const gapText = dur ? (gap > 0 ? '+' : '-') + dur : '';
+        const gapLines = [];
+        if (gapText) {
+            gapLines.push(fmtLine(gapText));
+            if (next && next.isGapEst) {
+                gapLines.push(fmtLine('(est)', 'minor', 'est'));
+            }
+        }
+        common.softInnerHTML(pos.leftLines, leftLines.join(''));
+        common.softInnerHTML(pos.rightLines, rightLines.join(''));
+        common.softInnerHTML(pos.gap.lines, gapLines.join(''));
+        pos.leftDesc.classList.toggle('empty', !leftLines.length);
+        pos.rightDesc.classList.toggle('empty', !rightLines.length);
+        pos.gap.desc.classList.toggle('empty', !gapLines.length);
         pos.gap.el.style.setProperty('--inner-gap', innerGap);
         pos.gap.el.style.setProperty('--outer-gap', Math.abs(gap));
         pos.gap.el.style.setProperty('--gap-sign', gap > 0 ? 1 : -1);
-        pos.gap.el.classList.toggle('real', !!next && !next.isGapEst);
         pos.gap.el.classList.toggle('alone', !innerGap);
-        pos.gap.el.classList.toggle('has-label', !!innerGap);
-        const dur = innerGap && H.duration(Math.abs(gap), {short: true, seperator: ' '});
-        pos.gap.leftLine.textContent = dur ? (gap > 0 ? '+' : '-') + dur : '';
         pos.actions.watch.classList.toggle('hidden', !!group.watching);
         if (!group.watching) {
             pos.watchTarget = group.athletes[Math.trunc(group.athletes.length / 2)].athleteId;

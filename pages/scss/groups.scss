@@ -1,8 +1,14 @@
 @use 'color';
+@use 'sass:math';
 
 $shadow-size: 0.4rem;
 $html-pad: 3px;
 $content-pad: 0.4rem;
+// Use same units for these...
+$desc-font-size: 0.86em;
+$shrink-horiz-gap: 3.5em;
+$hide-horiz-gap: 1.5em;
+// end units lock
 
 html {
     --max-positions: 6;
@@ -31,6 +37,10 @@ html {
     }
 
     &.hide-header #meta {
+        display: none;
+    }
+
+    &:not(.game-connection) ms[data-action="watch"] {
         display: none;
     }
 }
@@ -143,9 +153,73 @@ html.horizontal #meta {
     }
 }
 
-html:not(.game-connection) {
-    ms[data-action="watch"] {
-        display: none;
+
+.desc .lines {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+
+    .line {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-variant-numeric: tabular-nums;
+        font-weight: 500;
+        letter-spacing: -0.04em;
+        white-space: nowrap;
+        max-width: 100%;
+        // XXX Try using stroke instead of text-shadow
+        padding: 0 1.5px; // for text-shadow and subpixel rendering.
+        text-shadow:
+            0 0 1px color.shade(fg, 100%),
+            0 0 1px color.shade(fg, 100%),
+            0 0 1px color.shade(fg, 100%),
+            0 0 1px color.shade(fg, 100%),
+            0 0 1px color.shade(fg, 100%),
+            0 0 1px color.shade(fg, 100%),
+            0 0 1px color.shade(fg, 100%),
+            0 0 1px color.shade(fg, 100%);
+
+        &.attn {
+            margin-bottom: 0;
+            color: var(--attn-line-color);
+            font-size: 0.8em;
+            font-weight: 500;
+
+            &.major {
+                line-height: 1.3;
+                font-size: 1em;
+                animation: attn-line-snap 400ms infinite;
+                animation-timing-function: ease-out;
+            }
+        }
+
+        &.minor {
+            font-size: 0.80em;
+            font-weight: 400;
+            opacity: 0.88;
+            line-height: 1;
+        }
+
+        &.est {
+            font-size: min(0.65em, 0.9rem) !important;
+            font-style: italic;
+        }
+
+        abbr.unit {
+            margin-left: 0.28em;
+            opacity: 0.88;
+            font-size: 0.7em;
+        }
+    }
+
+    .badge {
+        margin-top: 0.2em;
+        margin-right: 0.1em;
+        font-size: 0.76em;
+        max-width: 100%;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
     }
 }
 
@@ -255,11 +329,6 @@ html:not(.game-connection) {
 html:not(.horizontal) .position {
     width: 100%;
 }
-html.horizontal .position {
-}
-.no-transition .position {
-    transition: initial;
-}
 
 .zoom-out {
     display: none;
@@ -292,7 +361,7 @@ html.horizontal .zoom-out {
 }
 
 #content.zoomed {
-    --flex-factor: 8;  // 8s spread required to fill height
+    --flex-factor: 6;  // 6s spread required to fill height
 
     &:hover {
         .zoom-out {
@@ -355,16 +424,13 @@ html.horizontal .zoom-out {
     flex-grow: 0;
     visibility: hidden;
 }
-.gap.real .line.est {
-    display: none;
-}
 
 .desc {
     display: flex;
     align-items: center;
     position: absolute;
     z-index: 1;
-    font-size: 0.86em;
+    font-size: $desc-font-size;
 }
 
 html {
@@ -398,6 +464,8 @@ html {
         }
     }
     &.horizontal .position .desc {
+        max-width: 40vh;
+
         &.left {
             right: 75%;
             bottom: 95%;
@@ -407,6 +475,11 @@ html {
             .lines {
                 align-items: flex-end;
                 flex-direction: column-reverse;
+
+                .badge {
+                    margin-top: 0;
+                    margin-bottom: 0.2em;
+                }
             }
         }
         &.right {
@@ -422,93 +495,24 @@ html {
     }
 }
 
-
-.desc .lines {
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
-
-.desc .lines .line {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-variant-numeric: tabular-nums;
-    font-weight: 500;
-    letter-spacing: -0.04em;
-    white-space: nowrap;
-    max-width: 100%;
-    padding: 0 1.5px; // for text-shadow and subpixel rendering.
-    line-height: 1.05;
-    text-shadow:
-        0 0 1px color.shade(fg, 100%),
-        0 0 1px color.shade(fg, 100%),
-        0 0 1px color.shade(fg, 100%),
-        0 0 1px color.shade(fg, 100%),
-        0 0 1px color.shade(fg, 100%),
-        0 0 1px color.shade(fg, 100%),
-        0 0 1px color.shade(fg, 100%),
-        0 0 1px color.shade(fg, 100%);
-
-    &.attn {
-        margin-bottom: 0;
-        color: var(--attn-line-color);
-        font-size: 0.8em;
-        font-weight: 600;
-        line-height: 0.9;
-
-        &.major {
-            line-height: 1.3;
-            font-size: 1em;
-            animation: attn-line-snap 400ms infinite;
-            animation-timing-function: ease-out;
-        }
-    }
-
-    abbr.unit {
-        margin-left: 0.28em;
-        opacity: 0.6;
-        font-size: 0.7em;
-    }
-}
-
-.desc .lines .line.minor {
-    font-size: 0.80em;
-    font-weight: 400;
-    opacity: 0.88;
-    line-height: normal;
-
-}
-
-.desc .lines .badge {
-    margin-top: 0.2em;
-    margin-right: 0.1em;
-    font-size: 0.76em;
-    max-width: 100%;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-}
-
-
 html:not(.horizontal) {
     .position .desc.right:not(.empty)::before,
     .position .desc.left:not(.empty)::after,
-    .gap.has-label .desc::after {
+    .gap .desc:not(.empty)::after {
         content: '―';
-        color: #aaa9;
     }
 }
 html.horizontal {
     .position .desc.right:not(.empty)::after,
     .position .desc.left:not(.empty)::after {
         content: '―';
-        color: #aaa9;
     }
 }
 
 .desc::before,
 .desc::after {
     font-size: 0.5rem;
+    color: #aaa9;
 }
 
 html {
@@ -526,11 +530,6 @@ html {
             &::after {
                 padding: 0 0.5rem 0 0.3em;
             }
-        }
-
-        .line.est {
-            font-size: min(0.65em, 0.9rem) !important;
-            font-style: italic;
         }
     }
     &:not(.horizontal) .gap {
@@ -555,38 +554,72 @@ html {
             }
         }
     }
-    &.horizontal .gap {
-        border-top-style: solid;
-        border-top-width: $border-width;
-        border-top-color: hsl(calc(70deg + 50deg * min(var(--outer-gap) / 300, 1) * var(--gap-sign)), 100%, 50%);
-        container-type: inline-size;
+    &.horizontal {
+        .gap {
+            border-top-style: solid;
+            border-top-width: $border-width;
+            border-top-color: hsl(calc(70deg + 50deg * min(var(--outer-gap) / 300, 1) * var(--gap-sign)), 100%, 50%);
 
-        .desc {
-            right: 50%;
-            bottom: 0;
-            overflow: hidden;
-            max-width: 100%;
-            transform: rotate(calc(var(--label-angle) * 1deg));
-            transform-origin: right bottom;
+            .desc {
+                transition: opacity 300ms, font-size 300ms;
 
-            .lines {
-                align-items: center;
-                flex-direction: row-reverse;
+                .lines {
+                    align-items: center;
+                    flex-direction: column-reverse;
 
-                .line {
-                    text-overflow: clip;
+                    .line {
+                        text-overflow: clip;
+                    }
+                }
+            }
+        }
+
+        #content.zoomed .gap {
+            container: horiz-gap / inline-size;
+
+            .desc {
+                bottom: 0;
+                right: 50%;
+                overflow: hidden;
+                max-width: 100%;
+                transform: translateX(50%);
+                flex-direction: column;
+            }
+        }
+        #content:not(.zoomed) .gap {
+            container: horiz-group-gap / inline-size;
+
+            .desc {
+                bottom: 0.6em;
+                right: calc(50% - 0.5em);
+                transform: rotate(calc(var(--label-angle) * 1deg)) translateY(50%);
+                transform-origin: right bottom;
+
+                &:not(.empty)::after {
+                    content: '―';
                 }
             }
         }
     }
 }
 
-@container (max-width: 4ch) {
+@container horiz-gap (max-width: #{$shrink-horiz-gap}) {
     .desc {
-        display: none;
+        $base: 0.2em;
+        $min: math.div($base, $shrink-horiz-gap) * 100cqi;
+        $dynamic: math.div($desc-font-size - $base, $shrink-horiz-gap) * 100cqi;
+        font-size: calc($base + $dynamic);
     }
 }
 
-.no-transition .gap {
-    transition: initial;
+@container horiz-gap (max-width: #{$hide-horiz-gap}) {
+    .desc {
+        opacity: 0;
+    }
+}
+
+@container horiz-group-gap (max-width: 1em) {
+    .desc {
+        opacity: 0;
+    }
 }
