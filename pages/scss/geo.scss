@@ -23,6 +23,21 @@ html {
     overflow: auto;
     overflow: overlay;
 
+    > .fields {
+        position: fixed;
+        top: 0;
+        right: 0;
+        display: flex;
+        z-index: 10;
+        background: #000a;
+        border-bottom-left-radius: 0.28em;
+        padding: 0.3em 1em;
+
+        .field:not(:last-child) {
+            margin-right: 1em;
+        }
+    }
+
     > .map {
         flex: 1 1 0;
         width: 100%;

@@ -2,6 +2,7 @@ import * as sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
 import * as map from './map.mjs';
 import * as elevation from './elevation.mjs';
+import * as fields from './fields.mjs';
 
 const doc = document.documentElement;
 const L = sauce.locale;
@@ -17,6 +18,7 @@ common.settingsStore.setDefault({
     solidBackground: false,
     transparency: 0,
     backgroundColor: '#00ff00',
+    fields: 1,
 });
 
 const settings = common.settingsStore.get();
@@ -25,18 +27,6 @@ let initDone;
 let watchingId;
 let zwiftMap;
 let elProfile;
-
-
-const fields = [{
-    id: 'grade',
-    value: x => H.percent(x && x.grade),
-    key: 'Grade',
-    unit: '%',
-}, {
-    id: 'altitude',
-    value: x => H.elevation(x && x.altitude, {suffix: true}),
-    key: 'Altitude',
-}];
 
 
 function setBackground() {
@@ -82,9 +72,9 @@ function createElevationProfile({worldList}) {
 function setWatching(id) {
     console.info("Now watching:", id);
     watchingId = id;
-    zwiftMap.setAthleteId(id);
+    zwiftMap.setWatching(id);
     if (elProfile) {
-        elProfile.setAthleteId(id);
+        elProfile.setWatching(id);
     }
 }
 
@@ -94,9 +84,9 @@ async function initSelfAthlete() {
     if (!ad) {
         return false;
     }
-    zwiftMap.setAthleteId(ad.athleteId);
+    zwiftMap.setAthlete(ad.athleteId);
     if (elProfile) {
-        elProfile.setAthleteId(ad.athleteId);
+        elProfile.setAthlete(ad.athleteId);
     }
     if (!ad.watching) {
         const watching = await common.rpc.getAthleteData('watching');
@@ -110,20 +100,32 @@ async function initSelfAthlete() {
 
 export async function main() {
     common.initInteractionListeners();
-    const fieldRenderer = new common.Renderer(document.querySelector('#content .field'), {
-        fps: null,
-        //locked: settings.lockedFields,
-    });
-    renderer.addRotatingFields({
-        el: groupEl,
+    const fieldsEl = document.querySelector('#content .fields');
+    const fieldRenderer = new common.Renderer(fieldsEl, {fps: null});
+    const mapping = [];
+    const defaults = {
+        f1: 'grade',
+        f2: 'altitude',
+    };
+    for (let i = 0; i < (common.settingsStore.get('fields') || 2); i++) {
+        const id = `f${i + 1}`;
+        fieldsEl.insertAdjacentHTML('beforeend', `
+            <div class="field" data-field="${id}">
+                <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
+            </div>
+        `);
+        mapping.push({id, default: defaults[id] || 'time-elapsed'});
+    }
+    fieldRenderer.addRotatingFields({
         mapping,
-        fields: groupSpec.fields,
-
+        fields: fields.fields.filter(x => {
+            console.log(x);
+            return true;
+        })
     });
-
     const worldList = await common.getWorldList();
-    const zwiftMap = createZwiftMap({worldList});
-    const elProfile = settings.profileOverlay && createElevationProfile({worldList});
+    zwiftMap = createZwiftMap({worldList});
+    elProfile = settings.profileOverlay && createElevationProfile({worldList});
     const urlQuery = new URLSearchParams(location.search);
     if (urlQuery.has('testing')) {
         zwiftMap.setCourse(+urlQuery.get('testing') || 6);
@@ -145,10 +147,11 @@ export async function main() {
         }
         const watching = states.find(x => x.athleteId === watchingId);
         if (watching) {
-            document.documentElement.
+            fieldRenderer.setData({state: watching});
+            fieldRenderer.render();
         }
     });
-    initDone = await initSelfAthlete({zwiftMap, elProfile});
+    initDone = await initSelfAthlete();
     if (!initDone) {
         console.info("User not active, starting demo mode...");
         zwiftMap.setCourse(6);

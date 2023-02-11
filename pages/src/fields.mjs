@@ -83,11 +83,11 @@ export function fmtWkg(p, athlete) {
 }
 
 
-export function fmtPct(p) {
+export function fmtPct(p, options={}) {
     if (!isRealNumber(p)) {
         return '-';
     }
-    return H.number(p * 100) + unit('%');
+    return H.number(p * 100, options) + unit('%');
 }
 
 export function fmtLap(v) {
@@ -426,4 +426,12 @@ export const fields = [{
     id: 'el-gain',
     value: x => fmtElevation(x.state && x.state.climbing),
     key: 'Climbed',
+}, {
+    id: 'grade',
+    value: x => fmtPct(x.state && x.state.grade, {precision: 1}),
+    key: 'Grade',
+}, {
+    id: 'altitude',
+    value: x => fmtElevation(x.state && x.state.altitude),
+    key: 'Altitude',
 }];

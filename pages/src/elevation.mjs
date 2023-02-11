@@ -106,7 +106,7 @@ export class SauceElevationProfile {
         }
     }
 
-    setAthleteId(id) {
+    setAthlete(id) {
         if (this.athleteId != null && this.marks.has(this.athleteId)) {
             this.marks.get(this.athleteId).self = false;
         }

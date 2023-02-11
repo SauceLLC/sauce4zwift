@@ -274,7 +274,7 @@ export class SauceZwiftMap extends EventTarget {
         }
     }
 
-    setAthleteId(id) {
+    setAthlete(id) {
         if (this.athleteId != null && this.dots.has(this.athleteId)) {
             this.dots.get(this.athleteId).classList.remove('self');
         }
