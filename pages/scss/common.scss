@@ -4,7 +4,7 @@
 
 @font-face {
     font-family: 'Saira';
-    src: url('../fonts/Saira.woff2') format('woff2');
+    src: url('../fonts/Saira.woff2?v=1') format('woff2');
     font-style: normal;
     font-weight: 100 900;
 }
@@ -13,7 +13,7 @@
     font-family: 'Material Symbols Rounded';
     font-style: normal;
     font-weight: 100 700;
-    src: url('../fonts/MaterialSymbolsRounded.woff2') format('woff2');
+    src: url('../fonts/MaterialSymbolsRounded.woff2?v=1') format('woff2');
 }
 
 
@@ -460,7 +460,7 @@ form {
     flex-direction: column;
     top: 0;
     left: 0;
-    z-index: 100;
+    z-index: 10000000;
     width: 100%;
     color: white;
     overflow: hidden;
@@ -626,6 +626,23 @@ a.std.button {
         box-shadow: none;
         transition: box-shadow 100ms, --bg-from-color 150ms, --bg-to-color 150ms;
 
+        &.icon-only {
+            padding: 0.1rem;
+
+            ms {
+                margin-bottom: 0;
+            }
+        }
+
+        &.hidden {
+            display: none;
+        }
+
+        &.disabled {
+            pointer-events: none;
+            opacity: 0.2;
+        }
+
         &:hover {
             --bg-from-color: #{color.shade(fg, 0%)};
             --bg-to-color: #{color.shade(fg, 5%)};
@@ -697,7 +714,7 @@ a.std.button {
     position: absolute;
     bottom: 0;
     left: 0;
-    z-index: 100;
+    z-index: 10000000;
     width: 100%;
     pointer-events: none;
     color: color.shade(bookend, 100%);
