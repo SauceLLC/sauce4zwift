@@ -23,7 +23,24 @@ html {
     overflow: auto;
     overflow: overlay;
 
+    > .map-controls {
+        margin-top: 0.2em;
+        position: fixed;
+        display: flex;
+        flex-direction: column;
+        left: 0;
+        top: 0;
+        z-index: 11;
+        opacity: 0.8;
+        transition: opacity 200ms;
+
+        &:hover {
+            opacity: 1;
+        }
+    }
+
     > .fields {
+        font-variant-numeric: tabular-nums;
         position: fixed;
         top: 0;
         right: 0;
@@ -32,9 +49,27 @@ html {
         background: #000a;
         border-bottom-left-radius: 0.28em;
         padding: 0.3em 1em;
+        align-items: center;
+        justify-content: center;
 
         .field:not(:last-child) {
             margin-right: 1em;
+        }
+
+        .field {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: center;
+
+            .key {
+                font-weight: 600;
+                margin-right: 0.2em;
+
+                &::after {
+                    content: ':';
+                }
+            }
         }
     }
 

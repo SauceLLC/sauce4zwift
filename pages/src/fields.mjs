@@ -427,11 +427,11 @@ export const fields = [{
     value: x => fmtElevation(x.state && x.state.climbing),
     key: 'Climbed',
 }, {
-    id: 'grade',
-    value: x => fmtPct(x.state && x.state.grade, {precision: 1}),
-    key: 'Grade',
-}, {
-    id: 'altitude',
+    id: 'el-altitude',
     value: x => fmtElevation(x.state && x.state.altitude),
     key: 'Altitude',
+}, {
+    id: 'grade',
+    value: x => fmtPct(x.state && x.state.grade, {precision: 20, fixed: true}),
+    key: 'Grade',
 }];
