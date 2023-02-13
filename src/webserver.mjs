@@ -127,31 +127,24 @@ async function _start({ip, port, rpcSources, statsProc}) {
         // workaround https://github.com/websockets/ws/issues/2023
         webSocketServer.on('error', () => void 0);
     }
-    const cacheDisabled = 'no-cache, no-store, must-revalidate';
-    const cacheEnabled = 'public, max-age=3600, s-maxage=900';
+    const cacheEnabled = 'private, max-age=3600';
+    const cacheLong = 'private, max-age=8640000';
     const router = express.Router();
     router.use('/', express.static(`${WD}/../pages`, {index: 'index.html'}));
     router.use('/pages/images', express.static(`${WD}/../pages/images`, {
-        cacheControl: true,
         setHeaders: res => res.setHeader('Cache-Control', cacheEnabled)
     }));
     router.use('/pages/deps/flags', express.static(`${WD}/../pages/deps/flags`, {
-        cacheControl: true,
-        setHeaders: res => res.setHeader('Cache-Control', cacheEnabled)
+        setHeaders: res => res.setHeader('Cache-Control', cacheLong)
+    }));
+    router.use('/pages/fonts/', express.static(`${WD}/../pages/fonts`, {
+        setHeaders: res => res.setHeader('Cache-Control', cacheLong)
     }));
     router.use('/pages/', express.static(`${WD}/../pages`, {
-        cacheControl: true,
-        setHeaders: res => {
-            res.setHeader('Cache-Control', cacheDisabled);
-            res.setHeader('Access-Control-Allow-Origin', '*');
-        }
+        setHeaders: res => res.setHeader('Access-Control-Allow-Origin', '*')
     }));
     router.use('/shared/', express.static(`${WD}/../shared`, {
-        cacheControl: true,
-        setHeaders: res => {
-            res.setHeader('Cache-Control', cacheDisabled);
-            res.setHeader('Access-Control-Allow-Origin', '*');
-        }
+        setHeaders: res => res.setHeader('Access-Control-Allow-Origin', '*')
     }));
     router.ws('/api/ws/events', (ws, req) => {
         const client = req.client.remoteAddress;
@@ -353,11 +346,7 @@ async function _start({ip, port, rpcSources, statsProc}) {
                 const fullPath = path.join(mod.modPath, mod.manifest.web_root);
                 console.warn('Adding Mod web root:', '/mods' + urn, '->', fullPath);
                 modRouter.use(urn, express.static(fullPath, {
-                    cacheControl: true,
-                    setHeaders: res => {
-                        res.setHeader('Cache-Control', cacheDisabled);
-                        res.setHeader('Access-Control-Allow-Origin', '*');
-                    }
+                    setHeaders: res => res.setHeader('Access-Control-Allow-Origin', '*')
                 }));
                 router.use('/mods', modRouter);
             } catch(e) {
