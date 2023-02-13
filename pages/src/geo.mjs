@@ -52,6 +52,23 @@ function createZwiftMap({worldList}) {
         settings.zoom = ev.zoom;
         settingsSaveTimeout = setTimeout(() => common.settingsStore.set(null, settings), 100);
     });
+    const anchorResetButton = document.querySelector('.map-controls .button.reset-anchor');
+    zwiftMap.addEventListener('drag', () => {
+        anchorResetButton.classList.remove('disabled');
+    });
+    anchorResetButton.addEventListener('click', ev => {
+        anchorResetButton.classList.add('disabled');
+        zwiftMap.setAnchorOffset(0, 0);
+    });
+    const headingRotateDisButton = document.querySelector('.map-controls .button.disable-heading');
+    const headingRotateEnButton = document.querySelector('.map-controls .button.enable-heading');
+    const autoHeadingHandler = en => {
+        zwiftMap.setAutoHeading(en);
+        headingRotateDisButton.classList.toggle('hidden', !en);
+        headingRotateEnButton.classList.toggle('hidden', en);
+    };
+    headingRotateDisButton.addEventListener('click', () => autoHeadingHandler(false));
+    headingRotateEnButton.addEventListener('click', () => autoHeadingHandler(true));
     zwiftMap.setStyle(settings.mapStyle);
     zwiftMap.setOpacity(1 - 1 / (100 / (settings.transparency || 0)));
     zwiftMap.setTiltShift(settings.tiltShift);
@@ -118,9 +135,9 @@ export async function main() {
     }
     fieldRenderer.addRotatingFields({
         mapping,
-        fields: fields.fields.filter(x => {
-            console.log(x);
-            return true;
+        fields: fields.fields.filter(({id}) => {
+            const type = id.split('-')[0];
+            return ['ev', 'game-laps', 'progress', 'rt', 'el', 'grade', 'altitude'].includes(type);
         })
     });
     const worldList = await common.getWorldList();
