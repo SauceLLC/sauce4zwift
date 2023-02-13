@@ -843,7 +843,6 @@ footer.legal {
     }
 }
 
-/*
 *:not(:hover)::-webkit-scrollbar {
     display: none;
 }
@@ -864,7 +863,6 @@ footer.legal {
 ::-webkit-scrollbar-corner {
     background-color: #1114;
 }
-*/
 
 img {
     -webkit-user-select: none;
@@ -872,11 +870,10 @@ img {
 }
 
 ms {
-    -webkit-user-select: none;
-    user-select: none;
     font-family: 'Material Symbols Rounded';
     font-weight: normal;
     font-style: normal;
+    font-variant: none;
     line-height: 1;
     letter-spacing: normal;
     text-transform: none;
@@ -884,8 +881,10 @@ ms {
     white-space: nowrap;
     word-wrap: normal;
     direction: ltr;
-    font-variant: none;
-
+    -webkit-font-feature-settings: 'liga';
+    -webkit-font-smoothing: antialiased;
+    -webkit-user-select: none;
+    user-select: none;
     font-size: 1em;
     margin-bottom: 0.165em;
     vertical-align: middle;
