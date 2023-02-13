@@ -70,6 +70,7 @@ export async function main() {
             }
             return {...sg, route, entrants};
         }));
+        console.info(event, subgroups);
         eventDetailsEl.append(await eventDetailTpl({
             event,
             world: world ? world.name : '',
@@ -84,13 +85,14 @@ export async function main() {
             common.initExpanderTable(t, async (el, entrantSummaryEl) => {
                 const athleteId = Number(entrantSummaryEl.dataset.id);
                 cleanup = await profileRender(el, profileTpl, {
+                    embedded: true,
                     athleteId,
                     athlete: athletes.get(athleteId),
                     gameConnectionStatus,
                     nations,
                     flags,
                     common,
-                    embedded: true,
+                    worldList,
                 });
                 cleanupCallbacks.add(cleanup);
             }, () => {

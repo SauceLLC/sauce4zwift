@@ -42,6 +42,7 @@ export async function main() {
         nations,
         flags,
         common,
+        worldList: await gettingWorldList,
     };
     const main = document.querySelector('body > main');
     await render(main, tpl, tplData);
@@ -105,7 +106,6 @@ async function exportFITActivity(athleteId) {
 export async function render(el, tpl, tplData) {
     const athleteId = tplData.athleteId;
     const rerender = async () => el.replaceChildren(...(await tpl(tplData)).children);
-    const worldList = await gettingWorldList;
     el.addEventListener('click', async ev => {
         const a = ev.target.closest('header a[data-action]');
         if (!a) {
@@ -148,7 +148,7 @@ export async function render(el, tpl, tplData) {
     let lastUpdate = 0;
     function updatePlayerState(state) {
         lastUpdate = Date.now();
-        const world = worldList.find(x => x.courseId === state.courseId);
+        const world = tplData.worldList.find(x => x.courseId === state.courseId);
         const liveEls = Object.fromEntries(Array.from(el.querySelectorAll('.live'))
             .map(x => [x.dataset.id, x]));
         liveEls.world.textContent = world ? world.name : '-';

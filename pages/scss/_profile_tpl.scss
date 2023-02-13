@@ -5,6 +5,14 @@
     flex-direction: column;
     flex: 1 1;
 
+    a.inline-edit {
+        text-decoration: underline;
+
+        &:not(:hover) {
+            text-decoration-style: dotted;
+        }
+    }
+
     > section {
         display: flex;
         flex-wrap: wrap;
