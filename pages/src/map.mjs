@@ -48,13 +48,14 @@ function smoothPath(points, smoothing=0.2) {
 
 
 export class SauceZwiftMap extends EventTarget {
-    constructor({el, worldList, zoom=1, zoomMin=0.25, zoomMax=4.5}) {
+    constructor({el, worldList, zoom=1, zoomMin=0.25, zoomMax=4.5, autoHeading=true}) {
         super();
         this.el = el;
         this.worldList = worldList;
         this.zoom = zoom;
         this.zoomMin = zoomMin;
         this.zoomMax = zoomMax;
+        this.autoHeading = autoHeading;
         this.wheelState = {
             nextAnimFrame: null,
             done: null,
@@ -190,6 +191,20 @@ export class SauceZwiftMap extends EventTarget {
         document.addEventListener('pointercancel', this.onPointerDoneBound, {once: true});
     }
 
+    setAnchorOffset(x, y) {
+        this.dragX = x;
+        this.dragY = y;
+        this.el.style.setProperty('--drag-x-offt', `${x}px`);
+        this.el.style.setProperty('--drag-y-offt', `${y}px`);
+    }
+
+    setAutoHeading(en) {
+        if (!en) {
+            this._setHeading(0);
+        }
+        this.autoHeading = en;
+    }
+
     onPointerMove(ev) {
         const state = this.pointerState;
         if (!state.ev2) {
@@ -197,12 +212,14 @@ export class SauceZwiftMap extends EventTarget {
             state.nextAnimFrame = requestAnimationFrame(() => {
                 const deltaX = ev.pageX - state.lastX;
                 const deltaY = ev.pageY - state.lastY;
-                this.dragX += 1 / this.zoom * deltaX;
-                this.dragY += 1 / this.zoom * deltaY;
                 state.lastX = ev.pageX;
                 state.lastY = ev.pageY;
-                this.el.style.setProperty('--drag-x-offt', `${this.dragX}px`);
-                this.el.style.setProperty('--drag-y-offt', `${this.dragY}px`);
+                const x = this.dragX + 1 / this.zoom * deltaX;
+                const y = this.dragY + 1 / this.zoom * deltaY;
+                this.setAnchorOffset(x, y);
+                const dragEv = new Event('drag');
+                dragEv.drag = {x, y};
+                this.dispatchEvent(dragEv);
             });
         } else {
             let otherEvent;
@@ -244,6 +261,9 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     setCourse(courseId) {
+        if (courseId === this.courseId) {
+            console.warn("debounce setCourse");
+        }
         this.courseId = courseId;
         this.el.classList.add('loading'); // Disable animation
         this.worldMeta = this.worldList.find(x => x.courseId === courseId);
@@ -258,7 +278,7 @@ export class SauceZwiftMap extends EventTarget {
         this.dots.clear();
         this.athleteCache.clear();
         this.renderRoadsSVG();
-        this.imgEl.decode().then(() => {
+        this.imgEl.decode().finally(() => {
             this.el.offsetWidth;
             this.el.classList.remove('loading');
         });
@@ -422,7 +442,9 @@ export class SauceZwiftMap extends EventTarget {
             if (state.athleteId === this.watchingId && !this.trackingPaused) {
                 this.mapEl.style.setProperty('--anchor-x', `${x}px`);
                 this.mapEl.style.setProperty('--anchor-y', `${y}px`);
-                this._setHeading(state.heading);
+                if (this.autoHeading) {
+                    this._setHeading(state.heading);
+                }
             }
         }
         for (const [athleteId, dot] of this.dots.entries()) {
