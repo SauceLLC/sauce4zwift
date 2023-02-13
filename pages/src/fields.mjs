@@ -432,6 +432,6 @@ export const fields = [{
     key: 'Altitude',
 }, {
     id: 'grade',
-    value: x => fmtPct(x.state && x.state.grade, {precision: 20, fixed: true}),
+    value: x => fmtPct(x.state && x.state.grade, {precision: 1, fixed: true}),
     key: 'Grade',
 }];
