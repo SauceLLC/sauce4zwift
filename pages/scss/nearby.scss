@@ -12,6 +12,10 @@ html {
             background: var(--background-color);
         }
     }
+
+    &.hide-header table thead {
+        display: none;
+    }
 }
 
 html:not(.overlay-mode) {

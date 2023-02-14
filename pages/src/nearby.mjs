@@ -451,9 +451,6 @@ export async function main() {
     }, {source: 'gameConnection'});
     common.settingsStore.addEventListener('changed', async ev => {
         const changed = ev.data.changed;
-        if (changed.has('solidBackground') || changed.has('backgroundColor')) {
-            setBackground();
-        }
         if (window.isElectron && changed.has('overlayMode')) {
             await common.rpc.updateWindow(window.electron.context.id,
                 {overlay: changed.get('overlayMode')});
@@ -468,6 +465,7 @@ export async function main() {
         if (changed.has('onlySameCategory')) {
             onlySameCategory = changed.get('onlySameCategory');
         }
+        setBackground();
         render();
         if (nearbyData) {
             renderData(nearbyData);
@@ -705,13 +703,14 @@ function renderData(data, {recenter}={}) {
 
 
 function setBackground() {
-    const {solidBackground, backgroundColor} = common.settingsStore.get();
+    const {solidBackground, backgroundColor, hideHeader} = common.settingsStore.get();
     doc.classList.toggle('solid-background', !!solidBackground);
     if (solidBackground) {
         doc.style.setProperty('--background-color', backgroundColor);
     } else {
         doc.style.removeProperty('--background-color');
     }
+    doc.classList.toggle('hide-header', !!hideHeader);
 }
 
 
