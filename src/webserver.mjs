@@ -368,7 +368,7 @@ async function _start({ip, port, rpcSources, statsProc}) {
                     rej = _rej;
                     server.on('listening', res);
                     server.on('error', rej);
-                    server.listen(serverPort);
+                    server.listen(serverPort, '0.0.0.0');
                 });
                 const s = (server.key && server.cert) ? 's' : '';
                 console.info(`Web server started at: http${s}://${ip}:${serverPort}/`);
