@@ -574,6 +574,12 @@ function render() {
     doc.style.setProperty('--font-scale', common.settingsStore.get('fontScale') || 1);
     const fields = [].concat(...fieldGroups.map(x => x.fields));
     enFields = fields.filter(x => fieldStates[x.id]);
+    enFields.forEach((x, i) => x._idx = i);
+    enFields.sort((a, b) => {
+        const aPrio = a._idx - (fieldStates[`${a.id}-order`] || 0);
+        const bPrio = b._idx - (fieldStates[`${b.id}-order`] || 0);
+        return aPrio < bPrio ? -1 : aPrio === bPrio ? 0 : 1;
+    });
     sortBy = common.storage.get('nearby-sort-by', 'gap');
     const isFieldAvail = !!enFields.find(x => x.id === sortBy);
     if (!isFieldAvail) {
@@ -719,18 +725,21 @@ export async function settingsMain() {
     fieldStates = common.storage.get(fieldsKey);
     const form = document.querySelector('form#fields');
     form.addEventListener('input', ev => {
-        const id = ev.target.name;
-        fieldStates[id] = ev.target.checked;
+        const el = ev.target;
+        const id = el.name;
+        fieldStates[id] = el.type === 'checkbox' ? el.checked : el.type === 'number' ? Number(el.value) : el.value;
         common.storage.set(fieldsKey, fieldStates);
     });
     for (const {fields, label} of fieldGroups) {
         form.insertAdjacentHTML('beforeend', [
             '<div class="field-group">',
-                `<div class="title">${label}:</div>`,
+                `<div class="title">${label}: <span style="float: right;"><small>Column Order</small></span></div>`,
                 ...fields.map(x => `
                     <label title="${common.sanitizeAttr(x.tooltip || '')}">
                         <key>${x.label}</key>
                         <input type="checkbox" name="${x.id}" ${fieldStates[x.id] ? 'checked' : ''}/>
+                        <input type="number" name="${x.id}-order" style="--size: 5;" step="0.5" placeholder="0"
+                               value="${fieldStates[x.id + '-order']}"/>
                     </label>
                 `),
             '</div>'
