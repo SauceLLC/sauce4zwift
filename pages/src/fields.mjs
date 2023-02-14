@@ -94,7 +94,7 @@ export function fmtLap(v) {
     if (!isRealNumber(v)) {
         return '-';
     }
-    return H.number(v + 1);
+    return H.number(v);
 }
 
 const _events = new Map();
@@ -399,12 +399,12 @@ export const fields = [{
     key: 'Dist',
 }, {
     id: 'game-laps',
-    value: x => fmtLap(x.state && x.state.laps || null),
+    value: x => fmtLap(x.state && x.state.laps + 1),
     tooltip: 'Zwift route lap number',
     key: 'Lap <small>(zwift)</small>',
 }, {
     id: 'sauce-laps',
-    value: x => fmtLap(x.lapCount - 1),
+    value: x => fmtLap(x.lapCount),
     tooltip: 'Sauce stats lap number',
     key: 'Lap <small>(sauce)</small>',
 }, {

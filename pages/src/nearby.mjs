@@ -4,7 +4,6 @@ import * as common from './common.mjs';
 const doc = document.documentElement;
 const L = sauce.locale;
 const H = L.human;
-const num = H.number;
 const fieldsKey = 'nearby-fields-v2';
 let imperial = common.storage.get('/imperialUnits');
 L.setImperial(imperial);
@@ -26,15 +25,15 @@ common.settingsStore.setDefault({
     fontScale: 1,
     solidBackground: false,
     backgroundColor: '#00ff00',
+    hideHeader: false,
 });
 
-const unit = x => `<abbr class="unit">${x}</abbr>`;
 const spd = (v, entry) => H.pace(v, {precision: 0, suffix: true, html: true, sport: entry.state.sport});
 const weightClass = v => H.weightClass(v, {suffix: true, html: true});
 const pwr = v => H.power(v, {suffix: true, html: true});
-const hr = v => v ? num(v) + unit('bpm') : '-';
-const kj = (v, options) => v != null ? num(v, options) + unit('kJ') : '-';
-const pct = v => (v != null && !isNaN(v) && v !== Infinity && v !== -Infinity) ? num(v) + unit('%') : '-';
+const hr = v => H.number(v || null, {suffix: 'bpm', html: true});
+const kj = (v, options) => H.number(v, {suffix: 'kJ', html: true, ...options});
+const pct = (v, options) => H.number(v, {suffix: '%', html: true, ...options});
 const gapTime = (v, entry) => H.timer(v) + (entry.isGapEst ? '<small> (est)</small>' : '');
 
 let overlayMode;
@@ -81,8 +80,8 @@ function fmtDist(v) {
     if (v == null || v === Infinity || v === -Infinity || isNaN(v)) {
         return '-';
     } else if (Math.abs(v) < 1000) {
-        const suffix = unit(imperial ? 'ft' : 'm');
-        return H.number(imperial ? v / L.metersPerFoot : v) + suffix;
+        const suffix = imperial ? 'ft' : 'm';
+        return H.number(imperial ? v / L.metersPerFoot : v, {suffix, html: true});
     } else {
         return H.distance(v, {precision: 1, suffix: true, html: true});
     }
@@ -107,9 +106,7 @@ function fmtWkg(v, entry) {
         return '-';
     }
     const wkg = v / (entry.athlete && entry.athlete.weight);
-    return (wkg !== Infinity && wkg !== -Infinity && !isNaN(wkg)) ?
-        num(wkg, {precision: 1, fixed: true}) + unit('w/kg') :
-        '-';
+    return H.number(wkg, {precision: 1, fixed: true, suffix: 'w/kg', html: true});
 }
 
 
@@ -224,7 +221,7 @@ const fieldGroups = [{
          fmt: x => x ? pwr(x) : '-', tooltip: 'Functional Threshold Power'},
         {id: 'cp', defaultEn: false, label: 'CP', get: x => x.athlete && x.athlete.cp,
          fmt: x => x ? pwr(x) : '-', tooltip: 'Critical Power'},
-        {id: 'tss', defaultEn: false, label: 'TSS', get: x => x.stats.power.tss, fmt: num,
+        {id: 'tss', defaultEn: false, label: 'TSS', get: x => x.stats.power.tss, fmt: H.number,
          tooltip: 'Training Stress Score'},
         {id: 'intensity-factor', defaultEn: false, label: 'Intensity Factor', headerLabel: 'IF',
          tootltip: 'Normalized Power / FTP: A value of 100% means NP = FTP', get: x => x.stats.power.np,
@@ -234,13 +231,13 @@ const fieldGroups = [{
         {id: 'event-distance', defaultEn: false, label: 'Event Distance', headerLabel: 'Ev Dist',
          get: x => x.state.eventDistance, fmt: fmtDist},
         {id: 'rideons', defaultEn: false, label: 'Ride Ons', headerLabel: '<ms>thumb_up</ms>',
-         get: x => x.state.rideons, fmt: num},
+         get: x => x.state.rideons, fmt: H.number},
         {id: 'kj', defaultEn: false, label: 'Energy (kJ)', headerLabel: 'kJ', get: x => x.state.kj, fmt: kj},
         {id: 'wprimebal', defaultEn: false, label: 'W\'bal', get: x => x.stats.power.wBal,
          tooltip: "W' and W'bal represent time above threshold and remaining energy respectively.\n" +
          "Think of the W'bal value as the amount of energy in a battery.",
          fmt: (x, entry) => (x != null && entry.athlete && entry.athlete.wPrime) ?
-            common.fmtBattery(x / entry.athlete.wPrime) + kj(x / 1000, {precision: 1}) : '-'},
+            common.fmtBattery(x / entry.athlete.wPrime) + kj(x / 1000, {precision: 1, fixed: true}) : '-'},
         {id: 'power-meter', defaultEn: false, label: 'Power Meter', headerLabel: 'PM',
          get: x => x.state.powerMeter, fmt: x => x ? '<ms>check</ms>' : ''},
     ],
@@ -250,18 +247,19 @@ const fieldGroups = [{
     fields: [
         {id: 'gap', defaultEn: true, label: 'Gap', get: x => x.gap, fmt: gapTime},
         {id: 'gap-distance', defaultEn: false, label: 'Gap (dist)', get: x => x.gapDistance, fmt: fmtDist},
-        {id: 'grade', defaultEn: false, label: 'Grade', get: x => x.state.grade, fmt: pct},
+        {id: 'grade', defaultEn: false, label: 'Grade', get: x => x.state.grade,
+         fmt: x => pct(x, {precision: 1, fixed: true})},
         {id: 'altitude', defaultEn: false, label: 'Altitude', headerLabel: 'Alt', get: x => x.state.altitude,
          fmt: fmtElevation},
         {id: 'gap-distance', defaultEn: false, label: 'Gap (dist)', get: x => x.gapDistance, fmt: fmtDist},
         {id: 'game-laps', defaultEn: false, label: 'Game Lap', headerLabel: 'Z Lap',
-         get: x => x.state.laps + 1, fmt: num},
+         get: x => x.state.laps + 1, fmt: H.number},
         {id: 'sauce-laps', defaultEn: false, label: 'Sauce Lap', headerLabel: 'S Lap',
-         get: x => x.lapCount, fmt: num},
+         get: x => x.lapCount, fmt: H.number},
         {id: 'remaining', defaultEn: false, label: 'Event/Route Remaining', headerLabel: '<ms>sports_score</ms>',
          get: x => x.remaining, fmt: (v, entry) => entry.remainingMetric === 'distance' ? fmtDist(v) : fmtDur(v)},
         {id: 'position', defaultEn: false, label: 'Event Position', headerLabel: 'Pos',
-         get: x => x.eventPosition, fmt: num},
+         get: x => x.eventPosition, fmt: H.number},
         {id: 'event', defaultEn: false, label: 'Event', headerLabel: '<ms>event</ms>',
          get: x => x.state.eventSubgroupId, fmt: fmtEvent},
         {id: 'route', defaultEn: false, label: 'Route', headerLabel: '<ms>route</ms>',
@@ -312,7 +310,7 @@ const fieldGroups = [{
          get: x => x.stats.power.np, fmt: fmtWkg},
         {id: 'pwr-vi', defaultEn: true, label: 'Variability Index', headerLabel: 'VI',
          get: x => x.stats.power.np / x.stats.power.avg, tooltip: 'NP / Avg-Power',
-         fmt: x => num(x, {precision: 2, fixed: true})},
+         fmt: x => H.number(x, {precision: 2, fixed: true})},
         {id: 'power-lap', defaultEn: false, label: 'Lap Average', headerLabel: 'Pwr (lap)',
          get: x => x.lap.power.avg, fmt: pwr},
         {id: 'wkg-lap', defaultEn: false, label: 'Lap W/kg Average', headerLabel: 'W/kg (lap)',
