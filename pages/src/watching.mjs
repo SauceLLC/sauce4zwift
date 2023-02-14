@@ -7,7 +7,7 @@ common.settingsStore.setDefault({
     alwaysShowButtons: false,
     solidBackground: false,
     backgroundColor: '#00ff00',
-    columnLayout: false,
+    horizMode: false,
     screens: [{
         id: 'default-screen-1',
         sections: [{
@@ -1018,8 +1018,8 @@ function resizeCharts() {
 
 
 function setStyles() {
-    const {solidBackground, backgroundColor, columnLayout} = common.settingsStore.get();
-    doc.classList.toggle('column-layout', !!columnLayout);
+    const {solidBackground, backgroundColor, horizMode} = common.settingsStore.get();
+    doc.classList.toggle('horizontal', !!horizMode);
     doc.classList.toggle('solid-background', !!solidBackground);
     if (solidBackground) {
         doc.style.setProperty('--background-color', backgroundColor);
@@ -1344,7 +1344,7 @@ export async function main() {
     common.settingsStore.addEventListener('changed', ev => {
         const changed = ev.data.changed;
         if (changed.size === 1) {
-            if (changed.has('backgroundColor') || changed.has('columnLayout')) {
+            if (changed.has('backgroundColor') || changed.has('horizMode')) {
                 setStyles();
             } else if (changed.has('/imperialUnits')) {
                 imperial = changed.get('/imperialUnits');

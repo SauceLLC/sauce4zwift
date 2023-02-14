@@ -10,7 +10,7 @@ html {
         }
     }
 
-    &.column-layout {
+    &.horizontal {
         font-size: clamp(2.2mm, 15vh, 18mm);
 
         .single-data-field {
@@ -34,7 +34,7 @@ html {
         }
     }
 
-    &:not(.column-layout) {
+    &:not(.horizontal) {
         [data-base-section-type="data-fields"] + [data-base-section-type="data-fields"] {
             border-top: 0.002em solid #fff5;
         }
