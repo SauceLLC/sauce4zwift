@@ -51,6 +51,8 @@ html {
         padding: 0.3em 1em;
         align-items: center;
         justify-content: center;
+        max-width: 80%;
+        font-size: 0.88em;
 
         .field:not(:last-child) {
             margin-right: 1em;
@@ -61,14 +63,24 @@ html {
             flex-direction: row;
             align-items: center;
             justify-content: center;
+            white-space: nowrap;
+            overflow: hidden;
 
             .key {
                 font-weight: 600;
                 margin-right: 0.2em;
+                overflow: hidden;
+                text-overflow: ellipsis;
 
-                &::after {
+                &:not(:empty)::after {
                     content: ':';
                 }
+            }
+
+            .value {
+                overflow: hidden;
+                text-overflow: ellipsis;
+                min-width: 4ch;
             }
         }
     }
