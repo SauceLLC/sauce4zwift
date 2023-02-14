@@ -28,7 +28,6 @@ export async function main() {
     const athlete = await gettingAthlete;
     if (athlete) {
         document.title = `${athlete.sanitizedFullname} - Sauce for Zwift™`;
-        athlete.cp = athlete.cp || athlete.ftp;
     }
     const tpl = await gettingTemplate;
     const gameConnectionStatus = await gettingGameConnectionStatus;
