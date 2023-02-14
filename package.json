@@ -19,29 +19,29 @@
   },
   "dependencies": {
     "@sentry/node": "6.19.6",
-    "better-sqlite3": "8.0.1",
+    "better-sqlite3": "8.1.0",
     "electron-updater": "5.3.0",
     "express": "4.18.2",
     "express-ws": "5.0.2",
     "jsfit": "https://github.com/SauceLLC/jsfit.git#617a6e1087",
     "keytar": "7.9.0",
     "node-fetch": "3.3.0",
-    "protobufjs": "7.1.2",
+    "protobufjs": "7.2.2",
     "xxhash-addon": "2.0.1"
   },
   "optionalDependencies": {
-    "zwift-utils": "https://github.com/SauceLLC/zwift-utils.git#2d6e5c3edcaf3"
+    "zwift-utils": "https://github.com/SauceLLC/zwift-utils.git#fa564fce4fee7"
   },
   "devDependencies": {
     "@sentry/browser": "6.19.6",
     "echarts": "5.4.1",
-    "electron": "22.0.3",
+    "electron": "23.0.0",
     "electron-builder": "24.0.0-alpha.7",
     "electron-notarize": "1.2.1",
-    "eslint": "8.32.0",
-    "sass": "1.57.1",
+    "eslint": "8.34.0",
+    "sass": "1.58.0",
     "world_countries_lists": "2.6.0",
-    "zwift-data": "1.20.2"
+    "zwift-data": "1.21.2"
   },
   "build": {
     "appId": "io.saucellc.sauce4zwift",
