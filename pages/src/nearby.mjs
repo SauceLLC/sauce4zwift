@@ -251,7 +251,6 @@ const fieldGroups = [{
          fmt: x => pct(x, {precision: 1, fixed: true})},
         {id: 'altitude', defaultEn: false, label: 'Altitude', headerLabel: 'Alt', get: x => x.state.altitude,
          fmt: fmtElevation},
-        {id: 'gap-distance', defaultEn: false, label: 'Gap (dist)', get: x => x.gapDistance, fmt: fmtDist},
         {id: 'game-laps', defaultEn: false, label: 'Game Lap', headerLabel: 'Z Lap',
          get: x => x.state.laps + 1, fmt: H.number},
         {id: 'sauce-laps', defaultEn: false, label: 'Sauce Lap', headerLabel: 'S Lap',
@@ -574,12 +573,11 @@ function render() {
     doc.style.setProperty('--font-scale', common.settingsStore.get('fontScale') || 1);
     const fields = [].concat(...fieldGroups.map(x => x.fields));
     enFields = fields.filter(x => fieldStates[x.id]);
-    enFields.forEach((x, i) => x._idx = i);
-    enFields.sort((a, b) => {
-        const aPrio = a._idx - (fieldStates[`${a.id}-order`] || 0);
-        const bPrio = b._idx - (fieldStates[`${b.id}-order`] || 0);
-        return aPrio < bPrio ? -1 : aPrio === bPrio ? 0 : 1;
+    enFields.forEach((x, i) => {
+        const adj = fieldStates[`${x.id}-adj`] || 0;
+        x._idx = i + adj + (adj * 0.00001);
     });
+    enFields.sort((a, b) => a._idx < b._idx ? -1 : a._idx === b._idx ? 0 : 1);
     sortBy = common.storage.get('nearby-sort-by', 'gap');
     const isFieldAvail = !!enFields.find(x => x.id === sortBy);
     if (!isFieldAvail) {
@@ -727,23 +725,50 @@ export async function settingsMain() {
     form.addEventListener('input', ev => {
         const el = ev.target;
         const id = el.name;
+        if (!id) {
+            return;
+        }
         fieldStates[id] = el.type === 'checkbox' ? el.checked : el.type === 'number' ? Number(el.value) : el.value;
+        el.closest('.field').classList.toggle('disabled', !fieldStates[id]);
         common.storage.set(fieldsKey, fieldStates);
+    });
+    form.addEventListener('click', ev => {
+        const el = ev.target.closest('.button[data-action]');
+        if (!el) {
+            return;
+        }
+        const wrapEl = el.closest('[data-id]');
+        const key = wrapEl.dataset.id + '-adj';
+        const action = el.dataset.action;
+        const adj = action === 'moveLeft' ? -1 : 1;
+        const value = (fieldStates[key] || 0) + adj;
+        fieldStates[key] = value;
+        common.storage.set(fieldsKey, fieldStates);
+        wrapEl.querySelector('.col-adj .value').textContent = value;
     });
     for (const {fields, label} of fieldGroups) {
         form.insertAdjacentHTML('beforeend', [
             '<div class="field-group">',
-                `<div class="title">${label}: <span style="float: right;"><small>Column Order</small></span></div>`,
+                `<div class="title">${label}:</div>`,
                 ...fields.map(x => `
-                    <label title="${common.sanitizeAttr(x.tooltip || '')}">
-                        <key>${x.label}</key>
-                        <input type="checkbox" name="${x.id}" ${fieldStates[x.id] ? 'checked' : ''}/>
-                        <input type="number" name="${x.id}-order" style="--size: 5;" step="0.5" placeholder="0"
-                               value="${fieldStates[x.id + '-order']}"/>
-                    </label>
+                    <div class="field ${fieldStates[x.id] ? '' : 'disabled'}" data-id="${x.id}">
+                        <label title="${common.sanitizeAttr(x.tooltip || '')}">
+                            <key>${x.label}</key>
+                            <input type="checkbox" name="${x.id}" ${fieldStates[x.id] ? 'checked' : ''}/>
+                        </label>
+                        <div class="col-adj" title="Move field left or right">
+                            <div class="button std icon-only" data-action="moveLeft"><ms>arrow_left</ms></div>
+                            <div class="value">${fieldStates[x.id + '-adj'] || 0}</div>
+                            <div class="button std icon-only" data-action="moveRight"><ms>arrow_right</ms></div>
+                        </div>
+                    </div>
                 `),
             '</div>'
         ].join(''));
+        form.querySelectorAll('.inline-edit.col-adj').forEach(el => common.makeInlineEditable(el, {
+            formatter: x => (x || 0),
+            onEdit: x => common.storage.set(el.dataset.id + '-adj', Number(x || 0))
+        }));
     }
     await common.initSettingsForm('form#options')();
 }
