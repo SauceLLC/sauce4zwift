@@ -2004,7 +2004,6 @@ export class GameConnectionServer extends net.Server {
         }
     }
 
-
     onUnhandledPacket(packet) {
         console.debug('unhandled packet', packet.toJSON());
     }
