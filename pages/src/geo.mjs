@@ -145,7 +145,13 @@ export async function main() {
     elProfile = settings.profileOverlay && createElevationProfile({worldList});
     const urlQuery = new URLSearchParams(location.search);
     if (urlQuery.has('testing')) {
-        zwiftMap.setCourse(+urlQuery.get('testing') || 6);
+        const [course, road] = urlQuery.get('testing').split(',');
+        zwiftMap.setCourse(+course || 6).then(() => {
+            zwiftMap.setRoad(+road || 0);
+        });
+        elProfile.setCourse(+course || 6).then(() => {
+            elProfile.setRoad(+road || 0);
+        });
         return;
     }
     common.subscribe('watching-athlete-change', async athleteId => {

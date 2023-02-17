@@ -212,6 +212,12 @@
 
             .gutter, .road {
                 fill: none;
+
+                &.active {
+                    &.road {
+                        stroke: #f00;
+                    }
+                }
             }
 
             .gutter {

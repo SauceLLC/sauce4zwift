@@ -277,11 +277,13 @@ export class SauceZwiftMap extends EventTarget {
         }
         this.dots.clear();
         this.athleteCache.clear();
-        this.renderRoadsSVG();
-        this.imgEl.decode().finally(() => {
-            this.el.offsetWidth;
-            this.el.classList.remove('loading');
-        });
+        return Promise.all([
+            this.renderRoadsSVG(),
+            this.imgEl.decode().finally(() => {
+                this.el.offsetWidth;
+                this.el.classList.remove('loading');
+            }),
+        ]);
     }
 
     setWatching(id) {
@@ -347,10 +349,10 @@ export class SauceZwiftMap extends EventTarget {
             for (const x of ['gutter', 'road']) {
                 const use = createElementSVG('use', {
                     "class": x,
+                    "data-road-id": id,
                     "clip-path": `url(#road-clip-${id})`,
                     "href": `#road-path-${id}`,
                 });
-                //use.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', `#road-path-${id}`);
                 this.svgEl.append(use);
             }
         }
@@ -360,6 +362,15 @@ export class SauceZwiftMap extends EventTarget {
             (this.worldMeta.maxX - this.worldMeta.minX) * scale,
             (this.worldMeta.maxY - this.worldMeta.minY) * scale,
         ].join(' '));
+    }
+
+    setRoad(id) {
+        if (this._activeRoad) {
+            this._activeRoad.classList.remove('active');
+        }
+        this._activeRoad = this.svgEl.querySelector(`.road[data-road-id="${id}"]`);
+        this._activeRoad.classList.add('active');
+        this._activeRoad.parentElement.insertAdjacentElement('beforeend', this._activeRoad);
     }
 
     async renderRoadsDots(ids) {
