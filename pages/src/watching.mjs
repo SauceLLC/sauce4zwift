@@ -560,7 +560,10 @@ function humanWkg(v, athlete) {
     if (v == null || v === false) {
         return '-';
     }
-    return H.number(v / (athlete && athlete.weight), {precision: 1, fixed: 1});
+
+    var {wkgPrecision} = common.settingsStore.get();
+
+    return H.number(v / (athlete && athlete.weight), {precision: wkgPrecision ?? 1, fixed: 1});
 }
 
 
