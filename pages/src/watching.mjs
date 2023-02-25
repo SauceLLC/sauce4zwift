@@ -149,6 +149,13 @@ const groupSpecs = {
             ...makeSmoothPowerFields(60),
             ...makeSmoothPowerFields(300),
             ...makeSmoothPowerFields(1200),
+        {
+            id: `power-smooth-1200-95-wkg`,
+            value: x => humanWkg(x.stats && (x.stats.power.smooth[1200] * 0.95), x.athlete),
+            label: '20m 95%',
+            key: '20m<tiny>95%</tiny>',
+            unit: 'w/kg',
+        },
             ...makePeakPowerFields(5),
             ...makePeakPowerFields(15),
             ...makePeakPowerFields(60),
