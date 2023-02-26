@@ -157,6 +157,11 @@ export const fields = [{
     key: 'Energy',
     unit: 'kJ',
 }, {
+    id: 'energy-kcal',
+    value: x => H.number(x.state && (x.state.kj / 4.184)),
+    key: 'Energy',
+    unit: 'kcal',
+}, {
     id: 'wbal',
     value: x => (x.stats && x.stats.power.wBal != null && x.athlete && x.athlete.wPrime) ?
         common.fmtBattery(x.stats.power.wBal / x.athlete.wPrime) +
