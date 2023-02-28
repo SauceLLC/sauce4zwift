@@ -266,7 +266,7 @@ function humanNumber(value, options={}) {
     const p = options.precision || 0;
     const t = typeof value;
     // Improve LRU hit rate..
-    const sv = (t === 'number' && p) ? Math.round(value) : value;
+    const sv = (t === 'number' && !p) ? Math.round(value) : value;
     const sig = `${t} ${sv} ${p} ${options.fixed} ${options.suffix} ${options.html} ${options.seperator}`;
     let r = _hnLRU.get(sig);
     if (r === undefined) {
