@@ -8,6 +8,7 @@ common.settingsStore.setDefault({
     solidBackground: false,
     backgroundColor: '#00ff00',
     horizMode: false,
+    wkgPrecision: 1,
     screens: [{
         id: 'default-screen-1',
         sections: [{
@@ -560,10 +561,8 @@ function humanWkg(v, athlete) {
     if (v == null || v === false) {
         return '-';
     }
-
-    var {wkgPrecision} = common.settingsStore.get();
-
-    return H.number(v / (athlete && athlete.weight), {precision: wkgPrecision ?? 1, fixed: 1});
+    const {wkgPrecision=1} = common.settingsStore.get();
+    return H.number(v / (athlete && athlete.weight), {precision: wkgPrecision, fixed: 1});
 }
 
 

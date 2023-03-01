@@ -40,8 +40,12 @@
                     <input type="checkbox" name="alwaysShowButtons"/>
                 </label>
                 <label title="Layout each field group as a column instead of a row">
-                    <key data-added="1676348847046">Horizontal mode:</key>
+                    <key data-added="1677658243577">Horizontal mode:</key>
                     <input type="checkbox" name="horizMode"/>
+                </label>
+                <label title="How many decimals watts/kg are displayed with">
+                    <key data-added="1677658243577">W/kg precision:</key>
+                    <input type="number" min="0" max="3" name="wkgPrecision" value="1"/>
                 </label>
                 <label>
                     <key>Theme override:</key>
@@ -55,10 +59,6 @@
                     <key>Background color:</key>
                     <input type="color" name="backgroundColor" data-depends-on="solidBackground"/>
                     <input type="text" name="backgroundColor" data-depends-on="solidBackground" size="7"/>
-                </label>
-                <label title="Define how many decimals w/kg numbers are displayed with">
-                    <key>Decimals for w/kg:</key>
-                    <input type="number" min="0" max="3" name="wkgPrecision" size="1" value="1"/>
                 </label>
             </form>
 
