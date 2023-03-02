@@ -91,8 +91,8 @@
                 --priority: 0;
                 --size: 3;
                 --border-size: 1;
-                --zoom-size: calc((var(--size) + (var(--size) * (0.75 / var(--zoom)))) * 1px);
-                --zoom-border-size: calc((var(--border-size) + (var(--border-size) * (0.75 / var(--zoom)))) * 1px);
+                --zoom-size: calc((var(--size) + (var(--size) * (1 / var(--zoom)))) * 1px);
+                --zoom-border-size: calc((var(--border-size) + (var(--border-size) * (1 / var(--zoom)))) * 1px);
                 z-index: calc(var(--zone) + var(--priority));
                 box-sizing: content-box;
                 animation-timing-function: linear;
@@ -207,28 +207,38 @@
             top: 0;
             width: 100%;
             height: 100%;
-            shape-rendering: optimizespeed;
-            shape-rendering: geometricprecision;
+            //shape-rendering: optimizespeed;
 
-            .gutter, .road {
+            .gutter, .surface {
                 fill: none;
 
-                &.active {
-                    &.road {
-                        stroke: #f00;
-                    }
-                }
             }
 
             .gutter {
                 stroke: #000a;
                 stroke-width: 30px;
-                mix-blend-mode: color;
             }
 
-            .road {
-                stroke: #ddd;
+            .surface {
                 stroke-width: 20px;
+                stroke-linecap: round;
+
+                &.active {
+                    stroke: #f009 !important;
+                }
+
+                &.sport-cycling {
+                    stroke: #0f09;
+                }
+                &.sport-running {
+                    stroke: #00f9;
+                }
+                &.sport-rowing {
+                    stroke: #f0f9;
+                }
+                &.sport-running.sport-cycling {
+                    stroke: #fff9;
+                }
             }
         }
 

@@ -24,7 +24,9 @@ html {
     overflow: overlay;
 
     > .map-controls {
+        font-size: clamp(22px, 2em, 48px);
         margin-top: 0.2em;
+        margin-left: 0.1em;
         position: fixed;
         display: flex;
         flex-direction: column;
@@ -52,7 +54,7 @@ html {
         align-items: center;
         justify-content: center;
         max-width: 80%;
-        font-size: 0.88em;
+        font-size: clamp(14px, 0.88em, 32px);
 
         .field:not(:last-child) {
             margin-right: 1em;
