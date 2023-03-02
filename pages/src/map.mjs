@@ -10,40 +10,39 @@ function createElementSVG(name, attrs={}) {
 }
  
 
-function hypotenuse(a, b) {
-    const dx = b[0] - a[0];
-    const dy = b[1] - a[1];
-    return {
-        distance: Math.sqrt(dx * dx + dy * dy),
-        angle: Math.atan2(dy, dx)
-    };
-}
-
-
-function controlPoint(current, previous, next, reverse, smoothing) {
-    const p = previous || current;
-    const n = next || current;
-    let {distance, angle} = hypotenuse(p, n);
-    if (reverse) {
-        angle += Math.PI;
-    }
+function controlPoint(cur, prev, next, reverse, smoothing) {
+    prev ||= cur;
+    next ||= cur;
+    const dx = next[0] - prev[0];
+    const dy = next[1] - prev[1];
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    const angle = Math.atan2(dy, dx) + (reverse ? Math.PI : 0);
     const length = distance * smoothing;
-    const x = current[0] + Math.cos(angle) * length;
-    const y = current[1] + Math.sin(angle) * length;
-    return [x, y];
+    return [cur[0] + Math.cos(angle) * length, cur[1] + Math.sin(angle) * length];
 }
 
 
-function bezierCommand(point, i, a, smoothing) {
-    const cps = controlPoint(a[i - 1], a[i - 2], point, false, smoothing);
-    const cpe = controlPoint(point, a[i - 1], a[i + 1], true, smoothing);
-    return `C ${cps[0]},${cps[1]} ${cpe[0]},${cpe[1]} ${point[0]},${point[1]}`;
-}
-
-
-function smoothPath(points, smoothing=0.2) {
-    return points.reduce((acc, [x, y], i, a) =>
-        i === 0 ? `M ${x},${y}` : `${acc} ${bezierCommand([x, y], i, a, smoothing)}`, '');
+function smoothPath(points, {looped, smoothing=0.2}={}) {
+    const path = ['M' + points[0].join()];
+    if (looped) {
+        for (let i = 1; i < points.length + 1; i++) {
+            const prevPrev = points.at(i - 2);
+            const prev = points.at(i - 1);
+            const cur = points[i % points.length];
+            const next = points.at((i + 1) % points.length);
+            const cpStart = controlPoint(prev, prevPrev, cur, false, smoothing);
+            const cpEnd = controlPoint(cur, prev, next, true, smoothing);
+            path.push('C' + [cpStart.join(), cpEnd.join(), cur.join()].join(' '));
+        }
+        //path.push('Z');
+    } else {
+        for (let i = 1; i < points.length; i++) {
+            const cpStart = controlPoint(points[i - 1], points[i - 2], points[i], false, smoothing);
+            const cpEnd = controlPoint(points[i], points[i - 1], points[i + 1], true, smoothing);
+            path.push('C' + [cpStart.join(), cpEnd.join(), points[i].join()].join(' '));
+        }
+    }
+    return path.join('');
 }
 
 
@@ -292,8 +291,12 @@ export class SauceZwiftMap extends EventTarget {
         }
         this.watchingId = id;
         if (id != null && id !== this.athleteId && this.dots.has(id)) {
-            this.dots.get(id).classList.add('watching');
+            const dot = this.dots.get(id);
+            dot.classList.add('watching');
+            this.mapEl.style.setProperty('--anchor-x', dot.style.getPropertyValue('--x'));
+            this.mapEl.style.setProperty('--anchor-y', dot.style.getPropertyValue('--y'));
         }
+        this.setAnchorOffset(0, 0);
     }
 
     setAthlete(id) {
@@ -320,6 +323,7 @@ export class SauceZwiftMap extends EventTarget {
         const defs = createElementSVG('defs');
         const scale = 0.01;
         this.svgEl.append(defs);
+        const roadways = {gutter: [], surface: []};
         for (const id of ids) {
             const road = roads[id];
             if (!road) {
@@ -327,14 +331,23 @@ export class SauceZwiftMap extends EventTarget {
                 continue;
             }
             const d = [];
-            for (const node of road.nodes) {
-                const [x, y] = this.fixWorldPos(node.pos);
+            for (const pos of road.path) {
+                const [x, y] = this.fixWorldPos(pos);
                 d.push([x * scale, y * scale]);
             }
             const path = createElementSVG('path', {
                 id: `road-path-${id}`,
-                d: smoothPath(d) + (road.looped ? ' Z' : ''),
+                d: smoothPath(d, {looped: road.looped})
             });
+            for (const x of d) {
+                const point = createElementSVG('circle', {
+                    cx: x[0],
+                    cy: x[1],
+                    r: 20,
+                    fill: '#f0f9',
+                });
+                this.svgEl.append(point);
+            }
             const clip = createElementSVG('clipPath', {id: `road-clip-${id}`});
             let boxMin = this.fixWorldPos(road.boxMin);
             let boxMax = this.fixWorldPos(road.boxMax);
@@ -342,19 +355,30 @@ export class SauceZwiftMap extends EventTarget {
                 [boxMin, boxMax] = [boxMax, boxMin];
             }
             const clipBox = createElementSVG('path', {
-                d: `M ${boxMin[0] * scale} ${boxMin[1] * scale} H ${boxMax[0] * scale} V ${boxMax[1] * scale} H ${boxMin[0] * scale} Z`,
+                d: [
+                    `M ${boxMin[0] * scale} ${boxMin[1] * scale}`,
+                    `H ${boxMax[0] * scale}`,
+                    `V ${boxMax[1] * scale}`,
+                    `H ${boxMin[0] * scale}`,
+                    `Z`
+                ].join('')
             });
             clip.append(clipBox);
             defs.append(path, clip);
-            for (const x of ['gutter', 'road']) {
-                const use = createElementSVG('use', {
-                    "class": x,
+            for (const [key, arr] of Object.entries(roadways)) {
+                arr.push(createElementSVG('use', {
+                    "class": `${key} ${road.sports.map(x => 'sport-' + x).join(' ')}`,
                     "data-road-id": id,
                     "clip-path": `url(#road-clip-${id})`,
                     "href": `#road-path-${id}`,
-                });
-                this.svgEl.append(use);
+                }));
             }
+            const labelXXX = createElementSVG('text', {
+                x: d[0][0],
+                y: d[0][1],
+            });
+            labelXXX.textContent = `Road: ${id}`;
+            this.svgEl.append(labelXXX);
         }
         this.svgEl.setAttribute('viewBox', [
             (this.worldMeta.minX + this.worldMeta.anchorX) * scale,
@@ -362,39 +386,22 @@ export class SauceZwiftMap extends EventTarget {
             (this.worldMeta.maxX - this.worldMeta.minX) * scale,
             (this.worldMeta.maxY - this.worldMeta.minY) * scale,
         ].join(' '));
+        this.svgEl.append(...roadways.gutter);
+        this.svgEl.append(...roadways.surface);
     }
 
     setRoad(id) {
         if (this._activeRoad) {
             this._activeRoad.classList.remove('active');
         }
-        this._activeRoad = this.svgEl.querySelector(`.road[data-road-id="${id}"]`);
+        this._activeRoad = this.svgEl.querySelector(`.surface[data-road-id="${id}"]`);
         this._activeRoad.classList.add('active');
         this._activeRoad.parentElement.insertAdjacentElement('beforeend', this._activeRoad);
-    }
-
-    async renderRoadsDots(ids) {
-        const roads = await common.getRoads(this.worldMeta.worldId);
-        ids = ids || Object.keys(roads);
-        for (const id of ids) {
+        // XXX prototyping....
+        common.getRoads(this.worldMeta.worldId).then(roads => {
             const road = roads[id];
-            if (!road) {
-                console.error("Road not found:", id);
-                continue;
-            }
-            for (const node of road.nodes) {
-                const [x, y] = this.fixWorldPos(node.pos);
-                const X = x / this.worldMeta.tileScale * this.worldMeta.mapScale;
-                const Y = y / this.worldMeta.tileScale * this.worldMeta.mapScale;
-                const dot = document.createElement('div');
-                dot.classList.add('dot', 'leader');
-                dot.style.setProperty('--x', `${X}px`);
-                dot.style.setProperty('--y', `${Y}px`);
-                this.dotsEl.append(dot);
-            }
-            if (id > 30)
-                break;
-        }
+            console.log(road);
+        });
     }
 
     renderAthleteStates(states) {
@@ -419,6 +426,7 @@ export class SauceZwiftMap extends EventTarget {
                 dot.dataset.athleteId = state.athleteId;
                 dot.lastSeen = now;
                 dot.wt = state.worldTime;
+                dot.addEventListener('click', () => common.rpc.watch(state.athleteId));
                 this.dotsEl.append(dot);
                 this.dots.set(state.athleteId, dot);
             }
@@ -472,6 +480,11 @@ export class SauceZwiftMap extends EventTarget {
         dot.classList.toggle('sweeper', !!ad.eventSweeper);
         dot.classList.toggle('marked', ad.athlete ? !!ad.athlete.marked : false);
         dot.classList.toggle('following', ad.athlete ? !!ad.athlete.following : false);
+        if (ad.athlete) {
+            dot.title = `${ad.athlete.sanitizedFullname}`;
+        } else {
+            dot.title = `ID: ${ad.athleteId}`;
+        }
     }
 
     _lazyUpdateAthleteDetails(ids) {

@@ -202,7 +202,7 @@ export class SauceElevationProfile {
                 animation: false,
                 data: marks.map(({state}) => {
                     // XXX
-                    const distances = this.road.nodes.map(c => vectorDistance(c.pos, [state.x, state.y, state.z]));
+                    const distances = this.road.path.map(pos => vectorDistance(pos, [state.x, state.y, state.z]));
                     const nearest = distances.indexOf(Math.min(...distances));
                     const distance = this.road.distances[nearest];
                     const watching = state.athleteId === this.watchingId;

@@ -19,6 +19,7 @@ common.settingsStore.setDefault({
     transparency: 0,
     backgroundColor: '#00ff00',
     fields: 1,
+    autoHeading: true,
 });
 
 const settings = common.settingsStore.get();
@@ -45,6 +46,7 @@ function createZwiftMap({worldList}) {
         el: document.querySelector('.map'),
         worldList,
         zoom: settings.zoom,
+        autoHeading: settings.autoHeading,
     });
     let settingsSaveTimeout;
     zwiftMap.addEventListener('zoom', ev => {
@@ -53,9 +55,7 @@ function createZwiftMap({worldList}) {
         settingsSaveTimeout = setTimeout(() => common.settingsStore.set(null, settings), 100);
     });
     const anchorResetButton = document.querySelector('.map-controls .button.reset-anchor');
-    zwiftMap.addEventListener('drag', () => {
-        anchorResetButton.classList.remove('disabled');
-    });
+    zwiftMap.addEventListener('drag', () => anchorResetButton.classList.remove('disabled'));
     anchorResetButton.addEventListener('click', ev => {
         anchorResetButton.classList.add('disabled');
         zwiftMap.setAnchorOffset(0, 0);
@@ -66,7 +66,11 @@ function createZwiftMap({worldList}) {
         zwiftMap.setAutoHeading(en);
         headingRotateDisButton.classList.toggle('hidden', !en);
         headingRotateEnButton.classList.toggle('hidden', en);
+        settings.autoHeading = en;
+        common.settingsStore.set(null, settings);
     };
+    headingRotateDisButton.classList.toggle('hidden', settings.autoHeading === false);
+    headingRotateEnButton.classList.toggle('hidden', settings.autoHeading !== false);
     headingRotateDisButton.addEventListener('click', () => autoHeadingHandler(false));
     headingRotateEnButton.addEventListener('click', () => autoHeadingHandler(true));
     zwiftMap.setStyle(settings.mapStyle);
