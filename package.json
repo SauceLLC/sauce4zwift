@@ -30,18 +30,18 @@
     "xxhash-addon": "2.0.1"
   },
   "optionalDependencies": {
-    "zwift-utils": "https://github.com/SauceLLC/zwift-utils.git#fa564fce4fee7"
+    "zwift-utils": "https://github.com/SauceLLC/zwift-utils.git#89ee30392"
   },
   "devDependencies": {
     "@sentry/browser": "6.19.6",
     "echarts": "5.4.1",
-    "electron": "23.0.0",
+    "electron": "23.1.1",
     "electron-builder": "24.0.0-alpha.7",
     "electron-notarize": "1.2.1",
-    "eslint": "8.34.0",
-    "sass": "1.58.0",
+    "eslint": "8.35.0",
+    "sass": "1.58.3",
     "world_countries_lists": "2.6.0",
-    "zwift-data": "1.21.2"
+    "zwift-data": "1.21.3"
   },
   "build": {
     "appId": "io.saucellc.sauce4zwift",
