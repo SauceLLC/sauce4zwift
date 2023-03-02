@@ -76,17 +76,17 @@ export const windowManifests = [{
     prettyDesc: 'A zoomable view of groups of athletes',
     options: {width: 0.15, height: 0.65},
 }, {
+    type: 'geo',
+    file: '/pages/geo.html',
+    prettyName: 'Map',
+    prettyDesc: 'Map and of nearby athletes with optional profile',
+    options: {width: 0.20, aspectRatio: 1},
+}, {
     type: 'chat',
     file: '/pages/chat.html',
     prettyName: 'Chat',
     prettyDesc: 'Chat dialog from nearby athletes',
     options: {width: 0.18, aspectRatio: 2},
-}, {
-    type: 'geo',
-    file: '/pages/geo.html',
-    prettyName: 'Map and Profile',
-    prettyDesc: 'Map and of nearby athletes with optional profile',
-    options: {width: 0.20, aspectRatio: 1},
 }, {
     type: 'nearby',
     file: '/pages/nearby.html',
