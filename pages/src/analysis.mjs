@@ -199,11 +199,13 @@ export async function main() {
         common.rpc.getAthleteStreams(athleteId),
         sauce.template.getTemplate(`templates/analysis/main.html.tpl`),
     ]);
-    athlete = stats.athlete;
+    athlete = stats && stats.athlete;
     const contentEl = await render(mainTpl);
-    common.initExpanderTable(contentEl.querySelector('table.laps'), onLapExpand, onLapCollapse);
-    common.initExpanderTable(contentEl.querySelector('table.segments'), onSegmentExpand, onLapCollapse);
-    await createLineChart(contentEl.querySelector('section.summary .chart-holder .chart'), stats);
+    if (athlete) {
+        common.initExpanderTable(contentEl.querySelector('table.laps'), onLapExpand, onLapCollapse);
+        common.initExpanderTable(contentEl.querySelector('table.segments'), onSegmentExpand, onLapCollapse);
+        await createLineChart(contentEl.querySelector('section.summary .chart-holder .chart'), stats);
+    }
 }
 
 
