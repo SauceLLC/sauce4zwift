@@ -492,6 +492,16 @@ export class SauceZwiftMap extends EventTarget {
                     this._setHeading(state.heading);
                 }
             }
+            if (dot.pin) {
+                
+                const ad = this.athleteCache.get(state.athleteId);
+                const name = ad && ad.data.athlete ? `${ad.data.athlete.sanitizedFullname}` : `ID: ${state.athleteId}`;
+                dot.pin.innerHTML = `
+                    <b>${common.sanitize(name)}</b><br/>
+                    Power: ${H.power(state.power, {suffix: true, html: true})}<br/>
+                    Speed: ${H.pace(state.speed, {suffix: true, html: true})}
+                `;
+            }
         }
         for (const [athleteId, dot] of this.dots.entries()) {
             if (now - dot.lastSeen > 15000) {
@@ -509,14 +519,6 @@ export class SauceZwiftMap extends EventTarget {
         dot.classList.toggle('following', ad.athlete ? !!ad.athlete.following : false);
         const name = ad.athlete ? `${ad.athlete.sanitizedFullname}` : `ID: ${ad.athleteId}`;
         dot.title = name;
-        if (dot.pin) {
-            dot.pin.innerHTML = `
-                <b>${common.sanitize(name)}</b><br/>
-                Power: ${H.power(ad.state.power, {suffix: true, html: true})}<br/>
-                Speed: ${H.pace(ad.state.speed, {suffix: true, html: true})}<br/>
-                Gap: ${H.duration(ad.gap, {suffix: true, html: true})}<br/>
-            `;
-        }
     }
 
     _lazyUpdateAthleteDetails(ids) {
