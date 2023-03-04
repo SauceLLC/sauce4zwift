@@ -128,7 +128,7 @@ export async function main() {
         f1: 'grade',
         f2: 'altitude',
     };
-    for (let i = 0; i < (common.settingsStore.get('fields') || 2); i++) {
+    for (let i = 0; i < (common.settingsStore.get('fields') || 1); i++) {
         const id = `f${i + 1}`;
         fieldsEl.insertAdjacentHTML('beforeend', `
             <div class="field" data-field="${id}">
@@ -210,7 +210,7 @@ export async function main() {
             zwiftMap.setTiltShiftAngle(changed.get('tiltShiftAngle'));
         } else if (changed.has('sparkle')) {
             zwiftMap.setSparkle(changed.get('sparkle'));
-        } else if (changed.has('profileOverlay')) {
+        } else if (changed.has('profileOverlay') || changed.has('fields')) {
             location.reload();
         }
     });
