@@ -1,4 +1,7 @@
 import * as common from './common.mjs';
+import * as locale from '../../shared/sauce/locale.mjs';
+
+const H = locale.human;
 
 
 function createElementSVG(name, attrs={}) {
@@ -77,7 +80,10 @@ export class SauceZwiftMap extends EventTarget {
         this.svgEl = createElementSVG('svg');
         this.imgEl = document.createElement('img');
         this.imgEl.classList.add('minimap');
-        this.mapEl.append(this.dotsEl, this.svgEl, this.imgEl);
+        const pinSvg = createElementSVG('svg');
+        pinSvg.innerHTML = `<clipPath id="pin" clipPathUnits="objectBoundingBox">
+            <path d="M0.5,1 L0.25,0.75 C-0.70,-0.20 1.70,-0.20 0.75,0.75 Z"/></clipPath>`;
+        this.mapEl.append(this.dotsEl, this.svgEl, this.imgEl, pinSvg);
         el.append(this.mapEl);
         this.onPointerMoveBound = this.onPointerMove.bind(this);
         this.onPointerDoneBound = this.onPointerDone.bind(this);
@@ -406,12 +412,28 @@ export class SauceZwiftMap extends EventTarget {
         }
         this._activeRoad.setAttribute('clip-path', `url(#road-clip-${id})`);
         this._activeRoad.setAttribute('href', `#road-path-${id}`);
-        // XXX prototyping....
-        common.getRoads(this.worldMeta.worldId).then(roads => {
-            const road = roads[id];
-            console.log(road);
-        });
+    }
 
+    _addDot(state) {
+        const isSelf = state.athleteId === this.athleteId;
+        const dot = document.createElement('div');
+        dot.classList.add('dot');
+        dot.classList.toggle('self', isSelf);
+        dot.classList.toggle('watching', !isSelf && state.athleteId === this.watchingId);
+        dot.dataset.athleteId = state.athleteId;
+        dot.lastSeen = Date.now();
+        dot.wt = state.worldTime;
+        dot.addEventListener('click', () => {
+            if (!dot.pin) {
+                const pin = document.createElement('div');
+                pin.classList.add('pin');
+                dot.pin = pin;
+                dot.append(pin);
+            }
+            dot.classList.toggle('pinned');
+        });
+        this.dots.set(state.athleteId, dot);
+        this.dotsEl.append(dot);
     }
 
     renderAthleteStates(states) {
@@ -433,17 +455,7 @@ export class SauceZwiftMap extends EventTarget {
         }
         for (const state of states) {
             if (!this.dots.has(state.athleteId)) {
-                const isSelf = state.athleteId === this.athleteId;
-                const dot = document.createElement('div');
-                dot.classList.add('dot');
-                dot.classList.toggle('self', isSelf);
-                dot.classList.toggle('watching', !isSelf && state.athleteId === this.watchingId);
-                dot.dataset.athleteId = state.athleteId;
-                dot.lastSeen = now;
-                dot.wt = state.worldTime;
-                dot.addEventListener('click', () => common.rpc.watch(state.athleteId));
-                this.dotsEl.append(dot);
-                this.dots.set(state.athleteId, dot);
+                this._addDot(state);
             }
             const dot = this.dots.get(state.athleteId);
             const age = state.worldTime - dot.wt;
@@ -495,10 +507,15 @@ export class SauceZwiftMap extends EventTarget {
         dot.classList.toggle('sweeper', !!ad.eventSweeper);
         dot.classList.toggle('marked', ad.athlete ? !!ad.athlete.marked : false);
         dot.classList.toggle('following', ad.athlete ? !!ad.athlete.following : false);
-        if (ad.athlete) {
-            dot.title = `${ad.athlete.sanitizedFullname}`;
-        } else {
-            dot.title = `ID: ${ad.athleteId}`;
+        const name = ad.athlete ? `${ad.athlete.sanitizedFullname}` : `ID: ${ad.athleteId}`;
+        dot.title = name;
+        if (dot.pin) {
+            dot.pin.innerHTML = `
+                <b>${common.sanitize(name)}</b><br/>
+                Power: ${H.power(ad.state.power, {suffix: true, html: true})}<br/>
+                Speed: ${H.pace(ad.state.speed, {suffix: true, html: true})}<br/>
+                Gap: ${H.duration(ad.gap, {suffix: true, html: true})}<br/>
+            `;
         }
     }
 
@@ -521,16 +538,15 @@ export class SauceZwiftMap extends EventTarget {
         }
         if (refresh.length) {
             common.rpc.getAthletesData(refresh).then(ads => {
-                for (const [i, ad] of ads.entries()) {
-                    const id = ids[i];
-                    const dot = this.dots.get(id);
+                for (const ad of ads) {
+                    const dot = this.dots.get(ad.athleteId);
                     if (ad && dot) {
                         dot.classList.toggle('leader', !!ad.eventLeader);
                         dot.classList.toggle('sweeper', !!ad.eventSweeper);
                         dot.classList.toggle('marked', ad.athlete ? !!ad.athlete.marked : false);
                         dot.classList.toggle('following', ad.athlete ? !!ad.athlete.following : false);
                     }
-                    this.athleteCache.get(id).data = ad;
+                    this.athleteCache.get(ad.athleteId).data = ad;
                 }
             });
         }

@@ -106,15 +106,40 @@
                 transform: translate(var(--x), var(--y));
                 background-color: #fffa;
                 transition: transform;
-                transition-duration: 1020ms;
+                transition-duration: 1100ms;
                 transition-timing-function: linear;
                 cursor: pointer;
+                // For the pin positioning we need flex...
+                display: flex;
+                justify-content: center;
 
                 &.fast {
                     transition-duration: 300ms;
                 }
                 &.slow {
-                    transition-duration: 2000ms;
+                    transition-duration: 2100ms;
+                }
+
+                .pin {
+                    z-index: calc(var(--zone) + var(--priority) + 1000);
+                    font-size: calc(0.5em / var(--zoom));
+                    color: #fff;
+                    padding: 0.5em;
+                    background-color: #1a57a0db;
+                    border: 0.2em solid #333c;
+                    border-radius: 0.3em;
+                    position: absolute;
+                    bottom: calc(100% - var(--zoom-size) / 2);
+                    transform: rotate(calc(-1 * var(--heading))) translateY(calc(-4 * var(--zoom-border-size)));
+                    transform-origin: 50% 100%;
+                    transition: transform 1s linear;
+                    white-space: nowrap;
+                    text-overflow: ellipsis;
+                    overflow: hidden;
+                    max-width: 14em;
+                }
+                &:not(.pinned) .pin {
+                    display: none;
                 }
 
                 &[data-power-level="z1"] {
