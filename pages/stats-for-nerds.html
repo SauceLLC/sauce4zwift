@@ -8,17 +8,17 @@
 
         <title>Stats for Nerds - Sauce for Zwift™</title>
 
-        <script type="module">
-            import {main} from './src/stats-for-nerds.mjs';
-            main();
-        </script>
+        <script src="./src/preloads.js"></script>
 
-        <link rel="preload" href="fonts/MaterialSymbolsRounded.woff2?v=1" as="font" type="font/woff2"/>
-        <link rel="preload" href="fonts/Saira.woff2?v=1" as="font" type="font/woff2"/>
         <link rel="manifest" href="stats-for-nerds-manifest.json"/>
         <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
         <link rel="stylesheet" href="css/common.css"/>
         <link rel="stylesheet" href="css/stats-for-nerds.css"/>
+
+        <script type="module">
+            import {main} from './src/stats-for-nerds.mjs';
+            main();
+        </script>
     </head>
     <body class="alt-background">
         <div id="titlebar" class="always-visible">

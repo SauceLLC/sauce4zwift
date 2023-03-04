@@ -8,16 +8,16 @@
 
         <title>Debug Logs - Sauce for Zwift™</title>
 
+        <script src="./src/preloads.js"></script>
+
+        <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
+        <link rel="stylesheet" href="css/common.css"/>
+        <link rel="stylesheet" href="css/logs.css"/>
+
         <script type="module">
             import {main} from './src/logs.mjs';
             main();
         </script>
-
-        <link rel="preload" href="fonts/MaterialSymbolsRounded.woff2?v=1" as="font" type="font/woff2"/>
-        <link rel="preload" href="fonts/Saira.woff2?v=1" as="font" type="font/woff2"/>
-        <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
-        <link rel="stylesheet" href="css/common.css"/>
-        <link rel="stylesheet" href="css/logs.css"/>
     </head>
     <body class="alt-background">
         <div id="titlebar" class="always-visible">

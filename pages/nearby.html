@@ -8,17 +8,17 @@
 
         <title>Nearby - Sauce for Zwift™</title>
 
-        <script type="module">
-            import {main} from './src/nearby.mjs';
-            main();
-        </script>
+        <script src="./src/preloads.js"></script>
 
-        <link rel="preload" href="fonts/MaterialSymbolsRounded.woff2?v=1" as="font" type="font/woff2"/>
-        <link rel="preload" href="fonts/Saira.woff2?v=1" as="font" type="font/woff2"/>
         <link rel="manifest" href="nearby-manifest.json"/>
         <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
         <link rel="stylesheet" href="css/common.css"/>
         <link rel="stylesheet" href="css/nearby.css"/>
+
+        <script type="module">
+            import {main} from './src/nearby.mjs';
+            main();
+        </script>
     </head>
     <body>
         <div id="titlebar">
