@@ -84,6 +84,7 @@ export class SauceZwiftMap extends EventTarget {
         this.watchingId = null;
         this.athleteId = null;
         this.courseId = null;
+        this.roadId = null;
         this.worldMeta = null;
         this.headingRotations = 0;
         this.lastHeading = 0;
@@ -323,11 +324,19 @@ export class SauceZwiftMap extends EventTarget {
         const defs = createElementSVG('defs');
         const scale = 0.01;
         this.svgEl.append(defs);
+        // Because roads overlap and we want to style some of them differently this
+        // make multi-sport roads higher so we don't randomly style overlapping sections.
+        ids.sort((a, b) =>
+            (roads[a] ? roads[a].sports.length : 0) -
+            (roads[b] ? roads[b].sports.length : 0));
         const roadways = {gutter: [], surface: []};
         for (const id of ids) {
             const road = roads[id];
             if (!road) {
                 console.error("Road not found:", id);
+                continue;
+            }
+            if (!road.sports.includes('cycling') && !road.sports.includes('running')) {
                 continue;
             }
             const d = [];
@@ -339,6 +348,7 @@ export class SauceZwiftMap extends EventTarget {
                 id: `road-path-${id}`,
                 d: smoothPath(d, {looped: road.looped})
             });
+            /* DEBUG dots
             for (const x of d) {
                 const point = createElementSVG('circle', {
                     cx: x[0],
@@ -347,7 +357,7 @@ export class SauceZwiftMap extends EventTarget {
                     fill: '#f0f9',
                 });
                 this.svgEl.append(point);
-            }
+            }*/
             const clip = createElementSVG('clipPath', {id: `road-clip-${id}`});
             let boxMin = this.fixWorldPos(road.boxMin);
             let boxMax = this.fixWorldPos(road.boxMax);
@@ -373,12 +383,6 @@ export class SauceZwiftMap extends EventTarget {
                     "href": `#road-path-${id}`,
                 }));
             }
-            const labelXXX = createElementSVG('text', {
-                x: d[0][0],
-                y: d[0][1],
-            });
-            labelXXX.textContent = `Road: ${id}`;
-            this.svgEl.append(labelXXX);
         }
         this.svgEl.setAttribute('viewBox', [
             (this.worldMeta.minX + this.worldMeta.anchorX) * scale,
@@ -386,22 +390,28 @@ export class SauceZwiftMap extends EventTarget {
             (this.worldMeta.maxX - this.worldMeta.minX) * scale,
             (this.worldMeta.maxY - this.worldMeta.minY) * scale,
         ].join(' '));
+        this._activeRoad = createElementSVG('use', {"class": 'surface active'});
+        if (this.roadId != null) {
+            this.setRoad(this.roadId);
+        }
         this.svgEl.append(...roadways.gutter);
         this.svgEl.append(...roadways.surface);
+        this.svgEl.append(this._activeRoad);
     }
 
     setRoad(id) {
-        if (this._activeRoad) {
-            this._activeRoad.classList.remove('active');
+        this.roadId = id;
+        if (!this._activeRoad) {
+            return;
         }
-        this._activeRoad = this.svgEl.querySelector(`.surface[data-road-id="${id}"]`);
-        this._activeRoad.classList.add('active');
-        this._activeRoad.parentElement.insertAdjacentElement('beforeend', this._activeRoad);
+        this._activeRoad.setAttribute('clip-path', `url(#road-clip-${id})`);
+        this._activeRoad.setAttribute('href', `#road-path-${id}`);
         // XXX prototyping....
         common.getRoads(this.worldMeta.worldId).then(roads => {
             const road = roads[id];
             console.log(road);
         });
+
     }
 
     renderAthleteStates(states) {
@@ -412,9 +422,14 @@ export class SauceZwiftMap extends EventTarget {
         const watching = states.find(x => x.athleteId === this.watchingId);
         if (!watching && this.courseId == null) {
             return;
-        } else if (watching && watching.courseId !== this.courseId) {
-            console.debug("Setting new course from states render:", watching.courseId);
-            this.setCourse(watching.courseId);
+        } else if (watching) {
+            if (watching.courseId !== this.courseId) {
+                console.debug("Setting new course from states render:", watching.courseId);
+                this.setCourse(watching.courseId);
+            }
+            if (watching.roadId !== this.roadId) {
+                this.setRoad(watching.roadId);
+            }
         }
         for (const state of states) {
             if (!this.dots.has(state.athleteId)) {
@@ -532,7 +547,7 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     _setHeading(heading, force) {
-        if (!force && this.trackingPaused) {
+        if (!force && (this.trackingPaused || document.hidden)) {
             return false;
         }
         if (Math.abs(this.lastHeading - heading) > 180) {

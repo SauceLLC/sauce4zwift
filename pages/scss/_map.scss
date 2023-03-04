@@ -211,33 +211,26 @@
 
             .gutter, .surface {
                 fill: none;
-
+                stroke-linecap: round;
             }
 
             .gutter {
                 stroke: #000a;
-                stroke-width: 30px;
+                stroke-width: 32px;
+                filter: drop-shadow(2px 2px 4px #000c);
             }
 
             .surface {
-                stroke-width: 20px;
-                stroke-linecap: round;
+                stroke-width: 22px;
+                stroke: #e9e9e9;
 
                 &.active {
-                    stroke: #f009 !important;
+                    stroke: #ff3939bf;
+                    filter: drop-shadow(0 0 4px #000c);
                 }
 
-                &.sport-cycling {
-                    stroke: #0f09;
-                }
-                &.sport-running {
-                    stroke: #00f9;
-                }
-                &.sport-rowing {
-                    stroke: #f0f9;
-                }
-                &.sport-running.sport-cycling {
-                    stroke: #fff9;
+                &.sport-running:not(.sport-cycling) {
+                    stroke: #69a573;
                 }
             }
         }
