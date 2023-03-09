@@ -1753,7 +1753,8 @@ export class GameMonitor extends events.EventEmitter {
             const x = pb.worldUpdates[i];
             x.payloadType = protos.WorldUpdatePayloadType[x._payloadType];
             if (!x.payloadType) {
-                console.warn("No enum type for:", x._payloadType);
+                console.warn("No enum type for:", x._payloadType, x._payload.toString('hex'));
+                debugger;
             } else if (x.payloadType[0] !== '_') {
                 const payloadProto = protos.get(x.payloadType);
                 if (payloadProto) {
@@ -1762,6 +1763,7 @@ export class GameMonitor extends events.EventEmitter {
                     const handler = binaryWorldUpdatePayloads[x.payloadType];
                     if (!handler) {
                         console.warn("No protobuf for:", x.payloadType, x._payload.toString('hex'));
+                        debugger;
                     } else {
                         x.payload = handler(x._payload, x.payloadType);
                     }
