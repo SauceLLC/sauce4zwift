@@ -249,6 +249,7 @@ async function _start({ip, port, rpcSources, statsProc}) {
     api.use(express.json());
     api.use((req, res, next) => {
         res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Access-Control-Allow-Origin', '*');
         res.on('finish', () => {
             const client = req.client.remoteAddress;
             const elapsed = (performance.now() - req.start).toFixed(1);
@@ -326,6 +327,12 @@ async function _start({ip, port, rpcSources, statsProc}) {
     api.get('/rpc/v1', (req, res) =>
         res.send(JSON.stringify(Array.from(rpc.handlers.keys()).map(name => `${name}: [POST,GET]`), null, 4)));
     api.get('/mods/v1', (req, res) => res.send(JSON.stringify(mods.available, null, 4)));
+    api.options('*', (req, res) => {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Headers', '*');
+        res.status(204);
+        res.send();
+    });
     api.use((e, req, res, next) => {
         res.status(500);
         res.json({
