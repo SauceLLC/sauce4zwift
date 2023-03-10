@@ -6,7 +6,7 @@
         <meta name="apple-mobile-web-app-capable" content="yes"/>
         <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
 
-        <title>Geo - Settings - Sauce for Zwift™</title>
+        <title>Map - Settings - Sauce for Zwift™</title>
 
         <script src="./src/preloads.js"></script>
 
@@ -22,7 +22,7 @@
         <div id="titlebar">
             <header>
                 <div class="logo"><img src="images/icon128.png"/></div>
-                <div class="title">Geo - Settings</div>
+                <div class="title">Map - Settings</div>
                 <div class="filler"></div>
                 <div class="buttons">
                     <div title="Close this window" class="button close electron-only"><ms>close</ms></div>
@@ -71,6 +71,15 @@
                 <div class="title">High Performance System Options:</div>
                 <div><small>NOTE: These options require a powerful CPU and/or GPU.</small></div>
                 <br/>
+                <label title="This setting directly affects GPU memory and image quality">
+                    <key>Quality:</key>
+                    <input type="range" name="quality" min="0.1" max="2" step="0.1"/>
+                    <input type="number" name="quality" min="0.1" max="2" step="0.1" style="--size: 5"/>
+                </label>
+                <label>
+                    <key>Smooth animation:</key>
+                    <input type="checkbox" name="animation"/>
+                </label>
                 <label title="Flash a white or red shadow for high power outputs">
                     <key>Sparkle mode:</key>
                     <input type="checkbox" name="sparkle"/>
