@@ -1,33 +1,22 @@
 @use 'color';
+@use "sass:math";
 
 @keyframes sparkle {
-    0% {
-        filter: brightness(1);
+    20% {
+        filter: drop-shadow(0.2em 0.2em 1em var(--sparkle-color));
+        stroke-width: 0.2em;
     }
-    25% {
-        filter: brightness(var(--sparkle-intensity)) drop-shadow(0px 0px 6px var(--sparkle-color));
+    50% {
+        opacity: 1;
     }
-    75% {
-        filter: brightness(1 / var(--sparkle-intensity));
-    }
-    100% {
-        filter: brightness(1);
+    80% {
+        stroke-width: 0.5em;
     }
 }
 
 .sauce-map-container {
-    $transform-translate: translate(
-        calc((var(--x-offt) + var(--anchor-x)) * -1 + var(--drag-x-offt) * var(--zoom)),
-        calc((var(--y-offt) + var(--anchor-y)) * -1 + var(--drag-y-offt) * var(--zoom)));
-    $transform-scale: scale(var(--zoom));
-    $transform-rotate: rotate(var(--heading));
-
-    --drag-x-offt: 0px;
-    --drag-y-offt: 0px;
-    --anchor-x: 0px;
-    --anchor-y: 0px;
-    --heading: 0deg;
-
+    --transform-duration: 500ms;
+    --transform-origin-duration: 500ms;
     font-variant-numeric: tabular-nums;
     overflow: hidden;
     position: relative;
@@ -36,56 +25,66 @@
 
     &.moving {
         cursor: move;
-
-        .sauce-map {
-            transition-duration: 0ms;
-        }
     }
 
-    &.loading,
-    &.hidden {
-         * {
+    &.zooming {
+        --transform-duration: 50ms;
+        --transform-origin-duration: 50ms;
+        /** {
             transition-duration: 0ms !important;
-        }
+        }*/
     }
 
-    &.zooming .sauce-map {
-        transition-duration: 100ms;
+    &.hidden,
+    &.no-animation,
+    &.loading,
+    &.moving {
+        --transform-duration: 0;
+        --transform-origin-duration: 0;
+    }
+
+    &.hidden,
+    &.no-animation,
+    &.loading {
+        svg.entities .athlete {
+            transition: none !important;
+        }
     }
 
     &.tilt-shift .sauce-map {
-        --tilt-shift-angle: 10deg;
-        transform: $transform-translate $transform-scale
-            perspective(calc((1 / var(--zoom)) * 800px))
-            rotateX(calc(var(--zoom) * var(--tilt-shift-angle)))
-            $transform-rotate;
+        &,
+        .dots,
+        .dot {
+            //transform-style: preserve-3d;
+        }
+
+        .dot .pin-wrap {
+            //perspective: calc((1 / var(--zoom)) * 800px);
+            //rotate: x calc(-1 * var(--zoom) * var(--tilt-shift-angle));
+        }
     }
 
-    &.sparkle .sauce-map .dots {
-        .dot[data-power-level]:not([data-power-level="z1"]):not([data-power-level="z2"]) {
+    &.sparkle .sauce-map svg.entities {
+        .entity.athlete[data-power-level]:not([data-power-level="z1"]):not([data-power-level="z2"]) {
             animation: sparkle 700ms infinite;
         }
     }
 
     > .sauce-map {
+        --anchor-x: 0px;
+        --anchor-y: 0px;
+        --layer-scale: 1;
+        --heading: 0deg;
         touch-action: none;  // disable native touch handling on mobile devices.
         position: absolute;
-        transform: $transform-translate $transform-scale $transform-rotate;
-        transform-origin:
-            calc(var(--x-offt) + var(--anchor-x))
-            calc(var(--y-offt) + var(--anchor-y));
-        transition: transform, transform-origin;
-        transition-duration: 1s;
+        transition:
+            transform var(--transform-duration),
+            transform-origin var(--transform-origin-duration);
         transition-timing-function: linear;
         left: 50%;
         top: 50%;
 
         > .dots {
-            z-index: 3;
-            position: absolute;
-            left: var(--x-offt);
-            top: var(--y-offt);
-
             .dot {
                 --zone: 0;
                 --priority: 0;
@@ -109,6 +108,7 @@
                 transition-duration: 1100ms;
                 transition-timing-function: linear;
                 cursor: pointer;
+                opacity: 0.8;
                 // For the pin positioning we need flex...
                 display: flex;
                 justify-content: center;
@@ -120,120 +120,177 @@
                     transition-duration: 2100ms;
                 }
 
-                .pin {
+                .pin-wrap {
+                    $carrot-width: 1em;
+                    $carrot-height: 1em;
+                    $border-color: #fff;
+                    $border-size: 0.3em;
+                    $bg-color: #1a57a0;
+                    min-width: 3em;
+                    min-height: 3em;
                     z-index: calc(var(--zone) + var(--priority) + 1000);
                     font-size: calc(0.5em / var(--zoom));
                     color: #fff;
-                    padding: 0.5em;
-                    background-color: #1a57a0db;
-                    border: 0.2em solid #333c;
-                    border-radius: 0.3em;
+                    background-color: $bg-color;
+                    border: $border-size solid $border-color;
+                    border-radius: 0.5em;
                     position: absolute;
                     bottom: calc(100% - var(--zoom-size) / 2);
-                    transform: rotate(calc(-1 * var(--heading))) translateY(calc(-4 * var(--zoom-border-size)));
+                    transform:
+                        rotate(calc(-1 * var(--heading)))
+                        translateY(calc(-1 * (var(--zoom-size) + $carrot-height)));
                     transform-origin: 50% 100%;
                     transition: transform 1s linear;
+                    max-width: 14em;
+
+                    &::before {
+                        content: '';
+                        width: 0;
+                        height: 0;
+                        position: absolute;
+                        border-left: $carrot-width solid transparent;
+                        border-right: $carrot-width solid transparent;
+                        border-top: $carrot-height solid $border-color;
+                        border-bottom: none;
+                        right: calc(50% - $carrot-width);
+                        top: 100%;
+                    }
+                    &::after {
+                        content: '';
+                        width: 0;
+                        height: 0;
+                        position: absolute;
+                        border-left: $carrot-width solid transparent;
+                        border-right: $carrot-width solid transparent;
+                        border-top: $carrot-height solid $bg-color;
+                        border-bottom: none;
+                        right: calc(50% - $carrot-width);
+                        top: calc(100% - math.sqrt(math.pow(math.div($border-size, 1em), 2) * 2) * 1em);
+                    }
+                }
+
+                .pin {
+                    padding: 0.5em;
                     white-space: nowrap;
                     text-overflow: ellipsis;
                     overflow: hidden;
-                    max-width: 14em;
                 }
-                &:not(.pinned) .pin {
+
+                &:not(.pinned) .pin-wrap {
                     display: none;
-                }
-
-                &[data-power-level="z1"] {
-                    --zone: 1;
-                }
-                &[data-power-level="z2"] {
-                    --zone: 2;
-                }
-                &[data-power-level="z3"] {
-                    --zone: 3;
-                    --sparkle-color: #fff5;
-                    --sparkle-intensity: 1.08;
-                }
-                &[data-power-level="z4"] {
-                    --zone: 4;
-                    --sparkle-color: #fff9;
-                    --sparkle-intensity: 1.1;
-                }
-                &[data-power-level="z5"] {
-                    --zone: 5;
-                    --sparkle-color: #fffc;
-                    --sparkle-intensity: 1.2;
-                }
-                &[data-power-level="z6"] {
-                    --zone: 6;
-                    --sparkle-color: #ff7900;
-                    --sparkle-intensity: 1.3;
-                    border-color: #dc3c10cc;
-                }
-
-                &.following {
-                    --priority: 10;
-                    --size: 4;
-                    --border-size: 1.5;
-                    background-color: color.get(marked, 0.8);
-                    border-color: color.shade(marked, 100%);
-                }
-
-                &.marked {
-                    --priority: 20;
-                    --size: 4;
-                    --border-size: 1.5;
-                    background-color: color.get(marked, 0.8);
-                    border-color: color.shade(marked, 100%);
-                }
-
-                &.sweeper {
-                    --priority: 30;
-                    --size: 3.5;
-                    --border-size: 1.25;
-                    background-color: #f1262675;
-                    border-color: #dc3c10cc;
-                }
-
-                &.leader {
-                    --priority: 40;
-                    --size: 3.5;
-                    --border-size: 1.25;
-                    background-color: #ffd91f8c;
-                    border-color: #000d;
-                }
-
-                &.watching {
-                    --priority: 50;
-                    --size: 4;
-                    --border-size: 1.5;
-                    background-color: #3162ffcc;
-                    border-color: #fff;
-                }
-
-                &.self {
-                    --priority: 60;
-                    --size: 4.5;
-                    --border-size: 1.5;
-                    background-color: #f22c;
-                    border-color: #fff;
-                }
-
-                &:hover {
-                    --priority: 70;
-                    filter: brightness(1.1) contrast(1.2) saturate(1.2);
                 }
             }
         }
 
         > svg {
-            z-index: 2;
             position: absolute;
             left: 0;
             top: 0;
             width: 100%;
             height: 100%;
-            //shape-rendering: optimizespeed;
+        }
 
+        > svg.entities {
+            font-size: calc(4px + ((1 / var(--zoom)) * 5px));
+
+            circle.athlete {
+                $size: 1em;
+                $border-size: 0.333333em;
+                fill: #fffa;
+                stroke: #5a94ff;
+                stroke-width: $border-size;
+                opacity: 0.8;
+                transition: transform;
+                transition-duration: 1100ms;
+                transition-timing-function: linear;
+
+                &.fast {
+                    transition-duration: 300ms;
+                }
+                &.slow {
+                    transition-duration: 2100ms;
+                }
+
+                &[data-power-level="z3"] {
+                    --sparkle-color: #fff5;
+                    --sparkle-intensity: 1.08;
+                }
+                &[data-power-level="z4"] {
+                    --sparkle-color: #fff9;
+                    --sparkle-intensity: 1.1;
+                }
+                &[data-power-level="z5"] {
+                    --sparkle-color: #fffc;
+                    --sparkle-intensity: 1.2;
+                }
+                &[data-power-level="z6"] {
+                    --sparkle-color: #ff7900;
+                    --sparkle-intensity: 1.3;
+                    stroke: #dc3c10cc;
+                }
+
+                &.following {
+                    font-size: $size * 1.3;
+                    stroke-width: $border-size * 1.5;
+                    //stroke-width: 1.333em;
+                    //--size: 4;
+                    //--border-size: 1.5;
+                    fill: color.get(marked, 0.8);
+                    stroke: color.shade(marked, 100%);
+                }
+
+                &.marked {
+                    font-size: $size * 1.3;
+                    stroke-width: $border-size * 1.5;
+                    //--size: 4;
+                    //--border-size: 1.5;
+                    fill: color.get(marked, 0.8);
+                    stroke: color.shade(marked, 100%);
+                }
+
+                &.sweeper {
+                    font-size: $size * 1.2;
+                    stroke-width: $border-size * 1.25;
+                    //--size: 3.5;
+                    //--border-size: 1.25;
+                    fill: #f1262675;
+                    stroke: #dc3c10cc;
+                }
+
+                &.leader {
+                    font-size: $size * 1.2;
+                    stroke-width: $border-size * 1.25;
+                    //--size: 3.5;
+                    //--border-size: 1.25;
+                    fill: #ffd91f8c;
+                    stroke: #000d;
+                }
+
+                &.watching {
+                    font-size: $size * 1.3;
+                    stroke-width: $border-size * 1.5;
+                    //--size: 4;
+                    //--border-size: 1.5;
+                    fill: #3162ffcc;
+                    stroke: #fff;
+                }
+
+                &.self {
+                    font-size: $size * 1.5;
+                    stroke-width: $border-size * 1.5;
+                    //--size: 4.5;
+                    //--border-size: 1.5;
+                    fill: #f22c;
+                    stroke: #fff;
+                }
+
+                &:hover {
+                    opacity: 1;
+                }
+            }
+        }
+
+        > svg.roads {
             .gutter, .surface {
                 fill: none;
                 stroke-linecap: round;
@@ -242,7 +299,6 @@
             .gutter {
                 stroke: #000a;
                 stroke-width: 32px;
-                filter: drop-shadow(2px 2px 4px #000c);
             }
 
             .surface {
@@ -251,7 +307,7 @@
 
                 &.active {
                     stroke: #ff3939bf;
-                    filter: drop-shadow(0 0 4px #000c);
+                    filter: drop-shadow(0 0 4px #000d);
                 }
 
                 &.sport-running:not(.sport-cycling) {
@@ -262,7 +318,21 @@
 
         > img.minimap {
             pointer-events: none;
-            opacity: var(--opacity);
+            opacity: var(--opacity, 1);
+        }
+    }
+
+    .pins {
+        pointer-events: none;
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 4;
+
+        .pin-wrap {
+            position: absolute;
         }
     }
 }

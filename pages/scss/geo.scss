@@ -56,6 +56,10 @@ html {
         max-width: 80%;
         font-size: clamp(14px, 0.88em, 32px);
 
+        &:empty {
+            display: none;
+        }
+
         .field:not(:last-child) {
             margin-right: 1em;
         }

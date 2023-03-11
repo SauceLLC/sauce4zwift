@@ -13,13 +13,16 @@ common.settingsStore.setDefault({
     profileOverlay: true,
     mapStyle: 'default',
     tiltShift: false,
-    tiltShiftAngle: 10,
+    tiltShiftAmount: 80,
     sparkle: false,
     solidBackground: false,
     transparency: 0,
     backgroundColor: '#00ff00',
     fields: 1,
     autoHeading: true,
+    quality: 80,
+    animation: true,
+    verticalOffset: 0,
 });
 
 const settings = common.settingsStore.get();
@@ -42,11 +45,20 @@ function setBackground() {
 
 
 function createZwiftMap({worldList}) {
+    const opacity = 1 - 1 / (100 / (settings.transparency || 0));
     const zwiftMap = new map.SauceZwiftMap({
         el: document.querySelector('.map'),
         worldList,
         zoom: settings.zoom,
         autoHeading: settings.autoHeading,
+        style: settings.mapStyle,
+        opacity,
+        tiltShift: settings.tiltShift && ((settings.tiltShiftAmount || 0) / 100),
+        tiltShiftAngle: settings.tiltShiftAngle || 10,
+        sparkle: settings.sparkle,
+        quality: settings.quality ? settings.quality / 100 : 80,
+        animation: settings.animation,
+        verticalOffset: settings.verticalOffset / 100,
     });
     let settingsSaveTimeout;
     zwiftMap.addEventListener('zoom', ev => {
@@ -58,7 +70,7 @@ function createZwiftMap({worldList}) {
     zwiftMap.addEventListener('drag', () => anchorResetButton.classList.remove('disabled'));
     anchorResetButton.addEventListener('click', ev => {
         anchorResetButton.classList.add('disabled');
-        zwiftMap.setAnchorOffset(0, 0);
+        zwiftMap.setDragOffset(0, 0);
     });
     const headingRotateDisButton = document.querySelector('.map-controls .button.disable-heading');
     const headingRotateEnButton = document.querySelector('.map-controls .button.enable-heading');
@@ -73,11 +85,6 @@ function createZwiftMap({worldList}) {
     headingRotateEnButton.classList.toggle('hidden', settings.autoHeading !== false);
     headingRotateDisButton.addEventListener('click', () => autoHeadingHandler(false));
     headingRotateEnButton.addEventListener('click', () => autoHeadingHandler(true));
-    zwiftMap.setStyle(settings.mapStyle);
-    zwiftMap.setOpacity(1 - 1 / (100 / (settings.transparency || 0)));
-    zwiftMap.setTiltShift(settings.tiltShift);
-    zwiftMap.setTiltShiftAngle(settings.tiltShiftAngle || 10);
-    zwiftMap.setSparkle(settings.sparkle);
     return zwiftMap;
 }
 
@@ -128,7 +135,8 @@ export async function main() {
         f1: 'grade',
         f2: 'altitude',
     };
-    for (let i = 0; i < (common.settingsStore.get('fields') || 1); i++) {
+    const numFields = common.settingsStore.get('fields');
+    for (let i = 0; i < (isNaN(numFields) ? 1 : numFields); i++) {
         const id = `f${i + 1}`;
         fieldsEl.insertAdjacentHTML('beforeend', `
             <div class="field" data-field="${id}">
@@ -146,6 +154,7 @@ export async function main() {
     });
     const worldList = await common.getWorldList();
     zwiftMap = createZwiftMap({worldList});
+    window.zwiftMap = zwiftMap;  // DEBUG
     elProfile = settings.profileOverlay && createElevationProfile({worldList});
     const urlQuery = new URLSearchParams(location.search);
     if (urlQuery.has('testing')) {
@@ -153,63 +162,69 @@ export async function main() {
         zwiftMap.setCourse(+course || 6).then(() => {
             zwiftMap.setRoad(+road || 0);
         });
-        elProfile.setCourse(+course || 6).then(() => {
-            elProfile.setRoad(+road || 0);
-        });
-        return;
-    }
-    common.subscribe('watching-athlete-change', async athleteId => {
-        if (!initDone) {
-            initDone = await initSelfAthlete();
-        }
-        setWatching(athleteId);
-    });
-    common.subscribe('states', async states => {
-        if (!initDone) {
-            initDone = await initSelfAthlete({zwiftMap, elProfile});
-        }
-        zwiftMap.renderAthleteStates(states);
         if (elProfile) {
-            elProfile.renderAthleteStates(states);
+            elProfile.setCourse(+course || 6).then(() => {
+                elProfile.setRoad(+road || 0);
+            });
         }
-        const watching = states.find(x => x.athleteId === watchingId);
-        if (watching) {
-            fieldRenderer.setData({state: watching});
-            fieldRenderer.render();
-        }
-    });
-    initDone = await initSelfAthlete();
-    if (!initDone) {
-        console.info("User not active, starting demo mode...");
-        zwiftMap.setCourse(6);
-        if (elProfile) {
-            elProfile.setCourse(6);
-        }
-        let i = 0;
-        const updateHeading = () => {
-            if (initDone) {
-                zwiftMap.setHeadingOffset(0);
-            } else {
-                zwiftMap.setHeadingOffset(i += 5);
-                setTimeout(updateHeading, 1000);
+    } else {
+        common.subscribe('watching-athlete-change', async athleteId => {
+            if (!initDone) {
+                initDone = await initSelfAthlete();
             }
-        };
-        updateHeading();
+            setWatching(athleteId);
+        });
+        common.subscribe('states', async states => {
+            if (!initDone) {
+                initDone = await initSelfAthlete({zwiftMap, elProfile});
+            }
+            zwiftMap.renderAthleteStates(states);
+            if (elProfile) {
+                elProfile.renderAthleteStates(states);
+            }
+            const watching = states.find(x => x.athleteId === watchingId);
+            if (watching) {
+                fieldRenderer.setData({state: watching});
+                fieldRenderer.render();
+            }
+        });
+        initDone = await initSelfAthlete();
+        if (!initDone) {
+            console.info("User not active, starting demo mode...");
+            zwiftMap.setCourse(6);
+            if (elProfile) {
+                elProfile.setCourse(6);
+            }
+            let i = 0;
+            const updateHeading = () => {
+                if (initDone) {
+                    zwiftMap.setHeadingOffset(0);
+                } else {
+                    zwiftMap.setHeadingOffset(i += 5);
+                    setTimeout(updateHeading, 1000);
+                }
+            };
+            updateHeading();
+        }
     }
     common.settingsStore.addEventListener('changed', async ev => {
         const changed = ev.data.changed;
         if (changed.has('solidBackground') || changed.has('backgroundColor')) {
             setBackground();
         } else if (changed.has('transparency')) {
-            zwiftMap.setOpacity(1 - 1 / (100 / changed.get('transparency')));
+            zwiftMap.setOpacity(1 - 1 / (100 / (changed.get('transparency') || 0)));
         } else if (changed.has('mapStyle')) {
             zwiftMap.setStyle(changed.get('mapStyle'));
-        } else if (changed.has('tiltShift')) {
-            zwiftMap.setTiltShift(changed.get('tiltShift'));
-        } else if (changed.has('tiltShiftAngle')) {
-            zwiftMap.setTiltShiftAngle(changed.get('tiltShiftAngle'));
+        } else if (changed.has('tiltShift') || changed.has('tiltShiftAmount')) {
+            zwiftMap.setTiltShift(settings.tiltShift && ((settings.tiltShiftAmount || 0) / 100));
         } else if (changed.has('sparkle')) {
             zwiftMap.setSparkle(changed.get('sparkle'));
+        } else if (changed.has('quality')) {
+            zwiftMap.setQuality(changed.get('quality') / 100);
+        } else if (changed.has('animation')) {
+            zwiftMap.setAnimation(changed.get('animation'));
+        } else if (changed.has('verticalOffset')) {
+            zwiftMap.setVerticalOffset(changed.get('verticalOffset') / 100);
         } else if (changed.has('profileOverlay') || changed.has('fields')) {
             location.reload();
         }
