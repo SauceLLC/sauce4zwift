@@ -1,5 +1,4 @@
 #!/bin/sh -e
 EXT="${@:$#}"
 DIRS="${@:1:$#-1}"
-
-find $DIRS -type f -name "$EXT" | xargs fswatch --event Updated -1 --latency 0.001
+find $DIRS -type f -name "$EXT" 2>/dev/null | xargs fswatch --event Updated -1 --latency 0.001
