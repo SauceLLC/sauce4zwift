@@ -34,5 +34,12 @@
                 "checkLoops": false
             }
         ]
-    }
+    },
+    "overrides": [{
+        "files": ["*.mjs"],
+        "parserOptions": {
+            "sourceType": "module",
+            "allowImportExportEverywhere": true
+        }
+    }]
 }
