@@ -657,7 +657,7 @@ export class SauceZwiftMap extends EventTarget {
             const angle = this.zoom * this._tiltShiftNorm;
             // There is no way to be perfect here so this is tuned with a medium/large
             // sized window on a Linux at 60fps to stay around ~500MB GPU mem on blink.
-            quality *= Math.min(1, 11 / Math.max(0, angle - 30));
+            quality *= Math.min(1, 5 / Math.max(0, angle - 45));
             console.log("quality adjust:", 'tsnorm', this._tiltShiftNorm, 'angle', angle, 'qual', quality);
             this.mapEl.style.setProperty('--tilt-shift-angle', angle);
         } else {
