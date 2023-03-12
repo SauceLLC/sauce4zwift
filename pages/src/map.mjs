@@ -50,12 +50,17 @@ function smoothPath(points, {looped, smoothing=0.2}={}) {
 }
 
 
+function isVisible() {
+    return document.visibilityState === 'visible';
+}
+
+
 export class SauceZwiftMap extends EventTarget {
     constructor({el, worldList, zoom=1, zoomMin=0.25, zoomMax=4.5, autoHeading=true,
                  style='default', opacity=1, tiltShift=null, maxTiltShiftAngle=65,
                  sparkle=false, quality=1, animation=true, verticalOffset=0}) {
         super();
-        el.classList.toggle('hidden', document.visibilityState !== 'visible');
+        el.classList.toggle('hidden', !isVisible());
         el.classList.add('sauce-map-container');
         this.el = el;
         this.worldList = worldList;
@@ -78,6 +83,10 @@ export class SauceZwiftMap extends EventTarget {
         this._dragXY = [0, 0];
         this._layerScale = null;
         this._loadingRefCnt = 0;
+        this._renderAnimFrame = null;
+        this._pendingRenderWork = new Map();
+        this._mapFinalScale = null;
+        this._transformRefCnt = 0;
         this._wheelState = {
             nextAnimFrame: null,
             done: null,
@@ -107,7 +116,13 @@ export class SauceZwiftMap extends EventTarget {
         this.el.addEventListener('wheel', this._onWheelZoom.bind(this));
         this.el.addEventListener('pointerdown', this._onPointerDown.bind(this));
         document.addEventListener('visibilitychange', () => {
-            this.el.classList.toggle('hidden', document.visibilityState !== 'visible');
+            const visable = isVisible();
+            if (visable) {
+                // Prevent crazy spinning
+                this._applyRender(true);
+                this.el.offsetWidth;
+            }
+            this.el.classList.toggle('hidden', !visable);
         });
         this._elHeight = 0;
         this._resizeObserver = new ResizeObserver(([x]) =>
@@ -353,8 +368,9 @@ export class SauceZwiftMap extends EventTarget {
         this.courseId = courseId;
         this.worldMeta = this.worldList.find(x => x.courseId === courseId);
         const {minX, minY, tileScale, mapScale, anchorX, anchorY} = this.worldMeta;
-        this._anchorXY[0] = -(minX + anchorX) / tileScale * mapScale;
-        this._anchorXY[1] = -(minY + anchorY) / tileScale * mapScale;
+        this._mapScale = 1 / (tileScale / mapScale);
+        this._anchorXY[0] = -(minX + anchorX) * this._mapScale;
+        this._anchorXY[1] = -(minY + anchorY) * this._mapScale;
         this.mapEl.style.setProperty('--anchor-x', this._anchorXY[0] + 'px');
         this.mapEl.style.setProperty('--anchor-y', this._anchorXY[1] + 'px');
         this._setHeading(0);
@@ -400,7 +416,7 @@ export class SauceZwiftMap extends EventTarget {
 
     _fixWorldPos(pos) {
         // Maybe zomday I'll know why...
-        return this.worldMeta.mapRotateHack ? [pos[1], -pos[0], pos[2]] : pos;
+        return this.worldMeta.mapRotateHack ? [pos[1], -pos[0]] : pos;
     }
 
     _renderEnts() {
@@ -523,6 +539,7 @@ export class SauceZwiftMap extends EventTarget {
     _addAthleteEntity(state) {
         const isSelf = state.athleteId === this.athleteId;
         const ent = createElementSVG('circle', {r: '1em', cx: 0, cy: 0});
+        ent.new = true;
         ent.classList.add('entity', 'athlete');
         ent.classList.toggle('self', isSelf);
         ent.classList.toggle('watching', !isSelf && state.athleteId === this.watchingId);
@@ -543,7 +560,6 @@ export class SauceZwiftMap extends EventTarget {
             ent.classList.toggle('pinned');
         });
         this._ents.set(state.athleteId, ent);
-        this.entsSvg.append(ent);
     }
 
     renderAthleteStates(states) {
@@ -563,68 +579,85 @@ export class SauceZwiftMap extends EventTarget {
             }
         }
         const now = Date.now();
-        requestAnimationFrame(() => {
-            for (const state of states) {
-                if (!this._ents.has(state.athleteId)) {
-                    this._addAthleteEntity(state);
-                }
-                const ent = this._ents.get(state.athleteId);
-                const age = state.worldTime - ent.wt;
-                if (age) {
-                    ent.classList.toggle('fast', age < 250);
-                    ent.classList.toggle('slow', age > 1500);
-                }
-                let powerLevel;
-                if (state.power > 600) {
-                    powerLevel = 'z6';
-                } else if (state.power > 400) {
-                    powerLevel = 'z5';
-                } else if (state.power > 300) {
-                    powerLevel = 'z4';
-                } else if (state.power > 250) {
-                    powerLevel = 'z3';
-                } else if (state.power < 200) {
-                    powerLevel = 'z2';
-                } else {
-                    powerLevel = 'z1';
-                }
-                ent.dataset.powerLevel = powerLevel;
-                ent.wt = state.worldTime;
-                ent.lastSeen = now;
-                const pos = this._fixWorldPos([state.x, state.y]);
-                const x = pos[0] / this.worldMeta.tileScale * this.worldMeta.mapScale;
-                const y = pos[1] / this.worldMeta.tileScale * this.worldMeta.mapScale;
-                ent.style.setProperty('transform',
-                    `translate(${pos[0] * svgInternalScale}px, ${pos[1] * svgInternalScale}px`);
-                if (state.athleteId === this.watchingId && !this.trackingPaused) {
-                    if (this.autoHeading) {
-                        this._setHeading(state.heading);
-                    }
-                    this._centerXY[0] = x;
-                    this._centerXY[1] = y;
-                    this._transform();
-                }
-                if (ent.pin) {
-                    const ad = this._athleteCache.get(state.athleteId);
-                    const name = ad && ad.data.athlete ?
-                        `${ad.data.athlete.sanitizedFLast}` : `ID: ${state.athleteId}`;
-                    const t = this._coordToPixels([x, y]);
-                    ent.pinWrap.style.setProperty('transform', `translate(${t[0]}px, ${t[1]}px)`);
-                    ent.pin.innerHTML = `
-                        <b>${common.sanitize(name)}</b><br/>
-                        Power: ${H.power(state.power, {suffix: true, html: true})}<br/>
-                        Speed: ${H.pace(state.speed, {suffix: true, html: true})}
-                    `;
-                }
+        const transformRefCntSave = this._transformRefCnt;
+        for (const state of states) {
+            if (!this._ents.has(state.athleteId)) {
+                this._addAthleteEntity(state);
             }
-            for (const [athleteId, ent] of this._ents.entries()) {
-                if (now - ent.lastSeen > 15000) {
-                    ent.remove();
-                    this._ents.delete(athleteId);
-                }
+            const ent = this._ents.get(state.athleteId);
+            const age = state.worldTime - ent.wt;
+            if (age) {
+                ent.classList.toggle('fast', age < 250);
+                ent.classList.toggle('slow', age > 1500);
             }
-            this._lazyUpdateAthleteDetails(states.map(x => x.athleteId));
-        });
+            let powerLevel;
+            if (state.power < 200) {
+                powerLevel = 'z1';
+            } else if (state.power < 250) {
+                powerLevel = 'z2';
+            } else if (state.power < 300) {
+                powerLevel = 'z3';
+            } else if (state.power < 450) {
+                powerLevel = 'z4';
+            } else if (state.power < 600) {
+                powerLevel = 'z5';
+            } else {
+                powerLevel = 'z6';
+            }
+            ent.powerLevel = powerLevel;
+            ent.wt = state.worldTime;
+            ent.lastSeen = now;
+            ent.pos = this._fixWorldPos([state.x, state.y]);
+            if (state.athleteId === this.watchingId && !this.trackingPaused) {
+                if (this.autoHeading) {
+                    this._setHeading(state.heading);
+                }
+                this._centerXY[0] = ent.pos[0] * this._mapScale;
+                this._centerXY[1] = ent.pos[1] * this._mapScale;
+                this._transformRefCnt++;
+            }
+            this._pendingRenderWork.set(ent, state);
+        }
+        for (const [athleteId, ent] of this._ents.entries()) {
+            if (now - ent.lastSeen > 15000) {
+                ent.remove();
+                this._pendingRenderWork.delete(ent);
+                this._ents.delete(athleteId);
+                console.warn("XXX clean up pin");
+            }
+        }
+        this._lazyUpdateAthleteDetails(states.map(x => x.athleteId));
+        cancelAnimationFrame(this._renderAnimFrame);
+        this._renderAnimFrame = requestAnimationFrame(() =>
+            this._applyRender(transformRefCntSave !== this._transformRefCnt));
+    }
+
+    _applyRender(doTransform) {
+        for (const [ent, state] of this._pendingRenderWork.entries()) {
+            ent.dataset.powerLevel = ent.powerLevel;
+            ent.style.setProperty('transform',
+                `translate(${ent.pos[0] * svgInternalScale}px, ${ent.pos[1] * svgInternalScale}px`);
+            if (ent.pin) {
+                const ad = this._athleteCache.get(state.athleteId);
+                const name = ad && ad.data.athlete ?
+                    `${ad.data.athlete.sanitizedFLast}` : `ID: ${state.athleteId}`;
+                const t = this._coordToPixels(ent.pos);
+                ent.pinWrap.style.setProperty('transform', `translate(${t[0]}px, ${t[1]}px)`);
+                ent.pin.innerHTML = `
+                    <b>${common.sanitize(name)}</b><br/>
+                    Power: ${H.power(state.power, {suffix: true, html: true})}<br/>
+                    Speed: ${H.pace(state.speed, {suffix: true, html: true})}
+                `;
+            }
+            if (ent.new) {
+                this.entsSvg.append(ent);
+                ent.new = false;
+            }
+        }
+        this._pendingRenderWork.clear();
+        if (doTransform) {
+            this._transform();
+        }
     }
 
     _onImgLoad() {
@@ -651,9 +684,9 @@ export class SauceZwiftMap extends EventTarget {
         const chunk = 0.5; // How frequently we jank.
         let quality = this.quality;
         if (this._tiltShift) {
-            // When zoomed in tiltShift can exploded the GPU budget if a lot of landscape is visible
-            // So we need an additional scale factor to prevent users from having constantly adjust
-            // quality.
+            // When zoomed in tiltShift can exploded the GPU budget if a lot of
+            // landscape is visible.  We need an additional scale factor to prevent
+            // users from having constantly adjust quality.
             const angle = this.zoom * this._tiltShiftNorm;
             // There is no way to be perfect here so this is tuned with a medium/large
             // sized window on a Linux at 60fps to stay around ~500MB GPU mem on blink.
@@ -678,8 +711,8 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     _coordToPixels([x, y]) {
-        const relX = this._anchorXY[0] + x;
-        const relY = this._anchorXY[1] + y;
+        const relX = this._anchorXY[0] + x * this._mapScaleFactor;
+        const relY = this._anchorXY[1] + y * this._mapScaleFactor;
         const dragX = this._dragXY[0] * (this._layerScale * this.zoom);
         const dragY = this._dragXY[1] * (this._layerScale * this.zoom);
         const xPixel = (relX - dragX) / this._layerScale;
@@ -708,7 +741,8 @@ export class SauceZwiftMap extends EventTarget {
                 `rotateX(${this.zoom * this._tiltShiftNorm}deg)`);
         }
         if (this.verticalOffset) {
-            transform.push(`translate(0, ${this.verticalOffset * this._elHeight / this.zoom / this._layerScale}px)`);
+            const offt = this.verticalOffset * this._elHeight / this.zoom / this._layerScale;
+            transform.push(`translate(0, ${offt}px)`);
         }
         transform.push(`rotate(${this.adjHeading}deg)`);
         this.mapEl.style.setProperty('transform', transform.join(' '));
@@ -740,7 +774,7 @@ export class SauceZwiftMap extends EventTarget {
                 this._updateEntityAthleteData(ent, entry.data);
             }
         }
-        if (refresh.length && !document.hidden) {
+        if (refresh.length && isVisible()) {
             common.rpc.getAthletesData(refresh).then(ads => {
                 for (const ad of ads) {
                     const ent = this._ents.get(ad.athleteId);
@@ -765,7 +799,7 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     _setHeading(heading, force) {
-        if (!force && (this.trackingPaused || document.hidden)) {
+        if (!force && this.trackingPaused) {
             return false;
         }
         if (Math.abs(this._lastHeading - heading) > 180) {

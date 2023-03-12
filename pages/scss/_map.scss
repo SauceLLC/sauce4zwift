@@ -2,17 +2,26 @@
 @use "sass:math";
 
 @keyframes sparkle {
-    20% {
-        filter: drop-shadow(0.2em 0.2em 1em var(--sparkle-color));
-        stroke-width: 0.2em;
-    }
-    50% {
-        opacity: 1;
-    }
-    80% {
-        stroke-width: 0.5em;
-    }
+    0%  { filter: drop-shadow(0 0 0.25em #fff1); }
+    10%  { filter: drop-shadow(0 0 0.5em #fff5); }
+    20%  { filter: drop-shadow(0 0 0.6em #fff7); }
+    30%  { filter: drop-shadow(0 0 0.7em #fff9); }
+    40%  { filter: drop-shadow(0 0 0.8em #fffb); }
+    50%  { filter: drop-shadow(0 0 0.9em #fffd); }
+    60%  { filter: drop-shadow(0 0 1em #ffff); }
+    70%  { fill: var(--fill); }
+    73%  { fill: var(--sparkle-color); opacity: 1; }
+    76%  { fill: var(--fill); }
+    79%  { fill: var(--sparkle-color); opacity: 1; }
+    82%  { fill: var(--fill); }
+    85%  { fill: var(--sparkle-color); opacity: 1; }
+    88%  { fill: var(--fill); }
+    91%  { fill: var(--sparkle-color); opacity: 1; }
+    94%  { fill: var(--fill); }
+    97%  { fill: var(--sparkle-color); opacity: 1; }
+    100%  { fill: var(--fill); }
 }
+
 
 .sauce-map-container {
     --transform-duration: 500ms;
@@ -65,8 +74,10 @@
     }
 
     &.sparkle .sauce-map svg.entities {
-        .entity.athlete[data-power-level]:not([data-power-level="z1"]):not([data-power-level="z2"]) {
-            animation: sparkle 700ms infinite;
+        .entity.athlete[data-power-level="z4"],
+        .entity.athlete[data-power-level="z5"],
+        .entity.athlete[data-power-level="z6"] {
+            animation: sparkle 2400ms infinite steps(5);
         }
     }
 
@@ -192,11 +203,14 @@
 
         > svg.entities {
             font-size: calc(4px + ((1 / var(--zoom)) * 5px));
+            contain: strict; // micro opt
 
             circle.athlete {
                 $size: 1em;
                 $border-size: 0.333333em;
-                fill: #fffa;
+                content-visibility: hidden; // micro opt (see ^^^ contain)
+                --fill: #fffa;
+                fill: var(--fill);
                 stroke: #5a94ff;
                 stroke-width: $border-size;
                 opacity: 0.8;
@@ -211,76 +225,55 @@
                     transition-duration: 2100ms;
                 }
 
-                &[data-power-level="z3"] {
-                    --sparkle-color: #fff5;
-                    --sparkle-intensity: 1.08;
-                }
                 &[data-power-level="z4"] {
                     --sparkle-color: #fff9;
-                    --sparkle-intensity: 1.1;
                 }
                 &[data-power-level="z5"] {
-                    --sparkle-color: #fffc;
-                    --sparkle-intensity: 1.2;
+                    --sparkle-color: #dfb1a891;
                 }
                 &[data-power-level="z6"] {
-                    --sparkle-color: #ff7900;
-                    --sparkle-intensity: 1.3;
-                    stroke: #dc3c10cc;
+                    --sparkle-color: #ae45da91;
                 }
 
                 &.following {
                     font-size: $size * 1.3;
                     stroke-width: $border-size * 1.5;
-                    //stroke-width: 1.333em;
-                    //--size: 4;
-                    //--border-size: 1.5;
-                    fill: color.get(marked, 0.8);
+                    --fill: color.get(marked, 0.8);
                     stroke: color.shade(marked, 100%);
                 }
 
                 &.marked {
                     font-size: $size * 1.3;
                     stroke-width: $border-size * 1.5;
-                    //--size: 4;
-                    //--border-size: 1.5;
-                    fill: color.get(marked, 0.8);
+                    --fill: color.get(marked, 0.8);
                     stroke: color.shade(marked, 100%);
                 }
 
                 &.sweeper {
                     font-size: $size * 1.2;
                     stroke-width: $border-size * 1.25;
-                    //--size: 3.5;
-                    //--border-size: 1.25;
-                    fill: #f1262675;
+                    --fill: #f1262675;
                     stroke: #dc3c10cc;
                 }
 
                 &.leader {
                     font-size: $size * 1.2;
                     stroke-width: $border-size * 1.25;
-                    //--size: 3.5;
-                    //--border-size: 1.25;
-                    fill: #ffd91f8c;
+                    --fill: #ffd91f8c;
                     stroke: #000d;
                 }
 
                 &.watching {
                     font-size: $size * 1.3;
                     stroke-width: $border-size * 1.5;
-                    //--size: 4;
-                    //--border-size: 1.5;
-                    fill: #3162ffcc;
+                    --fill: #3162ffcc;
                     stroke: #fff;
                 }
 
                 &.self {
                     font-size: $size * 1.5;
                     stroke-width: $border-size * 1.5;
-                    //--size: 4.5;
-                    //--border-size: 1.5;
-                    fill: #f22c;
+                    --fill: #f22c;
                     stroke: #fff;
                 }
 
