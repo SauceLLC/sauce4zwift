@@ -546,7 +546,7 @@ export class Renderer {
 
     render(options={}) {
         if (!options.force && this.fps) {
-            const age = performance.now() - (this._lastRender || -Infinity);
+            const age = Date.now() - (this._lastRender || -Infinity);
             const minAge = 1000 / this.fps;
             if (age < minAge - this._lastRenderTime) {
                 if (!this._scheduledRender) {
@@ -563,7 +563,7 @@ export class Renderer {
                 clearTimeout(this._scheduledRender);
                 this._scheduledRender = null;
             }
-            const start = performance.now();
+            const start = Date.now();
             this._nextRender = new Promise(resolve => {
                 this.schedAnimationFrame(() => {
                     if (this.stopping) {
@@ -638,7 +638,7 @@ export class Renderer {
                     resolve();
                 });
             }).finally(() => {
-                this._lastRender = performance.now();
+                this._lastRender = Date.now();
                 this._lastRenderTime = this._lastRender - start;
                 this._nextRender = null;
             });
