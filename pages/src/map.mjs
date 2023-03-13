@@ -584,12 +584,6 @@ export class SauceZwiftMap extends EventTarget {
             if (!this._ents.has(state.athleteId)) {
                 this._addAthleteEntity(state);
             }
-            const ent = this._ents.get(state.athleteId);
-            const age = state.worldTime - ent.wt;
-            if (age) {
-                ent.classList.toggle('fast', age < 250);
-                ent.classList.toggle('slow', age > 1500);
-            }
             let powerLevel;
             if (state.power < 200) {
                 powerLevel = 'z1';
@@ -604,7 +598,9 @@ export class SauceZwiftMap extends EventTarget {
             } else {
                 powerLevel = 'z6';
             }
+            const ent = this._ents.get(state.athleteId);
             ent.powerLevel = powerLevel;
+            ent.age = state.worldTime - ent.wt;
             ent.wt = state.worldTime;
             ent.lastSeen = now;
             ent.pos = this._fixWorldPos([state.x, state.y]);
@@ -634,6 +630,10 @@ export class SauceZwiftMap extends EventTarget {
 
     _applyRender(doTransform) {
         for (const [ent, state] of this._pendingRenderWork.entries()) {
+            if (ent.age) {
+                ent.classList.toggle('fast', ent.age < 250);
+                ent.classList.toggle('slow', ent.age > 1500);
+            }
             ent.dataset.powerLevel = ent.powerLevel;
             ent.style.setProperty('transform',
                 `translate(${ent.pos[0] * svgInternalScale}px, ${ent.pos[1] * svgInternalScale}px`);

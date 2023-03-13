@@ -203,12 +203,10 @@
 
         > svg.entities {
             font-size: calc(4px + ((1 / var(--zoom)) * 5px));
-            contain: strict; // micro opt
 
             circle.athlete {
                 $size: 1em;
                 $border-size: 0.333333em;
-                content-visibility: hidden; // micro opt (see ^^^ contain)
                 --fill: #fffa;
                 fill: var(--fill);
                 stroke: #5a94ff;
