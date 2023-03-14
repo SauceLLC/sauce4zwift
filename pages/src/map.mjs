@@ -82,6 +82,9 @@ export class SauceZwiftMap extends EventTarget {
         this._anchorXY = [0, 0];
         this._dragXY = [0, 0];
         this._layerScale = null;
+        this._layerClipRadius = null;
+        this._layerWidth = null;
+        this._layerHeight = null;
         this._loadingRefCnt = 0;
         this._renderAnimFrame = null;
         this._pendingRenderWork = new Map();
@@ -105,6 +108,13 @@ export class SauceZwiftMap extends EventTarget {
         this.mapEl.classList.add('sauce-map');
         this.entsSvg = createElementSVG('svg');
         this.entsSvg.classList.add('entities');
+        this.entsLayers = {
+            low: createElementSVG('g', {class: 'low'}),
+            medium: createElementSVG('g', {class: 'medium'}),
+            high: createElementSVG('g', {class: 'high'}),
+            special: createElementSVG('g', {class: 'special'}),
+        };
+        this.pinned = new Set();
         this.pinsEl = document.createElement('div');
         this.pinsEl.classList.add('pins');
         this.roadsSvg = createElementSVG('svg');
@@ -112,7 +122,7 @@ export class SauceZwiftMap extends EventTarget {
         this.imgEl = document.createElement('img');
         this.imgEl.classList.add('minimap');
         this.imgEl.addEventListener('load', this._onImgLoad.bind(this));
-        this.mapEl.append(this.imgEl, this.roadsSvg, this.entsSvg, this.pinsEl);
+        this.mapEl.append(this.imgEl, this.roadsSvg, this.entsSvg);
         this.el.addEventListener('wheel', this._onWheelZoom.bind(this));
         this.el.addEventListener('pointerdown', this._onPointerDown.bind(this));
         document.addEventListener('visibilitychange', () => {
@@ -138,7 +148,7 @@ export class SauceZwiftMap extends EventTarget {
         this.setQuality(quality);
         this.setAnimation(animation);
         this.setVerticalOffset(verticalOffset);
-        this.el.append(this.mapEl);
+        this.el.append(this.mapEl, this.pinsEl);
         this.decLoading();
     }
 
@@ -163,6 +173,7 @@ export class SauceZwiftMap extends EventTarget {
         this._tiltShift = v;
         this._tiltShiftNorm = v ? (1 / this.zoomMax) * v * this.maxTiltShiftAngle : null;
         this.el.classList.toggle('tilt-shift', !!v);
+        this.mapEl.style.removeProperty('clip-path');
         if (!this.isLoading()) {
             if (!this._adjustLayerScale()) {
                 this._transform();
@@ -176,6 +187,7 @@ export class SauceZwiftMap extends EventTarget {
 
     setQuality(q) {
         this.quality = q;
+        this._layerClipRadius = q * 2000;
         if (!this.isLoading()) {
             if (!this._adjustLayerScale()) {
                 this._transform();
@@ -270,7 +282,7 @@ export class SauceZwiftMap extends EventTarget {
         if (!this.isLoading()) {
             this._transform();
             const dragEv = new Event('drag');
-            dragEv.drag = {x, y};
+            dragEv.drag = [x, y];
             this.dispatchEvent(dragEv);
         }
     }
@@ -371,8 +383,6 @@ export class SauceZwiftMap extends EventTarget {
         this._mapScale = 1 / (tileScale / mapScale);
         this._anchorXY[0] = -(minX + anchorX) * this._mapScale;
         this._anchorXY[1] = -(minY + anchorY) * this._mapScale;
-        this.mapEl.style.setProperty('--anchor-x', this._anchorXY[0] + 'px');
-        this.mapEl.style.setProperty('--anchor-y', this._anchorXY[1] + 'px');
         this._setHeading(0);
         this._updateMapImage();
         for (const x of this._ents.values()) {
@@ -389,28 +399,34 @@ export class SauceZwiftMap extends EventTarget {
 
     setWatching(id) {
         if (this.watchingId != null && this._ents.has(this.watchingId)) {
-            this._ents.get(this.watchingId).classList.remove('watching');
+            const ent = this._ents.get(this.watchingId);
+            ent.classList.remove('watching');
+            ent.watching = false;
+            this.entsLayers.low.append(ent);
         }
         this.watchingId = id;
-        if (id != null && id !== this.athleteId && this._ents.has(id)) {
+        if (id != null && this._ents.has(id)) {
             const ent = this._ents.get(id);
             ent.classList.add('watching');
-            console.warn("XXX Unimplmented, this opt makes setWatching lower latency, but needs svg ent support");
-            //this._centerXY[0] = ent.style.getPropertyValue('--x');
-            //this._centerXY[1] = ent.style.getPropertyValue('--y');
+            ent.watching = true;
+            this.entsLayers.special.append(ent);
         }
         this.setDragOffset(0, 0);
     }
 
     setAthlete(id) {
         if (this.athleteId != null && this._ents.has(this.athleteId)) {
-            this._ents.get(this.athleteId).classList.remove('self');
+            const ent = this._ents.get(this.athleteId);
+            ent.classList.remove('self');
+            ent.self = false;
+            this.entsLayers.low.append(ent);
         }
         this.athleteId = id;
         if (id != null && this._ents.has(id)) {
             const ent = this._ents.get(id);
-            ent.classList.remove('watching');
             ent.classList.add('self');
+            ent.self = true;
+            this.entsLayers.special.append(ent);
         }
     }
 
@@ -428,6 +444,8 @@ export class SauceZwiftMap extends EventTarget {
             (m.maxX - m.minX) * svgInternalScale,
             (m.maxY - m.minY) * svgInternalScale,
         ].join(' '));
+        this.entsSvg.append(this.entsLayers.low, this.entsLayers.medium,
+            this.entsLayers.high, this.entsLayers.special);
     }
 
     async _renderRoads(ids) {
@@ -510,54 +528,34 @@ export class SauceZwiftMap extends EventTarget {
         this._activeRoad.setAttribute('href', `#road-path-${id}`);
     }
 
-    // XXX leave for ref of pin wrap until ported
-    _addDot(state) {
-        const isSelf = state.athleteId === this.athleteId;
-        const dot = document.createElement('div');
-        dot.classList.add('dot');
-        dot.classList.toggle('self', isSelf);
-        dot.classList.toggle('watching', !isSelf && state.athleteId === this.watchingId);
-        dot.dataset.athleteId = state.athleteId;
-        dot.lastSeen = Date.now();
-        dot.wt = state.worldTime;
-        dot.addEventListener('click', () => {
-            if (!dot.pin) {
-                const pinWrap = document.createElement('div');
-                pinWrap.classList.add('pin-wrap');
-                const pin = document.createElement('div');
-                pin.classList.add('pin');
-                pinWrap.append(pin);
-                dot.pin = pin;
-                dot.append(pinWrap);
-            }
-            dot.classList.toggle('pinned');
-        });
-        this._dots.set(state.athleteId, dot);
-        this.dotsEl.append(dot);
-    }
-
     _addAthleteEntity(state) {
-        const isSelf = state.athleteId === this.athleteId;
         const ent = createElementSVG('circle', {r: '1em', cx: 0, cy: 0});
         ent.new = true;
         ent.classList.add('entity', 'athlete');
-        ent.classList.toggle('self', isSelf);
-        ent.classList.toggle('watching', !isSelf && state.athleteId === this.watchingId);
+        ent.classList.toggle('self', state.athleteId === this.athleteId);
+        ent.classList.toggle('watching', state.athleteId === this.watchingId);
         ent.dataset.athleteId = state.athleteId;
         ent.lastSeen = Date.now();
         ent.wt = state.worldTime;
         ent.addEventListener('click', () => {
             if (!ent.pin) {
-                const pinWrap = document.createElement('div');
-                pinWrap.classList.add('pin-wrap');
                 const pin = document.createElement('div');
-                pin.classList.add('pin');
-                pinWrap.append(pin);
-                ent.pinWrap = pinWrap;
+                pin.setAttribute('tabindex', 0); // Support click to focus
+                pin.classList.add('pin-anchor');
+                const pinInner = document.createElement('div');
+                pinInner.classList.add('pin-inner');
+                pin.append(pinInner);
+                const pinContent = document.createElement('div');
+                pinContent.classList.add('pin-content');
+                pinInner.append(pinContent);
                 ent.pin = pin;
-                this.pinsEl.append(pinWrap);
+                this.pinsEl.append(pin);
+                this.pinned.add(ent);
+            } else {
+                this.pinned.delete(ent);
+                ent.pin.remove();
+                ent.pin = null;
             }
-            ent.classList.toggle('pinned');
         });
         this._ents.set(state.athleteId, ent);
     }
@@ -571,7 +569,7 @@ export class SauceZwiftMap extends EventTarget {
             return;
         } else if (watching) {
             if (watching.courseId !== this.courseId) {
-                console.debug("Setting new course from states render:", watching.courseId);
+                console.debug("Setting new course:", watching.courseId);
                 this.setCourse(watching.courseId);
             }
             if (watching.roadId !== this.roadId) {
@@ -611,15 +609,18 @@ export class SauceZwiftMap extends EventTarget {
                 this._centerXY[0] = ent.pos[0] * this._mapScale;
                 this._centerXY[1] = ent.pos[1] * this._mapScale;
                 this._transformRefCnt++;
+                this.foo = true;
             }
             this._pendingRenderWork.set(ent, state);
         }
         for (const [athleteId, ent] of this._ents.entries()) {
             if (now - ent.lastSeen > 15000) {
                 ent.remove();
+                if (ent.pin) {
+                    ent.pin.remove();
+                }
                 this._pendingRenderWork.delete(ent);
                 this._ents.delete(athleteId);
-                console.warn("XXX clean up pin");
             }
         }
         this._lazyUpdateAthleteDetails(states.map(x => x.athleteId));
@@ -640,23 +641,37 @@ export class SauceZwiftMap extends EventTarget {
             if (ent.pin) {
                 const ad = this._athleteCache.get(state.athleteId);
                 const name = ad && ad.data.athlete ?
-                    `${ad.data.athlete.sanitizedFLast}` : `ID: ${state.athleteId}`;
-                const t = this._coordToPixels(ent.pos);
-                ent.pinWrap.style.setProperty('transform', `translate(${t[0]}px, ${t[1]}px)`);
-                ent.pin.innerHTML = `
+                    `${ad.data.athlete.fLast}` : `ID: ${state.athleteId}`;
+                common.softInnerHTML(ent.pin.querySelector('.pin-content'), `
                     <b>${common.sanitize(name)}</b><br/>
                     Power: ${H.power(state.power, {suffix: true, html: true})}<br/>
                     Speed: ${H.pace(state.speed, {suffix: true, html: true})}
-                `;
+                `);
             }
             if (ent.new) {
-                this.entsSvg.append(ent);
+                const layer = [this.athleteId, this.watchingId].includes(state.athleteId) ?
+                    this.entsLayers.special : this.entsLayers.low;
+                layer.append(ent);
                 ent.new = false;
             }
         }
         this._pendingRenderWork.clear();
         if (doTransform) {
             this._transform();
+        } else {
+            this._updatePins();
+        }
+    }
+
+    _updatePins() {
+        const transforms = [];
+        // Avoid spurious reflow with batched reads followed by writes.
+        for (const ent of this.pinned) {
+            const rect = ent.getBoundingClientRect();
+            transforms.push([ent.pin, rect]);
+        }
+        for (const [pin, rect] of transforms) {
+            pin.style.setProperty('transform', `translate(${rect.x + rect.width / 2}px, ${rect.y}px)`);
         }
     }
 
@@ -690,9 +705,9 @@ export class SauceZwiftMap extends EventTarget {
             const angle = this.zoom * this._tiltShiftNorm;
             // There is no way to be perfect here so this is tuned with a medium/large
             // sized window on a Linux at 60fps to stay around ~500MB GPU mem on blink.
-            quality *= Math.min(1, 5 / Math.max(0, angle - 45));
-            console.log("quality adjust:", 'tsnorm', this._tiltShiftNorm, 'angle', angle, 'qual', quality);
+            quality *= Math.min(1, 20 / Math.max(0, angle - 30));
             this.mapEl.style.setProperty('--tilt-shift-angle', angle);
+            this.mapEl.style.setProperty('--clip-path-radius', this._layerClipRadius + 'px');
         } else {
             this.mapEl.style.removeProperty('--tilt-shift-angle');
         }
@@ -701,23 +716,15 @@ export class SauceZwiftMap extends EventTarget {
         if (force || this._layerScale !== scale) {
             this.incLoading();
             this._layerScale = scale;
-            this.imgEl.width = this.imgEl.naturalWidth / scale;
-            this.imgEl.height = this.imgEl.naturalHeight / scale;
+            this._layerWidth = this.imgEl.naturalWidth / scale;
+            this._layerHeight = this.imgEl.naturalHeight / scale;
+            this.imgEl.width = this._layerWidth;
+            this.imgEl.height = this._layerHeight;
             this.mapEl.style.setProperty('--layer-scale', scale);
             this.decLoading();
             return true;
         }
         return false;
-    }
-
-    _coordToPixels([x, y]) {
-        const relX = this._anchorXY[0] + x * this._mapScaleFactor;
-        const relY = this._anchorXY[1] + y * this._mapScaleFactor;
-        const dragX = this._dragXY[0] * (this._layerScale * this.zoom);
-        const dragY = this._dragXY[1] * (this._layerScale * this.zoom);
-        const xPixel = (relX - dragX) / this._layerScale;
-        const yPixel = (relY - dragY) / this._layerScale;
-        return [xPixel, yPixel];
     }
 
     _transform() {
@@ -731,30 +738,62 @@ export class SauceZwiftMap extends EventTarget {
         const dragY = this._dragXY[1] * scale;
         const tX = (relX - dragX) / this._layerScale;
         const tY = (relY - dragY) / this._layerScale;
-        const transform = [
+        const originX = relX / this._layerScale;
+        const originY = relY / this._layerScale;
+        const transforms = [
             `translate(${-tX}px, ${-tY}px)`,
             `scale(${scale})`,
         ];
         if (this._tiltShift) {
-            transform.push(
+            transforms.push(
                 `perspective(${600 / scale}px)`,
                 `rotateX(${this.zoom * this._tiltShiftNorm}deg)`);
+            const maskPos = `${originX - this._layerClipRadius}px ${originY - this._layerClipRadius}px`;
+            this.mapEl.style.setProperty('-webkit-mask-position', maskPos);
+            this.mapEl.style.setProperty('mask-position', maskPos);
+            this.mapEl.style.setProperty('clip-path',
+                `circle(${this._layerClipRadius}px at ${originX}px ${originY}px)`);
+
         }
         if (this.verticalOffset) {
-            const offt = this.verticalOffset * this._elHeight / this.zoom / this._layerScale;
-            transform.push(`translate(0, ${offt}px)`);
+            const height = this._elHeight / this._layerScale / this.zoom;
+            const offt = this.verticalOffset * height;
+            transforms.push(`translate(0, ${offt}px)`);
         }
-        transform.push(`rotate(${this.adjHeading}deg)`);
-        this.mapEl.style.setProperty('transform', transform.join(' '));
-        this.mapEl.style.setProperty('transform-origin',
-            `${relX / this._layerScale}px ${relY / this._layerScale}px`);
+        transforms.push(`rotate(${this.adjHeading}deg)`);
+        this.mapEl.style.setProperty('transform', transforms.join(' '));
+        this.mapEl.style.setProperty('transform-origin', `${originX}px ${originY}px`);
+        this._updatePins();
     }
 
-    _updateEntityAthleteData(el, ad) {
-        el.classList.toggle('leader', !!ad.eventLeader);
-        el.classList.toggle('sweeper', !!ad.eventSweeper);
-        el.classList.toggle('marked', ad.athlete ? !!ad.athlete.marked : false);
-        el.classList.toggle('following', ad.athlete ? !!ad.athlete.following : false);
+    _updateEntityAthleteData(ent, ad) {
+        const leader = !!ad.eventLeader;
+        const sweeper = !!ad.eventSweeper;
+        const marked = ad.athlete ? !!ad.athlete.marked : false;
+        const following = ad.athlete ? !!ad.athlete.following : false;
+        if (leader !== ent.leader) {
+            ent.classList.toggle('leader', leader);
+            ent.leader = leader;
+        }
+        if (sweeper !== ent.sweeper) {
+            ent.classList.toggle('sweeper', sweeper);
+            ent.sweeper = sweeper;
+        }
+        if (marked !== ent.marked) {
+            ent.classList.toggle('marked', marked);
+            ent.marked = marked;
+        }
+        if (following !== ent.following) {
+            ent.classList.toggle('following', following);
+            ent.following = following;
+        }
+        if (ad.athleteId !== this.watchingId && ad.athleteId !== this.athleteId) {
+            const layer = (leader || sweeper || marked || following) ?
+                this.entsLayers.medium : this.entsLayers.low;
+            if (ent.parentElement !== layer) {
+                layer.append(ent);
+            }
+        }
     }
 
     _lazyUpdateAthleteDetails(ids) {

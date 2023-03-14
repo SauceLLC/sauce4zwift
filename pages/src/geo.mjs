@@ -67,11 +67,9 @@ function createZwiftMap({worldList}) {
         settingsSaveTimeout = setTimeout(() => common.settingsStore.set(null, settings), 100);
     });
     const anchorResetButton = document.querySelector('.map-controls .button.reset-anchor');
-    zwiftMap.addEventListener('drag', () => anchorResetButton.classList.remove('disabled'));
-    anchorResetButton.addEventListener('click', ev => {
-        anchorResetButton.classList.add('disabled');
-        zwiftMap.setDragOffset(0, 0);
-    });
+    zwiftMap.addEventListener('drag', ev =>
+        anchorResetButton.classList.toggle('disabled', !ev.drag[0] && !ev.drag[1]));
+    anchorResetButton.addEventListener('click', ev => zwiftMap.setDragOffset(0, 0));
     const headingRotateDisButton = document.querySelector('.map-controls .button.disable-heading');
     const headingRotateEnButton = document.querySelector('.map-controls .button.enable-heading');
     const autoHeadingHandler = en => {

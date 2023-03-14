@@ -171,7 +171,6 @@ export class SauceElevationProfile {
                 await this.setCourse(watching.courseId);
             }
             if (!this.road || this.road.id !== watching.roadId || this.reverse !== watching.reverse) {
-                console.debug("Setting new road from states render:", watching.roadId, watching.reverse);
                 this.setRoad(watching.roadId, watching.reverse);
             }
         }
