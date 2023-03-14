@@ -1,3 +1,5 @@
+let staticTheme;
+
 
 export function cssColor(key, shade=0, alpha=1) {
     return `hsla(
@@ -21,7 +23,7 @@ export function getTheme(mode='static') {
 }
 
 
-const staticTheme = {
+staticTheme = {
     color: ["#c12e34", "#e6b600", "#0098d9", "#2b821d", "#005eaa", "#339ca8", "#cda819", "#32a487"],
     backgroundColor: "rgba(0,0,0,0)",
     textStyle: {

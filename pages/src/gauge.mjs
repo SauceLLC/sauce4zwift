@@ -10,6 +10,7 @@ const page = location.pathname.split('/').at(-1).split('.')[0];
 const type = (new URLSearchParams(location.search)).get('t') || page || 'power';
 const L = sauce.locale;
 const H = L.human;
+let settings;
 let powerZones;
 let sport = 'cycling';
 let imperial = !!common.storage.get('/imperialUnits');
@@ -161,7 +162,7 @@ const gaugeConfigs = {
 
 const config = gaugeConfigs[type];
 const settingsStore = new common.SettingsStore(`gauge-settings-v1-${type}`);
-const settings = settingsStore.get(null, {
+settings = settingsStore.get(null, {
     refreshInterval: 1,
     dataSmoothing: 0,
     showAverage: false,

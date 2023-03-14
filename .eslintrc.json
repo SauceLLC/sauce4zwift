@@ -19,7 +19,7 @@
             "unix"
         ],
         "semi": [
-            "error",
+            "warn",
             "always"
         ],
         "no-unused-vars": [
@@ -33,7 +33,12 @@
             {
                 "checkLoops": false
             }
-        ]
+        ],
+        "no-constant-binary-expression": "warn",
+        "no-constructor-return": "error",
+        "no-new-native-nonconstructor": "error",
+        "no-unreachable-loop": "error",
+        "no-use-before-define": ["warn", "nofunc"]
     },
     "overrides": [{
         "files": ["*.mjs"],

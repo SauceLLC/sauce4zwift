@@ -53,6 +53,74 @@ export let unsubscribe;
 let schedStorageFlush;
 
 
+class LocalStorage extends EventTarget {
+    constructor() {
+        super();
+        this.prefix = `${windowID}-`;
+        window.addEventListener('storage', this._onStorage.bind(this));
+    }
+
+    _onStorage(ev) {
+        let evName;
+        let key;
+        if (ev.key === null) {
+            return;  // clear event
+        }
+        if (ev.key.startsWith(this.prefix)) {
+            evName = 'update';
+            key = ev.key.substr(this.prefix.length);
+        } else if (ev.key[0] === '/') {
+            evName = 'globalupdate';
+            key = ev.key;
+        }
+        if (evName) {
+            const event = new Event(evName);
+            event.data = {key, value: JSON.parse(ev.newValue)};
+            this.dispatchEvent(event);
+        }
+    }
+
+    get(key, def) {
+        key = key[0] === '/' ? key : this.prefix + key;
+        const value = localStorage.getItem(key);
+        if (typeof value !== 'string') {
+            if (def !== undefined) {
+                this._set(key, def);
+            }
+            return def;
+        } else {
+            return JSON.parse(value);
+        }
+    }
+
+    set(key, value) {
+        key = key[0] === '/' ? key : this.prefix + key;
+        if (value === undefined) {
+            localStorage.removeItem(key);
+            schedStorageFlush();
+        } else {
+            this._set(key, value);
+        }
+    }
+
+    _set(fqKey, value) {
+        const json = JSON.stringify(value);
+        if (typeof json !== 'string') {
+            throw new TypeError('Non JSON serializable value');
+        }
+        localStorage.setItem(fqKey, json);
+        schedStorageFlush();
+    }
+
+    delete(key) {
+        key = key[0] === '/' ? key : this.prefix + key;
+        localStorage.removeItem(key);
+        schedStorageFlush();
+    }
+}
+export const storage = new LocalStorage();
+
+
 if (window.isElectron) {
     windowID = electron.context.id;
     const subs = [];
@@ -140,6 +208,36 @@ if (window.isElectron) {
     let uidInc = 1;
     let errBackoff = 500;
     let wsp;
+    const _subscribe = async function(ws, event, callback, options={}) {
+        const uid = uidInc++;
+        const subId = uidInc++;
+        let resolve, reject;
+        const p = new Promise((_resolve, _reject) => (resolve = _resolve, reject = _reject));
+        respHandlers.set(uid, {resolve, reject});
+        respHandlers.set(subId, {resolve: callback, reject: e => console.error(e)});
+        ws.send(JSON.stringify({
+            type: 'request',
+            uid,
+            data: {
+                method: 'subscribe',
+                arg: {
+                    event,
+                    subId,
+                    ...options,
+                }
+            }
+        }));
+        await p;
+        return subId;
+    };
+    const _unsubscribe = async function(ws, subId) {
+        const uid = uidInc++;
+        let resolve, reject;
+        const p = new Promise((_resolve, _reject) => (resolve = _resolve, reject = _reject));
+        respHandlers.set(uid, {resolve, reject});
+        ws.send(JSON.stringify({type: 'request', uid, data: {method: 'unsubscribe', arg: {subId}}}));
+        await p;
+    };
     const connectWebSocket = async function() {
         const schema = location.protocol === 'https:' ? 'wss' : 'ws';
         const ws = new WebSocket(`${schema}://${location.host}/api/ws/events`);
@@ -216,36 +314,6 @@ if (window.isElectron) {
                 await _unsubscribe(await wsp, descr.subId);
             }
         }
-    };
-    const _subscribe = async function(ws, event, callback, options={}) {
-        const uid = uidInc++;
-        const subId = uidInc++;
-        let resolve, reject;
-        const p = new Promise((_resolve, _reject) => (resolve = _resolve, reject = _reject));
-        respHandlers.set(uid, {resolve, reject});
-        respHandlers.set(subId, {resolve: callback, reject: e => console.error(e)});
-        ws.send(JSON.stringify({
-            type: 'request',
-            uid,
-            data: {
-                method: 'subscribe',
-                arg: {
-                    event,
-                    subId,
-                    ...options,
-                }
-            }
-        }));
-        await p;
-        return subId;
-    };
-    const _unsubscribe = async function(ws, subId) {
-        const uid = uidInc++;
-        let resolve, reject;
-        const p = new Promise((_resolve, _reject) => (resolve = _resolve, reject = _reject));
-        respHandlers.set(uid, {resolve, reject});
-        ws.send(JSON.stringify({type: 'request', uid, data: {method: 'unsubscribe', arg: {subId}}}));
-        await p;
     };
     rpcCall = async function(name, ...args) {
         const f = await fetch(`/api/rpc/v1/${name}`, {
@@ -646,74 +714,6 @@ export class Renderer {
         return this._nextRender;
     }
 }
-
-
-class LocalStorage extends EventTarget {
-    constructor() {
-        super();
-        this.prefix = `${windowID}-`;
-        window.addEventListener('storage', this._onStorage.bind(this));
-    }
-
-    _onStorage(ev) {
-        let evName;
-        let key;
-        if (ev.key === null) {
-            return;  // clear event
-        }
-        if (ev.key.startsWith(this.prefix)) {
-            evName = 'update';
-            key = ev.key.substr(this.prefix.length);
-        } else if (ev.key[0] === '/') {
-            evName = 'globalupdate';
-            key = ev.key;
-        }
-        if (evName) {
-            const event = new Event(evName);
-            event.data = {key, value: JSON.parse(ev.newValue)};
-            this.dispatchEvent(event);
-        }
-    }
-
-    get(key, def) {
-        key = key[0] === '/' ? key : this.prefix + key;
-        const value = localStorage.getItem(key);
-        if (typeof value !== 'string') {
-            if (def !== undefined) {
-                this._set(key, def);
-            }
-            return def;
-        } else {
-            return JSON.parse(value);
-        }
-    }
-
-    set(key, value) {
-        key = key[0] === '/' ? key : this.prefix + key;
-        if (value === undefined) {
-            localStorage.removeItem(key);
-            schedStorageFlush();
-        } else {
-            this._set(key, value);
-        }
-    }
-
-    _set(fqKey, value) {
-        const json = JSON.stringify(value);
-        if (typeof json !== 'string') {
-            throw new TypeError('Non JSON serializable value');
-        }
-        localStorage.setItem(fqKey, json);
-        schedStorageFlush();
-    }
-
-    delete(key) {
-        key = key[0] === '/' ? key : this.prefix + key;
-        localStorage.removeItem(key);
-        schedStorageFlush();
-    }
-}
-export const storage = new LocalStorage();
 
 
 export class SettingsStore extends EventTarget {

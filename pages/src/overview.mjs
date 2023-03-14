@@ -36,6 +36,7 @@ function getEventSubgroup(id) {
 
 export async function main() {
     common.initInteractionListeners();
+    let autoHidden;
     let lastData;
     let autoHideTimeout;
     doc.style.setProperty('--center-gap-size', common.settingsStore.get('centerGapSize') + 'px');
@@ -85,7 +86,6 @@ export async function main() {
         document.querySelector('.button.quit').addEventListener('click', () => common.rpc.quit());
     }
 
-    let autoHidden;
     function autoHide() {
         autoHidden = true;
         doc.classList.add('auto-hidden', 'hidden');
@@ -488,6 +488,7 @@ async function initWindowsPanel() {
 
 export async function settingsMain() {
     common.initInteractionListeners();
+    const appSettingsUpdate = common.initAppSettingsForm('form.app-settings');
     const extraData = {version: await common.rpc.getVersion()};
     document.addEventListener('click', async ev => {
         const btn = ev.target.closest('.button[data-action]');
@@ -516,7 +517,6 @@ export async function settingsMain() {
     if (athlete) {
         document.querySelector('img.avatar').src = athlete.avatar || 'images/blankavatar.png';
     }
-    const appSettingsUpdate = common.initAppSettingsForm('form.app-settings');
     document.addEventListener('app-setting-set', ev => {
         if (ev.data.key === 'autoLapMetric') {
             extraData.autoLapIntervalUnits = ev.data.value === 'time' ? 'mins' : 'km';

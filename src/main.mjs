@@ -25,11 +25,13 @@ const zwiftAPI = new zwift.ZwiftAPI();
 const zwiftMonitorAPI = new zwift.ZwiftAPI();
 
 let sauceApp;
+let ipcSubIdInc = 1;
 const rpcSources = {
     windows: windows.eventEmitter,
     updater: autoUpdater,
 };
-
+const serialCache = new WeakMap();
+const windowEventSubs = new WeakMap();
 
 export let started;
 export let quiting;
@@ -137,9 +139,6 @@ function monitorWindowForEventSubs(win, subs) {
 }
 
 
-const serialCache = new WeakMap();
-const windowEventSubs = new WeakMap();
-let ipcSubIdInc = 1;
 electron.ipcMain.handle('subscribe', (ev, {event, persistent, source='stats'}) => {
     const win = ev.sender.getOwnerBrowserWindow();
     const emitter = rpcSources[source];
