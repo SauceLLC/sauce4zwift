@@ -7,9 +7,9 @@ export class Color {
         let h = 0;
         if (!d) {
             h = 0;
-        } else if (maxC == r) {
+        } else if (maxC === r) {
             h = ((g - b) / d) % 6;
-        } else if (maxC == g) {
+        } else if (maxC === g) {
             h = (b - r) / d + 2;
         } else {
             h = (r - g) / d + 4;

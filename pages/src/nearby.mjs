@@ -665,6 +665,7 @@ function renderData(data, {recenter}={}) {
             if (Array.isArray(bv)) {
                 bv = bv[0];
             }
+            // eslint-disable-next-line eqeqeq
             if (av == bv) {
                 return 0;
             } else if (av == null || bv == null) {

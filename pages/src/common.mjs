@@ -839,8 +839,8 @@ function parseDependsOn(dependsOn) {
 
 function compareDependsOn(a, operator, b) {
     return (
-        operator === '==' ? a == b :
-        operator === '!=' ? a != b :
+        operator === '==' ? a == b : // eslint-disable-line eqeqeq
+        operator === '!=' ? a != b : // eslint-disable-line eqeqeq
         operator === '>=' ? a >= b :
         operator === '<=' ? a <= b :
         operator === '>' ? a > b :

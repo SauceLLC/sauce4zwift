@@ -49,7 +49,9 @@
             "ignoreRegExpLiterals": false
         }],
         "max-nested-callbacks": ["warn", 3],
-        "max-depth": ["warn", 5]
+        "max-depth": ["warn", 5],
+        "curly": "warn",
+        "eqeqeq": ["error", "always", {"null": "ignore"}]
     },
     "overrides": [{
         "files": ["*.mjs"],
