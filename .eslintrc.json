@@ -47,7 +47,9 @@
             "ignoreStrings": false,
             "ignoreTemplateLiterals": false,
             "ignoreRegExpLiterals": false
-        }]
+        }],
+        "max-nested-callbacks": ["warn", 3],
+        "max-depth": ["warn", 5]
     },
     "overrides": [{
         "files": ["*.mjs"],

@@ -110,6 +110,7 @@ function filterMsgs(seq, batch) {
                     const text = n.data.toLowerCase();
                     while (true) {
                         offt = text.indexOf(x, offt);
+                        // eslint-disable-next-line max-depth
                         if (offt !== -1) {
                             indexes.push(offt++);
                             visible = true;

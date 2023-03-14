@@ -638,6 +638,7 @@ export function cyclingPowerVelocitySearch({power, ...args}) {
                         for (let v = iv + smallStep;; v += smallStep) {
                             const est = cyclingPowerEstimate({velocity: v, ...args});
                             results.push([v, est]);  // Always include the test case.
+                            // eslint-disable-next-line max-depth
                             if (Math.abs(est.watts - power) < Math.abs(bestEst.watts - power)) {
                                 bestEst = est;
                             } else {

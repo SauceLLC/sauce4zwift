@@ -85,11 +85,12 @@ export function beforeSentrySend(result) {
     try {
         if (result.exception && result.exception.values) {
             for (const exc of result.exception.values) {
-                if (exc.stacktrace && exc.stacktrace.frames) {
-                    for (const f of exc.stacktrace.frames) {
-                        if (f.filename) {
-                            f.filename = scrubSensitive(f.filename);
-                        }
+                if (!exc.stacktrace || !exc.stacktrace.frames) {
+                    continue;
+                }
+                for (const f of exc.stacktrace.frames) {
+                    if (f.filename) {
+                        f.filename = scrubSensitive(f.filename);
                     }
                 }
             }

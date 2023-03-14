@@ -263,23 +263,24 @@ function getNearbySegments(courseId, roadSig) {
             }
             for (const x of _segmentsByWorld[worldId]) {
                 for (const dir of ['Forward', 'Reverse']) {
-                    if (x['id' + dir]) {
-                        const reverse = dir === 'Reverse';
-                        const segSig = getRoadSig(courseId, x.roadId, reverse);
-                        if (!_segmentsByRoadSig[segSig]) {
-                            _segmentsByRoadSig[segSig] = [];
-                        }
-                        const segment = {
-                            ...x,
-                            reverse,
-                            id: x['id' + dir],
-                            distance: x['distance' + dir],
-                            friendlyName: x['friendlyName' + dir],
-                            roadStart: x['roadStart' + dir],
-                        };
-                        _segmentsByRoadSig[segSig].push(segment);
-                        allSegments.set(segment.id, segment);
+                    if (!x['id' + dir]) {
+                        continue;
                     }
+                    const reverse = dir === 'Reverse';
+                    const segSig = getRoadSig(courseId, x.roadId, reverse);
+                    if (!_segmentsByRoadSig[segSig]) {
+                        _segmentsByRoadSig[segSig] = [];
+                    }
+                    const segment = {
+                        ...x,
+                        reverse,
+                        id: x['id' + dir],
+                        distance: x['distance' + dir],
+                        friendlyName: x['friendlyName' + dir],
+                        roadStart: x['roadStart' + dir],
+                    };
+                    _segmentsByRoadSig[segSig].push(segment);
+                    allSegments.set(segment.id, segment);
                 }
             }
         }
