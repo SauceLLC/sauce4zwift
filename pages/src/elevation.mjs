@@ -32,7 +32,8 @@ export class SauceElevationProfile {
             tooltip: {
                 trigger: 'axis',
                 formatter: ([{value}]) => value ?
-                    `${H.elevation(value[1], {suffix: true})}\n${H.number(value[2] * 100, {suffix: '%'})}` : '',
+                    `${H.elevation(value[1], {suffix: true})}\n` +
+                    `${H.number(value[2] * 100, {suffix: '%'})}` : '',
                 axisPointer: {z: -1},
             },
             xAxis: {
@@ -201,7 +202,8 @@ export class SauceElevationProfile {
                 animation: false,
                 data: marks.map(({state}) => {
                     // XXX
-                    const distances = this.road.path.map(pos => vectorDistance(pos, [state.x, state.y, state.z]));
+                    const distances = this.road.path.map(pos =>
+                        vectorDistance(pos, [state.x, state.y, state.z]));
                     const nearest = distances.indexOf(Math.min(...distances));
                     const distance = this.road.distances[nearest];
                     const watching = state.athleteId === this.watchingId;

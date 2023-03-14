@@ -380,7 +380,9 @@ export const fields = [{
     unit: () => sport === 'running' ? 'spm' : 'rpm',
 }, {
     id: 'ev-place',
-    value: x => x.eventPosition ? `${H.place(x.eventPosition, {html: true})}/<small>${x.eventParticipants}</small>`: '-',
+    value: x => x.eventPosition ?
+        `${H.place(x.eventPosition, {html: true})}/<small>${x.eventParticipants}</small>` :
+        '-',
     key: 'Place',
 }, {
     id: 'ev-fin',

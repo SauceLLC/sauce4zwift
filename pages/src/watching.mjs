@@ -391,7 +391,10 @@ const groupSpecs = {
             unit: x => H.place(x.eventPosition, {suffixOnly: true})
         }, {
             id: 'ev-finish',
-            value: x => eventMetric ? eventMetric === 'distance' ? fmtDistValue(x.remaining) : fmtDur(x.remaining) : '-',
+            value: x => eventMetric ?
+                eventMetric === 'distance' ?
+                    fmtDistValue(x.remaining) : fmtDur(x.remaining) :
+                '-',
             label: 'finish',
             key: 'Finish',
             unit: x => eventMetric === 'distance' ? fmtDistUnit(x && x.state && x.state.eventDistance) : '',
@@ -1174,7 +1177,8 @@ export async function main() {
     let curScreen;
     powerZones = await common.rpc.getPowerZones(1);
     const layoutTpl = await getTpl('watching-screen-layout');
-    let persistentData = settings.screens.some(x => x.sections.some(xx => sectionSpecs[xx.type].alwaysRender));
+    let persistentData = settings.screens.some(x =>
+        x.sections.some(xx => sectionSpecs[xx.type].alwaysRender));
     for (const [sIndex, screen] of settings.screens.entries()) {
         const screenEl = (await layoutTpl({
             screen,

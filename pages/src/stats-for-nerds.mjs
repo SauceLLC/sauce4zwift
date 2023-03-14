@@ -215,7 +215,8 @@ const friendlyPlatforms = {
 const debugFormatters = {
     uptime: x => H.timer(x.app.uptime),
     version: x => x.app.version,
-    appCPU: x => H.number((x.app.cpu.user + x.app.cpu.system) / 1000000 / x.app.uptime * 100, {suffix: '%', html: true}),
+    appCPU: x => H.number((x.app.cpu.user + x.app.cpu.system) / 1000000 / x.app.uptime * 100,
+        {suffix: '%', html: true}),
     appMemHeap: x => H.number(x.app.mem.heapTotal / MB, {suffix: 'MB', html: true}),
     os: x => `${friendlyPlatforms[x.sys.platform]} ${x.sys.productVersion}`,
     arch: x => `${x.sys.arch}`,
@@ -223,8 +224,10 @@ const debugFormatters = {
     sysMem: x => H.number(x.sys.mem.total / 1024 / 1024, {suffix: 'GB', html: true}),
     gpu: x => x.gpu.gpu_compositing,
     statesDropped: x => H.number(x.stats.stateDupCount) + ' / ' + H.number(x.stats.stateStaleCount),
-    dbRowsAthletes: x => H.number(x.databases.find(x => x.tableName === 'athletes').rows, {suffix: 'rows', html: true}),
-    dbRowsSettings: x => H.number(x.databases.find(x => x.tableName === 'store').rows, {suffix: 'rows', html: true}),
+    dbRowsAthletes: x => H.number(x.databases.find(x => x.tableName === 'athletes').rows,
+        {suffix: 'rows', html: true}),
+    dbRowsSettings: x => H.number(x.databases.find(x => x.tableName === 'store').rows,
+        {suffix: 'rows', html: true}),
 };
 function defaultDebugFormatter(path) {
     return data => {

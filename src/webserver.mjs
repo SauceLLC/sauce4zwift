@@ -242,7 +242,8 @@ async function _start({ip, port, rpcSources, statsProc}) {
         'rpc/v1/<name>/[<arg1>, <arg2>, ...<argN>]': '[GET] Simple mode RPC call into the backend. ' +
             'CAUTION: Types are inferred based on value.  Values of null, undefined, true, false, NaN, ' +
             'Infinity and -Infinity are converted to their native JavaScript counterpart.  Number-like ' +
-            'values are converted to the native number type.  For advanced call patterns use the POST method.',
+            'values are converted to the native number type.  For advanced call patterns use the POST ' +
+            'method.',
         'mods/v1': '[GET] List available mods (i.e. plugins)',
     }], null, 4);
     const api = express.Router();
@@ -253,7 +254,8 @@ async function _start({ip, port, rpcSources, statsProc}) {
         res.on('finish', () => {
             const client = req.client.remoteAddress;
             const elapsed = (performance.now() - req.start).toFixed(1);
-            const msg = `HTTP API request: (${client}) [${req.method}] ${req.originalUrl} -> ${res.statusCode}, ${elapsed}ms`;
+            const msg = `HTTP API request: (${client}) [${req.method}] ${req.originalUrl} -> ` +
+                `${res.statusCode}, ${elapsed}ms`;
             if (res.statusCode >= 400) {
                 console.error(msg);
             } else {
@@ -325,7 +327,8 @@ async function _start({ip, port, rpcSources, statsProc}) {
         }
     });
     api.get('/rpc/v1', (req, res) =>
-        res.send(JSON.stringify(Array.from(rpc.handlers.keys()).map(name => `${name}: [POST,GET]`), null, 4)));
+        res.send(JSON.stringify(Array.from(rpc.handlers.keys()).map(name =>
+            `${name}: [POST,GET]`), null, 4)));
     api.get('/mods/v1', (req, res) => res.send(JSON.stringify(mods.available, null, 4)));
     api.options('*', (req, res) => {
         res.setHeader('Access-Control-Allow-Origin', '*');

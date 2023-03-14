@@ -338,6 +338,12 @@ export class ZwiftAPI {
         if (options.apiVersion) {
             headers['Zwift-Api-Version'] = options.apiVersion;
         }
+        const defHeaders = {
+            'Platform': 'OSX',
+            'Source': 'Game Client',
+            'User-Agent': 'CNL/3.24.1 (macOS 12 Monterey; Darwin Kernel 21.6.0) zwift/1.0.105233 ' +
+                          'curl/7.78.0-DEV',
+        };
         const host = options.host || this.host || `us-or-rly101.zwift.com`;
         const q = options.query ? ('?' + ((options.query instanceof URLSearchParams) ?
             options.query : new URLSearchParams(options.query))) : '';
@@ -348,12 +354,7 @@ export class ZwiftAPI {
         try {
             r = await fetch(`https://${host}/${urn.replace(/^\//, '')}${q}`, {
                 signal: abort.signal,
-                headers: {
-                    'Platform': 'OSX',
-                    'Source': 'Game Client',
-                    'User-Agent': 'CNL/3.24.1 (macOS 12 Monterey; Darwin Kernel 21.6.0) zwift/1.0.105233 curl/7.78.0-DEV',
-                    ...headers,
-                },
+                headers: {...defHeaders, ...headers},
                 ...options,
             });
         } finally {
@@ -535,7 +536,8 @@ export class ZwiftAPI {
         if (options.best) {
             query['only-best'] = 'true';
         }
-        const data = (await this.fetchPB('/api/segment-results', {query, protobuf: 'SegmentResults'})).results;
+        const data = (await this.fetchPB('/api/segment-results',
+            {query, protobuf: 'SegmentResults'})).results;
         data.sort((a, b) => a.elapsed - b.elapsed);
         return data;
     }
@@ -754,7 +756,8 @@ export class RelayIV {
     }
 
     toString() {
-        return `RelayIV deviceType:${this.deviceType} channelType:${this.channelType} connId:${this.connId} seqno:${this.seqno}`;
+        return `RelayIV deviceType:${this.deviceType} channelType:${this.channelType} ` +
+            `connId:${this.connId} seqno:${this.seqno}`;
     }
 }
 

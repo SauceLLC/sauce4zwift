@@ -259,14 +259,15 @@ async function renderWindows() {
         };
         return `
             <tr data-id="${x.id}" class="window ${x.closed ? 'closed' : 'open'}"
-                title="${common.sanitizeAttr(desc.prettyDesc)}\n\nDouble click/tap to ${x.closed ? 'reopen' : 'focus'}">
-                <td class="name">${common.stripHTML(x.customName || desc.prettyName)}<a class="link win-edit-name"
-                    title="Edit name"><ms>edit</ms></a></td>
+                title="${common.sanitizeAttr(desc.prettyDesc)}\n\n` +
+                       `Double click/tap to ${x.closed ? 'reopen' : 'focus'}">
+                <td class="name">${common.stripHTML(x.customName || desc.prettyName)}` +
+                    `<a class="link win-edit-name" title="Edit name"><ms>edit</ms></a></td>
                 <td class="state">${x.closed ? 'Closed' : 'Open'}</td>
-                <td class="btn"><a title="Reopen this window" class="link win-restore"
-                    ><ms>add_box</ms></a></td>
-                <td class="btn" title="Delete this window and its settings"
-                    ><a class="link danger win-delete"><ms>delete_forever</ms></a></td>
+                <td class="btn"><a title="Reopen this window" class="link win-restore">` +
+                    `<ms>add_box</ms></a></td>
+                <td class="btn" title="Delete this window and its settings">` +
+                    `<a class="link danger win-delete"><ms>delete_forever</ms></a></td>
             </tr>
         `;
     }).join('\n');
@@ -362,7 +363,8 @@ async function initWindowsPanel() {
             await renderProfiles();
         } else if (link.classList.contains('profile-export')) {
             const data = await common.rpc.exportProfile(id);
-            const f = new File([JSON.stringify(data, null, 4)], `${data.profile.name}.json`, {type: 'application/json'});
+            const f = new File([JSON.stringify(data, null, 4)], `${data.profile.name}.json`,
+                {type: 'application/json'});
             const l = document.createElement('a');
             l.download = f.name;
             l.style.display = 'none';

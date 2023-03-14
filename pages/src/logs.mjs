@@ -201,5 +201,6 @@ export async function main() {
     document.querySelector('input[name="filter"]').addEventListener('input', onFilterInput);
     document.querySelector('select[name="level"]').addEventListener('change', onLevelChange);
     document.querySelector('.button.clear').addEventListener('click', onClearClick);
-    document.querySelector('.button.show-folder').addEventListener('click', () => common.rpc.showLogInFolder());
+    document.querySelector('.button.show-folder').addEventListener('click',
+        () => common.rpc.showLogInFolder());
 }

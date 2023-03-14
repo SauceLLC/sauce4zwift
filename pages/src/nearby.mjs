@@ -255,8 +255,9 @@ const fieldGroups = [{
          get: x => x.state.laps + 1, fmt: H.number},
         {id: 'sauce-laps', defaultEn: false, label: 'Sauce Lap', headerLabel: 'S Lap',
          get: x => x.lapCount, fmt: H.number},
-        {id: 'remaining', defaultEn: false, label: 'Event/Route Remaining', headerLabel: '<ms>sports_score</ms>',
-         get: x => x.remaining, fmt: (v, entry) => entry.remainingMetric === 'distance' ? fmtDist(v) : fmtDur(v)},
+        {id: 'remaining', defaultEn: false, label: 'Event/Route Remaining',
+         headerLabel: '<ms>sports_score</ms>', get: x => x.remaining,
+         fmt: (v, entry) => entry.remainingMetric === 'distance' ? fmtDist(v) : fmtDur(v)},
         {id: 'position', defaultEn: false, label: 'Event Position', headerLabel: 'Pos',
          get: x => x.eventPosition, fmt: H.number},
         {id: 'event', defaultEn: false, label: 'Event', headerLabel: '<ms>event</ms>',
@@ -728,7 +729,10 @@ export async function settingsMain() {
         if (!id) {
             return;
         }
-        fieldStates[id] = el.type === 'checkbox' ? el.checked : el.type === 'number' ? Number(el.value) : el.value;
+        fieldStates[id] = el.type === 'checkbox' ?
+            el.checked :
+            el.type === 'number' ?
+                Number(el.value) : el.value;
         el.closest('.field').classList.toggle('disabled', !fieldStates[id]);
         common.storage.set(fieldsKey, fieldStates);
     });
@@ -759,7 +763,8 @@ export async function settingsMain() {
                         <div class="col-adj" title="Move field left or right">
                             <div class="button std icon-only" data-action="moveLeft"><ms>arrow_left</ms></div>
                             <div class="value">${fieldStates[x.id + '-adj'] || 0}</div>
-                            <div class="button std icon-only" data-action="moveRight"><ms>arrow_right</ms></div>
+                            <div class="button std icon-only" data-action="moveRight">` +
+                                `<ms>arrow_right</ms></div>
                         </div>
                     </div>
                 `),

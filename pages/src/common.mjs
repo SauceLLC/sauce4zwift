@@ -454,7 +454,8 @@ export function initInteractionListeners() {
         el.addEventListener('click', ev => location.assign(el.dataset.url));
     }
     for (const el of document.querySelectorAll('.button[data-ext-url]')) {
-        el.addEventListener('click', ev => window.open(el.dataset.extUrl, '_blank', 'popup,width=999,height=333'));
+        el.addEventListener('click', ev =>
+            window.open(el.dataset.extUrl, '_blank', 'popup,width=999,height=333'));
     }
     for (const el of document.querySelectorAll('.tabbed header.tabs')) {
         const tabs = Array.from(el.querySelectorAll(':scope > .tab'));
@@ -597,8 +598,12 @@ export class Renderer {
         const nextField = field.available[this.getAdjacentFieldIndex(field, 1)];
         const tooltip = field.tooltip ? field.tooltip + '\n\n' : '';
         try {
-            const name = stripHTML(fGet(nextField.key, this._data) || fGet(nextField.label, this._data) || nextField.id);
-            field.el.title = `${tooltip}Click to change field to: ${name}.  Or use Left/Right keys when focused.`;
+            const name = stripHTML(
+                fGet(nextField.key, this._data) ||
+                fGet(nextField.label, this._data) ||
+                nextField.id);
+            field.el.title = `${tooltip}Click to change field to: ${name}. ` +
+                `Or use Left/Right keys when focused.`;
         } catch(e) {
             console.error("Failed to get tooltip name for next field:", id, nextField, e);
         }
@@ -1192,7 +1197,8 @@ export function initExpanderTable(table, expandCallback, cleanupCallback) {
                 active = null;
             }
             const shouldCollapse = row.classList.contains('expanded');
-            table.querySelectorAll(':scope > tbody > tr.expanded').forEach(x => x.classList.remove('expanded'));
+            table.querySelectorAll(':scope > tbody > tr.expanded')
+                .forEach(x => x.classList.remove('expanded'));
             const el = row.nextElementSibling.querySelector('.container');
             el.innerHTML = '';
             if (!shouldCollapse) {

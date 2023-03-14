@@ -1,1 +1,3 @@
 pages/src/sentry.js
+shared/deps/segments.mjs
+shared/deps/routes.mjs

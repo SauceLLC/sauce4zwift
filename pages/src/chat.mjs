@@ -230,7 +230,8 @@ export async function main() {
         const w = await (await fetch(wordsURL)).json();
         const _ = arr => arr[Math.floor(Math.random() * arr.length)];
         const phrases = [
-            () => `I ${_(w.verbPast)} through a ${_(w.noun)} in the ${_(w.noun)} and found ${_(w.number)} ${_(w.nounPlural)}.`,
+            () => `I ${_(w.verbPast)} through a ${_(w.noun)} in the ${_(w.noun)} and found ` +
+                `${_(w.number)} ${_(w.nounPlural)}.`,
             () => `${_(w.celebrityM)} is a ${_(w.adv)} ${_(w.adj)} ${_(w.noun)}.`,
             () => `My ${_(w.bodyPart)} has ${_(w.verbPast)} to ${_(w.place)}.`,
         ];

@@ -1826,7 +1826,8 @@ export class StatsProcessor extends events.EventEmitter {
             const eventLeader = sg.invitedLeaders && sg.invitedLeaders.includes(state.athleteId);
             const eventSweeper = sg.invitedSweepers && sg.invitedSweepers.includes(state.athleteId);
             if (sg.durationInSeconds) {
-                const eventEnd = +(new Date(sg.eventSubgroupStart || sg.eventStart)) + (sg.durationInSeconds * 1000);
+                const eventEnd = +(new Date(sg.eventSubgroupStart || sg.eventStart)) +
+                    (sg.durationInSeconds * 1000);
                 return {
                     eventLeader,
                     eventSweeper,

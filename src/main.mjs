@@ -607,7 +607,8 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
                     <hr/>
                     <small>${mod.manifest.description || ''}</small>
                 `,
-                footer: `<b>CAUTION:</b> Only enable this if you trust the author and have intentionally added it.`,
+                footer: `<b>CAUTION:</b> Only enable this if you trust the author and have ` +
+                    `intentionally added it.`,
                 confirmButton: 'Enable Now',
                 cancelButton: 'Ignore',
                 confirmClass: 'danger',

@@ -38,7 +38,16 @@
         "no-constructor-return": "error",
         "no-new-native-nonconstructor": "error",
         "no-unreachable-loop": "error",
-        "no-use-before-define": ["warn", "nofunc"]
+        "no-use-before-define": ["warn", "nofunc"],
+        "complexity": ["warn", 50],
+        "max-len": ["warn", {
+            "code": 110,
+            "ignoreComments": false,
+            "ignoreTrailingComments": false,
+            "ignoreStrings": false,
+            "ignoreTemplateLiterals": false,
+            "ignoreRegExpLiterals": false
+        }]
     },
     "overrides": [{
         "files": ["*.mjs"],
