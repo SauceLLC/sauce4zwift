@@ -125,6 +125,7 @@ export class SauceZwiftMap extends EventTarget {
         this.mapEl.append(this.imgEl, this.roadsSvg, this.entsSvg);
         this.el.addEventListener('wheel', this._onWheelZoom.bind(this));
         this.el.addEventListener('pointerdown', this._onPointerDown.bind(this));
+        this.entsSvg.addEventListener('click', this._onEntsClick.bind(this));
         document.addEventListener('visibilitychange', () => {
             const visable = isVisible();
             if (visable) {
@@ -445,7 +446,7 @@ export class SauceZwiftMap extends EventTarget {
             (m.maxY - m.minY) * svgInternalScale,
         ].join(' '));
         this.entsSvg.append(this.entsLayers.low, this.entsLayers.medium,
-            this.entsLayers.high, this.entsLayers.special);
+                            this.entsLayers.high, this.entsLayers.special);
     }
 
     async _renderRoads(ids) {
@@ -537,7 +538,10 @@ export class SauceZwiftMap extends EventTarget {
         ent.dataset.athleteId = state.athleteId;
         ent.lastSeen = Date.now();
         ent.wt = state.worldTime;
-        ent.addEventListener('click', () => {
+        ent.addEventListener('click', ev => {
+            console.log("direct handler", ev);
+            return;
+            /*
             if (!ent.pin) {
                 const pin = document.createElement('div');
                 pin.setAttribute('tabindex', 0); // Support click to focus
@@ -556,8 +560,34 @@ export class SauceZwiftMap extends EventTarget {
                 ent.pin.remove();
                 ent.pin = null;
             }
+            */
         });
         this._ents.set(state.athleteId, ent);
+    }
+
+    _onEntsClick(ev) {
+        console.warn('delegate handler', ev);
+        return;
+        /*
+        if (!ent.pin) {
+            const pin = document.createElement('div');
+            pin.setAttribute('tabindex', 0); // Support click to focus
+            pin.classList.add('pin-anchor');
+            const pinInner = document.createElement('div');
+            pinInner.classList.add('pin-inner');
+            pin.append(pinInner);
+            const pinContent = document.createElement('div');
+            pinContent.classList.add('pin-content');
+            pinInner.append(pinContent);
+            ent.pin = pin;
+            this.pinsEl.append(pin);
+            this.pinned.add(ent);
+        } else {
+            this.pinned.delete(ent);
+            ent.pin.remove();
+            ent.pin = null;
+        }
+        */
     }
 
     renderAthleteStates(states) {
@@ -636,7 +666,8 @@ export class SauceZwiftMap extends EventTarget {
                 ent.classList.toggle('slow', ent.age > 1500);
             }
             ent.dataset.powerLevel = ent.powerLevel;
-            ent.style.setProperty('transform',
+            ent.style.setProperty(
+                'transform',
                 `translate(${ent.pos[0] * svgInternalScale}px, ${ent.pos[1] * svgInternalScale}px`);
             if (ent.pin) {
                 const ad = this._athleteCache.get(state.athleteId);
@@ -711,8 +742,10 @@ export class SauceZwiftMap extends EventTarget {
         } else {
             this.mapEl.style.removeProperty('--tilt-shift-angle');
         }
-        const scale = Math.min(this.zoomMax, Math.max(this.zoomMin,
-            Math.round(1 / this.zoom / chunk) * chunk)) / quality;
+        const scale = Math.min(
+            this.zoomMax,
+            Math.max(this.zoomMin,
+                     Math.round(1 / this.zoom / chunk) * chunk)) / quality;
         if (force || this._layerScale !== scale) {
             this.incLoading();
             this._layerScale = scale;
@@ -751,9 +784,9 @@ export class SauceZwiftMap extends EventTarget {
             const maskPos = `${originX - this._layerClipRadius}px ${originY - this._layerClipRadius}px`;
             this.mapEl.style.setProperty('-webkit-mask-position', maskPos);
             this.mapEl.style.setProperty('mask-position', maskPos);
-            this.mapEl.style.setProperty('clip-path',
+            this.mapEl.style.setProperty(
+                'clip-path',
                 `circle(${this._layerClipRadius}px at ${originX}px ${originY}px)`);
-
         }
         if (this.verticalOffset) {
             const height = this._elHeight / this._layerScale / this.zoom;
