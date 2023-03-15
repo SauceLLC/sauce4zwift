@@ -331,28 +331,30 @@ export function peakPower(period, timeStream, wattsStream, options={}) {
         return;
     }
     return roll.importReduce(timeStream, wattsStream, options.activeStream, x => x.avg(),
-        (cur, lead) => cur >= lead);
+                             (cur, lead) => cur >= lead);
 }
 
 
 export function peakNP(period, timeStream, wattsStream, options={}) {
-    const roll = correctedRollingPower(timeStream, period,
-        {inlineNP: true, active: true, ...options});
+    const roll = correctedRollingPower(
+        timeStream, period, {inlineNP: true, active: true, ...options});
     if (!roll) {
         return;
     }
-    return roll.importReduce(timeStream, wattsStream, options.activeStream, x => x.np(),
+    return roll.importReduce(
+        timeStream, wattsStream, options.activeStream, x => x.np(),
         (cur, lead) => cur >= lead, {inlineNP: false});
 }
 
 
 export function peakXP(period, timeStream, wattsStream, options={}) {
-    const roll = correctedRollingPower(timeStream, period,
-        {inlineXP: true, active: true, ...options});
+    const roll = correctedRollingPower(
+        timeStream, period, {inlineXP: true, active: true, ...options});
     if (!roll) {
         return;
     }
-    return roll.importReduce(timeStream, wattsStream, options.activeStream, x => x.xp(),
+    return roll.importReduce(
+        timeStream, wattsStream, options.activeStream, x => x.xp(),
         (cur, lead) => cur >= lead, {inlineXP: false});
 }
 
@@ -686,8 +688,8 @@ export function cyclingPowerVelocitySearch({power, ...args}) {
             const rangeVs = refineRange(lower, upper);
             const innerRanges = rangeVs.length >= 4 && findLocalRanges(rangeVs);
             if (innerRanges && innerRanges.length > 1) {
-                for (const [lower, upper] of innerRanges) {
-                    search(refineRange(lower, upper));
+                for (const [l, u] of innerRanges) {
+                    search(refineRange(l, u));
                 }
             } else {
                 const est = cyclingPowerEstimate({velocity: rangeVs[0], ...args});

@@ -237,7 +237,7 @@ const fieldGroups = [{
          tooltip: "W' and W'bal represent time above threshold and remaining energy respectively.\n" +
          "Think of the W'bal value as the amount of energy in a battery.",
          fmt: (x, entry) => (x != null && entry.athlete && entry.athlete.wPrime) ?
-            common.fmtBattery(x / entry.athlete.wPrime) + kj(x / 1000, {precision: 1, fixed: true}) : '-'},
+             common.fmtBattery(x / entry.athlete.wPrime) + kj(x / 1000, {precision: 1, fixed: true}) : '-'},
         {id: 'power-meter', defaultEn: false, label: 'Power Meter', headerLabel: 'PM',
          get: x => x.state.powerMeter, fmt: x => x ? '<ms>check</ms>' : ''},
     ],
@@ -445,15 +445,14 @@ export async function main() {
     const gcs = await common.rpc.getGameConnectionStatus();
     gameConnection = !!(gcs && gcs.connected);
     doc.classList.toggle('game-connection', gameConnection);
-    common.subscribe('status', gcs => {
-        gameConnection = gcs.connected;
+    common.subscribe('status', x => {
+        gameConnection = x.connected;
         doc.classList.toggle('game-connection', gameConnection);
     }, {source: 'gameConnection'});
     common.settingsStore.addEventListener('changed', async ev => {
         const changed = ev.data.changed;
         if (window.isElectron && changed.has('overlayMode')) {
-            await common.rpc.updateWindow(window.electron.context.id,
-                {overlay: changed.get('overlayMode')});
+            await common.rpc.updateWindow(window.electron.context.id, {overlay: changed.get('overlayMode')});
             await common.rpc.reopenWindow(window.electron.context.id);
         }
         if (changed.has('refreshInterval')) {
@@ -471,7 +470,7 @@ export async function main() {
             renderData(nearbyData);
         }
     });
-    common.storage.addEventListener('update', async ev => {
+    common.storage.addEventListener('update', ev => {
         if (ev.data.key === fieldsKey) {
             fieldStates = ev.data.value;
             render();
@@ -699,9 +698,9 @@ function renderData(data, {recenter}={}) {
     }
     if ((!frames++ || recenter) && common.settingsStore.get('autoscroll')) {
         requestAnimationFrame(() => {
-            const row = tbody.querySelector('tr.watching');
-            if (row) {
-                row.scrollIntoView({block: 'center'});
+            const r = tbody.querySelector('tr.watching');
+            if (r) {
+                r.scrollIntoView({block: 'center'});
             }
         });
     }
@@ -754,21 +753,20 @@ export async function settingsMain() {
     for (const {fields, label} of fieldGroups) {
         form.insertAdjacentHTML('beforeend', [
             '<div class="field-group">',
-                `<div class="title">${label}:</div>`,
-                ...fields.map(x => `
-                    <div class="field ${fieldStates[x.id] ? '' : 'disabled'}" data-id="${x.id}">
-                        <label title="${common.sanitizeAttr(x.tooltip || '')}">
-                            <key>${x.label}</key>
-                            <input type="checkbox" name="${x.id}" ${fieldStates[x.id] ? 'checked' : ''}/>
-                        </label>
-                        <div class="col-adj" title="Move field left or right">
-                            <div class="button std icon-only" data-action="moveLeft"><ms>arrow_left</ms></div>
-                            <div class="value">${fieldStates[x.id + '-adj'] || 0}</div>
-                            <div class="button std icon-only" data-action="moveRight">` +
-                                `<ms>arrow_right</ms></div>
-                        </div>
+            `<div class="title">${label}:</div>`,
+            ...fields.map(x => `
+                <div class="field ${fieldStates[x.id] ? '' : 'disabled'}" data-id="${x.id}">
+                    <label title="${common.sanitizeAttr(x.tooltip || '')}">
+                        <key>${x.label}</key>
+                        <input type="checkbox" name="${x.id}" ${fieldStates[x.id] ? 'checked' : ''}/>
+                    </label>
+                    <div class="col-adj" title="Move field left or right">
+                        <div class="button std icon-only" data-action="moveLeft"><ms>arrow_left</ms></div>
+                        <div class="value">${fieldStates[x.id + '-adj'] || 0}</div>
+                        <div class="button std icon-only" data-action="moveRight">` +
+                            `<ms>arrow_right</ms></div>
                     </div>
-                `),
+                </div>`),
             '</div>'
         ].join(''));
         form.querySelectorAll('.inline-edit.col-adj').forEach(el => common.makeInlineEditable(el, {

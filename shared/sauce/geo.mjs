@@ -15,15 +15,15 @@ export function distance([latA, lngA], [latB, lngB]) {
 }
 
 
-function latPad(distance) {
+function latPad(dist) {
     const mPerDegree = 0.0000089;
-    return distance * mPerDegree;
+    return dist * mPerDegree;
 }
 
 
-function lngPad(lat, distance) {
+function lngPad(lat, dist) {
     const mPerDegree = 0.0000089;
-    return (distance * mPerDegree) / Math.cos(lat * (Math.PI / 180));
+    return (dist * mPerDegree) / Math.cos(lat * (Math.PI / 180));
 }
 
 
@@ -132,8 +132,8 @@ export class BDCC {
     }
 
     getLatitudeRadians() {
-        return this.geographicLatitude(Math.atan2(this.z,
-            Math.sqrt((this.x ** 2) + (this.y ** 2))));
+        return this.geographicLatitude(
+            Math.atan2(this.z, Math.sqrt((this.x ** 2) + (this.y ** 2))));
     }
 
     getLongitudeRadians() {

@@ -52,7 +52,7 @@ const manifestSchema = {
         isArray: true,
         schema: {
             file: {type: 'string', required: true, desc: 'Path to web page html file',
-                valid: isSafePath},
+                   valid: isSafePath},
             query: {
                 type: 'object',
                 desc: 'Query argument key/value pairs, i.e. {"foo": "bar"} => ?foo=bar',
@@ -79,7 +79,7 @@ const manifestSchema = {
                     y: {type: 'number', desc: '0.0 -> 1.0 represent relative offset based on screen, ' +
                         'negative values represent offset from the bottom edge of the screen'},
                     aspect_ratio: {type: 'boolean', desc: 'Used when only width xor height are set',
-                        valid: x => x > 0}
+                                   valid: x => x > 0}
                 },
             },
         },
@@ -149,7 +149,7 @@ function validateManifest(manifest, modPath) {
 function validateSchema(obj, modPath, schema) {
     if (typeof obj !== 'object') {
         throw new TypeError("Invalid manifest root type: expected object");
-    } 
+    }
     const required = new Set(Object.entries(schema).filter(([_, x]) => x.required).map(([k]) => k));
     for (const [k, v] of Object.entries(obj)) {
         if (!schema['*'] && !Object.prototype.hasOwnProperty.call(schema, k)) {

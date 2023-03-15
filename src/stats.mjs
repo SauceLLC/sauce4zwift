@@ -420,7 +420,7 @@ export class StatsProcessor extends events.EventEmitter {
         }
         return data.gameState;
     }
-        
+
     onPowerupSet({powerup}) {
         const s = this._getGameState();
         if (s) {
@@ -518,7 +518,7 @@ export class StatsProcessor extends events.EventEmitter {
         console.warn("DEPRECATED: use `updateAthleteData`");
         return this.updateAthleteData(id, updates);
     }
-    
+
     updateAthleteData(id, updates) {
         const ad = this._athleteData.get(this._realAthleteId(id));
         if (!ad) {
@@ -546,8 +546,8 @@ export class StatsProcessor extends events.EventEmitter {
             return null;
         }
         const athlete = this.loadAthlete(ad.athleteId);
-        return ad.segments.map(x => this._formatLapish(x, ad, athlete,
-            {segment: allSegments.get(x.id)}));
+        return ad.segments.map(x =>
+            this._formatLapish(x, ad, athlete, {segment: allSegments.get(x.id)}));
     }
 
     _formatLapish(lapish, ad, athlete, extra) {
@@ -642,8 +642,7 @@ export class StatsProcessor extends events.EventEmitter {
         });
         const [vmajor, vminor] = pkg.version.split('.');
         fitParser.addMessage('file_creator', {
-            software_version: Number([vmajor.slice(0, 2),
-                vminor.slice(0, 2).padStart(2, '0')].join('')),
+            software_version: Number([vmajor.slice(0, 2), vminor.slice(0, 2).padStart(2, '0')].join('')),
             hardware_version: null,
         });
         const athlete = this.loadAthlete(athleteId);
@@ -877,15 +876,15 @@ export class StatsProcessor extends events.EventEmitter {
         }));
     }
 
-    async getFollowerAthletes() {
+    getFollowerAthletes() {
         return Array.from(this._followerIds).map(id => ({id, athlete: this.loadAthlete(id)}));
     }
 
-    async getFollowingAthletes() {
+    getFollowingAthletes() {
         return Array.from(this._followingIds).map(id => ({id, athlete: this.loadAthlete(id)}));
     }
 
-    async getMarkedAthletes() {
+    getMarkedAthletes() {
         return Array.from(this._markedIds).map(id => ({id, athlete: this.loadAthlete(id)}));
     }
 
@@ -1197,7 +1196,8 @@ export class StatsProcessor extends events.EventEmitter {
 
     processState(state) {
         if (!this._athleteData.has(state.athleteId)) {
-            this._athleteData.set(state.athleteId,
+            this._athleteData.set(
+                state.athleteId,
                 this._createAthleteData(state.athleteId, state.worldTime, state.sport));
         }
         const ad = this._athleteData.get(state.athleteId);
@@ -1528,18 +1528,14 @@ export class StatsProcessor extends events.EventEmitter {
             this._recentEvents.set(x.id, x);
             if (x.eventSubgroups) {
                 for (const sg of x.eventSubgroups) {
-                    const route = this._routes.get(sg.routeId);
-                    if (route) {
-                        sg.routeDistance = this._getRouteDistance(route, sg.laps);
-                        sg.routeClimbing = this._getRouteClimbing(route, sg.laps);
+                    const rt = this._routes.get(sg.routeId);
+                    if (rt) {
+                        sg.routeDistance = this._getRouteDistance(rt, sg.laps);
+                        sg.routeClimbing = this._getRouteClimbing(rt, sg.laps);
                     }
                     sg.startOffset = +(new Date(sg.eventSubgroupStart)) - +(new Date(x.eventStart));
                     sg.allTags = new Set([...this._parseEventTags(sg), ...x.allTags]);
-                    this._recentEventSubgroups.set(sg.id, {
-                        event: x,
-                        route: this._routes.get(sg.routeId),
-                        ...sg
-                    });
+                    this._recentEventSubgroups.set(sg.id, {event: x, route: rt, ...sg});
                 }
             }
         }
@@ -1802,8 +1798,8 @@ export class StatsProcessor extends events.EventEmitter {
 
     _getRouteDistance(route, laps=1) {
         if (route.distanceInMetersFromEventStart) {
-            console.warn("Investiagate dist from event start value",
-                route.distanceInMetersFromEventStart);
+            console.warn("Investigate dist from event start value",
+                         route.distanceInMetersFromEventStart);
             // Probably we need to add this to the distance. XXX
             debugger;
         }
@@ -2045,19 +2041,19 @@ export class StatsProcessor extends events.EventEmitter {
         }
         groups.push(curGroup);
         for (let i = 0; i < groups.length; i++) {
-            const x = groups[i];
-            x.weight /= x.weightCount;
-            x.power /= x.athletes.length;
-            x.draft /= x.athletes.length;
-            x.speed = sauce.data.median(x.athletes.map(x => x.state.speed));
-            x.heartrate /= x.heartrateCount;
+            const grp = groups[i];
+            grp.weight /= grp.weightCount;
+            grp.power /= grp.athletes.length;
+            grp.draft /= grp.athletes.length;
+            grp.speed = sauce.data.median(grp.athletes.map(x => x.state.speed));
+            grp.heartrate /= grp.heartrateCount;
             if (watchingIdx !== i) {
-                const edge = watchingIdx < i ? x.athletes[0] : x.athletes[x.athletes.length - 1];
-                x.isGapEst = edge.isGapEst;
-                x.gap = edge.gap;
+                const edge = watchingIdx < i ? grp.athletes[0] : grp.athletes[grp.athletes.length - 1];
+                grp.isGapEst = edge.isGapEst;
+                grp.gap = edge.gap;
             } else {
-                x.gap = 0;
-                x.isGapEst = false;
+                grp.gap = 0;
+                grp.isGapEst = false;
             }
         }
         return groups;
@@ -2078,7 +2074,7 @@ export class StatsProcessor extends events.EventEmitter {
                     x.collectors.hr.roll.size() +
                     x.collectors.draft.roll.size() +
                     x.collectors.cadence.roll.size() +
-                    Object.values(x.streams).reduce((agg, x) => agg + x.length, 0))
+                    Object.values(x.streams).reduce((agg, xx) => agg + xx.length, 0))
                 .reduce((agg, c) => agg + c, 0),
             athletesCacheSize: this._athletesCache.size,
         };

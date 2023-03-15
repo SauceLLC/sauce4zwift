@@ -145,16 +145,16 @@ const groupSpecs = {
             label: 'tss',
             key: 'TSS',
         },
-            ...makeSmoothPowerFields(5),
-            ...makeSmoothPowerFields(15),
-            ...makeSmoothPowerFields(60),
-            ...makeSmoothPowerFields(300),
-            ...makeSmoothPowerFields(1200),
-            ...makePeakPowerFields(5),
-            ...makePeakPowerFields(15),
-            ...makePeakPowerFields(60),
-            ...makePeakPowerFields(300),
-            ...makePeakPowerFields(1200),
+        ...makeSmoothPowerFields(5),
+        ...makeSmoothPowerFields(15),
+        ...makeSmoothPowerFields(60),
+        ...makeSmoothPowerFields(300),
+        ...makeSmoothPowerFields(1200),
+        ...makePeakPowerFields(5),
+        ...makePeakPowerFields(15),
+        ...makePeakPowerFields(60),
+        ...makePeakPowerFields(300),
+        ...makePeakPowerFields(1200),
         {
             id: 'pwr-lap-avg',
             value: x => H.number(curLap(x) && curLap(x).power.avg),
@@ -185,11 +185,11 @@ const groupSpecs = {
             label: ['np', '(lap)'],
             key: 'NP<tiny>(lap)</tiny>',
         },
-            ...makePeakPowerFields(5, -1),
-            ...makePeakPowerFields(15, -1),
-            ...makePeakPowerFields(60, -1),
-            ...makePeakPowerFields(300, -1),
-            ...makePeakPowerFields(1200, -1),
+        ...makePeakPowerFields(5, -1),
+        ...makePeakPowerFields(15, -1),
+        ...makePeakPowerFields(60, -1),
+        ...makePeakPowerFields(300, -1),
+        ...makePeakPowerFields(1200, -1),
         {
             id: 'pwr-last-avg',
             value: x => H.number(lastLap(x) && lastLap(x).power.avg || null),
@@ -220,15 +220,15 @@ const groupSpecs = {
             label: ['np', '(last lap)'],
             key: 'NP<tiny>(last lap)</tiny>',
         },
-            ...makePeakPowerFields(5, -2),
-            ...makePeakPowerFields(15, -2),
-            ...makePeakPowerFields(60, -2),
-            ...makePeakPowerFields(300, -2),
-            ...makePeakPowerFields(1200, -2),
+        ...makePeakPowerFields(5, -2),
+        ...makePeakPowerFields(15, -2),
+        ...makePeakPowerFields(60, -2),
+        ...makePeakPowerFields(300, -2),
+        ...makePeakPowerFields(1200, -2),
         {
             id: 'pwr-vi',
             value: x => H.number(x.stats && x.stats.power.np && x.stats.power.np / x.stats.power.avg,
-                {precision: 2, fixed: true}),
+                                 {precision: 2, fixed: true}),
             label: 'vi',
             key: 'VI',
         }, {
@@ -260,9 +260,9 @@ const groupSpecs = {
             key: 'Max',
             unit: 'bpm',
         },
-            makeSmoothHRField(60),
-            makeSmoothHRField(300),
-            makeSmoothHRField(1200),
+        makeSmoothHRField(60),
+        makeSmoothHRField(300),
+        makeSmoothHRField(1200),
         {
             id: 'hr-lap-avg',
             value: x => H.number(curLap(x) && curLap(x).hr.avg || null),
@@ -613,30 +613,30 @@ function makePeakPowerFields(period, lap) {
     }[lap];
     const key = lap ? `Peak ${duration}<tiny>${lapLabel}</tiny>` : `Peak ${duration}`;
 
-    function getValue(x) {
-        const data = x.stats && (lap === -1 ? curLap(x) : lap === -2 ? lastLap(x) : x.stats);
-        const o = data && data.power.peaks[period];
+    function getValue(data) {
+        const stats = data.stats && (lap === -1 ? curLap(data) : lap === -2 ? lastLap(data) : data.stats);
+        const o = stats && stats.power.peaks[period];
         return o && o.avg;
     }
 
-    function label(x) {
-        const label = [`peak ${duration}`, lapLabel].filter(x => x);
-        if (!x || !x.stats) {
-            return label;
+    function label(data) {
+        const l = [`peak ${duration}`, lapLabel].filter(x => x);
+        if (!data || !data.stats) {
+            return l;
         }
-        const data = x.stats && (lap === -1 ? curLap(x) : lap === -2 ? lastLap(x) : x.stats);
-        const o = data && data.power.peaks[period];
+        const stats = data.stats && (lap === -1 ? curLap(data) : lap === -2 ? lastLap(data) : data.stats);
+        const o = stats && stats.power.peaks[period];
         if (!(o && o.ts)) {
-            return label;
+            return l;
         }
         const ago = (Date.now() - o.ts) / 1000;
         const agoText = `${shortDuration(ago)} ago`;
-        if (label.length === 1) {
-            label.push(agoText);
+        if (l.length === 1) {
+            l.push(agoText);
         } else {
-            label[1] += ' | ' + agoText;
+            l[1] += ' | ' + agoText;
         }
-        return label;
+        return l;
     }
 
     return [{
@@ -787,7 +787,6 @@ async function createLineChart(el, sectionId, settings) {
 function bindLineChart(lineChart, renderer, settings) {
     const fields = lineChartFields.filter(x => settings[x.id + 'En']);
     const dataPoints = settings.dataPoints || defaultLineChartLen;
-    let dataCount = 0;
     let lastRender = 0;
     let oldSport;
     renderer.addCallback(data => {
@@ -806,8 +805,7 @@ function bindLineChart(lineChart, renderer, settings) {
         }
         lineChart.setOption({
             xAxis: [{
-                data: [...sauce.data.range(dataPoints)].map(i =>
-                    (dataCount > dataPoints ? dataCount - dataPoints : 0) + i),
+                data: Array.from(sauce.data.range(dataPoints)),
             }],
             series: fields.map(field => ({
                 data: field.points,
@@ -904,7 +902,7 @@ async function createTimeInZonesVertBars(el, sectionId, settings, renderer) {
 }
 
 
-async function createTimeInZonesHorizBar(el, sectionId, settings, renderer) {
+function createTimeInZonesHorizBar(el, sectionId, settings, renderer) {
     const colors = powerZoneColors(powerZones);
     const normZones = new Set(powerZones.filter(x => !x.overlap).map(x => x.zone));
     el.innerHTML = '';
@@ -929,8 +927,8 @@ async function createTimeInZonesHorizBar(el, sectionId, settings, renderer) {
         for (const x of zones) {
             const zoneEl = el.querySelector(`[data-zone="${x.zone}"]`);
             zoneEl.style.flexGrow = Math.round(100 * x.time / totalTime);
-            zoneEl.querySelector('.extra').textContent = H.duration(x.time,
-                {short: true, seperator: ' '});
+            zoneEl.querySelector('.extra').textContent = H.duration(
+                x.time, {short: true, seperator: ' '});
         }
     });
 }
@@ -1122,7 +1120,7 @@ async function initScreenSettings() {
         const screen = settings.screens[sIndex];
         if (action === 'edit') {
             const d = sectionEl.querySelector('dialog.edit');
-            d.addEventListener('close', ev => {
+            d.addEventListener('close', () => {
                 if (d.returnValue !== 'save') {
                     return;
                 }
@@ -1177,7 +1175,7 @@ export async function main() {
     let curScreen;
     powerZones = await common.rpc.getPowerZones(1);
     const layoutTpl = await getTpl('watching-screen-layout');
-    let persistentData = settings.screens.some(x =>
+    const persistentData = settings.screens.some(x =>
         x.sections.some(xx => sectionSpecs[xx.type].alwaysRender));
     for (const [sIndex, screen] of settings.screens.entries()) {
         const screenEl = (await layoutTpl({
@@ -1201,7 +1199,7 @@ export async function main() {
         for (const section of screen.sections) {
             const sectionSpec = sectionSpecs[section.type];
             const baseType = sectionSpec.baseType;
-            const settings = section.settings || {...sectionSpec.defaultSettings};
+            const sectionSettings = section.settings || {...sectionSpec.defaultSettings};
             const sectionEl = screenEl.querySelector(`[data-section-id="${section.id}"]`);
             if (baseType === 'data-fields') {
                 const groups = [
@@ -1262,8 +1260,8 @@ export async function main() {
                     const lineChart = await createLineChart(
                         sectionEl.querySelector('.chart-holder.ec'),
                         sectionEl.dataset.sectionId,
-                        settings);
-                    bindLineChart(lineChart, renderer, settings);
+                        sectionSettings);
+                    bindLineChart(lineChart, renderer, sectionSettings);
                 } else {
                     console.error("Invalid chart type:", section.type);
                 }
@@ -1271,12 +1269,12 @@ export async function main() {
                 if (section.type === 'time-in-zones') {
                     const el = sectionEl.querySelector('.zones-holder');
                     const id = sectionEl.dataset.sectionId;
-                    if (settings.style === 'vert-bars') {
-                        await createTimeInZonesVertBars(el, id, settings, renderer);
-                    } else if (settings.style === 'pie') {
-                        await createTimeInZonesPie(el, id, settings, renderer);
-                    } else if (settings.style === 'horiz-bar') {
-                        await createTimeInZonesHorizBar(el, id, settings, renderer);
+                    if (sectionSettings.style === 'vert-bars') {
+                        await createTimeInZonesVertBars(el, id, sectionSettings, renderer);
+                    } else if (sectionSettings.style === 'pie') {
+                        await createTimeInZonesPie(el, id, sectionSettings, renderer);
+                    } else if (sectionSettings.style === 'horiz-bar') {
+                        createTimeInZonesHorizBar(el, id, sectionSettings, renderer);
                     }
                 } else {
                     console.error("Invalid time-in-zones type:", section.type);

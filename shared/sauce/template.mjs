@@ -5,7 +5,7 @@
  *  Localization support via {{{localized_key}}}
  */
 
-import * as locale from './locale.mjs';
+import * as localeMod from './locale.mjs';
 import * as browser from './browser.mjs';
 
 
@@ -45,8 +45,8 @@ const htmlEntityMap = {
 const special = `(?:${Object.keys(htmlEntityMap).join('|')})`;
 const testRegexp = RegExp(special);
 const replaceRegexp = RegExp(special, 'g');
-export function escape(x) {
-    const str = x == null ? '' : '' + x;
+export function htmlEscape(val) {
+    const str = val == null ? '' : '' + val;
     return testRegexp.test(str) ? str.replace(replaceRegexp, x => htmlEntityMap[x]) : str;
 }
 
@@ -64,7 +64,7 @@ const escapeChar = match => '\\' + escapes[match];
 const escapeRegExp = /\\|'|\r|\n|\u2028|\u2029/g;
 
 const localeHelpers = {};
-for (const fn of Object.values(locale.human)) {
+for (const fn of Object.values(localeMod.human)) {
     if (!fn.name || !fn.name.startsWith('human')) {
         console.warn("Unexpected naming convention for locale human function:", fn.name);
         continue;
@@ -108,7 +108,8 @@ async function compile(text, settingsOverrides) {
         (settings.evaluate || noMatch).source,
     ].join('|') + '|$', 'g');
     const code = [`
-        return async function sauceTemplateRender({locale, escape, helpers, localeMessages, statics}, obj) {
+        return async function sauceTemplateRender(
+            {localeMod, htmlEscape, helpers, localeMessages, statics}, obj) {
             let __t; // tmp
             const __p = []; // output buffer
             with ({...helpers, ...obj}) {
@@ -125,7 +126,7 @@ async function compile(text, settingsOverrides) {
                 __t = (${localeLookup}).startsWith('/') ?
                     (${localeLookup}).substr(1) :
                     '${settings.localePrefix}' + (${localeLookup});
-                __t = locale.fastGetMessage(__t);
+                __t = localeMod.fastGetMessage(__t);
                 __p.push(__t instanceof Promise ? (await __t) : __t);
             `);
         } else if (locale) {
@@ -136,7 +137,7 @@ async function compile(text, settingsOverrides) {
             code.push(`
                 __t = (${escape});
                 if (__t != null) {
-                    __p.push(escape(__t));
+                    __p.push(htmlEscape(__t));
                 }
             `);
         } else if (interpolate) {
@@ -175,15 +176,15 @@ async function compile(text, settingsOverrides) {
     }
     let localeMessages;
     if (localeKeys.length) {
-        localeMessages = await locale.fastGetMessagesObject(localeKeys);
+        localeMessages = await localeMod.fastGetMessagesObject(localeKeys);
     }
     let statics;
     if (staticCalls.length) {
         statics = await Promise.all(staticCalls.map(([name, args]) => staticHelpers[name](args)));
     }
     return render.bind(this, {
-        locale,
-        escape,
+        localeMod,
+        htmlEscape,
         helpers: settings.helpers,
         localeMessages,
         statics

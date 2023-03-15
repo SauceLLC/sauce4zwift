@@ -43,8 +43,8 @@ export async function main() {
         common,
         worldList: await gettingWorldList,
     };
-    const main = document.querySelector('body > main');
-    await render(main, tpl, tplData);
+    const mainEl = document.querySelector('body > main');
+    await render(mainEl, tpl, tplData);
 }
 
 

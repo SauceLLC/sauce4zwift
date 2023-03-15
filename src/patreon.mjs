@@ -60,7 +60,7 @@ export async function getMembership(options={}) {
             Authorization: `${auth.id} ${auth.secret}`
         }
     });
-    if (!r.ok) { 
+    if (!r.ok) {
         if ([401, 403].includes(r.status)) {
             storage.set('patreon-auth', null);
         } else if (r.status !== 404) {
@@ -68,7 +68,7 @@ export async function getMembership(options={}) {
         }
         return null;
     } else {
-        return await r.json(); 
+        return await r.json();
     }
 }
 

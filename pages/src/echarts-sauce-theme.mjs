@@ -1,29 +1,5 @@
-let staticTheme;
 
-
-export function cssColor(key, shade=0, alpha=1) {
-    return `hsla(
-        var(--theme-${key}-hue),
-        var(--theme-${key}-sat),
-        calc(var(--theme-${key}-light) + (${shade * 100}% * var(--theme-${key}-shade-dir))),
-        ${alpha * 100}%)`;
-}
-
-
-export function getTheme(mode='static') {
-    if (mode === 'static') {
-        return staticTheme;
-    } else if (mode === 'dynamic') {
-        return genDynamicTheme();
-    } else if (mode === 'dynamic-alt') {
-        return genDynamicTheme({fg: 'fg-alt', bg: 'bg-alt'});
-    } else {
-        throw new TypeError('Invalid theme mode');
-    }
-}
-
-
-staticTheme = {
+const staticTheme = {
     color: ["#c12e34", "#e6b600", "#0098d9", "#2b821d", "#005eaa", "#339ca8", "#cda819", "#32a487"],
     backgroundColor: "rgba(0,0,0,0)",
     textStyle: {
@@ -184,6 +160,28 @@ staticTheme = {
         emphasis: {label: {color: "#ffffff"}}
     }
 };
+
+
+export function cssColor(key, shade=0, alpha=1) {
+    return `hsla(
+        var(--theme-${key}-hue),
+        var(--theme-${key}-sat),
+        calc(var(--theme-${key}-light) + (${shade * 100}% * var(--theme-${key}-shade-dir))),
+        ${alpha * 100}%)`;
+}
+
+
+export function getTheme(mode='static') {
+    if (mode === 'static') {
+        return staticTheme;
+    } else if (mode === 'dynamic') {
+        return genDynamicTheme();
+    } else if (mode === 'dynamic-alt') {
+        return genDynamicTheme({fg: 'fg-alt', bg: 'bg-alt'});
+    } else {
+        throw new TypeError('Invalid theme mode');
+    }
+}
 
 
 function genDynamicTheme({fg='fg', bg='bg'}={}) {

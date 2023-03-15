@@ -235,9 +235,9 @@ export function processPlayerStateMessage(msg) {
         latlng: worldMeta ?
             worldMeta.flippedHack ?
                 [(msg.x / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
-                 (msg.y / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset] :
+                    (msg.y / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset] :
                 [-(msg.y / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
-                (msg.x / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset] :
+                    (msg.x / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset] :
             null,
         altitude: worldMeta ? (msg.z + worldMeta.waterPlaneLevel) / 100 *
             worldMeta.physicsSlopeScale + worldMeta.altitudeOffsetHack : null,
@@ -508,14 +508,14 @@ export class ZwiftAPI {
     }
 
     async getLiveSegmentLeaders() {
-        const data = await this.fetchPB(`/live-segment-results-service/leaders`,
-            {protobuf: 'SegmentResults'});
+        const data = await this.fetchPB(
+            `/live-segment-results-service/leaders`, {protobuf: 'SegmentResults'});
         return data.results.filter(x => +x.id).map(this.convSegmentResult);
     }
 
     async getLiveSegmentLeaderboard(segmentId) {
-        const data = await this.fetchPB(`/live-segment-results-service/leaderboard/${segmentId}`,
-            {protobuf: 'SegmentResults'});
+        const data = await this.fetchPB(
+            `/live-segment-results-service/leaderboard/${segmentId}`, {protobuf: 'SegmentResults'});
         return data.results.map(this.convSegmentResult);
     }
 
@@ -536,8 +536,8 @@ export class ZwiftAPI {
         if (options.best) {
             query['only-best'] = 'true';
         }
-        const data = (await this.fetchPB('/api/segment-results',
-            {query, protobuf: 'SegmentResults'})).results;
+        const data = (await this.fetchPB('/api/segment-results', {query, protobuf: 'SegmentResults'}))
+            .results;
         data.sort((a, b) => a.elapsed - b.elapsed);
         return data;
     }
@@ -836,7 +836,7 @@ class NetChannel extends events.EventEmitter {
 
     encrypt(aad, data) {
         const cipher = crypto.createCipheriv('aes-128-gcm', this.aesKey, this.sendIV.toBuffer(),
-            {authTagLength: 4});
+                                             {authTagLength: 4});
         cipher.setAAD(aad);
         const dataBuf = Buffer.concat([cipher.update(data), cipher.final(), cipher.getAuthTag()]);
         this.sendIV.seqno++;
@@ -1075,7 +1075,7 @@ class UDPChannel extends NetChannel {
         this.sock.on('error', () => this.shutdown());
         await new Promise((resolve, reject) =>
             this.sock.connect(3024, this.ip, e => void (e ? reject(e) : resolve())));
-        let syncStamps = new Map();
+        const syncStamps = new Map();
         let complete = false;
         const offsets = [];
         const syncComplete = new Promise(resolve => {
@@ -1556,7 +1556,7 @@ export class GameMonitor extends events.EventEmitter {
             if (ch.active) {
                 try {
                     await ch.sendPlayerState({watchingAthleteId: this.watchingAthleteId,
-                        ...this.watchingStateExtra});
+                                              ...this.watchingStateExtra});
                     break;
                 } catch(e) {
                     if (!(e instanceof InactiveChannelError)) {
@@ -1842,7 +1842,7 @@ export class GameMonitor extends events.EventEmitter {
         }
         if (state.courseId !== this.courseId) {
             console.warn('Ignoring incongruent courseId for watching state:',
-                state.courseId, this.courseId);
+                         state.courseId, this.courseId);
             return false;
         }
         this._lastWatchingState = state;
@@ -2211,7 +2211,7 @@ export class GameConnectionServer extends net.Server {
         return seqno;
     }
 
-    async onConnection(socket) {
+    onConnection(socket) {
         console.info('Game connection established from:', socket.remoteAddress);
         this._socket = socket;
         this._state = 'connected';

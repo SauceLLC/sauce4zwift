@@ -561,13 +561,13 @@ export class Renderer {
     }
 
     addRotatingFields(spec) {
-        for (const x of spec.mapping) {
-            const id = x.id;
-            const el = (spec.el || this._contentEl).querySelector(`[data-field="${x.id}"]`);
+        for (const mapping of spec.mapping) {
+            const id = mapping.id;
+            const el = (spec.el || this._contentEl).querySelector(`[data-field="${mapping.id}"]`);
             const storageKey = `${this.id}-${id}`;
             let savedId = storage.get(storageKey);
             if (savedId == null) {
-                savedId = x.default;
+                savedId = mapping.default;
             }
             const active = typeof savedId === 'number' ?
                 spec.fields[savedId] :
@@ -840,12 +840,12 @@ function parseDependsOn(dependsOn) {
 function compareDependsOn(a, operator, b) {
     return (
         operator === '==' ? a == b : // eslint-disable-line eqeqeq
-        operator === '!=' ? a != b : // eslint-disable-line eqeqeq
-        operator === '>=' ? a >= b :
-        operator === '<=' ? a <= b :
-        operator === '>' ? a > b :
-        operator === '<' ? a < b :
-        !!b
+            operator === '!=' ? a != b : // eslint-disable-line eqeqeq
+                operator === '>=' ? a >= b :
+                    operator === '<=' ? a <= b :
+                        operator === '>' ? a > b :
+                            operator === '<' ? a < b :
+                                !!b
     );
 }
 
@@ -1048,7 +1048,7 @@ const _stripper = new DOMParser();
 export function stripHTML(input) {
     // Escaped HTML turns into HTML so we must run until all the HTML is gone...
     while (true) {
-        let output = _stripper.parseFromString(input, 'text/html').body.textContent || '';
+        const output = _stripper.parseFromString(input, 'text/html').body.textContent || '';
         if (output === input) {
             return output;
         }
@@ -1125,14 +1125,14 @@ export function eventBadge(label) {
     if (!label) {
         return '';
     }
-    const badgeHue = {
+    const hue = {
         A: 0,
         B: 90,
         C: 180,
         D: 60,
         E: 260,
     }[label];
-    return `<span class="badge category" style="--hue: ${badgeHue}deg;">${label}</span>`;
+    return `<span class="badge category" style="--hue: ${hue}deg;">${label}</span>`;
 }
 
 
@@ -1151,29 +1151,29 @@ export const rpc = new Proxy({}, {
 });
 
 
-export function themeInit(settingsStore) {
-    const themeOverride = settingsStore.get('themeOverride');
+export function themeInit(store) {
+    const themeOverride = store.get('themeOverride');
     if (themeOverride) {
         doc.dataset.theme = themeOverride;
     } else if (!window.isElectron) {
         // Electron already did this in preload to avoid paint flashing.
-        const theme = settingsStore.get('/theme');
+        const theme = store.get('/theme');
         if (theme) {
             doc.dataset.theme = theme;
         }
     }
     // For remote updates...
-    settingsStore.addEventListener('changed', ev => {
+    store.addEventListener('changed', ev => {
         const changed = ev.data.changed;
         if (changed.has('themeOverride') || changed.has('/theme')) {
-            doc.dataset.theme = settingsStore.get('themeOverride') || settingsStore.get('/theme') || '';
+            doc.dataset.theme = store.get('themeOverride') || store.get('/theme') || '';
         }
     });
     // For local updates...
-    settingsStore.addEventListener('set', ev => {
+    store.addEventListener('set', ev => {
         const key = ev.data.key;
         if (key === 'themeOverride' || key === '/theme') {
-            doc.dataset.theme = settingsStore.get('themeOverride') || settingsStore.get('/theme') || '';
+            doc.dataset.theme = store.get('themeOverride') || store.get('/theme') || '';
         }
     });
 }

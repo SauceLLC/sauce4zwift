@@ -6,7 +6,7 @@ import * as fields from './fields.mjs';
 
 const doc = document.documentElement;
 const L = sauce.locale;
-let imperial = !!common.storage.get('/imperialUnits');
+const imperial = !!common.storage.get('/imperialUnits');
 L.setImperial(imperial);
 
 common.settingsStore.setDefault({
@@ -46,7 +46,7 @@ function setBackground() {
 
 function createZwiftMap({worldList}) {
     const opacity = 1 - 1 / (100 / (settings.transparency || 0));
-    const zwiftMap = new map.SauceZwiftMap({
+    const zm = new map.SauceZwiftMap({
         el: document.querySelector('.map'),
         worldList,
         zoom: settings.zoom,
@@ -61,19 +61,19 @@ function createZwiftMap({worldList}) {
         verticalOffset: settings.verticalOffset / 100,
     });
     let settingsSaveTimeout;
-    zwiftMap.addEventListener('zoom', ev => {
+    zm.addEventListener('zoom', ev => {
         clearTimeout(settingsSaveTimeout);
         settings.zoom = ev.zoom;
         settingsSaveTimeout = setTimeout(() => common.settingsStore.set(null, settings), 100);
     });
     const anchorResetButton = document.querySelector('.map-controls .button.reset-anchor');
-    zwiftMap.addEventListener('drag', ev =>
+    zm.addEventListener('drag', ev =>
         anchorResetButton.classList.toggle('disabled', !ev.drag[0] && !ev.drag[1]));
-    anchorResetButton.addEventListener('click', ev => zwiftMap.setDragOffset(0, 0));
+    anchorResetButton.addEventListener('click', ev => zm.setDragOffset(0, 0));
     const headingRotateDisButton = document.querySelector('.map-controls .button.disable-heading');
     const headingRotateEnButton = document.querySelector('.map-controls .button.enable-heading');
     const autoHeadingHandler = en => {
-        zwiftMap.setAutoHeading(en);
+        zm.setAutoHeading(en);
         headingRotateDisButton.classList.toggle('hidden', !en);
         headingRotateEnButton.classList.toggle('hidden', en);
         settings.autoHeading = en;
@@ -83,7 +83,7 @@ function createZwiftMap({worldList}) {
     headingRotateEnButton.classList.toggle('hidden', settings.autoHeading !== false);
     headingRotateDisButton.addEventListener('click', () => autoHeadingHandler(false));
     headingRotateEnButton.addEventListener('click', () => autoHeadingHandler(true));
-    return zwiftMap;
+    return zm;
 }
 
 
@@ -205,7 +205,7 @@ export async function main() {
             updateHeading();
         }
     }
-    common.settingsStore.addEventListener('changed', async ev => {
+    common.settingsStore.addEventListener('changed', ev => {
         const changed = ev.data.changed;
         if (changed.has('solidBackground') || changed.has('backgroundColor')) {
             setBackground();

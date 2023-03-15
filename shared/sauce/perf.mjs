@@ -22,8 +22,7 @@ export function tTSS(hrStream, timeStream, activeStream, ltHR, minHR, maxHR, gen
         t += calcTRIMP(dur, hrr, gender);
     }
     const tHourAtLT = calcTRIMP(3600, (ltHR - minHR) / (maxHR - minHR), gender);
-    const tTSS = (t / tHourAtLT) * 100;
-    return tTSS;
+    return (t / tHourAtLT) * 100;
 }
 
 

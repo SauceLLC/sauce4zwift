@@ -23,7 +23,7 @@ function wrapText(text, width) {
             lines.push(line);
             line = '';
         }
-    }       
+    }
     if (line != null) {
         lines.push(line);
     }
@@ -70,7 +70,7 @@ export function parseArgs(_options) {
         }
     }
     if (args.help) {
-        const args = [];
+        const usage = [];
         const helps = [];
         const argColWidth = 29;
         const maxWidth = 79;
@@ -82,12 +82,12 @@ export function parseArgs(_options) {
                 const type = (x.label || x.type).toUpperCase();
                 arg = `--${x.arg} ${(x.optional ? `[${type}]` : type)}`;
             }
-            args.push(`[${arg}]`);
+            usage.push(`[${arg}]`);
             const help = wrapText(x.help || '', maxWidth - argColWidth);
             helps.push('  ' + arg.padEnd(argColWidth - 3, ' ') + ' ' + help[0],
-                ...help.slice(1).map(xx => ''.padStart(argColWidth, ' ') + xx));
+                       ...help.slice(1).map(xx => ''.padStart(argColWidth, ' ') + xx));
         }
-        console.warn(wrapText(`Usage: ${process.argv[0]} ` + args.join(' '), maxWidth).join('\n  '));
+        console.warn(wrapText(`Usage: ${process.argv[0]} ` + usage.join(' '), maxWidth).join('\n  '));
         console.warn('\nArguments:\n' + helps.join('\n'));
     }
     return args;

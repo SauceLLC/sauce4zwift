@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     form.addEventListener('submit', ev => {
         ev.preventDefault();
         ipcRenderer.send('zwift-creds',
-            Object.fromEntries(Array.from(form.elements).map(x => [x.name, x.value])));
+                         Object.fromEntries(Array.from(form.elements).map(x => [x.name, x.value])));
         document.documentElement.classList.add('validating');
         document.querySelector('form .error').innerHTML = '';
     });

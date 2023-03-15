@@ -51,7 +51,24 @@
         "max-nested-callbacks": ["warn", 3],
         "max-depth": ["warn", 5],
         "curly": "warn",
-        "eqeqeq": ["error", "always", {"null": "ignore"}]
+        "eqeqeq": ["error", "always", {"null": "ignore"}],
+        "no-implicit-globals": "error",
+        "no-shadow": "warn",
+        "no-throw-literal": "error",
+        "no-var": "error",
+        "no-unreachable": "warn",
+        "no-warning-comments": "off",
+        "prefer-const": ["warn", {"destructuring": "all"}],
+        "require-await": "warn",
+        "func-call-spacing": "warn",
+        "indent": ["warn", 4, {
+            "CallExpression": {"arguments": "first"},
+            "FunctionDeclaration": {"parameters": "first"},
+            "FunctionExpression": {"parameters": "first"},
+            "ObjectExpression": "first",
+            "ArrayExpression": 1
+        }],
+        "no-trailing-spaces": "warn"
     },
     "overrides": [{
         "files": ["*.mjs"],

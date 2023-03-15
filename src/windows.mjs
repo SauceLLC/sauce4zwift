@@ -1,7 +1,7 @@
 import path from 'node:path';
 import os from 'node:os';
 import {fileURLToPath} from 'node:url';
-import * as storage from './storage.mjs';
+import * as storageMod from './storage.mjs';
 import * as patreon from './patreon.mjs';
 import * as rpc from './rpc.mjs';
 import * as mods from './mods.mjs';
@@ -355,9 +355,9 @@ function initProfiles() {
     if (profiles) {
         throw new Error("Already activated");
     }
-    profiles = storage.get(profilesKey);
+    profiles = storageMod.get(profilesKey);
     if (!profiles || !profiles.length) {
-        const legacy = storage.get('windows');
+        const legacy = storageMod.get('windows');
         if (legacy) {
             console.warn("Upgrading legacy window mgmt system to profiles system...");
             profiles = [{
@@ -366,13 +366,13 @@ function initProfiles() {
                 active: true,
                 windows: legacy,
             }];
-            storage.remove('windows');
+            storageMod.remove('windows');
         } else {
             const profile = _createProfile('Default', 'default');
             profile.active = true;
             profiles = [profile];
         }
-        storage.set(profilesKey, profiles);
+        storageMod.set(profilesKey, profiles);
     }
     activeProfile = profiles.find(x => x.active);
     if (!activeProfile) {
@@ -396,7 +396,7 @@ rpc.register(getProfiles);
 export function createProfile(name='New Profile', ident='custom') {
     const profile = _createProfile(name, ident);
     profiles.push(profile);
-    storage.set(profilesKey, profiles);
+    storageMod.set(profilesKey, profiles);
     return profile;
 }
 rpc.register(createProfile);
@@ -436,7 +436,7 @@ export function activateProfile(id) {
         }
         activeProfile = profiles.find(x => x.active);
         activeProfileSession = loadSession(activeProfile.id);
-        storage.set(profilesKey, profiles);
+        storageMod.set(profilesKey, profiles);
     } finally {
         swappingProfiles = false;
     }
@@ -457,7 +457,7 @@ export function renameProfile(id, name) {
             x.name = name;
         }
     }
-    storage.set(profilesKey, profiles);
+    storageMod.set(profilesKey, profiles);
 }
 rpc.register(renameProfile);
 
@@ -471,7 +471,7 @@ export function removeProfile(id) {
         throw new Error("Cannot remove last profile");
     }
     const profile = profiles.splice(idx, 1)[0];
-    storage.set(profilesKey, profiles);
+    storageMod.set(profilesKey, profiles);
     if (profile.active) {
         activateProfile(profiles[0].id);
     }
@@ -497,7 +497,7 @@ export function setWindows(wins) {
         initProfiles();
     }
     activeProfile.windows = wins;
-    storage.set(profilesKey, profiles);
+    storageMod.set(profilesKey, profiles);
     clearTimeout(_windowsUpdatedTimeout);
     _windowsUpdatedTimeout = setTimeout(() => eventEmitter.emit('set-windows', wins), 200);
 }
@@ -807,8 +807,8 @@ export async function getWindowsStorage(session) {
             preload: path.join(appPath, 'src/preload/storage-proxy.js'),
         }
     });
-    const p = new Promise(resolve => win.webContents.on('ipc-message',
-        (ev, ch, storage) => resolve(storage)));
+    const p = new Promise(resolve =>
+        win.webContents.on('ipc-message', (ev, ch, storage) => resolve(storage)));
     let storage;
     win.webContents.on('did-finish-load', () => win.webContents.send('export'));
     win.loadFile('/pages/dummy.html');
@@ -833,8 +833,8 @@ export async function setWindowsStorage(storage, session) {
             preload: path.join(appPath, 'src/preload/storage-proxy.js'),
         }
     });
-    const p = new Promise((resolve, reject) => win.webContents.on('ipc-message',
-        (ev, ch, success) => success ? resolve() : reject()));
+    const p = new Promise((resolve, reject) =>
+        win.webContents.on('ipc-message', (ev, ch, success) => success ? resolve() : reject()));
     win.webContents.on('did-finish-load', () => win.webContents.send('import', storage));
     win.loadFile('/pages/dummy.html');
     try {
@@ -861,8 +861,7 @@ function _openWindow(id, spec) {
         console.warn("Reseting window that is out of bounds:", bounds);
     }
     if (!inBounds || !bounds) {
-        bounds = getBoundsForDisplay(getCurrentDisplay(),
-            {...manifest.options, ...spec.options});
+        bounds = getBoundsForDisplay(getCurrentDisplay(), {...manifest.options, ...spec.options});
     }
     // Order of options is crucial...
     const options = {
@@ -993,15 +992,15 @@ export function makeCaptiveWindow(options={}, webPrefs={}) {
 
 
 export async function eulaConsent() {
-    if (storage.get('eula-consent')) {
+    if (storageMod.get('eula-consent')) {
         return true;
     }
     const win = makeCaptiveWindow({file: '/pages/eula.html'});
     let closed;
     const consenting = new Promise(resolve => {
-        rpc.register(async agree => {
+        rpc.register(agree => {
             if (agree === true) {
-                storage.set('eula-consent', true);
+                storageMod.set('eula-consent', true);
                 resolve(true);
             } else {
                 console.warn("User does not agree to EULA");
@@ -1150,7 +1149,7 @@ export async function welcomeSplash() {
 
 
 export async function patronLink() {
-    let membership = storage.get('patron-membership');
+    let membership = storageMod.get('patron-membership');
     if (membership && membership.patronLevel >= 10) {
         // XXX Implement refresh once in a while.
         return true;
@@ -1168,7 +1167,7 @@ export async function patronLink() {
     const ua = win.webContents.userAgent;
     win.webContents.userAgent = ua.replace(/ SauceforZwift.*? /, ' ').replace(/ Electron\/.*? /, ' ');
     let resolve;
-    win.webContents.ipc.on('patreon-reset-session', async () => {
+    win.webContents.ipc.on('patreon-reset-session', () => {
         win.webContents.session.clearStorageData();
         win.webContents.session.clearCache();
         electron.app.relaunch();
@@ -1189,7 +1188,7 @@ export async function patronLink() {
             membership = isAuthed && await patreon.getMembership();
         }
         if (membership && membership.patronLevel >= 10) {
-            storage.set('patron-membership', membership);
+            storageMod.set('patron-membership', membership);
             win.close();
             return true;
         } else {
@@ -1207,7 +1206,7 @@ export async function patronLink() {
 }
 
 
-export async function systemMessage(msg) {
+export function systemMessage(msg) {
     const overviewWin = SauceBrowserWindow.getAllWindows().find(x => x.spec && x.spec.type === 'overview');
     const oBounds = overviewWin.getBounds();
     const dBounds = getDisplayForWindow(overviewWin).bounds;

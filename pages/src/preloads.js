@@ -1,6 +1,6 @@
 const fonts = [
-    'fonts/MaterialSymbolsRounded.woff2?v=1',
-    'fonts/Saira.woff2?v=1',
+    '/pages/fonts/MaterialSymbolsRounded.woff2?v=1',
+    '/pages/fonts/Saira.woff2?v=1',
 ];
 
 document.head.append(...fonts.map(x => {

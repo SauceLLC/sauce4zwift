@@ -34,7 +34,7 @@ function getEventSubgroup(id) {
 }
 
 
-export async function main() {
+export function main() {
     common.initInteractionListeners();
     let autoHidden;
     let lastData;
@@ -363,8 +363,8 @@ async function initWindowsPanel() {
             await renderProfiles();
         } else if (link.classList.contains('profile-export')) {
             const data = await common.rpc.exportProfile(id);
-            const f = new File([JSON.stringify(data, null, 4)], `${data.profile.name}.json`,
-                {type: 'application/json'});
+            const f = new File(
+                [JSON.stringify(data, null, 4)], `${data.profile.name}.json`, {type: 'application/json'});
             const l = document.createElement('a');
             l.download = f.name;
             l.style.display = 'none';
@@ -398,10 +398,10 @@ async function initWindowsPanel() {
                 }
             };
             input.addEventListener('blur', save);
-            input.addEventListener('keydown', ev => {
-                if (ev.code === 'Enter') {
+            input.addEventListener('keydown', keyEv => {
+                if (keyEv.code === 'Enter') {
                     save();
-                } if (ev.code === 'Escape') {
+                } if (keyEv.code === 'Escape') {
                     actionTaken = true;
                     renderWindows();
                 }
@@ -425,10 +425,10 @@ async function initWindowsPanel() {
                 await renderProfiles();
             };
             input.addEventListener('blur', save);
-            input.addEventListener('keydown', ev => {
-                if (ev.code === 'Enter') {
+            input.addEventListener('keydown', keyEv => {
+                if (keyEv.code === 'Enter') {
                     save();
-                } if (ev.code === 'Escape') {
+                } if (keyEv.code === 'Escape') {
                     actionTaken = true;
                     renderProfiles();
                 }
@@ -465,7 +465,7 @@ async function initWindowsPanel() {
             const fileEl = document.createElement('input');
             fileEl.type = 'file';
             fileEl.accept='.json';
-            fileEl.addEventListener('change', async ev => {
+            fileEl.addEventListener('change', async () => {
                 fileEl.remove();
                 const f = fileEl.files[0];
                 if (!f) {

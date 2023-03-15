@@ -171,7 +171,7 @@ export function activeTime(timeStream, activeStream) {
 }
 
 
-let _timeGapsCache = new WeakMap();
+const _timeGapsCache = new WeakMap();
 export function recommendedTimeGaps(timeStream) {
     const hash = `${timeStream.length}-${timeStream[0]}-${timeStream[timeStream.length - 1]}`;
     if (!_timeGapsCache.has(timeStream) || _timeGapsCache.get(timeStream).hash !== hash) {
@@ -527,12 +527,12 @@ export function correctedRollingAverage(timeStream, period, options={}) {
         return;
     }
     if (options.idealGap === undefined || options.maxGap === undefined) {
-        const {ideal, max} = recommendedTimeGaps(timeStream);
+        const rec = recommendedTimeGaps(timeStream);
         if (options.idealGap === undefined) {
-            options.idealGap = ideal;
+            options.idealGap = rec.ideal;
         }
         if (options.maxGap === undefined) {
-            options.maxGap = max;
+            options.maxGap = rec.max;
         }
     }
     return new RollingAverage(period, options);
@@ -554,7 +554,8 @@ export function peakAverage(period, timeStream, valuesStream, options={}) {
     if (!roll) {
         return;
     }
-    return roll.importReduce(timeStream, valuesStream, options.activeStream, x => x.avg(),
+    return roll.importReduce(
+        timeStream, valuesStream, options.activeStream, x => x.avg(),
         (cur, lead) => cur >= lead);
 }
 
@@ -598,6 +599,6 @@ export function smooth(period, rawValues) {
 export function overlap([aStart, aEnd], [bStart, bEnd]) {
     const interStart = Math.max(aStart, bStart);
     const interEnd = Math.min(aEnd, bEnd);
-    const overlap = interEnd - interStart;
-    return overlap < 0 ? null : overlap + 1;
+    const o = interEnd - interStart;
+    return o < 0 ? null : o + 1;
 }

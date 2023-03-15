@@ -215,7 +215,8 @@ const friendlyPlatforms = {
 const debugFormatters = {
     uptime: x => H.timer(x.app.uptime),
     version: x => x.app.version,
-    appCPU: x => H.number((x.app.cpu.user + x.app.cpu.system) / 1000000 / x.app.uptime * 100,
+    appCPU: x => H.number(
+        (x.app.cpu.user + x.app.cpu.system) / 1000000 / x.app.uptime * 100,
         {suffix: '%', html: true}),
     appMemHeap: x => H.number(x.app.mem.heapTotal / MB, {suffix: 'MB', html: true}),
     os: x => `${friendlyPlatforms[x.sys.platform]} ${x.sys.productVersion}`,
@@ -224,10 +225,10 @@ const debugFormatters = {
     sysMem: x => H.number(x.sys.mem.total / 1024 / 1024, {suffix: 'GB', html: true}),
     gpu: x => x.gpu.gpu_compositing,
     statesDropped: x => H.number(x.stats.stateDupCount) + ' / ' + H.number(x.stats.stateStaleCount),
-    dbRowsAthletes: x => H.number(x.databases.find(x => x.tableName === 'athletes').rows,
-        {suffix: 'rows', html: true}),
-    dbRowsSettings: x => H.number(x.databases.find(x => x.tableName === 'store').rows,
-        {suffix: 'rows', html: true}),
+    dbRowsAthletes: x => H.number(
+        x.databases.find(xx => xx.tableName === 'athletes').rows, {suffix: 'rows', html: true}),
+    dbRowsSettings: x => H.number(
+        x.databases.find(xx => xx.tableName === 'store').rows, {suffix: 'rows', html: true}),
 };
 function defaultDebugFormatter(path) {
     return data => {
@@ -266,13 +267,13 @@ export async function main() {
             el.innerHTML = fmt(debugInfo);
         }
         const unused = new Set(allCharts.keys());
-        for (const x of metrics) {
-            if (!allCharts.has(x.pid)) {
+        for (const metric of metrics) {
+            if (!allCharts.has(metric.pid)) {
                 const el = document.createElement('div');
                 el.classList.add('chart-holder');
                 graphsEl.appendChild(el);
-                allCharts.set(x.pid, {
-                    charts: await makeMetricCharts(x, el),
+                allCharts.set(metric.pid, {
+                    charts: await makeMetricCharts(metric, el),
                     el,
                     datas: {
                         cpu: [],
@@ -281,10 +282,10 @@ export async function main() {
                     },
                 });
             }
-            unused.delete(x.pid);
-            const {charts, datas} = allCharts.get(x.pid);
-            const cpu = Math.round(x.cpu.percentCPUUsage * cpuCount);
-            const mem = Number((x.memory.workingSetSize / 1024).toFixed(1));  // MB
+            unused.delete(metric.pid);
+            const {charts, datas} = allCharts.get(metric.pid);
+            const cpu = Math.round(metric.cpu.percentCPUUsage * cpuCount);
+            const mem = Number((metric.memory.workingSetSize / 1024).toFixed(1));  // MB
             datas.cpu.push(cpu);
             datas.mem.push(mem);
             datas.count++;

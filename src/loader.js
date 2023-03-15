@@ -192,7 +192,8 @@ async function ensureSingleInstance() {
         await new Promise(resolve => setTimeout(resolve, 500));
         hasLock = app.requestSingleInstanceLock({type: 'quit'});
     }
-    await dialog.showErrorBox('Existing Sauce process hung',
+    await dialog.showErrorBox(
+        'Existing Sauce process hung',
         'Consider using Activity Monitor (mac) or Task Manager (windows) to find ' +
         'and stop any existing Sauce processes');
     app.quit(1);

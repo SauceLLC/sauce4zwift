@@ -8,7 +8,7 @@ import * as menu from './menu.mjs';
 import * as rpc from './rpc.mjs';
 import {databases} from './db.mjs';
 import * as webServer from './webserver.mjs';
-import * as stats from './stats.mjs';
+import {StatsProcessor} from './stats.mjs';
 import {createRequire} from 'node:module';
 import * as secrets from './secrets.mjs';
 import * as zwift from './zwift.mjs';
@@ -271,7 +271,7 @@ class SauceApp extends EventEmitter {
             _this._resetStorageState.call(_this, /*sender*/ this);
         }, {name: 'resetStorageState'});
         registerRPCMethods(this, 'getSetting', 'setSetting', 'pollMetrics', 'getDebugInfo',
-            'getGameConnectionStatus');
+                           'getGameConnectionStatus');
     }
 
     getSetting(key, def) {
@@ -314,7 +314,7 @@ class SauceApp extends EventEmitter {
         return await this._metricsPromise;
     }
 
-    async getDebugInfo() {
+    getDebugInfo() {
         return {
             app: {
                 version: pkg.version,
@@ -350,8 +350,8 @@ class SauceApp extends EventEmitter {
     startGameConnectionServer(ip) {
         const gcs = new zwift.GameConnectionServer({ip, zwiftAPI});
         registerRPCMethods(gcs, 'watch', 'join', 'teleportHome', 'say', 'wave', 'elbow',
-            'takePicture', 'powerup', 'changeCamera', 'enableHUD', 'disableHUD', 'chatMessage',
-            'reverse', 'toggleGraphs', 'sendCommands', 'turnLeft', 'turnRight', 'goStraight');
+                           'takePicture', 'powerup', 'changeCamera', 'enableHUD', 'disableHUD', 'chatMessage',
+                           'reverse', 'toggleGraphs', 'sendCommands', 'turnLeft', 'turnRight', 'goStraight');
         gcs.start().catch(report.error);
         return gcs;
     }
@@ -396,7 +396,8 @@ class SauceApp extends EventEmitter {
             randomWatch: args.randomWatch,
         });
         gameMonitor.on('multiple-logins', () => {
-            electron.dialog.showErrorBox('Multiple Logins Detected',
+            electron.dialog.showErrorBox(
+                'Multiple Logins Detected',
                 'Your Monitor Zwift Login is being used by more than 1 application. ' +
                 'This is usually an indicator that your Monitor Login is not the correct one. ' +
                 'Go to the main settings panel and logout if it is incorrect.');
@@ -411,7 +412,7 @@ class SauceApp extends EventEmitter {
             this.gameConnection = gameConnection; // debug
         }
         rpcSources.gameConnection = gameConnection || new EventEmitter();
-        this.statsProc = new stats.StatsProcessor({zwiftAPI, gameMonitor, gameConnection, args});
+        this.statsProc = new StatsProcessor({zwiftAPI, gameMonitor, gameConnection, args});
         this.statsProc.start();
         rpcSources.stats = this.statsProc;
         rpcSources.app = this;
@@ -572,8 +573,12 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     if (!mainUser) {
         return quit(1);
     }
-    const monUser = await zwiftAuthenticate({api: zwiftMonitorAPI, ident: 'zwift-monitor-login',
-        monitor: true, ...args});
+    const monUser = await zwiftAuthenticate({
+        api: zwiftMonitorAPI,
+        ident: 'zwift-monitor-login',
+        monitor: true,
+        ...args
+    });
     if (!monUser) {
         return quit(1);
     }
@@ -627,7 +632,6 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
 
 // Dev tools prototyping
 global.zwift = zwift;
-global.stats = stats;
 global.zwiftAPI = zwiftAPI;
 global.zwiftMonitorAPI = zwiftMonitorAPI;
 global.windows = windows;

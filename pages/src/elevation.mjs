@@ -189,7 +189,8 @@ export class SauceElevationProfile {
         }
         clearTimeout(this._refreshTimeout);
         if (now - this._lastRender < this.refresh) {
-            this._refreshTimeout = setTimeout(() => this.renderAthleteStates([]),
+            this._refreshTimeout = setTimeout(
+                () =>this.renderAthleteStates([]),
                 this.refresh - (now - this._lastRender));
             return;
         }
@@ -206,14 +207,14 @@ export class SauceElevationProfile {
                         vectorDistance(pos, [state.x, state.y, state.z]));
                     const nearest = distances.indexOf(Math.min(...distances));
                     const distance = this.road.distances[nearest];
-                    const watching = state.athleteId === this.watchingId;
+                    const isWatching = state.athleteId === this.watchingId;
                     return {
                         name: state.athleteId,
                         coord: [distance, state.altitude + 2],
-                        symbolSize: watching ? 40 : 20,
+                        symbolSize: isWatching ? 40 : 20,
                         itemStyle: {
-                            color: watching ? '#f54e' : '#fff6',
-                            borderWidth: watching ? 2 : 0,
+                            color: isWatching ? '#f54e' : '#fff6',
+                            borderWidth: isWatching ? 2 : 0,
                         },
                         emphasis: {
                             label: {

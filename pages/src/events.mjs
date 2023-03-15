@@ -5,7 +5,7 @@ import {render as profileRender} from './profile.mjs';
 const L = sauce.locale;
 //const H = L.human;
 common.settingsStore.setDefault({});
-let imperial = common.settingsStore.get('/imperialUnits');
+const imperial = common.settingsStore.get('/imperialUnits');
 L.setImperial(imperial);
 
 
@@ -65,11 +65,11 @@ export async function main() {
             event.mapId ? x.worldId === event.mapId : x.stringId === route.world);
         const subgroups = await Promise.all(event.eventSubgroups.map(async sg => {
             const entrants = await common.rpc.getEventSubgroupEntrants(sg.id);
-            const route = await getRoute(sg.routeId);
+            const sgRoute = await getRoute(sg.routeId);
             for (const x of entrants) {
                 athletes.set(x.id, x.athlete);
             }
-            return {...sg, route, entrants};
+            return {...sg, route: sgRoute, entrants};
         }));
         console.info(event, subgroups);
         eventDetailsEl.append(await eventDetailTpl({

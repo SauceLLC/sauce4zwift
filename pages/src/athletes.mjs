@@ -44,7 +44,7 @@ function onSearchInput(ev) {
 
 async function _onSearchInput(el) {
     const resultsEl = el.parentElement.querySelector('.results');
-    let term = el.value;
+    const term = el.value;
     if (term.length < 3) {
         resultsEl.innerHTML = '';
         return;
@@ -63,7 +63,7 @@ function onHeaderClickDelegate(ev) {
         section.classList.toggle('compressed');
     }
 }
- 
+
 
 export async function main() {
     common.initInteractionListeners();

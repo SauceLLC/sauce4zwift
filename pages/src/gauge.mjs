@@ -10,7 +10,7 @@ const page = location.pathname.split('/').at(-1).split('.')[0];
 const type = (new URLSearchParams(location.search)).get('t') || page || 'power';
 const L = sauce.locale;
 const H = L.human;
-let settings;
+let settings; // eslint-disable-line prefer-const
 let powerZones;
 let sport = 'cycling';
 let imperial = !!common.storage.get('/imperialUnits');
@@ -201,7 +201,7 @@ function colorAlpha(color, alpha) {
 }
 
 
-export async function main() {
+export function main() {
     common.addOpenSettingsParam('t', type);
     common.initInteractionListeners();
     setBackground();
@@ -413,7 +413,6 @@ export async function main() {
 
 export async function settingsMain() {
     common.initInteractionListeners();
-    const config = gaugeConfigs[type];
     if (config.noSmoothing) {
         document.querySelector('form [name="dataSmoothing"]').disabled = true;
     }

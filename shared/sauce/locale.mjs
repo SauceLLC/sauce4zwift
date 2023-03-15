@@ -138,7 +138,7 @@ const _intlDateFormats = {
     'monthDay': new Intl.DateTimeFormat([], {month: 'short', day: 'numeric'}),
     'weekday': new Intl.DateTimeFormat([], {weekday: 'short', month: 'short', day: 'numeric'}),
     'weekdayYear': new Intl.DateTimeFormat([], {weekday: 'short', year: 'numeric', month: 'short',
-        day: 'numeric'}),
+                                                day: 'numeric'}),
 };
 function humanDate(date, options={}) {
     if (!(date instanceof Date)) {
@@ -247,7 +247,7 @@ function _humanNumber(value, options) {
     if (!_realNumber(value)) {
         return humanEmpty;
     }
-    let n = Number(value);
+    const n = Number(value);
     const p = options.precision || 0;
     const v = n.toLocaleString(undefined, {
         useGrouping: n >= 10000 || n <= -10000,
@@ -330,7 +330,7 @@ function humanDistance(meters, options={}) {
         options.suffix = options.html ? `<abbr class="unit">${unit}</abbr>` : unit;
     }
     return humanNumber(imperial ? meters / metersPerMile : meters / 1000,
-        {fixed: true, precision: 1, ...options});
+                       {fixed: true, precision: 1, ...options});
 }
 
 

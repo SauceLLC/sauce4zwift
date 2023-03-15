@@ -153,22 +153,24 @@ function renderZoomed(groups) {
         return;
     }
     const groupCenterIdx = groups.findIndex(x => x.watching);
-    const pos = zoomedPosition;
-    const idx = Math.max(0, Math.min(groupCenterIdx + pos, groups.length - 1));
+    const position = zoomedPosition;
+    const idx = Math.max(0, Math.min(groupCenterIdx + position, groups.length - 1));
     const group = groups[idx];
     if (!group) {
         console.warn("XXX Unexpected missing group");
         return;
     }
     const groupSize = group.athletes.length;
-    const watchingCenterIdx = pos === 0 ? group.athletes.findIndex(x => x.watching) : 0;
+    const watchingCenterIdx = position === 0 ? group.athletes.findIndex(x => x.watching) : 0;
     const ahead = Math.max(0, watchingCenterIdx - Math.ceil(settings.maxZoomed / 2));
     const end = Math.min(group.athletes.length, ahead + settings.maxZoomed);
     const behind = group.athletes.length - end;
     const athletes = group.athletes.slice(ahead, end);
     contentEl.style.setProperty('--total-athletes', athletes.length);  // visual only
     const athletesLabel = groupSize === 1 ? 'Athlete' : 'Athletes';
-    const groupLabel = pos ? `${H.place(Math.abs(pos))} ${pos > 0 ? 'behind' : 'ahead'}` : 'Your Group';
+    const groupLabel = position ?
+        `${H.place(Math.abs(position))} ${position > 0 ? 'behind' : 'ahead'}` :
+        'Your Group';
     const primaryFmt = {
         power: ({power}) => pwrFmt(power),
         wkg: ({power, weight}) => weight ? wkgFmt(power / weight) : pwrFmt(power),
@@ -231,18 +233,21 @@ function renderZoomed(groups) {
         const minorField = settings.zoomedSecondaryField || 'heartrate';
         if (minorField === 'heartrate') {
             if (athlete.state.heartrate) {
-                rightLines.push(fmtLine(H.number(athlete.state.heartrate,
-                    {suffix: 'bpm', html: true}), 'minor'));
+                rightLines.push(fmtLine(
+                    H.number(athlete.state.heartrate, {suffix: 'bpm', html: true}),
+                    'minor'));
             }
         } else if (minorField === 'draft') {
             if (athlete.state.draft != null) {
-                rightLines.push(fmtLine(H.number(athlete.state.draft,
-                    {suffix: '% <ms large>air</ms>', html: true}), 'minor', 'Draft'));
+                rightLines.push(fmtLine(
+                    H.number(athlete.state.draft, {suffix: '% <ms large>air</ms>', html: true}),
+                    'minor', 'Draft'));
             }
         } else if (minorField === 'speed') {
             if (athlete.state.speed != null) {
-                rightLines.push(fmtLine(H.pace(athlete.state.speed,
-                    {precision: 0, suffix: true, html: true}), 'minor'));
+                rightLines.push(fmtLine(
+                    H.pace(athlete.state.speed, {precision: 0, suffix: true, html: true}),
+                    'minor'));
             }
         } else if (minorField === 'power-60s') {
             const p = athlete.stats.power.smooth[60];
@@ -361,25 +366,27 @@ function renderGroups(groups) {
         const minorField = settings.groupsSecondaryField || 'speed';
         if (minorField === 'heartrate') {
             if (group.heartrate) {
-                rightLines.push(fmtLine(H.number(group.heartrate,
-                    {suffix: 'bpm', html: true}), 'minor'));
+                rightLines.push(fmtLine(H.number(group.heartrate, {suffix: 'bpm', html: true}), 'minor'));
             }
         } else if (minorField === 'draft') {
             if (group.draft != null) {
-                rightLines.push(fmtLine(H.number(group.draft,
-                    {suffix: '% <ms large>air</ms>', html: true}), 'minor', 'Draft'));
+                rightLines.push(fmtLine(
+                    H.number(group.draft, {suffix: '% <ms large>air</ms>', html: true}),
+                    'minor', 'Draft'));
             }
         } else if (minorField === 'speed') {
             if (group.speed != null) {
-                rightLines.push(fmtLine(H.pace(group.speed,
-                    {precision: 0, suffix: true, html: true}), 'minor'));
+                rightLines.push(fmtLine(
+                    H.pace(group.speed, {precision: 0, suffix: true, html: true}),
+                    'minor'));
             }
         } else if (group.athletes.length > 1 || settings.groupsPrimaryField !== 'power') {
             if (minorField === 'power-highest') {
                 const highest = sauce.data.max(group.athletes.map(x => x.state.power));
                 if (highest != null) {
-                    rightLines.push(fmtLine(pwrFmt(highest, {suffix: '!'}), 'minor',
-                        'Highest individual power'));
+                    rightLines.push(fmtLine(
+                        pwrFmt(highest, {suffix: '!'}),
+                        'minor', 'Highest individual power'));
                 }
             } else if (minorField === 'power-median') {
                 const med = sauce.data.median(group.athletes.map(x => x.state.power));
@@ -464,8 +471,7 @@ export async function main() {
     const gcs = await common.rpc.getGameConnectionStatus();
     if (gcs) {
         common.subscribe('status', status =>
-            doc.classList.toggle('game-connection', status.connected),
-            {source: 'gameConnection'});
+            doc.classList.toggle('game-connection', status.connected), {source: 'gameConnection'});
         doc.classList.toggle('game-connection', gcs.connected);
     }
     let ts = 0;
