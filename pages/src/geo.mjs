@@ -20,9 +20,10 @@ common.settingsStore.setDefault({
     backgroundColor: '#00ff00',
     fields: 1,
     autoHeading: true,
-    quality: 80,
+    quality: 50,
     animation: true,
     verticalOffset: 0,
+    maxDrawDistance: 50,
 });
 
 const settings = common.settingsStore.get();
@@ -44,6 +45,11 @@ function setBackground() {
 }
 
 
+function drawDistanceToClipRadius(v) {
+    return (v || 0) / 100 * 800 + 200;
+}
+
+
 function createZwiftMap({worldList}) {
     const opacity = 1 - 1 / (100 / (settings.transparency || 0));
     const zm = new map.SauceZwiftMap({
@@ -59,6 +65,7 @@ function createZwiftMap({worldList}) {
         quality: settings.quality ? settings.quality / 100 : 80,
         animation: settings.animation,
         verticalOffset: settings.verticalOffset / 100,
+        layerClipRadius: drawDistanceToClipRadius(settings.maxDrawDistance),
     });
     let settingsSaveTimeout;
     zm.addEventListener('zoom', ev => {
@@ -215,6 +222,8 @@ export async function main() {
             zwiftMap.setStyle(changed.get('mapStyle'));
         } else if (changed.has('tiltShift') || changed.has('tiltShiftAmount')) {
             zwiftMap.setTiltShift(settings.tiltShift && ((settings.tiltShiftAmount || 0) / 100));
+        } else if (changed.has('maxDrawDistance')) {
+            zwiftMap.setLayerClipRadius(drawDistanceToClipRadius(changed.get('maxDrawDistance')));
         } else if (changed.has('sparkle')) {
             zwiftMap.setSparkle(changed.get('sparkle'));
         } else if (changed.has('quality')) {

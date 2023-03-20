@@ -55,10 +55,24 @@ function isVisible() {
 }
 
 
+function rotateCoords([x, y], angle) {
+    const b = Math.abs(x);
+    const a = Math.abs(y);
+    const c = Math.sqrt(a * a + b * b);
+    let A = Math.asin(b > c ? c / b : b / c);
+    A += angle * Math.PI / 180;
+    const b2 = Math.abs(Math.sin(A) * c) * Math.sign(x);
+    const a2 = Math.abs(Math.cos(A) * c) * Math.sign(y);
+    console.log({x,y}, {b2,a2}, {c, angle, A});
+    return [b2, a2];
+}
+
+
 export class SauceZwiftMap extends EventTarget {
     constructor({el, worldList, zoom=1, zoomMin=0.25, zoomMax=4.5, autoHeading=true,
                  style='default', opacity=1, tiltShift=null, maxTiltShiftAngle=65,
-                 sparkle=false, quality=1, animation=true, verticalOffset=0}) {
+                 sparkle=false, quality=1, animation=true, verticalOffset=0,
+                 layerClipRadius=1000}) {
         super();
         el.classList.toggle('hidden', !isVisible());
         el.classList.add('sauce-map-container');
@@ -82,7 +96,6 @@ export class SauceZwiftMap extends EventTarget {
         this._anchorXY = [0, 0];
         this._dragXY = [0, 0];
         this._layerScale = null;
-        this._layerClipRadius = null;
         this._layerWidth = null;
         this._layerHeight = null;
         this._loadingRefCnt = 0;
@@ -135,10 +148,6 @@ export class SauceZwiftMap extends EventTarget {
             }
             this.el.classList.toggle('hidden', !visable);
         });
-        this._elHeight = 0;
-        this._resizeObserver = new ResizeObserver(([x]) =>
-            this._elHeight = x.contentBoxSize[0].blockSize);
-        this._resizeObserver.observe(this.el);
         this.incLoading();
         this.setZoom(zoom);
         this.setAutoHeading(autoHeading);
@@ -149,7 +158,19 @@ export class SauceZwiftMap extends EventTarget {
         this.setQuality(quality);
         this.setAnimation(animation);
         this.setVerticalOffset(verticalOffset);
+        this.setLayerClipRadius(layerClipRadius);
+        this._resizeObserver = new ResizeObserver(([x]) => {
+            this._elWidth = Math.round(x.contentRect.width);
+            this._elHeight = Math.round(x.contentRect.height);
+            this._realPixels = Math.round(this._elHeight * this._elWidth * devicePixelRatio);
+            console.log('up', this._elWidth, this._elHeight, this._realPixels, devicePixelRatio);
+        });
+        this._resizeObserver.observe(this.el);
         this.el.append(this.mapEl, this.pinsEl);
+        this._elHeight = this.el.clientHeight;
+        this._elWidth = this.el.clientWidth;
+        this._realPixels = Math.round(this._elHeight * this._elWidth * devicePixelRatio);
+        console.log(this._elHeight);
         this.decLoading();
     }
 
@@ -169,17 +190,23 @@ export class SauceZwiftMap extends EventTarget {
         this.imgEl.style.setProperty('--opacity', isNaN(v) ? 1 : v);
     }
 
+    _fullUpdateAsNeeded() {
+        if (!this.isLoading()) {
+            if (!this._adjustLayerScale()) {
+                this._transform();
+            }
+            return true;
+        }
+        return false;
+    }
+
     setTiltShift(v) {
         v = v || null;
         this._tiltShift = v;
         this._tiltShiftNorm = v ? (1 / this.zoomMax) * v * this.maxTiltShiftAngle : null;
         this.el.classList.toggle('tilt-shift', !!v);
-        this.mapEl.style.removeProperty('clip-path');
-        if (!this.isLoading()) {
-            if (!this._adjustLayerScale()) {
-                this._transform();
-            }
-        }
+        this.mapEl.style.setProperty('clip-path', 'none');
+        this._fullUpdateAsNeeded();
     }
 
     setSparkle(en) {
@@ -188,12 +215,12 @@ export class SauceZwiftMap extends EventTarget {
 
     setQuality(q) {
         this.quality = q;
-        this._layerClipRadius = q * 2000;
-        if (!this.isLoading()) {
-            if (!this._adjustLayerScale()) {
-                this._transform();
-            }
-        }
+        this._fullUpdateAsNeeded();
+    }
+
+    setLayerClipRadius(v) {
+        this._layerClipRadius = v;
+        this._fullUpdateAsNeeded();
     }
 
     setAnimation(en) {
@@ -218,13 +245,10 @@ export class SauceZwiftMap extends EventTarget {
 
     _applyZoom() {
         this.mapEl.style.setProperty('--zoom', this.zoom);
-        if (!this.isLoading()) {
+        if (this._fullUpdateAsNeeded()) {
             const ev = new Event('zoom');
             ev.zoom = this.zoom;
             this.dispatchEvent(ev);
-            if (!this._adjustLayerScale()) {
-                this._transform();
-            }
         }
     }
 
@@ -732,28 +756,26 @@ export class SauceZwiftMap extends EventTarget {
         if (this._tiltShift) {
             // When zoomed in tiltShift can exploded the GPU budget if a lot of
             // landscape is visible.  We need an additional scale factor to prevent
-            // users from having constantly adjust quality.
+            // users from having to constantly adjust quality.
             const angle = this.zoom * this._tiltShiftNorm;
             // There is no way to be perfect here so this is tuned with a medium/large
             // sized window on a Linux at 60fps to stay around ~500MB GPU mem on blink.
-            quality *= Math.min(1, 20 / Math.max(0, angle - 30));
-            this.mapEl.style.setProperty('--tilt-shift-angle', angle);
-            this.mapEl.style.setProperty('--clip-path-radius', this._layerClipRadius + 'px');
-        } else {
-            this.mapEl.style.removeProperty('--tilt-shift-angle');
+            //quality *= Math.min(1, 10 / Math.max(0, angle - 30));
+            console.log('quality', quality, 'angle', angle);
+            this._layerClipRadiusNorm = Math.round(this._layerClipRadius / devicePixelRatio);
         }
-        const scale = Math.min(
+        const adjZoom = Math.min(
             this.zoomMax,
-            Math.max(this.zoomMin,
-                     Math.round(1 / this.zoom / chunk) * chunk)) / quality;
+            Math.max(this.zoomMin, Math.round(1 / this.zoom / chunk) * chunk));
+        const scale = 1 / adjZoom * quality / devicePixelRatio;
         if (force || this._layerScale !== scale) {
             this.incLoading();
             this._layerScale = scale;
-            this._layerWidth = this.imgEl.naturalWidth / scale;
-            this._layerHeight = this.imgEl.naturalHeight / scale;
+            this._layerWidth = Math.round(this.imgEl.naturalWidth * scale);
+            this._layerHeight = Math.round(this.imgEl.naturalHeight * scale);
+            console.log(scale, this._layerWidth, this._layerHeight);
             this.imgEl.width = this._layerWidth;
             this.imgEl.height = this._layerHeight;
-            this.mapEl.style.setProperty('--layer-scale', scale);
             this.decLoading();
             return true;
         }
@@ -764,32 +786,31 @@ export class SauceZwiftMap extends EventTarget {
         if (this._layerScale == null) {
             return;
         }
-        const scale = this._layerScale * this.zoom;
+        const scale = this.zoom / this._layerScale;
         const relX = this._anchorXY[0] + this._centerXY[0];
         const relY = this._anchorXY[1] + this._centerXY[1];
         const dragX = this._dragXY[0] * scale;
         const dragY = this._dragXY[1] * scale;
-        const tX = (relX - dragX) / this._layerScale;
-        const tY = (relY - dragY) / this._layerScale;
-        const originX = relX / this._layerScale;
-        const originY = relY / this._layerScale;
+        const tX = Math.round((relX - dragX) * this._layerScale);
+        const tY = Math.round((relY - dragY) * this._layerScale);
+        const originX = Math.round(relX * this._layerScale);
+        const originY = Math.round(relY * this._layerScale);
         const transforms = [
             `translate(${-tX}px, ${-tY}px)`,
             `scale(${scale})`,
         ];
         if (this._tiltShift) {
             transforms.push(
-                `perspective(${600 / scale}px)`,
+                `perspective(${Math.round(600 / scale)}px)`,
                 `rotateX(${this.zoom * this._tiltShiftNorm}deg)`);
-            const maskPos = `${originX - this._layerClipRadius}px ${originY - this._layerClipRadius}px`;
-            this.mapEl.style.setProperty('-webkit-mask-position', maskPos);
-            this.mapEl.style.setProperty('mask-position', maskPos);
+            const [x, y] = rotateCoords(this._dragXY, this.adjHeading);
             this.mapEl.style.setProperty(
                 'clip-path',
-                `circle(${this._layerClipRadius}px at ${originX}px ${originY}px)`);
+                `circle(${this._layerClipRadiusNorm}px at ${originX - (x * this._layerScale * this.zoom)}px ${originY - (y * this._layerScale * this.zoom)}px)`);
+                //`circle(${this._layerClipRadiusNorm}px at ${originX - (x * this._layerScale)}px ${originY - (y * this._layerScale)}px)`);
         }
         if (this.verticalOffset) {
-            const height = this._elHeight / this._layerScale / this.zoom;
+            const height = this._elHeight * this._layerScale / this.zoom;
             const offt = this.verticalOffset * height;
             transforms.push(`translate(0, ${offt}px)`);
         }

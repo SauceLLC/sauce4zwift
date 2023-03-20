@@ -57,17 +57,6 @@
         }
     }
 
-    &.tilt-shift {
-        .sauce-map {
-            $mask-gradient: url(../images/map-fade-mask.png);
-            -webkit-mask-image: $mask-gradient;
-            mask-image: $mask-gradient;
-            -webkit-mask-repeat: no-repeat;
-            mask-repeat: no-repeat;
-            -webkit-mask-size: calc(var(--clip-path-radius) * 2);
-        }
-    }
-
     &.sparkle .sauce-map svg.entities {
         .entity.athlete[data-power-level="z4"],
         .entity.athlete[data-power-level="z5"],
@@ -77,7 +66,6 @@
     }
 
     > .sauce-map {
-        --layer-scale: 1;
         touch-action: none;  // disable native touch handling on mobile devices.
         position: absolute;
         transition:
@@ -86,15 +74,6 @@
         transition-timing-function: linear;
         left: 50%;
         top: 50%;
-
-        &.clip-mask {
-            $mask-gradient: radial-gradient(circle,
-                #000,
-                #000 calc(var(--clip-path-radius) * 0.8),
-                transparent calc(var(--clip-path-radius) * 0.98));
-            -webkit-mask-image: $mask-gradient;
-            mask-image: $mask-gradient;
-        }
 
         > svg {
             position: absolute;
