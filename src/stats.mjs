@@ -1693,7 +1693,7 @@ export class StatsProcessor extends events.EventEmitter {
                 }
             }
             if (d2 !== undefined) {
-                // We can probably move this up tino the first d2 block once we validate the above condition
+                // We can probably move this up to the first d2 block once we validate the above condition
                 // is not relevant.  Probably need to check on something funky like crit city or japan.
                 const aPrevTail = a.prevTimeline[a.prevTimeline.length - 1];
                 const roadDist = roadDistEstimates[a.prevSig] || 0;
