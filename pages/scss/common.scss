@@ -166,6 +166,7 @@ a {
     padding: 0.5em 0.8em;
     overflow: auto;
     overflow: overlay;
+    container: settings / inline-size;
 
     &.tabbed {
         margin-top: 0.2em;
@@ -272,6 +273,19 @@ a {
         background-repeat: no-repeat;
         animation: shimmer-new 3s infinite;
         animation-timing-function: linear;
+    }
+}
+
+@container settings (max-width: 400px) {
+    #settings > .section {
+        padding-left: 0.1em;
+        padding-right: 0.1em;
+    }
+
+    form {
+        input[type="range"] {
+            width: 8em;
+        }
     }
 }
 
