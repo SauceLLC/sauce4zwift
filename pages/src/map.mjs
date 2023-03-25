@@ -38,7 +38,6 @@ function smoothPath(points, {looped, smoothing=0.2}={}) {
             const cpEnd = controlPoint(cur, prev, next, true, smoothing);
             path.push('C' + [cpStart.join(), cpEnd.join(), cur.join()].join(' '));
         }
-        //path.push('Z');  // XXX Don't think I need it, but maybe it makes the join smoother?
     } else {
         for (let i = 1; i < points.length; i++) {
             const cpStart = controlPoint(points[i - 1], points[i - 2], points[i], false, smoothing);
@@ -55,24 +54,10 @@ function isVisible() {
 }
 
 
-function rotateCoords([x, y], angle) {
-    const b = Math.abs(x);
-    const a = Math.abs(y);
-    const c = Math.sqrt(a * a + b * b);
-    let A = Math.asin(b > c ? c / b : b / c);
-    A += angle * Math.PI / 180;
-    const b2 = Math.abs(Math.sin(A) * c) * Math.sign(x);
-    const a2 = Math.abs(Math.cos(A) * c) * Math.sign(y);
-    console.log({x,y}, {b2,a2}, {c, angle, A});
-    return [b2, a2];
-}
-
-
 export class SauceZwiftMap extends EventTarget {
     constructor({el, worldList, zoom=1, zoomMin=0.25, zoomMax=4.5, autoHeading=true,
-                 style='default', opacity=1, tiltShift=null, maxTiltShiftAngle=65,
-                 sparkle=false, quality=1, animation=true, verticalOffset=0,
-                 layerClipRadius=1000}) {
+                 style='default', opacity=1, tiltShift=null, maxTiltShiftAngle=60,
+                 sparkle=false, quality=1, animation=true, verticalOffset=0}) {
         super();
         el.classList.toggle('hidden', !isVisible());
         el.classList.add('sauce-map-container');
@@ -96,8 +81,6 @@ export class SauceZwiftMap extends EventTarget {
         this._anchorXY = [0, 0];
         this._dragXY = [0, 0];
         this._layerScale = null;
-        this._layerWidth = null;
-        this._layerHeight = null;
         this._loadingRefCnt = 0;
         this._renderAnimFrame = null;
         this._pendingRenderWork = new Map();
@@ -132,10 +115,14 @@ export class SauceZwiftMap extends EventTarget {
         this.pinsEl.classList.add('pins');
         this.roadsSvg = createElementSVG('svg');
         this.roadsSvg.classList.add('roads');
-        this.imgEl = document.createElement('img');
-        this.imgEl.classList.add('minimap');
-        this.imgEl.addEventListener('load', this._onImgLoad.bind(this));
-        this.mapEl.append(this.imgEl, this.roadsSvg, this.entsSvg);
+        this.mapCanvas = document.createElement('canvas');
+        this.mapCanvas.classList.add('map-background');
+        this.mapCanvas = document.createElement('canvas');
+        this.mapCanvas.classList.add('map-background');
+        this.mapCanvasCtx = this.mapCanvas.getContext('2d', {alpha: true});
+        this.mapImage = new Image();
+        this.mapImage.loading = 'eager';
+        this.mapEl.append(this.mapCanvas, this.roadsSvg, this.entsSvg);
         this.el.addEventListener('wheel', this._onWheelZoom.bind(this));
         this.el.addEventListener('pointerdown', this._onPointerDown.bind(this));
         this.entsSvg.addEventListener('click', this._onEntsClick.bind(this));
@@ -158,36 +145,22 @@ export class SauceZwiftMap extends EventTarget {
         this.setQuality(quality);
         this.setAnimation(animation);
         this.setVerticalOffset(verticalOffset);
-        this.setLayerClipRadius(layerClipRadius);
-        this._resizeObserver = new ResizeObserver(([x]) => {
-            this._elWidth = Math.round(x.contentRect.width);
-            this._elHeight = Math.round(x.contentRect.height);
-            this._realPixels = Math.round(this._elHeight * this._elWidth * devicePixelRatio);
-            console.log('up', this._elWidth, this._elHeight, this._realPixels, devicePixelRatio);
-        });
+        this._resizeObserver = new ResizeObserver(([x]) => this._elHeight = x.contentRect.height);
         this._resizeObserver.observe(this.el);
         this.el.append(this.mapEl, this.pinsEl);
         this._elHeight = this.el.clientHeight;
-        this._elWidth = this.el.clientWidth;
-        this._realPixels = Math.round(this._elHeight * this._elWidth * devicePixelRatio);
-        console.log(this._elHeight);
         this.decLoading();
     }
 
     setStyle(style) {
         this.style = style || 'default';
-        if (this.style.endsWith('Black')) {
-            this.imgEl.style.setProperty('background-color', 'black');
-        } else {
-            this.imgEl.style.removeProperty('background-color');
-        }
         if (!this.isLoading()) {
-            this._updateMapImage();
+            this._updateMapBackground();
         }
     }
 
     setOpacity(v) {
-        this.imgEl.style.setProperty('--opacity', isNaN(v) ? 1 : v);
+        this.mapCanvas.style.setProperty('--opacity', isNaN(v) ? 1 : v);
     }
 
     _fullUpdateAsNeeded() {
@@ -205,7 +178,6 @@ export class SauceZwiftMap extends EventTarget {
         this._tiltShift = v;
         this._tiltShiftNorm = v ? (1 / this.zoomMax) * v * this.maxTiltShiftAngle : null;
         this.el.classList.toggle('tilt-shift', !!v);
-        this.mapEl.style.setProperty('clip-path', 'none');
         this._fullUpdateAsNeeded();
     }
 
@@ -215,11 +187,6 @@ export class SauceZwiftMap extends EventTarget {
 
     setQuality(q) {
         this.quality = q;
-        this._fullUpdateAsNeeded();
-    }
-
-    setLayerClipRadius(v) {
-        this._layerClipRadius = v;
         this._fullUpdateAsNeeded();
     }
 
@@ -258,7 +225,7 @@ export class SauceZwiftMap extends EventTarget {
         }
         ev.preventDefault();
         this.trackingPaused = true;
-        this._adjustZoom(-ev.deltaY / 4000 * this.zoom);
+        this._adjustZoom(-ev.deltaY / 2000 * this.zoom);
         cancelAnimationFrame(this._wheelState.nextAnimFrame);
         this._wheelState.nextAnimFrame = requestAnimationFrame(() => {
             if (this._wheelState.done) {
@@ -364,14 +331,24 @@ export class SauceZwiftMap extends EventTarget {
         this.trackingPaused = false;
     }
 
-    _updateMapImage() {
+    async _updateMapBackground() {
         const suffix = {
             default: '',
             neon: '-neon',
-            neonBlack: '-neon',
         }[this.style];
-        this.imgEl.src = `https://www.sauce.llc/products/sauce4zwift/maps/world` +
-            `${this.worldMeta.worldId}${suffix}.webp`;
+        this.mapCanvasCtx.clearRect(0, 0, this.mapCanvas.width, this.mapCanvas.height);
+        this.mapImage.src = `https://www.sauce.llc/products/sauce4zwift/maps/world` +
+            `${this.worldMeta.worldId}${suffix || ''}.webp`;
+        try {
+            await this.mapImage.decode();
+        } catch(e) {
+            console.warn("Image decode interrupted/failed", e);
+            return;
+        }
+        this.mapCanvas.width = this.mapImage.naturalWidth;
+        this.mapCanvas.height = this.mapImage.naturalHeight;
+        this.mapCanvasCtx.drawImage(this.mapImage, 0, 0);
+        this._adjustLayerScale({force: true});
     }
 
     incLoading() {
@@ -396,12 +373,20 @@ export class SauceZwiftMap extends EventTarget {
         return this._loadingRefCnt > 0;
     }
 
-    setCourse(courseId) {
+    async setCourse(courseId) {
         if (courseId === this.courseId) {
             console.warn("debounce setCourse");
             return;
         }
         this.incLoading();
+        try {
+            await this._setCourse(courseId);
+        } finally {
+            this.decLoading();
+        }
+    }
+
+    async _setCourse(courseId) {
         this.courseId = courseId;
         this.worldMeta = this.worldList.find(x => x.courseId === courseId);
         const {minX, minY, tileScale, mapScale, anchorX, anchorY} = this.worldMeta;
@@ -409,17 +394,17 @@ export class SauceZwiftMap extends EventTarget {
         this._anchorXY[0] = -(minX + anchorX) * this._mapScale;
         this._anchorXY[1] = -(minY + anchorY) * this._mapScale;
         this._setHeading(0);
-        this._updateMapImage();
         for (const x of this._ents.values()) {
             x.remove();
         }
         this._ents.clear();
         this._athleteCache.clear();
-        this._renderEnts();
-        return Promise.all([
-            this._renderRoads(),
-            this.imgEl.decode().finally(() => this.decLoading()),
+        const [roads] = await Promise.all([
+            common.getRoads(this.worldMeta.worldId),
+            this._updateMapBackground(),
         ]);
+        this._renderRoads(roads);
+        this._renderEnts();
     }
 
     setWatching(id) {
@@ -461,7 +446,6 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     _renderEnts() {
-        this.entsSvg.innerHTML = '';
         const m = this.worldMeta;
         this.entsSvg.setAttribute('viewBox', [
             (m.minX + m.anchorX) * svgInternalScale,
@@ -469,16 +453,14 @@ export class SauceZwiftMap extends EventTarget {
             (m.maxX - m.minX) * svgInternalScale,
             (m.maxY - m.minY) * svgInternalScale,
         ].join(' '));
-        this.entsSvg.append(this.entsLayers.low, this.entsLayers.medium,
-                            this.entsLayers.high, this.entsLayers.special);
+        this.entsSvg.replaceChildren(
+            this.entsLayers.low, this.entsLayers.medium,
+            this.entsLayers.high, this.entsLayers.special);
     }
 
-    async _renderRoads(ids) {
-        const roads = await common.getRoads(this.worldMeta.worldId);
-        this.roadsSvg.innerHTML = '';
+    _renderRoads(roads, ids) {
         ids = ids || Object.keys(roads);
         const defs = createElementSVG('defs');
-        this.roadsSvg.append(defs);
         // Because roads overlap and we want to style some of them differently this
         // make multi-sport roads higher so we don't randomly style overlapping sections.
         ids.sort((a, b) =>
@@ -539,9 +521,12 @@ export class SauceZwiftMap extends EventTarget {
         if (this.roadId != null) {
             this.setRoad(this.roadId);
         }
-        this.roadsSvg.append(...roadways.gutter);
-        this.roadsSvg.append(...roadways.surface);
-        this.roadsSvg.append(this._activeRoad);
+        // SVG doesn't have z-index, element order is therefore critical.
+        this.roadsSvg.replaceChildren(
+            defs,
+            ...roadways.gutter,
+            ...roadways.surface,
+            this._activeRoad);
     }
 
     setRoad(id) {
@@ -730,10 +715,6 @@ export class SauceZwiftMap extends EventTarget {
         }
     }
 
-    _onImgLoad() {
-        this._adjustLayerScale({force: true});
-    }
-
     _adjustLayerScale({force}={}) {
         // This is a solution for 3 problems:
         //  1. Blink will convert compositing layers to bitmaps using suboptimal
@@ -758,24 +739,19 @@ export class SauceZwiftMap extends EventTarget {
             // landscape is visible.  We need an additional scale factor to prevent
             // users from having to constantly adjust quality.
             const angle = this.zoom * this._tiltShiftNorm;
-            // There is no way to be perfect here so this is tuned with a medium/large
-            // sized window on a Linux at 60fps to stay around ~500MB GPU mem on blink.
-            //quality *= Math.min(1, 10 / Math.max(0, angle - 30));
-            console.log('quality', quality, 'angle', angle);
-            this._layerClipRadiusNorm = Math.round(this._layerClipRadius / devicePixelRatio);
+            quality *= Math.min(1, 10 / Math.max(0, angle - 30));
         }
         const adjZoom = Math.min(
             this.zoomMax,
             Math.max(this.zoomMin, Math.round(1 / this.zoom / chunk) * chunk));
-        const scale = 1 / adjZoom * quality / devicePixelRatio;
+        const scale = 1 / adjZoom * quality;
         if (force || this._layerScale !== scale) {
             this.incLoading();
             this._layerScale = scale;
-            this._layerWidth = Math.round(this.imgEl.naturalWidth * scale);
-            this._layerHeight = Math.round(this.imgEl.naturalHeight * scale);
-            console.log(scale, this._layerWidth, this._layerHeight);
-            this.imgEl.width = this._layerWidth;
-            this.imgEl.height = this._layerHeight;
+            const width = Math.round(this.mapImage.naturalWidth * scale);
+            const height = Math.round(this.mapImage.naturalHeight * scale);
+            this.mapCanvas.style.setProperty('width', width + 'px');
+            this.mapCanvas.style.setProperty('height', height + 'px');
             this.decLoading();
             return true;
         }
@@ -791,23 +767,18 @@ export class SauceZwiftMap extends EventTarget {
         const relY = this._anchorXY[1] + this._centerXY[1];
         const dragX = this._dragXY[0] * scale;
         const dragY = this._dragXY[1] * scale;
-        const tX = Math.round((relX - dragX) * this._layerScale);
-        const tY = Math.round((relY - dragY) * this._layerScale);
-        const originX = Math.round(relX * this._layerScale);
-        const originY = Math.round(relY * this._layerScale);
+        const tX = (relX - dragX) * this._layerScale;
+        const tY = (relY - dragY) * this._layerScale;
+        const originX = relX * this._layerScale;
+        const originY = relY * this._layerScale;
         const transforms = [
             `translate(${-tX}px, ${-tY}px)`,
             `scale(${scale})`,
         ];
         if (this._tiltShift) {
             transforms.push(
-                `perspective(${Math.round(600 / scale)}px)`,
+                `perspective(${Math.round(800 / scale)}px)`,
                 `rotateX(${this.zoom * this._tiltShiftNorm}deg)`);
-            const [x, y] = rotateCoords(this._dragXY, this.adjHeading);
-            this.mapEl.style.setProperty(
-                'clip-path',
-                `circle(${this._layerClipRadiusNorm}px at ${originX - (x * this._layerScale * this.zoom)}px ${originY - (y * this._layerScale * this.zoom)}px)`);
-                //`circle(${this._layerClipRadiusNorm}px at ${originX - (x * this._layerScale)}px ${originY - (y * this._layerScale)}px)`);
         }
         if (this.verticalOffset) {
             const height = this._elHeight * this._layerScale / this.zoom;
@@ -869,12 +840,15 @@ export class SauceZwiftMap extends EventTarget {
         }
         if (refresh.length && isVisible()) {
             common.rpc.getAthletesData(refresh).then(ads => {
-                for (const ad of ads) {
-                    const ent = this._ents.get(ad.athleteId);
-                    if (ad && ent) {
+                for (const [id, ad] of ads.entries()) {
+                    const ent = this._ents.get(id);
+                    if (ent) {
                         this._updateEntityAthleteData(ent, ad);
                     }
-                    this._athleteCache.get(ad.athleteId).data = ad;
+                    const ac = this._athleteCache.get(id);
+                    if (ac) {
+                        ac.data = ad;
+                    }
                 }
             });
         }
