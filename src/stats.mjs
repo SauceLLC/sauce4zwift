@@ -66,15 +66,17 @@ function splitNameAndTeam(name) {
 }
 
 
-function makeExpWeighted(period) {
-    const c = 1 - Math.exp(-1 / 100);
+function makeExpWeighted(period=100) {
+    const cPrev = Math.exp(-1 / period);
+    const cNext = 1 - cPrev;
     let w;
-    return x => (w = w === undefined ? x : (w * (1 - c)) + (x * c));
+    return x => (w = w === undefined ? x : (w * cPrev) + (x * cNext));
 }
 
 
 const _roadDistExpFuncs = {};
 function adjRoadDistEstimate(sig, raw) {
+    // XXX we have actual road distances now, use the roads data instead of this.
     if (!_roadDistExpFuncs[sig]) {
         _roadDistExpFuncs[sig] = makeExpWeighted(100);
     }
@@ -1158,6 +1160,7 @@ export class StatsProcessor extends events.EventEmitter {
             laps: [this.cloneDataCollectors(collectors, {reset: true})],
             activeSegments: new Map(),
             segments: [],
+            smoothGrade: makeExpWeighted(8),
         };
     }
 
@@ -1215,7 +1218,9 @@ export class StatsProcessor extends events.EventEmitter {
             const distanceChange = state.eventDistance ?
                 (state.eventDistance - prevState.eventDistance) :
                 (state.distance - prevState.distance);
-            state.grade = distanceChange ? (elevationChange / distanceChange) : prevState.grade;
+            state.grade = ad.smoothGrade(distanceChange ?
+                (elevationChange / distanceChange) :
+                prevState.grade);
             // Leaving around because it's pretty darn useful for debugging...
             //state.mapurl = `https://maps.google.com/maps?q=${state.latlng[0]},${state.latlng[1]}&z=17`;
         } else {
