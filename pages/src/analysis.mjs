@@ -193,7 +193,7 @@ export async function main() {
     common.initInteractionListeners();
     let mainTpl;
     [stats, laps, segments, streams, mainTpl] = await Promise.all([
-        common.rpc.getAthleteStats(athleteId),
+        common.rpc.getAthleteData(athleteId),
         common.rpc.getAthleteLaps(athleteId),
         common.rpc.getAthleteSegments(athleteId),
         common.rpc.getAthleteStreams(athleteId),
