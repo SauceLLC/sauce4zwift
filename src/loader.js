@@ -287,6 +287,7 @@ async function initSentry(logEmitter) {
         console.debug("Disable GPU Compositing");
         app.commandLine.appendSwitch('disable-gpu-compositing');
     }
+    app.commandLine.appendSwitch('force-gpu-mem-available-mb', '1024');
     // Use non-electron naming for windows updater.
     // https://github.com/electron-userland/electron-builder/issues/2700
     app.setAppUserModelId('io.saucellc.sauce4zwift'); // must match build.appId for windows
