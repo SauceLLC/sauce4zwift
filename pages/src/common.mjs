@@ -1274,6 +1274,14 @@ export function chunkNumber(n, step) {
 }
 
 
+export function expWeightedAvg(size=2, seed=0) {
+    const cPrev = Math.exp(-1 / size);
+    const cNext = 1 - cPrev;
+    let avg = seed;
+    return v => avg = (avg * cPrev) + (v * cNext);
+}
+
+
 rpcCall('getVersion').then(v => Sentry.setTag('version', v));
 rpcCall('getSentryAnonId').then(id => Sentry.setUser({id}));
 rpcCall('isDEV').then(isDEV => {

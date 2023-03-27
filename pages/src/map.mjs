@@ -53,13 +53,151 @@ function isVisible() {
     return document.visibilityState === 'visible';
 }
 
+let idle;
+if (window.requestIdleCallback) {
+    idle = options => new Promise(resolve => requestIdleCallback(resolve, options));
+} else {
+    idle = () => new Promise(resolve => setTimeout(resolve, 10 + 1000 * Math.random()));
+}
+
+
+class Transition {
+    constructor({duration=1000}={}) {
+        this.duration = duration;
+        this.disabled = false;
+        this._src = undefined;
+        this._cur = undefined;
+        this._dst = undefined;
+        this._startTime = 0;
+        this._endTime = 0;
+        this._disabledRefCnt = 0;
+        this.disabled = false;
+        this.active = false;
+    }
+
+    incDisabled() {
+        this._disabledRefCnt++;
+        this.disabled = !!this._disabledRefCnt;
+        this.active = false;
+        this._startTime = 0;
+        this._endTime = 0;
+    }
+
+    decDisabled() {
+        this._disabledRefCnt--;
+        if (this._disabledRefCnt < 0) {
+            throw new Error("Transition disabled refcnt < 0");
+        }
+        this.disabled = !!this._disabledRefCnt;
+    }
+
+    setDuration(duration) {
+        if (this.active) {
+            // Prevent jitter by forwarding the current transition.
+            this._recalcCurrent();
+            this._src = Array.from(this._cur);
+            this._startTime = Date.now();
+            this._endTime += duration - this.duration;
+        }
+        this.duration = duration;
+    }
+
+    setValues(values) {
+        if (!this.disabled) {
+            const now = Date.now();
+            if (now < this._endTime) {
+                // We're interrrupting an active transition.  Set our src to the
+                // current frame values.
+                this._recalcCurrent();
+                this._src = Array.from(this._cur);
+            } else if (this._dst) {
+                this._src = Array.from(this._dst);
+            }
+            this._startTime = now;
+            this._endTime = now + (this._src ? this.duration : 0);
+            this.active = true;
+        }
+        this._dst = Array.from(values);
+    }
+
+    getStep() {
+        this._recalcCurrent();
+        return this._cur;
+    }
+
+    _recalcCurrent() {
+        const progress = (Date.now() - this._startTime) / (this._endTime - this._startTime);
+        if (this.disabled || progress >= 1) {
+            this._cur = this._dst && Array.from(this._dst);
+            this.active = false;
+        } else {
+            this._cur = this._cur || [];
+            for (let i = 0; i < this._dst.length; i++) {
+                const delta = this._dst[i] - this._src[i];
+                this._cur[i] = this._src[i] + (delta * progress);
+            }
+        }
+    }
+}
+
+
+// See: https://developer.mozilla.org/en-US/docs/Web/CSS/transform-function/matrix
+// for explanations of all the matrix shapes.
+class MatrixTransformTransition extends Transition {
+    constructor(options) {
+        super(options);
+        const el = document.createElement('div');
+        el.style.setProperty('visibility', 'hidden');
+        el.style.setProperty('opacity', '0');
+        el.style.setProperty('z-index', '-10000000');
+        el.style.setProperty('position', 'fixed');
+        el.style.setProperty('top', '-1000000px');
+        el.style.setProperty('left', '-1000000px');
+        el.style.setProperty('width', '0');
+        el.style.setProperty('height', '0');
+        this._computed = getComputedStyle(el);
+        this._el = el;
+        this._3d = false;
+        document.body.append(el);
+    }
+
+    _2dTo3dMatrix([a, b, c, d, x, y]) {
+        return [
+            a, b, 0, 0,
+            c, d, 0, 0,
+            0, 0, 1, 0,
+            x, y, 0, 1,
+        ];
+    }
+
+    setTransform(value) {
+        this._el.style.setProperty('transform', value);
+        const parts = this._computed.getPropertyValue('transform').split(/[(,)]/);
+        const type = parts[0];
+        let matrix = parts.slice(1, -1).map(Number);
+        if (type === 'matrix') {
+            matrix = this._3d ? this._2dTo3dMatrix(matrix) : matrix;
+        } else if (type === 'matrix3d') {
+            this._3d = true;
+        } else {
+            throw new TypeError('Unhandled transform type: ' + type);
+        }
+        this.setValues(matrix);
+    }
+
+    getTransformStep() {
+        const s = this.getStep();
+        const type = this._3d ? 'matrix3d' : 'matrix';
+        return s && `${type}(${s.join()})`;
+    }
+}
+
 
 export class SauceZwiftMap extends EventTarget {
     constructor({el, worldList, zoom=1, zoomMin=0.25, zoomMax=4.5, autoHeading=true,
                  style='default', opacity=1, tiltShift=null, maxTiltShiftAngle=60,
-                 sparkle=false, quality=1, animation=true, verticalOffset=0}) {
+                 sparkle=false, quality=1, verticalOffset=0, fpsLimit=60}) {
         super();
-        el.classList.toggle('hidden', !isVisible());
         el.classList.add('sauce-map-container');
         this.el = el;
         this.worldList = worldList;
@@ -81,11 +219,11 @@ export class SauceZwiftMap extends EventTarget {
         this._anchorXY = [0, 0];
         this._dragXY = [0, 0];
         this._layerScale = null;
-        this._loadingRefCnt = 0;
-        this._renderAnimFrame = null;
-        this._pendingRenderWork = new Map();
+        this._pauseRefCnt = 0;
+        this._pendingEntityUpdates = new Set();
         this._mapFinalScale = null;
-        this._transformRefCnt = 0;
+        this._lastFrameTime = 0;
+        this._frameCount = 0;
         this._wheelState = {
             nextAnimFrame: null,
             done: null,
@@ -98,18 +236,15 @@ export class SauceZwiftMap extends EventTarget {
             lastX: null,
             lastY: null,
         };
+        this._transformAnimationLoopBound = this._transformAnimationLoop.bind(this);
         this._onPointerMoveBound = this._onPointerMove.bind(this);
         this._onPointerDoneBound = this._onPointerDone.bind(this);
+        this._mapTransformTransition = new MatrixTransformTransition({duration: 500});
+        this._mapOriginTransition = new Transition({duration: 500});
         this.mapEl = document.createElement('div');
         this.mapEl.classList.add('sauce-map');
-        this.entsSvg = createElementSVG('svg');
-        this.entsSvg.classList.add('entities');
-        this.entsLayers = {
-            low: createElementSVG('g', {class: 'low'}),
-            medium: createElementSVG('g', {class: 'medium'}),
-            high: createElementSVG('g', {class: 'high'}),
-            special: createElementSVG('g', {class: 'special'}),
-        };
+        this.entsEl = document.createElement('div');
+        this.entsEl.classList.add('entities');
         this.pinned = new Set();
         this.pinsEl = document.createElement('div');
         this.pinsEl.classList.add('pins');
@@ -122,20 +257,11 @@ export class SauceZwiftMap extends EventTarget {
         this.mapCanvasCtx = this.mapCanvas.getContext('2d', {alpha: true});
         this.mapImage = new Image();
         this.mapImage.loading = 'eager';
-        this.mapEl.append(this.mapCanvas, this.roadsSvg, this.entsSvg);
+        this.mapEl.append(this.mapCanvas, this.roadsSvg, this.entsEl);
         this.el.addEventListener('wheel', this._onWheelZoom.bind(this));
         this.el.addEventListener('pointerdown', this._onPointerDown.bind(this));
-        this.entsSvg.addEventListener('click', this._onEntsClick.bind(this));
-        document.addEventListener('visibilitychange', () => {
-            const visable = isVisible();
-            if (visable) {
-                // Prevent crazy spinning
-                this._applyRender(true);
-                this.el.offsetWidth;
-            }
-            this.el.classList.toggle('hidden', !visable);
-        });
-        this.incLoading();
+        this.entsEl.addEventListener('click', this._onEntsClick.bind(this));
+        this.incPause();
         this.setZoom(zoom);
         this.setAutoHeading(autoHeading);
         this.setStyle(style);
@@ -143,18 +269,25 @@ export class SauceZwiftMap extends EventTarget {
         this.setTiltShift(tiltShift);
         this.setSparkle(sparkle);
         this.setQuality(quality);
-        this.setAnimation(animation);
         this.setVerticalOffset(verticalOffset);
+        this.setFPSLimit(fpsLimit);
         this._resizeObserver = new ResizeObserver(([x]) => this._elHeight = x.contentRect.height);
         this._resizeObserver.observe(this.el);
         this.el.append(this.mapEl, this.pinsEl);
         this._elHeight = this.el.clientHeight;
-        this.decLoading();
+        this.decPause();
+        this._gcLoop();
+        requestAnimationFrame(this._transformAnimationLoopBound);
+    }
+
+    setFPSLimit(fps) {
+        this.fpsLimit = fps;
+        this._msPerFrame = 1000 / fps | 0;
     }
 
     setStyle(style) {
         this.style = style || 'default';
-        if (!this.isLoading()) {
+        if (!this.isPaused()) {
             this._updateMapBackground();
         }
     }
@@ -164,9 +297,9 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     _fullUpdateAsNeeded() {
-        if (!this.isLoading()) {
+        if (!this.isPaused()) {
             if (!this._adjustLayerScale()) {
-                this._transform();
+                this._updateGlobalTransform({render: true});
             }
             return true;
         }
@@ -190,14 +323,10 @@ export class SauceZwiftMap extends EventTarget {
         this._fullUpdateAsNeeded();
     }
 
-    setAnimation(en) {
-        this.el.classList.toggle('no-animation', !en);
-    }
-
     setVerticalOffset(v) {
         this.verticalOffset = v;
-        if (!this.isLoading()) {
-            this._transform();
+        if (!this.isPaused()) {
+            this._updateGlobalTransform({render: true});
         }
     }
 
@@ -231,14 +360,18 @@ export class SauceZwiftMap extends EventTarget {
             if (this._wheelState.done) {
                 clearTimeout(this._wheelState.done);
             } else {
-                this.el.classList.add('zooming');
+                /*this.el.classList.add('zooming');*/
+                this._mapTransformTransition.incDisabled();
+                this._mapOriginTransition.incDisabled();
             }
             this._applyZoom();
             // Lazy re-enable of animations to avoid need for forced paint
             this._wheelState.done = setTimeout(() => {
                 this.trackingPaused = false;
                 this._wheelState.done = null;
-                this.el.classList.remove('zooming');
+                /*this.el.classList.remove('zooming');*/
+                this._mapTransformTransition.decDisabled();
+                this._mapOriginTransition.decDisabled();
             }, 100);
         });
     }
@@ -252,7 +385,7 @@ export class SauceZwiftMap extends EventTarget {
         if (state.ev1) {
             state.ev2 = ev;
             this.el.classList.remove('moving');
-            this.el.classList.add('zooming');
+            //this.el.classList.add('zooming');
             state.lastDistance = Math.sqrt(
                 (ev.pageX - state.ev1.pageX) ** 2 +
                 (ev.pageY - state.ev1.pageY) ** 2);
@@ -261,6 +394,8 @@ export class SauceZwiftMap extends EventTarget {
             state.ev1 = ev;
         }
         this.el.classList.add('moving');
+        this._mapTransformTransition.incDisabled();
+        this._mapOriginTransition.incDisabled();
         state.lastX  = ev.pageX;
         state.lastY = ev.pageY;
         document.addEventListener('pointermove', this._onPointerMoveBound);
@@ -271,8 +406,8 @@ export class SauceZwiftMap extends EventTarget {
     setDragOffset(x, y) {
         this._dragXY[0] = x;
         this._dragXY[1] = y;
-        if (!this.isLoading()) {
-            this._transform();
+        if (!this.isPaused()) {
+            this._updateGlobalTransform({render: true});
             const dragEv = new Event('drag');
             dragEv.drag = [x, y];
             this.dispatchEvent(dragEv);
@@ -284,8 +419,8 @@ export class SauceZwiftMap extends EventTarget {
             this._setHeading(0);
         }
         this.autoHeading = en;
-        if (!this.isLoading()) {
-            this._transform();
+        if (!this.isPaused()) {
+            this._updateGlobalTransform({render: true});
         }
     }
 
@@ -325,7 +460,9 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     _onPointerDone(ev) {
-        this.el.classList.remove(this._pointerState.ev2 ? 'zooming' : 'moving');
+        this.el.classList.remove('moving');
+        this._mapTransformTransition.decDisabled();
+        this._mapOriginTransition.decDisabled();
         document.removeEventListener('pointermove', this._onPointerMoveBound);
         this._pointerState.ev1 = this._pointerState.ev2 = null;
         this.trackingPaused = false;
@@ -351,26 +488,30 @@ export class SauceZwiftMap extends EventTarget {
         this._adjustLayerScale({force: true});
     }
 
-    incLoading() {
-        this._loadingRefCnt++;
-        if (this._loadingRefCnt === 1) {
-            this.el.classList.add('loading');
+    incPause() {
+        this._pauseRefCnt++;
+        if (this._pauseRefCnt === 1) {
+            this._mapTransformTransition.incDisabled();
+            this._mapOriginTransition.incDisabled();
         }
     }
 
-    decLoading() {
-        this._loadingRefCnt--;
-        if (this._loadingRefCnt < 0) {
-            throw new Error("decLoading < 0");
-        } else if (this._loadingRefCnt === 0) {
-            this._transform();
-            this.el.offsetWidth;
-            this.el.classList.remove('loading');
+    decPause() {
+        this._pauseRefCnt--;
+        if (this._pauseRefCnt < 0) {
+            throw new Error("decPause < 0");
+        } else if (this._pauseRefCnt === 0) {
+            try {
+                this._updateGlobalTransform({render: true});
+            } finally {
+                this._mapTransformTransition.decDisabled();
+                this._mapOriginTransition.decDisabled();
+            }
         }
     }
 
-    isLoading() {
-        return this._loadingRefCnt > 0;
+    isPaused() {
+        return this._pauseRefCnt > 0;
     }
 
     async setCourse(courseId) {
@@ -378,11 +519,11 @@ export class SauceZwiftMap extends EventTarget {
             console.warn("debounce setCourse");
             return;
         }
-        this.incLoading();
+        this.incPause();
         try {
             await this._setCourse(courseId);
         } finally {
-            this.decLoading();
+            this.decPause();
         }
     }
 
@@ -404,22 +545,17 @@ export class SauceZwiftMap extends EventTarget {
             this._updateMapBackground(),
         ]);
         this._renderRoads(roads);
-        this._renderEnts();
     }
 
     setWatching(id) {
         if (this.watchingId != null && this._ents.has(this.watchingId)) {
             const ent = this._ents.get(this.watchingId);
             ent.classList.remove('watching');
-            ent.watching = false;
-            this.entsLayers.low.append(ent);
         }
         this.watchingId = id;
         if (id != null && this._ents.has(id)) {
             const ent = this._ents.get(id);
             ent.classList.add('watching');
-            ent.watching = true;
-            this.entsLayers.special.append(ent);
         }
         this.setDragOffset(0, 0);
     }
@@ -428,34 +564,17 @@ export class SauceZwiftMap extends EventTarget {
         if (this.athleteId != null && this._ents.has(this.athleteId)) {
             const ent = this._ents.get(this.athleteId);
             ent.classList.remove('self');
-            ent.self = false;
-            this.entsLayers.low.append(ent);
         }
         this.athleteId = id;
         if (id != null && this._ents.has(id)) {
             const ent = this._ents.get(id);
             ent.classList.add('self');
-            ent.self = true;
-            this.entsLayers.special.append(ent);
         }
     }
 
     _fixWorldPos(pos) {
         // Maybe zomday I'll know why...
         return this.worldMeta.mapRotateHack ? [pos[1], -pos[0]] : pos;
-    }
-
-    _renderEnts() {
-        const m = this.worldMeta;
-        this.entsSvg.setAttribute('viewBox', [
-            (m.minX + m.anchorX) * svgInternalScale,
-            (m.minY + m.anchorY) * svgInternalScale,
-            (m.maxX - m.minX) * svgInternalScale,
-            (m.maxY - m.minY) * svgInternalScale,
-        ].join(' '));
-        this.entsSvg.replaceChildren(
-            this.entsLayers.low, this.entsLayers.medium,
-            this.entsLayers.high, this.entsLayers.special);
     }
 
     _renderRoads(roads, ids) {
@@ -539,14 +658,16 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     _addAthleteEntity(state) {
-        const ent = createElementSVG('circle', {r: '1em', cx: 0, cy: 0});
+        const ent = document.createElement('div');
         ent.new = true;
         ent.classList.add('entity', 'athlete');
         ent.classList.toggle('self', state.athleteId === this.athleteId);
         ent.classList.toggle('watching', state.athleteId === this.watchingId);
-        ent.dataset.athleteId = state.athleteId;
+        ent.dataset.athleteId = ent.athleteId = state.athleteId;
         ent.lastSeen = Date.now();
         ent.wt = state.worldTime;
+        ent.transition = new Transition({duration: 2000});
+        ent.delayEst = common.expWeightedAvg(4, 1000);
         ent.addEventListener('click', ev => {
             console.log("direct handler", ev);
             return;
@@ -616,7 +737,6 @@ export class SauceZwiftMap extends EventTarget {
             }
         }
         const now = Date.now();
-        const transformRefCntSave = this._transformRefCnt;
         for (const state of states) {
             if (!this._ents.has(state.athleteId)) {
                 this._addAthleteEntity(state);
@@ -636,48 +756,18 @@ export class SauceZwiftMap extends EventTarget {
                 powerLevel = 'z6';
             }
             const ent = this._ents.get(state.athleteId);
-            ent.powerLevel = powerLevel;
-            ent.age = state.worldTime - ent.wt;
+            ent.dataset.powerLevel = powerLevel;
             ent.wt = state.worldTime;
             ent.lastSeen = now;
-            ent.pos = this._fixWorldPos([state.x, state.y]);
-            if (state.athleteId === this.watchingId && !this.trackingPaused) {
-                if (this.autoHeading) {
-                    this._setHeading(state.heading);
-                }
-                this._centerXY[0] = ent.pos[0] * this._mapScale;
-                this._centerXY[1] = ent.pos[1] * this._mapScale;
-                this._transformRefCnt++;
-                this.foo = true;
+            const age = state.worldTime - ent.wt;
+            if (age) {
+                // Try to stay active for smoother view, but also stay close to nominal latency
+                const influence = ent.active ? age + 200 : age * 2;
+                const duration = ent.delayEst(influence);
+                ent.transition.setDuration(duration);
             }
-            this._pendingRenderWork.set(ent, state);
-        }
-        for (const [athleteId, ent] of this._ents.entries()) {
-            if (now - ent.lastSeen > 15000) {
-                ent.remove();
-                if (ent.pin) {
-                    ent.pin.remove();
-                }
-                this._pendingRenderWork.delete(ent);
-                this._ents.delete(athleteId);
-            }
-        }
-        this._lazyUpdateAthleteDetails(states.map(x => x.athleteId));
-        cancelAnimationFrame(this._renderAnimFrame);
-        this._renderAnimFrame = requestAnimationFrame(() =>
-            this._applyRender(transformRefCntSave !== this._transformRefCnt));
-    }
-
-    _applyRender(doTransform) {
-        for (const [ent, state] of this._pendingRenderWork.entries()) {
-            if (ent.age) {
-                ent.classList.toggle('fast', ent.age < 250);
-                ent.classList.toggle('slow', ent.age > 1500);
-            }
-            ent.dataset.powerLevel = ent.powerLevel;
-            ent.style.setProperty(
-                'transform',
-                `translate(${ent.pos[0] * svgInternalScale}px, ${ent.pos[1] * svgInternalScale}px`);
+            const pos = this._fixWorldPos([state.x, state.y]);
+            ent.transition.setValues(pos);
             if (ent.pin) {
                 const ad = this._athleteCache.get(state.athleteId);
                 const name = ad && ad.data.athlete ?
@@ -688,18 +778,32 @@ export class SauceZwiftMap extends EventTarget {
                     Speed: ${H.pace(state.speed, {suffix: true, html: true})}
                 `);
             }
-            if (ent.new) {
-                const layer = [this.athleteId, this.watchingId].includes(state.athleteId) ?
-                    this.entsLayers.special : this.entsLayers.low;
-                layer.append(ent);
-                ent.new = false;
+            if (state.athleteId === this.watchingId && !this.trackingPaused) {
+                if (this.autoHeading) {
+                    this._setHeading(state.heading);
+                }
+                this._centerXY[0] = pos[0] * this._mapScale;
+                this._centerXY[1] = pos[1] * this._mapScale;
+                this._updateGlobalTransform();
             }
+            this._pendingEntityUpdates.add(ent);
         }
-        this._pendingRenderWork.clear();
-        if (doTransform) {
-            this._transform();
-        } else {
-            this._updatePins();
+        idle().then(() => this._lazyUpdateAthleteDetails(states.map(x => x.athleteId)));
+    }
+
+    async _gcLoop() {
+        await idle({timeout: 1000});
+        setTimeout(() => this._gcLoop(), 10000);
+        const now = Date.now();
+        for (const [athleteId, ent] of this._ents.entries()) {
+            if (now - ent.lastSeen > 15000) {
+                ent.remove();
+                if (ent.pin) {
+                    ent.pin.remove();
+                }
+                this._pendingEntityUpdates.delete(ent);
+                this._ents.delete(athleteId);
+            }
         }
     }
 
@@ -746,19 +850,22 @@ export class SauceZwiftMap extends EventTarget {
             Math.max(this.zoomMin, Math.round(1 / this.zoom / chunk) * chunk));
         const scale = 1 / adjZoom * quality;
         if (force || this._layerScale !== scale) {
-            this.incLoading();
+            this.incPause();
             this._layerScale = scale;
             const width = Math.round(this.mapImage.naturalWidth * scale);
             const height = Math.round(this.mapImage.naturalHeight * scale);
             this.mapCanvas.style.setProperty('width', width + 'px');
             this.mapCanvas.style.setProperty('height', height + 'px');
-            this.decLoading();
+            this.entsEl.style.setProperty('left', `${this._anchorXY[0] * scale}px`);
+            this.entsEl.style.setProperty('top', `${this._anchorXY[1] * scale}px`);
+            this.mapEl.style.setProperty('--layer-scale', scale);
+            this.decPause();
             return true;
         }
         return false;
     }
 
-    _transform() {
+    _updateGlobalTransform(options={}) {
         if (this._layerScale == null) {
             return;
         }
@@ -777,7 +884,7 @@ export class SauceZwiftMap extends EventTarget {
         ];
         if (this._tiltShift) {
             transforms.push(
-                `perspective(${Math.round(800 / scale)}px)`,
+                `perspective(${800 / scale}px)`,
                 `rotateX(${this.zoom * this._tiltShiftNorm}deg)`);
         }
         if (this.verticalOffset) {
@@ -786,9 +893,50 @@ export class SauceZwiftMap extends EventTarget {
             transforms.push(`translate(0, ${offt}px)`);
         }
         transforms.push(`rotate(${this.adjHeading}deg)`);
-        this.mapEl.style.setProperty('transform', transforms.join(' '));
-        this.mapEl.style.setProperty('transform-origin', `${originX}px ${originY}px`);
-        this._updatePins();
+        this._mapOriginTransition.setValues([originX, originY]);
+        this._mapTransformTransition.setTransform(transforms.join(' '));
+        if (options.render) {
+            this._renderFrame();
+            this._updatePins(); // XXX Split out animation and rendering of this.
+        }
+    }
+
+    _transformAnimationLoop(frameTime) {
+        requestAnimationFrame(this._transformAnimationLoopBound);
+        if (frameTime - this._lastFrameTime < this._msPerFrame) {
+            return;
+        }
+        this._lastFrameTime = frameTime;
+        this._frameCount++;
+        if (!this._firstFrameTime) {
+            this._firstFrameTime = frameTime;
+        } else if (this._frameCount % this.fpsLimit === 0) {
+            console.debug('fps', this._frameCount / ((frameTime - this._firstFrameTime) / 1000));
+        }
+        this._renderFrame();
+    }
+
+    _renderFrame() {
+        const transform = this._mapTransformTransition.getTransformStep();
+        const origin = this._mapOriginTransition.getStep();
+        if (transform && origin) {
+            this.mapEl.style.setProperty('transform-origin', `${origin[0]}px ${origin[1]}px`);
+            this.mapEl.style.setProperty('transform', transform);
+        }
+        const scale = this._mapScale * this._layerScale;
+        for (const ent of this._pendingEntityUpdates) {
+            const step = ent.transition.getStep();
+            if (step) {
+                ent.style.setProperty('transform', `translate(${step.map(x => `${x * scale}px`).join()})`);
+            }
+            if (ent.new) {
+                this.entsEl.append(ent);
+                ent.new = false;
+            }
+            if (!ent.transition.active) {
+                this._pendingEntityUpdates.delete(ent);
+            }
+        }
     }
 
     _updateEntityAthleteData(ent, ad) {
@@ -811,13 +959,6 @@ export class SauceZwiftMap extends EventTarget {
         if (following !== ent.following) {
             ent.classList.toggle('following', following);
             ent.following = following;
-        }
-        if (ad.athleteId !== this.watchingId && ad.athleteId !== this.athleteId) {
-            const layer = (leader || sweeper || marked || following) ?
-                this.entsLayers.medium : this.entsLayers.low;
-            if (ent.parentElement !== layer) {
-                layer.append(ent);
-            }
         }
     }
 
@@ -862,7 +1003,7 @@ export class SauceZwiftMap extends EventTarget {
     setHeadingOffset(deg) {
         this._headingOfft = deg || 0;
         this._setHeading(this._lastHeading, true);
-        this._transform();
+        this._updateGlobalTransform({render: true});
     }
 
     _setHeading(heading, force) {

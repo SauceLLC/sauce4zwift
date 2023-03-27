@@ -21,8 +21,8 @@ common.settingsStore.setDefault({
     fields: 1,
     autoHeading: true,
     quality: 50,
-    animation: true,
     verticalOffset: 0,
+    fpsLimit: 30,
 });
 
 const settings = common.settingsStore.get();
@@ -57,8 +57,8 @@ function createZwiftMap({worldList}) {
         tiltShiftAngle: settings.tiltShiftAngle || 10,
         sparkle: settings.sparkle,
         quality: settings.quality ? settings.quality / 100 : 80,
-        animation: settings.animation,
         verticalOffset: settings.verticalOffset / 100,
+        fpsLimit: settings.fpsLimit || 30,
     });
     let settingsSaveTimeout;
     zm.addEventListener('zoom', ev => {
@@ -209,10 +209,10 @@ export async function main() {
             zwiftMap.setSparkle(changed.get('sparkle'));
         } else if (changed.has('quality')) {
             zwiftMap.setQuality(changed.get('quality') / 100);
-        } else if (changed.has('animation')) {
-            zwiftMap.setAnimation(changed.get('animation'));
         } else if (changed.has('verticalOffset')) {
             zwiftMap.setVerticalOffset(changed.get('verticalOffset') / 100);
+        } else if (changed.has('fpsLimit')) {
+            zwiftMap.setFPSLimit(changed.get('fpsLimit'));
         } else if (changed.has('profileOverlay') || changed.has('fields')) {
             location.reload();
         }

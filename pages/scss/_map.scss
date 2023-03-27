@@ -9,23 +9,21 @@
     40%  { filter: drop-shadow(0 0 0.8em #fffb); }
     50%  { filter: drop-shadow(0 0 0.9em #fffd); }
     60%  { filter: drop-shadow(0 0 1em #ffff); }
-    70%  { fill: var(--fill); }
-    73%  { fill: var(--sparkle-color); opacity: 1; }
-    76%  { fill: var(--fill); }
-    79%  { fill: var(--sparkle-color); opacity: 1; }
-    82%  { fill: var(--fill); }
-    85%  { fill: var(--sparkle-color); opacity: 1; }
-    88%  { fill: var(--fill); }
-    91%  { fill: var(--sparkle-color); opacity: 1; }
-    94%  { fill: var(--fill); }
-    97%  { fill: var(--sparkle-color); opacity: 1; }
-    100%  { fill: var(--fill); }
+    70%  { background-color: var(--fill); }
+    73%  { background-color: var(--sparkle-color); opacity: 1; }
+    76%  { background-color: var(--fill); }
+    79%  { background-color: var(--sparkle-color); opacity: 1; }
+    82%  { background-color: var(--fill); }
+    85%  { background-color: var(--sparkle-color); opacity: 1; }
+    88%  { background-color: var(--fill); }
+    91%  { background-color: var(--sparkle-color); opacity: 1; }
+    94%  { background-color: var(--fill); }
+    97%  { background-color: var(--sparkle-color); opacity: 1; }
+    100%  { background-color: var(--fill); }
 }
 
 
 .sauce-map-container {
-    --transform-duration: 500ms;
-    --transform-origin-duration: 500ms;
     font-variant-numeric: tabular-nums;
     overflow: hidden;
     position: relative;
@@ -40,26 +38,7 @@
         cursor: move;
     }
 
-    &.zooming {
-        --transform-duration: 50ms;
-    }
-
-    &.hidden,
-    &.no-animation,
-    &.loading,
-    &.moving {
-        --transform-duration: 0;
-    }
-
-    &.hidden,
-    &.no-animation,
-    &.loading {
-        svg.entities .athlete {
-            transition: none !important;
-        }
-    }
-
-    &.sparkle .sauce-map svg.entities {
+    &.sparkle .sauce-map .entities {
         .entity.athlete[data-power-level="z4"],
         .entity.athlete[data-power-level="z5"],
         .entity.athlete[data-power-level="z6"] {
@@ -70,9 +49,6 @@
     > .sauce-map {
         touch-action: none;  // disable native touch handling on mobile devices.
         position: absolute;
-        transition: transform, transform-origin;
-        transition-duration: var(--transform-duration);
-        transition-timing-function: linear;
         left: 50%;
         top: 50%;
 
@@ -84,81 +60,93 @@
             height: 100%;
         }
 
-        > svg.entities {
-            font-size: calc(4px + ((1 / var(--zoom)) * 5px));
+        > div.entities {
+            font-size: calc((3px * var(--layer-scale)) + (1 / var(--zoom) * var(--layer-scale) * 8px));
+            position: absolute;
+            top: 0;
+            left: 0;
 
-            circle.athlete {
+            .entity.athlete {
+                --zone: 0;
+                --priority: 0;
+                z-index: calc(var(--zone) + var(--priority));
                 $size: 1em;
-                $border-size: 0.333333em;
+                $border-size: 0.215em;
                 --fill: #fffa;
-                fill: var(--fill);
-                stroke: #5a94ff;
-                stroke-width: $border-size;
+                background-color: var(--fill);
+                border: $border-size solid #5a94ff;
                 opacity: 0.8;
-                transition: transform;
-                transition-duration: 1100ms;
-                transition-timing-function: linear;
-
-                &.fast {
-                    transition-duration: 300ms;
-                }
-                &.slow {
-                    transition-duration: 2100ms;
-                }
+                width: $size;
+                height: $size;
+                left: $size * -0.5;
+                top: $size * -0.5;
+                border-radius: 50%;
+                position: absolute;
+                cursor: pointer;
 
                 &[data-power-level="z4"] {
+                    --zone: 1;
                     --sparkle-color: #fff9;
                 }
                 &[data-power-level="z5"] {
+                    --zone: 2;
                     --sparkle-color: #dfb1a891;
                 }
                 &[data-power-level="z6"] {
+                    --zone: 3;
                     --sparkle-color: #ae45da91;
                 }
 
                 &.following {
+                    --priority: 10;
                     font-size: $size * 1.3;
-                    stroke-width: $border-size * 1.5;
+                    border-width: $border-size * 1.5;
                     --fill: color.get(marked, 0.8);
-                    stroke: color.shade(marked, 100%);
+                    border-color: color.shade(marked, 100%);
                 }
 
                 &.marked {
+                    --priority: 20;
                     font-size: $size * 1.3;
-                    stroke-width: $border-size * 1.5;
+                    border-width: $border-size * 1.5;
                     --fill: color.get(marked, 0.8);
-                    stroke: color.shade(marked, 100%);
+                    border-color: color.shade(marked, 100%);
                 }
 
                 &.sweeper {
+                    --priority: 30;
                     font-size: $size * 1.2;
-                    stroke-width: $border-size * 1.25;
+                    border-width: $border-size * 1.25;
                     --fill: #f1262675;
-                    stroke: #dc3c10cc;
+                    border-color: #dc3c10cc;
                 }
 
                 &.leader {
+                    --priority: 40;
                     font-size: $size * 1.2;
-                    stroke-width: $border-size * 1.25;
+                    border-width: $border-size * 1.25;
                     --fill: #ffd91f8c;
-                    stroke: #000d;
+                    border-color: #000d;
                 }
 
                 &.watching {
+                    --priority: 50;
                     font-size: $size * 1.3;
-                    stroke-width: $border-size * 1.5;
+                    border-width: $border-size * 1.1;
                     --fill: #3162ffcc;
-                    stroke: #fff;
+                    border-color: #fff;
                 }
 
                 &.self {
+                    --priority: 60;
                     font-size: $size * 1.5;
-                    stroke-width: $border-size * 1.5;
+                    border-width: $border-size * 1.1;
                     --fill: #f22c;
-                    stroke: #fff;
+                    border-color: #fff;
                 }
 
                 &:hover {
+                    --priority: 70;
                     opacity: 1;
                 }
             }
@@ -211,7 +199,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            transition: transform var(--transform-duration) linear;
+            //transition: transform var(--transform-duration) linear;
 
             &:hover, &:focus {
                 z-index: 1000;

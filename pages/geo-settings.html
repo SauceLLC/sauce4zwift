@@ -81,9 +81,10 @@
                     <input type="range" name="quality" min="5" max="100"/>
                     <input type="number" name="quality" min="5" max="200" style="--size: 5"/>%
                 </label>
-                <label>
-                    <key>Smooth animation:</key>
-                    <input type="checkbox" name="animation"/>
+                <label title="Higher values will require more CPU and GPU power">
+                    <key>FPS limit:</key>
+                    <input type="range" name="fpsLimit" min="1" max="120"/>
+                    <input type="number" name="fpsLimit" min="1" max="120" style="--size: 5"/>fps
                 </label>
                 <label title="Flash a white or red shadow for high power outputs">
                     <key>Sparkle mode:</key>
