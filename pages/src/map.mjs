@@ -72,6 +72,9 @@ function isVisible() {
 
 
 class Transition {
+
+    EPSILON = 1 / 0x800000;
+
     constructor({duration=1000}={}) {
         this.duration = duration;
         this.disabled = false;
@@ -119,9 +122,10 @@ class Transition {
             if (this._dst) {
                 const now = performance.now();
                 if (now < this._endTime) {
-                    // Start from current position.
+                    // Start from current position (and prevent Zeno's paradaox)
                     this._recalcCurrent();
-                    this._src = Array.from(this._cur);
+                    this._src = this._cur.map((x, i) =>
+                        Math.abs(values[i] - x) < this.EPSILON ? values[i] : x);
                 } else {
                     // Start from last position.
                     this._src = this._dst;
@@ -136,8 +140,12 @@ class Transition {
     }
 
     getStep() {
-        this._recalcCurrent();
-        return this._cur;
+        if (this.playing) {
+            this._recalcCurrent();
+            return this._cur;
+        } else if (this._dst) {
+            return this._dst;
+        }
     }
 
     _recalcCurrent() {
@@ -154,58 +162,6 @@ class Transition {
                 this._cur[i] = this._src[i] + (delta * progress);
             }
         }
-    }
-}
-
-
-// See: https://developer.mozilla.org/en-US/docs/Web/CSS/transform-function/matrix
-// for explanations of all the matrix shapes.
-class MatrixTransformTransition extends Transition {
-    constructor(options) {
-        super(options);
-        const el = document.createElement('div');
-        el.style.setProperty('visibility', 'hidden');
-        el.style.setProperty('opacity', '0');
-        el.style.setProperty('z-index', '-10000000');
-        el.style.setProperty('position', 'fixed');
-        el.style.setProperty('top', '-1000000px');
-        el.style.setProperty('left', '-1000000px');
-        el.style.setProperty('width', '0');
-        el.style.setProperty('height', '0');
-        this._computed = getComputedStyle(el);
-        this._el = el;
-        this._3d = false;
-        document.body.append(el);
-    }
-
-    _2dTo3dMatrix([a, b, c, d, x, y]) {
-        return [
-            a, b, 0, 0,
-            c, d, 0, 0,
-            0, 0, 1, 0,
-            x, y, 0, 1,
-        ];
-    }
-
-    setTransform(value) {
-        this._el.style.setProperty('transform', value);
-        const parts = this._computed.getPropertyValue('transform').split(/[(,)]/);
-        const type = parts[0];
-        let matrix = parts.slice(1, -1).map(Number);
-        if (type === 'matrix') {
-            matrix = this._3d ? this._2dTo3dMatrix(matrix) : matrix;
-        } else if (type === 'matrix3d') {
-            this._3d = true;
-        } else {
-            throw new TypeError('Unhandled transform type: ' + type);
-        }
-        this.setValues(matrix);
-    }
-
-    getTransformStep() {
-        const s = this.getStep();
-        const type = this._3d ? 'matrix3d' : 'matrix';
-        return s && `${type}(${s.join()})`;
     }
 }
 
@@ -257,12 +213,7 @@ export class SauceZwiftMap extends EventTarget {
         this._transformAnimationLoopBound = this._transformAnimationLoop.bind(this);
         this._onPointerMoveBound = this._onPointerMove.bind(this);
         this._onPointerDoneBound = this._onPointerDone.bind(this);
-        this._mapTransitions = {
-            transform: new MatrixTransformTransition({duration: 500}),
-            transform2: new Transition({duration: 500}),
-            rotate: new Transition({duration: 500}),
-            origin: new Transition({duration: 500}),
-        };
+        this._mapTransition = new Transition({duration: 500});
         this._elements = {
             map: createElement('div', {class: 'sauce-map'}),
             mapCanvas: createElement('canvas', {class: 'map-background'}),
@@ -324,7 +275,6 @@ export class SauceZwiftMap extends EventTarget {
         v = v || null;
         this._tiltShift = v;
         this._tiltShiftNorm = v ? (1 / this.zoomMax) * v * this.maxTiltShiftAngle : null;
-        this.el.classList.toggle('tilt-shift', !!v);
         this._fullUpdateAsNeeded();
     }
 
@@ -347,22 +297,6 @@ export class SauceZwiftMap extends EventTarget {
     setZoom(zoom) {
         this.zoom = zoom;
         this._applyZoom();
-    }
-
-    _disableGlobalTransitions() {
-        const x = this._mapTransitions;
-        x.transform.incDisabled();
-        x.transform2.incDisabled();
-        x.rotate.incDisabled();
-        x.origin.incDisabled();
-    }
-
-    _maybeEnableGlobalTransitions() {
-        const x = this._mapTransitions;
-        x.transform.decDisabled();
-        x.transform2.decDisabled();
-        x.rotate.decDisabled();
-        x.origin.decDisabled();
     }
 
     _adjustZoom(adj) {
@@ -390,14 +324,14 @@ export class SauceZwiftMap extends EventTarget {
             if (this._wheelState.done) {
                 clearTimeout(this._wheelState.done);
             } else {
-                this._disableGlobalTransitions();
+                this._mapTransition.incDisabled();
             }
             this._applyZoom();
             // Lazy re-enable of animations to avoid need for forced paint
             this._wheelState.done = setTimeout(() => {
                 this.trackingPaused = false;
                 this._wheelState.done = null;
-                this._maybeEnableGlobalTransitions();
+                this._mapTransition.decDisabled();
             }, 100);
         });
     }
@@ -420,7 +354,7 @@ export class SauceZwiftMap extends EventTarget {
             state.ev1 = ev;
         }
         this.el.classList.add('moving');
-        this._disableGlobalTransitions();
+        this._mapTransition.incDisabled();
         state.lastX  = ev.pageX;
         state.lastY = ev.pageY;
         document.addEventListener('pointermove', this._onPointerMoveBound);
@@ -486,7 +420,7 @@ export class SauceZwiftMap extends EventTarget {
 
     _onPointerDone(ev) {
         this.el.classList.remove('moving');
-        this._maybeEnableGlobalTransitions();
+        this._mapTransition.decDisabled();
         document.removeEventListener('pointermove', this._onPointerMoveBound);
         this._pointerState.ev1 = this._pointerState.ev2 = null;
         this.trackingPaused = false;
@@ -518,7 +452,7 @@ export class SauceZwiftMap extends EventTarget {
     incPause() {
         this._pauseRefCnt++;
         if (this._pauseRefCnt === 1) {
-            this._disableGlobalTransitions();
+            this._mapTransition.incDisabled();
         }
     }
 
@@ -530,7 +464,7 @@ export class SauceZwiftMap extends EventTarget {
             try {
                 this._updateGlobalTransform({render: true});
             } finally {
-                this._maybeEnableGlobalTransitions();
+                this._mapTransition.decDisabled();
             }
         }
     }
@@ -905,40 +839,24 @@ export class SauceZwiftMap extends EventTarget {
         const tY = -(relY - dragY) * this._layerScale;
         const originX = relX * this._layerScale;
         const originY = relY * this._layerScale;
-        const transforms = [
-            `translate(${tX}px, ${tY}px)`,
-            `scale(${scale})`,
-        ];
         let tiltHeight = 0, tiltAngle = 0;
         if (this._tiltShift) {
             tiltHeight = 800 / scale;
             tiltAngle = this._tiltShiftNorm * this.zoom;
-            transforms.push(
-                `perspective(${tiltHeight}px)`,
-                `rotateX(${tiltAngle}deg)`);
         }
         let vertOffset = 0;
         if (this.verticalOffset) {
             const height = this._elHeight * this._layerScale / this.zoom;
             vertOffset = this.verticalOffset * height;
-            transforms.push(`translate(0, ${vertOffset}px)`);
         }
-        const transforms2 = [
+        this._mapTransition.setValues([
             originX, originY,
             tX, tY,
             scale,
             tiltHeight, tiltAngle,
             vertOffset,
             this.adjHeading,
-        ];
-        const t = this._mapTransitions;
-        if (location.search.includes('t2')) {
-            t.transform2.setValues(transforms2);
-        } else {
-            t.transform.setTransform(transforms.join(' '));
-            t.rotate.setValues([this.adjHeading]);
-            t.origin.setValues([originX, originY]);
-        }
+        ]);
         if (options.render) {
             this._renderFrame();
             this._updatePins(); // XXX Split out animation and rendering of this.
@@ -961,41 +879,23 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     _renderFrame() {
-        if (location.search.includes('t2')) {
-            const step = this._mapTransitions.transform2.getStep();
-            if (step) {
-                const [
-                    originX, originY,
-                    tX, tY,
-                    scale,
-                    tiltHeight, tiltAngle,
-                    vertOffset,
-                    rotate,
-                ] = step;
-                this._elements.map.style.setProperty('transform-origin', `${originX}px ${originY}px`);
-                this._elements.map.style.setProperty('transform', `
-                    translate(${tX}px, ${tY}px)
-                    scale(${scale})
-                    ${tiltHeight ? `perspective(${tiltHeight}px) rotateX(${tiltAngle}deg)` : ''}
-                    ${vertOffset ? `translate(0, ${vertOffset}px)` : ''}
-                    rotate(${rotate}deg)
-                `);
-            }
-        } else {
-            const t = this._mapTransitions;
-            const transform = t.transform.getTransformStep();
-            const rotate = t.rotate.getStep();
-            const origin = t.origin.getStep();
-            if (transform && rotate && origin) {
-                this._elements.map.style.setProperty('transform-origin', `${origin[0]}px ${origin[1]}px`);
-                this._elements.map.style.setProperty('transform', `${transform} rotate(${rotate[0]}deg)`);
-            }
+        const transform = this._mapTransition.getStep();
+        if (transform) {
+            const [oX, oY, tX, tY, scale, tiltHeight, tiltAngle, vertOffset, rotate] = transform;
+            this._elements.map.style.setProperty('transform-origin', `${oX}px ${oY}px`);
+            this._elements.map.style.setProperty('transform', `
+                translate(${tX}px, ${tY}px)
+                scale(${scale})
+                ${tiltHeight ? `perspective(${tiltHeight}px) rotateX(${tiltAngle}deg)` : ''}
+                ${vertOffset ? `translate(0, ${vertOffset}px)` : ''}
+                rotate(${rotate}deg)
+            `);
         }
         const scale = this._mapScale * this._layerScale;
         for (const ent of this._pendingEntityUpdates) {
-            const step = ent.transition.getStep();
-            if (step) {
-                ent.style.setProperty('transform', `translate(${step[0] * scale}px, ${step[1] * scale}px)`);
+            const pos = ent.transition.getStep();
+            if (pos) {
+                ent.style.setProperty('transform', `translate(${pos[0] * scale}px, ${pos[1] * scale}px)`);
             }
             if (ent.new) {
                 this._elements.ents.append(ent);

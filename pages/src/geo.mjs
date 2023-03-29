@@ -44,6 +44,13 @@ function setBackground() {
 }
 
 
+function qualityScale(raw) {
+    raw = raw || 1;
+    const min = 0.2;
+    return Math.min(2, (raw / 100) * (1 - min) + min);
+}
+
+
 function createZwiftMap({worldList}) {
     const opacity = 1 - 1 / (100 / (settings.transparency || 0));
     const zm = new map.SauceZwiftMap({
@@ -56,7 +63,7 @@ function createZwiftMap({worldList}) {
         tiltShift: settings.tiltShift && ((settings.tiltShiftAmount || 0) / 100),
         tiltShiftAngle: settings.tiltShiftAngle || 10,
         sparkle: settings.sparkle,
-        quality: settings.quality ? settings.quality / 100 : 80,
+        quality: qualityScale(settings.quality || 80),
         verticalOffset: settings.verticalOffset / 100,
         fpsLimit: settings.fpsLimit || 30,
     });
@@ -208,7 +215,7 @@ export async function main() {
         } else if (changed.has('sparkle')) {
             zwiftMap.setSparkle(changed.get('sparkle'));
         } else if (changed.has('quality')) {
-            zwiftMap.setQuality(changed.get('quality') / 100);
+            zwiftMap.setQuality(qualityScale(changed.get('quality')));
         } else if (changed.has('verticalOffset')) {
             zwiftMap.setVerticalOffset(changed.get('verticalOffset') / 100);
         } else if (changed.has('fpsLimit')) {
