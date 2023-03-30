@@ -135,12 +135,17 @@ class Transition {
                 this.playing = true;
             }
             this._cur.length = values.length;
+        } else {
+            this._cur = Array.from(values);
         }
         this._dst = Array.from(values);
     }
 
     getStep() {
-        if (this.playing) {
+        if (this.disabled) {
+            // Return the last used position
+            return this._cur;
+        } else if (this.playing) {
             this._recalcCurrent();
             return this._cur;
         } else if (this._dst) {
@@ -197,7 +202,6 @@ export class SauceZwiftMap extends EventTarget {
         this._pinned = new Set();
         this._mapFinalScale = null;
         this._lastFrameTime = 0;
-        this._frameCount = 0;
         this._wheelState = {
             nextAnimFrame: null,
             done: null,
@@ -345,7 +349,6 @@ export class SauceZwiftMap extends EventTarget {
         if (state.ev1) {
             state.ev2 = ev;
             this.el.classList.remove('moving');
-            //this.el.classList.add('zooming');
             state.lastDistance = Math.sqrt(
                 (ev.pageX - state.ev1.pageX) ** 2 +
                 (ev.pageY - state.ev1.pageY) ** 2);
@@ -627,40 +630,17 @@ export class SauceZwiftMap extends EventTarget {
         ent.wt = state.worldTime;
         ent.transition = new Transition({duration: 2000});
         ent.delayEst = common.expWeightedAvg(4, 1000);
-        ent.addEventListener('click', ev => {
-            console.log("direct handler", ev);
-            return;
-            /*
-            if (!ent.pin) {
-                const pin = document.createElement('div');
-                pin.setAttribute('tabindex', 0); // Support click to focus
-                pin.classList.add('pin-anchor');
-                const pinInner = document.createElement('div');
-                pinInner.classList.add('pin-inner');
-                pin.append(pinInner);
-                const pinContent = document.createElement('div');
-                pinContent.classList.add('pin-content');
-                pinInner.append(pinContent);
-                ent.pin = pin;
-                this._elements.pins.append(pin);
-                this._pinned.add(ent);
-            } else {
-                this._pinned.delete(ent);
-                ent.pin.remove();
-                ent.pin = null;
-            }
-            */
-        });
         this._ents.set(state.athleteId, ent);
     }
 
     _onEntsClick(ev) {
-        console.warn('delegate handler', ev);
-        return;
-        /*
+        const ent = ev.target.closest('.entity');
+        if (!ent) {
+            return;
+        }
         if (!ent.pin) {
             const pin = document.createElement('div');
-            pin.setAttribute('tabindex', 0); // Support click to focus
+            pin.setAttribute('tabindex', 0); // Support click to focus so it can stay higher
             pin.classList.add('pin-anchor');
             const pinInner = document.createElement('div');
             pinInner.classList.add('pin-inner');
@@ -676,7 +656,6 @@ export class SauceZwiftMap extends EventTarget {
             ent.pin.remove();
             ent.pin = null;
         }
-        */
     }
 
     renderAthleteStates(states) {
@@ -728,7 +707,7 @@ export class SauceZwiftMap extends EventTarget {
             ent.transition.setValues(pos);
             if (ent.pin) {
                 const ad = this._athleteCache.get(state.athleteId);
-                const name = ad && ad.data.athlete ?
+                const name = ad && ad.data && ad.data.athlete ?
                     `${ad.data.athlete.fLast}` : `ID: ${state.athleteId}`;
                 common.softInnerHTML(ent.pin.querySelector('.pin-content'), `
                     <b>${common.sanitize(name)}</b><br/>
@@ -767,6 +746,7 @@ export class SauceZwiftMap extends EventTarget {
 
     _updatePins() {
         const transforms = [];
+        // XXX this batching may not work actually, plus we may not care given how few pins there will be
         // Avoid spurious reflow with batched reads followed by writes.
         for (const ent of this._pinned) {
             const rect = ent.getBoundingClientRect();
@@ -859,7 +839,6 @@ export class SauceZwiftMap extends EventTarget {
         ]);
         if (options.render) {
             this._renderFrame();
-            this._updatePins(); // XXX Split out animation and rendering of this.
         }
     }
 
@@ -869,12 +848,6 @@ export class SauceZwiftMap extends EventTarget {
             return;
         }
         this._lastFrameTime = frameTime;
-        this._frameCount++;
-        if (!this._firstFrameTime) {
-            this._firstFrameTime = frameTime;
-        } else if (this._frameCount % (this.fpsLimit * 10) === 0) {
-            console.debug('fps', this._frameCount / ((frameTime - this._firstFrameTime) / 1000));
-        }
         this._renderFrame();
     }
 
@@ -905,6 +878,7 @@ export class SauceZwiftMap extends EventTarget {
                 this._pendingEntityUpdates.delete(ent);
             }
         }
+        this._updatePins();
     }
 
     _updateEntityAthleteData(ent, ad) {
