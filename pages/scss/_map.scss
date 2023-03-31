@@ -226,6 +226,7 @@
             border: $border-size solid $border-color;
             border-radius: 0.5em;
             position: absolute;
+            will-change: transform;
 
             &::before {
                 content: '';
