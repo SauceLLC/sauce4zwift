@@ -200,7 +200,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            font-size: 0.4em;
+            font-size: 0.8em;
 
             &:hover, &:focus {
                 z-index: 1000;
@@ -211,8 +211,8 @@
             $carrot-width: 1em;
             $carrot-height: 1em;
             $border-color: #fff;
-            $border-size: 0.3em;
-            $bg-color: #1a57a0;
+            $border-size: 0.2em;
+            $bg-color: #294260;
             bottom: $carrot-height;
             pointer-events: all;
             display: flex;
@@ -254,7 +254,7 @@
         }
 
         .pin-content {
-            padding: 0.5em;
+            padding: 0.4em;
             white-space: nowrap;
             text-overflow: ellipsis;
             overflow: hidden;

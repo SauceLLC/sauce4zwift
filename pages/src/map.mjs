@@ -710,7 +710,8 @@ export class SauceZwiftMap extends EventTarget {
                 const name = ad && ad.data && ad.data.athlete ?
                     `${ad.data.athlete.fLast}` : `ID: ${state.athleteId}`;
                 common.softInnerHTML(ent.pin.querySelector('.pin-content'), `
-                    <b>${common.sanitize(name)}</b><br/>
+                    <a href="/pages/profile.html?id=${state.athleteId}&width=800&height=320"
+                       target="profile">${common.sanitize(name)}</a><br/>
                     Power: ${H.power(state.power, {suffix: true, html: true})}<br/>
                     Speed: ${H.pace(state.speed, {suffix: true, html: true})}
                 `);
@@ -923,12 +924,12 @@ export class SauceZwiftMap extends EventTarget {
         }
         if (refresh.length && isVisible()) {
             common.rpc.getAthletesData(refresh).then(ads => {
-                for (const [id, ad] of ads.entries()) {
-                    const ent = this._ents.get(id);
+                for (const ad of ads) {
+                    const ent = this._ents.get(ad.athleteId);
                     if (ent) {
                         this._updateEntityAthleteData(ent, ad);
                     }
-                    const ac = this._athleteCache.get(id);
+                    const ac = this._athleteCache.get(ad.athleteId);
                     if (ac) {
                         ac.data = ad;
                     }
