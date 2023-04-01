@@ -3,6 +3,8 @@ default: build
 PACKAGES := node_modules/.build
 BUILD := .build
 
+rwildcard=$(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) $(filter $(subst *,%,$2),$d))
+
 ifeq ($(OS),Windows_NT)
   WINBLOWS := true
   SHELL := powershell.exe
@@ -72,15 +74,24 @@ else
 	npm run publish
 endif
 
-deps:
+DATA_SRC_FILES = $(call rwildcard,node_modules/zwift-utils/dist,*.json)
+DATA_DST_FILES := $(patsubst node_modules/zwift-utils/dist/%,shared/deps/data/%,$(DATA_SRC_FILES))
+
+$(DATA_DST_FILES): $(DATA_SRC_FILES)
+ifndef WINBLOWS
+	mkdir -p $(@D)
+else
+	mkdir -f $(@D) > $$null
+endif
+	tools/bin/jsonminify $(patsubst shared/deps/data/%,node_modules/zwift-utils/dist/%,$@) $@
+
+deps: $(DATA_DST_FILES)
 ifndef WINBLOWS
 	mkdir -p pages/deps/flags
 	mkdir -p shared/deps/data
-	-cp -r node_modules/zwift-utils/dist/* shared/deps/data/
 else
 	mkdir -f pages/deps/flags > $$null
 	mkdir -f shared/deps/data > $$null
-	-cp -r -Force node_modules/zwift-utils/dist/* shared/deps/data/
 endif
 	cp node_modules/echarts/dist/echarts.esm.min.js pages/deps/src/echarts.mjs
 	cp node_modules/world_countries_lists/data/flags/64x64/*.png pages/deps/flags/

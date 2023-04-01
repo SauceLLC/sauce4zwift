@@ -1,0 +1,11 @@
+#!/usr/bin/env node
+const fs = require('node:fs');
+
+if (process.argv.length !== 4) {
+    console.error(`Usage: ${process.argv[1]} INPUT_FILE OUTPUT_FILE`);
+    process.exit(1);
+} else {
+    const [origFile, minFile] = process.argv.slice(2);
+    const orig = JSON.parse(fs.readFileSync(origFile));
+    fs.writeFileSync(minFile, JSON.stringify(orig));
+}
