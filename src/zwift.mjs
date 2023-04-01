@@ -1527,6 +1527,7 @@ export class GameMonitor extends events.EventEmitter {
         if (udpServersPending) {
             await Promise.race([error, udpServersPending]);
         }
+        error.catch(() => void 0);
         clearTimeout(this._sessionTimeout);
         this._session = session;
         const renewDelay = session.expiresMonotonic - Date.now() - this._sessionRestartSlack;
