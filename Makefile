@@ -79,11 +79,11 @@ DATA_DST_FILES := $(patsubst node_modules/zwift-utils/dist/%,shared/deps/data/%,
 
 $(DATA_DST_FILES): $(DATA_SRC_FILES)
 ifndef WINBLOWS
-	mkdir -p $(@D)
+	@mkdir -p $(@D)
 else
-	mkdir -f $(@D) > $$null
+	@mkdir -f $(@D) > $$null
 endif
-	tools/bin/jsonminify $(patsubst shared/deps/data/%,node_modules/zwift-utils/dist/%,$@) $@
+	node tools/bin/jsonminify $(patsubst shared/deps/data/%,node_modules/zwift-utils/dist/%,$@) $@
 
 deps: $(DATA_DST_FILES)
 ifndef WINBLOWS
