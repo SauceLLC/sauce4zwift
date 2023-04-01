@@ -123,7 +123,9 @@ async function initSelfAthlete() {
     }
     if (!ad.watching) {
         const watching = await common.rpc.getAthleteData('watching');
-        setWatching(watching.athleteId);
+        if (watching) {
+            setWatching(watching.athleteId);
+        }
     } else {
         setWatching(ad.athleteId);
     }
