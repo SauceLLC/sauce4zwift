@@ -181,6 +181,10 @@ export async function main() {
             }
             setWatching(athleteId);
         });
+        common.subscribe('athlete/watching', ad => {
+            fieldRenderer.setData(ad);
+            fieldRenderer.render();
+        });
         common.subscribe('states', async states => {
             if (!initDone) {
                 initDone = await initSelfAthlete({zwiftMap, elProfile});
@@ -188,11 +192,6 @@ export async function main() {
             zwiftMap.renderAthleteStates(states);
             if (elProfile) {
                 elProfile.renderAthleteStates(states);
-            }
-            const watching = states.find(x => x.athleteId === watchingId);
-            if (watching) {
-                fieldRenderer.setData({state: watching});
-                fieldRenderer.render();
             }
         });
         initDone = await initSelfAthlete();
