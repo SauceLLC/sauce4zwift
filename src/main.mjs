@@ -404,7 +404,7 @@ class SauceApp extends EventEmitter {
         });
         let ip;
         let gameConnection;
-        if (this.getSetting('gameConnectionEnabled')) {
+        if (this.getSetting('gameConnectionEnabled') && !args.disableGameConnection) {
             ip = ip || await getLocalRoutedIP();
             gameConnection = this.startGameConnectionServer(ip);
             // This isn't required but reduces latency..
@@ -518,6 +518,8 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
          help: 'Override the athlete ID for the main Zwift account'},
         {arg: 'random-watch', type: 'num', optional: true, label: 'COURSE_ID',
          help: 'Watch random athlete; optionally specify a Course ID to choose the athlete from'},
+        {arg: 'disable-game-connection', type: 'switch',
+         help: 'Disable the companion protocol service'},
     ]);
     if (args.help) {
         quit();
