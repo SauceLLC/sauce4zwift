@@ -626,7 +626,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     await sauceApp.start(args);
     console.debug('Startup bench:', Date.now() - s);
     if (!args.headless) {
-        windows.openAllWindows();
+        windows.openWidgetWindows();
         menu.updateTrayMenu();
     }
     started = true;

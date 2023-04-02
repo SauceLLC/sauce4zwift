@@ -182,6 +182,9 @@ if (window.isElectron) {
     };
     rpcCall = async function(name, ...args) {
         const env = await electron.ipcInvoke('rpc', name, ...args);
+        if (env.warning) {
+            console.warn(env.warning);
+        }
         if (env.success) {
             return env.value;
         } else {
@@ -242,16 +245,19 @@ if (window.isElectron) {
         const schema = location.protocol === 'https:' ? 'wss' : 'ws';
         const ws = new WebSocket(`${schema}://${location.host}/api/ws/events`);
         ws.addEventListener('message', ev => {
-            const envelope = JSON.parse(ev.data);
-            const handler = respHandlers.get(envelope.uid);
-            if (envelope.type === 'response') {
-                respHandlers.delete(envelope.uid);
+            const env = JSON.parse(ev.data);
+            const handler = respHandlers.get(env.uid);
+            if (env.type === 'response') {
+                respHandlers.delete(env.uid);
             }
             if (handler) {
-                if (envelope.success) {
-                    handler.resolve(envelope.data);
+                if (env.warning) {
+                    console.warn(env.warning);
+                }
+                if (env.success) {
+                    handler.resolve(env.data);
                 } else {
-                    handler.reject(new Error(envelope.error));
+                    handler.reject(new Error(env.error));
                 }
             }
         });
@@ -321,11 +327,14 @@ if (window.isElectron) {
             headers: {"content-type": 'application/json'},
             body: JSON.stringify(args),
         });
-        const r = await f.json();
-        if (r.success) {
-            return r.value;
+        const env = await f.json();
+        if (env.warning) {
+            console.warn(env.warning);
+        }
+        if (env.success) {
+            return env.value;
         } else {
-            throw makeRPCError(r.error);
+            throw makeRPCError(env.error);
         }
     };
     schedStorageFlush = () => undefined;

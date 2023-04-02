@@ -1,9 +1,10 @@
 export const handlers = new Map();
 
 
-function errorReply(e) {
+function errorReply(handler, e) {
     console.warn("RPC error:", e);
     return {
+        warning: handler.warning,
         success: false,
         error: {
             name: e.name,
@@ -14,8 +15,9 @@ function errorReply(e) {
 }
 
 
-function successReply(value) {
+function successReply(handler, value) {
     return {
+        warning: handler.warning,
         success: true,
         value
     };
@@ -23,20 +25,17 @@ function successReply(value) {
 
 
 export async function invoke(name, ...args) {
-    try {
-        return successReply(await _invoke.call(this, name, ...args));
-    } catch(e) {
-        return errorReply(e);
-    }
-}
-
-
-async function _invoke(name, ...args) {
-    if (!handlers.has(name)) {
+    const handler = handlers.get(name);
+    if (!handler) {
         throw new Error('Invalid handler name: ' + name);
-    } else {
-        const {fn, scope} = handlers.get(name);
-        return await fn.call(scope || this, ...args);
+    }
+    if (handler.warning) {
+        console.warn(handler.warning);
+    }
+    try {
+        return successReply(handler, await handler.fn.call(handler.scope || this, ...args));
+    } catch(e) {
+        return errorReply(handler, e);
     }
 }
 
@@ -46,5 +45,11 @@ export function register(fn, options={}) {
     if (!name) {
         throw new TypeError("Function name could not be inferred, use options.name");
     }
-    handlers.set(options.name || fn.name, {fn, scope: options.scope});
+    let warning;
+    if (options.deprecatedBy) {
+        warning = `DEPRECATED RPC [${name}]: migrate to -> ${options.deprecatedBy.name}`;
+    } else if (options.deprecated) {
+        warning = `DEPRECATED RPC [${name}]`;
+    }
+    handlers.set(options.name || fn.name, {fn, warning, scope: options.scope});
 }

@@ -246,8 +246,9 @@ async function renderAvailableMods() {
 }
 
 
-async function renderWindows() {
-    const windows = Object.values(await common.rpc.getWindows()).filter(x => !x.private);
+async function renderWindows(wins) {
+    console.log(wins);
+    const windows = (await common.rpc.getWidgetWindowSpecs()).filter(x => !x.private);
     const manifests = await common.rpc.getWindowManifests();
     const el = document.querySelector('#windows');
     const descs = Object.fromEntries(manifests.map(x => [x.type, x]));
@@ -512,6 +513,7 @@ export async function settingsMain() {
             await appSettingsUpdate(extraData);
         }
     });
+    common.subscribe('save-widget-window-specs', renderWindows, {source: 'windows'});
     common.subscribe('set-windows', renderWindows, {source: 'windows'});
     extraData.webServerURL = await common.rpc.getWebServerURL();
     const athlete = await common.rpc.getAthlete('self', {refresh: true, noWait: true});

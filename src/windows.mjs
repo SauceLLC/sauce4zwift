@@ -54,7 +54,7 @@ class SauceBrowserWindow extends electron.BrowserWindow {
 }
 
 
-export const windowManifests = [{
+export const widgetWindowManifests = [{
     type: 'overview',
     file: '/pages/overview.html',
     prettyName: 'Overview',
@@ -79,8 +79,8 @@ export const windowManifests = [{
     type: 'geo',
     file: '/pages/geo.html',
     prettyName: 'Map',
-    prettyDesc: 'Map and of nearby athletes with optional profile',
-    options: {width: 0.20, aspectRatio: 1},
+    prettyDesc: 'Map and elevation profile',
+    options: {width: 0.18, aspectRatio: 1},
 }, {
     type: 'chat',
     file: '/pages/chat.html',
@@ -173,10 +173,17 @@ export const windowManifests = [{
     options: {width: 900, height: 600},
     overlay: false,
 }];
-rpc.register(() => windowManifests, {name: 'getWindowManifests'});
-const windowManifestsByType = new Map(windowManifests.map(x => [x.type, x]));
+const widgetWindowManifestsByType = new Map(widgetWindowManifests.map(x => [x.type, x]));
 
-const defaultWindows = [{
+
+function getWidgetWindowManifests() {
+    return widgetWindowManifests;
+}
+rpc.register(getWidgetWindowManifests);
+rpc.register(getWidgetWindowManifests, {name: 'getWindowManifests', deprecatedBy: getWidgetWindowManifests});
+
+
+const defaultWidgetWindows = [{
     id: 'default-overview-1',
     type: 'overview',
 }, {
@@ -257,7 +264,7 @@ electron.ipcMain.on('getWindowContextSync', ev => {
                 id: win.spec.id,
                 type: win.spec.type,
                 spec: win.spec,
-                manifest: windowManifestsByType.get(win.spec.type),
+                manifest: widgetWindowManifestsByType.get(win.spec.type),
             });
         }
     } finally {
@@ -267,7 +274,7 @@ electron.ipcMain.on('getWindowContextSync', ev => {
 
 rpc.register(() => {
     for (const win of SauceBrowserWindow.getAllWindows()) {
-        const manifest = windowManifestsByType.get(win.spec && win.spec.type);
+        const manifest = widgetWindowManifestsByType.get(win.spec && win.spec.type);
         if (manifest && !manifest.alwaysVisible && win.spec.overlay !== false) {
             win.hide();
         }
@@ -276,7 +283,7 @@ rpc.register(() => {
 
 rpc.register(() => {
     for (const win of SauceBrowserWindow.getAllWindows()) {
-        const manifest = windowManifestsByType.get(win.spec && win.spec.type);
+        const manifest = widgetWindowManifestsByType.get(win.spec && win.spec.type);
         if (manifest && !manifest.alwaysVisible && win.spec.overlay !== false) {
             win.showInactive();
         }
@@ -345,7 +352,7 @@ rpc.register(pid => {
 }, {name: 'getWindowInfoForPID'});
 
 
-export function getActiveWindow(id) {
+export function getWidgetWindow(id) {
     return SauceBrowserWindow.getAllWindows().find(x =>
         !x.subWindow && (x.spec && x.spec.id === id));
 }
@@ -380,6 +387,9 @@ function initProfiles() {
         activeProfile = profiles[0];
         activeProfile.active = true;
     }
+    if (!activeProfile.windowStack) {
+        activeProfile.windowStack = [];
+    }
     activeProfileSession = loadSession(activeProfile.id);
 }
 
@@ -404,15 +414,16 @@ rpc.register(createProfile);
 
 function _createProfile(name, ident) {
     const windows = {};
-    for (const x of defaultWindows) {
-        const [id, data] = initWindow(x);
-        windows[id] = data;
+    for (const x of defaultWidgetWindows) {
+        const spec = initWidgetWindowSpec(x);
+        windows[spec.id] = spec;
     }
     return {
         id: `${ident}-${Date.now()}-${Math.random() * 10000000 | 0}`,
         name,
         active: false,
         windows,
+        windowStack: [],
     };
 }
 
@@ -435,12 +446,15 @@ export function activateProfile(id) {
             x.active = x.id === id;
         }
         activeProfile = profiles.find(x => x.active);
+        if (!activeProfile.windowStack) {
+            activeProfile.windowStack = [];
+        }
         activeProfileSession = loadSession(activeProfile.id);
         storageMod.set(profilesKey, profiles);
     } finally {
         swappingProfiles = false;
     }
-    openAllWindows();
+    openWidgetWindows();
 }
 rpc.register(activateProfile);
 
@@ -479,104 +493,126 @@ export function removeProfile(id) {
 rpc.register(removeProfile);
 
 
-export function getWindows() {
+export function getWidgetWindowSpecs() {
+    if (!activeProfile) {
+        initProfiles();
+    }
+    const windows = Object.entries(activeProfile.windows);
+    const stack = activeProfile.windowStack || [];
+    windows.sort(([a], [b]) => stack.indexOf(b) - stack.indexOf(a));
+    return windows.map(x => x[1]);
+}
+rpc.register(getWidgetWindowSpecs);
+rpc.register(() => {
     if (!activeProfile) {
         initProfiles();
     }
     return activeProfile.windows;
-}
-rpc.register(getWindows);
+}, {name: 'getWindows', deprecatedBy: getWidgetWindowSpecs});
 
 
 let _windowsUpdatedTimeout;
-export function setWindows(wins) {
+export function saveWidgetWindowSpecs() {
     if (app.quiting || swappingProfiles) {
         return;
     }
     if (!activeProfile) {
         initProfiles();
     }
-    activeProfile.windows = wins;
     storageMod.set(profilesKey, profiles);
     clearTimeout(_windowsUpdatedTimeout);
-    _windowsUpdatedTimeout = setTimeout(() => eventEmitter.emit('set-windows', wins), 200);
+    _windowsUpdatedTimeout = setTimeout(() => {
+        eventEmitter.emit('save-widget-window-specs', activeProfile.windows);
+        eventEmitter.emit('set-windows', activeProfile.windows); // DEPRECATED
+    }, 200);
 }
 
 
-export function getWindow(id) {
-    return getWindows()[id];
-}
-rpc.register(getWindow);
-
-
-export function setWindow(id, data) {
-    const wins = getWindows();
-    wins[id] = data;
-    setWindows(wins);
-}
-rpc.register(setWindow);
-
-
-export function updateWindow(id, updates) {
-    const w = getWindow(id);
-    if (app.quiting || swappingProfiles) {
-        return w;
+export function getWidgetWindowSpec(id) {
+    if (!activeProfile) {
+        initProfiles();
     }
-    Object.assign(w, updates);
-    setWindow(id, w);
+    return activeProfile.windows[id];
+}
+rpc.register(getWidgetWindowSpec);
+rpc.register(getWidgetWindowSpec, {name: 'getWindow', deprecatedBy: getWidgetWindowSpec});
+
+
+export function setWidgetWindowSpec(id, data) {
+    if (!activeProfile) {
+        initProfiles();
+    }
+    activeProfile.windows[id] = data;
+    saveWidgetWindowSpecs();
+}
+rpc.register(setWidgetWindowSpec);
+rpc.register(setWidgetWindowSpec, {name: 'setWindow', deprecatedBy: setWidgetWindowSpec});
+
+
+export function updateWidgetWindowSpec(id, updates) {
+    const spec = getWidgetWindowSpec(id);
+    if (app.quiting || swappingProfiles) {
+        return spec;
+    }
+    Object.assign(spec, updates);
+    saveWidgetWindowSpecs();
     if ('closed' in updates) {
         setTimeout(menu.updateTrayMenu, 100);
     }
-    return w;
+    return spec;
 }
-rpc.register(updateWindow);
+rpc.register(updateWidgetWindowSpec);
+rpc.register(updateWidgetWindowSpec, {name: 'updateWindow', deprecatedBy: updateWidgetWindowSpec});
 
 
-export function removeWindow(id) {
-    const win = getActiveWindow(id);
+export function removeWidgetWindow(id) {
+    const win = getWidgetWindow(id);
     if (win) {
         win.close();
     }
-    const wins = getWindows();
-    delete wins[id];
-    setWindows(wins);
+    if (!activeProfile) {
+        initProfiles();
+    }
+    delete activeProfile.windows[id];
+    saveWidgetWindowSpecs();
     setTimeout(menu.updateTrayMenu, 100);
 }
-rpc.register(removeWindow);
+rpc.register(removeWidgetWindow);
+rpc.register(removeWidgetWindow, {name: 'removeWindow', deprecatedBy: removeWidgetWindow});
 
 
-function initWindow({id, type, options, ...state}) {
+function initWidgetWindowSpec({id, type, options, ...state}) {
     id = id || `user-${type}-${Date.now()}-${Math.random() * 1000000 | 0}`;
-    const manifest = windowManifestsByType.get(type);
-    return [
+    const manifest = widgetWindowManifestsByType.get(type);
+    return {
+        ...manifest,
         id,
-        {
-            ...manifest,
-            id,
-            type,
-            options,
-            ...state,
-        }
-    ];
+        type,
+        options,
+        ...state,
+    };
 }
 
 
-export function createWindow(options) {
-    const [id, data] = initWindow(options);
-    setWindow(id, data);
+export function createWidgetWindow(options) {
+    const spec = initWidgetWindowSpec(options);
+    setWidgetWindowSpec(spec.id, spec);
     setTimeout(menu.updateTrayMenu, 100);
-    return id;
+    return spec;
 }
-rpc.register(createWindow);
+rpc.register(createWidgetWindow);
+rpc.register(options => createWidgetWindow(options).id,
+             {name: 'createWindow', deprecatedBy: createWidgetWindow});
 
 
-export function highlightWindow(id) {
-    const win = getActiveWindow(id);
+export function highlightWidgetWindow(id) {
+    const win = getWidgetWindow(id);
     if (win) {
         _highlightWindow(win);
     }
 }
-rpc.register(highlightWindow);
+rpc.register(highlightWidgetWindow);
+rpc.register(highlightWidgetWindow, {name: 'highlightWindow', deprecatedBy: highlightWidgetWindow});
 
 
 function _highlightWindow(win) {
@@ -589,24 +625,46 @@ function _highlightWindow(win) {
 }
 
 
-export function reopenWindow(id) {
-    const win = getActiveWindow(id);
+export function reopenWidgetWindow(id) {
+    const win = getWidgetWindow(id);
     if (win) {
         win.close();
     }
-    openWindow(id);
+    reopenWidgetWindow(id);
 }
-rpc.register(reopenWindow);
+rpc.register(reopenWidgetWindow);
+rpc.register(reopenWidgetWindow, {name: 'reopenWindow', deprecatedBy: reopenWidgetWindow});
 
 
-export function openWindow(id) {
-    const spec = getWindow(id);
+export function openWidgetWindow(id) {
+    const spec = getWidgetWindowSpec(id);
     if (spec.closed) {
-        updateWindow(id, {closed: false});
+        updateWidgetWindowSpec(id, {closed: false});
     }
-    _openWindow(id, spec);
+    _openWidgetWindow(spec);
 }
-rpc.register(openWindow);
+rpc.register(openWidgetWindow);
+rpc.register(openWidgetWindow, {name: 'openWindow', deprecatedBy: openWidgetWindow});
+
+
+function _saveWindowAsTop(id) {
+    if (!activeProfile) {
+        throw new Error("no active profile");
+    }
+    if (!activeProfile.windowStack) {
+        throw new Error("no window stack");
+    }
+    if (!activeProfile.windows[id]) {
+        throw new Error("Invalid window id");
+    }
+    const stack = activeProfile.windowStack;
+    const idx = stack.indexOf(id);
+    if (idx !== -1) {
+        stack.splice(idx, 1);
+    }
+    stack.push(id);
+    saveWidgetWindowSpecs();
+}
 
 
 export async function exportProfile(id) {
@@ -847,14 +905,15 @@ export async function setWindowsStorage(storage, session) {
 }
 
 
-function _openWindow(id, spec) {
+function _openWidgetWindow(spec) {
+    const id = spec.id;
     console.debug("Opening window:", id, spec.type);
     const overlayOptions = {
         alwaysOnTop: true,
         maximizable: false,
         fullscreenable: false,
     };
-    const manifest = windowManifestsByType.get(spec.type);
+    const manifest = widgetWindowManifestsByType.get(spec.type);
     let bounds = spec.bounds;
     const inBounds = !bounds || isWithinDisplayBounds(bounds);
     if (!inBounds) {
@@ -903,13 +962,15 @@ function _openWindow(id, spec) {
     let saveStateTimeout;
     function onBoundsUpdate() {
         clearTimeout(saveStateTimeout);
-        saveStateTimeout = setTimeout(() => updateWindow(id, {bounds: win.getBounds()}), 200);
+        saveStateTimeout = setTimeout(() =>
+            updateWidgetWindowSpec(id, {bounds: win.getBounds()}), 200);
     }
     win.on('move', onBoundsUpdate);
     win.on('resize', onBoundsUpdate);
+    win.on('focus', () => _saveWindowAsTop(id));
     win.on('close', () => {
         if (!manifest.alwaysVisible) {
-            updateWindow(id, {closed: true});
+            updateWidgetWindowSpec(id, {closed: true});
         }
     });
     if (modContentScripts.length) {
@@ -933,15 +994,15 @@ function _openWindow(id, spec) {
 
 
 let _loadedMods;
-export function openAllWindows() {
+export function openWidgetWindows() {
     if (!_loadedMods) {
         _loadedMods = true;
         try {
             const manifests = mods.getWindowManifests();
-            windowManifests.push(...manifests);
-            windowManifestsByType.clear();
-            for (const x of windowManifests) {
-                windowManifestsByType.set(x.type, x);
+            widgetWindowManifests.push(...manifests);
+            widgetWindowManifestsByType.clear();
+            for (const x of widgetWindowManifests) {
+                widgetWindowManifestsByType.set(x.type, x);
             }
             modContentScripts.push(...mods.getWindowContentScripts());
             modContentStyle.push(...mods.getWindowContentStyle());
@@ -949,13 +1010,13 @@ export function openAllWindows() {
             console.error("Failed to load mod window data", e);
         }
     }
-    for (const [id, spec] of Object.entries(getWindows())) {
-        const manifest = windowManifestsByType.get(spec.type);
+    for (const spec of getWidgetWindowSpecs()) {
+        const manifest = widgetWindowManifestsByType.get(spec.type);
         if (manifest && (manifest.alwaysVisible || !spec.closed)) {
             try {
-                _openWindow(id, spec);
+                _openWidgetWindow(spec);
             } catch(e) {
-                console.error("Failed to open window", id, spec, e);
+                console.error("Failed to open window", spec.id, e);
             }
         }
     }
