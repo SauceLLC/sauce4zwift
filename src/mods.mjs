@@ -98,16 +98,38 @@ export function init() {
 }
 
 
-function _init() {
+let _modRoot;
+export function getModsRootPath() {
+    if (_modRoot !== undefined) {
+        return _modRoot;
+    }
     let modRoot = path.join(electron.app.getPath('documents'), 'SauceMods');
     try {
         fs.mkdirSync(modRoot, {recursive: true});
         modRoot = fs.realpathSync(modRoot);
     } catch(e) {
         console.warn('MODS folder uncreatable:', modRoot, e);
+    }
+    _modRoot = modRoot || null;
+    return _modRoot;
+}
+rpc.register(getModsRootPath);
+
+
+function showModsRootFolder() {
+    const root = getModsRootPath();
+    if (!root) {
+        console.error("Mod path unavailable");
         return;
     }
-    if (fs.existsSync(modRoot) && fs.statSync(modRoot).isDirectory()) {
+    electron.shell.openPath(root);
+}
+rpc.register(showModsRootFolder);
+
+
+function _init() {
+    const modRoot = getModsRootPath();
+    if (modRoot && fs.existsSync(modRoot) && fs.statSync(modRoot).isDirectory()) {
         for (const x of fs.readdirSync(modRoot)) {
             const modPath = fs.realpathSync(path.join(modRoot, x));
             const f = fs.statSync(modPath);

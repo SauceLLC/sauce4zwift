@@ -6,10 +6,12 @@
         <meta name="apple-mobile-web-app-capable" content="yes"/>
         <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
 
-        <title>Settings / Management - Sauce for Zwift™</title>
+        <title>Settings - Sauce for Zwift™</title>
 
         <script src="./src/preloads.js"></script>
 
+        <link rel="preload" href="/pages/fonts/PermanentMarker.woff2?v=1" as="font"
+              type="font/woff2" crossorigin="anonymous">
         <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
         <link rel="stylesheet" href="css/common.css"/>
         <link rel="stylesheet" href="css/overview-settings.css"/>
@@ -23,22 +25,32 @@
         <div id="titlebar">
             <header>
                 <div class="logo"><img src="images/icon128.png"/></div>
-                <div class="title">Settings / Management</div>
+                <div class="title">Settings</div>
                 <div class="filler"></div>
                 <div class="buttons">
                     <div title="Close this window" class="button close electron-only"><ms>close</ms></div>
                 </div>
             </header>
         </div>
+
         <div id="settings" class="tabbed">
             <header class="tabs">
-                <div class="title tab active">App / General</div>
+                <div class="title tab active">About</div>
+                <div class="title tab">General</div>
                 <div class="title tab">Appearance</div>
                 <div class="title tab">Windows</div>
+                <div class="title tab">Mods</div>
             </header>
-            <form class="app-settings section tab active">
 
-                <div class="title">About:</div>
+            <form class="app-settings section tab active about">
+                <div class="desc">
+                    <h2 class="banner"><img class="logo" src="/pages/images/icon256.png"/> Sauce for Zwift<sup>TM</sup></h2>
+                    Sauce is made possible by folks like
+                    <a href="https://www.sauce.llc/supporters.html" target="_blank"
+                       external class="sauce-star">Frank</a>
+                </div>
+
+                <hr/>
 
                 <label>
                     <key>Version:</key>
@@ -46,8 +58,9 @@
                 </label>
                 <label>
                     <key>Web Server URL:</key>
+                    <input style="display: none" type="checkbox" name="webServerEnabled"/>
                     <a href external target="_blank" class="display-field" name="webServerURL"
-                       data-depends-on="webServerEnabled"></a>
+                       data-depends-on="webServerEnabled">disabled</a>
                 </label>
                 <label class="login" title="This should be the account you use for the real Zwift game">
                     <key>Main Zwift Login:</key>
@@ -68,10 +81,21 @@
                     <a href="profile.html?width=800&height=350" target="_blank"><img class="avatar"/><span class="display-field" name="profileDesc"/></a>
                 </label>
 
-                <hr/>
+                <hr class="electron-only"/>
 
-                <div class="title">General:</div>
+                <div class="section electron-only">
+                    <div class="title">Maintenance:</div>
+                    <div class="action-buttons">
+                        <div class="std button danger" title="Reset window positions and configuration to defaults"
+                             data-action="reset-state">Reset to defaults</div>
+                        <div class="std button" title="Clear the athlete cache database"
+                             data-action="reset-athletes-db">Clear Athletes Cache</div>
+                        <div class="std button" data-action="restart">Restart</div>
+                    </div>
+                </div>
+            </form>
 
+            <form class="app-settings section tab">
                 <label title="Access Sauce for Zwift from any browser on your network">
                     <key>Web Server:</key>
                     <input type="checkbox" name="webServerEnabled"/>
@@ -159,19 +183,6 @@ If you require the Zwift Companion App's Game mode, DO NOT enable this feature."
                     </select>
                     <span class="restart-required"></span>
                 </label>
- 
-                <hr class="electron-only"/>
-
-                <div class="section electron-only">
-                    <div class="title">Maintenance:</div>
-                    <div class="action-buttons">
-                        <div class="std button danger" title="Reset window positions and configuration to defaults"
-                             data-action="reset-state">Reset to defaults</div>
-                        <div class="std button" title="Clear the athlete cache database"
-                             data-action="reset-athletes-db">Clear Athletes Cache</div>
-                        <div class="std button" data-action="restart">Restart</div>
-                    </div>
-                </div>
             </form>
 
             <form class="settings section tab">
@@ -245,17 +256,35 @@ If you require the Zwift Companion App's Game mode, DO NOT enable this feature."
 
                 <hr/>
 
-                <div class="title">Mods:</div>
+            </form>
+
+            <div class="settings section tab">
+                <div class="desc">
+                    Mods allow you to modify and extend the functionality of Sauce.
+                    There is an active community of Mod developers on the
+                    <a href="https://discord.com/invite/3d8TwBHaX2" target="_blank"
+                       external>Sauce discord server</a>.<br/><br/>
+                    If you're a developer check out the
+                    <a href="https://github.com/SauceLLC/sauce4zwift-mod-example" target="_blank"
+                       external>example Mod on GitHub</a> to get started.
+                </div>
+
+                <hr/>
+
                 <div id="mods-container"></div>
+
+                <hr/>
+
+                <div class="std button mods-path">Open SauceMods Folder</span></div>
             </div>
-        </form>
+        </div>
 
         <footer class="legal">
             <a href="release-notes.html?frame&width=600&height=0.8" target="_blank">Release Notes</a>
             |
-            <a href="https://sauce.llc/legal/sauce4zwift-terms.html?frame" target="_blank">Terms and Conditions</a>
+            <a href="https://www.sauce.llc/legal/sauce4zwift-terms.html?frame" target="_blank">Terms and Conditions</a>
             |
-            <a href="https://sauce.llc/legal/sauce4zwift-privacy.html?frame" target="_blank">Privacy Policy</a>
+            <a href="https://www.sauce.llc/legal/sauce4zwift-privacy.html?frame" target="_blank">Privacy Policy</a>
             |
             <a href="mailto://support@sauce.llc">Support</a>
         </footer>

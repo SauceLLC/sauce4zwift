@@ -16,6 +16,17 @@
     src: url('../fonts/MaterialSymbolsRounded.woff2?v=1') format('woff2');
 }
 
+@font-face {
+    font-family: 'Permanent Marker';
+    font-style: normal;
+    font-weight: 400;
+    src: url('../fonts/PermanentMarker.woff2') format('woff2');
+    unicode-range:
+        U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+        U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193,
+        U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 
 html {box-sizing: border-box;}
 *, *::before, *::after {
@@ -168,6 +179,12 @@ a {
     overflow: overlay;
     container: settings / inline-size;
 
+    a {
+        text-decoration: underline;
+        text-decoration-thickness: 1px;
+        text-underline-offset: 2px;
+    }
+
     &.tabbed {
         margin-top: 0.2em;
         padding: 0 0 0.5em 0;
@@ -176,7 +193,8 @@ a {
 
         header.tabs {
             display: flex;
-            flex: 1 1 100%;
+            flex: 0 0 auto;
+            overflow-x: auto;
 
             .tab {
                 font-size: 1.2em;
@@ -185,13 +203,14 @@ a {
                 align-items: center;
                 justify-content: center;
                 font-variant: all-small-caps;
-                flex: 1 0 0;
+                flex: 1 0 auto;
                 padding: 0.2em;
                 transition: color 200ms, background 200ms;
                 border-color: color.shade(fg, 0%, 0.5);
                 border-width: 0.09rem;
                 border-style: solid;
                 background-clip: padding-box;
+                position: relative;
 
                 &:not(.active) {
                     cursor: pointer;
@@ -203,6 +222,15 @@ a {
                     &:hover {
                         color: color.get(fg);
                         background-color: color.shade(fg, 0%, 0.1);
+                    }
+
+                    + .tab:not(.active)::before {
+                        $width: 1px;
+                        content: '';
+                        position: absolute;
+                        left: $width * -0.5;
+                        border-left: $width dotted color.get(fg, 50%);
+                        padding: 0.6em 0; // controls height
                     }
                 }
 
@@ -226,11 +254,16 @@ a {
         }
 
         > .tab {
-            padding: 0.5em 1.2em;
+            padding: 1em 1.2em 0.5em;
             border-bottom: none !important;
+            overflow-x: auto;
 
             &:not(.active) {
                 display: none;
+            }
+
+            > .title:first-child {
+                padding-top: 0;
             }
         }
     }
@@ -239,9 +272,8 @@ a {
         padding: 0.5em;
 
         .desc {
-            padding: 1em 0 1.5em;
-            color: color.shade(fg, 5%);
-            font-weight: 600;
+            padding: 0 0.28em 1em;
+            font-size: 0.94em;
         }
 
         &:not(:last-child) {
@@ -277,14 +309,31 @@ a {
 }
 
 @container settings (max-width: 400px) {
-    #settings > .section {
-        padding-left: 0.1em;
-        padding-right: 0.1em;
+    #settings {
+        &:not(.tabbed) > .section {
+            padding-left: 0;
+            padding-right: 0;
+        }
+
+        &.tabbed {
+            > header.tabs {
+                > .tab {
+                    font-size: 1em;
+                    padding-top: 0.6em;
+                    padding-bottom: 0.6em;
+                }
+            }
+
+            > .section.tab {
+                padding-left: 0.7em;
+                padding-right: 0.7em;
+            }
+        }
     }
 
     form {
         input[type="range"] {
-            width: 8em;
+            width: 7em;
         }
     }
 }
@@ -299,7 +348,9 @@ form {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
+}
 
+form, #settings {
     hr {
         width: calc(100% - 0.5em);
         border: none;
@@ -347,9 +398,10 @@ form {
         display: flex;
         align-items: center;
         margin-bottom: 0.4em;
-        
+
         &.disabled {
             opacity: 0.4;
+            pointer-events: none;
         }
 
         &.indent key {
@@ -714,6 +766,10 @@ a.std.button {
         transition: opacity 200ms;
     }
 }
+span.button.std {
+    display: inline-flex;
+}
+
 
 @keyframes brief-max-height {
     from { max-height: 0; }

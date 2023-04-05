@@ -52,7 +52,7 @@ const template = [{
     label: 'Help',
     submenu: [{
         label: 'Sauce Home Page',
-        click: () => shell.openExternal('https://sauce.llc')
+        click: () => shell.openExternal('https://www.sauce.llc')
     }]
 }];
 
@@ -139,7 +139,7 @@ export function updateTrayMenu() {
             const id = windows.getWidgetWindowSpecs().find(x => x.type === 'overview').id;
             windows.makeCaptiveWindow({
                 width: 520,
-                height: 860,
+                height: 800,
                 file: '/pages/overview-settings.html',
                 frame: false,
                 transparent: true,

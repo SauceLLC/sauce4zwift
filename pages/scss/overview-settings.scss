@@ -300,6 +300,39 @@ img.avatar {
     border-radius: 50%;
 }
 
+img.logo {
+    display: inline-block;
+    margin: -0.8em 0.2em;
+    transform: rotate(-28deg);
+    width: 3em;
+}
+
+.about {
+    .banner {
+        font-family: 'Permanent Marker', Saira;
+        padding: 0.5em 0 1em;
+        margin: 0;
+
+        sup {
+            font-size: 0.4em;
+            opacity: 0.8;
+            margin-left: 0.8em;
+        }
+    }
+
+    a.sauce-star {
+        font-family: 'Permanent Marker', Saira;
+        color: gold;
+        font-weight: 600;
+        font-size: 1.3em;
+        text-decoration: none !important;
+
+        &:hover {
+            text-decoration: underline !important;
+        }
+    }
+}
+
 #mods-container {
     padding: 0.5em 0;
     width: 100%;
@@ -360,4 +393,10 @@ img.avatar {
         border-radius: 0.33em;
         padding: 0.6em;
     }
+}
+
+.mods-path.button {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }

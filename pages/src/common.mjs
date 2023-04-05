@@ -889,7 +889,7 @@ function updateDependants(el) {
 
 
 function bindFormData(selector, storageIface, options={}) {
-    const form = document.querySelector(selector);
+    const form = (selector instanceof Element) ? selector : document.querySelector(selector);
     const now = Date.now();
     for (const x of form.querySelectorAll('[data-added]')) {
         if (now - (new Date(x.dataset.added)).getTime() < 14 * 86400000) {

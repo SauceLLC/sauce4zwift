@@ -189,10 +189,11 @@ async function renderProfiles() {
 
 
 async function renderAvailableMods() {
+    document.querySelector('.mods-path.button').addEventListener('click', common.rpc.showModsRootFolder);
     const mods = await common.rpc.getAvailableMods();
     const el = document.querySelector('#mods-container');
     if (!mods || !mods.length) {
-        el.innerHTML = '<i>No mods detected</i>';
+        el.innerHTML = `<b><i>No mods detected</i></b>`;
         return;
     }
     const html = [];
@@ -490,8 +491,22 @@ async function initWindowsPanel() {
 
 
 export async function settingsMain() {
+    fetch('https://www.sauce.llc/supporters-v2.json').then(async r => {
+        if (!r.ok) {
+            throw new Error("fetch error: " + r.status);
+        }
+        const supporters = await r.json();
+        const sample = supporters[supporters.length * Math.random() | 0];
+        const el =  document.querySelector('.about a.sauce-star');
+        el.textContent = sample.name;
+        if (sample.url) {
+            el.href = sample.url;
+        }
+    }).catch(e => console.error(e));
     common.initInteractionListeners();
-    const appSettingsUpdate = common.initAppSettingsForm('form.app-settings');
+    const appSettingsUpdaters = Array.from(document.querySelectorAll('form.app-settings'))
+        .map(common.initAppSettingsForm);
+    const appSettingsUpdate = (...args) => Promise.all(appSettingsUpdaters.map(x => x(...args)));
     const extraData = {version: await common.rpc.getVersion()};
     document.addEventListener('click', async ev => {
         const btn = ev.target.closest('.button[data-action]');
