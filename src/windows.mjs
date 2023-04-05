@@ -1010,7 +1010,7 @@ export function openWidgetWindows() {
             console.error("Failed to load mod window data", e);
         }
     }
-    for (const spec of getWidgetWindowSpecs()) {
+    for (const spec of getWidgetWindowSpecs().reverse()) {
         const manifest = widgetWindowManifestsByType.get(spec.type);
         if (manifest && (manifest.alwaysVisible || !spec.closed)) {
             try {
