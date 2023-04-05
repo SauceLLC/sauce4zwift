@@ -4,7 +4,7 @@
   "private": true,
   "version": "0.13.0",
   "description": "Overlay widgets and advanced instrumentation for the serious Zwifter.",
-  "homepage": "https://saucellc.io",
+  "homepage": "https://www.sauce.llc",
   "author": "Sauce, LLC",
   "license": "UNLICENSED",
   "main": "src/loader.js",

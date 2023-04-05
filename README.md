@@ -16,14 +16,14 @@ run S4Z on any device, anywhere.
 
 Download for Mac / Windows / Linux:
 --------
-### https://sauce.llc/products/sauce4zwift/download
+### https://www.sauce.llc/products/sauce4zwift/download
 
 
 Event Organizer Hashtags
 --------
 **For Event Organizers only:**
 Control Sauce behavior for your events with these tags.
-#### https://sauce.llc/products/sauce4zwift/event_hashtags
+#### https://www.sauce.llc/products/sauce4zwift/event_hashtags
 
 
 --------
@@ -76,7 +76,7 @@ Feature Highlights
 
 Release Notes
 --------
-https://sauce.llc/products/sauce4zwift/release_notes
+https://www.sauce.llc/products/sauce4zwift/release_notes
 
 
 Disclaimer
