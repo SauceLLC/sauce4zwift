@@ -173,8 +173,9 @@ class Transition {
 
 export class SauceZwiftMap extends EventTarget {
     constructor({el, worldList, zoom=1, zoomMin=0.25, zoomMax=4.5, autoHeading=true,
-                 style='default', opacity=1, tiltShift=null, maxTiltShiftAngle=60,
-                 sparkle=false, quality=1, verticalOffset=0, fpsLimit=60}) {
+                 style='default', opacity=1, tiltShift=null, maxTiltShiftAngle=65,
+                 sparkle=false, quality=1, verticalOffset=0, fpsLimit=60,
+                 zoomPriorityTilt=true}) {
         super();
         el.classList.add('sauce-map-container');
         this.el = el;
@@ -236,6 +237,7 @@ export class SauceZwiftMap extends EventTarget {
         this.setStyle(style);
         this.setOpacity(opacity);
         this.setTiltShift(tiltShift);
+        this.setZoomPriorityTilt(zoomPriorityTilt);
         this.setSparkle(sparkle);
         this.setQuality(quality);
         this.setVerticalOffset(verticalOffset);
@@ -278,7 +280,11 @@ export class SauceZwiftMap extends EventTarget {
     setTiltShift(v) {
         v = v || null;
         this._tiltShift = v;
-        this._tiltShiftNorm = v ? (1 / this.zoomMax) * v * this.maxTiltShiftAngle : null;
+        this._fullUpdateAsNeeded();
+    }
+
+    setZoomPriorityTilt(en) {
+        this._zoomPrioTilt = en;
         this._fullUpdateAsNeeded();
     }
 
@@ -776,18 +782,22 @@ export class SauceZwiftMap extends EventTarget {
         //  scaled down (mostly).  It introduces some jank, so we chunk this operation
         //  to only perform as needed to stay within GPU constraints.
         const chunk = 0.5; // How frequently we jank.
+        const adjZoom = Math.min(
+            this.zoomMax,
+            Math.max(this.zoomMin, Math.round(1 / this.zoom / chunk) * chunk));
         let quality = this.quality;
         if (this._tiltShift) {
             // When zoomed in tiltShift can exploded the GPU budget if a lot of
             // landscape is visible.  We need an additional scale factor to prevent
             // users from having to constantly adjust quality.
-            const angle = this.zoom * this._tiltShiftNorm;
-            quality *= Math.min(1, 10 / Math.max(0, angle - 30));
+            const tiltFactor = this._zoomPrioTilt ? Math.min(1, (1 / this.zoomMax * (this.zoom + 1))) : 1;
+            this._tiltShiftAngle = this._tiltShift * this.maxTiltShiftAngle * tiltFactor;
+            quality *= Math.min(1, 15 / Math.max(0, this._tiltShiftAngle - 30));
+        } else {
+            this._tiltShiftAngle = 0;
         }
-        const adjZoom = Math.min(
-            this.zoomMax,
-            Math.max(this.zoomMin, Math.round(1 / this.zoom / chunk) * chunk));
         const scale = 1 / adjZoom * quality;
+        this._tiltHeight = this._tiltShift ? 800 / (this.zoom / scale) : 0;
         if (force || this._layerScale !== scale) {
             this.incPause();
             this._layerScale = scale;
@@ -820,11 +830,6 @@ export class SauceZwiftMap extends EventTarget {
         const tY = -(relY - dragY) * this._layerScale;
         const originX = relX * this._layerScale;
         const originY = relY * this._layerScale;
-        let tiltHeight = 0, tiltAngle = 0;
-        if (this._tiltShift) {
-            tiltHeight = 800 / scale;
-            tiltAngle = this._tiltShiftNorm * this.zoom;
-        }
         let vertOffset = 0;
         if (this.verticalOffset) {
             const height = this._elHeight * this._layerScale / this.zoom;
@@ -834,7 +839,7 @@ export class SauceZwiftMap extends EventTarget {
             originX, originY,
             tX, tY,
             scale,
-            tiltHeight, tiltAngle,
+            this._tiltHeight, this._tiltShiftAngle,
             vertOffset,
             this.adjHeading,
         ]);
