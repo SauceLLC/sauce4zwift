@@ -54,9 +54,12 @@ let schedStorageFlush;
 
 
 class LocalStorage extends EventTarget {
-    constructor() {
+    constructor(id) {
         super();
-        this.prefix = `${windowID}-`;
+        if (!id) {
+            throw new Error('id arg required');
+        }
+        this.prefix = `${id}-`;
         window.addEventListener('storage', this._onStorage.bind(this));
     }
 
@@ -118,7 +121,6 @@ class LocalStorage extends EventTarget {
         schedStorageFlush();
     }
 }
-export const storage = new LocalStorage();
 
 
 if (window.isElectron) {
@@ -339,6 +341,7 @@ if (window.isElectron) {
     };
     schedStorageFlush = () => undefined;
 }
+export const storage = new LocalStorage(windowID);
 
 
 function makeRPCError({name, message, stack}) {
@@ -736,7 +739,7 @@ export class SettingsStore extends EventTarget {
     constructor(settingsKey) {
         super();
         this.settingsKey = settingsKey;
-        this._storage = new LocalStorage();
+        this._storage = new LocalStorage(windowID);
         this._settings = this._storage.get(this.settingsKey);
         this._ephemeral = !this._settings;
         if (this._ephemeral) {
