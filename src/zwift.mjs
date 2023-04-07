@@ -1278,8 +1278,15 @@ export class GameMonitor extends events.EventEmitter {
     async getRandomAthleteId(courseId) {
         const worlds = (await this.api.getDropInWorldList()).filter(x =>
             x.others.length && (typeof courseId !== 'number' || x.courseId === courseId));
-        const world = worlds[Math.random() * worlds.length | 0];
-        return world ? world.others[Math.random() * world.others.length | 0].athleteId : null;
+        for (let i = 0, start = Math.random() * worlds.length | 0; i < worlds.length; i++) {
+            const w = worlds[(i + start) % worlds.length];
+            const athletes = [].concat(w.others, w.followees, w.pacerBots, w.proPlayers).filter(x => x);
+            athletes.sort((a, b) => b.power - a.power);
+            const a = athletes[0];
+            if (a && a.power) {
+                return a.athleteId;
+            }
+        }
     }
 
     async initPlayerState() {
@@ -1632,14 +1639,12 @@ export class GameMonitor extends events.EventEmitter {
         }
         const state = await this.api.getPlayerState(this.gameAthleteId);
         if (!state) {
-            if (age > 15 * 1000) {
-                if (this.randomWatch != null) {
-                    this.gameAthleteId = await this.getRandomAthleteId(this.randomWatch);
-                    console.info("Switching to new random athlete:", this.gameAthleteId);
-                } else {
-                    // Stop harassing the UDP channel..
-                    this.suspend();
-                }
+            if (this.randomWatch != null) {
+                this.gameAthleteId = await this.getRandomAthleteId(this.randomWatch);
+                console.info("Switching to new random athlete:", this.gameAthleteId);
+            } else if (age > 15 * 1000) {
+                // Stop harassing the UDP channel..
+                this.suspend();
             }
         } else {
             // The stats proc works better with these being recently available.
