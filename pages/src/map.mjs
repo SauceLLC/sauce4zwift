@@ -88,12 +88,18 @@ class Transition {
         this.playing = false;
     }
 
+    now() {
+        return performance.now();
+    }
+
     incDisabled() {
         this._disabledRefCnt++;
-        this.disabled = true;
-        this.playing = false;
-        this._startTime = 0;
-        this._endTime = 0;
+        if (this._disabledRefCnt === 1) {
+            this.disabled = true;
+            this.playing = false;
+            this._dst = Array.from(this._cur);
+            this._startTime = this._endTime = 0;
+        }
     }
 
     decDisabled() {
@@ -101,7 +107,15 @@ class Transition {
         if (this._disabledRefCnt < 0) {
             throw new Error("Transition disabled refcnt < 0");
         }
-        this.disabled = !!this._disabledRefCnt;
+        if (this._disabledRefCnt === 0) {
+            this.disabled = false;
+            if (this.playing && this._remainingTime) {
+                const now = this.now();
+                this._startTime = now;
+                this._endTime = now + this._remainingTime;
+            }
+            this._remainingTime = null;
+        }
     }
 
     setDuration(duration) {
@@ -110,7 +124,7 @@ class Transition {
             if (this.playing) {
                 // Prevent jitter by forwarding the current transition.
                 this._src = Array.from(this._cur);
-                this._startTime = performance.now();
+                this._startTime = this.now();
                 this._endTime += duration - this.duration;
             }
         }
@@ -120,7 +134,7 @@ class Transition {
     setValues(values) {
         if (!this.disabled) {
             if (this._dst) {
-                const now = performance.now();
+                const now = this.now();
                 if (now < this._endTime) {
                     // Start from current position (and prevent Zeno's paradaox)
                     this._recalcCurrent();
@@ -154,7 +168,7 @@ class Transition {
     }
 
     _recalcCurrent() {
-        const now = performance.now();
+        const now = this.now();
         const progress = (now - this._startTime) / (this._endTime - this._startTime);
         if (progress >= 1 || this.disabled) {
             if (this._dst) {
@@ -351,7 +365,6 @@ export class SauceZwiftMap extends EventTarget {
         if (ev.button !== 0 || (state.ev1 && state.ev2)) {
             return;
         }
-        this.trackingPaused = true;
         if (state.ev1) {
             state.ev2 = ev;
             this.el.classList.remove('moving');
@@ -362,8 +375,7 @@ export class SauceZwiftMap extends EventTarget {
         } else {
             state.ev1 = ev;
         }
-        this.el.classList.add('moving');
-        this._mapTransition.incDisabled();
+        state.active = false;
         state.lastX  = ev.pageX;
         state.lastY = ev.pageY;
         document.addEventListener('pointermove', this._onPointerMoveBound);
@@ -394,43 +406,63 @@ export class SauceZwiftMap extends EventTarget {
 
     _onPointerMove(ev) {
         const state = this._pointerState;
+        if (!state.active) {
+            state.active = true;
+            this.trackingPaused = true;
+            this.el.classList.add('moving');
+            this._mapTransition.incDisabled();
+        }
         if (!state.ev2) {
-            cancelAnimationFrame(state.nextAnimFrame);
-            state.nextAnimFrame = requestAnimationFrame(() => {
-                const deltaX = ev.pageX - state.lastX;
-                const deltaY = ev.pageY - state.lastY;
-                state.lastX = ev.pageX;
-                state.lastY = ev.pageY;
-                const x = this._dragXY[0] + (deltaX / this.zoom);
-                const y = this._dragXY[1] + (deltaY / this.zoom);
-                this.setDragOffset(x, y);
-            });
+            this._handlePointerDragEvent(ev, state);
         } else {
-            let otherEvent;
-            if (ev.pointerId === state.ev1.pointerId) {
-                otherEvent = state.ev2;
-                state.ev1 = ev;
-            } else if (ev.pointerId === state.ev2.pointerId) {
-                otherEvent = state.ev1;
-                state.ev2 = ev;
-            } else {
-                // third finger, ignore
-                return;
-            }
-            const distance = Math.sqrt(
-                (ev.pageX - otherEvent.pageX) ** 2 +
-                (ev.pageY - otherEvent.pageY) ** 2);
-            const deltaDistance = distance - state.lastDistance;
-            state.lastDistance = distance;
-            this._adjustZoom(deltaDistance / 600);
-            requestAnimationFrame(() => this._applyZoom());
+            this._handlePointerPinchEvent(ev, state);
         }
     }
 
+    _handlePointerDragEvent(ev, state) {
+        cancelAnimationFrame(state.nextAnimFrame);
+        state.nextAnimFrame = requestAnimationFrame(() => {
+            const deltaX = ev.pageX - state.lastX;
+            const deltaY = ev.pageY - state.lastY;
+            state.lastX = ev.pageX;
+            state.lastY = ev.pageY;
+            const x = this._dragXY[0] + (deltaX / this.zoom);
+            const y = this._dragXY[1] + (deltaY / this.zoom);
+            this.setDragOffset(x, y);
+        });
+    }
+
+    _handlePointerPinchEvent(ev, state) {
+        let otherEvent;
+        if (ev.pointerId === state.ev1.pointerId) {
+            otherEvent = state.ev2;
+            state.ev1 = ev;
+        } else if (ev.pointerId === state.ev2.pointerId) {
+            otherEvent = state.ev1;
+            state.ev2 = ev;
+        } else {
+            // third finger, ignore
+            return;
+        }
+        const distance = Math.sqrt(
+            (ev.pageX - otherEvent.pageX) ** 2 +
+            (ev.pageY - otherEvent.pageY) ** 2);
+        const deltaDistance = distance - state.lastDistance;
+        state.lastDistance = distance;
+        this._adjustZoom(deltaDistance / 600);
+        requestAnimationFrame(() => this._applyZoom());
+    }
+
     _onPointerDone(ev) {
-        this.el.classList.remove('moving');
-        this._mapTransition.decDisabled();
+        const state = this._pointerState;
+        if (state.active) {
+            this.el.classList.remove('moving');
+            this._mapTransition.decDisabled();
+            state.active = false;
+        }
         document.removeEventListener('pointermove', this._onPointerMoveBound);
+        document.removeEventListener('pointerup', this._onPointerDoneBound, {once: true});
+        document.removeEventListener('pointercancel', this._onPointerDoneBound, {once: true});
         this._pointerState.ev1 = this._pointerState.ev2 = null;
         this.trackingPaused = false;
     }
