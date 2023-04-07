@@ -341,7 +341,10 @@ if (window.isElectron) {
     };
     schedStorageFlush = () => undefined;
 }
-export const storage = new LocalStorage(windowID);
+export let storage;
+if (windowID) {
+    storage = new LocalStorage(windowID);
+}
 
 
 function makeRPCError({name, message, stack}) {
