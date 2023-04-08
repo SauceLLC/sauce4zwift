@@ -282,8 +282,8 @@ function humanPower(p, options={}) {
     if (!_realNumber(p)) {
         return humanEmpty;
     }
-    if (options.suffix) {
-        options.suffix = options.html ? `<abbr class="unit">w</abbr>` : 'w';
+    if (options.suffix === true) {
+        options.suffix = 'w';
     }
     return humanNumber(p, options);
 }
@@ -293,8 +293,8 @@ function humanWkg(wkg, options={}) {
     if (!_realNumber(wkg)) {
         return humanEmpty;
     }
-    if (options.suffix) {
-        options.suffix = options.html ? `<abbr class="unit">w/kg</abbr>` : 'w/kg';
+    if (options.suffix === true) {
+        options.suffix = 'w/kg';
     }
     return humanNumber(wkg, {precision: 1, ...options});
 }
@@ -306,15 +306,13 @@ function humanPace(kph, options={}) {
     }
     const sport = options.sport || 'cycling';
     if (sport === 'running') {
-        if (options.suffix) {
-            const unit = imperial ? '/mi' : '/km';
-            options.suffix = options.html ? `<abbr class="unit">${unit}</abbr>` : unit;
+        if (options.suffix === true) {
+            options.suffix = imperial ? '/mi' : '/km';
         }
         return humanTimer(3600 / (imperial ? kph * 1000 / metersPerMile : kph), options);
     } else {
-        if (options.suffix) {
-            const unit = imperial ? 'mph' : 'kph';
-            options.suffix = options.html ? `<abbr class="unit">${unit}</abbr>` : unit;
+        if (options.suffix === true) {
+            options.suffix = imperial ? 'mph' : 'kph';
         }
         return humanNumber(imperial ? kph * 1000 / metersPerMile : kph, {fixed: true, ...options});
     }
@@ -325,9 +323,8 @@ function humanDistance(meters, options={}) {
     if (!_realNumber(meters)) {
         return humanEmpty;
     }
-    if (options.suffix) {
-        const unit = imperial ? 'mi' : 'km';
-        options.suffix = options.html ? `<abbr class="unit">${unit}</abbr>` : unit;
+    if (options.suffix === true) {
+        options.suffix = imperial ? 'mi' : 'km';
     }
     return humanNumber(imperial ? meters / metersPerMile : meters / 1000,
                        {fixed: true, precision: 1, ...options});
@@ -338,9 +335,8 @@ function humanWeight(kg, options={}) {
     if (!_realNumber(kg)) {
         return humanEmpty;
     }
-    if (options.suffix) {
-        const unit = imperial ? 'lbs' : 'kg';
-        options.suffix = options.html ? `<abbr class="unit">${unit}</abbr>` : unit;
+    if (options.suffix === true) {
+        options.suffix = imperial ? 'lbs' : 'kg';
     }
     return humanNumber(imperial ? kg * kgsPerLbs : kg, {precision: 1, ...options});
 }
@@ -350,14 +346,18 @@ function humanWeightClass(kg, options={}) {
     if (!_realNumber(kg)) {
         return humanEmpty;
     }
-    const unit = imperial ? 'lbs' : 'kg';
+    if (options.suffix === true) {
+        options.suffix = imperial ? 'lbs' : 'kg';
+    }
     const range = imperial ? 20 : 10;
-    const suffix = options.suffix ? options.html ? `<abbr class="unit">${unit}</abbr>` : unit : false;
     const v = imperial ? kg * kgsPerLbs : kg;
     const vOfRange = v / range;
     const lower = Math.floor(vOfRange) * range;
     const upper = (vOfRange % 1) ? Math.ceil(vOfRange) * range : (vOfRange + 1) * range;
-    return `${humanNumber(lower)}⭤${humanNumber(upper, {suffix})}`;
+    const span = options.html ?
+        '<abbr class="unit" style="padding: 0; margin: 0 0.12em;">⭤</abbr>' :
+        '⭤';
+    return `${humanNumber(lower)}${span}${humanNumber(upper, options)}`;
 }
 
 
@@ -371,7 +371,7 @@ function humanHeight(cm, options={}) {
         const inches = Math.round((feet % 1) * 12);
         return `${wholeFeet}'` + (inches ? ` ${inches}"` : '');
     } else {
-        const unit = options.html ? '<abbr class="unit">m</abbr>' : 'm';
+        const unit = options.suffix ? options.html ? '<abbr class="unit">m</abbr>' : 'm' : '';
         return (cm / 100).toFixed(2) + unit;
     }
 }
@@ -381,9 +381,8 @@ function humanElevation(meters, options={}) {
     if (!_realNumber(meters)) {
         return humanEmpty;
     }
-    const unit = imperial ? 'ft' : 'm';
-    if (options.suffix) {
-        options.suffix = options.html ? `<abbr class="unit">${unit}</abbr>` : unit;
+    if (options.suffix === true) {
+        options.suffix = imperial ? 'ft' : 'm';
     }
     return humanNumber(imperial ? meters * metersPerFoot : meters, options);
 }
@@ -397,19 +396,17 @@ const placeSuffixes = {
     other: 'th',
 };
 function humanPlace(p, options={}) {
-    if (!p) {
+    if (!_realNumber(p)) {
         return options.suffixOnly ? '' : humanEmpty;
     }
     const suffix = placeSuffixes[placePluralRules.select(p)];
     if (options.suffixOnly) {
         return suffix;
     }
-    const hp = humanNumber(p);
-    if (options.html) {
-        return `${hp}<abbr class="unit">${suffix}</abbr>`;
-    } else {
-        return `${hp}${suffix}`;
+    if (options.suffix === true) {
+        options.suffix = suffix;
     }
+    return humanNumber(p, options);
 }
 
 
