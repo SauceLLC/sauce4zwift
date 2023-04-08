@@ -13,6 +13,11 @@ html {
     &.horizontal {
         font-size: clamp(2.2mm, 15vh, 18mm);
 
+        #content {
+            overflow-x: auto;
+            overflow-x: overlay;
+        }
+
         .single-data-field {
             font-size: 1.8em;
         }
@@ -27,6 +32,10 @@ html {
             padding-left: 0.3rem;
             flex: 1 1 0;
             justify-content: center;
+
+            .sub:first-child {
+                margin-right: 1em;
+            }
         }
 
         .page-title {
@@ -37,6 +46,11 @@ html {
     &:not(.horizontal) {
         [data-base-section-type="data-fields"] + [data-base-section-type="data-fields"] {
             border-top: 0.002em solid #fff5;
+        }
+
+        #content {
+            overflow-y: auto;
+            overflow-y: overlay;
         }
 
         .screen-section {
@@ -129,14 +143,8 @@ html {
     }
 }
 
-#content {
-    overflow-y: overlay;
-
-    > .screen {
-        &.hidden {
-            display: none;
-        }
-    }
+#content > .screen.hidden {
+    display: none;
 }
 
 @keyframes fadeout {
@@ -255,6 +263,8 @@ html {
     }
 
     .zones-holder {
+        overflow: hidden;
+
         &.vert-bars {
             height: 7em;
             font-size: 0.7rem;
@@ -268,6 +278,7 @@ html {
             aspect-ratio: 1 / 1;
             font-size: 0.7rem;
             align-items: center;
+            max-height: calc(99.9vh - 2em);
         }
 
         &.horiz-bar {
