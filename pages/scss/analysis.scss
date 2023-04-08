@@ -7,6 +7,13 @@ html {
     font-size: 4.1mm;
 }
 
+abbr.unit {
+    font-weight: 400;
+    opacity: 0.8;
+    font-size: 0.82em;
+    padding: 0 0.1em;
+}
+
 img.avatar {
     object-fit: cover;
     width: 2em;
@@ -133,12 +140,6 @@ table {
     thead th {
         font-variant: all-small-caps;
         font-weight: 500;
-    }
-
-    abbr.unit {
-        font-size: 0.82em;
-        opacity: 0.8;
-        margin-left: 0.1em;
     }
 
     > thead > tr > th,
