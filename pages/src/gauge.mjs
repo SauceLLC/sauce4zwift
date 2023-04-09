@@ -130,7 +130,7 @@ const gaugeConfigs = {
         },
         getValue: x => settings.dataSmoothing ? x.stats.draft.smooth[settings.dataSmoothing] : x.state.draft,
         getLabel: H.number,
-        detailFormatter: x => `{value|${H.number(x)}}\n{unit|% boost}`,
+        detailFormatter: x => `{value|${H.number(x)}}\n{unit|w savings}`,
         longPeriods: true,
     },
     wbal: {

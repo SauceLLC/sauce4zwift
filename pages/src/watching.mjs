@@ -342,43 +342,43 @@ const groupSpecs = {
             id: 'draft-cur',
             value: x => H.number(x.state && x.state.draft),
             key: 'Current',
-            unit: '%',
+            unit: 'w',
         }, {
             id: 'draft-avg',
             value: x => H.number(x.stats && x.stats.draft.avg),
             label: 'avg',
             key: 'Avg',
-            unit: '%',
+            unit: 'w',
         }, {
             id: 'draft-max',
             value: x => H.number(x.stats && x.stats.draft.max),
             label: 'max',
             key: 'Max',
-            unit: '%',
+            unit: 'w',
         }, {
             id: 'draft-lap-avg',
             value: x => H.number(curLap(x) && curLap(x).draft.avg),
             label: 'lap',
             key: 'Lap',
-            unit: '%',
+            unit: 'w',
         }, {
             id: 'draft-lap-max',
             value: x => H.number(curLap(x) && curLap(x).draft.max),
             label: ['max', '(lap)'],
             key: 'Max<tiny>(lap)</tiny>',
-            unit: '%',
+            unit: 'w',
         }, {
             id: 'draft-last-avg',
             value: x => H.number(lastLap(x) && lastLap(x).draft.avg || null),
             label: 'last lap',
             key: 'Last Lap',
-            unit: '%',
+            unit: 'w',
         }, {
             id: 'draft-last-max',
             value: x => H.number(lastLap(x) && lastLap(x).draft.max || null),
             label: ['max', '(last lap)'],
             key: 'Max<tiny>(last lap)</tiny>',
-            unit: '%',
+            unit: 'w',
         }],
     },
     event: {
@@ -397,7 +397,7 @@ const groupSpecs = {
                 '-',
             label: 'finish',
             key: 'Finish',
-            unit: x => eventMetric === 'distance' ? fmtDistUnit(x && x.state && x.state.eventDistance) : '',
+            unit: x => eventMetric === 'distance' ? fmtDistUnit(x && x.remaining) : '',
         }, {
             id: 'ev-dst',
             value: x => eventMetric === 'distance' ?
@@ -499,7 +499,7 @@ const lineChartFields = [{
     rangeAlpha: [0.1, 0.9],
     points: [],
     get: x => x.state.draft || 0,
-    fmt: x => H.number(x, {suffix: ' %'}),
+    fmt: x => H.power(x, {seperator: ' ', suffix: true}),
 }, {
     id: 'wbal',
     name: 'W\'bal',
@@ -520,11 +520,6 @@ function curLap(x) {
 
 function lastLap(x) {
     return x && x.lastLap;
-}
-
-
-function unit(x) {
-    return `<abbr class="unit">${x}</abbr>`;
 }
 
 
@@ -569,31 +564,13 @@ function humanWkg(v, athlete) {
 }
 
 
-function _fmtDist(v) {
-    if (v == null || v === Infinity || v === -Infinity || isNaN(v)) {
-        return ['-', ''];
-    } else if (Math.abs(v) < 1000) {
-        const suffix = unit(imperial ? 'ft' : 'm');
-        return [H.number(imperial ? v / L.metersPerFoot : v), suffix];
-    } else {
-        return H.distance(v, {precision: 1, suffix: true}).split(/([a-z]+)/i);
-    }
-}
-
-
-/*function fmtDist(v) {
-    const [val, u] = _fmtDist(v);
-    return `${val}${unit(u)}`;
-}*/
-
-
 function fmtDistValue(v) {
-    return _fmtDist(v)[0];
+    return H.distance(v);
 }
 
 
 function fmtDistUnit(v) {
-    return _fmtDist(v)[1];
+    return H.distance(v, {suffixOnly: true});
 }
 
 

@@ -240,7 +240,7 @@ function renderZoomed(groups) {
         } else if (minorField === 'draft') {
             if (athlete.state.draft != null) {
                 rightLines.push(fmtLine(
-                    H.number(athlete.state.draft, {suffix: '% <ms large>air</ms>', html: true}),
+                    H.number(athlete.state.draft, {suffix: 'w <ms large>air</ms>', html: true}),
                     'minor', 'Draft'));
             }
         } else if (minorField === 'speed') {
@@ -371,7 +371,7 @@ function renderGroups(groups) {
         } else if (minorField === 'draft') {
             if (group.draft != null) {
                 rightLines.push(fmtLine(
-                    H.number(group.draft, {suffix: '% <ms large>air</ms>', html: true}),
+                    H.number(group.draft, {suffix: 'w <ms large>air</ms>', html: true}),
                     'minor', 'Draft'));
             }
         } else if (minorField === 'speed') {

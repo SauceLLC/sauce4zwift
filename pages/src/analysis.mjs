@@ -55,7 +55,7 @@ const lineChartFields = [{
     color: '#e88853',
     domain: [0, 300],
     rangeAlpha: [0.1, 0.9],
-    fmt: x => H.number(x, {suffix: ' %'}),
+    fmt: x => H.power(x, {seperator: ' ', suffix: true}),
 }];
 
 

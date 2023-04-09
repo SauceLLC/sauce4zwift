@@ -1,7 +1,7 @@
 <div class="more-stats">
     <div class="stats">
         <key>Max power:</key><value>{-humanPower(segment.stats.power.max, {suffix: true, html: true})-}</value>
-        <key>Draft avg:</key><value>{-humanNumber(segment.stats.draft.avg / 100, {html: true, suffix: '%'})-}</value>
+        <key>Draft avg:</key><value>{-humanPower(segment.stats.draft.avg, {suffix: true, html: true})-}</value>
         <key>Cadence:</key><value>{-humanNumber(segment.stats.cadence.avg, {html: true, suffix: segment.sport === 'running' ? 'spm' : 'rpm'})-}</value>
     </div>
 </div>

@@ -77,14 +77,7 @@ const lazyGetRoute = makeLazyGetter(id => common.rpc.getRoute(id));
 
 
 function fmtDist(v) {
-    if (v == null || v === Infinity || v === -Infinity || isNaN(v)) {
-        return '-';
-    } else if (Math.abs(v) < 1000) {
-        const suffix = imperial ? 'ft' : 'm';
-        return H.number(imperial ? v / L.metersPerFoot : v, {suffix, html: true});
-    } else {
-        return H.distance(v, {precision: 1, suffix: true, html: true});
-    }
+    return H.distance(v, {suffix: true, html: true});
 }
 
 
@@ -363,19 +356,19 @@ const fieldGroups = [{
     label: 'Draft',
     fields: [
         {id: 'draft', defaultEn: false, label: 'Current Draft', headerLabel: 'Draft',
-         get: x => x.state.draft, fmt: pct},
+         get: x => x.state.draft, fmt: pwr},
         {id: 'draft-60s', defaultEn: false, label: '1 min average', headerLabel: 'Draft (1m)',
-         get: x => x.stats.draft.smooth[60], fmt: pct},
+         get: x => x.stats.draft.smooth[60], fmt: pwr},
         {id: 'draft-300s', defaultEn: false, label: '5 min average', headerLabel: 'Draft (5m)',
-         get: x => x.stats.draft.smooth[300], fmt: pct},
+         get: x => x.stats.draft.smooth[300], fmt: pwr},
         {id: 'draft-1200s', defaultEn: false, label: '20 min average', headerLabel: 'Draft (20m)',
-         get: x => x.stats.draft.smooth[1200], fmt: pct},
+         get: x => x.stats.draft.smooth[1200], fmt: pwr},
         {id: 'draft-avg', defaultEn: false, label: 'Total Average', headerLabel: 'Draft (avg)',
-         get: x => x.stats.draft.avg, fmt: pct},
+         get: x => x.stats.draft.avg, fmt: pwr},
         {id: 'draft-lap', defaultEn: false, label: 'Lap Average', headerLabel: 'Draft (lap)',
-         get: x => x.lap.draft.avg, fmt: pct},
+         get: x => x.lap.draft.avg, fmt: pwr},
         {id: 'draft-last-lap', defaultEn: false, label: 'Last Lap Average', headerLabel: 'Draft (last)',
-         get: x => x.lastLap ? x.lastLap.draft.avg : null, fmt: pct},
+         get: x => x.lastLap ? x.lastLap.draft.avg : null, fmt: pwr},
     ],
 
 }, {

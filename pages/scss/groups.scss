@@ -454,7 +454,7 @@ html {
             }
         }
         &.right {
-            $pad: 0.2rem;
+            $pad: 0.12rem;
             left: calc(50% + (var(--size) / 2) + $shadow-size + $pad);
             width: calc(50% - (var(--size) / 2) + $content-pad - $shadow-size - $pad);
 
@@ -499,13 +499,13 @@ html:not(.horizontal) {
     .position .desc.right:not(.empty)::before,
     .position .desc.left:not(.empty)::after,
     .gap .desc:not(.empty)::after {
-        content: '―';
+        content: '⋯';
     }
 }
 html.horizontal {
     .position .desc.right:not(.empty)::after,
     .position .desc.left:not(.empty)::after {
-        content: '―';
+        content: '⋯';
     }
 }
 
@@ -596,7 +596,7 @@ html {
                 transform-origin: right bottom;
 
                 &:not(.empty)::after {
-                    content: '―';
+                    content: '⋯';
                 }
             }
         }

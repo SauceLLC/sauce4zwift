@@ -61,6 +61,12 @@ html {
             display: none;
         }
 
+        abbr.unit {
+            margin-left: 0.12em;
+            font-size: 0.86em;
+            opacity: 0.9;
+        }
+
         .field:not(:last-child) {
             margin-right: 1em;
         }

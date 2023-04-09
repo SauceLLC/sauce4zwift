@@ -68,7 +68,7 @@
                                         >{-humanPower(lap.stats.power.avg, {suffix: true, html: true})-}</td>
                                 <% } %>
                                 <td>{-humanPace(lap.stats.speed.avg, {suffix: true, html: true, sport: lap.sport})-}</td>
-                                <td>{-humanNumber(lap.stats.hr.avg, {suffix: 'bpm'})-}</td>
+                                <td>{-humanNumber(lap.stats.hr.avg, {suffix: 'bpm', html: true})-}</td>
                             </tr>
                             <tr class="details">
                                 <td colspan="7"><div class="container"></div></td>

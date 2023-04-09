@@ -264,6 +264,9 @@ function _humanNumber(value, options) {
 
 const _hnLRU = new LRUCache(4096 * 16);
 function humanNumber(value, options={}) {
+    if (options.suffixOnly) {
+        return _realNumber(value) && options.suffix || '';
+    }
     const p = options.precision || 0;
     const t = typeof value;
     // Improve LRU hit rate..
@@ -279,10 +282,7 @@ function humanNumber(value, options={}) {
 
 
 function humanPower(p, options={}) {
-    if (!_realNumber(p)) {
-        return humanEmpty;
-    }
-    if (options.suffix === true) {
+    if (options.suffix === true || options.suffixOnly) {
         options.suffix = 'w';
     }
     return humanNumber(p, options);
@@ -290,10 +290,7 @@ function humanPower(p, options={}) {
 
 
 function humanWkg(wkg, options={}) {
-    if (!_realNumber(wkg)) {
-        return humanEmpty;
-    }
-    if (options.suffix === true) {
+    if (options.suffix === true || options.suffixOnly) {
         options.suffix = 'w/kg';
     }
     return humanNumber(wkg, {precision: 1, ...options});
@@ -301,63 +298,77 @@ function humanWkg(wkg, options={}) {
 
 
 function humanPace(kph, options={}) {
-    if (!_realNumber(kph)) {
-        return humanEmpty;
-    }
     const sport = options.sport || 'cycling';
-    if (sport === 'running') {
-        if (options.suffix === true) {
-            options.suffix = imperial ? '/mi' : '/km';
+    let fixed;
+    let value;
+    if (_realNumber(kph)) {
+        if (sport === 'running') {
+            if (options.suffix === true || options.suffixOnly) {
+                options.suffix = imperial ? '/mi' : '/km';
+            }
+            value = 3600 / (imperial ? kph * 1000 / metersPerMile : kph);
+        } else {
+            if (options.suffix === true || options.suffixOnly) {
+                options.suffix = imperial ? 'mph' : 'kph';
+            }
+            fixed = true;
+            value = imperial ? kph * 1000 / metersPerMile : kph;
         }
-        return humanTimer(3600 / (imperial ? kph * 1000 / metersPerMile : kph), options);
-    } else {
-        if (options.suffix === true) {
-            options.suffix = imperial ? 'mph' : 'kph';
-        }
-        return humanNumber(imperial ? kph * 1000 / metersPerMile : kph, {fixed: true, ...options});
     }
+    return humanNumber(value, {fixed, ...options});
 }
 
 
-function humanDistance(meters, options={}) {
-    if (!_realNumber(meters)) {
-        return humanEmpty;
+function humanDistance(m, options={}) {
+    let value;
+    let precision;
+    if (_realNumber(m)) {
+        if (Math.abs(m) < 1000) {
+            if (options.suffix === true || options.suffixOnly) {
+                options.suffix = imperial ? 'ft' : 'm';
+            }
+            precision = 0;
+            value = imperial ? m / metersPerFoot : m;
+        } else {
+            if (options.suffix === true || options.suffixOnly) {
+                options.suffix = imperial ? 'mi' : 'km';
+            }
+            precision = 1;
+            value = imperial ? m / metersPerMile : m / 1000;
+        }
+    } else {
+        value = NaN;
     }
-    if (options.suffix === true) {
-        options.suffix = imperial ? 'mi' : 'km';
-    }
-    return humanNumber(imperial ? meters / metersPerMile : meters / 1000,
-                       {fixed: true, precision: 1, ...options});
+    return humanNumber(value, {fixed: true, precision, ...options});
 }
 
 
 function humanWeight(kg, options={}) {
-    if (!_realNumber(kg)) {
-        return humanEmpty;
-    }
-    if (options.suffix === true) {
+    if (options.suffix === true || options.suffixOnly) {
         options.suffix = imperial ? 'lbs' : 'kg';
     }
-    return humanNumber(imperial ? kg * kgsPerLbs : kg, {precision: 1, ...options});
+    const value = _realNumber(kg) ? imperial ? kg * kgsPerLbs : kg : NaN;
+    return humanNumber(value, {precision: 1, ...options});
 }
 
 
 function humanWeightClass(kg, options={}) {
-    if (!_realNumber(kg)) {
-        return humanEmpty;
-    }
-    if (options.suffix === true) {
+    if (options.suffix === true || options.suffixOnly) {
         options.suffix = imperial ? 'lbs' : 'kg';
     }
-    const range = imperial ? 20 : 10;
-    const v = imperial ? kg * kgsPerLbs : kg;
-    const vOfRange = v / range;
-    const lower = Math.floor(vOfRange) * range;
-    const upper = (vOfRange % 1) ? Math.ceil(vOfRange) * range : (vOfRange + 1) * range;
-    const span = options.html ?
-        '<abbr class="unit" style="padding: 0; margin: 0 0.12em;">⭤</abbr>' :
-        '⭤';
-    return `${humanNumber(lower)}${span}${humanNumber(upper, options)}`;
+    if (_realNumber(kg)) {
+        const range = imperial ? 20 : 10;
+        const v = imperial ? kg * kgsPerLbs : kg;
+        const vOfRange = v / range;
+        const lower = Math.floor(vOfRange) * range;
+        const upper = (vOfRange % 1) ? Math.ceil(vOfRange) * range : (vOfRange + 1) * range;
+        const span = options.html ?
+            '<abbr class="unit" style="padding: 0; margin: 0 0.12em;">⭤</abbr>' :
+            '⭤';
+        return `${humanNumber(lower)}${span}${humanNumber(upper, options)}`;
+    } else {
+        return humanNumber(NaN, options);
+    }
 }
 
 
@@ -377,14 +388,11 @@ function humanHeight(cm, options={}) {
 }
 
 
-function humanElevation(meters, options={}) {
-    if (!_realNumber(meters)) {
-        return humanEmpty;
-    }
-    if (options.suffix === true) {
+function humanElevation(m, options={}) {
+    if (options.suffix === true || options.suffixOnly) {
         options.suffix = imperial ? 'ft' : 'm';
     }
-    return humanNumber(imperial ? meters * metersPerFoot : meters, options);
+    return humanNumber(_realNumber(m) ? imperial ? m * metersPerFoot : m : NaN, options);
 }
 
 
@@ -396,15 +404,8 @@ const placeSuffixes = {
     other: 'th',
 };
 function humanPlace(p, options={}) {
-    if (!_realNumber(p)) {
-        return options.suffixOnly ? '' : humanEmpty;
-    }
-    const suffix = placeSuffixes[placePluralRules.select(p)];
-    if (options.suffixOnly) {
-        return suffix;
-    }
-    if (options.suffix === true) {
-        options.suffix = suffix;
+    if (options.suffix === true || options.suffixOnly) {
+        options.suffix = placeSuffixes[placePluralRules.select(p)];
     }
     return humanNumber(p, options);
 }

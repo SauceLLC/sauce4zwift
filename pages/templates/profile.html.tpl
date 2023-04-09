@@ -79,7 +79,7 @@
                     <div class="row p2"><key>Weight</key>{-humanWeightClass(athlete.weight, {suffix: true, html: true})-}</div>
                 <% } %>
                 <% if (athlete.height) { %>
-                    <div class="row p2"><key>Height</key>{-humanHeight(athlete.height, {html: true})-}</div>
+                    <div class="row p2"><key>Height</key>{-humanHeight(athlete.height, {html: true, suffix: true})-}</div>
                 <% } %>
                 <!--<div class="row p2"><key>Threshold HR</key>{{athlete.hrzones}}<a href data-id="hr-edit"><ms>settings</ms></a></div>
                 <div class="row p2">

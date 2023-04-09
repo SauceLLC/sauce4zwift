@@ -118,8 +118,6 @@ export function main() {
         if (watching.state.eventSubgroupId) {
             watching.eventSubgroup = getEventSubgroup(watching.state.eventSubgroupId);
         }
-        fields.setSport(watching.state.sport || 'cycling');
-        fields.setEventMetric(watching.remainingMetric);
         renderer.setData(watching);
         const ts = Date.now();
         if (ts - lastUpdate > 500) {
