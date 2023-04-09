@@ -267,7 +267,9 @@ function renderZoomed(groups) {
                 dur = gapDistance && gapDistance > 2 &&
                     (H.number(gapDistance * (imperial ? 3.28084 : 1)) + units);
             }
-            gapLine = fmtLine(dur ? dur : '');
+            if (dur) {
+                gapLine = fmtLine(dur);
+            }
         }
         common.softInnerHTML(pos.leftLines, leftLines.join(''));
         common.softInnerHTML(pos.rightLines, rightLines.join(''));
