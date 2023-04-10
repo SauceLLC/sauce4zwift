@@ -47,6 +47,7 @@
     "appId": "io.saucellc.sauce4zwift",
     "artifactName": "sauce4zwift-${version}.${ext}",
     "buildDependenciesFromSource": true,
+    "generateUpdatesFilesForAllChannels": true,
     "files": [
       "!**/Makefile",
       "!**/README.md",

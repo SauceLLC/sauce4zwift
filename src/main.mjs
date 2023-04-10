@@ -258,6 +258,7 @@ class SauceApp extends EventEmitter {
     _defaultSettings = {
         webServerEnabled: true,
         webServerPort: 1080,
+        updateChannel: 'stable',
     };
     _settings;
     _settingsKey = 'app-settings';
@@ -292,6 +293,30 @@ class SauceApp extends EventEmitter {
         this._settings[key] = value;
         storage.set(this._settingsKey, this._settings);
         this.emit('setting-change', {key, value});
+    }
+
+    async checkForUpdates() {
+        autoUpdater.disableWebInstaller = true;
+        autoUpdater.autoDownload = false;
+        autoUpdater.channel = {
+            stable: 'latest',
+            beta: 'beta',
+            alpha: 'alpha'
+        }[this.getSetting('updateChannel')] || 'latest';
+        let updateAvail;
+        // Auto updater was written by an alien.  Must use events to affirm update status.
+        autoUpdater.once('update-available', () => void (updateAvail = true));
+        console.info(`Checking for update on channel: ${autoUpdater.channel}`);
+        try {
+            const update = await autoUpdater.checkForUpdates();
+            if (updateAvail) {
+                return update.versionInfo;
+            }
+        } catch(e) {
+            // A variety of non critical conditions can lead to this, log and move on.
+            console.warn("Auto update problem:", e);
+            return;
+        }
     }
 
     _getMetrics(reentrant) {
@@ -459,25 +484,6 @@ async function zwiftAuthenticate(options) {
 }
 
 
-async function checkForUpdates() {
-    autoUpdater.disableWebInstaller = true;
-    autoUpdater.autoDownload = false;
-    let updateAvail;
-    // Auto updater was written by an alien.  Must use events to affirm update status.
-    autoUpdater.once('update-available', () => void (updateAvail = true));
-    try {
-        const update = await autoUpdater.checkForUpdates();
-        if (updateAvail) {
-            return update.versionInfo;
-        }
-    } catch(e) {
-        // A variety of non critical conditions can lead to this, log and move on.
-        console.warn("Auto update problem:", e);
-        return;
-    }
-}
-
-
 async function maybeDownloadAndInstallUpdate({version}) {
     const confirmWin = await windows.updateConfirmationWindow(version);
     if (!confirmWin) {
@@ -561,7 +567,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         }
         sauceApp.setSetting('lastVersion', pkg.version);
     } else if (!isDEV) {
-        updater = checkForUpdates();
+        updater = sauceApp.checkForUpdates();
     }
     try {
         if (!await windows.eulaConsent() || !await windows.patronLink()) {
