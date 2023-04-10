@@ -96,17 +96,29 @@
             </form>
 
             <form class="app-settings section tab">
+                <label>
+                    <key data-added="2023-04-10">Update channel:</key>
+                    <select name="updateChannel">
+                        <option value="stable">Stable</option>
+                        <option value="beta">Beta</option>
+                        <option value="alpha">Alpha</option>
+                    </select>
+                    <span class="restart-required"></span>
+                </label>
+
                 <label title="Access Sauce for Zwift from any browser on your network">
                     <key>Web Server:</key>
                     <input type="checkbox" name="webServerEnabled"/>
                     <span class="restart-required"></span>
                 </label>
+
                 <label class="indent">
                     <key>Port:</key>
                     <input data-depends-on="webServerEnabled" type="number" size="5"
                            name="webServerPort"/>
                     <span class="restart-required"></span>
                 </label>
+
                 <label title="Game Connection allows Sauce to perform optional functions like switching the athlete being watched."
                        warning="CAUTION: Game Connection uses the Companion App protocol which only supports a single connection.
 
