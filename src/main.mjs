@@ -303,6 +303,10 @@ class SauceApp extends EventEmitter {
             beta: 'beta',
             alpha: 'alpha'
         }[this.getSetting('updateChannel')] || 'latest';
+        // NOTE: The github provider for electron-updater is pretty nuanced.
+        // We might want to replace it with our own at some point as this very
+        // important logic.
+        autoUpdater.allowPrerelease = autoUpdater.channel !== 'latest';
         let updateAvail;
         // Auto updater was written by an alien.  Must use events to affirm update status.
         autoUpdater.once('update-available', () => void (updateAvail = true));
