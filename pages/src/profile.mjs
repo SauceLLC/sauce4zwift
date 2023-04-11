@@ -30,14 +30,14 @@ export async function main() {
         document.title = `${athlete.sanitizedFullname} - Sauce for Zwift™`;
     }
     const tpl = await gettingTemplate;
-    const gameConnectionStatus = await gettingGameConnectionStatus;
+    const gcs = await gettingGameConnectionStatus;
     const {nations, flags} = await pendingInitNationFlags;
     const debug = location.search.includes('debug');
     const tplData = {
         debug,
         athleteId: athlete && athlete.id,
         athlete,
-        gameConnectionStatus,
+        gameConnection: gcs && gcs.connected,
         nations,
         flags,
         common,
@@ -144,6 +144,19 @@ export async function render(el, tpl, tplData) {
         }
         await rerender();
     });
+    let inGame;
+    function setInGame(en) {
+        if (en === inGame) {
+            return;
+        }
+        inGame = en;
+        const nodes = el.querySelectorAll('.enabled-in-game-only');
+        if (inGame) {
+            nodes.forEach(x => x.removeAttribute('disabled'));
+        } else {
+            nodes.forEach(x => x.setAttribute('disabled', 'disabled'));
+        }
+    }
     let lastUpdate = 0;
     function updatePlayerState(state) {
         lastUpdate = Date.now();
@@ -167,6 +180,7 @@ export async function render(el, tpl, tplData) {
         }
         console.debug("Using RPC get player state");
         const state = await common.rpc.getPlayerState(athleteId);
+        setInGame(!!state);
         if (state) {
             updatePlayerState(state);
         }
@@ -181,7 +195,10 @@ export async function render(el, tpl, tplData) {
     }, 10000);
     await rerender();
     await getPlayerState();
-    const onAthleteData = data => updatePlayerState(data.state);
+    const onAthleteData = data => {
+        setInGame(true);
+        updatePlayerState(data.state);
+    };
     await common.subscribe(`athlete/${athleteId}`, onAthleteData);
     return function cleanup() {
         clearInterval(pollInterval);

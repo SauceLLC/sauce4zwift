@@ -75,6 +75,11 @@
 
                 &[disabled] {
                     opacity: 0.3 !important;
+                    cursor: default;
+
+                    &:active {
+                        pointer-events: none;
+                    }
                 }
 
                 &:hover {
