@@ -623,7 +623,8 @@ export class StatsProcessor extends events.EventEmitter {
         this._athleteData.clear();
     }
 
-    async exportFIT(athleteId) {
+    async exportFIT(id) {
+        const athleteId = this._realAthleteId(id);
         console.debug("Exporting FIT file for:", athleteId);
         if (athleteId == null) {
             throw new TypeError('athleteId required');
