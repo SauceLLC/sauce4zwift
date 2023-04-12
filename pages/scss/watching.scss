@@ -202,6 +202,41 @@ html {
     }
 }
 
+.button-bar {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex: 0 0 auto;
+    background-image: linear-gradient(
+        135deg,
+        var(--theme-button-bar-top-left),
+        var(--theme-button-bar-bottom-right));
+    overflow: hidden;
+    font-size: 1rem;
+
+    .button {
+        padding: 1em 0.6em;
+        flex: 1 1 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        &:not(.disabled):hover {
+            background: #fff3;
+        }
+
+        &:not(.disabled):active {
+            background: #0003;
+        }
+
+        > img {
+            height: 1.2em !important;
+            filter: invert(1);
+        }
+    }
+}
+
 .screen-section {
     display: flex;
     flex-direction: column;
@@ -586,12 +621,7 @@ html.always-show-buttons #titlebar .button-bar {
                 align-items: center;
                 justify-content: center;
 
-                &.disabled {
-                    pointer-events: none;
-                    opacity: 0.2;
-                }
-
-                &:hover {
+                &:not(.disabled):hover {
                     background-color: #0006;
                 }
 

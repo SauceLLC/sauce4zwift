@@ -473,49 +473,6 @@ form {
             padding: 0 1em 0.5em 1em;
             opacity: 0;
         }
-
-        &[disabled] {
-        }
-    }
-}
-
-.button-bar {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex: 0 0 auto;
-    background-image: linear-gradient(
-        135deg,
-        var(--theme-button-bar-top-left),
-        var(--theme-button-bar-bottom-right));
-    overflow: hidden;
-    font-size: 1rem;
-
-    .button {
-        padding: 1em 0.6em;
-        flex: 1 1 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-
-        &:hover {
-            background: #fff3;
-        }
-
-        &:active {
-            background: #0003;
-        }
-
-        &.disabled {
-            pointer-events: none;
-            opacity: 0.2;
-        }
-
-        > img {
-            height: 1.2em !important;
-            filter: invert(1);
-        }
     }
 }
 
@@ -542,17 +499,12 @@ form {
             filter: invert(1);
         }
 
-        &:hover {
+        &:not([disabled]):not(.disabled):hover {
             background-color: #fff3;
         }
 
-        &:active {
+        &:not([disabled]):not(.disabled):active {
             background-color: #0003;
-        }
-
-        &.disabled {
-            pointer-events: none;
-            opacity: 0.2;
         }
     }
 
@@ -666,13 +618,23 @@ a.std.button {
     opacity: 0.80;
     transition: opacity 200ms, background 200ms;
 
-    &:hover {
+    &:not([disabled]):not(.disabled):hover {
         opacity: 1;
     }
 
-    &:active {
+    &:not([disabled]):not(.disabled):active {
         img, ms {
             opacity: 0.6;
+        }
+    }
+
+    &[disabled],
+    &.disabled {
+        opacity: 0.3 !important;
+        cursor: default !important;
+
+        &:active {
+            pointer-events: none !important;
         }
     }
 
@@ -704,18 +666,13 @@ a.std.button {
             display: none;
         }
 
-        &.disabled {
-            pointer-events: none;
-            opacity: 0.2;
-        }
-
-        &:hover {
+        &:not([disabled]):not(.disabled):hover {
             --bg-from-color: #{color.shade(fg, 0%)};
             --bg-to-color: #{color.shade(fg, 5%)};
             box-shadow: 0.05rem 0.05rem 0.4rem 0 #0004;
         }
 
-        &:active {
+        &:not([disabled]):not(.disabled):active {
             box-shadow: inset 0 0 0.8rem 0 #0008;
         }
 
@@ -724,7 +681,7 @@ a.std.button {
             --bg-to-color: #{color.shade(negative, -10%)};
             color: color.shade(negative, 100%);
 
-            &:hover {
+            &:not([disabled]):not(.disabled):hover {
                 --bg-from-color: #{color.shade(negative, 5%)};
                 --bg-to-color: #{color.shade(negative, -5%)};
             }
@@ -735,7 +692,7 @@ a.std.button {
             --bg-to-color: #{color.shade(primary, -10%)};
             color: color.shade(primary, 100%);
 
-            &:hover {
+            &:not([disabled]):not(.disabled):hover {
                 --bg-from-color: #{color.shade(primary, 5%)};
                 --bg-to-color: #{color.shade(primary, -5%)};
             }
