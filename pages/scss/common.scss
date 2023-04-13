@@ -493,6 +493,15 @@ form {
 
     .button {
         border-radius: 0.22em;
+        text-decoration: none !important;
+
+        span {
+            display: inline-block;
+            margin-top: -0.2em; // XXX offset by bottom margin of ms. :/
+            padding: 0 0.1em;
+            font-variant: all-petite-caps;
+            vertical-align: middle;
+        }
 
         > img {
             height: 0.85em;
@@ -796,14 +805,16 @@ span.button.std {
     color: #fff;
     vertical-align: middle;
     line-height: 1;
-    font-variant: all-small-caps;
-    font-weight: bold;
+    text-transform: uppercase;
+    font-weight: 700;
     background-image: linear-gradient(to bottom,
         hsla(var(--hue), 70%, 40%, 0.86),
         hsla(var(--hue), 87%, 50%, 0.86));
     border-radius: 0.28em;
-    padding: 0.1em 0.5em 0.2em;
+    padding: 0.3em 0.4em 0.27em;
+    padding: 0.48em 0.6em 0.4em;
     text-shadow: 0 0 1px #000;
+    font-size: 0.72em;
 }
 
 dialog {

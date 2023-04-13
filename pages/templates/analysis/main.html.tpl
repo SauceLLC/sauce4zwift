@@ -4,11 +4,37 @@
     </section>
 <% } else { %>
     <section class="summary">
-        <header><img src="{{athlete.avatar || 'images/blankavatar.png'}}" class="avatar"/>{{athlete.sanitizedFullname}} | {-humanWeightClass(athlete.weight, {suffix: true, html: true})-}&nbsp;| Started: {{humanTime(Date.now() - (stats.stats.elapsedTime * 1000))}}</header>
+        <header>
+            <a class="avatar" href="profile-avatar.html?id={{athlete.id}}" target="profile-avatar">
+                <img src="{{athlete.avatar || 'images/blankavatar.png'}}"/>
+            </a>
+            <div class="activity-intro">
+                <% if (athlete.type !== 'NORMAL') { %>
+                    <span class="special-badge">{{athlete.type.replace(/_/, ' ')}}</span>
+                <% } %>
+                {{athlete.sanitizedFullname}}
+                <% if (athlete.countryCode) { %>
+                    <img class="flag" src="{{flags[athlete.countryCode]}}"
+                         title="{{nations[athlete.countryCode]}}"/>
+                <% } %>
+                <% if (athlete.team) { %>
+                    <br/>
+                    {-common.teamBadge(athlete.team)-}
+                <% } %>
+                <br/>
+                <small>XXX Watopia <ms>map</ms></small> 
+            </div>
+            <div class="activity-details key-value-grid">
+                <key>Start:</key><value>{{humanTime(Date.now() - (stats.stats.elapsedTime * 1000))}}</value>
+                <key>Active:</key><value>{{humanTimer(stats.stats.activeTime, {long: true})}}</value>
+                <key>Elapsed:</key><value>{{humanTimer(stats.stats.elapsedTime, {long: true})}}</value>
+            </div>
+        </header>
         <main>
             <% if (streams) { %>
                 <div class="more-stats">
-                    <div class="stats">
+                    <div id="map"></div>
+                    <div class="stats key-value-grid">
                         <key>Power avg:</key><value>{-humanPower(stats.stats.power.avg, {suffix: true, html: true})-}
                             | {-humanWkg(stats.stats.power.avg / athlete.weight, {suffix: true, html: true})-}</value>
                         <key>Power max:</key><value>{-humanPower(stats.stats.power.max, {suffix: true, html: true})-}
@@ -17,7 +43,7 @@
                         <key>Speed avg:</key><value>{-humanPace(stats.stats.speed.avg, {suffix: true, html: true, sport: stats.state.sport})-}</value>
                         <key>HR avg:</key><value>{-humanNumber(stats.stats.hr.avg, {suffix: 'bpm', html: true})-}</value>
                     </div>
-                    <div class="stats">
+                    <div class="stats key-value-grid">
                         <key>Active:</key><value>{{humanTimer(stats.stats.activeTime)}}</value>
                         <key>Elapsed:</key><value>{{humanTimer(stats.stats.elapsedTime)}}</value>
                         <key>Data points:</key><value>{{humanNumber(streams.power.length)}}</value>
@@ -38,7 +64,7 @@
     </section>
 
     <section class="laps">
-        <header><ms>timer</ms> Laps</header>
+        <header><ms>timer</ms><div class="title">Laps</div></header>
         <main>
             <table class="laps expandable">
                 <thead>
@@ -85,7 +111,7 @@
     </section>
 
     <section class="segments">
-        <header><ms>space_bar</ms> Segments</header>
+        <header><ms>space_bar</ms><div class="title">Segments</div></header>
         <main>
             <table class="segments expandable">
                 <thead>
