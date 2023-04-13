@@ -184,9 +184,9 @@ function humanTimer(elapsed, options={}) {
     const mins = elapsed % 3600 / 60 | 0;
     const secsStr = (elapsed % 60 | 0).toString();
     const msStr = options.ms ? '.' + Math.round(elapsed % 1 * 1000).toString().padStart(3, '0') : '';
-    if (hours) {
+    if (hours || options.full) {
         return `${sign}${hours}:${mins.toString().padStart(2, '0')}:${secsStr.padStart(2, '0')}${msStr}`;
-    } else if (mins || options.long) {
+    } else if (mins || options.long || options.full) {
         return `${sign}${mins}:${secsStr.padStart(2, '0')}${msStr}`;
     } else {
         return `${sign}${secsStr}${msStr}`;
