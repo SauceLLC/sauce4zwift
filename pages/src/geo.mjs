@@ -174,7 +174,7 @@ export async function main() {
     if (urlQuery.has('testing')) {
         const [course, road] = urlQuery.get('testing').split(',');
         zwiftMap.setCourse(+course || 6).then(() => {
-            zwiftMap.setRoad(+road || 0);
+            zwiftMap.setActiveRoad(+road || 0);
         });
         if (elProfile) {
             elProfile.setCourse(+course || 6).then(() => {

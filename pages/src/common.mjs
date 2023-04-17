@@ -386,6 +386,22 @@ export function getRoads(worldId) {
 }
 
 
+const _segments = new Map();
+export function getSegments(worldId) {
+    if (!_segments.has(worldId)) {
+        _segments.set(worldId, (async () => {
+            const r = await fetch(`/shared/deps/data/worlds/${worldId}/segments.json`);
+            if (!r.ok) {
+                console.error("Failed to get segments for:", worldId, r.status);
+                return [];
+            }
+            return await r.json();
+        })());
+    }
+    return _segments.get(worldId);
+}
+
+
 export function addOpenSettingsParam(key, value) {
     for (const el of document.querySelectorAll('a.open-settings')) {
         const url = new URL(el.href);

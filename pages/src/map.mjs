@@ -43,9 +43,9 @@ function controlPoint(cur, prev, next, reverse, smoothing) {
 }
 
 
-function smoothPath(points, {looped, smoothing=0.2}={}) {
+function smoothPath(points, {loop, smoothing=0.2}={}) {
     const path = ['M' + points[0].join()];
-    if (looped) {
+    if (loop) {
         for (let i = 1; i < points.length + 1; i++) {
             const prevPrev = points.at(i - 2);
             const prev = points.at(i - 1);
@@ -239,7 +239,15 @@ export class SauceZwiftMap extends EventTarget {
             ents: createElement('div', {class: 'entities'}),
             pins: createElement('div', {class: 'pins'}),
             roads: createElementSVG('svg', {class: 'roads'}),
+            roadLayers: {
+                defs: createElementSVG('defs'),
+                gutters: createElementSVG('g', {class: 'gutters'}),
+                surfacesLow: createElementSVG('g', {class: 'surfaces low'}),
+                surfacesMid: createElementSVG('g', {class: 'surfaces mid'}),
+                surfacesHigh: createElementSVG('g', {class: 'suffaces high'}),
+            }
         };
+        this._elements.roads.append(...Object.values(this._elements.roadLayers));
         this._elements.map.append(this._elements.mapCanvas, this._elements.roads,
                                   this._elements.ents);
         this.el.addEventListener('wheel', this._onWheelZoom.bind(this));
@@ -529,11 +537,17 @@ export class SauceZwiftMap extends EventTarget {
 
     async _setCourse(courseId) {
         this.courseId = courseId;
-        this.worldMeta = this.worldList.find(x => x.courseId === courseId);
-        const {minX, minY, tileScale, mapScale, anchorX, anchorY} = this.worldMeta;
-        this._mapScale = 1 / (tileScale / mapScale);
-        this._anchorXY[0] = -(minX + anchorX) * this._mapScale;
-        this._anchorXY[1] = -(minY + anchorY) * this._mapScale;
+        const m = this.worldMeta = this.worldList.find(x => x.courseId === courseId);
+        this._mapScale = 1 / (m.tileScale / m.mapScale);
+        this._anchorXY[0] = -(m.minX + m.anchorX) * this._mapScale;
+        this._anchorXY[1] = -(m.minY + m.anchorY) * this._mapScale;
+        Object.values(this._elements.roadLayers).forEach(x => x.replaceChildren());
+        this._elements.roads.setAttribute('viewBox', [
+            (m.minX + m.anchorX) * svgInternalScale,
+            (m.minY + m.anchorY) * svgInternalScale,
+            (m.maxX - m.minX) * svgInternalScale,
+            (m.maxY - m.minY) * svgInternalScale,
+        ].join(' '));
         this._setHeading(0);
         for (const x of this._ents.values()) {
             x.remove();
@@ -577,15 +591,26 @@ export class SauceZwiftMap extends EventTarget {
         return this.worldMeta.mapRotateHack ? [pos[1], -pos[0]] : pos;
     }
 
+    _createRoadPath(points, id, loop) {
+        const d = [];
+        for (const pos of points) {
+            const [x, y] = this._fixWorldPos(pos);
+            d.push([x * svgInternalScale, y * svgInternalScale]);
+        }
+        return createElementSVG('path', {
+            id: `road-path-${id}`,
+            d: smoothPath(d, {loop})
+        });
+    }
+
     _renderRoads(roads, ids) {
         ids = ids || Object.keys(roads);
-        const defs = createElementSVG('defs');
+        const {defs, surfacesLow, gutters} = this._elements.roadLayers;
         // Because roads overlap and we want to style some of them differently this
         // make multi-sport roads higher so we don't randomly style overlapping sections.
         ids.sort((a, b) =>
             (roads[a] ? roads[a].sports.length : 0) -
             (roads[b] ? roads[b].sports.length : 0));
-        const roadways = {gutter: [], surface: []};
         for (const id of ids) {
             const road = roads[id];
             if (!road) {
@@ -595,15 +620,7 @@ export class SauceZwiftMap extends EventTarget {
             if (!road.sports.includes('cycling') && !road.sports.includes('running')) {
                 continue;
             }
-            const d = [];
-            for (const pos of road.path) {
-                const [x, y] = this._fixWorldPos(pos);
-                d.push([x * svgInternalScale, y * svgInternalScale]);
-            }
-            const path = createElementSVG('path', {
-                id: `road-path-${id}`,
-                d: smoothPath(d, {looped: road.looped})
-            });
+            const path = this._createRoadPath(road.path, id, road.looped);
             const clip = createElementSVG('clipPath', {id: `road-clip-${id}`});
             let boxMin = this._fixWorldPos(road.boxMin);
             let boxMax = this._fixWorldPos(road.boxMax);
@@ -621,40 +638,54 @@ export class SauceZwiftMap extends EventTarget {
             });
             clip.append(clipBox);
             defs.append(path, clip);
-            for (const [key, arr] of Object.entries(roadways)) {
-                arr.push(createElementSVG('use', {
-                    "class": `${key} ${road.sports.map(x => 'sport-' + x).join(' ')}`,
-                    "data-road-id": id,
+            for (const g of [gutters, surfacesLow]) {
+                g.append(createElementSVG('use', {
+                    "class": road.sports.map(x => 'road sport-' + x).join(' '),
+                    "data-id": id,
                     "clip-path": `url(#road-clip-${id})`,
                     "href": `#road-path-${id}`,
                 }));
             }
         }
-        this._elements.roads.setAttribute('viewBox', [
-            (this.worldMeta.minX + this.worldMeta.anchorX) * svgInternalScale,
-            (this.worldMeta.minY + this.worldMeta.anchorY) * svgInternalScale,
-            (this.worldMeta.maxX - this.worldMeta.minX) * svgInternalScale,
-            (this.worldMeta.maxY - this.worldMeta.minY) * svgInternalScale,
-        ].join(' '));
-        this._activeRoad = createElementSVG('use', {"class": 'surface active'});
         if (this.roadId != null) {
-            this.setRoad(this.roadId);
+            this.setActiveRoad(this.roadId);
         }
-        // SVG doesn't have z-index, element order is therefore critical.
-        this._elements.roads.replaceChildren(
-            defs,
-            ...roadways.gutter,
-            ...roadways.surface,
-            this._activeRoad);
+    }
+
+    latlngToPosition([lat, lon]) {
+        return this.worldMeta.flippedHack ? [
+            (lat - this.worldMeta.latOffset) * this.worldMeta.latDegDist * 100,
+            (lon - this.worldMeta.lonOffset) * this.worldMeta.lonDegDist * 100
+        ] : [
+            -(lon - this.worldMeta.latOffset) * this.worldMeta.latDegDist * 100,
+            (lat - this.worldMeta.lonOffset) * this.worldMeta.lonDegDist * 100
+        ];
     }
 
     setRoad(id) {
+        console.warn("DEPRECATED: use setActiveRoad");
+        return this.setActiveRoad(id);
+    }
+
+    setActiveRoad(id) {
         this.roadId = id;
-        if (!this._activeRoad) {
-            return;
+        const surface = this._elements.roadLayers.surfacesMid;
+        let r = surface.querySelector('.road.active');
+        if (!r) {
+            r = createElementSVG('use', {class: 'road active'});
+            surface.append(r);
         }
-        this._activeRoad.setAttribute('clip-path', `url(#road-clip-${id})`);
-        this._activeRoad.setAttribute('href', `#road-path-${id}`);
+        r.setAttribute('clip-path', `url(#road-clip-${id})`);
+        r.setAttribute('href', `#road-path-${id}`);
+    }
+
+    addHighlightPath(points, id, loop) {
+        this._elements.roadLayers.defs.append(this._createRoadPath(points, id, loop));
+        this._elements.roadLayers.surfacesHigh.append(createElementSVG('use', {
+            "class": `highlight`,
+            "data-id": id,
+            "href": `#road-path-${id}`,
+        }));
     }
 
     _addAthleteEntity(state) {
@@ -709,7 +740,7 @@ export class SauceZwiftMap extends EventTarget {
                 this.setCourse(watching.courseId);
             }
             if (watching.roadId !== this.roadId) {
-                this.setRoad(watching.roadId);
+                this.setActiveRoad(watching.roadId);
             }
         }
         const now = Date.now();
