@@ -550,7 +550,7 @@ export class SauceZwiftMap extends EventTarget {
         ].join(' '));
         this._setHeading(0);
         for (const x of this._ents.values()) {
-            x.remove();
+            x.el.remove();
         }
         this._ents.clear();
         this._athleteCache.clear();
@@ -564,12 +564,12 @@ export class SauceZwiftMap extends EventTarget {
     setWatching(id) {
         if (this.watchingId != null && this._ents.has(this.watchingId)) {
             const ent = this._ents.get(this.watchingId);
-            ent.classList.remove('watching');
+            ent.el.classList.remove('watching');
         }
         this.watchingId = id;
         if (id != null && this._ents.has(id)) {
             const ent = this._ents.get(id);
-            ent.classList.add('watching');
+            ent.el.classList.add('watching');
         }
         this.setDragOffset(0, 0);
     }
@@ -577,12 +577,12 @@ export class SauceZwiftMap extends EventTarget {
     setAthlete(id) {
         if (this.athleteId != null && this._ents.has(this.athleteId)) {
             const ent = this._ents.get(this.athleteId);
-            ent.classList.remove('self');
+            ent.el.classList.remove('self');
         }
         this.athleteId = id;
         if (id != null && this._ents.has(id)) {
             const ent = this._ents.get(id);
-            ent.classList.add('self');
+            ent.el.classList.add('self');
         }
     }
 
@@ -689,21 +689,27 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     _addAthleteEntity(state) {
-        const ent = document.createElement('div');
-        ent.new = true;
-        ent.classList.add('entity', 'athlete');
-        ent.classList.toggle('self', state.athleteId === this.athleteId);
-        ent.classList.toggle('watching', state.athleteId === this.watchingId);
-        ent.dataset.athleteId = ent.athleteId = state.athleteId;
-        ent.lastSeen = Date.now();
-        ent.wt = state.worldTime;
-        ent.transition = new Transition({duration: 2000});
-        ent.delayEst = common.expWeightedAvg(4, 1000);
-        this._ents.set(state.athleteId, ent);
+        const el = document.createElement('div');
+        el.classList.add('entity', 'athlete');
+        el.classList.toggle('self', state.athleteId === this.athleteId);
+        el.classList.toggle('watching', state.athleteId === this.watchingId);
+        el.dataset.athleteId = state.athleteId;
+        this._ents.set(state.athleteId, {
+            el,
+            new: true,
+            athleteId: state.athleteId,
+            lastSeen: 0,
+            transition: new Transition({duration: 2000}),
+            delayEst: common.expWeightedAvg(6, 1000),
+        });
     }
 
     _onEntsClick(ev) {
-        const ent = ev.target.closest('.entity');
+        const entEl = ev.target.closest('.entity');
+        if (!entEl) {
+            return;
+        }
+        const ent = this._ents.get(Number(entEl.dataset.athleteId));
         if (!ent) {
             return;
         }
@@ -763,17 +769,23 @@ export class SauceZwiftMap extends EventTarget {
                 powerLevel = 'z6';
             }
             const ent = this._ents.get(state.athleteId);
-            ent.dataset.powerLevel = powerLevel;
-            ent.wt = state.worldTime;
-            ent.lastSeen = now;
-            const age = state.worldTime - ent.wt;
+            const age = now - ent.lastSeen;
             if (age) {
-                const influence = ent.playing ? age + 200 : age * 2;
-                const duration = ent.delayEst(influence);
-                ent.transition.setDuration(duration);
+                if (age < 2500) {
+                    // Try to animate close to the update rate without going under.
+                    // If we miss (transition is not playing) prefer lag over jank.
+                    // Note the lag is calibrated to reducing jumping at 200ms rates (i.e. watching).
+                    const influence = ent.transition.playing ? age + 100 : age * 8;
+                    const duration = ent.delayEst(influence);
+                    ent.transition.setDuration(duration);
+                } else {
+                    ent.transition.setDuration(0);
+                }
             }
             const pos = this._fixWorldPos([state.x, state.y]);
             ent.transition.setValues(pos);
+            ent.el.dataset.powerLevel = powerLevel;
+            ent.lastSeen = now;
             if (ent.pin) {
                 const ad = this._athleteCache.get(state.athleteId);
                 const name = ad && ad.data && ad.data.athlete ?
@@ -804,10 +816,11 @@ export class SauceZwiftMap extends EventTarget {
         const now = Date.now();
         for (const [athleteId, ent] of this._ents.entries()) {
             if (now - ent.lastSeen > 15000) {
-                ent.remove();
+                ent.el.remove();
                 if (ent.pin) {
                     ent.pin.remove();
                 }
+                this._pinned.delete(ent);
                 this._pendingEntityUpdates.delete(ent);
                 this._ents.delete(athleteId);
             }
@@ -817,9 +830,10 @@ export class SauceZwiftMap extends EventTarget {
     _updatePins() {
         const transforms = [];
         // XXX this batching may not work actually, plus we may not care given how few pins there will be
+        //
         // Avoid spurious reflow with batched reads followed by writes.
         for (const ent of this._pinned) {
-            const rect = ent.getBoundingClientRect();
+            const rect = ent.el.getBoundingClientRect();
             transforms.push([ent.pin, rect]);
         }
         for (const [pin, rect] of transforms) {
@@ -937,10 +951,10 @@ export class SauceZwiftMap extends EventTarget {
         for (const ent of this._pendingEntityUpdates) {
             const pos = ent.transition.getStep();
             if (pos) {
-                ent.style.setProperty('transform', `translate(${pos[0] * scale}px, ${pos[1] * scale}px)`);
+                ent.el.style.setProperty('transform', `translate(${pos[0] * scale}px, ${pos[1] * scale}px)`);
             }
             if (ent.new) {
-                this._elements.ents.append(ent);
+                this._elements.ents.append(ent.el);
                 ent.new = false;
             }
             if (!ent.transition.playing) {
@@ -953,22 +967,27 @@ export class SauceZwiftMap extends EventTarget {
     _updateEntityAthleteData(ent, ad) {
         const leader = !!ad.eventLeader;
         const sweeper = !!ad.eventSweeper;
-        const marked = ad.athlete ? !!ad.athlete.marked : false;
-        const following = ad.athlete ? !!ad.athlete.following : false;
+        const marked = !!ad.athlete?.marked;
+        const following = !!ad.athlete?.following;
+        const bot = ad.athlete?.type === 'PACER_BOT';
+        if (bot !== ent.bot) {
+            ent.el.classList.toggle('bot', bot);
+            ent.bot = bot;
+        }
         if (leader !== ent.leader) {
-            ent.classList.toggle('leader', leader);
+            ent.el.classList.toggle('leader', leader);
             ent.leader = leader;
         }
         if (sweeper !== ent.sweeper) {
-            ent.classList.toggle('sweeper', sweeper);
+            ent.el.classList.toggle('sweeper', sweeper);
             ent.sweeper = sweeper;
         }
         if (marked !== ent.marked) {
-            ent.classList.toggle('marked', marked);
+            ent.el.classList.toggle('marked', marked);
             ent.marked = marked;
         }
         if (following !== ent.following) {
-            ent.classList.toggle('following', following);
+            ent.el.classList.toggle('following', following);
             ent.following = following;
         }
     }
