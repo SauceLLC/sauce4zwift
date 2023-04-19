@@ -1064,7 +1064,7 @@ async function initScreenSettings() {
             renderScreen();
         } else if (action === 'delete') {
             settings.screens.splice(sIndex, 1);
-            sIndex = Math.max(0, sIndex -1);
+            sIndex = Math.max(0, sIndex - 1);
             common.settingsStore.set(null, settings);
             renderScreen();
         }
@@ -1150,6 +1150,7 @@ export async function main() {
     const content = document.querySelector('#content');
     const renderers = [];
     let curScreen;
+    let curScreenIndex = Math.max(0, Math.min(settings.screenIndex || 0, settings.screens.length));
     powerZones = await common.rpc.getPowerZones(1);
     const layoutTpl = await getTpl('watching-screen-layout');
     const persistentData = settings.screens.some(x =>
@@ -1161,7 +1162,7 @@ export async function main() {
             groupSpecs,
             sectionSpecs
         })).querySelector('.screen');
-        if (sIndex) {
+        if (sIndex !== curScreenIndex) {
             screenEl.classList.add('hidden');
         } else {
             curScreen = screenEl;
@@ -1267,36 +1268,25 @@ export async function main() {
     const bbSelector = settings.alwaysShowButtons ? '.fixed.button-bar' : '#titlebar .button-bar';
     const prevBtn = document.querySelector(`${bbSelector} .button.prev-screen`);
     const nextBtn = document.querySelector(`${bbSelector} .button.next-screen`);
-    prevBtn.classList.add('disabled');
-    if (settings.screens.length === 1) {
-        nextBtn.classList.add('disabled');
-    }
-    prevBtn.addEventListener('click', ev => {
-        if (!curScreen.previousElementSibling) {
+    prevBtn.classList.toggle('disabled', curScreenIndex === 0);
+    nextBtn.classList.toggle('disabled', curScreenIndex === settings.screens.length - 1);
+    const switchScreen = dir => {
+        const target = dir > 0 ? curScreen.nextElementSibling : curScreen.previousElementSibling;
+        if (!target) {
+            console.warn("switchScreen called off a cliff", {dir, curScreenIndex});
             return;
         }
         curScreen.classList.add('hidden');
-        curScreen = curScreen.previousElementSibling;
-        curScreen.classList.remove('hidden');
-        nextBtn.classList.remove('disabled');
+        target.classList.remove('hidden');
+        curScreen = target;
+        settings.screenIndex = (curScreenIndex += dir);
+        prevBtn.classList.toggle('disabled', curScreenIndex === 0);
+        nextBtn.classList.toggle('disabled', curScreenIndex === settings.screens.length - 1);
         resizeCharts();
-        if (Number(curScreen.dataset.index) === 0) {
-            prevBtn.classList.add('disabled');
-        }
-    });
-    nextBtn.addEventListener('click', ev => {
-        if (!curScreen.nextElementSibling) {
-            return;
-        }
-        curScreen.classList.add('hidden');
-        curScreen = curScreen.nextElementSibling;
-        curScreen.classList.remove('hidden');
-        prevBtn.classList.remove('disabled');
-        resizeCharts();
-        if (settings.screens.length === Number(curScreen.dataset.index) + 1) {
-            nextBtn.classList.add('disabled');
-        }
-    });
+        common.settingsStore.set(null, settings);
+    };
+    prevBtn.addEventListener('click', () => switchScreen(-1));
+    nextBtn.addEventListener('click', () => switchScreen(1));
     const resetBtn = document.querySelector(`${bbSelector} .button.reset`);
     resetBtn.addEventListener('click', ev => {
         common.rpc.resetStats();
