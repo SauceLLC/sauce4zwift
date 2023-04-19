@@ -42,7 +42,7 @@ common.settingsStore.setDefault({
 const doc = document.documentElement;
 const L = sauce.locale;
 const H = L.human;
-const defaultLineChartLen = Math.ceil(window.innerWidth / 2);
+const defaultLineChartLen = () => Math.ceil(window.innerWidth / 2);
 const chartRefs = new Set();
 let imperial = !!common.settingsStore.get('/imperialUnits');
 L.setImperial(imperial);
@@ -715,7 +715,7 @@ async function createLineChart(el, sectionId, settings) {
         emphasis: {disabled: true},
         areaStyle: {},
     };
-    const dataPoints = settings.dataPoints || defaultLineChartLen;
+    const dataPoints = settings.dataPoints || defaultLineChartLen();
     const options = {
         color: fields.map(f => f.color),
         visualMap: fields.map((f, i) => ({
@@ -764,21 +764,50 @@ async function createLineChart(el, sectionId, settings) {
 
 function bindLineChart(lineChart, renderer, settings) {
     const fields = lineChartFields.filter(x => settings[x.id + 'En']);
-    const dataPoints = settings.dataPoints || defaultLineChartLen;
     let lastRender = 0;
     let oldSport;
-    renderer.addCallback(data => {
-        const now = Date.now();
-        if (now - lastRender < 900) {
+    let athleteId;
+    let loading;
+    renderer.addCallback(async data => {
+        if (loading) {
             return;
         }
-        lastRender = now;
-        if (data && data.state) {
+        if (oldSport !== sport) {
+            oldSport = sport;
+            lineChart._sauceLegend.render();
+        }
+        const dataPoints = settings.dataPoints || defaultLineChartLen();
+        const now = Date.now();
+        if (data.athleteId !== athleteId) {
+            athleteId = data.athleteId;
+            console.info("Loading streams for:", athleteId);
+            loading = true;
+            let streams;
+            try {
+                streams = await common.rpc.getAthleteStreams(athleteId);
+            } finally {
+                loading = false;
+            }
+            streams = streams || {};
+            const zeros = Array.from(sauce.data.range(dataPoints)).map(x => null);
             for (const x of fields) {
-                x.points.push(x.get(data));
-                while (x.points.length > dataPoints) {
-                    x.points.shift();
+                // zero pad for non stream types like wbal and to compensate for missing data
+                x.points = zeros.concat(streams[x.id] || []);
+            }
+        } else {
+            if (now - lastRender < 900) {
+                return;
+            }
+            if (data?.state) {
+                for (const x of fields) {
+                    x.points.push(x.get(data));
                 }
+            }
+        }
+        lastRender = now;
+        for (const {points} of fields) {
+            while (points.length > dataPoints) {
+                points.shift();
             }
         }
         lineChart.setOption({
@@ -809,10 +838,6 @@ function bindLineChart(lineChart, renderer, settings) {
                 } : undefined,
             })),
         });
-        if (oldSport !== sport) {
-            oldSport = sport;
-            lineChart._sauceLegend.render();
-        }
     });
 }
 
