@@ -455,6 +455,7 @@ const groupSpecs = {
     },
 };
 
+const smallSpace = '\u0020';
 const lineChartFields = [{
     id: 'power',
     name: 'Power',
@@ -463,7 +464,7 @@ const lineChartFields = [{
     rangeAlpha: [0.4, 1],
     points: [],
     get: x => x.state.power || 0,
-    fmt: x => H.power(x, {seperator: ' ', suffix: true}),
+    fmt: x => H.power(x, {separator: smallSpace, suffix: true}),
 }, {
     id: 'hr',
     name: 'HR',
@@ -481,7 +482,7 @@ const lineChartFields = [{
     rangeAlpha: [0.1, 0.8],
     points: [],
     get: x => x.state.speed || 0,
-    fmt: x => fmtPace(x, {seperator: ' ', suffix: true}),
+    fmt: x => fmtPace(x, {separator: smallSpace, suffix: true}),
 }, {
     id: 'cadence',
     name: 'Cadence',
@@ -499,7 +500,7 @@ const lineChartFields = [{
     rangeAlpha: [0.1, 0.9],
     points: [],
     get: x => x.state.draft || 0,
-    fmt: x => H.power(x, {seperator: ' ', suffix: true}),
+    fmt: x => H.power(x, {separator: smallSpace, suffix: true}),
 }, {
     id: 'wbal',
     name: 'W\'bal',
@@ -508,7 +509,7 @@ const lineChartFields = [{
     rangeAlpha: [0.1, 0.8],
     points: [],
     get: x => x.stats.power.wBal || 0,
-    fmt: x => H.number(x / 1000) + ' kJ',
+    fmt: x => H.number(x / 1000, {precision: 1, fixed: true, separator: smallSpace, suffix: 'kJ'}),
     markMin: true,
 }];
 
@@ -905,7 +906,7 @@ function createTimeInZonesHorizBar(el, sectionId, settings, renderer) {
             const zoneEl = el.querySelector(`[data-zone="${x.zone}"]`);
             zoneEl.style.flexGrow = Math.round(100 * x.time / totalTime);
             zoneEl.querySelector('.extra').textContent = H.duration(
-                x.time, {short: true, seperator: ' '});
+                x.time, {short: true, separator: ' '});
         }
     });
 }

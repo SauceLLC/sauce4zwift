@@ -31,7 +31,7 @@ const lineChartFields = [{
     color: '#46f',
     domain: [0, 700],
     rangeAlpha: [0.4, 1],
-    fmt: x => H.power(x, {seperator: ' ', suffix: true}),
+    fmt: x => H.power(x, {separator: ' ', suffix: true}),
 }, {
     id: 'hr',
     stream: 'hr',
@@ -47,7 +47,7 @@ const lineChartFields = [{
     color: '#4e3',
     domain: [0, 100],
     rangeAlpha: [0.1, 0.8],
-    fmt: x => H.pace(x, {suffix: true, seperator: ' '}),
+    fmt: x => H.pace(x, {suffix: true, separator: ' '}),
 }, {
     id: 'cadence',
     stream: 'cadence',
@@ -63,7 +63,7 @@ const lineChartFields = [{
     color: '#e88853',
     domain: [0, 300],
     rangeAlpha: [0.1, 0.9],
-    fmt: x => H.power(x, {seperator: ' ', suffix: true}),
+    fmt: x => H.power(x, {separator: ' ', suffix: true}),
 }];
 
 

@@ -84,7 +84,7 @@ function humanDuration(elapsed, options={}) {
         }
     }
     if (stack.length) {
-        return sign + stack.join(options.seperator || ', ');
+        return sign + stack.join(options.separator || ', ');
     } else {
         return '-';
     }
@@ -254,7 +254,7 @@ function _humanNumber(value, options) {
         maximumFractionDigits: p,
         minimumFractionDigits: options.fixed ? p : undefined,
     });
-    const sep = options.suffix && options.seperator || '';
+    const sep = options.suffix && options.separator || '';
     const suffix = options.suffix ?
         options.html ? `<abbr class="unit">${options.suffix}</abbr>` : options.suffix :
         '';
@@ -271,7 +271,7 @@ function humanNumber(value, options={}) {
     const t = typeof value;
     // Improve LRU hit rate..
     const sv = (t === 'number' && !p) ? Math.round(value) : value;
-    const sig = `${t} ${sv} ${p} ${options.fixed} ${options.suffix} ${options.html} ${options.seperator}`;
+    const sig = `${t} ${sv} ${p} ${options.fixed} ${options.suffix} ${options.html} ${options.separator}`;
     let r = _hnLRU.get(sig);
     if (r === undefined) {
         r = _humanNumber(value, options);

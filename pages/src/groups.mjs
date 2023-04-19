@@ -399,7 +399,7 @@ function renderGroups(groups) {
         }
         const innerGap = next ? group.innerGap : 0;
         const gap = relPos < 0 ? group.gap : next ? next.gap : 0;
-        const dur = innerGap && H.duration(Math.abs(gap), {short: true, seperator: ' '});
+        const dur = innerGap && H.duration(Math.abs(gap), {short: true, separator: ' '});
         const gapText = dur ? (gap > 0 ? '+' : '-') + dur : '';
         const gapLines = [];
         if (gapText) {

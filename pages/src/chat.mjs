@@ -42,7 +42,7 @@ function fmtAge(ts) {
 
 
 function fmtGap(gap) {
-    const d = H.duration(Math.abs(gap), {short: true, seperator: ' ', html: true});
+    const d = H.duration(Math.abs(gap), {short: true, separator: ' ', html: true});
     const placement = gap > 0 ? 'behind' : 'ahead';
     return `${d} <abbr class="unit">${placement}</abbr>`;
 }
