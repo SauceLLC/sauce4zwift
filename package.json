@@ -15,7 +15,9 @@
     "unpacked": "electron-builder --dir",
     "build": "electron-builder build -p never",
     "publish": "electron-builder build -p always",
-    "postinstall": "electron-builder install-app-deps"
+    "postinstall": "electron-builder install-app-deps",
+    "test": "NODE_OPTIONS='--experimental-vm-modules' npx jest",
+    "test-debug": "NODE_OPTIONS='--experimental-vm-modules --inspect-brk' npx jest --runInBand"
   },
   "dependencies": {
     "@sentry/node": "6.19.6",
@@ -39,9 +41,14 @@
     "electron-builder": "24.0.0-alpha.7",
     "electron-notarize": "1.2.1",
     "eslint": "8.37.0",
+    "jest": "29.5.0",
     "sass": "1.60.0",
     "world_countries_lists": "2.6.0",
     "zwift-data": "1.22.2"
+  },
+  "jest": {
+    "roots": ["test"],
+    "testMatch": ["**/*.test.mjs"]
   },
   "build": {
     "appId": "io.saucellc.sauce4zwift",
@@ -64,6 +71,7 @@
       "!**/*.vcxproj.*",
       "!**/.history",
       "!.*",
+      "!test",
       "!tools",
       "!assets",
       "!pages/scss",
