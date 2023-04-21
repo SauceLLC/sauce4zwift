@@ -18,6 +18,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const monotonic = performance.now;
 const roadDistEstimates = {};
 const allSegments = new Map();
+const wPrimeDefault = 20000;
 
 
 let _db;
@@ -199,54 +200,92 @@ class DataCollector {
 }
 
 
-class ExtendedRollingPower extends sauce.power.RollingPower {
-    setWPrime(cp, wPrime) {
-        this._wBalIncrementor = sauce.power.makeIncWPrimeBalDifferential(cp, wPrime);
-        for (const v of this.values()) {
-            this.wBal = this._wBalIncrementor(v);
-        }
-        if (this.wBal === undefined) {
-            this.wBal = wPrime;
-        }
+class TimeSeriesAccumulator {
+    constructor() {
+        this.reset();
+        this._value = null;
     }
 
-    setZones(zones) {
-        if (zones) {
-            // Move overlapping zones (sweetspot) to bottom so we can break sooner in accumulator
-            this._zones = zones.map(x => ({...x, from: x.from || 0, to: x.to || Infinity}));
-            this._zones.sort((a, b) => a.overlap && !b.overlap ? 1 : 0);
-            this.timeInZones = this._zones.map(x => ({zone: x.zone, time: 0}));
-        } else {
-            this._zones = undefined;
-            this.timeInZones = undefined;
-        }
+    reset() {
+        this._timeOffset = NaN;
     }
 
-    _add(time, value) {
-        const prevTime = this._times[this._length - 1];
-        const elapsed = time - prevTime;
-        const r = super._add(time, value);
-        if (elapsed) {
-            if (this._wBalIncrementor) {
-                // NOTE This doesn't not support any resizing
-                for (let i = 0; i < elapsed; i++) {
-                    this.wBal = this._wBalIncrementor(value);
-                }
-            }
-            if (this._zones) {
-                // NOTE This doesn't not support any resizing
-                for (let i = this._zones.length - 1; i >= 0; i--) {
-                    const z = this._zones[i];
-                    if (value > z.from && value <= z.to) {
-                        this.timeInZones[i].time += elapsed;
-                        if (!z.overlap) {
-                            break;
-                        }
-                    }
+    get() {
+        return this._value;
+    }
+
+    configure(...args) {
+        throw new Error("Pure Virtual");
+    }
+
+    accumulate(time) {
+        this._timeOffset = time;
+    }
+}
+
+
+class WBalAccumulator extends TimeSeriesAccumulator {
+    reset() {
+        super.reset();
+        this.cp = undefined;
+        this.wPrime = undefined;
+        this._accumulator = this._accumulatorAbsent;
+    }
+
+    _accumulatorAbsent() {
+        return null;
+    }
+
+    configure(cp, wPrime) {
+        this.cp = cp;
+        this.wPrime = wPrime;
+        if (!cp || !wPrime) {
+            this.reset();
+            return;
+        }
+        this._accumulator = sauce.power.makeIncWPrimeBalDifferential(cp, wPrime);
+        this._value = wPrime;
+    }
+
+    accumulate(time, value) {
+        const elapsed = (time - this._timeOffset) || 0;
+        this._value = this._accumulator(value, elapsed);
+        super.accumulate(time);
+    }
+}
+
+
+class ZonesAccumulator extends TimeSeriesAccumulator {
+    reset() {
+        super.reset();
+        this.ftp = undefined;
+        this._zones = [];
+    }
+
+    configure(ftp, zones) {
+        this.ftp = ftp;
+        if (!zones) {
+            this.reset();
+            return;
+        }
+        // Move overlapping zones (sweetspot) to bottom so we can break sooner in accumulator
+        this._zones = zones.map(x => ({...x, from: x.from || 0, to: x.to || Infinity}));
+        this._zones.sort((a, b) => a.overlap && !b.overlap ? 1 : 0);
+        this._value = this._zones.map(x => ({zone: x.zone, time: 0}));
+    }
+
+    accumulate(time, value) {
+        const elapsed = (time - this._timeOffset) || 0;
+        for (let i = this._zones.length - 1; i >= 0; i--) {
+            const z = this._zones[i];
+            if (value > z.from && value <= z.to) {
+                this._value[i].time += elapsed;
+                if (!z.overlap) {
+                    break;
                 }
             }
         }
-        return r;
+        super.accumulate(time);
     }
 }
 
@@ -559,7 +598,7 @@ export class StatsProcessor extends events.EventEmitter {
             endIndex: lapish.power.roll._length - 1,
             start: lapish.start,
             end: lapish.end,
-            sport: lapish.sport,
+            sport: ad?.mostRecentState?.sport || 'cycling',
             ...extra,
         };
     }
@@ -620,7 +659,10 @@ export class StatsProcessor extends events.EventEmitter {
 
     resetStats() {
         console.debug("Reseting stats...");
-        this._athleteData.clear();
+        const wt = worldTime.now();
+        for (const ad of this._athleteData.values()) {
+            this._resetAthleteData(ad, wt);
+        }
     }
 
     async exportFIT(id) {
@@ -662,7 +704,7 @@ export class StatsProcessor extends events.EventEmitter {
         const sport = {
             'cycling': 'cycling',
             'running': 'running',
-        }[mostRecentState ? mostRecentState.sport : 'cycling'] || 'generic';
+        }[mostRecentState?.sport || 'cycling'] || 'generic';
         fitParser.addMessage('event', {
             event: 'timer',
             event_type: 'start',
@@ -802,32 +844,18 @@ export class StatsProcessor extends events.EventEmitter {
         } else {
             d.fLast = d.initials = null;
         }
-        // XXX generalize the props that are updated and emit an event.
         if (d.wPrime === undefined && data.wPrime === undefined) {
-            data.wPrime = 20000; // Po-boy migration
+            data.wPrime = wPrimeDefault; // Po-boy migration
         }
-        const wPrimeUpdated = data.wPrime !== undefined && data.wPrime !== d.wPrime;
-        const cpUpdated = data.cp !== undefined && data.cp !== d.cp;
-        const ftpUpdated = data.ftp !== undefined && data.ftp !== d.ftp;
         for (const [k, v] of Object.entries(data)) {
             if (v !== undefined) {
                 d[k] = v;
             }
         }
-        let ad;
-        if (wPrimeUpdated || cpUpdated) {
-            ad = this._athleteData.get(id);
-            if (ad && (d.cp || d.ftp) && d.wPrime) {
-                ad.collectors.power.roll.setWPrime(d.cp || d.ftp, d.wPrime);
-            }
+        const ad = this._athleteData.get(id);
+        if (ad) {
+            this._updateAthleteDataFromDatabase(ad, d);
         }
-        if (ftpUpdated) {
-            ad = ad || this._athleteData.get(id);
-            if (ad) {
-                ad.collectors.power.roll.setZones(d.ftp ? this.getPowerZones(d.ftp) : null);
-            }
-        }
-        // /XXX
         if (data.marked !== undefined) {
             if (data.marked) {
                 this._markedIds.add(id);
@@ -1041,8 +1069,8 @@ export class StatsProcessor extends events.EventEmitter {
         const end = cs.end || monotonic();
         const elapsedTime = (end - cs.start) / 1000;
         const np = cs.power.roll.np({force: true});
-        const wBal = ad.privacy.hideWBal ? undefined : cs.power.roll.wBal;
-        const timeInZones = ad.privacy.hideFTP ? undefined : cs.power.roll.timeInZones;
+        const wBal = ad.privacy.hideWBal ? undefined : ad.wBal.get();
+        const timeInPowerZones = ad.privacy.hideFTP ? undefined : ad.timeInPowerZones.get();
         const activeTime = cs.power.roll.active();
         const tss = (!ad.privacy.hideFTP && np && athlete && athlete.ftp) ?
             sauce.power.calcTSS(np, activeTime, athlete.ftp) :
@@ -1050,7 +1078,14 @@ export class StatsProcessor extends events.EventEmitter {
         return {
             elapsedTime,
             activeTime,
-            power: cs.power.getStats(ad.wtOffset, {np, tss, wBal, timeInZones}),
+            wBal,
+            timeInPowerZones,
+            power: cs.power.getStats(ad.wtOffset, {
+                np,
+                tss,
+                wBal, // DEPRECATED
+                timeInZones: timeInPowerZones // DEPRECATED
+            }),
             speed: cs.speed.getStats(ad.wtOffset),
             hr: cs.hr.getStats(ad.wtOffset),
             cadence: cs.cadence.getStats(ad.wtOffset),
@@ -1058,13 +1093,12 @@ export class StatsProcessor extends events.EventEmitter {
         };
     }
 
-    makeDataCollectors(sport='cycling') {
+    makeDataCollectors() {
         const periods = [5, 15, 60, 300, 1200];
         const longPeriods = periods.filter(x => x >= 60);
         return {
             start: monotonic(),
-            sport,
-            power: new DataCollector(ExtendedRollingPower, periods, {inlineNP: true, round: true}),
+            power: new DataCollector(sauce.power.RollingPower, periods, {inlineNP: true, round: true}),
             speed: new DataCollector(sauce.data.RollingAverage, longPeriods, {ignoreZeros: true}),
             hr: new DataCollector(sauce.data.RollingAverage, longPeriods, {ignoreZeros: true, round: true}),
             cadence: new DataCollector(sauce.data.RollingAverage, [], {ignoreZeros: true, round: true}),
@@ -1074,10 +1108,7 @@ export class StatsProcessor extends events.EventEmitter {
 
     cloneDataCollectors(collectors, options={}) {
         const types = ['power', 'speed', 'hr', 'cadence', 'draft'];
-        const bucket = {
-            start: options.reset ? monotonic() : collectors.start,
-            sport: collectors.sport,
-        };
+        const bucket = {start: options.reset ? monotonic() : collectors.start};
         for (const x of types) {
             bucket[x] = collectors[x].clone(options);
         }
@@ -1139,13 +1170,27 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
-    _createAthleteData(athleteId, wtOffset, sport='cycling') {
-        const collectors = this.makeDataCollectors(sport);
-        return {
+    _updateAthleteDataFromDatabase(ad, athlete) {
+        const cp = athlete.cp || athlete.ftp;
+        const wPrime = athlete.wPrime || wPrimeDefault;
+        if (ad.wBal.cp !== cp || ad.wBal.wPrime !== wPrime) {
+            ad.wBal.configure(cp, wPrime);
+        }
+        const ftp = athlete.ftp;
+        if (ad.timeInPowerZones.ftp !== ftp) {
+            ad.timeInPowerZones.configure(ftp, ftp ? this.getPowerZones(ftp) : null);
+        }
+    }
+
+    _createAthleteData(athleteId, wtOffset) {
+        const collectors = this.makeDataCollectors();
+        const ad = {
             wtOffset,
             athleteId,
             privacy: {},
             mostRecentState: null,
+            wBal: new WBalAccumulator(),
+            timeInPowerZones: new ZonesAccumulator(),
             streams: {
                 distance: [],
                 altitude: [],
@@ -1163,20 +1208,30 @@ export class StatsProcessor extends events.EventEmitter {
             segments: [],
             smoothGrade: makeExpWeighted(8),
         };
+        const athlete = this.loadAthlete(athleteId);
+        if (athlete) {
+            this._updateAthleteDataFromDatabase(ad, athlete);
+        }
+        return ad;
     }
 
     _resetAthleteData(ad, wtOffset) {
-        const sport = ad.mostRecentState ? ad.mostRecentState.sport : 'cycling';
-        const collectors = this.makeDataCollectors(sport);
+        const collectors = this.makeDataCollectors();
         Object.assign(ad, {
             wtOffset,
             collectors,
             laps: [this.cloneDataCollectors(collectors, {reset: true})],
         });
+        // NOTE: Don't reset w'bal; it is a biometric
+        ad.timeInPowerZones.reset();
         ad.activeSegments.clear();
         ad.segments.length = 0;
         for (const x of Object.values(ad.streams)) {
             x.length = 0;
+        }
+        const athlete = this.loadAthlete(ad.athleteId);
+        if (athlete) {
+            this._updateAthleteDataFromDatabase(ad, athlete);
         }
     }
 
@@ -1202,7 +1257,7 @@ export class StatsProcessor extends events.EventEmitter {
         if (!this._athleteData.has(state.athleteId)) {
             this._athleteData.set(
                 state.athleteId,
-                this._createAthleteData(state.athleteId, state.worldTime, state.sport));
+                this._createAthleteData(state.athleteId, state.worldTime));
         }
         const ad = this._athleteData.get(state.athleteId);
         const prevState = ad.mostRecentState;
@@ -1341,7 +1396,11 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _recordAthleteStats(state, ad) {
+        // Never auto pause wBal as it is a biometric. We use true worldTime to
+        // survive resets as well.
+        ad.wBal.accumulate(state.worldTime / 1000, state.power);
         if (!state.power && !state.speed) {
+            // Emulate auto pause...
             const addCount = ad.collectors.power.flushBuffered();
             if (addCount) {
                 ad.collectors.speed.flushBuffered();
@@ -1357,6 +1416,7 @@ export class StatsProcessor extends events.EventEmitter {
             return;
         }
         const time = (state.worldTime - ad.wtOffset) / 1000;
+        ad.timeInPowerZones.accumulate(time, state.power);
         const addCount = ad.collectors.power.add(time, state.power);
         ad.collectors.speed.add(time, state.speed);
         ad.collectors.hr.add(time, state.heartrate);
@@ -1453,7 +1513,7 @@ export class StatsProcessor extends events.EventEmitter {
             this.resetAthletesDB();
         }
         this._statesJob = this._statesProcessor();
-        this._gcInterval = setInterval(this.gcStates.bind(this), 32768);
+        this._gcInterval = setInterval(this.gcAthleteData.bind(this), 62768);
         this.athleteId = this.zwiftAPI.profile.id;
         if (!this.disableGameMonitor) {
             this.gameMonitor.on('inPacket', this.onIncoming.bind(this));
@@ -1739,9 +1799,9 @@ export class StatsProcessor extends events.EventEmitter {
         return null;
     }
 
-    gcStates() {
+    gcAthleteData() {
         const now = monotonic();
-        const expiration = now - 300 * 1000;
+        const expiration = now - 1200 * 1000;
         for (const [k, {updated}] of this._athleteData.entries()) {
             if (updated < expiration) {
                 this._athleteData.delete(k);
@@ -1863,18 +1923,8 @@ export class StatsProcessor extends events.EventEmitter {
 
     _formatAthleteData(ad) {
         let athlete = this.loadAthlete(ad.athleteId);
-        if (athlete) {
-            if (ad.privacy.hideFTP) {
-                athlete = {...athlete, ftp: null};
-            } else {
-                if (ad.collectors.power.roll.wBal == null && (athlete.cp || athlete.ftp) && athlete.wPrime) {
-                    // Lazy update athlete accumulator data is async..
-                    ad.collectors.power.roll.setWPrime(athlete.cp || athlete.ftp, athlete.wPrime);
-                }
-                if (ad.collectors.power.roll.timeInZones == null && athlete.ftp) {
-                    ad.collectors.power.roll.setZones(athlete.ftp ? this.getPowerZones(athlete.ftp) : null);
-                }
-            }
+        if (athlete && ad.privacy.hideFTP) {
+            athlete = {...athlete, ftp: null};
         }
         const state = ad.mostRecentState;
         const lapCount = ad.laps.length;
