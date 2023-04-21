@@ -25,7 +25,7 @@ function getWBalValue(x) {
     if (!_wPrime) {
         return;
     }
-    return x.stats.power.wBal / _wPrime * 100;
+    return x.stats.wBal / _wPrime * 100;
 }
 
 

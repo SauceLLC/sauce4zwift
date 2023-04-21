@@ -122,9 +122,9 @@ export const fields = [{
     unit: 'kJ',
 }, {
     id: 'wbal',
-    value: x => (x.stats && x.stats.power.wBal != null && x.athlete && x.athlete.wPrime) ?
-        common.fmtBattery(x.stats.power.wBal / x.athlete.wPrime) +
-            H.number(x.stats.power.wBal / 1000, {precision: 1}) : '-',
+    value: x => (x.stats && x.stats.wBal != null && x.athlete && x.athlete.wPrime) ?
+        common.fmtBattery(x.stats.wBal / x.athlete.wPrime) +
+            H.number(x.stats.wBal / 1000, {precision: 1}) : '-',
     key: 'W\'bal',
     unit: 'kJ',
 }, {

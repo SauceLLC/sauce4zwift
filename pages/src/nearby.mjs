@@ -226,7 +226,7 @@ const fieldGroups = [{
         {id: 'rideons', defaultEn: false, label: 'Ride Ons', headerLabel: '<ms>thumb_up</ms>',
          get: x => x.state.rideons, fmt: H.number},
         {id: 'kj', defaultEn: false, label: 'Energy (kJ)', headerLabel: 'kJ', get: x => x.state.kj, fmt: kj},
-        {id: 'wprimebal', defaultEn: false, label: 'W\'bal', get: x => x.stats.power.wBal,
+        {id: 'wprimebal', defaultEn: false, label: 'W\'bal', get: x => x.stats.wBal,
          tooltip: "W' and W'bal represent time above threshold and remaining energy respectively.\n" +
          "Think of the W'bal value as the amount of energy in a battery.",
          fmt: (x, entry) => (x != null && entry.athlete && entry.athlete.wPrime) ?

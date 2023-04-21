@@ -233,7 +233,7 @@ const groupSpecs = {
             key: 'VI',
         }, {
             id: 'pwr-wbal',
-            value: x => H.number(x.stats && (x.stats.power.wBal / 1000), {precision: 1, fixed: true}),
+            value: x => H.number(x.stats && (x.stats.wBal / 1000), {precision: 1, fixed: true}),
             label: 'w\'bal',
             key: 'W\'bal',
             unit: 'kJ',
@@ -508,7 +508,7 @@ const lineChartFields = [{
     domain: [0, 22000],
     rangeAlpha: [0.1, 0.8],
     points: [],
-    get: x => x.stats.power.wBal || 0,
+    get: x => x.stats.wBal || 0,
     fmt: x => H.number(x / 1000, {precision: 1, fixed: true, separator: smallSpace, suffix: 'kJ'}),
     markMin: true,
 }];
@@ -895,7 +895,7 @@ async function createTimeInZonesVertBars(el, sectionId, settings, renderer) {
         chart.setOption({
             ...extraOptions,
             series: [{
-                data: data.stats.power.timeInZones.map(x => ({
+                data: data.stats.timeInPowerZones.map(x => ({
                     value: x.time,
                     itemStyle: {color: colors[x.zone].g},
                 })),
@@ -925,7 +925,7 @@ function createTimeInZonesHorizBar(el, sectionId, settings, renderer) {
             return;
         }
         lastRender = now;
-        const zones = data.stats.power.timeInZones.filter(x => normZones.has(x.zone));
+        const zones = data.stats.timeInPowerZones.filter(x => normZones.has(x.zone));
         const totalTime = zones.reduce((agg, x) => agg + x.time, 0);
         for (const x of zones) {
             const zoneEl = el.querySelector(`[data-zone="${x.zone}"]`);
@@ -989,7 +989,7 @@ async function createTimeInZonesPie(el, sectionId, settings, renderer) {
         }
         chart.setOption({
             series: [{
-                data: data.stats.power.timeInZones.filter(x => normZones.has(x.zone)).map(x => ({
+                data: data.stats.timeInPowerZones.filter(x => normZones.has(x.zone)).map(x => ({
                     name: x.zone,
                     value: x.time,
                     label: {color: colors[x.zone].c.l > 0.65 ? '#000b' : '#fffb'},
@@ -1381,18 +1381,16 @@ export async function main() {
                         speed: Math.random() * 100,
                     },
                     stats: {
-                        power: {
-                            timeInZones: [
-                                {zone: 'Z1', time: 2 + 100 * Math.random()},
-                                {zone: 'Z2', time: 2 + 100 * Math.random()},
-                                {zone: 'Z3', time: 2 + 100 * Math.random()},
-                                {zone: 'Z4', time: 2 + 100 * Math.random()},
-                                {zone: 'Z5', time: 2 + 100 * Math.random()},
-                                {zone: 'Z6', time: 2 + 100 * Math.random()},
-                                {zone: 'Z7', time: 2 + 100 * Math.random()},
-                                //{zone: 'SS', time: 2 + 100 * Math.random()},
-                            ]
-                        }
+                        timeInPowserZones: [
+                            {zone: 'Z1', time: 2 + 100 * Math.random()},
+                            {zone: 'Z2', time: 2 + 100 * Math.random()},
+                            {zone: 'Z3', time: 2 + 100 * Math.random()},
+                            {zone: 'Z4', time: 2 + 100 * Math.random()},
+                            {zone: 'Z5', time: 2 + 100 * Math.random()},
+                            {zone: 'Z6', time: 2 + 100 * Math.random()},
+                            {zone: 'Z7', time: 2 + 100 * Math.random()},
+                            //{zone: 'SS', time: 2 + 100 * Math.random()},
+                        ]
                     }
                 });
                 if (x.backgroundRender || !x._contentEl.classList.contains('hidden')) {
