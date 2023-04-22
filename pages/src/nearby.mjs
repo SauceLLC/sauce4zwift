@@ -17,6 +17,9 @@ let table;
 let tbody;
 let theadRow;
 let gameConnection;
+let filters = [];
+const filtersRaw = common.settingsStore.get('filtersRaw');
+
 
 common.settingsStore.setDefault({
     autoscroll: true,
@@ -426,6 +429,19 @@ const fieldGroups = [{
 }];
 
 
+function onFilterInput(ev) {
+    const f = ev.currentTarget.value;
+    filters = parseFilters(f);
+    renderData(nearbyData);
+    common.settingsStore.set('filtersRaw', f);
+}
+
+
+function parseFilters(raw) {
+    return raw.split('|').map(x => x.toLowerCase()).filter(x => x.length);
+}
+
+
 export async function main() {
     common.initInteractionListeners();
     common.initNationFlags();  // bg okay
@@ -527,6 +543,12 @@ export async function main() {
             }
         }
     });
+    const filterInput = document.querySelector('input[name="filter"]');
+    if (filtersRaw) {
+        filterInput.value = filtersRaw;
+        filters = parseFilters(filtersRaw);
+    }
+    filterInput.addEventListener('input', onFilterInput);
     setRefresh();
     let lastRefresh = 0;
     common.subscribe('nearby', data => {
@@ -622,6 +644,7 @@ function updateTableRow(row, info) {
         row.dataset.id = info.athleteId;
     }
     const tds = row.querySelectorAll('td');
+    let unfiltered = !filters.length;
     for (const [i, {id, get, fmt}] of enFields.entries()) {
         let value;
         try {
@@ -634,9 +657,19 @@ function updateTableRow(row, info) {
         if (td._html !== html) {
             td.innerHTML = (td._html = html);
         }
+        if (!unfiltered) {
+            unfiltered = filters.some(x => ('' + value).toLowerCase().indexOf(x) !== -1);
+        }
         gentleClassToggle(td, 'sorted', sortBy === id);
     }
     gentleClassToggle(row, 'hidden', false);
+    gentleClassToggle(row, 'filtered', !unfiltered);
+}
+
+
+function disableRow(row) {
+    gentleClassToggle(row, 'hidden', true);
+    gentleClassToggle(row, 'filtered', false);
 }
 
 
@@ -679,7 +712,7 @@ function renderData(data, {recenter}={}) {
         }
     }
     while (row.previousElementSibling) {
-        gentleClassToggle(row = row.previousElementSibling, 'hidden', true);
+        disableRow(row = row.previousElementSibling);
     }
     row = watchingRow;
     for (let i = centerIdx + 1; i < data.length; i++) {
@@ -687,7 +720,7 @@ function renderData(data, {recenter}={}) {
         updateTableRow(row, data[i]);
     }
     while (row.nextElementSibling) {
-        gentleClassToggle(row = row.nextElementSibling, 'hidden', true);
+        disableRow(row = row.nextElementSibling);
     }
     if ((!frames++ || recenter) && common.settingsStore.get('autoscroll')) {
         requestAnimationFrame(() => {

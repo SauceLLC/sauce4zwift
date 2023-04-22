@@ -123,7 +123,8 @@ table {
             color: color.shade(primary, 100%);
         }
 
-        &.hidden {
+        &.hidden,
+        &.filtered {
             display: none;
         }
 
