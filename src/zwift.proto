@@ -521,6 +521,7 @@ enum PlayerType {
     ZAC = 7;
     PRO_TRIATHLETE = 8;
     PRO_RUNNER = 9;
+    PACER_BOT = 10;
 }
 
 enum PowerType {
