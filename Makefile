@@ -132,4 +132,7 @@ else
 	-rm -fo -ErrorAction SilentlyContinue $(BUILD)
 endif
 
-.PHONY: build pack publish lint sass deps clean
+test:
+	npm run test
+
+.PHONY: build pack publish lint sass deps clean test

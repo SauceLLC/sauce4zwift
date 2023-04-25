@@ -18,6 +18,22 @@ export const protos = protobuf.loadSync([path.join(__dirname, 'zwift.proto')]).r
 protobuf.parse.defaults.keepCase = _case;
 
 
+function fmtTime(ms) {
+    if (isNaN(ms)) {
+        return ms;
+    }
+    const sign = ms < 0 ? '-' : '';
+    ms = Math.abs(ms);
+    if (ms > 60000) {
+        return `${sign}${ms / 60000 | 0}m, ${Math.round(ms % 60000 / 1000)}s`;
+    } else if (ms > 1000) {
+        return `${sign}${(ms % 60000 / 1000).toFixed(1)}s`;
+    } else {
+        return `${sign}${Math.round(ms)}ms`;
+    }
+}
+
+
 class WorldTime extends events.EventEmitter {
     constructor() {
         super();
@@ -305,7 +321,7 @@ export class ZwiftAPI {
 
     _schedRefresh(delay) {
         clearTimeout(this._nextRefresh);
-        console.debug(`Refresh Zwift token in: ${delay / 1000 | 0}s`);
+        console.debug('Refresh Zwift token in:', fmtTime(delay));
         this._nextRefresh = setTimeout(this._refreshToken.bind(this), Math.min(0x7fffffff, delay));
     }
 
@@ -418,6 +434,8 @@ export class ZwiftAPI {
             protobuf: 'HashSeeds',
             ...options
         }));
+        // I suspect x.expiryDate could be NaN and breaking things but not sure why yet
+        console.warn("XXX:", data.seeds);
         return Array.from(data.seeds).map(x => ({
             expiresWorldTime: x.expiryDate.toNumber(),
             nonce: seedToBuffer(x.nonce),
@@ -1243,16 +1261,17 @@ export class GameMonitor extends events.EventEmitter {
             this._session.tcpChannel.toString() :
             'none';
         const pad = '    ';
-        const lgs = this._lastGameStateUpdated ? (Date.now() - this._lastGameStateUpdated | 0) : '- ';
-        const lws = this._lastWatchingStateUpdated ? (Date.now() - this._lastWatchingStateUpdated | 0) : '- ';
+        const now = Date.now();
+        const lgs = this._lastGameStateUpdated ? now - this._lastGameStateUpdated : '-';
+        const lws = this._lastWatchingStateUpdated ? now - this._lastWatchingStateUpdated : '-';
         return `GameMonitor [game-id: ${this.gameAthleteId}, monitor-id: ${this.athleteId}]\n${pad}` + [
             `course-id:            ${this.courseId}`,
             `watching-id:          ${this.watchingAthleteId}`,
-            `connect-duration:     ${(Date.now() - this.connectingTS) / 1000 | 0}s`,
+            `connect-duration:     ${fmtTime(Date.now() - this.connectingTS)}`,
             `connect-count:        ${this.connectingCount}`,
-            `last-game-state:      ${lgs}ms ago`,
-            `last-watching-state:  ${lws}ms ago`,
-            `state-refresh-delay:  ${this._stateRefreshDelay | 0}ms`,
+            `last-game-state:      ${fmtTime(lgs)} ago`,
+            `last-watching-state:  ${fmtTime(lws)} ago`,
+            `state-refresh-delay:  ${fmtTime(this._stateRefreshDelay)}`,
             `tcp-channel:`,        `${pad}${tcpCh}`,
             `udp-channels:`,       `${pad}${this._udpChannels.map(x => x.toString()).join(`\n${pad}${pad}`)}`,
         ].join('\n    ');
@@ -1265,21 +1284,28 @@ export class GameMonitor extends events.EventEmitter {
             pb: protos.LoginRequest.encode({aesKey}),
             protobuf: 'LoginResponse',
         });
-        const expiresMonotonic = Date.now() + (login.expiration * 60 * 1000);
+        const expires = Date.now() + (login.expiration * 60 * 1000);
         await sleep(1000); // No joke this is required (100ms works about 50% of the time)
         return {
             aesKey,
             relayId: login.relaySessionId,
             tcpServers: login.session.tcpConfig.servers,
-            expiresMonotonic,
+            expires,
         };
     }
 
     async getRandomAthleteId(courseId) {
         const worlds = (await this.api.getDropInWorldList()).filter(x =>
             x.others.length && (typeof courseId !== 'number' || x.courseId === courseId));
-        const world = worlds[Math.random() * worlds.length | 0];
-        return world ? world.others[Math.random() * world.others.length | 0].athleteId : null;
+        for (let i = 0, start = Math.random() * worlds.length | 0; i < worlds.length; i++) {
+            const w = worlds[(i + start) % worlds.length];
+            const athletes = [].concat(w.others, w.followees, w.pacerBots, w.proPlayers).filter(x => x);
+            athletes.sort((a, b) => b.power - a.power);
+            const a = athletes[0];
+            if (a && a.power) {
+                return a.athleteId;
+            }
+        }
     }
 
     async initPlayerState() {
@@ -1316,9 +1342,9 @@ export class GameMonitor extends events.EventEmitter {
         }
         if (!delay) {
             const lastHashExpires = this._hashSeeds.at(-1).expiresWorldTime;
-            delay = (lastHashExpires - worldTime.now()) / 2;
+            delay = Math.max(100, ((lastHashExpires - worldTime.now()) / 2) || 0);
         }
-        console.info(`Next hash seeds refresh: ${delay / 1000 | 0}s`);
+        console.info('Next hash seeds refresh:', fmtTime(delay));
         this._refreshHashSeedsTimeout = setTimeout(this._refreshHashSeeds.bind(this), delay);
     }
 
@@ -1454,13 +1480,17 @@ export class GameMonitor extends events.EventEmitter {
         }
         const hashSeed = this._hashSeeds.at(-1);
         const hashSeedRemaining = hashSeed.expiresWorldTime - worldTime.now();
-        const sessionRemaining = this._session.expiresMonotonic - Date.now();
+        const sessionRemaining = this._session.expires - Date.now();
         const expiresIn = Math.min(
             hashSeedRemaining - 120 * 1000,
             sessionRemaining - this._sessionRestartSlack / 2);
-        if (expiresIn < 0) {
+        if (!expiresIn || expiresIn < 0) {
+            // XXX I'm seeing this condition happen.  Possibly we are getting corrupted hash seeds
+            // due to being kicked. Or possibly corrupted because I was not cleaning up tcp channels
+            // immediately (but am now).  Keep eyes on this..
+            //
             // Internal error
-            console.error('Expired session or hash seeds:', expiresIn, hashSeedRemaining, sessionRemaining);
+            console.error('Expired session or hash seeds:', {expiresIn, hashSeedRemaining, sessionRemaining});
             throw new TypeError('Expired session or hash seeds');
         }
         const ch = new UDPChannel({
@@ -1471,7 +1501,7 @@ export class GameMonitor extends events.EventEmitter {
             hashSeed,
             isDirect,
         });
-        console.info(`Making new: ${ch} [expires in: ${expiresIn / 1000 | 0}s]`);
+        console.info(`Making new: ${ch} [expires in: ${fmtTime(expiresIn)}]`);
         const expireTimeout = setTimeout(() => ch.shutdown(), expiresIn);
         ch.on('shutdown', () => {
             console.info("Shutdown:", ch.toString());
@@ -1505,7 +1535,7 @@ export class GameMonitor extends events.EventEmitter {
         this.disconnect();
         const backoffCount = this.connectingCount + this._errCount;
         const delay = Math.max(1000, (backoffCount * 1000) - (Date.now() - this.connectingTS));
-        console.warn(`Next connect retry: ${delay / 1000 | 0}s`);
+        console.warn('Next connect retry:', fmtTime(delay));
         this._connectRetryTimeout = setTimeout(this.connect.bind(this), delay);
     }
 
@@ -1527,11 +1557,23 @@ export class GameMonitor extends events.EventEmitter {
         if (udpServersPending) {
             await Promise.race([error, udpServersPending]);
         }
-        clearTimeout(this._sessionTimeout);
-        this._session = session;
-        const renewDelay = session.expiresMonotonic - Date.now() - this._sessionRestartSlack;
-        console.info(`Session renewal scheduled for: ${renewDelay / 1000 | 0}s`);
+        error.catch(() => void 0);
+        const old = this._session;
+        this._session = null;
+        if (old) {
+            clearTimeout(this._sessionTimeout);
+            if (old.tcpChannel) {
+                try {
+                    old.tcpChannel.shutdown();
+                } catch(e) {
+                    console.error(e); // A little extra paranoid for now.
+                }
+            }
+        }
+        const renewDelay = session.expires - Date.now() - this._sessionRestartSlack;
+        console.info('Session renewal scheduled for:', fmtTime(renewDelay));
         this._sessionTimeout = setTimeout(this.renewSession.bind(this), renewDelay);
+        this._session = session;
         if (!this.suspended && this.courseId) {
             this.setUDPChannel();
         } else {
@@ -1631,14 +1673,12 @@ export class GameMonitor extends events.EventEmitter {
         }
         const state = await this.api.getPlayerState(this.gameAthleteId);
         if (!state) {
-            if (age > 15 * 1000) {
-                if (this.randomWatch != null) {
-                    this.gameAthleteId = await this.getRandomAthleteId(this.randomWatch);
-                    console.info("Switching to new random athlete:", this.gameAthleteId);
-                } else {
-                    // Stop harassing the UDP channel..
-                    this.suspend();
-                }
+            if (this.randomWatch != null) {
+                this.gameAthleteId = await this.getRandomAthleteId(this.randomWatch);
+                console.info("Switching to new random athlete:", this.gameAthleteId);
+            } else if (age > 15 * 1000) {
+                // Stop harassing the UDP channel..
+                this.suspend();
             }
         } else {
             // The stats proc works better with these being recently available.
@@ -1851,7 +1891,7 @@ export class GameMonitor extends events.EventEmitter {
         const connectTime = Date.now() - this.connectingTS;
         const active = state._speed || state.power || state._cadenceUHz;
         if (age > 3000 && connectTime > 30000 && active) {
-            console.warn(`Slow watching state update: ${age}ms`, state);
+            console.warn(`Slow watching state update: ${fmtTime(age)}`, state);
         }
     }
 

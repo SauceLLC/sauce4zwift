@@ -17,6 +17,9 @@ let table;
 let tbody;
 let theadRow;
 let gameConnection;
+let filters = [];
+const filtersRaw = common.settingsStore.get('filtersRaw');
+
 
 common.settingsStore.setDefault({
     autoscroll: true,
@@ -77,14 +80,7 @@ const lazyGetRoute = makeLazyGetter(id => common.rpc.getRoute(id));
 
 
 function fmtDist(v) {
-    if (v == null || v === Infinity || v === -Infinity || isNaN(v)) {
-        return '-';
-    } else if (Math.abs(v) < 1000) {
-        const suffix = imperial ? 'ft' : 'm';
-        return H.number(imperial ? v / L.metersPerFoot : v, {suffix, html: true});
-    } else {
-        return H.distance(v, {precision: 1, suffix: true, html: true});
-    }
+    return H.distance(v, {suffix: true, html: true});
 }
 
 
@@ -233,7 +229,7 @@ const fieldGroups = [{
         {id: 'rideons', defaultEn: false, label: 'Ride Ons', headerLabel: '<ms>thumb_up</ms>',
          get: x => x.state.rideons, fmt: H.number},
         {id: 'kj', defaultEn: false, label: 'Energy (kJ)', headerLabel: 'kJ', get: x => x.state.kj, fmt: kj},
-        {id: 'wprimebal', defaultEn: false, label: 'W\'bal', get: x => x.stats.power.wBal,
+        {id: 'wprimebal', defaultEn: false, label: 'W\'bal', get: x => x.stats.wBal,
          tooltip: "W' and W'bal represent time above threshold and remaining energy respectively.\n" +
          "Think of the W'bal value as the amount of energy in a battery.",
          fmt: (x, entry) => (x != null && entry.athlete && entry.athlete.wPrime) ?
@@ -363,19 +359,19 @@ const fieldGroups = [{
     label: 'Draft',
     fields: [
         {id: 'draft', defaultEn: false, label: 'Current Draft', headerLabel: 'Draft',
-         get: x => x.state.draft, fmt: pct},
+         get: x => x.state.draft, fmt: pwr},
         {id: 'draft-60s', defaultEn: false, label: '1 min average', headerLabel: 'Draft (1m)',
-         get: x => x.stats.draft.smooth[60], fmt: pct},
+         get: x => x.stats.draft.smooth[60], fmt: pwr},
         {id: 'draft-300s', defaultEn: false, label: '5 min average', headerLabel: 'Draft (5m)',
-         get: x => x.stats.draft.smooth[300], fmt: pct},
+         get: x => x.stats.draft.smooth[300], fmt: pwr},
         {id: 'draft-1200s', defaultEn: false, label: '20 min average', headerLabel: 'Draft (20m)',
-         get: x => x.stats.draft.smooth[1200], fmt: pct},
+         get: x => x.stats.draft.smooth[1200], fmt: pwr},
         {id: 'draft-avg', defaultEn: false, label: 'Total Average', headerLabel: 'Draft (avg)',
-         get: x => x.stats.draft.avg, fmt: pct},
+         get: x => x.stats.draft.avg, fmt: pwr},
         {id: 'draft-lap', defaultEn: false, label: 'Lap Average', headerLabel: 'Draft (lap)',
-         get: x => x.lap.draft.avg, fmt: pct},
+         get: x => x.lap.draft.avg, fmt: pwr},
         {id: 'draft-last-lap', defaultEn: false, label: 'Last Lap Average', headerLabel: 'Draft (last)',
-         get: x => x.lastLap ? x.lastLap.draft.avg : null, fmt: pct},
+         get: x => x.lastLap ? x.lastLap.draft.avg : null, fmt: pwr},
     ],
 
 }, {
@@ -431,6 +427,19 @@ const fieldGroups = [{
          get: x => x.eventSweeper, fmt: x => x ? '<ms style="color: darkred">mop</ms>' : ''},
     ],
 }];
+
+
+function onFilterInput(ev) {
+    const f = ev.currentTarget.value;
+    filters = parseFilters(f);
+    renderData(nearbyData);
+    common.settingsStore.set('filtersRaw', f);
+}
+
+
+function parseFilters(raw) {
+    return raw.split('|').map(x => x.toLowerCase()).filter(x => x.length);
+}
 
 
 export async function main() {
@@ -534,6 +543,12 @@ export async function main() {
             }
         }
     });
+    const filterInput = document.querySelector('input[name="filter"]');
+    if (filtersRaw) {
+        filterInput.value = filtersRaw;
+        filters = parseFilters(filtersRaw);
+    }
+    filterInput.addEventListener('input', onFilterInput);
     setRefresh();
     let lastRefresh = 0;
     common.subscribe('nearby', data => {
@@ -629,6 +644,7 @@ function updateTableRow(row, info) {
         row.dataset.id = info.athleteId;
     }
     const tds = row.querySelectorAll('td');
+    let unfiltered = !filters.length;
     for (const [i, {id, get, fmt}] of enFields.entries()) {
         let value;
         try {
@@ -641,9 +657,19 @@ function updateTableRow(row, info) {
         if (td._html !== html) {
             td.innerHTML = (td._html = html);
         }
+        if (!unfiltered) {
+            unfiltered = filters.some(x => ('' + value).toLowerCase().indexOf(x) !== -1);
+        }
         gentleClassToggle(td, 'sorted', sortBy === id);
     }
     gentleClassToggle(row, 'hidden', false);
+    gentleClassToggle(row, 'filtered', !unfiltered);
+}
+
+
+function disableRow(row) {
+    gentleClassToggle(row, 'hidden', true);
+    gentleClassToggle(row, 'filtered', false);
 }
 
 
@@ -686,7 +712,7 @@ function renderData(data, {recenter}={}) {
         }
     }
     while (row.previousElementSibling) {
-        gentleClassToggle(row = row.previousElementSibling, 'hidden', true);
+        disableRow(row = row.previousElementSibling);
     }
     row = watchingRow;
     for (let i = centerIdx + 1; i < data.length; i++) {
@@ -694,7 +720,7 @@ function renderData(data, {recenter}={}) {
         updateTableRow(row, data[i]);
     }
     while (row.nextElementSibling) {
-        gentleClassToggle(row = row.nextElementSibling, 'hidden', true);
+        disableRow(row = row.nextElementSibling);
     }
     if ((!frames++ || recenter) && common.settingsStore.get('autoscroll')) {
         requestAnimationFrame(() => {

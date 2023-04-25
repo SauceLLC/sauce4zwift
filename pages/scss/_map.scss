@@ -98,15 +98,15 @@
                     --sparkle-color: #ae45da91;
                 }
 
-                &.following {
+                &.bot {
                     --priority: 10;
-                    font-size: $size * 1.3;
-                    border-width: $border-size * 1.5;
-                    --fill: color.get(marked, 0.8);
-                    border-color: color.shade(marked, 100%);
+                    font-size: $size * 1.2;
+                    border-width: $border-size * 1.25;
+                    //--fill: gold; // XXX
+                    border-color: gold; // XXX
                 }
 
-                &.marked {
+                &.following {
                     --priority: 20;
                     font-size: $size * 1.3;
                     border-width: $border-size * 1.5;
@@ -114,8 +114,16 @@
                     border-color: color.shade(marked, 100%);
                 }
 
-                &.sweeper {
+                &.marked {
                     --priority: 30;
+                    font-size: $size * 1.3;
+                    border-width: $border-size * 1.5;
+                    --fill: color.get(marked, 0.8);
+                    border-color: color.shade(marked, 100%);
+                }
+
+                &.sweeper {
+                    --priority: 40;
                     font-size: $size * 1.2;
                     border-width: $border-size * 1.25;
                     --fill: #f1262675;
@@ -123,7 +131,7 @@
                 }
 
                 &.leader {
-                    --priority: 40;
+                    --priority: 50;
                     font-size: $size * 1.2;
                     border-width: $border-size * 1.25;
                     --fill: #ffd91f8c;
@@ -131,7 +139,7 @@
                 }
 
                 &.watching {
-                    --priority: 50;
+                    --priority: 60;
                     font-size: $size * 1.3;
                     border-width: $border-size * 1.1;
                     --fill: #3162ffcc;
@@ -139,7 +147,7 @@
                 }
 
                 &.self {
-                    --priority: 60;
+                    --priority: 70;
                     font-size: $size * 1.5;
                     border-width: $border-size * 1.1;
                     --fill: #f22c;
@@ -147,24 +155,24 @@
                 }
 
                 &:hover {
-                    --priority: 70;
+                    --priority: 80;
                     opacity: 1;
                 }
             }
         }
 
         > svg.roads {
-            .gutter, .surface {
+            .road {
                 fill: none;
                 stroke-linecap: round;
             }
 
-            .gutter {
+            .gutters .road {
                 stroke: #000a;
                 stroke-width: 32px;
             }
 
-            .surface {
+            .surfaces .road {
                 stroke-width: 22px;
                 stroke: #e9e9e9;
 

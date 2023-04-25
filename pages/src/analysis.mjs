@@ -1,5 +1,11 @@
 import * as sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
+import * as charts from './charts.mjs';
+import * as echarts from '../deps/src/echarts.mjs';
+import * as theme from './echarts-sauce-theme.mjs';
+import * as map from './map.mjs';
+
+echarts.registerTheme('sauce', theme.getTheme('dynamic'));
 
 common.settingsStore.setDefault({
     preferWkg: false,
@@ -10,6 +16,8 @@ let athlete;
 let laps;
 let segments;
 let streams;
+let nations;
+let flags;
 const settings = common.settingsStore.get();
 const H = sauce.locale.human;
 const q = new URLSearchParams(location.search);
@@ -23,7 +31,7 @@ const lineChartFields = [{
     color: '#46f',
     domain: [0, 700],
     rangeAlpha: [0.4, 1],
-    fmt: x => H.power(x, {seperator: ' ', suffix: true}),
+    fmt: x => H.power(x, {separator: ' ', suffix: true}),
 }, {
     id: 'hr',
     stream: 'hr',
@@ -39,7 +47,7 @@ const lineChartFields = [{
     color: '#4e3',
     domain: [0, 100],
     rangeAlpha: [0.1, 0.8],
-    fmt: x => H.pace(x, {suffix: true, seperator: ' '}),
+    fmt: x => H.pace(x, {suffix: true, separator: ' '}),
 }, {
     id: 'cadence',
     stream: 'cadence',
@@ -55,8 +63,25 @@ const lineChartFields = [{
     color: '#e88853',
     domain: [0, 300],
     rangeAlpha: [0.1, 0.9],
-    fmt: x => H.number(x, {suffix: ' %'}),
+    fmt: x => H.power(x, {separator: ' ', suffix: true}),
 }];
+
+
+async function exportFITActivity(name) {
+    const fitData = await common.rpc.exportFIT(athleteId);
+    const f = new File([new Uint8Array(fitData)], `${name}.fit`, {type: 'application/binary'});
+    const l = document.createElement('a');
+    l.download = f.name;
+    l.style.display = 'none';
+    l.href = URL.createObjectURL(f);
+    try {
+        document.body.appendChild(l);
+        l.click();
+    } finally {
+        URL.revokeObjectURL(l.href);
+        l.remove();
+    }
+}
 
 
 function getLapStream(stream, lap) {
@@ -65,18 +90,18 @@ function getLapStream(stream, lap) {
 }
 
 
-let _themeRegistered = 0;
-async function createLineChart(el, lap) {
+async function createZwiftMap() {
+    const worldList = await common.getWorldList();
+    const zm = new map.SauceZwiftMap({
+        el: document.querySelector('#map'),
+        worldList,
+    });
+    zm.setCourse(6);
+}
+
+
+function createLineChart(el, lap) {
     const timeStream = getLapStream('time', lap);
-    const [charts, echarts, theme] = await Promise.all([
-        import('./charts.mjs'),
-        import('../deps/src/echarts.mjs'),
-        import('./echarts-sauce-theme.mjs'),
-    ]);
-    if (!_themeRegistered++) {
-        echarts.registerTheme('sauce', theme.getTheme('dynamic'));
-        addEventListener('resize', resizeCharts);
-    }
     const fields = lineChartFields.filter(x => settings[x.id + 'En'] !== false);
     const lineChart = echarts.init(el, 'sauce', {renderer: 'svg'});
     const visualMapCommon = {
@@ -172,7 +197,7 @@ async function onLapExpand(row, summaryRow) {
     const lap = laps[Number(summaryRow.dataset.lap)];
     const detailTpl = await sauce.template.getTemplate(`templates/analysis/lap-details.html.tpl`);
     row.append(await detailTpl({lap}));
-    await createLineChart(row.querySelector('.chart-holder .chart'), lap);
+    createLineChart(row.querySelector('.chart-holder .chart'), lap);
 }
 
 
@@ -180,7 +205,7 @@ async function onSegmentExpand(row, summaryRow) {
     const segment = segments[Number(summaryRow.dataset.segment)];
     const detailTpl = await sauce.template.getTemplate(`templates/analysis/segment-details.html.tpl`);
     row.append(await detailTpl({segment}));
-    await createLineChart(row.querySelector('.chart-holder .chart'), segment);
+    createLineChart(row.querySelector('.chart-holder .chart'), segment);
 }
 
 
@@ -191,20 +216,30 @@ function onLapCollapse() {
 
 export async function main() {
     common.initInteractionListeners();
+    addEventListener('resize', resizeCharts);
     let mainTpl;
-    [stats, laps, segments, streams, mainTpl] = await Promise.all([
+    [stats, laps, segments, streams, mainTpl, {nations, flags}] = await Promise.all([
         common.rpc.getAthleteData(athleteId),
         common.rpc.getAthleteLaps(athleteId),
         common.rpc.getAthleteSegments(athleteId),
         common.rpc.getAthleteStreams(athleteId),
         sauce.template.getTemplate(`templates/analysis/main.html.tpl`),
+        common.initNationFlags(),
     ]);
     athlete = stats && stats.athlete;
+    if (stats) {
+        const exportBtn = document.querySelector('.button.export-file');
+        const started = new Date(Date.now() - stats.stats.elapsedTime * 1000);
+        const name = `${athlete ? athlete.fLast : athleteId} - ${started.toLocaleString()}`;
+        exportBtn.addEventListener('click', () => exportFITActivity(name));
+        exportBtn.removeAttribute('disabled');
+    }
     const contentEl = await render(mainTpl);
     if (athlete) {
         common.initExpanderTable(contentEl.querySelector('table.laps'), onLapExpand, onLapCollapse);
         common.initExpanderTable(contentEl.querySelector('table.segments'), onSegmentExpand, onLapCollapse);
-        await createLineChart(contentEl.querySelector('section.summary .chart-holder .chart'), stats);
+        createLineChart(contentEl.querySelector('section.summary .chart-holder .chart'), stats);
+        await createZwiftMap();
     }
 }
 
@@ -218,10 +253,12 @@ async function render(tpl) {
         segments,
         streams,
         settings,
+        nations,
+        flags,
+        common,
     });
     const contentEl = document.querySelector('#content');
-    contentEl.innerHTML = '';
-    contentEl.append(frag);
+    contentEl.replaceChildren(frag);
     return contentEl;
 }
 

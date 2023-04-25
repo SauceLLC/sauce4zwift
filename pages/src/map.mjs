@@ -43,9 +43,9 @@ function controlPoint(cur, prev, next, reverse, smoothing) {
 }
 
 
-function smoothPath(points, {looped, smoothing=0.2}={}) {
+function smoothPath(points, {loop, smoothing=0.2}={}) {
     const path = ['M' + points[0].join()];
-    if (looped) {
+    if (loop) {
         for (let i = 1; i < points.length + 1; i++) {
             const prevPrev = points.at(i - 2);
             const prev = points.at(i - 1);
@@ -88,12 +88,18 @@ class Transition {
         this.playing = false;
     }
 
+    now() {
+        return performance.now();
+    }
+
     incDisabled() {
         this._disabledRefCnt++;
-        this.disabled = true;
-        this.playing = false;
-        this._startTime = 0;
-        this._endTime = 0;
+        if (this._disabledRefCnt === 1) {
+            this.disabled = true;
+            this.playing = false;
+            this._dst = Array.from(this._cur);
+            this._startTime = this._endTime = 0;
+        }
     }
 
     decDisabled() {
@@ -101,7 +107,15 @@ class Transition {
         if (this._disabledRefCnt < 0) {
             throw new Error("Transition disabled refcnt < 0");
         }
-        this.disabled = !!this._disabledRefCnt;
+        if (this._disabledRefCnt === 0) {
+            this.disabled = false;
+            if (this.playing && this._remainingTime) {
+                const now = this.now();
+                this._startTime = now;
+                this._endTime = now + this._remainingTime;
+            }
+            this._remainingTime = null;
+        }
     }
 
     setDuration(duration) {
@@ -110,7 +124,7 @@ class Transition {
             if (this.playing) {
                 // Prevent jitter by forwarding the current transition.
                 this._src = Array.from(this._cur);
-                this._startTime = performance.now();
+                this._startTime = this.now();
                 this._endTime += duration - this.duration;
             }
         }
@@ -120,7 +134,7 @@ class Transition {
     setValues(values) {
         if (!this.disabled) {
             if (this._dst) {
-                const now = performance.now();
+                const now = this.now();
                 if (now < this._endTime) {
                     // Start from current position (and prevent Zeno's paradaox)
                     this._recalcCurrent();
@@ -154,7 +168,7 @@ class Transition {
     }
 
     _recalcCurrent() {
-        const now = performance.now();
+        const now = this.now();
         const progress = (now - this._startTime) / (this._endTime - this._startTime);
         if (progress >= 1 || this.disabled) {
             if (this._dst) {
@@ -173,8 +187,9 @@ class Transition {
 
 export class SauceZwiftMap extends EventTarget {
     constructor({el, worldList, zoom=1, zoomMin=0.25, zoomMax=4.5, autoHeading=true,
-                 style='default', opacity=1, tiltShift=null, maxTiltShiftAngle=60,
-                 sparkle=false, quality=1, verticalOffset=0, fpsLimit=60}) {
+                 style='default', opacity=1, tiltShift=null, maxTiltShiftAngle=65,
+                 sparkle=false, quality=1, verticalOffset=0, fpsLimit=60,
+                 zoomPriorityTilt=true}) {
         super();
         el.classList.add('sauce-map-container');
         this.el = el;
@@ -224,7 +239,15 @@ export class SauceZwiftMap extends EventTarget {
             ents: createElement('div', {class: 'entities'}),
             pins: createElement('div', {class: 'pins'}),
             roads: createElementSVG('svg', {class: 'roads'}),
+            roadLayers: {
+                defs: createElementSVG('defs'),
+                gutters: createElementSVG('g', {class: 'gutters'}),
+                surfacesLow: createElementSVG('g', {class: 'surfaces low'}),
+                surfacesMid: createElementSVG('g', {class: 'surfaces mid'}),
+                surfacesHigh: createElementSVG('g', {class: 'suffaces high'}),
+            }
         };
+        this._elements.roads.append(...Object.values(this._elements.roadLayers));
         this._elements.map.append(this._elements.mapCanvas, this._elements.roads,
                                   this._elements.ents);
         this.el.addEventListener('wheel', this._onWheelZoom.bind(this));
@@ -236,6 +259,7 @@ export class SauceZwiftMap extends EventTarget {
         this.setStyle(style);
         this.setOpacity(opacity);
         this.setTiltShift(tiltShift);
+        this.setZoomPriorityTilt(zoomPriorityTilt);
         this.setSparkle(sparkle);
         this.setQuality(quality);
         this.setVerticalOffset(verticalOffset);
@@ -278,7 +302,11 @@ export class SauceZwiftMap extends EventTarget {
     setTiltShift(v) {
         v = v || null;
         this._tiltShift = v;
-        this._tiltShiftNorm = v ? (1 / this.zoomMax) * v * this.maxTiltShiftAngle : null;
+        this._fullUpdateAsNeeded();
+    }
+
+    setZoomPriorityTilt(en) {
+        this._zoomPrioTilt = en;
         this._fullUpdateAsNeeded();
     }
 
@@ -345,7 +373,6 @@ export class SauceZwiftMap extends EventTarget {
         if (ev.button !== 0 || (state.ev1 && state.ev2)) {
             return;
         }
-        this.trackingPaused = true;
         if (state.ev1) {
             state.ev2 = ev;
             this.el.classList.remove('moving');
@@ -356,8 +383,7 @@ export class SauceZwiftMap extends EventTarget {
         } else {
             state.ev1 = ev;
         }
-        this.el.classList.add('moving');
-        this._mapTransition.incDisabled();
+        state.active = false;
         state.lastX  = ev.pageX;
         state.lastY = ev.pageY;
         document.addEventListener('pointermove', this._onPointerMoveBound);
@@ -388,43 +414,63 @@ export class SauceZwiftMap extends EventTarget {
 
     _onPointerMove(ev) {
         const state = this._pointerState;
+        if (!state.active) {
+            state.active = true;
+            this.trackingPaused = true;
+            this.el.classList.add('moving');
+            this._mapTransition.incDisabled();
+        }
         if (!state.ev2) {
-            cancelAnimationFrame(state.nextAnimFrame);
-            state.nextAnimFrame = requestAnimationFrame(() => {
-                const deltaX = ev.pageX - state.lastX;
-                const deltaY = ev.pageY - state.lastY;
-                state.lastX = ev.pageX;
-                state.lastY = ev.pageY;
-                const x = this._dragXY[0] + (deltaX / this.zoom);
-                const y = this._dragXY[1] + (deltaY / this.zoom);
-                this.setDragOffset(x, y);
-            });
+            this._handlePointerDragEvent(ev, state);
         } else {
-            let otherEvent;
-            if (ev.pointerId === state.ev1.pointerId) {
-                otherEvent = state.ev2;
-                state.ev1 = ev;
-            } else if (ev.pointerId === state.ev2.pointerId) {
-                otherEvent = state.ev1;
-                state.ev2 = ev;
-            } else {
-                // third finger, ignore
-                return;
-            }
-            const distance = Math.sqrt(
-                (ev.pageX - otherEvent.pageX) ** 2 +
-                (ev.pageY - otherEvent.pageY) ** 2);
-            const deltaDistance = distance - state.lastDistance;
-            state.lastDistance = distance;
-            this._adjustZoom(deltaDistance / 600);
-            requestAnimationFrame(() => this._applyZoom());
+            this._handlePointerPinchEvent(ev, state);
         }
     }
 
+    _handlePointerDragEvent(ev, state) {
+        cancelAnimationFrame(state.nextAnimFrame);
+        state.nextAnimFrame = requestAnimationFrame(() => {
+            const deltaX = ev.pageX - state.lastX;
+            const deltaY = ev.pageY - state.lastY;
+            state.lastX = ev.pageX;
+            state.lastY = ev.pageY;
+            const x = this._dragXY[0] + (deltaX / this.zoom);
+            const y = this._dragXY[1] + (deltaY / this.zoom);
+            this.setDragOffset(x, y);
+        });
+    }
+
+    _handlePointerPinchEvent(ev, state) {
+        let otherEvent;
+        if (ev.pointerId === state.ev1.pointerId) {
+            otherEvent = state.ev2;
+            state.ev1 = ev;
+        } else if (ev.pointerId === state.ev2.pointerId) {
+            otherEvent = state.ev1;
+            state.ev2 = ev;
+        } else {
+            // third finger, ignore
+            return;
+        }
+        const distance = Math.sqrt(
+            (ev.pageX - otherEvent.pageX) ** 2 +
+            (ev.pageY - otherEvent.pageY) ** 2);
+        const deltaDistance = distance - state.lastDistance;
+        state.lastDistance = distance;
+        this._adjustZoom(deltaDistance / 600);
+        requestAnimationFrame(() => this._applyZoom());
+    }
+
     _onPointerDone(ev) {
-        this.el.classList.remove('moving');
-        this._mapTransition.decDisabled();
+        const state = this._pointerState;
+        if (state.active) {
+            this.el.classList.remove('moving');
+            this._mapTransition.decDisabled();
+            state.active = false;
+        }
         document.removeEventListener('pointermove', this._onPointerMoveBound);
+        document.removeEventListener('pointerup', this._onPointerDoneBound, {once: true});
+        document.removeEventListener('pointercancel', this._onPointerDoneBound, {once: true});
         this._pointerState.ev1 = this._pointerState.ev2 = null;
         this.trackingPaused = false;
     }
@@ -491,14 +537,20 @@ export class SauceZwiftMap extends EventTarget {
 
     async _setCourse(courseId) {
         this.courseId = courseId;
-        this.worldMeta = this.worldList.find(x => x.courseId === courseId);
-        const {minX, minY, tileScale, mapScale, anchorX, anchorY} = this.worldMeta;
-        this._mapScale = 1 / (tileScale / mapScale);
-        this._anchorXY[0] = -(minX + anchorX) * this._mapScale;
-        this._anchorXY[1] = -(minY + anchorY) * this._mapScale;
+        const m = this.worldMeta = this.worldList.find(x => x.courseId === courseId);
+        this._mapScale = 1 / (m.tileScale / m.mapScale);
+        this._anchorXY[0] = -(m.minX + m.anchorX) * this._mapScale;
+        this._anchorXY[1] = -(m.minY + m.anchorY) * this._mapScale;
+        Object.values(this._elements.roadLayers).forEach(x => x.replaceChildren());
+        this._elements.roads.setAttribute('viewBox', [
+            (m.minX + m.anchorX) * svgInternalScale,
+            (m.minY + m.anchorY) * svgInternalScale,
+            (m.maxX - m.minX) * svgInternalScale,
+            (m.maxY - m.minY) * svgInternalScale,
+        ].join(' '));
         this._setHeading(0);
         for (const x of this._ents.values()) {
-            x.remove();
+            x.el.remove();
         }
         this._ents.clear();
         this._athleteCache.clear();
@@ -512,12 +564,12 @@ export class SauceZwiftMap extends EventTarget {
     setWatching(id) {
         if (this.watchingId != null && this._ents.has(this.watchingId)) {
             const ent = this._ents.get(this.watchingId);
-            ent.classList.remove('watching');
+            ent.el.classList.remove('watching');
         }
         this.watchingId = id;
         if (id != null && this._ents.has(id)) {
             const ent = this._ents.get(id);
-            ent.classList.add('watching');
+            ent.el.classList.add('watching');
         }
         this.setDragOffset(0, 0);
     }
@@ -525,12 +577,12 @@ export class SauceZwiftMap extends EventTarget {
     setAthlete(id) {
         if (this.athleteId != null && this._ents.has(this.athleteId)) {
             const ent = this._ents.get(this.athleteId);
-            ent.classList.remove('self');
+            ent.el.classList.remove('self');
         }
         this.athleteId = id;
         if (id != null && this._ents.has(id)) {
             const ent = this._ents.get(id);
-            ent.classList.add('self');
+            ent.el.classList.add('self');
         }
     }
 
@@ -539,15 +591,26 @@ export class SauceZwiftMap extends EventTarget {
         return this.worldMeta.mapRotateHack ? [pos[1], -pos[0]] : pos;
     }
 
+    _createRoadPath(points, id, loop) {
+        const d = [];
+        for (const pos of points) {
+            const [x, y] = this._fixWorldPos(pos);
+            d.push([x * svgInternalScale, y * svgInternalScale]);
+        }
+        return createElementSVG('path', {
+            id: `road-path-${id}`,
+            d: smoothPath(d, {loop})
+        });
+    }
+
     _renderRoads(roads, ids) {
         ids = ids || Object.keys(roads);
-        const defs = createElementSVG('defs');
+        const {defs, surfacesLow, gutters} = this._elements.roadLayers;
         // Because roads overlap and we want to style some of them differently this
         // make multi-sport roads higher so we don't randomly style overlapping sections.
         ids.sort((a, b) =>
             (roads[a] ? roads[a].sports.length : 0) -
             (roads[b] ? roads[b].sports.length : 0));
-        const roadways = {gutter: [], surface: []};
         for (const id of ids) {
             const road = roads[id];
             if (!road) {
@@ -557,15 +620,7 @@ export class SauceZwiftMap extends EventTarget {
             if (!road.sports.includes('cycling') && !road.sports.includes('running')) {
                 continue;
             }
-            const d = [];
-            for (const pos of road.path) {
-                const [x, y] = this._fixWorldPos(pos);
-                d.push([x * svgInternalScale, y * svgInternalScale]);
-            }
-            const path = createElementSVG('path', {
-                id: `road-path-${id}`,
-                d: smoothPath(d, {looped: road.looped})
-            });
+            const path = this._createRoadPath(road.path, id, road.looped);
             const clip = createElementSVG('clipPath', {id: `road-clip-${id}`});
             let boxMin = this._fixWorldPos(road.boxMin);
             let boxMax = this._fixWorldPos(road.boxMax);
@@ -583,58 +638,78 @@ export class SauceZwiftMap extends EventTarget {
             });
             clip.append(clipBox);
             defs.append(path, clip);
-            for (const [key, arr] of Object.entries(roadways)) {
-                arr.push(createElementSVG('use', {
-                    "class": `${key} ${road.sports.map(x => 'sport-' + x).join(' ')}`,
-                    "data-road-id": id,
+            for (const g of [gutters, surfacesLow]) {
+                g.append(createElementSVG('use', {
+                    "class": road.sports.map(x => 'road sport-' + x).join(' '),
+                    "data-id": id,
                     "clip-path": `url(#road-clip-${id})`,
                     "href": `#road-path-${id}`,
                 }));
             }
         }
-        this._elements.roads.setAttribute('viewBox', [
-            (this.worldMeta.minX + this.worldMeta.anchorX) * svgInternalScale,
-            (this.worldMeta.minY + this.worldMeta.anchorY) * svgInternalScale,
-            (this.worldMeta.maxX - this.worldMeta.minX) * svgInternalScale,
-            (this.worldMeta.maxY - this.worldMeta.minY) * svgInternalScale,
-        ].join(' '));
-        this._activeRoad = createElementSVG('use', {"class": 'surface active'});
         if (this.roadId != null) {
-            this.setRoad(this.roadId);
+            this.setActiveRoad(this.roadId);
         }
-        // SVG doesn't have z-index, element order is therefore critical.
-        this._elements.roads.replaceChildren(
-            defs,
-            ...roadways.gutter,
-            ...roadways.surface,
-            this._activeRoad);
+    }
+
+    latlngToPosition([lat, lon]) {
+        return this.worldMeta.flippedHack ? [
+            (lat - this.worldMeta.latOffset) * this.worldMeta.latDegDist * 100,
+            (lon - this.worldMeta.lonOffset) * this.worldMeta.lonDegDist * 100
+        ] : [
+            -(lon - this.worldMeta.latOffset) * this.worldMeta.latDegDist * 100,
+            (lat - this.worldMeta.lonOffset) * this.worldMeta.lonDegDist * 100
+        ];
     }
 
     setRoad(id) {
+        console.warn("DEPRECATED: use setActiveRoad");
+        return this.setActiveRoad(id);
+    }
+
+    setActiveRoad(id) {
         this.roadId = id;
-        if (!this._activeRoad) {
-            return;
+        const surface = this._elements.roadLayers.surfacesMid;
+        let r = surface.querySelector('.road.active');
+        if (!r) {
+            r = createElementSVG('use', {class: 'road active'});
+            surface.append(r);
         }
-        this._activeRoad.setAttribute('clip-path', `url(#road-clip-${id})`);
-        this._activeRoad.setAttribute('href', `#road-path-${id}`);
+        r.setAttribute('clip-path', `url(#road-clip-${id})`);
+        r.setAttribute('href', `#road-path-${id}`);
+    }
+
+    addHighlightPath(points, id, loop) {
+        this._elements.roadLayers.defs.append(this._createRoadPath(points, id, loop));
+        this._elements.roadLayers.surfacesHigh.append(createElementSVG('use', {
+            "class": `highlight`,
+            "data-id": id,
+            "href": `#road-path-${id}`,
+        }));
     }
 
     _addAthleteEntity(state) {
-        const ent = document.createElement('div');
-        ent.new = true;
-        ent.classList.add('entity', 'athlete');
-        ent.classList.toggle('self', state.athleteId === this.athleteId);
-        ent.classList.toggle('watching', state.athleteId === this.watchingId);
-        ent.dataset.athleteId = ent.athleteId = state.athleteId;
-        ent.lastSeen = Date.now();
-        ent.wt = state.worldTime;
-        ent.transition = new Transition({duration: 2000});
-        ent.delayEst = common.expWeightedAvg(4, 1000);
-        this._ents.set(state.athleteId, ent);
+        const el = document.createElement('div');
+        el.classList.add('entity', 'athlete');
+        el.classList.toggle('self', state.athleteId === this.athleteId);
+        el.classList.toggle('watching', state.athleteId === this.watchingId);
+        el.dataset.athleteId = state.athleteId;
+        this._ents.set(state.athleteId, {
+            el,
+            new: true,
+            athleteId: state.athleteId,
+            lastSeen: 0,
+            transition: new Transition({duration: 2000}),
+            delayEst: common.expWeightedAvg(6, 1000),
+        });
     }
 
     _onEntsClick(ev) {
-        const ent = ev.target.closest('.entity');
+        const entEl = ev.target.closest('.entity');
+        if (!entEl) {
+            return;
+        }
+        const ent = this._ents.get(Number(entEl.dataset.athleteId));
         if (!ent) {
             return;
         }
@@ -671,7 +746,7 @@ export class SauceZwiftMap extends EventTarget {
                 this.setCourse(watching.courseId);
             }
             if (watching.roadId !== this.roadId) {
-                this.setRoad(watching.roadId);
+                this.setActiveRoad(watching.roadId);
             }
         }
         const now = Date.now();
@@ -694,17 +769,23 @@ export class SauceZwiftMap extends EventTarget {
                 powerLevel = 'z6';
             }
             const ent = this._ents.get(state.athleteId);
-            ent.dataset.powerLevel = powerLevel;
-            ent.wt = state.worldTime;
-            ent.lastSeen = now;
-            const age = state.worldTime - ent.wt;
+            const age = now - ent.lastSeen;
             if (age) {
-                const influence = ent.playing ? age + 200 : age * 2;
-                const duration = ent.delayEst(influence);
-                ent.transition.setDuration(duration);
+                if (age < 2500) {
+                    // Try to animate close to the update rate without going under.
+                    // If we miss (transition is not playing) prefer lag over jank.
+                    // Note the lag is calibrated to reducing jumping at 200ms rates (i.e. watching).
+                    const influence = ent.transition.playing ? age + 100 : age * 8;
+                    const duration = ent.delayEst(influence);
+                    ent.transition.setDuration(duration);
+                } else {
+                    ent.transition.setDuration(0);
+                }
             }
             const pos = this._fixWorldPos([state.x, state.y]);
             ent.transition.setValues(pos);
+            ent.el.dataset.powerLevel = powerLevel;
+            ent.lastSeen = now;
             if (ent.pin) {
                 const ad = this._athleteCache.get(state.athleteId);
                 const name = ad && ad.data && ad.data.athlete ?
@@ -735,10 +816,11 @@ export class SauceZwiftMap extends EventTarget {
         const now = Date.now();
         for (const [athleteId, ent] of this._ents.entries()) {
             if (now - ent.lastSeen > 15000) {
-                ent.remove();
+                ent.el.remove();
                 if (ent.pin) {
                     ent.pin.remove();
                 }
+                this._pinned.delete(ent);
                 this._pendingEntityUpdates.delete(ent);
                 this._ents.delete(athleteId);
             }
@@ -748,9 +830,10 @@ export class SauceZwiftMap extends EventTarget {
     _updatePins() {
         const transforms = [];
         // XXX this batching may not work actually, plus we may not care given how few pins there will be
+        //
         // Avoid spurious reflow with batched reads followed by writes.
         for (const ent of this._pinned) {
-            const rect = ent.getBoundingClientRect();
+            const rect = ent.el.getBoundingClientRect();
             transforms.push([ent.pin, rect]);
         }
         for (const [pin, rect] of transforms) {
@@ -776,18 +859,22 @@ export class SauceZwiftMap extends EventTarget {
         //  scaled down (mostly).  It introduces some jank, so we chunk this operation
         //  to only perform as needed to stay within GPU constraints.
         const chunk = 0.5; // How frequently we jank.
+        const adjZoom = Math.min(
+            this.zoomMax,
+            Math.max(this.zoomMin, Math.round(1 / this.zoom / chunk) * chunk));
         let quality = this.quality;
         if (this._tiltShift) {
             // When zoomed in tiltShift can exploded the GPU budget if a lot of
             // landscape is visible.  We need an additional scale factor to prevent
             // users from having to constantly adjust quality.
-            const angle = this.zoom * this._tiltShiftNorm;
-            quality *= Math.min(1, 10 / Math.max(0, angle - 30));
+            const tiltFactor = this._zoomPrioTilt ? Math.min(1, (1 / this.zoomMax * (this.zoom + 1))) : 1;
+            this._tiltShiftAngle = this._tiltShift * this.maxTiltShiftAngle * tiltFactor;
+            quality *= Math.min(1, 15 / Math.max(0, this._tiltShiftAngle - 30));
+        } else {
+            this._tiltShiftAngle = 0;
         }
-        const adjZoom = Math.min(
-            this.zoomMax,
-            Math.max(this.zoomMin, Math.round(1 / this.zoom / chunk) * chunk));
         const scale = 1 / adjZoom * quality;
+        this._tiltHeight = this._tiltShift ? 800 / (this.zoom / scale) : 0;
         if (force || this._layerScale !== scale) {
             this.incPause();
             this._layerScale = scale;
@@ -820,11 +907,6 @@ export class SauceZwiftMap extends EventTarget {
         const tY = -(relY - dragY) * this._layerScale;
         const originX = relX * this._layerScale;
         const originY = relY * this._layerScale;
-        let tiltHeight = 0, tiltAngle = 0;
-        if (this._tiltShift) {
-            tiltHeight = 800 / scale;
-            tiltAngle = this._tiltShiftNorm * this.zoom;
-        }
         let vertOffset = 0;
         if (this.verticalOffset) {
             const height = this._elHeight * this._layerScale / this.zoom;
@@ -834,7 +916,7 @@ export class SauceZwiftMap extends EventTarget {
             originX, originY,
             tX, tY,
             scale,
-            tiltHeight, tiltAngle,
+            this._tiltHeight, this._tiltShiftAngle,
             vertOffset,
             this.adjHeading,
         ]);
@@ -869,10 +951,10 @@ export class SauceZwiftMap extends EventTarget {
         for (const ent of this._pendingEntityUpdates) {
             const pos = ent.transition.getStep();
             if (pos) {
-                ent.style.setProperty('transform', `translate(${pos[0] * scale}px, ${pos[1] * scale}px)`);
+                ent.el.style.setProperty('transform', `translate(${pos[0] * scale}px, ${pos[1] * scale}px)`);
             }
             if (ent.new) {
-                this._elements.ents.append(ent);
+                this._elements.ents.append(ent.el);
                 ent.new = false;
             }
             if (!ent.transition.playing) {
@@ -885,22 +967,27 @@ export class SauceZwiftMap extends EventTarget {
     _updateEntityAthleteData(ent, ad) {
         const leader = !!ad.eventLeader;
         const sweeper = !!ad.eventSweeper;
-        const marked = ad.athlete ? !!ad.athlete.marked : false;
-        const following = ad.athlete ? !!ad.athlete.following : false;
+        const marked = !!ad.athlete?.marked;
+        const following = !!ad.athlete?.following;
+        const bot = ad.athlete?.type === 'PACER_BOT';
+        if (bot !== ent.bot) {
+            ent.el.classList.toggle('bot', bot);
+            ent.bot = bot;
+        }
         if (leader !== ent.leader) {
-            ent.classList.toggle('leader', leader);
+            ent.el.classList.toggle('leader', leader);
             ent.leader = leader;
         }
         if (sweeper !== ent.sweeper) {
-            ent.classList.toggle('sweeper', sweeper);
+            ent.el.classList.toggle('sweeper', sweeper);
             ent.sweeper = sweeper;
         }
         if (marked !== ent.marked) {
-            ent.classList.toggle('marked', marked);
+            ent.el.classList.toggle('marked', marked);
             ent.marked = marked;
         }
         if (following !== ent.following) {
-            ent.classList.toggle('following', following);
+            ent.el.classList.toggle('following', following);
             ent.following = following;
         }
     }

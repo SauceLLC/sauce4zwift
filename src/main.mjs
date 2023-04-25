@@ -258,6 +258,7 @@ class SauceApp extends EventEmitter {
     _defaultSettings = {
         webServerEnabled: true,
         webServerPort: 1080,
+        updateChannel: 'stable',
     };
     _settings;
     _settingsKey = 'app-settings';
@@ -292,6 +293,34 @@ class SauceApp extends EventEmitter {
         this._settings[key] = value;
         storage.set(this._settingsKey, this._settings);
         this.emit('setting-change', {key, value});
+    }
+
+    async checkForUpdates() {
+        autoUpdater.disableWebInstaller = true;
+        autoUpdater.autoDownload = false;
+        autoUpdater.channel = {
+            stable: 'latest',
+            beta: 'beta',
+            alpha: 'alpha'
+        }[this.getSetting('updateChannel')] || 'latest';
+        // NOTE: The github provider for electron-updater is pretty nuanced.
+        // We might want to replace it with our own at some point as this very
+        // important logic.
+        autoUpdater.allowPrerelease = autoUpdater.channel !== 'latest';
+        let updateAvail;
+        // Auto updater was written by an alien.  Must use events to affirm update status.
+        autoUpdater.once('update-available', () => void (updateAvail = true));
+        console.info(`Checking for update on channel: ${autoUpdater.channel}`);
+        try {
+            const update = await autoUpdater.checkForUpdates();
+            if (updateAvail) {
+                return update.versionInfo;
+            }
+        } catch(e) {
+            // A variety of non critical conditions can lead to this, log and move on.
+            console.warn("Auto update problem:", e);
+            return;
+        }
     }
 
     _getMetrics(reentrant) {
@@ -404,7 +433,7 @@ class SauceApp extends EventEmitter {
         });
         let ip;
         let gameConnection;
-        if (this.getSetting('gameConnectionEnabled')) {
+        if (this.getSetting('gameConnectionEnabled') && !args.disableGameConnection) {
             ip = ip || await getLocalRoutedIP();
             gameConnection = this.startGameConnectionServer(ip);
             // This isn't required but reduces latency..
@@ -459,25 +488,6 @@ async function zwiftAuthenticate(options) {
 }
 
 
-async function checkForUpdates() {
-    autoUpdater.disableWebInstaller = true;
-    autoUpdater.autoDownload = false;
-    let updateAvail;
-    // Auto updater was written by an alien.  Must use events to affirm update status.
-    autoUpdater.once('update-available', () => void (updateAvail = true));
-    try {
-        const update = await autoUpdater.checkForUpdates();
-        if (updateAvail) {
-            return update.versionInfo;
-        }
-    } catch(e) {
-        // A variety of non critical conditions can lead to this, log and move on.
-        console.warn("Auto update problem:", e);
-        return;
-    }
-}
-
-
 async function maybeDownloadAndInstallUpdate({version}) {
     const confirmWin = await windows.updateConfirmationWindow(version);
     if (!confirmWin) {
@@ -518,6 +528,8 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
          help: 'Override the athlete ID for the main Zwift account'},
         {arg: 'random-watch', type: 'num', optional: true, label: 'COURSE_ID',
          help: 'Watch random athlete; optionally specify a Course ID to choose the athlete from'},
+        {arg: 'disable-game-connection', type: 'switch',
+         help: 'Disable the companion protocol service'},
     ]);
     if (args.help) {
         quit();
@@ -559,7 +571,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         }
         sauceApp.setSetting('lastVersion', pkg.version);
     } else if (!isDEV) {
-        updater = checkForUpdates();
+        updater = sauceApp.checkForUpdates();
     }
     try {
         if (!await windows.eulaConsent() || !await windows.patronLink()) {
@@ -624,7 +636,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     await sauceApp.start(args);
     console.debug('Startup bench:', Date.now() - s);
     if (!args.headless) {
-        windows.openAllWindows();
+        windows.openWidgetWindows();
         menu.updateTrayMenu();
     }
     started = true;

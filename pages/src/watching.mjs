@@ -42,7 +42,7 @@ common.settingsStore.setDefault({
 const doc = document.documentElement;
 const L = sauce.locale;
 const H = L.human;
-const defaultLineChartLen = Math.ceil(window.innerWidth / 2);
+const defaultLineChartLen = () => Math.ceil(window.innerWidth / 2);
 const chartRefs = new Set();
 let imperial = !!common.settingsStore.get('/imperialUnits');
 L.setImperial(imperial);
@@ -233,7 +233,7 @@ const groupSpecs = {
             key: 'VI',
         }, {
             id: 'pwr-wbal',
-            value: x => H.number(x.stats && (x.stats.power.wBal / 1000), {precision: 1, fixed: true}),
+            value: x => H.number(x.stats && (x.stats.wBal / 1000), {precision: 1, fixed: true}),
             label: 'w\'bal',
             key: 'W\'bal',
             unit: 'kJ',
@@ -342,43 +342,43 @@ const groupSpecs = {
             id: 'draft-cur',
             value: x => H.number(x.state && x.state.draft),
             key: 'Current',
-            unit: '%',
+            unit: 'w',
         }, {
             id: 'draft-avg',
             value: x => H.number(x.stats && x.stats.draft.avg),
             label: 'avg',
             key: 'Avg',
-            unit: '%',
+            unit: 'w',
         }, {
             id: 'draft-max',
             value: x => H.number(x.stats && x.stats.draft.max),
             label: 'max',
             key: 'Max',
-            unit: '%',
+            unit: 'w',
         }, {
             id: 'draft-lap-avg',
             value: x => H.number(curLap(x) && curLap(x).draft.avg),
             label: 'lap',
             key: 'Lap',
-            unit: '%',
+            unit: 'w',
         }, {
             id: 'draft-lap-max',
             value: x => H.number(curLap(x) && curLap(x).draft.max),
             label: ['max', '(lap)'],
             key: 'Max<tiny>(lap)</tiny>',
-            unit: '%',
+            unit: 'w',
         }, {
             id: 'draft-last-avg',
             value: x => H.number(lastLap(x) && lastLap(x).draft.avg || null),
             label: 'last lap',
             key: 'Last Lap',
-            unit: '%',
+            unit: 'w',
         }, {
             id: 'draft-last-max',
             value: x => H.number(lastLap(x) && lastLap(x).draft.max || null),
             label: ['max', '(last lap)'],
             key: 'Max<tiny>(last lap)</tiny>',
-            unit: '%',
+            unit: 'w',
         }],
     },
     event: {
@@ -397,7 +397,7 @@ const groupSpecs = {
                 '-',
             label: 'finish',
             key: 'Finish',
-            unit: x => eventMetric === 'distance' ? fmtDistUnit(x && x.state && x.state.eventDistance) : '',
+            unit: x => eventMetric === 'distance' ? fmtDistUnit(x && x.remaining) : '',
         }, {
             id: 'ev-dst',
             value: x => eventMetric === 'distance' ?
@@ -455,6 +455,7 @@ const groupSpecs = {
     },
 };
 
+const smallSpace = '\u0020';
 const lineChartFields = [{
     id: 'power',
     name: 'Power',
@@ -463,7 +464,7 @@ const lineChartFields = [{
     rangeAlpha: [0.4, 1],
     points: [],
     get: x => x.state.power || 0,
-    fmt: x => H.power(x, {seperator: ' ', suffix: true}),
+    fmt: x => H.power(x, {separator: smallSpace, suffix: true}),
 }, {
     id: 'hr',
     name: 'HR',
@@ -481,7 +482,7 @@ const lineChartFields = [{
     rangeAlpha: [0.1, 0.8],
     points: [],
     get: x => x.state.speed || 0,
-    fmt: x => fmtPace(x, {seperator: ' ', suffix: true}),
+    fmt: x => fmtPace(x, {separator: smallSpace, suffix: true}),
 }, {
     id: 'cadence',
     name: 'Cadence',
@@ -499,7 +500,7 @@ const lineChartFields = [{
     rangeAlpha: [0.1, 0.9],
     points: [],
     get: x => x.state.draft || 0,
-    fmt: x => H.number(x, {suffix: ' %'}),
+    fmt: x => H.power(x, {separator: smallSpace, suffix: true}),
 }, {
     id: 'wbal',
     name: 'W\'bal',
@@ -507,8 +508,8 @@ const lineChartFields = [{
     domain: [0, 22000],
     rangeAlpha: [0.1, 0.8],
     points: [],
-    get: x => x.stats.power.wBal || 0,
-    fmt: x => H.number(x / 1000) + ' kJ',
+    get: x => x.stats.wBal || 0,
+    fmt: x => H.number(x / 1000, {precision: 1, fixed: true, separator: smallSpace, suffix: 'kJ'}),
     markMin: true,
 }];
 
@@ -520,11 +521,6 @@ function curLap(x) {
 
 function lastLap(x) {
     return x && x.lastLap;
-}
-
-
-function unit(x) {
-    return `<abbr class="unit">${x}</abbr>`;
 }
 
 
@@ -569,31 +565,13 @@ function humanWkg(v, athlete) {
 }
 
 
-function _fmtDist(v) {
-    if (v == null || v === Infinity || v === -Infinity || isNaN(v)) {
-        return ['-', ''];
-    } else if (Math.abs(v) < 1000) {
-        const suffix = unit(imperial ? 'ft' : 'm');
-        return [H.number(imperial ? v / L.metersPerFoot : v), suffix];
-    } else {
-        return H.distance(v, {precision: 1, suffix: true}).split(/([a-z]+)/i);
-    }
-}
-
-
-/*function fmtDist(v) {
-    const [val, u] = _fmtDist(v);
-    return `${val}${unit(u)}`;
-}*/
-
-
 function fmtDistValue(v) {
-    return _fmtDist(v)[0];
+    return H.distance(v);
 }
 
 
 function fmtDistUnit(v) {
-    return _fmtDist(v)[1];
+    return H.distance(v, {suffixOnly: true});
 }
 
 
@@ -737,7 +715,7 @@ async function createLineChart(el, sectionId, settings) {
         emphasis: {disabled: true},
         areaStyle: {},
     };
-    const dataPoints = settings.dataPoints || defaultLineChartLen;
+    const dataPoints = settings.dataPoints || defaultLineChartLen();
     const options = {
         color: fields.map(f => f.color),
         visualMap: fields.map((f, i) => ({
@@ -786,21 +764,50 @@ async function createLineChart(el, sectionId, settings) {
 
 function bindLineChart(lineChart, renderer, settings) {
     const fields = lineChartFields.filter(x => settings[x.id + 'En']);
-    const dataPoints = settings.dataPoints || defaultLineChartLen;
     let lastRender = 0;
     let oldSport;
-    renderer.addCallback(data => {
-        const now = Date.now();
-        if (now - lastRender < 900) {
+    let athleteId;
+    let loading;
+    renderer.addCallback(async data => {
+        if (loading) {
             return;
         }
-        lastRender = now;
-        if (data && data.state) {
+        if (oldSport !== sport) {
+            oldSport = sport;
+            lineChart._sauceLegend.render();
+        }
+        const dataPoints = settings.dataPoints || defaultLineChartLen();
+        const now = Date.now();
+        if (data.athleteId !== athleteId) {
+            athleteId = data.athleteId;
+            console.info("Loading streams for:", athleteId);
+            loading = true;
+            let streams;
+            try {
+                streams = await common.rpc.getAthleteStreams(athleteId);
+            } finally {
+                loading = false;
+            }
+            streams = streams || {};
+            const zeros = Array.from(sauce.data.range(dataPoints)).map(x => null);
             for (const x of fields) {
-                x.points.push(x.get(data));
-                while (x.points.length > dataPoints) {
-                    x.points.shift();
+                // zero pad for non stream types like wbal and to compensate for missing data
+                x.points = zeros.concat(streams[x.id] || []);
+            }
+        } else {
+            if (now - lastRender < 900) {
+                return;
+            }
+            if (data?.state) {
+                for (const x of fields) {
+                    x.points.push(x.get(data));
                 }
+            }
+        }
+        lastRender = now;
+        for (const {points} of fields) {
+            while (points.length > dataPoints) {
+                points.shift();
             }
         }
         lineChart.setOption({
@@ -831,10 +838,6 @@ function bindLineChart(lineChart, renderer, settings) {
                 } : undefined,
             })),
         });
-        if (oldSport !== sport) {
-            oldSport = sport;
-            lineChart._sauceLegend.render();
-        }
     });
 }
 
@@ -892,7 +895,7 @@ async function createTimeInZonesVertBars(el, sectionId, settings, renderer) {
         chart.setOption({
             ...extraOptions,
             series: [{
-                data: data.stats.power.timeInZones.map(x => ({
+                data: data.stats.timeInPowerZones.map(x => ({
                     value: x.time,
                     itemStyle: {color: colors[x.zone].g},
                 })),
@@ -922,13 +925,13 @@ function createTimeInZonesHorizBar(el, sectionId, settings, renderer) {
             return;
         }
         lastRender = now;
-        const zones = data.stats.power.timeInZones.filter(x => normZones.has(x.zone));
+        const zones = data.stats.timeInPowerZones.filter(x => normZones.has(x.zone));
         const totalTime = zones.reduce((agg, x) => agg + x.time, 0);
         for (const x of zones) {
             const zoneEl = el.querySelector(`[data-zone="${x.zone}"]`);
             zoneEl.style.flexGrow = Math.round(100 * x.time / totalTime);
             zoneEl.querySelector('.extra').textContent = H.duration(
-                x.time, {short: true, seperator: ' '});
+                x.time, {short: true, separator: ' '});
         }
     });
 }
@@ -986,7 +989,7 @@ async function createTimeInZonesPie(el, sectionId, settings, renderer) {
         }
         chart.setOption({
             series: [{
-                data: data.stats.power.timeInZones.filter(x => normZones.has(x.zone)).map(x => ({
+                data: data.stats.timeInPowerZones.filter(x => normZones.has(x.zone)).map(x => ({
                     name: x.zone,
                     value: x.time,
                     label: {color: colors[x.zone].c.l > 0.65 ? '#000b' : '#fffb'},
@@ -1087,7 +1090,7 @@ async function initScreenSettings() {
             renderScreen();
         } else if (action === 'delete') {
             settings.screens.splice(sIndex, 1);
-            sIndex = Math.max(0, sIndex -1);
+            sIndex = Math.max(0, sIndex - 1);
             common.settingsStore.set(null, settings);
             renderScreen();
         }
@@ -1173,6 +1176,7 @@ export async function main() {
     const content = document.querySelector('#content');
     const renderers = [];
     let curScreen;
+    let curScreenIndex = Math.max(0, Math.min(settings.screenIndex || 0, settings.screens.length));
     powerZones = await common.rpc.getPowerZones(1);
     const layoutTpl = await getTpl('watching-screen-layout');
     const persistentData = settings.screens.some(x =>
@@ -1184,7 +1188,7 @@ export async function main() {
             groupSpecs,
             sectionSpecs
         })).querySelector('.screen');
-        if (sIndex) {
+        if (sIndex !== curScreenIndex) {
             screenEl.classList.add('hidden');
         } else {
             curScreen = screenEl;
@@ -1290,36 +1294,25 @@ export async function main() {
     const bbSelector = settings.alwaysShowButtons ? '.fixed.button-bar' : '#titlebar .button-bar';
     const prevBtn = document.querySelector(`${bbSelector} .button.prev-screen`);
     const nextBtn = document.querySelector(`${bbSelector} .button.next-screen`);
-    prevBtn.classList.add('disabled');
-    if (settings.screens.length === 1) {
-        nextBtn.classList.add('disabled');
-    }
-    prevBtn.addEventListener('click', ev => {
-        if (!curScreen.previousElementSibling) {
+    prevBtn.classList.toggle('disabled', curScreenIndex === 0);
+    nextBtn.classList.toggle('disabled', curScreenIndex === settings.screens.length - 1);
+    const switchScreen = dir => {
+        const target = dir > 0 ? curScreen.nextElementSibling : curScreen.previousElementSibling;
+        if (!target) {
+            console.warn("switchScreen called off a cliff", {dir, curScreenIndex});
             return;
         }
         curScreen.classList.add('hidden');
-        curScreen = curScreen.previousElementSibling;
-        curScreen.classList.remove('hidden');
-        nextBtn.classList.remove('disabled');
+        target.classList.remove('hidden');
+        curScreen = target;
+        settings.screenIndex = (curScreenIndex += dir);
+        prevBtn.classList.toggle('disabled', curScreenIndex === 0);
+        nextBtn.classList.toggle('disabled', curScreenIndex === settings.screens.length - 1);
         resizeCharts();
-        if (Number(curScreen.dataset.index) === 0) {
-            prevBtn.classList.add('disabled');
-        }
-    });
-    nextBtn.addEventListener('click', ev => {
-        if (!curScreen.nextElementSibling) {
-            return;
-        }
-        curScreen.classList.add('hidden');
-        curScreen = curScreen.nextElementSibling;
-        curScreen.classList.remove('hidden');
-        prevBtn.classList.remove('disabled');
-        resizeCharts();
-        if (settings.screens.length === Number(curScreen.dataset.index) + 1) {
-            nextBtn.classList.add('disabled');
-        }
-    });
+        common.settingsStore.set(null, settings);
+    };
+    prevBtn.addEventListener('click', () => switchScreen(-1));
+    nextBtn.addEventListener('click', () => switchScreen(1));
     const resetBtn = document.querySelector(`${bbSelector} .button.reset`);
     resetBtn.addEventListener('click', ev => {
         common.rpc.resetStats();
@@ -1388,18 +1381,16 @@ export async function main() {
                         speed: Math.random() * 100,
                     },
                     stats: {
-                        power: {
-                            timeInZones: [
-                                {zone: 'Z1', time: 2 + 100 * Math.random()},
-                                {zone: 'Z2', time: 2 + 100 * Math.random()},
-                                {zone: 'Z3', time: 2 + 100 * Math.random()},
-                                {zone: 'Z4', time: 2 + 100 * Math.random()},
-                                {zone: 'Z5', time: 2 + 100 * Math.random()},
-                                {zone: 'Z6', time: 2 + 100 * Math.random()},
-                                {zone: 'Z7', time: 2 + 100 * Math.random()},
-                                //{zone: 'SS', time: 2 + 100 * Math.random()},
-                            ]
-                        }
+                        timeInPowserZones: [
+                            {zone: 'Z1', time: 2 + 100 * Math.random()},
+                            {zone: 'Z2', time: 2 + 100 * Math.random()},
+                            {zone: 'Z3', time: 2 + 100 * Math.random()},
+                            {zone: 'Z4', time: 2 + 100 * Math.random()},
+                            {zone: 'Z5', time: 2 + 100 * Math.random()},
+                            {zone: 'Z6', time: 2 + 100 * Math.random()},
+                            {zone: 'Z7', time: 2 + 100 * Math.random()},
+                            //{zone: 'SS', time: 2 + 100 * Math.random()},
+                        ]
                     }
                 });
                 if (x.backgroundRender || !x._contentEl.classList.contains('hidden')) {

@@ -21,23 +21,14 @@
                 <a href="https://zwiftpower.com/profile.php?z={{athleteId}}"
                    title="Open ZwiftPower profile"
                    target="_blank" external><img src="images/zp_logo.png"/></a>
-                <% if (gameConnectionStatus && gameConnectionStatus.connected) { %>
-                    <a title="Watch this athlete" data-action="watch" href><ms>video_camera_front</ms></a>
-                    <% if (obj.debug) { %>
-                        <a title="Join this athlete" data-action="join" href><ms>follow_the_signs</ms></a>
-                    <% } %>
-                <% } else { %>
-                    <a title="Game Connection is required to send the Watch command" disabled><ms>videocam</ms></a>
-                    <% if (obj.debug) { %>
-                        <a title="Game Connection is required to send the Join (i.e. ride with) command"
-                           disabled><ms>follow_the_signs</ms></a>
-                    <% } %>
-                <% } %>
+                <a title="Analysis view of this athletes session"
+                   href="/pages/analysis.html?width=800&height=600&id={{athlete.id}}"
+                   target="_blank" class="enabled-in-game-only" disabled><ms>monitoring</ms></a>
+                <a title="Watch this athlete (Game Connection is required)"
+                   data-action="watch" {{!gameConnection ? 'disabled' : ''}} href><ms>video_camera_front</ms></a>
                 <a title="Toggle visibility of chat messages from this person"
                    data-action="toggleMuted" class="{{athlete.muted ? 'active' : ''}}"
                    href><ms>comments_disabled</ms></a>
-                <a title="Export FIT activity file of sampled data"
-                   data-action="exportFit" href><ms>file_download</ms></a>
                 <a title="Give a Ride On to this athlete" {{obj.rideonSent ? 'disabled' : 'href'}}
                    data-action="rideon"><ms>thumb_up</ms></a>
                 <% if (athlete.following) { %>
@@ -79,7 +70,7 @@
                     <div class="row p2"><key>Weight</key>{-humanWeightClass(athlete.weight, {suffix: true, html: true})-}</div>
                 <% } %>
                 <% if (athlete.height) { %>
-                    <div class="row p2"><key>Height</key>{-humanHeight(athlete.height, {html: true})-}</div>
+                    <div class="row p2"><key>Height</key>{-humanHeight(athlete.height, {html: true, suffix: true})-}</div>
                 <% } %>
                 <!--<div class="row p2"><key>Threshold HR</key>{{athlete.hrzones}}<a href data-id="hr-edit"><ms>settings</ms></a></div>
                 <div class="row p2">

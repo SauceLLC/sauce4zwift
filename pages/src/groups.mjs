@@ -240,7 +240,7 @@ function renderZoomed(groups) {
         } else if (minorField === 'draft') {
             if (athlete.state.draft != null) {
                 rightLines.push(fmtLine(
-                    H.number(athlete.state.draft, {suffix: '% <ms large>air</ms>', html: true}),
+                    H.number(athlete.state.draft, {suffix: 'w <ms large>air</ms>', html: true}),
                     'minor', 'Draft'));
             }
         } else if (minorField === 'speed') {
@@ -267,7 +267,9 @@ function renderZoomed(groups) {
                 dur = gapDistance && gapDistance > 2 &&
                     (H.number(gapDistance * (imperial ? 3.28084 : 1)) + units);
             }
-            gapLine = fmtLine(dur ? dur : '');
+            if (dur) {
+                gapLine = fmtLine(dur);
+            }
         }
         common.softInnerHTML(pos.leftLines, leftLines.join(''));
         common.softInnerHTML(pos.rightLines, rightLines.join(''));
@@ -371,7 +373,7 @@ function renderGroups(groups) {
         } else if (minorField === 'draft') {
             if (group.draft != null) {
                 rightLines.push(fmtLine(
-                    H.number(group.draft, {suffix: '% <ms large>air</ms>', html: true}),
+                    H.number(group.draft, {suffix: 'w <ms large>air</ms>', html: true}),
                     'minor', 'Draft'));
             }
         } else if (minorField === 'speed') {
@@ -397,7 +399,7 @@ function renderGroups(groups) {
         }
         const innerGap = next ? group.innerGap : 0;
         const gap = relPos < 0 ? group.gap : next ? next.gap : 0;
-        const dur = innerGap && H.duration(Math.abs(gap), {short: true, seperator: ' '});
+        const dur = innerGap && H.duration(Math.abs(gap), {short: true, separator: ' '});
         const gapText = dur ? (gap > 0 ? '+' : '-') + dur : '';
         const gapLines = [];
         if (gapText) {

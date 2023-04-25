@@ -2,9 +2,9 @@
   "name": "sauce4zwift",
   "productName": "Sauce for Zwift™",
   "private": true,
-  "version": "0.13.0",
+  "version": "0.99.1-alpha",
   "description": "Overlay widgets and advanced instrumentation for the serious Zwifter.",
-  "homepage": "https://saucellc.io",
+  "homepage": "https://www.sauce.llc",
   "author": "Sauce, LLC",
   "license": "UNLICENSED",
   "main": "src/loader.js",
@@ -15,7 +15,9 @@
     "unpacked": "electron-builder --dir",
     "build": "electron-builder build -p never",
     "publish": "electron-builder build -p always",
-    "postinstall": "electron-builder install-app-deps"
+    "postinstall": "electron-builder install-app-deps",
+    "test": "NODE_OPTIONS='--experimental-vm-modules' npx jest",
+    "test-debug": "NODE_OPTIONS='--experimental-vm-modules --inspect-brk' npx jest --runInBand"
   },
   "dependencies": {
     "@sentry/node": "6.19.6",
@@ -35,18 +37,24 @@
   "devDependencies": {
     "@sentry/browser": "6.19.6",
     "echarts": "5.4.1",
-    "electron": "23.2.1",
+    "electron": "24.1.2",
     "electron-builder": "24.0.0-alpha.7",
     "electron-notarize": "1.2.1",
     "eslint": "8.37.0",
+    "jest": "29.5.0",
     "sass": "1.60.0",
     "world_countries_lists": "2.6.0",
     "zwift-data": "1.22.2"
+  },
+  "jest": {
+    "roots": ["test"],
+    "testMatch": ["**/*.test.mjs"]
   },
   "build": {
     "appId": "io.saucellc.sauce4zwift",
     "artifactName": "sauce4zwift-${version}.${ext}",
     "buildDependenciesFromSource": true,
+    "generateUpdatesFilesForAllChannels": true,
     "files": [
       "!**/Makefile",
       "!**/README.md",
@@ -63,6 +71,7 @@
       "!**/*.vcxproj.*",
       "!**/.history",
       "!.*",
+      "!test",
       "!tools",
       "!assets",
       "!pages/scss",

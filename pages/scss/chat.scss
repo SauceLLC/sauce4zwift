@@ -14,6 +14,13 @@ body {
     color: black;
 }
 
+abbr.unit {
+    font-weight: 400;
+    opacity: 0.94;
+    font-size: 0.88em;
+    padding-left: 0.1em;
+}
+
 #content {
     align-items: flex-start;
     padding: 0.2rem;
@@ -102,8 +109,8 @@ body {
         max-height: 100%;
 
         > .live {
-            min-width: 24ch;
-            font-size: 0.6em;
+            font-size: 0.64em;
+            font-weight: 420;
             padding: 0.1em 0.3rem 0.4em 0;
             flex: 0 0 auto;
             font-variant-numeric: tabular-nums;
@@ -138,7 +145,7 @@ body {
             padding-left: 0.5em;
             flex: 1 0 auto;
             text-align: end;
-            opacity: 0.7;
+            opacity: 0.9;
         }
     }
 

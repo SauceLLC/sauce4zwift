@@ -52,7 +52,7 @@ const template = [{
     label: 'Help',
     submenu: [{
         label: 'Sauce Home Page',
-        click: () => shell.openExternal('https://sauce.llc')
+        click: () => shell.openExternal('https://www.sauce.llc')
     }]
 }];
 
@@ -90,7 +90,7 @@ export function installTrayIcon() {
 
 export function updateTrayMenu() {
     const pad = '  ';
-    const wins = Object.values(windows.getWindows());
+    const wins = windows.getWidgetWindowSpecs();
     const activeWins = wins.filter(x => x.private !== true && x.closed !== true);
     const closedWins = wins.filter(x => x.private !== true && x.closed === true);
     const menu = [{
@@ -106,7 +106,7 @@ export function updateTrayMenu() {
             ...activeWins.map(x => ({
                 label: pad + x.prettyName,
                 tooltip: x.prettyDesc,
-                click: () => windows.highlightWindow(x.id),
+                click: () => windows.highlightWidgetWindow(x.id),
             }))
         );
     }
@@ -117,7 +117,7 @@ export function updateTrayMenu() {
             ...closedWins.map(x => ({
                 label: pad + x.prettyName,
                 tooltip: x.prettyDesc,
-                click: () => windows.openWindow(x.id),
+                click: () => windows.openWidgetWindow(x.id),
             }))
         );
     }
@@ -136,10 +136,10 @@ export function updateTrayMenu() {
         label: 'Settings',
         click: () => {
             // Bit of a hack to reuse the spec from the normal overview windows...
-            const id = Object.values(windows.getWindows()).find(x => x.type === 'overview').id;
+            const id = windows.getWidgetWindowSpecs().find(x => x.type === 'overview').id;
             windows.makeCaptiveWindow({
                 width: 520,
-                height: 860,
+                height: 800,
                 file: '/pages/overview-settings.html',
                 frame: false,
                 transparent: true,

@@ -42,18 +42,19 @@ function fmtAge(ts) {
 
 
 function fmtGap(gap) {
-    const d = H.duration(Math.abs(gap), {short: true, seperator: ' '});
+    const d = H.duration(Math.abs(gap), {short: true, separator: ' ', html: true});
     const placement = gap > 0 ? 'behind' : 'ahead';
-    return `${d} ${placement}`;
+    return `${d} <abbr class="unit">${placement}</abbr>`;
 }
 
 
 function handleAthleteData(data) {
-    const liveText = liveDataFormatter(data);
+    const liveHtml = liveDataFormatter(data);
+    console.log(liveHtml);
     for (const el of athleteChatElements.get(data.athleteId)) {
-        if (el._lastLiveText !== liveText) {
-            el.querySelector('.live').innerText = liveText;
-            el._lastLiveText = liveText;
+        if (el._lastLiveHtml !== liveHtml) {
+            el.querySelector('.live').innerHTML = liveHtml;
+            el._lastLiveHtml = liveHtml;
         }
     }
 }
@@ -64,8 +65,10 @@ function liveDataFormatter(data) {
         return '';
     }
     const items = [
-        data.stats.power.smooth[15] != null ? H.power(data.stats.power.smooth[15], {suffix: true}) : null,
-        data.state.heartrate ? H.number(data.state.heartrate) + 'bpm' : null,
+        data.stats.power.smooth[15] != null ?
+            H.power(data.stats.power.smooth[15], {suffix: true, html: true}) :
+            null,
+        data.state.heartrate ? H.number(data.state.heartrate, {suffix: 'bpm', html: true}) : null,
     ];
     const gap = data.gap;
     if (gap != null) {

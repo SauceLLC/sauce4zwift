@@ -54,9 +54,12 @@ let schedStorageFlush;
 
 
 class LocalStorage extends EventTarget {
-    constructor() {
+    constructor(id) {
         super();
-        this.prefix = `${windowID}-`;
+        if (!id) {
+            throw new Error('id arg required');
+        }
+        this.prefix = `${id}-`;
         window.addEventListener('storage', this._onStorage.bind(this));
     }
 
@@ -118,7 +121,6 @@ class LocalStorage extends EventTarget {
         schedStorageFlush();
     }
 }
-export const storage = new LocalStorage();
 
 
 if (window.isElectron) {
@@ -182,6 +184,9 @@ if (window.isElectron) {
     };
     rpcCall = async function(name, ...args) {
         const env = await electron.ipcInvoke('rpc', name, ...args);
+        if (env.warning) {
+            console.warn(env.warning);
+        }
         if (env.success) {
             return env.value;
         } else {
@@ -242,16 +247,19 @@ if (window.isElectron) {
         const schema = location.protocol === 'https:' ? 'wss' : 'ws';
         const ws = new WebSocket(`${schema}://${location.host}/api/ws/events`);
         ws.addEventListener('message', ev => {
-            const envelope = JSON.parse(ev.data);
-            const handler = respHandlers.get(envelope.uid);
-            if (envelope.type === 'response') {
-                respHandlers.delete(envelope.uid);
+            const env = JSON.parse(ev.data);
+            const handler = respHandlers.get(env.uid);
+            if (env.type === 'response') {
+                respHandlers.delete(env.uid);
             }
             if (handler) {
-                if (envelope.success) {
-                    handler.resolve(envelope.data);
+                if (env.warning) {
+                    console.warn(env.warning);
+                }
+                if (env.success) {
+                    handler.resolve(env.data);
                 } else {
-                    handler.reject(new Error(envelope.error));
+                    handler.reject(new Error(env.error));
                 }
             }
         });
@@ -321,14 +329,21 @@ if (window.isElectron) {
             headers: {"content-type": 'application/json'},
             body: JSON.stringify(args),
         });
-        const r = await f.json();
-        if (r.success) {
-            return r.value;
+        const env = await f.json();
+        if (env.warning) {
+            console.warn(env.warning);
+        }
+        if (env.success) {
+            return env.value;
         } else {
-            throw makeRPCError(r.error);
+            throw makeRPCError(env.error);
         }
     };
     schedStorageFlush = () => undefined;
+}
+export let storage;
+if (windowID) {
+    storage = new LocalStorage(windowID);
 }
 
 
@@ -368,6 +383,22 @@ export function getRoads(worldId) {
         })());
     }
     return _roads.get(worldId);
+}
+
+
+const _segments = new Map();
+export function getSegments(worldId) {
+    if (!_segments.has(worldId)) {
+        _segments.set(worldId, (async () => {
+            const r = await fetch(`/shared/deps/data/worlds/${worldId}/segments.json`);
+            if (!r.ok) {
+                console.error("Failed to get segments for:", worldId, r.status);
+                return [];
+            }
+            return await r.json();
+        })());
+    }
+    return _segments.get(worldId);
 }
 
 
@@ -727,7 +758,7 @@ export class SettingsStore extends EventTarget {
     constructor(settingsKey) {
         super();
         this.settingsKey = settingsKey;
-        this._storage = new LocalStorage();
+        this._storage = new LocalStorage(windowID);
         this._settings = this._storage.get(this.settingsKey);
         this._ephemeral = !this._settings;
         if (this._ephemeral) {
@@ -880,7 +911,7 @@ function updateDependants(el) {
 
 
 function bindFormData(selector, storageIface, options={}) {
-    const form = document.querySelector(selector);
+    const form = (selector instanceof Element) ? selector : document.querySelector(selector);
     const now = Date.now();
     for (const x of form.querySelectorAll('[data-added]')) {
         if (now - (new Date(x.dataset.added)).getTime() < 14 * 86400000) {

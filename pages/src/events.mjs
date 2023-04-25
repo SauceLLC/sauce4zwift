@@ -46,8 +46,8 @@ async function getEventsWithRetry() {
 export async function main() {
     common.initInteractionListeners();
     const pendingNationInit = common.initNationFlags();
-    let gameConnectionStatus = await common.rpc.getGameConnectionStatus();
-    common.subscribe('status', gcs => (gameConnectionStatus = gcs), {source: 'gameConnection'});
+    let gcs = await common.rpc.getGameConnectionStatus();
+    common.subscribe('status', x => (gcs = x), {source: 'gameConnection'});
     const events = await getEventsWithRetry();
     const contentEl = await render(events);
     const eventDetailTpl = await sauce.template.getTemplate(`templates/event-details.html.tpl`);
@@ -89,7 +89,7 @@ export async function main() {
                     embedded: true,
                     athleteId,
                     athlete: athletes.get(athleteId),
-                    gameConnectionStatus,
+                    gameConnection: gcs && gcs.connected,
                     nations,
                     flags,
                     common,

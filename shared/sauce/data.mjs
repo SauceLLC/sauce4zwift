@@ -245,6 +245,7 @@ export class RollingAverage {
         this.period = period || undefined;
         this.idealGap = options.idealGap;
         this.maxGap = options.maxGap;
+        this._padThreshold = this.idealGap ? this.idealGap * 1.61803 : null;
         this._active = options.active;
         this._ignoreZeros = options.ignoreZeros;
         this._times = [];
@@ -387,7 +388,7 @@ export class RollingAverage {
                         this._add(prevTS + i, ZERO);
                     }
                 }
-            } else if (this.idealGap && gap > (this.idealGap * 2)) {
+            } else if (this.idealGap && gap > this._padThreshold) {
                 for (let i = this.idealGap; i < gap; i += this.idealGap) {
                     this._add(prevTS + i, getSoftPad(value));
                 }

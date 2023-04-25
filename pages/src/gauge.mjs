@@ -25,7 +25,7 @@ function getWBalValue(x) {
     if (!_wPrime) {
         return;
     }
-    return x.stats.power.wBal / _wPrime * 100;
+    return x.stats.wBal / _wPrime * 100;
 }
 
 
@@ -130,7 +130,7 @@ const gaugeConfigs = {
         },
         getValue: x => settings.dataSmoothing ? x.stats.draft.smooth[settings.dataSmoothing] : x.state.draft,
         getLabel: H.number,
-        detailFormatter: x => `{value|${H.number(x)}}\n{unit|% boost}`,
+        detailFormatter: x => `{value|${H.number(x)}}\n{unit|w savings}`,
         longPeriods: true,
     },
     wbal: {

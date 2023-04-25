@@ -43,12 +43,13 @@ html {
 
     > .fields {
         font-variant-numeric: tabular-nums;
-        position: fixed;
+        position: absolute;
         top: 0;
         right: 0;
         display: flex;
         z-index: 10;
-        background: #000a;
+        background-color: color.get(bg, 0.75);
+        color: color.get(fg);
         border-bottom-left-radius: 0.28em;
         padding: 0.3em 1em;
         align-items: center;
@@ -58,6 +59,12 @@ html {
 
         &:empty {
             display: none;
+        }
+
+        abbr.unit {
+            margin-left: 0.12em;
+            font-size: 0.86em;
+            opacity: 0.9;
         }
 
         .field:not(:last-child) {

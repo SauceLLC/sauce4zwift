@@ -139,7 +139,7 @@
         <script type="module">
             import * as common from './src/common.mjs';
 
-            const notesPromise = fetch('https://sauce.llc/products/sauce4zwift/release_notes.json')
+            const notesPromise = fetch('https://www.sauce.llc/products/sauce4zwift/release_notes.json')
                 .then(r => r.json());
 
 
@@ -149,7 +149,7 @@
 
 
             function fakeSHU(version) {
-                return Number(stripAlpha(version).split('.').map(x => x.padStart(2, '0')).join(''));
+                return Number(stripAlpha(version).split('.').map(x => x.padStart(2, '0')).join('')).toLocaleString();
             }
 
 
@@ -204,7 +204,7 @@
                 let notes = await notesPromise;
                 if (updated) {
                     const prevBigVer = bigIntVersion(lastVersion);
-                    notes = notes.filter(x => bigIntVersion(x.version) > prevBigVer);
+                    notes = notes.filter(x => !x.private && bigIntVersion(x.version) > prevBigVer);
                 }
                 if (notes.length) {
                     document.documentElement.classList.add('has-notes');

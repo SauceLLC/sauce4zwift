@@ -209,7 +209,7 @@ $frankshadowfilter: drop-shadow(2px 2px 20px #000a);
 
 .great-and-powerful-bubble {
     position: fixed;
-    z-index: 100002;
+    z-index: 100000002;
     width: 400px;
     height: 224px;
     top: 0;
@@ -247,7 +247,7 @@ $frankshadowfilter: drop-shadow(2px 2px 20px #000a);
 
 img.great-and-powerful {
     position: fixed;
-    z-index: 100001;
+    z-index: 100000001;
     width: 125%;
     max-height: 90%;
     object-fit: contain;
@@ -298,6 +298,39 @@ img.avatar {
     background: #fff;
     margin: -0.5em 0.5em -0.5em 0.2em;
     border-radius: 50%;
+}
+
+img.logo {
+    display: inline-block;
+    margin: -0.8em 0.2em;
+    transform: rotate(-28deg);
+    width: 3em;
+}
+
+.about {
+    .banner {
+        font-family: 'Permanent Marker', Saira;
+        padding: 0.5em 0 1em;
+        margin: 0;
+
+        sup {
+            font-size: 0.4em;
+            opacity: 0.8;
+            margin-left: 0.8em;
+        }
+    }
+
+    a.sauce-star {
+        font-family: 'Permanent Marker', Saira;
+        color: gold;
+        font-weight: 500;
+        font-size: 1.2em;
+        text-decoration: none !important;
+
+        &:hover {
+            text-decoration: underline !important;
+        }
+    }
 }
 
 #mods-container {
@@ -360,4 +393,10 @@ img.avatar {
         border-radius: 0.33em;
         padding: 0.6em;
     }
+}
+
+.mods-path.button {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }

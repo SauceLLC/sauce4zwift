@@ -10,6 +10,7 @@ const imperial = !!common.storage.get('/imperialUnits');
 L.setImperial(imperial);
 
 common.settingsStore.setDefault({
+    // v0.13.0...
     profileOverlay: true,
     mapStyle: 'default',
     tiltShift: false,
@@ -23,12 +24,13 @@ common.settingsStore.setDefault({
     quality: 50,
     verticalOffset: 0,
     fpsLimit: 30,
+    // v0.13.1...
+    zoomPriorityTilt: true,
 });
 
 const settings = common.settingsStore.get();
 
 let initDone;
-let watchingId;
 let zwiftMap;
 let elProfile;
 
@@ -51,6 +53,12 @@ function qualityScale(raw) {
 }
 
 
+function getSetting(key, def) {
+    const v = settings[key];
+    return v === undefined ? def : v;
+}
+
+
 function createZwiftMap({worldList}) {
     const opacity = 1 - 1 / (100 / (settings.transparency || 0));
     const zm = new map.SauceZwiftMap({
@@ -61,11 +69,11 @@ function createZwiftMap({worldList}) {
         style: settings.mapStyle,
         opacity,
         tiltShift: settings.tiltShift && ((settings.tiltShiftAmount || 0) / 100),
-        tiltShiftAngle: settings.tiltShiftAngle || 10,
         sparkle: settings.sparkle,
         quality: qualityScale(settings.quality || 80),
         verticalOffset: settings.verticalOffset / 100,
         fpsLimit: settings.fpsLimit || 30,
+        zoomPriorityTilt: getSetting('zoomPriorityTilt', true),
     });
     let settingsSaveTimeout;
     zm.addEventListener('zoom', ev => {
@@ -104,7 +112,6 @@ function createElevationProfile({worldList}) {
 
 function setWatching(id) {
     console.info("Now watching:", id);
-    watchingId = id;
     zwiftMap.setWatching(id);
     if (elProfile) {
         elProfile.setWatching(id);
@@ -167,7 +174,7 @@ export async function main() {
     if (urlQuery.has('testing')) {
         const [course, road] = urlQuery.get('testing').split(',');
         zwiftMap.setCourse(+course || 6).then(() => {
-            zwiftMap.setRoad(+road || 0);
+            zwiftMap.setActiveRoad(+road || 0);
         });
         if (elProfile) {
             elProfile.setCourse(+course || 6).then(() => {
@@ -181,6 +188,10 @@ export async function main() {
             }
             setWatching(athleteId);
         });
+        common.subscribe('athlete/watching', ad => {
+            fieldRenderer.setData(ad);
+            fieldRenderer.render();
+        });
         common.subscribe('states', async states => {
             if (!initDone) {
                 initDone = await initSelfAthlete({zwiftMap, elProfile});
@@ -188,11 +199,6 @@ export async function main() {
             zwiftMap.renderAthleteStates(states);
             if (elProfile) {
                 elProfile.renderAthleteStates(states);
-            }
-            const watching = states.find(x => x.athleteId === watchingId);
-            if (watching) {
-                fieldRenderer.setData({state: watching});
-                fieldRenderer.render();
             }
         });
         initDone = await initSelfAthlete();
@@ -214,6 +220,8 @@ export async function main() {
             zwiftMap.setStyle(changed.get('mapStyle'));
         } else if (changed.has('tiltShift') || changed.has('tiltShiftAmount')) {
             zwiftMap.setTiltShift(settings.tiltShift && ((settings.tiltShiftAmount || 0) / 100));
+        } else if (changed.has('zoomPriorityTilt')) {
+            zwiftMap.setZoomPriorityTilt(changed.get('zoomPriorityTilt'));
         } else if (changed.has('sparkle')) {
             zwiftMap.setSparkle(changed.get('sparkle'));
         } else if (changed.has('quality')) {
