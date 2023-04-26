@@ -171,13 +171,13 @@ export function cssColor(key, shade=0, alpha=1) {
 }
 
 
-export function getTheme(mode='static') {
+export function getTheme(mode='static', options) {
     if (mode === 'static') {
         return staticTheme;
     } else if (mode === 'dynamic') {
-        return genDynamicTheme();
+        return genDynamicTheme(options);
     } else if (mode === 'dynamic-alt') {
-        return genDynamicTheme({fg: 'fg-alt', bg: 'bg-alt'});
+        return genDynamicTheme({fg: 'fg-alt', bg: 'bg-alt', ...options});
     } else {
         throw new TypeError('Invalid theme mode');
     }

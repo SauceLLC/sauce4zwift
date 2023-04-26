@@ -7,6 +7,11 @@
     --theme-intrinsic-light: 100%;
     --theme-intrinsic-shade-dir: -1;
 
+    --theme-intrinsic-inverted-hue: var(--theme-intrinsic-hue);
+    --theme-intrinsic-inverted-sat: var(--theme-intrinsic-sat);
+    --theme-intrinsic-inverted-light: calc(var(--theme-intrinsic-light) + (100% * var(--theme-intrinsic-shade-dir)));
+    --theme-intrinsic-inverted-shade-dir: calc(var(--theme-intrinsic-shade-dir) * -1);
+
     --theme-bookend-hue: 0;
     --theme-bookend-sat: 0%;
     --theme-bookend-light: 13%;
@@ -118,6 +123,7 @@ html[data-theme="gpt-sunset"] {
     --theme-intrinsic-sat: 0%;
     --theme-intrinsic-light: 0%;
     --theme-intrinsic-shade-dir: 1;
+
     --theme-bg-hue: 25;
     --theme-bg-sat: 100%;
     --theme-bg-light: 20%;
