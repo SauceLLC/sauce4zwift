@@ -66,11 +66,10 @@
             top: 0;
             left: 0;
 
-            .entity.athlete {
-                --zone: 0;
+            .entity {
                 --priority: 0;
                 will-change: transform;
-                z-index: calc(var(--zone) + var(--priority));
+                z-index: var(--priority);
                 $size: 1em;
                 $border-size: 0.215em;
                 --fill: #fffa;
@@ -85,86 +84,96 @@
                 position: absolute;
                 cursor: pointer;
 
-                &[data-power-level="z4"] {
-                    --zone: 1;
-                    --sparkle-color: #fff9;
-                }
-                &[data-power-level="z5"] {
-                    --zone: 2;
-                    --sparkle-color: #dfb1a891;
-                }
-                &[data-power-level="z6"] {
-                    --zone: 3;
-                    --sparkle-color: #ae45da91;
-                }
-
-                &.bot {
-                    --priority: 10;
-                    font-size: $size * 1.2;
-                    border-width: $border-size * 1.25;
-                    //--fill: gold; // XXX
-                    border-color: gold; // XXX
-                }
-
-                &.following {
-                    --priority: 20;
-                    font-size: $size * 1.3;
-                    border-width: $border-size * 1.5;
-                    --fill: color.get(marked, 0.8);
-                    border-color: color.shade(marked, 100%);
-                }
-
-                &.marked {
-                    --priority: 30;
-                    font-size: $size * 1.3;
-                    border-width: $border-size * 1.5;
-                    --fill: color.get(marked, 0.8);
-                    border-color: color.shade(marked, 100%);
-                }
-
-                &.sweeper {
-                    --priority: 40;
-                    font-size: $size * 1.2;
-                    border-width: $border-size * 1.25;
-                    --fill: #f1262675;
-                    border-color: #dc3c10cc;
-                }
-
-                &.leader {
-                    --priority: 50;
-                    font-size: $size * 1.2;
-                    border-width: $border-size * 1.25;
-                    --fill: #ffd91f8c;
-                    border-color: #000d;
-                }
-
-                &.watching {
-                    --priority: 60;
-                    font-size: $size * 1.3;
-                    border-width: $border-size * 1.1;
-                    --fill: #3162ffcc;
-                    border-color: #fff;
-                }
-
-                &.self {
-                    --priority: 70;
-                    font-size: $size * 1.5;
-                    border-width: $border-size * 1.1;
-                    --fill: #f22c;
-                    border-color: #fff;
-                }
-
                 &:hover {
-                    --priority: 80;
+                    --priority: 80 !important;
                     opacity: 1;
+                }
+
+                &.athlete {
+                    --zone: 0;
+                    z-index: calc(var(--zone) + var(--priority));
+
+                    &[data-power-level="z4"] {
+                        --zone: 1;
+                        --sparkle-color: #fff9;
+                    }
+                    &[data-power-level="z5"] {
+                        --zone: 2;
+                        --sparkle-color: #dfb1a891;
+                    }
+                    &[data-power-level="z6"] {
+                        --zone: 3;
+                        --sparkle-color: #ae45da91;
+                    }
+
+                    &.bot {
+                        --priority: 10;
+                        font-size: $size * 1.2;
+                        border-width: $border-size * 1.25;
+                        border-color: gold;
+                    }
+
+                    &.following {
+                        --priority: 20;
+                        font-size: $size * 1.3;
+                        border-width: $border-size * 1.5;
+                        --fill: color.get(marked, 0.8);
+                        border-color: color.shade(marked, 100%);
+                    }
+
+                    &.marked {
+                        --priority: 30;
+                        font-size: $size * 1.3;
+                        border-width: $border-size * 1.5;
+                        --fill: color.get(marked, 0.8);
+                        border-color: color.shade(marked, 100%);
+                    }
+
+                    &.sweeper {
+                        --priority: 40;
+                        font-size: $size * 1.2;
+                        border-width: $border-size * 1.25;
+                        --fill: #f1262675;
+                        border-color: #dc3c10cc;
+                    }
+
+                    &.leader {
+                        --priority: 50;
+                        font-size: $size * 1.2;
+                        border-width: $border-size * 1.25;
+                        --fill: #ffd91f8c;
+                        border-color: #000d;
+                    }
+
+                    &.watching {
+                        --priority: 60;
+                        font-size: $size * 1.3;
+                        border-width: $border-size * 1.1;
+                        --fill: #3162ffcc;
+                        border-color: #fff;
+                    }
+
+                    &.self {
+                        --priority: 70;
+                        font-size: $size * 1.5;
+                        border-width: $border-size * 1.1;
+                        --fill: #f22c;
+                        border-color: #fff;
+                    }
                 }
             }
         }
 
         > svg.roads {
-            .road {
+            .road,
+            .highlight {
                 fill: none;
                 stroke-linecap: round;
+            }
+
+            .highlight {
+                stroke-width: calc(10px + (1 / var(--zoom) * 6px));
+                stroke: #ff4100;
             }
 
             .gutters .road {
@@ -209,9 +218,16 @@
             flex-direction: column;
             align-items: center;
             font-size: 0.8em;
+            opacity: 0.9;
+            transition: opacity 200ms;
+
+            &.hidden {
+                display: none;
+            }
 
             &:hover, &:focus {
                 z-index: 1000;
+                opacity: 1;
             }
         }
 
@@ -220,7 +236,7 @@
             $carrot-height: 1em;
             $border-color: #fff;
             $border-size: 0.2em;
-            $bg-color: #294260;
+            $bg-color: #254c85;
             bottom: $carrot-height;
             pointer-events: all;
             display: flex;
@@ -267,6 +283,26 @@
             white-space: nowrap;
             text-overflow: ellipsis;
             overflow: hidden;
+            max-width: 100%;
+
+            avatar-pad {
+                display: inline-block;
+                width: 2em; // 3em - 1em
+            }
+
+            img.avatar {
+                object-fit: cover;
+                float: right;
+                position: absolute;
+                right: -1em;
+                top: -1em;
+                width: 3em;
+                height: 3em;
+                border-radius: 50%;
+                background-color: white;
+                border: 3px solid white;
+                box-shadow: 1px 1px 2px 0 #0006;
+            }
         }
     }
 }
