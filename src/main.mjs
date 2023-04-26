@@ -153,7 +153,7 @@ electron.ipcMain.handle('subscribe', (ev, {event, persistent, source='stats'}) =
         let json = serialCache.get(data);
         if (!json) {
             json = JSON.stringify(data);
-            if (typeof data === 'object') {
+            if (data != null && typeof data === 'object') {
                 serialCache.set(data, json);
             }
         }

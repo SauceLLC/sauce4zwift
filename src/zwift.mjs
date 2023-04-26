@@ -1315,7 +1315,7 @@ export class GameMonitor extends events.EventEmitter {
         if (this.dropinCourseId) {
             this.setCourse(this.dropinCourseId);
             this.setWatching(this.athleteId);
-        } else {
+        } else if (this.gameAthleteId != null) {
             const s = await this.api.getPlayerState(this.gameAthleteId);
             this.setCourse(s ? s.courseId : null);
             if (s) {
@@ -1671,11 +1671,15 @@ export class GameMonitor extends events.EventEmitter {
             // Optimized out by data stream
             return;
         }
-        const state = await this.api.getPlayerState(this.gameAthleteId);
+        const state = this.gameAthleteId != null ? await this.api.getPlayerState(this.gameAthleteId) : null;
         if (!state) {
             if (this.randomWatch != null) {
                 this.gameAthleteId = await this.getRandomAthleteId(this.randomWatch);
-                console.info("Switching to new random athlete:", this.gameAthleteId);
+                if (this.gameAthleteId == null) {
+                    console.warn("No athletes found in world.");
+                } else {
+                    console.info("Switching to new random athlete:", this.gameAthleteId);
+                }
             } else if (age > 15 * 1000) {
                 // Stop harassing the UDP channel..
                 this.suspend();
