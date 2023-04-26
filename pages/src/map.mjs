@@ -264,7 +264,7 @@ export class MapEntity extends EventTarget {
             throw new TypeError('invalid position');
         }
         this._position = [x, y]; // Save non-rotate-hacked position.
-        if (this.worldMeta && this.worldMeta.mapRotateHack) {
+        if (this.worldMeta && this.worldMeta.rotateRouteSelect) {
             [x, y] = [y, -x];
         }
         this.transition.setValues([x, y]);
@@ -426,20 +426,18 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     setZoom(zoom) {
-        this.zoom = zoom;
+        this.zoom = Math.max(this.zoomMin, Math.min(this.zoomMax, zoom));
         this._applyZoom();
     }
 
-    setBounds(tl, br, pad=0.15) {
+    setBounds(tl, br, pad=0.12) {
         let width = br[0] - tl[0];
         let height = tl[1] - br[1];
         const center = [tl[0] + width / 2, br[1] + height / 2];
-        // We have to apply the world pos hack to get real horiz x and vert y for visual sizing
-        // This also means we can't trust the coords to be top-left and bottom-right anymore.
-        const corner1 = this._fixWorldPos(tl);
-        const corner2 = this._fixWorldPos(br);
-        width = Math.abs(corner1[0] - corner2[0]);
-        height = Math.abs(corner1[1] - corner2[1]);
+        // As strange as this seems, every world is rotated by -90deg when other
+        // correction factors are applied, so width and height are swapped for
+        // purposes of finding our ideal bounding box sizes.
+        [width, height] = [height, width];
         const boundsRatio = width / height;
         const viewRatio = this._elRect.width / this._elRect.height;
         const zoom = viewRatio > boundsRatio ?
@@ -704,8 +702,7 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     _fixWorldPos(pos) {
-        // Maybe zomday I'll know why...
-        return this.worldMeta.mapRotateHack ? [pos[1], -pos[0]] : pos;
+        return this.worldMeta.rotateRouteSelect ? [pos[1], -pos[0]] : pos;
     }
 
     _createRoadPath(points, id, loop) {
@@ -739,17 +736,15 @@ export class SauceZwiftMap extends EventTarget {
             }
             const path = this._createRoadPath(road.path, id, road.looped);
             const clip = createElementSVG('clipPath', {id: `road-clip-${id}`});
-            let boxMin = this._fixWorldPos(road.boxMin);
-            let boxMax = this._fixWorldPos(road.boxMax);
-            if (this.worldMeta.mapRotateHack) {
-                [boxMin, boxMax] = [boxMax, boxMin];
-            }
+            // These are not actually min/max if rotate hack is present.
+            const boxC1 = this._fixWorldPos(road.boxMin);
+            const boxC2 = this._fixWorldPos(road.boxMax);
             const clipBox = createElementSVG('path', {
                 d: [
-                    `M ${boxMin[0] * svgInternalScale} ${boxMin[1] * svgInternalScale}`,
-                    `H ${boxMax[0] * svgInternalScale}`,
-                    `V ${boxMax[1] * svgInternalScale}`,
-                    `H ${boxMin[0] * svgInternalScale}`,
+                    `M ${boxC1[0] * svgInternalScale} ${boxC1[1] * svgInternalScale}`,
+                    `H ${boxC2[0] * svgInternalScale}`,
+                    `V ${boxC2[1] * svgInternalScale}`,
+                    `H ${boxC1[0] * svgInternalScale}`,
                     `Z`
                 ].join('')
             });
