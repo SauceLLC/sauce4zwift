@@ -9,6 +9,8 @@ $medium-border: 1px solid color.shade(intrinsic, 100%, 0.3);
 html {
     padding: 0;
     font-size: 4.1mm;
+    -webkit-user-select: text;
+    user-select: text;
 }
 
 abbr.unit {
@@ -26,7 +28,7 @@ abbr.unit {
         margin: -0.5em 1em 0 0;
         border-radius: 50%;
         background-color: white;
-        box-shadow: 1px 1px 2px 0 #0006;
+        box-shadow: 0px 0px 4px 0 #0005;
     }
 }
 
@@ -39,7 +41,7 @@ abbr.unit {
 }
 
 #map {
-    height: clamp(300px, 33vh, 1000px);
+    height: clamp(250px, 33vh, 600px);
     border-radius: 0.28em;
     background-color: color.shade(intrinsic, 5%);
 

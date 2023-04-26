@@ -306,7 +306,7 @@ export async function main() {
         return;
     }
     sport = ad.state.sport;
-    const renderer = new common.Renderer(contentEl, {fps: 0.5});
+    const renderer = new common.Renderer(contentEl, {fps: 1, backgroundRender: true});
     const athlete = ad.athlete;
     const started = new Date(Date.now() - ad.stats.elapsedTime * 1000);
     const name = `${athlete ? athlete.fLast : athleteId} - ${started.toLocaleString()}`;
@@ -356,13 +356,20 @@ export async function main() {
             histPath.node.remove();
         }
         const positions = streams.latlng.map(x => zm.latlngToPosition(x));
+
+        const xMin = sauce.data.min(positions.map(x => x[0]));
+        const yMin = sauce.data.min(positions.map(x => x[1]));
+        const xMax = sauce.data.max(positions.map(x => x[0]));
+        const yMax = sauce.data.max(positions.map(x => x[1]));
+        zm.setBounds([xMin, yMax], [xMax, yMin]);
+
         histPath = zm.addHighlightPath(positions, 'history');
     });
     window.zwiftMap = zm; // XXX
     common.subscribe(`athlete/${athleteId}`, x => {
         renderer.setData(x);
         renderer.render();
-    });
+    }, {persistent: true});
 }
 
 
