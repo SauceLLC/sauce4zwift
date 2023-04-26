@@ -23,7 +23,7 @@ abbr.unit {
         object-fit: cover;
         width: 6em;
         height: 6em;
-        margin: -0.5em 1em 0 -0.5em;
+        margin: -0.5em 1em 0 0;
         border-radius: 50%;
         background-color: white;
         box-shadow: 1px 1px 2px 0 #0006;
@@ -34,13 +34,40 @@ abbr.unit {
     overflow: auto;
     overflow: overlay;
 
-    color: color.shade(intrinsic, 100%);
+    color: color.get(intrinsic-inverted);
     background-color: color.get(intrinsic);
 }
 
 #map {
-    width: 400px;
-    height: 400px;
+    height: clamp(300px, 33vh, 1000px);
+    border-radius: 0.28em;
+    background-color: color.shade(intrinsic, 5%);
+
+    .entity[data-id="start"] {
+        font-size: 1.4em;
+        --fill: white;
+        border-color: red;
+        opacity: 1;
+        filter: drop-shadow(0 0 4px #000d);
+    }
+
+    .entity[data-id="end"] {
+        font-size: 2em;
+        --fill: white;
+        border-color: black;
+        opacity: 1;
+        background-color: white;
+        border-width: 0.15em;
+        // Checkers...
+        $checker-size: 0.12em;
+        background-image:
+            linear-gradient(45deg, #000 25%, transparent 25%),
+            linear-gradient(45deg, transparent 75%, #000 75%),
+            linear-gradient(45deg, transparent 75%, #000 75%),
+            linear-gradient(45deg, #000 25%, transparent 25%);
+        background-size: ($checker-size * 2) ($checker-size * 2);
+        background-position:0 0, 0 0, (-$checker-size) (-$checker-size), $checker-size $checker-size;
+    }
 }
 
 #content > section {
@@ -48,14 +75,15 @@ abbr.unit {
     overflow: hidden;
     flex: 0 0 auto;
     padding: 1em 1.5em;
+    border-bottom: $light-border;
 
     > header {
         display: flex;
+        flex-wrap: wrap;
         align-items: center;
-        padding: 1rem 1rem;
+        padding: 0.2rem;
         font-size: 1.4em;
         font-weight: 600;
-        border-bottom: $light-border;
 
         ms {
             padding-right: 0.2em;
@@ -65,9 +93,15 @@ abbr.unit {
         .title {
             font-variant: all-small-caps;
         }
+
+        small {
+            font-weight: normal;
+        }
     }
 
     > main {
+        display: flex;
+        flex-direction: column;
         padding: 1rem 0 2rem;
     }
 }
@@ -76,12 +110,16 @@ abbr.unit {
 main > table {
     user-select: text;
     table-layout: fixed;
+    overflow: hidden;
+    border-radius: 0.28em;
+    background-image: linear-gradient(45deg, color.shade(intrinsic, 4%), color.shade(intrinsic, 3%));
 
     > thead {
         position: sticky;
         z-index: 1;
         top: 0;
-        background-image: linear-gradient(to bottom, color.shade(bg, -10%), color.shade(bg, 0%));
+        background-image: linear-gradient(to bottom, color.shade(bg, 10%), color.shade(bg, 0%));
+        color: color.get(fg);
     }
 }
 
@@ -89,7 +127,7 @@ main > table {
     @include charts.legend(".legend");
 }
 
-section.summary {
+#content > section.summary {
     .chart {
         height: 10em;
     }
@@ -99,6 +137,9 @@ section.summary {
     }
 
     header {
+        padding: 1rem 0;
+        border-bottom: $light-border;
+
         .activity-intro,
         .activity-details {
             flex: 1 1 0;
@@ -152,7 +193,9 @@ section.summary {
     key {
         grid-column: 1;
         margin-right: 0.5em;
+        white-space: nowrap;
     }
+
     value {
         grid-column: 2;
     }
@@ -161,11 +204,12 @@ section.summary {
 .more-stats {
     display: flex;
     flex-wrap: wrap;
+    padding: 1em 0;
 
     .stats {
         flex: 1 1 0;
-        padding: 1em;
-        margin: 1em;
+        padding: 0.5em;
+        margin: 0.5em;
 
         &:not(:last-child) {
             border-right: $light-border;

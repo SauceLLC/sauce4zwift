@@ -143,7 +143,7 @@ async function initSelfAthlete() {
 export async function main() {
     common.initInteractionListeners();
     const fieldsEl = document.querySelector('#content .fields');
-    const fieldRenderer = new common.Renderer(fieldsEl, {fps: null});
+    const fieldRenderer = new common.Renderer(fieldsEl, {fps: 1});
     const mapping = [];
     const defaults = {
         f1: 'grade',
