@@ -172,7 +172,7 @@
             }
 
             .highlight {
-                stroke-width: calc(10px + (1 / var(--zoom) * 7px));
+                stroke-width: calc(8px + (1 / var(--zoom) * 7px));
                 stroke: #cf0606b0;
             }
 

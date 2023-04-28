@@ -3,7 +3,7 @@
 @import 'map';
 @import 'profile_tpl';
 
-$light-border: 1px solid color.shade(intrinsic, 100%, 0.2);
+$light-border: 1px solid color.shade(intrinsic, 100%, 0.15);
 $medium-border: 1px solid color.shade(intrinsic, 100%, 0.3);
 
 html {
@@ -13,23 +13,15 @@ html {
     user-select: text;
 }
 
+.embed {
+    display: contents;
+}
+
 abbr.unit {
     font-weight: 400;
     opacity: 0.8;
     font-size: 0.82em;
     padding: 0 0.1em;
-}
-
-.avatar {
-    img {
-        object-fit: cover;
-        width: 6em;
-        height: 6em;
-        margin: -0.5em 1em 0 0;
-        border-radius: 50%;
-        background-color: white;
-        box-shadow: 0px 0px 4px 0 #0005;
-    }
 }
 
 #content {
@@ -38,17 +30,35 @@ abbr.unit {
 
     color: color.get(intrinsic-inverted);
     background-color: color.get(intrinsic);
+
+    > header,
+    > section {
+        margin: 0 2rem;
+        padding: 0.8rem 0.8rem;
+    }
+
+    > header {
+        padding-bottom: 0;
+    }
+
+    > section {
+        padding-bottom: 1rem;
+    }
 }
 
 #map {
-    height: clamp(250px, 33vh, 600px);
+    height: clamp(220px, 28vh, 500px);
     border-radius: 0.28em;
     background-color: color.shade(intrinsic, 5%);
 
+    .map-background {
+        filter: contrast(0.4) brightness(1.5);
+    }
+
     .entity[data-id="start"] {
         font-size: 1.4em;
-        --fill: white;
-        border-color: red;
+        --fill: green;
+        border-color: white;
         opacity: 1;
         filter: drop-shadow(0 0 4px #000d);
     }
@@ -56,7 +66,7 @@ abbr.unit {
     .entity[data-id="end"] {
         font-size: 2em;
         --fill: white;
-        border-color: black;
+        border-color: white;
         opacity: 1;
         background-color: white;
         border-width: 0.15em;
@@ -73,10 +83,8 @@ abbr.unit {
 }
 
 #content > section {
-    margin: 0;
     overflow: hidden;
     flex: 0 0 auto;
-    padding: 1em 1.5em;
     border-bottom: $light-border;
 
     > header {
@@ -85,7 +93,6 @@ abbr.unit {
         align-items: center;
         padding: 0.2rem;
         font-size: 1.4em;
-        font-weight: 600;
 
         ms {
             padding-right: 0.2em;
@@ -95,16 +102,15 @@ abbr.unit {
         .title {
             font-variant: all-small-caps;
         }
-
-        small {
-            font-weight: normal;
-        }
     }
 
     > main {
         display: flex;
         flex-direction: column;
-        padding: 1rem 0 2rem;
+
+        &:not(:first-child) {
+            padding-top: 1rem;
+        }
     }
 }
 
@@ -127,63 +133,107 @@ main > table {
 
 .chart-holder {
     @include charts.legend(".legend");
+
+    --selection-color: #{color.get(intrinsic-inverted, 0.2)};
+    --selection-border-color: #{color.shade(intrinsic-inverted, 10%, 0.8)};
+    --selection-border-width: 1;
 }
 
-#content > section.summary {
+#content > header.about {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    font-size: 1.2em;
+    margin-top: 1em;
+
+    .avatar {
+        position: relative;
+
+        img {
+            object-fit: cover;
+            width: 6em;
+            height: 6em;
+            margin-right: 1em;
+            margin-bottom: 1em;
+            border-radius: 50%;
+            background-color: white;
+            border: 5px solid color.get(intrinsic-inverted, 0.8);
+            box-shadow: 1px 1px 5px 0 #0007;
+        }
+
+        .special.badge {
+            background: none #000a;
+            font-size: 0.5em;
+            color: gold;
+            position: absolute;
+            top: -0.5em;
+            left: -0.5em;
+        }
+    }
+
+    .activity-intro,
+    .activity-summary {
+        flex: 1 1 0;
+        white-space: nowrap;
+    }
+
+    .activity-intro {
+        margin-right: 0.6em;
+        position: relative;
+        flex-grow: 2;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: flex-start;
+
+        .name {
+            font-weight: 600;
+            font-size: 1.2em;
+        }
+
+        ms.gender {
+            font-weight: 900;
+
+            &.female {
+                color: purple;
+            }
+        }
+
+        .team {
+            margin-top: -0.2em;
+            font-size: 0.6em;
+            display: flex;
+        }
+
+        .world {
+            font-weight: 300;
+            font-size: 0.8em;
+            padding-top: 0.2em;
+        }
+
+        .flag {
+            display: inline-block;
+            height: 0.9em;
+            vertical-align: middle;
+        }
+    }
+
+    .activity-summary {
+        font-size: 0.86em;
+        font-weight: 450;
+        border: $medium-border;
+        border-radius: 0.28em;
+        padding: 0.8em;
+    }
+}
+
+section.analysis {
     .chart {
-        height: 10em;
+        height: 30em;
     }
 
     .more-stats .stats {
         margin: 0.2em 1em 0.2em 0;
-    }
-
-    header {
-        padding: 1rem 0;
-        border-bottom: $light-border;
-
-        .activity-intro,
-        .activity-details {
-            flex: 1 1 0;
-        }
-
-        .activity-intro {
-            margin-right: 0.6em;
-            position: relative;
-            flex-grow: 2;
-
-            .special-badge {
-                font-variant: all-small-caps;
-                font-size: 0.5em;
-                font-weight: 600;
-                color: gold;
-                position: absolute;
-                line-height: 1;
-                padding: 0.15em 0.3em;
-                top: -0.6em;
-                left: 0;
-                background-color: #000b;
-                border-radius: 0.28em;
-            }
-
-            .badge {
-                font-size: 0.5em;
-            }
-
-            .flag {
-                display: inline-block;
-                height: 1.2em;
-                vertical-align: middle;
-            }
-        }
-
-        .activity-details {
-            font-size: 0.7em;
-            font-weight: normal;
-            border: $medium-border;
-            border-radius: 0.28em;
-            padding: 0.8em;
-        }
     }
 }
 
@@ -191,15 +241,18 @@ main > table {
     display: grid;
     grid-template-columns: 1fr 1fr;
     align-content: start;
+    white-space: nowrap;
 
     key {
         grid-column: 1;
         margin-right: 0.5em;
-        white-space: nowrap;
+        font-weight: 500;
+        font-variant: all-small-caps;
     }
 
     value {
         grid-column: 2;
+        font-weight: 350;
     }
 }
 

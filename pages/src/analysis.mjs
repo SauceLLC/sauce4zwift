@@ -12,14 +12,11 @@ common.settingsStore.setDefault({
     preferWkg: false,
 });
 
-let ad;
 let laps;
 let segments;
 let streams;
-let nations;
-let flags;
-let worldList;
 let sport;
+
 const settings = common.settingsStore.get();
 const H = sauce.locale.human;
 const q = new URLSearchParams(location.search);
@@ -69,6 +66,19 @@ const lineChartFields = [{
 }];
 
 
+async function getTemplate(basename) {
+    return await sauce.template.getTemplate(`templates/analysis/${basename}.html.tpl`);
+}
+
+
+async function getTemplates(basenames) {
+    return Object.fromEntries(await Promise.all(basenames.map(k =>
+        sauce.template.getTemplate(`templates/analysis/${k}.html.tpl`).then(v =>
+            // camelCase conv keys-with_snakecase--chars
+            [k.replace(/[-_]+(.)/g, (_, x) => x.toUpperCase()), v]))));
+}
+
+
 async function exportFITActivity(name) {
     const fitData = await common.rpc.exportFIT(athleteId);
     const f = new File([new Uint8Array(fitData)], `${name}.fit`, {type: 'application/binary'});
@@ -96,71 +106,67 @@ function createLineChart(el, lap) {
     const timeStream = lap ? getLapStream('time', lap) : streams.time;
     const fields = lineChartFields.filter(x => settings[x.id + 'En'] !== false);
     const lineChart = echarts.init(el, 'sauce', {renderer: 'svg'});
-    const visualMapCommon = {
-        show: false,
-        type: 'continuous',
-        hoverLink: false,
-    };
-    const seriesCommon = {
-        type: 'line',
-        animation: false,  // looks better and saves gobs of CPU
-        showSymbol: false,
-        emphasis: {disabled: true},
-        areaStyle: {},
-    };
     const options = {
+        animation: false, // slow and we want a responsive interface not a pretty static one
         color: fields.map(f => f.color),
         visualMap: fields.map((f, i) => ({
-            ...visualMapCommon,
+            show: false,
+            type: 'continuous',
+            hoverLink: false,
             seriesIndex: i,
             min: f.domain[0],
             max: f.domain[1],
             inRange: {colorAlpha: f.rangeAlpha},
         })),
-        grid: {top: 0, left: 0, right: 0, bottom: 0},
-        legend: {show: false},
+        legend: {show: true},
         tooltip: {
             trigger: 'axis',
-            axisPointer: {label: {formatter: () => ''}}
+            axisPointer: {label: {NOformatter: () => ''}}
         },
-        xAxis: [{
+        grid: fields.map((_, i) => {
+            const pct = i / fields.length * 100;
+            return {
+                top: `${pct}%`,
+                height: `${100 / fields.length * 0.8}%`,
+            };
+        }),
+        xAxis: fields.map((f, i) => ({
+            type: 'time',
             show: true,
-            data: timeStream.map((x, i) => i),
-        }],
-        yAxis: fields.map(f => ({
-            show: false,
+            gridIndex: i,
+        })),
+        yAxis: fields.map((f, i) => ({
+            type: 'value',
+            show: true,
+            gridIndex: i,
             min: x => Math.min(f.domain[0], x.min),
             max: x => Math.max(f.domain[1], x.max),
         })),
         series: fields.map((f, i) => ({
-            ...seriesCommon,
+            type: 'line',
+            showSymbol: false,
+            emphasis: {disabled: true},
+            areaStyle: {},
             id: f.id,
             name: typeof f.name === 'function' ? f.name(lap, f) : f.name,
             z: fields.length - i + 1,
+            xAxisIndex: i,
             yAxisIndex: i,
             tooltip: {valueFormatter: f.fmt},
             lineStyle: {color: f.color},
-            data: lap ? getLapStream(f.stream, lap) : streams[f.stream],
-            markLine: settings.markMax === f.id ? {
-                symbol: 'none',
-                data: [{
-                    name: f.markMin ? 'Min' : 'Max',
-                    xAxis: f.points.indexOf(sauce.data[f.markMin ? 'min' : 'max'](f.points)),
-                    label: {
-                        formatter: x => {
-                            const nbsp ='\u00A0';
-                            return [
-                                ''.padStart(Math.max(0, 5 - x.value), nbsp),
-                                nbsp, nbsp, // for unit offset
-                                f.fmt(f.points[x.value]),
-                                ''.padEnd(Math.max(0, x.value - (timeStream.length - 1) + 5), nbsp)
-                            ].join('');
-                        },
-                    },
-                    emphasis: {disabled: true},
-                }],
-            } : undefined,
+            data: (lap ? getLapStream(f.stream, lap) : streams[f.stream]).map((x, ii) => [timeStream[ii], x]),
         })),
+        brush: {
+            toolbox: ['rect', 'polygon', 'lineX', 'lineY', 'keep', 'clear'],
+            brushLink: 'all',
+            brushType: 'lineX', // default
+            brushMode: 'single', // default
+            brushStyle: {
+                color: 'var(--selection-color)',
+                borderWidth: 'var(--selection-border-width)',
+                borderColor: 'var(--selection-border-color)',
+            },
+        }
     };
     lineChart.setOption(options);
     lineChart._sauceLegend = new charts.SauceLegend({
@@ -170,14 +176,21 @@ function createLineChart(el, lap) {
     });
     lineChart.updateData = () => {
         lineChart.setOption({
-            xAxis: [{
-                data: timeStream.map((x, i) => i),
-            }],
-            series: fields.map((f, i) => ({
-                data: lap ? getLapStream(f.stream, lap) : streams[f.stream],
+            series: fields.map(f => ({
+                data: (lap ? getLapStream(f.stream, lap) : streams[f.stream])
+                    .map((x, i) => [timeStream[i], x]),
             }))
         });
     };
+    // This is the only way to enable brush selection by default. :/
+    lineChart.dispatchAction({
+        type: 'takeGlobalCursor',
+        key: 'brush',
+        brushOption: {
+            brushType: 'lineX',
+            brushMode: 'single',
+        }
+    });
     chartRefs.add(new WeakRef(lineChart));
     return lineChart;
 }
@@ -197,7 +210,7 @@ function resizeCharts() {
 
 async function onLapExpand(row, summaryRow) {
     const lap = laps[Number(summaryRow.dataset.lap)];
-    const detailTpl = await sauce.template.getTemplate(`templates/analysis/lap-details.html.tpl`);
+    const detailTpl = await getTemplate('lap-details');
     row.append(await detailTpl({lap}));
     createLineChart(row.querySelector('.chart-holder .chart'), lap);
 }
@@ -205,7 +218,7 @@ async function onLapExpand(row, summaryRow) {
 
 async function onSegmentExpand(row, summaryRow) {
     const segment = segments[Number(summaryRow.dataset.segment)];
-    const detailTpl = await sauce.template.getTemplate(`templates/analysis/segment-details.html.tpl`);
+    const detailTpl = await getTemplate('segment-details');
     row.append(await detailTpl({segment}));
     createLineChart(row.querySelector('.chart-holder .chart'), segment);
 }
@@ -289,18 +302,32 @@ async function createTimeInPowerZones(el, renderer) {
 export async function main() {
     common.initInteractionListeners();
     addEventListener('resize', resizeCharts);
-    let mainTpl;
+
     // Poll laps, segments for updates after this. TBD
-    [ad, laps, segments, streams, mainTpl, {nations, flags}, worldList] = await Promise.all([
+
+    const [ad, _laps, _segments, _streams, templates, nationFlags, worldList] = await Promise.all([
         common.rpc.getAthleteData(athleteId),
         common.rpc.getAthleteLaps(athleteId),
         common.rpc.getAthleteSegments(athleteId),
         common.rpc.getAthleteStreams(athleteId),
-        sauce.template.getTemplate(`templates/analysis/main.html.tpl`),
+        getTemplates(['main', 'header-summary']),
         common.initNationFlags(),
         common.getWorldList(),
     ]);
-    const contentEl = await render(mainTpl);
+    laps = _laps, segments = _segments, streams = _streams;
+    console.log({ad, streams});
+    const contentEl = document.querySelector('#content');
+    contentEl.replaceChildren(await templates.main({
+        ad,
+        laps,
+        segments,
+        streams,
+        templates,
+        nationFlags,
+        worldList,
+        settings,
+        common,
+    }));
     const exportBtn = document.querySelector('.button.export-file');
     if (!ad || !ad.state) {
         return;
@@ -314,7 +341,7 @@ export async function main() {
     exportBtn.removeAttribute('disabled');
     common.initExpanderTable(contentEl.querySelector('table.laps'), onLapExpand, onLapCollapse);
     common.initExpanderTable(contentEl.querySelector('table.segments'), onSegmentExpand, onLapCollapse);
-    const mainLineChart = createLineChart(contentEl.querySelector('.summary .chart-holder .chart'));
+    const mainLineChart = createLineChart(contentEl.querySelector('.analysis .chart-holder .chart'));
     await createTimeInPowerZones(contentEl.querySelector('.stats.time-in-power-zones'), renderer);
     const zm = new map.SauceZwiftMap({
         el: document.querySelector('#map'),
@@ -341,8 +368,10 @@ export async function main() {
         endEntity.setPosition(positions.at(-1));
         histPath = zm.addHighlightPath(positions, 'history');
     }
-    renderer.addCallback(({state}) => {
-        streams.time.push(state.time);
+    renderer.addCallback(async data => {
+        const state = data.state;
+        console.log(data);
+        streams.time.push(streams.time.at(-1) + Math.random() * 10);
         streams.power.push(state.power);
         streams.cadence.push(state.cadence);
         streams.hr.push(state.heartrate);
@@ -364,6 +393,7 @@ export async function main() {
         zm.setBounds([xMin, yMax], [xMax, yMin]);
 
         histPath = zm.addHighlightPath(positions, 'history');
+        document.getElementById('header-summary').replaceChildren(await templates.headerSummary(data));
     });
     window.zwiftMap = zm; // XXX
     common.subscribe(`athlete/${athleteId}`, x => {
@@ -372,23 +402,6 @@ export async function main() {
     }, {persistent: true});
 }
 
-
-async function render(tpl) {
-    const frag = await tpl({
-        ad,
-        laps,
-        segments,
-        streams,
-        settings,
-        nations,
-        flags,
-        common,
-        worldList,
-    });
-    const contentEl = document.querySelector('#content');
-    contentEl.replaceChildren(frag);
-    return contentEl;
-}
 
 
 export async function settingsMain() {
