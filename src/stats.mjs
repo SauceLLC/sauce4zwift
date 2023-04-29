@@ -1323,14 +1323,15 @@ export class StatsProcessor extends events.EventEmitter {
         ad.mostRecentState = state;
         ad.updated = monotonic();
         this._stateProcessCount++;
+        let emitData;
         if (this.watching === state.athleteId && this.listenerCount('athlete/watching')) {
-            this.emit('athlete/watching', this._formatAthleteData(ad));
+            this.emit('athlete/watching', emitData || (emitData = this._formatAthleteData(ad)));
         }
         if (this.athleteId === state.athleteId && this.listenerCount('athlete/self')) {
-            this.emit('athlete/self', this._formatAthleteData(ad));
+            this.emit('athlete/self', emitData || (emitData = this._formatAthleteData(ad)));
         }
         if (this.listenerCount(`athlete/${state.athleteId}`)) {
-            this.emit(`athlete/${state.athleteId}`, this._formatAthleteData(ad));
+            this.emit(`athlete/${state.athleteId}`, emitData || (emitData = this._formatAthleteData(ad)));
         }
     }
 
