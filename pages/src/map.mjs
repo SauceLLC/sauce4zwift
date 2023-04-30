@@ -66,11 +66,6 @@ function smoothPath(points, {loop, smoothing=0.2}={}) {
 }
 
 
-function isVisible() {
-    return document.visibilityState === 'visible';
-}
-
-
 class Transition {
 
     EPSILON = 1 / 0x800000;
@@ -425,9 +420,9 @@ export class SauceZwiftMap extends EventTarget {
         }
     }
 
-    setZoom(zoom) {
+    setZoom(zoom, options) {
         this.zoom = Math.max(this.zoomMin, Math.min(this.zoomMax, zoom));
-        this._applyZoom();
+        this._applyZoom(options);
     }
 
     setBounds(tl, br, pad=0.12) {
@@ -444,16 +439,16 @@ export class SauceZwiftMap extends EventTarget {
             this._elRect.height / (height * (1 + pad) * this._mapScale) :
             this._elRect.width / (width * (1 + pad) * this._mapScale);
         this.setCenter(center);
-        this.setZoom(zoom);
+        this.setZoom(zoom, {disableEvent: true});
     }
 
     _adjustZoom(adj) {
         this.zoom = Math.max(this.zoomMin, Math.min(this.zoomMax, this.zoom + adj));
     }
 
-    _applyZoom() {
+    _applyZoom(options={}) {
         this._elements.map.style.setProperty('--zoom', this.zoom);
-        if (this._fullUpdateAsNeeded()) {
+        if (this._fullUpdateAsNeeded() && !options.disableEvent) {
             const ev = new Event('zoom');
             ev.zoom = this.zoom;
             this.dispatchEvent(ev);
@@ -1143,7 +1138,7 @@ export class SauceZwiftMap extends EventTarget {
                 this._updateEntityAthleteData(ent, entry.data);
             }
         }
-        if (refresh.length && isVisible()) {
+        if (refresh.length && common.isVisible()) {
             common.rpc.getAthletesData(refresh).then(ads => {
                 for (const ad of ads) {
                     const ent = this._ents.get(ad.athleteId);
