@@ -57,8 +57,7 @@ async function _onSearchInput(el) {
         }
         results = await common.rpc.searchAthletes(term, {pageLimit: 1, limit: 50, start: 0});
     }
-    resultsEl.innerHTML = '';
-    resultsEl.append(await athleteCards(results));
+    resultsEl.replaceChildren(await athleteCards(results));
 }
 
 
