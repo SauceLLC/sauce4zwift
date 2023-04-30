@@ -148,8 +148,7 @@ async function render(events) {
         eventBadge: common.eventBadge,
     });
     const contentEl = document.querySelector('#content');
-    contentEl.innerHTML = '';
-    contentEl.append(frag);
+    contentEl.replaceChildren(frag);
     return contentEl;
 }
 
