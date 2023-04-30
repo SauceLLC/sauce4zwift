@@ -5,11 +5,13 @@ import * as echarts from '../deps/src/echarts.mjs';
 import * as theme from './echarts-sauce-theme.mjs';
 import * as map from './map.mjs';
 import * as color from './color.mjs';
+import * as fields from './fields.mjs';
 
 echarts.registerTheme('sauce', theme.getTheme('dynamic', {fg: 'intrinsic-inverted', bg: 'intrinsic'}));
 
 common.settingsStore.setDefault({
     preferWkg: false,
+    peakEffortSource: 'power',
 });
 
 let laps;
@@ -23,7 +25,22 @@ const q = new URLSearchParams(location.search);
 const athleteId = q.get('id') || 'self';
 const chartRefs = new Set();
 
+const peakFormatters = {
+    power: x => H.power(x, {suffix: true, html: true}),
+    speed: x => H.pace(x, {suffix: true, html: true, sport}),
+    hr: x => H.number(x, {suffix: 'bpm', html: true}),
+    draft: x => H.power(x, {suffix: true, html: true}),
+};
+
 const lineChartFields = [{
+    id: 'altitude',
+    stream: 'altitude',
+    name: 'Elevation',
+    color: '#333',
+    domain: [0, 300],
+    rangeAlpha: [0.4, 1],
+    fmt: x => H.elevation(x, {separator: ' ', suffix: true}),
+}, {
     id: 'power',
     stream: 'power',
     name: 'Power',
@@ -79,6 +96,12 @@ async function getTemplates(basenames) {
 }
 
 
+async function updateTemplate(selector, tpl, attrs) {
+    const frag = await tpl(attrs);
+    document.querySelector(selector).replaceWith(frag);
+}
+
+
 async function exportFITActivity(name) {
     const fitData = await common.rpc.exportFIT(athleteId);
     const f = new File([new Uint8Array(fitData)], `${name}.fit`, {type: 'application/binary'});
@@ -103,7 +126,6 @@ function getLapStream(stream, lap) {
 
 
 function createLineChart(el, lap) {
-    const timeStream = lap ? getLapStream('time', lap) : streams.time;
     const fields = lineChartFields.filter(x => settings[x.id + 'En'] !== false);
     const lineChart = echarts.init(el, 'sauce', {renderer: 'svg'});
     const options = {
@@ -118,29 +140,64 @@ function createLineChart(el, lap) {
             max: f.domain[1],
             inRange: {colorAlpha: f.rangeAlpha},
         })),
-        legend: {show: true},
-        tooltip: {
-            trigger: 'axis',
-            axisPointer: {label: {NOformatter: () => ''}}
-        },
+        axisPointer: {link: [{xAxisIndex: 'all'}]},
         grid: fields.map((_, i) => {
-            const pct = i / fields.length * 100;
+            const topPad = 2;
+            const seriesPad = 2;
+            const bottomPad = 4;
             return {
-                top: `${pct}%`,
-                height: `${100 / fields.length * 0.8}%`,
+                top: `${topPad + i / fields.length * (100 - topPad - bottomPad)}%`,
+                height: `${(100 - topPad - bottomPad) / fields.length - seriesPad}%`,
+                right: 12, // just enough for angle labels on end of xaxis
+                left: 36,  // tuned to axixLabel rotate of 55
             };
         }),
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: {label: {formatter: () => void 0}}, // XXX there must be a better way
+        },
         xAxis: fields.map((f, i) => ({
             type: 'time',
-            show: true,
             gridIndex: i,
+            splitNumber: el.clientWidth / 110 | 0,
+            axisTick: {
+                show: i === fields.length - 1,
+            },
+            axisLabel: {
+                show: i === fields.length - 1,
+                formatter: t => H.timer(t / 1000),
+            },
         })),
         yAxis: fields.map((f, i) => ({
             type: 'value',
             show: true,
+            name: typeof f.name === 'function' ? f.name() : f.name,
+            nameLocation: 'end',
+            nameRotate: 0,
+            nameGap: -12,
+            nameTextStyle: {
+                fontSize: '0.65em',
+                fontWeight: 600,
+                fontFamily: 'inherit',
+                align: 'left',
+                padding: [0, 0, 0, 4],
+            },
             gridIndex: i,
             min: x => Math.min(f.domain[0], x.min),
             max: x => Math.max(f.domain[1], x.max),
+            splitNumber: undefined,
+            interval: Infinity, // disable except for min/max
+            axisLine: {
+                show: true,
+            },
+            splitLine: {
+                show: false,
+            },
+            axisLabel: {
+                rotate: 55,
+                showMinLabel: false,
+                formatter: H.number,
+            },
         })),
         series: fields.map((f, i) => ({
             type: 'line',
@@ -148,16 +205,15 @@ function createLineChart(el, lap) {
             emphasis: {disabled: true},
             areaStyle: {},
             id: f.id,
-            name: typeof f.name === 'function' ? f.name(lap, f) : f.name,
+            name: typeof f.name === 'function' ? f.name() : f.name,
             z: fields.length - i + 1,
             xAxisIndex: i,
             yAxisIndex: i,
             tooltip: {valueFormatter: f.fmt},
             lineStyle: {color: f.color},
-            data: (lap ? getLapStream(f.stream, lap) : streams[f.stream]).map((x, ii) => [timeStream[ii], x]),
         })),
+        toolbox: {show: false},
         brush: {
-            toolbox: ['rect', 'polygon', 'lineX', 'lineY', 'keep', 'clear'],
             brushLink: 'all',
             brushType: 'lineX', // default
             brushMode: 'single', // default
@@ -175,13 +231,15 @@ function createLineChart(el, lap) {
         hiddenStorageKey: `analysis-hidden-graph`,
     });
     lineChart.updateData = () => {
+        const timeStream = lap ? getLapStream('time', lap) : streams.time;
         lineChart.setOption({
             series: fields.map(f => ({
                 data: (lap ? getLapStream(f.stream, lap) : streams[f.stream])
-                    .map((x, i) => [timeStream[i], x]),
+                    .map((x, i) => [timeStream[i] * 1000, x]),
             }))
         });
     };
+    lineChart.updateData();
     // This is the only way to enable brush selection by default. :/
     lineChart.dispatchAction({
         type: 'takeGlobalCursor',
@@ -236,6 +294,67 @@ function powerZoneColors(zones, fn) {
         colors[k] = fn ? fn(c) : c;
     }
     return colors;
+}
+
+
+async function createTimeInPowerZonesPie(el, renderer) {
+    const chart = echarts.init(el, 'sauce', {renderer: 'svg'});
+    chart.setOption({
+        grid: {top: '1', left: '1', right: '1', bottom: '1'},
+        tooltip: {
+            className: 'ec-tooltip'
+        },
+        series: [{
+            type: 'pie',
+            radius: ['30%', '90%'],
+            minShowLabelAngle: 20,
+            label: {
+                show: true,
+                position: 'inner',
+            },
+            tooltip: {
+                valueFormatter: x => H.timer(x, {long: true})
+            },
+            emphasis: {
+                itemStyle: {
+                    shadowBlur: 10,
+                    shadowOffsetX: 0,
+                    shadowColor: 'rgba(0, 0, 0, 0.5)'
+                }
+            }
+        }],
+    });
+    chartRefs.add(new WeakRef(chart));
+    let colors;
+    let aid;
+    let normZones;
+    const powerZones = await common.rpc.getPowerZones(1);
+    renderer.addCallback(data => {
+        if (!data || !data.stats || !data.athlete || !data.athlete.ftp) {
+            return;
+        }
+        if (data.athleteId !== aid) {
+            aid = data.athleteId;
+            colors = powerZoneColors(powerZones, c => ({
+                c,
+                g: new echarts.graphic.LinearGradient(0, 0, 1, 1, [
+                    {offset: 0, color: c.toString()},
+                    {offset: 1, color: c.alpha(0.6).toString()}
+                ])
+            }));
+            normZones = new Set(powerZones.filter(x => !x.overlap).map(x => x.zone));
+        }
+        chart.setOption({
+            series: [{
+                data: data.stats.timeInPowerZones.filter(x => normZones.has(x.zone)).map(x => ({
+                    name: x.zone,
+                    value: x.time,
+                    label: {color: colors[x.zone].c.l > 0.65 ? '#000b' : '#fffb'},
+                    itemStyle: {color: colors[x.zone].g},
+                })),
+            }],
+        });
+    });
 }
 
 
@@ -299,22 +418,29 @@ async function createTimeInPowerZones(el, renderer) {
 }
 
 
+function centerMap(zwiftMap, positions) {
+    const xMin = sauce.data.min(positions.map(x => x[0]));
+    const yMin = sauce.data.min(positions.map(x => x[1]));
+    const xMax = sauce.data.max(positions.map(x => x[0]));
+    const yMax = sauce.data.max(positions.map(x => x[1]));
+    zwiftMap.setBounds([xMin, yMax], [xMax, yMin]);
+}
+
+
 export async function main() {
     common.initInteractionListeners();
     addEventListener('resize', resizeCharts);
-
-    // Poll laps, segments for updates after this. TBD
-
-    const [ad, _laps, _segments, _streams, templates, nationFlags, worldList] = await Promise.all([
+    let ad;
+    const [_ad, _laps, _segments, _streams, templates, nationFlags, worldList] = await Promise.all([
         common.rpc.getAthleteData(athleteId),
         common.rpc.getAthleteLaps(athleteId),
         common.rpc.getAthleteSegments(athleteId),
         common.rpc.getAthleteStreams(athleteId),
-        getTemplates(['main', 'header-summary']),
+        getTemplates(['main', 'activity-summary', 'selection-stats', 'peak-efforts']),
         common.initNationFlags(),
         common.getWorldList(),
     ]);
-    laps = _laps, segments = _segments, streams = _streams;
+    ad = _ad, laps = _laps, segments = _segments, streams = _streams;
     console.log({ad, streams});
     const contentEl = document.querySelector('#content');
     contentEl.replaceChildren(await templates.main({
@@ -327,13 +453,21 @@ export async function main() {
         worldList,
         settings,
         common,
+        peakFormatters,
     }));
     const exportBtn = document.querySelector('.button.export-file');
-    if (!ad || !ad.state) {
+    if (!ad?.state) {
         return;
     }
     sport = ad.state.sport;
     const renderer = new common.Renderer(contentEl, {fps: 1, backgroundRender: true});
+    renderer.addRotatingFields({
+        mapping: [{
+            id: 'testing-1',
+            default: 'grade',
+        }],
+        fields: fields.fields
+    });
     const athlete = ad.athlete;
     const started = new Date(Date.now() - ad.stats.elapsedTime * 1000);
     const name = `${athlete ? athlete.fLast : athleteId} - ${started.toLocaleString()}`;
@@ -342,64 +476,83 @@ export async function main() {
     common.initExpanderTable(contentEl.querySelector('table.laps'), onLapExpand, onLapCollapse);
     common.initExpanderTable(contentEl.querySelector('table.segments'), onSegmentExpand, onLapCollapse);
     const mainLineChart = createLineChart(contentEl.querySelector('.analysis .chart-holder .chart'));
-    await createTimeInPowerZones(contentEl.querySelector('.stats.time-in-power-zones'), renderer);
-    const zm = new map.SauceZwiftMap({
+    //await createTimeInPowerZones(contentEl.querySelector('.time-in-power-zones'), renderer);
+    await createTimeInPowerZonesPie(contentEl.querySelector('.time-in-power-zones'), renderer);
+    const zwiftMap = new map.SauceZwiftMap({
         el: document.querySelector('#map'),
         worldList,
         zoomMin: 0.05,
     });
-    zm.setCourse(ad.state.courseId);
+    window.zwiftMap = zwiftMap; // debug
+    let voidAutoCenter;
+    zwiftMap.addEventListener('drag', () => voidAutoCenter = true);
+    zwiftMap.addEventListener('zoom', () => voidAutoCenter = true);
+    zwiftMap.setCourse(ad.state.courseId);
     let histPath;
     const endEntity = new map.MapEntity('end');
     endEntity.transition.setDuration(0);
-    zm.addEntity(endEntity);
+    zwiftMap.addEntity(endEntity);
+    const positions = [];
     if (streams.latlng.length) {
         renderer.setData(ad);
         renderer.render();
-        const positions = streams.latlng.map(x => zm.latlngToPosition(x));
-        const xMin = sauce.data.min(positions.map(x => x[0]));
-        const yMin = sauce.data.min(positions.map(x => x[1]));
-        const xMax = sauce.data.max(positions.map(x => x[0]));
-        const yMax = sauce.data.max(positions.map(x => x[1]));
-        zm.setBounds([xMin, yMax], [xMax, yMin]);
+        for (const x of streams.latlng) {
+            positions.push(zwiftMap.latlngToPosition(x));
+        }
+        centerMap(zwiftMap, positions);
         const start = new map.MapEntity('start');
         start.setPosition(positions[0]);
-        zm.addEntity(start);
+        zwiftMap.addEntity(start);
         endEntity.setPosition(positions.at(-1));
-        histPath = zm.addHighlightPath(positions, 'history');
+        histPath = zwiftMap.addHighlightPath(positions, 'history');
     }
-    renderer.addCallback(async data => {
-        const state = data.state;
-        console.log(data);
-        streams.time.push(streams.time.at(-1) + Math.random() * 10);
-        streams.power.push(state.power);
-        streams.cadence.push(state.cadence);
-        streams.hr.push(state.heartrate);
-        streams.latlng.push(state.latlng);
-        streams.speed.push(state.speed);
-        streams.draft.push(state.draft);
-        endEntity.setPosition(zm.latlngToPosition(state.latlng));
-        mainLineChart.updateData(); // XXX EXPENSIVE!!!
+    let lastPeaksSig;
+    renderer.addCallback(async x => {
+        ad = x;
+        await updateTemplate('.activity-summary', templates.activitySummary, {ad});
+        if (!document.activeElement || !document.activeElement.closest('.peak-efforts')) {
+            const sig = JSON.stringify(ad.stats[settings.peakEffortSource].peaks);
+            if (sig !== lastPeaksSig) {
+                lastPeaksSig = sig;
+                await updateTemplate('.peak-efforts', templates.peakEfforts, {ad, settings, peakFormatters});
+            }
+        }
+        await updateTemplate('.selection-stats', templates.selectionStats, {ad});
+    });
+    contentEl.addEventListener('input', async ev => {
+        const peakSource = ev.target.closest('select[name="peak-effort-source"]');
+        if (!peakSource) {
+            return;
+        }
+        common.settingsStore.set('peakEffortSource', peakSource.value);
+        console.log(settings);
+        await updateTemplate('.peak-efforts', templates.peakEfforts, {ad, settings, peakFormatters});
+    });
+    // Always use streams for data to avoid ambiguous differences in state data.
+    setInterval(async () => {
+        streams = await common.rpc.getAthleteStreams(athleteId);
+        positions.push(...streams.latlng.slice(positions.length)
+            .map(x => zwiftMap.latlngToPosition(x)));
+        endEntity.setPosition(positions.at(-1));
+        if (!voidAutoCenter) {
+            centerMap(zwiftMap, positions);
+        }
         if (histPath) {
             histPath.path.remove();
             histPath.node.remove();
         }
-        const positions = streams.latlng.map(x => zm.latlngToPosition(x));
-
-        const xMin = sauce.data.min(positions.map(x => x[0]));
-        const yMin = sauce.data.min(positions.map(x => x[1]));
-        const xMax = sauce.data.max(positions.map(x => x[0]));
-        const yMax = sauce.data.max(positions.map(x => x[1]));
-        zm.setBounds([xMin, yMax], [xMax, yMin]);
-
-        histPath = zm.addHighlightPath(positions, 'history');
-        document.getElementById('header-summary').replaceChildren(await templates.headerSummary(data));
-    });
-    window.zwiftMap = zm; // XXX
+        histPath = zwiftMap.addHighlightPath(positions, 'history');
+        mainLineChart.updateData(); // XXX EXPENSIVE (update, still with animation false?)
+    }, 2000);
+    setInterval(async () => {
+        segments = await common.rpc.getAthleteSegments(athleteId);
+        laps = await common.rpc.getAthleteLaps(athleteId),
+        console.warn("render to template");
+    }, 10000);
     common.subscribe(`athlete/${athleteId}`, x => {
         renderer.setData(x);
         renderer.render();
-    }, {persistent: true});
+    });
 }
 
 
