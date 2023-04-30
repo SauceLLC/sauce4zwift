@@ -302,10 +302,10 @@ function genDynamicTheme({fg='fg', bg='bg'}={}) {
             }
         },
         toolbox: {
-            iconStyle: {borderColor: "rgba(255,255,255,0.8)"},
-            emphasis: {iconStyle: {borderColor: "#ffffff"}}
+            iconStyle: {borderColor: cssColor(fg, 0.1, 0.8)},
+            emphasis: {iconStyle: {borderColor: cssColor(fg, 0.1, 1)}},
         },
-        legend: {textStyle: {color: "rgba(255,255,255,0.92)"}},
+        legend: {textStyle: {color: cssColor(fg, 0.1, 0.92)}},
         tooltip: {
             confine: true,
             backgroundColor: cssColor(fg, 0.9, 0.86),
