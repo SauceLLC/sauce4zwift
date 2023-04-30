@@ -13,19 +13,17 @@ const _tplCache = new Map();
 const _tplFetching = new Map();
 
 
-export async function getTemplate(url, localeKey) {
-    localeKey = localeKey || '';
-    const cacheKey = '' + url + localeKey;
+export async function getTemplate(url, options) {
+    const cacheKey = JSON.stringify([url, options]);
     if (!_tplCache.has(cacheKey)) {
         if (!_tplFetching.has(cacheKey)) {
-            _tplFetching.set(cacheKey, browser.cachedFetch(url).then(async tplText => {
-                const localePrefix = localeKey && `${localeKey}_`;
+            _tplFetching.set(cacheKey, browser.cachedFetch(url).then(tplText => {
                 if (!tplText) {
                     console.error("Template not found:", url);
                     _tplCache.set(cacheKey, undefined);
                     return;
                 }
-                _tplCache.set(cacheKey, await compile(tplText, {localePrefix}));
+                _tplCache.set(cacheKey, compile(tplText, options));
             }).finally(() => _tplFetching.delete(cacheKey)));
         }
         await _tplFetching.get(cacheKey);
@@ -73,9 +71,20 @@ for (const fn of Object.values(localeMod.human)) {
 }
 
 const helpers = {
-    embed: async function(file, data) {
-        const localeKey = this.settings.localePrefix && this.settings.localePrefix.slice(0, -1);
-        return (await getTemplate(file, localeKey))(data);
+    embed: async function(tpl, data) {
+        if (typeof tpl === 'string') {
+            const localeKey = this.options.localeKey;
+            tpl = await getTemplate(tpl, {localeKey, html: true});
+        }
+        const resp = await tpl(data);
+        if (typeof resp === 'string') {
+            return resp;
+        } else {
+            // This is mildly suboptimal, not sure it warrants a warning though.
+            const el = document.createElement('div');
+            el.append(resp);
+            return el.innerHTML;
+        }
     },
     ...localeHelpers,
 };
@@ -85,64 +94,76 @@ const staticHelpers = {
 };
 
 
-async function compile(text, settingsOverrides) {
-    const settings = Object.assign({}, {
-        localeLookup: /\{\{\{\[(.+?)\]\}\}\}/g,
-        locale: /\{\{\{(.+?)\}\}\}/g,
-        staticHelper: /\{\{=([^\s]+?)\s+(.+?)=\}\}/g,
-        escape: /\{\{(.+?)\}\}/g,
-        interpolate: /\{-(.+?)-\}/g,
-        evaluate: /<%([\s\S]+?)%>/g,
-        localePrefix: '',
-    }, settingsOverrides);
-    settings.helpers = Object.fromEntries(Object.entries(helpers).map(([k, fn]) =>
-        ([k, fn.bind({settings})])));
+function makeRender(text, options, helperVars, attrVars) {
+    const localePrefix = options.localeKey ? options.localeKey + '_' : '';
+    const regexps = {
+        localeLookup: /\{\{\{\[(.+?)\]\}\}\}/g,         // {{{[ <locale expression> ]}}}
+        locale: /\{\{\{(.+?)\}\}\}/g,                   // {{{ <localekey> }}}
+        staticHelper: /\{\{=([^\s]+?)\s+(.+?)=\}\}/g,   // {{= <func> <arg> =}} (prerendered)
+        escape: /\{\{(.+?)\}\}/g,                       // {{ <text expression> }}
+        interpolate: /\{-(.+?)-\}/g,                    // {- <html expression> -}
+        evaluate: /<%([\s\S]+?)%>/g,                    // <% <code> %> (unrendered)
+    };
     const noMatch = /(.)^/;
     // Combine delimiters into one regular expression via alternation.
     const matcher = RegExp([
-        (settings.localeLookup || noMatch).source,
-        (settings.locale || noMatch).source,
-        (settings.staticHelper || noMatch).source,
-        (settings.escape || noMatch).source,
-        (settings.interpolate || noMatch).source,
-        (settings.evaluate || noMatch).source,
+        (regexps.localeLookup || noMatch).source,
+        (regexps.locale || noMatch).source,
+        (regexps.staticHelper || noMatch).source,
+        (regexps.escape || noMatch).source,
+        (regexps.interpolate || noMatch).source,
+        (regexps.evaluate || noMatch).source,
     ].join('|') + '|$', 'g');
     const code = [`
-        return async function sauceTemplateRender(
-            {localeMod, htmlEscape, helpers, localeMessages, statics}, obj) {
+        return async function sauceTemplateRender(__tplContext, obj) {
             let __t; // tmp
             const __p = []; // output buffer
-            with ({...helpers, ...obj}) {
     `];
+    const allVars = new Set(helperVars);
+    for (const k of attrVars) {
+        allVars.add(k);
+    }
+    if (allVars.has('obj')) {
+        console.error("`obj` is a reserved variable for the template system");
+        allVars.delete('obj'); // At least let it limp by without a syntax error
+    }
+    code.push(`let ${Array.from(allVars).join(', ')};`);
+    code.push(`({${helperVars.join(', ')}} = __tplContext.helpers);`);
+    if (attrVars.length) {
+        code.push(`({${attrVars.join(', ')}} = obj);`);
+    }
     let index = 0;
     const localeKeys = [];
     const staticCalls = [];
     text.replace(matcher, (...args) => {
         const [match, localeLookup, locale, shName, shArg, escape, interpolate, evaluate, offset] = args;
-        code.push(`__p.push('${text.slice(index, offset).replace(escapeRegExp, escapeChar)}');\n`);
+        code.push(`__p.push('${text.slice(index, offset).replace(escapeRegExp, escapeChar)}');`);
         index = offset + match.length;
         if (localeLookup) {
             code.push(`
                 __t = (${localeLookup}).startsWith('/') ?
                     (${localeLookup}).substr(1) :
-                    '${settings.localePrefix}' + (${localeLookup});
-                __t = localeMod.fastGetMessage(__t);
-                __p.push(__t instanceof Promise ? (await __t) : __t);
+                    '${localePrefix}' + (${localeLookup});
+                __t = __tplContext.localeMod.fastGetMessage(__t);
+                if (__t instanceof Promise) __t = await __t;
+                __p.push(__t);
             `);
         } else if (locale) {
-            const key = locale.startsWith('/') ? locale.substr(1) : settings.localePrefix + locale;
+            const key = locale.startsWith('/') ? locale.substr(1) : localePrefix + locale;
             localeKeys.push(key);
-            code.push(`__p.push(localeMessages['${key}']);\n`);
+            code.push(`__p.push(__tplContext.localeMessages['${key}']);`);
         } else if (escape) {
             code.push(`
                 __t = (${escape});
+                if (__t instanceof Promise) __t = await __t;
                 if (__t != null) {
-                    __p.push(htmlEscape(__t));
+                    __p.push(__tplContext.htmlEscape(__t));
                 }
             `);
         } else if (interpolate) {
             code.push(`
                 __t = (${interpolate});
+                if (__t instanceof Promise) __t = await __t;
                 if (__t != null) {
                     __p.push(__t);
                 }
@@ -152,20 +173,25 @@ async function compile(text, settingsOverrides) {
         } else if (shName) {
             const id = staticCalls.length;
             staticCalls.push([shName, shArg]);
-            code.push(`__p.push(statics[${id}]);\n`);
+            code.push(`__p.push(__tplContext.statics[${id}]);`);
         }
     });
     code.push(`
-            } /*end-with*/
-            const html = __p.join('');
+        const html = __p.join('');
+    `);
+    if (options.html) {
+        code.push(`return html;`);
+    } else {
+        code.push(`
             const el = document.createElement('div');
             el.innerHTML = html;
             const frag = document.createDocumentFragment();
-            frag.append(...el.children);
+            frag.append(...el.childNodes);
             return frag;
-        }; /*end-func*/
-    `);
-    const source = code.join('');
+        `);
+    }
+    code.push(`}; /*end-func*/`);
+    const source = code.join('\n');
     let render;
     const Fn = (function(){}).constructor;
     try {
@@ -174,19 +200,40 @@ async function compile(text, settingsOverrides) {
         e.source = source;
         throw e;
     }
-    let localeMessages;
-    if (localeKeys.length) {
-        localeMessages = await localeMod.fastGetMessagesObject(localeKeys);
-    }
+    return [render, localeKeys, staticCalls];
+}
+
+
+function compile(text, options={}) {
+    const boundHelpers = Object.fromEntries(Object.entries(helpers)
+        .map(([k, fn]) => [k, fn.bind({options})]));
+    let renderFuncVars;
+    let recompiles = 0;
+    let render;
     let statics;
-    if (staticCalls.length) {
-        statics = await Promise.all(staticCalls.map(([name, args]) => staticHelpers[name](args)));
-    }
-    return render.bind(this, {
-        localeMod,
-        htmlEscape,
-        helpers: settings.helpers,
-        localeMessages,
-        statics
-    });
+    let localeMessages;
+    const wrap = async obj => {
+        // To avoid using the deprecated `with` statement we need to memoize the obj vars.
+        const vars = obj && !Array.isArray(obj) ? Object.keys(obj) : [];
+        if (!render || vars.join() !== renderFuncVars.join()) {
+            renderFuncVars = vars;
+            if (recompiles++ > 10) {
+                console.warn("Highly variadic template function detected");
+            }
+            let localeKeys, staticCalls;
+            [render, localeKeys, staticCalls] = makeRender(text, options, Object.keys(helpers), vars);
+            localeMessages = localeKeys.length ?
+                await localeMod.fastGetMessagesObject(localeKeys) : undefined;
+            statics = staticCalls.length ?
+                await Promise.all(staticCalls.map(([name, args]) => staticHelpers[name](args))) : undefined;
+        }
+        return render.call(this, {
+            localeMod,
+            htmlEscape,
+            helpers: boundHelpers,
+            localeMessages,
+            statics
+        }, obj);
+    };
+    return wrap;
 }
