@@ -20,9 +20,10 @@
                 <% if (athlete.gender === 'female') { %><ms class="gender female" title="Female">female</ms><% } %>
             </div>
             <% if (athlete.team) { %><div class="team">{-common.teamBadge(athlete.team)-}</div><% } %>
-            <div class="world">{{worldList.find(x => x.courseId === ad.state.courseId).name}} <small><ms>map</ms></small></div>
-            <div class="field" data-field="testing-1">
-                <div class="key" tabindex="0"></div><div class="value" tabindex="0"></div><abbr class="unit"></abbr>
+            <div class="athlete-stat">Zwift Level: {{humanNumber(ad?.athlete?.level)}}</div>
+            <div class="athlete-stat">FTP:
+                {{humanPower(ad?.athlete?.ftp)}}
+                ({-humanNumber(ad?.athlete?.ftp / ad?.athlete?.weight, {precision: 1, fixed: true, suffix: 'w/kg', html: true})-})
             </div>
         </div>
         {-embed(templates.activitySummary, obj)-}
@@ -36,6 +37,7 @@
             </nav>
             <main>
                 <section class="analysis">
+                    <div class="world">{{worldList.find(x => x.courseId === ad.state.courseId).name}}</div>
                     <div id="map"></div>
                     {-embed(templates.selectionStats, obj)-}
                     <div class="chart-holder">
@@ -46,84 +48,12 @@
 
                 <section class="segments">
                     <header><ms>space_bar</ms><div class="title">Segments</div></header>
-                    <table class="segments expandable">
-                        <thead>
-                            <tr>
-                                <th></th>
-                                <th>Start</th>
-                                <th>Elapsed</th>
-                                <th>Distance</th>
-                                <th>Power</th>
-                                <th>Pace</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <% if (segments && segments.length) { %>
-                                <% for (const [i, segment] of segments.entries()) { %>
-                                    <tr class="summary" data-segment="{{i}}">
-                                        <td class="name">{{segment.segment.friendlyName || segment.segment.name}}</td>
-                                        <td class="start">{-humanTimer(streams.time[segment.startIndex], {long: true})-}</td>
-                                        <td>{-humanTimer(segment.stats.elapsedTime, {long: true})-}</td>
-                                        <td>{-humanDistance(streams.distance[segment.endIndex + 1] - streams.distance[segment.startIndex], {suffix: true, html: true})-}</td>
-                                        <td>{-humanPower(segment.stats.power.avg, {suffix: true, html: true})-}</td>
-                                        <td>{-humanPace(segment.stats.speed.avg, {suffix: true, html: true, sport: segment.sport})-}</td>
-                                    </tr>
-                                    <tr class="details">
-                                        <td colspan="6"><div class="container"></div></td>
-                                    </tr>
-                                <% } %>
-                            <% } else { %>
-                                <tr>
-                                    <td colspan="6">No Segment Data</td>
-                                </tr>
-                            <% } %>
-                        </tbody>
-                    </table>
+                    {-embed(templates.segments, obj)-}
                 </section>
 
                 <section class="laps">
                     <header><ms>timer</ms><div class="title">Laps</div></header>
-                    <table class="laps expandable">
-                        <thead>
-                            <tr>
-                                <th></th>
-                                <th>Start</th>
-                                <th>Time</th>
-                                <th>Distance</th>
-                                <th>Power</th>
-                                <th>Pace</th>
-                                <th>HR</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <% if (laps && laps.length) { %>
-                                <% for (const [i, lap] of laps.entries()) { %>
-                                    <tr class="summary" data-lap="{{i}}">
-                                        <td class="num">{{i+1}}</td>
-                                        <td class="start">{-humanTimer(streams.time[lap.startIndex], {long: true})-}</td>
-                                        <td>{-humanTimer(lap.stats.activeTime, {long: true})-}</td>
-                                        <td>{-humanDistance(streams.distance[lap.endIndex + 1] - streams.distance[lap.startIndex], {suffix: true, html: true})-}</td>
-                                        <% if (settings.preferWkg && athlete.weight) { %>
-                                            <td title="{{humanPower(lap.stats.power.avg, {suffix: true})}}"
-                                                >{-humanWkg(lap.stats.power.avg / athlete.weight, {suffix: true, html: true})-}</td>
-                                        <% } else { %>
-                                            <td title="{{athlete.weight ? humanWkg(lap.stats.power.avg / athlete.weight, {suffix: true}) : ''}}"
-                                                >{-humanPower(lap.stats.power.avg, {suffix: true, html: true})-}</td>
-                                        <% } %>
-                                        <td>{-humanPace(lap.stats.speed.avg, {suffix: true, html: true, sport: lap.sport})-}</td>
-                                        <td>{-humanNumber(lap.stats.hr.avg, {suffix: 'bpm', html: true})-}</td>
-                                    </tr>
-                                    <tr class="details">
-                                        <td colspan="7"><div class="container"></div></td>
-                                    </tr>
-                                <% } %>
-                            <% } else { %>
-                                <tr>
-                                    <td colspan="7">No Lap Data</td>
-                                </tr>
-                            <% } %>
-                        </tbody>
-                    </table>
+                    {-embed(templates.laps, obj)-}
                 </section>
             </main>
         </div>

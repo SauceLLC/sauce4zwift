@@ -127,7 +127,9 @@ function makeRender(text, options, helperVars, attrVars) {
         console.error("`obj` is a reserved variable for the template system");
         allVars.delete('obj'); // At least let it limp by without a syntax error
     }
-    code.push(`let ${Array.from(allVars).join(', ')};`);
+    for (const x of allVars) {
+        code.push(`let ${x};`);
+    }
     code.push(`({${helperVars.join(', ')}} = __tplContext.helpers);`);
     if (attrVars.length) {
         code.push(`({${attrVars.join(', ')}} = obj);`);

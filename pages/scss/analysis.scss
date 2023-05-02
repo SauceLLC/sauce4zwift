@@ -32,10 +32,13 @@ abbr.unit {
         > main {
             flex: 1 1 auto;
             margin-left: 1rem;
+            max-width: 100%;
         }
 
         > nav {
-            flex: 0 0 160px;
+            display: flex;
+            flex-direction: column;
+            flex: 0 0 170px;
             padding-bottom: 2em;
             font-size: 0.9em;
             padding-right: 1rem;
@@ -148,8 +151,9 @@ section table {
 }
 
 .time-in-power-zones {
-    height: 200px;
-    max-width: 100%;
+    margin-top: 1rem;
+    aspect-ratio: 1 / 1;
+    max-width: 180px;
 }
 
 #content > header.about {
@@ -157,17 +161,16 @@ section table {
     flex-wrap: wrap;
     align-items: center;
     font-size: 1.2em;
-    margin-top: 1em;
+    margin-top: 0.6rem;
+    margin-bottom: 0.6rem;
 
     .avatar {
         position: relative;
 
         img {
             object-fit: cover;
-            width: 6em;
-            height: 6em;
-            margin-right: 1em;
-            margin-bottom: 1em;
+            width: 8em;
+            height: 8em;
             border-radius: 50%;
             background-color: white;
             border: 5px solid color.get(intrinsic-inverted, 0.8);
@@ -188,10 +191,11 @@ section table {
     .activity-summary {
         flex: 1 1 0;
         white-space: nowrap;
+        margin: 0.6em 0;
     }
 
     .activity-intro {
-        margin-right: 0.6em;
+        padding: 0 1.2em;
         position: relative;
         flex-grow: 2;
         display: flex;
@@ -218,15 +222,16 @@ section table {
             display: flex;
         }
 
-        .world {
-            font-weight: 300;
-            font-size: 0.8em;
-            padding-top: 0.2em;
+        .athlete-stat {
+            font-weight: 400;
+            font-size: 0.7em;
+            padding-top: 0.4em;
         }
 
         .flag {
             display: inline-block;
             height: 0.9em;
+            margin-left: 0.2em;
             vertical-align: middle;
         }
     }
@@ -240,7 +245,20 @@ section table {
     }
 }
 
+
 section.analysis {
+    position: relative;
+
+    .world {
+        position: absolute;
+        z-index: 10000;
+        top: 0;
+        left: 0.4em;
+        font-variant: all-small-caps;
+        font-weight: 700;
+        opacity: 0.5;
+    }
+
     .chart {
         height: 30em;
         overflow: hidden;
@@ -296,6 +314,7 @@ section.analysis {
 .peak-efforts {
     border-radius: 0.28em;
     border: $light-border;
+    white-space: nowrap;
 
     select {
         padding: 0.5em;
@@ -446,17 +465,33 @@ table {
     }
 }
 
-@media only screen and (max-width: 700px)  {
+@media only screen and (max-width: 600px)  {
     #content {
         > header,
         > .columns {
             margin: 0 0.2rem;
-            padding: 0.8rem 0.3rem;
+            padding: 0.1rem 0.3rem;
             flex-wrap: wrap;
+            justify-content: center;
+
+            > nav {
+                flex-direction: row;
+                
+                border: none;
+                padding: 0;
+                margin-bottom: 1rem;
+                justify-content: space-around;
+                flex-grow: 1;
+            }
 
             > main {
                 padding-left: unset;
+                margin-left: unset;
             }
         }
+    }
+
+    .time-in-power-zones {
+        flex: 1 1 100%;
     }
 }

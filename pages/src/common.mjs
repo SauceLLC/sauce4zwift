@@ -1341,6 +1341,35 @@ export function cyrb53(str, seed=0) {
 export const hash = cyrb53;  // simple name is fine when we don't care about the impl
 
 
+export function binarySearchClosestNumber(arr, value) {
+    let left = 0;
+    let right = arr.length - 1;
+    let c = 0;
+    while (left <= right) {
+        c = (left + right) * 0.5 | 0;
+        const v = arr[c];
+        if (v > value) {
+            right = c - 1; 
+        } else if (v < value) {
+            left = c + 1;
+        } else if (v === value) {
+            return c;
+        }   
+    }
+    // tie breaker
+    if (right >= 0 && left < arr.length) {
+        const leftDelta = Math.abs(arr[left] - value);
+        const rightDelta = Math.abs(arr[right] - value);
+        if (leftDelta > rightDelta) {
+            return right;
+        } else {
+            return left;
+        }
+    }
+    return c;
+}
+
+
 rpcCall('getVersion').then(v => Sentry.setTag('version', v));
 rpcCall('getSentryAnonId').then(id => Sentry.setUser({id}));
 rpcCall('isDEV').then(isDEV => {
