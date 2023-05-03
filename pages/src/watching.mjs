@@ -400,11 +400,15 @@ const groupSpecs = {
             unit: x => eventMetric === 'distance' ? fmtDistUnit(x && x.remaining) : '',
         }, {
             id: 'ev-dst',
-            value: x => eventMetric === 'distance' ?
-                fmtDistValue(x.state && x.state.eventDistance) : fmtDur(x.state && x.state.time),
-            label: () => eventMetric === 'distance' ? 'dist' : 'time',
-            key: x => eventMetric === 'distance' ? 'Dist' : 'Time',
-            unit: x => eventMetric === 'distance' ? fmtDistUnit(x && x.state && x.state.eventDistance) : '',
+            value: x => fmtDistValue(x.state && x.state.eventDistance),
+            label: 'dist',
+            key: 'Dist',
+            unit: x => fmtDistUnit(x && x.state && x.state.eventDistance),
+        }, {
+            id: 'ev-time',
+            value: x => fmtDur(x.state && x.state.time),
+            label: 'time',
+            key: 'Time',
         }]
     },
     pace: {
