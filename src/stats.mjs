@@ -1802,7 +1802,7 @@ export class StatsProcessor extends events.EventEmitter {
 
     gcAthleteData() {
         const now = monotonic();
-        const expiration = now - 1200 * 1000;
+        const expiration = now - 1800 * 1000;
         for (const [k, {updated}] of this._athleteData.entries()) {
             if (updated < expiration) {
                 this._athleteData.delete(k);
