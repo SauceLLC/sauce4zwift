@@ -32,7 +32,7 @@ abbr.unit {
         > main {
             flex: 1 1 auto;
             margin-left: 1rem;
-            max-width: 100%;
+            overflow: hidden;
         }
 
         > nav {
@@ -146,7 +146,7 @@ section table {
     @include charts.legend(".legend");
 
     --selection-color: #{color.get(intrinsic-inverted, 0.2)};
-    --selection-border-color: #{color.shade(intrinsic-inverted, 10%, 0.8)};
+    --selection-border-color: #{color.shade(intrinsic-inverted, 10%, 0.4)};
     --selection-border-width: 1;
 }
 
@@ -260,27 +260,60 @@ section.analysis {
     }
 
     .chart {
-        height: 30em;
         overflow: hidden;
+    }
+
+    .elevation .chart {
+        height: 6em;
+    }
+
+    .zoomable .chart {
+        height: 20em;
     }
 
     .selection-stats {
         display: flex;
         flex-wrap: wrap;
-        padding: 1em 0;
-        border-top: 1px solid color.get(bg);
+        margin: 1em 1em 1em 2.6em;
+        padding: 0.5em 0;
+        justify-content: space-evenly;
+        border-top: $light-border;
+        border-bottom: $light-border;
+        font-size: 0.86em;
 
         .stats {
-            margin: 0.2em 1em 0.2em 0;
+            padding: 0.2em 1em;
+
+            &:first-child {
+                padding-left: 0;
+            }
+
+            &:not(:last-child) {
+                border-right: $medium-border;
+            }
+
+            &:last-child {
+                padding-right: 0;
+            }
         }
     }
 }
 
+.positive {
+    color: color.shade(positive, -10%);
+}
+
+.negative {
+    color: color.shade(negative, -10%);
+}
+
 .key-value-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: auto auto;
     align-content: start;
+    justify-content: normal;
     white-space: nowrap;
+    font-variant-numeric: tabular-nums;
 
     key {
         grid-column: 1;
@@ -292,6 +325,7 @@ section.analysis {
     value {
         grid-column: 2;
         font-weight: 350;
+        min-width: 6ch;
     }
 }
 
@@ -325,6 +359,8 @@ section.analysis {
     }
 
     table {
+        font-size: 1em;
+
         tr:nth-child(odd) {
             background-color: color.shade(intrinsic, 2%);
         }
@@ -339,36 +375,10 @@ section.analysis {
     }
 }
 
-table.expandable.laps,
-table.expandable.segments {
-    > tbody > tr.details > td > .container {
-        $more-stats-width: 250px;
-        display: flex;
-        flex-wrap: wrap;
-        padding: 1em;
-        align-items: center;
-
-         .more-stats {
-            flex: 0 1 $more-stats-width;
-        }
-
-        .chart-holder {
-            position: relative;
-            flex: 1 1 calc(100% - $more-stats-width - 2px);
-            overflow: hidden;
-            min-width: 300px;
-
-            .chart {
-                height: 10em;
-            }
-        }
-    }
-}
-
 table {
     border-collapse: collapse;
     width: 100%;
-    font-size: 0.9em;
+    font-size: 0.8em;
 
     thead th {
         font-variant: all-small-caps;
@@ -390,77 +400,14 @@ table {
 
     tbody tr {
         transition: background 100ms;
+        cursor: pointer;
+
+        &.selected {
+            background-color: color.shade(intrinsic-inverted, 10%);
+        }
 
         &:hover {
             background-color: color.shade(intrinsic, 7%);
-        }
-    }
-
-    &.expandable {
-        > tbody > tr {
-            &:nth-child(4n - 1) {
-                background-color: #0001;
-
-                &:hover {
-                    background-color: color.shade(intrinsic, 8%);
-                }
-            }
-
-            &:nth-child(2n - 1) {
-                &:not(.expanded) + tr {
-                    display: none;
-                }
-            }
-
-            &.summary {
-                cursor: pointer;
-
-                > td {
-                    white-space: nowrap;
-                    text-overflow: ellipsis;
-                    overflow: hidden;
-                }
-            }
-
-            &.expanded,
-            &.details {
-                background-color: color.shade(intrinsic, 20%, 10%) !important;
-            }
-
-            &.expanded {
-                border-top: 0.2em solid color.shade(bg, 10%, 50%);
-
-                > td {
-                    padding-top: 1em;
-                    padding-bottom: 0.5em;
-                    font-weight: bold;
-                }
-            }
-
-            &.details {
-                border-bottom: 0.2em solid color.shade(fg, 10%, 50%);
-
-                > td {
-                    padding-top: 0.5em;
-                    padding-bottom: 1em;
-
-                    > .container {
-                        background-color: color.shade(bg2, 60%, 10%);
-                        padding: 1.5em;
-                        border-radius: 0.28em;
-                        box-shadow: 1px 1px 5px 0 #0003;
-
-                        &:empty {
-                            min-height: 5em;
-
-                            &::after {
-                                font-size: 2em;
-                                content: 'Loading...'
-                            }
-                        }
-                    }
-                }
-            }
         }
     }
 }

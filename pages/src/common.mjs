@@ -1342,6 +1342,7 @@ export const hash = cyrb53;  // simple name is fine when we don't care about the
 
 
 export function binarySearchClosestNumber(arr, value) {
+    value = value || 0;
     let left = 0;
     let right = arr.length - 1;
     let c = 0;

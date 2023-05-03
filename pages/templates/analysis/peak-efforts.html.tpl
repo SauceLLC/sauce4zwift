@@ -8,7 +8,7 @@
             >Peak W/kg</option>-->
         <option value="speed"
                 {{settings.peakEffortSource === 'speed' ? 'selected' : ''}}
-            >Peak {{ad?.state?.sport === 'running' ? 'Pace' : 'Speed'}}</option>
+            >Peak {{athleteData.state.sport === 'running' ? 'Pace' : 'Speed'}}</option>
         <option value="hr"
                 {{settings.peakEffortSource === 'hr' ? 'selected' : ''}}
             >Peak HR</option>
@@ -18,7 +18,7 @@
     </select>
     <table>
         <% const source = settings.peakEffortSource || 'power'; %>
-        <% const peaks = (ad?.stats || {})[source]?.peaks; %>
+        <% const peaks = (athleteData.stats || {})[source]?.peaks; %>
         <% for (const [k, v] of Object.entries(peaks)) { %>
             <tr><td>{{humanDuration(k)}}</td><td>{-peakFormatters[source](v.avg)-}</td></tr>
         <% } %>

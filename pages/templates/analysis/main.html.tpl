@@ -1,9 +1,9 @@
-<% if (!ad?.athlete) { %>
-    <section>
-        <h1>No data available</h1>
-    </section>
+<% if (!athleteData || !streams || !athleteData.athlete) { %>
+    <header>
+        <h2>No data available</h2>
+    </header>
 <% } else { %>
-    <% const athlete = ad.athlete; %>
+    <% const athlete = athleteData.athlete; %>
     <header class="about">
         <a class="avatar" href="profile-avatar.html?id={{athlete.id}}" target="profile-avatar">
             <img src="{{athlete.avatar || 'images/blankavatar.png'}}"/>
@@ -20,10 +20,10 @@
                 <% if (athlete.gender === 'female') { %><ms class="gender female" title="Female">female</ms><% } %>
             </div>
             <% if (athlete.team) { %><div class="team">{-common.teamBadge(athlete.team)-}</div><% } %>
-            <div class="athlete-stat">Zwift Level: {{humanNumber(ad?.athlete?.level)}}</div>
+            <div class="athlete-stat">Zwift Level: {{humanNumber(athleteData?.athlete?.level)}}</div>
             <div class="athlete-stat">FTP:
-                {{humanPower(ad?.athlete?.ftp)}}
-                ({-humanNumber(ad?.athlete?.ftp / ad?.athlete?.weight, {precision: 1, fixed: true, suffix: 'w/kg', html: true})-})
+                {{humanPower(athleteData?.athlete?.ftp)}}
+                ({-humanNumber(athleteData?.athlete?.ftp / athleteData?.athlete?.weight, {precision: 1, fixed: true, suffix: 'w/kg', html: true})-})
             </div>
         </div>
         {-embed(templates.activitySummary, obj)-}
@@ -37,13 +37,11 @@
             </nav>
             <main>
                 <section class="analysis">
-                    <div class="world">{{worldList.find(x => x.courseId === ad.state.courseId).name}}</div>
+                    <div class="world">{{worldList.find(x => x.courseId === athleteData.state.courseId).name}}</div>
                     <div id="map"></div>
+                    <div class="chart-holder elevation"><div class="chart"></div></div>
                     {-embed(templates.selectionStats, obj)-}
-                    <div class="chart-holder">
-                        <div class="chart"></div>
-                        <div class="legend horizontal"></div>
-                    </div>
+                    <div class="chart-holder zoomable"><div class="chart"></div></div>
                 </section>
 
                 <section class="segments">
