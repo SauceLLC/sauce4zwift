@@ -132,31 +132,36 @@ export class SauceElevationProfile {
     setRoad(id, reverse=false) {
         this.road = this.roads[id];
         this.reverse = reverse;
-        this.chart.setOption({xAxis: {inverse: reverse}});
-        const distance = this.road.distances[this.road.distances.length - 1];
-        this.chart.setOption({series: [{
-            areaStyle: {
-                color:  {
-                    type: 'linear',
-                    x: reverse ? 1 : 0,
-                    y: 0,
-                    x2: reverse ? 0 : 1,
-                    y2: 0,
-                    colorStops: this.road.distances.map((x, i) => {
-                        const steepness = Math.abs(this.road.grades[i] / 0.12);
-                        const color = Color.fromRGB(steepness, 0.4, 0.5 * steepness)
-                            .lighten(-0.25)
-                            .saturate(steepness - 0.33);
-                        return {
-                            offset: x / distance,
-                            color: color.toString(),
-                        };
-                    }),
+        this.setData(this.road.distances, this.road.elevations, this.road.grades, {reverse});
+    }
+
+    setData(distances, elevations, grades, options={}) {
+        const distance = distances[distances.length - 1] - distances[0];
+        this.chart.setOption({
+            xAxis: {inverse: options.reverse},
+            series: [{
+                areaStyle: {
+                    color:  {
+                        type: 'linear',
+                        x: options.reverse ? 1 : 0,
+                        y: 0,
+                        x2: options.reverse ? 0 : 1,
+                        y2: 0,
+                        colorStops: distances.map((x, i) => {
+                            const steepness = Math.abs(grades[i] / 0.12);
+                            const color = Color.fromRGB(steepness, 0.4, 0.5 * steepness)
+                                .lighten(-0.25)
+                                .saturate(steepness - 0.33);
+                            return {
+                                offset: x / distance,
+                                color: color.toString(),
+                            };
+                        }),
+                    },
                 },
-            },
-            data: this.road.distances.map((x, i) =>
-                [x, this.road.elevations[i], this.road.grades[i] * (reverse ? -1 : 1)]),
-        }]});
+                data: distances.map((x, i) => [x, elevations[i], grades[i] * (options.reverse ? -1 : 1)]),
+            }]
+        });
     }
 
     async renderAthleteStates(states) {
