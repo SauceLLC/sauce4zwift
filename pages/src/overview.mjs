@@ -551,7 +551,8 @@ export async function settingsMain() {
         }, {source: 'gameConnection'});
     }
     extraData.gpuEnabled = await common.rpc.getLoaderSetting('gpuEnabled');
-    document.querySelector('form').addEventListener('input', async ev => {
+    const forms = document.querySelectorAll('form');
+    forms.forEach(x => x.addEventListener('input', async ev => {
         const el = ev.target.closest('[data-store="loader"]');
         if (!el) {
             return;
@@ -563,7 +564,7 @@ export async function settingsMain() {
         } else {
             throw new TypeError("Unsupported");
         }
-    }, {capture: true});
+    }, {capture: true}));
     const loginInfo = await common.rpc.getZwiftLoginInfo();
     extraData.mainZwiftLogin = loginInfo && loginInfo.main && loginInfo.main.username;
     extraData.monitorZwiftLogin = loginInfo && loginInfo.monitor && loginInfo.monitor.username;
