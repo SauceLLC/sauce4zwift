@@ -36,6 +36,8 @@ message PlayerState {
     int32 _f37 = 37; // low vals like 4,10 maybe segment/route/course/road related
     bool canSteer = 38;
     uint32 routeId = 39;
+    int32 _f40 = 40; // 63, 51?
+    int32 _f43 = 43;
 }
 
 enum WorldUpdatePayloadType {
@@ -699,6 +701,9 @@ message PlayerProfile {
     ActivityPrivacyType defaultActivityPrivacy = 125;
     bool connectedToRuntastic = 126;
     repeated PropertyChange propertyChanges = 127;
+
+    int32 _f128 = 128; // 5264, 269607? id like, maybe ids for something
+    int32 _f129 = 129; // 26198?
 }
 
 message PlayerProfiles {
@@ -859,6 +864,8 @@ message DropInPlayer {
     uint32 routeId = 17;
     uint32 ridePower = 18;
     uint32 speed = 19;
+    int32 _f20 = 20;
+    float _f22 = 22; // latency value? ~(1 - 3)
 }
 
 message Goal {
