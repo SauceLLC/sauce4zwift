@@ -275,7 +275,7 @@ export class MapEntity extends EventTarget {
 
 
 export class SauceZwiftMap extends EventTarget {
-    constructor({el, worldList, zoom=1, zoomMin=0.25, zoomMax=4.5, autoHeading=true,
+    constructor({el, worldList, zoom=1, zoomMin=0.25, zoomMax=10, autoHeading=true,
                  style='default', opacity=1, tiltShift=null, maxTiltShiftAngle=65,
                  sparkle=false, quality=1, verticalOffset=0, fpsLimit=30,
                  zoomPriorityTilt=true}) {
