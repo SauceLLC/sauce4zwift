@@ -15,6 +15,7 @@ import * as zwift from './zwift.mjs';
 import * as windows from './windows.mjs';
 import * as mods from './mods.mjs';
 import {parseArgs} from './argparse.mjs';
+import protobuf from 'protobufjs';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
@@ -23,6 +24,19 @@ const electron = require('electron');
 const isDEV = !electron.app.isPackaged;
 const zwiftAPI = new zwift.ZwiftAPI();
 const zwiftMonitorAPI = new zwift.ZwiftAPI();
+
+if (isDEV) {
+    const pb_Reader_skip = protobuf.Reader.prototype.skip;
+    protobuf.Reader.prototype.skip = function(length) {
+        const start = this.pos;
+        const r = pb_Reader_skip.apply(this, arguments);
+        const end = this.pos;
+        console.error("Protobuf missing field:", this, start, end,
+                      this.buf.subarray(start, end).toString('hex'));
+        console.info(this.buf.subarray(0, this.len).toString('hex'));
+        return r;
+    };
+}
 
 let sauceApp;
 let ipcSubIdInc = 1;
