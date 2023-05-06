@@ -32,11 +32,7 @@ async function getEventsWithRetry() {
     const now = Date.now();
     const events = new Map();
     for (const x of data) {
-        const ts = new Date(x.eventStart).getTime();
-        if (ts < now - 60 * 60 * 1000) {
-            continue;
-        }
-        x.started = ts < now;
+        x.started = x.ts < now;
         events.set(x.id, x);
     }
     return events;
@@ -119,13 +115,15 @@ export async function main() {
         } catch(e) {/*no-pragma*/}
         if (re) {
             for (const x of events.values()) {
-                if (!(`${x.name} ${x.type.replace(/_/g, ' ')} ${x.description}`).match(re)) {
+                const text = `${x.name} ${x.eventType.replace(/_/g, ' ')} ${x.description}`;
+                if (!text.match(re)) {
                     hide.add(x.id);
                 }
             }
         } else if (search) {
             for (const x of events.values()) {
-                if (!(`${x.name} ${x.type.replace(/_/g, ' ')} ${x.description}`).toLowerCase().includes()) {
+                const text = `${x.name} ${x.eventType.replace(/_/g, ' ')} ${x.description}`;
+                if (!text.toLowerCase().includes()) {
                     hide.add(x.id);
                 }
             }

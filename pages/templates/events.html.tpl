@@ -14,7 +14,7 @@
             <tr class="summary {{event.started ? 'started' : ''}}"
                 data-event-id="{{event.id}}">
                 <td class="start">{{humanTime(event.eventStart)}}</td>
-                <td class="type">{{event.type.replace(/EVENT_TYPE_/, '').replace(/_/g, ' ')}}</td>
+                <td class="type">{{event.eventType.replace(/_/g, ' ')}}</td>
                 <td class="name">{{event.name}}</td>
                 <% if (event.durationInSeconds) { %>
                     <td>{-humanDuration(event.durationInSeconds, {suffix: true, html: true})-}</td>
