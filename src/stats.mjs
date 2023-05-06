@@ -1584,14 +1584,17 @@ export class StatsProcessor extends events.EventEmitter {
                 }
             }
         }
-        const someEvents = await this.zwiftAPI.getEventFeed(); // This API is wonky
-        for (const x of someEvents) {
+        let addedEventsCount = 0;
+        const zEvents = await this.zwiftAPI.getEventFeed();
+        for (const x of zEvents) {
             const route = this._routes.get(x.routeId);
             if (route) {
                 x.routeDistance = this._getRouteDistance(route, x.laps);
                 x.routeClimbing = this._getRouteClimbing(route, x.laps);
             }
             x.allTags = this._parseEventTags(x);
+            x.ts = +new Date(x.eventStart);
+            addedEventsCount += !this._recentEvents.has(x.id);
             this._recentEvents.set(x.id, x);
             if (x.eventSubgroups) {
                 for (const sg of x.eventSubgroups) {
@@ -1606,13 +1609,16 @@ export class StatsProcessor extends events.EventEmitter {
                 }
             }
         }
-        const someMeetups = await this.zwiftAPI.getPrivateEventFeed(); // This API is wonky
+        // XXX is this fixed now? We are using the same query args as the game now..
+        const someMeetups = await this.zwiftAPI.getPrivateEventFeed();
         for (const x of someMeetups) {
             x.routeDistance = this.getRouteDistance(x.routeId, x.laps);
             x.type = 'EVENT_TYPE_MEETUP';
             x.totalEntrantCount = x.acceptedTotalCount;
             x.eventSubgroups = [];
             x.allTags = this._parseEventTags(x);
+            x.ts = +new Date(x.eventStart);
+            addedEventsCount += !this._recentEvents.has(x.id);
             this._recentEvents.set(x.id, x);
             if (x.eventSubgroupId) {
                 // Meetups are basicaly a hybrid event/subgroup
@@ -1669,9 +1675,9 @@ export class StatsProcessor extends events.EventEmitter {
         for (const x of absent) {
             this._followerIds.delete(x);
         }
-        console.info(`Updated meta data for ${this._followingIds.size} following, ` +
-            `${this._followerIds.size} followers, ${someEvents.length} events, ` +
-            `${someMeetups.length} meetups`);
+        console.info(`Meta data sync: ${this._followingIds.size} following, ` +
+            `${this._followerIds.size} followers, ${this._recentEvents.size} events ` +
+            `(${addedEventsCount} new)`);
     }
 
     async setFollowing(athleteId) {
