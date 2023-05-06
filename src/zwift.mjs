@@ -357,12 +357,14 @@ export class ZwiftAPI {
         const defHeaders = {
             'Platform': 'OSX',
             'Source': 'Game Client',
-            'User-Agent': 'CNL/3.24.1 (macOS 12 Monterey; Darwin Kernel 21.6.0) zwift/1.0.105233 ' +
-                          'curl/7.78.0-DEV',
+            'User-Agent': 'CNL/3.30.8 (macOS 13 Ventura; Darwin Kernel 22.4.0) zwift/1.0.110983 curl/7.78.0'
         };
         const host = options.host || this.host || `us-or-rly101.zwift.com`;
-        const q = options.query ? ('?' + ((options.query instanceof URLSearchParams) ?
-            options.query : new URLSearchParams(options.query))) : '';
+        let query = options.query;
+        if (query && !(query instanceof URLSearchParams)) {
+            query = new URLSearchParams(Object.entries(query).filter(([k, v]) => v != null));
+        }
+        const q = query ? `?${query}` : '';
         const timeout = options.timeout !== undefined ? options.timeout : 30000;
         const abort = new AbortController();
         const to = timeout && setTimeout(() => abort.abort(), timeout);
@@ -421,11 +423,11 @@ export class ZwiftAPI {
 
     async fetchPB(urn, options, headers) {
         const r = await this.fetch(urn, {accept: 'protobuf', ...options}, headers);
-        const ProtoBuf = protos.get(options.protobuf);
         const data = Buffer.from(await r.arrayBuffer());
         if (options.debug) {
             console.dev('PB API DEBUG', urn, data.toString('hex'));
         }
+        const ProtoBuf = protos.get(options.protobuf);
         return ProtoBuf.decode(data);
     }
 
@@ -435,7 +437,7 @@ export class ZwiftAPI {
             ...options
         }));
         // I suspect x.expiryDate could be NaN and breaking things but not sure why yet
-        console.warn("XXX:", data.seeds);
+        console.warn("XXX (check x.expireDate for NaN or other non number):", data.seeds);
         return Array.from(data.seeds).map(x => ({
             expiresWorldTime: x.expiryDate.toNumber(),
             nonce: seedToBuffer(x.nonce),
@@ -561,7 +563,7 @@ export class ZwiftAPI {
     }
 
     async getGameInfo() {
-        return await this.fetchJSON(`/api/game_info`, {apiVersion: '2.6'});
+        return await this.fetchJSON(`/api/game_info`, {apiVersion: '2.7'});
     }
 
     async getDropInWorldList() {
@@ -615,12 +617,30 @@ export class ZwiftAPI {
 
     async getEventFeed(options={}) {
         // Be forewarned, this API is not stable.  It returns dups and skips entries on page boundaries.
+        const urn = '/api/events/search';
+        const HOUR = 3600000;
+        const from = new Date(options.from || worldTime.serverNow() - 1 * HOUR);
+        const to = new Date(options.to || worldTime.serverNow() + 3 * HOUR);
+        const query = {limit: options.limit};
+        const json = {
+            dateRangeStartISOString: from.toISOString(),
+            dateRangeEndISOString: to.toISOString(),
+        };
+        const obj = await this.fetchPB(urn, {method: 'POST', protobuf: 'Events', json, query});
+        return obj.events.map(x => {
+            const o = x.$type.toObject(x, {...protobuf.util.toJSONOptions, longs: Number});
+            o.tags = x._tags.split(';');
+            return o;
+        });
+    }
+
+    async getEventFeedOld(options={}) {
+        // Be forewarned, this API is not stable.  It returns dups and skips entries on page boundaries.
         const urn = '/api/event-feed';
-        const range = options.range || (2 * 3600 * 1000);
-        const from = +options.from || (worldTime.serverNow() - range);
-        const to = +options.to || (worldTime.serverNow() + range);
-        const pageLimit = options.pageLimit ? options.pageLimit : 10;
-        const limit = options.limit || 50;
+        const from = options.from;
+        const to = options.to;
+        const pageLimit = options.pageLimit ? options.pageLimit : 5; // default pageSize is 25
+        const limit = options.pageSize;
         const query = {from, to, limit};
         const ids = new Set();
         const results = [];
@@ -629,14 +649,14 @@ export class ZwiftAPI {
         while (!done) {
             const page = await this.fetchJSON(urn, {query});
             for (const x of page.data) {
-                if (new Date(x.event.eventStart) >= to) {
+                if (to && new Date(x.event.eventStart) >= to) {
                     done = true;
                 } else if (!ids.has(x.event.id)) {
                     results.push(x.event);
                     ids.add(x.event.id);
                 }
             }
-            if (page.data.length < limit || ++pages >= pageLimit) {
+            if (!page.data.length || (limit && page.data.length < limit) || ++pages >= pageLimit) {
                 break;
             }
             query.cursor = page.cursor;
@@ -645,12 +665,9 @@ export class ZwiftAPI {
     }
 
     async getPrivateEventFeed(options={}) {
-        // This endpoint is also unreliable and the from/to don't seem to do much.
-        // Sometimes it returns all meetups, and sometimes just recent ones if any.
-        const range = options.range || (1 * 3600 * 1000);
-        const start_date = +options.from || (worldTime.serverNow() - range);
-        const end_date = +options.to || (worldTime.serverNow() + range);
-        const query = {start_date, end_date};
+        const start_date = options.from; // always see this used
+        const end_date = options.to; // never see this used
+        const query = {organizer_only_past_events: false, start_date, end_date};
         return await this.fetchJSON('/api/private_event/feed', {query});
     }
 
