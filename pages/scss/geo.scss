@@ -113,6 +113,8 @@ html {
         z-index: 10000;
         pointer-events: none;
         transform: translateZ(0);  // Fix rendering glitch that makes profile invisible
+        --profile-height: 20%;
+        height: var(--profile-height);
 
         svg > g {
             pointer-events: all;

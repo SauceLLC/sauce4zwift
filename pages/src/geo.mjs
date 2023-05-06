@@ -26,6 +26,8 @@ common.settingsStore.setDefault({
     fpsLimit: 30,
     // v0.13.1...
     zoomPriorityTilt: true,
+    // v1.0.0
+    profileHeight: 20,
 });
 
 const settings = common.settingsStore.get();
@@ -103,10 +105,11 @@ function createZwiftMap({worldList}) {
 
 
 function createElevationProfile({worldList}) {
-    return new elevation.SauceElevationProfile({
-        el: document.querySelector('.elevation-profile'),
-        worldList,
-    });
+    const el = document.querySelector('.elevation-profile');
+    if (settings.profileHeight) {
+        el.style.setProperty('--profile-height', settings.profileHeight + '%');
+    }
+    return new elevation.SauceElevationProfile({el, worldList});
 }
 
 
@@ -230,6 +233,12 @@ export async function main() {
             zwiftMap.setVerticalOffset(changed.get('verticalOffset') / 100);
         } else if (changed.has('fpsLimit')) {
             zwiftMap.setFPSLimit(changed.get('fpsLimit'));
+        } else if (changed.has('profileHeight')) {
+            if (elProfile) {
+                elProfile.el.style.setProperty('--profile-height',
+                                               changed.get('profileHeight') + '%');
+                elProfile.chart.resize();
+            }
         } else if (changed.has('profileOverlay') || changed.has('fields')) {
             location.reload();
         }

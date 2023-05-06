@@ -36,6 +36,12 @@
                     <input type="checkbox" name="profileOverlay"/>
                 </label>
                 <label>
+                    <key data-added="2023-05-15">Profile height:</key>
+                    <input type="range" name="profileHeight" min="5" max="100" step="1" data-depends-on="profileOverlay" value="20"/>
+                    <input type="number" name="profileHeight" min="5" max="100" step="1" style="--size: 5" value="20"/>%
+                </label>
+
+                <label>
                     <key>Data fields:</key>
                     <input type="number" name="fields"/>
                 </label>
