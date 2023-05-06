@@ -116,6 +116,7 @@ message PayloadSegmentResult {
     int32 avgHR = 19;
     int32 sport = 20;
     int64 activityId = 21;
+    string _f23 = 23; // "P"?
 }
 
 // for /api/segment-results
