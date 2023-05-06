@@ -32,8 +32,8 @@ message PlayerState {
     Sport sport = 31;
     float _eventDistance = 34; // cm
     int32 courseId = 35;
-    //int32 f36XXX = 36; // low vals like 57,121 maybe segment/route/course/road related, seems to increment with route. Check that these are workout intervals
-    //int32 f37XXX = 37; // low vals like 4,10 maybe segment/route/course/road related
+    int32 _f36 = 36; // low vals like 57,121 maybe segment/route/course/road related, seems to increment with route. Check that these are workout intervals
+    int32 _f37 = 37; // low vals like 4,10 maybe segment/route/course/road related
     bool canSteer = 38;
     uint32 routeId = 39;
 }
