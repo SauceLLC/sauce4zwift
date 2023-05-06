@@ -42,6 +42,7 @@
                     <div class="chart-holder elevation"><div class="chart"></div></div>
                     {-embed(templates.selectionStats, obj)-}
                     <div class="chart-holder zoomable"><div class="chart"></div></div>
+                    <div class="button std small" data-id="view-data">View raw data</div>
                 </section>
 
                 <section class="segments">

@@ -816,7 +816,7 @@ export async function main() {
         athleteData = x;
         await updateTemplate('.activity-summary', templates.activitySummary, {athleteData});
         if (!document.activeElement || !document.activeElement.closest('.peak-efforts')) {
-            const sig = JSON.stringify(athleteData.stats[settings.peakEffortSource].peaks);
+            const sig = JSON.stringify(athleteData.stats[settings.peakEffortSource || 'power'].peaks);
             if (sig !== lastPeaksSig) {
                 lastPeaksSig = sig;
                 await updateTemplate('.peak-efforts', templates.peakEfforts,
