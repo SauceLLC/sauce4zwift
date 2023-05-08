@@ -1270,7 +1270,7 @@ export class GameMonitor extends events.EventEmitter {
                 }
             }
         });
-        setInterval(() => console.info(this.toString()), 30000);
+        setInterval(() => console.debug(this.toString()), 60000);
     }
 
     toString() {
