@@ -909,8 +909,8 @@ export class SauceZwiftMap extends EventTarget {
                 const avatar = athlete?.avatar ?
                     `<avatar-pad></avatar-pad><img class="avatar" src="${athlete.avatar}"/>` : '';
                 ent.setPinHTML(`
-                    <a href="/pages/profile.html?id=${state.athleteId}&width=800&height=320"
-                       target="profile">${common.sanitize(name)}${avatar}</a><br/>
+                    <a href="/pages/profile.html?id=${state.athleteId}&windowType=profile"
+                       target="profile_popup_${state.athleteId}">${common.sanitize(name)}${avatar}</a><br/>
                     Power: ${H.power(state.power, {suffix: true, html: true})}<br/>
                     Speed: ${H.pace(state.speed, {suffix: true, html: true})}
                 `);

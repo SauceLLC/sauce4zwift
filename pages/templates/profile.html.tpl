@@ -21,8 +21,11 @@
                 <a href="https://zwiftpower.com/profile.php?z={{athleteId}}"
                    title="Open ZwiftPower profile"
                    target="_blank" external><img src="images/zp_logo.png"/></a>
+                <a title="Open Watching window focused on this athlete"
+                   href="/pages/watching.html?windowId=watching-link-popup&windowType=watching&id={{athlete.id}}"
+                   target="watching_popup_{{athlete.id}}" class="enabled-in-game-only" disabled><ms>live_tv</ms></a>
                 <a title="Analysis view of this athletes session"
-                   href="/pages/analysis.html?width=800&height=600&id={{athlete.id}}"
+                   href="/pages/analysis.html?windowId=analysis-link-popup&windowType=analysis&id={{athlete.id}}"
                    target="_blank" class="enabled-in-game-only" disabled><ms>monitoring</ms></a>
                 <a title="Watch this athlete (Game Connection is required)"
                    data-action="watch" {{!gameConnection ? 'disabled' : ''}} href><ms>video_camera_front</ms></a>
