@@ -95,9 +95,10 @@ export class SauceElevationProfile {
     }
 
     async setCourse(id) {
-        this.courseId = id;
-        this.road = null;
-        this.marks.clear();
+        console.debug("Setting new course:", id);
+        if (id === this.courseId) {
+            return;
+        }
         const worldId = this.worldList.find(x => x.courseId === id).worldId;
         this._busy = true;
         try {
@@ -105,9 +106,16 @@ export class SauceElevationProfile {
         } finally {
             this._busy = false;
         }
+        this.courseId = id;
+        this.road = null;
+        this.marks.clear();
     }
 
     setAthlete(id) {
+        console.debug("Setting self-athlete:", id);
+        if (id === this.athleteId) {
+            return;
+        }
         if (this.athleteId != null && this.marks.has(this.athleteId)) {
             this.marks.get(this.athleteId).self = false;
         }
@@ -120,6 +128,10 @@ export class SauceElevationProfile {
     }
 
     setWatching(id) {
+        console.debug("Setting watching-athlete:", id);
+        if (id === this.watchingId) {
+            return;
+        }
         if (this.watchingId != null && this.marks.has(this.watchingId)) {
             this.marks.get(this.watchingId).watching = false;
         }
@@ -169,11 +181,10 @@ export class SauceElevationProfile {
             return;
         }
         const watching = states.find(x => x.athleteId === this.watchingId);
-        if (!watching && this.courseId == null) {
+        if (!watching && (this.courseId == null || this.roud == null)) {
             return;
         } else if (watching) {
             if (watching.courseId !== this.courseId) {
-                console.debug("Setting new course from states render:", watching.courseId);
                 await this.setCourse(watching.courseId);
             }
             if (!this.road || this.road.id !== watching.roadId || this.reverse !== watching.reverse) {
