@@ -1350,12 +1350,12 @@ export function binarySearchClosestNumber(arr, value) {
         c = (left + right) * 0.5 | 0;
         const v = arr[c];
         if (v > value) {
-            right = c - 1; 
+            right = c - 1;
         } else if (v < value) {
             left = c + 1;
         } else if (v === value) {
             return c;
-        }   
+        }
     }
     // tie breaker
     if (right >= 0 && left < arr.length) {
