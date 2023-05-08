@@ -88,6 +88,11 @@ html {
             }
         }
 
+        &.html-frame #content {
+            border: 1.5mm solid color.get(bookend);
+            border-top-width: 0;
+        }
+
         .app-drag {
             app-region: drag;
             cursor: move;
