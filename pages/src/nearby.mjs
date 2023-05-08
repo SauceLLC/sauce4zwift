@@ -175,8 +175,8 @@ function clearSelection() {
 function athleteLink(id, content, options={}) {
     const debug = location.search.includes('debug') ? '&debug' : '';
     return `<a title="${options.title || ''}" class="athlete-link ${options.class || ''}"
-               href="profile.html?id=${id}&width=800&height=345${debug}"
-               target="_blank">${content || ''}</a>`;
+               href="profile.html?id=${id}&windowType=profile${debug}"
+               target="profile_popup_${id}">${content || ''}</a>`;
 }
 
 
@@ -186,9 +186,16 @@ function fmtAvatar(name, {athlete, athleteId}) {
 }
 
 
-function fmtActions() {
-    return `<a class="link" data-id="watch"
-               title="Watch this athlete"><ms>video_camera_front</ms></a>`;
+function fmtActions(obj) {
+    return [
+        `<a class="link" target="watching_popup_${obj.athleteId}"
+            href="watching.html?windowId=watching-link-popup&windowType=watching&id=${obj.athleteId}"
+            title="Load Watching window for this athlete"><ms>live_tv</ms></a>`,
+        `<a class="link" target="analysis_popup_${obj.athleteId}"
+            href="analysis.html?windowId=analysis-link-popup&windowType=analysis&id=${obj.athleteId}"
+            title="Load Analysis window for this athlete's session"><ms>monitoring</ms></a>`,
+        `<a class="link" data-id="watch" title="Watch this athlete"><ms>video_camera_front</ms></a>`,
+    ].join(' ');
 }
 
 
