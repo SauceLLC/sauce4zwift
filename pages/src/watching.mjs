@@ -1,6 +1,11 @@
 import * as sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
 import * as color from './color.mjs';
+import * as elevationMod from './elevation.mjs';
+
+const q = new URLSearchParams(location.search);
+const customIdent = q.get('id');
+const athleteIdent = customIdent || 'watching';
 
 common.settingsStore.setDefault({
     lockedFields: false,
@@ -92,6 +97,13 @@ const sectionSpecs = {
         defaultSettings: {
             style: 'vert-bars',
             type: 'power',
+        },
+    },
+    'elevation-profile': {
+        title: 'Elevation Profile',
+        baseType: 'elevation-profile',
+        defaultSettings: {
+            showEventRoute: true,
         },
     },
 };
@@ -1015,6 +1027,29 @@ function powerZoneColors(zones, fn) {
 }
 
 
+async function createElevationProfile(el, sectionId, settings, renderer) {
+    const worldList = await common.getWorldList();
+    const elProfile = new elevationMod.SauceElevationProfile({el, worldList});
+    chartRefs.add(new WeakRef(elProfile.chart));
+    let watchingId;
+    let courseId;
+    common.subscribe('states', states => {
+        elProfile.renderAthleteStates(states);
+    });
+    renderer.addCallback(data => {
+        if (!data || !data.stats || !data.athlete) {
+            return;
+        }
+        if (data.athleteId !== watchingId || data.state.courseId !== courseId) {
+            watchingId = data.athleteId;
+            courseId = data.state.courseId;
+            elProfile.setCourse(courseId);
+            elProfile.setWatching(watchingId);
+        }
+    });
+}
+
+
 function resizeCharts() {
     for (const r of chartRefs) {
         const c = r.deref();
@@ -1058,15 +1093,13 @@ async function initScreenSettings() {
         const sLen = settings.screens.length;
         sLenEl.textContent = sLen;
         const screen = settings.screens[sIndex];
-        const screenEl = (await layoutTpl({
+        activeScreenEl.replaceChildren(await layoutTpl({
             screen,
             sIndex,
             groupSpecs,
             sectionSpecs,
-            configuring: true
-        })).querySelector('.screen');
-        activeScreenEl.innerHTML = '';
-        activeScreenEl.appendChild(screenEl);
+            configuring: true,
+        }));
         prevBtn.classList.toggle('disabled', sIndex === 0);
         nextBtn.classList.toggle('disabled', sIndex === sLen - 1);
         delBtn.classList.toggle('disabled', sLen === 1);
@@ -1181,23 +1214,29 @@ export async function main() {
     const renderers = [];
     let curScreen;
     let curScreenIndex = Math.max(0, Math.min(settings.screenIndex || 0, settings.screens.length));
+    let athlete;
+    if (customIdent) {
+        athlete = await common.rpc.getAthlete(customIdent);
+        console.log(athlete);
+    }
     powerZones = await common.rpc.getPowerZones(1);
     const layoutTpl = await getTpl('watching-screen-layout');
     const persistentData = settings.screens.some(x =>
         x.sections.some(xx => sectionSpecs[xx.type].alwaysRender));
     for (const [sIndex, screen] of settings.screens.entries()) {
+        const hidden = sIndex !== curScreenIndex;
         const screenEl = (await layoutTpl({
             screen,
             sIndex,
             groupSpecs,
-            sectionSpecs
-        })).querySelector('.screen');
-        if (sIndex !== curScreenIndex) {
-            screenEl.classList.add('hidden');
-        } else {
+            sectionSpecs,
+            athlete,
+            hidden,
+        })).firstElementChild;
+        if (!hidden) {
             curScreen = screenEl;
         }
-        content.appendChild(screenEl);
+        content.append(screenEl);
         const renderer = new common.Renderer(screenEl, {
             id: screen.id,
             fps: null,
@@ -1287,6 +1326,14 @@ export async function main() {
                 } else {
                     console.error("Invalid time-in-zones type:", section.type);
                 }
+            } else if (baseType === 'elevation-profile') {
+                if (section.type === 'elevation-profile') {
+                    const el = sectionEl.querySelector('.elevation-profile-holder');
+                    const id = sectionEl.dataset.sectionId;
+                    createElevationProfile(el, id, sectionSettings, renderer);
+                } else {
+                    console.error("Invalid elevation-profile type:", section.type);
+                }
             } else {
                 console.error("Invalid base type:", baseType);
             }
@@ -1303,7 +1350,6 @@ export async function main() {
     const switchScreen = dir => {
         const target = dir > 0 ? curScreen.nextElementSibling : curScreen.previousElementSibling;
         if (!target) {
-            console.warn("switchScreen called off a cliff", {dir, curScreenIndex});
             return;
         }
         curScreen.classList.add('hidden');
@@ -1358,14 +1404,14 @@ export async function main() {
     });
     let athleteId;
     if (!location.search.includes('testing')) {
-        common.subscribe('athlete/watching', watching => {
-            const force = watching.athleteId !== athleteId;
-            athleteId = watching.athleteId;
-            sport = watching.state.sport || 'cycling';
-            eventMetric = watching.remainingMetric;
-            eventSubgroup = getEventSubgroup(watching.state.eventSubgroupId);
+        common.subscribe(`athlete/${athleteIdent}`, ad => {
+            const force = ad.athleteId !== athleteId;
+            athleteId = ad.athleteId;
+            sport = ad.state.sport || 'cycling';
+            eventMetric = ad.remainingMetric;
+            eventSubgroup = getEventSubgroup(ad.state.eventSubgroupId);
             for (const x of renderers) {
-                x.setData(watching);
+                x.setData(ad);
                 if (x.backgroundRender || !x._contentEl.classList.contains('hidden')) {
                     x.render({force});
                 }
