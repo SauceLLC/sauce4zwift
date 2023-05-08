@@ -29,7 +29,7 @@ let paused;
 const settings = common.settingsStore.get();
 const H = sauce.locale.human;
 const q = new URLSearchParams(location.search);
-const athleteId = q.get('id') || 'self';
+const athleteIdent = q.get('id') || 'self';
 const chartRefs = new Set();
 const minVAMTime = 60;
 const rolls = {
@@ -175,7 +175,7 @@ async function updateSelectionStats() {
 
 
 async function exportFITActivity(name) {
-    const fitData = await common.rpc.exportFIT(athleteId);
+    const fitData = await common.rpc.exportFIT(athleteIdent);
     const f = new File([new Uint8Array(fitData)], `${name}.fit`, {type: 'application/binary'});
     const l = document.createElement('a');
     l.download = f.name;
@@ -521,7 +521,7 @@ function createZoomableLineChart(el) {
         console.warn('zoom DATAZOOM', ev);
         if (ev.start !== undefined || ev.end !== undefined) {
             if (ev.start !== 0 || ev.end !== 100) {
-                throw new Error('non-reset percent based datazoom is unsupported'); 
+                throw new Error('non-reset percent based datazoom is unsupported');
             }
             zoomStart = undefined;
             zoomEnd = undefined;
@@ -677,10 +677,10 @@ export async function main() {
     common.initInteractionListeners();
     addEventListener('resize', resizeCharts);
     const [_ad, _laps, _segments, _streams, _templates, nationFlags, worldList] = await Promise.all([
-        common.rpc.getAthleteData(athleteId),
-        common.rpc.getAthleteLaps(athleteId),
-        common.rpc.getAthleteSegments(athleteId),
-        common.rpc.getAthleteStreams(athleteId),
+        common.rpc.getAthleteData(athleteIdent),
+        common.rpc.getAthleteLaps(athleteIdent),
+        common.rpc.getAthleteSegments(athleteIdent),
+        common.rpc.getAthleteStreams(athleteIdent),
         getTemplates(['main', 'activity-summary', 'selection-stats', 'peak-efforts', 'segments', 'laps']),
         common.initNationFlags(),
         common.getWorldList(),
@@ -715,7 +715,7 @@ export async function main() {
     });*/
     const athlete = athleteData.athlete;
     const started = new Date(Date.now() - athleteData.stats.elapsedTime * 1000);
-    const name = `${athlete ? athlete.fLast : athleteId} - ${started.toLocaleString()}`;
+    const name = `${athlete ? athlete.fLast : athleteIdent} - ${started.toLocaleString()}`;
     const exportBtn = document.querySelector('.button.export-file');
     exportBtn.addEventListener('click', () => exportFITActivity(name));
     exportBtn.removeAttribute('disabled');
@@ -827,7 +827,7 @@ export async function main() {
 
     // Always use streams for data to avoid ambiguous differences in state data.
     setInterval(async () => {
-        streams = await common.rpc.getAthleteStreams(athleteId);
+        streams = await common.rpc.getAthleteStreams(athleteIdent);
         if (streams.time.length === positions.length) {
             return;
         }
@@ -854,20 +854,20 @@ export async function main() {
     let segmentCount = segments.length;
     let lapCount = laps.length;
     setInterval(async () => {
-        segments = await common.rpc.getAthleteSegments(athleteId);
+        segments = await common.rpc.getAthleteSegments(athleteIdent);
         if (segments.length !== segmentCount) {
             segmentCount = segments.length;
             await updateTemplate('table.segments', templates.segments,
                                  {athleteData, streams, settings, segments});
         }
-        laps = await common.rpc.getAthleteLaps(athleteId);
+        laps = await common.rpc.getAthleteLaps(athleteIdent);
         if (laps.length !== lapCount) {
             lapCount = laps.length;
             await updateTemplate('table.laps', templates.laps, {athleteData, streams, settings, laps});
         }
     }, 5500);
 
-    common.subscribe(`athlete/${athleteId}`, x => {
+    common.subscribe(`athlete/${athleteIdent}`, x => {
         renderer.setData(x);
         renderer.render();
     });
