@@ -616,7 +616,6 @@ export class ZwiftAPI {
     }
 
     async getEventFeed(options={}) {
-        // Be forewarned, this API is not stable.  It returns dups and skips entries on page boundaries.
         const urn = '/api/events/search';
         const HOUR = 3600000;
         const from = new Date(options.from || worldTime.serverNow() - 1 * HOUR);
