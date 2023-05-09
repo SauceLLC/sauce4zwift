@@ -1219,6 +1219,7 @@ export class StatsProcessor extends events.EventEmitter {
     _resetAthleteData(ad, wtOffset) {
         const collectors = this.makeDataCollectors();
         Object.assign(ad, {
+            created: worldTime.toTime(wtOffset),
             wtOffset,
             collectors,
             laps: [this.cloneDataCollectors(collectors, {reset: true})],
