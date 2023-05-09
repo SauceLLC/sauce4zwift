@@ -700,7 +700,7 @@ export class StatsProcessor extends events.EventEmitter {
             });
         }
         const {laps, streams, wtOffset, mostRecentState} = this._athleteData.get(athleteId);
-        const tsOffset = zwift.worldTime.toTime(wtOffset);
+        const tsOffset = worldTime.toTime(wtOffset);
         const sport = {
             'cycling': 'cycling',
             'running': 'running',
@@ -1185,6 +1185,7 @@ export class StatsProcessor extends events.EventEmitter {
     _createAthleteData(athleteId, wtOffset) {
         const collectors = this.makeDataCollectors();
         const ad = {
+            created: worldTime.toTime(wtOffset),
             wtOffset,
             athleteId,
             privacy: {},
@@ -1821,7 +1822,7 @@ export class StatsProcessor extends events.EventEmitter {
         let errBackoff = 1;
         const interval = 1000;
         // Useful for testing as it puts us on a perfect boundry.
-        await sauce.sleep(interval - (Date.now() % interval));
+        await sauce.sleep(interval - (monotonic() % interval));
         // Use a incrementing target to provide skew resistent intervals
         // I.e. make it emulate the typcial realtime nature of a head unit
         // which most of our stats code performs best with.
@@ -1901,7 +1902,7 @@ export class StatsProcessor extends events.EventEmitter {
                 return {
                     eventLeader,
                     eventSweeper,
-                    remaining: (eventEnd - Date.now()) / 1000,
+                    remaining: (eventEnd - worldTime.serverNow()) / 1000,
                     remainingMetric: 'time',
                     remainingType: 'event',
                 };
@@ -1936,6 +1937,7 @@ export class StatsProcessor extends events.EventEmitter {
         const state = ad.mostRecentState;
         const lapCount = ad.laps.length;
         return {
+            created: ad.created,
             watching: ad.athleteId === this.watching ? true : undefined,
             self: ad.athleteId === this.athleteId ? true : undefined,
             athleteId: state.athleteId,
