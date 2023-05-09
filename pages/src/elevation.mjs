@@ -28,7 +28,7 @@ export class SauceElevationProfile {
         el.classList.add('sauce-elevation-profile-container');
         this.chart = ec.init(el, 'sauce', {renderer: 'svg'});
         this.chart.setOption({
-            grid: {top: 0, right: 0, bottom: 0, left: 0},
+            grid: {top: 20, right: 15, bottom: 0, left: 15},
             tooltip: {
                 trigger: 'axis',
                 formatter: ([{value}]) => value ?
@@ -65,7 +65,7 @@ export class SauceElevationProfile {
                     symbol: 'none',
                     silent: true,
                     label: {
-                        position: 'start',
+                        position: 'middle',
                         distance: 10,
                         formatter: x => H.elevation(x.value, {suffix: true}),
                         fontSize: '0.5em',
@@ -235,7 +235,7 @@ export class SauceElevationProfile {
                         emphasis: {
                             label: {
                                 show: true,
-                                fontSize: '0.6em',
+                                fontSize: '0.5rem',
                                 position: 'top',
                                 formatter: this.onMarkEmphasisLabel.bind(this),
                             }
@@ -264,6 +264,6 @@ export class SauceElevationProfile {
             data.state.power != null ? H.power(data.state.power, {suffix: true}) : null,
             data.state.heartrate ? H.number(data.state.heartrate, {suffix: 'bpm'}) : null,
         ];
-        return items.filter(x => x != null).join(', ');
+        return items.filter(x => x != null).join('\n');
     }
 }
