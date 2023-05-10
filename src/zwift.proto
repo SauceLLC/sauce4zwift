@@ -46,7 +46,7 @@ enum WorldUpdatePayloadType {
     PayloadLeftWorld2 = 3;
     PayloadRideOn = 4;
     PayloadChatMessage = 5;
-    PayloadEvent = 6;
+    Event = 6;
     PayloadEventJoin = 7;
     PayloadEventLeave = 8;
     PayloadRequestProfile = 9;
@@ -164,64 +164,6 @@ message PayloadLeftWorld2 {
     uint64 _worldTime = 2;
     bool multipleLogins = 3;
     bool _f4 = 4; // maybe bool
-}
-
-message PayloadEvent {
-    int32 id = 1;
-    int32 _f2 = 2; // varint maybe bool
-    string name = 3; // ldelim
-    string desc = 4; // ldelim
-    uint64 ts = 5; // varint
-    float distance = 7;
-    int32 _f8 = 8; // varint maybe bool
-    message Attrs {
-        int32 id = 1;
-        string name = 2;
-        string desc = 3;
-        string _f7 = 7;
-        int64 _f8 = 8; // varint
-        int64 _f9 = 9; // varint
-        int64 _f10 = 10; // varint
-        int64 _f11 = 11; // varint
-        int64 _f12 = 12; // varint
-        int64 _f13 = 13; // varint
-        int64 _f14 = 14; // varint
-        int64 _f15 = 15; // varint
-        int64 _f16 = 16; // varint
-        int64 _f17 = 17; // varint
-        int64 _f18 = 18; // varint
-        int64 _f22 = 22; // varint
-        fixed32 distance = 24;
-        int64 _f25 = 25; // varint
-        int64 _f29 = 29; // varint
-        int64 _f30 = 30; // varint
-        int64 _f31 = 31; // varint
-        fixed32 _f32_maybe_float_XXX= 32; // maybe float
-        fixed32 _f33_maybe_float_XXX = 33; // maybe float
-        int64 duration = 34; // varint
-        int64 _f42 = 42; // varint
-        int64 _f44 = 44; // varint
-        int64 _f46 = 46; // varint
-        int64 _f47 = 47; // varint
-    }
-    repeated Attrs attrs = 10;
-    string imageUrl = 12;
-    int32 duration = 13; // varint
-    uint32 routeId = 14;
-    int32 _f15 = 15; // varint
-    int32 _f17 = 17; // varint
-    int32 _f18 = 18; // varint
-    int64 _f19 = 19; // varint
-    int32 _f22 = 22; // varint
-    int32 _f23 = 23; // varint
-    int32 meetupOnlyView = 24; // varint
-    int32 _f25 = 25; // varint
-    int32 _f27 = 27; // varint
-    int32 _f28 = 28; // varint
-    int32 _f29 = 29; // varint
-    int32 _f34 = 34; // varint
-    int32 _f35 = 35; // varint
-    int64 _f36 = 36; // varint
 }
 
 message PlayerPlacement {
