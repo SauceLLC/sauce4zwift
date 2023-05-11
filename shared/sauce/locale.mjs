@@ -168,6 +168,9 @@ function humanTime(date, options={}) {
 
 
 function humanTimer(elapsed, options={}) {
+    if (options.suffixOnly) {
+        return _realNumber(elapsed) && options.suffix || '';
+    }
     if (!_realNumber(elapsed)) {
         return humanEmpty;
     }
@@ -184,13 +187,20 @@ function humanTimer(elapsed, options={}) {
     const mins = elapsed % 3600 / 60 | 0;
     const secsStr = (elapsed % 60 | 0).toString();
     const msStr = options.ms ? '.' + Math.round(elapsed % 1 * 1000).toString().padStart(3, '0') : '';
+    const sep = options.suffix && options.separator || '';
+    const suffix = options.suffix ?
+        options.html ? `<abbr class="unit">${options.suffix}</abbr>` : options.suffix :
+        '';
+    const parts = [sign];
     if (hours || options.full) {
-        return `${sign}${hours}:${mins.toString().padStart(2, '0')}:${secsStr.padStart(2, '0')}${msStr}`;
+        parts.push(hours, ':', mins.toString().padStart(2, '0'), ':', secsStr.padStart(2, '0'));
     } else if (mins || options.long || options.full) {
-        return `${sign}${mins}:${secsStr.padStart(2, '0')}${msStr}`;
+        parts.push(mins, ':', secsStr.padStart(2, '0'));
     } else {
-        return `${sign}${secsStr}${msStr}`;
+        parts.push(secsStr);
     }
+    parts.push(msStr, sep, suffix);
+    return parts.join('');
 }
 
 
@@ -301,12 +311,14 @@ function humanPace(kph, options={}) {
     const sport = options.sport || 'cycling';
     let fixed;
     let value;
+    let humanFunc = humanNumber;
     if (_realNumber(kph)) {
         if (sport === 'running') {
             if (options.suffix === true || options.suffixOnly) {
                 options.suffix = imperial ? '/mi' : '/km';
             }
             value = 3600 / (imperial ? kph * 1000 / metersPerMile : kph);
+            humanFunc = humanTimer;
         } else {
             if (options.suffix === true || options.suffixOnly) {
                 options.suffix = imperial ? 'mph' : 'kph';
@@ -315,7 +327,7 @@ function humanPace(kph, options={}) {
             value = imperial ? kph * 1000 / metersPerMile : kph;
         }
     }
-    return humanNumber(value, {fixed, ...options});
+    return humanFunc(value, {fixed, ...options});
 }
 
 
