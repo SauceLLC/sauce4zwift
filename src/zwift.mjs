@@ -18,6 +18,12 @@ export const protos = protobuf.loadSync([path.join(__dirname, 'zwift.proto')]).r
 protobuf.parse.defaults.keepCase = _case;
 
 
+// NOTE: this options object is not callback functions, the type is read and
+// behavior is based on String or Number in many cases.
+const _pbJSONOptions = {...protobuf.util.toJSONOptions, longs: Number};
+const pbToObject = pb => pb.$type.toObject(pb, _pbJSONOptions);
+
+
 function fmtTime(ms) {
     if (isNaN(ms)) {
         return ms;
@@ -34,7 +40,7 @@ function fmtTime(ms) {
 }
 
 
-class WorldTime extends events.EventEmitter {
+class WorldTimer extends events.EventEmitter {
     constructor() {
         super();
         // Start with assumption that Date.now() is accurate but it will be tuned
@@ -62,14 +68,14 @@ class WorldTime extends events.EventEmitter {
     setOffset(offt) {
         const diff = offt - this._offt;
         if (Math.abs(diff) > 5000) {
-            console.warn("Shifting worldTime offset:", diff);
+            console.warn("Shifting worldTimer offset:", diff);
         }
         this._offt = Math.round(offt);
         this.emit('offset', diff);
     }
 }
 
-export const worldTime = new WorldTime();
+export const worldTimer = new WorldTimer();
 
 
 function zwiftCompatDate(date) {
@@ -93,7 +99,7 @@ const pbProfilePrivacyFlags = {
 const pbProfilePrivacyFlagsInverted = {
     displayAge: 0x40,
 };
-const sportsEnum = Object.fromEntries(Object.entries(protos.Sport).map(([k, v]) => [v, k.toLowerCase()]));
+const sportsEnum = Object.fromEntries(Object.entries(protos.Sport).map(([k, v]) => [v, k]));
 const powerUpsEnum = Object.fromEntries(Object.entries(protos.POWERUP_TYPE)
     .map(([label, id]) => [id, label]));
 powerUpsEnum[0xf] = null;  // masked
@@ -227,8 +233,8 @@ export function encodePlayerStateFlags2(props) {
 export function processPlayerStateMessage(msg) {
     const flags1 = decodePlayerStateFlags1(msg._flags1);
     const flags2 = decodePlayerStateFlags2(msg._flags2);
-    const wt = msg._worldTime.toNumber();
-    const latency = worldTime.now() - wt;
+    const wt = msg.worldTime.toNumber();
+    const latency = worldTimer.now() - wt;
     const adjRoadLoc = msg.roadLocation - 5000;  // It's 5,000 -> 1,005,000
     const worldMeta = worldMetas[msg.courseId];
     return {
@@ -464,7 +470,7 @@ export class ZwiftAPI {
             ...options,
         })).profiles;
         // Reorder and make results similar to getProfile
-        const m = new Map(unordered.map(x => [x.id.toNumber(), x.toJSON()]));
+        const m = new Map(unordered.map(x => [x.id.toNumber(), pbToObject(x)]));
         return ids.map(_id => {
             const id = +_id;
             const x = m.get(id);
@@ -516,13 +522,12 @@ export class ZwiftAPI {
     }
 
     convSegmentResult(x) {
-        const ret = {
-            ...x.toJSON(),
-            worldTime: x._worldTime.toNumber(),
+        const ret = pbToObject(x);
+        debugger;
+        Object.assign(ret, {
             finishTime: x.finishTime && new Date(x.finishTime),
             segmentId: x._unsignedSegmentId.toSigned().toString()
-        };
-        delete ret._worldTime;
+        });
         delete ret._unsignedSegmentId;
         return ret;
     }
@@ -556,10 +561,10 @@ export class ZwiftAPI {
         if (options.best) {
             query['only-best'] = 'true';
         }
-        const data = (await this.fetchPB('/api/segment-results', {query, protobuf: 'SegmentResults'}))
-            .results;
-        data.sort((a, b) => a.elapsed - b.elapsed);
-        return data;
+        const resp = pbToObject(await this.fetchPB('/api/segment-results',
+                                                   {query, protobuf: 'SegmentResults'}));
+        resp.results.sort((a, b) => a.elapsed - b.elapsed);
+        return resp.results;
     }
 
     async getGameInfo() {
@@ -567,7 +572,7 @@ export class ZwiftAPI {
     }
 
     async getDropInWorldList() {
-        return (await this.fetchPB(`/relay/dropin`, {protobuf: 'DropInWorldList'})).worlds;
+        return pbToObject(await this.fetchPB(`/relay/dropin`, {protobuf: 'DropInWorldList'})).worlds;
     }
 
     async searchProfiles(searchText, options={}) {
@@ -618,8 +623,8 @@ export class ZwiftAPI {
     async getEventFeed(options={}) {
         const urn = '/api/events/search';
         const HOUR = 3600000;
-        const from = new Date(options.from || worldTime.serverNow() - 1 * HOUR);
-        const to = new Date(options.to || worldTime.serverNow() + 3 * HOUR);
+        const from = new Date(options.from || worldTimer.serverNow() - 1 * HOUR);
+        const to = new Date(options.to || worldTimer.serverNow() + 3 * HOUR);
         const query = {limit: options.limit};
         const json = {
             dateRangeStartISOString: from.toISOString(),
@@ -627,7 +632,7 @@ export class ZwiftAPI {
         };
         const obj = await this.fetchPB(urn, {method: 'POST', protobuf: 'Events', json, query});
         return obj.events.map(x => {
-            const o = x.$type.toObject(x, {...protobuf.util.toJSONOptions, longs: Number});
+            const o = pbToObject(x);
             o.tags = x._tags.split(';');
             return o;
         });
@@ -1117,7 +1122,7 @@ class UDPChannel extends NetChannel {
                 const now = Date.now();
                 const sent = syncStamps.get(packet.ackSeqno);
                 const latency = (now - sent) / 2;
-                const offt = now - packet._worldTime.toNumber() + latency;
+                const offt = now - packet.worldTime.toNumber() + latency;
                 offsets.push({latency, offt});
                 if (offsets.length === 5) {
                     // SNTP ...
@@ -1128,7 +1133,7 @@ class UDPChannel extends NetChannel {
                     const median = offsets[offsets.length / 2 | 0].latency;
                     const validOffsets = offsets.filter(x => Math.abs(x.latency - median) < stddev);
                     const meanOffset = validOffsets.reduce((a, x) => a + x.offt, 0) / validOffsets.length;
-                    worldTime.setOffset(meanOffset);
+                    worldTimer.setOffset(meanOffset);
                     this.off('inPacket', onPacket);
                     complete = true;
                     resolve();
@@ -1149,7 +1154,7 @@ class UDPChannel extends NetChannel {
             const {seqno} = await this.sendPacket({
                 athleteId: this.athleteId,
                 realm: 1,
-                _worldTime: 0,
+                worldTime: 0,
             }, {hello: true});
             syncStamps.set(seqno, ts);
             await Promise.race([sleep(50 * i), syncComplete]);
@@ -1197,14 +1202,14 @@ class UDPChannel extends NetChannel {
     }
 
     async sendPlayerState(state) {
-        const _worldTime = worldTime.now();
+        const worldTime = worldTimer.now();
         await this.sendPacket({
             athleteId: this.athleteId,
             realm: 1,
-            _worldTime,
+            worldTime,
             state: {
                 athleteId: this.athleteId,
-                _worldTime,
+                worldTime,
                 justWatching: true,
                 x: 0,
                 y: 0,
@@ -1258,7 +1263,7 @@ export class GameMonitor extends events.EventEmitter {
         this._lastGameStateUpdated = 0;
         this._lastWatchingStateUpdated = 0;
         this._stateRefreshDelay = this._stateRefreshDelayMin;
-        worldTime.on('offset', diff => {
+        worldTimer.on('offset', diff => {
             const dev = Math.abs(diff);
             if (dev > 200) {
                 // Otherwise we could be stuck watching the wrong athlete.
@@ -1312,13 +1317,17 @@ export class GameMonitor extends events.EventEmitter {
 
     async getRandomAthleteId(courseId) {
         const worlds = (await this.api.getDropInWorldList()).filter(x =>
-            x.others.length && (typeof courseId !== 'number' || x.courseId === courseId));
+            x.others && x.others.length && (typeof courseId !== 'number' || x.courseId === courseId));
         for (let i = 0, start = Math.random() * worlds.length | 0; i < worlds.length; i++) {
             const w = worlds[(i + start) % worlds.length];
-            const athletes = [].concat(w.others, w.followees, w.pacerBots, w.proPlayers).filter(x => x);
+            const athletes = []
+                .concat(w.others || [], w.followees || [], w.pacerBots || [], w.proPlayers || [])
+                .filter(x => x);
             athletes.sort((a, b) => b.power - a.power);
+            // Run testing...
+            //athletes.sort((a, b) => a.sport === 'running' ? -1 : b.sport === 'running' ? 1 : 0);
             const a = athletes[0];
-            if (a && a.power) {
+            if (a) {
                 return a.athleteId;
             }
         }
@@ -1358,7 +1367,7 @@ export class GameMonitor extends events.EventEmitter {
         }
         if (!delay) {
             const lastHashExpires = this._hashSeeds.at(-1).expiresWorldTime;
-            delay = Math.max(100, ((lastHashExpires - worldTime.now()) / 2) || 0);
+            delay = Math.max(100, ((lastHashExpires - worldTimer.now()) / 2) || 0);
         }
         console.info('Next hash seeds refresh:', fmtTime(delay));
         this._refreshHashSeedsTimeout = setTimeout(this._refreshHashSeeds.bind(this), delay);
@@ -1486,7 +1495,7 @@ export class GameMonitor extends events.EventEmitter {
             // Use a load balancer unless we have enough info for a direct server.
             ip = this._udpServerPools.get(0).servers[0].ip;
             const lws = this._lastWatchingState;
-            if (lws && lws.courseId === this.courseId && worldTime.now() - lws.worldTime < 60000) {
+            if (lws && lws.courseId === this.courseId && worldTimer.now() - lws.worldTime < 60000) {
                 const best = this.findBestUDPServer(lws);
                 if (best) {
                     ip = best.ip;
@@ -1495,7 +1504,7 @@ export class GameMonitor extends events.EventEmitter {
             }
         }
         const hashSeed = this._hashSeeds.at(-1);
-        const hashSeedRemaining = hashSeed.expiresWorldTime - worldTime.now();
+        const hashSeedRemaining = hashSeed.expiresWorldTime - worldTimer.now();
         const sessionRemaining = this._session.expires - Date.now();
         const expiresIn = Math.min(
             hashSeedRemaining - 120 * 1000,
@@ -1567,7 +1576,7 @@ export class GameMonitor extends events.EventEmitter {
         console.info("Activating session with:", session.tcpChannel.toString());
         await Promise.race([error, session.tcpChannel.sendPacket({
             athleteId: this.athleteId,
-            _worldTime: 0,
+            worldTime: 0,
             largWaTime: 0,
         }, {hello: true})]);
         if (udpServersPending) {
@@ -1704,7 +1713,7 @@ export class GameMonitor extends events.EventEmitter {
             // The stats proc works better with these being recently available.
             const stc = protos.ServerToClient.fromObject({
                 athleteId: this.athleteId,
-                _worldTime: state._worldTime,
+                worldTime: state.worldTime,
             });
             stc.playerStates = [state];  // Assign after so our extensions work.
             this.emit('inPacket', stc);
@@ -1728,7 +1737,7 @@ export class GameMonitor extends events.EventEmitter {
         // The stats proc works better with these being recently available.
         const stc = protos.ServerToClient.fromObject({
             athleteId: this.athleteId,
-            _worldTime: state._worldTime,
+            worldTime: state.worldTime,
         });
         stc.playerStates = [state];  // Assign after so our extensions work.
         this.emit('inPacket', stc);
@@ -1736,7 +1745,7 @@ export class GameMonitor extends events.EventEmitter {
     }
 
     setWatching(athleteId) {
-        this._setWatchingWorldTime = worldTime.now();
+        this._setWatchingWorldTime = worldTimer.now();
         if (athleteId === this.watchingAthleteId) {
             return;
         }
@@ -1749,7 +1758,7 @@ export class GameMonitor extends events.EventEmitter {
             ch.active !== false &&
             ch.isDirect &&
             ch.courseId === this.courseId &&
-            ch.hashSeed.expiresWorldTime - worldTime.now() > 60000 &&
+            ch.hashSeed.expiresWorldTime - worldTimer.now() > 60000 &&
             ch.relayId === this._session.relayId
         );
     }

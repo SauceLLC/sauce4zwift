@@ -1,7 +1,7 @@
 import events from 'node:events';
 import path from 'node:path';
 import fs from 'node:fs';
-import {worldTime} from './zwift.mjs';
+import {worldTimer} from './zwift.mjs';
 import {SqliteDatabase, deleteDatabase} from './db.mjs';
 import * as rpc from './rpc.mjs';
 import * as sauce from '../shared/sauce/index.mjs';
@@ -185,7 +185,7 @@ class DataCollector {
         for (const [p, {roll, peak}] of this.periodized.entries()) {
             peaks[p] = {
                 avg: peak ? peak.avg() : null,
-                ts: peak ? worldTime.toTime(wtOffset + (peak.lastTime() * 1000)): null
+                ts: peak ? worldTimer.toTime(wtOffset + (peak.lastTime() * 1000)): null
             };
             smooth[p] = roll.avg();
         }
@@ -453,7 +453,7 @@ export class StatsProcessor extends events.EventEmitter {
 
     _getGameState() {
         if (!this._athleteData.has(this.athleteId)) {
-            this._athleteData.set(this.athleteId, this._createAthleteData(this.athleteId), worldTime.now());
+            this._athleteData.set(this.athleteId, this._createAthleteData(this.athleteId), worldTimer.now());
         }
         const data = this._athleteData.get(this.athleteId);
         if (!data.gameState) {
@@ -659,7 +659,7 @@ export class StatsProcessor extends events.EventEmitter {
 
     resetStats() {
         console.debug("Reseting stats...");
-        const wt = worldTime.now();
+        const wt = worldTimer.now();
         for (const ad of this._athleteData.values()) {
             this._resetAthleteData(ad, wt);
         }
@@ -700,7 +700,7 @@ export class StatsProcessor extends events.EventEmitter {
             });
         }
         const {laps, streams, wtOffset, mostRecentState} = this._athleteData.get(athleteId);
-        const tsOffset = worldTime.toTime(wtOffset);
+        const tsOffset = worldTimer.toTime(wtOffset);
         const sport = {
             'cycling': 'cycling',
             'running': 'running',
@@ -957,6 +957,8 @@ export class StatsProcessor extends events.EventEmitter {
                     this.handleChatPayload(x.payload, ts);
                 } else if (x.payloadType === 'PayloadRideOn') {
                     this.handleRideOnPayload(x.payload);
+                } else if (x.payloadType === 'Event') {
+                    console.info("XXX Hey we can use this! Update our recentEvents with it!, yay", x.payload);
                 }
             }
         }
@@ -1185,7 +1187,7 @@ export class StatsProcessor extends events.EventEmitter {
     _createAthleteData(athleteId, wtOffset) {
         const collectors = this.makeDataCollectors();
         const ad = {
-            created: worldTime.toTime(wtOffset),
+            created: worldTimer.toTime(wtOffset),
             wtOffset,
             athleteId,
             privacy: {},
@@ -1219,7 +1221,7 @@ export class StatsProcessor extends events.EventEmitter {
     _resetAthleteData(ad, wtOffset) {
         const collectors = this.makeDataCollectors();
         Object.assign(ad, {
-            created: worldTime.toTime(wtOffset),
+            created: worldTimer.toTime(wtOffset),
             wtOffset,
             collectors,
             laps: [this.cloneDataCollectors(collectors, {reset: true})],
@@ -1903,7 +1905,7 @@ export class StatsProcessor extends events.EventEmitter {
                 return {
                     eventLeader,
                     eventSweeper,
-                    remaining: (eventEnd - worldTime.serverNow()) / 1000,
+                    remaining: (eventEnd - worldTimer.serverNow()) / 1000,
                     remainingMetric: 'time',
                     remainingType: 'event',
                 };
