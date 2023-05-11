@@ -76,7 +76,7 @@ const zoomableChartSeries = [{
     color: '#4e3',
     domain: [0, 80],
     rangeAlpha: [0.1, 0.8],
-    fmt: x => H.pace(x, {suffix: true, separator: ' '}),
+    fmt: x => H.pace(x, {suffix: true, separator: ' ', sport}),
 }, {
     id: 'cadence',
     stream: 'cadence',
