@@ -3,7 +3,7 @@ syntax = "proto3";
 
 message PlayerState {
     int32 athleteId = 1;
-    uint64 _worldTime = 2;
+    uint64 worldTime = 2;
     int32 distance = 3; // meters
     int32 roadLocation = 4; // Location on road in percent * 10,000.
     int32 laps = 5;
@@ -69,15 +69,15 @@ enum WorldUpdatePayloadType {
 }
 
 message WorldUpdate {
-    uint64 _worldTime = 1;
+    uint64 worldTime = 1;
     int32 realm = 2;
     WorldUpdatePayloadType _payloadType = 3;
     bytes _payload = 4;
-    uint64 _worldTimeBorn = 5;
+    uint64 worldTimeBorn = 5;
     int64 x = 6;
     int64 altitude = 7;
     int64 z = 8;
-    uint64 _worldTimeExpire = 9;
+    uint64 worldTimeExpire = 9;
     int64 relId = 10;
     int32 importance = 11;
     int64 _f12 = 12;
@@ -103,7 +103,7 @@ message PayloadSegmentResult {
     uint32 eventSubgroupId = 6;
     string firstName = 7;
     string lastName = 8;
-    uint64 _worldTime = 9;
+    uint64 worldTime = 9;
     string finishTime = 10;
     uint32 elapsed = 11; // ms
     int32 powerType = 12;
@@ -114,7 +114,7 @@ message PayloadSegmentResult {
     string leaderboardBirth = 17;
     uint32 playerType = 18;
     int32 avgHR = 19;
-    int32 sport = 20;
+    Sport sport = 20;
     int64 activityId = 21;
     string _f23 = 23; // "P"?
 }
@@ -154,14 +154,14 @@ message Payload2 {
 
 message PayloadLeftWorld {
     int64 athleteId = 1;
-    uint64 _worldTime = 2;
+    uint64 worldTime = 2;
     bool multipleLogins = 3;
     bool _f4 = 4; // maybe bool
 }
 
 message PayloadLeftWorld2 {
     int64 athleteId = 1;
-    uint64 _worldTime = 2;
+    uint64 worldTime = 2;
     bool multipleLogins = 3;
     bool _f4 = 4; // maybe bool
 }
@@ -206,7 +206,7 @@ message PlayerSummaries {
 message ServerToClient {
     int32 realm = 1;
     int32 athleteId = 2;
-    uint64 _worldTime = 3;
+    uint64 worldTime = 3;
     int32 seqno = 4;
     int32 ackSeqno = 5;  // UDP ack to our previously sent seqno
     repeated PlayerState playerStates = 8;
@@ -449,11 +449,11 @@ enum ActivityPrivacyType {
 }
 
 enum Sport {
-    CYCLING = 0;
-    RUNNING = 1;
-    ROWING = 2;
-    SPORT3 = 3;
-    SPORT4 = 4;
+    cycling = 0;
+    running = 1;
+    rowing = 2;
+    sport3 = 3;
+    sport4 = 4;
 }
 
 enum PlayerType {
@@ -774,7 +774,7 @@ message DropInWorld {
     int32 courseId = 3;
     bool _f4 = 4;
     uint32 zwifters = 5;
-    uint64 _worldTime = 6;
+    uint64 worldTime = 6;
     uint64 realTime = 7;
     repeated DropInPlayer proPlayers = 8;
     repeated DropInPlayer followees = 9;
@@ -1143,7 +1143,7 @@ message GameToCompanion {
     repeated AltPlayerState altPlayerStates = 9; // XXX seen once or maybe I messed up here.
     int64 _f10 = 10;
     repeated GameToCompanionCommand commands = 11;
-    uint64 _worldTime = 12;
+    uint64 worldTime = 12;
 }
 
 message TCPServer {
@@ -1174,7 +1174,7 @@ message SessionInfo {
 message ClientToServer {
     required int32 realm = 1;
     required int64 athleteId = 2;
-    uint64 _worldTime = 3;
+    uint64 worldTime = 3;
     required uint32 seqno = 4;
     uint32 _f5 = 5;
     int64 _f6 = 6;
@@ -1344,6 +1344,7 @@ enum EventType {
     GROUP_RIDE = 2;
     GROUP_WORKOUT = 3;
     TIME_TRIAL = 4;
+    TEAM_TIME_TRIAL = 5;
 }
 
 // Match JSON...
