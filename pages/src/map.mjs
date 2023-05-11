@@ -912,7 +912,7 @@ export class SauceZwiftMap extends EventTarget {
                     <a href="/pages/profile.html?id=${state.athleteId}&windowType=profile"
                        target="profile_popup_${state.athleteId}">${common.sanitize(name)}${avatar}</a><br/>
                     Power: ${H.power(state.power, {suffix: true, html: true})}<br/>
-                    Speed: ${H.pace(state.speed, {suffix: true, html: true})}
+                    Speed: ${H.pace(state.speed, {suffix: true, html: true, sport: state.sport})}
                 `);
             }
             if (state.athleteId === this.watchingId && !this.trackingPaused) {

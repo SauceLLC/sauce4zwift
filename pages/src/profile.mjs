@@ -142,7 +142,7 @@ export async function render(el, tpl, tplData) {
             .map(x => [x.dataset.id, x]));
         liveEls.world.textContent = world ? world.name : '-';
         liveEls.power.innerHTML = H.power(state.power, {suffix: true, html: true});
-        liveEls.speed.innerHTML = H.pace(state.speed, {suffix: true, html: true});
+        liveEls.speed.innerHTML = H.pace(state.speed, {suffix: true, html: true, sport: state.sport});
         liveEls.hr.textContent = H.number(state.heartrate);
         liveEls.rideons.textContent = H.number(state.rideons);
         liveEls.kj.textContent = H.number(state.kj);

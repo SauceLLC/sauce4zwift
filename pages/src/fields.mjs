@@ -22,7 +22,7 @@ function fmtPace(v, ad) {
 
 export function speedUnit(ad) {
     const sport = getSport(ad);
-    return H.pace(0, {sport, suffixOnly: true});
+    return H.pace(ad?.state?.speed, {sport, suffixOnly: true});
 }
 
 
