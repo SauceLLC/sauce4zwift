@@ -488,6 +488,7 @@ export class ZwiftAPI {
                 x.privacy[k] = !(+x.privacy_bits & flag);
             }
             x.powerSourceModel = {
+                VIRTUAL: 'zPower', // consistent with JSON api; applies to runs too
                 POWER_METER: 'Power Meter',
                 SMART_TRAINER: 'Smart Trainer',
             }[x.powerType];

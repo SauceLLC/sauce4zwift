@@ -779,7 +779,7 @@ export class StatsProcessor extends events.EventEmitter {
 
     _profileToAthlete(p) {
         const powerMeterSources = ['Power Meter', 'Smart Trainer'];
-        const powerMeter = powerMeterSources.includes(p.powerSourceModel);
+        const powerMeter = p.powerSourceModel ? powerMeterSources.includes(p.powerSourceModel) : undefined;
         const minor = p.privacy && p.privacy.minor;
         const o = {
             firstName: p.firstName,
