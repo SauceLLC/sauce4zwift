@@ -464,13 +464,13 @@ export class ZwiftAPI {
     }
 
     async getProfiles(ids, options) {
-        const unordered = (await this.fetchPB('/api/profiles', {
+        const unordered = pbToObject(await this.fetchPB('/api/profiles', {
             query: new URLSearchParams(ids.map(id => ['id', id])),
             protobuf: 'PlayerProfiles',
             ...options,
         })).profiles;
         // Reorder and make results similar to getProfile
-        const m = new Map(unordered.map(x => [x.id.toNumber(), pbToObject(x)]));
+        const m = new Map(unordered.map(x => [x.id, x]));
         return ids.map(_id => {
             const id = +_id;
             const x = m.get(id);
@@ -478,7 +478,6 @@ export class ZwiftAPI {
                 console.debug('Missing profile:', id);
                 return;
             }
-            x.id = id;
             x.privacy = {
                 defaultActivityPrivacy: x.default_activity_privacy,
             };
@@ -488,7 +487,10 @@ export class ZwiftAPI {
             for (const [k, flag] of Object.entries(pbProfilePrivacyFlagsInverted)) {
                 x.privacy[k] = !(+x.privacy_bits & flag);
             }
-            x.powerSourceModel === (x._powerType === 'METER') ? 'Power Meter' : undefined;
+            x.powerSourceModel = {
+                POWER_METER: 'Power Meter',
+                SMART_TRAINER: 'Smart Trainer',
+            }[x.powerType];
             return x;
         });
     }
