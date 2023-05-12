@@ -106,7 +106,7 @@ message PayloadSegmentResult {
     uint64 worldTime = 9;
     string finishTime = 10;
     uint32 elapsed = 11; // ms
-    int32 powerType = 12;
+    PowerType powerType = 12;
     int32 weight = 13; // grams
     int32 _f14 = 14;
     uint32 avgPower = 15;
@@ -472,7 +472,8 @@ enum PlayerType {
 
 enum PowerType {
     VIRTUAL = 0;
-    METER = 1;
+    POWER_METER = 1;
+    SMART_TRAINER = 2;
 }
 
 message PlayerProfile {
@@ -526,7 +527,7 @@ message PlayerProfile {
     uint32 achievementLevel = 49;
     bool useMetric = 50;
     bool stravaPremium = 51;
-    PowerType _powerType = 52;
+    PowerType powerType = 52;
     uint32 _f53 = 53;
     uint32 _f54 = 54;
     uint32 age = 55;
@@ -644,9 +645,8 @@ message PlayerProfile {
     ActivityPrivacyType defaultActivityPrivacy = 125;
     bool connectedToRuntastic = 126;
     repeated PropertyChange propertyChanges = 127;
-
-    int32 _f128 = 128; // 5264, 269607? id like, maybe ids for something
-    int32 _f129 = 129; // 26198?
+    uint32 targetExperiencePoints = 128;
+    uint32 targetRunExperiencePoints = 129;
 }
 
 message PlayerProfiles {
@@ -1144,6 +1144,7 @@ message GameToCompanion {
     int64 _f10 = 10;
     repeated GameToCompanionCommand commands = 11;
     uint64 worldTime = 12;
+    int32 _f13 = 13; // possibly bool
 }
 
 message TCPServer {
