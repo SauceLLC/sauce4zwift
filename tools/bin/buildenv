@@ -1,0 +1,21 @@
+#!/usr/bin/env node
+const childProcess = require('node:child_process');
+
+function shexec(command) {
+    return new Promise((resolve, reject) => {
+        childProcess.exec(command, (error, stdout, stderr) => {
+            if (error) {
+                reject(error);
+            } else {
+                resolve({stdout, stderr});
+            }
+        });
+    });
+}
+
+(async function() {
+    console.log(JSON.stringify({
+        git_commit: (await shexec('git rev-parse HEAD')).stdout,
+        sentry_dsn: process.env.SAUCE4ZWIFT_SENTRY_DSN,
+    }, null, 4));
+})();
