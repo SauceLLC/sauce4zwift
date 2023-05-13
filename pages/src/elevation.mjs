@@ -28,11 +28,11 @@ export class SauceElevationProfile {
         el.classList.add('sauce-elevation-profile-container');
         this.chart = ec.init(el, 'sauce', {renderer: 'svg'});
         this.chart.setOption({
-            grid: {top: 20, right: 15, bottom: 0, left: 15},
+            animation: false,
             tooltip: {
                 trigger: 'axis',
                 formatter: ([{value}]) => value ?
-                    `${H.elevation(value[1], {suffix: true})}\n` +
+                    `${H.elevation(value[1], {suffix: true})}, ` +
                     `${H.number(value[2] * 100, {suffix: '%'})}` : '',
                 axisPointer: {z: -1},
             },
@@ -43,12 +43,9 @@ export class SauceElevationProfile {
                 min: 'dataMin',
                 max: 'dataMax',
             },
-            dataZoom: [{type: 'inside'}],
             yAxis: {
                 show: false,
                 type: 'value',
-                min: x => Math.max(0, x.min - 20),
-                max: x => Math.max(x.max, x.min + 200),
             },
             series: [{
                 name: 'Elevation',
@@ -64,18 +61,8 @@ export class SauceElevationProfile {
                 markLine: {
                     symbol: 'none',
                     silent: true,
-                    label: {
-                        position: 'middle',
-                        distance: 10,
-                        formatter: x => H.elevation(x.value, {suffix: true}),
-                        fontSize: '0.5em',
-                    },
+                    label: {formatter: x => H.elevation(x.value, {suffix: true})},
                     lineStyle: {},
-                    data: [{
-                        type: 'min',
-                    }, {
-                        type: 'max',
-                    }]
                 }
             }]
         });
@@ -89,9 +76,54 @@ export class SauceElevationProfile {
         this.marks = new Map();
         this._statesQueue = [];
         this._busy = false;
-        addEventListener('resize', () => {
-            this.chart.resize();
+        this.onResize();
+        addEventListener('resize', () => this.onResize());
+    }
+
+    _updateFontSizes() {
+        this._docFontSize = Number(getComputedStyle(document.documentElement).fontSize.slice(0, -2));
+        this._elFontSize = Number(getComputedStyle(this.el).fontSize.slice(0, -2));
+    }
+
+    em(scale) {
+        return this._elFontSize * scale;
+    }
+
+    rem(scale) {
+        return this._docFontSize * scale;
+    }
+
+    onResize() {
+        this._updateFontSizes();
+        this.chart.resize();
+        const axisPad = this.em(0.2);
+        const tooltipSize = 0.4;
+        this.chart.setOption({
+            grid: {top: this.em(0.74), right: 0, bottom: 0, left: 0},
+            series: [{
+                markLine: {
+                    label: {
+                        fontSize: this.em(0.5),
+                        distance: this.em(0.18 * 0.5)
+                    }
+                }
+            }],
+            tooltip: {
+                position: ([x, y], params, dom, rect, size) => {
+                    if (x > size.viewSize[0] / 2) {
+                        return [x - size.contentSize[0] - axisPad, axisPad];
+                    } else {
+                        return [x + axisPad, axisPad];
+                    }
+                },
+                textStyle: {
+                    fontSize: this.em(tooltipSize),
+                    lineHeight: this.em(tooltipSize * 1.15),
+                },
+                padding: [this.em(0.1 * tooltipSize), this.em(0.3 * tooltipSize)],
+            },
         });
+        this.renderAthleteStates([], /*force*/ true);
     }
 
     async setCourse(id) {
@@ -149,8 +181,16 @@ export class SauceElevationProfile {
 
     setData(distances, elevations, grades, options={}) {
         const distance = distances[distances.length - 1] - distances[0];
+        this._yMax = Math.max(...elevations);
+        this._yMin = Math.min(...elevations);
+        this._yAxisMin = this._yMin > 0 ? Math.max(0, this._yMin - 20) : this._yMin;
+        this._yAxisMax = Math.max(this._yMax, this._yMin + 200),
         this.chart.setOption({
             xAxis: {inverse: options.reverse},
+            yAxis: {
+                min: this._yAxisMin,
+                max: this._yAxisMax,
+            },
             series: [{
                 areaStyle: {
                     color:  {
@@ -176,7 +216,7 @@ export class SauceElevationProfile {
         });
     }
 
-    async renderAthleteStates(states) {
+    async renderAthleteStates(states, force) {
         if (this.watchingId == null || this._busy) {
             return;
         }
@@ -203,22 +243,38 @@ export class SauceElevationProfile {
             mark.state = state;
             mark.lastSeen = now;
         }
-        clearTimeout(this._refreshTimeout);
-        if (now - this._lastRender < this.refresh) {
+        common.idle().then(() => this._updateAthleteDetails(states.map(x => x.athleteId)));
+        if (!force && now - this._lastRender < this.refresh) {
+            clearTimeout(this._refreshTimeout);
             this._refreshTimeout = setTimeout(
-                () =>this.renderAthleteStates([]),
+                () => this.renderAthleteStates([]),
                 this.refresh - (now - this._lastRender));
+            return;
+        }
+        if (!force && !common.isVisible()) {
+            cancelAnimationFrame(this._visAnimFrame);
+            this._visAnimFrame = requestAnimationFrame(() => this.renderAthleteStates([]));
             return;
         }
         this._lastRender = now;
         const marks = Array.from(this.marks.values()).filter(x =>
             x.state.roadId === this.road.id && x.state.reverse === this.reverse);
+        const markPointLabelSize = 0.4;
+        const deltaY = this._yAxisMax - this._yAxisMin;
         this.chart.setOption({series: [{
+            markLine: {
+                data: [{
+                    type: 'min',
+                    label: {position: this.reverse ? 'insideEndTop' : 'insideStartTop'}
+                }, {
+                    type: 'max',
+                    label: {position: this.reverse ? 'insideStartTop' : 'insideEndTop'}
+                }]
+            },
             markPoint: {
-                itemStyle: {borderColor: '#000'},
+                itemStyle: {borderColor: '#222b'},
                 animation: false,
-                data: marks.map(({state}) => {
-                    // XXX
+                data: marks.map(({state}, i) => {
                     const distances = this.road.path.map(pos =>
                         vectorDistance(pos, [state.x, state.y, state.z]));
                     const nearest = distances.indexOf(Math.min(...distances));
@@ -227,19 +283,29 @@ export class SauceElevationProfile {
                     return {
                         name: state.athleteId,
                         coord: [distance, state.altitude + 2],
-                        symbolSize: isWatching ? 40 : 20,
+                        symbolSize: isWatching ? this.em(1.1) : this.em(0.55),
                         itemStyle: {
-                            color: isWatching ? '#f54e' : '#fff6',
-                            borderWidth: isWatching ? 2 : 0,
+                            color: isWatching ? '#f43e' : '#fff6',
+                            borderWidth: this.em(isWatching ? 0.04 : 0.02),
                         },
                         emphasis: {
                             label: {
-                                show: true,
-                                fontSize: '0.5rem',
-                                position: 'top',
+                                fontSize: this.em(markPointLabelSize),
+                                fontWeight: 400,
+                                lineHeight: this.em(1.15 * markPointLabelSize),
+                                position: (state.altitude - this._yAxisMin) / deltaY > 0.4 ? 'bottom' : 'top',
+                                backgroundColor: '#222e',
+                                borderRadius: this.em(0.22 * markPointLabelSize),
+                                borderWidth: 1,
+                                borderColor: '#fff9',
+                                align: (nearest > distances.length / 2) ^ this.reverse ? 'right' : 'left',
+                                padding: [
+                                    this.em(0.2 * markPointLabelSize),
+                                    this.em(0.3 * markPointLabelSize)
+                                ],
                                 formatter: this.onMarkEmphasisLabel.bind(this),
                             }
-                        }
+                        },
                     };
                 }),
             },
@@ -255,15 +321,16 @@ export class SauceElevationProfile {
         if (!params || !params.data || !params.data.name) {
             return;
         }
-        const data = this.marks.get(params.data.name);
-        if (!data) {
+        const mark = this.marks.get(params.data.name);
+        if (!mark) {
             return;
         }
-        const items = [
-            data.athlete && data.athlete.fLast,
-            data.state.power != null ? H.power(data.state.power, {suffix: true}) : null,
-            data.state.heartrate ? H.number(data.state.heartrate, {suffix: 'bpm'}) : null,
-        ];
-        return items.filter(x => x != null).join('\n');
+        const ad = common.getAthleteDataCacheEntry(mark.athleteId);
+        const name = ad?.athlete?.fLast || `ID: ${mark.athleteId}`;
+        return `${name}, ${H.power(mark.state.power, {suffix: true})}`;
+    }
+
+    async _updateAthleteDetails(ids) {
+        await common.getAthletesDataCached(ids);
     }
 }
