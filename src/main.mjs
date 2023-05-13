@@ -527,7 +527,7 @@ async function maybeDownloadAndInstallUpdate({version}) {
 
 
 export async function main({logEmitter, logFile, logQueue, sentryAnonId,
-                            loaderSettings, saveLoaderSettings}) {
+                            loaderSettings, saveLoaderSettings, buildEnv}) {
     const s = Date.now();
     const args = parseArgs([
         {arg: 'headless', type: 'switch',
@@ -556,6 +556,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         rpc.register(() => electron.shell.showItemInFolder(logFile), {name: 'showLogInFolder'});
     }
     rpc.register(() => sentryAnonId, {name: 'getSentryAnonId'});
+    rpc.register(() => !isDEV ? buildEnv.sentry_dsn : null, {name: 'getSentryDSN'});
     rpc.register(key => loaderSettings[key], {name: 'getLoaderSetting'});
     rpc.register((key, value) => {
         loaderSettings[key] = value;
