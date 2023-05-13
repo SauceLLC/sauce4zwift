@@ -15,7 +15,7 @@ function shexec(command) {
 
 (async function() {
     console.log(JSON.stringify({
-        git_commit: (await shexec('git rev-parse HEAD')).stdout,
+        git_commit: (await shexec('git rev-parse HEAD')).stdout.trim(),
         sentry_dsn: process.env.SAUCE4ZWIFT_SENTRY_DSN,
-    }, null, 4));
+    }));
 })();
