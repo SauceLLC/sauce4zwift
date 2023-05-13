@@ -1,7 +1,7 @@
 default: build
 
 PACKAGES := node_modules/.build
-BUILD := .build
+BUILD := build.json
 
 rwildcard=$(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) $(filter $(subst *,%,$2),$d))
 
@@ -31,7 +31,7 @@ $(PACKAGES): package.json
 	echo "" > $@
 
 $(BUILD): $(PAGES_SRC) $(PACKAGES) sass deps Makefile .git/index
-	echo "" > $@
+	node tools/bin/buildenv > $@
 
 build: $(BUILD)
 
