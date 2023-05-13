@@ -1,10 +1,10 @@
 export const handlers = new Map();
 
 
-function errorReply(handler, e) {
+export function errorReply(e, extra) {
     console.warn("RPC error:", e);
     return {
-        warning: handler.warning,
+        ...extra,
         success: false,
         error: {
             name: e.name,
@@ -15,9 +15,9 @@ function errorReply(handler, e) {
 }
 
 
-function successReply(handler, value) {
+export function successReply(value, extra) {
     return {
-        warning: handler.warning,
+        ...extra,
         success: true,
         value
     };
@@ -29,13 +29,14 @@ export async function invoke(name, ...args) {
     if (!handler) {
         throw new Error('Invalid handler name: ' + name);
     }
-    if (handler.warning) {
-        console.warn(handler.warning);
+    const warning = handler.warning; // deprecation, etc
+    if (warning) {
+        console.warn(warning);
     }
     try {
-        return successReply(handler, await handler.fn.call(handler.scope || this, ...args));
+        return successReply(await handler.fn.call(handler.scope || this, ...args), {warning});
     } catch(e) {
-        return errorReply(handler, e);
+        return errorReply(e, {warning});
     }
 }
 
