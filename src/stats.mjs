@@ -1337,6 +1337,7 @@ export class StatsProcessor extends events.EventEmitter {
         if (this.listenerCount(`athlete/${state.athleteId}`)) {
             this.emit(`athlete/${state.athleteId}`, emitData || (emitData = this._formatAthleteData(ad)));
         }
+        this.maybeUpdateAthleteFromServer(state.athleteId);
     }
 
     _autoLapCheck(state, ad) {
@@ -2009,7 +2010,6 @@ export class StatsProcessor extends events.EventEmitter {
                     ahead.push(ad);
                 }
             }
-            this.maybeUpdateAthleteFromServer(ad.athleteId);
         }
 
         ahead.sort((a, b) => b.gapDistance - a.gapDistance);
