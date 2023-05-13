@@ -3,10 +3,14 @@ import {sleep as _sleep} from '../../shared/sauce/base.mjs';
 import * as locale from '../../shared/sauce/locale.mjs';
 import * as report from '../../shared/report.mjs';
 import * as elements from './custom-elements.mjs';
-import './sentry.js';
 
 export const sleep = _sleep; // Come on ES6 modules, really!?
-
+export let idle;
+if (window.requestIdleCallback) {
+    idle = options => new Promise(resolve => requestIdleCallback(resolve, options));
+} else {
+    idle = () => new Promise(resolve => setTimeout(resolve, 1));
+}
 if (!Array.prototype.at) {
     // Old browsers like chromium 86 used by vmix.
     Array.prototype.at = function(idx) {
@@ -1182,6 +1186,7 @@ export function badgeHue(name) {
 export const rpc = new Proxy({}, {
     get: (_, prop) => (...args) => rpcCall(prop, ...args)
 });
+self.rpc = rpc; // DEBUG
 
 
 export function themeInit(store) {
@@ -1371,18 +1376,95 @@ export function binarySearchClosestNumber(arr, value) {
 }
 
 
-rpcCall('getVersion').then(v => Sentry.setTag('version', v));
-rpcCall('getSentryAnonId').then(id => Sentry.setUser({id}));
-rpcCall('isDEV').then(isDEV => {
-    if (!isDEV) {
-        report.setSentry(Sentry);
+const _athletesDataCache = new Map();
+export function getAthleteDataCacheEntry(id, {maxAge=60000}={}) {
+    const entry = _athletesDataCache.get(id);
+    const now = Date.now();
+    if (entry && now - entry.ts <= maxAge) {
+        return entry.data;
+    }
+}
+
+
+export async function getAthletesDataCached(ids, {maxAge=60000}={}) {
+    const now = Date.now();
+    let fetchResolve;
+    const postFetch = new Promise(resolve => fetchResolve = resolve);
+    const fetchIds = [];
+    for (const id of ids) {
+        const entry = _athletesDataCache.get(id);
+        if (!entry || now - entry.ts > maxAge) {
+            fetchIds.push(id);
+            if (entry) {
+                entry.ts = now;
+                entry.pending = postFetch;
+            } else {
+                _athletesDataCache.set(id, {ts: now, pending: postFetch});
+            }
+        }
+    }
+    if (fetchIds.length) {
+        console.warn(fetchIds.join(), _athletesDataCache.size);
+        try {
+            const data = await rpc.getAthletesData(fetchIds);
+            for (const [i, id] of fetchIds.entries()) {
+                const entry = _athletesDataCache.get(id);
+                entry.pending = null;
+                entry.data = data[i];
+            }
+        } finally {
+            fetchResolve(); // release concurrent calls after cache update
+        }
+    }
+    const results = [];
+    for (const id of ids) {
+        const entry = _athletesDataCache.get(id);
+        if (entry.pending) {
+            await entry.pending;
+            entry.pending = null; // exception during fetch, reset entry and try again next time
+        }
+        results.push(entry.data);
+    }
+    if (_athletesDataCache.size > 1000) {
+        setTimeout(() => {
+            for (const [id, entry] of _athletesDataCache.entries()) {
+                if (now - entry.ts > 300000) {
+                    _athletesDataCache.delete(id);
+                }
+            }
+        }, 1);
+    }
+    return results;
+}
+
+
+let _sentryEnabled;
+export async function enableSentry() {
+    if (location.pathname.startsWith('/mods/')) {
+        throw new Error("Please don't use sentry error logging in a mod");
+    }
+    if (_sentryEnabled) {
+        return;
+    }
+    _sentryEnabled = true;
+    const [version, id, dsn] = await Promise.all([
+        rpc.getVersion(),
+        rpc.getSentryAnonId(),
+        rpc.getSentryDSN(),
+        import('./sentry.js') // side-effect is self.Sentry
+    ]);
+    if (version && id && dsn) {
+        Sentry.setTag('version', version);
+        Sentry.setUser({id});
         Sentry.init({
-            dsn: "https://df855be3c7174dc89f374ef0efaa6a92@o1166536.ingest.sentry.io/6257001",
+            dsn,
             beforeSend: report.beforeSentrySend,
             integrations: arr => arr.filter(x => !['Breadcrumbs', 'TryCatch'].includes(x.name)),
         });
+        report.setSentry(Sentry);
     }
-});
+}
+
 
 if (window.CSS && CSS.registerProperty) {
     CSS.registerProperty({name: '--bg-opacity', syntax: '<number>', inherits: true, initialValue: 1});
@@ -1391,5 +1473,3 @@ if (window.CSS && CSS.registerProperty) {
 if (settingsStore) {
     themeInit(settingsStore);
 }
-
-window.rpc = rpc; // DEBUG
