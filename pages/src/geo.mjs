@@ -4,6 +4,8 @@ import * as map from './map.mjs';
 import * as elevation from './elevation.mjs';
 import * as fields from './fields.mjs';
 
+common.enableSentry();
+
 const doc = document.documentElement;
 const L = sauce.locale;
 const imperial = !!common.storage.get('/imperialUnits');

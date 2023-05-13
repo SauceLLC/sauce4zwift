@@ -7,8 +7,8 @@ import * as color from './color.mjs';
 // XXX
 // import * as fieldsMod from './fields.mjs';
 
+common.enableSentry();
 echarts.registerTheme('sauce', theme.getTheme('dynamic', {fg: 'intrinsic-inverted', bg: 'intrinsic'}));
-
 common.settingsStore.setDefault({
     preferWkg: false,
     peakEffortSource: 'power',
