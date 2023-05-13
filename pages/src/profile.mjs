@@ -1,8 +1,9 @@
 import * as common from './common.mjs';
 import {locale, template} from '../../shared/sauce/index.mjs';
 
-const q = new URLSearchParams(location.search);
+common.enableSentry();
 
+const q = new URLSearchParams(location.search);
 const H = locale.human;
 const ident = q.get('id') || q.get('athleteId') || 'self';
 let gettingAthlete;

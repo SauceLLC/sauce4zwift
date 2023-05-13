@@ -2,6 +2,8 @@ import * as sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
 import * as fields from './fields.mjs';
 
+common.enableSentry();
+
 const doc = document.documentElement;
 const L = sauce.locale;
 const H = L.human;

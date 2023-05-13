@@ -2,8 +2,9 @@ import * as sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
 import {render as profileRender} from './profile.mjs';
 
+common.enableSentry();
+
 const L = sauce.locale;
-//const H = L.human;
 common.settingsStore.setDefault({});
 const imperial = common.settingsStore.get('/imperialUnits');
 L.setImperial(imperial);

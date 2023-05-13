@@ -1,5 +1,7 @@
 import * as common from './common.mjs';
 
+common.enableSentry();
+
 
 function updateConnStatus(s) {
     if (!s) {

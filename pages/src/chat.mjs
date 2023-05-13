@@ -1,8 +1,9 @@
 import * as sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
 
-const H = sauce.locale.human;
+common.enableSentry();
 
+const H = sauce.locale.human;
 const doc = document.documentElement;
 const settings = common.settingsStore.get(null, {
     cleanup: 120,

@@ -1,6 +1,7 @@
 import * as common from './common.mjs';
 import * as sauce from '../../shared/sauce/index.mjs';
 
+common.enableSentry();
 
 const athleteCardsPromise = sauce.template.getTemplate(`templates/athlete-cards.html.tpl`);
 

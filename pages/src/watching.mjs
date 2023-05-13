@@ -3,6 +3,8 @@ import * as common from './common.mjs';
 import * as color from './color.mjs';
 import * as elevationMod from './elevation.mjs';
 
+common.enableSentry();
+
 const q = new URLSearchParams(location.search);
 const customIdent = q.get('id');
 const athleteIdent = customIdent || 'watching';
@@ -74,7 +76,7 @@ const sectionSpecs = {
     },
     'single-data-field': {
         title: 'Single Data Field',
-        baseType: 'single-data-field',
+        baseType: 'data-fields',
         groups: 1,
     },
     'line-chart': {
@@ -93,7 +95,7 @@ const sectionSpecs = {
     },
     'time-in-zones': {
         title: 'Time in Zones',
-        baseType: 'time-in-zones',
+        baseType: 'chart',
         defaultSettings: {
             style: 'vert-bars',
             type: 'power',
@@ -101,7 +103,7 @@ const sectionSpecs = {
     },
     'elevation-profile': {
         title: 'Elevation Profile',
-        baseType: 'elevation-profile',
+        baseType: 'chart',
         defaultSettings: {
             showEventRoute: true,
         },
@@ -741,7 +743,7 @@ async function createLineChart(el, sectionId, settings) {
             max: f.domain[1],
             inRange: {colorAlpha: f.rangeAlpha},
         })),
-        grid: {top: 0, left: 0, right: 0, bottom: 0},
+        grid: {top: '10%', left: '2%', right: '2%', bottom: '4%'},
         legend: {show: false},
         tooltip: {
             className: 'ec-tooltip',
@@ -781,23 +783,25 @@ async function createLineChart(el, sectionId, settings) {
 function bindLineChart(lineChart, renderer, settings) {
     const fields = lineChartFields.filter(x => settings[x.id + 'En']);
     let lastRender = 0;
-    let oldSport;
+    let lastSport;
+    let created;
     let athleteId;
     let loading;
     renderer.addCallback(async data => {
-        if (loading) {
+        if (loading || !data?.athleteId) {
             return;
         }
-        if (oldSport !== sport) {
-            oldSport = sport;
+        if (lastSport !== sport) {
+            lastSport = sport;
             lineChart._sauceLegend.render();
         }
         const dataPoints = settings.dataPoints || defaultLineChartLen();
         const now = Date.now();
-        if (data.athleteId !== athleteId) {
-            athleteId = data.athleteId;
-            console.info("Loading streams for:", athleteId);
+        if (data.athleteId !== athleteId || created !== data.created) {
+            console.info("Loading streams for:", data.athleteId);
             loading = true;
+            athleteId = data.athleteId;
+            created = data.created;
             let streams;
             try {
                 streams = await common.rpc.getAthleteStreams(athleteId);
@@ -842,10 +846,10 @@ function bindLineChart(lineChart, renderer, settings) {
                             formatter: x => {
                                 const nbsp ='\u00A0';
                                 return [
-                                    ''.padStart(Math.max(0, 5 - x.value), nbsp),
+                                    ''.padStart(Math.max(0, 10 - x.value), nbsp),
                                     nbsp, nbsp, // for unit offset
                                     field.fmt(field.points[x.value]),
-                                    ''.padEnd(Math.max(0, x.value - (dataPoints - 1) + 5), nbsp)
+                                    ''.padEnd(Math.max(0, x.value - (dataPoints - 1) + 10), nbsp)
                                 ].join('');
                             },
                         },
@@ -862,7 +866,7 @@ async function createTimeInZonesVertBars(el, sectionId, settings, renderer) {
     const echarts = await importEcharts();
     const chart = echarts.init(el, 'sauce', {renderer: 'svg'});
     chart.setOption({
-        grid: {top: '5%', left: '6%', right: '4', bottom: '3%', containLabel: true},
+        grid: {top: '5%', left: '6%', right: '10%', bottom: '3%', containLabel: true},
         tooltip: {
             className: 'ec-tooltip',
             trigger: 'axis',
@@ -957,13 +961,13 @@ async function createTimeInZonesPie(el, sectionId, settings, renderer) {
     const echarts = await importEcharts();
     const chart = echarts.init(el, 'sauce', {renderer: 'svg'});
     chart.setOption({
-        grid: {top: '1', left: '1', right: '1', bottom: '1'},
+        grid: {top: '1%', left: '1%', right: '1%', bottom: '1%', containLabel: true},
         tooltip: {
             className: 'ec-tooltip'
         },
         series: [{
             type: 'pie',
-            radius: ['30%', '90%'],
+            radius: ['30%', '80%'],
             minShowLabelAngle: 20,
             label: {
                 show: true,
@@ -1275,33 +1279,6 @@ export async function main() {
                         });
                     }
                 }
-            } else if (baseType === 'single-data-field') {
-                const groups = [
-                    sectionEl.dataset.groupId ? sectionEl : null,
-                    ...sectionEl.querySelectorAll('[data-group-id]')
-                ].filter(x => x);
-                for (const groupEl of groups) {
-                    const mapping = [];
-                    for (const [i, fieldEl] of groupEl.querySelectorAll('[data-field]').entries()) {
-                        const id = fieldEl.dataset.field;
-                        mapping.push({id, default: Number(fieldEl.dataset.default || i)});
-                    }
-                    const groupSpec = groupSpecs[groupEl.dataset.groupType];
-                    renderer.addRotatingFields({
-                        el: groupEl,
-                        mapping,
-                        fields: groupSpec.fields,
-                    });
-                    if (typeof groupSpec.title === 'function') {
-                        const titleEl = groupEl.querySelector('.group-title');
-                        renderer.addCallback(() => {
-                            const title = groupSpec.title() || '';
-                            if (common.softInnerHTML(titleEl, title)) {
-                                titleEl.title = title;
-                            }
-                        });
-                    }
-                }
             } else if (baseType === 'chart') {
                 if (section.type === 'line-chart') {
                     const lineChart = await createLineChart(
@@ -1309,11 +1286,7 @@ export async function main() {
                         sectionEl.dataset.sectionId,
                         sectionSettings);
                     bindLineChart(lineChart, renderer, sectionSettings);
-                } else {
-                    console.error("Invalid chart type:", section.type);
-                }
-            } else if (baseType === 'time-in-zones') {
-                if (section.type === 'time-in-zones') {
+                } else if (section.type === 'time-in-zones') {
                     const el = sectionEl.querySelector('.zones-holder');
                     const id = sectionEl.dataset.sectionId;
                     if (sectionSettings.style === 'vert-bars') {
@@ -1323,11 +1296,7 @@ export async function main() {
                     } else if (sectionSettings.style === 'horiz-bar') {
                         createTimeInZonesHorizBar(el, id, sectionSettings, renderer);
                     }
-                } else {
-                    console.error("Invalid time-in-zones type:", section.type);
-                }
-            } else if (baseType === 'elevation-profile') {
-                if (section.type === 'elevation-profile') {
+                } else if (section.type === 'elevation-profile') {
                     const el = sectionEl.querySelector('.elevation-profile-holder');
                     const id = sectionEl.dataset.sectionId;
                     createElevationProfile(el, id, sectionSettings, renderer);
