@@ -48,6 +48,14 @@ export const worldToNames = Object.fromEntries(worldCourseDescs.map(x => [x.worl
 // XXX DEPRECATED...
 export const identToWorldId = Object.fromEntries(worldCourseDescs.map(x => [x.ident, x.worldId]));
 
+export const trainingPeaksAttr =
+    'Training Stress Score®, TSS®, Normalized Power®, NP®,\n' +
+    'Intensity Factor® and IF® are trademarks of TrainingPeaks, LLC' +
+    '.';
+// Release this addendum when agreement is finalized.
+//    'and are used with permission.\n\n' +
+//    'Learn more at https://www.trainingpeaks.com.';
+
 
 let rpcCall;
 let windowID;
@@ -633,14 +641,14 @@ export class Renderer {
         }
         const field = this.fields.get(id);
         const nextField = field.available[this.getAdjacentFieldIndex(field, 1)];
-        const tooltip = field.tooltip ? field.tooltip + '\n\n' : '';
+        const tooltip = field.active?.tooltip ? field.active?.tooltip + '\n\n' : '';
         try {
             const name = stripHTML(
                 fGet(nextField.key, this._data) ||
                 fGet(nextField.label, this._data) ||
                 nextField.id);
-            field.el.title = `${tooltip}Click to change field to: ${name}. ` +
-                `Or use Left/Right keys when focused.`;
+            field.el.title = `${tooltip}Click to change this field to the next option: \"${name}\". ` +
+                `Or use the Left/Right keys when focused.`;
         } catch(e) {
             console.error("Failed to get tooltip name for next field:", id, nextField, e);
         }

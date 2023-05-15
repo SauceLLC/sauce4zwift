@@ -15,12 +15,12 @@
                 | {-humanWkg(power.avg / athlete?.weight, {suffix: true, fixed: true, html: true})-}</value>
             <key>Max:</key><value>{-humanPower(power.max, {suffix: true, html: true})-}
                 | {-humanWkg(power.max / athlete?.weight, {suffix: true, fixed: true, html: true})-}</value>
-            <key>NP:</key><value>{-humanPower(power.np, {suffix: true, html: true})-}</value>
+            <key>NP®:</key><value>{-humanPower(power.np, {suffix: true, html: true})-}</value>
         </div>
 
         <div class="stats key-value-grid">
             <key>Energy:</key><value>{-humanNumber(power.kj, {suffix: 'kJ', html: true})-}</value>
-            <key>TSS:</key><value>{-humanNumber(power.tss)-}</value>
+            <key>TSS®:</key><value>{-humanNumber(power.tss)-}</value>
         </div>
 
         <% if (power.hr) { %>
