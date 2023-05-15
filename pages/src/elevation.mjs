@@ -221,7 +221,7 @@ export class SauceElevationProfile {
             return;
         }
         const watching = states.find(x => x.athleteId === this.watchingId);
-        if (!watching && (this.courseId == null || this.roud == null)) {
+        if (!watching && (this.courseId == null || !this.road)) {
             return;
         } else if (watching) {
             if (watching.courseId !== this.courseId) {
