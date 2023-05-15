@@ -1085,13 +1085,16 @@ export class StatsProcessor extends events.EventEmitter {
             power: cs.power.getStats(ad.wtOffset, {
                 np,
                 tss,
+                kj: cs.power.roll.joules() / 1000,
                 wBal, // DEPRECATED
                 timeInZones: timeInPowerZones // DEPRECATED
             }),
             speed: cs.speed.getStats(ad.wtOffset),
             hr: cs.hr.getStats(ad.wtOffset),
             cadence: cs.cadence.getStats(ad.wtOffset),
-            draft: cs.draft.getStats(ad.wtOffset),
+            draft: cs.draft.getStats(ad.wtOffset, {
+                kj: cs.draft.roll.joules() / 1000,
+            }),
         };
     }
 
@@ -1104,7 +1107,7 @@ export class StatsProcessor extends events.EventEmitter {
             speed: new DataCollector(sauce.data.RollingAverage, longPeriods, {ignoreZeros: true}),
             hr: new DataCollector(sauce.data.RollingAverage, longPeriods, {ignoreZeros: true, round: true}),
             cadence: new DataCollector(sauce.data.RollingAverage, [], {ignoreZeros: true, round: true}),
-            draft: new DataCollector(sauce.data.RollingAverage, longPeriods, {round: true}),
+            draft: new DataCollector(sauce.power.RollingPower, longPeriods, {round: true}),
         };
     }
 
