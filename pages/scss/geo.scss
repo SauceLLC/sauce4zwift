@@ -48,7 +48,7 @@ html {
         right: 0;
         display: flex;
         z-index: 10;
-        background-color: color.get(bg, 0.75);
+        background-color: color.get(bg, 0.82);
         color: color.get(fg);
         border-bottom-left-radius: 0.28em;
         padding: 0.3em 1em;
@@ -74,7 +74,7 @@ html {
         .field {
             display: flex;
             flex-direction: row;
-            align-items: center;
+            align-items: baseline;
             justify-content: center;
             white-space: nowrap;
             overflow: hidden;
@@ -84,9 +84,23 @@ html {
                 margin-right: 0.2em;
                 overflow: hidden;
                 text-overflow: ellipsis;
+                display: inline-flex;
+                align-items: center;
+                white-space: nowrap;
 
                 &:not(:empty)::after {
                     content: ':';
+                }
+
+                small {
+                    padding-left: 0.15em;
+                    font-weight: 400;
+                    font-size: 0.78em;
+                }
+
+                abbr {
+                    font-weight: 400;
+                    font-size: 0.72em;
                 }
             }
 
