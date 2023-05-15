@@ -776,6 +776,9 @@ export function calcWPrimeBalDifferential(wattsStream, timeStream, cp, wPrime) {
         } else {
             const pNum = p || 0;  // convert null and undefined to 0.
             wBal += pNum < cp ? (cp - pNum) * (wPrime - wBal) / wPrime : cp - pNum;
+            if (wBal > wPrime) {
+                wBal = wPrime;
+            }
         }
         if (!(p instanceof sauce.data.Pad)) {
             // Our output stream should align with the input stream, not the corrected
@@ -803,6 +806,9 @@ export function makeIncWPrimeBalDifferential(cp, wPrime) {
         } else {
             const cpDelta = (cp - (p || 0)) * elapsed;
             wBal += cpDelta > 0 ? cpDelta * (wPrime - wBal) / wPrime : cpDelta;
+            if (wBal > wPrime) {
+                wBal = wPrime;
+            }
         }
         return wBal;
     };
