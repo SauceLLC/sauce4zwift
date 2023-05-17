@@ -36,9 +36,8 @@ Great overview video from Si Bradeley:
 
 Feature Highlights
 --------
- * Draft %:
-   * Don't ask me how it's used in the engine, I don't know, but it's infinitely
-     interesting and everyone loves it.
+ * Draft power savings:
+   * See how much power you're saving by being in the draft.
  * Groups view:
    * See the size of your group and others nearby
    * Show the time gap to the groups ahead and behind
@@ -50,7 +49,7 @@ Feature Highlights
    * Average and Max for power, HR, cadence, speed and event draft
    * Rolling Averages (5s, 5min, etc) for most metrics (power, hr, etc)
    * Peak Averages (5s, 5min, etc) for most metrics (power, hr, etc)
-   * NP, TSS, kJ
+   * [NP®](#tp), [TSS®](#tp), kJ
    * Laps
  * Controllable by event organizers:
   * Add hashtags to your event description to control Sauce for athletes in your event
@@ -79,14 +78,28 @@ Release Notes
 https://www.sauce.llc/products/sauce4zwift/release_notes
 
 
+Support my work
+--------
+<a href="https://www.patreon.com/bePatron?u=32064618" target="_blank">
+    <img src="pages/images/become_a_patron_button@2x.png" width="150"/>
+</a>
+
+
 Disclaimer
 --------
 I don't work for Zwift nor do I represent them.  I assume no liability bla
 bla bla.  You get the idea.
 
 
-Support my work
+Attribution
 --------
-<a href="https://www.patreon.com/bePatron?u=32064618" target="_blank">
-    <img src="pages/images/become_a_patron_button@2x.png" width="150"/>
-</a>
+ * <a id="tp"></a> Normalized Power®, NP®, Training Stress Score®, TSS®,
+   Intensity Factor®, IF® are trademarks of TrainingPeaks, LLC and are used with permission.
+
+   Learn more at <a href="https://www.trainingpeaks.com">https://www.trainingpeaks.com</a>.
+
+
+Legal
+--------
+[Privacy Policy](https://www.sauce.llc/legal/sauce4zwift-privacy.html)
+[Terms and Conditions](https://www.sauce.llc/legal/sauce4zwift-terms.html)
