@@ -48,13 +48,12 @@ export const worldToNames = Object.fromEntries(worldCourseDescs.map(x => [x.worl
 // XXX DEPRECATED...
 export const identToWorldId = Object.fromEntries(worldCourseDescs.map(x => [x.ident, x.worldId]));
 
-export const trainingPeaksAttr =
-    'Training Stress Score®, TSS®, Normalized Power®, NP®,\n' +
-    'Intensity Factor® and IF® are trademarks of TrainingPeaks, LLC' +
-    '.';
-// Release this addendum when agreement is finalized.
-//    'and are used with permission.\n\n' +
-//    'Learn more at https://www.trainingpeaks.com.';
+export const attributions = {
+    tp: 'Training Stress Score®, TSS®, Normalized Power®, NP®, Intensity Factor® and IF® are ' +
+        'trademarks of TrainingPeaks, LLC and are used with permission.\n\n' +
+        'Learn more at <a href="https://www.trainingpeaks.com" ' +
+                        ' external target="_blank">https://www.trainingpeaks.com</a>.'
+};
 
 
 let rpcCall;
@@ -517,6 +516,36 @@ export function initInteractionListeners() {
             }
         });
     }
+    let _attrDialog;
+    document.documentElement.addEventListener('click', ev => {
+        const attr = ev.target.closest('attr[for]');
+        if (!attr) {
+            return;
+        }
+        if (_attrDialog) {
+            _attrDialog.close();
+        } else {
+            const dialog = document.createElement('dialog');
+            dialog.classList.add('sauce-attr');
+            dialog.innerHTML = attributions[attr.getAttribute('for')];
+            const pos = attr.getBoundingClientRect(attr);
+            if (pos.left || pos.top) {
+                dialog.style.setProperty('top', pos.top + pos.height + 'px');
+                dialog.style.setProperty('left', pos.left + 'px');
+                dialog.classList.add('anchored');
+            }
+            dialog.addEventListener('click', () => dialog.close());
+            dialog.addEventListener('close', () => {
+                if (dialog === _attrDialog) {
+                    _attrDialog = null;
+                    dialog.remove();
+                }
+            });
+            _attrDialog = dialog;
+            document.body.append(dialog);
+            dialog.showModal();
+        }
+    });
 }
 
 
@@ -1412,7 +1441,6 @@ export async function getAthletesDataCached(ids, {maxAge=60000}={}) {
         }
     }
     if (fetchIds.length) {
-        console.warn(fetchIds.join(), _athletesDataCache.size);
         try {
             const data = await rpc.getAthletesData(fetchIds);
             for (const [i, id] of fetchIds.entries()) {
