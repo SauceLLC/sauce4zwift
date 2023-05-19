@@ -250,7 +250,7 @@ async function renderAvailableMods() {
 async function renderWindows(wins) {
     console.log(wins);
     const windows = (await common.rpc.getWidgetWindowSpecs()).filter(x => !x.private);
-    const manifests = await common.rpc.getWindowManifests();
+    const manifests = await common.rpc.getWidgetWindowManifests();
     const el = document.querySelector('#windows');
     const descs = Object.fromEntries(manifests.map(x => [x.type, x]));
     windows.sort((a, b) => !!a.closed - !!b.closed);
@@ -350,7 +350,7 @@ async function initWindowsPanel() {
         }
         const id = ev.target.closest('[data-id]').dataset.id;
         if (link.classList.contains('win-restore')) {
-            await common.rpc.openWindow(id);
+            await common.rpc.openWidgetWindow(id);
         } else if (link.classList.contains('profile-select')) {
             await common.rpc.activateProfile(id);
             await renderProfiles();
@@ -444,7 +444,7 @@ async function initWindowsPanel() {
         }
         const id = row.dataset.id;
         if (row.classList.contains('closed')) {
-            await common.rpc.openWindow(id);
+            await common.rpc.openWidgetWindow(id);
         } else {
             await common.rpc.highlightWindow(id);
         }
@@ -453,7 +453,7 @@ async function initWindowsPanel() {
         ev.preventDefault();
         const type = ev.currentTarget.closest('.add-new').querySelector('select').value;
         const id = await common.rpc.createWindow({type});
-        await common.rpc.openWindow(id);
+        await common.rpc.openWidgetWindow(id);
     });
     winsEl.addEventListener('click', async ev => {
         const btn = ev.target.closest('.button[data-action]');
