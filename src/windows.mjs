@@ -671,7 +671,7 @@ export function reopenWidgetWindow(id) {
     if (win) {
         win.close();
     }
-    reopenWidgetWindow(id);
+    openWidgetWindow(id);
 }
 rpc.register(reopenWidgetWindow);
 rpc.register(reopenWidgetWindow, {name: 'reopenWindow', deprecatedBy: reopenWidgetWindow});
