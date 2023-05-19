@@ -5,7 +5,11 @@
 <% } else { %>
     <% const athlete = athleteData.athlete; %>
     <header class="about">
-        <a class="avatar" href="profile-avatar.html?id={{athlete.id}}" target="profile-avatar">
+        <% if (athlete.avatar) { %>
+            <a class="avatar" href="profile-avatar.html?id={{athlete.id}}" target="profile-avatar">
+        <% } else { %>
+            <a class="avatar">
+        <% } %>
             <img src="{{athlete.avatar || 'images/blankavatar.png'}}"/>
             <% if (athlete.type !== 'NORMAL') { %>
                 <div class="special badge">{{athlete.type.replace(/_/, ' ')}}</div>
