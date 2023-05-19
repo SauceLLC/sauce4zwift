@@ -77,7 +77,15 @@ export class SauceElevationProfile {
         this._statesQueue = [];
         this._busy = false;
         this.onResize();
-        addEventListener('resize', () => this.onResize());
+        this._resizeObserver = new ResizeObserver(() => this.onResize());
+        this._resizeObserver.observe(this.el);
+        this._resizeObserver.observe(document.documentElement);
+    }
+
+    destroy() {
+        this._resizeObserver.disconnect();
+        this.chart.dispose();
+        this.el.remove();
     }
 
     _updateFontSizes() {
