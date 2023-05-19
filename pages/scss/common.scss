@@ -178,6 +178,37 @@ a {
     }
 }
 
+attr[for] {
+    display: inline;
+    cursor: pointer;
+
+    &:hover {
+        text-decoration: underline;
+        text-decoration-style: wavy;
+        text-decoration-thickness: from-font;
+    }
+}
+
+dialog.sauce-attr {
+    all: revert;
+    z-index: 1000000000;
+    position: fixed;
+    font-size: 0.88em;
+    line-height: normal;
+    padding: 0.7em 0.8em;
+    border: 1px solid color.shade(fg, 20%, 0.3);
+    white-space: pre-line;
+    border-radius: 0.28em;
+    background-color: color.shade(bg, -10%);
+    color: color.shade(fg, 4%);
+    box-shadow: 1px 1px 4px 0 #0003;
+    max-width: 32ch;
+
+    &.anchored {
+        margin: 0.32em 0 0 0;
+    }
+}
+
 #settings {
     padding: 0.5em 0.8em;
     overflow: auto;
