@@ -676,7 +676,7 @@ export class Renderer {
                 fGet(nextField.key, this._data) ||
                 fGet(nextField.label, this._data) ||
                 nextField.id);
-            field.el.title = `${tooltip}Click to change this field to the next option: \"${name}\". ` +
+            field.el.title = `${tooltip}Click to change this field to the next option: "${name}". ` +
                 `Or use the Left/Right keys when focused.`;
         } catch(e) {
             console.error("Failed to get tooltip name for next field:", id, nextField, e);
