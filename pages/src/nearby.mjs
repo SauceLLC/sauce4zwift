@@ -146,7 +146,7 @@ function fmtEvent(sgid) {
 }
 
 
-function getRoute({state}) {
+function getRoute({state, routeId}) {
     if (state.eventSubgroupId) {
         const sg = lazyGetSubgroup(state.eventSubgroupId);
         if (sg) {
@@ -226,10 +226,10 @@ const fieldGroups = [{
         {id: 'cp', defaultEn: false, label: 'CP', get: x => x.athlete && x.athlete.cp,
          fmt: x => x ? pwr(x) : '-', tooltip: 'Critical Power'},
         {id: 'tss', defaultEn: false, label: 'TSS®', get: x => x.stats.power.tss, fmt: H.number,
-         tooltip: common.trainingPeaksAttr},
+         tooltip: common.attributions.tp},
         {id: 'intensity-factor', defaultEn: false, label: 'Intensity Factor®', headerLabel: 'IF®',
          get: x => x.stats.power.np, fmt: (x, entry) => pct(x / (entry.athlete && entry.athlete.ftp) * 100),
-         tooltip: 'NP® / FTP: A value of 100% means NP® = FTP\n\n' + common.trainingPeaksAttr},
+         tooltip: 'NP® / FTP: A value of 100% means NP® = FTP\n\n' + common.attributions.tp},
         {id: 'distance', defaultEn: false, label: 'Distance', headerLabel: 'Dist',
          get: x => x.state.distance, fmt: fmtDist},
         {id: 'event-distance', defaultEn: false, label: 'Event Distance', headerLabel: 'Ev Dist',
@@ -309,13 +309,13 @@ const fieldGroups = [{
         {id: 'wkg-avg', defaultEn: false, label: 'Total W/kg Average', headerLabel: 'W/kg (avg)',
          get: x => x.stats.power.avg, fmt: fmtWkg},
         {id: 'pwr-np', defaultEn: true, label: 'NP®', headerLabel: 'NP®',
-         get: x => x.stats.power.np, fmt: pwr, tooltip: common.trainingPeaksAttr},
+         get: x => x.stats.power.np, fmt: pwr, tooltip: common.attributions.tp},
         {id: 'wkg-np', defaultEn: false, label: 'NP® (w/kg)', headerLabel: 'NP® (w/kg)',
-         get: x => x.stats.power.np, fmt: fmtWkg, tooltip: common.trainingPeaksAttr},
+         get: x => x.stats.power.np, fmt: fmtWkg, tooltip: common.attributions.tp},
         {id: 'pwr-vi', defaultEn: true, label: 'Variability Index', headerLabel: 'VI',
          get: x => x.stats.power.np / x.stats.power.avg, fmt: x => H.number(x, {precision: 2, fixed: true}),
          tooltip: 'NP® / Average-power.  A value of 1.0 means the effort is very smooth, higher ' +
-                  'values indicate the effort was more volatile.\n\n' + common.trainingPeaksAttr},
+                  'values indicate the effort was more volatile.\n\n' + common.attributions.tp},
         {id: 'power-lap', defaultEn: false, label: 'Lap Average', headerLabel: 'Pwr (lap)',
          get: x => x.lap.power.avg, fmt: pwr},
         {id: 'wkg-lap', defaultEn: false, label: 'Lap W/kg Average', headerLabel: 'W/kg (lap)',
@@ -472,8 +472,9 @@ export async function main() {
     common.settingsStore.addEventListener('changed', async ev => {
         const changed = ev.data.changed;
         if (window.isElectron && changed.has('overlayMode')) {
-            await common.rpc.updateWindow(window.electron.context.id, {overlay: changed.get('overlayMode')});
-            await common.rpc.reopenWindow(window.electron.context.id);
+            await common.rpc.updateWidgetWindowSpec(window.electron.context.id,
+                                                    {overlay: changed.get('overlayMode')});
+            await common.rpc.reopenWidgetWindow(window.electron.context.id);
         }
         if (changed.has('refreshInterval')) {
             setRefresh();
