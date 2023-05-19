@@ -4,6 +4,11 @@
             <div class="name">
                 Athlete not found: {{athleteId}}
             </div>
+            <div class="buttons">
+                <% if (!obj.embedded) { %>
+                    <a href title="Close this window" data-action="close" class="electron-only"><ms>close</ms></a>
+                <% } %>
+            </div>
         </header>
     <% } else { %>
         <header class="title">

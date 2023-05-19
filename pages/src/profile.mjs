@@ -36,7 +36,7 @@ export async function main() {
     const debug = location.search.includes('debug');
     const tplData = {
         debug,
-        athleteId: athlete && athlete.id,
+        athleteId: athlete?.id || ident,
         athlete,
         gameConnection: gcs && gcs.connected,
         nations,
@@ -152,8 +152,7 @@ export async function render(el, tpl, tplData) {
         }
     }
     async function getPlayerState() {
-        if (document.hidden) {
-            console.warn("hidden");
+        if (!common.isVisible()) {
             return;
         }
         console.debug("Using RPC get player state");
