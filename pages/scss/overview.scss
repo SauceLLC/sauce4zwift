@@ -128,8 +128,14 @@ html:not(:focus-within) {
 
         .key {
             display: inline-flex;
-            align-items: center;
+            align-items: baseline;
             white-space: nowrap;
+
+            ms {
+                margin: 0;
+                font-weight: 250;
+                align-self: center;
+            }
 
             &:not(:empty)::after {
                 content: ':';
@@ -138,7 +144,7 @@ html:not(:focus-within) {
             small {
                 padding-left: 0.15em;
                 font-weight: 370;
-                font-size: 0.74em;
+                font-size: 0.8em;
             }
 
             abbr {
@@ -151,6 +157,10 @@ html:not(:focus-within) {
             font-variant: tabular-nums;
             margin-left: 0.2em;
             white-space: nowrap;
+
+            ms {
+                font-weight: 250;
+            }
         }
 
         .unit {

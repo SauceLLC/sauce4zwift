@@ -85,7 +85,7 @@ html {
                 overflow: hidden;
                 text-overflow: ellipsis;
                 display: inline-flex;
-                align-items: center;
+                align-items: baseline;
                 white-space: nowrap;
 
                 &:not(:empty)::after {

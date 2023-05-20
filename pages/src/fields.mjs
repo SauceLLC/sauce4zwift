@@ -81,6 +81,19 @@ function getEventSubgroup(id) {
 }
 
 
+const _routes = new Map();
+function getRoute(id) {
+    if (!id) {
+        return null;
+    }
+    if (!_routes.has(id)) {
+        _routes.set(id, null);
+        common.rpc.getRoute(id).then(x => _routes.set(id, x || null));
+    }
+    return _routes.get(id);
+}
+
+
 function getEventSubgroupProperty(id, prop) {
     const sg = getEventSubgroup(id);
     return sg && sg[prop];
@@ -392,18 +405,31 @@ export const fields = [{
 }, {
     id: 'progress',
     value: x => fmtPct(x.state && x.state.progress || 0),
-    key: 'Route',
+    key: 'Progress',
 },{
     id: 'ev-name',
-    value: x => getEventSubgroupProperty(x.state?.eventSubgroupId, 'name') || '-',
-    key: x => (x && x.state && x.state.eventSubgroupId) ? '' : 'Event',
+    value: x => {
+        const name = getEventSubgroupProperty(x.state?.eventSubgroupId, 'name');
+        return name ? `${name} <ms>event</ms>` : '-';
+    },
+    key: x => (x?.state?.eventSubgroupId) ? '' : 'Event',
+    tooltip: 'Event',
 }, {
     id: 'rt-name',
     value: x => {
-        const sg = getEventSubgroup(x.state?.eventSubgroupId, 'laps');
-        return sg ? ((sg.laps && sg.laps > 1) ? `${sg.laps} x ` : '') + sg.route.name : '-';
+        const sg = getEventSubgroup(x.state?.eventSubgroupId);
+        const icon = ' <ms>route</ms>';
+        if (sg) {
+            return ((sg.laps && sg.laps > 1) ? `${sg.laps} x ` : '') + sg.route.name + icon;
+        } else if (x.state?.routeId) {
+            const route = getRoute(x.state.routeId);
+            return route ? route.name  + icon : '-';
+        } else {
+            return '-';
+        }
     },
-    key: x => (x && x.state && x.state.eventSubgroupId) ? '' : 'Route',
+    key: x => (x?.state?.eventSubgroupId || x?.state?.routeId) ? '' : 'Route',
+    tooltip: 'Route',
 }, {
     id: 'el-gain',
     value: x => H.elevation(x.state && x.state.climbing),
