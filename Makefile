@@ -75,7 +75,7 @@ else
 endif
 
 DATA_SRC_FILES = $(call rwildcard,node_modules/zwift-utils/dist,*.json)
-DATA_DST_FILES := $(patsubst node_modules/zwift-utils/dist/%,shared/deps/data/%,$(DATA_SRC_FILES))
+DATA_DST_FILES = $(patsubst node_modules/zwift-utils/dist/%,shared/deps/data/%,$(DATA_SRC_FILES))
 
 $(DATA_DST_FILES): $(DATA_SRC_FILES)
 ifndef WINBLOWS
