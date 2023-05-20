@@ -1,6 +1,8 @@
 import process from 'node:process';
 import os from 'node:os';
 import net from 'node:net';
+import fs from 'node:fs';
+import path from 'node:path';
 import {EventEmitter} from 'node:events';
 import * as report from '../shared/report.mjs';
 import * as storage from './storage.mjs';
@@ -16,14 +18,16 @@ import * as windows from './windows.mjs';
 import * as mods from './mods.mjs';
 import {parseArgs} from './argparse.mjs';
 import protobuf from 'protobufjs';
+import fetch from 'node-fetch';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 const {autoUpdater} = require('electron-updater');
 const electron = require('electron');
 const isDEV = !electron.app.isPackaged;
-const zwiftAPI = new zwift.ZwiftAPI();
-const zwiftMonitorAPI = new zwift.ZwiftAPI();
+
+let zwiftAPI;
+let zwiftMonitorAPI;
 
 if (isDEV) {
     const pb_Reader_skip = protobuf.Reader.prototype.skip;
@@ -53,6 +57,11 @@ export let quiting;
 
 export function getApp() {
     return sauceApp;
+}
+
+
+function userDataPath(...args) {
+    return path.join(electron.app.getPath('userData'), ...args);
 }
 
 
@@ -437,6 +446,7 @@ class SauceApp extends EventEmitter {
             zwiftMonitorAPI,
             gameAthleteId: args.athleteId || zwiftAPI.profile.id,
             randomWatch: args.randomWatch,
+            exclusions: args.exclusions,
         });
         gameMonitor.on('multiple-logins', () => {
             electron.dialog.showErrorBox(
@@ -526,6 +536,38 @@ async function maybeDownloadAndInstallUpdate({version}) {
 }
 
 
+async function updateExclusions() {
+    let data;
+    try {
+        const r = await fetch('https://www.sauce.llc/products/sauce4zwift/exclusions.json');
+        data = await r.json();
+    } catch(e) {
+        report.error(e);
+    }
+    if (!data) {
+        console.warn("No exclusions list found");
+        return;
+    }
+    await fs.promises.writeFile(userDataPath('exclusions_cached.json'), JSON.stringify(data));
+    return data;
+}
+
+
+async function getExclusions() {
+    // use the local cache copy if possible and update in the bg.
+    let data;
+    try {
+        data = JSON.parse(fs.readFileSync(userDataPath('exclusions_cached.json')));
+    } catch(e) {/*no-pragma*/}
+    const updating = updateExclusions();
+    if (!data) {
+        console.info("Waiting for network fetch of exclusions...");
+        data = await updating;
+    }
+    return data && new Set(data.map(x => x.idhash));
+}
+
+
 export async function main({logEmitter, logFile, logQueue, sentryAnonId,
                             loaderSettings, saveLoaderSettings, buildEnv}) {
     const s = Date.now();
@@ -596,6 +638,10 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         await electron.dialog.showErrorBox('EULA or Patreon Link Error', '' + e);
         return quit(1);
     }
+    const exclusions = await getExclusions();
+    zwiftAPI = new zwift.ZwiftAPI({exclusions});
+    global.zwiftAPI = zwiftAPI;  // devTool debug
+    zwiftMonitorAPI = new zwift.ZwiftAPI({exclusions});
     const mainUser = await zwiftAuthenticate({api: zwiftAPI, ident: 'zwift-login', ...args});
     if (!mainUser) {
         return quit(1);
@@ -648,7 +694,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
             mods.setEnabled(mod.id, enable);
         }
     }
-    await sauceApp.start(args);
+    await sauceApp.start({...args, exclusions});
     console.debug('Startup bench:', Date.now() - s);
     if (!args.headless) {
         windows.openWidgetWindows();
@@ -659,9 +705,6 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
 
 // Dev tools prototyping
 global.zwift = zwift;
-global.zwiftAPI = zwiftAPI;
-global.zwiftMonitorAPI = zwiftMonitorAPI;
 global.windows = windows;
 global.electron = electron;
-global.report = report;
 global.mods = mods;

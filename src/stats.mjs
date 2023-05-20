@@ -320,6 +320,9 @@ function getNearbySegments(courseId, roadSig) {
                         friendlyName: x['friendlyName' + dir],
                         roadStart: x['roadStart' + dir],
                     };
+                    if (!segment.distance) {
+                        continue;  // exclude single direction segments
+                    }
                     _segmentsByRoadSig[segSig].push(segment);
                     allSegments.set(segment.id, segment);
                 }
@@ -340,6 +343,7 @@ export class StatsProcessor extends events.EventEmitter {
         this.gameMonitor = options.gameMonitor;
         this.disableGameMonitor = options.args.disableMonitor;
         this.randomWatch = options.args.randomWatch != null;
+        this.exclusions = options.args.exclusions || new Set();
         this.setMaxListeners(100);
         this.athleteId = null;
         this.watching = null;
@@ -871,13 +875,15 @@ export class StatsProcessor extends events.EventEmitter {
         if (a !== undefined) {
             return a;
         }
-        const r = this.getAthleteStmt.get(id);
-        if (r) {
-            const data = JSON.parse(r.data);
-            this._athletesCache.set(id, data);
-            return data;
-        } else {
-            this._athletesCache.set(id, null);
+        if (!this.exclusions.has(zwift.getIDHash(id))) {
+            const r = this.getAthleteStmt.get(id);
+            if (r) {
+                const data = JSON.parse(r.data);
+                this._athletesCache.set(id, data);
+                return data;
+            } else {
+                this._athletesCache.set(id, null);
+            }
         }
     }
 
@@ -1014,6 +1020,9 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     handleChatPayload(payload, ts) {
+        if (this.exclusions.has(zwift.getIDHash(payload.from))) {
+            return;
+        }
         for (let i = 0; i < this._chatHistory.length && i < 10; i++) {
             const x = this._chatHistory[i];
             if (x.ts === ts && x.from === payload.from) {

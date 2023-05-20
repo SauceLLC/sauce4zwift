@@ -24,6 +24,36 @@ const _pbJSONOptions = {...protobuf.util.toJSONOptions, longs: Number};
 const pbToObject = pb => pb.$type.toObject(pb, _pbJSONOptions);
 
 
+// Optimized for fast path perf...
+const _idHashes = new Map();
+const _idHashTimestamps = new Map();
+let _idHashUse = 0;
+export function getIDHash(id) {
+    let hash = _idHashes.get(id);
+    if (!hash) {
+        _idHashUse++;
+        hash = sha256('' + id);
+        const now = performance.now();
+        _idHashes.set(id, hash);
+        _idHashTimestamps.set(id, now);
+        if (_idHashUse % 100 === 0) {
+            for (const [x_id, ts] of _idHashTimestamps.entries()) {
+                if (now - ts > 900000) {
+                    _idHashes.delete(x_id);
+                    _idHashTimestamps.delete(x_id);
+                }
+            }
+        }
+    }
+    return hash;
+}
+
+
+function sha256(str) {
+    return crypto.createHash('sha256').update(str).digest('hex');
+}
+
+
 function fmtTime(ms) {
     if (isNaN(ms)) {
         return ms;
@@ -275,6 +305,10 @@ function seedToBuffer(num) {
 
 
 export class ZwiftAPI {
+    constructor(options={}) {
+        this.exclusions = options.exclusions || new Set();
+    }
+
     async authenticate(username, password, options={}) {
         if (options.host) {
             this.host = options.host;
@@ -453,6 +487,9 @@ export class ZwiftAPI {
     }
 
     async getProfile(id, options) {
+        if (this.exclusions.has(getIDHash(id))) {
+            return;
+        }
         try {
             return await this.fetchJSON(`/api/profiles/${id}`, options);
         } catch(e) {
@@ -473,6 +510,9 @@ export class ZwiftAPI {
         const m = new Map(unordered.map(x => [x.id, x]));
         return ids.map(_id => {
             const id = +_id;
+            if (this.exclusions.has(getIDHash(id))) {
+                return;
+            }
             const x = m.get(id);
             if (!x) {
                 console.debug('Missing profile:', id);
@@ -497,6 +537,9 @@ export class ZwiftAPI {
     }
 
     async getActivities(id) {
+        if (this.exclusions.has(getIDHash(id))) {
+            return;
+        }
         try {
             return await this.fetchJSON(`/api/profiles/${id}/activities`);
         } catch(e) {
@@ -508,6 +551,9 @@ export class ZwiftAPI {
     }
 
     async getPlayerState(id) {
+        if (this.exclusions.has(getIDHash(id))) {
+            return;
+        }
         let pb;
         try {
             pb = await this.fetchPB(`/relay/worlds/1/players/${id}`, {protobuf: 'PlayerState'});
@@ -587,10 +633,16 @@ export class ZwiftAPI {
     }
 
     async getFollowing(athleteId, options={}) {
+        if (this.exclusions.has(getIDHash(athleteId))) {
+            return [];
+        }
         return await this.fetchPaged(`/api/profiles/${athleteId}/followees`, options);
     }
 
     async getFollowers(athleteId, options={}) {
+        if (this.exclusions.has(getIDHash(athleteId))) {
+            return [];
+        }
         return await this.fetchPaged(`/api/profiles/${athleteId}/followers`, options);
     }
 
@@ -613,6 +665,9 @@ export class ZwiftAPI {
 
     async _giveRideon(to, from, activity=0) {
         // activity 0 is an in-game rideon
+        if (this.exclusions.has(getIDHash(to))) {
+            return;
+        }
         await this.fetchJSON(`/api/profiles/${to}/activities/${activity}/rideon`, {
             method: 'POST',
             json: {profileId: from},
@@ -1252,6 +1307,7 @@ export class GameMonitor extends events.EventEmitter {
             };
         }
         this.gameAthleteId = this.dropinCourseId ? this.athleteId : options.gameAthleteId;
+        this.exclusions = options.exclusions || new Set();
         this.watchingAthleteId = null;
         this.courseId = null;
         this._udpChannels = [];
@@ -1850,7 +1906,7 @@ export class GameMonitor extends events.EventEmitter {
             const state = pb.playerStates[i] = processPlayerStateMessage(pb.playerStates[i]);
             if (state.athleteId === this.gameAthleteId) {
                 queueMicrotask(() => this._updateGameState(state));
-            } else if (state.activePowerUp === 'NINJA') {
+            } else if (state.activePowerUp === 'NINJA' || this.exclusions.has(getIDHash(state.athleteId))) {
                 dropList.unshift(i);
             }
             if (state.athleteId === this.watchingAthleteId) {
