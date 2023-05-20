@@ -45,7 +45,7 @@ function onSearchInput(ev) {
 
 async function _onSearchInput(el) {
     const resultsEl = el.parentElement.querySelector('.results');
-    const term = el.value;
+    const term = el.value.trim();
     const athleteCards = await athleteCardsPromise;
     let results;
     if (Number(term).toString() === term) {
