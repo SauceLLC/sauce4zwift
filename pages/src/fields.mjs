@@ -100,6 +100,9 @@ function getEventSubgroupProperty(id, prop) {
 }
 
 
+const tpAttr = common.stripHTML(common.attributions.tp);
+
+
 export const fields = [{
     id: 'time-elapsed',
     value: x => fmtDur(x.stats && x.stats.elapsedTime || 0),
@@ -144,7 +147,7 @@ export const fields = [{
     id: 'tss',
     value: x => H.number(x.stats && x.stats.power.tss),
     key: 'TSS<abbr>®</abbr>',
-    tooltip: common.trainingPeaksAttr,
+    tooltip: tpAttr,
 }, {
     id: 'weight',
     value: x => H.weightClass(x.athlete && x.athlete.weight, {html: true}),
@@ -316,12 +319,12 @@ export const fields = [{
     id: 'pwr-np',
     value: x => H.number(x.stats && x.stats.power.np),
     key: 'NP<abbr>®</abbr>',
-    tooltip: common.trainingPeaksAttr,
+    tooltip: tpAttr,
 }, {
     id: 'pwr-if',
     value: x => fmtPct((x.stats && x.stats.power.np || 0) / (x.athlete && x.athlete.ftp)),
     key: 'IF<abbr>®</abbr>',
-    tooltip: common.trainingPeaksAttr,
+    tooltip: tpAttr,
 }, {
     id: 'pwr-vi',
     value: x => H.number(x.stats && x.stats.power.np / x.stats.power.avg, {precision: 2, fixed: true}),
