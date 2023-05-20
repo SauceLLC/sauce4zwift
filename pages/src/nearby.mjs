@@ -199,6 +199,7 @@ function fmtActions(obj) {
     ].join(' ');
 }
 
+const tpAttr = common.stripHTML(common.attributions.tp);
 
 const fieldGroups = [{
     group: 'athlete',
@@ -226,10 +227,10 @@ const fieldGroups = [{
         {id: 'cp', defaultEn: false, label: 'CP', get: x => x.athlete && x.athlete.cp,
          fmt: x => x ? pwr(x) : '-', tooltip: 'Critical Power'},
         {id: 'tss', defaultEn: false, label: 'TSS®', get: x => x.stats.power.tss, fmt: H.number,
-         tooltip: common.attributions.tp},
+         tooltip: tpAttr},
         {id: 'intensity-factor', defaultEn: false, label: 'Intensity Factor®', headerLabel: 'IF®',
          get: x => x.stats.power.np, fmt: (x, entry) => pct(x / (entry.athlete && entry.athlete.ftp) * 100),
-         tooltip: 'NP® / FTP: A value of 100% means NP® = FTP\n\n' + common.attributions.tp},
+         tooltip: 'NP® / FTP: A value of 100% means NP® = FTP\n\n' + tpAttr},
         {id: 'distance', defaultEn: false, label: 'Distance', headerLabel: 'Dist',
          get: x => x.state.distance, fmt: fmtDist},
         {id: 'event-distance', defaultEn: false, label: 'Event Distance', headerLabel: 'Ev Dist',
@@ -309,13 +310,13 @@ const fieldGroups = [{
         {id: 'wkg-avg', defaultEn: false, label: 'Total W/kg Average', headerLabel: 'W/kg (avg)',
          get: x => x.stats.power.avg, fmt: fmtWkg},
         {id: 'pwr-np', defaultEn: true, label: 'NP®', headerLabel: 'NP®',
-         get: x => x.stats.power.np, fmt: pwr, tooltip: common.attributions.tp},
+         get: x => x.stats.power.np, fmt: pwr, tooltip: tpAttr},
         {id: 'wkg-np', defaultEn: false, label: 'NP® (w/kg)', headerLabel: 'NP® (w/kg)',
-         get: x => x.stats.power.np, fmt: fmtWkg, tooltip: common.attributions.tp},
+         get: x => x.stats.power.np, fmt: fmtWkg, tooltip: tpAttr},
         {id: 'pwr-vi', defaultEn: true, label: 'Variability Index', headerLabel: 'VI',
          get: x => x.stats.power.np / x.stats.power.avg, fmt: x => H.number(x, {precision: 2, fixed: true}),
          tooltip: 'NP® / Average-power.  A value of 1.0 means the effort is very smooth, higher ' +
-                  'values indicate the effort was more volatile.\n\n' + common.attributions.tp},
+                  'values indicate the effort was more volatile.\n\n' + tpAttr},
         {id: 'power-lap', defaultEn: false, label: 'Lap Average', headerLabel: 'Pwr (lap)',
          get: x => x.lap.power.avg, fmt: pwr},
         {id: 'wkg-lap', defaultEn: false, label: 'Lap W/kg Average', headerLabel: 'W/kg (lap)',
