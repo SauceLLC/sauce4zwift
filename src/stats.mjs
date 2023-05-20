@@ -336,6 +336,20 @@ function getNearbySegments(courseId, roadSig) {
 }
 
 
+const _routesDetailed = {};
+function getRouteDetailed(routeId) {
+    if (_routesDetailed[routeId] === undefined) {
+        const fname = path.join(__dirname, `../shared/deps/data/routes/${routeId}.json`);
+        try {
+            _routesDetailed[routeId] = JSON.parse(fs.readFileSync(fname));
+        } catch(e) {
+            _routesDetailed[routeId] = null;
+        }
+    }
+    return _routesDetailed[routeId];
+}
+
+
 export class StatsProcessor extends events.EventEmitter {
     constructor(options={}) {
         super();
@@ -515,8 +529,15 @@ export class StatsProcessor extends events.EventEmitter {
         return entrants;
     }
 
-    getRoute(id) {
-        return this._routes.get(id);
+    getRoute(id, options={}) {
+        const route = this._routes.get(id);
+        if (route && options.checkpoints) {
+            const detailed = getRouteDetailed(id);
+            if (detailed) {
+                return {...route, checkpoints: detailed.checkpoints};
+            }
+        }
+        return route;
     }
 
     getChatHistory() {
