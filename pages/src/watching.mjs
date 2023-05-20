@@ -49,7 +49,7 @@ common.settingsStore.setDefault({
 const doc = document.documentElement;
 const L = sauce.locale;
 const H = L.human;
-const defaultLineChartLen = () => Math.ceil(window.innerWidth / 2);
+const defaultLineChartLen = el => Math.ceil(el.clientWidth);
 const chartRefs = new Set();
 let imperial = !!common.settingsStore.get('/imperialUnits');
 L.setImperial(imperial);
@@ -153,13 +153,13 @@ const groupSpecs = {
             value: x => H.number(x.stats && x.stats.power.np),
             label: 'np',
             key: 'NP®',
-            tooltip: common.trainingPeaksAttr,
+            tooltip: common.stripHTML(common.attributions.tp),
         }, {
             id: 'pwr-tss',
             value: x => H.number(x.stats && x.stats.power.tss),
             label: 'tss',
             key: 'TSS®',
-            tooltip: common.trainingPeaksAttr,
+            tooltip: common.stripHTML(common.attributions.tp),
         },
         ...makeSmoothPowerFields(5),
         ...makeSmoothPowerFields(15),
@@ -200,7 +200,7 @@ const groupSpecs = {
             value: x => H.number(curLap(x) && curLap(x).power.np),
             label: ['np', '(lap)'],
             key: 'NP®<tiny>(lap)</tiny>',
-            tooltip: common.trainingPeaksAttr,
+            tooltip: common.stripHTML(common.attributions.tp),
         },
         ...makePeakPowerFields(5, -1),
         ...makePeakPowerFields(15, -1),
@@ -236,7 +236,7 @@ const groupSpecs = {
             value: x => H.number(lastLap(x) && lastLap(x).power.np || null),
             label: ['np', '(last lap)'],
             key: 'NP®<tiny>(last lap)</tiny>',
-            tooltip: common.trainingPeaksAttr,
+            tooltip: common.stripHTML(common.attributions.tp),
         },
         ...makePeakPowerFields(5, -2),
         ...makePeakPowerFields(15, -2),
@@ -734,7 +734,7 @@ async function createLineChart(el, sectionId, settings) {
     const echarts = await importEcharts();
     const charts = await import('./charts.mjs');
     const fields = lineChartFields.filter(x => settings[x.id + 'En']);
-    const lineChart = echarts.init(el, 'sauce', {renderer: 'svg'});
+    const chart = echarts.init(el, 'sauce', {renderer: 'svg'});
     const visualMapCommon = {
         show: false,
         type: 'continuous',
@@ -747,7 +747,7 @@ async function createLineChart(el, sectionId, settings) {
         emphasis: {disabled: true},
         areaStyle: {},
     };
-    const dataPoints = settings.dataPoints || defaultLineChartLen();
+    chart._dataPoints = settings.dataPoints || defaultLineChartLen(el);
     const options = {
         color: fields.map(f => f.color),
         visualMap: fields.map((f, i) => ({
@@ -757,7 +757,6 @@ async function createLineChart(el, sectionId, settings) {
             max: f.domain[1],
             inRange: {colorAlpha: f.rangeAlpha},
         })),
-        grid: {top: '10%', left: '2%', right: '2%', bottom: '4%'},
         legend: {show: false},
         tooltip: {
             className: 'ec-tooltip',
@@ -766,7 +765,7 @@ async function createLineChart(el, sectionId, settings) {
         },
         xAxis: [{
             show: false,
-            data: Array.from(new Array(dataPoints)).map((x, i) => i),
+            data: Array.from(new Array(chart._dataPoints)).map((x, i) => i),
         }],
         yAxis: fields.map(f => ({
             show: false,
@@ -783,18 +782,32 @@ async function createLineChart(el, sectionId, settings) {
             lineStyle: {color: f.color},
         })),
     };
-    lineChart.setOption(options);
-    lineChart._sauceLegend = new charts.SauceLegend({
+    const _resize = chart.resize;
+    chart.resize = function() {
+        const em = Number(getComputedStyle(el).fontSize.slice(0, -2));
+        chart.setOption({
+            grid: {
+                top: 1 * em,
+                left: 0.5 * em,
+                right: 0.5 * em,
+                bottom: 0.1 * em,
+            },
+        });
+        return _resize.apply(this, arguments);
+    };
+    chart.setOption(options);
+    chart.resize();
+    chart._sauceLegend = new charts.SauceLegend({
         el: el.nextElementSibling,
-        chart: lineChart,
+        chart,
         hiddenStorageKey: `watching-hidden-graph-p${sectionId}`,
     });
-    chartRefs.add(new WeakRef(lineChart));
-    return lineChart;
+    chartRefs.add(new WeakRef(chart));
+    return chart;
 }
 
 
-function bindLineChart(lineChart, renderer, settings) {
+function bindLineChart(chart, renderer, settings) {
     const fields = lineChartFields.filter(x => settings[x.id + 'En']);
     let lastRender = 0;
     let lastSport;
@@ -807,9 +820,8 @@ function bindLineChart(lineChart, renderer, settings) {
         }
         if (lastSport !== sport) {
             lastSport = sport;
-            lineChart._sauceLegend.render();
+            chart._sauceLegend.render();
         }
-        const dataPoints = settings.dataPoints || defaultLineChartLen();
         const now = Date.now();
         if (data.athleteId !== athleteId || created !== data.created) {
             console.info("Loading streams for:", data.athleteId);
@@ -823,7 +835,7 @@ function bindLineChart(lineChart, renderer, settings) {
                 loading = false;
             }
             streams = streams || {};
-            const zeros = Array.from(sauce.data.range(dataPoints)).map(x => null);
+            const zeros = Array.from(sauce.data.range(chart._dataPoints)).map(x => null);
             for (const x of fields) {
                 // zero pad for non stream types like wbal and to compensate for missing data
                 x.points = zeros.concat(streams[x.id] || []);
@@ -840,13 +852,13 @@ function bindLineChart(lineChart, renderer, settings) {
         }
         lastRender = now;
         for (const {points} of fields) {
-            while (points.length > dataPoints) {
+            while (points.length > chart._dataPoints) {
                 points.shift();
             }
         }
-        lineChart.setOption({
+        chart.setOption({
             xAxis: [{
-                data: Array.from(sauce.data.range(dataPoints)),
+                data: Array.from(sauce.data.range(chart._dataPoints)),
             }],
             series: fields.map(field => ({
                 data: field.points,
@@ -863,7 +875,7 @@ function bindLineChart(lineChart, renderer, settings) {
                                     ''.padStart(Math.max(0, 10 - x.value), nbsp),
                                     nbsp, nbsp, // for unit offset
                                     field.fmt(field.points[x.value]),
-                                    ''.padEnd(Math.max(0, x.value - (dataPoints - 1) + 10), nbsp)
+                                    ''.padEnd(Math.max(0, x.value - (chart._dataPoints - 1) + 10), nbsp)
                                 ].join('');
                             },
                         },
@@ -880,7 +892,6 @@ async function createTimeInZonesVertBars(el, sectionId, settings, renderer) {
     const echarts = await importEcharts();
     const chart = echarts.init(el, 'sauce', {renderer: 'svg'});
     chart.setOption({
-        grid: {top: '5%', left: '6%', right: '10%', bottom: '3%', containLabel: true},
         tooltip: {
             className: 'ec-tooltip',
             trigger: 'axis',
@@ -904,6 +915,26 @@ async function createTimeInZonesVertBars(el, sectionId, settings, renderer) {
             tooltip: {valueFormatter: x => fmtDur(x, {long: true})},
         }],
     });
+    const _resize = chart.resize;
+    chart.resize = function() {
+        const em = Number(getComputedStyle(el).fontSize.slice(0, -2));
+        chart._dataPoints = settings.dataPoints || defaultLineChartLen(el);
+        chart.setOption({
+            grid: {
+                top: 0.5 * em,
+                left: 2.4 * em,
+                right: 0.5 * em,
+                bottom: 1 * em,
+            },
+            xAxis: {
+                axisLabel: {
+                    margin: 0.3 * em,
+                }
+            }
+        });
+        return _resize.apply(this, arguments);
+    };
+    chart.resize();
     chartRefs.add(new WeakRef(chart));
     let colors;
     let athleteId;

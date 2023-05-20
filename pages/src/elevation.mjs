@@ -107,7 +107,7 @@ export class SauceElevationProfile {
         const axisPad = this.em(0.2);
         const tooltipSize = 0.4;
         this.chart.setOption({
-            grid: {top: this.em(0.74), right: 0, bottom: 0, left: 0},
+            grid: {top: this.em(1), right: 0, bottom: 0, left: 0},
             series: [{
                 markLine: {
                     label: {
