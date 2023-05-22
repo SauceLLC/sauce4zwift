@@ -27,7 +27,7 @@ ifndef WINBLOWS
 endif
 
 $(PACKAGES): package.json
-	npm install
+	npm install --loglevel verbose
 	echo "" > $@
 
 $(BUILD): $(PAGES_SRC) $(PACKAGES) sass deps Makefile .git/index
