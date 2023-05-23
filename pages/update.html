@@ -83,8 +83,8 @@
         <script type="module">
             import * as common from './src/common.mjs';
 
-            function kb(b) {
-                return Number((b / 1024).toFixed(1)).toLocaleString();
+            function mb(b) {
+                return Number((b / 1024 / 1024).toFixed(1)).toLocaleString();
             }
 
             function main() {
@@ -102,9 +102,12 @@
                 const progress = document.querySelector('progress');
                 const progressText = document.querySelector('.progress-text');
                 common.subscribe('download-progress', x => {
-                    const pct = Math.max(100, x.percent);
-                    progress.value = pct;
-                    progressText.textContent = `${kb(x.total * (pct / 100))} / ${kb(x.total)} KB`;
+                    if (x?.percent) {
+                        progress.value = x.percent;
+                        progressText.textContent = `${mb(x.total * (x.percent / 100))} / ${mb(x.total)} MB`;
+                    } else {
+                        progress.removeAttribute('value'); // make indeterminate
+                    }
                 }, {source: 'updater'});
             }
             main();
