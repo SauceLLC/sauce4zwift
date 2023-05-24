@@ -533,8 +533,18 @@ export function initInteractionListeners() {
             dialog.innerHTML = attributions[attr.getAttribute('for')];
             const pos = attr.getBoundingClientRect(attr);
             if (pos.left || pos.top) {
-                dialog.style.setProperty('top', pos.top + pos.height + 'px');
-                dialog.style.setProperty('left', pos.left + 'px');
+                if (pos.left < innerWidth / 2) {
+                    dialog.style.setProperty('left', pos.left + 'px');
+                } else {
+                    dialog.style.setProperty('right', innerWidth - pos.right + 'px');
+                    dialog.style.setProperty('left', 'unset');
+                }
+                if (pos.top < innerHeight / 2) {
+                    dialog.style.setProperty('top', pos.bottom + 'px');
+                } else {
+                    dialog.style.setProperty('bottom', innerHeight - pos.top + 'px');
+                    dialog.style.setProperty('top', 'unset');
+                }
                 dialog.classList.add('anchored');
             }
             dialog.addEventListener('click', () => dialog.close());

@@ -198,6 +198,7 @@ dialog.sauce-attr {
     padding: 0.7em 0.8em;
     border: 1px solid color.shade(fg, 20%, 0.3);
     white-space: pre-line;
+    word-break: break-word;
     border-radius: 0.28em;
     background-color: color.shade(bg, -10%);
     color: color.shade(fg, 4%);
