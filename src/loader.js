@@ -107,7 +107,6 @@ function monkeyPatchConsoleWithEmitter() {
             enumerable: descriptors[fn].enumerable,
             get: () => (curLogLevel = level, descriptors[fn].value),
             set: () => {
-                debugger;
                 throw new Error("Double console monkey patch detected!");
             },
         });

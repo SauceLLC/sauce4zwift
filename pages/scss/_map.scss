@@ -178,12 +178,14 @@
 
             .gutters .road {
                 stroke: #000a;
+                stroke: #0004; // XXX
                 stroke-width: 32px;
             }
 
             .surfaces .road {
                 stroke-width: 22px;
                 stroke: #e9e9e9;
+                stroke: #e9e9e977; // XXX
 
                 &.active {
                     stroke: #ff3939bf;

@@ -30,6 +30,7 @@ common.settingsStore.setDefault({
     zoomPriorityTilt: true,
     // v1.0.0
     profileHeight: 20,
+    routeProfile: true,
 });
 
 const settings = common.settingsStore.get();
@@ -111,7 +112,8 @@ function createElevationProfile({worldList}) {
     if (settings.profileHeight) {
         el.style.setProperty('--profile-height', settings.profileHeight + '%');
     }
-    return new elevation.SauceElevationProfile({el, worldList});
+    const preferRoute = settings.routeProfile !== false;
+    return new elevation.SauceElevationProfile({el, worldList, preferRoute});
 }
 
 
@@ -241,7 +243,7 @@ export async function main() {
                                                changed.get('profileHeight') + '%');
                 elProfile.chart.resize();
             }
-        } else if (changed.has('profileOverlay') || changed.has('fields')) {
+        } else if (changed.has('profileOverlay') || changed.has('fields') || changed.has('routeProfile')) {
             location.reload();
         }
     });

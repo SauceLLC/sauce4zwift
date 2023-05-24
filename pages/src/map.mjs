@@ -1,4 +1,5 @@
 import * as common from './common.mjs';
+import * as curves from './curves.mjs';
 import * as locale from '../../shared/sauce/locale.mjs';
 
 const H = locale.human;
@@ -20,41 +21,6 @@ function createElement(name, attrs={}) {
         el.setAttribute(key, value);
     }
     return el;
-}
-
-
-function controlPoint(cur, prev, next, reverse, smoothing) {
-    prev ||= cur;
-    next ||= cur;
-    const dx = next[0] - prev[0];
-    const dy = next[1] - prev[1];
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    const angle = Math.atan2(dy, dx) + (reverse ? Math.PI : 0);
-    const length = distance * smoothing;
-    return [cur[0] + Math.cos(angle) * length, cur[1] + Math.sin(angle) * length];
-}
-
-
-function smoothPath(points, {loop, smoothing=0.2}={}) {
-    const path = ['M' + points[0].join()];
-    if (loop) {
-        for (let i = 1; i < points.length + 1; i++) {
-            const prevPrev = points.at(i - 2);
-            const prev = points.at(i - 1);
-            const cur = points[i % points.length];
-            const next = points.at((i + 1) % points.length);
-            const cpStart = controlPoint(prev, prevPrev, cur, false, smoothing);
-            const cpEnd = controlPoint(cur, prev, next, true, smoothing);
-            path.push('C' + [cpStart.join(), cpEnd.join(), cur.join()].join(' '));
-        }
-    } else {
-        for (let i = 1; i < points.length; i++) {
-            const cpStart = controlPoint(points[i - 1], points[i - 2], points[i], false, smoothing);
-            const cpEnd = controlPoint(points[i], points[i - 1], points[i + 1], true, smoothing);
-            path.push('C' + [cpStart.join(), cpEnd.join(), points[i].join()].join(' '));
-        }
-    }
-    return path.join('');
 }
 
 
@@ -696,15 +662,35 @@ export class SauceZwiftMap extends EventTarget {
         return this.worldMeta.rotateRouteSelect ? [pos[1], -pos[0]] : pos;
     }
 
-    _createRoadPath(points, id, loop) {
-        const d = [];
+    _createCurvePath(points, id, loop, type='CatmullRom') {
+        let d = [];
         for (const pos of points) {
-            const [x, y] = this._fixWorldPos(pos);
-            d.push([x * svgInternalScale, y * svgInternalScale]);
+            const [x, y,, meta] = this._fixWorldPos(pos);
+            let tanIn;
+            if (meta?.tanIn) {
+                tanIn = [meta.tanIn[0] * svgInternalScale, meta.tanIn[1] * svgInternalScale];
+            }
+            let tanOut;
+            if (meta?.tanOut) {
+                tanOut = [meta.tanOut[0] * svgInternalScale, meta.tanOut[1] * svgInternalScale];
+            }
+            d.push([x * svgInternalScale, y * svgInternalScale, meta && {...meta, tanIn, tanOut}]);
+        }
+        const curveFunc = {
+            CatmullRom: curves.catmullRomPath,
+            //CatmullRom: curves.cubicBezierPath,
+            Bezier: curves.cubicBezierPath,
+        }[type];
+        console.log(type, id);
+        let verbose;
+        if (Number(id) === 3) {
+            d = d.slice(0, 38);
+            console.warn(d);
+            verbose = true;
         }
         return createElementSVG('path', {
             id: `road-path-${id}`,
-            d: smoothPath(d, {loop})
+            d: curveFunc(d, {loop, verbose})
         });
     }
 
@@ -725,7 +711,7 @@ export class SauceZwiftMap extends EventTarget {
             if (!road.sports.includes('cycling') && !road.sports.includes('running')) {
                 continue;
             }
-            const path = this._createRoadPath(road.path, id, road.looped);
+            const path = this._createCurvePath(road.path, id, road.looped, road.splineType);
             const clip = createElementSVG('clipPath', {id: `road-clip-${id}`});
             // These are not actually min/max if rotate hack is present.
             const boxC1 = this._fixWorldPos(road.boxMin);
@@ -783,7 +769,7 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     addHighlightPath(points, id, loop) {
-        const path = this._createRoadPath(points, id, loop);
+        const path = this._createCurvePath(points, id, loop);
         this._elements.roadLayers.defs.append(path);
         const node = createElementSVG('use', {
             "class": `highlight`,

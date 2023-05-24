@@ -572,7 +572,6 @@ export class ZwiftAPI {
 
     convSegmentResult(x) {
         const ret = pbToObject(x);
-        debugger;
         Object.assign(ret, {
             finishTime: x.finishTime && new Date(x.finishTime),
             segmentId: x._unsignedSegmentId.toSigned().toString()
@@ -1885,7 +1884,6 @@ export class GameMonitor extends events.EventEmitter {
             x.payloadType = protos.WorldUpdatePayloadType[x._payloadType];
             if (!x.payloadType) {
                 console.warn("No enum type for:", x._payloadType, x._payload.toString('hex'));
-                debugger;
             } else if (x.payloadType[0] !== '_') {
                 const payloadProto = protos.get(x.payloadType);
                 if (payloadProto) {
@@ -1894,7 +1892,6 @@ export class GameMonitor extends events.EventEmitter {
                     const handler = binaryWorldUpdatePayloads[x.payloadType];
                     if (!handler) {
                         console.warn("No protobuf for:", x.payloadType, x._payload.toString('hex'));
-                        debugger;
                     } else {
                         x.payload = handler(x._payload, x.payloadType);
                     }
