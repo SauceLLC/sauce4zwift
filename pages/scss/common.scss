@@ -191,13 +191,14 @@ attr[for] {
 
 dialog.sauce-attr {
     all: revert;
+    display: inline-flex;
+    flex-direction: column;
     z-index: 1000000000;
     position: fixed;
-    font-size: 0.88em;
+    font-size: 0.92em;
     line-height: normal;
     padding: 0.7em 0.8em;
     border: 1px solid color.shade(fg, 20%, 0.3);
-    white-space: pre-line;
     word-break: break-word;
     border-radius: 0.28em;
     background-color: color.shade(bg, -10%);
@@ -207,6 +208,10 @@ dialog.sauce-attr {
 
     &.anchored {
         margin: 0.32em 0 0 0;
+    }
+
+    li {
+        padding: 0.28em 0.1em;
     }
 }
 

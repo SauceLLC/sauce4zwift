@@ -50,12 +50,24 @@ export const identToWorldId = Object.fromEntries(worldCourseDescs.map(x => [x.id
 
 export const attributions = {
     tp: 'Training Stress Score®, TSS®, Normalized Power®, NP®, Intensity Factor® and IF® are ' +
-        'trademarks of TrainingPeaks, LLC and are used with permission.\n\n' +
+        'trademarks of TrainingPeaks, LLC and are used with permission.<br/><br/>\n\n' +
         'Learn more at <a external target="_blank" href="https://www.trainingpeaks.com' +
         '/learn/articles/glossary-of-trainingpeaks-metrics/' +
         '?utm_source=newsletter&utm_medium=partner&utm_term=sauce_trademark' +
         '&utm_content=cta&utm_campaign=sauce">https://www.trainingpeaks.com' +
-        '/learn/articles/glossary-of-trainingpeaks-metrics/</a>.'
+        '/learn/articles/glossary-of-trainingpeaks-metrics/</a>',
+    support: `
+        The Discord server is the best place to start.  There are a lot of lovely people there
+        that can help with just about everything.  Use the invite link below to introduce yourself.
+        <ul>
+            <li><a external target="_blank"
+                   href="https://discord.com/invite/3d8TwBHaX2">Discord Invite Link</a> <b>(BEST)</b></li>
+            <li><a external target="_blank"
+                   href="mailto:support@sauce.llc">Email: support@sauce.llc</a></li>
+            <li><a external target="_blank"
+                   href="https://github.com/SauceLLC/sauce4zwift/issues">GitHub Issues</a></li>
+        </ul>
+    `,
 };
 
 
@@ -547,7 +559,12 @@ export function initInteractionListeners() {
                 }
                 dialog.classList.add('anchored');
             }
-            dialog.addEventListener('click', () => dialog.close());
+            dialog.addEventListener('click', ev2 => {
+                if (ev2.target.closest('a')) {
+                    return;
+                }
+                dialog.close()
+            });
             dialog.addEventListener('close', () => {
                 if (dialog === _attrDialog) {
                     _attrDialog = null;
