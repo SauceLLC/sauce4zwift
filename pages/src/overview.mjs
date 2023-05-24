@@ -248,7 +248,6 @@ async function renderAvailableMods() {
 
 
 async function renderWindows(wins) {
-    console.log(wins);
     const windows = (await common.rpc.getWidgetWindowSpecs()).filter(x => !x.private);
     const manifests = await common.rpc.getWidgetWindowManifests();
     const el = document.querySelector('#windows');
