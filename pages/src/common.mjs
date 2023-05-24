@@ -51,8 +51,11 @@ export const identToWorldId = Object.fromEntries(worldCourseDescs.map(x => [x.id
 export const attributions = {
     tp: 'Training Stress Score®, TSS®, Normalized Power®, NP®, Intensity Factor® and IF® are ' +
         'trademarks of TrainingPeaks, LLC and are used with permission.\n\n' +
-        'Learn more at <a href="https://www.trainingpeaks.com" ' +
-                        ' external target="_blank">https://www.trainingpeaks.com</a>.'
+        'Learn more at <a external target="_blank" href="https://www.trainingpeaks.com' +
+        '/learn/articles/glossary-of-trainingpeaks-metrics/' +
+        '?utm_source=newsletter&utm_medium=partner&utm_term=sauce_trademark' +
+        '&utm_content=cta&utm_campaign=sauce">https://www.trainingpeaks.com' +
+        '/learn/articles/glossary-of-trainingpeaks-metrics/</a>.'
 };
 
 
