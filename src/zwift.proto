@@ -799,13 +799,13 @@ message DropInPlayer {
     bool male = 9;
     bool _f10 = 10;
     uint32 _f11 = 11;
-    uint32 power = 12;
+    uint32 ftp = 12;
     uint32 _f13 = 13; // Some sort of time: typically 3600
     float x = 14;
     float z = 15;
     float y = 16;
     uint32 routeId = 17;
-    uint32 ridePower = 18;
+    uint32 power = 18;
     uint32 speed = 19;
     int32 _f20 = 20;
     float _f22 = 22; // latency value? ~(1 - 3)
