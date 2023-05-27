@@ -1381,7 +1381,7 @@ export class GameMonitor extends events.EventEmitter {
             const athletes = []
                 .concat(w.others || [], w.followees || [], w.pacerBots || [], w.proPlayers || [])
                 .filter(x => x);
-            athletes.sort((a, b) => b.power - a.power);
+            athletes.sort((a, b) => (b.power || 0) - (a.power || 0));
             // Run testing...
             //athletes.sort((a, b) => a.sport === 'running' ? -1 : b.sport === 'running' ? 1 : 0);
             const a = athletes[0];
