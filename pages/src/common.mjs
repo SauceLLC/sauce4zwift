@@ -563,7 +563,7 @@ export function initInteractionListeners() {
                 if (ev2.target.closest('a')) {
                     return;
                 }
-                dialog.close()
+                dialog.close();
             });
             dialog.addEventListener('close', () => {
                 if (dialog === _attrDialog) {
