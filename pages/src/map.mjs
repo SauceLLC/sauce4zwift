@@ -677,20 +677,11 @@ export class SauceZwiftMap extends EventTarget {
             }
             d.push([x * svgInternalScale, y * svgInternalScale, {...meta, tanIn, tanOut}]);
         }
-        let curveFunc = {
+        const curveFunc = {
             CatmullRom: curves.uniformCatmullRomPath,
             Bezier: curves.cubicBezierPath,
         }[type];
-        if (location.search.includes('catmull')) {
-            console.log('forced cat');
-            curveFunc = curves.uniformCatmullRomPath;
-        } else if (location.search.includes('bezier')) {
-            console.log('forced bezier');
-            curveFunc = curves.cubicBezierPath;
-        }
         const path = curveFunc(d, {loop});
-        const length = curves.pathLength(path);
-        console.log(length);
         return createElementSVG('path', {
             id: `road-path-${id}`,
             d: curves.pathToSVG(path)

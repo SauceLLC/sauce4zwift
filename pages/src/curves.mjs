@@ -34,15 +34,10 @@ export function pathToSVG(path) {
  * This is a simplified uniform (alpha=0) impl, as that is all Zwift uses.
  */
 export function uniformCatmullRomPath(points, {loop}) {
-    const svg = document.querySelector('svg.roads');
-    const dot = (c, color='#0008', size=10) =>
-        svg.insertAdjacentHTML(
-            'beforeend', `<circle cx="${c[0]}" cy="${c[1]}" r="${size}" fill="${color}"/>`);
     if (loop) {
         points = Array.from(points);
         points.push(...points.slice(0, 3));
     }
-    dot(points[0], '#f005');
     const path = [['M', points[1]]];
     for (let i = 1; i < points.length - 2; i++) {
         const p0 = points[i - 1];
@@ -55,18 +50,14 @@ export function uniformCatmullRomPath(points, {loop}) {
             path.push(['L', p2]);
             continue;
         }
-        dot(p2, '#0f05');
         const A = 6;
         const B = 6;
         const N = 1 / 6;
         const M = 1 / 6;
         const  cp1 = [(-p0[0] + A * p1[0] + 1 * p2[0]) * N, (-p0[1] + A * p1[1] + 1 * p2[1]) * N];
         const  cp2 = [(p1[0] + B * p2[0] - 1 * p3[0]) * M, (p1[1] + B * p2[1] - 1 * p3[1]) * M];
-        dot(cp1, '#fff9', 5);
-        dot(cp2, '#0009', 5);
         path.push(['C', {cp1, cp2, end: p2}]);
     }
-    dot(points.at(-1), '#0ff5');
     return path;
 }
 
@@ -89,12 +80,7 @@ function vecDist(a, b) {
 
 
 export function cubicBezierPath(points, {loop, smoothing=0.2, verbose}={}) {
-    const svg = document.querySelector('svg.roads');
-    const dot = (c, color='#0008', size=10) =>
-        svg.insertAdjacentHTML(
-            'beforeend', `<circle cx="${c[0]}" cy="${c[1]}" r="${size}" fill="${color}"/>`);
     const path = [['M', points[1]]];
-    dot(points[0], '#f005');
     if (loop) {
         points = Array.from(points);
         points.push(...points.slice(0, 3));
@@ -114,11 +100,7 @@ export function cubicBezierPath(points, {loop, smoothing=0.2, verbose}={}) {
         const cp1 = tanOut ? [p0[0] + tanOut[0], p0[1] + tanOut[1]] : bezierControl(p_1, p0, p1, smoothing);
         const cp2 = tanIn ? [p1[0] + tanIn[0], p1[1] + tanIn[1]] : bezierControl(p0, p1, p2, smoothing, true);
         path.push(['C', {cp1, cp2, end: p1}]);
-        dot(cp1, '#fff9', 5);
-        dot(cp2, '#0009', 5);
-        dot(p1, '#0f05');
     }
-    dot(points.at(-1), '#0ff5');
     return path;
 }
 
@@ -137,7 +119,7 @@ export function computeBezier(t, a, b, c, d) {
 }
 
 
-export function pathLength(path, epsilon=0.00001) {
+export function pathLength(path, epsilon=0.001) {
     const C = [0, 0];
     let len = 0;
     for (const [cmd, arg] of path) {
