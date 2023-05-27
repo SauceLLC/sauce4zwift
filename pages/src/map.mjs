@@ -2,6 +2,7 @@ import * as common from './common.mjs';
 import * as curves from './curves.mjs';
 import * as locale from '../../shared/sauce/locale.mjs';
 
+
 const H = locale.human;
 const svgInternalScale = 0.01;
 
@@ -663,7 +664,7 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     _createCurvePath(points, id, loop, type='CatmullRom') {
-        let d = [];
+        const d = [];
         for (const pos of points) {
             const [x, y,, meta] = this._fixWorldPos(pos);
             let tanIn;
@@ -674,23 +675,25 @@ export class SauceZwiftMap extends EventTarget {
             if (meta?.tanOut) {
                 tanOut = [meta.tanOut[0] * svgInternalScale, meta.tanOut[1] * svgInternalScale];
             }
-            d.push([x * svgInternalScale, y * svgInternalScale, meta && {...meta, tanIn, tanOut}]);
+            d.push([x * svgInternalScale, y * svgInternalScale, {...meta, tanIn, tanOut}]);
         }
-        const curveFunc = {
-            CatmullRom: curves.catmullRomPath,
-            //CatmullRom: curves.cubicBezierPath,
+        let curveFunc = {
+            CatmullRom: curves.uniformCatmullRomPath,
             Bezier: curves.cubicBezierPath,
         }[type];
-        console.log(type, id);
-        let verbose;
-        if (Number(id) === 3) {
-            d = d.slice(0, 38);
-            console.warn(d);
-            verbose = true;
+        if (location.search.includes('catmull')) {
+            console.log('forced cat');
+            curveFunc = curves.uniformCatmullRomPath;
+        } else if (location.search.includes('bezier')) {
+            console.log('forced bezier');
+            curveFunc = curves.cubicBezierPath;
         }
+        const path = curveFunc(d, {loop});
+        const length = curves.pathLength(path);
+        console.log(length);
         return createElementSVG('path', {
             id: `road-path-${id}`,
-            d: curveFunc(d, {loop, verbose})
+            d: curves.pathToSVG(path)
         });
     }
 
@@ -712,26 +715,11 @@ export class SauceZwiftMap extends EventTarget {
                 continue;
             }
             const path = this._createCurvePath(road.path, id, road.looped, road.splineType);
-            const clip = createElementSVG('clipPath', {id: `road-clip-${id}`});
-            // These are not actually min/max if rotate hack is present.
-            const boxC1 = this._fixWorldPos(road.boxMin);
-            const boxC2 = this._fixWorldPos(road.boxMax);
-            const clipBox = createElementSVG('path', {
-                d: [
-                    `M ${boxC1[0] * svgInternalScale} ${boxC1[1] * svgInternalScale}`,
-                    `H ${boxC2[0] * svgInternalScale}`,
-                    `V ${boxC2[1] * svgInternalScale}`,
-                    `H ${boxC1[0] * svgInternalScale}`,
-                    `Z`
-                ].join('')
-            });
-            clip.append(clipBox);
-            defs.append(path, clip);
+            defs.append(path);
             for (const g of [gutters, surfacesLow]) {
                 g.append(createElementSVG('use', {
                     "class": road.sports.map(x => 'road sport-' + x).join(' '),
                     "data-id": id,
-                    "clip-path": `url(#road-clip-${id})`,
                     "href": `#road-path-${id}`,
                 }));
             }
@@ -764,7 +752,6 @@ export class SauceZwiftMap extends EventTarget {
             r = createElementSVG('use', {class: 'road active'});
             surface.append(r);
         }
-        r.setAttribute('clip-path', `url(#road-clip-${id})`);
         r.setAttribute('href', `#road-path-${id}`);
     }
 
@@ -1131,5 +1118,3 @@ export class SauceZwiftMap extends EventTarget {
         return true;
     }
 }
-
-self.common = common;

@@ -180,9 +180,12 @@ export async function main() {
     const urlQuery = new URLSearchParams(location.search);
     if (urlQuery.has('testing')) {
         const [course, road] = urlQuery.get('testing').split(',');
-        zwiftMap.setCourse(+course || 6).then(() => {
-            zwiftMap.setActiveRoad(+road || 0);
-        });
+        zwiftMap.setActiveRoad(+road || 0);
+        zwiftMap.setCourse(+course || 6);
+        const center = urlQuery.get('center');
+        if (center) {
+            zwiftMap.setCenter(center.split(',').map(Number));
+        }
         if (elProfile) {
             elProfile.setCourse(+course || 6).then(() => {
                 elProfile.setRoad(+road || 0);
