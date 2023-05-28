@@ -1384,9 +1384,15 @@ export class GameMonitor extends events.EventEmitter {
             athletes.sort((a, b) => (b.power || 0) - (a.power || 0));
             // Run testing...
             //athletes.sort((a, b) => a.sport === 'running' ? -1 : b.sport === 'running' ? 1 : 0);
-            const a = athletes[0];
-            if (a) {
-                return a.athleteId;
+            let athlete;
+            // Avoid pacer bots if possible
+            for (athlete of athletes) {
+                if (athlete.playerType !== 'PACER_BOT') {
+                    break;
+                }
+            }
+            if (athlete) {
+                return athlete.athleteId;
             }
         }
     }
