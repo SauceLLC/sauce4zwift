@@ -531,10 +531,10 @@ export class StatsProcessor extends events.EventEmitter {
 
     getRoute(id, options={}) {
         const route = this._routes.get(id);
-        if (route && options.checkpoints) {
+        if (route && options.detailed) {
             const detailed = getRouteDetailed(id);
             if (detailed) {
-                return {...route, checkpoints: detailed.checkpoints};
+                return {...detailed, ...route};
             }
         }
         return route;
