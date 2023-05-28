@@ -33,7 +33,7 @@ export function pathToSVG(path) {
  *
  * This is a simplified uniform (alpha=0) impl, as that is all Zwift uses.
  */
-export function uniformCatmullRomPath(points, {loop}) {
+export function uniformCatmullRomPath(points, {loop}={}) {
     if (loop) {
         points = Array.from(points);
         points.push(...points.slice(0, 3));
