@@ -3,6 +3,7 @@ import * as common from './common.mjs';
 import {Color} from './color.mjs';
 import * as ec from '../deps/src/echarts.mjs';
 import * as theme from './echarts-sauce-theme.mjs';
+import * as curves from './curves.mjs';
 
 locale.setImperial(!!common.storage.get('/imperialUnits'));
 ec.registerTheme('sauce', theme.getTheme('dynamic'));
@@ -70,7 +71,6 @@ export class SauceElevationProfile {
                 markLine: {
                     symbol: 'none',
                     silent: true,
-                    label: {formatter: x => H.elevation(x.value, {suffix: true})},
                     lineStyle: {},
                 }
             }]
@@ -154,12 +154,7 @@ export class SauceElevationProfile {
             return;
         }
         const worldId = this.worldList.find(x => x.courseId === id).worldId;
-        this._busy = true;
-        try {
-            this.roads = await common.getRoads(worldId);
-        } finally {
-            this._busy = false;
-        }
+        this.roads = await common.getRoads(worldId);
         this.courseId = id;
         this.road = null;
         this.route = null;
@@ -200,37 +195,46 @@ export class SauceElevationProfile {
         this.route = null;
         this.road = this.roads[id];
         this.reverse = reverse;
-        this._roadSigs = new Set(`${id}-${!!reverse}`);
+        this._roadSigs = new Set([`${id}-${!!reverse}`]);
         this.setData(this.road.distances, this.road.elevations, this.road.grades, {reverse});
     }
 
-    async setRoute(id) {
+    async setRoute(id, laps=1) {
         this.road = null;
         this.reverse = null;
         this._roadSigs = new Set();
-        this.route = await common.rpc.getRoute(id, {checkpoints: true});
-        const points = this.route.checkpoints;
-        const distances = [];
-        const grades = [];
-        const elevations = [];
-        for (const [i, p1] of points.entries()) {
-            if (p1[3]) {
-                const {roadId, reverse} = p1[3];
-                this._roadSigs.add(`${roadId}-${!!reverse}`);
+        this.route = await common.rpc.getRoute(id, {detailed: true});
+        const path = curves.uniformCatmullRomPath(this.route.checkpoints);
+        const len = curves.pathLength(path);
+        debugger;
+        for (const x of this.route.checkpoints) {
+            if (x[3]) {
+                const {roadId, reverse} = x[3];
+                if (roadId) {
+                    this._roadSigs.add(`${roadId}-${!!reverse}`);
+                }
             }
-            if (!i) {
-                distances.push(0);
-                grades.push(0);
-            } else {
-                const p0 = points[i - 1];
-                const d = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]);
-                const v = p1[2] - p0[2];
-                grades.push(v / d);
-                distances.push(d / 100 + distances[i - 1]);
-            }
-            elevations.push(p1[2] / 100); // XXX must used corrected elevation (gen on backend)
         }
-        this.setData(distances, elevations, grades);
+        const distances = Array.from(this.route.distances);
+        const elevations = Array.from(this.route.elevations);
+        const grades = Array.from(this.route.grades);
+        const distance = distances.at(-1);
+        const markLines = [];
+        for (let lap = 1; lap < laps; lap++) {
+            // NOTE: we assume no route isn't going to blow up the stack (~120k entries)
+            distances.push(...this.route.distances.map(x => x + lap * distance));
+            elevations.push(...this.route.elevations);
+            grades.push(...this.route.grades);
+            markLines.push({
+                xAxis: distance * lap,
+                lineStyle: {width: 2, type: 'solid'},
+                label: {
+                    position: 'insideStartTop',
+                    formatter: `LAP ${lap + 1}`
+                }
+            });
+        }
+        this.setData(distances, elevations, grades, {markLines});
     }
 
 
@@ -241,8 +245,9 @@ export class SauceElevationProfile {
         const distance = distances[distances.length - 1] - distances[0];
         this._yMax = Math.max(...elevations);
         this._yMin = Math.min(...elevations);
-        this._yAxisMin = this._yMin > 0 ? Math.max(0, this._yMin - 20) : this._yMin;
-        this._yAxisMax = Math.max(this._yMax, this._yMin + 200),
+        // Echarts bug requires floor/ceil to avoid missing markLines
+        this._yAxisMin = Math.floor(this._yMin > 0 ? Math.max(0, this._yMin - 20) : this._yMin);
+        this._yAxisMax = Math.ceil(Math.max(this._yMax, this._yMin + 200));
         this.chart.setOption({
             xAxis: {inverse: options.reverse},
             yAxis: {
@@ -268,6 +273,24 @@ export class SauceElevationProfile {
                             };
                         }),
                     },
+                },
+                markLine: {
+                    data: [{
+                        type: 'min',
+                        label: {
+                            formatter: x => H.elevation(x.value, {suffix: true}),
+                            position: this.reverse ? 'insideEndTop' : 'insideStartTop'
+                        },
+                    }, {
+                        type: 'max',
+                        label: {
+                            formatter: x => H.elevation(x.value, {suffix: true}),
+                            position: this.reverse ? 'insideStartTop' : 'insideEndTop'
+                        },
+                    }, ...(options.markLines || [])]
+                },
+                markAreas: {
+                    data: options.markAreas
                 },
                 data: distances.map((x, i) => [x, elevations[i], grades[i] * (options.reverse ? -1 : 1)]),
             }]
@@ -297,7 +320,16 @@ export class SauceElevationProfile {
             if (this.preferRoute) {
                 if (watching.routeId) {
                     if (!this.route || this.route.id !== watching.routeId) {
-                        await this.setRoute(watching.routeId);
+                        let sg;
+                        if (watching.eventSubgroupId) {
+                            sg = await common.rpc.getEventSubgroup(watching.eventSubgroupId);
+                        }
+                        // Note sg.routeId is sometimes out of sync with state.routeId; avoid thrash
+                        if (sg && sg.routeId === watching.routeId) {
+                            await this.setRoute(sg.routeId, sg.laps);
+                        } else {
+                            await this.setRoute(watching.routeId, 2); // XXX
+                        }
                     }
                 } else {
                     this.route = null;
@@ -343,15 +375,6 @@ export class SauceElevationProfile {
         const deltaY = this._yAxisMax - this._yAxisMin;
         const path = this.route?.checkpoints || this.road?.path;
         this.chart.setOption({series: [{
-            markLine: {
-                data: [{
-                    type: 'min',
-                    label: {position: this.reverse ? 'insideEndTop' : 'insideStartTop'}
-                }, {
-                    type: 'max',
-                    label: {position: this.reverse ? 'insideStartTop' : 'insideEndTop'}
-                }]
-            },
             markPoint: {
                 itemStyle: {borderColor: '#222b'},
                 animation: false,
@@ -363,7 +386,7 @@ export class SauceElevationProfile {
                     const isWatching = state.athleteId === this.watchingId;
                     return {
                         name: state.athleteId,
-                        coord: [distance, state.z / 100 + 2],
+                        coord: [distance, state.altitude + 2],
                         symbolSize: isWatching ? this.em(1.1) : this.em(0.55),
                         itemStyle: {
                             color: isWatching ? '#f43e' : '#fff6',

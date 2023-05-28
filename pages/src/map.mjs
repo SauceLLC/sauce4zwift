@@ -867,7 +867,6 @@ export class SauceZwiftMap extends EventTarget {
             ent.lastSeen = now;
             if (ent.pin) {
                 const ad = common.getAthleteDataCacheEntry(state.athleteId);
-                console.log('pin', ad);
                 const athlete = ad?.athlete;
                 const name = athlete ? `${athlete.fLast}` : `ID: ${state.athleteId}`;
                 const avatar = athlete?.avatar ?
