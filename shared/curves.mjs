@@ -1,9 +1,13 @@
-
-function round(n, p=0) {
-    return Number(n.toFixed(p));
-}
-
-
+/*
+ * Sauce Bezier and catmullRom spline routines.
+ *
+ * Most functions work with a simple intermediate language that's
+ * based on SVG paths but with native types and objects for
+ * easier manipulation.
+ *
+ * The paths can be sliced, reversed, measured and traced in JS
+ * so everything works on the backend or frontend.
+ */
 function vecDist(a, b) {
     const dx = b[0] - a[0];
     const dy = b[1] - a[1];
@@ -16,8 +20,8 @@ export function pathToSVG(path, conv) {
     const svg = [];
     const xy = conv ? raw => {
         const point = conv(raw);
-        return `${round(point[0], 4)},${round(point[1], 4)}`;
-    } : point => `${round(point[0], 4)},${round(point[1], 4)}`;
+        return `${Math.round(point[0])},${Math.round(point[1])}`;
+    } : point => `${Math.round(point[0])},${Math.round(point[1])}`;
     for (const x of path) {
         if (x.cmd === 'C') {
             svg.push(`C ${xy(x.cp1)} ${xy(x.cp2)} ${xy(x.end)}`);
