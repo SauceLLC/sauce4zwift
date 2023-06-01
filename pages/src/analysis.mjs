@@ -840,12 +840,12 @@ export async function main() {
             centerMap(zwiftMap, positions);
         }
         if (histPath) {
-            histPath.path.remove();
+            histPath.pathDef.remove();
             histPath.node.remove();
         } else {
             startEnt.setPosition(positions[0]);
         }
-        histPath = zwiftMap.addHighlightPath(positions, 'history');
+        histPath = zwiftMap.addHighlightLine(positions, 'history');
         zoomableChart.updateData();
         elevationChart.updateData();
         await updateSelectionStats();
@@ -881,7 +881,7 @@ export async function main() {
         centerMap(zwiftMap, positions);
         startEnt.setPosition(positions[0]);
         endEntity.setPosition(positions.at(-1));
-        histPath = zwiftMap.addHighlightPath(positions, 'history');
+        histPath = zwiftMap.addHighlightLine(positions, 'history');
         for (const [i, ts] of streams.time.entries()) {
             rolls.power.add(ts, streams.power[i]);
         }

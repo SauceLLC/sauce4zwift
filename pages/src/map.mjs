@@ -1,10 +1,8 @@
 import * as common from './common.mjs';
-import * as curves from './curves.mjs';
-import * as locale from '../../shared/sauce/locale.mjs';
-
+import * as curves from '/shared/curves.mjs';
+import * as locale from '/shared/sauce/locale.mjs';
 
 const H = locale.human;
-const svgInternalScale = 0.01;
 
 
 function createElementSVG(name, attrs={}) {
@@ -291,15 +289,17 @@ export class SauceZwiftMap extends EventTarget {
             ents: createElement('div', {class: 'entities'}),
             pins: createElement('div', {class: 'pins'}),
             roads: createElementSVG('svg', {class: 'roads'}),
+            roadDefs: createElementSVG('defs'),
+            roadLayersGroup: createElementSVG('g', {class: 'road-layers'}),
             roadLayers: {
-                defs: createElementSVG('defs'),
                 gutters: createElementSVG('g', {class: 'gutters'}),
                 surfacesLow: createElementSVG('g', {class: 'surfaces low'}),
                 surfacesMid: createElementSVG('g', {class: 'surfaces mid'}),
                 surfacesHigh: createElementSVG('g', {class: 'surfaces high'}),
             }
         };
-        this._elements.roads.append(...Object.values(this._elements.roadLayers));
+        this._elements.roads.append(this._elements.roadDefs, this._elements.roadLayersGroup);
+        this._elements.roadLayersGroup.append(...Object.values(this._elements.roadLayers));
         this._elements.map.append(this._elements.mapCanvas, this._elements.roads,
                                   this._elements.ents);
         this.el.addEventListener('wheel', this._onWheelZoom.bind(this));
@@ -616,14 +616,16 @@ export class SauceZwiftMap extends EventTarget {
         this._anchorXY[0] = -(m.minX + m.anchorX) * this._mapScale;
         this._anchorXY[1] = -(m.minY + m.anchorY) * this._mapScale;
         Object.values(this._elements.roadLayers).forEach(x => x.replaceChildren());
+        this._elements.roadDefs.replaceChildren();
         this._elements.ents.replaceChildren();
         this._elements.pins.replaceChildren();
         this._elements.roads.setAttribute('viewBox', [
-            (m.minX + m.anchorX) * svgInternalScale,
-            (m.minY + m.anchorY) * svgInternalScale,
-            (m.maxX - m.minX) * svgInternalScale,
-            (m.maxY - m.minY) * svgInternalScale,
+            (m.minX + m.anchorX),
+            (m.minY + m.anchorY),
+            (m.maxX - m.minX),
+            (m.maxY - m.minY),
         ].join(' '));
+        this._elements.roadLayersGroup.classList.toggle('rotate-route-select', !!m.rotateRouteSelect);
         this._setHeading(0);
         this._ents.clear();
         this._pendingEntityUpdates.clear();
@@ -631,6 +633,7 @@ export class SauceZwiftMap extends EventTarget {
             common.getRoads(this.worldMeta.worldId),
             this._updateMapBackground(),
         ]);
+        this._roads = roads;
         this._renderRoads(roads);
     }
 
@@ -659,38 +662,22 @@ export class SauceZwiftMap extends EventTarget {
         }
     }
 
-    _fixWorldPos(pos) {
-        return this.worldMeta.rotateRouteSelect ? [pos[1], -pos[0]] : pos;
+    _rotateWorldPos(pos) {
+        // Use sparingly;  If working with large groups of entities rotate the group instead.
+        return this.worldMeta.rotateRouteSelect ? [pos[1], -pos[0], pos[2]] : pos;
     }
 
-    _createCurvePath(points, id, loop, type='CatmullRom') {
-        const d = [];
-        for (const pos of points) {
-            const [x, y,, meta] = this._fixWorldPos(pos);
-            let tanIn;
-            if (meta?.tanIn) {
-                tanIn = [meta.tanIn[0] * svgInternalScale, meta.tanIn[1] * svgInternalScale];
-            }
-            let tanOut;
-            if (meta?.tanOut) {
-                tanOut = [meta.tanOut[0] * svgInternalScale, meta.tanOut[1] * svgInternalScale];
-            }
-            d.push([x * svgInternalScale, y * svgInternalScale, {...meta, tanIn, tanOut}]);
-        }
+    _createCurvePath(points, loop, type='CatmullRom') {
         const curveFunc = {
-            CatmullRom: curves.uniformCatmullRomPath,
+            CatmullRom: curves.catmullRomPath,
             Bezier: curves.cubicBezierPath,
         }[type];
-        const path = curveFunc(d, {loop});
-        return createElementSVG('path', {
-            id: `road-path-${id}`,
-            d: curves.pathToSVG(path)
-        });
+        return curveFunc(points, {loop});
     }
 
     _renderRoads(roads, ids) {
         ids = ids || Object.keys(roads);
-        const {defs, surfacesLow, gutters} = this._elements.roadLayers;
+        const {surfacesLow, gutters} = this._elements.roadLayers;
         // Because roads overlap and we want to style some of them differently this
         // make multi-sport roads higher so we don't randomly style overlapping sections.
         ids.sort((a, b) =>
@@ -705,8 +692,11 @@ export class SauceZwiftMap extends EventTarget {
             if (!road.sports.includes('cycling') && !road.sports.includes('running')) {
                 continue;
             }
-            const path = this._createCurvePath(road.path, id, road.looped, road.splineType);
-            defs.append(path);
+            const path = this._createCurvePath(road.path, road.looped, road.splineType);
+            this._elements.roadDefs.append(createElementSVG('path', {
+                id: `road-path-${id}`,
+                d: path.toSVGPath()
+            }));
             for (const g of [gutters, surfacesLow]) {
                 g.append(createElementSVG('use', {
                     "class": road.sports.map(x => 'road sport-' + x).join(' '),
@@ -746,16 +736,70 @@ export class SauceZwiftMap extends EventTarget {
         r.setAttribute('href', `#road-path-${id}`);
     }
 
-    addHighlightPath(points, id, loop) {
-        const path = this._createCurvePath(points, id, loop);
-        this._elements.roadLayers.defs.append(path);
+    _addShape(shape, attrs, options={}) {
+        const layer = this._elements.roadLayers[{
+            high: 'surfacesHigh',
+            mid: 'surfacesMid',
+            low: 'surfacesLow',
+        }[options.layer || 'high']];
+        const el = createElementSVG(shape, attrs);
+        layer.append(el);
+        return el;
+    }
+
+    drawLine(p0, p1, {color="#000a", size=2, layer='high', ...attrs}={}) {
+        return this._addShape('line', {
+            x1: p0[0],
+            y1: p0[1],
+            x2: p1[0],
+            y2: p1[1],
+            "stroke-width": `${size}em`,
+            stroke: color,
+            ...attrs,
+        });
+    }
+
+    drawCircle(c, {color="#000a", size=10, borderColor="gold", borderSize=0.5, layer='high', ...attrs}={}) {
+        return this._addShape('circle', {
+            cx: c[0],
+            cy: c[1],
+            r: `${size}em`,
+            fill: color,
+            "stroke-width": `${borderSize}em`,
+            stroke: borderColor,
+            ...attrs,
+        });
+    }
+
+    addHighlightPath(path, id) {
+        for (let i = 0; i < path.length - 1; i++) {
+            this.drawCircle(path[i].end, {color: '#40ba', borderColor: 'black', size: 4, "title": i});
+            if (path[i].cmd === 'C') {
+                this.drawLine(path[i].cp1, path[i - 1].end, {layer: 'mid'});
+                this.drawLine(path[i].cp2, path[i].end, {layer: 'mid'});
+                this.drawCircle(path[i].cp1, {color: '#000b', size: 3, title: `cp1-${i}`});
+                this.drawCircle(path[i].cp2, {color: '#fffb', size: 3, title: `cp2-${i}`});
+            }
+        }
+        this.drawCircle(path[0].end, {color: '#0f09', size: 8, title: 'start'});
+        this.drawCircle(path.at(-1).end, {color: '#f009', size: 8, title: 'end'});
+
+        const pathDef = createElementSVG('path', {
+            id: `highlight-path-${id}`,
+            d: path.toSVGPath(),
+        });
+        this._elements.roadDefs.append(pathDef);
         const node = createElementSVG('use', {
             "class": `highlight`,
             "data-id": id,
-            "href": `#road-path-${id}`,
+            "href": `#highlight-path-${id}`,
         });
         this._elements.roadLayers.surfacesHigh.append(node);
-        return {path, node};
+        return {pathDef, node};
+    }
+
+    addHighlightLine(points, id, loop) {
+        return this.addHighlightPath(this._createCurvePath(points, loop), id);
     }
 
     addEntity(ent) {
@@ -879,6 +923,20 @@ export class SauceZwiftMap extends EventTarget {
                 `);
             }
             if (state.athleteId === this.watchingId && !this.trackingPaused) {
+                if (!this.fooEnt) {
+                    this.fooEnt = new MapEntity('foo', 'athlete');
+                    this.fooEnt.transition.setDuration(250);
+                    this.fooEnt.el.classList.add('following');
+                    this.fooEnt.setPosition([10000, 10000]);
+                    this.addEntity(this.fooEnt);
+                }
+                //XXX ...
+                const road = this._roads ? this._roads[state.roadId] : null;
+                if (road) {
+                    const path = this._createCurvePath(road.path, road.looped, road.splineType);
+                    const posAtTime = path.pointAtRoadTime(state.roadTime);
+                    this.fooEnt.setPosition(posAtTime);
+                }
                 if (this.autoHeading) {
                     this._setHeading(state.heading);
                 }
@@ -890,7 +948,8 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     setCenter(pos) {
-        const [x, y] = this._fixWorldPos(pos);
+        return;
+        const [x, y] = this._rotateWorldPos(pos);
         this._centerXY[0] = x * this._mapScale;
         this._centerXY[1] = y * this._mapScale;
         this._updateGlobalTransform();

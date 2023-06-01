@@ -6,6 +6,7 @@ import {SqliteDatabase, deleteDatabase} from './db.mjs';
 import * as rpc from './rpc.mjs';
 import * as sauce from '../shared/sauce/index.mjs';
 import * as report from '../shared/report.mjs';
+import * as curves from '../shared/curves.mjs';
 import * as zwift from './zwift.mjs';
 import {getApp} from './main.mjs';
 import {fileURLToPath} from 'node:url';
@@ -291,18 +292,18 @@ class ZonesAccumulator extends TimeSeriesAccumulator {
 
 
 const _segmentsByRoadSig = {};
-const _segmentsByWorld = {};
+const _segmentsByCourse = {};
 function getNearbySegments(courseId, roadSig) {
     if (_segmentsByRoadSig[roadSig] === undefined) {
         const worldId = zwift.courseToWorldIds[courseId];
-        if (_segmentsByWorld[worldId] === undefined) {
+        if (_segmentsByCourse[courseId] === undefined) {
             const fname = path.join(__dirname, `../shared/deps/data/worlds/${worldId}/segments.json`);
             try {
-                _segmentsByWorld[worldId] = JSON.parse(fs.readFileSync(fname));
+                _segmentsByCourse[courseId] = JSON.parse(fs.readFileSync(fname));
             } catch(e) {
-                _segmentsByWorld[worldId] = [];
+                _segmentsByCourse[courseId] = [];
             }
-            for (const x of _segmentsByWorld[worldId]) {
+            for (const x of _segmentsByCourse[courseId]) {
                 for (const dir of ['Forward', 'Reverse']) {
                     if (!x['id' + dir]) {
                         continue;
@@ -336,17 +337,108 @@ function getNearbySegments(courseId, roadSig) {
 }
 
 
-const _routesDetailed = {};
-function getRouteDetailed(routeId) {
-    if (_routesDetailed[routeId] === undefined) {
-        const fname = path.join(__dirname, `../shared/deps/data/routes/${routeId}.json`);
-        try {
-            _routesDetailed[routeId] = JSON.parse(fs.readFileSync(fname));
-        } catch(e) {
-            _routesDetailed[routeId] = null;
+function zToAltitude(courseId, z) {
+    const worldMeta = zwift.worldMetas[courseId];
+    return worldMeta ? (z + worldMeta.waterPlaneLevel) / 100 *
+        worldMeta.physicsSlopeScale + worldMeta.altitudeOffsetHack : null;
+}
+
+
+const _roadsByCourse = {};
+const _roads = {};
+function getRoad(courseId, roadId) {
+    const sig = `${courseId}-${roadId}`;
+    if (_roads[sig] === undefined) {
+        if (_roadsByCourse[courseId] === undefined) {
+            const worldId = zwift.courseToWorldIds[courseId];
+            const fname = path.join(__dirname, `../shared/deps/data/worlds/${worldId}/roads.json`);
+            try {
+                _roadsByCourse[courseId] = JSON.parse(fs.readFileSync(fname));
+            } catch(e) {
+                _roadsByCourse[courseId] = [];
+            }
+        }
+        const road = _roadsByCourse[courseId].find(x => x.id === roadId);
+        if (road) {
+            const curveFunc = {
+                CatmullRom: curves.catmullRomPath,
+                Bezier: curves.cubicBezierPath,
+            }[road.splineType];
+            const curvePath = curveFunc(road.path, {includeEdges: true});
+            const elevations = road.path.map(x => zToAltitude(courseId, x[2]));
+            const gaps = [];
+            const grades = [];
+            const distances = [];
+            let distance = 0;
+            let lastNodeIndex;
+            curvePath.trace(x => {
+                distance += x.prevStep ? curves.vecDist(x.prevStep, x.step) : 0;
+                if (x.nodeIndex !== lastNodeIndex) {
+                    gaps.push(distance - distances.at(-1) || 0);
+                    distances.push(distance);
+                    if (x.prevNode) {
+                        grades.push((x.node[2] - x.prevNode[2]) / gaps.at(-1));
+                    }
+                    lastNodeIndex = x.nodeIndex;
+                }
+            });
+            grades.unshift(grades[0]);
+            debugger;
+            _roads[sig] = {...road, curvePath, elevations, gaps, distance, distances}; // XXX throwing shit at wall
+        } else {
+            _roads[sig] = null;
         }
     }
-    return _routesDetailed[routeId];
+    return _roads[sig];
+}
+
+
+const _routesByCourse = {};
+const _routes = {};
+function getRouteDetailed(courseId, routeId) {
+    if (_routes[routeId] === undefined) {
+        if (_routesByCourse[courseId] === undefined) {
+            const worldId = zwift.courseToWorldIds[courseId];
+            const fname = path.join(__dirname, `../shared/deps/data/worlds/${worldId}/routes.json`);
+            try {
+                _routesByCourse[courseId] = JSON.parse(fs.readFileSync(fname));
+            } catch(e) {
+                _routesByCourse[courseId] = [];
+            }
+        }
+        const route = _routesByCourse[courseId].find(x => x.id === routeId);
+        if (route) {
+            const p = []; // eslint-ignore-this-line
+            for (let i = 0; i < route.checkpoints.length - 1; i++) {
+                let p0 = route.checkpoints[i];
+                let p1 = route.checkpoints[i + 1];
+                const p0Sig = `${p0.roadId}-${p0.reverse}-${p0.leadin}`;
+                const p1Sig = `${p1.roadId}-${p1.reverse}-${p1.leadin}`;
+                if (p0Sig === p1Sig) {
+                    if (p0.reverse) {
+                        [p1, p0] = [p0, p1];
+                    }
+                    const road = getRoad(courseId, p0.roadId);
+                    let subpath = road.curvePath.subpathAtRoadPercents(p0.roadPercent, p1.roadPercent);
+                    if (p0.reverse) {
+                        subpath = subpath.reverse();
+                    }
+                    if (p.length) {
+                        // XXX use proper join method from curves lib
+                        subpath.shift();
+                    }
+                    for (const x of subpath) {
+                        // XXX use proper join method from curves lib
+                        p.push(x);
+                    }
+                }
+            }
+            _routes[routeId] = {...route, path: p};
+        } else {
+            _routes[routeId] = null;
+        }
+    }
+    return _routes[routeId];
 }
 
 
@@ -532,9 +624,12 @@ export class StatsProcessor extends events.EventEmitter {
     getRoute(id, options={}) {
         const route = this._routes.get(id);
         if (route && options.detailed) {
-            const detailed = getRouteDetailed(id);
-            if (detailed) {
-                return {...detailed, ...route};
+            const world = Object.values(zwift.worldMetas).find(x => x.stringId === route.world);
+            if (world) {
+                const detailed = getRouteDetailed(world.courseId, id);
+                if (detailed) {
+                    return {...detailed, ...route};
+                }
             }
         }
         return route;
@@ -1486,7 +1581,7 @@ export class StatsProcessor extends events.EventEmitter {
         if (!segments || !segments.length) {
             return;
         }
-        const p = (state.roadLocation - 5000) / 1e6;
+        const p = (state.roadTime - 5000) / 1e6;
         for (let i = 0; i < segments.length; i++) {
             const x = segments[i];
             let progress;
@@ -1513,7 +1608,7 @@ export class StatsProcessor extends events.EventEmitter {
         if (!segments || !segments.length) {
             return [];
         }
-        const p = (state.roadLocation - 5000) / 1e6;
+        const p = (state.roadTime - 5000) / 1e6;
         const relSegments = segments.map(x => {
             let progress, proximity;
             if (state.reverse) {
@@ -1908,6 +2003,13 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _getRouteDistance(route, laps=1) {
+        /* XXX: These are the leadin props in the XML data...
+         *
+         * defaultLeadinDistanceInMeters
+         * freeRideLeadinDistanceInMeters
+         * leadinDistanceInMeters
+         * meetupLeadinDistanceInMeters
+         */
         if (route.distanceInMetersFromEventStart) {
             console.warn("Investigate dist from event start value",
                          route.distanceInMetersFromEventStart);

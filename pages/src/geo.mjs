@@ -176,7 +176,9 @@ export async function main() {
     const worldList = await common.getWorldList();
     zwiftMap = createZwiftMap({worldList});
     window.zwiftMap = zwiftMap;  // DEBUG
+    window.MapEntity = map.MapEntity;
     elProfile = settings.profileOverlay && createElevationProfile({worldList});
+if (elProfile) elProfile.map = zwiftMap; // XXX
     const urlQuery = new URLSearchParams(location.search);
     if (urlQuery.has('testing')) {
         const [course, road] = urlQuery.get('testing').split(',');

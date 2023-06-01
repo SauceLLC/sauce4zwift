@@ -3,7 +3,7 @@ import * as common from './common.mjs';
 import {Color} from './color.mjs';
 import * as ec from '../deps/src/echarts.mjs';
 import * as theme from './echarts-sauce-theme.mjs';
-import * as curves from './curves.mjs';
+import * as curves from '/shared/curves.mjs';
 
 locale.setImperial(!!common.storage.get('/imperialUnits'));
 ec.registerTheme('sauce', theme.getTheme('dynamic'));
@@ -193,28 +193,52 @@ export class SauceElevationProfile {
 
     setRoad(id, reverse=false) {
         this.route = null;
-        this.road = this.roads[id];
+        this.road = this.roads.find(x => x.id === id);
         this.reverse = reverse;
         this._roadSigs = new Set([`${id}-${!!reverse}`]);
         this.setData(this.road.distances, this.road.elevations, this.road.grades, {reverse});
     }
 
-    async setRoute(id, laps=1) {
-        this.road = null;
-        this.reverse = null;
-        this._roadSigs = new Set();
-        this.route = await common.rpc.getRoute(id, {detailed: true});
-        const path = curves.uniformCatmullRomPath(this.route.checkpoints);
-        const len = curves.pathLength(path);
-        debugger;
-        for (const x of this.route.checkpoints) {
-            if (x[3]) {
-                const {roadId, reverse} = x[3];
-                if (roadId) {
-                    this._roadSigs.add(`${roadId}-${!!reverse}`);
+    parseRouteXXX(route) {
+        const combined = [];
+        for (let i = 0; i < route.checkpoints.length - 1; i++) {
+            let p0 = route.checkpoints[i];
+            let p1 = route.checkpoints[i + 1];
+            const p0Sig = `${p0.roadId}-${p0.reverse}-${p0.leadin}`;
+            const p1Sig = `${p1.roadId}-${p1.reverse}-${p1.leadin}`;
+            if (p0Sig === p1Sig) {
+                if (p0.reverse) {
+                    [p1, p0] = [p0, p1];
+                }
+                const road = this.roads.find(x => x.id === p0.roadId);
+                let subpath = road.curvePath.subpathAtRoadPercents(p0.roadPercent, p1.roadPercent);
+                if (p0.reverse) {
+                    subpath = subpath.reverse();
+                }
+                if (combined.length) {
+                    // XXX use proper join method from curves lib
+                    subpath.shift();
+                }
+                for (const x of subpath) {
+                    // XXX use proper join method from curves lib
+                    combined.push(x);
                 }
             }
         }
+        return combined;
+    }
+
+    async setRoute(id, laps=1) {
+        this.road = null;
+        this.reverse = null;
+        this.route = await common.rpc.getRoute(id, {detailed: true});
+        this._roadSigs = new Set();
+        for (const {roadId, reverse} of this.route.checkpoints) {
+            this._roadSigs.add(`${roadId}-${!!reverse}`);
+        }
+        const routePath = this.parseRouteXXX(this.route);
+        this.map.addHighlightPath(new curves.CurvePath(routePath), 'route'); // XXX
+        return;
         const distances = Array.from(this.route.distances);
         const elevations = Array.from(this.route.elevations);
         const grades = Array.from(this.route.grades);
@@ -371,6 +395,7 @@ export class SauceElevationProfile {
             const sig = `${x.state.roadId}-${!!x.state.reverse}`;
             return this._roadSigs.has(sig);
         });
+        marks.length = 0; // XXX
         const markPointLabelSize = 0.4;
         const deltaY = this._yAxisMax - this._yAxisMin;
         const path = this.route?.checkpoints || this.road?.path;
