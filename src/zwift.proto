@@ -5,7 +5,7 @@ message PlayerState {
     int32 athleteId = 1;
     uint64 worldTime = 2;
     int32 distance = 3; // meters
-    int32 roadLocation = 4; // Location on road in percent * 10,000.
+    int32 roadTime = 4;
     int32 laps = 5;
     int32 _speed = 6; // mm / hour
     int32 roadPosition = 8;  // Horiz, i.e. lane.
