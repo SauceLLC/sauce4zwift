@@ -265,7 +265,7 @@ export function processPlayerStateMessage(msg) {
     const flags2 = decodePlayerStateFlags2(msg._flags2);
     const wt = msg.worldTime.toNumber();
     const latency = worldTimer.now() - wt;
-    const adjRoadLoc = msg.roadLocation - 5000;  // It's 5,000 -> 1,005,000
+    const adjRoadLoc = msg.roadTime - 5000;  // It's 5,000 -> 1,005,000
     const worldMeta = worldMetas[msg.courseId];
     return {
         ...msg,
@@ -1296,7 +1296,7 @@ export class GameMonitor extends events.EventEmitter {
                 _speed: 0,
                 _cadenceUHz: 0,
                 _heading: 0,
-                roadLocation: 5000,
+                roadTime: 5000,
                 power: 0,
                 roadPosition: 0,
                 _flags1: encodePlayerStateFlags1({
