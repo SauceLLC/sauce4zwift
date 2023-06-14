@@ -13,7 +13,14 @@
 export class CurvePath extends Array {
     constructor(path, {epsilon=0.001}={}) {
         super();
-        this.epsilon = epsilon;
+        // Prevent our prop(s) from showing up during enumeration..
+        Object.defineProperties(this, {
+            epsilon: {
+                value: epsilon,
+                writable: true,
+                enumerable: false,
+            }
+        });
         if (path) {
             for (let i = 0; i < path.length; i++) {
                 this.push(path[i]);
@@ -24,14 +31,16 @@ export class CurvePath extends Array {
     toSVGPath() {
         const svg = [];
         const xy = point => `${Math.round(point[0])},${Math.round(point[1])}`;
-        for (let i = 0; i < this.length; i++) {
+        for (let i = 1; i < this.length - 1; i++) {
             const x = this[i];
-            if (x.cmd === 'C') {
-                svg.push(`C ${xy(x.cp1)} ${xy(x.cp2)} ${xy(x.end)}`);
-            } else if (x.cmd === 'L' || x.cmd === 'M') {
-                svg.push(`${x.cmd} ${xy(x.end)}`);
+            if (i === 1) {
+                svg.push(`M ${xy(x.end)}`);
             } else {
-                throw new TypeError('unhandled SVG command');
+                if (x.cp1 && x.cp2) {
+                    svg.push(`C ${xy(x.cp1)} ${xy(x.cp2)} ${xy(x.end)}`);
+                } else {
+                    svg.push(`L ${xy(x.end)}`);
+                }
             }
         }
         return svg.join('\n');
@@ -39,7 +48,7 @@ export class CurvePath extends Array {
 
     flatten(t=0.01) {
         const values = [];
-        this.trace(x => values.push(x.step), t);
+        this.trace(x => values.push(x.stepNode), t);
         return values;
     }
 
@@ -50,39 +59,45 @@ export class CurvePath extends Array {
     boundsAtRoadPercent(roadPercent) {
         const [index, pct] = roadPathOffsets(roadPercent, this.length);
         let bounds;
+        let prev;
         this.trace(x => {
-            if (x.nodeIndex > index) {
-                if (x.stepPercent >= pct) {
-                    const delta = x.stepPercent - pct;
-                    if (delta < 0.002) {
-                        // Close enough, skip maths..
-                        bounds = {...x, point: x.step, pointPercent: x.stepPercent};
+            if (x.index === index) {
+                if (x.step >= pct) {
+                    const delta = x.step - pct;
+                    if (!delta) {
+                        bounds = {...x, point: x.stepNode, pointPercent: x.step};
                     } else {
-                        const point = pointOnLine(x.step, x.prevStep, delta);
+                        const prevStep = prev ? prev.step : 0;
+                        const p = (pct - prevStep) / (x.step - prevStep);
+                        const point = pointOnLine(prev ? prev.stepNode : x.origin.end, x.stepNode, p);
                         bounds = {...x, point, pointPercent: pct};
                     }
                     return false;
                 }
+            } else if (x.index > index) {
+                const p = (pct - prev.step) / (1 - prev.step);
+                const point = pointOnLine(prev.stepNode, x.origin.end, p);
+                bounds = {...prev, point, pointPercent: pct};
+                return false;
             } else {
                 return null; // skip to next node
             }
+            prev = x;
         });
         return bounds;
     }
 
     reverse() {
         let cursor = this[this.length - 1].end;
-        const output = [{cmd: 'M', end: cursor}];
+        const output = [{end: cursor}];
         for (let i = this.length - 2; i >= 0; i--) {
             const p0 = this[i];
             const p1 = this[i + 1];
             cursor = p0.end;
-            if (p1.cmd === 'C') {
-                output.push({cmd: 'C', cp1: p1.cp2, cp2: p1.cp1, end: cursor});
-            } else if (p1.cmd === 'L') {
-                output.push({cmd: 'L', end: cursor});
+            if (p1.cp1 && p1.cp2) {
+                output.push({cp1: p1.cp2, cp2: p1.cp1, end: cursor});
             } else {
-                throw new TypeError("unsupported");
+                output.push({end: cursor});
             }
         }
         return new CurvePath(output);
@@ -97,18 +112,24 @@ export class CurvePath extends Array {
     subpathAtRoadPercents(startRoadPercent, endRoadPercent) {
         const start = this.boundsAtRoadPercent(startRoadPercent);
         const end = this.boundsAtRoadPercent(endRoadPercent);
-        const subpath = [{cmd: 'M', end: start.point}];
-        for (const x of this.slice(start.nodeIndex, end.nodeIndex)) {
-            subpath.push(x);
+        const subpath = [{end: start.point}];
+        for (const x of this.slice(start.index + 1, end.index + 1)) {
+            subpath.push({...x});
         }
-        if (end.entry.cmd === 'C') {
-            subpath.push({cmd: 'C', cp1: end.entry.cp1, cp2: end.entry.cp2, end: end.point});
-        } else if (end.entry.cmd === 'L') {
-            subpath.push({cmd: 'L', end: end.point});
-        } else {
-            throw new TypeError("unsupported");
+        if (end.step) {
+            subpath.push({...end.next, end: end.point});
         }
-        return new CurvePath(subpath);
+        return new CurvePath(subpath, {epsilon: this.epsilon});
+    }
+
+    extend(path) {
+        if (!path.length) {
+            return;
+        }
+        this.push({...path[0], cp1: undefined, cp2: undefined}); // XXX create new control points
+        for (let i = 1; i < path.length; i++) {
+            this.push(path[i]);
+        }
     }
 
     pointAtRoadTime(roadTime) {
@@ -116,7 +137,6 @@ export class CurvePath extends Array {
     }
 
     pointAtRoadPercent(roadPercent) {
-        // The path should have been created with includeEdges=true
         const bounds = this.boundsAtRoadPercent(roadPercent);
         return bounds && bounds.point;
     }
@@ -124,78 +144,67 @@ export class CurvePath extends Array {
     pointAtDistance(targetDistance) {
         let point;
         let dist = 0;
+        let prevStep;
         this.trace(x => {
-            const stepDist = x.prevStep ? vecDist(x.prevStep, x.step) : 0;
+            const stepDist = prevStep ? vecDist(prevStep, x.stepNode) : 0;
             dist += stepDist;
             if (dist > targetDistance) {
                 const diff = (dist - targetDistance) / stepDist;
-                point = pointOnLine(x.step, x.prevStep, diff);
+                point = pointOnLine(x.stepNode, prevStep, diff);
                 return false;
             } else if (dist === targetDistance) {
-                point = x.step;
+                point = x.stepNode;
+                return false;
             }
+            prevStep = x.stepNode;
         });
         return point;
     }
 
     distance() {
         let dist = 0;
-        this.trace(({prevStep, step}) => {
-            dist += prevStep ? vecDist(prevStep, step) : 0;
+        let prevStep;
+        this.trace(x => {
+            dist += prevStep ? vecDist(prevStep, x.stepNode) : 0;
+            prevStep = x.stepNode;
         });
         return dist;
     }
 
     trace(callback, t) {
-        // This would be better looking as a generator but I need it to be fast.
-        let prevNode;
+        // This would be better looking as a generator but it needs it to be fast.
         t = t || this.epsilon;
-        for (let nodeIndex = 0; nodeIndex < this.length; nodeIndex++) {
-            const entry = this[nodeIndex];
-            if (entry.cmd === 'C') {
-                const node = entry.end;
-                let prevStep = prevNode;
-                let stepPercent = 0;
-                while (stepPercent < 1) {
-                    stepPercent += t;
-                    if (stepPercent > 1) {
-                        stepPercent = 1;
-                    }
-                    const step = computeBezier(stepPercent, prevNode, entry.cp1, entry.cp2, node);
+        for (let index = 0; index < this.length; index++) {
+            const origin = this[index];
+            const next = this[index + 1];
+            if (next && next.cp1 && next.cp2) {
+                for (let step = 0; step < 1; step += t) {
+                    const stepNode = computeBezier(step, origin.end, next.cp1, next.cp2, next.end);
                     const op = callback({
-                        entry,
-                        nodeIndex,
-                        prevNode,
-                        node,
-                        prevStep,
+                        origin,
+                        next,
+                        index,
+                        stepNode,
                         step,
-                        stepPercent,
                     });
                     if (op === false) {
                         return;
                     } else if (op === null) {
                         break;
                     }
-                    prevStep = step;
                 }
-            } else if (entry.cmd === 'L' || entry.cmd === 'M') {
-                const node = entry.end;
+            } else {
                 const op = callback({
-                    entry,
-                    nodeIndex,
-                    prevNode,
-                    node,
-                    prevStep: prevNode,
-                    step: node,
-                    stepPercent: 1,
+                    origin,
+                    next,
+                    index,
+                    stepNode: origin.end,
+                    step: 0,
                 });
                 if (op === false) {
                     return;
                 }
-            } else {
-                throw new TypeError("unsupported");
             }
-            prevNode = entry.end;
         }
     }
 }
@@ -218,15 +227,15 @@ export function vecDist(a, b) {
  *
  * This is a simplified uniform (alpha=0) impl, as that is all Zwift uses.
  */
-export function catmullRomPath(points, {loop, includeEdges}={}) {
+export function catmullRomPath(points, {loop, epsilon}={}) {
     if (loop) {
         points = Array.from(points);
         points.unshift(points[points.length - 1]);
         points.push(...points.slice(1, 3));
     }
-    const start = includeEdges ? 0 : 1;
-    const end = points.length - (includeEdges ? 1 : 2);
-    const path = [{cmd: 'M', end: points[start]}];
+    const start = 0;
+    const end = points.length - 1;
+    const path = [{end: points[start]}];
     for (let i = start; i < end; i++) {
         const p_1 = points[i - 1];
         const p0 = points[i];
@@ -235,7 +244,7 @@ export function catmullRomPath(points, {loop, includeEdges}={}) {
         const meta = p0[3];
         const straight = meta?.straight;
         if (straight) {
-            path.push({cmd: 'L', end: p1});
+            path.push({end: p1});
             continue;
         }
         const A = 6;
@@ -252,9 +261,9 @@ export function catmullRomPath(points, {loop, includeEdges}={}) {
             (p0[1] + B * p1[1] - 1 * p2[1]) * M,
             (p0[2] + B * p1[2] - 1 * p2[2]) * M
         ] : p1;
-        path.push({cmd: 'C', cp1, cp2, end: p1});
+        path.push({cp1, cp2, end: p1});
     }
-    return new CurvePath(path);
+    return new CurvePath(path, {epsilon});
 }
 
 
@@ -273,15 +282,15 @@ function bezierControl(a, b, c, smoothing, invert=false) {
 }
 
 
-export function cubicBezierPath(points, {loop, smoothing=0.2, includeEdges}={}) {
+export function cubicBezierPath(points, {loop, smoothing=0.2, epsilon}={}) {
     if (loop) {
         points = Array.from(points);
         points.unshift(points[points.length - 1]);
         points.push(...points.slice(1, 3));
     }
-    const start = includeEdges ? 0 : 1;
-    const end = points.length - (includeEdges ? 1 : 2);
-    const path = [{cmd: 'M', end: points[start]}];
+    const start = 0;
+    const end = points.length - 1;
+    const path = [{end: points[start]}];
     for (let i = start; i < end; i++) {
         const p_1 = points[i - 1];
         const p0 = points[i];
@@ -290,7 +299,7 @@ export function cubicBezierPath(points, {loop, smoothing=0.2, includeEdges}={}) 
         const meta = i ? p0[3] : null;
         const straight = meta?.straight;
         if (straight) {
-            path.push({cmd: 'L', end: p1});
+            path.push({end: p1});
             continue;
         }
         const tanIn = p1[3]?.tanIn;
@@ -301,9 +310,9 @@ export function cubicBezierPath(points, {loop, smoothing=0.2, includeEdges}={}) 
         const cp2 = tanIn ?
             [p1[0] + tanIn[0], p1[1] + tanIn[1], p1[2] + tanIn[2]] :
             p2 ? bezierControl(p0, p1, p2, smoothing, true) : p1;
-        path.push({cmd: 'C', cp1, cp2, end: p1});
+        path.push({cp1, cp2, end: p1});
     }
-    return new CurvePath(path);
+    return new CurvePath(path, {epsilon});
 }
 
 
@@ -346,14 +355,12 @@ export function roadTimeToPercent(roadTime) {
 
 
 export function roadPathOffsets(roadPercent, length) {
-    // The path should have been created with includeEdges=true  // XXX make this untrue
     const offt = roadPercent * (length - 3) + 1;
     return [offt | 0, offt % 1];
 }
 
 
 export function roadPercentAtOffset(i, length) {
-    // The path should have been created with includeEdges=true  // XXX make this untrue
     return (i - 1) / (length - 3);
 }
 
