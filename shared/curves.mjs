@@ -10,6 +10,30 @@
  */
 
 
+export function lerp(t, a, b) {
+    const s = 1 - t;
+    return [
+        a[0] * s + b[0] * t,
+        a[1] * s + b[1] * t,
+        a[2] * s + b[2] * t
+    ];
+}
+
+
+export function splitBezier(t, start, cp1, cp2, end) {
+    const p4 = lerp(t, start, cp1);
+    const p5 = lerp(t, cp1, cp2);
+    const p6 = lerp(t, cp2, end);
+    const p7 = lerp(t, p4, p5);
+    const p8 = lerp(t, p5, p6);
+    const p9 = lerp(t, p7, p8);
+    return [
+        [start, p4, p7, p9],
+        [p9, p8, p6, end],
+    ];
+}
+
+
 export class CurvePath extends Array {
     constructor(path, {epsilon=0.001}={}) {
         super();
@@ -28,12 +52,14 @@ export class CurvePath extends Array {
         }
     }
 
-    toSVGPath() {
+    toSVGPath({includeEdges}={}) {
         const svg = [];
         const xy = point => `${Math.round(point[0])},${Math.round(point[1])}`;
-        for (let i = 1; i < this.length - 1; i++) {
+        const start = includeEdges ? 0 : 1;
+        const end = includeEdges ? this.length : this.length - 1;
+        for (let i = start; i < end; i++) {
             const x = this[i];
-            if (i === 1) {
+            if (i === start) {
                 svg.push(`M ${xy(x.end)}`);
             } else {
                 if (x.cp1 && x.cp2) {
@@ -57,34 +83,21 @@ export class CurvePath extends Array {
     }
 
     boundsAtRoadPercent(roadPercent) {
-        const [index, pct] = roadPathOffsets(roadPercent, this.length);
-        let bounds;
-        let prev;
-        this.trace(x => {
-            if (x.index === index) {
-                if (x.step >= pct) {
-                    const delta = x.step - pct;
-                    if (!delta) {
-                        bounds = {...x, point: x.stepNode, pointPercent: x.step};
-                    } else {
-                        const prevStep = prev ? prev.step : 0;
-                        const p = (pct - prevStep) / (x.step - prevStep);
-                        const point = pointOnLine(prev ? prev.stepNode : x.origin.end, x.stepNode, p);
-                        bounds = {...x, point, pointPercent: pct};
-                    }
-                    return false;
-                }
-            } else if (x.index > index) {
-                const p = (pct - prev.step) / (1 - prev.step);
-                const point = pointOnLine(prev.stepNode, x.origin.end, p);
-                bounds = {...prev, point, pointPercent: pct};
-                return false;
+        let [index, percent] = roadPathOffsets(roadPercent, this.length);
+        const origin = this[index];
+        const next = this[index + 1];
+        let point;
+        if (next) {
+            if (next.cp1) {
+                point = computeBezier(percent, origin.end, next.cp1, next.cp2, next.end);
             } else {
-                return null; // skip to next node
+                point = pointOnLine(percent, origin.end, next.end);
             }
-            prev = x;
-        });
-        return bounds;
+        } else {
+            point = origin ? origin.end : undefined;
+            percent = 0;
+        }
+        return {index, percent, origin, next, point};
     }
 
     reverse() {
@@ -110,14 +123,33 @@ export class CurvePath extends Array {
     }
 
     subpathAtRoadPercents(startRoadPercent, endRoadPercent) {
+        if (startRoadPercent >= endRoadPercent) {
+            return new CurvePath([], {epsilon: this.epsilon});
+        }
         const start = this.boundsAtRoadPercent(startRoadPercent);
         const end = this.boundsAtRoadPercent(endRoadPercent);
         const subpath = [{end: start.point}];
         for (const x of this.slice(start.index + 1, end.index + 1)) {
             subpath.push({...x});
         }
-        if (end.step) {
-            subpath.push({...end.next, end: end.point});
+        if (end.percent) {
+            if (end.next.cp1) {
+                const [p] = splitBezier(end.percent, end.origin.end, end.next.cp1,
+                                        end.next.cp2, end.next.end);
+                subpath.push({cp1: p[1], cp2: p[2], end: p[3]});
+            } else {
+                subpath.push({end: end.point});
+            }
+        }
+        if (start.percent && start.next.cp1) {
+            let [, p] = splitBezier(start.percent, start.origin.end, start.next.cp1, start.next.cp2,
+                                    start.next.end);
+            if (start.index === end.index) {
+                const percent = (end.percent - start.percent) / (1 - start.percent);
+                [p] = splitBezier(percent, start.point, p[1], p[2], end.point);
+            }
+            subpath[1].cp1 = p[1];
+            subpath[1].cp2 = p[2];
         }
         return new CurvePath(subpath, {epsilon: this.epsilon});
     }
@@ -150,7 +182,7 @@ export class CurvePath extends Array {
             dist += stepDist;
             if (dist > targetDistance) {
                 const diff = (dist - targetDistance) / stepDist;
-                point = pointOnLine(x.stepNode, prevStep, diff);
+                point = pointOnLine(diff, x.stepNode, prevStep);
                 return false;
             } else if (dist === targetDistance) {
                 point = x.stepNode;
@@ -334,7 +366,7 @@ export function computeBezier(t, a, b, c, d) {
 }
 
 
-export function pointOnLine(a, b, t) {
+export function pointOnLine(t, a, b) {
     // t is from 0 -> 1 where 0 = a and 1 = b
     const dx = b[0] - a[0];
     const dy = b[1] - a[1];
