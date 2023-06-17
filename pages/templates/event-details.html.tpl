@@ -22,7 +22,7 @@
                     <div>Starts: +{-humanDuration(sg.startOffset / 1000)-}</div>
                 <% } %>
                 <% if (sg.durationInSeconds) { %>
-                    <div>Duration: {-humanTimer(sg.durationInSeconds, {suffix: true, html: true})-}</div>
+                    <div>Duration: {-humanTimer(sg.durationInSeconds)-}</div>
                 <% } else { %>
                     <div>Distance: {-humanDistance(sg.distanceInMeters || sg.routeDistance, {suffix: true, html: true})-}</div>
                 <% } %>
