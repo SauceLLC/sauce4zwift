@@ -49,8 +49,13 @@ async function _onSearchInput(el) {
     const athleteCards = await athleteCardsPromise;
     let results;
     if (Number(term).toString() === term) {
-        results = [await common.rpc.getAthlete(term)].filter(x => x).map(x =>
-            ({id: x.id, athlete: x}));
+        for (const refresh in [false, true]) {
+            results = [await common.rpc.getAthlete(term, {refresh})].filter(x => x).map(x =>
+                ({id: x.id, athlete: x}));
+            if (results.length) {
+                break;
+            }
+        }
     } else {
         if (term.length < 3) {
             resultsEl.innerHTML = '';
