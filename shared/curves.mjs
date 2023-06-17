@@ -10,6 +10,14 @@
  */
 
 
+export function vecDist(a, b) {
+    const dx = b[0] - a[0];
+    const dy = b[1] - a[1];
+    const dz = b[2] - a[2];
+    return Math.sqrt(dx * dx + dy * dy + dz * dz);
+}
+
+
 export function lerp(t, a, b) {
     const s = 1 - t;
     return [
@@ -34,6 +42,74 @@ export function splitBezier(t, start, cp1, cp2, end) {
 }
 
 
+export function bezierControl(a, b, c, smoothing, invert=false) {
+    const dx = c[0] - a[0];
+    const dy = c[1] - a[1];
+    const dz = c[2] - a[2];
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    const angle = Math.atan2(dy, dx) + (invert ? Math.PI : 0);
+    const length = distance * smoothing;
+    return [
+        b[0] + Math.cos(angle) * length,
+        b[1] + Math.sin(angle) * length,
+        b[2] + dz * (invert ? 1 : -1) * smoothing
+    ];
+}
+
+
+export function computeBezier(t, a, b, c, d) {
+    const T = 1 - t;
+    const x = T * T * T * a[0]
+        + 3 * T * T * t * b[0]
+        + 3 * T * t * t * c[0]
+        + t * t * t * d[0];
+    const y = T * T * T * a[1]
+        + 3 * T * T * t * b[1]
+        + 3 * T * t * t * c[1]
+        + t * t * t * d[1];
+    const z = T * T * T * a[2]
+        + 3 * T * T * t * b[2]
+        + 3 * T * t * t * c[2]
+        + t * t * t * d[2];
+    return [x, y, z];
+}
+
+
+export function pointOnLine(t, a, b) {
+    // t is from 0 -> 1 where 0 = a and 1 = b
+    const dx = b[0] - a[0];
+    const dy = b[1] - a[1];
+    const dz = b[2] - a[2];
+    const angle = Math.atan2(dy, dx);
+    const l = Math.sqrt(dx * dx + dy * dy) * t;
+    return [
+        a[0] + Math.cos(angle) * l,
+        a[1] + Math.sin(angle) * l,
+        a[2] + dz * t
+    ];
+}
+
+
+export function roadTimeToPercent(roadTime) {
+    return (roadTime - 5000) / 1e6;
+}
+
+
+export function roadPathOffsets(roadPercent, length) {
+    const offt = roadPercent * (length - 3) + 1;
+    return [offt | 0, offt % 1];
+}
+
+
+export function roadPercentAtOffset(i, length) {
+    return (i - 1) / (length - 3);
+}
+
+
+export function roadTimeAtOffset(i, length) {
+    roadPercentAtOffset(i, length) * 1e6 + 5000;
+}
+
 export class CurvePath extends Array {
     constructor(path, {epsilon=0.001}={}) {
         super();
@@ -54,7 +130,7 @@ export class CurvePath extends Array {
 
     toSVGPath({includeEdges}={}) {
         const svg = [];
-        const xy = point => `${Math.round(point[0])},${Math.round(point[1])}`;
+        const xy = point => `${point[0]},${point[1]}`;
         const start = includeEdges ? 0 : 1;
         const end = includeEdges ? this.length : this.length - 1;
         for (let i = start; i < end; i++) {
@@ -242,14 +318,6 @@ export class CurvePath extends Array {
 }
 
 
-export function vecDist(a, b) {
-    const dx = b[0] - a[0];
-    const dy = b[1] - a[1];
-    const dz = b[2] - a[2];
-    return Math.sqrt(dx * dx + dy * dy + dz * dz);
-}
-
-
 /**
  * Original author: Nikolas Kyriakides
  * https://gist.github.com/nicholaswmin/c2661eb11cad5671d816
@@ -299,21 +367,6 @@ export function catmullRomPath(points, {loop, epsilon}={}) {
 }
 
 
-function bezierControl(a, b, c, smoothing, invert=false) {
-    const dx = c[0] - a[0];
-    const dy = c[1] - a[1];
-    const dz = c[2] - a[2];
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    const angle = Math.atan2(dy, dx) + (invert ? Math.PI : 0);
-    const length = distance * smoothing;
-    return [
-        b[0] + Math.cos(angle) * length,
-        b[1] + Math.sin(angle) * length,
-        b[2] + dz * (invert ? 1 : -1) * smoothing
-    ];
-}
-
-
 export function cubicBezierPath(points, {loop, smoothing=0.2, epsilon}={}) {
     if (loop) {
         points = Array.from(points);
@@ -345,58 +398,4 @@ export function cubicBezierPath(points, {loop, smoothing=0.2, epsilon}={}) {
         path.push({cp1, cp2, end: p1});
     }
     return new CurvePath(path, {epsilon});
-}
-
-
-export function computeBezier(t, a, b, c, d) {
-    const T = 1 - t;
-    const x = T * T * T * a[0]
-        + 3 * T * T * t * b[0]
-        + 3 * T * t * t * c[0]
-        + t * t * t * d[0];
-    const y = T * T * T * a[1]
-        + 3 * T * T * t * b[1]
-        + 3 * T * t * t * c[1]
-        + t * t * t * d[1];
-    const z = T * T * T * a[2]
-        + 3 * T * T * t * b[2]
-        + 3 * T * t * t * c[2]
-        + t * t * t * d[2];
-    return [x, y, z];
-}
-
-
-export function pointOnLine(t, a, b) {
-    // t is from 0 -> 1 where 0 = a and 1 = b
-    const dx = b[0] - a[0];
-    const dy = b[1] - a[1];
-    const dz = b[2] - a[2];
-    const angle = Math.atan2(dy, dx);
-    const l = Math.sqrt(dx * dx + dy * dy) * t;
-    return [
-        a[0] + Math.cos(angle) * l,
-        a[1] + Math.sin(angle) * l,
-        a[2] + dz * t
-    ];
-}
-
-
-export function roadTimeToPercent(roadTime) {
-    return (roadTime - 5000) / 1e6;
-}
-
-
-export function roadPathOffsets(roadPercent, length) {
-    const offt = roadPercent * (length - 3) + 1;
-    return [offt | 0, offt % 1];
-}
-
-
-export function roadPercentAtOffset(i, length) {
-    return (i - 1) / (length - 3);
-}
-
-
-export function roadTimeAtOffset(i, length) {
-    roadPercentAtOffset(i, length) * 1e6 + 5000;
 }
