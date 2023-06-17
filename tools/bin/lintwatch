@@ -1,7 +1,7 @@
 #!/bin/sh -e
 TOOLS=$(dirname $0)
 while true ; do
-    FILE=$($TOOLS/watch src pages/src shared/sauce '*.js' '*.mjs')
+    FILE=$($TOOLS/watch src pages/src shared/*.mjs shared/sauce '*.js' '*.mjs')
     clear
     $TOOLS/../../node_modules/.bin/eslint --no-ignore "$FILE" && echo CLEAN
 done
