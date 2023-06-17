@@ -811,6 +811,7 @@ message DropInPlayer {
     uint32 power = 18;
     uint32 speed = 19;
     int32 _f20 = 20;
+    bool _f21 = 21;
     float _f22 = 22; // latency value? ~(1 - 3)
 }
 
