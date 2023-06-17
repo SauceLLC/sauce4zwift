@@ -28,6 +28,24 @@ export function lerp(t, a, b) {
 }
 
 
+export function computeBezier(t, a, b, c, d) {
+    const T = 1 - t;
+    const x = T * T * T * a[0]
+        + 3 * T * T * t * b[0]
+        + 3 * T * t * t * c[0]
+        + t * t * t * d[0];
+    const y = T * T * T * a[1]
+        + 3 * T * T * t * b[1]
+        + 3 * T * t * t * c[1]
+        + t * t * t * d[1];
+    const z = T * T * T * a[2]
+        + 3 * T * T * t * b[2]
+        + 3 * T * t * t * c[2]
+        + t * t * t * d[2];
+    return [x, y, z];
+}
+
+
 export function splitBezier(t, start, cp1, cp2, end) {
     const p4 = lerp(t, start, cp1);
     const p5 = lerp(t, cp1, cp2);
@@ -54,24 +72,6 @@ export function bezierControl(a, b, c, smoothing, invert=false) {
         b[1] + Math.sin(angle) * length,
         b[2] + dz * (invert ? 1 : -1) * smoothing
     ];
-}
-
-
-export function computeBezier(t, a, b, c, d) {
-    const T = 1 - t;
-    const x = T * T * T * a[0]
-        + 3 * T * T * t * b[0]
-        + 3 * T * t * t * c[0]
-        + t * t * t * d[0];
-    const y = T * T * T * a[1]
-        + 3 * T * T * t * b[1]
-        + 3 * T * t * t * c[1]
-        + t * t * t * d[1];
-    const z = T * T * T * a[2]
-        + 3 * T * T * t * b[2]
-        + 3 * T * t * t * c[2]
-        + t * t * t * d[2];
-    return [x, y, z];
 }
 
 
