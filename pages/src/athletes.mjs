@@ -49,9 +49,9 @@ async function _onSearchInput(el) {
     const athleteCards = await athleteCardsPromise;
     let results;
     if (Number(term).toString() === term) {
-        for (const refresh in [false, true]) {
-            results = [await common.rpc.getAthlete(term, {refresh})].filter(x => x).map(x =>
-                ({id: x.id, athlete: x}));
+        for (const refresh of [false, true]) {
+            results = [await common.rpc.getAthlete(Number(term), {refresh})]
+                .filter(x => x).map(x => ({id: x.id, athlete: x}));
             if (results.length) {
                 break;
             }
