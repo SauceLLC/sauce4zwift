@@ -53,9 +53,6 @@ export async function main() {
     const cleanupCallbacks = new Set();
     common.initExpanderTable(contentEl.querySelector('table'), async (eventDetailsEl, eventSummaryEl) => {
         const event = events.get(Number(eventSummaryEl.dataset.eventId));
-        if (!event.routeId) {
-            debugger;
-        }
         const route = await getRoute(event.routeId);
         const worldList = await common.getWorldList();
         const world = worldList.find(x =>

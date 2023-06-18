@@ -422,11 +422,13 @@ export const fields = [{
     value: x => {
         const sg = getEventSubgroup(x.state?.eventSubgroupId);
         const icon = ' <ms>route</ms>';
-        if (sg) {
-            return ((sg.laps && sg.laps > 1) ? `${sg.laps} x ` : '') + sg.route.name + icon;
-        } else if (x.state?.routeId) {
-            const route = getRoute(x.state.routeId);
-            return route ? route.name  + icon : '-';
+        const route = getRoute(sg ? sg.routeId : x.state?.routeId);
+        if (route) {
+            if (sg) {
+                return ((sg.laps && sg.laps > 1) ? `${sg.laps} x ` : '') + route.name + icon;
+            } else {
+                return route.name + icon;
+            }
         } else {
             return '-';
         }
