@@ -458,6 +458,9 @@ export class ZwiftAPI {
 
     async fetchJSON(urn, options, headers) {
         const r = await this.fetch(urn, {accept: 'json', ...options}, headers);
+        if (r.status === 204) {
+            return;
+        }
         return await r.json();
     }
 
@@ -476,8 +479,6 @@ export class ZwiftAPI {
             protobuf: 'HashSeeds',
             ...options
         }));
-        // I suspect x.expiryDate could be NaN and breaking things but not sure why yet
-        console.warn("XXX (check x.expireDate for NaN or other non number):", data.seeds);
         return Array.from(data.seeds).map(x => ({
             expiresWorldTime: x.expiryDate.toNumber(),
             nonce: seedToBuffer(x.nonce),
@@ -1176,12 +1177,12 @@ class UDPChannel extends NetChannel {
         const offsets = [];
         const syncComplete = new Promise(resolve => {
             const onPacket = packet => {
-                const now = Date.now();
+                const localTime = Date.now();
                 const sent = syncStamps.get(packet.ackSeqno);
-                const latency = (now - sent) / 2;
-                const offt = now - packet.worldTime.toNumber() + latency;
+                const latency = (localTime - sent) / 2;
+                const offt = localTime - packet.worldTime.toNumber() + latency;
                 offsets.push({latency, offt});
-                if (offsets.length === 5) {
+                if (offsets.length > 4) {
                     // SNTP ...
                     offsets.sort((a, b) => a.latency - b.latency);
                     const mean = offsets.reduce((a, x) => a + x.latency, 0) / offsets.length;
@@ -1189,16 +1190,18 @@ class UDPChannel extends NetChannel {
                     const stddev = Math.sqrt(variance.reduce((a, x) => a + x, 0) / variance.length);
                     const median = offsets[offsets.length / 2 | 0].latency;
                     const validOffsets = offsets.filter(x => Math.abs(x.latency - median) < stddev);
-                    const meanOffset = validOffsets.reduce((a, x) => a + x.offt, 0) / validOffsets.length;
-                    worldTimer.setOffset(meanOffset);
-                    this.off('inPacket', onPacket);
-                    complete = true;
-                    resolve();
+                    if (validOffsets.length > 2) {
+                        const meanOffset = validOffsets.reduce((a, x) => a + x.offt, 0) / validOffsets.length;
+                        worldTimer.setOffset(meanOffset);
+                        this.off('inPacket', onPacket);
+                        complete = true;
+                        resolve();
+                    }
                 }
             };
             this.on('inPacket', onPacket);
         });
-        for (let i = 0; i < 20 && !complete; i++) {
+        for (let i = 1; i < 25 && !complete; i++) {
             // Send hankshake packets with `hello` option (full IV in AAD).  Even if they
             // are dropped the AES decrypt and IV state machine setup will succeed and pave the
             // way for sends that only require `seqno`, even with packet loss on this socket.
@@ -1214,7 +1217,7 @@ class UDPChannel extends NetChannel {
                 worldTime: 0,
             }, {hello: true});
             syncStamps.set(seqno, ts);
-            await Promise.race([sleep(50 * i), syncComplete]);
+            await Promise.race([sleep(20 * i), syncComplete]);
         }
         if (!complete) {
             console.error("Timeout waiting for handshake sync:", this.toString());
@@ -1574,10 +1577,6 @@ export class GameMonitor extends events.EventEmitter {
             hashSeedRemaining - 120 * 1000,
             sessionRemaining - this._sessionRestartSlack / 2);
         if (!expiresIn || expiresIn < 0) {
-            // XXX I'm seeing this condition happen.  Possibly we are getting corrupted hash seeds
-            // due to being kicked. Or possibly corrupted because I was not cleaning up tcp channels
-            // immediately (but am now).  Keep eyes on this..
-            //
             // Internal error
             console.error('Expired session or hash seeds:', {expiresIn, hashSeedRemaining, sessionRemaining});
             throw new TypeError('Expired session or hash seeds');
