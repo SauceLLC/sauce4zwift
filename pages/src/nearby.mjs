@@ -150,7 +150,7 @@ function getRoute({state, routeId}) {
     if (state.eventSubgroupId) {
         const sg = lazyGetSubgroup(state.eventSubgroupId);
         if (sg) {
-            return {route: sg.route, laps: sg.laps};
+            return {route: lazyGetRoute(sg.routeId), laps: sg.laps};
         }
     } else if (state.routeId) {
         return {route: lazyGetRoute(state.routeId), laps: 0};

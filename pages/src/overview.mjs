@@ -19,23 +19,6 @@ common.settingsStore.setDefault({
 });
 
 
-const _events = new Map();
-function getEventSubgroup(id) {
-    if (!_events.has(id)) {
-        _events.set(id, null);
-        common.rpc.getEventSubgroup(id).then(x => {
-            if (x) {
-                _events.set(id, x);
-            } else {
-                // leave it null but allow retry later
-                setTimeout(() => _events.delete(id), 30000);
-            }
-        });
-    }
-    return _events.get(id);
-}
-
-
 export function main() {
     common.initInteractionListeners();
     let autoHidden;
@@ -117,9 +100,6 @@ export function main() {
             autoHideTimeout = setTimeout(autoHide, autoHideWait);
         }
         lastData = watching;
-        if (watching.state.eventSubgroupId) {
-            watching.eventSubgroup = getEventSubgroup(watching.state.eventSubgroupId);
-        }
         renderer.setData(watching);
         const ts = Date.now();
         if (ts - lastUpdate > 500) {
