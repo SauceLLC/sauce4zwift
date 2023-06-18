@@ -1,19 +1,15 @@
 import events from 'node:events';
-import path from 'node:path';
-import fs from 'node:fs';
 import {worldTimer} from './zwift.mjs';
 import {SqliteDatabase, deleteDatabase} from './db.mjs';
 import * as rpc from './rpc.mjs';
 import * as sauce from '../shared/sauce/index.mjs';
 import * as report from '../shared/report.mjs';
-import * as curves from '../shared/curves.mjs';
 import * as zwift from './zwift.mjs';
+import * as env from './env.mjs';
 import {getApp} from './main.mjs';
-import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 
 const monotonic = performance.now;
@@ -83,11 +79,6 @@ function adjRoadDistEstimate(sig, raw) {
         _roadDistExpFuncs[sig] = makeExpWeighted(100);
     }
     return roadDistEstimates[sig] = _roadDistExpFuncs[sig](raw);
-}
-
-
-function getRoadSig(courseId, roadId, reverse) {
-    return courseId << 18 | roadId << 1 | reverse;
 }
 
 
@@ -291,157 +282,6 @@ class ZonesAccumulator extends TimeSeriesAccumulator {
 }
 
 
-const _segmentsByRoadSig = {};
-const _segmentsByCourse = {};
-function getNearbySegments(courseId, roadSig) {
-    if (_segmentsByRoadSig[roadSig] === undefined) {
-        const worldId = zwift.courseToWorldIds[courseId];
-        if (_segmentsByCourse[courseId] === undefined) {
-            const fname = path.join(__dirname, `../shared/deps/data/worlds/${worldId}/segments.json`);
-            try {
-                _segmentsByCourse[courseId] = JSON.parse(fs.readFileSync(fname));
-            } catch(e) {
-                _segmentsByCourse[courseId] = [];
-            }
-            for (const x of _segmentsByCourse[courseId]) {
-                for (const dir of ['Forward', 'Reverse']) {
-                    if (!x['id' + dir]) {
-                        continue;
-                    }
-                    const reverse = dir === 'Reverse';
-                    const segSig = getRoadSig(courseId, x.roadId, reverse);
-                    if (!_segmentsByRoadSig[segSig]) {
-                        _segmentsByRoadSig[segSig] = [];
-                    }
-                    const segment = {
-                        ...x,
-                        reverse,
-                        id: x['id' + dir],
-                        distance: x['distance' + dir],
-                        friendlyName: x['friendlyName' + dir],
-                        roadStart: x['roadStart' + dir],
-                    };
-                    if (!segment.distance) {
-                        continue;  // exclude single direction segments
-                    }
-                    _segmentsByRoadSig[segSig].push(segment);
-                    allSegments.set(segment.id, segment);
-                }
-            }
-        }
-        if (_segmentsByRoadSig[roadSig] === undefined) {
-            _segmentsByRoadSig[roadSig] = null;
-        }
-    }
-    return _segmentsByRoadSig[roadSig];
-}
-
-
-function zToAltitude(courseId, z) {
-    const worldMeta = zwift.worldMetas[courseId];
-    return worldMeta ? (z + worldMeta.waterPlaneLevel) / 100 *
-        worldMeta.physicsSlopeScale + worldMeta.altitudeOffsetHack : null;
-}
-
-
-const _roadsByCourse = {};
-const _roads = {};
-function getRoad(courseId, roadId) {
-    const sig = `${courseId}-${roadId}`;
-    if (_roads[sig] === undefined) {
-        if (_roadsByCourse[courseId] === undefined) {
-            const worldId = zwift.courseToWorldIds[courseId];
-            const fname = path.join(__dirname, `../shared/deps/data/worlds/${worldId}/roads.json`);
-            try {
-                _roadsByCourse[courseId] = JSON.parse(fs.readFileSync(fname));
-            } catch(e) {
-                _roadsByCourse[courseId] = [];
-            }
-        }
-        const road = _roadsByCourse[courseId].find(x => x.id === roadId);
-        if (road) {
-            const curveFunc = {
-                CatmullRom: curves.catmullRomPath,
-                Bezier: curves.cubicBezierPath,
-            }[road.splineType];
-            const curvePath = curveFunc(road.path, {includeEdges: true});
-            const elevations = road.path.map(x => zToAltitude(courseId, x[2]));
-            const gaps = [];
-            const grades = [];
-            const distances = [];
-            let distance = 0;
-            let lastNodeIndex;
-            curvePath.trace(x => {
-                distance += x.prevStep ? curves.vecDist(x.prevStep, x.step) : 0;
-                if (x.nodeIndex !== lastNodeIndex) {
-                    gaps.push(distance - distances.at(-1) || 0);
-                    distances.push(distance);
-                    if (x.prevNode) {
-                        grades.push((x.node[2] - x.prevNode[2]) / gaps.at(-1));
-                    }
-                    lastNodeIndex = x.nodeIndex;
-                }
-            });
-            grades.unshift(grades[0]);
-            debugger;
-            _roads[sig] = {...road, curvePath, elevations, gaps, distance, distances}; // XXX throwing shit at wall
-        } else {
-            _roads[sig] = null;
-        }
-    }
-    return _roads[sig];
-}
-
-
-const _routesByCourse = {};
-const _routes = {};
-function getRouteDetailed(courseId, routeId) {
-    if (_routes[routeId] === undefined) {
-        if (_routesByCourse[courseId] === undefined) {
-            const worldId = zwift.courseToWorldIds[courseId];
-            const fname = path.join(__dirname, `../shared/deps/data/worlds/${worldId}/routes.json`);
-            try {
-                _routesByCourse[courseId] = JSON.parse(fs.readFileSync(fname));
-            } catch(e) {
-                _routesByCourse[courseId] = [];
-            }
-        }
-        const route = _routesByCourse[courseId].find(x => x.id === routeId);
-        if (route) {
-            const p = []; // eslint-ignore-this-line
-            for (let i = 0; i < route.checkpoints.length - 1; i++) {
-                let p0 = route.checkpoints[i];
-                let p1 = route.checkpoints[i + 1];
-                const p0Sig = `${p0.roadId}-${p0.reverse}-${p0.leadin}`;
-                const p1Sig = `${p1.roadId}-${p1.reverse}-${p1.leadin}`;
-                if (p0Sig === p1Sig) {
-                    if (p0.reverse) {
-                        [p1, p0] = [p0, p1];
-                    }
-                    const road = getRoad(courseId, p0.roadId);
-                    let subpath = road.curvePath.subpathAtRoadPercents(p0.roadPercent, p1.roadPercent);
-                    if (p0.reverse) {
-                        subpath = subpath.reverse();
-                    }
-                    if (p.length) {
-                        // XXX use proper join method from curves lib
-                        subpath.shift();
-                    }
-                    for (const x of subpath) {
-                        // XXX use proper join method from curves lib
-                        p.push(x);
-                    }
-                }
-            }
-            _routes[routeId] = {...route, path: p};
-        } else {
-            _routes[routeId] = null;
-        }
-    }
-    return _routes[routeId];
-}
-
-
 export class StatsProcessor extends events.EventEmitter {
     constructor(options={}) {
         super();
@@ -466,7 +306,6 @@ export class StatsProcessor extends events.EventEmitter {
         this._chatHistory = [];
         this._recentEvents = new Map();
         this._recentEventSubgroups = new Map();
-        this._routes = new Map();
         this._mostRecentNearby = [];
         this._mostRecentGroups = [];
         this._markedIds = new Set();
@@ -506,7 +345,6 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.getEvents, {scope: this});
         rpc.register(this.getEventSubgroup, {scope: this});
         rpc.register(this.getEventSubgroupEntrants, {scope: this});
-        rpc.register(this.getRoute, {scope: this});
         rpc.register(this.resetAthletesDB, {scope: this});
         rpc.register(this.getChatHistory, {scope: this});
         rpc.register(this.setFollowing, {scope: this});
@@ -619,20 +457,6 @@ export class StatsProcessor extends events.EventEmitter {
             });
         }
         return entrants;
-    }
-
-    getRoute(id, options={}) {
-        const route = this._routes.get(id);
-        if (route && options.detailed) {
-            const world = Object.values(zwift.worldMetas).find(x => x.stringId === route.world);
-            if (world) {
-                const detailed = getRouteDetailed(world.courseId, id);
-                if (detailed) {
-                    return {...detailed, ...route};
-                }
-            }
-        }
-        return route;
     }
 
     getChatHistory() {
@@ -1189,7 +1013,7 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _roadSig(state) {
-        return getRoadSig(state.courseId, state.roadId, state.reverse);
+        return env.getRoadSig(state.courseId, state.roadId, state.reverse);
     }
 
     _getCollectorStats(cs, ad, athlete) {
@@ -1577,7 +1401,7 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _activeSegmentCheck(state, ad, roadSig) {
-        const segments = getNearbySegments(state.courseId, roadSig);
+        const segments = env.getNearbySegments(state.courseId, roadSig);
         if (!segments || !segments.length) {
             return;
         }
@@ -1604,7 +1428,7 @@ export class StatsProcessor extends events.EventEmitter {
 
     _formatNearbySegments(ad, roadSig) {
         const state = ad.mostRecentState;
-        const segments = getNearbySegments(state.courseId, roadSig);
+        const segments = env.getNearbySegments(state.courseId, roadSig);
         if (!segments || !segments.length) {
             return [];
         }
@@ -1709,18 +1533,10 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     async __zwiftMetaSync() {
-        if (!this._routes.size) {
-            const gameInfo = await this.zwiftAPI.getGameInfo();
-            for (const x of gameInfo.maps) {
-                for (const xx of x.routes) {
-                    this._routes.set(xx.id, {world: x.name, ...xx});
-                }
-            }
-        }
         let addedEventsCount = 0;
         const zEvents = await this.zwiftAPI.getEventFeed();
         for (const x of zEvents) {
-            const route = this._routes.get(x.routeId);
+            const route = env.getRoute(x.routeId);
             if (route) {
                 x.routeDistance = this._getRouteDistance(route, x.laps);
                 x.routeClimbing = this._getRouteClimbing(route, x.laps);
@@ -1731,21 +1547,22 @@ export class StatsProcessor extends events.EventEmitter {
             this._recentEvents.set(x.id, x);
             if (x.eventSubgroups) {
                 for (const sg of x.eventSubgroups) {
-                    const rt = this._routes.get(sg.routeId);
+                    const rt = env.getRoute(sg.routeId);
                     if (rt) {
                         sg.routeDistance = this._getRouteDistance(rt, sg.laps);
                         sg.routeClimbing = this._getRouteClimbing(rt, sg.laps);
                     }
                     sg.startOffset = +(new Date(sg.eventSubgroupStart)) - +(new Date(x.eventStart));
                     sg.allTags = new Set([...this._parseEventTags(sg), ...x.allTags]);
-                    this._recentEventSubgroups.set(sg.id, {event: x, route: rt, ...sg});
+                    this._recentEventSubgroups.set(sg.id, {event: x, ...sg});
                 }
             }
         }
         // XXX is this fixed now? We are using the same query args as the game now..
         const someMeetups = await this.zwiftAPI.getPrivateEventFeed();
         for (const x of someMeetups) {
-            x.routeDistance = this.getRouteDistance(x.routeId, x.laps);
+            x.routeDistance = this.getRouteDistance(x.routeId, x.laps, 'meetup');
+            x.routeClimbing = this.getRouteClimbing(x.routeId, x.laps, 'meetup');
             x.type = 'EVENT_TYPE_MEETUP';
             x.totalEntrantCount = x.acceptedTotalCount;
             x.eventSubgroups = [];
@@ -1755,11 +1572,7 @@ export class StatsProcessor extends events.EventEmitter {
             this._recentEvents.set(x.id, x);
             if (x.eventSubgroupId) {
                 // Meetups are basicaly a hybrid event/subgroup
-                this._recentEventSubgroups.set(x.eventSubgroupId, {
-                    event: x,
-                    route: this._routes.get(x.routeId),
-                    ...x
-                });
+                this._recentEventSubgroups.set(x.eventSubgroupId, {event: x, ...x});
             }
         }
         let backoff = 100;
@@ -1995,39 +1808,40 @@ export class StatsProcessor extends events.EventEmitter {
         return o;
     }
 
-    getRouteDistance(routeId, laps=1) {
-        const route = this._routes.get(routeId);
+    getRouteDistance(routeId, laps=1, leadinType) {
+        const route = env.getRoute(routeId);
         if (route) {
-            return this._getRouteDistance(route, laps);
+            return this._getRouteDistance(route, laps, leadinType);
         }
     }
 
-    _getRouteDistance(route, laps=1) {
-        /* XXX: These are the leadin props in the XML data...
-         *
-         * defaultLeadinDistanceInMeters
-         * freeRideLeadinDistanceInMeters
-         * leadinDistanceInMeters
-         * meetupLeadinDistanceInMeters
-         */
-        if (route.distanceInMetersFromEventStart) {
-            console.warn("Investigate dist from event start value",
-                         route.distanceInMetersFromEventStart);
-            // Probably we need to add this to the distance. XXX
-            debugger;
-        }
-        return route.leadinDistanceInMeters + (route.distanceInMeters * (laps || 1));
+    _getRouteDistance(route, laps=1, leadinType='event') {
+        const leadin = {
+            event: route.leadinDistanceInMeters,
+            meetup: route.meetupLeadinDistanceInMeters,
+            freeride: route.freeRideLeadinDistanceInMeters,
+        }[leadinType];
+        return (leadin || 0) +
+            (route.distanceInMeters * (laps || 1)) -
+            (route.distanceBetweenFirstLastLrCPsInMeters || 0);
     }
 
-    getRouteClimbing(routeId, laps=1) {
-        const route = this._routes.get(routeId);
+    getRouteClimbing(routeId, laps=1, leadinType) {
+        const route = env.getRoute(routeId);
         if (route) {
-            return this._getRouteClimbing(route, laps);
+            return this._getRouteClimbing(route, laps, leadinType);
         }
     }
 
-    _getRouteClimbing(route, laps=1) {
-        return route.leadinAscentInMeters + (route.ascentInMeters * (laps || 1));
+    _getRouteClimbing(route, laps=1, leadinType='event') {
+        const leadin = {
+            event: route.leadinAscentInMeters,
+            meetup: route.meetupLeadinAscentInMeters,
+            freeride: route.freeRideLeadinAscentInMeters,
+        }[leadinType];
+        return (leadin || 0) +
+            (route.ascentInMeters * (laps || 1)) -
+            (route.ascentBetweenFirstLastLrCPsInMeters || 0);
     }
 
     _getEventOrRouteInfo(state) {
@@ -2046,7 +1860,7 @@ export class StatsProcessor extends events.EventEmitter {
                     remainingType: 'event',
                 };
             } else {
-                const distance = sg.distanceInMeters || this._getRouteDistance(sg.route, sg.laps);
+                const distance = sg.distanceInMeters || this.getRouteDistance(sg.routeId, sg.laps);
                 return {
                     eventLeader,
                     eventSweeper,
@@ -2055,10 +1869,10 @@ export class StatsProcessor extends events.EventEmitter {
                     remainingType: 'event',
                 };
             }
-        } else if (state.routeId) {
-            const route = this._routes.get(state.routeId);
+        } else if (state.routeId != null) {
+            const route = env.getRoute(state.routeId);
             if (route) {
-                const distance = this._getRouteDistance(route);
+                const distance = this._getRouteDistance(route, 1, 'freeride');
                 return {
                     remaining: distance - (state.progress * distance),
                     remainingMetric: 'distance',
