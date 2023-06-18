@@ -181,7 +181,6 @@
 
             .highlight {
                 stroke-width: calc(8em + (1 / var(--zoom) * 7em));
-                stroke-width: 2em;
                 stroke: #cf0606b0;
             }
 
@@ -196,7 +195,6 @@
 
                 &.active {
                     stroke: #ff3939bf;
-                    stroke-width: 0em; // XXX
                     filter: drop-shadow(0 0 4em #000d);
                 }
 
