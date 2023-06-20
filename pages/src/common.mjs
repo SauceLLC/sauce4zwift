@@ -396,22 +396,6 @@ export function getWorldList() {
 }
 
 
-const _roads = new Map();
-export function getRoads(worldId) {
-    if (!_roads.has(worldId)) {
-        _roads.set(worldId, (async () => {
-            const r = await fetch(`/shared/deps/data/worlds/${worldId}/roads.json`);
-            if (!r.ok) {
-                console.error("Failed to get roads for:", worldId, r.status);
-                return [];
-            }
-            return await r.json();
-        })());
-    }
-    return _roads.get(worldId);
-}
-
-
 const _segments = new Map();
 export function getSegments(worldId) {
     if (!_segments.has(worldId)) {
@@ -425,6 +409,36 @@ export function getSegments(worldId) {
         })());
     }
     return _segments.get(worldId);
+}
+
+
+const _roads = new Map();
+export function getRoads(courseId) {
+    if (!_roads.has(courseId)) {
+        _roads.set(courseId, rpcCall('getRoads', courseId).then(async roads => {
+            const curves = await import('/shared/curves.mjs');
+            for (const x of roads) {
+                x.curvePath = new curves.CurvePath(x.curvePath);
+            }
+            return roads;
+        }));
+    }
+    return _roads.get(courseId);
+}
+
+
+const _routes = new Map();
+export function getRoute(id) {
+    if (!_routes.has(id)) {
+        _routes.set(id, rpcCall('getRoute', id).then(async route => {
+            const curves = await import('/shared/curves.mjs');
+            if (route) {
+                route.curvePath = new curves.CurvePath(route.curvePath);
+            }
+            return route;
+        }));
+    }
+    return _routes.get(id);
 }
 
 
@@ -1529,6 +1543,16 @@ export async function enableSentry() {
         });
         report.setSentry(Sentry);
     }
+}
+
+
+export function asyncSerialize(asyncFunc) {
+    let p = Promise.resolve();
+    const fn = function() {
+        return (p = p.finally(() => asyncFunc.apply(this, arguments)));
+    };
+    Object.defineProperty(fn, 'name', {value: 'serialized ' + asyncFunc.name});
+    return fn;
 }
 
 
