@@ -189,7 +189,7 @@ export class CurvePath extends Array {
                 output.push({end: cursor});
             }
         }
-        return new CurvePath(output);
+        return new CurvePath(output, {epsilon: this.epsilon});
     }
 
     subpathAtRoadTimes(startRoadTime, endRoadTime) {
@@ -244,12 +244,12 @@ export class CurvePath extends Array {
         return this.pointAtRoadPercent(roadTimeToPercent(roadTime));
     }
 
-    pointAtRoadPercent(roadPercent) {
+    pointAtRoadPercent(roadPercent, t) {
         const bounds = this.boundsAtRoadPercent(roadPercent);
         return bounds && bounds.point;
     }
 
-    pointAtDistance(targetDistance) {
+    pointAtDistance(targetDistance, t) {
         let point;
         let dist = 0;
         let prevStep;
@@ -265,17 +265,17 @@ export class CurvePath extends Array {
                 return false;
             }
             prevStep = x.stepNode;
-        });
+        }, t);
         return point;
     }
 
-    distance() {
+    distance(t) {
         let dist = 0;
         let prevStep;
         this.trace(x => {
             dist += prevStep ? vecDist(prevStep, x.stepNode) : 0;
             prevStep = x.stepNode;
-        });
+        }, t);
         return dist;
     }
 
@@ -288,30 +288,15 @@ export class CurvePath extends Array {
             if (next && next.cp1 && next.cp2) {
                 for (let step = 0; step < 1; step += t) {
                     const stepNode = computeBezier(step, origin.end, next.cp1, next.cp2, next.end);
-                    const op = callback({
-                        origin,
-                        next,
-                        index,
-                        stepNode,
-                        step,
-                    });
+                    const op = callback({origin, next, index, stepNode, step});
                     if (op === false) {
                         return;
                     } else if (op === null) {
                         break;
                     }
                 }
-            } else {
-                const op = callback({
-                    origin,
-                    next,
-                    index,
-                    stepNode: origin.end,
-                    step: 0,
-                });
-                if (op === false) {
-                    return;
-                }
+            } else if (callback({origin, next, index, stepNode: origin.end, step: 0}) === false) {
+                return;
             }
         }
     }
