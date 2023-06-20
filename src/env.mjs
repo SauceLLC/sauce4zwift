@@ -187,7 +187,20 @@ export function getRoute(routeId) {
             // Only need these for validation..
             delete p0.pos;
             delete p1.pos;
-            if (p0Sig !== p1Sig || p0.forceSplit) {
+            if (p0.forceSplit) {
+                continue;
+            } else if (p0Sig !== p1Sig) {
+                const p_1 = route.checkpoints[i - 1];
+                if (p_1 != null && `${p_1.roadId}-${!!p_1.reverse}-${!!p_1.leadin}` !== p0Sig) {
+                    const road = getRoad(courseId, p0.roadId);
+                    const point = road.curvePath.pointAtRoadPercent(p0.roadPercent);
+                    curvePath.push({
+                        end: point,
+                        leadin: p0.leadin ? true : undefined,
+                        i,
+                    });
+                    console.warn("inspect this", i, route.id, route.name, {courseId}); // XXX
+                }
                 continue;
             }
             if (p0.reverse) {
@@ -204,15 +217,14 @@ export function getRoute(routeId) {
             if (p0.reverse) {
                 subpath = subpath.reverse();
             }
-            if (leadin) {
-                for (const x of subpath) {
-                    x.leadin = true;
-                }
+            for (const x of subpath) {
+                x.i = i;
+                x.leadin = leadin ? true : undefined;
             }
             curvePath.extend(subpath);
         }
         const extra = supplimentPath(courseId, curvePath);
-        const delta = Math.abs(extra.distances.at(-1) - (route.distanceInMeters + (route.leadinDistanceInMeters || 0) - (route.distanceBetweenFirstLastLrCPsInMeters || 0)));
+        const delta = Math.abs(extra.distances.at(-1) - (route.distanceInMeters + (route.leadinDistanceInMeters || 0) - (route.distanceBetweenFirstLastLrCPsInMeters || 0))); // XXX
         if (delta > 1000) {
             console.warn(extra.distances.at(-1), delta, route);
         }

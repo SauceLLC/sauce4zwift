@@ -3,7 +3,6 @@ import * as common from './common.mjs';
 import {Color} from './color.mjs';
 import * as ec from '../deps/src/echarts.mjs';
 import * as theme from './echarts-sauce-theme.mjs';
-import * as curves from '/shared/curves.mjs';
 
 locale.setImperial(!!common.storage.get('/imperialUnits'));
 ec.registerTheme('sauce', theme.getTheme('dynamic'));
@@ -82,6 +81,7 @@ export class SauceElevationProfile {
         this.roads = null;
         this.road = null;
         this.route = null;
+        this._routeId = null;
         this.reverse = null;
         this.marks = new Map();
         this._distances = null;
@@ -148,18 +148,17 @@ export class SauceElevationProfile {
         this.renderAthleteStates([], /*force*/ true);
     }
 
-    async setCourse(id) {
-        console.debug("Setting new course:", id);
+    setCourse = common.asyncSerialize(async function(id) {
         if (id === this.courseId) {
             return;
         }
-        const worldId = this.worldList.find(x => x.courseId === id).worldId;
-        this.roads = await common.getRoads(worldId);
         this.courseId = id;
         this.road = null;
         this.route = null;
+        this._routeId = null;
         this.marks.clear();
-    }
+        this.roads = await common.getRoads(id);
+    });
 
     setAthlete(id) {
         console.debug("Setting self-athlete:", id);
@@ -193,62 +192,45 @@ export class SauceElevationProfile {
 
     setRoad(id, reverse=false) {
         this.route = null;
+        this._routeId = null;
         this.road = this.roads.find(x => x.id === id);
         this.reverse = reverse;
         this._roadSigs = new Set([`${id}-${!!reverse}`]);
         this.setData(this.road.distances, this.road.elevations, this.road.grades, {reverse});
     }
 
-    parseRouteXXX(route) {
-        const combined = [];
-        for (let i = 0; i < route.checkpoints.length - 1; i++) {
-            let p0 = route.checkpoints[i];
-            let p1 = route.checkpoints[i + 1];
-            const p0Sig = `${p0.roadId}-${p0.reverse}-${p0.leadin}`;
-            const p1Sig = `${p1.roadId}-${p1.reverse}-${p1.leadin}`;
-            if (p0Sig === p1Sig) {
-                if (p0.reverse) {
-                    [p1, p0] = [p0, p1];
-                }
-                const road = this.roads.find(x => x.id === p0.roadId);
-                let subpath = road.curvePath.subpathAtRoadPercents(p0.roadPercent, p1.roadPercent);
-                if (p0.reverse) {
-                    subpath = subpath.reverse();
-                }
-                if (combined.length) {
-                    // XXX use proper join method from curves lib
-                    subpath.shift();
-                }
-                for (const x of subpath) {
-                    // XXX use proper join method from curves lib
-                    combined.push(x);
-                }
-            }
-        }
-        return combined;
-    }
-
-    async setRoute(id, laps=1) {
+    setRoute = common.asyncSerialize(async function(id, laps=1) {
         this.road = null;
         this.reverse = null;
-        this.route = await common.rpc.getRoute(id, {detailed: true});
+        this._routeId = id;
         this._roadSigs = new Set();
+        this.route = await common.getRoute(id);
         for (const {roadId, reverse} of this.route.checkpoints) {
             this._roadSigs.add(`${roadId}-${!!reverse}`);
         }
-        const routePath = this.parseRouteXXX(this.route);
-        this.map.addHighlightPath(new curves.CurvePath(routePath), 'route'); // XXX
-        return;
         const distances = Array.from(this.route.distances);
         const elevations = Array.from(this.route.elevations);
         const grades = Array.from(this.route.grades);
         const distance = distances.at(-1);
         const markLines = [];
+        const leadin = this.route.curvePath.filter(x => x.leadin);
+        if (leadin.length) {
+            markLines.push({
+                xAxis: distances[leadin.length - 1],
+                lineStyle: {width: 2, type: 'solid'},
+                label: {
+                    position: 'insideStartTop',
+                    formatter: `LAP 1`
+                }
+            });
+        }
         for (let lap = 1; lap < laps; lap++) {
-            // NOTE: we assume no route isn't going to blow up the stack (~120k entries)
-            distances.push(...this.route.distances.map(x => x + lap * distance));
-            elevations.push(...this.route.elevations);
-            grades.push(...this.route.grades);
+            for (let i = leadin.length; i < this.route.distances.length; i++) {
+                distances.push(distances.at(-1) + this.route.distances[i] -
+                               (this.route.distances[i - 1] || 0));
+                elevations.push(this.route.elevations[i]);
+                grades.push(this.route.grades[i]);
+            }
             markLines.push({
                 xAxis: distance * lap,
                 lineStyle: {width: 2, type: 'solid'},
@@ -259,8 +241,7 @@ export class SauceElevationProfile {
             });
         }
         this.setData(distances, elevations, grades, {markLines});
-    }
-
+    });
 
     setData(distances, elevations, grades, options={}) {
         this._distances = distances;
@@ -343,7 +324,7 @@ export class SauceElevationProfile {
             }
             if (this.preferRoute) {
                 if (watching.routeId) {
-                    if (!this.route || this.route.id !== watching.routeId) {
+                    if (this._routeId !== watching.routeId) {
                         let sg;
                         if (watching.eventSubgroupId) {
                             sg = await common.rpc.getEventSubgroup(watching.eventSubgroupId);
@@ -352,14 +333,14 @@ export class SauceElevationProfile {
                         if (sg && sg.routeId === watching.routeId) {
                             await this.setRoute(sg.routeId, sg.laps);
                         } else {
-                            await this.setRoute(watching.routeId, 2); // XXX
+                            await this.setRoute(watching.routeId);
                         }
                     }
                 } else {
                     this.route = null;
                 }
             }
-            if (!this.route) {
+            if (!this._routeId) {
                 if (!this.road || this.road.id !== watching.roadId || this.reverse !== watching.reverse) {
                     this.setRoad(watching.roadId, watching.reverse);
                 }

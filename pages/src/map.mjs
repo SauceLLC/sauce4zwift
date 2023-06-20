@@ -549,7 +549,7 @@ export class SauceZwiftMap extends EventTarget {
         this.trackingPaused = false;
     }
 
-    async _updateMapBackground() {
+    _updateMapBackground = common.asyncSerialize(async function() {
         const suffix = {
             default: '',
             neon: '-neon',
@@ -570,7 +570,7 @@ export class SauceZwiftMap extends EventTarget {
         canvas.height = img.naturalHeight;
         ctx.drawImage(img, 0, 0);
         this._adjustLayerScale({force: true});
-    }
+    });
 
     incPause() {
         this._pauseRefCnt++;
@@ -596,9 +596,8 @@ export class SauceZwiftMap extends EventTarget {
         return this._pauseRefCnt > 0;
     }
 
-    async setCourse(courseId) {
+    setCourse = common.asyncSerialize(async function(courseId) {
         if (courseId === this.courseId) {
-            console.warn("debounce setCourse");
             return;
         }
         this.incPause();
@@ -607,7 +606,7 @@ export class SauceZwiftMap extends EventTarget {
         } finally {
             this.decPause();
         }
-    }
+    });
 
     async _setCourse(courseId) {
         this.courseId = courseId;
@@ -630,10 +629,10 @@ export class SauceZwiftMap extends EventTarget {
         this._ents.clear();
         this._pendingEntityUpdates.clear();
         const [roads] = await Promise.all([
-            common.getRoads(this.worldMeta.worldId),
+            common.getRoads(courseId),
             this._updateMapBackground(),
         ]);
-        this._roads = roads;
+        this._roads = roads; // XXX
         this._renderRoads(roads);
     }
 
@@ -689,17 +688,16 @@ export class SauceZwiftMap extends EventTarget {
                 console.error("Road not found:", id);
                 continue;
             }
-            if (!road.sports.includes('cycling') && !road.sports.includes('running')) {
+            if ((!road.sports.includes('cycling') && !road.sports.includes('running')) || !road.isAvailable) {
                 continue;
             }
-            const path = this._createCurvePath(road.path, road.looped, road.splineType);
             this._elements.roadDefs.append(createElementSVG('path', {
                 id: `road-path-${id}`,
-                d: path.toSVGPath()
+                d: road.curvePath.toSVGPath()
             }));
             for (const g of [gutters, surfacesLow]) {
                 g.append(createElementSVG('use', {
-                    "class": road.sports.map(x => 'road sport-' + x).join(' '),
+                    "class": 'road ' + road.sports.map(x => `sport-${x}`).join(' '),
                     "data-id": id,
                     "href": `#road-path-${id}`,
                 }));
@@ -727,6 +725,7 @@ export class SauceZwiftMap extends EventTarget {
 
     setActiveRoad(id) {
         this.roadId = id;
+        return;
         const surface = this._elements.roadLayers.surfacesMid;
         let r = surface.querySelector('.road.active');
         if (!r) {
@@ -771,35 +770,43 @@ export class SauceZwiftMap extends EventTarget {
         });
     }
 
-    addHighlightPath(path, id) {
-        for (let i = 0; i < path.length - 1; i++) {
-            this.drawCircle(path[i].end, {color: '#40ba', borderColor: 'black', size: 4, "title": i});
-            if (path[i].cmd === 'C') {
-                this.drawLine(path[i].cp1, path[i - 1].end, {layer: 'mid'});
-                this.drawLine(path[i].cp2, path[i].end, {layer: 'mid'});
-                this.drawCircle(path[i].cp1, {color: '#000b', size: 3, title: `cp1-${i}`});
-                this.drawCircle(path[i].cp2, {color: '#fffb', size: 3, title: `cp2-${i}`});
+    addHighlightPath(path, id, {debug, includeEdges=true}={}) {
+        const elements = [];
+        if (debug) {
+            for (let i = 0; i < path.length; i++) {
+                elements.push(this.drawCircle(path[i].end, {
+                    color: '#40ba',
+                    borderColor: 'black',
+                    size: 4,
+                    title: i
+                }));
+                if (path[i].cp1) {
+                    if (i) {
+                        elements.push(this.drawLine(path[i].cp1, path[i - 1].end, {layer: 'mid'}));
+                        elements.push(this.drawCircle(path[i].cp1, {color: '#000b', size: 3,
+                                                                    title: `cp1-${i}`}));
+                    }
+                    elements.push(this.drawLine(path[i].cp2, path[i].end, {layer: 'mid'}));
+                    elements.push(this.drawCircle(path[i].cp2, {color: '#fffb', size: 3, title: `cp2-${i}`}));
+                }
+            }
+            if (path.length) {
+                elements.push(this.drawCircle(path[0].end, {color: '#0f09', size: 8, title: 'start'}));
+                elements.push(this.drawCircle(path.at(-1).end, {color: '#f009', size: 8, title: 'end'}));
             }
         }
-        this.drawCircle(path[0].end, {color: '#0f09', size: 8, title: 'start'});
-        this.drawCircle(path.at(-1).end, {color: '#f009', size: 8, title: 'end'});
-
-        const pathDef = createElementSVG('path', {
-            id: `highlight-path-${id}`,
-            d: path.toSVGPath(),
-        });
-        this._elements.roadDefs.append(pathDef);
-        const node = createElementSVG('use', {
-            "class": `highlight`,
+        const node = createElementSVG('path', {
+            class: `highlight`,
             "data-id": id,
-            "href": `#highlight-path-${id}`,
+            d: path.toSVGPath({includeEdges}),
         });
         this._elements.roadLayers.surfacesHigh.append(node);
-        return {pathDef, node};
+        elements.push(node);
+        return {id, path, elements};
     }
 
-    addHighlightLine(points, id, loop) {
-        return this.addHighlightPath(this._createCurvePath(points, loop), id);
+    addHighlightLine(points, id, loop, options) {
+        return this.addHighlightPath(this._createCurvePath(points, loop), id, options);
     }
 
     addEntity(ent) {
@@ -926,15 +933,21 @@ export class SauceZwiftMap extends EventTarget {
                 if (!this.fooEnt) {
                     this.fooEnt = new MapEntity('foo', 'athlete');
                     this.fooEnt.transition.setDuration(250);
-                    this.fooEnt.el.classList.add('following');
+                    this.fooEnt.el.classList.add('watching');
                     this.fooEnt.setPosition([10000, 10000]);
                     this.addEntity(this.fooEnt);
                 }
+                if (!globalThis.testEnt) {
+                    globalThis.testEnt = new MapEntity('test', 'athlete');
+                    testEnt.transition.setDuration(250);
+                    testEnt.el.classList.add('bot');
+                    testEnt.setPosition([0, 0]);
+                    this.addEntity(testEnt);
+                }
                 //XXX ...
-                const road = this._roads ? this._roads[state.roadId] : null;
+                const road = this._roads ? this._roads.find(x => x.id === state.roadId) : null;
                 if (road) {
-                    const path = this._createCurvePath(road.path, road.looped, road.splineType);
-                    const posAtTime = path.pointAtRoadTime(state.roadTime);
+                    const posAtTime = road.curvePath.pointAtRoadTime(state.roadTime);
                     this.fooEnt.setPosition(posAtTime);
                 }
                 if (this.autoHeading) {
