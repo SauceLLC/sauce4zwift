@@ -81,7 +81,7 @@ export class SauceElevationProfile {
         this.roads = null;
         this.road = null;
         this.route = null;
-        this._routeId = null;
+        this.routeId = null;
         this.reverse = null;
         this.marks = new Map();
         this._distances = null;
@@ -155,7 +155,7 @@ export class SauceElevationProfile {
         this.courseId = id;
         this.road = null;
         this.route = null;
-        this._routeId = null;
+        this.routeId = null;
         this.marks.clear();
         this.roads = await common.getRoads(id);
     });
@@ -192,7 +192,7 @@ export class SauceElevationProfile {
 
     setRoad(id, reverse=false) {
         this.route = null;
-        this._routeId = null;
+        this.routeId = null;
         this.road = this.roads.find(x => x.id === id);
         this.reverse = reverse;
         this._roadSigs = new Set([`${id}-${!!reverse}`]);
@@ -202,7 +202,7 @@ export class SauceElevationProfile {
     setRoute = common.asyncSerialize(async function(id, laps=1) {
         this.road = null;
         this.reverse = null;
-        this._routeId = id;
+        this.routeId = id;
         this._roadSigs = new Set();
         this.route = await common.getRoute(id);
         for (const {roadId, reverse} of this.route.checkpoints) {
@@ -302,13 +302,13 @@ export class SauceElevationProfile {
         });
     }
 
-    renderAthleteStates(states, force) {
+    async renderAthleteStates(states, force) {
         if (this.watchingId == null || this._busy) {
             return;
         }
         this._busy = true;
         try {
-            return this._renderAthleteStates(states, force);
+            return await this._renderAthleteStates(states, force);
         } finally {
             this._busy = false;
         }
@@ -324,7 +324,7 @@ export class SauceElevationProfile {
             }
             if (this.preferRoute) {
                 if (watching.routeId) {
-                    if (this._routeId !== watching.routeId) {
+                    if (this.routeId !== watching.routeId) {
                         let sg;
                         if (watching.eventSubgroupId) {
                             sg = await common.rpc.getEventSubgroup(watching.eventSubgroupId);
@@ -338,9 +338,10 @@ export class SauceElevationProfile {
                     }
                 } else {
                     this.route = null;
+                    this.routeId = null;
                 }
             }
-            if (!this._routeId) {
+            if (!this.routeId) {
                 if (!this.road || this.road.id !== watching.roadId || this.reverse !== watching.reverse) {
                     this.setRoad(watching.roadId, watching.reverse);
                 }

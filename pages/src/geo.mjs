@@ -79,6 +79,7 @@ function createZwiftMap({worldList}) {
         verticalOffset: settings.verticalOffset / 100,
         fpsLimit: settings.fpsLimit || 30,
         zoomPriorityTilt: getSetting('zoomPriorityTilt', true),
+        preferRoute: settings.routeProfile !== false,
     });
     let settingsSaveTimeout;
     zm.addEventListener('zoom', ev => {
@@ -184,7 +185,6 @@ export async function main() {
     window.zwiftMap = zwiftMap;  // DEBUG
     window.MapEntity = map.MapEntity;
     elProfile = settings.profileOverlay && createElevationProfile({worldList});
-if (elProfile) elProfile.map = zwiftMap; // XXX
     const urlQuery = new URLSearchParams(location.search);
     if (urlQuery.has('testing')) {
         const [course, road] = urlQuery.get('testing').split(',');
@@ -228,36 +228,6 @@ if (elProfile) elProfile.map = zwiftMap; // XXX
             }
         }
     }
-    const route = await common.getRoute(Number(urlQuery.get('route')));
-    let xxx;
-    let start = 0;
-    let end = route.curvePath.length;
-    if (route) {
-        const courseId = worldList.find(x => x.worldId === route.worldId).courseId;
-        await zwiftMap.setCourse(courseId);
-        console.log('route', courseId, route);
-    }
-    window.addEventListener('keydown', ev => {
-        if (ev.key === 'ArrowRight') {
-            end = Math.min(route.curvePath.length, end + 1);
-        } else if (ev.key === 'ArrowLeft') {
-            end = Math.max(start, end - 1);
-        } else if (ev.key === 'ArrowUp') {
-            start = Math.min(end, start + 1);
-        } else if (ev.key === 'ArrowDown') {
-            start = Math.max(0, start - 1);
-        } else {
-            return;
-        }
-        if (xxx) {
-            xxx.elements.forEach(x => x.remove());
-        }
-        const path = route.curvePath.slice(start, end);
-        console.log(start, end, route.distances[end - 1] - route.distances[start], route.curvePath[start]);
-        xxx = zwiftMap.addHighlightPath(path, `route-${route.id}`, {debug: true}); // XXX
-    });
-    xxx = zwiftMap.addHighlightPath(route.curvePath.slice(start, end),
-        `route-${route.id}`, {debug: true}); // XXX
     common.settingsStore.addEventListener('changed', ev => {
         const changed = ev.data.changed;
         if (changed.has('solidBackground') || changed.has('backgroundColor')) {

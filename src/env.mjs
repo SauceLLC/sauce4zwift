@@ -187,9 +187,7 @@ export function getRoute(routeId) {
             // Only need these for validation..
             delete p0.pos;
             delete p1.pos;
-            if (p0.forceSplit) {
-                continue;
-            } else if (p0Sig !== p1Sig) {
+            if (p0Sig !== p1Sig) {
                 const p_1 = route.checkpoints[i - 1];
                 if (p_1 != null && `${p_1.roadId}-${!!p_1.reverse}-${!!p_1.leadin}` !== p0Sig) {
                     const road = getRoad(courseId, p0.roadId);
@@ -199,8 +197,18 @@ export function getRoute(routeId) {
                         leadin: p0.leadin ? true : undefined,
                         i,
                     });
-                    console.warn("inspect this", i, route.id, route.name, {courseId}); // XXX
                 }
+                if (i === route.checkpoints.length - 2) {
+                    const road = getRoad(courseId, p1.roadId);
+                    const point = road.curvePath.pointAtRoadPercent(p1.roadPercent);
+                    curvePath.push({
+                        end: point,
+                        leadin: p1.leadin ? true : undefined,
+                        i: i + 1,
+                    });
+                }
+                continue;
+            } else if (p0.forceSplit) {
                 continue;
             }
             if (p0.reverse) {

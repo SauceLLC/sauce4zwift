@@ -240,11 +240,12 @@ export class SauceZwiftMap extends EventTarget {
     constructor({el, worldList, zoom=1, zoomMin=0.25, zoomMax=10, autoHeading=true,
                  style='default', opacity=1, tiltShift=null, maxTiltShiftAngle=65,
                  sparkle=false, quality=1, verticalOffset=0, fpsLimit=30,
-                 zoomPriorityTilt=true}) {
+                 zoomPriorityTilt=true, preferRoute}) {
         super();
         el.classList.add('sauce-map-container');
         this.el = el;
         this.worldList = worldList;
+        this.preferRoute = preferRoute;
         this.zoomMin = zoomMin;
         this.zoomMax = zoomMax;
         this.maxTiltShiftAngle = maxTiltShiftAngle;
@@ -252,6 +253,8 @@ export class SauceZwiftMap extends EventTarget {
         this.athleteId = null;
         this.courseId = null;
         this.roadId = null;
+        this.routeId = null;
+        this.route = null;
         this.worldMeta = null;
         this.adjHeading = 0;
         this._headingRotations = 0;
@@ -632,7 +635,6 @@ export class SauceZwiftMap extends EventTarget {
             common.getRoads(courseId),
             this._updateMapBackground(),
         ]);
-        this._roads = roads; // XXX
         this._renderRoads(roads);
     }
 
@@ -725,7 +727,6 @@ export class SauceZwiftMap extends EventTarget {
 
     setActiveRoad(id) {
         this.roadId = id;
-        return;
         const surface = this._elements.roadLayers.surfacesMid;
         let r = surface.querySelector('.road.active');
         if (!r) {
@@ -734,6 +735,21 @@ export class SauceZwiftMap extends EventTarget {
         }
         r.setAttribute('href', `#road-path-${id}`);
     }
+
+    setActiveRoute = common.asyncSerialize(async function(id, laps=1) {
+        this.roadId = null;
+        this.routeId = id;
+        const route = await common.getRoute(id);
+        if (this._routeHighlight) {
+            this._routeHightlight.elements.forEach(x => x.remove());
+        }
+        if (route) {
+            this._routeHighlights = this.addHighlightPath(route.curvePath, 'route-' + id);
+            this.route = route;
+        } else {
+            console.warn("Route not found:", id);
+        }
+    });
 
     _addShape(shape, attrs, options={}) {
         const layer = this._elements.roadLayers[{
@@ -809,6 +825,17 @@ export class SauceZwiftMap extends EventTarget {
         return this.addHighlightPath(this._createCurvePath(points, loop), id, options);
     }
 
+    addPoint(point, extraClass) {
+        const ent = new MapEntity(`${point[0]}-${point[1]}-${Date.now()}`, 'point');
+        ent.transition.setDuration(0);
+        ent.setPosition(point);
+        if (extraClass) {
+            ent.el.classList.add(extraClass);
+        }
+        this.addEntity(ent);
+        return ent;
+    }
+
     addEntity(ent) {
         if (!(ent instanceof MapEntity)) {
             throw new TypeError("MapEntity argument required");
@@ -864,19 +891,40 @@ export class SauceZwiftMap extends EventTarget {
         ent.togglePin();
     }
 
-    renderAthleteStates(states) {
+    renderAthleteStates = common.asyncSerialize(async states => {
         if (this.watchingId == null) {
             return;
+        }
+        if (!common.isVisible()) {
+            console.warn("XXX probably need to run this through and make sure we're well behaved");
         }
         const watching = states.find(x => x.athleteId === this.watchingId);
         if (!watching && this.courseId == null) {
             return;
         } else if (watching) {
             if (watching.courseId !== this.courseId) {
-                console.debug("Setting new course:", watching.courseId);
-                this.setCourse(watching.courseId);
+                await this.setCourse(watching.courseId);
             }
-            if (watching.roadId !== this.roadId) {
+            if (this.preferRoute) {
+                if (watching.routeId) {
+                    if (this.routeId !== watching.routeId) {
+                        let sg;
+                        if (watching.eventSubgroupId) {
+                            sg = await common.rpc.getEventSubgroup(watching.eventSubgroupId);
+                        }
+                        // Note sg.routeId is sometimes out of sync with state.routeId; avoid thrash
+                        if (sg && sg.routeId === watching.routeId) {
+                            await this.setActiveRoute(sg.routeId, sg.laps);
+                        } else {
+                            await this.setActiveRoute(watching.routeId);
+                        }
+                    }
+                } else {
+                    this.route = null;
+                    this.routeId = null;
+                }
+            }
+            if (!this.routeId && watching.roadId !== this.roadId) {
                 this.setActiveRoad(watching.roadId);
             }
         }
@@ -937,19 +985,6 @@ export class SauceZwiftMap extends EventTarget {
                     this.fooEnt.setPosition([10000, 10000]);
                     this.addEntity(this.fooEnt);
                 }
-                if (!globalThis.testEnt) {
-                    globalThis.testEnt = new MapEntity('test', 'athlete');
-                    testEnt.transition.setDuration(250);
-                    testEnt.el.classList.add('bot');
-                    testEnt.setPosition([0, 0]);
-                    this.addEntity(testEnt);
-                }
-                //XXX ...
-                const road = this._roads ? this._roads.find(x => x.id === state.roadId) : null;
-                if (road) {
-                    const posAtTime = road.curvePath.pointAtRoadTime(state.roadTime);
-                    this.fooEnt.setPosition(posAtTime);
-                }
                 if (this.autoHeading) {
                     this._setHeading(state.heading);
                 }
@@ -958,10 +993,9 @@ export class SauceZwiftMap extends EventTarget {
             this._pendingEntityUpdates.add(ent);
         }
         common.idle().then(() => this._updateAthleteDetails(states.map(x => x.athleteId)));
-    }
+    });
 
     setCenter(pos) {
-        return;
         const [x, y] = this._rotateWorldPos(pos);
         this._centerXY[0] = x * this._mapScale;
         this._centerXY[1] = y * this._mapScale;

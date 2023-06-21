@@ -89,6 +89,63 @@
                     opacity: 1;
                 }
 
+                &.point {
+                    --priority: 80;
+                    --fill: gold;
+                    --border-color: black;
+                    border: none;
+                    border-radius: initial;
+                    background: none;
+                    font-size: $size * 1.5;
+
+                    &::before,
+                    &::after {
+                        content: '';
+                        position: absolute;
+                        top: 0;
+                        left: 0;
+                        width: 100%;
+                        height: 100%;
+                        clip-path: var(--clip-path);
+                    }
+
+                    &::before {
+                        background-color: var(--border-color);
+                        scale: 2;
+                    }
+
+                    &::after {
+                        background-color: var(--fill);
+                        scale: 1.7;
+                    }
+                }
+
+                &.star {
+                    --clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+                }
+
+                &.triangle {
+                    --clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+
+                    &::before,
+                    &::after {
+                        transform-origin: 50% 66%;
+                    }
+                }
+
+                &.chat {
+                    --clip-path: polygon(0% 0%, 100% 0%, 100% 75%, 75% 75%, 75% 100%, 50% 75%, 0% 75%);
+
+                    &::before,
+                    &::after {
+                        transform-origin: 50% 38%;
+                    }
+                }
+
+                &.diamond {
+                    --clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+                }
+
                 &.athlete {
                     --zone: 0;
                     z-index: calc(var(--zone) + var(--priority));
