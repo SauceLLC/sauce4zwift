@@ -223,7 +223,7 @@ export function getRoute(routeId) {
                 subpath = road.curvePath.subpathAtRoadPercents(p0.roadPercent, p1.roadPercent);
             }
             if (p0.reverse) {
-                subpath = subpath.reverse();
+                subpath = subpath.toReversed();
             }
             for (const x of subpath) {
                 x.i = i;

@@ -176,9 +176,9 @@ export class CurvePath extends Array {
         return {index, percent, origin, next, point};
     }
 
-    reverse() {
+    toReversed() {
         let cursor = this[this.length - 1].end;
-        const output = [{end: cursor}];
+        const output = [{end: cursor}]; // XXX Maybe support one control point?
         for (let i = this.length - 2; i >= 0; i--) {
             const p0 = this[i];
             const p1 = this[i + 1];
