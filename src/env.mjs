@@ -9,6 +9,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const allSegments = new Map();
 
 
+function trimNumber(n, p=5) {
+    return Number(n.toFixed(p));
+}
+
+
 export function getRoadSig(courseId, roadId, reverse) {
     return courseId << 18 | roadId << 1 | reverse;
 }
@@ -60,35 +65,40 @@ export function getNearbySegments(courseId, roadSig) {
 }
 
 
-function zToAltitude(courseId, z) {
+export function zToAltitude(courseId, z) {
     const worldMeta = zwift.worldMetas[courseId];
     return worldMeta ? (z + worldMeta.waterPlaneLevel) / 100 *
         worldMeta.physicsSlopeScale + worldMeta.altitudeOffsetHack : null;
 }
 
 
-function trimNumber(n, p=5) {
-    return Number(n.toFixed(p));
-}
-
-
 function supplimentPath(courseId, curvePath) {
     const balancedT = 1 / 125; // tests to within 0.27 meters (worst case)
+    const distEpsilon = 1e-6;
     const elevations = [];
     const grades = [];
     const distances = [];
     let prevIndex;
     let distance = 0;
+    let prevDist = 0;
+    let prevEl = 0;
     let prevNode;
     curvePath.trace(x => {
         distance += prevNode ? curves.vecDist(prevNode, x.stepNode) / 100 : 0;
         if (x.index !== prevIndex) {
             const elevation = zToAltitude(courseId, x.stepNode[2]);
             if (elevations.length) {
-                grades.push(trimNumber((elevation - elevations.at(-1)) / (distance - distances.at(-1) || 0)));
+                if (distance - prevDist > distEpsilon) {
+                    const grade = (elevation - prevEl) / (distance - prevDist);
+                    grades.push(trimNumber(grade));
+                } else {
+                    grades.push(grades.at(-1) || 0);
+                }
             }
             distances.push(trimNumber(distance, 2));
             elevations.push(trimNumber(elevation, 2));
+            prevDist = distance;
+            prevEl = elevation;
             prevIndex = x.index;
         }
         prevNode = x.stepNode;
@@ -173,9 +183,7 @@ export function getRoute(routeId) {
         }
     }
     const route = _routes.find(x => x.id === routeId);
-    //if (route && !route.curvePath) {
-    for (const route of _routes) {
-        if (route.curvePath) continue; // XXX
+    if (route && !route.curvePath) {
         const courseId = zwift.worldToCourseIds[route.worldId];
         const curvePath = new curves.CurvePath();
         for (let i = 0; i < route.checkpoints.length - 1; i++) {
@@ -232,10 +240,6 @@ export function getRoute(routeId) {
             curvePath.extend(subpath);
         }
         const extra = supplimentPath(courseId, curvePath);
-        const delta = Math.abs(extra.distances.at(-1) - (route.distanceInMeters + (route.leadinDistanceInMeters || 0) - (route.distanceBetweenFirstLastLrCPsInMeters || 0))); // XXX
-        if (delta > 1000) {
-            console.warn(extra.distances.at(-1), delta, route);
-        }
         Object.assign(route, {curvePath}, extra);
     }
     return route;
