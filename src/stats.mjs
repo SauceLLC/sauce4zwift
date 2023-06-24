@@ -13,7 +13,7 @@ const pkg = require('../package.json');
 
 
 const monotonic = performance.now;
-const roadDistEstimates = {};
+const roadDistances = new Map();
 const allSegments = new Map();
 const wPrimeDefault = 20000;
 
@@ -69,16 +69,6 @@ function makeExpWeighted(period=100) {
     const cNext = 1 - cPrev;
     let w;
     return x => (w = w === undefined ? x : (w * cPrev) + (x * cNext));
-}
-
-
-const _roadDistExpFuncs = {};
-function adjRoadDistEstimate(sig, raw) {
-    // XXX we have actual road distances now, use the roads data instead of this.
-    if (!_roadDistExpFuncs[sig]) {
-        _roadDistExpFuncs[sig] = makeExpWeighted(100);
-    }
-    return roadDistEstimates[sig] = _roadDistExpFuncs[sig](raw);
 }
 
 
@@ -1273,6 +1263,10 @@ export class StatsProcessor extends events.EventEmitter {
         if (this._autoLap) {
             this._autoLapCheck(state, ad);
         }
+        if (!roadDistances.has(roadSig)) {
+            const road = env.getRoad(state.courseId, state.roadId);
+            roadDistances.set(roadSig, road ? road.distances.at(-1) : 0);
+        }
         this._activeSegmentCheck(state, ad, roadSig);
         this._recordAthleteRoadHistory(state, ad, roadSig);
         this._recordAthleteStats(state, ad);
@@ -1341,16 +1335,6 @@ export class StatsProcessor extends events.EventEmitter {
             roadCompletion: state.roadCompletion,
             distance: state.distance,
         });
-        const tl = ad.roadHistory.timeline;
-        if (tl.length === 5 || tl.length % 25 === 0) {
-            const hist = tl[tl.length - 50] || tl[0];
-            const cur = tl[tl.length - 1];
-            const mDelta = cur.distance - hist.distance;
-            const rlDelta = cur.roadCompletion - hist.roadCompletion;
-            if (mDelta && rlDelta) {
-                adjRoadDistEstimate(roadSig, 1e6 / rlDelta * mDelta);
-            }
-        }
     }
 
     _recordAthleteStats(state, ad) {
@@ -1674,7 +1658,7 @@ export class StatsProcessor extends events.EventEmitter {
         if (a.sig === b.sig) {
             const d = aComp - bComp;
             // Test for lapping cases where inverted is closer
-            const roadDist = roadDistEstimates[a.sig] || 0;
+            const roadDist = roadDistances.get(a.sig) || 0;
             if (d < -500000 && a.prevSig === b.sig) {
                 const gapDistance = (1e6 + d) / 1e6 * roadDist;
                 return {reversed: false, previous: true, gapDistance};
@@ -1706,7 +1690,7 @@ export class StatsProcessor extends events.EventEmitter {
                 const bPrevTail = b.prevTimeline[b.prevTimeline.length - 1];
                 const d = bPrevTail.roadCompletion - aComp;
                 if (d >= 0 && (d2 === undefined || d < d2)) {
-                    const roadDist = roadDistEstimates[b.prevSig] || 0;
+                    const roadDist = roadDistances.get(b.prevSig) || 0;
                     const gapDistance = (d / 1e6 * roadDist) + (bTail.distance - bPrevTail.distance);
                     return {reversed: true, previous: true, gapDistance};
                 }
@@ -1715,7 +1699,7 @@ export class StatsProcessor extends events.EventEmitter {
                 // We can probably move this up to the first d2 block once we validate the above condition
                 // is not relevant.  Probably need to check on something funky like crit city or japan.
                 const aPrevTail = a.prevTimeline[a.prevTimeline.length - 1];
-                const roadDist = roadDistEstimates[a.prevSig] || 0;
+                const roadDist = roadDistances.get(a.prevSig) || 0;
                 const gapDistance = (d2 / 1e6 * roadDist) + (aTail.distance - aPrevTail.distance);
                 return {reversed: false, previous: true, gapDistance};
             }
