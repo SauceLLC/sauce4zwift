@@ -418,12 +418,21 @@ export function getRoads(courseId) {
         _roads.set(courseId, rpcCall('getRoads', courseId).then(async roads => {
             const curves = await import('/shared/curves.mjs');
             for (const x of roads) {
-                x.curvePath = new curves.CurvePath(x.curvePath);
+                x.curvePath = new curves.RoadPath(x.curvePath);
             }
             return roads;
         }));
     }
     return _roads.get(courseId);
+}
+
+
+export function getRoad(courseId, id) {
+    if (!_roads.has(courseId)) {
+        return getRoads(courseId).then(roads => roads.find(x => x.id === id));
+    } else {
+        return _roads.get(courseId).find(x => x.id === id);
+    }
 }
 
 

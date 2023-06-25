@@ -127,8 +127,8 @@ export function getRoads(courseId) {
                 CatmullRom: curves.catmullRomPath,
                 Bezier: curves.cubicBezierPath,
             }[road.splineType];
-            const curvePath = curveFunc(road.path, {loop: road.looped});
-            for (const x of curvePath) {
+            const curvePath = curveFunc(road.path, {loop: road.looped, road: true});
+            for (const x of curvePath.points) {
                 // Reduce JSON size by nearly 3x...
                 if (x.cp1) {
                     x.cp1[0] = Math.round(x.cp1[0]);
@@ -200,7 +200,7 @@ export function getRoute(routeId) {
                 if (p_1 != null && `${p_1.roadId}-${!!p_1.reverse}-${!!p_1.leadin}` !== p0Sig) {
                     const road = getRoad(courseId, p0.roadId);
                     const point = road.curvePath.pointAtRoadPercent(p0.roadPercent);
-                    curvePath.push({
+                    curvePath.points.push({
                         end: point,
                         leadin: p0.leadin ? true : undefined,
                         i,
@@ -209,7 +209,7 @@ export function getRoute(routeId) {
                 if (i === route.checkpoints.length - 2) {
                     const road = getRoad(courseId, p1.roadId);
                     const point = road.curvePath.pointAtRoadPercent(p1.roadPercent);
-                    curvePath.push({
+                    curvePath.points.push({
                         end: point,
                         leadin: p1.leadin ? true : undefined,
                         i: i + 1,
@@ -225,7 +225,7 @@ export function getRoute(routeId) {
             const road = getRoad(courseId, p0.roadId);
             let subpath;
             if (p0.roadPercent > p1.roadPercent) {
-                subpath = road.curvePath.subpathAtRoadPercents(p0.roadPercent, 1);
+                subpath = road.curvePath.subpathAtRoadPercents(p0.roadPercent, 1).toCurvePath();
                 subpath.extend(road.curvePath.subpathAtRoadPercents(0, p1.roadPercent));
             } else {
                 subpath = road.curvePath.subpathAtRoadPercents(p0.roadPercent, p1.roadPercent);
@@ -233,7 +233,7 @@ export function getRoute(routeId) {
             if (p0.reverse) {
                 subpath = subpath.toReversed();
             }
-            for (const x of subpath) {
+            for (const x of subpath.points) {
                 x.i = i;
                 x.leadin = leadin ? true : undefined;
             }
