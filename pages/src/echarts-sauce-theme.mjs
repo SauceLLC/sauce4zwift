@@ -327,14 +327,20 @@ function genDynamicTheme({fg='fg', bg='bg'}={}) {
         },
         visualMap: {color: ["#1790cf", "#a2d4e6"]},
         markLine: {
-            lineStyle: {color: cssColor(fg, 0, 0.6)},
+            lineStyle: {
+                color: cssColor(fg, 0, 0.7),
+                cap: 'round',
+            },
             label: {
-                fontWeight: 700,
+                fontWeight: 600,
+                fontFamily: 'inherit',
                 distance: 2,
-                fontSize: '0.76em',
+                fontSize: 5,
                 color: cssColor(fg, 0, 1),
-                textShadowColor: cssColor(fg, 1, 0.8),
-                textShadowBlur: 1,
+                textBorderColor: cssColor(fg, 1, 0.8),
+                textBorderWidth: 2,
+                textShadowColor: cssColor(fg, 1, 0.5),
+                textShadowBlur: 8,
             },
         },
         markPoint: {
