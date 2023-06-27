@@ -10,6 +10,9 @@
  */
 
 
+const curvePathSchemaVersion = 1;
+
+
 export function vecDist(a, b) {
     const dx = b[0] - a[0];
     const dy = b[1] - a[1];
@@ -116,14 +119,17 @@ export function roadOffsetToTime(i, length) {
 
 
 export class CurvePath {
-    constructor(points=[], {epsilon=0.001, immutable=false}={}) {
+    constructor({points=[], epsilon=0.001, immutable=false}={}) {
         this.points = points;
         this.epsilon = epsilon;
         this.immutable = immutable;
     }
 
     toJSON() {
-        return this.points;
+        const o = super.toJSON();
+        o.schemaVersion = curvePathSchemaVersion;
+        o.type = this.constructor.name;
+        return o;
     }
 
     toSVGPath({includeEdges}={}) {
@@ -146,7 +152,7 @@ export class CurvePath {
         return svg.join('\n');
     }
 
-    flatten(t=0.01) {
+    flatten(t) {
         const values = [];
         this.trace(x => values.push(x.stepNode), t);
         return values;
@@ -154,17 +160,17 @@ export class CurvePath {
 
     toReversed() {
         const last = this.points[this.points.length - 1];
-        const output = [{...last, cp1: undefined, cp2: undefined}]; // XXX Maybe support one control point?
+        const points = [{...last, cp1: undefined, cp2: undefined}];
         for (let i = this.points.length - 2; i >= 0; i--) {
             const p0 = this.points[i];
             const p1 = this.points[i + 1];
             if (p1.cp1 && p1.cp2) {
-                output.push({...p0, cp1: p1.cp2, cp2: p1.cp1});
+                points.push({...p0, cp1: p1.cp2, cp2: p1.cp1});
             } else {
-                output.push({...p0});
+                points.push({...p0});
             }
         }
-        return new CurvePath(output, {epsilon: this.epsilon});
+        return new CurvePath({...this});
     }
 
     extend(path) {
@@ -231,27 +237,25 @@ export class CurvePath {
         }, t);
         return point;
     }
-
-
 }
 
 
 export class RoadPath extends CurvePath {
-    constructor(points, options={}) {
-        super(points, {...options, immutable: true});
-        this._roadLength = options.roadLength != null ? options.roadLength : this.points.length;
-        [this._offtIndex, this._offtPercent] = options.offset != null ?
-            this.roadPercentToOffsetTuple(options.offset) : [0, 0];
-        this._trimPercent = options.trimPercent || 0;
+    constructor(options={}) {
+        super({...options, immutable: true});
+        this.roadLength = options.roadLength != null ? options.roadLength : this.points.length;
+        this.offsetIndex = options.offsetIndex || 0;
+        this.offsetPercent = options.offsetPercent || 0;
+        this.cropPercent = options.cropPercent || 0;
     }
 
     roadPercentToOffsetTuple(rp) {
-        const offt = roadPercentToOffset(rp, this._roadLength);
+        const offt = roadPercentToOffset(rp, this.roadLength);
         return [offt | 0, offt % 1];
     }
 
     offsetTupleToPercent(index, percent) {
-        return roadOffsetToPercent(index + percent, this._roadLength);
+        return roadOffsetToPercent(index + percent, this.roadLength);
     }
 
     boundsAtRoadTime(rt) {
@@ -264,7 +268,7 @@ export class RoadPath extends CurvePath {
         }
         let [index, percent] = this.roadPercentToOffsetTuple(rp);
         // Adjust and constrain index,percent to our range.
-        index -= this._offtIndex;
+        index -= this.offsetIndex;
         if (index < 0) {
             index = 0;
             percent = 0;
@@ -272,11 +276,10 @@ export class RoadPath extends CurvePath {
             index = this.points.length - 1;
             percent = 0;
         } else if (index === 0) { // and only if length > 1
-            percent = Math.max(0, (percent - this._offtPercent) / (1 - this._offtPercent));
+            percent = Math.max(0, (percent - this.offsetPercent) / (1 - this.offsetPercent));
         }
-        if (index === this.points.length - 2 && percent && this._trimPercent) {
-            debugger;
-            percent = percent / this._trimPercent;
+        if (index === this.points.length - 2 && percent && this.cropPercent) {
+            percent = percent / this.cropPercent;
             if (percent >= 1) {
                 index++;
                 percent = 0;
@@ -294,9 +297,6 @@ export class RoadPath extends CurvePath {
             }
         } else {
             point = origin ? origin.end : undefined;
-            if (percent) {
-                throw 'XXX';
-            }
         }
         return {index, percent, origin, next, point};
     }
@@ -309,34 +309,31 @@ export class RoadPath extends CurvePath {
 
     subpathAtRoadPercents(startRoadPercent=-1e6, endRoadPercent=1e6) {
         if (startRoadPercent >= endRoadPercent) {
-            return new RoadPath([], {
-                epsilon: this.epsilon,
-                roadLength: this._roadLength,
-            });
+            return new RoadPath({...this, offsetIndex: 0, offsetPercent: 0, cropPercent: 0});
         }
         const start = this.boundsAtRoadPercent(startRoadPercent);
         const end = this.boundsAtRoadPercent(endRoadPercent);
-        const subpath = [{end: start.point}];
+        const points = [{end: start.point}];
         for (const x of this.points.slice(start.index + 1, end.index + 1)) {
-            subpath.push({...x});
+            points.push({...x});
         }
-        let trimPercent = 0;
+        let cropPercent = 0;
         if (end.percent) {
             if (end.next.cp1) {
                 const [p] = splitBezier(end.percent, end.origin.end, end.next.cp1,
                                         end.next.cp2, end.next.end);
-                subpath.push({cp1: p[1], cp2: p[2], end: p[3]});
+                points.push({cp1: p[1], cp2: p[2], end: p[3]});
             } else {
-                subpath.push({end: end.point});
+                points.push({end: end.point});
             }
-            if (this._trimPercent && end.index === this.points.length - 2) {
+            if (this.cropPercent && end.index === this.points.length - 2) {
                 // subpath is on our boundry so denormalize percent based on our trim..
-                trimPercent = end.percent * this._trimPercent;
+                cropPercent = end.percent * this.cropPercent;
             } else {
-                trimPercent = end.percent;
+                cropPercent = end.percent;
             }
         } else if (end.index === this.points.length - 1) {
-            trimPercent = this._trimPercent;
+            cropPercent = this.cropPercent;
         }
         if (start.percent && start.next.cp1) {
             let [, p] = splitBezier(start.percent, start.origin.end, start.next.cp1, start.next.cp2,
@@ -345,16 +342,17 @@ export class RoadPath extends CurvePath {
                 const percent = (end.percent - start.percent) / (1 - start.percent);
                 [p] = splitBezier(percent, start.point, p[1], p[2], end.point);
             }
-            subpath[1].cp1 = p[1];
-            subpath[1].cp2 = p[2];
+            points[1].cp1 = p[1];
+            points[1].cp2 = p[2];
         }
         const absStartPercent = start.index === 0 ?
-            start.percent * (1 - this._offtPercent) + this._offtPercent : start.percent;
-        return new RoadPath(subpath, {
-            epsilon: this.epsilon,
-            roadLength: this._roadLength,
-            offset: this.offsetTupleToPercent(start.index + this._offtIndex, absStartPercent),
-            trimPercent,
+            start.percent * (1 - this.offsetPercent) + this.offsetPercent : start.percent;
+        return new RoadPath({
+            ...this,
+            points,
+            offsetIndex: start.index + this.offsetIndex,
+            offsetPercent: absStartPercent,
+            cropPercent,
         });
     }
 
@@ -367,7 +365,7 @@ export class RoadPath extends CurvePath {
     }
 
     toCurvePath() {
-        return new CurvePath(this.points, {epsilon: this.epsilon});
+        return new CurvePath({...this, immutable: false});
     }
 }
 
@@ -416,7 +414,7 @@ export function catmullRomPath(data, {loop, epsilon, road}={}) {
         points.push({cp1, cp2, end: p1});
     }
     const Klass = road ? RoadPath : CurvePath;
-    return new Klass(points, {epsilon});
+    return new Klass({points, epsilon});
 }
 
 
@@ -449,5 +447,5 @@ export function cubicBezierPath(data, {loop, smoothing=0.2, epsilon, road}={}) {
         points.push({cp1, cp2, end: p1});
     }
     const Klass = road ? RoadPath : CurvePath;
-    return new Klass(points, {epsilon});
+    return new Klass({points, epsilon});
 }

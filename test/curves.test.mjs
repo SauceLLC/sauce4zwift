@@ -74,6 +74,10 @@ test('subpath 0 -> 1', () => {
         [300, 200, 2000]];
     const path = curves.cubicBezierPath(points, {road: true});
     const subpath = path.subpathAtRoadPercents(0, 1);
+    expect(subpath.roadLength).toBe(6);
+    expect(subpath.offsetIndex).toBe(1);
+    expect(subpath.offsetPercent).toBe(0);
+    expect(subpath.cropPercent).toBe(0);
     expect(subpath.points.length).toBe(path.points.length - 2);
     for (const [i, x] of subpath.points.entries()) {
         expect(x.end).toStrictEqual(points[i + 1]);
@@ -115,6 +119,25 @@ test('subpath 1e-8 -> 0.99999999', () => {
     for (const [i, x] of subpath.points.entries()) {
         for (const [ii, n] of x.end.entries()) {
             expect(n).toBeCloseTo(points[i + 1][ii], 2);
+        }
+    }
+});
+
+test('double subpath', () => {
+    const points = [[10, 20, -10], [20, 30, 100], [44, 424, 200], [44,566, -100], [5234, -190, 1000],
+        [300, 200, 2000]];
+    const path = curves.cubicBezierPath(points, {road: true});
+    const subpath = path.subpathAtRoadPercents(0.22, 0.55);
+    expect(subpath.points.length).toBe(3);
+    const subpath2 = subpath.subpathAtRoadPercents(0.22, 0.55);
+    expect(subpath2.points.length).toBe(3);
+    expect(subpath.roadLength).toBe(subpath2.roadLength);
+    expect(subpath.offsetIndex).toBe(subpath2.offsetIndex);
+    expect(subpath.offsetPercent).toBe(subpath2.offsetPercent);
+    expect(subpath.cropPercent).toBe(subpath2.cropPercent);
+    for (const [i, x] of subpath.points.entries()) {
+        for (const [ii, n] of x.end.entries()) {
+            expect(n).toBeCloseTo(subpath2.points[i].end[ii], 2);
         }
     }
 });
