@@ -1558,7 +1558,7 @@ export async function enableSentry() {
 export function asyncSerialize(asyncFunc) {
     let p = Promise.resolve();
     const fn = function() {
-        return (p = p.finally(() => asyncFunc.apply(this, arguments)));
+        return (p = p.catch(() => null).then(() => asyncFunc.apply(this, arguments)));
     };
     Object.defineProperty(fn, 'name', {value: 'serialized ' + asyncFunc.name});
     return fn;
