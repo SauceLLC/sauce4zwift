@@ -18,10 +18,12 @@ export const protos = protobuf.loadSync([path.join(__dirname, 'zwift.proto')]).r
 protobuf.parse.defaults.keepCase = _case;
 
 
-// NOTE: this options object is not callback functions, the type is read and
-// behavior is based on String or Number in many cases.
+// NOTE: this options object does not contain callback functions (as it might appear).
+// A static type comparision is used by protobufjs's toObject function instead. :(
 const _pbJSONOptions = {...protobuf.util.toJSONOptions, longs: Number};
-const pbToObject = pb => pb.$type.toObject(pb, _pbJSONOptions);
+export function pbToObject(pb) {
+    return pb.$type.toObject(pb, _pbJSONOptions);
+}
 
 
 // Optimized for fast path perf...
@@ -688,42 +690,8 @@ export class ZwiftAPI {
             dateRangeStartISOString: from.toISOString(),
             dateRangeEndISOString: to.toISOString(),
         };
-        const obj = await this.fetchPB(urn, {method: 'POST', protobuf: 'Events', json, query});
-        return obj.events.map(x => {
-            const o = pbToObject(x);
-            o.tags = x._tags.split(';');
-            return o;
-        });
-    }
-
-    async getEventFeedOld(options={}) {
-        // Be forewarned, this API is not stable.  It returns dups and skips entries on page boundaries.
-        const urn = '/api/event-feed';
-        const from = options.from;
-        const to = options.to;
-        const pageLimit = options.pageLimit ? options.pageLimit : 5; // default pageSize is 25
-        const limit = options.pageSize;
-        const query = {from, to, limit};
-        const ids = new Set();
-        const results = [];
-        let pages = 0;
-        let done;
-        while (!done) {
-            const page = await this.fetchJSON(urn, {query});
-            for (const x of page.data) {
-                if (to && new Date(x.event.eventStart) >= to) {
-                    done = true;
-                } else if (!ids.has(x.event.id)) {
-                    results.push(x.event);
-                    ids.add(x.event.id);
-                }
-            }
-            if (!page.data.length || (limit && page.data.length < limit) || ++pages >= pageLimit) {
-                break;
-            }
-            query.cursor = page.cursor;
-        }
-        return results;
+        const obj = pbToObject(await this.fetchPB(urn, {method: 'POST', protobuf: 'Events', json, query}));
+        return obj.events;
     }
 
     async getPrivateEventFeed(options={}) {
@@ -734,7 +702,7 @@ export class ZwiftAPI {
     }
 
     async getEvent(id) {
-        return await this.fetchJSON(`/api/events/${id}`);
+        return pbToObject(await this.fetchPB(`/api/events/${id}`, {protobuf: 'Event'}));
     }
 
     async getPrivateEvent(id) {
@@ -1378,7 +1346,7 @@ export class GameMonitor extends events.EventEmitter {
 
     async getRandomAthleteId(courseId) {
         const worlds = (await this.api.getDropInWorldList()).filter(x =>
-            x.others && x.others.length && (typeof courseId !== 'number' || x.courseId === courseId));
+            typeof courseId !== 'number' || x.courseId === courseId);
         for (let i = 0, start = Math.random() * worlds.length | 0; i < worlds.length; i++) {
             const w = worlds[(i + start) % worlds.length];
             const athletes = []
