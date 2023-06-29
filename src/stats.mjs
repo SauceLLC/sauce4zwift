@@ -877,6 +877,15 @@ export class StatsProcessor extends events.EventEmitter {
         })();
     }
 
+    async _loadEvents(ids) {
+        for (const x of ids) {
+            const event = await zwift.getEvent(x);
+            if (event) {
+                this._addEvent(event);
+            }
+        }
+    }
+
     onIncoming(...args) {
         try {
             this._onIncoming(...args);
@@ -886,7 +895,9 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _onIncoming(packet) {
-        for (const x of packet.worldUpdates) {
+        const updatedEvents = [];
+        for (let i = 0; i < packet.worldUpdates.length; i++) {
+            const x = packet.worldUpdates[i];
             if (x.payloadType) {
                 if (x.payloadType === 'PayloadChatMessage') {
                     const ts = x.ts.toNumber() / 1000;
@@ -894,12 +905,23 @@ export class StatsProcessor extends events.EventEmitter {
                 } else if (x.payloadType === 'PayloadRideOn') {
                     this.handleRideOnPayload(x.payload);
                 } else if (x.payloadType === 'Event') {
-                    console.info("XXX Hey we can use this! Update our recentEvents with it!, yay", x.payload);
+                    // The event payload is more like a notification (it's incomplete)
+                    // We also get multiples for each event, first with id = 0, then one
+                    // for each subgroup.
+                    const event = zwift.pbToObject(x.payload);
+                    if (event.id && !updatedEvents.includes(x.id)) {
+                        updatedEvents.push(event.id);
+                    }
                 }
             }
         }
+        if (updatedEvents.length) {
+            debugger;
+            queueMicrotask(() => this._loadEvents(updatedEvents));
+        }
         const hasStatesListener = !!this.listenerCount('states');
-        for (const x of packet.playerStates) {
+        for (let i = 0; i < packet.playerStates.length; i++) {
+            const x = packet.playerStates[i];
             if (this.processState(x) === false) {
                 continue;
             }
@@ -1516,31 +1538,40 @@ export class StatsProcessor extends events.EventEmitter {
         });
     }
 
+    _addEvent(event) {
+        const route = env.getRoute(event.routeId);
+        if (route) {
+            event.routeDistance = this._getRouteDistance(route, event.laps);
+            event.routeClimbing = this._getRouteClimbing(route, event.laps);
+        }
+        event.tags = event._tags.split(';');
+        event.allTags = this._parseEventTags(event);
+        event.ts = +new Date(event.eventStart);
+        if (!this._recentEvents.has(event.id)) {
+            console.debug('New event added:', event.name, event.id);
+        }
+        this._recentEvents.set(event.id, event);
+        if (event.eventSubgroups) {
+            for (const sg of event.eventSubgroups) {
+                const rt = env.getRoute(sg.routeId);
+                if (rt) {
+                    sg.routeDistance = this._getRouteDistance(rt, sg.laps);
+                    sg.routeClimbing = this._getRouteClimbing(rt, sg.laps);
+                }
+                sg.startOffset = +(new Date(sg.eventSubgroupStart)) - +(new Date(event.eventStart));
+                sg.allTags = new Set([...this._parseEventTags(sg), ...event.allTags]);
+                this._recentEventSubgroups.set(sg.id, {event, ...sg});
+            }
+        }
+        return event;
+    }
+
     async __zwiftMetaSync() {
         let addedEventsCount = 0;
         const zEvents = await this.zwiftAPI.getEventFeed();
         for (const x of zEvents) {
-            const route = env.getRoute(x.routeId);
-            if (route) {
-                x.routeDistance = this._getRouteDistance(route, x.laps);
-                x.routeClimbing = this._getRouteClimbing(route, x.laps);
-            }
-            x.allTags = this._parseEventTags(x);
-            x.ts = +new Date(x.eventStart);
             addedEventsCount += !this._recentEvents.has(x.id);
-            this._recentEvents.set(x.id, x);
-            if (x.eventSubgroups) {
-                for (const sg of x.eventSubgroups) {
-                    const rt = env.getRoute(sg.routeId);
-                    if (rt) {
-                        sg.routeDistance = this._getRouteDistance(rt, sg.laps);
-                        sg.routeClimbing = this._getRouteClimbing(rt, sg.laps);
-                    }
-                    sg.startOffset = +(new Date(sg.eventSubgroupStart)) - +(new Date(x.eventStart));
-                    sg.allTags = new Set([...this._parseEventTags(sg), ...x.allTags]);
-                    this._recentEventSubgroups.set(sg.id, {event: x, ...sg});
-                }
-            }
+            this._addEvent(x);
         }
         // XXX is this fixed now? We are using the same query args as the game now..
         const someMeetups = await this.zwiftAPI.getPrivateEventFeed();
