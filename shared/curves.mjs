@@ -119,14 +119,14 @@ export function roadOffsetToTime(i, length) {
 
 
 export class CurvePath {
-    constructor({points=[], epsilon=0.001, immutable=false}={}) {
-        this.points = points;
+    constructor({nodes=[], epsilon=0.001, immutable=false}={}) {
+        this.nodes = nodes;
         this.epsilon = epsilon;
         this.immutable = immutable;
     }
 
     toJSON() {
-        const o = super.toJSON();
+        const o = Object.assign({}, this);
         o.schemaVersion = curvePathSchemaVersion;
         o.type = this.constructor.name;
         return o;
@@ -136,9 +136,9 @@ export class CurvePath {
         const svg = [];
         const xy = point => `${point[0]},${point[1]}`;
         const start = includeEdges ? 0 : 1;
-        const end = includeEdges ? this.points.length : this.points.length - 1;
+        const end = includeEdges ? this.nodes.length : this.nodes.length - 1;
         for (let i = start; i < end; i++) {
-            const x = this.points[i];
+            const x = this.nodes[i];
             if (i === start) {
                 svg.push(`M ${xy(x.end)}`);
             } else {
@@ -159,31 +159,35 @@ export class CurvePath {
     }
 
     toReversed() {
-        const last = this.points[this.points.length - 1];
-        const points = [{...last, cp1: undefined, cp2: undefined}];
-        for (let i = this.points.length - 2; i >= 0; i--) {
-            const p0 = this.points[i];
-            const p1 = this.points[i + 1];
+        const last = this.nodes[this.nodes.length - 1];
+        const nodes = [{...last, cp1: undefined, cp2: undefined}];
+        for (let i = this.nodes.length - 2; i >= 0; i--) {
+            const p0 = this.nodes[i];
+            const p1 = this.nodes[i + 1];
             if (p1.cp1 && p1.cp2) {
-                points.push({...p0, cp1: p1.cp2, cp2: p1.cp1});
+                nodes.push({...p0, cp1: p1.cp2, cp2: p1.cp1});
             } else {
-                points.push({...p0});
+                nodes.push({...p0});
             }
         }
-        return new CurvePath({...this});
+        return new CurvePath({...this, nodes});
     }
 
     extend(path) {
         if (this.immutable) {
             throw new TypeError("Object is marked immutable");
         }
-        if (!path.points.length) {
+        if (!path.nodes.length) {
             return;
         }
-        this.points.push({...path.points[0], cp1: undefined, cp2: undefined});
-        for (let i = 1; i < path.points.length; i++) {
-            this.points.push(path.points[i]);
+        this.nodes.push({...path.nodes[0], cp1: undefined, cp2: undefined});
+        for (let i = 1; i < path.nodes.length; i++) {
+            this.nodes.push(path.nodes[i]);
         }
+    }
+
+    slice(...args) {
+        return new CurvePath({...this, nodes: this.nodes.slice(...args)});
     }
 
     distance(t) {
@@ -199,9 +203,9 @@ export class CurvePath {
     trace(callback, t) {
         // This would be better looking as a generator but it needs it to be fast.
         t = t || this.epsilon;
-        for (let index = 0; index < this.points.length; index++) {
-            const origin = this.points[index];
-            const next = this.points[index + 1];
+        for (let index = 0; index < this.nodes.length; index++) {
+            const origin = this.nodes[index];
+            const next = this.nodes[index + 1];
             if (next && next.cp1 && next.cp2) {
                 for (let step = 0; step < 1; step += t) {
                     const stepNode = computeBezier(step, origin.end, next.cp1, next.cp2, next.end);
@@ -243,7 +247,7 @@ export class CurvePath {
 export class RoadPath extends CurvePath {
     constructor(options={}) {
         super({...options, immutable: true});
-        this.roadLength = options.roadLength != null ? options.roadLength : this.points.length;
+        this.roadLength = options.roadLength != null ? options.roadLength : this.nodes.length;
         this.offsetIndex = options.offsetIndex || 0;
         this.offsetPercent = options.offsetPercent || 0;
         this.cropPercent = options.cropPercent || 0;
@@ -263,7 +267,7 @@ export class RoadPath extends CurvePath {
     }
 
     boundsAtRoadPercent(rp) {
-        if (!this.points.length) {
+        if (!this.nodes.length) {
             return;
         }
         let [index, percent] = this.roadPercentToOffsetTuple(rp);
@@ -272,13 +276,13 @@ export class RoadPath extends CurvePath {
         if (index < 0) {
             index = 0;
             percent = 0;
-        } else if (index >= this.points.length - 1) {
-            index = this.points.length - 1;
+        } else if (index >= this.nodes.length - 1) {
+            index = this.nodes.length - 1;
             percent = 0;
         } else if (index === 0) { // and only if length > 1
             percent = Math.max(0, (percent - this.offsetPercent) / (1 - this.offsetPercent));
         }
-        if (index === this.points.length - 2 && percent && this.cropPercent) {
+        if (index === this.nodes.length - 2 && percent && this.cropPercent) {
             percent = percent / this.cropPercent;
             if (percent >= 1) {
                 index++;
@@ -286,8 +290,8 @@ export class RoadPath extends CurvePath {
             }
         }
         // Always return at least one edge.
-        const origin = this.points[index];
-        const next = this.points[index + 1];
+        const origin = this.nodes[index];
+        const next = this.nodes[index + 1];
         let point;
         if (next) {
             if (next.cp1) {
@@ -308,48 +312,51 @@ export class RoadPath extends CurvePath {
     }
 
     subpathAtRoadPercents(startRoadPercent=-1e6, endRoadPercent=1e6) {
-        if (startRoadPercent >= endRoadPercent) {
-            return new RoadPath({...this, offsetIndex: 0, offsetPercent: 0, cropPercent: 0});
+        if (startRoadPercent > endRoadPercent) {
+            return new RoadPath({...this, offsetIndex: 0, offsetPercent: 0, cropPercent: 0, nodes: []});
         }
         const start = this.boundsAtRoadPercent(startRoadPercent);
         const end = this.boundsAtRoadPercent(endRoadPercent);
-        const points = [{end: start.point}];
-        for (const x of this.points.slice(start.index + 1, end.index + 1)) {
-            points.push({...x});
+        const nodes = [{end: start.point}];
+        for (const x of this.nodes.slice(start.index + 1, end.index + 1)) {
+            nodes.push({...x});
         }
         let cropPercent = 0;
         if (end.percent) {
             if (end.next.cp1) {
                 const [p] = splitBezier(end.percent, end.origin.end, end.next.cp1,
                                         end.next.cp2, end.next.end);
-                points.push({cp1: p[1], cp2: p[2], end: p[3]});
+                nodes.push({cp1: p[1], cp2: p[2], end: p[3]});
             } else {
-                points.push({end: end.point});
+                nodes.push({end: end.point});
             }
-            if (this.cropPercent && end.index === this.points.length - 2) {
+            if (this.cropPercent && end.index === this.nodes.length - 2) {
                 // subpath is on our boundry so denormalize percent based on our trim..
                 cropPercent = end.percent * this.cropPercent;
             } else {
                 cropPercent = end.percent;
             }
-        } else if (end.index === this.points.length - 1) {
+        } else if (end.index === this.nodes.length - 1) {
             cropPercent = this.cropPercent;
         }
-        if (start.percent && start.next.cp1) {
+        if (startRoadPercent === endRoadPercent) {
+            nodes.length = 1;
+        }
+        if (nodes.length > 1 && start.percent && start.next.cp1) {
             let [, p] = splitBezier(start.percent, start.origin.end, start.next.cp1, start.next.cp2,
                                     start.next.end);
             if (end && start.index === end.index) {
                 const percent = (end.percent - start.percent) / (1 - start.percent);
                 [p] = splitBezier(percent, start.point, p[1], p[2], end.point);
             }
-            points[1].cp1 = p[1];
-            points[1].cp2 = p[2];
+            nodes[1].cp1 = p[1];
+            nodes[1].cp2 = p[2];
         }
         const absStartPercent = start.index === 0 ?
             start.percent * (1 - this.offsetPercent) + this.offsetPercent : start.percent;
         return new RoadPath({
             ...this,
-            points,
+            nodes,
             offsetIndex: start.index + this.offsetIndex,
             offsetPercent: absStartPercent,
             cropPercent,
@@ -367,6 +374,22 @@ export class RoadPath extends CurvePath {
     toCurvePath() {
         return new CurvePath({...this, immutable: false});
     }
+
+    slice(start, end) {
+        if (start < 0) {
+            start += this.nodes.length;
+        }
+        const offsetIndex = this.offsetIndex + start;
+        const offsetPercent = start ? 0 : this.offsetPercent;
+        const cropPercent = (end === undefined || end >= this.nodes.length) ? this.cropPercent : 0;
+        return new RoadPath({
+            ...this,
+            nodes: this.nodes.slice(start, end),
+            offsetIndex,
+            offsetPercent,
+            cropPercent,
+        });
+    }
 }
 
 
@@ -379,22 +402,22 @@ export class RoadPath extends CurvePath {
  *
  * This is a simplified uniform (alpha=0) impl, as that is all Zwift uses.
  */
-export function catmullRomPath(data, {loop, epsilon, road}={}) {
+export function catmullRomPath(points, {loop, epsilon, road}={}) {
     if (loop) {
-        data = Array.from(data);
-        data.unshift(data[data.length - 1]);
-        data.push(...data.slice(1, 3));
+        points = Array.from(points);
+        points.unshift(points[points.length - 1]);
+        points.push(...points.slice(1, 3));
     }
-    const points = [{end: data[0]}];
-    for (let i = 0; i < data.length - 1; i++) {
-        const p_1 = data[i - 1];
-        const p0 = data[i];
-        const p1 = data[i + 1];
-        const p2 = data[i + 2];
+    const nodes = [{end: points[0]}];
+    for (let i = 0; i < points.length - 1; i++) {
+        const p_1 = points[i - 1];
+        const p0 = points[i];
+        const p1 = points[i + 1];
+        const p2 = points[i + 2];
         const meta = p0[3];
         const straight = meta?.straight;
         if (straight) {
-            points.push({end: p1});
+            nodes.push({end: p1});
             continue;
         }
         const A = 6;
@@ -411,29 +434,29 @@ export function catmullRomPath(data, {loop, epsilon, road}={}) {
             (p0[1] + B * p1[1] - 1 * p2[1]) * M,
             (p0[2] + B * p1[2] - 1 * p2[2]) * M
         ] : p1;
-        points.push({cp1, cp2, end: p1});
+        nodes.push({cp1, cp2, end: p1});
     }
     const Klass = road ? RoadPath : CurvePath;
-    return new Klass({points, epsilon});
+    return new Klass({nodes, epsilon});
 }
 
 
-export function cubicBezierPath(data, {loop, smoothing=0.2, epsilon, road}={}) {
+export function cubicBezierPath(points, {loop, smoothing=0.2, epsilon, road}={}) {
     if (loop) {
-        data = Array.from(data);
-        data.unshift(data[data.length - 1]);
-        data.push(...data.slice(1, 3));
+        points = Array.from(points);
+        points.unshift(points[points.length - 1]);
+        points.push(...points.slice(1, 3));
     }
-    const points = [{end: data[0]}];
-    for (let i = 0; i < data.length - 1; i++) {
-        const p_1 = data[i - 1];
-        const p0 = data[i];
-        const p1 = data[i + 1];
-        const p2 = data[i + 2];
+    const nodes = [{end: points[0]}];
+    for (let i = 0; i < points.length - 1; i++) {
+        const p_1 = points[i - 1];
+        const p0 = points[i];
+        const p1 = points[i + 1];
+        const p2 = points[i + 2];
         const meta = i ? p0[3] : null;
         const straight = meta?.straight;
         if (straight) {
-            points.push({end: p1});
+            nodes.push({end: p1});
             continue;
         }
         const tanIn = p1[3]?.tanIn;
@@ -444,8 +467,8 @@ export function cubicBezierPath(data, {loop, smoothing=0.2, epsilon, road}={}) {
         const cp2 = tanIn ?
             [p1[0] + tanIn[0], p1[1] + tanIn[1], p1[2] + tanIn[2]] :
             p2 ? bezierControl(p0, p1, p2, smoothing, true) : p1;
-        points.push({cp1, cp2, end: p1});
+        nodes.push({cp1, cp2, end: p1});
     }
     const Klass = road ? RoadPath : CurvePath;
-    return new Klass({points, epsilon});
+    return new Klass({nodes, epsilon});
 }
