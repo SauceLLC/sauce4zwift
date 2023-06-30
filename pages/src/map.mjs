@@ -492,7 +492,7 @@ export class SauceZwiftMap extends EventTarget {
 
     setAutoHeading(en) {
         if (!en) {
-            this._setHeading(0);
+            this.setHeading(0);
         }
         this.autoHeading = en;
         if (!this.isPaused()) {
@@ -646,7 +646,7 @@ export class SauceZwiftMap extends EventTarget {
             (m.maxY - m.minY),
         ].join(' '));
         this._elements.roadLayersGroup.classList.toggle('rotate-route-select', !!m.rotateRouteSelect);
-        this._setHeading(0);
+        this.setHeading(0);
         this._ents.clear();
         this._pendingEntityUpdates.clear();
         const [roads] = await Promise.all([
@@ -1004,7 +1004,7 @@ export class SauceZwiftMap extends EventTarget {
                     this.addEntity(this.fooEnt);
                 }
                 if (this.autoHeading) {
-                    this._setHeading(state.heading);
+                    this.setHeading(state.heading);
                 }
                 this.setCenter([state.x, state.y]);
             }
@@ -1215,11 +1215,11 @@ export class SauceZwiftMap extends EventTarget {
 
     setHeadingOffset(deg) {
         this._headingOfft = deg || 0;
-        this._setHeading(this._lastHeading, true);
+        this.setHeading(this._lastHeading, true);
         this._updateGlobalTransform({render: true});
     }
 
-    _setHeading(heading, force) {
+    setHeading(heading, force) {
         if (!force && this.trackingPaused) {
             return false;
         }
