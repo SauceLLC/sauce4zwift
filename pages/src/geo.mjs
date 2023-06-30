@@ -84,7 +84,7 @@ function createZwiftMap({worldList}) {
     let settingsSaveTimeout;
     zm.addEventListener('zoom', ev => {
         clearTimeout(settingsSaveTimeout);
-        settings.zoom = ev.zoom;
+        settings.zoom = Number(ev.zoom.toFixed(2));
         settingsSaveTimeout = setTimeout(() => common.settingsStore.set(null, settings), 100);
     });
     const anchorResetButton = document.querySelector('.map-controls .button.reset-anchor');
@@ -134,9 +134,20 @@ async function initSelfAthlete() {
     }
     zwiftMap.setAthlete(ad.athleteId);
     if (ad.state) {
-        zwiftMap.setCourse(ad.state.courseId);
+        zwiftMap.incPause();
+        try {
+            await zwiftMap.setCourse(ad.state.courseId);
+            if (ad.watching) {
+                if (zwiftMap.autoHeading) {
+                    zwiftMap.setHeading(ad.state.heading);
+                }
+                zwiftMap.setCenter([ad.state.x, ad.state.y]);
+            }
+        } finally {
+            zwiftMap.decPause();
+        }
         if (elProfile) {
-            elProfile.setCourse(ad.state.courseId);
+            await elProfile.setCourse(ad.state.courseId);
         }
     }
     if (elProfile) {
@@ -188,16 +199,56 @@ export async function main() {
     const urlQuery = new URLSearchParams(location.search);
     if (urlQuery.has('testing')) {
         const [course, road] = urlQuery.get('testing').split(',');
-        zwiftMap.setActiveRoad(+road || 0);
-        zwiftMap.setCourse(+course || 6);
+        const routeId = urlQuery.get('route');
         const center = urlQuery.get('center');
+        zwiftMap.setCourse(+course || 6).then(async () => {
+            if (routeId) {
+                const route = await zwiftMap.setActiveRoute(+routeId);
+                await zwiftMap.setActiveRoad(0);
+                const point = zwiftMap.addPoint([0, 0], 'star');
+                point.setPosition([0, 0]);
+                zwiftMap.setCenter([-100000, 0]);
+                let start = 0;
+                let end = route.curvePath.nodes.length;
+                let hi;
+                window.addEventListener('keydown', ev => {
+                    if (ev.key === 'ArrowRight') {
+                        end = Math.min(route.curvePath.nodes.length, end + 1);
+                    } else if (ev.key === 'ArrowLeft') {
+                        end = Math.max(start, end - 1);
+                    } else if (ev.key === 'ArrowUp') {
+                        start = Math.min(end, start + 1);
+                    } else if (ev.key === 'ArrowDown') {
+                        start = Math.max(0, start - 1);
+                    } else {
+                        return;
+                    }
+                    if (hi) {
+                        hi.elements.forEach(x => x.remove());
+                    }
+                    const path = route.curvePath.slice(start, end);
+                    point.setPosition(route.curvePath.nodes[start].end);
+                    console.log(start, end, route.distances[end - 1] - route.distances[start],
+                                route.curvePath[start]);
+                    hi = zwiftMap.addHighlightPath(path, `route-${route.id}`, {debug: false});
+                });
+                hi = zwiftMap.addHighlightPath(route.curvePath.slice(start, end),
+                                               `route-${route.id}`, {debug: true}); // XXX
+            } else {
+                zwiftMap.setActiveRoad(+road || 0);
+            }
+        });
+        if (elProfile) {
+            elProfile.setCourse(+course || 6).then(async () => {
+                if (routeId) {
+                    await elProfile.setRoute(+routeId);
+                } else {
+                    elProfile.setRoad(+road || 0);
+                }
+            });
+        }
         if (center) {
             zwiftMap.setCenter(center.split(',').map(Number));
-        }
-        if (elProfile) {
-            elProfile.setCourse(+course || 6).then(() => {
-                elProfile.setRoad(+road || 0);
-            });
         }
     } else {
         common.subscribe('watching-athlete-change', async athleteId => {
@@ -244,6 +295,8 @@ export async function main() {
             zwiftMap.setSparkle(changed.get('sparkle'));
         } else if (changed.has('quality')) {
             zwiftMap.setQuality(qualityScale(changed.get('quality')));
+        } else if (changed.has('zoom')) {
+            zwiftMap.setZoom(changed.get('zoom'));
         } else if (changed.has('verticalOffset')) {
             zwiftMap.setVerticalOffset(changed.get('verticalOffset') / 100);
         } else if (changed.has('fpsLimit')) {
