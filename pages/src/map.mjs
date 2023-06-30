@@ -257,6 +257,9 @@ export class SauceZwiftMap extends EventTarget {
         this.route = null;
         this.worldMeta = null;
         this.adjHeading = 0;
+        this.style = style;
+        this.quality = quality;
+        this._canvasScale = this._qualityToCanvasScale(quality);
         this._headingRotations = 0;
         this._lastHeading = 0;
         this._headingOfft = 0;
@@ -311,12 +314,10 @@ export class SauceZwiftMap extends EventTarget {
         this.incPause();
         this.setZoom(zoom);
         this.setAutoHeading(autoHeading);
-        this.setStyle(style);
         this.setOpacity(opacity);
         this.setTiltShift(tiltShift);
         this.setZoomPriorityTilt(zoomPriorityTilt);
         this.setSparkle(sparkle);
-        this.setQuality(quality);
         this.setVerticalOffset(verticalOffset);
         this.setFPSLimit(fpsLimit);
         this.el.append(this._elements.map, this._elements.pins);
@@ -338,11 +339,12 @@ export class SauceZwiftMap extends EventTarget {
         this._msPerFrame = 1000 / fps | 0;
     }
 
-    setStyle(style) {
-        this.style = style || 'default';
-        if (!this.isPaused()) {
-            this._updateMapBackground();
+    async setStyle(style='default') {
+        if (style === this.style) {
+            return;
         }
+        this.style = style;
+        await this._updateMapBackground();
     }
 
     setOpacity(v) {
@@ -374,8 +376,17 @@ export class SauceZwiftMap extends EventTarget {
         this.el.classList.toggle('sparkle', !!en);
     }
 
-    setQuality(q) {
+    _qualityToCanvasScale(q) {
+        return q < 0.5 ? 0.25 : q < 0.85 ? 0.5 : 1;
+    }
+
+    async setQuality(q) {
         this.quality = q;
+        const cs = this._qualityToCanvasScale(q);
+        if (cs !== this._canvasScale) {
+            this._canvasScale = cs;
+            await this._updateMapBackground();
+        }
         this._fullUpdateAsNeeded();
     }
 
@@ -553,6 +564,8 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     _updateMapBackground = common.asyncSerialize(async function() {
+        const m = this.worldMeta = this.worldList.find(x => x.courseId === this.courseId);
+        this._mapScale = 1 / (m.tileScale / m.mapScale / this._canvasScale);
         const suffix = {
             default: '',
             neon: '-neon',
@@ -561,17 +574,23 @@ export class SauceZwiftMap extends EventTarget {
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         const img = new Image();
-        img.src = `https://www.sauce.llc/products/sauce4zwift/maps/world` +
-            `${this.worldMeta.worldId}${suffix || ''}.webp`;
         try {
-            await img.decode();
+            await new Promise((resolve, reject) => {
+                img.addEventListener('load', resolve);
+                img.addEventListener('error', ev => {
+                    console.warn('image load error:', ev);
+                    reject(new Error('Image load error'));
+                });
+                img.src = `https://www.sauce.llc/products/sauce4zwift/maps/world` +
+                    `${this.worldMeta.worldId}${suffix || ''}.webp`;
+            });
         } catch(e) {
             console.warn("Image decode interrupted/failed", e);
             return;
         }
-        canvas.width = img.naturalWidth;
-        canvas.height = img.naturalHeight;
-        ctx.drawImage(img, 0, 0);
+        canvas.width = img.naturalWidth * this._canvasScale;
+        canvas.height = img.naturalHeight * this._canvasScale;
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         this._adjustLayerScale({force: true});
     });
 
@@ -614,9 +633,8 @@ export class SauceZwiftMap extends EventTarget {
     async _setCourse(courseId) {
         this.courseId = courseId;
         const m = this.worldMeta = this.worldList.find(x => x.courseId === courseId);
-        this._mapScale = 1 / (m.tileScale / m.mapScale);
-        this._anchorXY[0] = -(m.minX + m.anchorX) * this._mapScale;
-        this._anchorXY[1] = -(m.minY + m.anchorY) * this._mapScale;
+        this._anchorXY[0] = -(m.minX + m.anchorX);
+        this._anchorXY[1] = -(m.minY + m.anchorY);
         Object.values(this._elements.roadLayers).forEach(x => x.replaceChildren());
         this._elements.roadDefs.replaceChildren();
         this._elements.ents.replaceChildren();
@@ -639,6 +657,7 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     setWatching(id) {
+        console.log(id);
         if (this.watchingId != null && this._ents.has(this.watchingId)) {
             const ent = this._ents.get(this.watchingId);
             ent.el.classList.remove('watching');
@@ -676,32 +695,25 @@ export class SauceZwiftMap extends EventTarget {
         return curveFunc(points, {loop});
     }
 
-    _renderRoads(roads, ids) {
-        ids = ids || Object.keys(roads);
+    _renderRoads(roads) {
         const {surfacesLow, gutters} = this._elements.roadLayers;
         // Because roads overlap and we want to style some of them differently this
         // make multi-sport roads higher so we don't randomly style overlapping sections.
-        ids.sort((a, b) =>
-            (roads[a] ? roads[a].sports.length : 0) -
-            (roads[b] ? roads[b].sports.length : 0));
-        for (const id of ids) {
-            const road = roads[id];
-            if (!road) {
-                console.error("Road not found:", id);
-                continue;
-            }
+        roads = Array.from(roads);
+        roads.sort((a, b) => a.sports.length - b.sports.length);
+        for (const road of roads) {
             if ((!road.sports.includes('cycling') && !road.sports.includes('running')) || !road.isAvailable) {
                 continue;
             }
             this._elements.roadDefs.append(createElementSVG('path', {
-                id: `road-path-${id}`,
+                id: `road-path-${road.id}`,
                 d: road.curvePath.toSVGPath()
             }));
             for (const g of [gutters, surfacesLow]) {
                 g.append(createElementSVG('use', {
                     "class": 'road ' + road.sports.map(x => `sport-${x}`).join(' '),
-                    "data-id": id,
-                    "href": `#road-path-${id}`,
+                    "data-id": road.id,
+                    "href": `#road-path-${road.id}`,
                 }));
             }
         }
@@ -727,6 +739,11 @@ export class SauceZwiftMap extends EventTarget {
 
     setActiveRoad(id) {
         this.roadId = id;
+        this.routeId = null;
+        this.route = null;
+        if (this._routeHighlight) {
+            this._routeHighlight.elements.forEach(x => x.remove());
+        }
         const surface = this._elements.roadLayers.surfacesMid;
         let r = surface.querySelector('.road.active');
         if (!r) {
@@ -741,14 +758,15 @@ export class SauceZwiftMap extends EventTarget {
         this.routeId = id;
         const route = await common.getRoute(id);
         if (this._routeHighlight) {
-            this._routeHightlight.elements.forEach(x => x.remove());
+            this._routeHighlight.elements.forEach(x => x.remove());
         }
         if (route) {
-            this._routeHighlights = this.addHighlightPath(route.curvePath, 'route-' + id);
-            this.route = route;
+            this._routeHighlight = this.addHighlightPath(route.curvePath, 'route-' + id);
         } else {
             console.warn("Route not found:", id);
         }
+        this.route = route;
+        return route;
     });
 
     _addShape(shape, attrs, options={}) {
@@ -981,8 +999,8 @@ export class SauceZwiftMap extends EventTarget {
                 if (!this.fooEnt) {
                     this.fooEnt = new MapEntity('foo', 'athlete');
                     this.fooEnt.transition.setDuration(250);
-                    this.fooEnt.el.classList.add('watching');
-                    this.fooEnt.setPosition([10000, 10000]);
+                    this.fooEnt.el.classList.add('bot');
+                    this.fooEnt.setPosition([0, 0]);
                     this.addEntity(this.fooEnt);
                 }
                 if (this.autoHeading) {
@@ -997,8 +1015,8 @@ export class SauceZwiftMap extends EventTarget {
 
     setCenter(pos) {
         const [x, y] = this._rotateWorldPos(pos);
-        this._centerXY[0] = x * this._mapScale;
-        this._centerXY[1] = y * this._mapScale;
+        this._centerXY[0] = x;
+        this._centerXY[1] = y;
         this._updateGlobalTransform();
     }
 
@@ -1045,17 +1063,17 @@ export class SauceZwiftMap extends EventTarget {
         } else {
             this._tiltShiftAngle = 0;
         }
-        const scale = 1 / adjZoom * quality;
-        this._tiltHeight = this._tiltShift ? 800 / (this.zoom / scale) : 0;
+        const scale = 1 / adjZoom * quality / this._canvasScale;
+        this._tiltHeight = this._tiltShift ? 800 * this._canvasScale / (this.zoom / scale) : 0;
         if (force || this._layerScale !== scale) {
             this.incPause();
             this._layerScale = scale;
             const {mapCanvas, ents, map} = this._elements;
             mapCanvas.style.setProperty('width', `${mapCanvas.width * scale}px`);
             mapCanvas.style.setProperty('height', `${mapCanvas.height * scale}px`);
-            ents.style.setProperty('left', `${this._anchorXY[0] * scale}px`);
-            ents.style.setProperty('top', `${this._anchorXY[1] * scale}px`);
-            map.style.setProperty('--layer-scale', scale);
+            ents.style.setProperty('left', `${this._anchorXY[0] * scale * this._mapScale}px`);
+            ents.style.setProperty('top', `${this._anchorXY[1] * scale * this._mapScale}px`);
+            map.style.setProperty('--layer-scale', scale * this._canvasScale);
             for (const x of this._ents.values()) {
                 // force refresh of _all_ ents.
                 this._pendingEntityUpdates.add(x);
@@ -1071,8 +1089,8 @@ export class SauceZwiftMap extends EventTarget {
             return;
         }
         const scale = this.zoom / this._layerScale;
-        const relX = this._anchorXY[0] + this._centerXY[0];
-        const relY = this._anchorXY[1] + this._centerXY[1];
+        const relX = (this._anchorXY[0] + this._centerXY[0]) * this._mapScale;
+        const relY = (this._anchorXY[1] + this._centerXY[1]) * this._mapScale;
         const dragX = this._dragXY[0] * scale;
         const dragY = this._dragXY[1] * scale;
         const tX = -(relX - dragX) * this._layerScale;
@@ -1081,7 +1099,7 @@ export class SauceZwiftMap extends EventTarget {
         const originY = relY * this._layerScale;
         let vertOffset = 0;
         if (this.verticalOffset) {
-            const height = this._elRect.height * this._layerScale / this.zoom;
+            const height = this._elRect.height * this._layerScale / this.zoom * this._canvasScale;
             vertOffset = this.verticalOffset * height;
         }
         this._mapTransition.setValues([
@@ -1115,7 +1133,7 @@ export class SauceZwiftMap extends EventTarget {
             this._elements.map.style.setProperty('transform-origin', `${oX}px ${oY}px`);
             this._elements.map.style.setProperty('transform', `
                 translate(${tX}px, ${tY}px)
-                scale(${scale})
+                scale(${scale / this._canvasScale})
                 ${tiltHeight ? `perspective(${tiltHeight}px) rotateX(${tiltAngle}deg)` : ''}
                 ${vertOffset ? `translate(0, ${vertOffset}px)` : ''}
                 rotate(${rotate}deg)
