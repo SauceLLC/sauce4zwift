@@ -37,7 +37,7 @@ const weightClass = v => H.weightClass(v, {suffix: true, html: true});
 const pwr = v => H.power(v, {suffix: true, html: true});
 const hr = v => H.number(v || null, {suffix: 'bpm', html: true});
 const kj = (v, options) => H.number(v, {suffix: 'kJ', html: true, ...options});
-const pct = (v, options) => H.number(v, {suffix: '%', html: true, ...options});
+const pct = (v, options) => H.number(v * 100, {suffix: '%', html: true, ...options});
 const gapTime = (v, entry) => H.timer(v) + (entry.isGapEst ? '<small> (est)</small>' : '');
 
 let overlayMode;
@@ -229,7 +229,7 @@ const fieldGroups = [{
         {id: 'tss', defaultEn: false, label: 'TSS®', get: x => x.stats.power.tss, fmt: H.number,
          tooltip: tpAttr},
         {id: 'intensity-factor', defaultEn: false, label: 'Intensity Factor®', headerLabel: 'IF®',
-         get: x => x.stats.power.np, fmt: (x, entry) => pct(x / (entry.athlete && entry.athlete.ftp) * 100),
+         get: x => x.stats.power.np, fmt: (x, entry) => pct(x / (entry.athlete && entry.athlete.ftp)),
          tooltip: 'NP® / FTP: A value of 100% means NP® = FTP\n\n' + tpAttr},
         {id: 'distance', defaultEn: false, label: 'Distance', headerLabel: 'Dist',
          get: x => x.state.distance, fmt: fmtDist},
@@ -270,12 +270,12 @@ const fieldGroups = [{
         {id: 'route', defaultEn: false, label: 'Route', headerLabel: '<ms>route</ms>',
          get: getRoute, fmt: fmtRoute},
         {id: 'progress', defaultEn: false, label: 'Route %', headerLabel: 'RT %',
-         get: x => x.state.progress * 100, fmt: pct},
+         get: x => x.state.progress, fmt: pct},
         {id: 'workout-zone', defaultEn: false, label: 'Workout Zone', headerLabel: 'Zone',
          get: x => x.state.workoutZone, fmt: x => x || '-'},
         {id: 'road', defaultEn: false, label: 'Road ID', get: x => x.state.roadId},
         {id: 'roadcom', defaultEn: false, label: 'Road Completion', headerLabel: 'Road %',
-         get: x => x.state.roadCompletion / 10000, fmt: pct},
+         get: x => x.state.roadCompletion / 1e6, fmt: pct},
     ],
 }, {
     group: 'power',
