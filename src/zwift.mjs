@@ -1650,11 +1650,17 @@ export class GameMonitor extends events.EventEmitter {
         if (this.suspended || this._stopping) {
             return;
         }
+        const lws = this._lastWatchingState;
+        const roadId = lws ? lws.roadId : undefined;
+        const portal = !!(roadId && roadId >= 10000);
         for (const ch of this._udpChannels) {
             if (ch.active) {
                 try {
-                    await ch.sendPlayerState({watchingAthleteId: this.watchingAthleteId,
-                                              ...this.watchingStateExtra});
+                    await ch.sendPlayerState({
+                        watchingAthleteId: this.watchingAthleteId,
+                        _flags2: portal ? encodePlayerStateFlags2({roadId}) : undefined,
+                        portal,
+                        ...this.watchingStateExtra});
                     break;
                 } catch(e) {
                     if (!(e instanceof InactiveChannelError)) {

@@ -37,7 +37,7 @@ message PlayerState {
     bool canSteer = 38;
     uint32 routeId = 39;
     int32 _f40 = 40; // 63, 51?
-    int32 _f43 = 43;
+    bool portal = 43;
 }
 
 enum WorldUpdatePayloadType {
