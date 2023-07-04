@@ -269,12 +269,15 @@ export function processPlayerStateMessage(msg) {
     const latency = worldTimer.now() - wt;
     const adjRoadLoc = msg.roadTime - 5000;  // It's 5,000 -> 1,005,000
     const worldMeta = worldMetas[msg.courseId];
+    // Route id is actually wrong when in a portal and causes problems.
+    const routeId = msg.portal ? undefined : msg.routeId;
     return {
         ...msg,
         ...flags1,
         ...flags2,
         worldTime: wt,
         latency,
+        routeId,
         progress: (msg._progress >> 8 & 0xff) / 0xff,
         workoutZone: (msg._progress & 0xF) || null,
         kj: msg._mwHours / 1000 / (1000 / 3600),
@@ -1651,14 +1654,13 @@ export class GameMonitor extends events.EventEmitter {
             return;
         }
         const lws = this._lastWatchingState;
-        const roadId = lws ? lws.roadId : undefined;
-        const portal = !!(roadId && roadId >= 10000);
+        const portal = lws ? lws.portal : undefined;
         for (const ch of this._udpChannels) {
             if (ch.active) {
                 try {
                     await ch.sendPlayerState({
                         watchingAthleteId: this.watchingAthleteId,
-                        _flags2: portal ? encodePlayerStateFlags2({roadId}) : undefined,
+                        _flags2: portal ? encodePlayerStateFlags2({roadId: lws.roadId}) : undefined,
                         portal,
                         ...this.watchingStateExtra});
                     break;
