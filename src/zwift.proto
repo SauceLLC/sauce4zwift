@@ -240,8 +240,8 @@ message UDPServer {
     int32 port = 4;
     float xBound = 5;
     float yBound = 6;
-    float xBound2 = 7; // Only seen with new pools2 (might be lower bound)
-    float yBound2 = 8; // Only seen with new pools2 (might be lower bound)
+    float xBound2 = 7; // Only seen with new portal pools (might be lower bound)
+    float yBound2 = 8; // Only seen with new portal pools (might be lower bound)
 }
 
 message UDPServerPool {
@@ -258,7 +258,7 @@ message UDPConfigVOD {
     int32 watchingAthleteId = 4;
     float watchingX = 5;
     float watchingY = 6;
-    repeated UDPServerPool pools2 = 8; // Just started seeing june 2023
+    UDPServerPool portalPool = 8;
 }
 
 message UDPConfig {

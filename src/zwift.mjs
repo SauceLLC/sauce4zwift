@@ -1858,6 +1858,9 @@ export class GameMonitor extends events.EventEmitter {
             for (const x of pb.udpConfigVOD.pools) {
                 this._udpServerPools.set(x.courseId, x);
             }
+            if (pb.udpConfigVOD.portalPool) {
+                this._udpServerPools.set('portal', pb.udpConfigVOD.portalPool);
+            }
             queueMicrotask(() => this.emit('udpServerPoolsUpdated', this._udpServerPools));
         }
         for (let i = 0; i < pb.worldUpdates.length; i++) {
@@ -1978,13 +1981,18 @@ export class GameMonitor extends events.EventEmitter {
         }
     }
 
-    findBestUDPServer({x, y, courseId}) {
-        if (!this._udpServerPools.has(courseId)) {
+    findBestUDPServer({x, y, portal, courseId}) {
+        const pool = this._udpServerPools.get(portal ? 'portal' : courseId);
+        if (!pool) {
             return;
         }
-        const pool = this._udpServerPools.get(courseId);
         if (pool.useFirstInBounds) {
-            return pool.servers.find(server => x <= server.xBound && y <= server.yBound);
+            const best = pool.servers.find(server => x <= server.xBound && y <= server.yBound);
+            if (best.xBound2 && x <= best.xBound2 || best.yBound2 && y <= best.yBound2) {
+                console.error("XXX probably need to use these lower bounds");
+                debugger;
+            }
+            return best;
         } else {
             let closestServer;
             let closestDelta = Infinity;
