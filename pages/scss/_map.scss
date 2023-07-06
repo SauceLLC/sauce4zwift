@@ -58,6 +58,7 @@
             top: 0;
             width: 100%;
             height: 100%;
+            overflow: visible;
             transform: translateZ(0);  // Fix rendering glitches by forcing layer (only Safari affected)
         }
 
@@ -265,6 +266,10 @@
         > .map-background {
             pointer-events: none;
             opacity: var(--opacity, 1);
+
+            &.hidden {
+                visibility: hidden;
+            }
         }
     }
 
