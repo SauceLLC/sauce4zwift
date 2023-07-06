@@ -6,6 +6,7 @@ import * as sauce from '../shared/sauce/index.mjs';
 import * as report from '../shared/report.mjs';
 import * as zwift from './zwift.mjs';
 import * as env from './env.mjs';
+import * as curves from '../shared/curves.mjs';
 import {getApp} from './main.mjs';
 import {createRequire} from 'node:module';
 const require = createRequire(import.meta.url);
@@ -721,6 +722,7 @@ export class StatsProcessor extends events.EventEmitter {
             ftp: p.ftp,
             type: p.playerType,
             countryCode: p.countryCode, // iso 3166
+            powerSourceModel: p.powerSourceModel,
             avatar: !minor ? p.imageSrcLarge || p.imageSrc : undefined,
             weight: !minor && p.weight ? p.weight / 1000 : undefined,
             height: !minor && p.height ? p.height / 10 : undefined,
@@ -879,9 +881,17 @@ export class StatsProcessor extends events.EventEmitter {
 
     async _loadEvents(ids) {
         for (const x of ids) {
-            const event = await zwift.getEvent(x);
-            if (event) {
-                this._addEvent(event);
+            try {
+                const event = await this.zwiftAPI.getEvent(x);
+                if (event) {
+                    this._addEvent(event);
+                }
+            } catch(e) {
+                /* no-pragma */
+                // Club rides we don't have rights to show up in our list
+                // I can't see a way to test for permissions before attempting
+                // access so we just catch the error
+                console.warn(e);
             }
         }
     }
@@ -909,14 +919,13 @@ export class StatsProcessor extends events.EventEmitter {
                     // We also get multiples for each event, first with id = 0, then one
                     // for each subgroup.
                     const event = zwift.pbToObject(x.payload);
-                    if (event.id && !updatedEvents.includes(x.id)) {
+                    if (event.id && !updatedEvents.includes(event.id)) {
                         updatedEvents.push(event.id);
                     }
                 }
             }
         }
         if (updatedEvents.length) {
-            debugger;
             queueMicrotask(() => this._loadEvents(updatedEvents));
         }
         const hasStatesListener = !!this.listenerCount('states');
@@ -1287,7 +1296,16 @@ export class StatsProcessor extends events.EventEmitter {
         }
         if (!roadDistances.has(roadSig)) {
             const road = env.getRoad(state.courseId, state.roadId);
-            roadDistances.set(roadSig, road ? road.distances.at(-1) : 0);
+            if (road) {
+                const curveFunc = {
+                    CatmullRom: curves.catmullRomPath,
+                    Bezier: curves.cubicBezierPath,
+                }[road.splineType];
+                const curvePath = curveFunc(road.path, {loop: road.looped, road: true});
+                roadDistances.set(roadSig, road ? curvePath.distance() / 100 : 0);
+            } else {
+                roadDistances.set(roadSig, null);
+            }
         }
         this._activeSegmentCheck(state, ad, roadSig);
         this._recordAthleteRoadHistory(state, ad, roadSig);
