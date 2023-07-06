@@ -252,6 +252,7 @@ export class SauceZwiftMap extends EventTarget {
         this.watchingId = null;
         this.athleteId = null;
         this.courseId = null;
+        this.portal = null;
         this.roadId = null;
         this.routeId = null;
         this.route = null;
@@ -306,8 +307,7 @@ export class SauceZwiftMap extends EventTarget {
         };
         this._elements.roads.append(this._elements.roadDefs, this._elements.roadLayersGroup);
         this._elements.roadLayersGroup.append(...Object.values(this._elements.roadLayers));
-        this._elements.map.append(this._elements.mapCanvas, this._elements.roads,
-                                  this._elements.ents);
+        this._elements.map.append(this._elements.mapCanvas, this._elements.roads, this._elements.ents);
         this.el.addEventListener('wheel', this._onWheelZoom.bind(this));
         this.el.addEventListener('pointerdown', this._onPointerDown.bind(this));
         this._elements.ents.addEventListener('click', this._onEntsClick.bind(this));
@@ -348,7 +348,7 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     setOpacity(v) {
-        this._elements.mapCanvas.style.setProperty('--opacity', isNaN(v) ? 1 : v);
+        this._elements.map.style.setProperty('--opacity', isNaN(v) ? 1 : v);
     }
 
     _fullUpdateAsNeeded() {
@@ -566,14 +566,15 @@ export class SauceZwiftMap extends EventTarget {
     _updateMapBackground = common.asyncSerialize(async function() {
         const m = this.worldMeta = this.worldList.find(x => x.courseId === this.courseId);
         this._mapScale = 1 / (m.tileScale / m.mapScale / this._canvasScale);
+        const canvas = this._elements.mapCanvas;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        canvas.classList.toggle('hidden', !!this.portal);
+        const img = new Image();
         const suffix = {
             default: '',
             neon: '-neon',
         }[this.style];
-        const canvas = this._elements.mapCanvas;
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        const img = new Image();
         try {
             await new Promise((resolve, reject) => {
                 img.addEventListener('load', resolve);
@@ -618,13 +619,22 @@ export class SauceZwiftMap extends EventTarget {
         return this._pauseRefCnt > 0;
     }
 
-    setCourse = common.asyncSerialize(async function(courseId) {
-        if (courseId === this.courseId) {
+    setCourse = common.asyncSerialize(async function(courseId, {portalRoad}={}) {
+        const isPortal = portalRoad != null;
+        if (isPortal) {
+            if (courseId === this.courseId && this.portal && portalRoad === this.roadId) {
+                return;
+            }
+        } else if (courseId === this.courseId && !this.portal) {
             return;
         }
         this.incPause();
         try {
-            await this._setCourse(courseId);
+            if (isPortal) {
+                await this._setPortal(courseId, portalRoad);
+            } else {
+                await this._setCourse(courseId);
+            }
         } finally {
             this.decPause();
         }
@@ -632,23 +642,16 @@ export class SauceZwiftMap extends EventTarget {
 
     async _setCourse(courseId) {
         this.courseId = courseId;
+        this.portal = false;
         const m = this.worldMeta = this.worldList.find(x => x.courseId === courseId);
         this._anchorXY[0] = -(m.minX + m.anchorX);
         this._anchorXY[1] = -(m.minY + m.anchorY);
-        Object.values(this._elements.roadLayers).forEach(x => x.replaceChildren());
-        this._elements.roadDefs.replaceChildren();
-        this._elements.ents.replaceChildren();
-        this._elements.pins.replaceChildren();
-        this._elements.roads.setAttribute('viewBox', [
-            (m.minX + m.anchorX),
-            (m.minY + m.anchorY),
-            (m.maxX - m.minX),
-            (m.maxY - m.minY),
-        ].join(' '));
-        this._elements.roadLayersGroup.classList.toggle('rotate-route-select', !!m.rotateRouteSelect);
-        this.setHeading(0);
-        this._ents.clear();
-        this._pendingEntityUpdates.clear();
+        this._resetElements([
+            m.minX + m.anchorX,
+            m.minY + m.anchorY,
+            m.maxX - m.minX,
+            m.maxY - m.minY
+        ], !!m.rotateRouteSelect);
         const [roads] = await Promise.all([
             common.getRoads(courseId),
             this._updateMapBackground(),
@@ -656,8 +659,37 @@ export class SauceZwiftMap extends EventTarget {
         this._renderRoads(roads);
     }
 
+    async _setPortal(courseId, roadId) {
+        this.courseId = courseId;
+        this.portal = true;
+        const road = await common.getRoad('portal', roadId);
+        const m = this.worldMeta = this.worldList.find(x => x.courseId === courseId);
+        this._anchorXY[0] = -(m.minX + m.anchorX);
+        this._anchorXY[1] = -(m.minY + m.anchorY);
+        this._resetElements([
+            m.minX + m.anchorX + road.path[0][0],
+            m.minY + m.anchorY + road.path[0][1],
+            m.maxX - m.minX,
+            m.maxY - m.minY
+        ], !!m.rotateRouteSelect);
+        await this._updateMapBackground();
+        this._renderRoads([road]);
+        this.setActiveRoad(roadId);
+    }
+
+    _resetElements(viewBox, rotate) {
+        Object.values(this._elements.roadLayers).forEach(x => x.replaceChildren());
+        this._elements.roadDefs.replaceChildren();
+        this._elements.ents.replaceChildren();
+        this._elements.pins.replaceChildren();
+        this._elements.roads.setAttribute('viewBox', viewBox.join(' '));
+        this._elements.roadLayersGroup.classList.toggle('rotate-route-select', rotate);
+        this.setHeading(0);
+        this._ents.clear();
+        this._pendingEntityUpdates.clear();
+    }
+
     setWatching(id) {
-        console.log(id);
         if (this.watchingId != null && this._ents.has(this.watchingId)) {
             const ent = this._ents.get(this.watchingId);
             ent.el.classList.remove('watching');
@@ -910,17 +942,18 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     renderAthleteStates = common.asyncSerialize(async states => {
-        if (this.watchingId == null) {
+        if (this.watchingId == null || !common.isVisible()) {
             return;
-        }
-        if (!common.isVisible()) {
-            console.warn("XXX probably need to run this through and make sure we're well behaved");
         }
         const watching = states.find(x => x.athleteId === this.watchingId);
         if (!watching && this.courseId == null) {
             return;
         } else if (watching) {
-            if (watching.courseId !== this.courseId) {
+            if (watching.portal) {
+                if (!this.portal || watching.roadId !== this.roadId || watching.courseId !== this.courseId) {
+                    await this.setCourse(watching.courseId, {portalRoad: watching.roadId});
+                }
+            } else if (this.portal || watching.courseId !== this.courseId) {
                 await this.setCourse(watching.courseId);
             }
             if (this.preferRoute) {
@@ -996,13 +1029,6 @@ export class SauceZwiftMap extends EventTarget {
                 `);
             }
             if (state.athleteId === this.watchingId && !this.trackingPaused) {
-                if (!this.fooEnt) {
-                    this.fooEnt = new MapEntity('foo', 'athlete');
-                    this.fooEnt.transition.setDuration(250);
-                    this.fooEnt.el.classList.add('bot');
-                    this.fooEnt.setPosition([0, 0]);
-                    this.addEntity(this.fooEnt);
-                }
                 if (this.autoHeading) {
                     this.setHeading(state.heading);
                 }
@@ -1059,7 +1085,8 @@ export class SauceZwiftMap extends EventTarget {
             // users from having to constantly adjust quality.
             const tiltFactor = this._zoomPrioTilt ? Math.min(1, (1 / this.zoomMax * (this.zoom + 1))) : 1;
             this._tiltShiftAngle = this._tiltShift * this.maxTiltShiftAngle * tiltFactor;
-            quality *= Math.min(1, 15 / Math.max(0, this._tiltShiftAngle - 30));
+            quality *= Math.min(1, 20 / Math.max(0, this._tiltShiftAngle - 30));
+            console.log({quality});
         } else {
             this._tiltShiftAngle = 0;
         }
@@ -1071,6 +1098,7 @@ export class SauceZwiftMap extends EventTarget {
             const {mapCanvas, ents, map} = this._elements;
             mapCanvas.style.setProperty('width', `${mapCanvas.width * scale}px`);
             mapCanvas.style.setProperty('height', `${mapCanvas.height * scale}px`);
+            mapCanvas.classList.toggle('hidden', !!this.portal);
             ents.style.setProperty('left', `${this._anchorXY[0] * scale * this._mapScale}px`);
             ents.style.setProperty('top', `${this._anchorXY[1] * scale * this._mapScale}px`);
             map.style.setProperty('--layer-scale', scale * this._canvasScale);

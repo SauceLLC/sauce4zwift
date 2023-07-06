@@ -35,7 +35,8 @@ common.settingsStore.setDefault({
 
 const settings = common.settingsStore.get();
 
-let initDone;
+let watchdog;
+let inGame;
 let zwiftMap;
 let elProfile;
 
@@ -127,16 +128,23 @@ function setWatching(id) {
 }
 
 
-async function initSelfAthlete() {
+async function initialize() {
     const ad = await common.rpc.getAthleteData('self');
-    if (!ad) {
-        return false;
+    inGame = !!ad;
+    if (!inGame) {
+        console.info("User not active, starting demo mode...");
+        zwiftMap.setCourse(6);
+        if (elProfile) {
+            elProfile.setCourse(6);
+        }
+        return;
     }
     zwiftMap.setAthlete(ad.athleteId);
     if (ad.state) {
         zwiftMap.incPause();
         try {
-            await zwiftMap.setCourse(ad.state.courseId);
+            const portalRoad = ad.state.portal ? ad.state.roadId : undefined;
+            await zwiftMap.setCourse(ad.state.courseId, {portalRoad});
             if (ad.watching) {
                 if (zwiftMap.autoHeading) {
                     zwiftMap.setHeading(ad.state.heading);
@@ -161,7 +169,6 @@ async function initSelfAthlete() {
     } else {
         setWatching(ad.athleteId);
     }
-    return true;
 }
 
 
@@ -251,33 +258,31 @@ export async function main() {
             zwiftMap.setCenter(center.split(',').map(Number));
         }
     } else {
+        await initialize();
         common.subscribe('watching-athlete-change', async athleteId => {
-            if (!initDone) {
-                initDone = await initSelfAthlete();
+            if (!inGame) {
+                await initialize();
+            } else {
+                setWatching(athleteId);
             }
-            setWatching(athleteId);
         });
         common.subscribe('athlete/watching', ad => {
             fieldRenderer.setData(ad);
             fieldRenderer.render();
         });
+        setInterval(() => {
+            inGame = performance.now() - watchdog < 5000;
+        }, 2500);
         common.subscribe('states', async states => {
-            if (!initDone) {
-                initDone = await initSelfAthlete({zwiftMap, elProfile});
+            if (!inGame) {
+                await initialize();
             }
+            watchdog = performance.now();
             zwiftMap.renderAthleteStates(states);
             if (elProfile) {
                 elProfile.renderAthleteStates(states);
             }
         });
-        initDone = await initSelfAthlete();
-        if (!initDone) {
-            console.info("User not active, starting demo mode...");
-            zwiftMap.setCourse(6);
-            if (elProfile) {
-                elProfile.setCourse(6);
-            }
-        }
     }
     common.settingsStore.addEventListener('changed', ev => {
         const changed = ev.data.changed;
