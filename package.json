@@ -32,7 +32,7 @@
     "xxhash-addon": "2.0.1"
   },
   "optionalDependencies": {
-    "zwift-utils": "https://github.com/SauceLLC/zwift-utils.git#b0932e65101df2c9cf14b4e5e9c047ce657cd423"
+    "zwift-utils": "https://github.com/SauceLLC/zwift-utils.git#6cff13d2d6d8c5dbb307a95e2ca03a4dd5dd8ddc"
   },
   "devDependencies": {
     "@sentry/browser": "6.19.6",
