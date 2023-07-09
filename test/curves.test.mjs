@@ -60,6 +60,26 @@ test('pathReverse catmullRom 3d', () => {
     }
 });
 
+test('pathReverse with straights', () => {
+    const points = [[0, 0, 0], [1, 1, 0], [100, 100, 0, {straight: true}], [200, 200, 0], [201, 201, 0]];
+    const path = curves.catmullRomPath(points);
+    const revPath = path.toReversed();
+    const dblRevPath = revPath.toReversed();
+    for (const [i, x] of path.nodes.entries()) {
+        expect(x).toEqual(dblRevPath.nodes[i]);
+    }
+});
+
+test('pathReverse with straights on n +/- 1 edges', () => {
+    const points = [[0, 0, 0], [100, 100, 0, {straight: true}], [200, 200, 0]];
+    const path = curves.catmullRomPath(points);
+    const revPath = path.toReversed();
+    const dblRevPath = revPath.toReversed();
+    for (const [i, x] of path.nodes.entries()) {
+        expect(x).toEqual(dblRevPath.nodes[i]);
+    }
+});
+
 test('point at distance 0', () => {
     const points = [[10, 20, -10], [20, 30, 100], [44, 424, 200], [44, 566, -100]];
     const path = curves.catmullRomPath(points);

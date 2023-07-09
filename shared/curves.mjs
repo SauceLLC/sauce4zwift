@@ -167,7 +167,7 @@ export class CurvePath {
             if (p1.cp1 && p1.cp2) {
                 nodes.push({...p0, cp1: p1.cp2, cp2: p1.cp1});
             } else {
-                nodes.push({...p0});
+                nodes.push({...p0, cp1: undefined, cp2: undefined});
             }
         }
         return new CurvePath({...this, nodes});
