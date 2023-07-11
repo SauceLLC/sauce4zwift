@@ -21,28 +21,28 @@
   },
   "dependencies": {
     "@sentry/node": "6.19.6",
-    "better-sqlite3": "8.3.0",
-    "electron-updater": "6.1.0",
+    "better-sqlite3": "8.4.0",
+    "electron-updater": "6.1.1",
     "express": "4.18.2",
     "express-ws": "5.0.2",
     "jsfit": "github:saucellc/jsfit.git#617a6e1087",
     "keytar": "7.9.0",
     "node-fetch": "3.3.1",
-    "protobufjs": "7.2.3",
+    "protobufjs": "7.2.4",
     "xxhash-addon": "2.0.1"
   },
   "optionalDependencies": {
-    "zwift-utils": "https://github.com/SauceLLC/zwift-utils.git#6cff13d2d6d8c5dbb307a95e2ca03a4dd5dd8ddc"
+    "zwift-utils": "https://github.com/SauceLLC/zwift-utils.git#a8cf6b01914f28abd794c95aac096c07d9f2aead"
   },
   "devDependencies": {
     "@sentry/browser": "6.19.6",
     "echarts": "5.4.2",
-    "electron": "24.3.1",
+    "electron": "25.2.0",
     "electron-builder": "24.4.0",
     "electron-notarize": "1.2.1",
-    "eslint": "8.40.0",
-    "jest": "29.5.0",
-    "sass": "1.62.1",
+    "eslint": "8.44.0",
+    "jest": "29.6.1",
+    "sass": "1.63.6",
     "world_countries_lists": "2.8.1"
   },
   "jest": {
