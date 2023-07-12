@@ -105,7 +105,7 @@ const sectionSpecs = {
         title: 'Elevation Profile',
         baseType: 'chart',
         defaultSettings: {
-            showEventRoute: true,
+            preferRoute: true,
         },
     },
 };
@@ -1078,22 +1078,30 @@ function powerZoneColors(zones, fn) {
 
 async function createElevationProfile(el, sectionId, settings, renderer) {
     const worldList = await common.getWorldList();
-    const elProfile = new elevationMod.SauceElevationProfile({el, worldList});
+    const elProfile = new elevationMod.SauceElevationProfile({
+        el,
+        worldList,
+        preferRoute: settings.preferRoute,
+    });
     chartRefs.add(new WeakRef(elProfile.chart));
     let watchingId;
     let courseId;
+    let initDone;
     common.subscribe('states', states => {
-        elProfile.renderAthleteStates(states);
+        if (initDone) {
+            elProfile.renderAthleteStates(states);
+        }
     });
-    renderer.addCallback(data => {
+    renderer.addCallback(async data => {
         if (!data || !data.stats || !data.athlete) {
             return;
         }
         if (data.athleteId !== watchingId || data.state.courseId !== courseId) {
             watchingId = data.athleteId;
             courseId = data.state.courseId;
-            elProfile.setCourse(courseId);
             elProfile.setWatching(watchingId);
+            await elProfile.setCourse(courseId);
+            initDone = true;
         }
     });
 }

@@ -247,8 +247,10 @@
                         <form method="dialog">
                             <label>Type: {{sectionSpecs[section.type].title}}</label>
                             <hr/>
-                            <label>Show event route: <input type="checkbox" name="showEventRoute"
-                                {{settings.showEventRoute ? 'checked' : ''}}/></label>
+                            <label title="When available show the route based profile instead of the current road">
+                                Route profile: <input type="checkbox" name="preferRoute"
+                                {{settings.preferRoute ? 'checked' : ''}}/>
+                            </label>
                             <footer>
                                 <button value="cancel">Cancel</button>
                                 <button value="save" class="primary">Save</button>
