@@ -280,10 +280,19 @@ electron.ipcMain.on('getWindowContextSync', ev => {
     }
 });
 
+
+function canToggleVisibility(win) {
+    const manifest = widgetWindowManifestsByType.get(win.spec && win.spec.type);
+    if (!manifest) {
+        return false;
+    }
+    return manifest.alwaysVisible == null ? win.spec.overlay !== false : !manifest.alwaysVisible;
+}
+
+
 rpc.register(() => {
     for (const win of SauceBrowserWindow.getAllWindows()) {
-        const manifest = widgetWindowManifestsByType.get(win.spec && win.spec.type);
-        if (manifest && !manifest.alwaysVisible && win.spec.overlay !== false) {
+        if (canToggleVisibility(win)) {
             win.hide();
         }
     }
@@ -291,8 +300,7 @@ rpc.register(() => {
 
 rpc.register(() => {
     for (const win of SauceBrowserWindow.getAllWindows()) {
-        const manifest = widgetWindowManifestsByType.get(win.spec && win.spec.type);
-        if (manifest && !manifest.alwaysVisible && win.spec.overlay !== false) {
+        if (canToggleVisibility(win)) {
             win.showInactive();
         }
     }

@@ -223,7 +223,7 @@ export function getWindowManifests() {
                             aspectRatio: bounds.aspect_ratio,
                             frame: x.frame,
                         },
-                        alwaysVisible: x.alwaysVisible,
+                        alwaysVisible: x.always_visible,
                         overlay: x.overlay,
                     });
                 } catch(e) {
