@@ -63,7 +63,7 @@ const manifestSchema = {
             id: {type: 'string', required: true, desc: 'Unique identifier for this window'},
             name: {type: 'string', required: true, desc: 'Name to show in listings'},
             description: {type: 'string', desc: 'Extra optional info about the window'},
-            always_visible: {type: 'boolean', desc: 'Override the hide/show button'},
+            always_visible: {type: 'boolean', desc: 'DEPRECATED', deprecated: true},
             overlay: {type: 'boolean', desc: 'Set to make window stay on top of normal windows'},
             frame: {type: 'boolean', desc: 'Includes OS frame borders and title bar'},
             default_bounds: {
@@ -183,6 +183,9 @@ function validateSchema(obj, modPath, schema) {
         }
         const vArr = info.isArray ? v : [v];
         for (const xv of vArr) {
+            if (info.deprecated) {
+                console.warn(`Deprecated MOD manifest field "${k}" found in: ${modPath}`);
+            }
             if (typeof xv !== info.type) {
                 throw TypeError(`Invalid type: "${k}" should be a "${info.type}"`);
             }
@@ -223,7 +226,6 @@ export function getWindowManifests() {
                             aspectRatio: bounds.aspect_ratio,
                             frame: x.frame,
                         },
-                        alwaysVisible: x.always_visible,
                         overlay: x.overlay,
                     });
                 } catch(e) {
