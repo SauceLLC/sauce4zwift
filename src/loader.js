@@ -284,6 +284,8 @@ async function initSentry(logEmitter) {
 (async () => {
     const logMeta = initLogging();
     nativeTheme.themeSource = 'dark';
+    // If we are foreced to update to 114+ we'll have to switch our scrollbars to this...
+    //app.commandLine.appendSwitch('enable-features', 'OverlayScrollbar');
     if (settings.gpuEnabled === undefined) {
         settings.gpuEnabled = settings.forceEnableGPU == null ?
             os.platform() !== 'win32' : settings.forceEnableGPU;
