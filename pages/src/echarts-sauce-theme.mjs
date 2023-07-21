@@ -335,7 +335,7 @@ function genDynamicTheme({fg='fg', bg='bg'}={}) {
                 fontWeight: 600,
                 fontFamily: 'inherit',
                 distance: 2,
-                fontSize: 5,
+                fontSize: '0.76em',
                 color: cssColor(fg, 0, 1),
                 textBorderColor: cssColor(fg, 1, 0.8),
                 textBorderWidth: 2,
