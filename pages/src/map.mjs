@@ -793,7 +793,7 @@ export class SauceZwiftMap extends EventTarget {
             this._routeHighlight.elements.forEach(x => x.remove());
         }
         if (route) {
-            this._routeHighlight = this.addHighlightPath(route.curvePath, 'route-' + id);
+            this._routeHighlight = this.addHighlightPath(route.curvePath, 'route-' + id, {layer: 'mid'});
         } else {
             console.warn("Route not found:", id);
         }
@@ -836,7 +836,7 @@ export class SauceZwiftMap extends EventTarget {
         });
     }
 
-    addHighlightPath(path, id, {debug, includeEdges=true}={}) {
+    addHighlightPath(path, id, {debug, includeEdges=true, extraClass='', width, color, layer='high'}={}) {
         const elements = [];
         if (debug) {
             for (let i = 0; i < path.length; i++) {
@@ -848,11 +848,11 @@ export class SauceZwiftMap extends EventTarget {
                 }));
                 if (path[i].cp1) {
                     if (i) {
-                        elements.push(this.drawLine(path[i].cp1, path[i - 1].end, {layer: 'mid'}));
+                        elements.push(this.drawLine(path[i].cp1, path[i - 1].end, {layer}));
                         elements.push(this.drawCircle(path[i].cp1, {color: '#000b', size: 3,
                                                                     title: `cp1-${i}`}));
                     }
-                    elements.push(this.drawLine(path[i].cp2, path[i].end, {layer: 'mid'}));
+                    elements.push(this.drawLine(path[i].cp2, path[i].end, {layer}));
                     elements.push(this.drawCircle(path[i].cp2, {color: '#fffb', size: 3, title: `cp2-${i}`}));
                 }
             }
@@ -862,11 +862,22 @@ export class SauceZwiftMap extends EventTarget {
             }
         }
         const node = createElementSVG('path', {
-            class: `highlight`,
+            class: `highlight ${extraClass}`,
             "data-id": id,
             d: path.toSVGPath({includeEdges}),
         });
-        this._elements.roadLayers.surfacesHigh.append(node);
+        if (width) {
+            node.style.setProperty('--width', width);
+        }
+        if (color) {
+            node.style.setProperty('stroke', color);
+        }
+        const surfaceEl = this._elements.roadLayers[{
+            high: 'surfacesHigh',
+            mid: 'surfacesMid',
+            low: 'surfacesLow',
+        }[layer]];
+        surfaceEl.append(node);
         elements.push(node);
         return {id, path, elements};
     }

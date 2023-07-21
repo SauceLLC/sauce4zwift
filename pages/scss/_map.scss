@@ -239,7 +239,8 @@
             }
 
             .highlight {
-                stroke-width: calc(8em + (1 / var(--zoom) * 7em));
+                --width: 1;
+                stroke-width: calc(((var(--width) * 8) + (1 / var(--zoom) * (var(--width) * 7))) * 1em);
                 stroke: #cf0606b0;
             }
 
