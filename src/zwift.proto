@@ -851,6 +851,7 @@ message LoginResponse {
     required SessionInfo session = 2;
     uint32 relaySessionId = 3;
     uint32 expiration = 4; // minutes
+    bytes entitlesments = 5; // Very complex pb, just silence warnings for now.
 }
 
 message LoginRequest {
