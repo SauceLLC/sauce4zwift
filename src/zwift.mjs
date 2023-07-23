@@ -1151,7 +1151,7 @@ class UDPChannel extends NetChannel {
                 const localTime = Date.now();
                 const sent = syncStamps.get(packet.ackSeqno);
                 const latency = (localTime - sent) / 2;
-                const offt = localTime - packet.worldTime.toNumber() + latency;
+                const offt = localTime - (packet.worldTime.toNumber() + latency);
                 offsets.push({latency, offt});
                 if (offsets.length > 4) {
                     // SNTP ...
