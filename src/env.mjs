@@ -1,17 +1,11 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import * as zwift from './zwift.mjs';
-import * as curves from '../shared/curves.mjs';
 import * as rpc from './rpc.mjs';
 import {fileURLToPath} from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const allSegments = new Map();
-
-
-function trimNumber(n, p=5) {
-    return Number(n.toFixed(p));
-}
 
 
 export function getRoadSig(courseId, roadId, reverse) {
@@ -65,90 +59,20 @@ export function getNearbySegments(courseId, roadSig) {
 }
 
 
-export function zToAltitude(courseId, z) {
-    const worldMeta = zwift.worldMetas[courseId];
-    return worldMeta ? (z + worldMeta.waterPlaneLevel) / 100 *
-        worldMeta.physicsSlopeScale + worldMeta.altitudeOffsetHack : null;
-}
-
-
-function supplimentPath(courseId, curvePath) {
-    const balancedT = 1 / 125; // tests to within 0.27 meters (worst case)
-    const distEpsilon = 1e-6;
-    const elevations = [];
-    const grades = [];
-    const distances = [];
-    let prevIndex;
-    let distance = 0;
-    let prevDist = 0;
-    let prevEl = 0;
-    let prevNode;
-    curvePath.trace(x => {
-        distance += prevNode ? curves.vecDist(prevNode, x.stepNode) / 100 : 0;
-        if (x.index !== prevIndex) {
-            const elevation = zToAltitude(courseId, x.stepNode[2]);
-            if (elevations.length) {
-                if (distance - prevDist > distEpsilon) {
-                    const grade = (elevation - prevEl) / (distance - prevDist);
-                    grades.push(trimNumber(grade));
-                } else {
-                    grades.push(grades.at(-1) || 0);
-                }
-            }
-            distances.push(trimNumber(distance, 2));
-            elevations.push(trimNumber(elevation, 2));
-            prevDist = distance;
-            prevEl = elevation;
-            prevIndex = x.index;
-        }
-        prevNode = x.stepNode;
-    }, balancedT);
-    grades.unshift(grades[0]);
-    return {
-        elevations,
-        grades,
-        distances,
-    };
-}
-
-
 const _roadsByCourse = {};
 export function getRoads(courseId) {
     if (_roadsByCourse[courseId] === undefined) {
-        const worldId = zwift.courseToWorldIds[courseId];
-        const fname = path.join(__dirname, `../shared/deps/data/worlds/${worldId}/roads.json`);
+        let fname;
+        if (courseId === 'portal') {
+            fname = path.join(__dirname, `../shared/deps/data/portal_roads.json`);
+        } else {
+            const worldId = zwift.courseToWorldIds[courseId];
+            fname = path.join(__dirname, `../shared/deps/data/worlds/${worldId}/roads.json`);
+        }
         try {
             _roadsByCourse[courseId] = JSON.parse(fs.readFileSync(fname));
         } catch(e) {
             _roadsByCourse[courseId] = [];
-        }
-        for (const road of _roadsByCourse[courseId]) {
-            const curveFunc = {
-                CatmullRom: curves.catmullRomPath,
-                Bezier: curves.cubicBezierPath,
-            }[road.splineType];
-            const curvePath = curveFunc(road.path, {loop: road.looped, road: true});
-            for (const x of curvePath.points) {
-                // Reduce JSON size by nearly 3x...
-                if (x.cp1) {
-                    x.cp1[0] = Math.round(x.cp1[0]);
-                    x.cp1[1] = Math.round(x.cp1[1]);
-                    x.cp1[2] = Math.round(x.cp1[2]);
-                }
-                if (x.cp2) {
-                    x.cp2[0] = Math.round(x.cp2[0]);
-                    x.cp2[1] = Math.round(x.cp2[1]);
-                    x.cp2[2] = Math.round(x.cp2[2]);
-                }
-                if (x.end) {
-                    x.end[0] = trimNumber(x.end[0], 2);
-                    x.end[1] = trimNumber(x.end[1], 2);
-                    x.end[2] = trimNumber(x.end[2], 2);
-                }
-            }
-            const extra = supplimentPath(courseId, curvePath);
-            Object.assign(road, {curvePath}, extra);
-            delete road.path;
         }
     }
     return _roadsByCourse[courseId];
@@ -158,6 +82,9 @@ rpc.register(getRoads);
 
 const _roads = {};
 export function getRoad(courseId, roadId) {
+    if (roadId >= 10000) {
+        courseId = 'portal';
+    }
     const sig = `${courseId}-${roadId}`;
     if (_roads[sig] === undefined) {
         const road = getRoads(courseId).find(x => x.id === roadId);
@@ -176,72 +103,22 @@ let _routes;
 export function getRoute(routeId) {
     if (!_routes) {
         const fname = path.join(__dirname, `../shared/deps/data/routes.json`);
+        let routes;
         try {
-            _routes = JSON.parse(fs.readFileSync(fname));
+            routes = JSON.parse(fs.readFileSync(fname));
         } catch(e) {
-            _routes = [];
+            routes = [];
         }
+        _routes = Object.fromEntries(routes.map(route => {
+            route.courseId = zwift.worldToCourseIds[route.worldId];
+            return [route.id, route];
+        }));
     }
-    const route = _routes.find(x => x.id === routeId);
-    if (route && !route.curvePath) {
-        const courseId = zwift.worldToCourseIds[route.worldId];
-        const curvePath = new curves.CurvePath();
-        for (let i = 0; i < route.checkpoints.length - 1; i++) {
-            let p0 = route.checkpoints[i];
-            let p1 = route.checkpoints[i + 1];
-            const leadin = p1.leadin;
-            const p0Sig = `${p0.roadId}-${!!p0.reverse}-${!!p0.leadin}`;
-            const p1Sig = `${p1.roadId}-${!!p1.reverse}-${!!p1.leadin}`;
-            // Only need these for validation..
-            delete p0.pos;
-            delete p1.pos;
-            if (p0Sig !== p1Sig) {
-                const p_1 = route.checkpoints[i - 1];
-                if (p_1 != null && `${p_1.roadId}-${!!p_1.reverse}-${!!p_1.leadin}` !== p0Sig) {
-                    const road = getRoad(courseId, p0.roadId);
-                    const point = road.curvePath.pointAtRoadPercent(p0.roadPercent);
-                    curvePath.points.push({
-                        end: point,
-                        leadin: p0.leadin ? true : undefined,
-                        i,
-                    });
-                }
-                if (i === route.checkpoints.length - 2) {
-                    const road = getRoad(courseId, p1.roadId);
-                    const point = road.curvePath.pointAtRoadPercent(p1.roadPercent);
-                    curvePath.points.push({
-                        end: point,
-                        leadin: p1.leadin ? true : undefined,
-                        i: i + 1,
-                    });
-                }
-                continue;
-            } else if (p0.forceSplit) {
-                continue;
-            }
-            if (p0.reverse) {
-                [p1, p0] = [p0, p1];
-            }
-            const road = getRoad(courseId, p0.roadId);
-            let subpath;
-            if (p0.roadPercent > p1.roadPercent) {
-                subpath = road.curvePath.subpathAtRoadPercents(p0.roadPercent, 1).toCurvePath();
-                subpath.extend(road.curvePath.subpathAtRoadPercents(0, p1.roadPercent));
-            } else {
-                subpath = road.curvePath.subpathAtRoadPercents(p0.roadPercent, p1.roadPercent);
-            }
-            if (p0.reverse) {
-                subpath = subpath.toReversed();
-            }
-            for (const x of subpath.points) {
-                x.i = i;
-                x.leadin = leadin ? true : undefined;
-            }
-            curvePath.extend(subpath);
-        }
-        const extra = supplimentPath(courseId, curvePath);
-        Object.assign(route, {curvePath}, extra);
-    }
-    return route;
+    return _routes[routeId];
 }
 rpc.register(getRoute);
+
+
+rpc.register(() => {
+    return Object.values(_routes);
+}, {name: 'getRoutes'});
