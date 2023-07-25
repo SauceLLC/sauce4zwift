@@ -3,6 +3,7 @@ import {sleep as _sleep} from '../../shared/sauce/base.mjs';
 import * as locale from '../../shared/sauce/locale.mjs';
 import * as report from '../../shared/report.mjs';
 import * as elements from './custom-elements.mjs';
+import * as curves from '/shared/curves.mjs';
 
 export const sleep = _sleep; // Come on ES6 modules, really!?
 export let idle;
@@ -412,13 +413,68 @@ export function getSegments(worldId) {
 }
 
 
+function zToAltitude(worldMeta, z, {physicsSlopeScale}={}) {
+    return worldMeta ? (z + worldMeta.waterPlaneLevel) / 100 *
+        (physicsSlopeScale || worldMeta.physicsSlopeScale) + worldMeta.altitudeOffsetHack : null;
+}
+
+
+function supplimentPath(worldMeta, curvePath, {physicsSlopeScale}={}) {
+    const balancedT = 1 / 125; // tests to within 0.27 meters (worst case)
+    const distEpsilon = 1e-6;
+    const elevations = [];
+    const grades = [];
+    const distances = [];
+    let prevIndex;
+    let distance = 0;
+    let prevDist = 0;
+    let prevEl = 0;
+    let prevNode;
+    curvePath.trace(x => {
+        distance += prevNode ? curves.vecDist(prevNode, x.stepNode) / 100 : 0;
+        if (x.index !== prevIndex) {
+            const elevation = worldMeta ?
+                zToAltitude(worldMeta, x.stepNode[2], {physicsSlopeScale}) :
+                x.stepNode[2] / 100 * (physicsSlopeScale || 1);
+            if (elevations.length) {
+                if (distance - prevDist > distEpsilon) {
+                    const grade = (elevation - prevEl) / (distance - prevDist);
+                    grades.push(grade);
+                } else {
+                    grades.push(grades.at(-1) || 0);
+                }
+            }
+            distances.push(distance);
+            elevations.push(elevation);
+            prevDist = distance;
+            prevEl = elevation;
+            prevIndex = x.index;
+        }
+        prevNode = x.stepNode;
+    }, balancedT);
+    grades.unshift(grades[0]);
+    return {
+        elevations,
+        grades,
+        distances,
+    };
+}
+
+
 const _roads = new Map();
 export function getRoads(courseId) {
     if (!_roads.has(courseId)) {
         _roads.set(courseId, rpcCall('getRoads', courseId).then(async roads => {
-            const curves = await import('/shared/curves.mjs');
+            const worldList = await getWorldList();
+            const worldMeta = worldList.find(x => x.courseId === courseId);
             for (const x of roads) {
-                x.curvePath = new curves.RoadPath(x.curvePath);
+                const curveFunc = {
+                    CatmullRom: curves.catmullRomPath,
+                    Bezier: curves.cubicBezierPath,
+                }[x.splineType];
+                x.curvePath = curveFunc(x.path, {loop: x.looped, road: true});
+                const physicsSlopeScale = x.physicsSlopeScaleOverride;
+                Object.assign(x, supplimentPath(worldMeta, x.curvePath, {physicsSlopeScale}));
             }
             return roads;
         }));
@@ -427,12 +483,9 @@ export function getRoads(courseId) {
 }
 
 
-export function getRoad(courseId, id) {
-    if (!_roads.has(courseId)) {
-        return getRoads(courseId).then(roads => roads.find(x => x.id === id));
-    } else {
-        return _roads.get(courseId).find(x => x.id === id);
-    }
+export async function getRoad(courseId, id) {
+    const roads = await getRoads(courseId);
+    return roads ? roads.find(x => x.id === id) : null;
 }
 
 
@@ -440,9 +493,105 @@ const _routes = new Map();
 export function getRoute(id) {
     if (!_routes.has(id)) {
         _routes.set(id, rpcCall('getRoute', id).then(async route => {
-            const curves = await import('/shared/curves.mjs');
             if (route) {
-                route.curvePath = new curves.CurvePath(route.curvePath);
+                const curvePath = new curves.CurvePath();
+                const roads = [];
+                for (let i = 0; i < route.checkpoints.length - 1; i++) {
+                    let p0 = route.checkpoints[i];
+                    let p1 = route.checkpoints[i + 1];
+                    const leadin = p1.leadin;
+                    const p0Sig = `${p0.roadId}-${!!p0.reverse}-${!!p0.leadin}`;
+                    const p1Sig = `${p1.roadId}-${!!p1.reverse}-${!!p1.leadin}`;
+                    if (p0Sig !== p1Sig) {
+                        const p_1 = route.checkpoints[i - 1];
+                        if (p_1 == null || `${p_1.roadId}-${!!p_1.reverse}-${!!p_1.leadin}` !== p0Sig) {
+                            const road = await getRoad(route.courseId, p0.roadId);
+                            const point = road.curvePath.pointAtRoadPercent(p0.roadPercent);
+                            curvePath.nodes.push({
+                                end: point,
+                                leadin: p0.leadin ? true : undefined,
+                                i,
+                            });
+                        }
+                        if (i === route.checkpoints.length - 2) {
+                            const road = await getRoad(route.courseId, p1.roadId);
+                            const point = road.curvePath.pointAtRoadPercent(p1.roadPercent);
+                            curvePath.nodes.push({
+                                end: point,
+                                leadin: p1.leadin ? true : undefined,
+                                i: i + 1,
+                            });
+                        }
+                        continue;
+                    } else if (p0.forceSplit) {
+                        continue;
+                    }
+                    if (p0.reverse) {
+                        [p1, p0] = [p0, p1];
+                    }
+                    const road = await getRoad(route.courseId, p0.roadId);
+                    let subpath;
+                    if (p0.roadPercent > p1.roadPercent) {
+                        const r0 = road.curvePath.subpathAtRoadPercents(p0.roadPercent, 1);
+                        const r1 = road.curvePath.subpathAtRoadPercents(0, p1.roadPercent);
+                        subpath = r0.toCurvePath();
+                        subpath.extend(r1);
+                        roads.push(r0, r1);
+                    } else {
+                        subpath = road.curvePath.subpathAtRoadPercents(p0.roadPercent, p1.roadPercent);
+                        roads.push(subpath);
+                    }
+                    if (p0.reverse) {
+                        subpath = subpath.toReversed();
+                    }
+                    for (const x of subpath.nodes) {
+                        x.i = i;
+                        x.leadin = leadin ? true : undefined;
+                    }
+                    curvePath.extend(subpath);
+                }
+                const worldList = await getWorldList();
+                const worldMeta = worldList.find(x => x.courseId === route.courseId);
+                // NOTE: No support for physicsSlopeScaleOverride of portal roads.
+                // But I've not seen portal roads used in a route either.
+                Object.assign(route, {curvePath, roads}, supplimentPath(worldMeta, curvePath));
+            }
+            if (route) {
+                const curvePath = new curves.CurvePath();
+                const roadSegments = [];
+                for (const x of route.manifest) {
+                    const road = await getRoad(route.courseId, x.roadId);
+                    const seg = road.curvePath.subpathAtRoadPercents(x.start, x.end);
+                    seg.leadin = x.leadin;
+                    seg.reverse = x.reverse;
+                    roadSegments.push(seg);
+                    curvePath.extend(x.reverse ? seg.toReversed() : seg);
+                }
+                route.curvePathNew = curvePath;
+                /*for (let i = 0; i < route.curvePathNew.nodes.length; i++) {
+                    try {
+                        const a = route.curvePathNew.nodes[i];
+                        const b = route.curvePath.nodes[i];
+                        if (JSON.stringify(a.end) !== JSON.stringify(b.end)) {
+                            console.warn("divergent", a.end, b.end);
+                        }
+                    } catch(e) {
+                        console.warn("meh", e);
+                    }
+                }*/
+                const d1 = route.curvePath.distance();
+                const d2 = route.curvePathNew.distance();
+                if (d1 === d2) {
+                    console.log("no way bra", d1, d2, route.curvePath.nodes.length, route.curvePathNew.nodes.length);
+                }
+                if (Math.abs(d1 - d2) > 0) {
+                    console.log({d1, d2}, route);
+                    debugger;
+                }
+                //if (route.curvePathNew.nodes.length !== route.curvePath.nodes.length) {
+                //    console.error('different len');
+                //}
+                route.roadSegments = roadSegments;
             }
             return route;
         }));
