@@ -494,104 +494,21 @@ export function getRoute(id) {
     if (!_routes.has(id)) {
         _routes.set(id, rpcCall('getRoute', id).then(async route => {
             if (route) {
-                const curvePath = new curves.CurvePath();
-                const roads = [];
-                for (let i = 0; i < route.checkpoints.length - 1; i++) {
-                    let p0 = route.checkpoints[i];
-                    let p1 = route.checkpoints[i + 1];
-                    const leadin = p1.leadin;
-                    const p0Sig = `${p0.roadId}-${!!p0.reverse}-${!!p0.leadin}`;
-                    const p1Sig = `${p1.roadId}-${!!p1.reverse}-${!!p1.leadin}`;
-                    if (p0Sig !== p1Sig) {
-                        const p_1 = route.checkpoints[i - 1];
-                        if (p_1 == null || `${p_1.roadId}-${!!p_1.reverse}-${!!p_1.leadin}` !== p0Sig) {
-                            const road = await getRoad(route.courseId, p0.roadId);
-                            const point = road.curvePath.pointAtRoadPercent(p0.roadPercent);
-                            curvePath.nodes.push({
-                                end: point,
-                                leadin: p0.leadin ? true : undefined,
-                                i,
-                            });
-                        }
-                        if (i === route.checkpoints.length - 2) {
-                            const road = await getRoad(route.courseId, p1.roadId);
-                            const point = road.curvePath.pointAtRoadPercent(p1.roadPercent);
-                            curvePath.nodes.push({
-                                end: point,
-                                leadin: p1.leadin ? true : undefined,
-                                i: i + 1,
-                            });
-                        }
-                        continue;
-                    } else if (p0.forceSplit) {
-                        continue;
-                    }
-                    if (p0.reverse) {
-                        [p1, p0] = [p0, p1];
-                    }
-                    const road = await getRoad(route.courseId, p0.roadId);
-                    let subpath;
-                    if (p0.roadPercent > p1.roadPercent) {
-                        const r0 = road.curvePath.subpathAtRoadPercents(p0.roadPercent, 1);
-                        const r1 = road.curvePath.subpathAtRoadPercents(0, p1.roadPercent);
-                        subpath = r0.toCurvePath();
-                        subpath.extend(r1);
-                        roads.push(r0, r1);
-                    } else {
-                        subpath = road.curvePath.subpathAtRoadPercents(p0.roadPercent, p1.roadPercent);
-                        roads.push(subpath);
-                    }
-                    if (p0.reverse) {
-                        subpath = subpath.toReversed();
-                    }
-                    for (const x of subpath.nodes) {
-                        x.i = i;
-                        x.leadin = leadin ? true : undefined;
-                    }
-                    curvePath.extend(subpath);
-                }
+                route.curvePath = new curves.CurvePath();
+                route.roadSegments = [];
                 const worldList = await getWorldList();
                 const worldMeta = worldList.find(x => x.courseId === route.courseId);
-                // NOTE: No support for physicsSlopeScaleOverride of portal roads.
-                // But I've not seen portal roads used in a route either.
-                Object.assign(route, {curvePath, roads}, supplimentPath(worldMeta, curvePath));
-            }
-            if (route) {
-                const curvePath = new curves.CurvePath();
-                const roadSegments = [];
                 for (const x of route.manifest) {
                     const road = await getRoad(route.courseId, x.roadId);
                     const seg = road.curvePath.subpathAtRoadPercents(x.start, x.end);
                     seg.leadin = x.leadin;
                     seg.reverse = x.reverse;
-                    roadSegments.push(seg);
-                    curvePath.extend(x.reverse ? seg.toReversed() : seg);
+                    route.roadSegments.push(seg);
+                    route.curvePath.extend(x.reverse ? seg.toReversed() : seg);
                 }
-                route.curvePathNew = curvePath;
-                /*for (let i = 0; i < route.curvePathNew.nodes.length; i++) {
-                    try {
-                        const a = route.curvePathNew.nodes[i];
-                        const b = route.curvePath.nodes[i];
-                        if (JSON.stringify(a.end) !== JSON.stringify(b.end)) {
-                            console.warn("divergent", a.end, b.end);
-                        }
-                    } catch(e) {
-                        console.warn("meh", e);
-                    }
-                }*/
-                const d1 = route.curvePath.distance();
-                const d2 = route.curvePathNew.distance();
-                if (d1 === d2) {
-                    console.log("no way bra", d1, d2, route.curvePath.nodes.length, route.curvePathNew.nodes.length);
-                }
-                if (Math.abs(d1 - d2) > 0) {
-                    console.log({d1, d2}, route);
-                    debugger;
-                }
-                //if (route.curvePathNew.nodes.length !== route.curvePath.nodes.length) {
-                //    console.error('different len');
-                //}
-                route.roadSegments = roadSegments;
+                // NOTE: No support for physicsSlopeScaleOverride of portal roads.
+                // But I've not seen portal roads used in a route either.
+                Object.assign(route, supplimentPath(worldMeta, route.curvePath));
             }
             return route;
         }));
