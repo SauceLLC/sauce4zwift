@@ -498,11 +498,15 @@ export function getRoute(id) {
                 route.roadSegments = [];
                 const worldList = await getWorldList();
                 const worldMeta = worldList.find(x => x.courseId === route.courseId);
-                for (const x of route.manifest) {
+                for (const [i, x] of route.manifest.entries()) {
                     const road = await getRoad(route.courseId, x.roadId);
                     const seg = road.curvePath.subpathAtRoadPercents(x.start, x.end);
-                    seg.leadin = x.leadin;
                     seg.reverse = x.reverse;
+                    seg.leadin = x.leadin;
+                    seg.roadId = x.roadId;
+                    for (const xx of seg.nodes) {
+                        xx.index = i;
+                    }
                     route.roadSegments.push(seg);
                     route.curvePath.extend(x.reverse ? seg.toReversed() : seg);
                 }
@@ -1502,7 +1506,7 @@ export function cyrb53(str, seed=0) {
 export const hash = cyrb53;  // simple name is fine when we don't care about the impl
 
 
-export function binarySearchClosestNumber(arr, value) {
+export function binarySearchClosest(arr, value) {
     value = value || 0;
     let left = 0;
     let right = arr.length - 1;
