@@ -61,7 +61,9 @@ export class SauceElevationProfile {
                 smooth: 0.5,
                 type: 'line',
                 symbol: 'none',
-                areaStyle: {},
+                areaStyle: {
+                    origin: 'start',
+                },
                 encode: {
                     x: 0,
                     y: 1,
@@ -77,7 +79,6 @@ export class SauceElevationProfile {
         this.courseId = null;
         this.athleteId = null;
         this.watchingId = null;
-        this.selfId = null;
         this.roads = null;
         this.road = null;
         this.route = null;
@@ -125,8 +126,8 @@ export class SauceElevationProfile {
             series: [{
                 markLine: {
                     label: {
-                        fontSize: this.em(0.5),
-                        distance: this.em(0.18 * 0.5)
+                        fontSize: this.em(0.4),
+                        distance: this.em(0.18 * 0.4)
                     }
                 }
             }],
@@ -157,14 +158,14 @@ export class SauceElevationProfile {
         this.route = null;
         this.routeId = null;
         this.marks.clear();
-        this.roads = await common.getRoads(id);
+        this.roads = (await common.getRoads(id)).concat(await common.getRoads('portal'));
     });
 
     setAthlete(id) {
-        console.debug("Setting self-athlete:", id);
         if (id === this.athleteId) {
             return;
         }
+        console.debug("Setting self-athlete:", id);
         if (this.athleteId != null && this.marks.has(this.athleteId)) {
             this.marks.get(this.athleteId).self = false;
         }
@@ -177,10 +178,10 @@ export class SauceElevationProfile {
     }
 
     setWatching(id) {
-        console.debug("Setting watching-athlete:", id);
         if (id === this.watchingId) {
             return;
         }
+        console.debug("Setting watching-athlete:", id);
         if (this.watchingId != null && this.marks.has(this.watchingId)) {
             this.marks.get(this.watchingId).watching = false;
         }
@@ -193,10 +194,17 @@ export class SauceElevationProfile {
     setRoad(id, reverse=false) {
         this.route = null;
         this.routeId = null;
-        this.road = this.roads.find(x => x.id === id);
-        this.reverse = reverse;
-        this._roadSigs = new Set([`${id}-${!!reverse}`]);
-        this.setData(this.road.distances, this.road.elevations, this.road.grades, {reverse});
+        this._roadSigs = new Set();
+        this.road = this.roads ? this.roads.find(x => x.id === id) : undefined;
+        if (this.road) {
+            this.reverse = reverse;
+            this.curvePath = this.road.curvePath;
+            this._roadSigs.add(`${id}-${!!reverse}`);
+            this.setData(this.road.distances, this.road.elevations, this.road.grades, {reverse});
+        } else {
+            this.reverse = undefined;
+            this.curvePath = undefined;
+        }
     }
 
     setRoute = common.asyncSerialize(async function(id, laps=1) {
@@ -204,43 +212,50 @@ export class SauceElevationProfile {
         this.reverse = null;
         this.routeId = id;
         this._roadSigs = new Set();
+        this.curvePath = null;
         this.route = await common.getRoute(id);
         for (const {roadId, reverse} of this.route.checkpoints) {
             this._roadSigs.add(`${roadId}-${!!reverse}`);
         }
+        this.curvePath = this.route.curvePath.slice();
         const distances = Array.from(this.route.distances);
         const elevations = Array.from(this.route.elevations);
         const grades = Array.from(this.route.grades);
-        const distance = distances.at(-1);
         const markLines = [];
-        const leadin = this.route.curvePath.filter(x => x.leadin);
-        if (leadin.length) {
+        const notLeadin = this.route.manifest.findIndex(x => !x.leadin);
+        const lapStartIdx = notLeadin === -1 ? 0 : this.curvePath.nodes.findIndex(x => x.index === notLeadin);
+        if (lapStartIdx) {
             markLines.push({
-                xAxis: distances[leadin.length - 1],
-                lineStyle: {width: 2, type: 'solid'},
+                xAxis: distances[lapStartIdx],
+                lineStyle: {width: 6, type: 'solid'},
                 label: {
-                    position: 'insideStartTop',
+                    distance: 7,
+                    position: 'insideMiddleBottom',
                     formatter: `LAP 1`
                 }
             });
         }
+        const lapDistance = distances.at(-1) - distances[lapStartIdx];
         for (let lap = 1; lap < laps; lap++) {
-            for (let i = leadin.length; i < this.route.distances.length; i++) {
-                distances.push(distances.at(-1) + this.route.distances[i] -
-                               (this.route.distances[i - 1] || 0));
+            this.curvePath.extend(this.route.curvePath.slice(lapStartIdx));
+            for (let i = lapStartIdx; i < this.route.distances.length; i++) {
+                distances.push(distances.at(-1) +
+                    (this.route.distances[i] - (this.route.distances[i - 1] || 0)));
                 elevations.push(this.route.elevations[i]);
                 grades.push(this.route.grades[i]);
             }
             markLines.push({
-                xAxis: distance * lap,
-                lineStyle: {width: 2, type: 'solid'},
+                xAxis: lapDistance * lap,
+                lineStyle: {width: 5, type: 'solid'},
                 label: {
-                    position: 'insideStartTop',
-                    formatter: `LAP ${lap + 1}`
+                    distance: 7,
+                    position: 'insideMiddleBottom',
+                    formatter: `LAP ${lap + 1}`,
                 }
             });
         }
         this.setData(distances, elevations, grades, {markLines});
+        return this.route;
     });
 
     setData(distances, elevations, grades, options={}) {
@@ -251,7 +266,7 @@ export class SauceElevationProfile {
         this._yMax = Math.max(...elevations);
         this._yMin = Math.min(...elevations);
         // Echarts bug requires floor/ceil to avoid missing markLines
-        this._yAxisMin = Math.floor(this._yMin > 0 ? Math.max(0, this._yMin - 20) : this._yMin);
+        this._yAxisMin = Math.floor(this._yMin > 0 ? Math.max(0, this._yMin - 20) : this._yMin) - 10;
         this._yAxisMax = Math.ceil(Math.max(this._yMax, this._yMin + 200));
         this.chart.setOption({
             xAxis: {inverse: options.reverse},
@@ -281,12 +296,6 @@ export class SauceElevationProfile {
                 },
                 markLine: {
                     data: [{
-                        type: 'min',
-                        label: {
-                            formatter: x => H.elevation(x.value, {suffix: true}),
-                            position: this.reverse ? 'insideEndTop' : 'insideStartTop'
-                        },
-                    }, {
                         type: 'max',
                         label: {
                             formatter: x => H.elevation(x.value, {suffix: true}),
@@ -377,26 +386,93 @@ export class SauceElevationProfile {
             const sig = `${x.state.roadId}-${!!x.state.reverse}`;
             return this._roadSigs.has(sig);
         });
-        marks.length = 0; // XXX
         const markPointLabelSize = 0.4;
         const deltaY = this._yAxisMax - this._yAxisMin;
-        const path = this.route?.checkpoints || this.road?.path;
+        const path = this.curvePath;
         this.chart.setOption({series: [{
             markPoint: {
                 itemStyle: {borderColor: '#222b'},
                 animation: false,
-                data: marks.map(({state}, i) => {
-                    const distances = path.map(pos =>
-                        vectorDistance(pos, [state.x, state.y, state.z]));
-                    const nearest = distances.indexOf(Math.min(...distances));
-                    const distance = this._distances[nearest];
+                data: marks.map(({state}) => {
+                    let roadSeg;
+                    let nodeRoadOfft;
+                    let deemphasize;
+                    if (this.routeId != null) {
+                        if (state.routeId === this.routeId) {
+                            const totDist = this._distances[this._distances.length - 1];
+                            const nearIdx = common.binarySearchClosest(this._distances,
+                                                                       totDist * state.progress);
+                            const nearRoadSegIdx = path.nodes[nearIdx].index;
+                            roadSearch:
+                            for (let offt = 0; offt < 10; offt++) {
+                                for (const dir of [1, -1]) {
+                                    const i = nearRoadSegIdx + (offt * dir);
+                                    const s = this.route.roadSegments[i];
+                                    if (s && s.roadId === state.roadId && !!s.reverse === !!state.reverse) {
+                                        roadSeg = s;
+                                        nodeRoadOfft = path.nodes.findIndex(x => x.index === i);
+                                        break roadSearch;
+                                    }
+                                }
+                            }
+                            if (!roadSeg) {
+                                console.error("road search failed", nearRoadSegIdx, state.roadId);
+                                return null;
+                            }
+                        } else {
+                            // Not on our route but is nearby..
+                            const i = this.route.roadSegments.findIndex(x =>
+                                x.roadId === state.roadId &&
+                                !!x.reverse === !!state.reverse &&
+                                x.includesRoadTime(state.roadTime));
+                            if (i !== -1) {
+                                roadSeg = this.route.roadSegments[i];
+                                nodeRoadOfft = path.nodes.findIndex(x => x.index === i);
+                                deemphasize = true;
+                            }
+                        }
+                    } else if (this.road && this.road.id === state.roadId) {
+                        roadSeg = this.road;
+                        nodeRoadOfft = 0;
+                    } else {
+                        console.warn("why now?");
+                    }
+                    if (!roadSeg) {
+                        console.warn("gooasdf asdlflasdf", state.roadId, state.routeId, state.athleteId);
+                        return null;
+                    }
+                    const bounds = roadSeg.boundsAtRoadTime(state.roadTime);
+                    const nodeOfft = state.reverse ?
+                        roadSeg.nodes.length - 1 - (bounds.index + bounds.percent) :
+                        bounds.index + bounds.percent;
+                    const xIdx = nodeRoadOfft + nodeOfft;
+                    if (xIdx < 0 || xIdx > this._distances.length - 1) {
+                        console.error("route index offset bad!", {xIdx});
+                        debugger;
+                        return null;
+                    }
+                    let xCoord;
+                    let yCoord;
+                    if (xIdx % 1) {
+                        const i = xIdx | 0;
+                        const dDelta = this._distances[i + 1] - this._distances[i];
+                        const eDelta = this._elevations[i + 1] - this._elevations[i];
+                        xCoord = this._distances[i] + dDelta * (xIdx % 1);
+                        yCoord = this._elevations[i] + eDelta * (xIdx % 1);
+                    } else {
+                        xCoord = this._distances[xIdx];
+                        yCoord = this._elevations[xIdx];
+                    }
                     const isWatching = state.athleteId === this.watchingId;
+                    if (isWatching) {
+                        console.log("got it", Number(xIdx.toFixed(1)), this._distances.length, state.progress.toFixed(2));
+                    }
                     return {
                         name: state.athleteId,
-                        coord: [distance, state.altitude + 2],
-                        symbolSize: isWatching ? this.em(1.1) : this.em(0.55),
+                        coord: [xCoord, yCoord],
+                        symbolSize: isWatching ? this.em(1.1) : deemphasize ? this.em(0.33) : this.em(0.55),
                         itemStyle: {
-                            color: isWatching ? '#f43e' : '#fff6',
+                            color: isWatching ? '#f43e' : deemphasize ? '#9994' : '#fff6',
                             borderWidth: this.em(isWatching ? 0.04 : 0.02),
                         },
                         emphasis: {
@@ -409,7 +485,7 @@ export class SauceElevationProfile {
                                 borderRadius: this.em(0.22 * markPointLabelSize),
                                 borderWidth: 1,
                                 borderColor: '#fff9',
-                                align: (nearest > distances.length / 2) ^ this.reverse ? 'right' : 'left',
+                                align: (xIdx > this._distances.length / 2) ^ this.reverse ? 'right' : 'left',
                                 padding: [
                                     this.em(0.2 * markPointLabelSize),
                                     this.em(0.3 * markPointLabelSize)
@@ -418,7 +494,7 @@ export class SauceElevationProfile {
                             }
                         },
                     };
-                }),
+                }).filter(x => x),
             },
         }]});
         for (const [athleteId, mark] of this.marks.entries()) {
