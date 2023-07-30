@@ -262,6 +262,20 @@ export class RoadPath extends CurvePath {
         return roadOffsetToPercent(index + percent, this.roadLength);
     }
 
+    includesRoadPercent(rp) {
+        if (!this.nodes.length) {
+            return false;
+        }
+        let [index, percent] = this.roadPercentToOffsetTuple(rp);
+        // Adjust and constrain index,percent to our range.
+        index -= this.offsetIndex;
+        return index >= 0 && (index + percent) <= this.nodes.length - 1;
+    }
+
+    includesRoadTime(rt) {
+        return this.includesRoadPercent(roadTimeToPercent(rt));
+    }
+
     boundsAtRoadTime(rt) {
         return this.boundsAtRoadPercent(roadTimeToPercent(rt));
     }
