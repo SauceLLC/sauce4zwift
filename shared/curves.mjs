@@ -263,7 +263,7 @@ export class RoadPath extends CurvePath {
     }
 
     boundsAtRoadTime(rt) {
-        return this.boundsAtRoadPercent(this.roadTimeToPercent(rt));
+        return this.boundsAtRoadPercent(roadTimeToPercent(rt));
     }
 
     boundsAtRoadPercent(rp) {
