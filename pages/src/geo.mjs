@@ -201,80 +201,70 @@ export async function main() {
         const center = urlQuery.get('center');
         const [course, road] = urlQuery.get('testing').split(',');
         const routeId = urlQuery.get('route');
-        zwiftMap.setCourse(+course || 6).then(async () => {
-            if (routeId) {
-                let route = await zwiftMap.setActiveRoute(+routeId);
-                console.log({route});
-                for (const [i, xx] of route.checkpoints.entries()) {
-                    console.log(i, xx.roadPercent.toFixed(8), xx.roadId, xx.reverse, xx.leadin, xx.forceSplit);
-                }
-                let i = 0;
-                const allRoutes = (await common.rpc.getRoutes()).filter(x => x.courseId === +course).slice(i);
-
-                for (const {id} of allRoutes) {
-                    const x = await common.getRoute(id);
-                    const delta = Math.abs(x.curvePathNew.distance(0.01) / 100 - (x.distanceInMeters +
-                        (x.leadinDistanceInMeters || 0) -
-                        (x.distanceBetweenFirstLastLrCPsInMeters || 0))); // XXX
-                    if (delta > 1000) {
-                        console.warn(x.curvePathNew.distance(0.01) / 100, delta, x);
-                    }
-                }
-
-                let start = 0;
-                let end = route.curvePathNew.nodes.length;
-                const point = zwiftMap.addPoint([0, 0], 'star');
-                let hi;
-                const drawRouteHighlight = () => {
-                    if (hi) {
-                        hi.elements.forEach(x => x.remove());
-                    }
-                    const path = route.curvePathNew.slice(start, end);
-                    point.setPosition(route.curvePathNew.nodes[start].end);
-                    console.debug({start, end});
-                    hi = zwiftMap.addHighlightPath(path, `route-${route.id}`, {width: 0.3, color: 'pink'});
-                };
-                window.addEventListener('keydown', ev => {
-                    if (ev.key === 'Delete') {
-                        common.getRoute(allRoutes.shift().id).then(r => {
-                            route = r;
-                            console.log('route', i, route.id, route);
-                            i++;
-                            zwiftMap.setActiveRoute(route.id);
-                            start = 0;
-                            end = route.curvePathNew.nodes.length;
-                            drawRouteHighlight();
-                        });
-                    } else if (ev.key === 'ArrowRight') {
-                        end = Math.min(route.curvePathNew.nodes.length, end + 1);
-                    } else if (ev.key === 'ArrowLeft') {
-                        end = Math.max(start, end - 1);
-                    } else if (ev.key === 'ArrowUp') {
-                        start = Math.min(end, start + 1);
-                    } else if (ev.key === 'ArrowDown') {
-                        start = Math.max(0, start - 1);
-                    } else {
-                        return;
-                    }
-                    ev.preventDefault();
-                    drawRouteHighlight();
-                });
-                drawRouteHighlight();
-            } else {
-                zwiftMap.setActiveRoad(+road || 0);
-            }
-        });
+        await zwiftMap.setCourse(+course || 6);
         if (elProfile) {
-            elProfile.setCourse(+course || 6).then(async () => {
-                if (routeId) {
-                    await elProfile.setRoute(+routeId);
-                } else {
-                    elProfile.setRoad(+road || 0);
-                }
-            });
+            await elProfile.setCourse(+course || 6);
         }
         if (center) {
             zwiftMap.setCenter(center.split(',').map(Number));
+        }
+        if (routeId) {
+            let route = await zwiftMap.setActiveRoute(+routeId);
+            console.log({route});
+            for (const [i, xx] of route.checkpoints.entries()) {
+                console.log(i, xx.roadPercent.toFixed(8), xx.roadId, xx.reverse, xx.leadin, xx.forceSplit);
+            }
+            let i = 0;
+
+            let start = 0;
+            let end = route.curvePath.nodes.length;
+            const point = zwiftMap.addPoint([0, 0], 'star');
+            let hi;
+            const drawRouteHighlight = () => {
+                if (hi) {
+                    hi.elements.forEach(x => x.remove());
+                }
+                const path = route.curvePath.slice(start, end);
+                point.setPosition(route.curvePath.nodes[start].end);
+                console.debug({start, end});
+                hi = zwiftMap.addHighlightPath(path, `route-${route.id}`, {width: 0.3, color: 'yellow'});
+            };
+            //const allRoutes = (await common.rpc.getRoutes()).filter(x => x.courseId === +course).slice(i);
+            window.addEventListener('keydown', ev => {
+                if (ev.key === 'Delete') {
+                    common.getRoute(allRoutes.shift().id).then(r => {
+                        route = r;
+                        console.log('route', i, route.id, route);
+                        i++;
+                        zwiftMap.setActiveRoute(route.id);
+                        start = 0;
+                        end = route.curvePath.nodes.length;
+                        drawRouteHighlight();
+                    });
+                } else if (ev.key === 'ArrowRight') {
+                    end = Math.min(route.curvePath.nodes.length, end + 1);
+                } else if (ev.key === 'ArrowLeft') {
+                    end = Math.max(start, end - 1);
+                } else if (ev.key === 'ArrowUp') {
+                    start = Math.min(end, start + 1);
+                } else if (ev.key === 'ArrowDown') {
+                    start = Math.max(0, start - 1);
+                } else {
+                    return;
+                }
+                ev.preventDefault();
+                drawRouteHighlight();
+            });
+            drawRouteHighlight();
+        } else {
+            zwiftMap.setActiveRoad(+road || 0);
+        }
+        if (elProfile) {
+            if (routeId) {
+                await elProfile.setRoute(+routeId);
+            } else {
+                elProfile.setRoad(+road || 0);
+            }
         }
     } else {
         await initialize();

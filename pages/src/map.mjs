@@ -839,26 +839,28 @@ export class SauceZwiftMap extends EventTarget {
     addHighlightPath(path, id, {debug, includeEdges=true, extraClass='', width, color, layer='high'}={}) {
         const elements = [];
         if (debug) {
-            for (let i = 0; i < path.length; i++) {
-                elements.push(this.drawCircle(path[i].end, {
+            const nodes = path.nodes;
+            for (let i = 0; i < nodes.length; i++) {
+                elements.push(this.drawCircle(nodes[i].end, {
                     color: '#40ba',
                     borderColor: 'black',
                     size: 4,
                     title: i
                 }));
-                if (path[i].cp1) {
+                if (nodes[i].cp1) {
                     if (i) {
-                        elements.push(this.drawLine(path[i].cp1, path[i - 1].end, {layer}));
-                        elements.push(this.drawCircle(path[i].cp1, {color: '#000b', size: 3,
-                                                                    title: `cp1-${i}`}));
+                        const title = `cp1-${i}`;
+                        elements.push(this.drawLine(nodes[i].cp1, nodes[i - 1].end, {layer, title}));
+                        elements.push(this.drawCircle(nodes[i].cp1, {color: '#000b', size: 3, title}));
                     }
-                    elements.push(this.drawLine(path[i].cp2, path[i].end, {layer}));
-                    elements.push(this.drawCircle(path[i].cp2, {color: '#fffb', size: 3, title: `cp2-${i}`}));
+                    const title = `cp2-${i}`;
+                    elements.push(this.drawLine(nodes[i].cp2, nodes[i].end, {layer, title}));
+                    elements.push(this.drawCircle(nodes[i].cp2, {color: '#fffb', size: 3, title}));
                 }
             }
-            if (path.length) {
-                elements.push(this.drawCircle(path[0].end, {color: '#0f09', size: 8, title: 'start'}));
-                elements.push(this.drawCircle(path.at(-1).end, {color: '#f009', size: 8, title: 'end'}));
+            if (nodes.length) {
+                elements.push(this.drawCircle(nodes[0].end, {color: '#0f09', size: 8, title: 'start'}));
+                elements.push(this.drawCircle(nodes.at(-1).end, {color: '#f009', size: 8, title: 'end'}));
             }
         }
         const node = createElementSVG('path', {
