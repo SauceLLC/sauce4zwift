@@ -5,7 +5,8 @@ import * as rpc from './rpc.mjs';
 import {fileURLToPath} from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const allSegments = new Map();
+
+export const allSegments = new Map();
 
 
 export function getRoadSig(courseId, roadId, reverse) {
