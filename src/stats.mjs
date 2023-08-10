@@ -15,7 +15,6 @@ const pkg = require('../package.json');
 
 const monotonic = performance.now;
 const roadDistances = new Map();
-const allSegments = new Map();
 const wPrimeDefault = 20000;
 
 
@@ -523,7 +522,7 @@ export class StatsProcessor extends events.EventEmitter {
         }
         const athlete = this.loadAthlete(ad.athleteId);
         return ad.segments.map(x =>
-            this._formatLapish(x, ad, athlete, {segment: allSegments.get(x.id)}));
+            this._formatLapish(x, ad, athlete, {segment: env.allSegments.get(x.id)}));
     }
 
     _formatLapish(lapish, ad, athlete, extra) {
