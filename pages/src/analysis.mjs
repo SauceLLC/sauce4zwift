@@ -227,15 +227,6 @@ function createElevationLineChart(el) {
                 right: rightPad,
             };
         }),
-        NOdataZoom: [{
-            type: 'inside',
-            xAxisIndex: xAxes,
-            zoomOnMouseWheel: false,
-            moveOnMouseMove: false,
-            moveOnMouseWheel: false,
-            preventDefaultMouseMove: true,
-            zoomLock: true, // workaround for https://github.com/apache/echarts/issues/10079
-        }],
         brush: {
             brushLink: 'all',
             seriesIndex: xAxes,
@@ -688,6 +679,7 @@ export async function main() {
     athleteData = _ad, laps = _laps, segments = _segments, streams = _streams, templates = _templates;
     console.warn({_ad, streams}); // XXX debug
     const contentEl = document.querySelector('#content');
+    debugger;
     contentEl.innerHTML = await templates.main({
         athleteData,
         laps,
@@ -731,7 +723,7 @@ export async function main() {
     let voidAutoCenter;
     zwiftMap.addEventListener('drag', () => voidAutoCenter = true);
     zwiftMap.addEventListener('zoom', () => voidAutoCenter = true);
-    zwiftMap.setCourse(athleteData.state.courseId);
+    await zwiftMap.setCourse(athleteData.state.courseId);
     let histPath;
     const startEnt = new map.MapEntity('start');
     zwiftMap.addEntity(startEnt);
@@ -840,8 +832,7 @@ export async function main() {
             centerMap(zwiftMap, positions);
         }
         if (histPath) {
-            histPath.pathDef.remove();
-            histPath.node.remove();
+            histPath.elements.forEach(x => x.remove());
         } else {
             startEnt.setPosition(positions[0]);
         }
