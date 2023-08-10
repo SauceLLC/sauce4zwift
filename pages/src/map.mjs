@@ -564,7 +564,7 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     _updateMapBackground = common.asyncSerialize(async function() {
-        const m = this.worldMeta = this.worldList.find(x => x.courseId === this.courseId);
+        const m = this.worldMeta;
         this._mapScale = 1 / (m.tileScale / m.mapScale / this._canvasScale);
         const canvas = this._elements.mapCanvas;
         const ctx = canvas.getContext('2d');
@@ -630,20 +630,21 @@ export class SauceZwiftMap extends EventTarget {
         }
         this.incPause();
         try {
+            this.courseId = courseId;
+            this.portal = isPortal;
+            this.worldMeta = this.worldList.find(x => x.courseId === courseId);
             if (isPortal) {
-                await this._setPortal(courseId, portalRoad);
+                await this._applyPortal(portalRoad);
             } else {
-                await this._setCourse(courseId);
+                await this._applyCourse();
             }
         } finally {
             this.decPause();
         }
     });
 
-    async _setCourse(courseId) {
-        this.courseId = courseId;
-        this.portal = false;
-        const m = this.worldMeta = this.worldList.find(x => x.courseId === courseId);
+    async _applyCourse() {
+        const m = this.worldMeta;
         this._anchorXY[0] = -(m.minX + m.anchorX);
         this._anchorXY[1] = -(m.minY + m.anchorY);
         this._resetElements([
@@ -653,17 +654,15 @@ export class SauceZwiftMap extends EventTarget {
             m.maxY - m.minY
         ], !!m.rotateRouteSelect);
         const [roads] = await Promise.all([
-            common.getRoads(courseId),
+            common.getRoads(this.courseId),
             this._updateMapBackground(),
         ]);
         this._renderRoads(roads);
     }
 
-    async _setPortal(courseId, roadId) {
-        this.courseId = courseId;
-        this.portal = true;
+    async _applyPortal(roadId) {
+        const m = this.worldMeta;
         const road = await common.getRoad('portal', roadId);
-        const m = this.worldMeta = this.worldList.find(x => x.courseId === courseId);
         this._anchorXY[0] = -(m.minX + m.anchorX);
         this._anchorXY[1] = -(m.minY + m.anchorY);
         this._resetElements([
