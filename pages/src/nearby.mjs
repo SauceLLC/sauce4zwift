@@ -208,6 +208,8 @@ const fieldGroups = [{
         {id: 'actions', defaultEn: false, label: 'Action Button(s)', headerLabel: ' ', fmt: fmtActions},
         {id: 'avatar', defaultEn: true, label: 'Avatar', headerLabel: '<ms>account_circle</ms>',
          get: x => x.athlete && x.athlete.sanitizedFullname, fmt: fmtAvatar},
+        {id: 'female', defaultEn: false, label: 'Female', headerLabel: '<ms>female</ms>',
+         get: x => x.athlete?.gender === 'female', fmt: x => x ? '<ms title="Female">female</ms>' : ''},
         {id: 'nation', defaultEn: true, label: 'Country Flag', headerLabel: '<ms>flag</ms>',
          get: x => x.athlete && x.athlete.countryCode, fmt: common.fmtFlag},
         {id: 'name', defaultEn: true, label: 'Name', get: x => x.athlete && x.athlete.sanitizedFullname,
@@ -450,7 +452,10 @@ function onFilterInput(ev) {
 
 
 function parseFilters(raw) {
-    return raw.split('|').map(x => x.toLowerCase()).filter(x => x.length);
+    return raw.split('|').filter(x => x.length).map(x => {
+        const lc = x.toLowerCase();
+        return new RegExp(x, lc === x ? 'i' : '');
+    });
 }
 
 
@@ -671,7 +676,7 @@ function updateTableRow(row, info) {
             td.innerHTML = (td._html = html);
         }
         if (!unfiltered) {
-            unfiltered = filters.some(x => ('' + value).toLowerCase().indexOf(x) !== -1);
+            unfiltered = filters.some(x => !!td.textContent.match(x));
         }
         gentleClassToggle(td, 'sorted', sortBy === id);
     }
