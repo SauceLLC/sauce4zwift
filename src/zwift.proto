@@ -650,6 +650,7 @@ message PlayerProfile {
     repeated PropertyChange propertyChanges = 127;
     uint32 targetExperiencePoints = 128;
     uint32 targetRunExperiencePoints = 129;
+    int32 _f130 = 130; // seen 1 and 2, so likely an enum
 }
 
 message PlayerProfiles {
