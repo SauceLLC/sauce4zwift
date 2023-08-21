@@ -391,7 +391,7 @@ export class StatsProcessor extends events.EventEmitter {
 
     _getGameState() {
         if (!this._athleteData.has(this.athleteId)) {
-            this._athleteData.set(this.athleteId, this._createAthleteData(this.athleteId), worldTimer.now());
+            return;
         }
         const data = this._athleteData.get(this.athleteId);
         if (!data.gameState) {
@@ -506,52 +506,73 @@ export class StatsProcessor extends events.EventEmitter {
         return this._formatAthleteData(ad);
     }
 
-    getAthleteLaps(id) {
+    getAthleteLaps(id, {startTime}={}) {
         const ad = this._athleteData.get(this._realAthleteId(id));
         if (!ad) {
             return null;
         }
+        let laps = ad.laps;
+        if (startTime !== undefined) {
+            laps = laps.filter(x => x.power.roll._times[x.power.roll._offt] >= startTime);
+        }
         const athlete = this.loadAthlete(ad.athleteId);
-        return ad.laps.map(x => this._formatLapish(x, ad, athlete));
+        return laps.map(x => this._formatLapish(x, ad, athlete));
     }
 
-    getAthleteSegments(id) {
+    getAthleteSegments(id, {startTime}={}) {
         const ad = this._athleteData.get(this._realAthleteId(id));
         if (!ad) {
             return null;
         }
+        let segments = ad.segments;
+        if (startTime !== undefined) {
+            segments = segments.filter(x => x.power.roll._times[x.power.roll._offt] >= startTime);
+        }
         const athlete = this.loadAthlete(ad.athleteId);
-        return ad.segments.map(x =>
-            this._formatLapish(x, ad, athlete, {segment: env.allSegments.get(x.id)}));
+        return segments.map(x => this._formatLapish(x, ad, athlete, {segment: env.allSegments.get(x.id)}));
     }
 
     _formatLapish(lapish, ad, athlete, extra) {
+        const startIndex = lapish.power.roll._offt;
+        const endIndex = Math.max(0, lapish.power.roll._length - 1);
         return {
             stats: this._getCollectorStats(lapish, ad, athlete),
-            startIndex: lapish.power.roll._offt,
-            endIndex: lapish.power.roll._length - 1,
-            start: lapish.start,
-            end: lapish.end,
-            sport: ad?.mostRecentState?.sport || 'cycling',
+            startIndex,
+            endIndex,
+            start: lapish.power.roll._times[startIndex],
+            end: lapish.power.roll._times[endIndex],
+            sport: ad.sport,
+            courseId: ad.courseId,
             ...extra,
         };
     }
 
-    getAthleteStreams(id) {
+    getAthleteStreams(id, {startTime}={}) {
         const ad = this._athleteData.get(this._realAthleteId(id));
         if (!ad) {
             return null;
         }
         const cs = ad.collectors;
-        return {
-            time: cs.power.roll.times(),
-            power: cs.power.roll.values(),
-            speed: cs.speed.roll.values(),
-            hr: cs.hr.roll.values(),
-            cadence: cs.cadence.roll.values(),
-            draft: cs.draft.roll.values(),
-            ...ad.streams,
+        const timeStream = cs.power.roll.times();
+        let offt = 0;
+        if (startTime !== undefined) {
+            offt = timeStream.findIndex(x => x >= startTime);
+            if (offt === -1) {
+                offt = Infinity;
+            }
+        }
+        const streams = {
+            time: timeStream.slice(offt),
+            power: cs.power.roll.values(offt),
+            speed: cs.speed.roll.values(offt),
+            hr: cs.hr.roll.values(offt),
+            cadence: cs.cadence.roll.values(offt),
+            draft: cs.draft.roll.values(offt),
         };
+        for (const [k, arr] of Object.entries(ad.streams)) {
+            streams[k] = arr.slice(offt);
+        }
+        return streams;
     }
 
     getNearbyData() {
@@ -573,12 +594,12 @@ export class StatsProcessor extends events.EventEmitter {
         const now = monotonic();
         const lastLap = ad.laps[ad.laps.length - 1];
         lastLap.end = now;
-        Object.assign(lastLap, this.cloneDataCollectors(lastLap));
-        ad.laps.push(this.cloneDataCollectors(ad.collectors, {reset: true}));
+        Object.assign(lastLap, this._cloneDataCollectors(lastLap));
+        ad.laps.push(this._createNewLapish(ad));
     }
 
     startSegment(ad, id) {
-        const segment = this.cloneDataCollectors(ad.collectors, {reset: true});
+        const segment = this._createNewLapish(ad);
         segment.id = id;
         ad.segments.push(segment);
         ad.activeSegments.set(id, segment);
@@ -1067,7 +1088,7 @@ export class StatsProcessor extends events.EventEmitter {
         };
     }
 
-    makeDataCollectors() {
+    _makeDataCollectors() {
         const periods = [5, 15, 60, 300, 1200];
         const longPeriods = periods.filter(x => x >= 60);
         return {
@@ -1080,13 +1101,20 @@ export class StatsProcessor extends events.EventEmitter {
         };
     }
 
-    cloneDataCollectors(collectors, options={}) {
+    _cloneDataCollectors(collectors, options={}) {
         const types = ['power', 'speed', 'hr', 'cadence', 'draft'];
         const bucket = {start: options.reset ? monotonic() : collectors.start};
         for (const x of types) {
             bucket[x] = collectors[x].clone(options);
         }
         return bucket;
+    }
+
+    _createNewLapish(ad) {
+        const lapish = this._cloneDataCollectors(ad.collectors, {reset: true});
+        lapish.courseId = ad.courseId;
+        lapish.sport = ad.sport;
+        return lapish;
     }
 
     maybeUpdateAthleteFromServer(athleteId) {
@@ -1156,12 +1184,14 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
-    _createAthleteData(athleteId, wtOffset) {
-        const collectors = this.makeDataCollectors();
+    _createAthleteData(state) {
+        const collectors = this._makeDataCollectors();
         const ad = {
-            created: worldTimer.toTime(wtOffset),
-            wtOffset,
-            athleteId,
+            created: worldTimer.toTime(state.worldTime),
+            wtOffset: state.worldTime,
+            athleteId: state.athleteId,
+            courseId: state.courseId,
+            sport: state.sport,
             privacy: {},
             mostRecentState: null,
             wBal: new WBalAccumulator(),
@@ -1178,12 +1208,13 @@ export class StatsProcessor extends events.EventEmitter {
                 prevTimeline: null,
             },
             collectors,
-            laps: [this.cloneDataCollectors(collectors, {reset: true})],
-            activeSegments: new Map(),
+            laps: [],
             segments: [],
+            activeSegments: new Map(),
             smoothGrade: makeExpWeighted(8),
         };
-        const athlete = this.loadAthlete(athleteId);
+        ad.laps.push(this._createNewLapish(ad));
+        const athlete = this.loadAthlete(state.athleteId);
         if (athlete) {
             this._updateAthleteDataFromDatabase(ad, athlete);
         }
@@ -1191,12 +1222,12 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _resetAthleteData(ad, wtOffset) {
-        const collectors = this.makeDataCollectors();
+        const collectors = this._makeDataCollectors();
         Object.assign(ad, {
             created: worldTimer.toTime(wtOffset),
             wtOffset,
             collectors,
-            laps: [this.cloneDataCollectors(collectors, {reset: true})],
+            laps: [this._createNewLapish(ad)],
         });
         // NOTE: Don't reset w'bal; it is a biometric
         ad.timeInPowerZones.reset();
@@ -1231,9 +1262,7 @@ export class StatsProcessor extends events.EventEmitter {
 
     processState(state) {
         if (!this._athleteData.has(state.athleteId)) {
-            this._athleteData.set(
-                state.athleteId,
-                this._createAthleteData(state.athleteId, state.worldTime));
+            this._athleteData.set(state.athleteId, this._createAthleteData(state));
         }
         const ad = this._athleteData.get(state.athleteId);
         const prevState = ad.mostRecentState;
@@ -1246,15 +1275,23 @@ export class StatsProcessor extends events.EventEmitter {
                 this._stateDupCount++;
                 return false;
             }
-            const elevationChange = state.altitude - prevState.altitude;
-            const distanceChange = state.eventDistance ?
-                (state.eventDistance - prevState.eventDistance) :
-                (state.distance - prevState.distance);
-            state.grade = ad.smoothGrade(distanceChange ?
-                (elevationChange / distanceChange) :
-                prevState.grade);
-            // Leaving around because it's pretty darn useful for debugging...
-            //state.mapurl = `https://maps.google.com/maps?q=${state.latlng[0]},${state.latlng[1]}&z=17`;
+            if (prevState.sport !== state.sport || prevState.courseId !== state.courseId) {
+                ad.sport = state.sport;
+                ad.courseId = state.courseId;
+                state.grade = 0;
+                this.startAthleteLap(ad);
+            } else {
+                const elevationChange = state.altitude - prevState.altitude;
+                const distanceChange = state.eventDistance ?
+                    (state.eventDistance - prevState.eventDistance) :
+                    (state.distance - prevState.distance);
+                state.grade = ad.smoothGrade(distanceChange ?
+                    (elevationChange / distanceChange) :
+                    prevState.grade);
+                // Leaving around because it's pretty darn useful for debugging...
+                //state.mapurl = `https://maps.google.com/maps?` +
+                //    `q=${state.latlng[0]},${state.latlng[1]}&z=17`;
+            }
         } else {
             state.grade = 0;
         }
