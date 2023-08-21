@@ -1507,7 +1507,6 @@ export const hash = cyrb53;  // simple name is fine when we don't care about the
 
 
 export function binarySearchClosest(arr, value) {
-    value = value || 0;
     let left = 0;
     let right = arr.length - 1;
     let c = 0;
@@ -1520,6 +1519,8 @@ export function binarySearchClosest(arr, value) {
             left = c + 1;
         } else if (v === value) {
             return c;
+        } else {
+            return -1;
         }
     }
     // tie breaker
