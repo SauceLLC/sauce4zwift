@@ -14,17 +14,26 @@ common.settingsStore.setDefault({
     peakEffortSource: 'power',
 });
 
-let laps;
-let segments;
-let streams;
-let sport;
+let zwiftMap;
 let elevationChart;
 let zoomableChart;
-let athleteData;
 let templates;
-let zoomStart;
-let zoomEnd;
-let paused;
+let athleteData;
+let sport;
+
+const state = {
+    laps: [],
+    segments: [],
+    streams: {},
+    positions: [],
+    startTime: undefined,
+    sport: undefined,
+    zoomStart: undefined,
+    zoomEnd: undefined,
+    paused: false,
+    voidAutoCenter: false,
+};
+
 
 const settings = common.settingsStore.get();
 const H = sauce.locale.human;
@@ -38,7 +47,7 @@ const rolls = {
 
 const peakFormatters = {
     power: x => H.power(x, {suffix: true, html: true}),
-    speed: x => H.pace(x, {suffix: true, html: true, sport}),
+    speed: x => H.pace(x, {suffix: true, html: true, sport: athleteData.sport}),
     hr: x => H.number(x, {suffix: 'bpm', html: true}),
     draft: x => H.power(x, {suffix: true, html: true}),
 };
@@ -119,7 +128,12 @@ function getSelectionStats() {
     if (!athleteData) {
         return;
     }
-    const powerRoll = rolls.power.slice(zoomStart / 1000, zoomEnd / 1000);
+    let powerRoll = rolls.power;
+    if (state.zoomStart !== undefined) {
+        const start = state.streams.time[state.zoomStart];
+        const end = state.streams.time[state.zoomEnd];
+        powerRoll = powerRoll.slice(start, end);
+    }
     const activeTime = powerRoll.active();
     const elapsedTime = powerRoll.elapsed();
     const powerAvg = powerRoll.avg({active: true});
@@ -128,15 +142,15 @@ function getSelectionStats() {
     const rank = athlete?.weight ?
         sauce.power.rank(activeTime, powerAvg, np, athlete.weight, athlete.gender || 'male') :
         null;
-    const start = streams.time.indexOf(powerRoll.firstTime({noPad: true}));
-    const end = streams.time.indexOf(powerRoll.lastTime({noPad: true})) + 1;
-    const distStream = streams.distance.slice(start, end);
-    const altStream = streams.altitude.slice(start, end);
-    const hrStream = streams.hr.slice(start, end).filter(x => x);
+    const start = state.streams.time.indexOf(powerRoll.firstTime({noPad: true}));
+    const end = state.streams.time.indexOf(powerRoll.lastTime({noPad: true})) + 1;
+    const distStream = state.streams.distance.slice(start, end);
+    const altStream = state.streams.altitude.slice(start, end);
+    const hrStream = state.streams.hr.slice(start, end).filter(x => x);
     const distance = distStream[distStream.length - 1] - distStream[0];
     const {gain, loss} = sauce.geo.altitudeChanges(altStream);
-    console.log({distance, activeTime});
-    console.log(rank);
+    //console.log({distance, activeTime});
+    //console.log(rank);
     return {
         activeTime,
         elapsedTime,
@@ -198,11 +212,9 @@ function createElevationLineChart(el) {
     const topPad = 10;
     const seriesPad = 1;
     const bottomPad = 20;
-    const leftPad = 36;  // tuned to axisLabel rotate of 55
-    const rightPad = 12; // just enough for angle labels on end of xaxis
-    let pointerActionTaken = true;
+    const leftPad = 36;
+    const rightPad = 26;
     let updateDeferred;
-    console.log(el.clientWidth);
 
     const options = {
         animation: false, // slow and we want a responsive interface not a pretty static one
@@ -217,7 +229,6 @@ function createElevationLineChart(el) {
             max: f.domain[1],
             inRange: {colorAlpha: f.rangeAlpha},
         })),
-        axisPointer: {link: [{xAxisIndex: 'all'}]},
         grid: series.map((x, i) => {
             const count = series.length;
             return {
@@ -241,12 +252,21 @@ function createElevationLineChart(el) {
         },
         tooltip: {
             trigger: 'axis',
-            axisPointer: {label: {formatter: () => void 0}}, // XXX there must be a better way
+            axisPointer: {label: {formatter: x => H.distance(x.value, {suffix: true})}},
         },
         xAxis: series.map((f, i) => ({
-            show: false,
-            type: 'time',
+            show: true,
+            type: 'value',
+            min: 'dataMin',
+            max: 'dataMax',
             gridIndex: i,
+            splitLine: {show: false},
+            boundaryGap: ['30%', '20%'],
+            axisLabel: {
+                showMinLabel: false,
+                formatter: x => H.distance(x, {suffix: true}),
+                padding: [-5, 0, 0, 0],
+            },
         })),
         yAxis: series.map((f, i) => ({
             type: 'value',
@@ -255,12 +275,11 @@ function createElevationLineChart(el) {
             max: x => f.domain[1] != null ? Math.max(f.domain[1], x.max) : x.max,
             splitNumber: undefined,
             interval: Infinity, // disable except for min/max
-            axisLine: {show: false},
             splitLine: {show: false},
             axisLabel: {
-                rotate: 55,
-                showMinLabel: true,
-                formatter: H.number,
+                rotate: 45,
+                showMinLabel: false,
+                formatter: x => H.elevation(x, {suffix: true}),
             },
         })),
         series: series.map((f, i) => ({
@@ -280,80 +299,6 @@ function createElevationLineChart(el) {
         toolbox: {show: false},
     };
     chart.setOption(options);
-    chart.updateData = () => {
-        if (paused) {
-            updateDeferred = true;
-            return;
-        }
-        updateDeferred = false;
-        chart.setOption({
-            /*dataZoom: [{
-                startValue: zoomStart,
-                endValue: zoomEnd,
-            }],*/
-            series: series.map(f => ({
-                data: streams[f.stream].map((x, i) => [streams.time[i] * 1000, x]),
-            }))
-        });
-    };
-    chart.setSelection = (startValue, endValue) => {
-        startValue *= 1000;
-        endValue *= 1000;
-        chart.dispatchAction({type: 'dataZoom', startValue, endValue});
-    };
-    chart.on('datazoom', ev => {
-        pointerActionTaken = true;
-        console.warn('elevation DATAZOOM', ev);
-        if (ev.start !== undefined || ev.end !== undefined) {
-            if (ev.start !== 0 || ev.end !== 100) {
-                throw new Error('non-reset percent based datazoom is unsupported');
-            }
-            zoomStart = undefined;
-            zoomEnd = undefined;
-        } else {
-            zoomStart = ev.startValue;
-            zoomEnd = ev.endValue;
-        }
-    });
-    chart.on('brush', ev => {
-        pointerActionTaken = true;
-        if (ev.areas.length) {
-            const range = ev.areas[0].coordRange;
-            zoomStart = range[0];
-            zoomEnd = range[1];
-        }
-    });
-    chart.on('brushEnd', ev => {
-        pointerActionTaken = true;
-        if (!ev.areas.length) {
-            return;
-        }
-        const range = ev.areas[0].coordRange;
-        /*chart.dispatchAction({
-            type: 'dataZoom',
-            startValue: range[0],
-            endValue: range[1],
-        });
-        chart.dispatchAction({type: 'brush', areas: []});  // clear selection
-        */
-    });
-    el.addEventListener('pointerdown', () => {
-        paused = true;
-        pointerActionTaken = false;
-    });
-    const unpause = () => {
-        paused = false;
-        if (!pointerActionTaken) {
-            chart.dispatchAction({type: 'dataZoom', start: 0, end: 100});
-        }
-        if (updateDeferred) {
-            // Must queue callback to prevent conflict with other mouseup actions.
-            requestAnimationFrame(chart.updateData);
-        }
-    };
-    document.addEventListener('pointercancel', unpause);
-    document.addEventListener('pointerup', unpause);
-    chart.updateData();
     // This is the only way to enable brush selection by default. :/
     chart.dispatchAction({
         type: 'takeGlobalCursor',
@@ -361,6 +306,47 @@ function createElevationLineChart(el) {
         brushOption: {
             brushType: 'lineX',
             brushMode: 'single',
+        }
+    });
+
+    chart.updateData = () => {
+        if (state.paused) {
+            updateDeferred = true;
+            return;
+        }
+        updateDeferred = false;
+        chart.setOption({
+            series: series.map(f => ({
+                data: state.streams[f.stream].map((x, i) => [state.streams.distance[i], x]),
+            }))
+        });
+    };
+    chart.setSelection = (startValue, endValue) => {
+        debugger; // XXX
+        startValue *= 1000;
+        endValue *= 1000;
+        chart.dispatchAction({type: 'brush', fromSauce: true, startValue, endValue});
+    };
+
+    chart.on('brush', ev => {
+        state.paused = !!ev.areas.length;
+        if (ev.fromSauce) {
+            return;
+        }
+        if (!ev.areas.length) {
+            state.zoomStart = undefined;
+            state.zoomEnd = undefined;
+            return;
+        }
+        const range = ev.areas[0].coordRange;
+        state.zoomStart = common.binarySearchClosest(state.streams.distance, range[0]);
+        state.zoomEnd = common.binarySearchClosest(state.streams.distance, range[1]);
+    });
+    chart.on('brushEnd', ev => {
+        state.paused = false;
+        if (updateDeferred) {
+            // Must queue callback to prevent conflict with other mouseup actions.
+            requestAnimationFrame(chart.updateData);
         }
     });
     chartRefs.add(new WeakRef(chart));
@@ -376,8 +362,7 @@ function createZoomableLineChart(el) {
     const seriesPad = 1;
     const bottomPad = 8;
     const leftPad = 36;  // tuned to axisLabel rotate of 55
-    const rightPad = 12; // just enough for angle labels on end of xaxis
-    let pointerActionTaken = true;
+    const rightPad = 26;
     let updateDeferred;
     const options = {
         animation: false, // slow and we want a responsive interface not a pretty static one
@@ -424,13 +409,17 @@ function createZoomableLineChart(el) {
             },
         },
         tooltip: {
+            // XXX replace entire tooltip with our own system, it's pretty bad
             trigger: 'axis',
-            axisPointer: {label: {formatter: () => void 0}}, // XXX there must be a better way
+            axisPointer: {
+                label: {
+                    formatter: () => undefined,
+                }
+            },
         },
         xAxis: series.map((f, i) => ({
-            type: 'time',
             gridIndex: i,
-            //splitNumber: el.clientWidth / 10 | 0,
+            type: 'time', // XXX try to get time axis formatted well
             axisTick: {
                 show: i === series.length - 1,
             },
@@ -457,14 +446,10 @@ function createZoomableLineChart(el) {
             max: x => f.domain[1] != null ? Math.max(f.domain[1], x.max) : x.max,
             splitNumber: undefined,
             interval: Infinity, // disable except for min/max
-            axisLine: {
-                show: true,
-            },
-            splitLine: {
-                show: false,
-            },
+            axisLine: {show: true},
+            splitLine: {show: false},
             axisLabel: {
-                rotate: 55,
+                rotate: 45,
                 showMinLabel: false,
                 formatter: H.number,
             },
@@ -486,79 +471,6 @@ function createZoomableLineChart(el) {
         toolbox: {show: false},
     };
     chart.setOption(options);
-    chart.updateData = () => {
-        if (paused) {
-            updateDeferred = true;
-            return;
-        }
-        updateDeferred = false;
-        chart.setOption({
-            dataZoom: [{
-                startValue: zoomStart,
-                endValue: zoomEnd,
-            }],
-            series: series.map(f => ({
-                data: streams[f.stream].map((x, i) => [streams.time[i] * 1000, x]),
-            }))
-        });
-    };
-    chart.setSelection = (startValue, endValue) => {
-        startValue *= 1000;
-        endValue *= 1000;
-        chart.dispatchAction({type: 'dataZoom', startValue, endValue});
-    };
-    chart.on('datazoom', ev => {
-        pointerActionTaken = true;
-        console.warn('zoom DATAZOOM', ev);
-        if (ev.start !== undefined || ev.end !== undefined) {
-            if (ev.start !== 0 || ev.end !== 100) {
-                throw new Error('non-reset percent based datazoom is unsupported');
-            }
-            zoomStart = undefined;
-            zoomEnd = undefined;
-        } else {
-            zoomStart = ev.startValue;
-            zoomEnd = ev.endValue;
-        }
-    });
-    chart.on('brush', ev => {
-        pointerActionTaken = true;
-        if (ev.areas.length) {
-            const range = ev.areas[0].coordRange;
-            zoomStart = range[0];
-            zoomEnd = range[1];
-        }
-    });
-    chart.on('brushEnd', x => {
-        pointerActionTaken = true;
-        if (!x.areas.length) {
-            return;
-        }
-        const range = x.areas[0].coordRange;
-        chart.dispatchAction({
-            type: 'dataZoom',
-            startValue: range[0],
-            endValue: range[1],
-        });
-        chart.dispatchAction({type: 'brush', areas: []});  // clear selection
-    });
-    el.addEventListener('pointerdown', () => {
-        paused = true;
-        pointerActionTaken = false;
-    });
-    const unpause = () => {
-        paused = false;
-        if (!pointerActionTaken) {
-            chart.dispatchAction({type: 'dataZoom', start: 0, end: 100});
-        }
-        if (updateDeferred) {
-            // Must queue callback to prevent conflict with other mouseup actions.
-            requestAnimationFrame(chart.updateData);
-        }
-    };
-    document.addEventListener('pointercancel', unpause);
-    document.addEventListener('pointerup', unpause);
-    chart.updateData();
     // This is the only way to enable brush selection by default. :/
     chart.dispatchAction({
         type: 'takeGlobalCursor',
@@ -567,6 +479,57 @@ function createZoomableLineChart(el) {
             brushType: 'lineX',
             brushMode: 'single',
         }
+    });
+
+    chart.updateData = () => {
+        if (state.paused) {
+            updateDeferred = true;
+            return;
+        }
+        updateDeferred = false;
+        chart.setOption({
+            dataZoom: state.zoomStart !== undefined ? [{
+                startValue: state.streams.time[state.zoomStart] * 1000,
+                endValue: state.streams.time[state.zoomEnd] * 1000,
+            }] : [],
+            series: series.map(f => ({
+                data: state.streams[f.stream].map((x, i) => [state.streams.time[i] * 1000, x]),
+            }))
+        });
+    };
+    chart.setSelection = (startValue, endValue) => {
+        debugger;
+        startValue *= 1000;
+        endValue *= 1000;
+        chart.dispatchAction({type: 'dataZoom', startValue, endValue});
+    };
+
+    chart.on('brush', ev => {
+        state.paused = !!ev.areas.length;
+        if (ev.fromSauce) {
+            return;
+        }
+        const range = ev.areas[0].coordRange;
+        state.zoomStart = common.binarySearchClosest(state.streams.time, range[0] / 1000);
+        state.zoomEnd = common.binarySearchClosest(state.streams.time, range[1] / 1000);
+    });
+    chart.on('brushEnd', ev => {
+        state.paused = false;
+        const range = ev.areas[0].coordRange;
+        // Convert the brush to a zoom...
+        chart.dispatchAction({type: 'brush', fromSauce: true, areas: []});  // clear selection
+        chart.setOption({dataZoom: [{startValue: range[0], endValue: range[1]}]});
+        if (updateDeferred) {
+            // Must queue callback to prevent conflict with other mouseup actions.
+            requestAnimationFrame(chart.updateData);
+        }
+    });
+    el.addEventListener('click', () => {
+        // Only triggered when brush never selects data, i.e. naked click, so clear...
+        state.paused = false;
+        state.zoomStart = undefined;
+        state.zoomEnd = undefined;
+        chart.dispatchAction({type: 'dataZoom', start: 0, end: 100});
     });
     chartRefs.add(new WeakRef(chart));
     return chart;
@@ -655,7 +618,7 @@ async function createTimeInPowerZonesPie(el, renderer) {
 }
 
 
-function centerMap(zwiftMap, positions) {
+function centerMap(positions) {
     const xMin = sauce.data.min(positions.map(x => x[0]));
     const yMin = sauce.data.min(positions.map(x => x[1]));
     const xMax = sauce.data.max(positions.map(x => x[0]));
@@ -667,31 +630,24 @@ function centerMap(zwiftMap, positions) {
 export async function main() {
     common.initInteractionListeners();
     addEventListener('resize', resizeCharts);
-    const [_ad, _laps, _segments, _streams, _templates, nationFlags, worldList] = await Promise.all([
+    const [_ad, _templates, nationFlags, worldList] = await Promise.all([
         common.rpc.getAthleteData(athleteIdent),
-        common.rpc.getAthleteLaps(athleteIdent),
-        common.rpc.getAthleteSegments(athleteIdent),
-        common.rpc.getAthleteStreams(athleteIdent),
         getTemplates(['main', 'activity-summary', 'selection-stats', 'peak-efforts', 'segments', 'laps']),
         common.initNationFlags(),
         common.getWorldList(),
     ]);
-    athleteData = _ad, laps = _laps, segments = _segments, streams = _streams, templates = _templates;
-    console.warn({_ad, streams}); // XXX debug
+    athleteData = _ad;
+    templates = _templates;
     const contentEl = document.querySelector('#content');
-    debugger;
     contentEl.innerHTML = await templates.main({
+        ...state,
         athleteData,
-        laps,
-        segments,
-        streams,
         templates,
         nationFlags,
         worldList,
         settings,
         common,
         peakFormatters,
-        selectionStats: getSelectionStats(),
     });
     if (!athleteData) {
         return;
@@ -705,32 +661,31 @@ export async function main() {
         }],
         fields: fieldsMod.fields
     });*/
-    const athlete = athleteData.athlete;
-    const started = new Date(Date.now() - athleteData.stats.elapsedTime * 1000);
-    const name = `${athlete ? athlete.fLast : athleteIdent} - ${started.toLocaleString()}`;
     const exportBtn = document.querySelector('.button.export-file');
-    exportBtn.addEventListener('click', () => exportFITActivity(name));
     exportBtn.removeAttribute('disabled');
+    exportBtn.addEventListener('click', () => {
+        // XXX nope.  athletedata becomses stale over time...
+        const started = new Date(Date.now() - athleteData.stats.elapsedTime * 1000);
+        const athlete = athleteData.athlete;
+        const name = `${athlete ? athlete.fLast : athleteIdent} - ${started.toLocaleString()}`;
+        exportFITActivity(name);
+    });
     elevationChart = createElevationLineChart(contentEl.querySelector('.chart-holder.elevation .chart'));
     zoomableChart = createZoomableLineChart(contentEl.querySelector('.chart-holder.zoomable .chart'));
     createTimeInPowerZonesPie(contentEl.querySelector('.time-in-power-zones'), renderer);  // bg okay
-    const zwiftMap = new map.SauceZwiftMap({
+    zwiftMap = new map.SauceZwiftMap({
         el: document.querySelector('#map'),
         worldList,
         zoomMin: 0.05,
     });
     window.zwiftMap = zwiftMap; // debug
-    let voidAutoCenter;
-    zwiftMap.addEventListener('drag', () => voidAutoCenter = true);
-    zwiftMap.addEventListener('zoom', () => voidAutoCenter = true);
-    await zwiftMap.setCourse(athleteData.state.courseId);
-    let histPath;
-    const startEnt = new map.MapEntity('start');
-    zwiftMap.addEntity(startEnt);
-    const endEntity = new map.MapEntity('end');
-    endEntity.transition.setDuration(0);
-    zwiftMap.addEntity(endEntity);
-    const positions = [];
+    zwiftMap.addEventListener('drag', () => state.voidAutoCenter = true);
+    zwiftMap.addEventListener('zoom', () => state.voidAutoCenter = true);
+    state.startEnt = new map.MapEntity('start');
+    zwiftMap.addEntity(state.startEnt);
+    state.endEntity = new map.MapEntity('end');
+    state.endEntity.transition.setDuration(0);
+    zwiftMap.addEntity(state.endEntity);
 
     contentEl.addEventListener('click', ev => {
         const row = ev.target.closest('table.laps tbody tr, table.segments tbody tr');
@@ -739,9 +694,9 @@ export async function main() {
         }
         let sel;
         if (row.dataset.segment) {
-            sel = segments[Number(row.dataset.segment)];
+            sel = state.segments[Number(row.dataset.segment)];
         } else if (row.dataset.lap) {
-            sel = laps[Number(row.dataset.lap)];
+            sel = state.laps[Number(row.dataset.lap)];
         }
         if (sel) {
             console.log(sel.startIndex, sel.endIndex);
@@ -758,49 +713,58 @@ export async function main() {
         await updateTemplate('.peak-efforts', templates.peakEfforts, {athleteData, settings, peakFormatters});
     });
 
-    let zoomBrushing = false;
     zoomableChart.on('brush', async ev => {
-        zoomBrushing = true;
-        try {
-            elevationChart.dispatchAction({
-                type: 'brush',
-                areas: [{
-                    brushType: 'lineX',
-                    xAxisIndex: 0,
-                    coordRange: [zoomStart, zoomEnd],
-                }],
-            });
-        } finally {
-            zoomBrushing = false;
-        }
-        await updateSelectionStats();
-    });
-    /*elevationChart.on('brush', async ev => {
-        await updateSelectionStats();
-    });*/
-    zoomableChart.on('datazoom', async ev => {
-        console.log('on zoom datazoom', ev, zoomStart, zoomEnd);
         elevationChart.dispatchAction({
             type: 'brush',
-            areas: zoomStart !== undefined ? [{
+            fromSauce: true,
+            areas: [{
                 brushType: 'lineX',
                 xAxisIndex: 0,
-                coordRange: [zoomStart, zoomEnd],
+                coordRange: [
+                    state.streams.distance[state.zoomStart],
+                    state.streams.distance[state.zoomEnd]
+                ],
+            }],
+        });
+        await updateSelectionStats();
+    });
+    zoomableChart.on('dataZoom', async ev => {
+        elevationChart.dispatchAction({
+            type: 'brush',
+            fromSauce: true,
+            areas: state.zoomStart !== undefined ? [{
+                brushType: 'lineX',
+                xAxisIndex: 0,
+                coordRange: [
+                    state.streams.distance[state.zoomStart],
+                    state.streams.distance[state.zoomEnd]
+                ],
             }] : [],
         });
         await updateSelectionStats();
     });
     elevationChart.on('brush', async ev => {
-        if (zoomBrushing) {
+        if (ev.fromSauce) {
             return;
         }
         zoomableChart.setOption({
             dataZoom: [{
-                startValue: zoomStart,
-                endValue: zoomEnd,
+                startValue: state.streams.time[state.zoomStart] * 1000,
+                endValue: state.streams.time[state.zoomEnd] * 1000,
             }],
         });
         await updateSelectionStats();
+    });
+    elevationChart.on('brushEnd', ev => {
+        // Only needed for handling a naked click that clears the brush selection
+        if (!ev.areas.length) {
+            zoomableChart.setOption({
+                dataZoom: [{
+                    startValue: undefined,
+                    endValue: undefined,
+                }],
+            });
+        }
     });
 
     let lastPeaksSig;
@@ -817,47 +781,6 @@ export async function main() {
         }
     });
 
-    // Always use streams for data to avoid ambiguous differences in state data.
-    setInterval(async () => {
-        streams = await common.rpc.getAthleteStreams(athleteIdent);
-        if (streams.time.length === positions.length) {
-            return;
-        }
-        for (let i = positions.length; i < streams.time.length; i++) {
-            positions.push(zwiftMap.latlngToPosition(streams.latlng[i]));
-            rolls.power.add(streams.time[i], streams.power[i]);
-        }
-        endEntity.setPosition(positions.at(-1));
-        if (!voidAutoCenter) {
-            centerMap(zwiftMap, positions);
-        }
-        if (histPath) {
-            histPath.elements.forEach(x => x.remove());
-        } else {
-            startEnt.setPosition(positions[0]);
-        }
-        histPath = zwiftMap.addHighlightLine(positions, 'history');
-        zoomableChart.updateData();
-        elevationChart.updateData();
-        await updateSelectionStats();
-    }, 2000);
-
-    let segmentCount = segments.length;
-    let lapCount = laps.length;
-    setInterval(async () => {
-        segments = await common.rpc.getAthleteSegments(athleteIdent);
-        if (segments.length !== segmentCount) {
-            segmentCount = segments.length;
-            await updateTemplate('table.segments', templates.segments,
-                                 {athleteData, streams, settings, segments});
-        }
-        laps = await common.rpc.getAthleteLaps(athleteIdent);
-        if (laps.length !== lapCount) {
-            lapCount = laps.length;
-            await updateTemplate('table.laps', templates.laps, {athleteData, streams, settings, laps});
-        }
-    }, 5500);
-
     common.subscribe(`athlete/${athleteIdent}`, x => {
         renderer.setData(x);
         renderer.render();
@@ -865,19 +788,67 @@ export async function main() {
 
     renderer.setData(athleteData);
     renderer.render();
-    for (const x of streams.latlng) {
-        positions.push(zwiftMap.latlngToPosition(x));
+    updateLoop();
+}
+
+
+function updateLoop() {
+    updateData().finally(() => setTimeout(updateLoop, 2000));
+}
+
+
+async function updateData() {
+    if (!common.isVisible()) {
+        return;
     }
-    if (positions.length) {
-        centerMap(zwiftMap, positions);
-        startEnt.setPosition(positions[0]);
-        endEntity.setPosition(positions.at(-1));
-        histPath = zwiftMap.addHighlightLine(positions, 'history');
-        for (const [i, ts] of streams.time.entries()) {
-            rolls.power.add(ts, streams.power[i]);
+    const startTime = state.startTime;
+    const [streams, segments, laps] = await Promise.all([
+        common.rpc.getAthleteStreams(athleteIdent, {startTime}),
+        common.rpc.getAthleteSegments(athleteIdent, {startTime}),
+        common.rpc.getAthleteLaps(athleteIdent, {startTime}),
+    ]);
+    if (!streams || !streams.time.length) {
+        return;
+    }
+    if (laps.length) {
+        const courseId = laps.at(-1).courseId;
+        if (courseId !== state.courseId) {
+            state.courseId = courseId;
+            await zwiftMap.setCourse(courseId);
         }
-        await updateSelectionStats();
     }
+    state.startTime = streams.time.at(-1) + 1e-6;
+    for (const [k, stream] of Object.entries(streams)) {
+        if (!state.streams[k]) {
+            state.streams[k] = [];
+        }
+        state.streams[k].push(...stream);
+    }
+    for (let i = 0; i < streams.time.length; i++) {
+        state.positions.push(zwiftMap.latlngToPosition(streams.latlng[i]));
+        rolls.power.add(streams.time[i], streams.power[i]);
+    }
+    if (segments.length) {
+        state.segments.push(...segments);
+        await updateTemplate('table.segments', templates.segments, {athleteData, settings, ...state});
+    }
+    if (laps.length) {
+        state.laps.push(...laps);
+        await updateTemplate('table.laps', templates.laps, {athleteData, settings, ...state});
+    }
+
+    if (state.histPath) {
+        state.histPath.elements.forEach(x => x.remove());
+    }
+    state.startEnt.setPosition(state.positions[0]);
+    state.endEntity.setPosition(state.positions.at(-1));
+    state.histPath = zwiftMap.addHighlightLine(state.positions, 'history');
+    if (!state.voidAutoCenter) {
+        centerMap(state.positions);
+    }
+    zoomableChart.updateData();
+    elevationChart.updateData();
+    await updateSelectionStats();
 }
 
 
