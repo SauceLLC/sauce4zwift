@@ -504,8 +504,8 @@ export class SauceElevationProfile {
                     const isWatching = state.athleteId === this.watchingId;
                     if (isWatching) {
                         // XXX
-                        console.log("got it", xCoord, xIdx, state.roadId, state.reverse, state.roadTime,
-                                    {nodeRoadOfft, nodeOfft, reverse: state.reverse});
+                        //console.log("got it", xCoord, xIdx, state.roadId, state.reverse, state.roadTime,
+                        //            {nodeRoadOfft, nodeOfft, reverse: state.reverse});
                     }
                     return {
                         name: state.athleteId,
