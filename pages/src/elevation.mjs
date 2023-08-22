@@ -459,13 +459,12 @@ export class SauceElevationProfile {
                                 x.roadId === state.roadId &&
                                 !!x.reverse === !!state.reverse &&
                                 x.includesRoadTime(state.roadTime));
-                            if (i !== -1) {
-                                roadSeg = this.route.roadSegments[i];
-                                nodeRoadOfft = nodes.findIndex(x => x.index === i);
-                                deemphasize = true;
-                            } else {
-                                debugger;
+                            if (i === -1) {
+                                return null;
                             }
+                            roadSeg = this.route.roadSegments[i];
+                            nodeRoadOfft = nodes.findIndex(x => x.index === i);
+                            deemphasize = true;
                         }
                     } else if (this.road && this.road.id === state.roadId) {
                         roadSeg = this.road.curvePath;
