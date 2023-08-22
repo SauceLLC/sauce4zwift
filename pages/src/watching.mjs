@@ -494,7 +494,6 @@ const lineChartFields = [{
     color: '#46f',
     domain: [0, 700],
     rangeAlpha: [0.4, 1],
-    points: [],
     get: x => x.state.power || 0,
     fmt: x => H.power(x, {separator: smallSpace, suffix: true}),
 }, {
@@ -503,7 +502,6 @@ const lineChartFields = [{
     color: '#e22',
     domain: [70, 190],
     rangeAlpha: [0.1, 0.7],
-    points: [],
     get: x => x.state.heartrate || 0,
     fmt: x => H.number(x) + ' bpm',
 }, {
@@ -512,7 +510,6 @@ const lineChartFields = [{
     color: '#4e3',
     domain: [0, 100],
     rangeAlpha: [0.1, 0.8],
-    points: [],
     get: x => x.state.speed || 0,
     fmt: x => fmtPace(x, {separator: smallSpace, suffix: true}),
 }, {
@@ -521,7 +518,6 @@ const lineChartFields = [{
     color: '#ee3',
     domain: [0, 140],
     rangeAlpha: [0.1, 0.8],
-    points: [],
     get: x => x.state.cadence || 0,
     fmt: x => H.number(x) + (sport === 'running' ? ' spm' : ' rpm'),
 }, {
@@ -530,7 +526,6 @@ const lineChartFields = [{
     color: '#e88853',
     domain: [0, 300],
     rangeAlpha: [0.1, 0.9],
-    points: [],
     get: x => x.state.draft || 0,
     fmt: x => H.power(x, {separator: smallSpace, suffix: true}),
 }, {
@@ -539,7 +534,6 @@ const lineChartFields = [{
     color: '#4ee',
     domain: [0, 22000],
     rangeAlpha: [0.1, 0.8],
-    points: [],
     get: x => x.stats.wBal || 0,
     fmt: x => H.number(x / 1000, {precision: 1, fixed: true, separator: smallSpace, suffix: 'kJ'}),
     markMin: true,
@@ -747,7 +741,8 @@ async function createLineChart(el, sectionId, settings) {
         emphasis: {disabled: true},
         areaStyle: {},
     };
-    chart._dataPoints = settings.dataPoints || defaultLineChartLen(el);
+    chart._dataPoints = 0;
+    chart._streams = {};
     const options = {
         color: fields.map(f => f.color),
         visualMap: fields.map((f, i) => ({
@@ -763,10 +758,7 @@ async function createLineChart(el, sectionId, settings) {
             trigger: 'axis',
             axisPointer: {label: {formatter: () => ''}}
         },
-        xAxis: [{
-            show: false,
-            data: Array.from(new Array(chart._dataPoints)).map((x, i) => i),
-        }],
+        xAxis: [{show: false, data: []}],
         yAxis: fields.map(f => ({
             show: false,
             min: x => Math.min(f.domain[0], x.min),
@@ -785,7 +777,9 @@ async function createLineChart(el, sectionId, settings) {
     const _resize = chart.resize;
     chart.resize = function() {
         const em = Number(getComputedStyle(el).fontSize.slice(0, -2));
+        chart._dataPoints = settings.dataPoints || defaultLineChartLen(el);
         chart.setOption({
+            xAxis: [{data: Array.from(sauce.data.range(chart._dataPoints))}],
             grid: {
                 top: 1 * em,
                 left: 0.5 * em,
@@ -835,10 +829,10 @@ function bindLineChart(chart, renderer, settings) {
                 loading = false;
             }
             streams = streams || {};
-            const zeros = Array.from(sauce.data.range(chart._dataPoints)).map(x => null);
+            const nulls = Array.from(sauce.data.range(chart._dataPoints)).map(x => null);
             for (const x of fields) {
-                // zero pad for non stream types like wbal and to compensate for missing data
-                x.points = zeros.concat(streams[x.id] || []);
+                // null pad for non stream types like wbal and to compensate for missing data
+                chart._streams[x.id] = nulls.concat(streams[x.id] || []);
             }
         } else {
             if (now - lastRender < 900) {
@@ -846,43 +840,43 @@ function bindLineChart(chart, renderer, settings) {
             }
             if (data?.state) {
                 for (const x of fields) {
-                    x.points.push(x.get(data));
+                    chart._streams[x.id].push(x.get(data));
                 }
             }
         }
         lastRender = now;
-        for (const {points} of fields) {
-            while (points.length > chart._dataPoints) {
-                points.shift();
+        for (const x of fields) {
+            while (chart._streams[x.id].length > chart._dataPoints) {
+                chart._streams[x.id].shift();
             }
         }
         chart.setOption({
-            xAxis: [{
-                data: Array.from(sauce.data.range(chart._dataPoints)),
-            }],
-            series: fields.map(field => ({
-                data: field.points,
-                name: typeof field.name === 'function' ? field.name() : field.name,
-                markLine: settings.markMax === field.id ? {
-                    symbol: 'none',
-                    data: [{
-                        name: field.markMin ? 'Min' : 'Max',
-                        xAxis: field.points.indexOf(sauce.data[field.markMin ? 'min' : 'max'](field.points)),
-                        label: {
-                            formatter: x => {
-                                const nbsp ='\u00A0';
-                                return [
-                                    ''.padStart(Math.max(0, 10 - x.value), nbsp),
-                                    nbsp, nbsp, // for unit offset
-                                    field.fmt(field.points[x.value]),
-                                    ''.padEnd(Math.max(0, x.value - (chart._dataPoints - 1) + 10), nbsp)
-                                ].join('');
+            series: fields.map(field => {
+                const points = chart._streams[field.id];
+                return {
+                    data: points,
+                    name: typeof field.name === 'function' ? field.name() : field.name,
+                    markLine: settings.markMax === field.id ? {
+                        symbol: 'none',
+                        data: [{
+                            name: field.markMin ? 'Min' : 'Max',
+                            xAxis: points.indexOf(sauce.data[field.markMin ? 'min' : 'max'](points)),
+                            label: {
+                                formatter: x => {
+                                    const nbsp ='\u00A0';
+                                    return [
+                                        ''.padStart(Math.max(0, 10 - x.value), nbsp),
+                                        nbsp, nbsp, // for unit offset
+                                        field.fmt(points[x.value]),
+                                        ''.padEnd(Math.max(0, x.value - (chart._dataPoints - 1) + 10), nbsp)
+                                    ].join('');
+                                },
                             },
-                        },
-                        emphasis: {disabled: true},
-                    }],
-                } : undefined,
-            })),
+                            emphasis: {disabled: true},
+                        }],
+                    } : undefined,
+                };
+            }),
         });
     });
 }
@@ -918,7 +912,6 @@ async function createTimeInZonesVertBars(el, sectionId, settings, renderer) {
     const _resize = chart.resize;
     chart.resize = function() {
         const em = Number(getComputedStyle(el).fontSize.slice(0, -2));
-        chart._dataPoints = settings.dataPoints || defaultLineChartLen(el);
         chart.setOption({
             grid: {
                 top: 0.5 * em,
@@ -1274,7 +1267,6 @@ export async function main() {
     let athlete;
     if (customIdent) {
         athlete = await common.rpc.getAthlete(customIdent);
-        console.log(athlete);
     }
     powerZones = await common.rpc.getPowerZones(1);
     const layoutTpl = await getTpl('watching-screen-layout');
