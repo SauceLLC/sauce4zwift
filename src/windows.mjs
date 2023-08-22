@@ -449,6 +449,10 @@ function _createProfile(name, ident) {
 
 
 export function activateProfile(id) {
+    if (!profiles.find(x => x.id === id)) {
+        console.error("Invalid profile ID:", id);
+        return null;
+    }
     if (activeProfile && activeProfile.id === id) {
         console.warn("Profile already active");
         return activeProfile;
