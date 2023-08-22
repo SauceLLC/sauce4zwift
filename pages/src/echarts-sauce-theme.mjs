@@ -292,7 +292,34 @@ function genDynamicTheme({fg='fg', bg='bg'}={}) {
             },
             splitLine: {
                 show: true,
-                lineStyle: {color: cssColor(fg, 0, 0.15)},
+                lineStyle: {color: cssColor(fg, 0, 0.10)},
+            },
+            splitArea: {
+                show: false,
+                areaStyle: {
+                    color: ["rgba(250,250,250,0.3)", "rgba(200,200,200,0.3)"]
+                }
+            }
+        },
+        timeAxis: {
+            axisLine: {
+                show: true,
+                lineStyle: {color: cssColor(fg, 0, 0.5)},
+            },
+            axisTick: {
+                show: true,
+                lineStyle: {color: cssColor(fg, 0, 0.25)},
+            },
+            axisLabel: {
+                show: true,
+                color: cssColor(fg, 0, 0.8),
+                fontSize: '0.7em',
+                fontWeight: 600,
+                margin: 12,
+            },
+            splitLine: {
+                show: true,
+                lineStyle: {color: cssColor(fg, 0, 0.10)},
             },
             splitArea: {
                 show: false,
