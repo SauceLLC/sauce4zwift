@@ -102,7 +102,7 @@ function rankWeightedRatio(duration) {
 }
 
 
-export function rankLevel(duration, p, wp, weight, gender) {
+export function rankLevel(duration, p, wp, weight, gender='male', options) {
     const high = _rankScaler(duration, rankConstants[gender].high);
     const low = _rankScaler(duration, rankConstants[gender].low);
     const weightedRatio = (!wp || wp < p) ? 0 : rankWeightedRatio(duration);
@@ -113,13 +113,13 @@ export function rankLevel(duration, p, wp, weight, gender) {
         weightedRatio,
         weightedPower,
         wKg,
+        ...options,
     };
 }
 
 
-export function rankBadge({level, weightedRatio, weightedPower, wKg}) {
-    const suffix = (document.documentElement.classList.contains('sauce-theme-dark')) ?
-        '-darkbg.png' : '.png';
+export function rankBadge({level, weightedRatio, weightedPower, wKg, darkMode}) {
+    const suffix = darkMode ? '-darkbg.png' : '.png';
     let lastRankLevel = 1;
     for (const x of rankLevels) {
         if (level >= x.levelRequirement) {
@@ -146,8 +146,8 @@ export function rankBadge({level, weightedRatio, weightedPower, wKg}) {
 }
 
 
-export function rank(duration, p, wp, weight, gender) {
-    return rankBadge(rankLevel(duration, p, wp, weight, gender));
+export function rank(duration, p, wp, weight, gender, options) {
+    return rankBadge(rankLevel(duration, p, wp, weight, gender, options));
 }
 
 
