@@ -340,6 +340,7 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.setFollowing, {scope: this});
         rpc.register(this.setNotFollowing, {scope: this});
         rpc.register(this.giveRideon, {scope: this});
+        rpc.register(this.getPowerProfile, {scope: this});
         rpc.register(this.getPlayerState, {scope: this});
         rpc.register(this.getNearbyData, {scope: this});
         rpc.register(this.getGroupsData, {scope: this});
@@ -1718,6 +1719,10 @@ export class StatsProcessor extends events.EventEmitter {
 
     async giveRideon(athleteId, activity=0) {
         return await this.zwiftAPI._giveRideon(athleteId, this.athleteId, activity);
+    }
+
+    async getPowerProfile() {
+        return await this.zwiftAPI.getPowerProfile();
     }
 
     async getPlayerState(athleteId) {

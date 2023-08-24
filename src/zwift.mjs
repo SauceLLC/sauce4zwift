@@ -506,6 +506,10 @@ export class ZwiftAPI {
         }
     }
 
+    async getPowerProfile() {
+        return await this.fetchJSON(`/api/power-curve/power-profile`);
+    }
+
     async getProfiles(ids, options) {
         const unordered = pbToObject(await this.fetchPB('/api/profiles', {
             query: new URLSearchParams(ids.map(id => ['id', id])),
