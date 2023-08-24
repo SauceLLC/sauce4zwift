@@ -52,16 +52,6 @@ const peakFormatters = {
     draft: x => H.power(x, {suffix: true, html: true}),
 };
 
-const elevationChartSeries = [{
-    id: 'altitude',
-    stream: 'altitude',
-    name: 'Elevation',
-    color: '#bbb',
-    domain: [null, 30],
-    rangeAlpha: [0.4, 1],
-    fmt: x => H.elevation(x, {separator: ' ', suffix: true}),
-}];
-
 const zoomableChartSeries = [{
     id: 'power',
     stream: 'power',
@@ -140,7 +130,7 @@ function getSelectionStats() {
     const np = powerRoll.np();
     const athlete = athleteData.athlete;
     const rank = athlete?.weight ?
-        sauce.power.rank(activeTime, powerAvg, np, athlete.weight, athlete.gender || 'male') :
+        sauce.power.rank(activeTime, powerAvg, np, athlete.weight, athlete.gender, {darkMode: true}) :
         null;
     const start = state.streams.time.indexOf(powerRoll.firstTime({noPad: true}));
     const end = state.streams.time.indexOf(powerRoll.lastTime({noPad: true})) + 1;
@@ -149,8 +139,6 @@ function getSelectionStats() {
     const hrStream = state.streams.hr.slice(start, end).filter(x => x);
     const distance = distStream[distStream.length - 1] - distStream[0];
     const {gain, loss} = sauce.geo.altitudeChanges(altStream);
-    //console.log({distance, activeTime});
-    //console.log(rank);
     return {
         activeTime,
         elapsedTime,
@@ -206,29 +194,27 @@ async function exportFITActivity(name) {
 
 
 function createElevationLineChart(el) {
-    const series = elevationChartSeries;
-    const xAxes = series.map((x, i) => i);
+    const series = [{
+        id: 'altitude',
+        stream: 'altitude',
+        name: 'Elevation',
+        color: '#666',
+        domain: [null, 30],
+        rangeAlpha: [0.4, 1],
+        fmt: x => H.elevation(x, {separator: ' ', suffix: true}),
+    }];
+    const xAxes = [0];
     const chart = echarts.init(el, 'sauce', {renderer: 'svg'});
     const topPad = 10;
     const seriesPad = 1;
     const bottomPad = 20;
-    const leftPad = 36;
-    const rightPad = 26;
+    const leftPad = 6;
+    const rightPad = 6;
     let updateDeferred;
 
     const options = {
         animation: false, // slow and we want a responsive interface not a pretty static one
-        color: series.map(f => f.color),
         legend: {show: false},  // required for sauceLegned to toggle series
-        visualMap: series.map((f, i) => ({
-            show: false,
-            type: 'continuous',
-            hoverLink: false,
-            seriesIndex: i,
-            min: f.domain[0],
-            max: f.domain[1],
-            inRange: {colorAlpha: f.rangeAlpha},
-        })),
         grid: series.map((x, i) => {
             const count = series.length;
             return {
@@ -261,14 +247,16 @@ function createElevationLineChart(el) {
             max: 'dataMax',
             gridIndex: i,
             splitLine: {show: false},
-            boundaryGap: ['30%', '20%'],
+            axisLine: {show: false},
             axisLabel: {
                 showMinLabel: false,
+                showMaxLabel: false,
                 formatter: x => H.distance(x, {suffix: true}),
-                padding: [-5, 0, 0, 0],
+                padding: [-4, 0, 0, 0],
             },
         })),
         yAxis: series.map((f, i) => ({
+            show: false,
             type: 'value',
             gridIndex: i,
             min: x => f.domain[0] != null ? Math.min(f.domain[0], x.min) : x.min,
@@ -276,25 +264,33 @@ function createElevationLineChart(el) {
             splitNumber: undefined,
             interval: Infinity, // disable except for min/max
             splitLine: {show: false},
-            axisLabel: {
-                rotate: 45,
-                showMinLabel: false,
-                formatter: x => H.elevation(x, {suffix: true}),
-            },
         })),
         series: series.map((f, i) => ({
             type: 'line',
             animation: false,
             showSymbol: false,
             emphasis: {disabled: true},
-            areaStyle: {origin: 'start'},
             id: f.id,
             name: typeof f.name === 'function' ? f.name() : f.name,
             z: series.length - i + 1,
             xAxisIndex: i,
             yAxisIndex: i,
             tooltip: {valueFormatter: f.fmt},
-            lineStyle: {color: f.color},
+            sampling: 'lttb', // Largest-Triangle-Three-Bucket
+            areaStyle: {
+                origin: 'start',
+                color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{
+                    offset: 0,
+                    color: theme.cssColor('bg', 0.1)
+                }, {
+                    offset: 1,
+                    color: theme.cssColor('bg', 0.05, 0.4)
+                }]),
+            },
+            lineStyle: {
+                color: theme.cssColor('intrinsic', 0.3),
+                width: 1,
+            },
         })),
         toolbox: {show: false},
     };
@@ -419,11 +415,11 @@ function createZoomableLineChart(el) {
         },
         xAxis: series.map((f, i) => ({
             gridIndex: i,
-            type: 'time', // XXX try to get time axis formatted well
-            axisTick: {
-                show: i === series.length - 1,
-            },
+            type: 'time',
+            splitLine: {show: false},
+            axisTick: {show: i === series.length - 1},
             axisLabel: {
+                padding: [-4, 0, 0, 0],
                 show: i === series.length - 1,
                 formatter: t => H.timer(t / 1000),
             },
@@ -459,14 +455,18 @@ function createZoomableLineChart(el) {
             animation: false,
             showSymbol: false,
             emphasis: {disabled: true},
-            areaStyle: {},
             id: f.id,
             name: typeof f.name === 'function' ? f.name() : f.name,
             z: series.length - i + 1,
             xAxisIndex: i,
             yAxisIndex: i,
             tooltip: {valueFormatter: f.fmt},
-            lineStyle: {color: f.color},
+            sampling: 'lttb', // Largest-Triangle-Three-Bucket
+            areaStyle: {},
+            lineStyle: {
+                color: f.color,
+                width: 1
+            }
         })),
         toolbox: {show: false},
     };
@@ -561,6 +561,15 @@ function powerZoneColors(zones, fn) {
 async function createTimeInPowerZonesPie(el, renderer) {
     const chart = echarts.init(el, 'sauce', {renderer: 'svg'});
     chart.setOption({
+        title: {
+            text: 'TIME IN ZONES',
+            left: 'center',
+            textStyle: {
+                fontWeight: 450,
+                fontFamily: 'inherit',
+                fontSize: 10,
+            }
+        },
         tooltip: {
             className: 'ec-tooltip'
         },
@@ -793,7 +802,7 @@ export async function main() {
 
 
 function updateLoop() {
-    updateData().finally(() => setTimeout(updateLoop, 2000));
+    updateData()//.finally(() => setTimeout(updateLoop, 2000));
 }
 
 

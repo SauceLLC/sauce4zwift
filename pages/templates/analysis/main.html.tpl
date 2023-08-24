@@ -36,17 +36,19 @@
     <% if (streams) { %>
         <div class="columns">
             <nav>
-                {-embed(templates.peakEfforts, obj)-}
-                <div class="stats time-in-power-zones"></div>
+                <section>{-embed(templates.peakEfforts, obj)-}</section>
+                <section><div class="stats time-in-power-zones"></div></section>
             </nav>
             <main>
                 <section class="analysis">
                     <div class="world">{{worldList.find(x => x.courseId === athleteData.state.courseId).name}}</div>
                     <div id="map"></div>
                     <div class="chart-holder elevation"><div class="chart"></div></div>
+                </section>
+
+                <section class="selection">
                     {-embed(templates.selectionStats, obj)-}
                     <div class="chart-holder zoomable"><div class="chart"></div></div>
-                    <div class="button std small" data-id="view-data">View raw data</div>
                 </section>
 
                 <section class="segments">

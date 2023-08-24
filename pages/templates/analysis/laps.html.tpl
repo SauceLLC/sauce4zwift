@@ -12,21 +12,21 @@
     </thead>
     <tbody>
         <% if (laps && laps.length) { %>
-            <% for (const [i, lap] of laps.entries()) { %>
+            <% for (const [i, x] of laps.entries()) { %>
                 <tr class="summary" data-lap="{{i}}">
-                    <td class="num">{{i+1}}</td>
-                    <td class="start">{-humanTimer(streams.time[lap.startIndex], {long: true})-}</td>
-                    <td>{-humanTimer(lap.stats.activeTime, {long: true})-}</td>
-                    <td>{-humanDistance(streams.distance[lap.endIndex + 1] - streams.distance[lap.startIndex], {suffix: true, html: true})-}</td>
+                    <td class="num">{{i+1}} {{x.sport}} {{x.courseId}}</td>
+                    <td class="start">{-humanTimer(streams.time[x.startIndex], {long: true})-}</td>
+                    <td>{-humanTimer(x.stats.activeTime, {long: true})-}</td>
+                    <td>{-humanDistance(streams.distance[x.endIndex + 1] - streams.distance[x.startIndex], {suffix: true, html: true})-}</td>
                     <% if (settings.preferWkg && athleteData.athlete?.weight) { %>
-                        <td title="{{humanPower(lap.stats.power.avg, {suffix: true})}}"
-                            >{-humanWkg(lap.stats.power.avg / athleteData.athlete?.weight, {suffix: true, html: true})-}</td>
+                        <td title="{{humanPower(x.stats.power.avg, {suffix: true})}}"
+                            >{-humanWkg(x.stats.power.avg / athleteData.athlete?.weight, {suffix: true, html: true})-}</td>
                     <% } else { %>
-                        <td title="{{athleteData.athlete?.weight ? humanWkg(lap.stats.power.avg / athleteData.athlete?.weight, {suffix: true}) : ''}}"
-                            >{-humanPower(lap.stats.power.avg, {suffix: true, html: true})-}</td>
+                        <td title="{{athleteData.athlete?.weight ? humanWkg(x.stats.power.avg / athleteData.athlete?.weight, {suffix: true}) : ''}}"
+                            >{-humanPower(x.stats.power.avg, {suffix: true, html: true})-}</td>
                     <% } %>
-                    <td>{-humanPace(lap.stats.speed.avg, {suffix: true, html: true, sport: lap.sport})-}</td>
-                    <td>{-humanNumber(lap.stats.hr.avg, {suffix: 'bpm', html: true})-}</td>
+                    <td>{-humanPace(x.stats.speed.avg, {suffix: true, html: true, sport: x.sport})-}</td>
+                    <td>{-humanNumber(x.stats.hr.avg, {suffix: 'bpm', html: true})-}</td>
                 </tr>
             <% } %>
         <% } else { %>

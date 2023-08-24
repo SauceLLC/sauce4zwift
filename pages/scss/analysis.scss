@@ -22,9 +22,12 @@ abbr.unit {
 
 #content {
     overflow: auto;
-    overflow: overlay;
     color: color.get(intrinsic-inverted);
     background-color: color.get(intrinsic);
+
+    &::-webkit-scrollbar {
+        display: initial;
+    }
 
     .columns {
         display: flex;
@@ -43,6 +46,12 @@ abbr.unit {
             font-size: 0.9em;
             padding-right: 1rem;
             border-right: $light-border;
+
+            > section:not(:last-child) {
+                border-bottom: $medium-border;
+                margin-bottom: 1rem;
+                padding-bottom: 1rem;
+            }
         }
     }
 
@@ -98,7 +107,7 @@ main > section {
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    padding-bottom: 3em;
+    padding-bottom: 1em;
 
     &:not(:first-child) {
         padding-top: 1em;
@@ -126,19 +135,27 @@ main > section {
     }
 }
 
+section table,
+section.selection {
+    background-image: linear-gradient(45deg, color.shade(intrinsic, 4%), color.shade(intrinsic, 3%));
+    border-radius: 0.28em;
+}
+
+section table > thead,
+section.selection .selection-stats {
+    background-image: linear-gradient(to bottom, color.shade(bg, 2%), color.shade(bg, -8%));
+    color: color.shade(bg, 100%);
+}
+
 // XXX shared with events, make common...
 section table {
     user-select: text;
     overflow: hidden;
-    border-radius: 0.28em;
-    background-image: linear-gradient(45deg, color.shade(intrinsic, 4%), color.shade(intrinsic, 3%));
 
     > thead {
         position: sticky;
         z-index: 1;
         top: 0;
-        background-image: linear-gradient(to bottom, color.shade(bg, 10%), color.shade(bg, 0%));
-        color: color.get(fg);
     }
 }
 
@@ -151,7 +168,6 @@ section table {
 }
 
 .time-in-power-zones {
-    margin-top: 1rem;
     aspect-ratio: 1 / 1;
     max-width: 180px;
 }
@@ -245,9 +261,10 @@ section table {
     }
 }
 
-
-section.analysis {
-    position: relative;
+main {
+    section {
+        position: relative;
+    }
 
     .world {
         position: absolute;
@@ -264,39 +281,50 @@ section.analysis {
     }
 
     .elevation .chart {
-        height: 6em;
+        height: 7em;
+        
     }
 
     .zoomable .chart {
-        height: 20em;
+        height: 22em;
     }
 
     .selection-stats {
         display: flex;
         flex-wrap: wrap;
-        margin: 1em 1em 1em 2.6em;
-        padding: 0.5em 0;
+        //margin: 1em 1em 1em 2.6em;
+        padding: 0.5em;
         justify-content: space-evenly;
-        border-top: $light-border;
-        border-bottom: $light-border;
+        //border-top: $light-border;
+        //border-bottom: $light-border;
         font-size: 0.86em;
 
         .stats {
-            padding: 0.2em 1em;
+            //padding: 0.2em 1em;
 
             &:first-child {
-                padding-left: 0;
+                //padding-left: 0;
             }
 
             &:not(:last-child) {
-                border-right: $medium-border;
+                //border-right: $medium-border;
             }
 
             &:last-child {
-                padding-right: 0;
+                //padding-right: 0;
             }
         }
+
+        .seperator {
+            flex: 0 0 0;
+            border-right: 1px solid color.shade(bg, 100%, 0.5);
+            margin: 0.5em;
+        }
     }
+}
+
+section.selection {
+    padding: 0 !important;
 }
 
 .positive {
@@ -311,21 +339,56 @@ section.analysis {
     display: grid;
     grid-template-columns: auto auto;
     align-content: start;
+    align-items: baseline;
     justify-content: normal;
     white-space: nowrap;
-    font-variant-numeric: tabular-nums;
+
+    key,
+    value {
+        line-height: 1.2;
+    }
 
     key {
         grid-column: 1;
-        margin-right: 0.5em;
-        font-weight: 500;
-        font-variant: all-small-caps;
+        margin-right: 0.25em;
+        font-weight: 450;
+        font-size: 0.9em;
+        font-stretch: 96%;
+
+        &.header {
+            font-weight: 650;
+            padding-bottom: 0.2em;
+
+            ms {
+                font-size: 1.5em;
+                line-height: 0.6;
+                margin-left: -0.15em;
+            }
+        }
+
+        &:not(.header)::before {
+            content: "•";
+            font-weight: bold;
+            margin: 0 0.3em;
+        }
     }
 
     value {
         grid-column: 2;
-        font-weight: 350;
         min-width: 6ch;
+        font-variant-numeric: tabular-nums;
+        font-stretch: 94%;
+    }
+
+    abbr.unit {
+        font-stretch: 88%;
+        opacity: 0.92;
+    }
+
+    img.rank {
+        margin: 0.15em 0.3em;
+        width: 3.35em;
+        filter: drop-shadow(2px 2px 6px #000);
     }
 }
 
@@ -423,7 +486,6 @@ table {
 
             > nav {
                 flex-direction: row;
-                
                 border: none;
                 padding: 0;
                 margin-bottom: 1rem;
