@@ -814,6 +814,7 @@ message DropInPlayer {
     int32 _f20 = 20;
     bool _f21 = 21;
     float _f22 = 22; // latency value? ~(1 - 3)
+    int32 _f23 = 23; // (Added 27 aug 2023) Seen values 1 and 2
 }
 
 message Goal {
