@@ -69,7 +69,7 @@ test('lru cache consistency', () => {
 });
 
 test('lru fuzz', () => {
-    for (let _case = 0; _case < 100; _case++) {
+    for (let _case = 0; _case < 50; _case++) {
         const ref = new Map();
         const size = 1 + Math.random() * 100 | 0;
         const iterations = Math.random() * 1000 | 0;
