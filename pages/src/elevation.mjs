@@ -409,9 +409,6 @@ export class SauceElevationProfile {
                             }
                             const nearIdx = common.binarySearchClosest(this._distances, distance);
                             const nearRoadSegIdx = nodes[nearIdx].index;
-                            if (state.athleteId === this.watchingId) {
-                                console.log("near", {distance, nearIdx, nearRoadSegIdx});
-                            }
                             // NOTE: This technique does not work for bots or people who joined a bot.
                             // I don't know why but progress and eventDistance are completely wrong.
                             roadSearch:
