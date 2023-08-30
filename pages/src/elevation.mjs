@@ -412,8 +412,10 @@ export class SauceElevationProfile {
                             if (state.athleteId === this.watchingId) {
                                 console.log("near", {distance, nearIdx, nearRoadSegIdx});
                             }
+                            // NOTE: This technique does not work for bots or people who joined a bot.
+                            // I don't know why but progress and eventDistance are completely wrong.
                             roadSearch:
-                            for (let offt = 0; offt < 10; offt++) {
+                            for (let offt = 0; offt < 12; offt++) {
                                 for (const dir of [1, -1]) {
                                     const segIdx = nearRoadSegIdx + (offt * dir);
                                     const s = this.route.roadSegments[segIdx];
@@ -435,22 +437,13 @@ export class SauceElevationProfile {
                                             debugger;
                                         }
                                         if (offt > 0) {
-                                            if (offt > 2) {
-                                                console.error("really off");
-                                                if (offt > 3) {
-                                                    console.error("super off");
-                                                    debugger;
-                                                }
-                                            }
-                                            console.log({offt, road: s.roadId, rev: s.reverse},
-                                                        'hopefully 0 or consistenl big jumps == problem');
+                                            console.debug('Large route seek offset:', offt, state);
                                         }
                                         break roadSearch;
                                     }
                                 }
                             }
                             if (!roadSeg) {
-                                console.error("road search failed", nearRoadSegIdx, state.roadId);
                                 return null;
                             }
                         } else {
