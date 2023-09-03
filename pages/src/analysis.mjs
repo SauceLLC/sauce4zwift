@@ -176,6 +176,11 @@ async function updateSelectionStats() {
 }
 
 
+async function updateCursorStats(cursorStats) {
+    await updateTemplate('.cursor-stats', templates.cursorStats, {cursorStats});
+}
+
+
 async function exportFITActivity(name) {
     const fitData = await common.rpc.exportFIT(athleteIdent);
     const f = new File([new Uint8Array(fitData)], `${name}.fit`, {type: 'application/binary'});
@@ -214,6 +219,7 @@ function createElevationLineChart(el) {
 
     const options = {
         animation: false, // slow and we want a responsive interface not a pretty static one
+        color: series.map(f => f.color),
         legend: {show: false},  // required for sauceLegned to toggle series
         grid: series.map((x, i) => {
             const count = series.length;
@@ -236,10 +242,6 @@ function createElevationLineChart(el) {
                 borderColor: 'var(--selection-border-color)',
             },
         },
-        tooltip: {
-            trigger: 'axis',
-            axisPointer: {label: {formatter: x => H.distance(x.value, {suffix: true})}},
-        },
         xAxis: series.map((f, i) => ({
             show: true,
             type: 'value',
@@ -253,6 +255,10 @@ function createElevationLineChart(el) {
                 showMaxLabel: false,
                 formatter: x => H.distance(x, {suffix: true}),
                 padding: [-4, 0, 0, 0],
+            },
+            axisPointer: {
+                show: true,
+                label: {show: false},
             },
         })),
         yAxis: series.map((f, i) => ({
@@ -276,15 +282,14 @@ function createElevationLineChart(el) {
             xAxisIndex: i,
             yAxisIndex: i,
             tooltip: {valueFormatter: f.fmt},
-            sampling: 'lttb', // Largest-Triangle-Three-Bucket
             areaStyle: {
                 origin: 'start',
-                color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{
+                color: new echarts.graphic.LinearGradient(0, 1, 0, 0, [{
                     offset: 0,
-                    color: theme.cssColor('bg', 0.1)
+                    color: theme.cssColor('intrinsic', 0.3, 0.5)
                 }, {
-                    offset: 1,
-                    color: theme.cssColor('bg', 0.05, 0.4)
+                    offset: 0.9,
+                    color: theme.cssColor('intrinsic', 0.1, 0.1)
                 }]),
             },
             lineStyle: {
@@ -358,8 +363,9 @@ function createZoomableLineChart(el) {
     const seriesPad = 1;
     const bottomPad = 8;
     const leftPad = 36;  // tuned to axisLabel rotate of 55
-    const rightPad = 26;
+    const rightPad = 20;
     let updateDeferred;
+
     const options = {
         animation: false, // slow and we want a responsive interface not a pretty static one
         color: series.map(f => f.color),
@@ -373,7 +379,6 @@ function createZoomableLineChart(el) {
             max: f.domain[1],
             inRange: {colorAlpha: f.rangeAlpha},
         })),
-        axisPointer: {link: [{xAxisIndex: 'all'}]},
         grid: series.map((x, i) => {
             const count = series.length;
             return {
@@ -383,6 +388,39 @@ function createZoomableLineChart(el) {
                 right: rightPad,
             };
         }),
+        graphic: series.map((x, i) => {
+            const count = series.length;
+            return {
+                type: 'group',
+                top: `${topPad + i / count * (100 - topPad - bottomPad)}%`,
+                height: `${(100 - topPad - bottomPad) / count - seriesPad}%`,
+                right: 0,
+                children: [{
+                    type: 'rect',
+                    left: 'center',
+                    top: 'center',
+                    shape: {
+                        width: 100,
+                        height: 150,
+                    },
+                    style: {
+                        fill: '#aa669922',
+                    },
+                }, {
+                    type: 'text',
+                    left: 'center',
+                    top: 'center',
+                    style: {
+                        lineHeight: 20,
+                        fontSize: '1.2em',
+                        fontFamily: 'inherit',
+                        text: '200w\n3313w',
+                        textAlign: 'center',
+                        textVerticalAlign: 'middle',
+                    }
+                }],
+            };
+        }).filter(x => false),
         dataZoom: [{
             type: 'inside',
             xAxisIndex: xAxes,
@@ -404,14 +442,8 @@ function createZoomableLineChart(el) {
                 borderColor: 'var(--selection-border-color)',
             },
         },
-        tooltip: {
-            // XXX replace entire tooltip with our own system, it's pretty bad
-            trigger: 'axis',
-            axisPointer: {
-                label: {
-                    formatter: () => undefined,
-                }
-            },
+        axisPointer: {
+            link: [{xAxisIndex: 'all'}],
         },
         xAxis: series.map((f, i) => ({
             gridIndex: i,
@@ -422,6 +454,10 @@ function createZoomableLineChart(el) {
                 padding: [-4, 0, 0, 0],
                 show: i === series.length - 1,
                 formatter: t => H.timer(t / 1000),
+            },
+            axisPointer: {
+                show: true,
+                label: {show: false},
             },
         })),
         yAxis: series.map((f, i) => ({
@@ -461,12 +497,11 @@ function createZoomableLineChart(el) {
             xAxisIndex: i,
             yAxisIndex: i,
             tooltip: {valueFormatter: f.fmt},
-            sampling: 'lttb', // Largest-Triangle-Three-Bucket
             areaStyle: {},
             lineStyle: {
                 color: f.color,
                 width: 1
-            }
+            },
         })),
         toolbox: {show: false},
     };
@@ -567,7 +602,7 @@ async function createTimeInPowerZonesPie(el, renderer) {
             textStyle: {
                 fontWeight: 450,
                 fontFamily: 'inherit',
-                fontSize: 10,
+                fontSize: '0.76em',
             }
         },
         tooltip: {
@@ -576,6 +611,7 @@ async function createTimeInPowerZonesPie(el, renderer) {
         series: [{
             type: 'pie',
             radius: ['30%', '80%'],
+            top: 10,
             minShowLabelAngle: 20,
             label: {
                 show: true,
@@ -641,7 +677,15 @@ export async function main() {
     addEventListener('resize', resizeCharts);
     const [_ad, _templates, nationFlags, worldList] = await Promise.all([
         common.rpc.getAthleteData(athleteIdent),
-        getTemplates(['main', 'activity-summary', 'selection-stats', 'peak-efforts', 'segments', 'laps']),
+        getTemplates([
+            'main',
+            'activity-summary',
+            'selection-stats',
+            'cursor-stats',
+            'peak-efforts',
+            'segments',
+            'laps'
+        ]),
         common.initNationFlags(),
         common.getWorldList(),
     ]);
@@ -775,6 +819,26 @@ export async function main() {
             });
         }
     });
+
+    let axisPointerMutex;
+    function proxyAxisPointerEvent(target, ev) {
+        if (axisPointerMutex) {
+            return;
+        }
+        axisPointerMutex = true;
+        try {
+            target.dispatchAction({
+                type: 'updateAxisPointer',
+                seriesIndex: 0,
+                dataIndex: ev.dataIndex,
+                currTrigger: ev.dataIndex === undefined  ? 'leave' : undefined,
+            });
+        } finally {
+            axisPointerMutex = false;
+        }
+    }
+    elevationChart.on('updateAxisPointer', ev => proxyAxisPointerEvent(zoomableChart, ev));
+    zoomableChart.on('updateAxisPointer', ev => proxyAxisPointerEvent(elevationChart, ev));
 
     let lastPeaksSig;
     renderer.addCallback(async x => {
