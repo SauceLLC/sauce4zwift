@@ -340,16 +340,16 @@ function genDynamicTheme({fg='fg', bg='bg'}={}) {
             textStyle: {
                 color: cssColor(fg, 0),
             },
-            padding: 10,
-            axisPointer: {
-                lineStyle: {
-                    color: cssColor(fg, 0, 0.68),
-                    width: 1.5
-                },
-                crossStyle: {
-                    color: cssColor(fg, 0, 0.68),
-                    width: 2
-                }
+            padding: 10
+        },
+        axisPointer: {
+            lineStyle: {
+                color: cssColor(fg, 0, 0.90),
+                width: 1
+            },
+            crossStyle: {
+                color: cssColor(fg, 0, 0.84),
+                width: 2
             }
         },
         visualMap: {color: ["#1790cf", "#a2d4e6"]},
