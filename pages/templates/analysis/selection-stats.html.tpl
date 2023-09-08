@@ -30,16 +30,6 @@
             <key><attr for="tp">TSS®</attr>:</key><value>{-humanNumber(power.tss)-}</value>
         </div>
 
-        <% if (hr) { %>
-            <div class="seperator"></div>
-
-            <div class="stats key-value-grid">
-                <key class="header"><ms>ecg_heart</ms> HR:</key>
-                <value>{-humanNumber(hr.avg, {suffix: 'bpm', html: true})-}</value>
-                <key>Max:</key><value>{-humanNumber(hr.max, {suffix: 'bpm', html: true})-}</value>
-            </div>
-        <% } %>
-
         <div class="seperator"></div>
 
         <div class="stats key-value-grid">
