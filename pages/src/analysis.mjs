@@ -176,11 +176,6 @@ async function updateSelectionStats() {
 }
 
 
-async function updateCursorStats(cursorStats) {
-    await updateTemplate('.cursor-stats', templates.cursorStats, {cursorStats});
-}
-
-
 async function exportFITActivity(name) {
     const fitData = await common.rpc.exportFIT(athleteIdent);
     const f = new File([new Uint8Array(fitData)], `${name}.fit`, {type: 'application/binary'});
@@ -231,7 +226,6 @@ function createElevationLineChart(el) {
             };
         }),
         brush: {
-            brushLink: 'all',
             seriesIndex: xAxes,
             xAxisIndex: xAxes,
             brushType: 'lineX',
@@ -388,39 +382,6 @@ function createZoomableLineChart(el) {
                 right: rightPad,
             };
         }),
-        graphic: series.map((x, i) => {
-            const count = series.length;
-            return {
-                type: 'group',
-                top: `${topPad + i / count * (100 - topPad - bottomPad)}%`,
-                height: `${(100 - topPad - bottomPad) / count - seriesPad}%`,
-                right: 0,
-                children: [{
-                    type: 'rect',
-                    left: 'center',
-                    top: 'center',
-                    shape: {
-                        width: 100,
-                        height: 150,
-                    },
-                    style: {
-                        fill: '#aa669922',
-                    },
-                }, {
-                    type: 'text',
-                    left: 'center',
-                    top: 'center',
-                    style: {
-                        lineHeight: 20,
-                        fontSize: '1.2em',
-                        fontFamily: 'inherit',
-                        text: '200w\n3313w',
-                        textAlign: 'center',
-                        textVerticalAlign: 'middle',
-                    }
-                }],
-            };
-        }).filter(x => false),
         dataZoom: [{
             type: 'inside',
             xAxisIndex: xAxes,
@@ -431,7 +392,6 @@ function createZoomableLineChart(el) {
             zoomLock: true, // workaround for https://github.com/apache/echarts/issues/10079
         }],
         brush: {
-            brushLink: 'all',
             seriesIndex: xAxes,
             xAxisIndex: xAxes,
             brushType: 'lineX',
@@ -456,8 +416,15 @@ function createZoomableLineChart(el) {
                 formatter: t => H.timer(t / 1000),
             },
             axisPointer: {
+                snap: true,
                 show: true,
-                label: {show: false},
+                label: {
+                    show: true,
+                    formatter: x => f.fmt(x.seriesData[0]?.value?.[1]),
+                    padding: [5, 5],
+                    margin: -20,
+                    fontSize: 12, // must use px to get proper bg alignment
+                },
             },
         })),
         yAxis: series.map((f, i) => ({
@@ -681,7 +648,6 @@ export async function main() {
             'main',
             'activity-summary',
             'selection-stats',
-            'cursor-stats',
             'peak-efforts',
             'segments',
             'laps'
@@ -730,6 +696,7 @@ export async function main() {
         el: document.querySelector('#map'),
         worldList,
         zoomMin: 0.05,
+        fpsLimit: 60,
     });
     window.zwiftMap = zwiftMap; // debug
     zwiftMap.addEventListener('drag', () => state.voidAutoCenter = true);
@@ -739,6 +706,9 @@ export async function main() {
     state.endEntity = new map.MapEntity('end');
     state.endEntity.transition.setDuration(0);
     zwiftMap.addEntity(state.endEntity);
+    state.cursorEntity = new map.MapEntity('cursor');
+    state.cursorEntity.transition.setDuration(0);
+    zwiftMap.addEntity(state.cursorEntity);
 
     contentEl.addEventListener('click', ev => {
         const row = ev.target.closest('table.laps tbody tr, table.segments tbody tr');
@@ -766,46 +736,48 @@ export async function main() {
         await updateTemplate('.peak-efforts', templates.peakEfforts, {athleteData, settings, peakFormatters});
     });
 
-    zoomableChart.on('brush', async ev => {
-        elevationChart.dispatchAction({
-            type: 'brush',
-            fromSauce: true,
-            areas: [{
-                brushType: 'lineX',
-                xAxisIndex: 0,
-                coordRange: [
-                    state.streams.distance[state.zoomStart],
-                    state.streams.distance[state.zoomEnd]
-                ],
-            }],
-        });
-        await updateSelectionStats();
-    });
-    zoomableChart.on('dataZoom', async ev => {
-        elevationChart.dispatchAction({
-            type: 'brush',
-            fromSauce: true,
-            areas: state.zoomStart !== undefined ? [{
-                brushType: 'lineX',
-                xAxisIndex: 0,
-                coordRange: [
-                    state.streams.distance[state.zoomStart],
-                    state.streams.distance[state.zoomEnd]
-                ],
-            }] : [],
-        });
-        await updateSelectionStats();
-    });
+    zoomableChart.on('brush', ev => elevationChart.dispatchAction({
+        type: 'brush',
+        fromSauce: true,
+        areas: [{
+            brushType: 'lineX',
+            xAxisIndex: 0,
+            coordRange: [
+                state.streams.distance[state.zoomStart],
+                state.streams.distance[state.zoomEnd]
+            ],
+        }],
+    }));
+    zoomableChart.on('dataZoom', ev => elevationChart.dispatchAction({
+        type: 'brush',
+        fromSauce: true,
+        areas: state.zoomStart !== undefined ? [{
+            brushType: 'lineX',
+            xAxisIndex: 0,
+            coordRange: [
+                state.streams.distance[state.zoomStart],
+                state.streams.distance[state.zoomEnd]
+            ],
+        }] : [],
+    }));
     elevationChart.on('brush', async ev => {
-        if (ev.fromSauce) {
-            return;
+        console.log(ev);
+        if (state.brushPath) {
+            state.brushPath.elements.forEach(x => x.remove());
+            state.brushPath = undefined;
         }
-        zoomableChart.setOption({
-            dataZoom: [{
-                startValue: state.streams.time[state.zoomStart] * 1000,
-                endValue: state.streams.time[state.zoomEnd] * 1000,
-            }],
-        });
+        if (state.zoomStart !== undefined && state.zoomStart < state.zoomEnd) {
+            const selection = state.positions.slice(state.zoomStart, state.zoomEnd);
+            state.brushPath = zwiftMap.addHighlightLine(selection, 'selection', {color: '#05f'});
+        }
+        if (!ev.fromSauce) {
+            zoomableChart.setOption({
+                dataZoom: [{
+                    startValue: state.streams.time[state.zoomStart] * 1000,
+                    endValue: state.streams.time[state.zoomEnd] * 1000,
+                }],
+            }, {lazyUpdate: true});
+        }
         await updateSelectionStats();
     });
     elevationChart.on('brushEnd', ev => {
@@ -837,7 +809,14 @@ export async function main() {
             axisPointerMutex = false;
         }
     }
-    elevationChart.on('updateAxisPointer', ev => proxyAxisPointerEvent(zoomableChart, ev));
+    elevationChart.on('updateAxisPointer', ev => {
+        proxyAxisPointerEvent(zoomableChart, ev);
+        const pos = state.positions[ev.dataIndex];
+        state.cursorEntity.toggleHidden(!pos);
+        if (pos) {
+            state.cursorEntity.setPosition(pos);
+        }
+    });
     zoomableChart.on('updateAxisPointer', ev => proxyAxisPointerEvent(elevationChart, ev));
 
     let lastPeaksSig;
@@ -866,7 +845,7 @@ export async function main() {
 
 
 function updateLoop() {
-    updateData()//.finally(() => setTimeout(updateLoop, 2000));
+    updateData().finally(() => setTimeout(updateLoop, 2000));
 }
 
 
@@ -883,6 +862,23 @@ async function updateData() {
     if (!streams || !streams.time.length) {
         return;
     }
+
+    // XXX
+    /*const xxxlen = 10000;
+    streams.time = Array.from(new Array(xxxlen)).map((x, i) => i);
+    streams.distance = Array.from(new Array(xxxlen)).map((x, i) => i * 800);
+    streams.altitude = Array.from(new Array(xxxlen)).map((x, i) => Math.sin(i / 100) * 100);
+    streams.power = Array.from(new Array(xxxlen)).map((x, i) => Math.sin(i / 100) * 100 + 100);
+    streams.hr = Array.from(new Array(xxxlen)).map((x, i) => Math.sin(i / 100) * 100 + 100);
+    streams.cadence = Array.from(new Array(xxxlen)).map((x, i) => Math.sin(i / 100) * 100 + 100);
+    streams.draft = Array.from(new Array(xxxlen)).map((x, i) => Math.sin(i / 100) * 100 + 100);
+    streams.speed = Array.from(new Array(xxxlen)).map((x, i) => Math.sin(i / 100) * 100 + 100);
+    while (streams.latlng.length < xxxlen) {
+        streams.latlng.push(...streams.latlng);
+    }
+    streams.latlng.length = xxxlen;
+*/
+
     if (laps.length) {
         const courseId = laps.at(-1).courseId;
         if (courseId !== state.courseId) {
@@ -910,12 +906,12 @@ async function updateData() {
         await updateTemplate('table.laps', templates.laps, {athleteData, settings, ...state});
     }
 
+    state.startEnt.setPosition(state.positions[0]);
+    state.endEntity.setPosition(state.positions.at(-1));
     if (state.histPath) {
         state.histPath.elements.forEach(x => x.remove());
     }
-    state.startEnt.setPosition(state.positions[0]);
-    state.endEntity.setPosition(state.positions.at(-1));
-    state.histPath = zwiftMap.addHighlightLine(state.positions, 'history');
+    state.histPath = zwiftMap.addHighlightLine(state.positions, 'history', {layer: 'mid'});
     if (!state.voidAutoCenter) {
         centerMap(state.positions);
     }
