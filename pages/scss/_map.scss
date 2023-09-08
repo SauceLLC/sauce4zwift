@@ -92,6 +92,10 @@
                     opacity: 1;
                 }
 
+                &.hidden {
+                    display: none !important;
+                }
+
                 &.point {
                     --priority: 80;
                     --fill: gold;
