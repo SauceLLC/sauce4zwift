@@ -1010,6 +1010,11 @@ export class StatsProcessor extends events.EventEmitter {
             if (x.ts === ts && x.from === payload.from) {
                 console.warn("Deduping chat message:", ts, payload.from, payload.message);
                 return;
+            } else if (x.from === payload.from && x.mesage === payload.message &&
+                       payload.ts - x.ts < 5000) {
+                console.warn("Deduping chat message (content based):", ts, payload.from, payload.message);
+                debugger;
+                return;
             }
         }
         const athlete = this.loadAthlete(payload.from);
