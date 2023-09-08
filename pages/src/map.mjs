@@ -152,15 +152,15 @@ export class MapEntity extends EventTarget {
         this.el.dataset.id = id;
         this.el.dataset.idType = typeof id;
         this.transition = new Transition();
-        this.worldMeta = null;
         this.pin = null;
         this._pinContent = null;
         this._pinHTML = null;
         this._position = null;
+        this._map = null;
     }
 
-    setWorldMeta(wm) {
-        this.worldMeta = wm;
+    setMap(map) {
+        this._map = map;
         if (this._position) {
             this.transition.incDisabled();
             try {
@@ -205,6 +205,13 @@ export class MapEntity extends EventTarget {
         return !!this.pin;
     }
 
+    toggleHidden(en) {
+        this.el.classList.toggle('hidden', en);
+        if (this.pin) {
+            this.pin.classList.toggle('hidden', this.el.classList.contains('hidden'));
+        }
+    }
+
     setPinHTML(html) {
         if (this._pinHTML === html) {
             return;
@@ -221,7 +228,7 @@ export class MapEntity extends EventTarget {
             throw new TypeError('invalid position');
         }
         this._position = [x, y]; // Save non-rotate-hacked position.
-        if (this.worldMeta && this.worldMeta.rotateRouteSelect) {
+        if (this._map?.worldMeta.rotateRouteSelect) {
             [x, y] = [y, -x];
         }
         this.transition.setValues([x, y]);
@@ -678,8 +685,13 @@ export class SauceZwiftMap extends EventTarget {
 
     _resetElements(viewBox, rotate) {
         Object.values(this._elements.roadLayers).forEach(x => x.replaceChildren());
+        Object.values(this._elements.roadLayers).forEach(x => x.replaceChildren());
+        for (const x of Array.from(this._ents.values())) {
+            if (x.gc) {
+                this.removeEntity(x);
+            }
+        }
         this._elements.roadDefs.replaceChildren();
-        this._elements.ents.replaceChildren();
         this._elements.pins.replaceChildren();
         this._elements.roads.setAttribute('viewBox', viewBox.join(' '));
         this._elements.roadLayersGroup.classList.toggle('rotate-route-select', rotate);
@@ -883,8 +895,8 @@ export class SauceZwiftMap extends EventTarget {
         return {id, path, elements};
     }
 
-    addHighlightLine(points, id, loop, options) {
-        return this.addHighlightPath(this._createCurvePath(points, loop), id, options);
+    addHighlightLine(points, id, options={}) {
+        return this.addHighlightPath(this._createCurvePath(points, options.loop), id, options);
     }
 
     addPoint(point, extraClass) {
@@ -905,7 +917,7 @@ export class SauceZwiftMap extends EventTarget {
         if (this._ents.has(ent.id)) {
             throw new Error("id already in use");
         }
-        ent.setWorldMeta(this.worldMeta);
+        ent.setMap(this);
         this._ents.set(ent.id, ent);
         this._pendingEntityUpdates.add(ent);
         ent.addEventListener('position', () => this._pendingEntityUpdates.add(ent));
@@ -927,7 +939,7 @@ export class SauceZwiftMap extends EventTarget {
         ent.el.classList.toggle('self', state.athleteId === this.athleteId);
         ent.el.classList.toggle('watching', state.athleteId === this.watchingId);
         ent.setPinHTML('<ms>hourglass_empty</ms>...');
-        ent.setWorldMeta(this.worldMeta);
+        ent.setMap(this);
         ent.addEventListener('pinned', ev => {
             if (ev.visible) {
                 this._pinned.add(ent);
