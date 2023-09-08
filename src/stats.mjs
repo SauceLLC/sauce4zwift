@@ -542,8 +542,8 @@ export class StatsProcessor extends events.EventEmitter {
             endIndex,
             start: lapish.power.roll._times[startIndex],
             end: lapish.power.roll._times[endIndex],
-            sport: ad.sport,
-            courseId: ad.courseId,
+            sport: lapish.sport,
+            courseId: lapish.courseId,
             ...extra,
         };
     }
