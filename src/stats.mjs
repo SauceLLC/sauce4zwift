@@ -1202,6 +1202,7 @@ export class StatsProcessor extends events.EventEmitter {
             mostRecentState: null,
             wBal: new WBalAccumulator(),
             timeInPowerZones: new ZonesAccumulator(),
+            distanceOffset: 0,
             streams: {
                 distance: [],
                 altitude: [],
@@ -1281,9 +1282,12 @@ export class StatsProcessor extends events.EventEmitter {
                 this._stateDupCount++;
                 return false;
             }
-            if (prevState.sport !== state.sport || prevState.courseId !== state.courseId) {
+            if (prevState.sport !== state.sport || prevState.courseId !== state.courseId ||
+                state.distance < prevState.distance) {
                 ad.sport = state.sport;
                 ad.courseId = state.courseId;
+                console.log('distance offset shift', ad.distanceOffset, prevState.distance, state.distance);
+                ad.distanceOffset += prevState.distance;
                 state.grade = 0;
                 this.startAthleteLap(ad);
             } else {
@@ -1432,7 +1436,7 @@ export class StatsProcessor extends events.EventEmitter {
                 ad.collectors.draft.flushBuffered();
                 ad.collectors.cadence.flushBuffered();
                 for (let i = 0; i < addCount; i++) {
-                    ad.streams.distance.push(state.distance);
+                    ad.streams.distance.push(ad.distanceOffset + state.distance);
                     ad.streams.altitude.push(state.altitude);
                     ad.streams.latlng.push(state.latlng);
                 }
@@ -1447,7 +1451,7 @@ export class StatsProcessor extends events.EventEmitter {
         ad.collectors.draft.add(time, state.draft);
         ad.collectors.cadence.add(time, state.cadence);
         for (let i = 0; i < addCount; i++) {
-            ad.streams.distance.push(state.distance);
+            ad.streams.distance.push(ad.distanceOffset + state.distance);
             ad.streams.altitude.push(state.altitude);
             ad.streams.latlng.push(state.latlng);
         }
