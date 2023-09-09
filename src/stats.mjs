@@ -507,7 +507,7 @@ export class StatsProcessor extends events.EventEmitter {
         return this._formatAthleteData(ad);
     }
 
-    getAthleteLaps(id, {startTime}={}) {
+    getAthleteLaps(id, {startTime, active}={}) {
         const ad = this._athleteData.get(this._realAthleteId(id));
         if (!ad) {
             return null;
@@ -516,11 +516,14 @@ export class StatsProcessor extends events.EventEmitter {
         if (startTime !== undefined) {
             laps = laps.filter(x => x.power.roll._times[x.power.roll._offt] >= startTime);
         }
+        if (laps.length && !active && laps[laps.length - 1].end == null) {
+            laps = laps.slice(0, -1);
+        }
         const athlete = this.loadAthlete(ad.athleteId);
         return laps.map(x => this._formatLapish(x, ad, athlete));
     }
 
-    getAthleteSegments(id, {startTime}={}) {
+    getAthleteSegments(id, {startTime, active}={}) {
         const ad = this._athleteData.get(this._realAthleteId(id));
         if (!ad) {
             return null;
@@ -528,6 +531,9 @@ export class StatsProcessor extends events.EventEmitter {
         let segments = ad.segments;
         if (startTime !== undefined) {
             segments = segments.filter(x => x.power.roll._times[x.power.roll._offt] >= startTime);
+        }
+        if (segments.length && !active && segments[segments.length - 1].end == null) {
+            segments = segments.slice(0, -1);
         }
         const athlete = this.loadAthlete(ad.athleteId);
         return segments.map(x => this._formatLapish(x, ad, athlete, {segment: env.allSegments.get(x.id)}));
@@ -1976,6 +1982,7 @@ export class StatsProcessor extends events.EventEmitter {
             created: ad.created,
             watching: ad.athleteId === this.watching ? true : undefined,
             self: ad.athleteId === this.athleteId ? true : undefined,
+            courseId: ad.courseId,
             athleteId: state.athleteId,
             athlete,
             stats: this._getCollectorStats(ad.collectors, ad, athlete),
