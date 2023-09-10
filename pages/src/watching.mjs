@@ -251,7 +251,7 @@ const groupSpecs = {
             key: 'VI',
         }, {
             id: 'pwr-wbal',
-            value: x => H.number(x.stats && (x.stats.wBal / 1000), {precision: 1, fixed: true}),
+            value: x => H.number(x.wBal / 1000, {precision: 1, fixed: true}),
             label: 'w\'bal',
             key: 'W\'bal',
             unit: 'kJ',
@@ -534,7 +534,7 @@ const lineChartFields = [{
     color: '#4ee',
     domain: [0, 22000],
     rangeAlpha: [0.1, 0.8],
-    get: x => x.stats.wBal || 0,
+    get: x => x.wBal || 0,
     fmt: x => H.number(x / 1000, {precision: 1, fixed: true, separator: smallSpace, suffix: 'kJ'}),
     markMin: true,
 }];
@@ -953,7 +953,7 @@ async function createTimeInZonesVertBars(el, sectionId, settings, renderer) {
         chart.setOption({
             ...extraOptions,
             series: [{
-                data: data.stats.timeInPowerZones.map(x => ({
+                data: data.timeInPowerZones.map(x => ({
                     value: x.time,
                     itemStyle: {color: colors[x.zone].g},
                 })),
@@ -983,7 +983,7 @@ function createTimeInZonesHorizBar(el, sectionId, settings, renderer) {
             return;
         }
         lastRender = now;
-        const zones = data.stats.timeInPowerZones.filter(x => normZones.has(x.zone));
+        const zones = data.timeInPowerZones.filter(x => normZones.has(x.zone));
         const totalTime = zones.reduce((agg, x) => agg + x.time, 0);
         for (const x of zones) {
             const zoneEl = el.querySelector(`[data-zone="${x.zone}"]`);
@@ -1047,7 +1047,7 @@ async function createTimeInZonesPie(el, sectionId, settings, renderer) {
         }
         chart.setOption({
             series: [{
-                data: data.stats.timeInPowerZones.filter(x => normZones.has(x.zone)).map(x => ({
+                data: data.timeInPowerZones.filter(x => normZones.has(x.zone)).map(x => ({
                     name: x.zone,
                     value: x.time,
                     label: {color: colors[x.zone].c.l > 0.65 ? '#000b' : '#fffb'},
