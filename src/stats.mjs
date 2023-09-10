@@ -541,7 +541,7 @@ export class StatsProcessor extends events.EventEmitter {
 
     _formatLapish(lapish, ad, athlete, extra) {
         const startIndex = lapish.power.roll._offt;
-        const endIndex = Math.max(0, lapish.power.roll._length - 1);
+        const endIndex = Math.max(startIndex, lapish.power.roll._length - 1);
         return {
             stats: this._getCollectorStats(lapish, ad, athlete),
             startIndex,
@@ -1069,12 +1069,15 @@ export class StatsProcessor extends events.EventEmitter {
         return env.getRoadSig(state.courseId, state.roadId, state.reverse);
     }
 
-    _getCollectorStats(cs, ad, athlete) {
+    _getCollectorStats(cs, ad, athlete, {includeDeprecated}={}) {
         const end = cs.end || monotonic();
         const elapsedTime = (end - cs.start) / 1000;
         const np = cs.power.roll.np({force: true});
-        const wBal = ad.privacy.hideWBal ? undefined : ad.wBal.get();
-        const timeInPowerZones = ad.privacy.hideFTP ? undefined : ad.timeInPowerZones.get();
+        let wBal, timeInPowerZones; // DEPRECATED
+        if (includeDeprecated) {
+            wBal = ad.privacy.hideWBal ? undefined : ad.wBal.get();
+            timeInPowerZones = ad.privacy.hideFTP ? undefined : ad.timeInPowerZones.get();
+        }
         const activeTime = cs.power.roll.active();
         const tss = (!ad.privacy.hideFTP && np && athlete && athlete.ftp) ?
             sauce.power.calcTSS(np, activeTime, athlete.ftp) :
@@ -1082,14 +1085,14 @@ export class StatsProcessor extends events.EventEmitter {
         return {
             elapsedTime,
             activeTime,
-            wBal,
-            timeInPowerZones,
+            wBal, // DEPRECATED
+            timeInPowerZones, // DEPRECATED
             power: cs.power.getStats(ad.wtOffset, {
                 np,
                 tss,
                 kj: cs.power.roll.joules() / 1000,
                 wBal, // DEPRECATED
-                timeInZones: timeInPowerZones // DEPRECATED
+                timeInZones: timeInPowerZones, // DEPRECATED
             }),
             speed: cs.speed.getStats(ad.wtOffset),
             hr: cs.hr.getStats(ad.wtOffset),
@@ -1292,8 +1295,8 @@ export class StatsProcessor extends events.EventEmitter {
                 state.distance < prevState.distance) {
                 ad.sport = state.sport;
                 ad.courseId = state.courseId;
-                console.log('distance offset shift', ad.distanceOffset, prevState.distance, state.distance);
                 ad.distanceOffset += prevState.distance;
+                ad.autoLapMark = undefined;
                 state.grade = 0;
                 this.startAthleteLap(ad);
             } else {
@@ -1985,7 +1988,7 @@ export class StatsProcessor extends events.EventEmitter {
             courseId: ad.courseId,
             athleteId: state.athleteId,
             athlete,
-            stats: this._getCollectorStats(ad.collectors, ad, athlete),
+            stats: this._getCollectorStats(ad.collectors, ad, athlete, {includeDeprecated: true}),
             lap: this._getCollectorStats(ad.laps[ad.laps.length - 1], ad, athlete),
             lastLap: lapCount > 1 ?
                 this._getCollectorStats(ad.laps[ad.laps.length - 2], ad, athlete) : null,
@@ -1997,6 +2000,8 @@ export class StatsProcessor extends events.EventEmitter {
             gap: ad.gap,
             gapDistance: ad.gapDistance,
             isGapEst: ad.isGapEst ? true : undefined,
+            wBal: ad.privacy.hideWBal ? undefined : ad.wBal.get(),
+            timeInPowerZones: ad.privacy.hideFTP ? undefined : ad.timeInPowerZones.get(),
             ...this._getEventOrRouteInfo(state),
             ...ad.extra,
         };
