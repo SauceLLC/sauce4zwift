@@ -26,6 +26,7 @@ const state = {
     segments: [],
     streams: {},
     positions: [],
+    startOffset: 0,
     startTime: undefined,
     sport: undefined,
     zoomStart: undefined,
@@ -312,7 +313,8 @@ function createElevationLineChart(el) {
         updateDeferred = false;
         chart.setOption({
             series: series.map(f => ({
-                data: state.streams[f.stream].map((x, i) => [state.streams.distance[i], x]),
+                data: state.streams[f.stream].map((x, i) =>
+                    i >= state.startOffset ? [state.streams.distance[i], x] : [null, null]),
             }))
         });
     };
@@ -618,7 +620,7 @@ async function createTimeInPowerZonesPie(el, renderer) {
         }
         chart.setOption({
             series: [{
-                data: data.stats.timeInPowerZones.filter(x => normZones.has(x.zone)).map(x => ({
+                data: data.timeInPowerZones.filter(x => normZones.has(x.zone)).map(x => ({
                     name: x.zone,
                     value: x.time,
                     label: {color: colors[x.zone].c.l > 0.65 ? '#000b' : '#fffb'},
@@ -814,6 +816,7 @@ export async function main() {
         const pos = state.positions[ev.dataIndex];
         state.cursorEntity.toggleHidden(!pos);
         if (pos) {
+                console.log({pos});
             state.cursorEntity.setPosition(pos);
         }
     });
@@ -853,11 +856,11 @@ async function updateData() {
     if (!common.isVisible()) {
         return;
     }
-    const startTime = state.startTime;
-    const [streams, segments, laps] = await Promise.all([
-        common.rpc.getAthleteStreams(athleteIdent, {startTime}),
-        common.rpc.getAthleteSegments(athleteIdent, {startTime}),
-        common.rpc.getAthleteLaps(athleteIdent, {startTime}),
+    const [ad, streams, segments, laps] = await Promise.all([
+        common.rpc.getAthleteData(athleteIdent),
+        common.rpc.getAthleteStreams(athleteIdent, {startTime: state.timeOfft}),
+        common.rpc.getAthleteSegments(athleteIdent, {startTime: state.segmentOfft}),
+        common.rpc.getAthleteLaps(athleteIdent, {startTime: state.lapOfft}),
     ]);
     if (!streams || !streams.time.length) {
         return;
@@ -879,41 +882,48 @@ async function updateData() {
     streams.latlng.length = xxxlen;
 */
 
-    if (laps.length) {
-        const courseId = laps.at(-1).courseId;
-        if (courseId !== state.courseId) {
-            state.courseId = courseId;
-            await zwiftMap.setCourse(courseId);
-        }
-    }
-    state.startTime = streams.time.at(-1) + 1e-6;
+    state.timeOfft = streams.time.at(-1) + 1e-6;
     for (const [k, stream] of Object.entries(streams)) {
         if (!state.streams[k]) {
             state.streams[k] = [];
         }
         state.streams[k].push(...stream);
     }
-    for (let i = 0; i < streams.time.length; i++) {
-        state.positions.push(zwiftMap.latlngToPosition(streams.latlng[i]));
-        rolls.power.add(streams.time[i], streams.power[i]);
-    }
     if (segments.length) {
         state.segments.push(...segments);
+        state.segmentOfft = segments.at(-1).start + 1e-6;
         await updateTemplate('table.segments', templates.segments, {athleteData, settings, ...state});
     }
     if (laps.length) {
         state.laps.push(...laps);
+        state.lapOfft = laps.at(-1).start + 1e-6;
         await updateTemplate('table.laps', templates.laps, {athleteData, settings, ...state});
     }
-
-    state.startEnt.setPosition(state.positions[0]);
-    state.endEntity.setPosition(state.positions.at(-1));
-    if (state.histPath) {
-        state.histPath.elements.forEach(x => x.remove());
+    if (ad.courseId !== state.courseId) {
+        state.courseId = ad.courseId;
+        for (let i = state.laps.length - 1; i >= 0; i--) {
+            if (state.laps[i].courseId !== ad.courseId) {
+                state.startOffset = state.laps[i].endIndex + 1;
+                break;
+            }
+        }
+        await zwiftMap.setCourse(ad.courseId);
     }
-    state.histPath = zwiftMap.addHighlightLine(state.positions, 'history', {layer: 'mid'});
-    if (!state.voidAutoCenter) {
-        centerMap(state.positions);
+    if (streams.time.length) {
+        for (let i = 0; i < streams.time.length; i++) {
+            state.positions.push(zwiftMap.latlngToPosition(streams.latlng[i]));
+            rolls.power.add(streams.time[i], streams.power[i]);
+        }
+        const coursePositions = state.positions.slice(state.startOffset);
+        state.startEnt.setPosition(coursePositions[0]);
+        state.endEntity.setPosition(coursePositions.at(-1));
+        if (state.histPath) {
+            state.histPath.elements.forEach(x => x.remove());
+        }
+        state.histPath = zwiftMap.addHighlightLine(coursePositions, 'history', {layer: 'mid'});
+        if (!state.voidAutoCenter) {
+            centerMap(coursePositions);
+        }
     }
     zoomableChart.updateData();
     elevationChart.updateData();
