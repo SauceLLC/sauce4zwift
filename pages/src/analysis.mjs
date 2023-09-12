@@ -763,7 +763,6 @@ export async function main() {
         }] : [],
     }));
     elevationChart.on('brush', async ev => {
-        console.log(ev);
         if (state.brushPath) {
             state.brushPath.elements.forEach(x => x.remove());
             state.brushPath = undefined;
@@ -816,7 +815,6 @@ export async function main() {
         const pos = state.positions[ev.dataIndex];
         state.cursorEntity.toggleHidden(!pos);
         if (pos) {
-                console.log({pos});
             state.cursorEntity.setPosition(pos);
         }
     });
@@ -866,22 +864,6 @@ async function updateData() {
         return;
     }
 
-    // XXX
-    /*const xxxlen = 10000;
-    streams.time = Array.from(new Array(xxxlen)).map((x, i) => i);
-    streams.distance = Array.from(new Array(xxxlen)).map((x, i) => i * 800);
-    streams.altitude = Array.from(new Array(xxxlen)).map((x, i) => Math.sin(i / 100) * 100);
-    streams.power = Array.from(new Array(xxxlen)).map((x, i) => Math.sin(i / 100) * 100 + 100);
-    streams.hr = Array.from(new Array(xxxlen)).map((x, i) => Math.sin(i / 100) * 100 + 100);
-    streams.cadence = Array.from(new Array(xxxlen)).map((x, i) => Math.sin(i / 100) * 100 + 100);
-    streams.draft = Array.from(new Array(xxxlen)).map((x, i) => Math.sin(i / 100) * 100 + 100);
-    streams.speed = Array.from(new Array(xxxlen)).map((x, i) => Math.sin(i / 100) * 100 + 100);
-    while (streams.latlng.length < xxxlen) {
-        streams.latlng.push(...streams.latlng);
-    }
-    streams.latlng.length = xxxlen;
-*/
-
     state.timeOfft = streams.time.at(-1) + 1e-6;
     for (const [k, stream] of Object.entries(streams)) {
         if (!state.streams[k]) {
@@ -907,6 +889,8 @@ async function updateData() {
                 break;
             }
         }
+        zwiftMap.setDragOffset(0, 0);
+        state.voidAutoCenter = false; // must follow set-drag-offset
         await zwiftMap.setCourse(ad.courseId);
     }
     if (streams.time.length) {
@@ -920,11 +904,12 @@ async function updateData() {
         if (state.histPath) {
             state.histPath.elements.forEach(x => x.remove());
         }
-        state.histPath = zwiftMap.addHighlightLine(coursePositions, 'history', {layer: 'mid'});
+        state.histPath = zwiftMap.addHighlightLine(coursePositions, 'history', {layer: 'low'});
         if (!state.voidAutoCenter) {
             centerMap(coursePositions);
         }
     }
+
     zoomableChart.updateData();
     elevationChart.updateData();
     await updateSelectionStats();
