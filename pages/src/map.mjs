@@ -302,19 +302,25 @@ export class SauceZwiftMap extends EventTarget {
             mapCanvas: createElement('canvas', {class: 'map-background'}),
             ents: createElement('div', {class: 'entities'}),
             pins: createElement('div', {class: 'pins'}),
-            roads: createElementSVG('svg', {class: 'roads'}),
+            paths: createElementSVG('svg', {class: 'paths'}),
             roadDefs: createElementSVG('defs'),
-            roadLayersGroup: createElementSVG('g', {class: 'road-layers'}),
+            pathLayersGroup: createElementSVG('g', {class: 'path-layers'}),
             roadLayers: {
                 gutters: createElementSVG('g', {class: 'gutters'}),
                 surfacesLow: createElementSVG('g', {class: 'surfaces low'}),
                 surfacesMid: createElementSVG('g', {class: 'surfaces mid'}),
                 surfacesHigh: createElementSVG('g', {class: 'surfaces high'}),
+            },
+            userLayers: {
+                surfacesLow: createElementSVG('g', {class: 'surfaces low'}),
+                surfacesMid: createElementSVG('g', {class: 'surfaces mid'}),
+                surfacesHigh: createElementSVG('g', {class: 'surfaces high'}),
             }
         };
-        this._elements.roads.append(this._elements.roadDefs, this._elements.roadLayersGroup);
-        this._elements.roadLayersGroup.append(...Object.values(this._elements.roadLayers));
-        this._elements.map.append(this._elements.mapCanvas, this._elements.roads, this._elements.ents);
+        this._elements.paths.append(this._elements.roadDefs, this._elements.pathLayersGroup);
+        this._elements.pathLayersGroup.append(...Object.values(this._elements.roadLayers));
+        this._elements.pathLayersGroup.append(...Object.values(this._elements.userLayers));
+        this._elements.map.append(this._elements.mapCanvas, this._elements.paths, this._elements.ents);
         this.el.addEventListener('wheel', this._onWheelZoom.bind(this));
         this.el.addEventListener('pointerdown', this._onPointerDown.bind(this));
         this._elements.ents.addEventListener('click', this._onEntsClick.bind(this));
@@ -685,18 +691,14 @@ export class SauceZwiftMap extends EventTarget {
 
     _resetElements(viewBox, rotate) {
         Object.values(this._elements.roadLayers).forEach(x => x.replaceChildren());
-        Object.values(this._elements.roadLayers).forEach(x => x.replaceChildren());
-        for (const x of Array.from(this._ents.values())) {
-            if (x.gc) {
-                this.removeEntity(x);
-            }
+        for (const ent of Array.from(this._ents.values()).filter(x => x.gc)) {
+            this.removeEntity(ent);
         }
         this._elements.roadDefs.replaceChildren();
         this._elements.pins.replaceChildren();
-        this._elements.roads.setAttribute('viewBox', viewBox.join(' '));
-        this._elements.roadLayersGroup.classList.toggle('rotate-route-select', rotate);
+        this._elements.paths.setAttribute('viewBox', viewBox.join(' '));
+        this._elements.pathLayersGroup.classList.toggle('rotate-route-select', rotate);
         this.setHeading(0);
-        this._ents.clear();
         this._pendingEntityUpdates.clear();
     }
 
@@ -813,7 +815,7 @@ export class SauceZwiftMap extends EventTarget {
     });
 
     _addShape(shape, attrs, options={}) {
-        const layer = this._elements.roadLayers[{
+        const layer = this._elements.userLayers[{
             high: 'surfacesHigh',
             mid: 'surfacesMid',
             low: 'surfacesLow',
@@ -847,7 +849,7 @@ export class SauceZwiftMap extends EventTarget {
         });
     }
 
-    addHighlightPath(path, id, {debug, includeEdges=true, extraClass='', width, color, layer='high'}={}) {
+    addHighlightPath(path, id, {debug, includeEdges=true, extraClass='', width, color, layer='mid'}={}) {
         const elements = [];
         if (debug) {
             const nodes = path.nodes;
@@ -885,7 +887,7 @@ export class SauceZwiftMap extends EventTarget {
         if (color) {
             node.style.setProperty('stroke', color);
         }
-        const surfaceEl = this._elements.roadLayers[{
+        const surfaceEl = this._elements.userLayers[{
             high: 'surfacesHigh',
             mid: 'surfacesMid',
             low: 'surfacesLow',
@@ -1110,7 +1112,6 @@ export class SauceZwiftMap extends EventTarget {
             const tiltFactor = this._zoomPrioTilt ? Math.min(1, (1 / this.zoomMax * (this.zoom + 1))) : 1;
             this._tiltShiftAngle = this._tiltShift * this.maxTiltShiftAngle * tiltFactor;
             quality *= Math.min(1, 20 / Math.max(0, this._tiltShiftAngle - 30));
-            console.log({quality});
         } else {
             this._tiltShiftAngle = 0;
         }

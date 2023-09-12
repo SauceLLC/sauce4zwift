@@ -228,10 +228,10 @@
             }
         }
 
-        > svg.roads {
+        > svg.paths {
             font-size: 100px;  // make em units reasonable based on zwift coordinates
 
-            .road-layers {
+            .path-layers {
                 &.rotate-route-select {
                     transform: rotate(-90deg);
                 }
