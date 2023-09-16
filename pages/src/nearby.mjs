@@ -464,6 +464,7 @@ export async function main() {
     common.initNationFlags();  // bg okay
     let onlyMarked = common.settingsStore.get('onlyMarked');
     let onlySameCategory= common.settingsStore.get('onlySameCategory');
+    let maxGap = common.settingsStore.get('maxGap');
     let refresh;
     const setRefresh = () => {
         refresh = (common.settingsStore.get('refreshInterval') || 0) * 1000 - 100; // within 100ms is fine.
@@ -490,6 +491,9 @@ export async function main() {
         }
         if (changed.has('onlySameCategory')) {
             onlySameCategory = changed.get('onlySameCategory');
+        }
+        if (changed.has('maxGap')) {
+            maxGap = changed.get('maxGap');
         }
         setBackground();
         render();
@@ -579,6 +583,9 @@ export async function main() {
             if (sgid) {
                 data = data.filter(x => x.state.eventSubgroupId === sgid);
             }
+        }
+        if (maxGap) {
+            data = data.filter(x => Math.abs(x.gap) <= maxGap);
         }
         nearbyData = data;
         const elapsed = Date.now() - lastRefresh;
