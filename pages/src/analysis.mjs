@@ -48,7 +48,7 @@ const rolls = {
 
 const peakFormatters = {
     power: x => H.power(x, {suffix: true, html: true}),
-    speed: x => H.pace(x, {suffix: true, html: true, sport: athleteData.sport}),
+    speed: x => H.pace(x, {suffix: true, html: true, sport}),
     hr: x => H.number(x, {suffix: 'bpm', html: true}),
     draft: x => H.power(x, {suffix: true, html: true}),
 };
@@ -318,12 +318,6 @@ function createElevationLineChart(el) {
             }))
         });
     };
-    chart.setSelection = (startValue, endValue) => {
-        debugger; // XXX
-        startValue *= 1000;
-        endValue *= 1000;
-        chart.dispatchAction({type: 'brush', fromSauce: true, startValue, endValue});
-    };
 
     chart.on('brush', ev => {
         state.paused = !!ev.areas.length;
@@ -500,12 +494,6 @@ function createZoomableLineChart(el) {
                 data: state.streams[f.stream].map((x, i) => [state.streams.time[i] * 1000, x]),
             }))
         });
-    };
-    chart.setSelection = (startValue, endValue) => {
-        debugger;
-        startValue *= 1000;
-        endValue *= 1000;
-        chart.dispatchAction({type: 'dataZoom', startValue, endValue});
     };
 
     chart.on('brush', ev => {
@@ -725,8 +713,13 @@ export async function main() {
         }
         if (sel) {
             console.log(sel.startIndex, sel.endIndex);
-            zoomableChart.setSelection(sel.startIndex, sel.endIndex);
-            elevationChart.setSelection(sel.startIndex, sel.endIndex);
+            state.zoomStart = sel.startIndex;
+            state.zoomEnd = sel.endIndex;
+            zoomableChart.dispatchAction({
+                type: 'dataZoom',
+                startValue: state.streams.time[sel.startIndex] * 1000,
+                endValue: state.streams.time[sel.endIndex] * 1000,
+            });
         }
     });
     contentEl.addEventListener('input', async ev => {
