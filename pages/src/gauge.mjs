@@ -215,7 +215,6 @@ export function main() {
         gauge.setOption({
             animationDurationUpdate: Math.max(200, Math.min(settings.refreshInterval * 1000, 1000)),
             animationEasingUpdate: 'linear',
-            tooltip: {},
             visualMap: config.visualMap,
             graphic: [{
                 elements: [{
