@@ -57,14 +57,14 @@ export async function main() {
         const worldList = await common.getWorldList();
         const world = worldList.find(x =>
             event.mapId ? x.worldId === event.mapId : x.stringId === route.world);
-        const subgroups = await Promise.all(event.eventSubgroups.map(async sg => {
+        const subgroups = event.eventSubgroups ? await Promise.all(event.eventSubgroups.map(async sg => {
             const entrants = await common.rpc.getEventSubgroupEntrants(sg.id);
             const sgRoute = await getRoute(sg.routeId);
             for (const x of entrants) {
                 athletes.set(x.id, x.athlete);
             }
             return {...sg, route: sgRoute, entrants};
-        }));
+        })) : [];
         console.info(event, subgroups);
         eventDetailsEl.append(await eventDetailTpl({
             event,

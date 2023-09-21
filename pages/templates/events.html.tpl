@@ -21,7 +21,11 @@
                 <% } else { %>
                     <td>{-humanDistance(event.distanceInMeters || event.routeDistance, {suffix: true, html: true})-}</td>
                 <% } %>
-                <td class="groups">{-event.eventSubgroups.map(x => eventBadge(x.subgroupLabel)).join('')-}</td>
+                <td class="groups">
+                    <% if (event.eventSubgroups) { %>
+                        {-event.eventSubgroups.map(x => eventBadge(x.subgroupLabel)).join('')-}
+                    <% } %>
+                </td>
                 <td>{{event.totalEntrantCount}}</td>
             </tr>
             <tr class="details">
