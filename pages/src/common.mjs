@@ -1397,7 +1397,7 @@ export function initExpanderTable(table, expandCallback, cleanupCallback) {
             const shouldCollapse = row.classList.contains('expanded');
             table.querySelectorAll(':scope > tbody > tr.expanded')
                 .forEach(x => x.classList.remove('expanded'));
-            const el = row.nextElementSibling.querySelector('.container');
+            const el = row.nextElementSibling.querySelector(':scope > td');
             el.innerHTML = '';
             if (!shouldCollapse) {
                 row.classList.add('expanded');

@@ -28,9 +28,7 @@
                 </td>
                 <td>{{event.totalEntrantCount}}</td>
             </tr>
-            <tr class="details">
-                <td colspan="6"><div class="container"></div></td>
-            </tr>
+            <tr class="details"><td colspan="7"></td></tr>
         <% } %>
     </tbody>
 </table>
