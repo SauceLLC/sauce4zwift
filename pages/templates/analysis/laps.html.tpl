@@ -1,7 +1,7 @@
-<table class="laps">
+<table class="laps basic selectable">
     <thead>
         <tr>
-            <th></th>
+            <th>Lap</th>
             <th>Start</th>
             <th>Time</th>
             <th>Distance</th>
@@ -13,8 +13,8 @@
     <tbody>
         <% if (laps && laps.length) { %>
             <% for (const [i, x] of laps.entries()) { %>
-                <tr class="summary" data-lap="{{i}}">
-                    <td class="num">{{i+1}} {{x.sport}} {{x.courseId}}</td>
+                <tr class="summary" data-lap-index="{{i}}">
+                    <td class="num">{{i+1}}</td>
                     <td class="start">{-humanTimer(streams.time[x.startIndex], {long: true})-}</td>
                     <td>{-humanTimer(x.stats.activeTime, {long: true})-}</td>
                     <td>{-humanDistance(streams.distance[x.endIndex + 1] - streams.distance[x.startIndex], {suffix: true, html: true})-}</td>

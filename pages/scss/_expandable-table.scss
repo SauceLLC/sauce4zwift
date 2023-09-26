@@ -1,0 +1,44 @@
+table.expandable {
+    border-collapse: collapse;
+
+    > tbody > tr {
+        transition: background 100ms;
+
+        &:nth-child(4n - 1) {
+            background-color: color.get(intrinsic-inverted, 0.03);
+        }
+
+        &:nth-child(2n - 1) {
+            &:not(.expanded) + tr {
+                display: none;
+            }
+        }
+
+        &.summary {
+            cursor: pointer;
+
+            &:not(.expanded):hover {
+                background-color: color.get(intrinsic-inverted, 0.15);
+            }
+        }
+
+        &.expanded,
+        &.expanded + tr.details {
+            background-color: color.shade(intrinsic-inverted, 20%, 0.1);
+        }
+
+        &.expanded {
+            border-top: 0.2em solid color.shade(intrinsic-inverted, 0%, 50%);
+
+            > td {
+                padding-top: 1em;
+                padding-bottom: 1em;
+                font-weight: bold;
+            }
+        }
+
+        &.expanded + .details {
+            border-bottom: 0.2em solid color.shade(intrinsic-inverted, 0%, 50%);
+        }
+    }
+}

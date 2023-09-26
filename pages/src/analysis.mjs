@@ -111,7 +111,9 @@ async function updateTemplate(selector, tpl, attrs) {
     if (_tplSigs.get(selector) !== sig) {
         _tplSigs.set(selector, sig);
         document.querySelector(selector).outerHTML = html;
+        return true;
     }
+    return false;
 }
 
 
@@ -131,7 +133,7 @@ function getSelectionStats() {
     const np = powerRoll.np();
     const athlete = athleteData.athlete;
     const rank = athlete?.weight ?
-        sauce.power.rank(activeTime, powerAvg, np, athlete.weight, athlete.gender, {darkMode: true}) :
+        sauce.power.rank(activeTime, powerAvg, np, athlete.weight, athlete.gender, {darkMode: false}) :
         null;
     const start = state.streams.time.indexOf(powerRoll.firstTime({noPad: true}));
     const end = state.streams.time.indexOf(powerRoll.lastTime({noPad: true})) + 1;
@@ -173,7 +175,7 @@ function getSelectionStats() {
 
 async function updateSelectionStats() {
     const selectionStats = getSelectionStats();
-    await updateTemplate('.selection-stats', templates.selectionStats, {selectionStats});
+    return await updateTemplate('.selection-stats', templates.selectionStats, {selectionStats});
 }
 
 
@@ -208,9 +210,9 @@ function createElevationLineChart(el) {
     const chart = echarts.init(el, 'sauce', {renderer: 'svg'});
     const topPad = 10;
     const seriesPad = 1;
-    const bottomPad = 20;
-    const leftPad = 6;
-    const rightPad = 6;
+    const bottomPad = 30;
+    const leftPad = 15;
+    const rightPad = 15;
     let updateDeferred;
 
     const options = {
@@ -352,8 +354,8 @@ function createZoomableLineChart(el) {
     const topPad = 3;
     const seriesPad = 1;
     const bottomPad = 8;
-    const leftPad = 36;  // tuned to axisLabel rotate of 55
-    const rightPad = 20;
+    const leftPad = 45;
+    const rightPad = 15;
     let updateDeferred;
 
     const options = {
@@ -640,6 +642,7 @@ export async function main() {
             'selection-stats',
             'peak-efforts',
             'segments',
+            'segment-results',
             'laps'
         ]),
         common.initNationFlags(),
@@ -701,18 +704,27 @@ export async function main() {
     zwiftMap.addEntity(state.cursorEntity);
 
     contentEl.addEventListener('click', ev => {
-        const row = ev.target.closest('table.laps tbody tr, table.segments tbody tr');
+        const row = ev.target.closest('table.selectable > tbody > tr');
         if (!row) {
             return;
         }
+        contentEl.querySelectorAll('table.selectable > tbody > tr.selected').forEach(x =>
+            x.classList.remove('selected'));
         let sel;
-        if (row.dataset.segment) {
-            sel = state.segments[Number(row.dataset.segment)];
-        } else if (row.dataset.lap) {
-            sel = state.laps[Number(row.dataset.lap)];
+        if (row.dataset.segmentIndex) {
+            sel = state.segments[Number(row.dataset.segmentIndex)];
+        } else if (row.dataset.lapIndex) {
+            sel = state.laps[Number(row.dataset.lapIndex)];
+            row.classList.add('selected');
+        } else if (row.dataset.peakSource) {
+            const period = Number(row.dataset.peakPeriod);
+            const peak = athleteData.stats[row.dataset.peakSource].peaks[period];
+            const startIndex = state.streams.time.indexOf(peak.time);
+            const endIndex = common.binarySearchClosest(state.streams.time, peak.time + period);
+            sel = {startIndex, endIndex};
+            row.classList.add('selected');
         }
         if (sel) {
-            console.log(sel.startIndex, sel.endIndex);
             state.zoomStart = sel.startIndex;
             state.zoomEnd = sel.endIndex;
             zoomableChart.dispatchAction({
@@ -809,6 +821,7 @@ export async function main() {
         state.cursorEntity.toggleHidden(!pos);
         if (pos) {
             state.cursorEntity.setPosition(pos);
+            //zwiftMap.setCenter(pos); // fun but pretty spastic
         }
     });
     zoomableChart.on('updateAxisPointer', ev => proxyAxisPointerEvent(elevationChart, ev));
@@ -838,6 +851,20 @@ export async function main() {
 }
 
 
+async function onSegmentExpand(targetEl, srcEl) {
+    const idx = Number(srcEl.dataset.segmentIndex);
+    const segment = state.segments[idx];
+    const results = await common.rpc.getSegmentResults(segment.segmentId);
+    console.info(results);
+    targetEl.innerHTML = await templates.segmentResults({results});
+}
+
+
+async function onSegmentCollapse() {
+    console.warn("clooapse", arguments);
+}
+
+
 function updateLoop() {
     updateData().finally(() => setTimeout(updateLoop, 2000));
 }
@@ -850,7 +877,7 @@ async function updateData() {
     const [ad, streams, segments, laps] = await Promise.all([
         common.rpc.getAthleteData(athleteIdent),
         common.rpc.getAthleteStreams(athleteIdent, {startTime: state.timeOfft}),
-        common.rpc.getAthleteSegments(athleteIdent, {startTime: state.segmentOfft}),
+        common.rpc.getAthleteSegments(athleteIdent, {startTime: state.segmentOfft, active: !!'XXX'}),
         common.rpc.getAthleteLaps(athleteIdent, {startTime: state.lapOfft}),
     ]);
     if (!streams || !streams.time.length) {
@@ -867,7 +894,10 @@ async function updateData() {
     if (segments.length) {
         state.segments.push(...segments);
         state.segmentOfft = segments.at(-1).start + 1e-6;
-        await updateTemplate('table.segments', templates.segments, {athleteData, settings, ...state});
+        if (await updateTemplate('table.segments', templates.segments, {athleteData, settings, ...state})) {
+            common.initExpanderTable(document.querySelector('table.segments.expandable'),
+                                     onSegmentExpand, onSegmentCollapse);
+        }
     }
     if (laps.length) {
         state.laps.push(...laps);

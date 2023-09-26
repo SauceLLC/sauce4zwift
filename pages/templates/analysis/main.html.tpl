@@ -40,24 +40,27 @@
                 <section><div class="stats time-in-power-zones"></div></section>
             </nav>
             <main>
-                <section class="analysis">
+                <section class="analysis selection">
                     <div class="world">{{worldList.find(x => x.courseId === athleteData.state.courseId).name}}</div>
                     <div id="map"></div>
-                    <div class="chart-holder elevation"><div class="chart"></div></div>
-                </section>
-
-                <section class="selection">
                     {-embed(templates.selectionStats, obj)-}
+                    <div class="chart-holder elevation"><div class="chart"></div></div>
                     <div class="chart-holder zoomable"><div class="chart"></div></div>
                 </section>
 
                 <section class="segments">
-                    <header><ms>space_bar</ms><div class="title">Segments</div></header>
+                    <header>
+                        <ms>conversion_path</ms>
+                        <div class="title">Segments</div>
+                    </header>
                     {-embed(templates.segments, obj)-}
                 </section>
 
                 <section class="laps">
-                    <header><ms>timer</ms><div class="title">Laps</div></header>
+                    <header>
+                        <ms>timer</ms>
+                        <div class="title">Laps</div>
+                    </header>
                     {-embed(templates.laps, obj)-}
                 </section>
             </main>

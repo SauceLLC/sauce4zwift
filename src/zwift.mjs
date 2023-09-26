@@ -621,6 +621,9 @@ export class ZwiftAPI {
         }
         const resp = pbToObject(await this.fetchPB('/api/segment-results',
                                                    {query, protobuf: 'SegmentResults'}));
+        if (!resp.results) {
+            return;
+        }
         resp.results.sort((a, b) => a.elapsed - b.elapsed);
         return resp.results;
     }

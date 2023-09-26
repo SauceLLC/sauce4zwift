@@ -165,10 +165,16 @@ class DataCollector {
         const peaks = {};
         const smooth = {};
         for (const [p, {roll, peak}] of this.periodized.entries()) {
-            peaks[p] = {
-                avg: peak ? peak.avg() : null,
-                ts: peak ? worldTimer.toTime(wtOffset + (peak.lastTime() * 1000)): null
-            };
+            if (peak) {
+                const time = peak.lastTime();
+                peaks[p] = {
+                    avg: peak.avg(),
+                    time,
+                    ts: worldTimer.toTime(wtOffset + (time * 1000)),
+                };
+            } else {
+                peaks[p] = {avg: null, time: null, ts: null};
+            }
             smooth[p] = roll.avg();
         }
         return {
@@ -352,6 +358,8 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.getAthleteLaps, {scope: this});
         rpc.register(this.getAthleteSegments, {scope: this});
         rpc.register(this.getAthleteStreams, {scope: this});
+        rpc.register(this.getSegmentResults, {scope: this});
+
         this._athleteSubs = new Map();
         if (options.gameConnection) {
             const gc = options.gameConnection;
@@ -536,7 +544,10 @@ export class StatsProcessor extends events.EventEmitter {
             segments = segments.slice(0, -1);
         }
         const athlete = this.loadAthlete(ad.athleteId);
-        return segments.map(x => this._formatLapish(x, ad, athlete, {segment: env.allSegments.get(x.id)}));
+        return segments.map(x => this._formatLapish(x, ad, athlete, {
+            segmentId: x.id,
+            segment: env.allSegments.get(x.id),
+        }));
     }
 
     _formatLapish(lapish, ad, athlete, extra) {
@@ -580,6 +591,21 @@ export class StatsProcessor extends events.EventEmitter {
             streams[k] = arr.slice(offt);
         }
         return streams;
+    }
+
+    async getSegmentResults(id, options={}) {
+        if (id == null) {
+            console.warn("XXX get live seg leaders");
+            return await this.zwiftAPI.getLiveSegmentLeaders();
+        } else {
+            if (options.live) {
+                console.warn("XXX get live seg leaderboard");
+                return await this.zwiftAPI.getLiveSegmentLeaderboard(id, options);
+            } else {
+                console.warn("XXX get seg results");
+                return await this.zwiftAPI.getSegmentResults(id, options);
+            }
+        }
     }
 
     getNearbyData() {
@@ -1653,7 +1679,6 @@ export class StatsProcessor extends events.EventEmitter {
             x.routeClimbing = this.getRouteClimbing(x.routeId, x.laps, 'meetup');
             x.type = 'EVENT_TYPE_MEETUP';
             x.totalEntrantCount = x.acceptedTotalCount;
-            x.eventSubgroups = [];
             x.allTags = this._parseEventTags(x);
             x.ts = +new Date(x.eventStart);
             addedEventsCount += !this._recentEvents.has(x.id);

@@ -16,11 +16,14 @@
                 {{settings.peakEffortSource === 'draft' ? 'selected' : ''}}
             >Peak Draft</option>
     </select>
-    <table>
+    <table class="peak-effort basic selectable">
         <% const source = settings.peakEffortSource || 'power'; %>
         <% const peaks = (athleteData.stats || {})[source]?.peaks; %>
         <% for (const [k, v] of Object.entries(peaks)) { %>
-            <tr><td>{-humanDuration(k, {html: true})-}</td><td>{-peakFormatters[source](v.avg)-}</td></tr>
+            <tr data-peak-source="{{source}}" data-peak-period="{{k}}">
+                <td>{-humanDuration(k, {html: true})-}</td>
+                <td>{-peakFormatters[source](v.avg)-}</td>
+            </tr>
         <% } %>
     </table>
 </div>

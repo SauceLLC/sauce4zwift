@@ -1,7 +1,7 @@
-<table class="segments">
+<table class="segments expandable">
     <thead>
         <tr>
-            <th></th>
+            <th>Segment</th>
             <th>Start</th>
             <th>Elapsed</th>
             <th>Distance</th>
@@ -13,7 +13,7 @@
     <tbody>
         <% if (segments && segments.length) { %>
             <% for (const [i, x] of segments.entries()) { %>
-                <tr class="summary" data-segment="{{i}}">
+                <tr class="summary" data-segment-index="{{i}}">
                     <td class="name">{{x.segment.friendlyName || x.segment.name}}</td>
                     <td class="start">{-humanTimer(streams.time[x.startIndex], {long: true})-}</td>
                     <td>{-humanTimer(x.stats.elapsedTime, {long: true})-}</td>
@@ -28,6 +28,7 @@
                     <td>{-humanPace(x.stats.speed.avg, {suffix: true, html: true, sport: x.sport})-}</td>
                     <td>{-humanNumber(x.stats.hr.avg, {suffix: 'bpm', html: true})-}</td>
                 </tr>
+                <tr class="details"><td colspan="7"></td></tr>
             <% } %>
         <% } else { %>
             <tr>

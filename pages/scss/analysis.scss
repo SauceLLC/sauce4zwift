@@ -2,6 +2,7 @@
 @use 'charts';
 @import 'map';
 @import 'profile_tpl';
+@import 'expandable-table';
 
 $light-border: 1px solid color.shade(intrinsic, 100%, 0.08);
 $medium-border: 1px solid color.shade(intrinsic, 100%, 0.2);
@@ -68,7 +69,7 @@ abbr.unit {
 }
 
 #map {
-    height: clamp(220px, 28vh, 500px);
+    height: clamp(200px, 25vh, 500px);
     border-radius: 0.28em;
     background-color: color.shade(intrinsic, 5%);
 
@@ -107,11 +108,7 @@ main > section {
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    padding-bottom: 1em;
-
-    &:not(:first-child) {
-        padding-top: 1em;
-    }
+    padding: 1em;
 
     &:not(:last-child) {
         border-bottom: $light-border;
@@ -135,28 +132,20 @@ main > section {
     }
 }
 
-section table,
+table {
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+}
+
 section.selection {
-    background-image: linear-gradient(45deg, color.shade(intrinsic, 4%), color.shade(intrinsic, 3%));
+    background-image: linear-gradient(45deg, color.shade(intrinsic, 3%), color.shade(intrinsic, 6%));
     border-radius: 0.28em;
+    border-bottom: none !important;
 }
 
-section table > thead,
 section.selection .selection-stats {
-    background-image: linear-gradient(to bottom, color.shade(bg, 2%), color.shade(bg, -8%));
-    color: color.shade(bg, 100%);
-}
-
-// XXX shared with events, make common...
-section table {
-    user-select: text;
-    overflow: hidden;
-
-    > thead {
-        position: sticky;
-        z-index: 1;
-        top: 0;
-    }
+    margin: 1.8em 1.2em;
+    border-bottom: 2px solid color.shade(bg, 0%, 0.5);
 }
 
 .chart-holder {
@@ -281,12 +270,11 @@ main {
     }
 
     .elevation .chart {
-        height: 7em;
-        
+        height: 5em;
     }
 
     .zoomable .chart {
-        height: 22em;
+        height: 18em;
     }
 
     .selection-stats {
@@ -298,7 +286,7 @@ main {
 
         .seperator {
             flex: 0 0 0;
-            border-right: 1px solid color.shade(bg, 100%, 0.5);
+            border-right: 1px solid color.shade(intrinsic-inverted, 10%, 0.3);
             margin: 0.5em;
         }
     }
@@ -368,9 +356,9 @@ section.selection {
     }
 
     img.rank {
-        margin: 0.15em 0.3em;
+        margin: 0.15em 0.2em 0.15em 0.5em;
         width: 3.35em;
-        filter: drop-shadow(2px 2px 6px #000d);
+        filter: drop-shadow(1px 1px 5px #0003);
     }
 }
 
@@ -385,30 +373,31 @@ section.selection {
         background-image: linear-gradient(to bottom, color.shade(bg, 10%), color.shade(bg, 0%));
         background-color: color.get(bg); // for drop down
         color: color.get(fg);
+        font-weight: 600;
+        border-radius: 0;
     }
 
     table {
         font-size: 1em;
+        width: 100%;
 
         td {
-            padding: 0.5em;
+            padding: 0.65em 0.4em;
         }
     }
 }
 
 table {
     border-collapse: collapse;
-    width: 100%;
-    font-size: 0.8em;
+}
 
-    thead th {
-        font-weight: 500;
-    }
+table.basic {
+    width: 100%;
 
     > thead > tr > th,
     > tbody > tr > td {
-        padding: 0.8em 0.4em;
         text-align: left;
+        padding: 0.65em 0.4em;
 
         &:first-child {
             padding-left: 1.5em;
@@ -418,22 +407,79 @@ table {
         }
     }
 
-    tbody tr {
+    > tbody > tr {
         transition: background 100ms;
         cursor: pointer;
 
-        &:nth-child(odd) {
-            background-color: color.shade(intrinsic, 7%);
-        }
-
-        &.selected {
-            background-color: color.shade(intrinsic-inverted, 10%);
-        }
-
-        &:hover {
-            background-color: color.shade(intrinsic, 15%);
+        &:nth-child(even) {
+            background-color: color.get(intrinsic-inverted, 0.03);
         }
     }
+}
+
+table.selectable {
+    > tbody > tr {
+        &.selected {
+            background-color: color.shade(intrinsic-inverted, 10%);
+            color: color.get(intrinsic);
+        }
+
+        &:not(.selected):hover {
+            background-color: color.get(intrinsic-inverted, 0.15);
+        }
+    }
+}
+
+table.segments,
+table.laps {
+    width: 100%;
+    font-size: 0.8em;
+
+    > thead > tr > th,
+    > tbody > tr > td {
+        padding: 0.65em 0.4em;
+        text-align: left;
+
+        &:first-child {
+            padding-left: 1.5em;
+        }
+        &:last-child {
+            padding-right: 1.5em;
+        }
+    }
+}
+
+table.segments table.results {
+    background-color: color.get(intrinsic, 0.9);
+    border-radius: 0.3em;
+    //color: color.shade(primary, 100%);
+
+    > thead > tr {
+        
+    }
+
+    .trophy {
+        font-size: 1.4em;
+        border-radius: 50%;
+        width: 1.5em;
+        height: 1.5em;
+        line-height: 1.65em;
+        color: color.shade(intrinsic-inverted, 10%, 0.8);
+        text-align: center;
+        box-shadow: 1px 1px 3px 0 #0002;
+        margin-bottom: 0;
+
+        &.gold {
+            background-color: gold;
+        }
+        &.silver {
+            background-color: silver;
+        }
+        &.bronze {
+            background-color: #cd7f32;
+        }
+    }
+
 }
 
 @media only screen and (max-width: 600px)  {

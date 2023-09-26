@@ -89,7 +89,7 @@ table {
             }
 
             &.details .container {
-                background-color: color.shade(bg2, 60%, 10%);
+                background-color: color.shade(intrinsic-inverted, 0%, 0.1);
                 padding: 1.5em;
                 border-radius: 0.28em;
                 box-shadow: 1px 1px 5px #0003;
@@ -102,6 +102,11 @@ table {
                         content: 'Loading...'
                     }
                 }
+            }
+
+            &.expanded,
+            &.expanded + tr.details {
+                background-color: color.shade(primary, 3%, 0.8);
             }
         }
     }
