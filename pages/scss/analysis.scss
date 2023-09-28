@@ -49,6 +49,8 @@ abbr.unit {
             border-right: $light-border;
 
             > section:not(:last-child) {
+                display: flex;
+                justify-content: center;
                 border-bottom: $medium-border;
                 margin-bottom: 1rem;
                 padding-bottom: 1rem;
@@ -69,7 +71,7 @@ abbr.unit {
 }
 
 #map {
-    height: clamp(200px, 25vh, 500px);
+    height: clamp(150px, 25vh, 500px);
     border-radius: 0.28em;
     background-color: color.shade(intrinsic, 5%);
 
@@ -138,14 +140,37 @@ table {
 }
 
 section.selection {
-    background-image: linear-gradient(45deg, color.shade(intrinsic, 3%), color.shade(intrinsic, 6%));
+    //background-image: linear-gradient(45deg, color.shade(intrinsic, 3%), color.shade(intrinsic, 6%));
     border-radius: 0.28em;
     border-bottom: none !important;
 }
 
-section.selection .selection-stats {
-    margin: 1.8em 1.2em;
-    border-bottom: 2px solid color.shade(bg, 0%, 0.5);
+.selection-stats {
+    font-size: 0.9em;
+    margin: 1.2em 0.5em 0.8em;
+
+    /*
+    border-bottom: 2px solid color.shade(bg, 0%, 0.1);
+    */
+
+    background-image: linear-gradient(150deg, #a8e7bc36, #aa120012, #ffed1021);
+    border-radius: 1em;
+
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    padding: 0.7em 0.8em 0;
+
+    .seperator {
+        flex: 0 0 0;
+        border-right: 1px solid color.shade(intrinsic-inverted, 10%, 0.1);
+        margin: 0.5em;
+    }
+
+    .seperator,
+    .stats {
+       margin-bottom: 0.8em;
+    }
 }
 
 .chart-holder {
@@ -270,26 +295,13 @@ main {
     }
 
     .elevation .chart {
-        height: 5em;
+        height: 6em;
     }
 
     .zoomable .chart {
         height: 18em;
     }
 
-    .selection-stats {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: space-evenly;
-        padding: 0.7em 0.5em;
-        font-size: 0.9em;
-
-        .seperator {
-            flex: 0 0 0;
-            border-right: 1px solid color.shade(intrinsic-inverted, 10%, 0.3);
-            margin: 0.5em;
-        }
-    }
 }
 
 section.selection {
@@ -306,7 +318,7 @@ section.selection {
 
 .key-value-grid {
     display: grid;
-    grid-template-columns: auto auto;
+    grid-template-columns: min-content min-content;
     align-content: start;
     align-items: baseline;
     justify-content: normal;
@@ -319,7 +331,7 @@ section.selection {
 
     key {
         grid-column: 1;
-        margin-right: 0.25em;
+        margin-right: 0.33em;
         font-weight: 450;
         font-size: 0.9em;
         font-stretch: 96%;
@@ -329,10 +341,12 @@ section.selection {
             padding-bottom: 0.2em;
 
             ms {
-                font-size: 1.5em;
+                font-size: 1.3em;
                 line-height: 0.6;
                 margin-left: -0.15em;
-                font-weight: 300;
+                margin-bottom: 0;
+                font-weight: 400;
+                opacity: 0.7;
             }
         }
 
@@ -366,6 +380,7 @@ section.selection {
     border-radius: 0.28em;
     border: $light-border;
     white-space: nowrap;
+    width: 100%;
 
     select {
         padding: 0.5em;
@@ -492,12 +507,15 @@ table.segments table.results {
             justify-content: center;
 
             > nav {
-                flex-direction: row;
                 border: none;
                 padding: 0;
                 margin-bottom: 1rem;
-                justify-content: space-around;
                 flex-grow: 1;
+
+                > section {
+                    display: flex;
+                    justify-content: center;
+                }
             }
 
             > main {

@@ -211,8 +211,8 @@ function createElevationLineChart(el) {
     const topPad = 10;
     const seriesPad = 1;
     const bottomPad = 30;
-    const leftPad = 15;
-    const rightPad = 15;
+    const leftPad = 20;
+    const rightPad = 20;
     let updateDeferred;
 
     const options = {
@@ -353,9 +353,9 @@ function createZoomableLineChart(el) {
     const chart = echarts.init(el, 'sauce', {renderer: 'svg'});
     const topPad = 3;
     const seriesPad = 1;
-    const bottomPad = 8;
-    const leftPad = 45;
-    const rightPad = 15;
+    const bottomPad = 12;
+    const leftPad = 50;
+    const rightPad = 20;
     let updateDeferred;
 
     const options = {
@@ -866,7 +866,7 @@ async function onSegmentCollapse() {
 
 
 function updateLoop() {
-    updateData().finally(() => setTimeout(updateLoop, 2000));
+    updateData()//.finally(() => setTimeout(updateLoop, 2000));
 }
 
 
