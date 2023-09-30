@@ -209,13 +209,11 @@ export async function main() {
             zwiftMap.setCenter(center.split(',').map(Number));
         }
         if (routeId) {
-            let route = await zwiftMap.setActiveRoute(+routeId);
+            const route = await zwiftMap.setActiveRoute(+routeId);
             console.log({route});
             for (const [i, xx] of route.checkpoints.entries()) {
                 console.log(i, xx.roadPercent.toFixed(8), xx.roadId, xx.reverse, xx.leadin, xx.forceSplit);
             }
-            let i = 0;
-
             let start = 0;
             let end = route.curvePath.nodes.length;
             const point = zwiftMap.addPoint([0, 0], 'star');
@@ -229,19 +227,8 @@ export async function main() {
                 console.debug({start, end});
                 hi = zwiftMap.addHighlightPath(path, `route-${route.id}`, {width: 0.3, color: 'yellow'});
             };
-            //const allRoutes = (await common.rpc.getRoutes()).filter(x => x.courseId === +course).slice(i);
             window.addEventListener('keydown', ev => {
-                if (ev.key === 'Delete') {
-                    common.getRoute(allRoutes.shift().id).then(r => {
-                        route = r;
-                        console.log('route', i, route.id, route);
-                        i++;
-                        zwiftMap.setActiveRoute(route.id);
-                        start = 0;
-                        end = route.curvePath.nodes.length;
-                        drawRouteHighlight();
-                    });
-                } else if (ev.key === 'ArrowRight') {
+                if (ev.key === 'ArrowRight') {
                     end = Math.min(route.curvePath.nodes.length, end + 1);
                 } else if (ev.key === 'ArrowLeft') {
                     end = Math.max(start, end - 1);
