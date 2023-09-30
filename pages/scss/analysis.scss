@@ -4,8 +4,12 @@
 @import 'profile_tpl';
 @import 'expandable-table';
 
-$light-border: 1px solid color.shade(intrinsic, 100%, 0.08);
-$medium-border: 1px solid color.shade(intrinsic, 100%, 0.2);
+$light-border: 1px solid color.shade(intrinsic-inverted, 0%, 0.08);
+$medium-border: 1px solid color.shade(intrinsic-inverted, 0%, 0.2);
+
+::-webkit-scrollbar {
+    display: initial !important;
+}
 
 html {
     padding: 0;
@@ -25,10 +29,6 @@ abbr.unit {
     overflow: auto;
     color: color.get(intrinsic-inverted);
     background-color: color.get(intrinsic);
-
-    &::-webkit-scrollbar {
-        display: initial;
-    }
 
     .columns {
         display: flex;
@@ -140,21 +140,15 @@ table {
 }
 
 section.selection {
-    //background-image: linear-gradient(45deg, color.shade(intrinsic, 3%), color.shade(intrinsic, 6%));
-    border-radius: 0.28em;
-    border-bottom: none !important;
+//    border-bottom: none !important;
 }
 
 .selection-stats {
     font-size: 0.9em;
     margin: 1.2em 0.5em 0.8em;
-
-    /*
-    border-bottom: 2px solid color.shade(bg, 0%, 0.1);
-    */
-
-    background-image: linear-gradient(150deg, #a8e7bc36, #aa120012, #ffed1021);
-    border-radius: 1em;
+    border-radius: 0.3em;
+    border: $medium-border;
+    box-shadow: 1px 1px 5px -3px #000;
 
     display: flex;
     flex-wrap: wrap;
@@ -464,37 +458,43 @@ table.laps {
     }
 }
 
-table.segments table.results {
-    background-color: color.get(intrinsic, 0.9);
-    border-radius: 0.3em;
-    //color: color.shade(primary, 100%);
-
-    > thead > tr {
-        
+table.segments {
+    .details .container {
+        max-height: 20em;
+        overflow: auto;
     }
 
-    .trophy {
-        font-size: 1.4em;
-        border-radius: 50%;
-        width: 1.5em;
-        height: 1.5em;
-        line-height: 1.65em;
-        color: color.shade(intrinsic-inverted, 10%, 0.8);
-        text-align: center;
-        box-shadow: 1px 1px 3px 0 #0002;
-        margin-bottom: 0;
+    table.results {
+        background-color: color.get(intrinsic, 0.9);
+        border-radius: 0.3em;
+        //color: color.shade(primary, 100%);
 
-        &.gold {
-            background-color: gold;
+        > thead > tr {
+            
         }
-        &.silver {
-            background-color: silver;
-        }
-        &.bronze {
-            background-color: #cd7f32;
+
+        .trophy {
+            font-size: 1.4em;
+            border-radius: 50%;
+            width: 1.5em;
+            height: 1.5em;
+            line-height: 1.65em;
+            color: color.shade(intrinsic-inverted, 10%, 0.8);
+            text-align: center;
+            box-shadow: 1px 1px 3px 0 #0002;
+            margin-bottom: 0;
+
+            &.gold {
+                background-color: gold;
+            }
+            &.silver {
+                background-color: silver;
+            }
+            &.bronze {
+                background-color: #cd7f32;
+            }
         }
     }
-
 }
 
 @media only screen and (max-width: 600px)  {

@@ -3,12 +3,11 @@
         <thead>
             <tr>
                 <th>Place</th>
-                <th>Time</th>
                 <th>Name</th>
-                <th>Date</th>
+                <th>Time</th>
                 <th>Power</th>
                 <th>HR</th>
-                <th>Activity</th>
+                <th>Date</th>
             </tr>
         </thead>
         <% for (const [i, x] of results.entries()) { %>
@@ -23,12 +22,11 @@
                 <td>
                     <a href="profile.html?id={{x.athleteId}}&windowType=profile"
                        target="profile_popup_{{x.athleteId}}">{{x.firstName}} {{x.lastName}}</a>
-                    <% if (x.male === false) { %>
+                    <% if (x.gender === 'female') { %>
                         <ms class="female">female</ms>
                     <% } %>
                 </td>
-                <td>{{humanTimer(x.elapsed)}}{{console.log(x.elapsed)}}</td>
-                <td>{{humanDate(x.finishTime, {short: true})}}</td>
+                <td>{{humanTimer(x.elapsed, {long: true})}}</td>
                 <td>
                     <% if (x.powerType !== 'POWER_METER') { %>
                         <span class="negative" title="Virtual power estimate">~
@@ -38,8 +36,7 @@
                         </span>
                     <% } %>
                 <td>{-humanNumber(x.avgHR || undefined, {suffix: 'bpm', html: true})-}</td>
-                <td><a href="https://www.zwift.com/activity/{{x.activityId}}"
-                       target="_blank" external><ms>open_in_new</ms>Open on web</a></td>
+                <td>{{humanRelTime(x.ts, {short: true, maxParts: 1})}}</td>
             </tr>
         <% } %>
     </table>

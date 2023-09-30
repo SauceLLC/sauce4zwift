@@ -17,6 +17,7 @@ common.settingsStore.setDefault({
 let zwiftMap;
 let elevationChart;
 let zoomableChart;
+let powerZonesChart;
 let templates;
 let athleteData;
 let sport;
@@ -322,10 +323,10 @@ function createElevationLineChart(el) {
     };
 
     chart.on('brush', ev => {
-        state.paused = !!ev.areas.length;
         if (ev.fromSauce) {
             return;
         }
+        state.paused = !!ev.areas.length;
         if (!ev.areas.length) {
             state.zoomStart = undefined;
             state.zoomEnd = undefined;
@@ -552,7 +553,7 @@ function powerZoneColors(zones, fn) {
 }
 
 
-async function createTimeInPowerZonesPie(el, renderer) {
+function createTimeInPowerZonesPie(el) {
     const chart = echarts.init(el, 'sauce', {renderer: 'svg'});
     chart.setOption({
         title: {
@@ -592,13 +593,14 @@ async function createTimeInPowerZonesPie(el, renderer) {
     let colors;
     let aid;
     let normZones;
-    const powerZones = await common.rpc.getPowerZones(1);
-    renderer.addCallback(data => {
-        if (!data || !data.stats || !data.athlete || !data.athlete.ftp) {
+    let powerZones;
+    common.rpc.getPowerZones(1).then(x => powerZones = x);
+    chart.updateData = () => {
+        if (!powerZones || !athleteData || !athleteData.athlete || !athleteData.athlete.ftp) {
             return;
         }
-        if (data.athleteId !== aid) {
-            aid = data.athleteId;
+        if (athleteData.athleteId !== aid) {
+            aid = athleteData.athleteId;
             colors = powerZoneColors(powerZones, c => ({
                 c,
                 g: new echarts.graphic.LinearGradient(0, 0, 1, 1, [
@@ -610,7 +612,7 @@ async function createTimeInPowerZonesPie(el, renderer) {
         }
         chart.setOption({
             series: [{
-                data: data.timeInPowerZones.filter(x => normZones.has(x.zone)).map(x => ({
+                data: athleteData.timeInPowerZones.filter(x => normZones.has(x.zone)).map(x => ({
                     name: x.zone,
                     value: x.time,
                     label: {color: colors[x.zone].c.l > 0.65 ? '#000b' : '#fffb'},
@@ -618,7 +620,8 @@ async function createTimeInPowerZonesPie(el, renderer) {
                 })),
             }],
         });
-    });
+    };
+    return chart;
 }
 
 
@@ -665,14 +668,6 @@ export async function main() {
         return;
     }
     sport = athleteData.state.sport;
-    const renderer = new common.Renderer(contentEl, {fps: 1});
-    /*renderer.addRotatingFields({
-        mapping: [{
-            id: 'testing-1',
-            default: 'grade',
-        }],
-        fields: fieldsMod.fields
-    });*/
     const exportBtn = document.querySelector('.button.export-file');
     exportBtn.removeAttribute('disabled');
     exportBtn.addEventListener('click', () => {
@@ -684,7 +679,7 @@ export async function main() {
     });
     elevationChart = createElevationLineChart(contentEl.querySelector('.chart-holder.elevation .chart'));
     zoomableChart = createZoomableLineChart(contentEl.querySelector('.chart-holder.zoomable .chart'));
-    createTimeInPowerZonesPie(contentEl.querySelector('.time-in-power-zones'), renderer);  // bg okay
+    powerZonesChart = createTimeInPowerZonesPie(contentEl.querySelector('.time-in-power-zones'));
     zwiftMap = new map.SauceZwiftMap({
         el: document.querySelector('#map'),
         worldList,
@@ -708,30 +703,31 @@ export async function main() {
         if (!row) {
             return;
         }
-        contentEl.querySelectorAll('table.selectable > tbody > tr.selected').forEach(x =>
+        const deselecting = row.classList.contains('selected');
+        contentEl.querySelectorAll('table.selectable tr.selected').forEach(x =>
             x.classList.remove('selected'));
-        let sel;
-        if (row.dataset.segmentIndex) {
-            sel = state.segments[Number(row.dataset.segmentIndex)];
-        } else if (row.dataset.lapIndex) {
-            sel = state.laps[Number(row.dataset.lapIndex)];
-            row.classList.add('selected');
-        } else if (row.dataset.peakSource) {
-            const period = Number(row.dataset.peakPeriod);
-            const peak = athleteData.stats[row.dataset.peakSource].peaks[period];
-            const startIndex = state.streams.time.indexOf(peak.time);
-            const endIndex = common.binarySearchClosest(state.streams.time, peak.time + period);
-            sel = {startIndex, endIndex};
-            row.classList.add('selected');
-        }
-        if (sel) {
-            state.zoomStart = sel.startIndex;
-            state.zoomEnd = sel.endIndex;
-            zoomableChart.dispatchAction({
-                type: 'dataZoom',
-                startValue: state.streams.time[sel.startIndex] * 1000,
-                endValue: state.streams.time[sel.endIndex] * 1000,
-            });
+        if (deselecting) {
+            setSelection();
+        } else {
+            let sel;
+            let scrollTo;
+            if (row.dataset.segmentIndex) {
+                sel = state.segments[Number(row.dataset.segmentIndex)];
+            } else if (row.dataset.lapIndex) {
+                sel = state.laps[Number(row.dataset.lapIndex)];
+                scrollTo = true;
+            } else if (row.dataset.peakSource) {
+                const period = Number(row.dataset.peakPeriod);
+                const peak = athleteData.stats[row.dataset.peakSource].peaks[period];
+                const endIndex = state.streams.time.indexOf(peak.time);
+                const startIndex = common.binarySearchClosest(state.streams.time, peak.time - period);
+                sel = {startIndex, endIndex};
+                scrollTo = true;
+            }
+            if (sel) {
+                row.classList.add('selected');
+                setSelection(sel.startIndex, sel.endIndex, scrollTo);
+            }
         }
     });
     contentEl.addEventListener('input', async ev => {
@@ -825,29 +821,25 @@ export async function main() {
         }
     });
     zoomableChart.on('updateAxisPointer', ev => proxyAxisPointerEvent(elevationChart, ev));
-
-    let lastPeaksSig;
-    renderer.addCallback(async x => {
-        athleteData = x;
-        await updateTemplate('.activity-summary', templates.activitySummary, {athleteData});
-        if (!document.activeElement || !document.activeElement.closest('.peak-efforts')) {
-            const sig = JSON.stringify(athleteData.stats[settings.peakEffortSource || 'power'].peaks);
-            if (sig !== lastPeaksSig) {
-                lastPeaksSig = sig;
-                await updateTemplate('.peak-efforts', templates.peakEfforts,
-                                     {athleteData, settings, peakFormatters});
-            }
-        }
-    });
-
-    common.subscribe(`athlete/${athleteIdent}`, x => {
-        renderer.setData(x);
-        renderer.render();
-    });
-
-    renderer.setData(athleteData);
-    renderer.render();
     updateLoop();
+}
+
+
+function setSelection(startIndex, endIndex, scrollTo) {
+    state.zoomStart = startIndex;
+    state.zoomEnd = endIndex;
+    if (startIndex != null && endIndex != null) {
+        zoomableChart.dispatchAction({
+            type: 'dataZoom',
+            startValue: state.streams.time[startIndex] * 1000,
+            endValue: state.streams.time[endIndex] * 1000,
+        });
+        if (scrollTo) {
+            document.querySelector('#map').scrollIntoView({behavior: 'smooth'});
+        }
+    } else {
+        zoomableChart.dispatchAction({type: 'dataZoom', start: 0, end: 100});
+    }
 }
 
 
@@ -866,7 +858,7 @@ async function onSegmentCollapse() {
 
 
 function updateLoop() {
-    updateData()//.finally(() => setTimeout(updateLoop, 2000));
+    updateData().finally(() => setTimeout(updateLoop, 2000));
 }
 
 
@@ -877,13 +869,13 @@ async function updateData() {
     const [ad, streams, segments, laps] = await Promise.all([
         common.rpc.getAthleteData(athleteIdent),
         common.rpc.getAthleteStreams(athleteIdent, {startTime: state.timeOfft}),
-        common.rpc.getAthleteSegments(athleteIdent, {startTime: state.segmentOfft, active: !!'XXX'}),
+        common.rpc.getAthleteSegments(athleteIdent, {startTime: state.segmentOfft}),
         common.rpc.getAthleteLaps(athleteIdent, {startTime: state.lapOfft}),
     ]);
+    athleteData = ad;
     if (!streams || !streams.time.length) {
         return;
     }
-
     state.timeOfft = streams.time.at(-1) + 1e-6;
     for (const [k, stream] of Object.entries(streams)) {
         if (!state.streams[k]) {
@@ -933,9 +925,20 @@ async function updateData() {
         }
     }
 
+    if (!document.activeElement || !document.activeElement.closest('.peak-efforts')) {
+        const sig = JSON.stringify(athleteData.stats[settings.peakEffortSource || 'power'].peaks);
+        if (sig !== state.lastPeaksSig) {
+            state.lastPeaksSig = sig;
+            await updateTemplate('.peak-efforts', templates.peakEfforts,
+                                 {athleteData, settings, peakFormatters});
+        }
+    }
+
     zoomableChart.updateData();
     elevationChart.updateData();
+    powerZonesChart.updateData();
     await updateSelectionStats();
+    await updateTemplate('.activity-summary', templates.activitySummary, {athleteData});
 }
 
 

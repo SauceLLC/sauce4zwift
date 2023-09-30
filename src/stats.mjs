@@ -594,17 +594,30 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     async getSegmentResults(id, options={}) {
+        let segments;
         if (id == null) {
             console.warn("XXX get live seg leaders");
-            return await this.zwiftAPI.getLiveSegmentLeaders();
+            segments = await this.zwiftAPI.getLiveSegmentLeaders();
         } else {
             if (options.live) {
                 console.warn("XXX get live seg leaderboard");
-                return await this.zwiftAPI.getLiveSegmentLeaderboard(id, options);
+                segments = await this.zwiftAPI.getLiveSegmentLeaderboard(id, options);
             } else {
                 console.warn("XXX get seg results");
-                return await this.zwiftAPI.getSegmentResults(id, options);
+                segments = await this.zwiftAPI.getSegmentResults(id, options);
             }
+        }
+        if (segments) {
+            console.log(segments);
+            return segments.map(x => ({
+                ...x,
+                ts: worldTimer.toTime(x.worldTime),
+                weight: x.weight / 1000,
+                elapsed: x.elapsed / 1000,
+                gender: x.male === false ? 'female' : 'male',
+                _unsignedSegmentId: undefined,
+                male: undefined,
+            }));
         }
     }
 

@@ -1,8 +1,8 @@
-<table class="laps basic selectable">
+<% const hasLaps = !!(laps && laps.length); %>
+<table class="laps basic {{hasLaps ? 'selectable' : ''}}">
     <thead>
         <tr>
             <th>Lap</th>
-            <th>Start</th>
             <th>Time</th>
             <th>Distance</th>
             <th>Power</th>
@@ -11,11 +11,10 @@
         </tr>
     </thead>
     <tbody>
-        <% if (laps && laps.length) { %>
+        <% if (hasLaps) { %>
             <% for (const [i, x] of laps.entries()) { %>
                 <tr class="summary" data-lap-index="{{i}}">
                     <td class="num">{{i+1}}</td>
-                    <td class="start">{-humanTimer(streams.time[x.startIndex], {long: true})-}</td>
                     <td>{-humanTimer(x.stats.activeTime, {long: true})-}</td>
                     <td>{-humanDistance(streams.distance[x.endIndex + 1] - streams.distance[x.startIndex], {suffix: true, html: true})-}</td>
                     <% if (settings.preferWkg && athleteData.athlete?.weight) { %>
@@ -31,7 +30,7 @@
             <% } %>
         <% } else { %>
             <tr>
-                <td colspan="7">No Lap Data</td>
+                <td colspan="6">No Lap Data</td>
             </tr>
         <% } %>
     </tbody>
