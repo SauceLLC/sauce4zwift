@@ -39,6 +39,8 @@ message PlayerState {
     int32 _f40 = 40; // 63, 51?
     int32 _f41 = 41; // rare, only seen as 0
     bool portal = 43;
+    int32 _f44 = 44;
+    int32 _f45 = 45;
 }
 
 enum WorldUpdatePayloadType {
