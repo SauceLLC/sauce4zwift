@@ -163,7 +163,17 @@ function humanTime(date, options={}) {
         return humanEmpty;
     }
     const style = options.style || 'default';
-    return _intlTimeFormats[style].format(date);
+    if (options.parts) {
+        return _intlTimeFormats[style].formatToParts(date);
+    } else if (!options.html) {
+        return _intlTimeFormats[style].format(date);
+    } else {
+        return partsToHTML(_intlTimeFormats[style].formatToParts(date).map(x => ({
+            ...x,
+            type: {literal: 'seperator', dayPeriod: 'unit'}[x.type] || 'value',
+            name: x.type,
+        })));
+    }
 }
 
 
@@ -185,22 +195,47 @@ function humanTimer(elapsed, options={}) {
     }
     const hours = elapsed / 3600 | 0;
     const mins = elapsed % 3600 / 60 | 0;
-    const secsStr = (elapsed % 60 | 0).toString();
-    const msStr = options.ms ? '.' + Math.round(elapsed % 1 * 1000).toString().padStart(3, '0') : '';
-    const sep = options.suffix && options.separator || '';
-    const suffix = options.suffix ?
-        options.html ? `<abbr class="unit">${options.suffix}</abbr>` : options.suffix :
-        '';
-    const parts = [sign];
-    if (hours || options.full) {
-        parts.push(hours, ':', mins.toString().padStart(2, '0'), ':', secsStr.padStart(2, '0'));
-    } else if (mins || options.long || options.full) {
-        parts.push(mins, ':', secsStr.padStart(2, '0'));
-    } else {
-        parts.push(secsStr);
+    const parts = [{type: 'value', name: 'sign', value: sign}];
+    switch (true) {
+        case !!(hours || options.full):
+            parts.push({type: 'value', name: 'hours', value: hours.toString()},
+                       {type: 'seperator', name: 'hours', value: ':'});
+            // falls through
+        case !!(mins || options.long || options.full):
+            parts.push({type: 'value', name: 'minutes', value: mins.toString().padStart(2, '0')},
+                       {type: 'seperator', name: 'minutes', value: ':'});
+            // falls through
+        default: {
+            const s = (elapsed % 60 | 0).toString();
+            parts.push({type: 'value', name: 'seconds', value: parts.length > 1 ? s.padStart(2, '0') : s});
+        }
     }
-    parts.push(msStr, sep, suffix);
-    return parts.join('');
+    if (options.ms) {
+        const value = Math.round(elapsed % 1 * 1000).toString().padStart(3, '0');
+        parts.push({type: 'seperator', name: 'milliseconds', value: '.'},
+                   {type: 'value', name: 'milliseconds', value});
+    }
+    if (options.suffix) {
+        if (options.separator) {
+            parts.push({type: 'seperator', name: 'suffix', value: options.separator});
+        }
+        parts.push({type: 'unit', name: 'suffix', value: options.suffix});
+    }
+    if (options.parts) {
+        return parts;
+    } else if (options.html) {
+        return partsToHTML(parts);
+    } else {
+        return parts.map(x => x.value).join('');
+    }
+}
+
+
+function partsToHTML(parts) {
+    const tags = {value: 'span', seperator: 'span', unit: 'abbr'};
+    const inner = parts.map(x =>
+        `<${tags[x.type]} class="${x.type} ${x.name}">${x.value}</${tags[x.type]}>`).join('');
+    return `<localized style="display: contents">${inner}</localized>`;
 }
 
 
