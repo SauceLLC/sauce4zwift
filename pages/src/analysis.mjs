@@ -48,7 +48,13 @@ const rolls = {
 };
 
 const peakFormatters = {
-    power: x => H.power(x, {suffix: true, html: true}),
+    power: x => {
+        if (settings.preferWkg && athleteData?.athlete?.weight) {
+            return H.wkg(x / athleteData.athlete.weight, {suffix: true, fixed: true, html: true});
+        } else {
+            return H.power(x, {suffix: true, html: true});
+        }
+    },
     speed: x => H.pace(x, {suffix: true, html: true, sport}),
     hr: x => H.number(x, {suffix: 'bpm', html: true}),
     draft: x => H.power(x, {suffix: true, html: true}),
@@ -176,7 +182,7 @@ function getSelectionStats() {
 
 async function updateSelectionStats() {
     const selectionStats = getSelectionStats();
-    return await updateTemplate('.selection-stats', templates.selectionStats, {selectionStats});
+    return await updateTemplate('.selection-stats', templates.selectionStats, {selectionStats, settings});
 }
 
 
@@ -770,7 +776,7 @@ export async function main() {
         }
         if (state.zoomStart !== undefined && state.zoomStart < state.zoomEnd) {
             const selection = state.positions.slice(state.zoomStart, state.zoomEnd);
-            state.brushPath = zwiftMap.addHighlightLine(selection, 'selection', {color: '#05f'});
+            state.brushPath = zwiftMap.addHighlightLine(selection, 'selection', {color: '#4885ff'});
         }
         if (!ev.fromSauce) {
             zoomableChart.setOption({
@@ -846,14 +852,16 @@ function setSelection(startIndex, endIndex, scrollTo) {
 async function onSegmentExpand(targetEl, srcEl) {
     const idx = Number(srcEl.dataset.segmentIndex);
     const segment = state.segments[idx];
+    //const results = await common.rpc.getSegmentResults(segment.segmentId, {athleteId: athleteData.athleteId});
     const results = await common.rpc.getSegmentResults(segment.segmentId);
-    console.info(results);
+    //const results2 = await common.rpc.getSegmentResults(segment.segmentId, {live: true});
+    console.warn({results});
     targetEl.innerHTML = await templates.segmentResults({results});
 }
 
 
-async function onSegmentCollapse() {
-    console.warn("clooapse", arguments);
+function onSegmentCollapse() {
+    console.debug("XXX unused", arguments);
 }
 
 
