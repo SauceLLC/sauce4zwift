@@ -1268,25 +1268,9 @@ export class GameMonitor extends events.EventEmitter {
     constructor(options={}) {
         super();
         this.api = options.zwiftMonitorAPI;
-        this.athleteId = this.api.profile.id;
         this.randomWatch = options.randomWatch;
-        this.dropinCourseId = options.dropinCourseId;
-        if (this.dropinCourseId) {
-            this.watchingStateExtra = {
-                justWatching: false,
-                _speed: 0,
-                _cadenceUHz: 0,
-                _heading: 0,
-                roadTime: 5000,
-                power: 0,
-                roadPosition: 0,
-                _flags1: encodePlayerStateFlags1({
-                    auxCourseId: this.dropinCourseId,
-                    powerMeter: 1
-                }),
-            };
-        }
-        this.gameAthleteId = this.dropinCourseId ? this.athleteId : options.gameAthleteId;
+        this.gameAthleteId = options.gameAthleteId;
+        this.athleteId = this.api.profile.id;
         this.exclusions = options.exclusions || new Set();
         this.watchingAthleteId = null;
         this.courseId = null;
@@ -1382,10 +1366,7 @@ export class GameMonitor extends events.EventEmitter {
         if (this.randomWatch != null) {
             this.gameAthleteId = await this.getRandomAthleteId(this.randomWatch);
         }
-        if (this.dropinCourseId) {
-            this.setCourse(this.dropinCourseId);
-            this.setWatching(this.athleteId);
-        } else if (this.gameAthleteId != null) {
+        if (this.gameAthleteId != null) {
             const s = await this.api.getPlayerState(this.gameAthleteId);
             this.setCourse(s ? s.courseId : null);
             if (s) {
@@ -1478,9 +1459,7 @@ export class GameMonitor extends events.EventEmitter {
         await this.activateSession(session);
         this._schedHashSeedsRefresh();
         this._playerStateInterval = setInterval(this.broadcastPlayerState.bind(this), 1000);
-        if (!this.dropinCourseId) {
-            this._refreshStatesTimeout = setTimeout(() => this._refreshStates(), this._stateRefreshDelay);
-        }
+        this._refreshStatesTimeout = setTimeout(() => this._refreshStates(), this._stateRefreshDelay);
     }
 
     async renewSession() {
@@ -1757,12 +1736,7 @@ export class GameMonitor extends events.EventEmitter {
             }
         } else {
             // The stats proc works better with these being recently available.
-            const stc = protos.ServerToClient.fromObject({
-                athleteId: this.athleteId,
-                worldTime: state.worldTime,
-            });
-            stc.playerStates = [state];  // Assign after so our extensions work.
-            this.emit('inPacket', stc);
+            this.emit('inPacket', this._createFakeServerPacket(state));
             this._updateGameState(state);
             if (state.athleteId === this.watchingAthleteId) {
                 this._updateWatchingState(state);
@@ -1781,13 +1755,19 @@ export class GameMonitor extends events.EventEmitter {
             return;
         }
         // The stats proc works better with these being recently available.
+        this.emit('inPacket', this._createFakeServerPacket(state));
+        this._updateWatchingState(state);
+    }
+
+    _createFakeServerPacket(state) {
         const stc = protos.ServerToClient.fromObject({
             athleteId: this.athleteId,
             worldTime: state.worldTime,
+            msg: 1,
+            msgCount: 1,
         });
         stc.playerStates = [state];  // Assign after so our extensions work.
-        this.emit('inPacket', stc);
-        this._updateWatchingState(state);
+        return stc;
     }
 
     setWatching(athleteId) {
