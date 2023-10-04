@@ -99,14 +99,15 @@ abbr.unit {
     }
 
     .entity[data-id="end"] {
-        font-size: 2em;
+        font-size: 3.5em;
         --fill: white;
-        border-color: white;
+        border-color: #fff9;
         opacity: 1;
         background-color: white;
-        border-width: 0.15em;
+        border-width: 0.32em;
+        background-clip: content-box;
         // Checkers...
-        $checker-size: 0.12em;
+        $checker-size: 0.07em;
         background-image:
             linear-gradient(45deg, #000 25%, transparent 25%),
             linear-gradient(45deg, transparent 75%, #000 75%),
