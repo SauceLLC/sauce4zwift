@@ -114,7 +114,7 @@ export const widgetWindowManifests = [{
     file: '/pages/analysis.html',
     prettyName: 'Analysis',
     prettyDesc: 'Analyze your session laps, segments and other stats',
-    options: {width: 1000, height: 0.9},
+    options: {width: 1080, height: 0.9},
     overlay: false,
 }, {
     type: 'game-control',
