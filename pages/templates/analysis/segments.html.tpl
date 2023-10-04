@@ -15,7 +15,7 @@
             <% for (const [i, x] of segments.entries()) { %>
                 <tr class="summary" data-segment-index="{{i}}">
                     <td class="name">{{x.segment.friendlyName || x.segment.name}}</td>
-                    <td>{-humanTimer(x.stats.elapsedTime, {long: true})-}</td>
+                    <td>{-humanTimer(x.stats.elapsedTime, {long: true, ms: true, html: true})-}</td>
                     <td>{-humanDistance(x.segment.distance, {suffix: true, html: true})-}</td>
                     <% if (settings.preferWkg && athleteData.athlete?.weight) { %>
                         <td title="{{humanPower(x.stats.power.avg, {suffix: true})}}"

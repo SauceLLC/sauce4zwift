@@ -15,7 +15,7 @@
             <% for (const [i, x] of laps.entries()) { %>
                 <tr class="summary" data-lap-index="{{i}}">
                     <td class="num">{{i+1}}</td>
-                    <td>{-humanTimer(x.stats.activeTime, {long: true})-}</td>
+                    <td>{-humanTimer(x.stats.activeTime, {long: true, ms: true, html: true})-}</td>
                     <td>{-humanDistance(streams.distance[x.endIndex + 1] - streams.distance[x.startIndex], {suffix: true, html: true})-}</td>
                     <% if (settings.preferWkg && athleteData.athlete?.weight) { %>
                         <td title="{{humanPower(x.stats.power.avg, {suffix: true})}}"

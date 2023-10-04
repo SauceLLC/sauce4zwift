@@ -11,6 +11,17 @@ $medium-border: 1px solid color.shade(intrinsic-inverted, 0%, 0.2);
     display: initial !important;
 }
 
+localized {
+    .seperator {
+        font-weight: 600;
+        margin: 0 0.05em;
+    }
+
+    .milliseconds.value {
+        font-size: 0.7em;
+    }
+}
+
 html {
     padding: 0;
     font-size: 4.1mm;
@@ -149,20 +160,21 @@ section.selection {
     border-radius: 0.3em;
     border: $medium-border;
     box-shadow: 1px 1px 5px -3px #000;
+    min-height: 5em;
 
     display: flex;
     flex-wrap: wrap;
     justify-content: space-between;
     padding: 0.7em 0.8em 0;
 
-    .seperator {
+    > .seperator {
         flex: 0 0 0;
         border-right: 1px solid color.shade(intrinsic-inverted, 10%, 0.1);
         margin: 0.5em;
     }
 
-    .seperator,
-    .stats {
+    > .seperator,
+    > .stats {
        margin-bottom: 0.8em;
     }
 }
@@ -429,8 +441,8 @@ table.basic {
 table.selectable {
     > tbody > tr {
         &.selected {
-            background-color: color.shade(intrinsic-inverted, 10%);
-            color: color.get(intrinsic);
+            background-color: color.shade(intrinsic-inverted, 10%) !important;
+            color: color.get(intrinsic) !important;
         }
 
         &:not(.selected):hover {

@@ -26,7 +26,7 @@
                         <ms class="female">female</ms>
                     <% } %>
                 </td>
-                <td>{{humanTimer(x.elapsed, {long: true})}}</td>
+                <td>{-humanTimer(x.elapsed, {long: true, ms: true, html: true})-}</td>
                 <td>
                     <% if (x.powerType !== 'POWER_METER') { %>
                         <span class="negative" title="Virtual power estimate">~

@@ -5,8 +5,8 @@
         <% const {athlete, power, env, el, hr, sport} = selectionStats; %>
         <div class="stats key-value-grid">
             <key class="header"><ms>timer</ms> Active:</key>
-            <value>{{humanTimer(selectionStats.activeTime, {long: true})}}</value>
-            <key>Elapsed:</key><value>{{humanTimer(selectionStats.elapsedTime, {long: true})}}</value>
+            <value>{-humanTimer(selectionStats.activeTime, {long: true, html: true})-}</value>
+            <key>Elapsed:</key><value>{-humanTimer(selectionStats.elapsedTime, {long: true, html: true})-}</value>
             <key>Speed:</key><value>{-humanPace(env.speed, {suffix: true, html: true, sport})-}</value>
             <key>Distance:</key><value>{-humanDistance(env.distance, {suffix: true, html: true})-}</value>
         </div>
