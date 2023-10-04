@@ -16,31 +16,30 @@ const pkg = require('../package.json');
 const monotonic = performance.now;
 const roadDistances = new Map();
 const wPrimeDefault = 20000;
+const dbs = {};
 
 
-let _db;
-function getDB() {
-    if (_db) {
-        return _db;
-    }
-    _db = new SqliteDatabase('athletes', {
-        tables: {
-            athletes: {
-                id: 'INTEGER PRIMARY KEY',
-                data: 'TEXT',
+function getAthletesDB() {
+    if (!dbs.athletes) {
+        dbs.athletes = new SqliteDatabase('athletes', {
+            tables: {
+                athletes: {
+                    id: 'INTEGER PRIMARY KEY',
+                    data: 'TEXT',
+                }
             }
-        }
-    });
-    return _db;
+        });
+    }
+    return dbs.athletes;
 }
 
 
-async function resetDB() {
-    if (_db) {
-        _db.close();
+async function deleteDB(db) {
+    if (dbs[db]) {
+        dbs[db].close();
     }
-    _db = null;
-    await deleteDatabase('athletes');
+    dbs[db] = null;
+    await deleteDatabase(db);
 }
 
 
@@ -1569,13 +1568,14 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     async resetAthletesDB() {
-        await resetDB();
+        await deleteDB('athletes');
+        await deleteDB('streams');
         this._athletesCache.clear();
         this.initAthletesDB();
     }
 
     initAthletesDB() {
-        this.athletesDB = getDB();
+        this.athletesDB = getAthletesDB();
         this.getAthleteStmt = this.athletesDB.prepare('SELECT data FROM athletes WHERE id = ?');
         queueMicrotask(() => this._loadMarkedAthletes());
     }
