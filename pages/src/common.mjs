@@ -669,6 +669,14 @@ export function initInteractionListeners() {
             dialog.showModal();
         }
     });
+    document.documentElement.addEventListener('click', ev => {
+        const restart = ev.target.closest('.edited .restart-required:empty');
+        if (!restart) {
+            return;
+        }
+        ev.preventDefault();
+        rpcCall('restart');
+    });
 }
 
 

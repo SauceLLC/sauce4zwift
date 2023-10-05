@@ -198,7 +198,7 @@ async function renderAvailableMods() {
                     <label class="enabled">
                         Enabled
                         <input type="checkbox" ${enabled ? 'checked' : ''}/>
-                        <span class="restart-required">Restart Required</span>
+                        <span class="restart-required"></span>
                     </label>
                 </div>
                 <div class="info">${common.stripHTML(manifest.description)}</div>
@@ -225,8 +225,8 @@ async function renderAvailableMods() {
         }
         const enabled = label.querySelector('input').checked;
         const id = ids[ev.target.closest('.mod[data-id]').dataset.id];
+        label.classList.add('edited');
         await common.rpc.setModEnabled(id, enabled);
-        label.querySelector('.restart-required').style.display = 'initial';
     });
 }
 

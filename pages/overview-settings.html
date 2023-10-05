@@ -50,18 +50,29 @@
                        external class="sauce-star">Frank</a>
                 </div>
 
-                <hr/>
+                <br/>
 
                 <label>
                     <key>Version:</key>
                     <span class="display-field" name="version"></span>
                 </label>
                 <label>
-                    <key>Web Server URL:</key>
-                    <input style="display: none" type="checkbox" name="webServerEnabled"/>
-                    <a href external target="_blank" class="display-field" name="webServerURL"
-                       data-depends-on="webServerEnabled">disabled</a>
+                    <key data-added="2023-10-01">Update channel:</key>
+                    <select name="updateChannel">
+                        <option value="stable">Stable</option>
+                        <option value="beta">Beta</option>
+                        <option value="alpha">Alpha</option>
+                    </select>
+                    <span class="restart-required"></span>
                 </label>
+
+                <br/>
+
+                <label>
+                    <key>Zwift Profile:</key>
+                    <a href="profile.html?windowType=profile" target="_blank"><img class="avatar"/><span class="display-field" name="profileDesc"/></a>
+                </label>
+
                 <label class="login" title="This should be the account you use for the real Zwift game">
                     <key>Main Zwift Login:</key>
                     <span class="display-field" name="mainZwiftLogin">-</span>
@@ -75,10 +86,6 @@
                     <div title="You will be asked to login again on restart."
                          class="std button xs" data-action="logout-zwift" data-id="monitor">Logout</div>
                     <span class="restart-required"></span>
-                </label>
-                <label>
-                    <key>Zwift Profile:</key>
-                    <a href="profile.html?windowType=profile" target="_blank"><img class="avatar"/><span class="display-field" name="profileDesc"/></a>
                 </label>
 
                 <hr class="electron-only"/>
@@ -96,16 +103,6 @@
             </form>
 
             <form class="app-settings section tab">
-                <label>
-                    <key data-added="2023-04-10">Update channel:</key>
-                    <select name="updateChannel">
-                        <option value="stable">Stable</option>
-                        <option value="beta">Beta</option>
-                        <option value="alpha">Alpha</option>
-                    </select>
-                    <span class="restart-required"></span>
-                </label>
-
                 <label title="Access Sauce for Zwift from any browser on your network">
                     <key>Web Server:</key>
                     <input type="checkbox" name="webServerEnabled"/>
@@ -117,6 +114,13 @@
                     <input data-depends-on="webServerEnabled" type="number" size="5"
                            name="webServerPort"/>
                     <span class="restart-required"></span>
+                </label>
+
+                <label class="indent">
+                    <key>Web Server URL:</key>
+                    <input style="display: none" type="checkbox" name="webServerEnabled"/>
+                    <a href external target="_blank" class="display-field" name="webServerURL"
+                       data-depends-on="webServerEnabled">disabled</a>
                 </label>
 
                 <label title="Game Connection allows Sauce to perform optional functions like switching the athlete being watched."
