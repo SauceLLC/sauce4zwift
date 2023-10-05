@@ -69,7 +69,7 @@ export function main() {
     });
     if (window.isElectron) {
         document.querySelector('.button.quit').addEventListener('click', () => {
-            if (confirm("Please confirm you want to stop Sauce...")) {
+            if (confirm("Quit Confirmation...")) {
                 common.rpc.quit();
             }
         });
