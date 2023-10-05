@@ -119,17 +119,17 @@ endif
 
 clean:
 ifndef WINBLOWS
-	rm -rf node_modules/zwift-utils
 	rm -rf pages/deps/src/*
 	rm -rf pages/deps/flags
 	rm -rf shared/deps/*
-	rm -f $(BUILD) $(PACKAGES)
+	rm -rf node_modules
+	rm -f $(BUILD)
 else
-	-rm -r -fo -ErrorAction SilentlyContinue node_modules/zwift-utils
 	-rm -r -fo -ErrorAction SilentlyContinue pages/deps/src/*
 	-rm -r -fo -ErrorAction SilentlyContinue pages/deps/flags
 	-rm -r -fo -ErrorAction SilentlyContinue shared/deps/*
-	-rm -fo -ErrorAction SilentlyContinue $(BUILD) $(PACKAGES)
+	-rm -r -fo -ErrorAction SilentlyContinue node_modules
+	-rm -fo -ErrorAction SilentlyContinue $(BUILD)
 endif
 
 test:
