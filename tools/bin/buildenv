@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+const fs = require('node:fs');
+const process = require('node:process');
 const childProcess = require('node:child_process');
 
 function shexec(command) {
@@ -13,9 +15,17 @@ function shexec(command) {
     });
 }
 
-(async function() {
-    console.log(JSON.stringify({
+async function main() {
+    if (process.argv.length < 3) {
+        throw new Error("Missing OUTFILE argument");
+    }
+    fs.writeFileSync(process.argv[2], JSON.stringify({
         git_commit: (await shexec('git rev-parse HEAD')).stdout.trim(),
         sentry_dsn: process.env.SAUCE4ZWIFT_SENTRY_DSN,
     }));
-})();
+}
+
+main().catch(e => {
+    console.error(e);
+    process.exit(1);
+});

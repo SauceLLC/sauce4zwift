@@ -31,7 +31,7 @@ $(PACKAGES): package.json
 	echo "" > $@
 
 $(BUILD): $(PAGES_SRC) $(PACKAGES) sass deps Makefile .git/index
-	node tools/bin/buildenv > $@
+	node tools/bin/buildenv $@
 
 build: $(BUILD)
 
