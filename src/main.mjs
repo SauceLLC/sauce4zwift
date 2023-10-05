@@ -25,6 +25,8 @@ const pkg = require('../package.json');
 const {autoUpdater} = require('electron-updater');
 const electron = require('electron');
 const isDEV = !electron.app.isPackaged;
+const defaultUpdateChannel = pkg.version.match(/alpha/) ? 'alpha' :
+    pkg.version.match(/beta/) ?  'beta' : 'stable';
 
 let zwiftAPI;
 let zwiftMonitorAPI;
@@ -281,7 +283,7 @@ class SauceApp extends EventEmitter {
     _defaultSettings = {
         webServerEnabled: true,
         webServerPort: 1080,
-        updateChannel: 'stable',
+        updateChannel: defaultUpdateChannel,
     };
     _settings;
     _settingsKey = 'app-settings';
@@ -325,7 +327,7 @@ class SauceApp extends EventEmitter {
             stable: 'latest',
             beta: 'beta',
             alpha: 'alpha'
-        }[this.getSetting('updateChannel')] || 'latest';
+        }[this.getSetting('updateChannel', defaultUpdateChannel)] || 'latest';
         // NOTE: The github provider for electron-updater is pretty nuanced.
         // We might want to replace it with our own at some point as this very
         // important logic.
