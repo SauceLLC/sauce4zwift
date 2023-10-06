@@ -280,11 +280,6 @@ async function getLocalRoutedIP() {
 
 
 class SauceApp extends EventEmitter {
-    _defaultSettings = {
-        webServerEnabled: true,
-        webServerPort: 1080,
-        updateChannel: defaultUpdateChannel,
-    };
     _settings;
     _settingsKey = 'app-settings';
     _metricsPromise;
@@ -302,7 +297,7 @@ class SauceApp extends EventEmitter {
 
     getSetting(key, def) {
         if (!this._settings) {
-            this._settings = storage.get(this._settingsKey) || {...this._defaultSettings};
+            this._settings = storage.get(this._settingsKey) || {};
         }
         if (!Object.prototype.hasOwnProperty.call(this._settings, key) && def !== undefined) {
             this._settings[key] = def;
@@ -313,7 +308,7 @@ class SauceApp extends EventEmitter {
 
     setSetting(key, value) {
         if (!this._settings) {
-            this._settings = storage.get(this._settingsKey) || {...this._defaultSettings};
+            this._settings = storage.get(this._settingsKey) || {};
         }
         this._settings[key] = value;
         storage.set(this._settingsKey, this._settings);
@@ -471,10 +466,10 @@ class SauceApp extends EventEmitter {
         this.statsProc.start();
         rpcSources.stats = this.statsProc;
         rpcSources.app = this;
-        if (this.getSetting('webServerEnabled')) {
+        if (this.getSetting('webServerEnabled', true)) {
             ip = ip || await getLocalRoutedIP();
             this.webServerEnabled = true;
-            this.webServerPort = this.getSetting('webServerPort');
+            this.webServerPort = this.getSetting('webServerPort', 1080);
             this.webServerURL = `http://${ip}:${this.webServerPort}`;
             // Will stall when there is a port conflict..
             webServer.start({
@@ -615,9 +610,11 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     let updater;
     const lastVersion = sauceApp.getSetting('lastVersion');
     if (lastVersion !== pkg.version) {
+        sauceApp.setSetting('updateChannel', defaultUpdateChannel);
+        console.info("Update channel set to:", sauceApp.getSetting('updateChannel'));
         if (!args.headless) {
             if (lastVersion) {
-                console.info("Sauce recently updated");
+                console.info(`Sauce was updated: ${lastVersion} -> ${pkg.version}`);
                 await electron.session.defaultSession.clearCache();
                 for (const {id} of windows.getProfiles()) {
                     await windows.loadSession(id).clearCache();
