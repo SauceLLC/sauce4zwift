@@ -3,6 +3,7 @@ import * as common from './common.mjs';
 import * as echarts from '../deps/src/echarts.mjs';
 import {cssColor, getTheme} from './echarts-sauce-theme.mjs';
 
+common.enableSentry();
 echarts.registerTheme('sauce', getTheme('dynamic'));
 
 const doc = document.documentElement;
@@ -25,7 +26,7 @@ function getWBalValue(x) {
     if (!_wPrime) {
         return;
     }
-    return x.stats.wBal / _wPrime * 100;
+    return x.wBal / _wPrime * 100;
 }
 
 
@@ -214,7 +215,6 @@ export function main() {
         gauge.setOption({
             animationDurationUpdate: Math.max(200, Math.min(settings.refreshInterval * 1000, 1000)),
             animationEasingUpdate: 'linear',
-            tooltip: {},
             visualMap: config.visualMap,
             graphic: [{
                 elements: [{

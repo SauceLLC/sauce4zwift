@@ -2,7 +2,7 @@
   "name": "sauce4zwift",
   "productName": "Sauce for Zwift™",
   "private": true,
-  "version": "0.99.1-alpha",
+  "version": "0.99.5-alpha",
   "description": "Overlay widgets and advanced instrumentation for the serious Zwifter.",
   "homepage": "https://www.sauce.llc",
   "author": "Sauce, LLC",
@@ -21,34 +21,37 @@
   },
   "dependencies": {
     "@sentry/node": "6.19.6",
-    "better-sqlite3": "8.2.0",
-    "electron-updater": "5.3.0",
+    "better-sqlite3": "8.5.0",
+    "electron-updater": "6.1.1",
     "express": "4.18.2",
     "express-ws": "5.0.2",
-    "jsfit": "https://github.com/SauceLLC/jsfit.git#617a6e1087",
+    "jsfit": "github:saucellc/jsfit.git#617a6e1087",
     "keytar": "7.9.0",
-    "node-fetch": "3.3.1",
-    "protobufjs": "7.2.3",
+    "node-fetch": "3.3.2",
+    "protobufjs": "7.2.4",
     "xxhash-addon": "2.0.1"
   },
   "optionalDependencies": {
-    "zwift-utils": "https://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@github.com/SauceLLC/zwift-utils.git"
+    "zwift-utils": "https://github.com/SauceLLC/zwift-utils.git#6afdb3cf28bae0ea58c85fc17e78d4a391e9a35b"
   },
   "devDependencies": {
     "@sentry/browser": "6.19.6",
-    "echarts": "5.4.1",
-    "electron": "24.1.2",
-    "electron-builder": "24.0.0-alpha.7",
-    "electron-notarize": "1.2.1",
-    "eslint": "8.37.0",
-    "jest": "29.5.0",
-    "sass": "1.60.0",
-    "world_countries_lists": "2.6.0",
-    "zwift-data": "1.22.2"
+    "echarts": "5.4.3",
+    "electron": "24.8.3",
+    "electron-builder": "24.6.0",
+    "@electron/notarize": "2.1.0",
+    "eslint": "8.46.0",
+    "jest": "29.6.1",
+    "sass": "1.65.0",
+    "world_countries_lists": "2.8.1"
   },
   "jest": {
-    "roots": ["test"],
-    "testMatch": ["**/*.test.mjs"]
+    "roots": [
+      "test"
+    ],
+    "testMatch": [
+      "**/*.test.mjs"
+    ]
   },
   "build": {
     "appId": "io.saucellc.sauce4zwift",
@@ -137,7 +140,6 @@
       "target": "AppImage",
       "category": "Game"
     },
-    "afterPack": "build/scripts/patch-sign.js",
     "afterSign": "build/scripts/notarize.js"
   }
 }

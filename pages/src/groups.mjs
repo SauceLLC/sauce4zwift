@@ -1,6 +1,8 @@
 import * as sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
 
+common.enableSentry();
+
 const L = sauce.locale;
 const H = L.human;
 const positions = new Map();
@@ -194,7 +196,7 @@ function renderZoomed(groups) {
         active.add(i);
         const pos = getOrCreatePosition(i);
         pos.bubble.title = `Click for athlete details`;
-        pos.bubble.href = `profile.html?id=${athlete.athleteId}&width=800&height=340`;
+        pos.bubble.href = `profile.html?id=${athlete.athleteId}&windowType=profile`;
         pos.el.classList.toggle('watching', !!athlete.watching);
         pos.el.style.setProperty('--athletes', 1);
         let label;

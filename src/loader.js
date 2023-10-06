@@ -23,6 +23,12 @@ if (fs.existsSync(userDataPath('loader_settings.json'))) {
         console.error("Error loading 'loader_settings.json':", e);
     }
 }
+let buildEnv = {};
+try {
+    buildEnv = JSON.parse(fs.readFileSync('build.json'));
+} catch(e) {
+    console.error("Error loading 'build.json':", e);
+}
 
 
 function saveSettings(data) {
@@ -101,7 +107,6 @@ function monkeyPatchConsoleWithEmitter() {
             enumerable: descriptors[fn].enumerable,
             get: () => (curLogLevel = level, descriptors[fn].value),
             set: () => {
-                debugger;
                 throw new Error("Double console monkey patch detected!");
             },
         });
@@ -240,15 +245,15 @@ async function checkMacOSInstall() {
 
 
 async function initSentry(logEmitter) {
-    if (!app.isPackaged) {
-        console.info("Sentry disabled by dev mode");
+    if (!app.isPackaged || !buildEnv.sentry_dsn) {
+        console.info("Sentry disabled: non production build");
         return;
     }
     const report = await import('../shared/report.mjs');
     report.setSentry(Sentry);
     const skipIntegrations = new Set(['OnUncaughtException', 'Console']);
     Sentry.init({
-        dsn: "https://df855be3c7174dc89f374ef0efaa6a92@o1166536.ingest.sentry.io/6257001",
+        dsn: buildEnv.sentry_dsn,
         // Sentry changes the uncaught exc behavior to exit the process.  I think it may
         // be fixed in newer versions though.
         integrations: data => data.filter(x => !skipIntegrations.has(x.name)),
@@ -256,6 +261,7 @@ async function initSentry(logEmitter) {
     });
     process.on('uncaughtException', report.errorThrottled);
     Sentry.setTag('version', pkg.version);
+    Sentry.setTag('git_commit', buildEnv.git_commit);
     let id = settings.sentryId;
     if (!id) {
         id = Array.from(crypto.randomBytes(16)).map(x => String.fromCharCode(97 + (x % 26))).join('');
@@ -278,6 +284,8 @@ async function initSentry(logEmitter) {
 (async () => {
     const logMeta = initLogging();
     nativeTheme.themeSource = 'dark';
+    // If we are foreced to update to 114+ we'll have to switch our scrollbars to this...
+    //app.commandLine.appendSwitch('enable-features', 'OverlayScrollbar');
     if (settings.gpuEnabled === undefined) {
         settings.gpuEnabled = settings.forceEnableGPU == null ?
             os.platform() !== 'win32' : settings.forceEnableGPU;
@@ -304,7 +312,8 @@ async function initSentry(logEmitter) {
         sentryAnonId,
         ...logMeta,
         loaderSettings: settings,
-        saveLoaderSettings: saveSettings
+        saveLoaderSettings: saveSettings,
+        buildEnv
     });
 })().catch(async e => {
     console.error('Startup Error:', e.stack);

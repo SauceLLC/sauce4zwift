@@ -1,6 +1,8 @@
 @use 'color';
 @use 'charts';
 
+$screen-side-margin: 0.5rem;
+
 html {
     &.solid-background {
         background: var(--background-color);
@@ -11,7 +13,17 @@ html {
     }
 
     &.horizontal {
-        font-size: clamp(2.2mm, 15vh, 18mm);
+        font-size: clamp(2.2mm, 18.6vh, 18mm);
+
+        .button-bar {
+            font-size: 0.7rem;
+        }
+
+        .zones-holder,
+        .chart-holder,
+        .elevation-profile-holder {
+            height: 4.2rem;
+        }
 
         #content {
             overflow-x: auto;
@@ -29,9 +41,9 @@ html {
         }
 
         .screen-section {
-            padding-left: 0.3rem;
             flex: 1 1 0;
             justify-content: center;
+            overflow-y: clip;
 
             .sub:first-child {
                 margin-right: 1em;
@@ -55,6 +67,7 @@ html {
 
         .screen-section {
             padding-top: 0.3rem;
+            overflow-x: clip;
 
             &:last-child {
                 margin-bottom: 0;
@@ -64,13 +77,14 @@ html {
 }
 
 .screen-section.line-chart {
-    padding-top: 0.5rem !important; // clearance for labels which overflow
     outline-style: none;
+    margin-left: 0;
+    margin-right: 0;
     @include charts.legend(".s-chart-legend");
 
     .s-chart-legend {
         background: color.shade(fg, 100%, 0.7);
-        font-size: 0.75rem;
+        font-size: 0.65rem;
         transition: opacity 400ms;
         opacity: 0;
         pointer-events: none;
@@ -93,7 +107,7 @@ html {
 .ec-tooltip {
     font: unset !important;
     font-variant-numeric: tabular-nums !important;
-    font-size: 0.8em !important;
+    font-size: 0.6rem !important;
     box-shadow: 1px 1px 5px 0 #0006 !important;
 
     * {
@@ -152,7 +166,7 @@ html {
         opacity: 0;
     }
 
-    15% {
+    25% {
         opacity: 1;
     }
 
@@ -167,19 +181,53 @@ html {
 
     .page-title {
         position: absolute;
+        z-index: 10000;
         top: 0;
         left: 0;
+        opacity: 0;
+        animation: fadeout 1.8s;
         display: flex;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
         width: 100%;
         height: 100%;
         font-size: 10em;
         pointer-events: none;
-        animation: fadeout 1.5s forwards;
         color: #fff;
-        mix-blend-mode: overlay;
         font-weight: 700;
+        text-shadow:
+            0 0 0.02em #000,
+            0 0 0.02em #000,
+            0 0 0.02em #000;
+        line-height: 0.8;
+
+        &::before {
+            content: 'SCREEN';
+            font-size: 0.5rem;
+        }
+    }
+
+    > header.athlete {
+        margin: 0;
+        font-size: 0.72em;
+        height: 0.22em;
+
+        + .time-in-zones {
+            padding-top: 0.5rem;
+        }
+
+        a {
+            opacity: 0.8;
+            position: absolute;
+            z-index: 1000;
+            top: $screen-side-margin * 0.28;
+            right: $screen-side-margin;
+            font-weight: 700;
+            font-variant: all-petite-caps;
+            line-height: 0.85;
+            text-shadow: 1px 1px 4px #0009;
+        }
     }
 
     .no-sections {
@@ -240,7 +288,7 @@ html {
 .screen-section {
     display: flex;
     flex-direction: column;
-    margin: 0.2rem 0.5rem;
+    margin: 0.2rem $screen-side-margin;
     position: relative;
 
     &.large-data-fields,
@@ -278,33 +326,26 @@ html {
         align-items: center;
     }
 
-    .chart-holder {
-        font-size: 0.7rem;
-        height: 6em;
-
-        > div {
-            overflow: visible !important;
-
-            svg {
-                overflow: visible;
-            }
-        }
+    &[data-base-section-type="chart"] {
+        margin: 0;
     }
 
-    &.time-in-zones {
-        border: none;
-        margin-left: 0;
-        margin-right: 0;
+    .chart-holder {
+        aspect-ratio: 3 / 1;
+        font-size: 0.7rem;
+        height: 6em;
+    }
+
+    svg {
+        outline: 2px solid green !important;
     }
 
     .zones-holder {
         overflow: hidden;
 
         &.vert-bars {
-            height: 7em;
             font-size: 0.7rem;
-            margin-left: 0.2rem; // the left labels are always padded a bit
-            margin-right: 0.4rem;
+            aspect-ratio: 2.8 / 1;
         }
 
         &.pie {
@@ -358,6 +399,13 @@ html {
         }
     }
 
+    .elevation-profile-holder {
+        padding-left: 0.4rem;
+        padding-right: 0.4rem;
+        aspect-ratio: 3 / 1;
+        font-size: 1.2em;
+    }
+
     .sub {
         font-size: 0.6em;
         display: grid;
@@ -395,7 +443,7 @@ html {
         .unit,
         .sub-label {
             font-size: 0.55rem;
-            line-height: 1;
+            line-height: 1.1;
             margin-right: 0.3rem;
             opacity: 0.82;
             text-align: right;
@@ -428,9 +476,11 @@ html {
 
         [data-field] {
             align-items: center;
+            overflow: hidden;
 
             .value {
                 min-width: initial;
+                line-height: 0.8;
             }
         }
     }
@@ -443,6 +493,7 @@ html {
 .screen.configuring {
     .screen-section {
         transition: opacity 200ms;
+        overflow: visible !important; // allow button mask to show
 
         .button-mask {
             position: absolute;

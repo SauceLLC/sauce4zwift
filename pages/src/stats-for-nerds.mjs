@@ -3,6 +3,7 @@ import * as common from './common.mjs';
 import * as echarts from '../deps/src/echarts.mjs';
 import {cssColor, getTheme} from './echarts-sauce-theme.mjs';
 
+common.enableSentry();
 echarts.registerTheme('sauce', getTheme('dynamic-alt'));
 
 const L = sauce.locale;

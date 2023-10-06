@@ -1,5 +1,12 @@
-<div class="screen {{obj.configuring ? 'configuring' : ''}}" data-id="{{screen.id}}" data-index="{{sIndex}}">
+<div class="screen {{obj.configuring ? 'configuring' : ''}} {{obj.hidden ? 'hidden' : ''}}"
+     data-id="{{screen.id}}" data-index="{{sIndex}}">
     <div class="page-title">{{(sIndex + 1).toLocaleString()}}</div>
+    <% if (!obj.configuring && obj.athlete) { %>
+        <header class="athlete">
+            <a target="profile_popup_{{athlete.id}}"
+               href="profile.html?id={{athlete.id}}&windowType=profile">{{athlete.sanitizedFullname}}</a>
+        </header>
+    <% } %>
     <% if (!screen.sections.length) { %>
         <div class="no-sections">No data sections added</div>
     <% } %>
@@ -200,12 +207,12 @@
                         <form method="dialog">
                             <label>Type: {{sectionSpecs[section.type].title}}</label>
                             <hr/>
-                            <label>Type
+                            <!--<label>Type
                                 <select name="type">
                                     <option {{settings.type === 'power' ? 'selected' : ''}} value="power">Power</option>
                                     <option disabled {{settings.type === 'hr' ? 'selected' : ''}} value="hr">Heart Rate (Soon Nordy!)</option>
                                 </select>
-                            </label>
+                            </label>-->
                             <label>Style
                                 <select name="style">
                                     <option {{settings.style === 'vert-bars' ? 'selected' : ''}}
@@ -215,6 +222,34 @@
                                     <option {{settings.style === 'pie' ? 'selected' : ''}}
                                             value="pie">Pie Chart</option>
                                 </select>
+                            </label>
+                            <footer>
+                                <button value="cancel">Cancel</button>
+                                <button value="save" class="primary">Save</button>
+                            </footer>
+                        </form>
+                    </dialog>
+                <% } %>
+            <!-- leave section div open -->
+        <% } else if (section.type === 'elevation-profile') { %>
+            <div class="screen-section {{section.type}}" tabindex="0"
+                 data-section-type="{{section.type}}" data-base-section-type="{{baseSectionType}}"
+                 data-section-id="{{section.id}}">
+                <div class="elevation-profile-holder">
+                    <% if (obj.configuring) { %>
+                        <img class="example" src="images/examples/elevation-profile-chart.webp"/>
+                    <% } %>
+                </div>
+                <% if (obj.configuring) { %>
+                    <% const settings = section.settings || sectionSpecs[section.type].defaultSettings || {}; %>
+                    <dialog class="edit">
+                        <header>Edit Section: {{sectionIndex +1 }}</header>
+                        <form method="dialog">
+                            <label>Type: {{sectionSpecs[section.type].title}}</label>
+                            <hr/>
+                            <label title="When available show the route based profile instead of the current road">
+                                Route profile: <input type="checkbox" name="preferRoute"
+                                {{settings.preferRoute ? 'checked' : ''}}/>
                             </label>
                             <footer>
                                 <button value="cancel">Cancel</button>

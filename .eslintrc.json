@@ -49,7 +49,7 @@
             "ignoreRegExpLiterals": false
         }],
         "max-nested-callbacks": ["warn", 3],
-        "max-depth": ["warn", 5],
+        "max-depth": ["warn", 8],
         "curly": "warn",
         "eqeqeq": ["error", "always", {"null": "ignore"}],
         "no-implicit-globals": "error",
@@ -66,7 +66,8 @@
             "FunctionDeclaration": {"parameters": "first"},
             "FunctionExpression": {"parameters": "first"},
             "ObjectExpression": "first",
-            "ArrayExpression": 1
+            "ArrayExpression": 1,
+            "SwitchCase": 1
         }],
         "no-trailing-spaces": "warn"
     },

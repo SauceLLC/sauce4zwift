@@ -1,8 +1,9 @@
 import * as sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
 
-const H = sauce.locale.human;
+common.enableSentry();
 
+const H = sauce.locale.human;
 const doc = document.documentElement;
 const settings = common.settingsStore.get(null, {
     cleanup: 120,
@@ -189,7 +190,8 @@ export async function main() {
             const name = [chat.firstName, chat.lastName].filter(x => x).join(' ');
             entry.style.setProperty('--message-hue', athleteHue(chat.from) + 'deg');
             entry.innerHTML = `
-                <a href="profile.html?id=${chat.from}&width=800&height=350" target="_blank"
+                <a href="profile.html?id=${chat.from}&windowType=profile"
+                   target="profile_popup_${chat.from}"
                    class="avatar"><img src="${chat.avatar || 'images/blankavatar.png'}"/></a>
                 <div class="content">
                     <div class="header">

@@ -1,6 +1,8 @@
 import process from 'node:process';
 import os from 'node:os';
 import net from 'node:net';
+import fs from 'node:fs';
+import path from 'node:path';
 import {EventEmitter} from 'node:events';
 import * as report from '../shared/report.mjs';
 import * as storage from './storage.mjs';
@@ -15,14 +17,32 @@ import * as zwift from './zwift.mjs';
 import * as windows from './windows.mjs';
 import * as mods from './mods.mjs';
 import {parseArgs} from './argparse.mjs';
+import protobuf from 'protobufjs';
+import fetch from 'node-fetch';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 const {autoUpdater} = require('electron-updater');
 const electron = require('electron');
 const isDEV = !electron.app.isPackaged;
-const zwiftAPI = new zwift.ZwiftAPI();
-const zwiftMonitorAPI = new zwift.ZwiftAPI();
+const defaultUpdateChannel = pkg.version.match(/alpha/) ? 'alpha' :
+    pkg.version.match(/beta/) ?  'beta' : 'stable';
+
+let zwiftAPI;
+let zwiftMonitorAPI;
+
+if (isDEV) {
+    const pb_Reader_skip = protobuf.Reader.prototype.skip;
+    protobuf.Reader.prototype.skip = function(length) {
+        const start = this.pos;
+        const r = pb_Reader_skip.apply(this, arguments);
+        const end = this.pos;
+        console.error("Protobuf missing field:", this, start, end,
+                      this.buf.subarray(start, end).toString('hex'));
+        console.info(this.buf.subarray(0, this.len).toString('hex'));
+        return r;
+    };
+}
 
 let sauceApp;
 let ipcSubIdInc = 1;
@@ -39,6 +59,11 @@ export let quiting;
 
 export function getApp() {
     return sauceApp;
+}
+
+
+function userDataPath(...args) {
+    return path.join(electron.app.getPath('userData'), ...args);
 }
 
 
@@ -153,7 +178,7 @@ electron.ipcMain.handle('subscribe', (ev, {event, persistent, source='stats'}) =
         let json = serialCache.get(data);
         if (!json) {
             json = JSON.stringify(data);
-            if (typeof data === 'object') {
+            if (data != null && typeof data === 'object') {
                 serialCache.set(data, json);
             }
         }
@@ -255,11 +280,6 @@ async function getLocalRoutedIP() {
 
 
 class SauceApp extends EventEmitter {
-    _defaultSettings = {
-        webServerEnabled: true,
-        webServerPort: 1080,
-        updateChannel: 'stable',
-    };
     _settings;
     _settingsKey = 'app-settings';
     _metricsPromise;
@@ -277,7 +297,7 @@ class SauceApp extends EventEmitter {
 
     getSetting(key, def) {
         if (!this._settings) {
-            this._settings = storage.get(this._settingsKey) || {...this._defaultSettings};
+            this._settings = storage.get(this._settingsKey) || {};
         }
         if (!Object.prototype.hasOwnProperty.call(this._settings, key) && def !== undefined) {
             this._settings[key] = def;
@@ -288,7 +308,7 @@ class SauceApp extends EventEmitter {
 
     setSetting(key, value) {
         if (!this._settings) {
-            this._settings = storage.get(this._settingsKey) || {...this._defaultSettings};
+            this._settings = storage.get(this._settingsKey) || {};
         }
         this._settings[key] = value;
         storage.set(this._settingsKey, this._settings);
@@ -302,7 +322,7 @@ class SauceApp extends EventEmitter {
             stable: 'latest',
             beta: 'beta',
             alpha: 'alpha'
-        }[this.getSetting('updateChannel')] || 'latest';
+        }[this.getSetting('updateChannel', defaultUpdateChannel)] || 'latest';
         // NOTE: The github provider for electron-updater is pretty nuanced.
         // We might want to replace it with our own at some point as this very
         // important logic.
@@ -423,6 +443,7 @@ class SauceApp extends EventEmitter {
             zwiftMonitorAPI,
             gameAthleteId: args.athleteId || zwiftAPI.profile.id,
             randomWatch: args.randomWatch,
+            exclusions: args.exclusions,
         });
         gameMonitor.on('multiple-logins', () => {
             electron.dialog.showErrorBox(
@@ -445,10 +466,10 @@ class SauceApp extends EventEmitter {
         this.statsProc.start();
         rpcSources.stats = this.statsProc;
         rpcSources.app = this;
-        if (this.getSetting('webServerEnabled')) {
+        if (this.getSetting('webServerEnabled', true)) {
             ip = ip || await getLocalRoutedIP();
             this.webServerEnabled = true;
-            this.webServerPort = this.getSetting('webServerPort');
+            this.webServerPort = this.getSetting('webServerPort', 1080);
             this.webServerURL = `http://${ip}:${this.webServerPort}`;
             // Will stall when there is a port conflict..
             webServer.start({
@@ -512,8 +533,40 @@ async function maybeDownloadAndInstallUpdate({version}) {
 }
 
 
+async function updateExclusions() {
+    let data;
+    try {
+        const r = await fetch('https://www.sauce.llc/products/sauce4zwift/exclusions.json');
+        data = await r.json();
+    } catch(e) {
+        report.error(e);
+    }
+    if (!data) {
+        console.warn("No exclusions list found");
+        return;
+    }
+    await fs.promises.writeFile(userDataPath('exclusions_cached.json'), JSON.stringify(data));
+    return data;
+}
+
+
+async function getExclusions() {
+    // use the local cache copy if possible and update in the bg.
+    let data;
+    try {
+        data = JSON.parse(fs.readFileSync(userDataPath('exclusions_cached.json')));
+    } catch(e) {/*no-pragma*/}
+    const updating = updateExclusions();
+    if (!data) {
+        console.info("Waiting for network fetch of exclusions...");
+        data = await updating;
+    }
+    return data && new Set(data.map(x => x.idhash));
+}
+
+
 export async function main({logEmitter, logFile, logQueue, sentryAnonId,
-                            loaderSettings, saveLoaderSettings}) {
+                            loaderSettings, saveLoaderSettings, buildEnv}) {
     const s = Date.now();
     const args = parseArgs([
         {arg: 'headless', type: 'switch',
@@ -542,6 +595,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         rpc.register(() => electron.shell.showItemInFolder(logFile), {name: 'showLogInFolder'});
     }
     rpc.register(() => sentryAnonId, {name: 'getSentryAnonId'});
+    rpc.register(() => !isDEV ? buildEnv.sentry_dsn : null, {name: 'getSentryDSN'});
     rpc.register(key => loaderSettings[key], {name: 'getLoaderSetting'});
     rpc.register((key, value) => {
         loaderSettings[key] = value;
@@ -556,9 +610,11 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     let updater;
     const lastVersion = sauceApp.getSetting('lastVersion');
     if (lastVersion !== pkg.version) {
+        sauceApp.setSetting('updateChannel', defaultUpdateChannel);
+        console.info("Update channel set to:", sauceApp.getSetting('updateChannel'));
         if (!args.headless) {
             if (lastVersion) {
-                console.info("Sauce recently updated");
+                console.info(`Sauce was updated: ${lastVersion} -> ${pkg.version}`);
                 await electron.session.defaultSession.clearCache();
                 for (const {id} of windows.getProfiles()) {
                     await windows.loadSession(id).clearCache();
@@ -581,6 +637,10 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         await electron.dialog.showErrorBox('EULA or Patreon Link Error', '' + e);
         return quit(1);
     }
+    const exclusions = await getExclusions();
+    zwiftAPI = new zwift.ZwiftAPI({exclusions});
+    global.zwiftAPI = zwiftAPI;  // devTool debug
+    zwiftMonitorAPI = new zwift.ZwiftAPI({exclusions});
     const mainUser = await zwiftAuthenticate({api: zwiftAPI, ident: 'zwift-login', ...args});
     if (!mainUser) {
         return quit(1);
@@ -633,7 +693,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
             mods.setEnabled(mod.id, enable);
         }
     }
-    await sauceApp.start(args);
+    await sauceApp.start({...args, exclusions});
     console.debug('Startup bench:', Date.now() - s);
     if (!args.headless) {
         windows.openWidgetWindows();
@@ -644,9 +704,6 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
 
 // Dev tools prototyping
 global.zwift = zwift;
-global.zwiftAPI = zwiftAPI;
-global.zwiftMonitorAPI = zwiftMonitorAPI;
 global.windows = windows;
 global.electron = electron;
-global.report = report;
 global.mods = mods;

@@ -4,6 +4,8 @@ import * as map from './map.mjs';
 import * as elevation from './elevation.mjs';
 import * as fields from './fields.mjs';
 
+common.enableSentry();
+
 const doc = document.documentElement;
 const L = sauce.locale;
 const imperial = !!common.storage.get('/imperialUnits');
@@ -26,11 +28,15 @@ common.settingsStore.setDefault({
     fpsLimit: 30,
     // v0.13.1...
     zoomPriorityTilt: true,
+    // v1.0.0
+    profileHeight: 20,
+    routeProfile: true,
 });
 
 const settings = common.settingsStore.get();
 
-let initDone;
+let watchdog;
+let inGame;
 let zwiftMap;
 let elProfile;
 
@@ -74,11 +80,12 @@ function createZwiftMap({worldList}) {
         verticalOffset: settings.verticalOffset / 100,
         fpsLimit: settings.fpsLimit || 30,
         zoomPriorityTilt: getSetting('zoomPriorityTilt', true),
+        preferRoute: settings.routeProfile !== false,
     });
     let settingsSaveTimeout;
     zm.addEventListener('zoom', ev => {
         clearTimeout(settingsSaveTimeout);
-        settings.zoom = ev.zoom;
+        settings.zoom = Number(ev.zoom.toFixed(2));
         settingsSaveTimeout = setTimeout(() => common.settingsStore.set(null, settings), 100);
     });
     const anchorResetButton = document.querySelector('.map-controls .button.reset-anchor');
@@ -103,10 +110,12 @@ function createZwiftMap({worldList}) {
 
 
 function createElevationProfile({worldList}) {
-    return new elevation.SauceElevationProfile({
-        el: document.querySelector('.elevation-profile'),
-        worldList,
-    });
+    const el = document.querySelector('.elevation-profile');
+    if (settings.profileHeight) {
+        el.style.setProperty('--profile-height', settings.profileHeight + '%');
+    }
+    const preferRoute = settings.routeProfile !== false;
+    return new elevation.SauceElevationProfile({el, worldList, preferRoute});
 }
 
 
@@ -119,10 +128,16 @@ function setWatching(id) {
 }
 
 
-async function initSelfAthlete() {
+async function initialize() {
     const ad = await common.rpc.getAthleteData('self');
-    if (!ad) {
-        return false;
+    inGame = !!ad;
+    if (!inGame) {
+        console.info("User not active, starting demo mode...");
+        zwiftMap.setCourse(6);
+        if (elProfile) {
+            elProfile.setCourse(6);
+        }
+        return;
     }
     zwiftMap.setAthlete(ad.athleteId);
     if (elProfile) {
@@ -136,14 +151,24 @@ async function initSelfAthlete() {
     } else {
         setWatching(ad.athleteId);
     }
-    return true;
+    if (ad.state) {
+        zwiftMap.incPause();
+        try {
+            await zwiftMap.renderAthleteStates([ad.state]);
+        } finally {
+            zwiftMap.decPause();
+        }
+        if (elProfile) {
+            await elProfile.renderAthleteStates([ad.state]);
+        }
+    }
 }
 
 
 export async function main() {
     common.initInteractionListeners();
     const fieldsEl = document.querySelector('#content .fields');
-    const fieldRenderer = new common.Renderer(fieldsEl, {fps: null});
+    const fieldRenderer = new common.Renderer(fieldsEl, {fps: 1});
     const mapping = [];
     const defaults = {
         f1: 'grade',
@@ -152,7 +177,7 @@ export async function main() {
     const numFields = common.settingsStore.get('fields');
     for (let i = 0; i < (isNaN(numFields) ? 1 : numFields); i++) {
         const id = `f${i + 1}`;
-        fieldsEl.insertAdjacentHTML('beforeend', `
+        fieldsEl.insertAdjacentHTML('afterbegin', `
             <div class="field" data-field="${id}">
                 <div class="key"></div><div class="value"></div><abbr class="unit"></abbr>
             </div>
@@ -169,46 +194,91 @@ export async function main() {
     const worldList = await common.getWorldList();
     zwiftMap = createZwiftMap({worldList});
     window.zwiftMap = zwiftMap;  // DEBUG
+    window.MapEntity = map.MapEntity;
     elProfile = settings.profileOverlay && createElevationProfile({worldList});
     const urlQuery = new URLSearchParams(location.search);
     if (urlQuery.has('testing')) {
+        const center = urlQuery.get('center');
         const [course, road] = urlQuery.get('testing').split(',');
-        zwiftMap.setCourse(+course || 6).then(() => {
-            zwiftMap.setActiveRoad(+road || 0);
-        });
+        const routeId = urlQuery.get('route');
+        await zwiftMap.setCourse(+course || 6);
         if (elProfile) {
-            elProfile.setCourse(+course || 6).then(() => {
-                elProfile.setRoad(+road || 0);
+            await elProfile.setCourse(+course || 6);
+        }
+        if (center) {
+            zwiftMap.setCenter(center.split(',').map(Number));
+        }
+        if (routeId) {
+            const route = await zwiftMap.setActiveRoute(+routeId);
+            console.log({route});
+            for (const [i, xx] of route.checkpoints.entries()) {
+                console.log(i, xx.roadPercent.toFixed(8), xx.roadId, xx.reverse, xx.leadin, xx.forceSplit);
+            }
+            let start = 0;
+            let end = route.curvePath.nodes.length;
+            const point = zwiftMap.addPoint([0, 0], 'star');
+            let hi;
+            const drawRouteHighlight = () => {
+                if (hi) {
+                    hi.elements.forEach(x => x.remove());
+                }
+                const path = route.curvePath.slice(start, end);
+                point.setPosition(route.curvePath.nodes[start].end);
+                console.debug({start, end});
+                hi = zwiftMap.addHighlightPath(path, `route-${route.id}`, {width: 0.3, color: 'yellow'});
+            };
+            window.addEventListener('keydown', ev => {
+                if (ev.key === 'ArrowRight') {
+                    end = Math.min(route.curvePath.nodes.length, end + 1);
+                } else if (ev.key === 'ArrowLeft') {
+                    end = Math.max(start, end - 1);
+                } else if (ev.key === 'ArrowUp') {
+                    start = Math.min(end, start + 1);
+                } else if (ev.key === 'ArrowDown') {
+                    start = Math.max(0, start - 1);
+                } else {
+                    return;
+                }
+                ev.preventDefault();
+                drawRouteHighlight();
             });
+            drawRouteHighlight();
+        } else {
+            zwiftMap.setActiveRoad(+road || 0);
+        }
+        if (elProfile) {
+            if (routeId) {
+                await elProfile.setRoute(+routeId);
+            } else {
+                elProfile.setRoad(+road || 0);
+            }
         }
     } else {
+        await initialize();
         common.subscribe('watching-athlete-change', async athleteId => {
-            if (!initDone) {
-                initDone = await initSelfAthlete();
+            if (!inGame) {
+                await initialize();
+            } else {
+                setWatching(athleteId);
             }
-            setWatching(athleteId);
         });
         common.subscribe('athlete/watching', ad => {
             fieldRenderer.setData(ad);
             fieldRenderer.render();
         });
+        setInterval(() => {
+            inGame = performance.now() - watchdog < 10000;
+        }, 3333);
         common.subscribe('states', async states => {
-            if (!initDone) {
-                initDone = await initSelfAthlete({zwiftMap, elProfile});
+            if (!inGame) {
+                await initialize();
             }
+            watchdog = performance.now();
             zwiftMap.renderAthleteStates(states);
             if (elProfile) {
                 elProfile.renderAthleteStates(states);
             }
         });
-        initDone = await initSelfAthlete();
-        if (!initDone) {
-            console.info("User not active, starting demo mode...");
-            zwiftMap.setCourse(6);
-            if (elProfile) {
-                elProfile.setCourse(6);
-            }
-        }
     }
     common.settingsStore.addEventListener('changed', ev => {
         const changed = ev.data.changed;
@@ -226,11 +296,19 @@ export async function main() {
             zwiftMap.setSparkle(changed.get('sparkle'));
         } else if (changed.has('quality')) {
             zwiftMap.setQuality(qualityScale(changed.get('quality')));
+        } else if (changed.has('zoom')) {
+            zwiftMap.setZoom(changed.get('zoom'));
         } else if (changed.has('verticalOffset')) {
             zwiftMap.setVerticalOffset(changed.get('verticalOffset') / 100);
         } else if (changed.has('fpsLimit')) {
             zwiftMap.setFPSLimit(changed.get('fpsLimit'));
-        } else if (changed.has('profileOverlay') || changed.has('fields')) {
+        } else if (changed.has('profileHeight')) {
+            if (elProfile) {
+                elProfile.el.style.setProperty('--profile-height',
+                                               changed.get('profileHeight') + '%');
+                elProfile.chart.resize();
+            }
+        } else if (changed.has('profileOverlay') || changed.has('fields') || changed.has('routeProfile')) {
             location.reload();
         }
     });

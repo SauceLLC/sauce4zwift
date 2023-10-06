@@ -1,4 +1,4 @@
-const {notarize} = require('electron-notarize');
+const {notarize} = require('@electron/notarize');
 
 exports.default = async function notarizing(context) {
     const {electronPlatformName, appOutDir} = context;
@@ -8,7 +8,8 @@ exports.default = async function notarizing(context) {
     }
     const appName = context.packager.appInfo.productFilename;
     const appleId = process.env.APPLE_ID;
-    const appleIdPassword = process.env.APPLE_ID_PASSWORD
+    const appleIdPassword = process.env.APPLE_ID_PASSWORD;
+    const teamId = process.env.APPLE_TEAM_ID;
     if (!appleId || !appleIdPassword) {
         throw new Error("APPLE_ID env not set");
     }
@@ -17,5 +18,6 @@ exports.default = async function notarizing(context) {
         appPath: `${appOutDir}/${appName}.app`,
         appleId,
         appleIdPassword,
+        teamId,
     });
 };

@@ -14,19 +14,21 @@
             <tr class="summary {{event.started ? 'started' : ''}}"
                 data-event-id="{{event.id}}">
                 <td class="start">{{humanTime(event.eventStart)}}</td>
-                <td class="type">{{event.type.replace(/EVENT_TYPE_/, '').replace(/_/g, ' ')}}</td>
+                <td class="type">{{event.eventType.replace(/_/g, ' ')}}</td>
                 <td class="name">{{event.name}}</td>
                 <% if (event.durationInSeconds) { %>
                     <td>{-humanDuration(event.durationInSeconds, {suffix: true, html: true})-}</td>
                 <% } else { %>
                     <td>{-humanDistance(event.distanceInMeters || event.routeDistance, {suffix: true, html: true})-}</td>
                 <% } %>
-                <td class="groups">{-event.eventSubgroups.map(x => eventBadge(x.subgroupLabel)).join('')-}</td>
+                <td class="groups">
+                    <% if (event.eventSubgroups) { %>
+                        {-event.eventSubgroups.map(x => eventBadge(x.subgroupLabel)).join('')-}
+                    <% } %>
+                </td>
                 <td>{{event.totalEntrantCount}}</td>
             </tr>
-            <tr class="details">
-                <td colspan="6"><div class="container"></div></td>
-            </tr>
+            <tr class="details"><td colspan="7"></td></tr>
         <% } %>
     </tbody>
 </table>

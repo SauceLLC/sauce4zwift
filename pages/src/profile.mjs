@@ -1,8 +1,9 @@
 import * as common from './common.mjs';
 import {locale, template} from '../../shared/sauce/index.mjs';
 
-const q = new URLSearchParams(location.search);
+common.enableSentry();
 
+const q = new URLSearchParams(location.search);
 const H = locale.human;
 const ident = q.get('id') || q.get('athleteId') || 'self';
 let gettingAthlete;
@@ -35,7 +36,7 @@ export async function main() {
     const debug = location.search.includes('debug');
     const tplData = {
         debug,
-        athleteId: athlete && athlete.id,
+        athleteId: athlete?.id || ident,
         athlete,
         gameConnection: gcs && gcs.connected,
         nations,
@@ -142,7 +143,7 @@ export async function render(el, tpl, tplData) {
             .map(x => [x.dataset.id, x]));
         liveEls.world.textContent = world ? world.name : '-';
         liveEls.power.innerHTML = H.power(state.power, {suffix: true, html: true});
-        liveEls.speed.innerHTML = H.pace(state.speed, {suffix: true, html: true});
+        liveEls.speed.innerHTML = H.pace(state.speed, {suffix: true, html: true, sport: state.sport});
         liveEls.hr.textContent = H.number(state.heartrate);
         liveEls.rideons.textContent = H.number(state.rideons);
         liveEls.kj.textContent = H.number(state.kj);
@@ -151,8 +152,7 @@ export async function render(el, tpl, tplData) {
         }
     }
     async function getPlayerState() {
-        if (document.hidden) {
-            console.warn("hidden");
+        if (!common.isVisible()) {
             return;
         }
         console.debug("Using RPC get player state");

@@ -1,5 +1,7 @@
 import * as common from './common.mjs';
 
+common.enableSentry();
+
 let lastSeqno = 0;
 let curFilters = [];
 let filterSeq = 0;

@@ -96,8 +96,12 @@ function jsonCache(data) {
     // Use with caution.  The data arg must be deep frozen
     let json = _jsonWeakMap.get(data);
     if (!json) {
+        if (data === undefined) {
+            console.warn("Converting undefined to null: prevent this at the emitter source");
+            data = null;
+        }
         json = JSON.stringify(data);
-        if (typeof data === 'object') {
+        if (data != null && typeof data === 'object') {
             _jsonWeakMap.set(data, json);
         }
     }
@@ -297,7 +301,6 @@ async function _start({ip, port, rpcSources, statsProc}) {
                     }
                 }
             });
-            console.log(req.params, args);
             const replyEnvelope = await rpc.invoke.call(null, req.params.name, ...args);
             if (!replyEnvelope.success) {
                 res.status(400);
@@ -305,10 +308,7 @@ async function _start({ip, port, rpcSources, statsProc}) {
             res.send(replyEnvelope);
         } catch(e) {
             res.status(500);
-            res.json({
-                error: "internal error",
-                message: e.message,
-            });
+            res.send(rpc.errorReply(e));
         }
     });
     api.post('/rpc/v1/:name', async (req, res) => {
@@ -320,10 +320,7 @@ async function _start({ip, port, rpcSources, statsProc}) {
             res.send(replyEnvelope);
         } catch(e) {
             res.status(500);
-            res.json({
-                error: "internal error",
-                message: e.message,
-            });
+            res.send(rpc.errorReply(e));
         }
     });
     api.get('/rpc/v1', (req, res) =>

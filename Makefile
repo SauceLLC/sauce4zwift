@@ -1,7 +1,7 @@
 default: build
 
 PACKAGES := node_modules/.build
-BUILD := .build
+BUILD := build.json
 
 rwildcard=$(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) $(filter $(subst *,%,$2),$d))
 
@@ -27,11 +27,11 @@ ifndef WINBLOWS
 endif
 
 $(PACKAGES): package.json
-	npm install
+	npm install --loglevel verbose
 	echo "" > $@
 
 $(BUILD): $(PAGES_SRC) $(PACKAGES) sass deps Makefile .git/index
-	echo "" > $@
+	node tools/bin/buildenv $@
 
 build: $(BUILD)
 
@@ -75,7 +75,7 @@ else
 endif
 
 DATA_SRC_FILES = $(call rwildcard,node_modules/zwift-utils/dist,*.json)
-DATA_DST_FILES := $(patsubst node_modules/zwift-utils/dist/%,shared/deps/data/%,$(DATA_SRC_FILES))
+DATA_DST_FILES = $(patsubst node_modules/zwift-utils/dist/%,shared/deps/data/%,$(DATA_SRC_FILES))
 
 $(DATA_DST_FILES): $(DATA_SRC_FILES)
 ifndef WINBLOWS
@@ -96,8 +96,6 @@ endif
 	cp node_modules/echarts/dist/echarts.esm.min.js pages/deps/src/echarts.mjs
 	cp node_modules/world_countries_lists/data/flags/64x64/*.png pages/deps/flags/
 	cp node_modules/world_countries_lists/data/countries/_combined/world.json shared/deps/data/countries.json
-	cp node_modules/zwift-data/lib/esm/routes.js shared/deps/routes.mjs
-	cp node_modules/zwift-data/lib/esm/segments.js shared/deps/segments.mjs
 
 sass:
 	$(NPATH)/sass pages/scss:pages/css
@@ -124,11 +122,13 @@ ifndef WINBLOWS
 	rm -rf pages/deps/src/*
 	rm -rf pages/deps/flags
 	rm -rf shared/deps/*
+	rm -rf node_modules
 	rm -f $(BUILD)
 else
 	-rm -r -fo -ErrorAction SilentlyContinue pages/deps/src/*
 	-rm -r -fo -ErrorAction SilentlyContinue pages/deps/flags
 	-rm -r -fo -ErrorAction SilentlyContinue shared/deps/*
+	-rm -r -fo -ErrorAction SilentlyContinue node_modules
 	-rm -fo -ErrorAction SilentlyContinue $(BUILD)
 endif
 

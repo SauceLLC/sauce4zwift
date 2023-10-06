@@ -481,12 +481,14 @@ export class RollingAverage {
         return this._length - this._offt;
     }
 
-    values() {
-        return this._values.slice(this._offt, this._length);
+    values(offt=0, len) {
+        const l = len === undefined ? this._length : Math.min(this._length, this._offt + len);
+        return this._values.slice(this._offt + offt, l);
     }
 
-    times() {
-        return this._times.slice(this._offt, this._length);
+    times(offt=0, len) {
+        const l = len === undefined ? this._length : Math.min(this._length, this._offt + len);
+        return this._times.slice(this._offt + offt, l);
     }
 
     timeAt(i) {

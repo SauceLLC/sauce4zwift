@@ -1,7 +1,7 @@
 <% for (const x of obj) { %>
     <% const athlete = x.athlete || {}; %>
     <a class="card athlete {{athlete.marked ? 'marked' : ''}} {{athlete.following ? 'following' : ''}} {{athlete.follower ? 'follower' : ''}}"
-       href="profile.html?id={{x.id}}&width=800&height=320" target="profile">
+       href="profile.html?id={{x.id}}&windowType=profile" target="profile">
         <% if (x.athlete) { %>
             <div class="avatar">
                 <% if (athlete.avatar) { %>

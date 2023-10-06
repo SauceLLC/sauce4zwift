@@ -2,6 +2,8 @@ import * as sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
 import * as fields from './fields.mjs';
 
+common.enableSentry();
+
 const doc = document.documentElement;
 const L = sauce.locale;
 const H = L.human;
@@ -15,23 +17,6 @@ common.settingsStore.setDefault({
     autoHideWindows: false,
     centerGapSize: 0,
 });
-
-
-const _events = new Map();
-function getEventSubgroup(id) {
-    if (!_events.has(id)) {
-        _events.set(id, null);
-        common.rpc.getEventSubgroup(id).then(x => {
-            if (x) {
-                _events.set(id, x);
-            } else {
-                // leave it null but allow retry later
-                setTimeout(() => _events.delete(id), 30000);
-            }
-        });
-    }
-    return _events.get(id);
-}
 
 
 export function main() {
@@ -83,7 +68,11 @@ export function main() {
         }
     });
     if (window.isElectron) {
-        document.querySelector('.button.quit').addEventListener('click', () => common.rpc.quit());
+        document.querySelector('.button.quit').addEventListener('click', () => {
+            if (confirm("Quit Confirmation...")) {
+                common.rpc.quit();
+            }
+        });
     }
 
     function autoHide() {
@@ -115,9 +104,6 @@ export function main() {
             autoHideTimeout = setTimeout(autoHide, autoHideWait);
         }
         lastData = watching;
-        if (watching.state.eventSubgroupId) {
-            watching.eventSubgroup = getEventSubgroup(watching.state.eventSubgroupId);
-        }
         renderer.setData(watching);
         const ts = Date.now();
         if (ts - lastUpdate > 500) {
@@ -212,7 +198,7 @@ async function renderAvailableMods() {
                     <label class="enabled">
                         Enabled
                         <input type="checkbox" ${enabled ? 'checked' : ''}/>
-                        <span class="restart-required">Restart Required</span>
+                        <span class="restart-required"></span>
                     </label>
                 </div>
                 <div class="info">${common.stripHTML(manifest.description)}</div>
@@ -239,16 +225,15 @@ async function renderAvailableMods() {
         }
         const enabled = label.querySelector('input').checked;
         const id = ids[ev.target.closest('.mod[data-id]').dataset.id];
+        label.classList.add('edited');
         await common.rpc.setModEnabled(id, enabled);
-        label.querySelector('.restart-required').style.display = 'initial';
     });
 }
 
 
 async function renderWindows(wins) {
-    console.log(wins);
     const windows = (await common.rpc.getWidgetWindowSpecs()).filter(x => !x.private);
-    const manifests = await common.rpc.getWindowManifests();
+    const manifests = await common.rpc.getWidgetWindowManifests();
     const el = document.querySelector('#windows');
     const descs = Object.fromEntries(manifests.map(x => [x.type, x]));
     windows.sort((a, b) => !!a.closed - !!b.closed);
@@ -348,7 +333,7 @@ async function initWindowsPanel() {
         }
         const id = ev.target.closest('[data-id]').dataset.id;
         if (link.classList.contains('win-restore')) {
-            await common.rpc.openWindow(id);
+            await common.rpc.openWidgetWindow(id);
         } else if (link.classList.contains('profile-select')) {
             await common.rpc.activateProfile(id);
             await renderProfiles();
@@ -442,7 +427,7 @@ async function initWindowsPanel() {
         }
         const id = row.dataset.id;
         if (row.classList.contains('closed')) {
-            await common.rpc.openWindow(id);
+            await common.rpc.openWidgetWindow(id);
         } else {
             await common.rpc.highlightWindow(id);
         }
@@ -451,7 +436,7 @@ async function initWindowsPanel() {
         ev.preventDefault();
         const type = ev.currentTarget.closest('.add-new').querySelector('select').value;
         const id = await common.rpc.createWindow({type});
-        await common.rpc.openWindow(id);
+        await common.rpc.openWidgetWindow(id);
     });
     winsEl.addEventListener('click', async ev => {
         const btn = ev.target.closest('.button[data-action]');
@@ -551,7 +536,8 @@ export async function settingsMain() {
         }, {source: 'gameConnection'});
     }
     extraData.gpuEnabled = await common.rpc.getLoaderSetting('gpuEnabled');
-    document.querySelector('form').addEventListener('input', async ev => {
+    const forms = document.querySelectorAll('form');
+    forms.forEach(x => x.addEventListener('input', async ev => {
         const el = ev.target.closest('[data-store="loader"]');
         if (!el) {
             return;
@@ -563,7 +549,7 @@ export async function settingsMain() {
         } else {
             throw new TypeError("Unsupported");
         }
-    }, {capture: true});
+    }, {capture: true}));
     const loginInfo = await common.rpc.getZwiftLoginInfo();
     extraData.mainZwiftLogin = loginInfo && loginInfo.main && loginInfo.main.username;
     extraData.monitorZwiftLogin = loginInfo && loginInfo.monitor && loginInfo.monitor.username;

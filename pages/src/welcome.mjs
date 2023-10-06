@@ -1,5 +1,6 @@
 import * as common from './common.mjs';
 
+common.enableSentry();
 
 export async function main() {
     common.initInteractionListeners();

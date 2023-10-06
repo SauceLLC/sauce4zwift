@@ -3,10 +3,15 @@ import {sleep as _sleep} from '../../shared/sauce/base.mjs';
 import * as locale from '../../shared/sauce/locale.mjs';
 import * as report from '../../shared/report.mjs';
 import * as elements from './custom-elements.mjs';
-import './sentry.js';
+import * as curves from '/shared/curves.mjs';
 
 export const sleep = _sleep; // Come on ES6 modules, really!?
-
+export let idle;
+if (window.requestIdleCallback) {
+    idle = options => new Promise(resolve => requestIdleCallback(resolve, options));
+} else {
+    idle = () => new Promise(resolve => setTimeout(resolve, 1));
+}
 if (!Array.prototype.at) {
     // Old browsers like chromium 86 used by vmix.
     Array.prototype.at = function(idx) {
@@ -43,6 +48,28 @@ export const courseToNames = Object.fromEntries(worldCourseDescs.map(x => [x.cou
 export const worldToNames = Object.fromEntries(worldCourseDescs.map(x => [x.worldId, x.name]));
 // XXX DEPRECATED...
 export const identToWorldId = Object.fromEntries(worldCourseDescs.map(x => [x.ident, x.worldId]));
+
+export const attributions = {
+    tp: 'Training Stress Score®, TSS®, Normalized Power®, NP®, Intensity Factor® and IF® are ' +
+        'trademarks of TrainingPeaks, LLC and are used with permission.<br/><br/>\n\n' +
+        'Learn more at <a external target="_blank" href="https://www.trainingpeaks.com' +
+        '/learn/articles/glossary-of-trainingpeaks-metrics/' +
+        '?utm_source=newsletter&utm_medium=partner&utm_term=sauce_trademark' +
+        '&utm_content=cta&utm_campaign=sauce">https://www.trainingpeaks.com' +
+        '/learn/articles/glossary-of-trainingpeaks-metrics/</a>',
+    support: `
+        The Discord server is the best place to start.  There are a lot of lovely people there
+        that can help with just about everything.  Use the invite link below to introduce yourself.
+        <ul>
+            <li><a external target="_blank"
+                   href="https://discord.com/invite/3d8TwBHaX2">Discord Invite Link</a> <b>(BEST)</b></li>
+            <li><a external target="_blank"
+                   href="mailto:support@sauce.llc">Email: support@sauce.llc</a></li>
+            <li><a external target="_blank"
+                   href="https://github.com/SauceLLC/sauce4zwift/issues">GitHub Issues</a></li>
+        </ul>
+    `,
+};
 
 
 let rpcCall;
@@ -370,22 +397,6 @@ export function getWorldList() {
 }
 
 
-const _roads = new Map();
-export function getRoads(worldId) {
-    if (!_roads.has(worldId)) {
-        _roads.set(worldId, (async () => {
-            const r = await fetch(`/shared/deps/data/worlds/${worldId}/roads.json`);
-            if (!r.ok) {
-                console.error("Failed to get roads for:", worldId, r.status);
-                return [];
-            }
-            return await r.json();
-        })());
-    }
-    return _roads.get(worldId);
-}
-
-
 const _segments = new Map();
 export function getSegments(worldId) {
     if (!_segments.has(worldId)) {
@@ -399,6 +410,114 @@ export function getSegments(worldId) {
         })());
     }
     return _segments.get(worldId);
+}
+
+
+function zToAltitude(worldMeta, z, {physicsSlopeScale}={}) {
+    return worldMeta ? (z + worldMeta.waterPlaneLevel) / 100 *
+        (physicsSlopeScale || worldMeta.physicsSlopeScale) + worldMeta.altitudeOffsetHack : null;
+}
+
+
+function supplimentPath(worldMeta, curvePath, {physicsSlopeScale}={}) {
+    const balancedT = 1 / 125; // tests to within 0.27 meters (worst case)
+    const distEpsilon = 1e-6;
+    const elevations = [];
+    const grades = [];
+    const distances = [];
+    let prevIndex;
+    let distance = 0;
+    let prevDist = 0;
+    let prevEl = 0;
+    let prevNode;
+    curvePath.trace(x => {
+        distance += prevNode ? curves.vecDist(prevNode, x.stepNode) / 100 : 0;
+        if (x.index !== prevIndex) {
+            const elevation = worldMeta ?
+                zToAltitude(worldMeta, x.stepNode[2], {physicsSlopeScale}) :
+                x.stepNode[2] / 100 * (physicsSlopeScale || 1);
+            if (elevations.length) {
+                if (distance - prevDist > distEpsilon) {
+                    const grade = (elevation - prevEl) / (distance - prevDist);
+                    grades.push(grade);
+                } else {
+                    grades.push(grades.at(-1) || 0);
+                }
+            }
+            distances.push(distance);
+            elevations.push(elevation);
+            prevDist = distance;
+            prevEl = elevation;
+            prevIndex = x.index;
+        }
+        prevNode = x.stepNode;
+    }, balancedT);
+    grades.unshift(grades[0]);
+    return {
+        elevations,
+        grades,
+        distances,
+    };
+}
+
+
+const _roads = new Map();
+export function getRoads(courseId) {
+    if (!_roads.has(courseId)) {
+        _roads.set(courseId, rpcCall('getRoads', courseId).then(async roads => {
+            const worldList = await getWorldList();
+            const worldMeta = worldList.find(x => x.courseId === courseId);
+            for (const x of roads) {
+                const curveFunc = {
+                    CatmullRom: curves.catmullRomPath,
+                    Bezier: curves.cubicBezierPath,
+                }[x.splineType];
+                x.curvePath = curveFunc(x.path, {loop: x.looped, road: true});
+                const physicsSlopeScale = x.physicsSlopeScaleOverride;
+                Object.assign(x, supplimentPath(worldMeta, x.curvePath, {physicsSlopeScale}));
+            }
+            return roads;
+        }));
+    }
+    return _roads.get(courseId);
+}
+
+
+export async function getRoad(courseId, id) {
+    const roads = await getRoads(courseId);
+    return roads ? roads.find(x => x.id === id) : null;
+}
+
+
+const _routes = new Map();
+export function getRoute(id) {
+    if (!_routes.has(id)) {
+        _routes.set(id, rpcCall('getRoute', id).then(async route => {
+            if (route) {
+                route.curvePath = new curves.CurvePath();
+                route.roadSegments = [];
+                const worldList = await getWorldList();
+                const worldMeta = worldList.find(x => x.courseId === route.courseId);
+                for (const [i, x] of route.manifest.entries()) {
+                    const road = await getRoad(route.courseId, x.roadId);
+                    const seg = road.curvePath.subpathAtRoadPercents(x.start, x.end);
+                    seg.reverse = x.reverse;
+                    seg.leadin = x.leadin;
+                    seg.roadId = x.roadId;
+                    for (const xx of seg.nodes) {
+                        xx.index = i;
+                    }
+                    route.roadSegments.push(seg);
+                    route.curvePath.extend(x.reverse ? seg.toReversed() : seg);
+                }
+                // NOTE: No support for physicsSlopeScaleOverride of portal roads.
+                // But I've not seen portal roads used in a route either.
+                Object.assign(route, supplimentPath(worldMeta, route.curvePath));
+            }
+            return route;
+        }));
+    }
+    return _routes.get(id);
 }
 
 
@@ -505,6 +624,59 @@ export function initInteractionListeners() {
             }
         });
     }
+    let _attrDialog;
+    document.documentElement.addEventListener('click', ev => {
+        const attr = ev.target.closest('attr[for]');
+        if (!attr) {
+            return;
+        }
+        if (_attrDialog) {
+            _attrDialog.close();
+        } else {
+            const dialog = document.createElement('dialog');
+            dialog.classList.add('sauce-attr');
+            dialog.innerHTML = attributions[attr.getAttribute('for')];
+            const pos = attr.getBoundingClientRect(attr);
+            if (pos.left || pos.top) {
+                if (pos.left < innerWidth / 2) {
+                    dialog.style.setProperty('left', pos.left + 'px');
+                } else {
+                    dialog.style.setProperty('right', innerWidth - pos.right + 'px');
+                    dialog.style.setProperty('left', 'unset');
+                }
+                if (pos.top < innerHeight / 2) {
+                    dialog.style.setProperty('top', pos.bottom + 'px');
+                } else {
+                    dialog.style.setProperty('bottom', innerHeight - pos.top + 'px');
+                    dialog.style.setProperty('top', 'unset');
+                }
+                dialog.classList.add('anchored');
+            }
+            dialog.addEventListener('click', ev2 => {
+                if (ev2.target.closest('a')) {
+                    return;
+                }
+                dialog.close();
+            });
+            dialog.addEventListener('close', () => {
+                if (dialog === _attrDialog) {
+                    _attrDialog = null;
+                    dialog.remove();
+                }
+            });
+            _attrDialog = dialog;
+            document.body.append(dialog);
+            dialog.showModal();
+        }
+    });
+    document.documentElement.addEventListener('click', ev => {
+        const restart = ev.target.closest('.edited .restart-required:empty');
+        if (!restart) {
+            return;
+        }
+        ev.preventDefault();
+        rpcCall('restart');
+    });
 }
 
 
@@ -629,14 +801,14 @@ export class Renderer {
         }
         const field = this.fields.get(id);
         const nextField = field.available[this.getAdjacentFieldIndex(field, 1)];
-        const tooltip = field.tooltip ? field.tooltip + '\n\n' : '';
+        const tooltip = field.active?.tooltip ? field.active?.tooltip + '\n\n' : '';
         try {
             const name = stripHTML(
                 fGet(nextField.key, this._data) ||
                 fGet(nextField.label, this._data) ||
                 nextField.id);
-            field.el.title = `${tooltip}Click to change field to: ${name}. ` +
-                `Or use Left/Right keys when focused.`;
+            field.el.title = `${tooltip}Click to change this field to the next option: "${name}". ` +
+                `Or use the Left/Right keys when focused.`;
         } catch(e) {
             console.error("Failed to get tooltip name for next field:", id, nextField, e);
         }
@@ -1182,6 +1354,7 @@ export function badgeHue(name) {
 export const rpc = new Proxy({}, {
     get: (_, prop) => (...args) => rpcCall(prop, ...args)
 });
+self.rpc = rpc; // DEBUG
 
 
 export function themeInit(store) {
@@ -1232,7 +1405,7 @@ export function initExpanderTable(table, expandCallback, cleanupCallback) {
             const shouldCollapse = row.classList.contains('expanded');
             table.querySelectorAll(':scope > tbody > tr.expanded')
                 .forEach(x => x.classList.remove('expanded'));
-            const el = row.nextElementSibling.querySelector('.container');
+            const el = row.nextElementSibling.querySelector(':scope > td');
             el.innerHTML = '';
             if (!shouldCollapse) {
                 row.classList.add('expanded');
@@ -1313,18 +1486,163 @@ export function expWeightedAvg(size=2, seed=0) {
 }
 
 
-rpcCall('getVersion').then(v => Sentry.setTag('version', v));
-rpcCall('getSentryAnonId').then(id => Sentry.setUser({id}));
-rpcCall('isDEV').then(isDEV => {
-    if (!isDEV) {
-        report.setSentry(Sentry);
+export function isVisible() {
+    return document.visibilityState === 'visible';
+}
+
+
+/*
+ * cyrb53 (c) 2018 bryc (github.com/bryc)
+ * License: Public domain. Attribution appreciated.
+ * A fast and simple 53-bit string hash function with decent collision resistance.
+ * Largely inspired by MurmurHash2/3, but with a focus on speed/simplicity.
+ */
+export function cyrb53(str, seed=0) {
+    let h1 = 0xdeadbeef ^ seed;
+    let h2 = 0x41c6ce57 ^ seed;
+    for(let i = 0, ch; i < str.length; i++) {
+        ch = str.charCodeAt(i);
+        h1 = Math.imul(h1 ^ ch, 2654435761);
+        h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1  = Math.imul(h1 ^ (h1 >>> 16), 2246822507);
+    h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2  = Math.imul(h2 ^ (h2 >>> 16), 2246822507);
+    h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return 4294967296 * (2097151 & h2) + (h1 >>> 0);
+}
+export const hash = cyrb53;  // simple name is fine when we don't care about the impl
+
+
+export function binarySearchClosest(arr, value) {
+    let left = 0;
+    let right = arr.length - 1;
+    let c = 0;
+    while (left <= right) {
+        c = (left + right) * 0.5 | 0;
+        const v = arr[c];
+        if (v > value) {
+            right = c - 1;
+        } else if (v < value) {
+            left = c + 1;
+        } else if (v === value) {
+            return c;
+        } else {
+            return -1;
+        }
+    }
+    // tie breaker
+    if (right >= 0 && left < arr.length) {
+        const leftDelta = Math.abs(arr[left] - value);
+        const rightDelta = Math.abs(arr[right] - value);
+        if (leftDelta > rightDelta) {
+            return right;
+        } else {
+            return left;
+        }
+    }
+    return c;
+}
+
+
+const _athletesDataCache = new Map();
+export function getAthleteDataCacheEntry(id, {maxAge=60000}={}) {
+    const entry = _athletesDataCache.get(id);
+    const now = Date.now();
+    if (entry && now - entry.ts <= maxAge) {
+        return entry.data;
+    }
+}
+
+
+export async function getAthletesDataCached(ids, {maxAge=60000}={}) {
+    const now = Date.now();
+    let fetchResolve;
+    const postFetch = new Promise(resolve => fetchResolve = resolve);
+    const fetchIds = [];
+    for (const id of ids) {
+        const entry = _athletesDataCache.get(id);
+        if (!entry || now - entry.ts > maxAge) {
+            fetchIds.push(id);
+            if (entry) {
+                entry.ts = now;
+                entry.pending = postFetch;
+            } else {
+                _athletesDataCache.set(id, {ts: now, pending: postFetch});
+            }
+        }
+    }
+    if (fetchIds.length) {
+        try {
+            const data = await rpc.getAthletesData(fetchIds);
+            for (const [i, id] of fetchIds.entries()) {
+                const entry = _athletesDataCache.get(id);
+                entry.pending = null;
+                entry.data = data[i];
+            }
+        } finally {
+            fetchResolve(); // release concurrent calls after cache update
+        }
+    }
+    const results = [];
+    for (const id of ids) {
+        const entry = _athletesDataCache.get(id);
+        if (entry.pending) {
+            await entry.pending;
+            entry.pending = null; // exception during fetch, reset entry and try again next time
+        }
+        results.push(entry.data);
+    }
+    if (_athletesDataCache.size > 1000) {
+        setTimeout(() => {
+            for (const [id, entry] of _athletesDataCache.entries()) {
+                if (now - entry.ts > 300000) {
+                    _athletesDataCache.delete(id);
+                }
+            }
+        }, 1);
+    }
+    return results;
+}
+
+
+let _sentryEnabled;
+export async function enableSentry() {
+    if (location.pathname.startsWith('/mods/')) {
+        throw new Error("Please don't use sentry error logging in a mod");
+    }
+    if (_sentryEnabled) {
+        return;
+    }
+    _sentryEnabled = true;
+    const [version, id, dsn] = await Promise.all([
+        rpc.getVersion(),
+        rpc.getSentryAnonId(),
+        rpc.getSentryDSN(),
+        import('./sentry.js') // side-effect is self.Sentry
+    ]);
+    if (version && id && dsn) {
+        Sentry.setTag('version', version);
+        Sentry.setUser({id});
         Sentry.init({
-            dsn: "https://df855be3c7174dc89f374ef0efaa6a92@o1166536.ingest.sentry.io/6257001",
+            dsn,
             beforeSend: report.beforeSentrySend,
             integrations: arr => arr.filter(x => !['Breadcrumbs', 'TryCatch'].includes(x.name)),
         });
+        report.setSentry(Sentry);
     }
-});
+}
+
+
+export function asyncSerialize(asyncFunc) {
+    let p = Promise.resolve();
+    const fn = function() {
+        return (p = p.catch(() => null).then(() => asyncFunc.apply(this, arguments)));
+    };
+    Object.defineProperty(fn, 'name', {value: 'serialized ' + asyncFunc.name});
+    return fn;
+}
+
 
 if (window.CSS && CSS.registerProperty) {
     CSS.registerProperty({name: '--bg-opacity', syntax: '<number>', inherits: true, initialValue: 1});
@@ -1333,5 +1651,3 @@ if (window.CSS && CSS.registerProperty) {
 if (settingsStore) {
     themeInit(settingsStore);
 }
-
-window.rpc = rpc; // DEBUG
