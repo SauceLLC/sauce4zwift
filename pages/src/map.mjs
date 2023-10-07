@@ -228,7 +228,7 @@ export class MapEntity extends EventTarget {
             throw new TypeError('invalid position');
         }
         this._position = [x, y]; // Save non-rotate-hacked position.
-        if (this._map?.worldMeta.rotateRouteSelect) {
+        if (this._map?.rotateCoordinates) {
             [x, y] = [y, -x];
         }
         this.transition.setValues([x, y]);
@@ -264,6 +264,7 @@ export class SauceZwiftMap extends EventTarget {
         this.routeId = null;
         this.route = null;
         this.worldMeta = null;
+        this.rotateCoordinates = null;
         this.adjHeading = 0;
         this.style = style;
         this.quality = quality;
@@ -504,9 +505,7 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     setAutoHeading(en) {
-        if (!en) {
-            this.setHeading(0);
-        }
+        this.setHeading(en ? this._autoHeadingSaved || 0 : 0);
         this.autoHeading = en;
         if (!this.isPaused()) {
             this._updateGlobalTransform({render: true});
@@ -647,8 +646,10 @@ export class SauceZwiftMap extends EventTarget {
             this.portal = isPortal;
             this.worldMeta = this.worldList.find(x => x.courseId === courseId);
             if (isPortal) {
+                this.rotateCoordinates = false;
                 await this._applyPortal(portalRoad);
             } else {
+                this.rotateCoordinates = !!this.worldMeta.rotateRouteSelect;
                 await this._applyCourse();
             }
         } finally {
@@ -665,7 +666,7 @@ export class SauceZwiftMap extends EventTarget {
             m.minY + m.anchorY,
             m.maxX - m.minX,
             m.maxY - m.minY
-        ], !!m.rotateRouteSelect);
+        ]);
         const [roads] = await Promise.all([
             common.getRoads(this.courseId),
             this._updateMapBackground(),
@@ -683,13 +684,13 @@ export class SauceZwiftMap extends EventTarget {
             m.minY + m.anchorY + road.path[0][1],
             m.maxX - m.minX,
             m.maxY - m.minY
-        ], !!m.rotateRouteSelect);
+        ]);
         await this._updateMapBackground();
         this._renderRoads([road]);
         this.setActiveRoad(roadId);
     }
 
-    _resetElements(viewBox, rotate) {
+    _resetElements(viewBox) {
         Object.values(this._elements.roadLayers).forEach(x => x.replaceChildren());
         for (const ent of Array.from(this._ents.values()).filter(x => x.gc)) {
             this.removeEntity(ent);
@@ -697,7 +698,7 @@ export class SauceZwiftMap extends EventTarget {
         this._elements.roadDefs.replaceChildren();
         this._elements.pins.replaceChildren();
         this._elements.paths.setAttribute('viewBox', viewBox.join(' '));
-        this._elements.pathLayersGroup.classList.toggle('rotate-route-select', rotate);
+        this._elements.pathLayersGroup.classList.toggle('rotated-coordinates', !!this.rotateCoordinates);
         this.setHeading(0);
         this._pendingEntityUpdates.clear();
     }
@@ -729,7 +730,7 @@ export class SauceZwiftMap extends EventTarget {
 
     _rotateWorldPos(pos) {
         // Use sparingly;  If working with large groups of entities rotate the group instead.
-        return this.worldMeta.rotateRouteSelect ? [pos[1], -pos[0], pos[2]] : pos;
+        return this.rotateCoordinates ? [pos[1], -pos[0], pos[2]] : pos;
     }
 
     _createCurvePath(points, loop, type='CatmullRom') {
@@ -1058,6 +1059,7 @@ export class SauceZwiftMap extends EventTarget {
                 if (this.autoHeading) {
                     this.setHeading(state.heading);
                 }
+                this._autoHeadingSaved = state.heading;
                 this.setCenter([state.x, state.y]);
             }
             this._pendingEntityUpdates.add(ent);
@@ -1279,7 +1281,7 @@ export class SauceZwiftMap extends EventTarget {
         if (Math.abs(this._lastHeading - heading) > 180) {
             this._headingRotations += Math.sign(this._lastHeading - heading);
         }
-        const mapAdj = this.worldMeta ? (this.worldMeta.rotateRouteSelect ? 0 : -90) : 0;
+        const mapAdj = this.rotateCoordinates ? 0 : -90;
         this.adjHeading = heading + this._headingRotations * 360 + this._headingOfft + mapAdj;
         this._lastHeading = heading;
         return true;
