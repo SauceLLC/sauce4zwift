@@ -1466,7 +1466,7 @@ export class GameMonitor extends events.EventEmitter {
         if (!this._starting || this._stopping) {
             throw new TypeError('invalid state');
         }
-        console.info("Renewing to Zwift relay session...");
+        console.info("Renewing Zwift relay session...");
         try {
             await this._renewSession();
         } catch(e) {
