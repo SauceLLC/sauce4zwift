@@ -120,6 +120,14 @@ export const fields = [{
     value: x => new Date().toLocaleTimeString(),
     key: '',
 }, {
+    id: 'fullname',
+    value: x => x.athlete && x.athlete.sanitizedFullname || '-',
+    key: x => (x && x.athlete) ? '' : 'Athlete Name',
+}, {
+    id: 'flastname',
+    value: x => x.athlete && x.athlete.fLast || '-',
+    key: x => (x && x.athlete) ? '' : 'Athlete F.Last',
+}, {
     id: 'team',
     value: x => x.athlete && common.teamBadge(x.athlete.team) || '-',
     key: x => (x && x.athlete && x.athlete.team) ? '' : 'Team',
