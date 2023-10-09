@@ -25,9 +25,9 @@ export class SauceElevationProfile {
             tooltip: {
                 trigger: 'axis',
                 formatter: ([{value}]) => value ?
-                    `${H.distance(value[0], {suffix: true})}, ` +
-                    `${H.elevation(value[1], {suffix: true})}, ` +
-                    `${H.number(value[2] * 100, {suffix: '%'})}` : '',
+                    `Dist: ${H.distance(value[0], {suffix: true})}<br/>` +
+                    `<ms large>landscape</ms>${H.elevation(value[1], {suffix: true})} ` +
+                    `<small>(${H.number(value[2] * 100, {suffix: '%'})})</small>` : '',
                 axisPointer: {z: -1},
             },
             dataZoom: [{
@@ -205,7 +205,7 @@ export class SauceElevationProfile {
         this._roadSigs = new Set();
         this.curvePath = null;
         this.route = await common.getRoute(id);
-        console.warn('route', this.route);
+        console.log(this.route);
         for (const {roadId, reverse} of this.route.checkpoints) {
             this._roadSigs.add(`${roadId}-${!!reverse}`);
         }
@@ -294,7 +294,7 @@ export class SauceElevationProfile {
                         type: 'max',
                         label: {
                             formatter: x => H.elevation(x.value, {suffix: true}),
-                            position: this.reverse ? 'insideStartTop' : 'insideEndTop'
+                            position: options.reverse ? 'insideStartTop' : 'insideEndTop',
                         },
                     }, ...(options.markLines || [])]
                 },
@@ -393,6 +393,7 @@ export class SauceElevationProfile {
                     let roadSeg;
                     let nodeRoadOfft;
                     let deemphasize;
+                    const isWatching = state.athleteId === this.watchingId;
                     if (this.routeId != null) {
                         if (state.routeId === this.routeId) {
                             let distance;
@@ -416,14 +417,15 @@ export class SauceElevationProfile {
                                 for (const dir of [1, -1]) {
                                     const segIdx = nearRoadSegIdx + (offt * dir);
                                     const s = this.route.roadSegments[segIdx];
-                                    if (s && s.roadId === state.roadId && !!s.reverse === !!state.reverse) {
+                                    if (s && s.roadId === state.roadId && !!s.reverse === !!state.reverse &&
+                                        s.includesRoadTime(state.roadTime)) {
                                         roadSeg = s;
                                         // We found the road segment but need to find the exact node offset
                                         // to support multi-lap configurations...
                                         for (let i = nearIdx; i >= 0 && i < nodes.length; i += dir) {
                                             if (nodes[i].index === segIdx) {
                                                 // Rewind to first node of this segment.
-                                                while (i > 0 && nodes[i].index === segIdx) {
+                                                while (i > 0 && nodes[i - 1].index === segIdx) {
                                                     i--;
                                                 }
                                                 nodeRoadOfft = i;
@@ -432,9 +434,6 @@ export class SauceElevationProfile {
                                         }
                                         if (nodeRoadOfft == null) {
                                             debugger;
-                                        }
-                                        if (offt > 0) {
-                                            console.debug('Large route seek offset:', offt, state);
                                         }
                                         break roadSearch;
                                     }
@@ -459,14 +458,12 @@ export class SauceElevationProfile {
                     } else if (this.road && this.road.id === state.roadId) {
                         roadSeg = this.road.curvePath;
                         nodeRoadOfft = 0;
-                    } else {
-                        console.warn("why now?");
                     }
                     if (!roadSeg) {
                         return null;
                     }
                     const bounds = roadSeg.boundsAtRoadTime(state.roadTime);
-                    const nodeOfft = state.reverse ?
+                    const nodeOfft = roadSeg.reverse ?
                         roadSeg.nodes.length - 1 - (bounds.index + bounds.percent) :
                         bounds.index + bounds.percent;
                     const xIdx = nodeRoadOfft + nodeOfft;
@@ -491,11 +488,10 @@ export class SauceElevationProfile {
                         console.log('xCoord is NaN');
                         debugger;
                     }
-                    const isWatching = state.athleteId === this.watchingId;
                     if (isWatching) {
                         // XXX
-                        //console.log("got it", xCoord, xIdx, state.roadId, state.reverse, state.roadTime,
-                        //            {nodeRoadOfft, nodeOfft, reverse: state.reverse});
+                        console.log("got it", xCoord, xIdx, state.roadId, state.reverse, state.roadTime,
+                                    {nodeRoadOfft, nodeOfft, reverse: state.reverse});
                     }
                     return {
                         name: state.athleteId,
