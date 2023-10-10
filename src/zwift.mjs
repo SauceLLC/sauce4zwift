@@ -1925,7 +1925,7 @@ export class GameMonitor extends events.EventEmitter {
                 }
             }
             if (this._session) {
-                this.setUDPChannel();
+                this.renewSession();
             }
         }
     }
