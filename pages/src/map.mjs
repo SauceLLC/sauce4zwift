@@ -789,6 +789,7 @@ export class SauceZwiftMap extends EventTarget {
         this.route = null;
         if (this._routeHighlight) {
             this._routeHighlight.elements.forEach(x => x.remove());
+            this._routeHighlight = null;
         }
         const surface = this._elements.roadLayers.surfacesMid;
         let r = surface.querySelector('.road.active');
@@ -802,9 +803,14 @@ export class SauceZwiftMap extends EventTarget {
     setActiveRoute = common.asyncSerialize(async function(id, laps=1) {
         this.roadId = null;
         this.routeId = id;
+        const activeRoad = this._elements.roadLayers.surfacesMid.querySelector('.road.active');
+        if (activeRoad) {
+            activeRoad.remove();
+        }
         const route = await common.getRoute(id);
         if (this._routeHighlight) {
             this._routeHighlight.elements.forEach(x => x.remove());
+            this._routeHighlight = null;
         }
         if (route) {
             this._routeHighlight = this.addHighlightPath(route.curvePath, 'route-' + id, {layer: 'mid'});
