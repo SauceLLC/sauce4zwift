@@ -112,7 +112,7 @@ function createZwiftMap({worldList}) {
 function createElevationProfile({worldList}) {
     const el = document.querySelector('.elevation-profile');
     if (settings.profileHeight) {
-        el.style.setProperty('--profile-height', settings.profileHeight + '%');
+        el.style.setProperty('--profile-height', settings.profileHeight / 100);
     }
     const preferRoute = settings.routeProfile !== false;
     return new elevation.SauceElevationProfile({el, worldList, preferRoute});
@@ -304,8 +304,7 @@ export async function main() {
             zwiftMap.setFPSLimit(changed.get('fpsLimit'));
         } else if (changed.has('profileHeight')) {
             if (elProfile) {
-                elProfile.el.style.setProperty('--profile-height',
-                                               changed.get('profileHeight') + '%');
+                elProfile.el.style.setProperty('--profile-height', changed.get('profileHeight') / 100);
                 elProfile.chart.resize();
             }
         } else if (changed.has('profileOverlay') || changed.has('fields') || changed.has('routeProfile')) {
