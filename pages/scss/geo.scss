@@ -131,6 +131,8 @@ html {
         transform: translateZ(0);  // Fix rendering glitch that makes profile invisible
         --profile-height: 20%;
         height: var(--profile-height);
+        width: 100%;
+        overflow: hidden;  // echarts rounds up sometimes and makes a scrollbar
 
         svg > g {
             pointer-events: all;
