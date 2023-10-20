@@ -11,10 +11,11 @@ const H = locale.human;
 
 
 export class SauceElevationProfile {
-    constructor({el, worldList, preferRoute, refresh=1000}) {
+    constructor({el, worldList, preferRoute, showMaxLine, refresh=1000}) {
         this.el = el;
         this.worldList = worldList;
         this.preferRoute = preferRoute;
+        this.showMaxLine = showMaxLine;
         this.refresh = refresh;
         this._lastRender = 0;
         this._refreshTimeout = null;
@@ -205,7 +206,6 @@ export class SauceElevationProfile {
         this._roadSigs = new Set();
         this.curvePath = null;
         this.route = await common.getRoute(id);
-        console.log(this.route);
         for (const {roadId, reverse} of this.route.checkpoints) {
             this._roadSigs.add(`${roadId}-${!!reverse}`);
         }
@@ -263,6 +263,19 @@ export class SauceElevationProfile {
         // Echarts bug requires floor/ceil to avoid missing markLines
         this._yAxisMin = Math.floor(this._yMin > 0 ? Math.max(0, this._yMin - 20) : this._yMin) - 10;
         this._yAxisMax = Math.ceil(Math.max(this._yMax, this._yMin + 200));
+        const markLineData = [];
+        if (this.showMaxLine) {
+            markLineData.push({
+                type: 'max',
+                label: {
+                    formatter: x => H.elevation(x.value, {suffix: true}),
+                    position: options.reverse ? 'insideStartTop' : 'insideEndTop',
+                },
+            });
+        }
+        if (options.markLines) {
+            markLineData.push(...options.markLines);
+        }
         this.chart.setOption({
             xAxis: {inverse: options.reverse},
             yAxis: {
@@ -289,18 +302,8 @@ export class SauceElevationProfile {
                         }),
                     },
                 },
-                markLine: {
-                    data: [{
-                        type: 'max',
-                        label: {
-                            formatter: x => H.elevation(x.value, {suffix: true}),
-                            position: options.reverse ? 'insideStartTop' : 'insideEndTop',
-                        },
-                    }, ...(options.markLines || [])]
-                },
-                markAreas: {
-                    data: options.markAreas
-                },
+                markLine: {data: markLineData},
+                markAreas: {data: options.markAreas},
                 data: distances.map((x, i) => [x, elevations[i], grades[i] * (options.reverse ? -1 : 1)]),
             }]
         });
@@ -488,11 +491,11 @@ export class SauceElevationProfile {
                         console.log('xCoord is NaN');
                         debugger;
                     }
-                    if (isWatching) {
+                    //if (isWatching) {
                         // XXX
-                        console.log("got it", xCoord, xIdx, state.roadId, state.reverse, state.roadTime,
-                                    {nodeRoadOfft, nodeOfft, reverse: state.reverse});
-                    }
+                        //console.log("got it", xCoord, xIdx, state.roadId, state.reverse, state.roadTime,
+                        //            {nodeRoadOfft, nodeOfft, reverse: state.reverse});
+                    //}
                     return {
                         name: state.athleteId,
                         coord: [xCoord, yCoord],

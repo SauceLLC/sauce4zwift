@@ -31,6 +31,7 @@ common.settingsStore.setDefault({
     // v1.0.0
     profileHeight: 20,
     routeProfile: true,
+    showElevationMaxLine: true,
 });
 
 const settings = common.settingsStore.get();
@@ -115,7 +116,8 @@ function createElevationProfile({worldList}) {
         el.style.setProperty('--profile-height', settings.profileHeight / 100);
     }
     const preferRoute = settings.routeProfile !== false;
-    return new elevation.SauceElevationProfile({el, worldList, preferRoute});
+    const showMaxLine = settings.showElevationMaxLine !== false;
+    return new elevation.SauceElevationProfile({el, worldList, preferRoute, showMaxLine});
 }
 
 
@@ -307,7 +309,8 @@ export async function main() {
                 elProfile.el.style.setProperty('--profile-height', changed.get('profileHeight') / 100);
                 elProfile.chart.resize();
             }
-        } else if (changed.has('profileOverlay') || changed.has('fields') || changed.has('routeProfile')) {
+        } else if (changed.has('profileOverlay') || changed.has('fields') ||
+            changed.has('routeProfile') || changed.has('showElevationMaxLine')) {
             location.reload();
         }
     });
