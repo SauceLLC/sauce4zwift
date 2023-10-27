@@ -594,8 +594,9 @@ export class SauceZwiftMap extends EventTarget {
                     console.warn('image load error:', ev);
                     reject(new Error('Image load error'));
                 });
+                const version = this.worldMeta.mapVersion ? `-v${this.worldMeta.mapVersion}` : '';
                 img.src = `https://www.sauce.llc/products/sauce4zwift/maps/world` +
-                    `${this.worldMeta.worldId}${suffix || ''}.webp`;
+                    `${this.worldMeta.worldId}${version}${suffix || ''}.webp`;
             });
         } catch(e) {
             console.warn("Image decode interrupted/failed", e);

@@ -1347,7 +1347,6 @@ export class StatsProcessor extends events.EventEmitter {
             } else {
                 slopeScale = worldMeta.physicsSlopeScale;
             }
-            console.warn(slopeScale);
             state.altitude = (state.z + worldMeta.waterPlaneLevel) / 100 * slopeScale +
                 worldMeta.altitudeOffsetHack;
         }
