@@ -43,6 +43,24 @@ async function deleteDB(db) {
 }
 
 
+function updateRoadDistance(courseId, roadId) {
+    let distance;
+    const road = env.getRoad(courseId, roadId);
+    if (road) {
+        const curveFunc = {
+            CatmullRom: curves.catmullRomPath,
+            Bezier: curves.cubicBezierPath,
+        }[road.splineType];
+        const curvePath = curveFunc(road.path, {loop: road.looped, road: true});
+        distance = curvePath.distance() / 100;
+    } else {
+        distance = null;
+    }
+    roadDistances.set(env.getRoadSig(courseId, roadId, /*reverse*/ false), distance);
+    roadDistances.set(env.getRoadSig(courseId, roadId, /*reverse*/ true), distance);
+}
+
+
 function splitNameAndTeam(name) {
     if (!name || !name.match) {
         return [name];
@@ -1315,6 +1333,24 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     processState(state) {
+        const worldMeta = env.worldMetas[state.courseId];
+        if (worldMeta) {
+            state.latlng = worldMeta.flippedHack ?
+                [(state.x / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
+                    (state.y / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset] :
+                [-(state.y / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
+                    (state.x / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset];
+            let slopeScale;
+            if (state.portal) {
+                const road = env.getRoad(state.courseId, state.roadId);
+                slopeScale = road?.physicsSlopeScaleOverride;
+            } else {
+                slopeScale = worldMeta.physicsSlopeScale;
+            }
+            console.warn(slopeScale);
+            state.altitude = (state.z + worldMeta.waterPlaneLevel) / 100 * slopeScale +
+                worldMeta.altitudeOffsetHack;
+        }
         if (!this._athleteData.has(state.athleteId)) {
             this._athleteData.set(state.athleteId, this._createAthleteData(state));
         }
@@ -1388,17 +1424,7 @@ export class StatsProcessor extends events.EventEmitter {
             this._autoLapCheck(state, ad);
         }
         if (!roadDistances.has(roadSig)) {
-            const road = env.getRoad(state.courseId, state.roadId);
-            if (road) {
-                const curveFunc = {
-                    CatmullRom: curves.catmullRomPath,
-                    Bezier: curves.cubicBezierPath,
-                }[road.splineType];
-                const curvePath = curveFunc(road.path, {loop: road.looped, road: true});
-                roadDistances.set(roadSig, road ? curvePath.distance() / 100 : 0);
-            } else {
-                roadDistances.set(roadSig, null);
-            }
+            updateRoadDistance(state.courseId, state.roadId);
         }
         this._activeSegmentCheck(state, ad, roadSig);
         this._recordAthleteRoadHistory(state, ad, roadSig);
