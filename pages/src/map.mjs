@@ -268,7 +268,7 @@ export class SauceZwiftMap extends EventTarget {
         this.adjHeading = 0;
         this.style = style;
         this.quality = quality;
-        this._canvasScale = this._qualityToCanvasScale(quality);
+        this._canvasScale = null;
         this._headingRotations = 0;
         this._lastHeading = 0;
         this._headingOfft = 0;
@@ -390,8 +390,20 @@ export class SauceZwiftMap extends EventTarget {
         this.el.classList.toggle('sparkle', !!en);
     }
 
-    _qualityToCanvasScale(q) {
-        return q < 0.5 ? 0.25 : q < 0.85 ? 0.5 : 1;
+    _qualityToCanvasScale(quality) {
+        const cd = this._elements.mapCanvas.dataset;
+        const pixels = Number(cd.naturalWidth) * Number(cd.naturalHeight);
+        if (!pixels) {
+            console.warn("Using naive canvas scale method");
+            return quality < 0.5 ? 0.25 : quality < 0.85 ? 0.5 : 1;
+        }
+        const pixelMegabyte = 1024 * 1024 / 4; // RGBA 8 bits per channel, 4 channels
+        const lowBudget = 4 * pixelMegabyte; // ~1024^2
+        const highBudget = 192 * pixelMegabyte; // ~7094^2
+        const ratio = Math.sqrt(((highBudget - lowBudget) * quality + lowBudget) / pixels);
+        const q = 15;
+        const quantizedRatio = Math.round(ratio * q) / q;
+        return Math.min(1, quantizedRatio);
     }
 
     async setQuality(q) {
@@ -577,7 +589,6 @@ export class SauceZwiftMap extends EventTarget {
 
     _updateMapBackground = common.asyncSerialize(async function() {
         const m = this.worldMeta;
-        this._mapScale = 1 / (m.tileScale / m.mapScale / this._canvasScale);
         const canvas = this._elements.mapCanvas;
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -602,9 +613,13 @@ export class SauceZwiftMap extends EventTarget {
             console.warn("Image decode interrupted/failed", e);
             return;
         }
+        canvas.dataset.naturalWidth = img.naturalWidth;
+        canvas.dataset.naturalHeight = img.naturalHeight;
+        this._canvasScale = this._qualityToCanvasScale(this.quality);
         canvas.width = img.naturalWidth * this._canvasScale;
         canvas.height = img.naturalHeight * this._canvasScale;
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        this._mapScale = 1 / (m.tileScale / m.mapScale / this._canvasScale);
         this._adjustLayerScale({force: true});
     });
 
