@@ -439,6 +439,9 @@ const fieldGroups = [{
          get: x => x.eventLeader, fmt: x => x ? '<ms style="color: gold">star</ms>' : ''},
         {id: 'event-sweeper', defaultEn: false, label: 'Event Sweeper', headerLabel: '<ms>mop</ms>',
          get: x => x.eventSweeper, fmt: x => x ? '<ms style="color: darkred">mop</ms>' : ''},
+        {id: 'route-progress', defaultEn: false, label: 'Route Progress', get: x => x.state.routeProgress},
+        {id: 'route-road-index', defaultEn: false, label: 'Route Road Index',
+         get: x => x.state.routeRoadIndex},
     ],
 }];
 

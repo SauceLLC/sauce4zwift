@@ -438,18 +438,13 @@ export class SauceElevationProfile {
                                                 break;
                                             }
                                         }
-                                        if (nodeRoadOfft == null) {
-                                            debugger;
-                                        }
                                         break roadSearch;
                                     }
                                 }
                             }
-                            if (!roadSeg) {
-                                return null;
-                            }
-                        } else {
-                            // Not on our route but is nearby..
+                        }
+                        if (!roadSeg) {
+                            // Not on our route but might be nearby..
                             const i = this.route.roadSegments.findIndex(x =>
                                 x.roadId === state.roadId &&
                                 !!x.reverse === !!state.reverse &&
@@ -475,7 +470,6 @@ export class SauceElevationProfile {
                     const xIdx = nodeRoadOfft + nodeOfft;
                     if (xIdx < 0 || xIdx > this._distances.length - 1) {
                         console.error("route index offset bad!", {xIdx});
-                        debugger;
                         return null;
                     }
                     let xCoord;
@@ -491,14 +485,13 @@ export class SauceElevationProfile {
                         yCoord = this._elevations[xIdx];
                     }
                     if (isNaN(xCoord) || xCoord == null) {
-                        console.log('xCoord is NaN');
-                        debugger;
+                        console.error('xCoord is NaN');
                     }
-                    //if (isWatching) {
+                    /*if (isWatching) {
                         // XXX
-                        //console.log("got it", xCoord, xIdx, state.roadId, state.reverse, state.roadTime,
-                        //            {nodeRoadOfft, nodeOfft, reverse: state.reverse});
-                    //}
+                        console.log("got it", xCoord, xIdx, state.roadId, state.reverse, state.roadTime,
+                                    {nodeRoadOfft, nodeOfft, reverse: state.reverse});
+                    }*/
                     return {
                         name: state.athleteId,
                         coord: [xCoord, yCoord],

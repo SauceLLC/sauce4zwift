@@ -242,8 +242,10 @@ export function processPlayerStateMessage(msg) {
     const wt = msg.worldTime.toNumber();
     const latency = worldTimer.now() - wt;
     const adjRoadLoc = msg.roadTime - 5000;  // It's 5,000 -> 1,005,000
-    // Route id is actually wrong when in a portal and causes problems.
-    const routeId = msg.portal ? undefined : msg.routeId;
+    const progress = (msg._progress >> 8 & 0xff) / 0xff;
+    // Route ID can be stale in a few situations.  This may change but so far it looks like when
+    // progress hits 100% and routeProgess rollsover to 0 the route is no longer correct.
+    const routeId = msg.portal || (progress === 1 && msg.routeProgress === 0) ? undefined : msg.routeId;
     return {
         ...msg,
         ...flags1,
@@ -251,7 +253,7 @@ export function processPlayerStateMessage(msg) {
         worldTime: wt,
         latency,
         routeId,
-        progress: (msg._progress >> 8 & 0xff) / 0xff,
+        progress,
         workoutZone: (msg._progress & 0xF) || null,
         kj: msg._mwHours / 1000 / (1000 / 3600),
         heading: (((msg._heading + halfCircle) / (2 * halfCircle)) * 360) % 360,  // degrees

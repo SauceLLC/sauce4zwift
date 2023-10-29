@@ -852,7 +852,8 @@ function setSelection(startIndex, endIndex, scrollTo) {
 async function onSegmentExpand(targetEl, srcEl) {
     const idx = Number(srcEl.dataset.segmentIndex);
     const segment = state.segments[idx];
-    //const results = await common.rpc.getSegmentResults(segment.segmentId, {athleteId: athleteData.athleteId});
+    //const results = await common.rpc.getSegmentResults(segment.segmentId,
+    //    {athleteId: athleteData.athleteId});
     const results = await common.rpc.getSegmentResults(segment.segmentId);
     //const results2 = await common.rpc.getSegmentResults(segment.segmentId, {live: true});
     console.warn({results});
