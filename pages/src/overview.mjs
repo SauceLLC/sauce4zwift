@@ -439,7 +439,7 @@ async function initWindowsPanel() {
     winsEl.querySelector('.add-new input[type="button"]').addEventListener('click', async ev => {
         ev.preventDefault();
         const type = ev.currentTarget.closest('.add-new').querySelector('select').value;
-        const id = await common.rpc.createWidgetWindow({type});
+        const {id} = await common.rpc.createWidgetWindow({type});
         await common.rpc.openWidgetWindow(id);
     });
     winsEl.addEventListener('click', async ev => {
