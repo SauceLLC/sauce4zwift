@@ -69,7 +69,7 @@ export function main() {
     });
     if (window.isElectron) {
         document.querySelector('.button.quit').addEventListener('click', () => {
-            if (confirm("Quit Confirmation...")) {
+            if (confirm("Quit Sauce?")) {
                 common.rpc.quit();
             }
         });
@@ -339,12 +339,16 @@ async function initWindowsPanel() {
             await renderProfiles();
             await renderWindows();
         } else if (link.classList.contains('win-delete')) {
-            await common.rpc.removeWindow(id);
+            if (confirm('Delete this window and its settings?')) {
+                await common.rpc.removeWidgetWindow(id);
+            }
         } else if (link.classList.contains('profile-delete')) {
-            await common.rpc.removeProfile(id).catch(e => alert(`Remove Error\n\n${e.message}`));
-            await renderProfiles();
+            if (confirm('Delete this profile and all its windows?')) {
+                await common.rpc.removeProfile(id).catch(e => alert(`Remove Error...\n\n${e.message}`));
+                await renderProfiles();
+            }
         } else if (link.classList.contains('profile-clone')) {
-            await common.rpc.cloneProfile(id).catch(e => alert(`Clone Error\n\n${e.message}`));
+            await common.rpc.cloneProfile(id).catch(e => alert(`Clone Error...\n\n${e.message}`));
             await renderProfiles();
         } else if (link.classList.contains('profile-export')) {
             const data = await common.rpc.exportProfile(id);
@@ -376,7 +380,7 @@ async function initWindowsPanel() {
                 }
                 actionTaken = true;
                 const customName = common.sanitize(input.value);
-                await common.rpc.updateWindow(id, {customName});
+                await common.rpc.updateWidgetWindowSpec(id, {customName});
                 await renderWindows();
                 if (customName.match(/frank/i)) {
                     frank();
@@ -435,7 +439,7 @@ async function initWindowsPanel() {
     winsEl.querySelector('.add-new input[type="button"]').addEventListener('click', async ev => {
         ev.preventDefault();
         const type = ev.currentTarget.closest('.add-new').querySelector('select').value;
-        const id = await common.rpc.createWindow({type});
+        const id = await common.rpc.createWidgetWindow({type});
         await common.rpc.openWidgetWindow(id);
     });
     winsEl.addEventListener('click', async ev => {
