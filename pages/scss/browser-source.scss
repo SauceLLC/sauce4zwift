@@ -1,0 +1,15 @@
+@use 'color';
+
+#content {
+    align-items: center;
+    justify-content: center;
+
+    > webview {
+        width: 90%;
+        height: 90%;
+    }
+}
+
+//html.settings-mode #content header {
+//    app-region: initial !important;
+//}
