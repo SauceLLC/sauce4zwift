@@ -1,9 +1,9 @@
 {
-    "short_name": "Watching",
-    "name": "Sauce for Zwift™ - Watching",
+    "short_name": "Grid",
+    "name": "Sauce for Zwift™ - Grid",
     "background_color": "black",
     "theme_color": "black",
-    "description": "Sauce for Zwift - Watching Window",
+    "description": "Sauce for Zwift - Grid Window",
     "start_url": "/pages/watching.html",
     "display": "standalone",
     "orientation": "any",

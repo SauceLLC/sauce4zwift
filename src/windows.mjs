@@ -74,8 +74,8 @@ export const widgetWindowManifests = [{
 }, {
     type: 'watching',
     file: '/pages/watching.html',
-    prettyName: 'Currently Watching',
-    prettyDesc: 'Replacement window for stats of the athlete being watched',
+    prettyName: 'Grid (Currently Watching)',
+    prettyDesc: 'Grid window for stats of the athlete being watched',
     options: {width: 0.18, aspectRatio: 1},
 }, {
     type: 'groups',
@@ -122,6 +122,13 @@ export const widgetWindowManifests = [{
     prettyName: 'Game Control',
     prettyDesc: 'Control game actions like view, shouting, HUD toggle, etc',
     options: {width: 300, aspectRatio: 1.65},
+}, {
+    type: 'browser-source',
+    file: '/pages/browser-source.html',
+    prettyName: 'Browser Source',
+    prettyDesc: 'Open a browser window to any custom site',
+    webPreferences: {webviewTag: true},
+    emulateNormalUserAgent: true,
 }, {
     type: 'power-gauge',
     groupTitle: 'Gauges',
@@ -227,6 +234,32 @@ export function loadSession(name, options={}) {
     s.protocol.interceptFileProtocol('file', onInterceptFileProtocol);
     sessions.set(name, s);
     return s;
+}
+
+
+function emulateNormalUserAgent(win) {
+    const wr = win.webContents.session.webRequest;
+    if (!wr._emNormUserAgentWebContents) {
+        const ua = win.webContents.session.getUserAgent()
+            .replace(/ SauceforZwift.*? /, ' ')
+            .replace(/ Electron\/.*? /, ' ');
+        wr._emNormUserAgentWebContents = new WeakSet();
+        wr.onBeforeSendHeaders((x, cb) => {
+            if (wr._emNormUserAgentWebContents.has(x.webContents)) {
+                console.warn('replce ua', x);
+                x.requestHeaders['User-Agent'] = ua;
+            }
+            cb(x);
+        });
+    }
+    wr._emNormUserAgentWebContents.add(win.webContents);
+    win.webContents.on('did-create-window', subWin => {
+        wr._emNormUserAgentWebContents.add(subWin.webContents);
+    });
+    win.webContents.on('did-attach-webview', (ev, webContents) => {
+        console.warn(webContents.session, win.webContents.session);
+        wr._emNormUserAgentWebContents.add(webContents);
+    });
 }
 
 
@@ -900,6 +933,10 @@ function handleNewSubWindow(parent, spec, webPrefs) {
                 ...webPrefs,
             }
         });
+        newWin.webContents.on('will-attach-webview', (ev, webPreferences) => {
+            console.warn("check this subein webview out...", ev, webPreferences, newWin);
+            webPreferences.session = newWin.webContents.session;
+        });
         if (windowId) {
             let _to;
             newWin.on('resize', () => {
@@ -1035,6 +1072,12 @@ function _openWidgetWindow(spec) {
         },
         ...options,
     });
+    win.webContents.on('will-attach-webview', (ev, webPreferences) => {
+        webPreferences.session = activeProfileSession;
+    });
+    if (spec.emulateNormalUserAgent) {
+        emulateNormalUserAgent(win);
+    }
     win.setMenuBarVisibility(false);
     try {
         win.setBounds(bounds); // https://github.com/electron/electron/issues/10862
@@ -1307,9 +1350,8 @@ export async function patronLink() {
         preload: path.join(appPath, 'src/preload/patron-link.js'),
         session: loadSession('patreon'),
     });
-    // Prevent Patreon's datedome.co bot service from blocking us.
-    const ua = win.webContents.userAgent;
-    win.webContents.userAgent = ua.replace(/ SauceforZwift.*? /, ' ').replace(/ Electron\/.*? /, ' ');
+    // Prevent Patreon's datedome.co bot service from blocking us and fix federated logins..
+    emulateNormalUserAgent(win);
     let resolve;
     win.webContents.ipc.on('patreon-reset-session', () => {
         win.webContents.session.clearStorageData();
