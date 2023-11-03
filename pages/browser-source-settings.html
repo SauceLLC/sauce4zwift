@@ -39,6 +39,20 @@
                     <key>Theme override:</key>
                     <select is="sauce-theme" override></select>
                 </label>
+                <label>
+                    <key>Transparency:</key>
+                    <input type="range" name="transparency" min="0" max="100" value="0" step="1"/>
+                    <input type="number" name="transparency" value="0" style="--size: 5"/>%
+                </label>
+                <label>
+                    <key>Solid background:</key>
+                    <input type="checkbox" name="solidBackground"/>
+                </label>
+                <label>
+                    <key>Background color:</key>
+                    <input type="color" name="backgroundColor" data-depends-on="solidBackground"/>
+                    <input type="text" name="backgroundColor" data-depends-on="solidBackground" size="7"/>
+                </label>
             </form>
         </div>
     </body>

@@ -10,7 +10,6 @@
 
         <script src="./src/preloads.js"></script>
 
-        <link rel="manifest" href="browser-source-manifest.json"/>
         <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
         <link rel="stylesheet" href="css/common.css"/>
         <link rel="stylesheet" href="css/browser-source.css"/>
@@ -20,11 +19,19 @@
             main();
         </script>
     </head>
-    <body class="">
+    <body class="transparent-bg">
         <div id="titlebar">
             <header>
                 <div class="logo"><img src="images/icon128.png"/></div>
                 <div class="title">Browser Source</div>
+                <div class="buttons">
+                    <div title="Back" class="button back disabled"><ms>arrow_back</ms></div>
+                    <div title="Forward" class="button forward disabled"><ms>arrow_forward</ms></div>
+                    <div title="Reload page" class="button reload"><ms>refresh</ms></div>
+                    <div title="Home" class="button home"><ms>home</ms></div>
+                    <div title="Open Dev Tools" class="button debug"><ms>developer_mode</ms></div>
+                </div>
+                <div class="url-holder"><input type="text" name="url"/><div class="button pin-url pinned"><ms>star</ms></div></div>
                 <div class="filler"></div>
                 <div class="buttons">
                     <a class="button open-settings" href="browser-source-settings.html?width=400&height=400&child-window"

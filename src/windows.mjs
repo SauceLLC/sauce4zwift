@@ -246,7 +246,6 @@ function emulateNormalUserAgent(win) {
         wr._emNormUserAgentWebContents = new WeakSet();
         wr.onBeforeSendHeaders((x, cb) => {
             if (wr._emNormUserAgentWebContents.has(x.webContents)) {
-                console.warn('replce ua', x);
                 x.requestHeaders['User-Agent'] = ua;
             }
             cb(x);
@@ -257,7 +256,6 @@ function emulateNormalUserAgent(win) {
         wr._emNormUserAgentWebContents.add(subWin.webContents);
     });
     win.webContents.on('did-attach-webview', (ev, webContents) => {
-        console.warn(webContents.session, win.webContents.session);
         wr._emNormUserAgentWebContents.add(webContents);
     });
 }
@@ -934,7 +932,6 @@ function handleNewSubWindow(parent, spec, webPrefs) {
             }
         });
         newWin.webContents.on('will-attach-webview', (ev, webPreferences) => {
-            console.warn("check this subein webview out...", ev, webPreferences, newWin);
             webPreferences.session = newWin.webContents.session;
         });
         if (windowId) {
