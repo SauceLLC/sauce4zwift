@@ -35,8 +35,8 @@ html {box-sizing: border-box;}
 
 :focus-visible {
     outline-style: solid;
-    outline-width: 2.5px;
-    outline-offset: 2px;
+    outline-width: 2px;
+    outline-offset: 1px;
     outline-color: color.shade(primary, 10%, 0.92);
 }
 
@@ -529,7 +529,8 @@ form {
 }
 
 #titlebar {
-    $header-height: 13mm;
+    --header-height: 13mm;
+    --extra-height: 0mm;
     flex: 0 0 auto;
     display: flex;
     flex-direction: column;
@@ -539,7 +540,7 @@ form {
     width: 100%;
     color: white;
     overflow: hidden;
-    max-height: calc($header-height + 3.5rem); // Roughly fixed header plus optional button bar
+    max-height: calc(var(--header-height) + var(--extra-height));
     transition: max-height 300ms, padding 300ms;
     box-shadow: 0 1px 5px #0009;
 
@@ -576,7 +577,7 @@ form {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        height: $header-height;
+        height: var(--header-height);
         background-image: linear-gradient(to top, color.shade(bookend, 0%), color.shade(bookend, 12%));
         color: color.shade(bookend, 100%);
         padding-right: 0.3em;
