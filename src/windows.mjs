@@ -238,11 +238,12 @@ export function loadSession(name, options={}) {
 
 
 function emulateNormalUserAgent(win) {
+    const ua = win.webContents.session.getUserAgent()
+        .replace(/ SauceforZwift.*? /, ' ')
+        .replace(/ Electron\/.*? /, ' ');
+    win.webContents.setUserAgent(ua);
     const wr = win.webContents.session.webRequest;
     if (!wr._emNormUserAgentWebContents) {
-        const ua = win.webContents.session.getUserAgent()
-            .replace(/ SauceforZwift.*? /, ' ')
-            .replace(/ Electron\/.*? /, ' ');
         wr._emNormUserAgentWebContents = new WeakSet();
         wr.onBeforeSendHeaders((x, cb) => {
             if (wr._emNormUserAgentWebContents.has(x.webContents)) {
@@ -253,9 +254,11 @@ function emulateNormalUserAgent(win) {
     }
     wr._emNormUserAgentWebContents.add(win.webContents);
     win.webContents.on('did-create-window', subWin => {
+        subWin.webContents.setUserAgent(ua);
         wr._emNormUserAgentWebContents.add(subWin.webContents);
     });
     win.webContents.on('did-attach-webview', (ev, webContents) => {
+        webContents.setUserAgent(ua);
         wr._emNormUserAgentWebContents.add(webContents);
     });
 }
