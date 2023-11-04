@@ -410,8 +410,8 @@ function humanWeightClass(kg, options={}) {
         const lower = Math.floor(vOfRange) * range;
         const upper = (vOfRange % 1) ? Math.ceil(vOfRange) * range : (vOfRange + 1) * range;
         const span = options.html ?
-            '<abbr class="unit" style="padding: 0; margin: 0 0.12em;">⭤</abbr>' :
-            '⭤';
+            '<abbr class="unit" style="padding: 0; margin: 0 0.12em;">↔</abbr>' :
+            '↔';
         return `${humanNumber(lower)}${span}${humanNumber(upper, options)}`;
     } else {
         return humanNumber(NaN, options);
