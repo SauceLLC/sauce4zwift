@@ -298,13 +298,12 @@ class ZonesAccumulator extends TimeSeriesAccumulator {
 export class StatsProcessor extends events.EventEmitter {
     constructor(options={}) {
         super();
+        this.setMaxListeners(100);
         this.zwiftAPI = options.zwiftAPI;
         this.gameMonitor = options.gameMonitor;
         this.disableGameMonitor = options.args.disableMonitor;
-        this.randomWatch = options.args.randomWatch != null;
         this.exclusions = options.args.exclusions || new Set();
-        this.setMaxListeners(100);
-        this.athleteId = null;
+        this.athleteId = options.args.athleteId || options.zwiftAPI.profile.id;
         this.watching = null;
         this.emitStatesMinRefresh = 200;
         this._athleteData = new Map();
@@ -1109,9 +1108,6 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     setWatching(athleteId) {
-        if (this.randomWatch) {
-            this.athleteId = athleteId;
-        }
         if (athleteId === this.watching) {
             return;
         }
@@ -1615,7 +1611,6 @@ export class StatsProcessor extends events.EventEmitter {
         }
         this._statesJob = this._statesProcessor();
         this._gcInterval = setInterval(this.gcAthleteData.bind(this), 62768);
-        this.athleteId = this.zwiftAPI.profile.id;
         if (!this.disableGameMonitor) {
             this.gameMonitor.on('inPacket', this.onIncoming.bind(this));
             this.gameMonitor.on('watching-athlete', this.setWatching.bind(this));
