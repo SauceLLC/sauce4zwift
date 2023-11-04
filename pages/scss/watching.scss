@@ -16,8 +16,12 @@ html {
     &.horizontal {
         font-size: clamp(2.2mm, 18.6vh, 18mm);
 
+        #titlebar {
+            --extra-height: 2.5rem; // tuned to button-bar font-size
+        }
+
         .button-bar {
-            font-size: 0.7rem;
+            font-size: 0.6rem;
         }
 
         .zones-holder,
@@ -59,6 +63,10 @@ html {
     &:not(.horizontal) {
         [data-base-section-type="data-fields"] + [data-base-section-type="data-fields"] {
             border-top: 0.002em solid #fff5;
+        }
+
+        #titlebar {
+            --extra-height: 3.5rem; // tuned to button-bar font-size
         }
 
         #content {
@@ -644,8 +652,12 @@ abbr.unit {
 html:not(.always-show-buttons) .button-bar.fixed {
     display: none;
 }
-html.always-show-buttons #titlebar .button-bar {
-    display: none;
+html.always-show-buttons #titlebar {
+    --extra-height: 0mm !important;
+
+    .button-bar {
+        display: none;
+    }
 }
 
 .settings-page {
