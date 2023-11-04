@@ -115,18 +115,23 @@ const groupSpecs = {
         title: 'Time',
         fields: [{
             id: 'time-active',
-            value: x => H.timer(x.stats && x.stats.activeTime),
+            value: x => fmtDur(x.stats && x.stats.activeTime),
             key: 'Active',
         }, {
             id: 'time-elapsed',
-            value: x => H.timer(x.stats && x.stats.elapsedTime),
+            value: x => fmtDur(x.stats && x.stats.elapsedTime),
             key: 'Elapsed',
             label: 'elapsed',
         }, {
             id: 'time-lap',
-            value: x => H.timer(curLap(x) && curLap(x).activeTime),
+            value: x => fmtDur(curLap(x) && curLap(x).activeTime),
             key: 'Lap',
             label: 'lap',
+        }, {
+            id: 'time-session',
+            value: x => fmtDur(x.state && x.state.time),
+            key: 'Session',
+            label: 'session',
         }]
     },
     power: {
@@ -623,7 +628,7 @@ function fmtDur(v, options) {
     if (v == null || v === Infinity || v === -Infinity || isNaN(v)) {
         return '-';
     }
-    return H.timer(v, options);
+    return H.timer(v, {long: true, ...options});
 }
 
 
@@ -916,15 +921,16 @@ async function createTimeInZonesVertBars(el, sectionId, settings, renderer) {
             splitNumber: 2,
             minInterval: 60,
             axisLabel: {
-                formatter: fmtDur,
+                formatter: H.timer,
                 rotate: 50,
                 fontSize: '0.6em',
+                showMinLabel: false,
             }
         },
         series: [{
             type: 'bar',
             barWidth: '90%',
-            tooltip: {valueFormatter: x => fmtDur(x, {long: true})},
+            tooltip: {valueFormatter: x => fmtDur(x)},
         }],
     });
     const _resize = chart.resize;
@@ -1030,7 +1036,7 @@ async function createTimeInZonesPie(el, sectionId, settings, renderer) {
                 position: 'inner',
             },
             tooltip: {
-                valueFormatter: x => fmtDur(x, {long: true})
+                valueFormatter: x => fmtDur(x)
             },
             emphasis: {
                 itemStyle: {
