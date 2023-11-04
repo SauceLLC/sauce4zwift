@@ -27,6 +27,7 @@ const electron = require('electron');
 const isDEV = !electron.app.isPackaged;
 const defaultUpdateChannel = pkg.version.match(/alpha/) ? 'alpha' :
     pkg.version.match(/beta/) ?  'beta' : 'stable';
+const updateChannelLevels = {stable: 10, beta: 20, alpha: 30};
 
 let zwiftAPI;
 let zwiftMonitorAPI;
@@ -609,9 +610,13 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     }
     let updater;
     const lastVersion = sauceApp.getSetting('lastVersion');
+        debugger;
     if (lastVersion !== pkg.version) {
-        sauceApp.setSetting('updateChannel', defaultUpdateChannel);
-        console.info("Update channel set to:", sauceApp.getSetting('updateChannel'));
+        const upChLevel = updateChannelLevels[sauceApp.getSetting('updateChannel')] || 0;
+        if (upChLevel < updateChannelLevels[defaultUpdateChannel]) {
+            sauceApp.setSetting('updateChannel', defaultUpdateChannel);
+            console.info("Update channel set to:", defaultUpdateChannel);
+        }
         if (!args.headless) {
             if (lastVersion) {
                 console.info(`Sauce was updated: ${lastVersion} -> ${pkg.version}`);
