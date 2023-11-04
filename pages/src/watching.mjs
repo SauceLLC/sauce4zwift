@@ -111,6 +111,24 @@ const sectionSpecs = {
 };
 
 const groupSpecs = {
+    time: {
+        title: 'Time',
+        fields: [{
+            id: 'time-active',
+            value: x => H.timer(x.stats && x.stats.activeTime),
+            key: 'Active',
+        }, {
+            id: 'time-elapsed',
+            value: x => H.timer(x.stats && x.stats.elapsedTime),
+            key: 'Elapsed',
+            label: 'elapsed',
+        }, {
+            id: 'time-lap',
+            value: x => H.timer(curLap(x) && curLap(x).activeTime),
+            key: 'Lap',
+            label: 'lap',
+        }]
+    },
     power: {
         title: 'Power',
         backgroundImage: 'url(../images/fa/bolt-duotone.svg)',
