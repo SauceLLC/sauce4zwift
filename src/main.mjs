@@ -610,7 +610,6 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     }
     let updater;
     const lastVersion = sauceApp.getSetting('lastVersion');
-        debugger;
     if (lastVersion !== pkg.version) {
         const upChLevel = updateChannelLevels[sauceApp.getSetting('updateChannel')] || 0;
         if (upChLevel < updateChannelLevels[defaultUpdateChannel]) {
