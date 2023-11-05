@@ -15,10 +15,11 @@
         <% if (['large-data-fields', 'data-fields'].includes(section.type)) { %>
             <% const group = section.groups[0]; %>
             <% const spec = groupSpecs[group.type]; %>
+            <% const bgImg = !settings.hideBackgroundIcons ? spec.backgroundImage : null; %>
             <div class="screen-section columns {{section.type}}" data-base-section-type="{{baseSectionType}}"
                  data-section-type="{{section.type}}" data-section-id="{{section.id}}"
                  data-group-type="{{group.type}}" data-group-id="{{group.id}}"
-                 style="--background-image: {{spec.backgroundImage}};">
+                 style="--background-image: {{bgImg || 'none'}};">
                 <div class="sub">
                     <% const title = group.title || groupSpecs[group.type].title; %>
                     <heading class="group-title">{{typeof title === 'function' ? title() : title}}</heading>
@@ -58,10 +59,11 @@
         <% } else if (['single-data-field'].includes(section.type)) { %>
             <% const group = section.groups[0]; %>
             <% const spec = groupSpecs[group.type]; %>
+            <% const bgImg = !settings.hideBackgroundIcons ? spec.backgroundImage : null; %>
             <div class="screen-section {{section.type}}" data-base-section-type="{{baseSectionType}}"
                  data-section-type="{{section.type}}" data-section-id="{{section.id}}"
                  data-group-type="{{group.type}}" data-group-id="{{group.id}}"
-                 style="--background-image: {{spec.backgroundImage}};">
+                 style="--background-image: {{bgImg || 'none'}};">
                 <div class="full-height" data-default="0" data-field="{{section.id}}-{{group.id}}-0">
                     <% const title = group.title || groupSpecs[group.type].title; %>
                     <heading class="group-title">{{typeof title === 'function' ? title() : title}}</heading>

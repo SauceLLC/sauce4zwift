@@ -508,6 +508,21 @@ const groupSpecs = {
             unit: speedUnit,
         }],
     },
+    other: {
+        title: 'Other',
+        fields: [{
+            id: 'other-distance',
+            value: x => fmtDistValue(x.state && x.state.distance),
+            key: 'Distance',
+            unit: x => fmtDistUnit(x.state && x.state.distance),
+        }, {
+            id: 'other-grade',
+            value: x => H.number(x.state && x.state.grade * 100, {precision: 1, fixed: true}),
+            key: 'Grade',
+            unit: '%',
+        }]
+    },
+
 };
 
 const smallSpace = '\u0020';
@@ -1173,12 +1188,18 @@ async function initScreenSettings() {
             groupSpecs,
             sectionSpecs,
             configuring: true,
+            settings,
         }));
         prevBtn.classList.toggle('disabled', sIndex === 0);
         nextBtn.classList.toggle('disabled', sIndex === sLen - 1);
         delBtn.classList.toggle('disabled', sLen === 1);
     }
 
+    common.settingsStore.addEventListener('set', ev => {
+        if (ev.data.key === 'hideBackgroundIcons') {
+            renderScreen();
+        }
+    });
     document.querySelector('main header .button-group').addEventListener('click', ev => {
         const btn = ev.target.closest('.button-group .button');
         const action = btn && btn.dataset.action;
@@ -1305,6 +1326,7 @@ export async function main() {
             sectionSpecs,
             athlete,
             hidden,
+            settings,
         })).firstElementChild;
         if (!hidden) {
             curScreen = screenEl;
