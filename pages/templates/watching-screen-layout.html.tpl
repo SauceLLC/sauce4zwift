@@ -21,8 +21,10 @@
                  data-group-type="{{group.type}}" data-group-id="{{group.id}}"
                  style="--background-image: {{bgImg || 'none'}};">
                 <div class="sub">
-                    <% const title = group.title || groupSpecs[group.type].title; %>
-                    <heading class="group-title">{{typeof title === 'function' ? title() : title}}</heading>
+                    <% if (!section.settings?.hideTitle) { %>
+                        <% const title = section.settings?.customTitle || group.title || groupSpecs[group.type].title; %>
+                        <heading class="group-title">{{typeof title === 'function' ? title() : title}}</heading>
+                    <% } %>
                     <div class="field-row" data-default="1" data-field="{{section.id}}-{{group.id}}-0">
                         <div class="key" tabindex="0"></div><div class="value" tabindex="0"></div><abbr class="unit"></abbr>
                     </div>
@@ -36,10 +38,21 @@
                     <div class="sub-label"></div>
                 </div>
                 <% if (obj.configuring) { %>
+                    <% const settings = section.settings || sectionSpecs[section.type].defaultSettings || {}; %>
                     <dialog class="edit">
-                        <header>Edit Section: {{sectionIndex +1 }}</header>
+                        <header>Edit Section: {{sectionIndex + 1}}</header>
                         <form method="dialog">
                             <label>Type: {{sectionSpecs[section.type].title}}</label>
+                            <label>
+                                Hide title:
+                                <input type="checkbox" name="hideTitle"
+                                       {{settings.hideTitle ? 'checked' : ''}}/>
+                            </label>
+                            <label>
+                                Custom title:
+                                <input type="text" placeholder="{{groupSpecs[group.type].title}}" name="customTitle"
+                                       value="{{settings.customTitle || ''}}"/>
+                            </label>
                             <label>Data Group:
                                 <select name="group" data-id="{{group.id}}">
                                     <% for (const [type, g] of Object.entries(groupSpecs)) { %>
@@ -65,8 +78,10 @@
                  data-group-type="{{group.type}}" data-group-id="{{group.id}}"
                  style="--background-image: {{bgImg || 'none'}};">
                 <div class="full-height" data-default="0" data-field="{{section.id}}-{{group.id}}-0">
-                    <% const title = group.title || groupSpecs[group.type].title; %>
-                    <heading class="group-title">{{typeof title === 'function' ? title() : title}}</heading>
+                    <% if (!section.settings?.hideTitle) { %>
+                        <% const title = section.settings?.customTitle || group.title || groupSpecs[group.type].title; %>
+                        <heading class="group-title">{{typeof title === 'function' ? title() : title}}</heading>
+                    <% } %>
                     <div class="value"></div>
                     <div class="line">
                         <div class="label"></div>
@@ -75,11 +90,23 @@
                     </div>
                 </div>
                 <% if (obj.configuring) { %>
+                    <% const settings = section.settings || sectionSpecs[section.type].defaultSettings || {}; %>
                     <dialog class="edit">
-                        <header>Edit Section: {{sectionIndex +1 }}</header>
+                        <header>Edit Section: {{sectionIndex + 1}}</header>
                         <form method="dialog">
                             <label>Type: {{sectionSpecs[section.type].title}}</label>
-                            <label>Data Group:
+                            <label>
+                                Hide title:
+                                <input type="checkbox" name="hideTitle"
+                                       {{settings.hideTitle ? 'checked' : ''}}/>
+                            </label>
+                            <label>
+                                Custom title:
+                                <input type="text" placeholder="{{groupSpecs[group.type].title}}" name="customTitle"
+                                       value="{{settings.customTitle || ''}}"/>
+                            </label>
+                            <label>
+                                Data Group:
                                 <select name="group" data-id="{{group.id}}">
                                     <% for (const [type, g] of Object.entries(groupSpecs)) { %>
                                         <option value="{{type}}" {{group.type === type ? 'selected' : ''}}
@@ -112,7 +139,7 @@
                 <% } %>
                 <% if (obj.configuring) { %>
                     <dialog class="edit">
-                        <header>Edit Section: {{sectionIndex +1 }}</header>
+                        <header>Edit Section: {{sectionIndex + 1}}</header>
                         <form method="dialog">
                             <label>Type: {{sectionSpecs[section.type].title}}</label>
                             <% for (const [i, group] of section.groups.entries()) { %>
@@ -146,7 +173,7 @@
                 <% if (obj.configuring) { %>
                     <% const settings = section.settings || sectionSpecs[section.type].defaultSettings || {}; %>
                     <dialog class="edit">
-                        <header>Edit Section: {{sectionIndex +1 }}</header>
+                        <header>Edit Section: {{sectionIndex + 1}}</header>
                         <form method="dialog">
                             <label>Type: {{sectionSpecs[section.type].title}}</label>
                             <label>Data points to show:
@@ -205,7 +232,7 @@
                 <% if (obj.configuring) { %>
                     <% const settings = section.settings || sectionSpecs[section.type].defaultSettings || {}; %>
                     <dialog class="edit">
-                        <header>Edit Section: {{sectionIndex +1 }}</header>
+                        <header>Edit Section: {{sectionIndex + 1}}</header>
                         <form method="dialog">
                             <label>Type: {{sectionSpecs[section.type].title}}</label>
                             <hr/>
@@ -245,7 +272,7 @@
                 <% if (obj.configuring) { %>
                     <% const settings = section.settings || sectionSpecs[section.type].defaultSettings || {}; %>
                     <dialog class="edit">
-                        <header>Edit Section: {{sectionIndex +1 }}</header>
+                        <header>Edit Section: {{sectionIndex + 1}}</header>
                         <form method="dialog">
                             <label>Type: {{sectionSpecs[section.type].title}}</label>
                             <hr/>
