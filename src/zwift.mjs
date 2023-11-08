@@ -1333,6 +1333,7 @@ export class GameMonitor extends events.EventEmitter {
     async initPlayerState() {
         if (this.randomWatch != null) {
             this.gameAthleteId = await this.getRandomAthleteId(this.randomWatch);
+            this.emit("game-athlete", this.gameAthleteId);
         }
         if (this.gameAthleteId != null) {
             const s = await this.api.getPlayerState(this.gameAthleteId);
@@ -1693,6 +1694,7 @@ export class GameMonitor extends events.EventEmitter {
         if (!state) {
             if (this.randomWatch != null) {
                 this.gameAthleteId = await this.getRandomAthleteId(this.randomWatch);
+                this.emit("game-athlete", this.gameAthleteId);
                 if (this.gameAthleteId == null) {
                     console.warn("No athletes found in world.");
                 } else {

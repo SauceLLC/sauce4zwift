@@ -303,7 +303,7 @@ export class StatsProcessor extends events.EventEmitter {
         this.gameMonitor = options.gameMonitor;
         this.disableGameMonitor = options.args.disableMonitor;
         this.exclusions = options.args.exclusions || new Set();
-        this.athleteId = options.args.athleteId || options.zwiftAPI.profile.id;
+        this.athleteId = options.args.athleteId || this.gameMonitor.gameAthleteId;
         this.watching = null;
         this.emitStatesMinRefresh = 200;
         this._athleteData = new Map();
@@ -375,7 +375,6 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.getAthleteSegments, {scope: this});
         rpc.register(this.getAthleteStreams, {scope: this});
         rpc.register(this.getSegmentResults, {scope: this});
-
         this._athleteSubs = new Map();
         if (options.gameConnection) {
             const gc = options.gameConnection;
@@ -1614,6 +1613,11 @@ export class StatsProcessor extends events.EventEmitter {
         if (!this.disableGameMonitor) {
             this.gameMonitor.on('inPacket', this.onIncoming.bind(this));
             this.gameMonitor.on('watching-athlete', this.setWatching.bind(this));
+            this.gameMonitor.on('game-athlete', id => {
+                // Probably using --random-watch option
+                console.warn('Game athlete changed to:', id);
+                this.athleteId = id;
+            });
             this.gameMonitor.start();
         }
         this._zwiftMetaRefresh = 60000;
