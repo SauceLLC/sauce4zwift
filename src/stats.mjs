@@ -357,6 +357,7 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.getEvents, {scope: this});
         rpc.register(this.getEventSubgroup, {scope: this});
         rpc.register(this.getEventSubgroupEntrants, {scope: this});
+        rpc.register(this.getEventSubgroupResults, {scope: this});
         rpc.register(this.resetAthletesDB, {scope: this});
         rpc.register(this.getChatHistory, {scope: this});
         rpc.register(this.setFollowing, {scope: this});
@@ -471,6 +472,10 @@ export class StatsProcessor extends events.EventEmitter {
             });
         }
         return entrants;
+    }
+
+    async getEventSubgroupResults(id) {
+        return await this.zwiftAPI.getEventSubgroupResults(id);
     }
 
     getChatHistory() {
