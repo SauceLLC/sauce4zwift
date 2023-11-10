@@ -47,7 +47,7 @@ html {
     width: 100%;
     height: 100%;
     padding: 2px;
-    background-color: rgba(127, 127, 127, 0.002); // Using full transparency breaks on windows
+    background-color: rgb(127 127 127 / 0.002); // Using full transparency breaks on windows
     font-size: clamp(2.2mm, 7vw, 18mm);
     -webkit-user-select: none;
     user-select: none;
@@ -215,11 +215,97 @@ dialog.sauce-attr {
     }
 }
 
+.tabbed {
+    display: flex;
+    flex-direction: column;
+
+    header.tabs {
+        display: flex;
+        flex: 0 0 auto;
+        overflow-x: auto;
+
+        .tab {
+            font-size: 1.2em;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-variant: all-small-caps;
+            flex: 1 0 auto;
+            padding: 0.2em;
+            transition: color 200ms, background 200ms;
+            border-color: color.shade(fg, 0%, 0.5);
+            border-width: 0.09rem;
+            border-style: solid;
+            background-clip: padding-box;
+            position: relative;
+
+            &:not(.active) {
+                cursor: pointer;
+                color: color.shade(fg, 20%, 90%);
+                border-left-style: none;
+                border-right-style: none;
+                border-top-color: transparent;
+
+                &:hover {
+                    color: color.get(fg);
+                    background-color: color.shade(fg, 0%, 0.1);
+                }
+
+                + .tab:not(.active)::before {
+                    $width: 0.05em;
+                    content: '';
+                    position: absolute;
+                    left: $width * -0.5;
+                    border-left: $width dotted color.get(fg, 50%);
+                    padding: 0.6em 0; // controls height
+                }
+            }
+
+            &.active {
+                border-bottom-color: transparent;
+                border-top-left-radius: 0.32em;
+                border-top-right-radius: 0.32em;
+                background-image: linear-gradient(to bottom, color.shade(fg, 100%, 0.5), transparent 80%);
+
+                &:first-child {
+                    border-left-color: transparent;
+                    border-top-left-radius: 0;
+                }
+
+                &:last-child {
+                    border-right-color: transparent;
+                    border-top-right-radius: 0;
+                }
+            }
+        }
+    }
+
+    > .tab {
+        padding: 1em 1.2em 0.5em;
+        border-bottom: none !important;
+        overflow-x: auto;
+
+        &:not(.active) {
+            display: none;
+        }
+
+        > .title:first-child {
+            padding-top: 0;
+        }
+    }
+}
+
 #settings {
     padding: 0.5em 0.8em;
     overflow: auto;
     overflow: overlay;
     container: settings / inline-size;
+
+    &.tabbed {
+        margin-top: 0.2em;
+        padding: 0 0 0.5em 0;
+    }
 
     a {
         text-decoration: underline;
@@ -227,88 +313,6 @@ dialog.sauce-attr {
         text-underline-offset: 2px;
     }
 
-    &.tabbed {
-        margin-top: 0.2em;
-        padding: 0 0 0.5em 0;
-        display: flex;
-        flex-direction: column;
-
-        header.tabs {
-            display: flex;
-            flex: 0 0 auto;
-            overflow-x: auto;
-
-            .tab {
-                font-size: 1.2em;
-                font-weight: 500;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-variant: all-small-caps;
-                flex: 1 0 auto;
-                padding: 0.2em;
-                transition: color 200ms, background 200ms;
-                border-color: color.shade(fg, 0%, 0.5);
-                border-width: 0.09rem;
-                border-style: solid;
-                background-clip: padding-box;
-                position: relative;
-
-                &:not(.active) {
-                    cursor: pointer;
-                    color: color.shade(fg, 20%, 90%);
-                    border-left-style: none;
-                    border-right-style: none;
-                    border-top-color: transparent;
-
-                    &:hover {
-                        color: color.get(fg);
-                        background-color: color.shade(fg, 0%, 0.1);
-                    }
-
-                    + .tab:not(.active)::before {
-                        $width: 1px;
-                        content: '';
-                        position: absolute;
-                        left: $width * -0.5;
-                        border-left: $width dotted color.get(fg, 50%);
-                        padding: 0.6em 0; // controls height
-                    }
-                }
-
-                &.active {
-                    border-bottom-color: transparent;
-                    border-top-left-radius: 0.32em;
-                    border-top-right-radius: 0.32em;
-                    background-image: linear-gradient(to bottom, color.shade(fg, 100%, 0.5), transparent 80%);
-
-                    &:first-child {
-                        border-left-color: transparent;
-                        border-top-left-radius: 0;
-                    }
-
-                    &:last-child {
-                        border-right-color: transparent;
-                        border-top-right-radius: 0;
-                    }
-                }
-            }
-        }
-
-        > .tab {
-            padding: 1em 1.2em 0.5em;
-            border-bottom: none !important;
-            overflow-x: auto;
-
-            &:not(.active) {
-                display: none;
-            }
-
-            > .title:first-child {
-                padding-top: 0;
-            }
-        }
-    }
 
     > .section {
         padding: 0.5em;
@@ -651,13 +655,13 @@ form {
 }
 
 @property --bg-from-color {
-    syntax: '<color>';
+    syntax: "<color>";
     inherits: false;
     initial-value: #0000;
 }
 
 @property --bg-to-color {
-    syntax: '<color>';
+    syntax: "<color>";
     inherits: false;
     initial-value: #0000;
 }
@@ -699,6 +703,12 @@ a.std.button {
             pointer-events: none !important;
         }
     }
+
+    &.selected {
+        color: color.get(primary);
+        
+    }
+    
 
     &.std {
         --bg-from-color: #{color.shade(fg, 0%)};
@@ -861,8 +871,8 @@ span.button.std {
     text-transform: uppercase;
     font-weight: 700;
     background-image: linear-gradient(to bottom,
-        hsla(var(--hue), 70%, 40%, 0.86),
-        hsla(var(--hue), 87%, 50%, 0.86));
+        hsl(var(--hue), 70%, 40% / 0.86),
+        hsl(var(--hue), 87%, 50% / 0.86));
     border-radius: 0.28em;
     padding: 0.3em 0.4em 0.27em;
     padding: 0.48em 0.6em 0.4em;
