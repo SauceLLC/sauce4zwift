@@ -11,9 +11,9 @@ export function isImperial() {
 }
 
 
-export const metersPerMile = 1609.344;
-export const metersPerFoot = 0.3048;
-export const kgsPerLbs = 2.20462;
+export const milesPerKm = 1000 / 1609.344;
+export const feetPerMeter = 1 / 0.3048;
+export const poundsPerKg = 2.20462;
 
 const hdUnits = {
     year: 'year',
@@ -352,14 +352,14 @@ function humanPace(kph, options={}) {
             if (options.suffix === true || options.suffixOnly) {
                 options.suffix = imperial ? '/mi' : '/km';
             }
-            value = 3600 / (imperial ? kph * 1000 / metersPerMile : kph);
+            value = 3600 / (imperial ? kph * milesPerKm : kph);
             humanFunc = humanTimer;
         } else {
             if (options.suffix === true || options.suffixOnly) {
                 options.suffix = imperial ? 'mph' : 'kph';
             }
             fixed = true;
-            value = imperial ? kph * 1000 / metersPerMile : kph;
+            value = imperial ? kph * milesPerKm : kph;
         }
     }
     return humanFunc(value, {fixed, ...options});
@@ -375,13 +375,13 @@ function humanDistance(m, options={}) {
                 options.suffix = imperial ? 'ft' : 'm';
             }
             precision = 0;
-            value = imperial ? m / metersPerFoot : m;
+            value = imperial ? m * feetPerMeter : m;
         } else {
             if (options.suffix === true || options.suffixOnly) {
                 options.suffix = imperial ? 'mi' : 'km';
             }
             precision = 1;
-            value = imperial ? m / metersPerMile : m / 1000;
+            value = imperial ? m / 1000 * milesPerKm : m / 1000;
         }
     } else {
         value = NaN;
@@ -394,7 +394,7 @@ function humanWeight(kg, options={}) {
     if (options.suffix === true || options.suffixOnly) {
         options.suffix = imperial ? 'lbs' : 'kg';
     }
-    const value = _realNumber(kg) ? imperial ? kg * kgsPerLbs : kg : NaN;
+    const value = _realNumber(kg) ? imperial ? kg * poundsPerKg : kg : NaN;
     return humanNumber(value, {precision: 1, ...options});
 }
 
@@ -405,7 +405,7 @@ function humanWeightClass(kg, options={}) {
     }
     if (_realNumber(kg)) {
         const range = imperial ? 20 : 10;
-        const v = imperial ? kg * kgsPerLbs : kg;
+        const v = imperial ? kg * poundsPerKg : kg;
         const vOfRange = v / range;
         const lower = Math.floor(vOfRange) * range;
         const upper = (vOfRange % 1) ? Math.ceil(vOfRange) * range : (vOfRange + 1) * range;
@@ -439,7 +439,7 @@ function humanElevation(m, options={}) {
     if (options.suffix === true || options.suffixOnly) {
         options.suffix = imperial ? 'ft' : 'm';
     }
-    return humanNumber(_realNumber(m) ? imperial ? m * metersPerFoot : m : NaN, options);
+    return humanNumber(_realNumber(m) ? imperial ? m * feetPerMeter : m : NaN, options);
 }
 
 
@@ -455,26 +455,6 @@ function humanPlace(p, options={}) {
         options.suffix = placeSuffixes[placePluralRules.select(p)];
     }
     return humanNumber(p, options);
-}
-
-
-export function weightUnconvert(localeWeight) {
-    return imperial ? localeWeight / kgsPerLbs : localeWeight;
-}
-
-
-export function elevationUnconvert(localeEl) {
-    return imperial ? localeEl * metersPerFoot : localeEl;
-}
-
-
-export function velocityUnconvert(localeV, options={}) {
-    throw new Error("TBD");
-}
-
-
-export function distanceUnconvert(localeDist) {
-    return imperial ? localeDist * metersPerMile : localeDist * 1000;
 }
 
 
