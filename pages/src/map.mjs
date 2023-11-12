@@ -509,6 +509,9 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     setDragOffset(pos) {
+        if (arguments.length === 2 && typeof pos === 'number') {
+            pos = Array.from(arguments);
+        }
         this.dragOffset = pos;
         this._dragXY = this._rotateWorldPos(pos);
         this._fullUpdateAsNeeded();
