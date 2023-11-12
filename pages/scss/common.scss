@@ -704,12 +704,6 @@ a.std.button {
         }
     }
 
-    &.selected {
-        color: color.get(primary);
-        
-    }
-    
-
     &.std {
         --bg-from-color: #{color.shade(fg, 0%)};
         --bg-to-color: #{color.shade(fg, 15%)};
@@ -725,6 +719,12 @@ a.std.button {
         padding: 0.1rem 1rem;
         box-shadow: none;
         transition: box-shadow 100ms, --bg-from-color 150ms, --bg-to-color 150ms;
+
+        &.outline {
+            --bg-from-color: #{color.shade(primary, 120%)};
+            --bg-to-color: #{color.shade(primary, 80%)};
+            color: color.get(primary);
+        }
 
         &.icon-only {
             padding: 0.1rem;

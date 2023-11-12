@@ -34,11 +34,6 @@ html {
         top: 0;
         z-index: 11;
         opacity: 0.86;
-        transition: opacity 200ms;
-
-        &:hover {
-            opacity: 1;
-        }
     }
 
     > .fields {
