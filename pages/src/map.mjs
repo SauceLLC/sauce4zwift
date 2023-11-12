@@ -1190,7 +1190,7 @@ export class SauceZwiftMap extends EventTarget {
         } else {
             this._tiltShiftAngle = 0;
         }
-        const scale = Math.round(this.zoom * quality / this._canvasScale / 0.25) * 0.25;
+        const scale = Math.max(0.05, Math.round(this.zoom * quality / this._canvasScale / 0.25) * 0.25);
         this._tiltHeight = this.tiltShift ? this._perspective * this._canvasScale / (this.zoom / scale) : 0;
         if (force || this._layerScale !== scale) {
             this.incPause();
