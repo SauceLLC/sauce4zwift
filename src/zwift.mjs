@@ -2088,7 +2088,6 @@ export class GameConnectionServer extends net.Server {
 
     async _start() {
         await this.listenDone;
-        this._state = 'ready';
         const {port} = this.address();
         console.info("Registering game connnection server:", this.ip, port);
         this.port = port;
