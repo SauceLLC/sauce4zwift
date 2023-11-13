@@ -62,16 +62,30 @@
             .windows {
                 display: flex;
                 align-items: flex-start;
-                margin-left: 1rem;
                 flex-direction: column;
                 font-size: 0.9em;
+            }
+
+            .windows a > ms {
+                font-size: 1.8em;
+                font-weight: 300;
+                margin: 0 0.2em 0 0;
             }
 
             .primary {
             }
 
             a {
-                margin-bottom: 0.3em;
+                margin-bottom: 0.1em;
+                padding: 0.22em 0.6em;
+                display: flex;
+                align-items: center;
+                text-decoration: none !important;
+            }
+
+            a:hover {
+                background-color: #2223;
+                border-radius: 0.28em;
             }
 
             img.logo {
@@ -99,9 +113,9 @@
             <a href="/pages/nearby.html"><ms>table</ms> Nearby Athletes</a>
             <a href="/pages/geo.html"><ms>map</ms> Map</a>
             <a href="/pages/chat.html"><ms>chat</ms> Chat</a>
-            <!--<a href="/pages/segments.html"><ms>conversion_path</ms> Segments</a>-->
+            <a href="/pages/segments.html"><ms>conversion_path</ms> Segments</a>
             <a href="/pages/game-control.html"><ms>stadia_controller</ms> Game Control</a>
-            <a href="/pages/analysis.html"><ms>query_stats</ms> Analysis</a>
+            <a href="/pages/analysis.html"><ms>monitoring</ms> Analysis</a>
             <a href="/pages/events.html"><ms>event</ms> Events</a>
             <a href="/pages/athletes.html"><ms>person_search</ms> Athletes</a>
             <br/>

@@ -114,6 +114,38 @@
     flex-wrap: wrap;
 }
 
+.maintenance {
+    width: 100%;
+    justify-content: center;
+
+    .action-buttons {
+        justify-content: center;
+    }
+
+    .links {
+        display: flex;
+        justify-content: center;
+        padding: 1em 0.4em 0.4em;
+        font-weight: 500;
+        font-size: 0.9em;
+        color: color.shade(fg, 10%);
+
+        a {
+            padding: 0;
+        }
+
+        a:not(:hover) {
+            text-decoration: none !important;
+        }
+
+        a:not(:last-child) {
+            margin-right: 0.6em;
+            padding-right: 0.65em;
+            border-right: 1px solid color.get(fg, 0.8);
+        }
+    }
+}
+
 .app-settings {
     .display-field[name="gameConnectionStatus"] {
         margin-left: 0.2em;

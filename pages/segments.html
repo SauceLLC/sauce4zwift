@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html class="" tabindex="0" data-settings-key="segments-settings-v1">
+    <head>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+        <meta name="apple-mobile-web-app-capable" content="yes"/>
+        <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
+
+        <title>Segments - Sauce for Zwift™</title>
+
+        <script src="./src/preloads.js"></script>
+
+        <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
+        <link rel="stylesheet" href="css/common.css"/>
+        <link rel="stylesheet" href="css/segments.css"/>
+
+        <script type="module">
+            import {main} from './src/segments.mjs';
+            main();
+        </script>
+    </head>
+    <body class="transparent-bg">
+        <div id="titlebar">
+            <header>
+                <div class="logo"><img src="images/icon128.png"/></div>
+                <div class="double-row">
+                    <div class="title">Segments</div>
+                </div>
+                <div class="filler"></div>
+                <div class="buttons">
+                    <a class="button open-settings" href="segments-settings.html?width=400&height=400&child-window"
+                       title="Open settings window" target="segments-settings"><ms>settings</ms></a>
+                    <div title="Minimize" class="button minimize electron-only"><ms>minimize</ms></div>
+                    <div title="Close this window" class="button close electron-only"><ms>close</ms></div>
+                </div>
+            </header>
+        </div>
+        <div id="content">
+            <div class="tabbed">
+                <header class="tabs">
+                    <div class="title tab active">Live</div>
+                    <div class="title tab">All time</div>
+                    <div class="title tab">Just me</div>
+                </header>
+                <div class="tab active">Live...</div>
+                <div class="tab">All time...</div>
+                <div class="tab">Just me...</div>
+            </div>
+        </div>
+        <div id="hintbar">
+            <div class="hint"></div>
+        </div>
+    </body>
+</html>
