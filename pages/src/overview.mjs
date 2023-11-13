@@ -18,9 +18,22 @@ common.settingsStore.setDefault({
     centerGapSize: 0,
 });
 
+function updateButtonVis() {
+    const settings = common.settingsStore.get();
+    for (const x of ['Foo', 'Analysis', 'Athletes', 'Events']) {
+        const btn = document.querySelector(`.controls .button[data-settings-key="${x}"]`);
+        if (!btn) {
+            console.error('Invalid button:', x);
+            continue;
+        }
+        btn.classList.toggle('hidden', settings[`hide${x}Button`] === true);
+    }
+}
+
 
 export function main() {
     common.initInteractionListeners();
+    updateButtonVis();
     let autoHidden;
     let lastData;
     let autoHideTimeout;
@@ -37,9 +50,11 @@ export function main() {
                 location.reload();  // Avoid state machine complications.
                 return;
             } else if (k === 'centerGapSize') {
-                console.log("set gap", v);
                 doc.style.setProperty('--center-gap-size', `${v}px`);
                 renderer.render({force: true});
+                return;
+            } else if (k.match(/hide.+Button/)) {
+                updateButtonVis();
                 return;
             }
         }
