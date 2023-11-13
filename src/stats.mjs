@@ -376,6 +376,7 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.getAthleteSegments, {scope: this});
         rpc.register(this.getAthleteStreams, {scope: this});
         rpc.register(this.getSegmentResults, {scope: this});
+        rpc.register(this.putState, {scope: this});
         this._athleteSubs = new Map();
         if (options.gameConnection) {
             const gc = options.gameConnection;
@@ -1020,9 +1021,6 @@ export class StatsProcessor extends events.EventEmitter {
             if (this.processState(x) === false) {
                 continue;
             }
-            if (x.athleteId === this.watching) {
-                this._watchingRoadSig = this._roadSig(x);
-            }
             if (hasStatesListener) {
                 this._pendingEgressStates.push(x);
             }
@@ -1043,6 +1041,10 @@ export class StatsProcessor extends events.EventEmitter {
                 }
             }
         }
+        this._schedStatesEmit();
+    }
+
+    _schedStatesEmit() {
         if (this._pendingEgressStates.length && !this._timeoutEgressStates) {
             const now = monotonic();
             const delay = this.emitStatesMinRefresh - (now - this._lastEgressStates);
@@ -1059,6 +1061,17 @@ export class StatsProcessor extends events.EventEmitter {
                 this._lastEgressStates = now;
             }
         }
+    }
+
+    putState(state) {
+        if (this.processState(state) === false) {
+            console.warn("State skipped by processer");
+            return;
+        }
+        if (this.listenerCount('states')) {
+            this._pendingEgressStates.push(state);
+        }
+        this._schedStatesEmit();
     }
 
     handleRideOnPayload(payload) {
