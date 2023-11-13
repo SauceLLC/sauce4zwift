@@ -58,6 +58,10 @@
     "artifactName": "sauce4zwift-${version}.${ext}",
     "buildDependenciesFromSource": true,
     "generateUpdatesFilesForAllChannels": true,
+    "protocols": [{
+      "name": "Sauce for Zwift",
+      "schemes": ["sauce4zwift"]
+    }],
     "files": [
       "!**/Makefile",
       "!**/README.md",
