@@ -948,7 +948,7 @@ function handleNewSubWindow(parent, spec, webPrefs) {
             });
         }
         newWin.setMenuBarVisibility(false);
-        if (newWinSpec.overlay !== false || spec?.overlay !== false) {
+        if (newWinSpec?.overlay !== false || spec?.overlay !== false) {
             newWin.setAlwaysOnTop(true, 'pop-up-menu');
         } else {
             console.warn("okay non overlay, what gives?", {newWinSpec, newWin, spec, parent});
