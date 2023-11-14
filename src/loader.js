@@ -182,6 +182,14 @@ async function ensureSingleInstance() {
     if (app.requestSingleInstanceLock({type: 'probe'})) {
         return;
     }
+    if (process.argv.length > 1 && process.argv.at(-1).startsWith('sauce4zwift://')) {
+        // Emulate mac style open-url eventing for url handling..
+        const url = process.argv.at(-1);
+        console.info("Sending open-url data to primary Sauce instance:", url);
+        app.requestSingleInstanceLock({type: 'open-url', url});
+        app.quit(0);
+        return false;
+    }
     const {response} = await dialog.showMessageBox({
         type: 'question',
         message: 'Another Sauce process detected.\n\nThere can only be one, you must choose...',

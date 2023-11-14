@@ -1339,7 +1339,7 @@ export async function welcomeSplash() {
 
 export async function patronLink() {
     let membership = storageMod.get('patron-membership');
-    if (membership && membership.patronLevel >= 10) {
+    if (membership && membership.patronLevel >= 100) {
         // XXX Implement refresh once in a while.
         return true;
     }

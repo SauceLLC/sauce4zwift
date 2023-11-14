@@ -98,10 +98,14 @@ try {
     ]).finally(() => quit(1));
 }
 
-electron.app.on('second-instance', (ev,_, __, {type}) => {
+electron.app.on('second-instance', (ev,_, __, {type, ...args}) => {
     if (type === 'quit') {
         console.warn("Another instance requested us to quit.");
         quit();
+    } else if (type === 'open-url') {
+        const url = args.url;
+        electron.app.focus();
+        electron.app.emit('open-url', null, args.url);
     }
 });
 electron.app.on('before-quit', () => void (quiting = true));
