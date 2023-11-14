@@ -9,7 +9,7 @@ import {EventEmitter} from 'node:events';
 import {sleep} from '../shared/sauce/base.mjs';
 import {createRequire} from 'node:module';
 import * as menu from './menu.mjs';
-import * as app from './main.mjs';
+import * as main from './main.mjs';
 
 const require = createRequire(import.meta.url);
 const electron = require('electron');
@@ -29,7 +29,7 @@ let activeProfileSession;
 let swappingProfiles;
 
 electron.app.on('window-all-closed', () => {
-    if (app.started && !app.quiting && !swappingProfiles) {
+    if (main.started && !main.quiting && !swappingProfiles) {
         electron.app.quit();
     }
 });
@@ -74,8 +74,8 @@ export const widgetWindowManifests = [{
 }, {
     type: 'watching',
     file: '/pages/watching.html',
-    prettyName: 'Currently Watching',
-    prettyDesc: 'Replacement window for stats of the athlete being watched',
+    prettyName: 'Grid (Currently Watching)',
+    prettyDesc: 'Grid window for stats of the athlete being watched',
     options: {width: 0.18, aspectRatio: 1},
 }, {
     type: 'groups',
@@ -122,6 +122,13 @@ export const widgetWindowManifests = [{
     prettyName: 'Game Control',
     prettyDesc: 'Control game actions like view, shouting, HUD toggle, etc',
     options: {width: 300, aspectRatio: 1.65},
+}, {
+    type: 'browser-source',
+    file: '/pages/browser-source.html',
+    prettyName: 'Browser Source',
+    prettyDesc: 'Open a browser window to any custom site',
+    webPreferences: {webviewTag: true},
+    emulateNormalUserAgent: true,
 }, {
     type: 'power-gauge',
     groupTitle: 'Gauges',
@@ -227,6 +234,33 @@ export function loadSession(name, options={}) {
     s.protocol.interceptFileProtocol('file', onInterceptFileProtocol);
     sessions.set(name, s);
     return s;
+}
+
+
+function emulateNormalUserAgent(win) {
+    const ua = win.webContents.session.getUserAgent()
+        .replace(/ SauceforZwift.*? /, ' ')
+        .replace(/ Electron\/.*? /, ' ');
+    win.webContents.setUserAgent(ua);
+    const wr = win.webContents.session.webRequest;
+    if (!wr._emNormUserAgentWebContents) {
+        wr._emNormUserAgentWebContents = new WeakSet();
+        wr.onBeforeSendHeaders((x, cb) => {
+            if (wr._emNormUserAgentWebContents.has(x.webContents)) {
+                x.requestHeaders['User-Agent'] = ua;
+            }
+            cb(x);
+        });
+    }
+    wr._emNormUserAgentWebContents.add(win.webContents);
+    win.webContents.on('did-create-window', subWin => {
+        subWin.webContents.setUserAgent(ua);
+        wr._emNormUserAgentWebContents.add(subWin.webContents);
+    });
+    win.webContents.on('did-attach-webview', (ev, webContents) => {
+        webContents.setUserAgent(ua);
+        wr._emNormUserAgentWebContents.add(webContents);
+    });
 }
 
 
@@ -537,7 +571,7 @@ rpc.register(() => {
 
 let _windowsUpdatedTimeout;
 export function saveProfiles() {
-    if (app.quiting || swappingProfiles) {
+    if (main.quiting || swappingProfiles) {
         return;
     }
     if (!activeProfile) {
@@ -586,7 +620,7 @@ export function updateWidgetWindowSpec(id, updates) {
     if (!spec) {
         spec = activeProfile.windows[id] = {};
     }
-    if (app.quiting || swappingProfiles) {
+    if (main.quiting || swappingProfiles) {
         return spec;
     }
     Object.assign(spec, updates);
@@ -605,7 +639,7 @@ export function updateSubWindowSettings(id, updates) {
     if (!settings) {
         settings = activeProfile.subWindowSettings[id] = {};
     }
-    if (app.quiting || swappingProfiles) {
+    if (main.quiting || swappingProfiles) {
         return settings;
     }
     Object.assign(settings, updates);
@@ -900,6 +934,9 @@ function handleNewSubWindow(parent, spec, webPrefs) {
                 ...webPrefs,
             }
         });
+        newWin.webContents.on('will-attach-webview', (ev, webPreferences) => {
+            webPreferences.session = newWin.webContents.session;
+        });
         if (windowId) {
             let _to;
             newWin.on('resize', () => {
@@ -911,8 +948,10 @@ function handleNewSubWindow(parent, spec, webPrefs) {
             });
         }
         newWin.setMenuBarVisibility(false);
-        if (newWinSpec.overlay !== false || spec?.overlay !== false) {
+        if (newWinSpec?.overlay !== false || spec?.overlay !== false) {
             newWin.setAlwaysOnTop(true, 'pop-up-menu');
+        } else {
+            console.warn("okay non overlay, what gives?", {newWinSpec, newWin, spec, parent});
         }
         if (target && target !== '_blank') {
             newWin._url = url;
@@ -1035,6 +1074,12 @@ function _openWidgetWindow(spec) {
         },
         ...options,
     });
+    win.webContents.on('will-attach-webview', (ev, webPreferences) => {
+        webPreferences.session = activeProfileSession;
+    });
+    if (spec.emulateNormalUserAgent) {
+        emulateNormalUserAgent(win);
+    }
     win.setMenuBarVisibility(false);
     try {
         win.setBounds(bounds); // https://github.com/electron/electron/issues/10862
@@ -1307,9 +1352,8 @@ export async function patronLink() {
         preload: path.join(appPath, 'src/preload/patron-link.js'),
         session: loadSession('patreon'),
     });
-    // Prevent Patreon's datedome.co bot service from blocking us.
-    const ua = win.webContents.userAgent;
-    win.webContents.userAgent = ua.replace(/ SauceforZwift.*? /, ' ').replace(/ Electron\/.*? /, ' ');
+    // Prevent Patreon's datedome.co bot service from blocking us and fix federated logins.. (legacy only now)
+    emulateNormalUserAgent(win);
     let resolve;
     win.webContents.ipc.on('patreon-reset-session', () => {
         win.webContents.session.clearStorageData();
@@ -1317,24 +1361,31 @@ export async function patronLink() {
         electron.app.relaunch();
         win.close();
     });
-    win.webContents.ipc.on('patreon-auth-code', (ev, code) => resolve({code}));
+    win.webContents.ipc.on('patreon-auth-code', (ev, code) => resolve({code, legacy: true}));
     win.webContents.ipc.on('patreon-special-token', (ev, token) => resolve({token}));
+    main.getApp().on('external-open', x => {
+        if (x.name === 'patron' && x.path === '/link') {
+            resolve({code: x.data.code});
+        }
+    });
     win.on('closed', () => resolve({closed: true}));
+    let isMember = false;
     while (true) {
-        const {code, token, closed} = await new Promise(_resolve => resolve = _resolve);
+        const {code, token, closed, legacy} = await new Promise(_resolve => resolve = _resolve);
         let isAuthed;
         if (closed) {
-            return false;
+            return isMember;
         } else if (token) {
             membership = await patreon.getLegacyMembership(token);
         } else {
-            isAuthed = code && await patreon.link(code);
-            membership = isAuthed && await patreon.getMembership();
+            win.loadFile('/pages/patron-checking.html');
+            isAuthed = code && await patreon.link(code, {legacy});
+            membership = isAuthed && await patreon.getMembership({legacy});
         }
         if (membership && membership.patronLevel >= 10) {
+            isMember = true;
             storageMod.set('patron-membership', membership);
-            win.close();
-            return true;
+            win.loadFile('/pages/patron-success.html');
         } else {
             const query = {};
             if (isAuthed) {

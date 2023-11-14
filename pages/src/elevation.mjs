@@ -11,10 +11,11 @@ const H = locale.human;
 
 
 export class SauceElevationProfile {
-    constructor({el, worldList, preferRoute, refresh=1000}) {
+    constructor({el, worldList, preferRoute, showMaxLine, refresh=1000}) {
         this.el = el;
         this.worldList = worldList;
         this.preferRoute = preferRoute;
+        this.showMaxLine = showMaxLine;
         this.refresh = refresh;
         this._lastRender = 0;
         this._refreshTimeout = null;
@@ -24,15 +25,18 @@ export class SauceElevationProfile {
             animation: false,
             tooltip: {
                 trigger: 'axis',
-                formatter: ([{value}]) => value ?
-                    `${H.distance(value[0], {suffix: true})}, ` +
-                    `${H.elevation(value[1], {suffix: true})}, ` +
-                    `${H.number(value[2] * 100, {suffix: '%'})}` : '',
+                formatter: ([{value}]) => {
+                    if (!value) {
+                        return '';
+                    }
+                    const dist = (this.reverse && this._distances) ?
+                        this._distances.at(-1) - value[0] : value[0];
+                    return `Dist: ${H.distance(dist, {suffix: true})}<br/>` +
+                        `<ms large>landscape</ms>${H.elevation(value[1], {suffix: true})} ` +
+                        `<small>(${H.number(value[2] * 100, {suffix: '%'})})</small>`;
+                },
                 axisPointer: {z: -1},
             },
-            dataZoom: [{
-                type: 'inside',
-            }],
             xAxis: {
                 type: 'value',
                 boundaryGap: false,
@@ -205,7 +209,6 @@ export class SauceElevationProfile {
         this._roadSigs = new Set();
         this.curvePath = null;
         this.route = await common.getRoute(id);
-        console.warn('route', this.route);
         for (const {roadId, reverse} of this.route.checkpoints) {
             this._roadSigs.add(`${roadId}-${!!reverse}`);
         }
@@ -263,6 +266,19 @@ export class SauceElevationProfile {
         // Echarts bug requires floor/ceil to avoid missing markLines
         this._yAxisMin = Math.floor(this._yMin > 0 ? Math.max(0, this._yMin - 20) : this._yMin) - 10;
         this._yAxisMax = Math.ceil(Math.max(this._yMax, this._yMin + 200));
+        const markLineData = [];
+        if (this.showMaxLine) {
+            markLineData.push({
+                type: 'max',
+                label: {
+                    formatter: x => H.elevation(x.value, {suffix: true}),
+                    position: options.reverse ? 'insideStartTop' : 'insideEndTop',
+                },
+            });
+        }
+        if (options.markLines) {
+            markLineData.push(...options.markLines);
+        }
         this.chart.setOption({
             xAxis: {inverse: options.reverse},
             yAxis: {
@@ -289,18 +305,8 @@ export class SauceElevationProfile {
                         }),
                     },
                 },
-                markLine: {
-                    data: [{
-                        type: 'max',
-                        label: {
-                            formatter: x => H.elevation(x.value, {suffix: true}),
-                            position: this.reverse ? 'insideStartTop' : 'insideEndTop'
-                        },
-                    }, ...(options.markLines || [])]
-                },
-                markAreas: {
-                    data: options.markAreas
-                },
+                markLine: {data: markLineData},
+                markAreas: {data: options.markAreas},
                 data: distances.map((x, i) => [x, elevations[i], grades[i] * (options.reverse ? -1 : 1)]),
             }]
         });
@@ -393,6 +399,7 @@ export class SauceElevationProfile {
                     let roadSeg;
                     let nodeRoadOfft;
                     let deemphasize;
+                    const isWatching = state.athleteId === this.watchingId;
                     if (this.routeId != null) {
                         if (state.routeId === this.routeId) {
                             let distance;
@@ -416,35 +423,28 @@ export class SauceElevationProfile {
                                 for (const dir of [1, -1]) {
                                     const segIdx = nearRoadSegIdx + (offt * dir);
                                     const s = this.route.roadSegments[segIdx];
-                                    if (s && s.roadId === state.roadId && !!s.reverse === !!state.reverse) {
+                                    if (s && s.roadId === state.roadId && !!s.reverse === !!state.reverse &&
+                                        s.includesRoadTime(state.roadTime)) {
                                         roadSeg = s;
                                         // We found the road segment but need to find the exact node offset
                                         // to support multi-lap configurations...
                                         for (let i = nearIdx; i >= 0 && i < nodes.length; i += dir) {
                                             if (nodes[i].index === segIdx) {
                                                 // Rewind to first node of this segment.
-                                                while (i > 0 && nodes[i].index === segIdx) {
+                                                while (i > 0 && nodes[i - 1].index === segIdx) {
                                                     i--;
                                                 }
                                                 nodeRoadOfft = i;
                                                 break;
                                             }
                                         }
-                                        if (nodeRoadOfft == null) {
-                                            debugger;
-                                        }
-                                        if (offt > 0) {
-                                            console.debug('Large route seek offset:', offt, state);
-                                        }
                                         break roadSearch;
                                     }
                                 }
                             }
-                            if (!roadSeg) {
-                                return null;
-                            }
-                        } else {
-                            // Not on our route but is nearby..
+                        }
+                        if (!roadSeg) {
+                            // Not on our route but might be nearby..
                             const i = this.route.roadSegments.findIndex(x =>
                                 x.roadId === state.roadId &&
                                 !!x.reverse === !!state.reverse &&
@@ -459,20 +459,17 @@ export class SauceElevationProfile {
                     } else if (this.road && this.road.id === state.roadId) {
                         roadSeg = this.road.curvePath;
                         nodeRoadOfft = 0;
-                    } else {
-                        console.warn("why now?");
                     }
                     if (!roadSeg) {
                         return null;
                     }
                     const bounds = roadSeg.boundsAtRoadTime(state.roadTime);
-                    const nodeOfft = state.reverse ?
+                    const nodeOfft = roadSeg.reverse ?
                         roadSeg.nodes.length - 1 - (bounds.index + bounds.percent) :
                         bounds.index + bounds.percent;
                     const xIdx = nodeRoadOfft + nodeOfft;
                     if (xIdx < 0 || xIdx > this._distances.length - 1) {
                         console.error("route index offset bad!", {xIdx});
-                        debugger;
                         return null;
                     }
                     let xCoord;
@@ -488,15 +485,13 @@ export class SauceElevationProfile {
                         yCoord = this._elevations[xIdx];
                     }
                     if (isNaN(xCoord) || xCoord == null) {
-                        console.log('xCoord is NaN');
-                        debugger;
+                        console.error('xCoord is NaN');
                     }
-                    const isWatching = state.athleteId === this.watchingId;
-                    if (isWatching) {
+                    /*if (isWatching) {
                         // XXX
-                        //console.log("got it", xCoord, xIdx, state.roadId, state.reverse, state.roadTime,
-                        //            {nodeRoadOfft, nodeOfft, reverse: state.reverse});
-                    }
+                        console.log("got it", xCoord, xIdx, state.roadId, state.reverse, state.roadTime,
+                                    {nodeRoadOfft, nodeOfft, reverse: state.reverse});
+                    }*/
                     return {
                         name: state.athleteId,
                         coord: [xCoord, yCoord],

@@ -31,6 +31,8 @@ common.settingsStore.setDefault({
     // v1.0.0
     profileHeight: 20,
     routeProfile: true,
+    showElevationMaxLine: true,
+    autoCenter: true,
 });
 
 const settings = common.settingsStore.get();
@@ -67,11 +69,13 @@ function getSetting(key, def) {
 
 function createZwiftMap({worldList}) {
     const opacity = 1 - 1 / (100 / (settings.transparency || 0));
+    const autoCenter = getSetting('autoCenter', true);
     const zm = new map.SauceZwiftMap({
         el: document.querySelector('.map'),
         worldList,
         zoom: settings.zoom,
-        autoHeading: settings.autoHeading,
+        autoHeading: autoCenter && getSetting('autoHeading', true),
+        autoCenter,
         style: settings.mapStyle,
         opacity,
         tiltShift: settings.tiltShift && ((settings.tiltShiftAmount || 0) / 100),
@@ -88,23 +92,57 @@ function createZwiftMap({worldList}) {
         settings.zoom = Number(ev.zoom.toFixed(2));
         settingsSaveTimeout = setTimeout(() => common.settingsStore.set(null, settings), 100);
     });
-    const anchorResetButton = document.querySelector('.map-controls .button.reset-anchor');
-    zm.addEventListener('drag', ev =>
-        anchorResetButton.classList.toggle('disabled', !ev.drag[0] && !ev.drag[1]));
-    anchorResetButton.addEventListener('click', ev => zm.setDragOffset(0, 0));
-    const headingRotateDisButton = document.querySelector('.map-controls .button.disable-heading');
-    const headingRotateEnButton = document.querySelector('.map-controls .button.enable-heading');
-    const autoHeadingHandler = en => {
+
+    const autoCenterBtn = document.querySelector('.map-controls .button.toggle-auto-center');
+    const autoHeadingBtn = document.querySelector('.map-controls .button.toggle-auto-heading');
+
+    function autoCenterHandler(en) {
+        if (en) {
+            zm.setDragOffset([0, 0]);
+        }
+        zm.setAutoCenter(en);
+        zm.setAutoHeading(!en ? false : !!settings.autoHeading);
+        autoCenterBtn.classList.toggle('primary', !!en);
+        autoCenterBtn.classList.remove('outline');
+        autoHeadingBtn.classList.toggle('disabled', !en);
+        settings.autoCenter = en;
+        common.settingsStore.set(null, settings);
+    }
+
+    function autoHeadingHandler(en) {
         zm.setAutoHeading(en);
-        headingRotateDisButton.classList.toggle('hidden', !en);
-        headingRotateEnButton.classList.toggle('hidden', en);
+        if (en) {
+            zm.setHeadingOffset(0);
+        }
+        autoHeadingBtn.classList.remove('outline');
+        autoHeadingBtn.classList.toggle('primary', !!en);
         settings.autoHeading = en;
         common.settingsStore.set(null, settings);
-    };
-    headingRotateDisButton.classList.toggle('hidden', settings.autoHeading === false);
-    headingRotateEnButton.classList.toggle('hidden', settings.autoHeading !== false);
-    headingRotateDisButton.addEventListener('click', () => autoHeadingHandler(false));
-    headingRotateEnButton.addEventListener('click', () => autoHeadingHandler(true));
+    }
+
+    autoCenterBtn.classList.toggle('primary', settings.autoCenter !== false);
+    autoCenterBtn.addEventListener('click', () =>
+        autoCenterHandler(!autoCenterBtn.classList.contains('primary')));
+    autoHeadingBtn.classList.toggle('disabled', settings.autoCenter === false);
+    autoHeadingBtn.classList.toggle('primary', settings.autoHeading !== false);
+    autoHeadingBtn.addEventListener('click', () =>
+        autoHeadingHandler(!autoHeadingBtn.classList.contains('primary')));
+
+    zm.addEventListener('drag', ev => {
+        if (ev.drag) {
+            const dragging = !!(ev.drag && (ev.drag[0] || ev.drag[1]));
+            if (dragging && settings.autoCenter !== false) {
+                autoCenterBtn.classList.remove('primary');
+                autoCenterBtn.classList.add('outline');
+            }
+        } else if (ev.heading) {
+            if (autoHeadingBtn.classList.contains('primary')) {
+                autoHeadingBtn.classList.remove('primary');
+                autoHeadingBtn.classList.add('outline');
+            }
+        }
+    });
+
     return zm;
 }
 
@@ -112,10 +150,11 @@ function createZwiftMap({worldList}) {
 function createElevationProfile({worldList}) {
     const el = document.querySelector('.elevation-profile');
     if (settings.profileHeight) {
-        el.style.setProperty('--profile-height', settings.profileHeight + '%');
+        el.style.setProperty('--profile-height', settings.profileHeight / 100);
     }
     const preferRoute = settings.routeProfile !== false;
-    return new elevation.SauceElevationProfile({el, worldList, preferRoute});
+    const showMaxLine = settings.showElevationMaxLine !== false;
+    return new elevation.SauceElevationProfile({el, worldList, preferRoute, showMaxLine});
 }
 
 
@@ -304,11 +343,11 @@ export async function main() {
             zwiftMap.setFPSLimit(changed.get('fpsLimit'));
         } else if (changed.has('profileHeight')) {
             if (elProfile) {
-                elProfile.el.style.setProperty('--profile-height',
-                                               changed.get('profileHeight') + '%');
+                elProfile.el.style.setProperty('--profile-height', changed.get('profileHeight') / 100);
                 elProfile.chart.resize();
             }
-        } else if (changed.has('profileOverlay') || changed.has('fields') || changed.has('routeProfile')) {
+        } else if (changed.has('profileOverlay') || changed.has('fields') ||
+            changed.has('routeProfile') || changed.has('showElevationMaxLine')) {
             location.reload();
         }
     });

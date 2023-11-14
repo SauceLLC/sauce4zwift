@@ -35,11 +35,26 @@ function getAthletesDB() {
 
 
 async function deleteDB(db) {
-    if (dbs[db]) {
-        dbs[db].close();
-    }
     dbs[db] = null;
     await deleteDatabase(db);
+}
+
+
+function updateRoadDistance(courseId, roadId) {
+    let distance;
+    const road = env.getRoad(courseId, roadId);
+    if (road) {
+        const curveFunc = {
+            CatmullRom: curves.catmullRomPath,
+            Bezier: curves.cubicBezierPath,
+        }[road.splineType];
+        const curvePath = curveFunc(road.path, {loop: road.looped, road: true});
+        distance = curvePath.distance() / 100;
+    } else {
+        distance = null;
+    }
+    roadDistances.set(env.getRoadSig(courseId, roadId, /*reverse*/ false), distance);
+    roadDistances.set(env.getRoadSig(courseId, roadId, /*reverse*/ true), distance);
 }
 
 
@@ -280,13 +295,12 @@ class ZonesAccumulator extends TimeSeriesAccumulator {
 export class StatsProcessor extends events.EventEmitter {
     constructor(options={}) {
         super();
+        this.setMaxListeners(100);
         this.zwiftAPI = options.zwiftAPI;
         this.gameMonitor = options.gameMonitor;
         this.disableGameMonitor = options.args.disableMonitor;
-        this.randomWatch = options.args.randomWatch != null;
         this.exclusions = options.args.exclusions || new Set();
-        this.setMaxListeners(100);
-        this.athleteId = null;
+        this.athleteId = options.args.athleteId || this.gameMonitor.gameAthleteId;
         this.watching = null;
         this.emitStatesMinRefresh = 200;
         this._athleteData = new Map();
@@ -340,6 +354,7 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.getEvents, {scope: this});
         rpc.register(this.getEventSubgroup, {scope: this});
         rpc.register(this.getEventSubgroupEntrants, {scope: this});
+        rpc.register(this.getEventSubgroupResults, {scope: this});
         rpc.register(this.resetAthletesDB, {scope: this});
         rpc.register(this.getChatHistory, {scope: this});
         rpc.register(this.setFollowing, {scope: this});
@@ -358,7 +373,7 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.getAthleteSegments, {scope: this});
         rpc.register(this.getAthleteStreams, {scope: this});
         rpc.register(this.getSegmentResults, {scope: this});
-
+        rpc.register(this.putState, {scope: this});
         this._athleteSubs = new Map();
         if (options.gameConnection) {
             const gc = options.gameConnection;
@@ -455,6 +470,10 @@ export class StatsProcessor extends events.EventEmitter {
             });
         }
         return entrants;
+    }
+
+    async getEventSubgroupResults(id) {
+        return await this.zwiftAPI.getEventSubgroupResults(id);
     }
 
     getChatHistory() {
@@ -999,9 +1018,6 @@ export class StatsProcessor extends events.EventEmitter {
             if (this.processState(x) === false) {
                 continue;
             }
-            if (x.athleteId === this.watching) {
-                this._watchingRoadSig = this._roadSig(x);
-            }
             if (hasStatesListener) {
                 this._pendingEgressStates.push(x);
             }
@@ -1022,6 +1038,10 @@ export class StatsProcessor extends events.EventEmitter {
                 }
             }
         }
+        this._schedStatesEmit();
+    }
+
+    _schedStatesEmit() {
         if (this._pendingEgressStates.length && !this._timeoutEgressStates) {
             const now = monotonic();
             const delay = this.emitStatesMinRefresh - (now - this._lastEgressStates);
@@ -1038,6 +1058,17 @@ export class StatsProcessor extends events.EventEmitter {
                 this._lastEgressStates = now;
             }
         }
+    }
+
+    putState(state) {
+        if (this.processState(state) === false) {
+            console.warn("State skipped by processer");
+            return;
+        }
+        if (this.listenerCount('states')) {
+            this._pendingEgressStates.push(state);
+        }
+        this._schedStatesEmit();
     }
 
     handleRideOnPayload(payload) {
@@ -1091,9 +1122,6 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     setWatching(athleteId) {
-        if (this.randomWatch) {
-            this.athleteId = athleteId;
-        }
         if (athleteId === this.watching) {
             return;
         }
@@ -1315,6 +1343,23 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     processState(state) {
+        const worldMeta = env.worldMetas[state.courseId];
+        if (worldMeta) {
+            state.latlng = worldMeta.flippedHack ?
+                [(state.x / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
+                    (state.y / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset] :
+                [-(state.y / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
+                    (state.x / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset];
+            let slopeScale;
+            if (state.portal) {
+                const road = env.getRoad(state.courseId, state.roadId);
+                slopeScale = road?.physicsSlopeScaleOverride;
+            } else {
+                slopeScale = worldMeta.physicsSlopeScale;
+            }
+            state.altitude = (state.z + worldMeta.waterPlaneLevel) / 100 * slopeScale +
+                worldMeta.altitudeOffsetHack;
+        }
         if (!this._athleteData.has(state.athleteId)) {
             this._athleteData.set(state.athleteId, this._createAthleteData(state));
         }
@@ -1388,17 +1433,7 @@ export class StatsProcessor extends events.EventEmitter {
             this._autoLapCheck(state, ad);
         }
         if (!roadDistances.has(roadSig)) {
-            const road = env.getRoad(state.courseId, state.roadId);
-            if (road) {
-                const curveFunc = {
-                    CatmullRom: curves.catmullRomPath,
-                    Bezier: curves.cubicBezierPath,
-                }[road.splineType];
-                const curvePath = curveFunc(road.path, {loop: road.looped, road: true});
-                roadDistances.set(roadSig, road ? curvePath.distance() / 100 : 0);
-            } else {
-                roadDistances.set(roadSig, null);
-            }
+            updateRoadDistance(state.courseId, state.roadId);
         }
         this._activeSegmentCheck(state, ad, roadSig);
         this._recordAthleteRoadHistory(state, ad, roadSig);
@@ -1590,10 +1625,14 @@ export class StatsProcessor extends events.EventEmitter {
         }
         this._statesJob = this._statesProcessor();
         this._gcInterval = setInterval(this.gcAthleteData.bind(this), 62768);
-        this.athleteId = this.zwiftAPI.profile.id;
         if (!this.disableGameMonitor) {
             this.gameMonitor.on('inPacket', this.onIncoming.bind(this));
             this.gameMonitor.on('watching-athlete', this.setWatching.bind(this));
+            this.gameMonitor.on('game-athlete', id => {
+                // Probably using --random-watch option
+                console.warn('Game athlete changed to:', id);
+                this.athleteId = id;
+            });
             this.gameMonitor.start();
         }
         this._zwiftMetaRefresh = 60000;

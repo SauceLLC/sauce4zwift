@@ -1,3 +1,5 @@
+/* global __dirname */
+
 Error.stackTraceLimit = 25;
 
 console.info('Starting...');
@@ -16,28 +18,28 @@ const logFileName = 'sauce.log';
 
 
 let settings = {};
-if (fs.existsSync(userDataPath('loader_settings.json'))) {
+if (fs.existsSync(joinAppPath('userData', 'loader_settings.json'))) {
     try {
-        settings = JSON.parse(fs.readFileSync(userDataPath('loader_settings.json')));
+        settings = JSON.parse(fs.readFileSync(joinAppPath('userData', 'loader_settings.json')));
     } catch(e) {
         console.error("Error loading 'loader_settings.json':", e);
     }
 }
 let buildEnv = {};
 try {
-    buildEnv = JSON.parse(fs.readFileSync('build.json'));
+    buildEnv = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'build.json')));
 } catch(e) {
     console.error("Error loading 'build.json':", e);
 }
 
 
 function saveSettings(data) {
-    fs.writeFileSync(userDataPath('loader_settings.json'), JSON.stringify(data));
+    fs.writeFileSync(joinAppPath('userData', 'loader_settings.json'), JSON.stringify(data));
 }
 
 
-function userDataPath(...args) {
-    return path.join(app.getPath('userData'), ...args);
+function joinAppPath(subject, ...args) {
+    return path.join(app.getPath(subject), ...args);
 }
 
 
@@ -51,14 +53,14 @@ function fmtLogDate(d) {
 
 
 function rotateLogFiles(limit=5) {
-    const logs = fs.readdirSync(userDataPath()).filter(x => x.startsWith(logFileName));
+    const logs = fs.readdirSync(joinAppPath('logs')).filter(x => x.startsWith(logFileName));
     logs.sort((a, b) => a < b ? 1 : -1);
     while (logs.length > limit) {
         // NOTE: this is only for if we change the limit to a lower number
         // in a subsequent release.
         const fName = logs.shift();
         console.warn("Delete old log file:", fName);
-        fs.unlinkSync(userDataPath(fName));
+        fs.unlinkSync(joinAppPath('logs', fName));
     }
     let end = Math.min(logs.length, limit - 1);
     for (const fName of logs.slice(-(limit - 1))) {
@@ -66,7 +68,7 @@ function rotateLogFiles(limit=5) {
         if (newFName === fName) {
             continue;
         }
-        fs.renameSync(userDataPath(fName), userDataPath(newFName));
+        fs.renameSync(joinAppPath('logs', fName), joinAppPath('logs', newFName));
     }
 }
 
@@ -140,6 +142,8 @@ function monkeyPatchConsoleWithEmitter() {
 
 
 function initLogging() {
+    const logsPath = path.join(app.getPath('documents'), 'Sauce', 'logs');
+    app.setAppLogsPath(logsPath);
     let rotateErr;
     try {
         rotateLogFiles();
@@ -149,7 +153,7 @@ function initLogging() {
     }
     process.env.TERM = 'dumb';  // Prevent color tty commands
     const logEmitter = monkeyPatchConsoleWithEmitter();
-    const logFile = userDataPath(logFileName);
+    const logFile = joinAppPath('logs', logFileName);
     const logQueue = [];
     const logFileStream = fs.createWriteStream(logFile);
     logEmitter.on('message', o => {
@@ -177,6 +181,14 @@ function initLogging() {
 async function ensureSingleInstance() {
     if (app.requestSingleInstanceLock({type: 'probe'})) {
         return;
+    }
+    if (process.argv.length > 1 && process.argv.at(-1).startsWith('sauce4zwift://')) {
+        // Emulate mac style open-url eventing for url handling..
+        const url = process.argv.at(-1);
+        console.info("Sending open-url data to primary Sauce instance:", url);
+        app.requestSingleInstanceLock({type: 'open-url', url});
+        app.quit(0);
+        return false;
     }
     const {response} = await dialog.showMessageBox({
         type: 'question',

@@ -57,7 +57,7 @@
                     <span class="display-field" name="version"></span>
                 </label>
                 <label>
-                    <key data-added="2023-10-01">Update channel:</key>
+                    <key data-added="2023-12-01">Update channel:</key>
                     <select name="updateChannel">
                         <option value="stable">Stable</option>
                         <option value="beta">Beta</option>
@@ -90,7 +90,7 @@
 
                 <hr class="electron-only"/>
 
-                <div class="section electron-only">
+                <div class="section electron-only maintenance">
                     <div class="title">Maintenance:</div>
                     <div class="action-buttons">
                         <div class="std button danger" title="Reset window positions and configuration to defaults"
@@ -98,6 +98,10 @@
                         <div class="std button" title="Clear the athlete cache database"
                              data-action="reset-athletes-db">Clear Athletes Cache</div>
                         <div class="std button" data-action="restart">Restart</div>
+                    </div>
+                    <div class="links">
+                        <a href="logs.html?windowType=logs" target="_blank">Debug Logs</a>
+                        <a href="stats-for-nerds.html?windowType=stats-for-nerds" target="_blank">Stats for Nerds</a>
                     </div>
                 </div>
             </form>
@@ -238,6 +242,24 @@ If you require the Zwift Companion App's Game mode, DO NOT enable this feature."
                     <key>Lock fields:</key>
                     <input type="checkbox" name="lockedFields"/>
                 </label>
+
+                <hr/>
+
+                <label>
+                    <key data-added="2023-12-01">Hide Analysis button:</key>
+                    <input type="checkbox" name="hideAnalysisButton"/>
+                </label>
+                <label>
+                    <key data-added="2023-12-01">Hide Athletes button:</key>
+                    <input type="checkbox" name="hideAthletesButton"/>
+                </label>
+                <label>
+                    <key data-added="2023-12-01">Hide Events button:</key>
+                    <input type="checkbox" name="hideEventsButton"/>
+                </label>
+
+                <hr/>
+
                 <label>
                     <key>Theme override:</key>
                     <select is="sauce-theme" override></select>

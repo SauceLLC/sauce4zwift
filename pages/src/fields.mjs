@@ -104,21 +104,36 @@ const tpAttr = common.stripHTML(common.attributions.tp);
 
 
 export const fields = [{
+    id: 'time-active',
+    value: x => fmtDur(x.stats && x.stats.activeTime || 0),
+    key: 'Active',
+    tooltip: 'Sauce based active time',
+}, {
     id: 'time-elapsed',
     value: x => fmtDur(x.stats && x.stats.elapsedTime || 0),
     key: 'Elapsed',
+    tooltip: 'Sauce based elapsed time',
 }, {
     id: 'time-session',
     value: x => fmtDur(x.state && x.state.time || 0),
     key: 'Time',
+    tooltip: 'Time as reported by the current Zwift session',
 }, {
     id: 'time-lap',
-    value: x => fmtDur((x.lap || x.stats) && (x.lap || x.stats).elapsedTime || 0),
+    value: x => fmtDur((x.lap || x.stats) && (x.lap || x.stats).activeTime || 0),
     key: 'Time<small>(lap)</small>',
 }, {
     id: 'clock',
     value: x => new Date().toLocaleTimeString(),
     key: '',
+}, {
+    id: 'fullname',
+    value: x => x.athlete && x.athlete.sanitizedFullname || '-',
+    key: x => (x && x.athlete) ? '' : 'Athlete Name',
+}, {
+    id: 'flastname',
+    value: x => x.athlete && x.athlete.fLast || '-',
+    key: x => (x && x.athlete) ? '' : 'Athlete F.Last',
 }, {
     id: 'team',
     value: x => x.athlete && common.teamBadge(x.athlete.team) || '-',

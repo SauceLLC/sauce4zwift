@@ -1,12 +1,18 @@
 import path from 'node:path';
 import fs from 'node:fs';
-import * as zwift from './zwift.mjs';
 import * as rpc from './rpc.mjs';
 import {fileURLToPath} from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export const allSegments = new Map();
+export const worldMetas = {};
+try {
+    const worldListFile = path.join(__dirname, `../shared/deps/data/worldlist.json`);
+    for (const x of JSON.parse(fs.readFileSync(worldListFile))) {
+        worldMetas[x.courseId] = x;
+    }
+} catch {/*no-pragma*/}
 
 
 export function getRoadSig(courseId, roadId, reverse) {
@@ -18,8 +24,8 @@ const _segmentsByRoadSig = {};
 const _segmentsByCourse = {};
 export function getNearbySegments(courseId, roadSig) {
     if (_segmentsByRoadSig[roadSig] === undefined) {
-        const worldId = zwift.courseToWorldIds[courseId];
         if (_segmentsByCourse[courseId] === undefined) {
+            const worldId = worldMetas[courseId]?.worldId;
             const fname = path.join(__dirname, `../shared/deps/data/worlds/${worldId}/segments.json`);
             try {
                 _segmentsByCourse[courseId] = JSON.parse(fs.readFileSync(fname));
@@ -67,7 +73,7 @@ export function getRoads(courseId) {
         if (courseId === 'portal') {
             fname = path.join(__dirname, `../shared/deps/data/portal_roads.json`);
         } else {
-            const worldId = zwift.courseToWorldIds[courseId];
+            const worldId = worldMetas[courseId]?.worldId;
             fname = path.join(__dirname, `../shared/deps/data/worlds/${worldId}/roads.json`);
         }
         try {
@@ -111,7 +117,7 @@ export function getRoute(routeId) {
             routes = [];
         }
         _routes = Object.fromEntries(routes.map(route => {
-            route.courseId = zwift.worldToCourseIds[route.worldId];
+            route.courseId = Object.values(worldMetas).find(x => x.worldId === route.worldId)?.courseId;
             return [route.id, route];
         }));
     }

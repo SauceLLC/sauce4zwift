@@ -560,10 +560,9 @@ export function initInteractionListeners() {
         !doc.classList.contains('disable-settings-mode')) {
         window.addEventListener('contextmenu', ev => {
             ev.preventDefault();
-            void doc.classList.toggle('settings-mode');
+            doc.classList.toggle('settings-mode');
         });
-        window.addEventListener('blur', () =>
-            void doc.classList.remove('settings-mode'));
+        window.addEventListener('blur', () => void doc.classList.remove('settings-mode'));
         window.addEventListener('click', ev => {
             if (!ev.target.closest('#titlebar')) {
                 doc.classList.remove('settings-mode');

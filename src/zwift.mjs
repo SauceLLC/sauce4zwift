@@ -1,12 +1,12 @@
 /* global Buffer */
 import path from 'node:path';
 import net from 'node:net';
-import fs from 'node:fs';
 import dgram from 'node:dgram';
 import events from 'node:events';
 import crypto from 'node:crypto';
 import fetch from 'node-fetch';
 import protobuf from 'protobufjs';
+import * as env from './env.mjs';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
 const require = createRequire(import.meta.url);
@@ -140,32 +140,6 @@ const turningEnum = {
     1: 'RIGHT',
     2: 'LEFT',
 };
-const worldCourseDescs = [
-    {worldId: 1, courseId: 6, name: 'Watopia'},
-    {worldId: 2, courseId: 2, name: 'Richmond'},
-    {worldId: 3, courseId: 7, name: 'London'},
-    {worldId: 4, courseId: 8, name: 'New York'},
-    {worldId: 5, courseId: 9, name: 'Innsbruck'},
-    {worldId: 6, courseId: 10, name: 'Bologna'},
-    {worldId: 7, courseId: 11, name: 'Yorkshire'},
-    {worldId: 8, courseId: 12, name: 'Crit City'},
-    {worldId: 9, courseId: 13, name: 'Makuri Islands'},
-    {worldId: 10, courseId: 14, name: 'France'},
-    {worldId: 11, courseId: 15, name: 'Paris'},
-    {worldId: 12, courseId: 16, name: 'Gravel Mountain'},
-    {worldId: 13, courseId: 17, name: 'Scotland'},
-];
-export const courseToWorldIds = Object.fromEntries(worldCourseDescs.map(x => [x.courseId, x.worldId]));
-export const worldToCourseIds = Object.fromEntries(worldCourseDescs.map(x => [x.worldId, x.courseId]));
-export const courseToNames = Object.fromEntries(worldCourseDescs.map(x => [x.courseId, x.name]));
-export const worldToNames = Object.fromEntries(worldCourseDescs.map(x => [x.worldId, x.name]));
-export const worldMetas = {};
-try {
-    const worldListFile = path.join(__dirname, `../shared/deps/data/worldlist.json`);
-    for (const x of JSON.parse(fs.readFileSync(worldListFile))) {
-        worldMetas[x.courseId] = x;
-    }
-} catch {/*no-pragma*/}
 
 
 function decodeGroupEventUserRegistered(buf) {
@@ -268,9 +242,10 @@ export function processPlayerStateMessage(msg) {
     const wt = msg.worldTime.toNumber();
     const latency = worldTimer.now() - wt;
     const adjRoadLoc = msg.roadTime - 5000;  // It's 5,000 -> 1,005,000
-    const worldMeta = worldMetas[msg.courseId];
-    // Route id is actually wrong when in a portal and causes problems.
-    const routeId = msg.portal ? undefined : msg.routeId;
+    const progress = (msg._progress >> 8 & 0xff) / 0xff;
+    // Route ID can be stale in a few situations.  This may change but so far it looks like when
+    // progress hits 100% and routeProgess rollsover to 0 the route is no longer correct.
+    const routeId = msg.portal || (progress === 1 && msg.routeProgress === 0) ? undefined : msg.routeId;
     return {
         ...msg,
         ...flags1,
@@ -278,7 +253,7 @@ export function processPlayerStateMessage(msg) {
         worldTime: wt,
         latency,
         routeId,
-        progress: (msg._progress >> 8 & 0xff) / 0xff,
+        progress,
         workoutZone: (msg._progress & 0xF) || null,
         kj: msg._mwHours / 1000 / (1000 / 3600),
         heading: (((msg._heading + halfCircle) / (2 * halfCircle)) * 360) % 360,  // degrees
@@ -289,15 +264,6 @@ export function processPlayerStateMessage(msg) {
             Math.round(msg._cadenceUHz / 1e6 * 60) : 0,  // rpm
         eventDistance: msg._eventDistance / 100,  // meters
         roadCompletion: flags1.reverse ? 1e6 - adjRoadLoc : adjRoadLoc,
-        latlng: worldMeta ?
-            worldMeta.flippedHack ?
-                [(msg.x / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
-                    (msg.y / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset] :
-                [-(msg.y / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
-                    (msg.x / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset] :
-            null,
-        altitude: worldMeta ? (msg.z + worldMeta.waterPlaneLevel) / 100 *
-            worldMeta.physicsSlopeScale + worldMeta.altitudeOffsetHack : null,
     };
 }
 
@@ -1138,7 +1104,9 @@ class UDPChannel extends NetChannel {
     }
 
     toString() {
-        const world = this.courseId ? `${courseToNames[this.courseId]} (${this.courseId})` : 'UNATTACHED';
+        const world = this.courseId ?
+            `${env.worldMetas[this.courseId]?.name} (${this.courseId})` :
+            'UNATTACHED';
         return `<UDPChannel [${this.isDirect ? 'DIRECT' : 'LB'}] ${world}, ` +
             `connId: ${this.connId}, relayId: ${this.relayId}, recv: ${this.recvCount}, ip: ${this.ip}>`;
     }
@@ -1365,6 +1333,7 @@ export class GameMonitor extends events.EventEmitter {
     async initPlayerState() {
         if (this.randomWatch != null) {
             this.gameAthleteId = await this.getRandomAthleteId(this.randomWatch);
+            this.emit("game-athlete", this.gameAthleteId);
         }
         if (this.gameAthleteId != null) {
             const s = await this.api.getPlayerState(this.gameAthleteId);
@@ -1466,7 +1435,7 @@ export class GameMonitor extends events.EventEmitter {
         if (!this._starting || this._stopping) {
             throw new TypeError('invalid state');
         }
-        console.info("Renewing to Zwift relay session...");
+        console.info("Renewing Zwift relay session...");
         try {
             await this._renewSession();
         } catch(e) {
@@ -1725,6 +1694,7 @@ export class GameMonitor extends events.EventEmitter {
         if (!state) {
             if (this.randomWatch != null) {
                 this.gameAthleteId = await this.getRandomAthleteId(this.randomWatch);
+                this.emit("game-athlete", this.gameAthleteId);
                 if (this.gameAthleteId == null) {
                     console.warn("No athletes found in world.");
                 } else {
@@ -1913,19 +1883,9 @@ export class GameMonitor extends events.EventEmitter {
     setCourse(courseId) {
         this.courseId = courseId;
         if (courseId) {
-            console.info(`Moving to ${courseToNames[courseId]}, courseId: ${courseId}`);
-            const worldMeta = worldMetas[courseId];
-            if (worldMeta && !worldMeta.roads) {
-                const worldId = courseToWorldIds[courseId];
-                const roadsFile = path.join(__dirname, `../shared/deps/data/worlds/${worldId}/roads.json`);
-                try {
-                    worldMeta.roads = JSON.parse(fs.readFileSync(roadsFile));
-                } catch {
-                    worldMeta.roads = {};
-                }
-            }
+            console.info(`Moving to ${env.worldMetas[courseId]?.name}, courseId: ${courseId}`);
             if (this._session) {
-                this.setUDPChannel();
+                this.renewSession();
             }
         }
     }
@@ -2128,7 +2088,6 @@ export class GameConnectionServer extends net.Server {
 
     async _start() {
         await this.listenDone;
-        this._state = 'ready';
         const {port} = this.address();
         console.info("Registering game connnection server:", this.ip, port);
         this.port = port;

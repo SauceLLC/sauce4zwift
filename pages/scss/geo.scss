@@ -34,11 +34,6 @@ html {
         top: 0;
         z-index: 11;
         opacity: 0.86;
-        transition: opacity 200ms;
-
-        &:hover {
-            opacity: 1;
-        }
     }
 
     > .fields {
@@ -121,16 +116,18 @@ html {
     }
 
     > .elevation-profile {
+        --profile-height: 0.20;
         flex: 0 0 auto;
         position: absolute;
-        font-size: 2em;
+        font-size: clamp(16px, calc(var(--profile-height) * 42vh), 65px);
         left: 0;
         bottom: 0;
         z-index: 10000;
         pointer-events: none;
         transform: translateZ(0);  // Fix rendering glitch that makes profile invisible
-        --profile-height: 20%;
-        height: var(--profile-height);
+        height: calc(var(--profile-height) * 100%);
+        width: 100%;
+        overflow: hidden;  // echarts rounds up sometimes and makes a scrollbar
 
         svg > g {
             pointer-events: all;

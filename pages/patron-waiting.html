@@ -6,7 +6,7 @@
         <meta name="apple-mobile-web-app-capable" content="yes"/>
         <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
 
-        <title>Link with Patreon - Sauce for Zwift™</title>
+        <title>Waiting for validation - Sauce for Zwift™</title>
 
         <link rel="preload" href="fonts/Saira.woff2?v=1" as="font" type="font/woff2"/>
         <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
@@ -37,12 +37,6 @@
                 justify-content: center;
             }
 
-            .note {
-                text-align: center;
-                font-size: 0.9em;
-                padding: 1em 0;
-            }
-
             body > main {
                 display: flex;
                 align-items: center;
@@ -54,48 +48,26 @@
                 margin-top: 1em;
                 margin-bottom: 0.5em;
             }
-
-            .button.primary {
-                margin-bottom: 1em;
-            }
-
-            .button.code {
-                display: inline-block;
-            }
         </style>
-
-        <script type="module">
-            import * as common from './src/common.mjs';
-
-            async function main() {
-                common.initInteractionListeners();
-            }
-            main();
-        </script>
     </head>
 
     <body>
         <header>
             <img class="logo" src="images/logo_vert_120x320.png"/>
-            <h3>Greetings Zwifter!</h3>
+            <h3>Waiting for validation...</h3>
         </header>
         <main>
-            <h4>To use Sauce for Zwift™ you need to be a <a external href="https://www.patreon.com/bePatron?u=32064618"><i>Sauce Member</i> on our Patreon</a> first.</h4>
-
-            <h5>Without this support I will become financially derelict and swiftly banished from society. 😞</h5>
-
-            <br/>
-
-            <a class="std button xl primary patron-link" href external>Link with Patreon</a>
-
-            <h5>OR if you have a code: <a href="patron-a51.html" class="std button code">Enter Code</a></h5>
+            <br/><br/>
+            <h4>Leave this window open while you log in to Patreon with your browser.</h4>
 
             <br/><br/>
 
-            <small>For assistance send an email to <a external href="mailto:support@sauce.llc">support@sauce.llc</a>.</small>
+            <h5>Or if something went wrong: <a class="std button" href="patron.html">Try again</a></h5>
 
-            <br/>
-            <div class="std button xs patron-link-legacy">Legacy Patreon Link</div>
+            <br/><br/>
+
+            <small>HINT: A new browser window should have opened to guide you through the next steps.
+                For assistance send an email to <a external href="mailto:support@sauce.llc">support@sauce.llc</a>.</small>
         </main>
     </body>
 </html>

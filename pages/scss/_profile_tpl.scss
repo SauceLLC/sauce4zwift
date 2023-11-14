@@ -136,9 +136,9 @@
             border: 0.4em solid #0007;
             box-shadow: 1px 1px 5px #0003;
             background-image: radial-gradient(ellipse at 11% 0,
-                rgba(32, 2, 72, 0.8) 0%,
-                rgba(10, 12, 142, 0.8) 42%,
-                rgba(132, 70, 13, 0.8) 94%);
+                rgb(32 2 72 / 0.8) 0%,
+                rgb(10 12 142 / 0.8) 42%,
+                rgb(132 70 13 / 0.8) 94%);
             background-clip: content-box;
         }
     }

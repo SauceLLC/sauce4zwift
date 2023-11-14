@@ -111,6 +111,29 @@ const sectionSpecs = {
 };
 
 const groupSpecs = {
+    time: {
+        title: 'Time',
+        fields: [{
+            id: 'time-active',
+            value: x => fmtDur(x.stats && x.stats.activeTime),
+            key: 'Active',
+        }, {
+            id: 'time-elapsed',
+            value: x => fmtDur(x.stats && x.stats.elapsedTime),
+            key: 'Elapsed',
+            label: 'elapsed',
+        }, {
+            id: 'time-lap',
+            value: x => fmtDur(curLap(x) && curLap(x).activeTime),
+            key: 'Lap',
+            label: 'lap',
+        }, {
+            id: 'time-session',
+            value: x => fmtDur(x.state && x.state.time),
+            key: 'Session',
+            label: 'session',
+        }]
+    },
     power: {
         title: 'Power',
         backgroundImage: 'url(../images/fa/bolt-duotone.svg)',
@@ -485,6 +508,21 @@ const groupSpecs = {
             unit: speedUnit,
         }],
     },
+    other: {
+        title: 'Other',
+        fields: [{
+            id: 'other-distance',
+            value: x => fmtDistValue(x.state && x.state.distance),
+            key: 'Distance',
+            unit: x => fmtDistUnit(x.state && x.state.distance),
+        }, {
+            id: 'other-grade',
+            value: x => H.number(x.state && x.state.grade * 100, {precision: 1, fixed: true}),
+            key: 'Grade',
+            unit: '%',
+        }]
+    },
+
 };
 
 const smallSpace = '\u0020';
@@ -605,7 +643,7 @@ function fmtDur(v, options) {
     if (v == null || v === Infinity || v === -Infinity || isNaN(v)) {
         return '-';
     }
-    return H.timer(v, options);
+    return H.timer(v, {long: true, ...options});
 }
 
 
@@ -898,15 +936,16 @@ async function createTimeInZonesVertBars(el, sectionId, settings, renderer) {
             splitNumber: 2,
             minInterval: 60,
             axisLabel: {
-                formatter: fmtDur,
+                formatter: H.timer,
                 rotate: 50,
                 fontSize: '0.6em',
+                showMinLabel: false,
             }
         },
         series: [{
             type: 'bar',
             barWidth: '90%',
-            tooltip: {valueFormatter: x => fmtDur(x, {long: true})},
+            tooltip: {valueFormatter: x => fmtDur(x)},
         }],
     });
     const _resize = chart.resize;
@@ -1012,7 +1051,7 @@ async function createTimeInZonesPie(el, sectionId, settings, renderer) {
                 position: 'inner',
             },
             tooltip: {
-                valueFormatter: x => fmtDur(x, {long: true})
+                valueFormatter: x => fmtDur(x)
             },
             emphasis: {
                 itemStyle: {
@@ -1149,12 +1188,18 @@ async function initScreenSettings() {
             groupSpecs,
             sectionSpecs,
             configuring: true,
+            settings,
         }));
         prevBtn.classList.toggle('disabled', sIndex === 0);
         nextBtn.classList.toggle('disabled', sIndex === sLen - 1);
         delBtn.classList.toggle('disabled', sLen === 1);
     }
 
+    common.settingsStore.addEventListener('set', ev => {
+        if (ev.data.key === 'hideBackgroundIcons') {
+            renderScreen();
+        }
+    });
     document.querySelector('main header .button-group').addEventListener('click', ev => {
         const btn = ev.target.closest('.button-group .button');
         const action = btn && btn.dataset.action;
@@ -1281,6 +1326,7 @@ export async function main() {
             sectionSpecs,
             athlete,
             hidden,
+            settings,
         })).firstElementChild;
         if (!hidden) {
             curScreen = screenEl;

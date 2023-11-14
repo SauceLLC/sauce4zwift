@@ -535,7 +535,7 @@ html {
     &:not(.horizontal) .gap {
         border-right-style: solid;
         border-right-width: $border-width;
-        border-right-color: hsl(calc(70deg + 50deg * min(var(--outer-gap) / 300, 1) * var(--gap-sign)), 100%, 50%);
+        border-right-color: hsl(calc(70deg + 50deg * min(var(--outer-gap) / 300, 1) * var(--gap-sign)) 100% 50%);
 
         .desc {
             $pad: 0.1rem;
@@ -558,7 +558,7 @@ html {
         .gap {
             border-top-style: solid;
             border-top-width: $border-width;
-            border-top-color: hsl(calc(70deg + 50deg * min(var(--outer-gap) / 300, 1) * var(--gap-sign)), 100%, 50%);
+            border-top-color: hsl(calc(70deg + 50deg * min(var(--outer-gap) / 300, 1) * var(--gap-sign)) 100% 50%);
 
             .desc {
                 transition: opacity 300ms, font-size 300ms;

@@ -161,7 +161,7 @@ const gaugeConfigs = {
     },
 };
 
-const config = gaugeConfigs[type];
+const config = new Map(Object.entries(gaugeConfigs)).get(type);
 const settingsStore = new common.SettingsStore(`gauge-settings-v1-${type}`);
 settings = settingsStore.get(null, {
     refreshInterval: 1,

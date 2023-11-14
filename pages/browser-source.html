@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html class="" tabindex="0" data-settings-key="browser-source-settings-v1">
+    <head>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+        <meta name="apple-mobile-web-app-capable" content="yes"/>
+        <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
+
+        <title>Browser Source - Sauce for Zwift™</title>
+
+        <script src="./src/preloads.js"></script>
+
+        <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
+        <link rel="stylesheet" href="css/common.css"/>
+        <link rel="stylesheet" href="css/browser-source.css"/>
+
+        <script type="module">
+            import {main} from './src/browser-source.mjs';
+            main();
+        </script>
+    </head>
+    <body class="transparent-bg">
+        <div id="titlebar">
+            <header>
+                <div class="logo"><img src="images/icon128.png"/></div>
+                <div class="double-row">
+                    <div class="title">Browser Source</div>
+                    <div class="buttons nav">
+                        <div title="Back" class="button back disabled"><ms>arrow_back</ms></div>
+                        <div title="Forward" class="button forward disabled"><ms>arrow_forward</ms></div>
+                        <div title="Reload page" class="button reload"><ms>refresh</ms></div>
+                        <div title="Home" class="button home"><ms>home</ms></div>
+                        <div title="Open Dev Tools" class="button debug"><ms>developer_mode</ms></div>
+                    </div>
+                </div>
+                <div class="url-holder">
+                    <input type="text" name="url"/>
+                    <div class="button pin pinned"><ms>star</ms></div>
+                </div>
+                <div class="filler"></div>
+                <div class="buttons">
+                    <a class="button open-settings" href="browser-source-settings.html?width=400&height=400&child-window"
+                       title="Open settings window" target="browser-source-settings"><ms>settings</ms></a>
+                    <div title="Minimize" class="button minimize electron-only"><ms>minimize</ms></div>
+                    <div title="Close this window" class="button close electron-only"><ms>close</ms></div>
+                </div>
+            </header>
+        </div>
+        <div id="content">
+            <webview></webview>
+            <div class="load-fail-reason"></div>
+        </div>
+        <div id="hintbar">
+            <div class="hint"></div>
+        </div>
+    </body>
+</html>

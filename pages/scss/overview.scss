@@ -201,6 +201,10 @@ header {
         opacity: 1;
         transition: opacity 200ms, background 200ms;
 
+        &.hidden {
+            display: none;
+        }
+
         &:hover {
             background-color: #fff3;
         }

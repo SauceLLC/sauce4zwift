@@ -1,5 +1,5 @@
 const fonts = [
-    '/pages/fonts/MaterialSymbolsRounded.woff2?v=1',
+    '/pages/fonts/MaterialSymbolsRounded.woff2?v=2',
     '/pages/fonts/Saira.woff2?v=1',
 ];
 

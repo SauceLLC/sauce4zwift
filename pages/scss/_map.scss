@@ -232,7 +232,7 @@
             font-size: 100px;  // make em units reasonable based on zwift coordinates
 
             .path-layers {
-                &.rotate-route-select {
+                &.rotated-coordinates {
                     transform: rotate(-90deg);
                 }
             }

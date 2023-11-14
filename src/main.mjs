@@ -20,6 +20,7 @@ import {parseArgs} from './argparse.mjs';
 import protobuf from 'protobufjs';
 import fetch from 'node-fetch';
 
+const sauceScheme = 'sauce4zwift';
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 const {autoUpdater} = require('electron-updater');
@@ -27,6 +28,7 @@ const electron = require('electron');
 const isDEV = !electron.app.isPackaged;
 const defaultUpdateChannel = pkg.version.match(/alpha/) ? 'alpha' :
     pkg.version.match(/beta/) ?  'beta' : 'stable';
+const updateChannelLevels = {stable: 10, beta: 20, alpha: 30};
 
 let zwiftAPI;
 let zwiftMonitorAPI;
@@ -96,10 +98,13 @@ try {
     ]).finally(() => quit(1));
 }
 
-electron.app.on('second-instance', (ev,_, __, {type}) => {
+electron.app.on('second-instance', (ev,_, __, {type, ...args}) => {
     if (type === 'quit') {
         console.warn("Another instance requested us to quit.");
         quit();
+    } else if (type === 'open-url') {
+        electron.app.focus();
+        electron.app.emit('open-url', null, args.url);
     }
 });
 electron.app.on('before-quit', () => void (quiting = true));
@@ -610,8 +615,11 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     let updater;
     const lastVersion = sauceApp.getSetting('lastVersion');
     if (lastVersion !== pkg.version) {
-        sauceApp.setSetting('updateChannel', defaultUpdateChannel);
-        console.info("Update channel set to:", sauceApp.getSetting('updateChannel'));
+        const upChLevel = updateChannelLevels[sauceApp.getSetting('updateChannel')] || 0;
+        if (upChLevel < updateChannelLevels[defaultUpdateChannel]) {
+            sauceApp.setSetting('updateChannel', defaultUpdateChannel);
+            console.info("Update channel set to:", defaultUpdateChannel);
+        }
         if (!args.headless) {
             if (lastVersion) {
                 console.info(`Sauce was updated: ${lastVersion} -> ${pkg.version}`);
@@ -628,6 +636,23 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         sauceApp.setSetting('lastVersion', pkg.version);
     } else if (!isDEV) {
         updater = sauceApp.checkForUpdates();
+    }
+    const isSauceProtoHandler = electron.app.setAsDefaultProtocolClient(sauceScheme);
+    if (!isSauceProtoHandler) {
+        console.error("Unable to register as protocol handler for:", sauceScheme);
+    } else {
+        electron.app.on('open-url', (ev, _url) => {
+            const url = new URL(_url);
+            if (url.protocol !== sauceScheme + ':') {
+                console.error("Unexpected protocol:", url.protocol);
+                return;
+            }
+            sauceApp.emit('external-open', {
+                name: url.host,
+                path: url.pathname,
+                data: Object.fromEntries(url.searchParams),
+            });
+        });
     }
     try {
         if (!await windows.eulaConsent() || !await windows.patronLink()) {
