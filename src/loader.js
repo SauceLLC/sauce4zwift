@@ -1,3 +1,5 @@
+/* global __dirname */
+
 Error.stackTraceLimit = 25;
 
 console.info('Starting...');
@@ -25,7 +27,7 @@ if (fs.existsSync(joinAppPath('userData', 'loader_settings.json'))) {
 }
 let buildEnv = {};
 try {
-    buildEnv = JSON.parse(fs.readFileSync('build.json'));
+    buildEnv = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'build.json')));
 } catch(e) {
     console.error("Error loading 'build.json':", e);
 }
