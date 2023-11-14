@@ -34,7 +34,12 @@ export class SqliteDatabase extends Database {
 
 
 export async function deleteDatabase(name) {
-    databases.delete(name);
+    const db = databases.get(name);
+    if (db) {
+        db.close();
+        db.close();
+        databases.delete(name);
+    }
     const filename = getFilename(name);
     await fs.rm(filename, {force: true});
 }

@@ -35,9 +35,6 @@ function getAthletesDB() {
 
 
 async function deleteDB(db) {
-    if (dbs[db]) {
-        dbs[db].close();
-    }
     dbs[db] = null;
     await deleteDatabase(db);
 }
