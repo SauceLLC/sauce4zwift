@@ -301,7 +301,6 @@ async function initSentry(logEmitter) {
     // Use non-electron naming for windows updater.
     // https://github.com/electron-userland/electron-builder/issues/2700
     app.setAppUserModelId('io.saucellc.sauce4zwift'); // must match build.appId for windows
-    console.error('XXX Able to register protocol handler:', app.setAsDefaultProtocolClient('sauce4zwift'));
     const sentryAnonId = await initSentry(logMeta.logEmitter);
     await app.whenReady();
     if (await ensureSingleInstance() === false) {

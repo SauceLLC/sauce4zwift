@@ -20,6 +20,7 @@ import {parseArgs} from './argparse.mjs';
 import protobuf from 'protobufjs';
 import fetch from 'node-fetch';
 
+const sauceScheme = 'sauce4zwift';
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 const {autoUpdater} = require('electron-updater');
@@ -632,6 +633,23 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         sauceApp.setSetting('lastVersion', pkg.version);
     } else if (!isDEV) {
         updater = sauceApp.checkForUpdates();
+    }
+    const isSauceProtoHandler = electron.app.setAsDefaultProtocolClient(sauceScheme);
+    if (!isSauceProtoHandler) {
+        console.error("Unable to register as protocol handler for:", sauceScheme);
+    } else {
+        electron.app.on('open-url', (ev, _url) => {
+            const url = new URL(_url);
+            if (url.protocol !== sauceScheme + ':') {
+                console.error("Unexpected protocol:", url.protocol);
+                return;
+            }
+            sauceApp.emit('external-open', {
+                name: url.host,
+                path: url.pathname,
+                data: Object.fromEntries(url.searchParams),
+            });
+        });
     }
     try {
         if (!await windows.eulaConsent() || !await windows.patronLink()) {

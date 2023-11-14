@@ -9,7 +9,7 @@ import {EventEmitter} from 'node:events';
 import {sleep} from '../shared/sauce/base.mjs';
 import {createRequire} from 'node:module';
 import * as menu from './menu.mjs';
-import * as app from './main.mjs';
+import * as main from './main.mjs';
 
 const require = createRequire(import.meta.url);
 const electron = require('electron');
@@ -29,7 +29,7 @@ let activeProfileSession;
 let swappingProfiles;
 
 electron.app.on('window-all-closed', () => {
-    if (app.started && !app.quiting && !swappingProfiles) {
+    if (main.started && !main.quiting && !swappingProfiles) {
         electron.app.quit();
     }
 });
@@ -571,7 +571,7 @@ rpc.register(() => {
 
 let _windowsUpdatedTimeout;
 export function saveProfiles() {
-    if (app.quiting || swappingProfiles) {
+    if (main.quiting || swappingProfiles) {
         return;
     }
     if (!activeProfile) {
@@ -620,7 +620,7 @@ export function updateWidgetWindowSpec(id, updates) {
     if (!spec) {
         spec = activeProfile.windows[id] = {};
     }
-    if (app.quiting || swappingProfiles) {
+    if (main.quiting || swappingProfiles) {
         return spec;
     }
     Object.assign(spec, updates);
@@ -639,7 +639,7 @@ export function updateSubWindowSettings(id, updates) {
     if (!settings) {
         settings = activeProfile.subWindowSettings[id] = {};
     }
-    if (app.quiting || swappingProfiles) {
+    if (main.quiting || swappingProfiles) {
         return settings;
     }
     Object.assign(settings, updates);
@@ -950,6 +950,8 @@ function handleNewSubWindow(parent, spec, webPrefs) {
         newWin.setMenuBarVisibility(false);
         if (newWinSpec.overlay !== false || spec?.overlay !== false) {
             newWin.setAlwaysOnTop(true, 'pop-up-menu');
+        } else {
+            console.warn("okay non overlay, what gives?", {newWinSpec, newWin, spec, parent});
         }
         if (target && target !== '_blank') {
             newWin._url = url;
@@ -1350,7 +1352,7 @@ export async function patronLink() {
         preload: path.join(appPath, 'src/preload/patron-link.js'),
         session: loadSession('patreon'),
     });
-    // Prevent Patreon's datedome.co bot service from blocking us and fix federated logins..
+    // Prevent Patreon's datedome.co bot service from blocking us and fix federated logins.. (legacy only now)
     emulateNormalUserAgent(win);
     let resolve;
     win.webContents.ipc.on('patreon-reset-session', () => {
@@ -1359,24 +1361,31 @@ export async function patronLink() {
         electron.app.relaunch();
         win.close();
     });
-    win.webContents.ipc.on('patreon-auth-code', (ev, code) => resolve({code}));
+    win.webContents.ipc.on('patreon-auth-code', (ev, code) => resolve({code, legacy: true}));
     win.webContents.ipc.on('patreon-special-token', (ev, token) => resolve({token}));
+    main.getApp().on('external-open', x => {
+        if (x.name === 'patron' && x.path === '/link') {
+            resolve({code: x.data.code});
+        }
+    });
     win.on('closed', () => resolve({closed: true}));
+    let isMember = false;
     while (true) {
-        const {code, token, closed} = await new Promise(_resolve => resolve = _resolve);
+        const {code, token, closed, legacy} = await new Promise(_resolve => resolve = _resolve);
         let isAuthed;
         if (closed) {
-            return false;
+            return isMember;
         } else if (token) {
             membership = await patreon.getLegacyMembership(token);
         } else {
-            isAuthed = code && await patreon.link(code);
-            membership = isAuthed && await patreon.getMembership();
+            win.loadFile('/pages/patron-checking.html');
+            isAuthed = code && await patreon.link(code, {legacy});
+            membership = isAuthed && await patreon.getMembership({legacy});
         }
         if (membership && membership.patronLevel >= 10) {
+            isMember = true;
             storageMod.set('patron-membership', membership);
-            win.close();
-            return true;
+            win.loadFile('/pages/patron-success.html');
         } else {
             const query = {};
             if (isAuthed) {

@@ -19,13 +19,16 @@ async function _api(res, options) {
 }
 
 
-export async function link(code) {
+export async function link(code, options={}) {
     storage.set('patreon-auth', null);
     let auth;
     try {
         auth = await _api('/patreon/auth', {
             method: 'POST',
-            headers: {'x-sauce-app': 'zwift'},
+            headers: {
+                'x-sauce-app': 'zwift',
+                'x-sauce-version': options.legacy ? '' : 2,
+            },
             body: JSON.stringify({code}),
         });
     } catch(e) {
@@ -57,6 +60,7 @@ export async function getMembership(options={}) {
     const r = await fetch(`https://api.saucellc.io/patreon/membership?${q}`, {
         headers: {
             'x-sauce-app': 'zwift',
+            'x-sauce-version': options.legacy ? '' : 2,
             Authorization: `${auth.id} ${auth.secret}`
         }
     });

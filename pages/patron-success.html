@@ -6,7 +6,7 @@
         <meta name="apple-mobile-web-app-capable" content="yes"/>
         <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
 
-        <title>Link with Patreon - Sauce for Zwift™</title>
+        <title>Access Granted - Sauce for Zwift™</title>
 
         <link rel="preload" href="fonts/Saira.woff2?v=1" as="font" type="font/woff2"/>
         <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
@@ -37,12 +37,6 @@
                 justify-content: center;
             }
 
-            .note {
-                text-align: center;
-                font-size: 0.9em;
-                padding: 1em 0;
-            }
-
             body > main {
                 display: flex;
                 align-items: center;
@@ -54,48 +48,35 @@
                 margin-top: 1em;
                 margin-bottom: 0.5em;
             }
-
-            .button.primary {
-                margin-bottom: 1em;
-            }
-
-            .button.code {
-                display: inline-block;
+            footer {
+                opacity: 0.7;
+                font-size: 0.76em;
             }
         </style>
-
-        <script type="module">
-            import * as common from './src/common.mjs';
-
-            async function main() {
-                common.initInteractionListeners();
-            }
-            main();
-        </script>
     </head>
 
     <body>
         <header>
             <img class="logo" src="images/logo_vert_120x320.png"/>
-            <h3>Greetings Zwifter!</h3>
+            <div>
+                <h1>🎉 Huzzah!</h1>
+                <h3>It actually worked! <span style="font-size: 1.5em">🥳</span></h3>
+            </div>
         </header>
         <main>
-            <h4>To use Sauce for Zwift™ you need to be a <a external href="https://www.patreon.com/bePatron?u=32064618"><i>Sauce Member</i> on our Patreon</a> first.</h4>
-
-            <h5>Without this support I will become financially derelict and swiftly banished from society. 😞</h5>
+            <br/>
+            <h3>Never a doubt in my mind!</h3>
 
             <br/>
 
-            <a class="std button xl primary patron-link" href external>Link with Patreon</a>
+            <div class="std button xl primary" onclick="electron.closeWindow()">Proceed...</div>
 
-            <h5>OR if you have a code: <a href="patron-a51.html" class="std button code">Enter Code</a></h5>
-
+            <br/><br/><br/>
             <br/><br/>
 
-            <small>For assistance send an email to <a external href="mailto:support@sauce.llc">support@sauce.llc</a>.</small>
-
-            <br/>
-            <div class="std button xs patron-link-legacy">Legacy Patreon Link</div>
         </main>
+        <footer>
+            NOTICE: For quality assurance this code was tested by a horde of some 12 million AI monkeys.  No artificial, or real, monkeys were harmed during this process, although it was seriously considered.
+        </footer>
     </body>
 </html>
