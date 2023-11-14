@@ -37,7 +37,6 @@ export async function deleteDatabase(name) {
     const db = databases.get(name);
     if (db) {
         db.close();
-        db.close();
         databases.delete(name);
     }
     const filename = getFilename(name);
