@@ -103,7 +103,6 @@ electron.app.on('second-instance', (ev,_, __, {type, ...args}) => {
         console.warn("Another instance requested us to quit.");
         quit();
     } else if (type === 'open-url') {
-        const url = args.url;
         electron.app.focus();
         electron.app.emit('open-url', null, args.url);
     }
