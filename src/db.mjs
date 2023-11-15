@@ -1,5 +1,5 @@
 import path from 'node:path';
-import fs from 'node:fs/promises';
+import fs from 'node:fs';
 import process from 'node:process';
 import Database from 'better-sqlite3';
 import {createRequire} from 'node:module';
