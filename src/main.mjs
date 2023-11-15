@@ -425,19 +425,19 @@ class SauceApp extends EventEmitter {
         });
         if (confirmed) {
             console.warn('Reseting state and restarting...');
-            await storage.reset();
-            await secrets.remove('zwift-login');
-            await secrets.remove('zwift-monitor-login');
-            await electron.session.defaultSession.clearStorageData();
-            await electron.session.defaultSession.clearCache();
+            await secrets.remove('zwift-login').catch(report.error);
+            await secrets.remove('zwift-monitor-login').catch(report.error);
+            await electron.session.defaultSession.clearStorageData().catch(report.error);
+            await electron.session.defaultSession.clearCache().catch(report.error);
             const patreonSession = electron.session.fromPartition('persist:patreon');
-            await patreonSession.clearStorageData();
-            await patreonSession.clearCache();
+            await patreonSession.clearStorageData().catch(report.error);
+            await patreonSession.clearCache().catch(report.error);
             for (const {id} of windows.getProfiles()) {
                 const s = windows.loadSession(id);
-                await s.clearStorageData();
-                await s.clearCache();
+                await s.clearStorageData().catch(report.error);
+                await s.clearCache().catch(report.error);
             }
+            storage.reset();
             restart();
         }
     }

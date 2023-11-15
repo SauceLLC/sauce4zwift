@@ -34,9 +34,9 @@ function getAthletesDB() {
 }
 
 
-async function deleteDB(db) {
+function deleteDB(db) {
     dbs[db] = null;
-    await deleteDatabase(db);
+    deleteDatabase(db);
 }
 
 
@@ -1602,9 +1602,8 @@ export class StatsProcessor extends events.EventEmitter {
         return relSegments;
     }
 
-    async resetAthletesDB() {
-        await deleteDB('athletes');
-        await deleteDB('streams');
+    resetAthletesDB() {
+        deleteDB('athletes');
         this._athletesCache.clear();
         this.initAthletesDB();
     }

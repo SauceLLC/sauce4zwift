@@ -33,19 +33,16 @@ export class SqliteDatabase extends Database {
 }
 
 
-export async function deleteDatabase(name) {
+export function deleteDatabase(name) {
     const db = databases.get(name);
     if (db) {
+        console.warn(`Closing DB [via delete]:`, db.name);
         db.close();
+        databases.delete(name);
     }
     const filename = getFilename(name);
-    try {
-        await fs.rm(filename, {force: true});
-    } finally {
-        if (db) {
-            databases.delete(name);
-        }
-    }
+    console.warn(`Deleting DB:`, filename);
+    fs.rmSync(filename, {force: true, maxRetries: 5});
 }
 
 
