@@ -59,6 +59,9 @@ export let started;
 export let quiting;
 
 
+export class Exiting extends Error {}
+
+
 export function getApp() {
     return sauceApp;
 }
@@ -339,11 +342,11 @@ class SauceApp extends EventEmitter {
         try {
             const update = await autoUpdater.checkForUpdates();
             if (updateAvail) {
-                return update.versionInfo;
+                return update.updateInfo;
             }
         } catch(e) {
             // A variety of non critical conditions can lead to this, log and move on.
-            console.warn("Auto update problem:", e);
+            console.warn("Auto update problem:", e.stack);
             return;
         }
     }
@@ -532,9 +535,9 @@ async function maybeDownloadAndInstallUpdate({version}) {
         }
         return;
     }
-    quiting = true;  // auto updater closes windows before quiting. Must not save state.
+    quiting = true;  // auto updater closes windows before quitting. Must not save state.
     autoUpdater.quitAndInstall();
-    return true;
+    throw new Exiting();
 }
 
 
@@ -578,6 +581,8 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
          help: 'Do not open windows (unless required on startup)'},
         {arg: 'force-login', type: 'switch',
          help: 'Re-login to Zwift accounts'},
+        {arg: 'force-patron-check', type: 'switch',
+         help: 'Force check of patron membership'},
         {arg: 'disable-monitor', type: 'switch',
          help: 'Do not start the Zwift monitor (no data)'},
         {arg: 'host', type: 'str', label: 'HOSTNAME',
@@ -612,7 +617,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         menu.installTrayIcon();
         menu.setAppMenu();
     }
-    let updater;
+    let maybeUpdateAndRestart = () => undefined;
     const lastVersion = sauceApp.getSetting('lastVersion');
     if (lastVersion !== pkg.version) {
         const upChLevel = updateChannelLevels[sauceApp.getSetting('updateChannel')] || 0;
@@ -635,7 +640,13 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         }
         sauceApp.setSetting('lastVersion', pkg.version);
     } else if (!isDEV) {
-        updater = sauceApp.checkForUpdates();
+        const updateCheck = sauceApp.checkForUpdates();
+        maybeUpdateAndRestart = async () => {
+            const updateInfo = await updateCheck;
+            if (updateInfo) {
+                await maybeDownloadAndInstallUpdate(updateInfo);
+            }
+        };
     }
     const isSauceProtoHandler = electron.app.setAsDefaultProtocolClient(sauceScheme);
     if (!isSauceProtoHandler) {
@@ -655,11 +666,15 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         });
     }
     try {
-        if (!await windows.eulaConsent() || !await windows.patronLink()) {
+        if (!await windows.eulaConsent() || !await windows.patronLink(args.forcePatronCheck)) {
+            console.error('Activation failed or aborted by user.');
+            await maybeUpdateAndRestart();
             return quit();
         }
     } catch(e) {
-        await electron.dialog.showErrorBox('EULA or Patreon Link Error', '' + e);
+        console.error('Activation error:', e);
+        await electron.dialog.showErrorBox('Activation Error', '' + e);
+        await maybeUpdateAndRestart();
         return quit(1);
     }
     const exclusions = await getExclusions();
@@ -668,6 +683,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     zwiftMonitorAPI = new zwift.ZwiftAPI({exclusions});
     const mainUser = await zwiftAuthenticate({api: zwiftAPI, ident: 'zwift-login', ...args});
     if (!mainUser) {
+        await maybeUpdateAndRestart();
         return quit(1);
     }
     const monUser = await zwiftAuthenticate({
@@ -677,6 +693,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         ...args
     });
     if (!monUser) {
+        await maybeUpdateAndRestart();
         return quit(1);
     }
     if (mainUser === monUser) {
@@ -695,10 +712,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         await zwiftLogout(response === 0 ? 'main' : 'monitor');
         return restart();
     }
-    const updateInfo = await updater;
-    if (updateInfo && await maybeDownloadAndInstallUpdate(updateInfo)) {
-        return; // updated, will restart
-    }
+    await maybeUpdateAndRestart();
     for (const mod of mods.init()) {
         if (mod.isNew) {
             const enable = await windows.confirmDialog({
@@ -719,7 +733,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         }
     }
     await sauceApp.start({...args, exclusions});
-    console.debug('Startup bench:', Date.now() - s);
+    console.debug(`Startup took ${Date.now() - s}ms`);
     if (!args.headless) {
         windows.openWidgetWindows();
         menu.updateTrayMenu();
