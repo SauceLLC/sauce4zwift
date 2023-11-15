@@ -948,10 +948,11 @@ function handleNewSubWindow(parent, spec, webPrefs) {
             });
         }
         newWin.setMenuBarVisibility(false);
-        if (newWinSpec?.overlay !== false || spec?.overlay !== false) {
+        console.error('overlay check:', newWinSpec?.overlay, parent.isAlwaysOnTop(), spec?.overlay);
+        if (newWinSpec?.overlay !== false || parent.isAlwaysOnTop()) { // XXX spec?.overlay !== false) {
             newWin.setAlwaysOnTop(true, 'pop-up-menu');
         } else {
-            console.warn("okay non overlay, what gives?", {newWinSpec, newWin, spec, parent});
+            console.error("Non overlay, what gives?", {newWinSpec, newWin, spec, parent});
         }
         if (target && target !== '_blank') {
             newWin._url = url;
