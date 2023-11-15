@@ -37,10 +37,15 @@ export async function deleteDatabase(name) {
     const db = databases.get(name);
     if (db) {
         db.close();
-        databases.delete(name);
     }
     const filename = getFilename(name);
-    await fs.rm(filename, {force: true});
+    try {
+        await fs.rm(filename, {force: true});
+    } finally {
+        if (db) {
+            databases.delete(name);
+        }
+    }
 }
 
 
