@@ -776,6 +776,9 @@ export class Renderer {
             const active = typeof savedId === 'number' ?
                 spec.fields[savedId] :
                 spec.fields.find(x => x.id === savedId);
+            if (!active) {
+                console.warn("Field ID not found:", savedId);
+            }
             this.fields.set(id, {
                 id,
                 el,
