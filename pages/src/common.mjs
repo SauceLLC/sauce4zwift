@@ -1347,7 +1347,9 @@ export function badgeHue(name) {
     name = name || '';
     let s = 0;
     for (let i = 0; i < name.length; i++) {
-        s += name.charCodeAt(i);
+        s += name.charCodeAt(i)*17*((i % 3)+1); //multiply by 7 times i+1 to create real variance given tight range of charCodes and frequency of team names being small number of characters relative to large range of hues (360)
+        s = s % 360; //applies mod function to keep s from getting to be a really large number
+        // should create variance so "OTR DS" and "OTR OF" aren't just 2 hue different, they are quite a bit different.  The i % 3 component is important to prevent "AD" from being identical to "BC"
     }
     return s % 360;
 }
