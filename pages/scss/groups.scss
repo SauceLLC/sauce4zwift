@@ -284,6 +284,17 @@ html.horizontal #meta {
             background: radial-gradient(#0af, #09ea, #333a);
             color: white;
         }
+
+        &.pack-position .bubble::before {
+            transition: top 1s linear;
+            content: "";
+            position: absolute;
+            width: 100%;
+            height: 0;
+            border-top: 0.3rem solid #a8a4a39e;
+            top: calc(var(--pack-position) * (100% - 0.3rem));
+            mix-blend-mode: color-burn;
+        }
     }
 
     &.attn {

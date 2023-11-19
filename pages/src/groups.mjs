@@ -421,7 +421,13 @@ function renderGroups(groups) {
         pos.gap.el.style.setProperty('--gap-sign', gap > 0 ? 1 : -1);
         pos.gap.el.classList.toggle('alone', !innerGap);
         pos.actions.watch.classList.toggle('hidden', !!group.watching);
-        if (!group.watching) {
+        pos.el.classList.toggle('pack-position', !!group.watching && group.athletes.length > 1);
+        if (group.watching) {
+            if (group.athletes.length > 1) {
+                const wIdx = group.athletes.findIndex(x => x.watching);
+                pos.el.style.setProperty('--pack-position', wIdx / (group.athletes.length - 1));
+            }
+        } else {
             pos.watchTarget = group.athletes[Math.trunc(group.athletes.length / 2)].athleteId;
         }
     }
