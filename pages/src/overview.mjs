@@ -20,7 +20,7 @@ common.settingsStore.setDefault({
 
 function updateButtonVis() {
     const settings = common.settingsStore.get();
-    for (const x of ['Foo', 'Analysis', 'Athletes', 'Events']) {
+    for (const x of ['Analysis', 'Athletes', 'Events']) {
         const btn = document.querySelector(`.controls .button[data-settings-key="${x}"]`);
         if (!btn) {
             console.error('Invalid button:', x);
