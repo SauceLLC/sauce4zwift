@@ -67,17 +67,19 @@ export function main() {
         renderer.render();
     });
     document.querySelector('.button.show').addEventListener('click', () => {
-        doc.classList.remove('hidden');
+        doc.classList.remove('windows-hidden');
         if (window.isElectron) {
-            doc.classList.remove('auto-hidden');
+            doc.classList.remove('windows-auto-hidden');
+            console.debug("User requested show windows");
             autoHidden = false;
             common.rpc.showAllWindows();
         }
     });
     document.querySelector('.button.hide').addEventListener('click', () => {
-        doc.classList.add('hidden');
+        doc.classList.add('windows-hidden');
         if (window.isElectron) {
-            doc.classList.remove('auto-hidden');
+            doc.classList.remove('windows-auto-hidden');
+            console.debug("User requested hide windows");
             autoHidden = false;
             common.rpc.hideAllWindows();
         }
@@ -91,15 +93,19 @@ export function main() {
     }
 
     function autoHide() {
+        if (doc.classList.contains('windows-hidden')) {
+            console.debug("Skip auto hide: hidden already");
+            return;
+        }
         autoHidden = true;
-        doc.classList.add('auto-hidden', 'hidden');
+        doc.classList.add('windows-auto-hidden', 'windows-hidden');
         console.debug("Auto hidding windows");
         common.rpc.hideAllWindows({autoHide: true});
     }
 
     function autoShow() {
         autoHidden = false;
-        doc.classList.remove('auto-hidden', 'hidden');
+        doc.classList.remove('windows-auto-hidden', 'windows-hidden');
         console.debug("Auto showing windows");
         common.rpc.showAllWindows({autoHide: true});
     }
@@ -110,13 +116,14 @@ export function main() {
     }
     let lastUpdate = 0;
     common.subscribe('athlete/watching', watching => {
-        if (window.isElectron && common.settingsStore.get('autoHideWindows') &&
-            (watching.state.speed || watching.state.cadence || watching.state.power)) {
-            clearTimeout(autoHideTimeout);
-            if (autoHidden) {
-                autoShow();
+        if (window.isElectron && common.settingsStore.get('autoHideWindows')) {
+            if (watching.state.speed || watching.state.cadence || watching.state.power) {
+                clearTimeout(autoHideTimeout);
+                if (autoHidden) {
+                    autoShow();
+                }
+                autoHideTimeout = setTimeout(autoHide, autoHideWait);
             }
-            autoHideTimeout = setTimeout(autoHide, autoHideWait);
         }
         lastData = watching;
         renderer.setData(watching);
