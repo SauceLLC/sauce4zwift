@@ -474,8 +474,9 @@ export async function main() {
     });
     const gcs = await common.rpc.getGameConnectionStatus();
     if (gcs) {
-        common.subscribe('status', status =>
-            doc.classList.toggle('game-connection', status.connected), {source: 'gameConnection'});
+        common.subscribe('status',
+                         status => doc.classList.toggle('game-connection', status.connected),
+                         {source: 'gameConnection', persistent: true});
         doc.classList.toggle('game-connection', gcs.connected);
     }
     let ts = 0;
