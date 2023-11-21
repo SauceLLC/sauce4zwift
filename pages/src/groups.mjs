@@ -10,6 +10,7 @@ let zoomedPosition = common.storage.get('zoomedPosition');
 let imperial = common.settingsStore.get('/imperialUnits');
 L.setImperial(imperial);
 let curGroups;
+let eventSubgroup;
 let contentEl;
 let metaEl;
 let aheadEl;
@@ -227,6 +228,23 @@ function renderZoomed(groups) {
                 label = a.initials;
             }
         }
+        const unusedLabels = pos.subgroupsInUse || new Set();
+        if (eventSubgroup) {
+            const sg = getSubgroupLazy(athlete.state.eventSubgroupId);
+            const sgLabel = sg && sg.subgroupLabel;
+            if (sgLabel) {
+                pos.bubbleHolder.style.setProperty(`--subgroup-${sgLabel}`, 1);
+                unusedLabels.delete(sgLabel);
+            }
+            pos.subgroupsInUse = new Set(sgLabel ? [sgLabel] : []);
+            pos.bubbleHolder.classList.toggle('subgroup-wheel', !!sgLabel);
+        } else {
+            pos.bubbleHolder.classList.remove('subgroup-wheel');
+        }
+        for (const x of unusedLabels) {
+            pos.bubbleHolder.style.removeProperty(`--subgroup-${x}`);
+        }
+
         common.softInnerHTML(pos.bubble, label || `<img src="${avatar}"/>`);
         const leftLines = [];
         const attacking = isAttack(athlete.state.power, group.power);
@@ -336,7 +354,6 @@ function renderGroups(groups) {
     if (centerIdx === -1) {
         return;
     }
-    const subgroup = groups[centerIdx].athletes.find(x => x.watching).state.eventSubgroupId;
     const primaryFmt = {
         power: ({power}) => pwrFmt(power),
         wkg: ({power, weight}) => weight ? wkgFmt(power / weight) : pwrFmt(power),
@@ -367,11 +384,11 @@ function renderGroups(groups) {
         pos.el.classList.toggle('watching', !!group.watching);
         pos.el.style.setProperty('--athletes', group.athletes.length);
         const unusedLabels = pos.subgroupsInUse || new Set();
-        if (subgroup) {
+        if (eventSubgroup) {
             const labels = getSubgroupDistro(group);
             for (const [label, pct] of labels.entries()) {
                 pos.bubbleHolder.style.setProperty(`--subgroup-${label}`, pct);
-                unusedLabels.remove(label);
+                unusedLabels.delete(label);
             }
             pos.subgroupsInUse = new Set(labels.keys());
             pos.bubbleHolder.classList.toggle('subgroup-wheel', labels.size > 0);
@@ -540,6 +557,9 @@ export async function main() {
         const now = Date.now();
         if (now - ts > (settings.refreshInterval * 1000 - 100)) {
             ts = now;
+            eventSubgroup = groups.find(x => x.watching)
+                ?.athletes.find(x => x.watching)
+                ?.state.eventSubgroupId;
             render();
         }
     });
