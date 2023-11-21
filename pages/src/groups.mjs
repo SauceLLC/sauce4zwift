@@ -307,6 +307,22 @@ function renderZoomed(groups) {
 }
 
 
+function getSubgroupDistro(group) {
+    const sgLabels = new Map();
+    let total = 0;
+    for (const x of group.athletes) {
+        const sg = getSubgroupLazy(x.state.eventSubgroupId);
+        const label = sg && sg.subgroupLabel;
+        if (label) {
+            const c = sgLabels.get(label) || 0;
+            sgLabels.set(label, c + 1);
+            total++;
+        }
+    }
+    return new Map(Array.from(sgLabels).map(([k, v]) => [k, v / total]));
+}
+
+
 function renderGroups(groups) {
     if (!groups) {
         return;
@@ -350,22 +366,20 @@ function renderGroups(groups) {
         }
         pos.el.classList.toggle('watching', !!group.watching);
         pos.el.style.setProperty('--athletes', group.athletes.length);
+        const unusedLabels = pos.subgroupsInUse || new Set();
         if (subgroup) {
-            const sgLabels = new Map();
-            let total = 0;
-            for (const x of group.athletes) {
-                const sg = getSubgroupLazy(x.state.eventSubgroupId);
-                const label = sg && sg.subgroupLabel;
-                if (label) {
-                    const c = sgLabels.get(label) || 0;
-                    sgLabels.set(label, c + 1);
-                    total++;
-                }
+            const labels = getSubgroupDistro(group);
+            for (const [label, pct] of labels.entries()) {
+                pos.bubbleHolder.style.setProperty(`--subgroup-${label}`, pct);
+                unusedLabels.remove(label);
             }
-            for (const [label, cnt] of sgLabels.entries()) {
-                pos.bubbleHolder.style.setProperty(`--subgroup-${label}`, cnt / total);
-            }
-            pos.bubbleHolder.classList.toggle('subgroup-wheel', !!total);
+            pos.subgroupsInUse = new Set(labels.keys());
+            pos.bubbleHolder.classList.toggle('subgroup-wheel', labels.size > 0);
+        } else {
+            pos.bubbleHolder.classList.remove('subgroup-wheel');
+        }
+        for (const x of unusedLabels) {
+            pos.bubbleHolder.style.removeProperty(`--subgroup-${x}`);
         }
         let label;
         let attacking = false;
