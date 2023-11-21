@@ -24,6 +24,11 @@
                 <td class="groups">
                     <% if (event.eventSubgroups) { %>
                         {-event.eventSubgroups.map(x => eventBadge(x.subgroupLabel)).join('')-}
+                        <% if (event.cullingType === 'CULLING_EVENT_ONLY') { %>
+                            <ms large title="Only event participants are visible">group_work</ms>
+                        <% } else if (event.cullingType === 'CULLING_SUBGROUP_ONLY') { %>
+                            <ms large title="Only event sub-group participants are visible">workspaces</ms>
+                        <% } %>
                     <% } %>
                 </td>
                 <td>{{event.totalEntrantCount}}</td>
