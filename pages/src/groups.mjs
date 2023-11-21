@@ -239,6 +239,11 @@ function renderZoomed(groups) {
             pos.subgroupsInUse = new Set(sgLabel ? [sgLabel] : []);
             pos.bubbleHolder.classList.toggle('subgroup-wheel', !!sgLabel);
         } else {
+            if (pos.subgroupsInUse) {
+                pos.subgroupsInUse.clear();
+            } else {
+                pos.subgroupsInUse = new Set();
+            }
             pos.bubbleHolder.classList.remove('subgroup-wheel');
         }
         for (const x of unusedLabels) {
@@ -393,6 +398,11 @@ function renderGroups(groups) {
             pos.subgroupsInUse = new Set(labels.keys());
             pos.bubbleHolder.classList.toggle('subgroup-wheel', labels.size > 0);
         } else {
+            if (pos.subgroupsInUse) {
+                pos.subgroupsInUse.clear();
+            } else {
+                pos.subgroupsInUse = new Set();
+            }
             pos.bubbleHolder.classList.remove('subgroup-wheel');
         }
         for (const x of unusedLabels) {
