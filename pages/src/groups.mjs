@@ -42,6 +42,16 @@ const settings = common.settingsStore.get();
 setBackground();
 
 
+const _subgroups = new Map();
+function getSubgroupLazy(id) {
+    if (!_subgroups.has(id)) {
+        _subgroups.set(id, null);
+        common.rpc.getEventSubgroup(id).then(x => _subgroups.set(id, x));
+    }
+    return _subgroups.get(id);
+}
+
+
 function setMaxPositions() {
     let v;
     if (zoomedPosition != null) {
@@ -78,7 +88,10 @@ function getOrCreatePosition(relPos) {
                 <div class="lines"></div>
                 <div class="actions"><ms data-action="watch" title="Watch">video_camera_front</ms></div>
             </div>
-            <a class="bubble" target="_blank"></a>
+            <div class="bubble-holder">
+                <div class="rings"></div>
+                <a class="bubble" target="_blank"></a>
+            </div>
             <div class="desc right empty"><div class="lines"></div></div>
         `;
         const gap = document.createElement('div');
@@ -90,6 +103,7 @@ function getOrCreatePosition(relPos) {
         const nodes = {
             watchTarget: null,
             el,
+            bubbleHolder: el.querySelector('.bubble-holder'),
             bubble: el.querySelector('.bubble'),
             leftDesc: el.querySelector('.desc.left'),
             leftLines: el.querySelector('.desc.left .lines'),
@@ -306,6 +320,7 @@ function renderGroups(groups) {
     if (centerIdx === -1) {
         return;
     }
+    const subgroup = groups[centerIdx].athletes.find(x => x.watching).state.eventSubgroupId;
     const primaryFmt = {
         power: ({power}) => pwrFmt(power),
         wkg: ({power, weight}) => weight ? wkgFmt(power / weight) : pwrFmt(power),
@@ -335,6 +350,23 @@ function renderGroups(groups) {
         }
         pos.el.classList.toggle('watching', !!group.watching);
         pos.el.style.setProperty('--athletes', group.athletes.length);
+        if (subgroup) {
+            const sgLabels = new Map();
+            let total = 0;
+            for (const x of group.athletes) {
+                const sg = getSubgroupLazy(x.state.eventSubgroupId);
+                const label = sg && sg.subgroupLabel;
+                if (label) {
+                    const c = sgLabels.get(label) || 0;
+                    sgLabels.set(label, c + 1);
+                    total++;
+                }
+            }
+            for (const [label, cnt] of sgLabels.entries()) {
+                pos.bubbleHolder.style.setProperty(`--subgroup-${label}`, cnt / total);
+            }
+            pos.bubbleHolder.classList.toggle('subgroup-wheel', !!total);
+        }
         let label;
         let attacking = false;
         const leftLines = [];
