@@ -292,13 +292,15 @@ html.horizontal #meta {
         }
 
         &.pack-position .bubble::before {
-            transition: top 1s linear;
+            $size: 0.3rem;
+            transition: top 200ms linear;
             content: "";
             position: absolute;
             width: 100%;
-            height: 0;
-            border-top: 0.3rem solid #a8a4a39e;
-            top: calc(var(--pack-position) * (100% - 0.3rem));
+            height: $size;
+            background-image: radial-gradient(#6668, #fff);
+            background-size: math.div($size, 3) math.div($size, 3);
+            top: calc(var(--pack-position) * (100% - $size));
             mix-blend-mode: color-burn;
         }
     }
@@ -366,18 +368,26 @@ html.horizontal #meta {
                 --c: calc(var(--b) + var(--subgroup-C) * 100%);
                 --d: calc(var(--c) + var(--subgroup-D) * 100%);
                 --e: calc(var(--d) + var(--subgroup-E) * 100%);
+                /* Pie slices... */
                 background-image: conic-gradient(
                     var(--subgroup-A-color), var(--subgroup-A-color) var(--a),
                     var(--subgroup-B-color) var(--a), var(--subgroup-B-color) var(--b),
                     var(--subgroup-C-color) var(--b), var(--subgroup-C-color) var(--c),
-                    var(--subgroup-D-color) var(--c), var(--subgroup-B-color) var(--d),
+                    var(--subgroup-D-color) var(--c), var(--subgroup-D-color) var(--d),
                     var(--subgroup-E-color) var(--d), var(--subgroup-E-color));
+                /* Blended... */
+                /*background-image: conic-gradient(
+                    var(--subgroup-A-color), var(--subgroup-A-color) var(--a),
+                    var(--subgroup-B-color) var(--b),
+                    var(--subgroup-C-color) var(--c),
+                    var(--subgroup-D-color) var(--d),
+                    var(--subgroup-E-color));*/
                 $mask-gradient: radial-gradient(closest-side,
                     #0000,
-                    #0000 calc(100% - 0.34rem),
-                    #000 calc(100% - 0.20rem),
-                    #000 calc(100% - 0.12rem),
-                    #0000 calc(100% - 0.06rem),
+                    #0000 calc(100% - 0.2rem),
+                    #000 calc(100% - 0.1rem),
+                    #000 calc(100% - 0.05rem),
+                    #0000 calc(100% - 0.01rem),
                     #0000);
                 -webkit-mask-image: $mask-gradient;
                 mask-image: $mask-gradient;

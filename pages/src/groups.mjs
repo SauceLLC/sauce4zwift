@@ -392,7 +392,7 @@ function renderGroups(groups) {
         if (eventSubgroup) {
             const labels = getSubgroupDistro(group);
             for (const [label, pct] of labels.entries()) {
-                pos.bubbleHolder.style.setProperty(`--subgroup-${label}`, pct);
+                pos.bubbleHolder.style.setProperty(`--subgroup-${label}`, pct.toFixed(6));
                 unusedLabels.delete(label);
             }
             pos.subgroupsInUse = new Set(labels.keys());
@@ -498,7 +498,7 @@ function renderGroups(groups) {
         if (group.watching) {
             if (group.athletes.length > 1) {
                 const wIdx = group.athletes.findIndex(x => x.watching);
-                pos.el.style.setProperty('--pack-position', wIdx / (group.athletes.length - 1));
+                pos.el.style.setProperty('--pack-position', (wIdx / (group.athletes.length - 1)).toFixed(6));
             }
         } else {
             pos.watchTarget = group.athletes[Math.trunc(group.athletes.length / 2)].athleteId;
