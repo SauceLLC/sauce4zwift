@@ -10,6 +10,7 @@ export const themes = [
     {id: "dark", name: "Dark"},
     {id: "transparent-light", name: "Light", group: "Transparent"},
     {id: "transparent-dark", name: "Dark", group: "Transparent"},
+    {id: "semi-transparent-dark", name: "Semi", group: "Transparent"},
     {id: "gpt-vibrant", name: "Vibrant", group: "AI Generated"},
     {id: "gpt-sunset", name: "Sunset", group: "AI Generated"},
 ];

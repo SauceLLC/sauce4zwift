@@ -400,6 +400,37 @@ html[data-theme="transparent-dark"] {
     --theme-button-bar-bottom-right: #555e;
 }
 
+html[data-theme="semi-transparent-dark"] {
+    &:not(.settings-mode):not(.settings-page):not(.frame) body:not(.transparent-bg):not(.alt-background) {
+        --bg-opacity: 0.6;
+    }
+
+    --theme-base-color: transparent;
+
+    --theme-intrinsic-hue: 0;
+    --theme-intrinsic-sat: 0%;
+    --theme-intrinsic-light: 0%;
+    --theme-intrinsic-shade-dir: 1;
+
+    --theme-fg-hue: 0;
+    --theme-fg-sat: 0%;
+    --theme-fg-light: 100%;
+    --theme-fg-shade-dir: -1;
+
+    --theme-bg-hue: 0;
+    --theme-bg-sat: 0%;
+    --theme-bg-light: 0%;
+    --theme-bg-shade-dir: 1;
+
+    --theme-bg2-hue: 0;
+    --theme-bg2-sat: 0%;
+    --theme-bg2-light: 0%;
+    --theme-bg2-shade-dir: 1;
+
+    --theme-button-bar-top-left: #333b;
+    --theme-button-bar-bottom-right: #555e;
+}
+
 html[data-theme="aqua"] {
     --theme-base-color: #99f;
 
