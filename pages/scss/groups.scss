@@ -292,15 +292,14 @@ html.horizontal #meta {
         }
 
         &.pack-position .bubble::before {
-            $size: 0.3rem;
+            $size: 0.22rem;
             transition: top 200ms linear;
+            top: calc(var(--pack-position) * (100% - $size));
             content: "";
             position: absolute;
             width: 100%;
             height: $size;
-            background-image: radial-gradient(#6668, #fff);
-            background-size: math.div($size, 3) math.div($size, 3);
-            top: calc(var(--pack-position) * (100% - $size));
+            background-color: #9999;
             mix-blend-mode: color-burn;
         }
     }
