@@ -4,15 +4,15 @@ html {
     padding: 0;
     font-size: clamp(10px, calc(13px + 10vh), 24px);
 
-    &:not(.auto-hidden) {
-        .auto-hidden-label {
+    &:not(.windows-auto-hidden) {
+        .windows-auto-hidden-label {
             display: none;
         }
     }
-    &:not(.hidden) .controls .button.show {
+    &:not(.windows-hidden) .controls .button.show {
         display: none;
     }
-    &.hidden .controls .button.hide {
+    &.windows-hidden .controls .button.hide {
         display: none;
     }
 
@@ -227,7 +227,7 @@ header {
         }
     }
 
-    .auto-hidden-label {
+    .windows-auto-hidden-label {
         font-variant: small-caps;
         font-weight: 500;
         font-size: 0.6em;

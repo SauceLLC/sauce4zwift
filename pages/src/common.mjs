@@ -776,6 +776,9 @@ export class Renderer {
             const active = typeof savedId === 'number' ?
                 spec.fields[savedId] :
                 spec.fields.find(x => x.id === savedId);
+            if (!active) {
+                console.warn("Field ID not found:", savedId);
+            }
             this.fields.set(id, {
                 id,
                 el,
@@ -1341,12 +1344,7 @@ export function eventBadge(label) {
 
 
 export function badgeHue(name) {
-    name = name || '';
-    let s = 0;
-    for (let i = 0; i < name.length; i++) {
-        s += name.charCodeAt(i);
-    }
-    return s % 360;
+    return hash(name) % 360;
 }
 
 
@@ -1510,7 +1508,11 @@ export function cyrb53(str, seed=0) {
     h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
     return 4294967296 * (2097151 & h2) + (h1 >>> 0);
 }
-export const hash = cyrb53;  // simple name is fine when we don't care about the impl
+
+
+export function hash(str) {
+    return cyrb53(str || '');
+}
 
 
 export function binarySearchClosest(arr, value) {

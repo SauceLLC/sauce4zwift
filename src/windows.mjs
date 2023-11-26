@@ -948,10 +948,12 @@ function handleNewSubWindow(parent, spec, webPrefs) {
             });
         }
         newWin.setMenuBarVisibility(false);
-        if (newWinSpec?.overlay !== false || spec?.overlay !== false) {
+        console.warn('XXX overlay check, newwinspec-overlay:', newWinSpec?.overlay, 'par is top:',
+                     parent.isAlwaysOnTop(), 'par spec overlay:', spec?.overlay);
+        if ((newWinSpec && newWinSpec.overlay !== false) || parent.isAlwaysOnTop()) {
             newWin.setAlwaysOnTop(true, 'pop-up-menu');
         } else {
-            console.warn("okay non overlay, what gives?", {newWinSpec, newWin, spec, parent});
+            console.error("Non overlay, what gives?");
         }
         if (target && target !== '_blank') {
             newWin._url = url;
@@ -1337,9 +1339,9 @@ export async function welcomeSplash() {
 }
 
 
-export async function patronLink() {
+export async function patronLink(forceCheck) {
     let membership = storageMod.get('patron-membership');
-    if (membership && membership.patronLevel >= 10) {
+    if (membership && membership.patronLevel >= 10 && !forceCheck) {
         // XXX Implement refresh once in a while.
         return true;
     }

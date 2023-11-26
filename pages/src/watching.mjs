@@ -9,6 +9,115 @@ const q = new URLSearchParams(location.search);
 const customIdent = q.get('id');
 const athleteIdent = customIdent || 'watching';
 
+const defaultScreens = [{
+    id: 'default-screen-1',
+    sections: [{
+        type: 'large-data-fields',
+        id: 'default-top-fields',
+        groups: [{
+            id: 'default',
+            type: 'power',
+            defaultFields: ['pwr-cur', 'pwr-avg', 'pwr-max']
+        }],
+    }, {
+        type: 'data-fields',
+        id: 'default-middle-fields',
+        groups: [{
+            type: 'hr',
+            id: 'default-hr',
+            defaultFields: ['hr-cur', 'hr-avg', 'hr-max']
+        }],
+    }, {
+        type: 'split-data-fields',
+        id: 'default-bottom-fields',
+        groups: [customIdent ? {
+            type: 'time',
+            id: 'default-time',
+            defaultFields: ['time-gap', 'time-session']
+        } : {
+            type: 'cadence',
+            id: 'default-left',
+            defaultFields: ['cad-cur', 'cad-avg']
+        }, {
+            type: 'draft',
+            id: 'default-right',
+            defaultFields: ['draft-cur', 'draft-avg']
+        }],
+    }],
+}, {
+    id: 'default-screen-2',
+    sections: [{
+        type: 'large-data-fields',
+        id: 'default-top-fields',
+        groups: [{
+            id: 'default',
+            type: 'power',
+            defaultFields: ['pwr-cur', 'pwr-lap-avg', 'pwr-lap-max']
+        }],
+    }, {
+        type: 'data-fields',
+        id: 'default-middle-fields',
+        groups: [{
+            type: 'hr',
+            id: 'default',
+            defaultFields: ['hr-cur', 'hr-lap-avg', 'hr-lap-max']
+        }],
+    }, {
+        type: 'split-data-fields',
+        id: 'default-bottom-fields',
+        groups: [customIdent ? {
+            type: 'time',
+            id: 'default-time',
+            defaultFields: ['time-gap', 'time-session']
+        } : {
+            type: 'cadence',
+            id: 'default-left',
+            defaultFields: ['cad-cur', 'cad-lap-avg']
+        }, {
+            type: 'draft',
+            id: 'default-right',
+            defaultFields: ['draft-cur', 'draft-lap-avg']
+        }],
+    }],
+}, {
+    id: 'default-screen-3',
+    sections: [{
+        type: 'split-data-fields',
+        id: 'default-top-fields',
+        settings: {
+            hideTitle: true,
+        },
+        groups: [{
+            type: 'power',
+            id: 'default-left',
+            defaultFields: ['pwr-np', 'pwr-tss']
+        }, {
+            type: 'power',
+            id: 'default-right',
+            defaultFields: ['pwr-wbal', 'pwr-energy']
+        }],
+    }, {
+        type: 'split-data-fields',
+        id: 'default-middle-fields',
+        settings: {
+            hideTitle: true,
+        },
+        groups: [{
+            type: 'power',
+            id: 'default-left',
+            defaultFields: ['power-peak-5', 'power-peak-15']
+        }, {
+            type: 'power',
+            id: 'default-right',
+            defaultFields: ['power-peak-60', 'power-peak-300']
+        }],
+    }, {
+        type: 'line-chart',
+        id: 'default-bottom-chart',
+    }],
+}];
+
+
 common.settingsStore.setDefault({
     lockedFields: false,
     alwaysShowButtons: false,
@@ -16,34 +125,7 @@ common.settingsStore.setDefault({
     backgroundColor: '#00ff00',
     horizMode: false,
     wkgPrecision: 1,
-    screens: [{
-        id: 'default-screen-1',
-        sections: [{
-            type: 'large-data-fields',
-            id: 'default-large-data-fields',
-            groups: [{
-                id: 'default-power',
-                type: 'power',
-            }],
-        }, {
-            type: 'data-fields',
-            id: 'default-data-fields',
-            groups: [{
-                type: 'hr',
-                id: 'default-hr',
-            }],
-        }, {
-            type: 'split-data-fields',
-            id: 'default-split-data-fields',
-            groups: [{
-                type: 'cadence',
-                id: 'default-cadence',
-            }, {
-                type: 'draft',
-                id: 'default-draft',
-            }],
-        }],
-    }],
+    screens: defaultScreens,
 });
 
 const doc = document.documentElement;
@@ -132,6 +214,17 @@ const groupSpecs = {
             value: x => fmtDur(x.state && x.state.time),
             key: 'Session',
             label: 'session',
+        }, {
+            id: 'time-gap',
+            value: x => fmtDur(x.gap),
+            key: 'Gap',
+            label: 'gap',
+        }, {
+            id: 'time-gap-distance',
+            value: x => fmtDistValue(x.gapDistance),
+            key: 'Gap',
+            label: 'gap',
+            unit: x => fmtDistUnit(x.gapDistance),
         }]
     },
     power: {
@@ -1352,7 +1445,8 @@ export async function main() {
                     const mapping = [];
                     for (const [i, fieldEl] of groupEl.querySelectorAll('[data-field]').entries()) {
                         const id = fieldEl.dataset.field;
-                        mapping.push({id, default: Number(fieldEl.dataset.default || i)});
+                        const def = fieldEl.dataset.default || i;
+                        mapping.push({id, default: isNaN(def) ? def : Number(def)});
                     }
                     const groupSpec = groupSpecs[groupEl.dataset.groupType];
                     renderer.addRotatingFields({

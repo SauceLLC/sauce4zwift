@@ -320,13 +320,19 @@ async function initSentry(logEmitter) {
         return;
     }
     const main = await import('./main.mjs');
-    await main.main({
-        sentryAnonId,
-        ...logMeta,
-        loaderSettings: settings,
-        saveLoaderSettings: saveSettings,
-        buildEnv
-    });
+    try {
+        await main.main({
+            sentryAnonId,
+            ...logMeta,
+            loaderSettings: settings,
+            saveLoaderSettings: saveSettings,
+            buildEnv
+        });
+    } catch(e) {
+        if (!(e instanceof main.Exiting)) {
+            throw e;
+        }
+    }
 })().catch(async e => {
     console.error('Startup Error:', e.stack);
     await dialog.showErrorBox('Sauce Startup Error', e.stack);

@@ -225,7 +225,13 @@ html.horizontal #meta {
 
 .position {
     --rim-color: #666a;
+    --rim-color: #6668;
     --rim-border-color: #0004;
+    --subgroup-A-color: hsl(6deg 70% 50%);
+    --subgroup-B-color: hsl(110deg 70% 50%);
+    --subgroup-C-color: hsl(180deg 80% 50%);
+    --subgroup-D-color: hsl(60deg 80% 50%);
+    --subgroup-E-color: hsl(270deg 80% 50%);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -284,6 +290,18 @@ html.horizontal #meta {
             background: radial-gradient(#0af, #09ea, #333a);
             color: white;
         }
+
+        &.pack-position .bubble::before {
+            $size: 0.22rem;
+            transition: top 200ms linear;
+            top: calc(var(--pack-position) * (100% - $size));
+            content: "";
+            position: absolute;
+            width: 100%;
+            height: $size;
+            background-color: #9999;
+            mix-blend-mode: color-burn;
+        }
     }
 
     &.attn {
@@ -325,7 +343,59 @@ html.horizontal #meta {
         }
     }
 
+    .bubble-holder {
+        position: relative;
+        --subgroup-A: 0;
+        --subgroup-B: 0;
+        --subgroup-C: 0;
+        --subgroup-D: 0;
+        --subgroup-E: 0;
+
+        &.subgroup-wheel {
+            .rings {
+                content: '';
+                position: absolute;
+                z-index: 10;
+                pointer-events: none;
+                width: 100%;
+                height: 100%;
+                border-radius: 50%;
+                top: 0;
+                left: 0;
+                --a: calc(var(--subgroup-A) * 100%);
+                --b: calc(var(--a) + var(--subgroup-B) * 100%);
+                --c: calc(var(--b) + var(--subgroup-C) * 100%);
+                --d: calc(var(--c) + var(--subgroup-D) * 100%);
+                --e: calc(var(--d) + var(--subgroup-E) * 100%);
+                /* Pie slices... */
+                background-image: conic-gradient(
+                    var(--subgroup-A-color), var(--subgroup-A-color) var(--a),
+                    var(--subgroup-B-color) var(--a), var(--subgroup-B-color) var(--b),
+                    var(--subgroup-C-color) var(--b), var(--subgroup-C-color) var(--c),
+                    var(--subgroup-D-color) var(--c), var(--subgroup-D-color) var(--d),
+                    var(--subgroup-E-color) var(--d), var(--subgroup-E-color));
+                /* Blended... */
+                /*background-image: conic-gradient(
+                    var(--subgroup-A-color), var(--subgroup-A-color) var(--a),
+                    var(--subgroup-B-color) var(--b),
+                    var(--subgroup-C-color) var(--c),
+                    var(--subgroup-D-color) var(--d),
+                    var(--subgroup-E-color));*/
+                $mask-gradient: radial-gradient(closest-side,
+                    #0000,
+                    #0000 calc(100% - 0.2rem),
+                    #000 calc(100% - 0.1rem),
+                    #000 calc(100% - 0.05rem),
+                    #0000 calc(100% - 0.01rem),
+                    #0000);
+                -webkit-mask-image: $mask-gradient;
+                mask-image: $mask-gradient;
+                mix-blend-mode: hard-light;
+            }
+        }
+    }
 }
+
 html:not(.horizontal) .position {
     width: 100%;
 }

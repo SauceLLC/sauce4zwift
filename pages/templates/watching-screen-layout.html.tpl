@@ -25,14 +25,17 @@
                         <% const title = section.settings?.customTitle || group.title || groupSpecs[group.type].title; %>
                         <heading class="group-title">{{typeof title === 'function' ? title() : title}}</heading>
                     <% } %>
-                    <div class="field-row" data-default="1" data-field="{{section.id}}-{{group.id}}-0">
+                    <div class="field-row" data-default="{{group.defaultFields?.[1] || '1'}}"
+                         data-field="{{section.id}}-{{group.id}}-0">
                         <div class="key" tabindex="0"></div><div class="value" tabindex="0"></div><abbr class="unit"></abbr>
                     </div>
-                    <div class="field-row" data-default="2" data-field="{{section.id}}-{{group.id}}-1">
+                    <div class="field-row" data-default="{{group.defaultFields?.[2] || '2'}}"
+                         data-field="{{section.id}}-{{group.id}}-1">
                         <div class="key" tabindex="0"></div><div class="value" tabindex="0"></div><abbr class="unit"></abbr>
                     </div>
                 </div>
-                <div class="full-height" data-default="0" data-field="{{section.id}}-{{group.id}}-2">
+                <div class="full-height" data-default="{{group.defaultFields?.[0] || '0'}}"
+                     data-field="{{section.id}}-{{group.id}}-2">
                     <div class="value"></div>
                     <div class="line"><div class="label"></div><div class="unit"></div></div>
                     <div class="sub-label"></div>
@@ -77,7 +80,8 @@
                  data-section-type="{{section.type}}" data-section-id="{{section.id}}"
                  data-group-type="{{group.type}}" data-group-id="{{group.id}}"
                  style="--background-image: {{bgImg || 'none'}};">
-                <div class="full-height" data-default="0" data-field="{{section.id}}-{{group.id}}-0">
+                <div class="full-height" data-default="{{group.defaultFields?.[0] || '0'}}"
+                     data-field="{{section.id}}-{{group.id}}-0">
                     <% if (!section.settings?.hideTitle) { %>
                         <% const title = section.settings?.customTitle || group.title || groupSpecs[group.type].title; %>
                         <heading class="group-title">{{typeof title === 'function' ? title() : title}}</heading>
@@ -127,21 +131,29 @@
                  data-base-section-type="{{baseSectionType}}" data-section-id="{{section.id}}">
                 <% for (const group of section.groups) { %>
                     <div class="sub" data-group-type="{{group.type}}" data-group-id="{{group.id}}">
-                        <% const title = group.title || groupSpecs[group.type].title; %>
-                        <heading class="group-title">{{typeof title === 'function' ? title() : title}}</heading>
-                        <div class="field-row" data-default="0" data-field="{{section.id}}-{{group.id}}-0">
+                        <% if (!section.settings?.hideTitle) { %>
+                            <% const title = group.title || groupSpecs[group.type].title; %>
+                            <heading class="group-title">{{typeof title === 'function' ? title() : title}}</heading>
+                        <% } %>
+                        <div class="field-row" data-default="{{group.defaultFields?.[0] || '0'}}" data-field="{{section.id}}-{{group.id}}-0">
                             <div class="key" tabindex="0"></div><div class="value" tabindex="0"></div><abbr class="unit"></abbr>
                         </div>
-                        <div class="field-row" data-default="1" data-field="{{section.id}}-{{group.id}}-1">
+                        <div class="field-row" data-default="{{group.defaultFields?.[1] || '1'}}" data-field="{{section.id}}-{{group.id}}-1">
                             <div class="key" tabindex="0"></div><div class="value" tabindex="0"></div><abbr class="unit"></abbr>
                         </div>
                     </div>
                 <% } %>
                 <% if (obj.configuring) { %>
+                    <% const settings = section.settings || sectionSpecs[section.type].defaultSettings || {}; %>
                     <dialog class="edit">
                         <header>Edit Section: {{sectionIndex + 1}}</header>
                         <form method="dialog">
                             <label>Type: {{sectionSpecs[section.type].title}}</label>
+                            <label>
+                                Hide title:
+                                <input type="checkbox" name="hideTitle"
+                                       {{settings.hideTitle ? 'checked' : ''}}/>
+                            </label>
                             <% for (const [i, group] of section.groups.entries()) { %>
                                 <label>{{!i ? 'Left' : 'Right'}} fields:
                                     <select name="group" data-id="{{group.id}}">

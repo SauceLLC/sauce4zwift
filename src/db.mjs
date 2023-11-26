@@ -1,5 +1,5 @@
 import path from 'node:path';
-import fs from 'node:fs/promises';
+import fs from 'node:fs';
 import process from 'node:process';
 import Database from 'better-sqlite3';
 import {createRequire} from 'node:module';
@@ -33,14 +33,16 @@ export class SqliteDatabase extends Database {
 }
 
 
-export async function deleteDatabase(name) {
+export function deleteDatabase(name) {
     const db = databases.get(name);
     if (db) {
+        console.warn(`Closing DB [via delete]:`, db.name);
         db.close();
         databases.delete(name);
     }
     const filename = getFilename(name);
-    await fs.rm(filename, {force: true});
+    console.warn(`Deleting DB:`, filename);
+    fs.rmSync(filename, {force: true, maxRetries: 5});
 }
 
 

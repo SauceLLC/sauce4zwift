@@ -18,12 +18,12 @@ function getDB() {
 }
 
 
-export async function reset() {
+export function reset() {
     if (_db) {
         _db.close();
         _db = null;
     }
-    await deleteDatabase('storage');
+    deleteDatabase('storage');
 }
 
 
