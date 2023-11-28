@@ -597,13 +597,15 @@ export class StatsProcessor extends events.EventEmitter {
                 offt = Infinity;
             }
         }
+        const power = cs.power.roll.values(offt);
         const streams = {
             time: timeStream.slice(offt),
-            power: cs.power.roll.values(offt),
+            power,
             speed: cs.speed.roll.values(offt),
             hr: cs.hr.roll.values(offt),
             cadence: cs.cadence.roll.values(offt),
             draft: cs.draft.roll.values(offt),
+            active: power.map(x => !!+x || !(x instanceof sauce.data.Pad)),
         };
         for (const [k, arr] of Object.entries(ad.streams)) {
             streams[k] = arr.slice(offt);
