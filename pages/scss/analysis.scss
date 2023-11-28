@@ -456,7 +456,7 @@ table.basic {
 table.selectable {
     > tbody > tr {
         &.selected {
-            background-color: color.shade(intrinsic-inverted, 10%) !important;
+            background-color: color.shade(intrinsic-inverted, 30%) !important;
             color: color.get(intrinsic) !important;
         }
 
