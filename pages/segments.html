@@ -4,7 +4,7 @@
         <meta charset="utf-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
         <meta name="apple-mobile-web-app-capable" content="yes"/>
-        <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
+        <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval';"/>
 
         <title>Segments - Sauce for Zwift™</title>
 
@@ -38,14 +38,13 @@
         <div id="content">
             <div class="tabbed">
                 <header class="tabs">
-                    <div class="title tab active">Live</div>
-                    <div class="title tab">All time</div>
-                    <div class="title tab">Just me</div>
+                    <div class="title tab active" data-id="live">Live</div>
+                    <div class="title tab" data-id="just-me">Just me</div>
                 </header>
-                <div class="tab active">Live...</div>
-                <div class="tab">All time...</div>
-                <div class="tab">Just me...</div>
+                <div class="tab active" data-id="live">Live...</div>
+                <div class="tab" data-id="just-me">Just me...</div>
             </div>
+            <select name="segment"></select>
         </div>
         <div id="hintbar">
             <div class="hint"></div>
