@@ -123,6 +123,12 @@ export const widgetWindowManifests = [{
     prettyDesc: 'Control game actions like view, shouting, HUD toggle, etc',
     options: {width: 300, aspectRatio: 1.65},
 }, {
+    type: 'segments',
+    file: '/pages/segments.html',
+    prettyName: 'Segments [prototype]',
+    prettyDesc: 'View recent segments results',
+    options: {width: 300, aspectRatio: 1.8},
+}, {
     type: 'browser-source',
     file: '/pages/browser-source.html',
     prettyName: 'Browser Source',
