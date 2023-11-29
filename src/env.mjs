@@ -5,7 +5,7 @@ import {fileURLToPath} from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export const allSegments = new Map();
+export const cachedSegments = new Map();
 export const worldMetas = {};
 try {
     const worldListFile = path.join(__dirname, `../shared/deps/data/worldlist.json`);
@@ -20,49 +20,59 @@ export function getRoadSig(courseId, roadId, reverse) {
 }
 
 
-const _segmentsByRoadSig = {};
-const _segmentsByCourse = {};
-export function getNearbySegments(courseId, roadSig) {
-    if (_segmentsByRoadSig[roadSig] === undefined) {
-        if (_segmentsByCourse[courseId] === undefined) {
-            const worldId = worldMetas[courseId]?.worldId;
-            const fname = path.join(__dirname, `../shared/deps/data/worlds/${worldId}/segments.json`);
-            try {
-                _segmentsByCourse[courseId] = JSON.parse(fs.readFileSync(fname));
-            } catch(e) {
-                _segmentsByCourse[courseId] = [];
-            }
-            for (const x of _segmentsByCourse[courseId]) {
-                for (const dir of ['Forward', 'Reverse']) {
-                    if (!x['id' + dir]) {
-                        continue;
-                    }
-                    const reverse = dir === 'Reverse';
-                    const segSig = getRoadSig(courseId, x.roadId, reverse);
-                    if (!_segmentsByRoadSig[segSig]) {
-                        _segmentsByRoadSig[segSig] = [];
-                    }
-                    const segment = {
-                        ...x,
-                        reverse,
-                        id: x['id' + dir],
-                        distance: x['distance' + dir],
-                        friendlyName: x['friendlyName' + dir],
-                        roadStart: x['roadStart' + dir],
-                    };
-                    if (!segment.distance) {
-                        continue;  // exclude single direction segments
-                    }
-                    _segmentsByRoadSig[segSig].push(segment);
-                    allSegments.set(segment.id, segment);
-                }
-            }
+const _segmentsByCourse = new Map();
+export function getCourseSegments(courseId) {
+    if (!_segmentsByCourse.has(courseId)) {
+        const worldId = worldMetas[courseId]?.worldId;
+        const fname = path.join(__dirname, `../shared/deps/data/worlds/${worldId}/segments.json`);
+        const segments = [];
+        _segmentsByCourse.set(courseId, segments);
+        let data;
+        try {
+            data = JSON.parse(fs.readFileSync(fname));
+        } catch(e) {
+            console.error('No segments loaded for:', courseId);
+            data = [];
         }
-        if (_segmentsByRoadSig[roadSig] === undefined) {
-            _segmentsByRoadSig[roadSig] = null;
+        for (const x of data) {
+            for (const dir of ['Forward', 'Reverse']) {
+                if (!x['id' + dir]) {
+                    continue;
+                }
+                const reverse = dir === 'Reverse';
+                const segment = {
+                    ...x,
+                    reverse,
+                    id: x['id' + dir],
+                    distance: x['distance' + dir],
+                    dirName: x.name + (reverse ? ' (Reverse)' : ''),
+                    roadStart: x['roadStart' + dir],
+                };
+                if (!segment.distance) {
+                    continue;  // exclude single direction segments
+                }
+                segments.push(segment);
+                cachedSegments.set(segment.id, segment);
+            }
         }
     }
-    return _segmentsByRoadSig[roadSig];
+    return _segmentsByCourse.get(courseId);
+}
+
+
+const _segmentsByRoadSig = new Map();
+export function getRoadSegments(courseId, roadSig) {
+    if (!_segmentsByRoadSig.has(roadSig)) {
+        const segments = [];
+        _segmentsByRoadSig.set(roadSig, segments);
+        for (const x of getCourseSegments(courseId)) {
+            const segSig = getRoadSig(courseId, x.roadId, x.reverse);
+            if (segSig === roadSig) {
+                segments.push(x);
+            }
+        }
+    }
+    return _segmentsByRoadSig.get(roadSig);
 }
 
 

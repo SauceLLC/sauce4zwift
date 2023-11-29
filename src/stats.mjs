@@ -372,6 +372,7 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.getAthleteLaps, {scope: this});
         rpc.register(this.getAthleteSegments, {scope: this});
         rpc.register(this.getAthleteStreams, {scope: this});
+        rpc.register(this.getSegments, {scope: this});
         rpc.register(this.getSegmentResults, {scope: this});
         rpc.register(this.putState, {scope: this});
         this._athleteSubs = new Map();
@@ -564,7 +565,7 @@ export class StatsProcessor extends events.EventEmitter {
         const athlete = this.loadAthlete(ad.athleteId);
         return segments.map(x => this._formatLapish(x, ad, athlete, {
             segmentId: x.id,
-            segment: env.allSegments.get(x.id),
+            segment: env.cachedSegments.get(x.id),
         }));
     }
 
@@ -613,6 +614,13 @@ export class StatsProcessor extends events.EventEmitter {
         return streams;
     }
 
+    getSegments(courseId) {
+        if (courseId == null) {
+            throw new TypeError('courseId required');
+        }
+        return env.getCourseSegments(courseId);
+    }
+
     async getSegmentResults(id, options={}) {
         let segments;
         if (id == null) {
@@ -628,7 +636,6 @@ export class StatsProcessor extends events.EventEmitter {
             }
         }
         if (segments) {
-            console.log(segments);
             return segments.map(x => ({
                 ...x,
                 ts: worldTimer.toTime(x.worldTime),
@@ -1555,7 +1562,7 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _activeSegmentCheck(state, ad, roadSig) {
-        const segments = env.getNearbySegments(state.courseId, roadSig);
+        const segments = env.getRoadSegments(state.courseId, roadSig);
         if (!segments || !segments.length) {
             return;
         }
@@ -1582,7 +1589,7 @@ export class StatsProcessor extends events.EventEmitter {
 
     _formatNearbySegments(ad, roadSig) {
         const state = ad.mostRecentState;
-        const segments = env.getNearbySegments(state.courseId, roadSig);
+        const segments = env.getRoadSegments(state.courseId, roadSig);
         if (!segments || !segments.length) {
             return [];
         }
