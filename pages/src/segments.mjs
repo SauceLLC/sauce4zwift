@@ -1,11 +1,21 @@
 import * as common from './common.mjs';
+import * as sauce from '../../shared/sauce/index.mjs';
 
 common.enableSentry();
+
+const q = new URLSearchParams(location.search);
+const customIdent = q.get('id');
+const athleteIdent = customIdent || 'watching';
+let resultsTpl;
+let athleteData;
+let segmentId;
+let segments;
+
 common.settingsStore.setDefault({
-    url: 'https://www.google.com',
     solidBackground: false,
     backgroundColor: '#00ff00',
     transparency: 0,
+    currentTab: 'live',
 });
 
 const doc = document.documentElement;
@@ -13,39 +23,92 @@ const settings = common.settingsStore.get();
 
 
 function setBackground() {
-    const {solidBackground, backgroundColor} = settings;
+    const {solidBackground, backgroundColor, bgTransparency} = settings;
     doc.classList.toggle('solid-background', solidBackground);
     if (solidBackground) {
-        doc.style.setProperty('--background-color', backgroundColor);
+        let alpha = '';
+        if (bgTransparency) {
+            alpha = Math.round(0xff * (1 - Math.min(100, bgTransparency) / 100))
+                .toString(16).padStart(2, '0');
+        }
+        doc.style.setProperty('--background-color', backgroundColor + alpha);
+        document.body.style.removeProperty('--bg-opacity');
     } else {
         doc.style.removeProperty('--background-color');
+        const opacity = bgTransparency == null ? 1 : 1 - (bgTransparency / 100);
+        document.body.style.setProperty('--bg-opacity', opacity);
     }
 }
 
 
-function setOpacity() {
-    const {transparency} = settings;
-    const opacity = transparency == null ? 1 : 1 - (transparency / 100);
-    doc.style.setProperty('--opacity', opacity);
+async function setCourse(id) {
+    segments = await common.rpc.getSegments(id);
+    segmentId = segments ? segments[0].id : null;
+    const segmentSelect = document.querySelector('select[name="segment"]');
+    segmentSelect.replaceChildren();
+    for (const x of segments) {
+        segmentSelect.insertAdjacentHTML('beforeend', `
+            <option value="${x.id}">${common.sanitize(x.dirName)}</option>
+        `);
+    }
+    await updateTab();
+}
+
+
+async function updateTab() {
+    const tab = settings.currentTab || 'live';
+    for (const x of document.querySelectorAll(`.tabbed .tab`)) {
+        x.classList.toggle('active', x.dataset.id === tab);
+    }
+    await updateResults();
+}
+
+
+async function updateResults() {
+    const tab = settings.currentTab || 'live';
+    const getResults = {
+        'live': () => common.rpc.getSegmentResults(segmentId),
+        'just-me': () => common.rpc.getSegmentResults(segmentId, {
+            athleteId: athleteData.athleteId,
+            from: Date.now() - 86400000 * 90,
+        }),
+    }[tab];
+    const results = (await getResults()) || [];
+    document.querySelector('.tabbed > .tab.active').replaceChildren(await resultsTpl({results}));
+    console.log(results);
 }
 
 
 export async function main() {
     common.initInteractionListeners();
-    //const results = await common.rpc.getSegmentResults(segment.segmentId,
-    //    {athleteId: athleteData.athleteId});
-    //const results = await common.rpc.getSegmentResults(segment.segmentId);
-    const leaders = await common.rpc.getSegmentResults(null);
-    const segments = new Set(leaders.map(x => x.segmentId));
-    console.log(leaders, segments);
-    debugger;
-
     setBackground();
-    setOpacity();
     common.settingsStore.addEventListener('changed', ev => {
         setBackground();
-        setOpacity();
     });
+    resultsTpl = await sauce.template.getTemplate(`templates/segment-results.html.tpl`);
+    athleteData = await common.rpc.getAthleteData(athleteIdent);
+    let courseId = athleteData?.courseId;
+    common.subscribe(`athlete/${athleteIdent}`, ad => {
+        athleteData = ad;
+        if (courseId !== ad.courseId) {
+            courseId = ad.courseId;
+            console.debug("New course set:", courseId);
+            setCourse(courseId);
+        }
+    });
+    document.querySelector('select[name="segment"]').addEventListener('input', ev => {
+        segmentId = ev.currentTarget.value;
+        updateResults(courseId);
+    });
+    document.querySelector('.tabbed').addEventListener('tab', ev => {
+        console.debug('Switch tabs:', ev.data.id);
+        settings.currentTab = ev.data.id;
+        common.settingsStore.set(null, settings);
+        updateTab();
+    });
+    if (courseId) {
+        setCourse(courseId); // bg okay
+    }
 }
 
 

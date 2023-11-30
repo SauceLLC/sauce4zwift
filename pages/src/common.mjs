@@ -621,6 +621,12 @@ export function initInteractionListeners() {
                 tabs[i].classList.toggle('active', active);
                 sections[i].classList.toggle('active', active);
             }
+            const tev = new Event('tab');
+            tev.data = {
+                tab,
+                id: tab.dataset.id,
+            };
+            el.closest('.tabbed').dispatchEvent(tev);
         });
     }
     let _attrDialog;

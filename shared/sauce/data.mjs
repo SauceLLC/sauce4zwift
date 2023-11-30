@@ -216,10 +216,7 @@ export function *range(startOrCount, stop, step) {
 export class Pad extends Number {}
 
 
-export class Zero extends Pad {}
-
-
-export class Break extends Zero {
+export class Break extends Pad {
     constructor(pad) {
         super(0);
         this.pad = pad;
@@ -237,7 +234,7 @@ function getSoftPad(n) {
     return _padCache.get(sig);
 }
 
-const ZERO = new Zero();
+const ZERO = new Pad(0);
 
 
 export class RollingAverage {
@@ -359,7 +356,7 @@ export class RollingAverage {
             +value || (
                 value != null &&
                 !Number.isNaN(value) &&
-                (!this._ignoreZeros && !(value instanceof Zero))
+                (!this._ignoreZeros && !(value instanceof Pad))
             )
         );
     }

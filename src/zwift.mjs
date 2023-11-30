@@ -577,10 +577,10 @@ export class ZwiftAPI {
             query.player_id = options.athleteId;
         }
         if (options.from) {
-            query.from = zwiftCompatDate(options.from);
+            query.from = zwiftCompatDate(new Date(options.from));
         }
         if (options.to) {
-            query.to = zwiftCompatDate(options.to);
+            query.to = zwiftCompatDate(new Date(options.to));
         }
         if (options.best) {
             query['only-best'] = 'true';

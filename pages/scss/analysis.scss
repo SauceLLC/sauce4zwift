@@ -405,6 +405,20 @@ section.selection {
 
         td {
             padding: 0.65em 0.4em;
+
+            &:first-child {
+                padding-left: 1em !important;
+            }
+
+            &:last-child {
+                padding-right: 1em !important;
+            }
+
+            img.rank {
+                display: inline-block;
+                width: 2.5em;
+                margin: -0.4em -0.8em -0.4em 0;
+            }
         }
     }
 }
@@ -442,7 +456,7 @@ table.basic {
 table.selectable {
     > tbody > tr {
         &.selected {
-            background-color: color.shade(intrinsic-inverted, 10%) !important;
+            background-color: color.shade(intrinsic-inverted, 30%) !important;
             color: color.get(intrinsic) !important;
         }
 

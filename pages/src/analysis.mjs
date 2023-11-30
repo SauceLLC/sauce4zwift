@@ -47,14 +47,18 @@ const rolls = {
     power: new sauce.power.RollingPower(null, {idealGap: 1, maxGap: 15}),
 };
 
+function formatPreferredPower(x, options) {
+    if (settings.preferWkg && athleteData?.athlete?.weight) {
+        return H.wkg(x ? x / athleteData.athlete.weight : null,
+                     {suffix: true, fixed: true, html: true, ...options});
+    } else {
+        return H.power(x, {suffix: true, html: true, ...options});
+    }
+}
+
 const peakFormatters = {
-    power: x => {
-        if (settings.preferWkg && athleteData?.athlete?.weight) {
-            return H.wkg(x / athleteData.athlete.weight, {suffix: true, fixed: true, html: true});
-        } else {
-            return H.power(x, {suffix: true, html: true});
-        }
-    },
+    power: formatPreferredPower,
+    np: formatPreferredPower,
     speed: x => H.pace(x, {suffix: true, html: true, sport}),
     hr: x => H.number(x, {suffix: 'bpm', html: true}),
     draft: x => H.power(x, {suffix: true, html: true}),
@@ -140,7 +144,7 @@ function getSelectionStats() {
     const np = powerRoll.np();
     const athlete = athleteData.athlete;
     const rank = athlete?.weight ?
-        sauce.power.rank(activeTime, powerAvg, np, athlete.weight, athlete.gender, {darkMode: false}) :
+        sauce.power.rank(activeTime, powerAvg, np, athlete.weight, athlete.gender) :
         null;
     const start = state.streams.time.indexOf(powerRoll.firstTime({noPad: true}));
     const end = state.streams.time.indexOf(powerRoll.lastTime({noPad: true})) + 1;
@@ -742,7 +746,7 @@ export async function main() {
             return;
         }
         common.settingsStore.set('peakEffortSource', peakSource.value);
-        await updateTemplate('.peak-efforts', templates.peakEfforts, {athleteData, settings, peakFormatters});
+        await updatePeaksTemplate();
     });
 
     zoomableChart.on('brush', ev => elevationChart.dispatchAction({
@@ -834,6 +838,7 @@ export async function main() {
 function setSelection(startIndex, endIndex, scrollTo) {
     state.zoomStart = startIndex;
     state.zoomEnd = endIndex;
+    console.log("set selection:", startIndex, endIndex);
     if (startIndex != null && endIndex != null) {
         zoomableChart.dispatchAction({
             type: 'dataZoom',
@@ -863,6 +868,29 @@ async function onSegmentExpand(targetEl, srcEl) {
 
 function onSegmentCollapse() {
     console.debug("XXX unused", arguments);
+}
+
+
+async function updatePeaksTemplate() {
+    const source = settings.peakEffortSource || 'power';
+    const formatter = peakFormatters[source];
+    const peaks = athleteData.stats?.[source]?.peaks;
+    if (peaks) {
+        for (const [_period, x] of Object.entries(peaks)) {
+            const period = Number(_period);
+            const start = state.streams.time[common.binarySearchClosest(state.streams.time, x.time - period)];
+            const powerRoll = rolls.power.slice(start, x.time);
+            const elapsedTime = powerRoll.elapsed();
+            const powerAvg = powerRoll.avg();
+            const np = powerRoll.np();
+            const athlete = athleteData.athlete;
+            x.rank = athlete?.weight ?
+                sauce.power.rank(elapsedTime, powerAvg, np, athlete.weight, athlete.gender) :
+                null;
+        }
+    }
+    await updateTemplate('.peak-efforts', templates.peakEfforts,
+                         {source, peaks, formatter, athleteData, settings, peakFormatters});
 }
 
 
@@ -920,7 +948,8 @@ async function updateData() {
     if (streams.time.length) {
         for (let i = 0; i < streams.time.length; i++) {
             state.positions.push(zwiftMap.latlngToPosition(streams.latlng[i]));
-            rolls.power.add(streams.time[i], streams.power[i]);
+            const p = streams.power[i];
+            rolls.power.add(streams.time[i], (p || streams.active[i]) ? p : new sauce.data.Pad(p));
         }
         const coursePositions = state.positions.slice(state.startOffset);
         state.startEnt.setPosition(coursePositions[0]);
@@ -935,11 +964,10 @@ async function updateData() {
     }
 
     if (!document.activeElement || !document.activeElement.closest('.peak-efforts')) {
-        const sig = JSON.stringify(athleteData.stats[settings.peakEffortSource || 'power'].peaks);
-        if (sig !== state.lastPeaksSig) {
+        const sig = JSON.stringify(athleteData.stats[settings.peakEffortSource || 'power']?.peaks);
+        if (!sig || sig !== state.lastPeaksSig) {
             state.lastPeaksSig = sig;
-            await updateTemplate('.peak-efforts', templates.peakEfforts,
-                                 {athleteData, settings, peakFormatters});
+            await updatePeaksTemplate();
         }
     }
 
