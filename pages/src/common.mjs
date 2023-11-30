@@ -397,19 +397,11 @@ export function getWorldList() {
 }
 
 
-const _segments = new Map();
-export function getSegments(worldId) {
-    if (!_segments.has(worldId)) {
-        _segments.set(worldId, (async () => {
-            const r = await fetch(`/shared/deps/data/worlds/${worldId}/segments.json`);
-            if (!r.ok) {
-                console.error("Failed to get segments for:", worldId, r.status);
-                return [];
-            }
-            return await r.json();
-        })());
-    }
-    return _segments.get(worldId);
+export async function getSegments(worldId) {
+    console.warn("DEPRECATED: use rpc.getSegments instead");
+    const worldList = await getWorldList();
+    const worldMeta = worldList.find(x => x.worldId === worldId);
+    return await rpcCall('getSegments', worldMeta.courseId);
 }
 
 

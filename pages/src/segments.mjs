@@ -48,7 +48,7 @@ async function setCourse(id) {
     segmentSelect.replaceChildren();
     for (const x of segments) {
         segmentSelect.insertAdjacentHTML('beforeend', `
-            <option value="${x.id}">${common.sanitize(x.dirName)}</option>
+            <option value="${x.id}">${common.sanitize(x.name)}</option>
         `);
     }
     await updateTab();
