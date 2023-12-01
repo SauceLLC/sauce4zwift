@@ -984,7 +984,7 @@ export class StatsProcessor extends events.EventEmitter {
                 // Club rides we don't have rights to show up in our list
                 // I can't see a way to test for permissions before attempting
                 // access so we just catch the error
-                console.warn(e);
+                console.warn(Object.keys(e), e.message);
             }
         }
     }

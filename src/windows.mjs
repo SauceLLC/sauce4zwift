@@ -708,6 +708,20 @@ rpc.register(highlightWidgetWindow);
 rpc.register(highlightWidgetWindow, {name: 'highlightWindow', deprecatedBy: highlightWidgetWindow});
 
 
+rpc.register(function() {
+    const wc = this;
+    if (!wc) {
+        throw new TypeError('electron-only rpc function');
+    }
+    const win = wc.getOwnerBrowserWindow();
+    if (isMac) {
+        electron.app.focus({steal: true});
+    }
+    win.focus();
+}, {name: 'focusOwnWindow'});
+
+
+
 function _highlightWindow(win) {
     if (!win.isVisible() || win.isMinimized()) {
         win.show();
