@@ -4,7 +4,7 @@
         <meta charset="utf-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
         <meta name="apple-mobile-web-app-capable" content="yes"/>
-        <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
+        <meta http-equiv="Content-Security-Policy" content="script-src 'self';"/>
 
         <title>Sauce for Zwift™</title>
 
@@ -15,10 +15,7 @@
         <link rel="stylesheet" href="css/common.css"/>
         <link rel="stylesheet" href="css/overview.css"/>
 
-        <script type="module">
-            import {main} from './src/overview.mjs';
-            main();
-        </script>
+        <script type="module" src="./src/overview.mjs?main"></script>
     </head>
     <body>
         <div id="content">

@@ -1,11 +1,11 @@
-import * as sauce from '../../shared/sauce/index.mjs';
+import * as locale from '../../shared/sauce/locale.mjs'
 import * as common from './common.mjs';
 import * as fields from './fields.mjs';
 
 common.enableSentry();
 
 const doc = document.documentElement;
-const L = sauce.locale;
+const L = locale;
 const H = L.human;
 let imperial = !!common.storage.get('/imperialUnits');
 L.setImperial(imperial);
@@ -320,22 +320,22 @@ async function frank() {
         bubble.remove();
         aud.remove();
     }, 110 * 1000);
-    await sauce.sleep(12000);
+    await common.sleep(12000);
     words.textContent = 'Let us celebrate this joyous occasion with my favorite song!';
-    await sauce.sleep(19000);
+    await common.sleep(19000);
     words.textContent = 'Now we Disco!';
-    await sauce.sleep(2800);
+    await common.sleep(2800);
     let discos = 1;
     while (active) {
         words.textContent = '';
-        await sauce.sleep(60);
+        await common.sleep(60);
         if (discos++ > 10) {
             discos = 1;
         }
         for (let i = 0; i < discos; i++) {
             words.textContent += ' DISCO! ';
         }
-        await sauce.sleep(400);
+        await common.sleep(400);
     }
 }
 
@@ -512,6 +512,7 @@ export async function settingsMain() {
             el.href = sample.url;
         }
     }).catch(e => console.error(e));
+    const athleteRefreshPromise = common.rpc.getAthlete('self', {refresh: true});
     common.initInteractionListeners();
     const appSettingsUpdaters = Array.from(document.querySelectorAll('form.app-settings'))
         .map(common.initAppSettingsForm);
@@ -540,7 +541,7 @@ export async function settingsMain() {
     common.subscribe('save-widget-window-specs', renderWindows, {source: 'windows'});
     common.subscribe('set-windows', renderWindows, {source: 'windows'});
     extraData.webServerURL = await common.rpc.getWebServerURL();
-    const athlete = await common.rpc.getAthlete('self', {refresh: true, noWait: true});
+    const athlete = await common.rpc.getAthlete('self');
     extraData.profileDesc = athlete && athlete.sanitizedFullname;
     if (athlete) {
         document.querySelector('img.avatar').src = athlete.avatar || 'images/blankavatar.png';
@@ -582,4 +583,23 @@ export async function settingsMain() {
     await appSettingsUpdate(extraData);
     await common.initSettingsForm('form.settings')();
     await initWindowsPanel();
+    athleteRefreshPromise.then(x => {
+        if (!x) {
+            return;
+        }
+        if (x.avatar && (!athlete || athlete.avatar !== x.avatar)) {
+            document.querySelector('img.avatar').src = x.avatar;
+        }
+        if (extraData.profileDesc !== x.sanitizedFullname) {
+            extraData.profileDesc = x.sanitizedFullname;
+            appSettingsUpdate(extraData);
+        }
+    });
+}
+
+const q = new URL(import.meta.url).searchParams;
+if (q.has('main')) {
+    main();
+} else if (q.has('settings')) {
+    settingsMain();
 }
