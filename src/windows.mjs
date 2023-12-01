@@ -954,12 +954,8 @@ function handleNewSubWindow(parent, spec, webPrefs) {
             });
         }
         newWin.setMenuBarVisibility(false);
-        console.warn('XXX overlay check, newwinspec-overlay:', newWinSpec?.overlay, 'par is top:',
-                     parent.isAlwaysOnTop(), 'par spec overlay:', spec?.overlay);
         if ((newWinSpec && newWinSpec.overlay !== false) || parent.isAlwaysOnTop()) {
             newWin.setAlwaysOnTop(true, 'pop-up-menu');
-        } else {
-            console.error("Non overlay, what gives?");
         }
         if (target && target !== '_blank') {
             newWin._url = url;
