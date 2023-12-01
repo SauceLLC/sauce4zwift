@@ -4,7 +4,7 @@
         <meta charset="utf-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
         <meta name="apple-mobile-web-app-capable" content="yes"/>
-        <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
+        <meta http-equiv="Content-Security-Policy" content="script-src 'self';"/>
 
         <title>Browser Source - Settings - Sauce for Zwift™</title>
 
@@ -13,10 +13,7 @@
         <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
         <link rel="stylesheet" href="css/common.css"/>
 
-        <script type="module">
-            import {settingsMain} from './src/browser-source.mjs';
-            settingsMain();
-        </script>
+        <script type="module" src="./src/browser-source.mjs?settings"></script>
     </head>
     <body>
         <div id="titlebar">
