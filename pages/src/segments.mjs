@@ -116,3 +116,11 @@ export async function settingsMain() {
     common.initInteractionListeners();
     await common.initSettingsForm('form')();
 }
+
+
+const importParams = new URL(import.meta.url).searchParams;
+if (importParams.has('main')) {
+    main();
+} else if (importParams.has('settings')) {
+    settingsMain();
+}

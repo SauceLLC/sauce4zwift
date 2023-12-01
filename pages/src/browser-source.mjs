@@ -114,9 +114,9 @@ export async function settingsMain() {
 }
 
 
-const q = new URL(import.meta.url).searchParams;
-if (q.has('main')) {
+const importParams = new URL(import.meta.url).searchParams;
+if (importParams.has('main')) {
     main();
-} else if (q.has('settings')) {
+} else if (importParams.has('settings')) {
     settingsMain();
 }
