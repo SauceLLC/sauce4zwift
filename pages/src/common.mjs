@@ -551,10 +551,21 @@ export function initInteractionListeners() {
     if (!doc.classList.contains('settings-mode') &&
         !doc.classList.contains('disable-settings-mode')) {
         window.addEventListener('contextmenu', ev => {
+            console.log("send focsu");
+            rpc.focusOwnWindow();
             ev.preventDefault();
             doc.classList.toggle('settings-mode');
         });
         window.addEventListener('blur', () => void doc.classList.remove('settings-mode'));
+        window.addEventListener('focus', ev => {
+            console.warn("focus", ev.target);
+        });
+        window.addEventListener('blur', ev => {
+            console.warn("blur", ev.target);
+        });
+        window.addEventListener('focusout', ev => {
+            console.warn("focusout", ev.target);
+        });
         window.addEventListener('click', ev => {
             if (!ev.target.closest('#titlebar')) {
                 doc.classList.remove('settings-mode');
