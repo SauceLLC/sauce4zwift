@@ -42,9 +42,11 @@
                     <input type="text" name="backgroundColor" data-depends-on="solidBackground" size="7"/>
                 </label>
                 <label class="electron-only">
-                    <key>Background transparency:</key>
-                    <input type="range" name="bgTransparency" min="0" max="100" value="0" step="1"/>
-                    <input type="number" name="bgTransparency" value="0" style="--size: 5"/>%
+                    <key>Transparency:</key>
+                    <input type="range" name="bgTransparency" data-depends-on="solidBackground"
+                           min="0" max="100" value="0" step="1"/>
+                    <input type="number" name="bgTransparency" data-depends-on="solidBackground"
+                           value="0" style="--size: 5"/>%
                 </label>
             </form>
         </div>

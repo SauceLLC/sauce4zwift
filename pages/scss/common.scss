@@ -42,8 +42,7 @@ html {box-sizing: border-box;}
 
 html {
     --aspect-ratio: 9 / 16;
-    --bg-opacity-transition-duration: 0;
-    --outline-transition-duration: 0;
+    --bg-transition-duration: 0;
     font-family: 'Saira', sans-serif;
     -webkit-font-smoothing: antialiased; // Fix heavy fonts on macOS
     width: 100%;
@@ -70,7 +69,6 @@ html {
 
     &.electron-mode {
         --bg-transition-duration: 500ms;
-        --outline-transition-duration: 200ms;
 
         &:not(:hover) > body.transparent-bg {
             --bg-opacity: 0;
@@ -82,14 +80,15 @@ html {
 
         &:not(.frame) {
             body {
-                outline: 1px solid #5550;
+                outline: 1px solid #3330;
+                box-shadow: none;
             }
 
             &.settings-mode,
-            &:focus-within,
             &:hover {
                 body {
-                    outline-color: #2228;
+                    outline-color: #333b;
+                    box-shadow: 0 0 10px 0 #9995 inset;
                 }
             }
 
@@ -172,7 +171,8 @@ html {
         color: color.get(fg);
         transition:
             --bg-opacity var(--bg-transition-duration),
-            outline var(--outline-transition-duration);
+            outline var(--bg-transition-duration),
+            box-shadow var(--bg-transition-duration);
         background-image: linear-gradient(135deg,
             color.get(bg, calc(var(--bg-opacity) * 100%)),
             color.get(bg2, calc(var(--bg-opacity) * 100%)));

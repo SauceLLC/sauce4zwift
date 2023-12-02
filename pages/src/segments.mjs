@@ -32,11 +32,8 @@ function setBackground() {
                 .toString(16).padStart(2, '0');
         }
         doc.style.setProperty('--background-color', backgroundColor + alpha);
-        document.body.style.removeProperty('--bg-opacity');
     } else {
         doc.style.removeProperty('--background-color');
-        const opacity = bgTransparency == null ? 1 : 1 - (bgTransparency / 100);
-        document.body.style.setProperty('--bg-opacity', opacity);
     }
 }
 
