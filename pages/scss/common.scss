@@ -70,46 +70,38 @@ html {
     &.electron-mode {
         --bg-transition-duration: 500ms;
 
-        &:not(:hover) > body.transparent-bg {
-            --bg-opacity: 0;
-        }
-
-        &:hover > body.transparent-bg {
-            --bg-opacity: 0.7 !important;
-        }
-
         &:not(.frame) {
-            body {
-                outline: 1px solid #3330;
-                box-shadow: none;
-            }
-
-            &.settings-mode,
-            &:hover {
-                body {
-                    outline-color: #333b;
-                    box-shadow: 0 0 10px 0 #9995 inset;
-                }
-            }
-
-            > body {
+            &:not(.solid-background) body {
                 border-radius: 2mm;
+                outline: 1.5px solid #222a;
+                outline-offset: -1px;
+                box-shadow: 0 0 8px 0 #4444 inset;
+            }
 
-                #titlebar header {
-                    .logo,
-                    .title,
-                    .filler {
-                        app-region: drag;
-                        cursor: move;
-                    }
+            &:not(:hover) body.transparent-bg {
+                outline-color: #3330;
+                box-shadow: none;
+                --bg-opacity: 0;
+            }
+
+            &:hover body.transparent-bg {
+                --bg-opacity: 0.7;
+            }
+
+            #titlebar header {
+                .logo,
+                .title,
+                .filler {
+                    app-region: drag;
+                    cursor: move;
                 }
             }
         }
 
-        &.html-frame #content {
+        /*&.html-frame #content {
             border: 1.5mm solid color.get(bookend);
             border-top-width: 0;
-        }
+        }*/
 
         .app-drag {
             app-region: drag;
