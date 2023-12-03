@@ -147,8 +147,7 @@ export function updateTrayMenu() {
             });
         },
     }, {
-        label: '',
-        enabled: false,
+        type: 'separator',
     }, {
         label: 'Quit',
         role: 'quit',
