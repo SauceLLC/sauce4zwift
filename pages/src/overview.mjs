@@ -1,4 +1,4 @@
-import * as locale from '../../shared/sauce/locale.mjs'
+import * as locale from '../../shared/sauce/locale.mjs';
 import * as common from './common.mjs';
 import * as fields from './fields.mjs';
 

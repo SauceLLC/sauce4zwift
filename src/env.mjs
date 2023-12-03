@@ -60,9 +60,6 @@ export function getCourseSegments(courseId) {
                     continue;  // exclude single direction segments
                 }
                 segments.push(segment);
-                if (cachedSegments.has(segment.id)) {
-                    console.error("Segment id is not unique!", segment, cachedSegments.get(segment.id)); // XXX
-                }
                 cachedSegments.set(segment.id, segment);
             }
         }
