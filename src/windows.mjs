@@ -121,7 +121,7 @@ export const widgetWindowManifests = [{
     file: '/pages/game-control.html',
     prettyName: 'Game Control',
     prettyDesc: 'Control game actions like view, shouting, HUD toggle, etc',
-    options: {width: 300, aspectRatio: 1.65},
+    options: {width: 300, aspectRatio: 1.52},
 }, {
     type: 'segments',
     file: '/pages/segments.html',
