@@ -22,7 +22,7 @@ ipcRenderer.on('sauce-highlight-window', () => {
 const context = ipcRenderer.sendSync('getWindowContextSync');
 contextBridge.exposeInMainWorld('electron', {
     context,
-    ipcInvoke: (...args) => ipcRenderer.invoke(...args),
+    ipcInvoke: (...args) => ipcRenderer.invoke(...args).then(JSON.parse),
 });
 contextBridge.exposeInMainWorld('isElectron', true);
 

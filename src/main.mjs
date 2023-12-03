@@ -227,7 +227,8 @@ electron.ipcMain.handle('unsubscribe', (ev, {subId}) => {
     sub.emitter.off(sub.event, sub.sendMessage);
     console.debug("Removed subscription:", sub.event);
 });
-electron.ipcMain.handle('rpc', (ev, name, ...args) => rpc.invoke.call(ev.sender, name, ...args));
+electron.ipcMain.handle('rpc', (ev, name, ...args) =>
+    rpc.invoke.call(ev.sender, name, ...args).then(JSON.stringify));
 
 rpc.register(() => isDEV, {name: 'isDEV'});
 rpc.register(() => pkg.version, {name: 'getVersion'});
