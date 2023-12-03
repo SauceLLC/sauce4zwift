@@ -553,8 +553,10 @@ export function initInteractionListeners() {
         window.addEventListener('contextmenu', ev => {
             ev.preventDefault();
             doc.classList.toggle('settings-mode');
-            // Helps ensure we get a blur event on defocus on mac.
-            rpcCall('focusOwnWindow');
+            if (window.isElectron) {
+                // Helps ensure we get a blur event on defocus on mac.
+                rpcCall('focusOwnWindow');
+            }
         });
         window.addEventListener('blur', () => void doc.classList.remove('settings-mode'));
         window.addEventListener('click', ev => {
