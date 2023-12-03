@@ -78,10 +78,15 @@ html {
                 box-shadow: 0 0 8px 0 #4444 inset;
             }
 
-            &:not(:hover) body.transparent-bg {
-                outline-color: #3330;
-                box-shadow: none;
-                --bg-opacity: 0;
+            &:not(:hover) {
+                &:not(.settings-mode) body.transparent-bg {
+                    outline-color: #3330;
+                    box-shadow: none;
+                }
+
+                body.transparent-bg {
+                    --bg-opacity: 0;
+                }
             }
 
             &:hover body.transparent-bg {
