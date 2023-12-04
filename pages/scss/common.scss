@@ -142,7 +142,6 @@ html {
 
         #content {
             overflow: auto;
-            overflow: overlay;
         }
     }
 
@@ -317,7 +316,6 @@ dialog.sauce-attr {
 #settings {
     padding: 0.5em 0.8em;
     overflow: auto;
-    overflow: overlay;
     container: settings / inline-size;
 
     &.tabbed {

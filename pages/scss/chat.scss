@@ -25,7 +25,6 @@ abbr.unit {
     align-items: flex-start;
     padding: 0.2rem;
     overflow-y: auto;
-    overflow-y: overlay; // chromium only, but way better
     scroll-snap-type: y proximity;
 
     &.reverse-order {
@@ -153,7 +152,6 @@ abbr.unit {
         margin-right: 0.3rem;
         margin-bottom: 0.3rem;
         overflow-y: auto;
-        overflow-y: overlay; // chromium only, but way better
         scroll-snap-type: y proximity;
 
         > .chunk {

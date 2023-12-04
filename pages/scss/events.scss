@@ -118,7 +118,6 @@ table {
     .event-info {
         max-height: max(400px, 20vh);
         overflow: auto;
-        overflow: overlay;
 
         .desc {
             white-space: pre-line;
@@ -231,7 +230,6 @@ table {
     scroll-behavior: smooth;
     padding: 0;
     overflow: auto;
-    overflow: overlay; // chromium only
 }
 
 .details .container .profile {
