@@ -1549,6 +1549,7 @@ export async function main() {
                 setStyles();
             } else if (changed.has('/imperialUnits')) {
                 imperial = changed.get('/imperialUnits');
+                L.setImperial(imperial);
             } else if (!changed.has('/theme')) {
                 location.reload();
             }
