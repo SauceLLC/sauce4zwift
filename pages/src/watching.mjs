@@ -133,8 +133,6 @@ const L = sauce.locale;
 const H = L.human;
 const defaultLineChartLen = el => Math.ceil(el.clientWidth);
 const chartRefs = new Set();
-let imperial = !!common.settingsStore.get('/imperialUnits');
-L.setImperial(imperial);
 let eventMetric;
 let eventSubgroup;
 let sport = 'cycling';
@@ -698,8 +696,8 @@ function speedLabel() {
 
 function speedUnit() {
     return sport === 'running' ?
-        imperial ? '/mi' : '/km' :
-        imperial ? 'mph' : 'kph';
+        common.imperialUnits ? '/mi' : '/km' :
+        common.imperialUnits ? 'mph' : 'kph';
 }
 
 
@@ -1542,68 +1540,31 @@ export async function main() {
             }
         }
     }, {capture: true});
-    common.settingsStore.addEventListener('changed', ev => {
-        const changed = ev.data.changed;
-        if (changed.size === 1) {
-            if (changed.has('backgroundColor') || changed.has('horizMode')) {
-                setStyles();
-            } else if (changed.has('/imperialUnits')) {
-                imperial = changed.get('/imperialUnits');
-                L.setImperial(imperial);
-            } else if (!changed.has('/theme')) {
-                location.reload();
-            }
-        } else {
+    common.settingsStore.addEventListener('set', ev => {
+        if (!ev.data.remote) {
+            return;
+        }
+        const key = ev.data.key;
+        if (['backgroundColor', 'horizMode'].includes(key)) {
+            setStyles();
+        } else if (!['/theme', '/imperialUnits', 'themeOverride'].includes(key)) {
             location.reload();
         }
     });
     let athleteId;
-    if (!location.search.includes('testing')) {
-        common.subscribe(`athlete/${athleteIdent}`, ad => {
-            const force = ad.athleteId !== athleteId;
-            athleteId = ad.athleteId;
-            sport = ad.state.sport || 'cycling';
-            eventMetric = ad.remainingMetric;
-            eventSubgroup = getEventSubgroup(ad.state.eventSubgroupId);
-            for (const x of renderers) {
-                x.setData(ad);
-                if (x.backgroundRender || !x._contentEl.classList.contains('hidden')) {
-                    x.render({force});
-                }
+    common.subscribe(`athlete/${athleteIdent}`, ad => {
+        const force = ad.athleteId !== athleteId;
+        athleteId = ad.athleteId;
+        sport = ad.state.sport || 'cycling';
+        eventMetric = ad.remainingMetric;
+        eventSubgroup = getEventSubgroup(ad.state.eventSubgroupId);
+        for (const x of renderers) {
+            x.setData(ad);
+            if (x.backgroundRender || !x._contentEl.classList.contains('hidden')) {
+                x.render({force});
             }
-        }, {persistent: persistentData});
-    } else {
-        setInterval(() => {
-            for (const x of renderers) {
-                x.setData({
-                    athleteId: 11,
-                    athlete: {
-                        ftp: 300,
-                    },
-                    state: {
-                        power: 100 + (Math.random() * 400),
-                        heartrate: 100 + Math.random() * 100,
-                        speed: Math.random() * 100,
-                    },
-                    stats: {
-                        timeInPowserZones: [
-                            {zone: 'Z1', time: 2 + 100 * Math.random()},
-                            {zone: 'Z2', time: 2 + 100 * Math.random()},
-                            {zone: 'Z3', time: 2 + 100 * Math.random()},
-                            {zone: 'Z4', time: 2 + 100 * Math.random()},
-                            {zone: 'Z5', time: 2 + 100 * Math.random()},
-                            {zone: 'Z6', time: 2 + 100 * Math.random()},
-                            {zone: 'Z7', time: 2 + 100 * Math.random()},
-                            //{zone: 'SS', time: 2 + 100 * Math.random()},
-                        ]
-                    }
-                });
-                if (x.backgroundRender || !x._contentEl.classList.contains('hidden')) {
-                    x.render();
-                }
-            }
-        }, 1000);
-    }
+        }
+    }, {persistent: persistentData});
 }
 
 

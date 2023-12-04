@@ -19,7 +19,6 @@ export function init() {
     gettingWorldList = common.getWorldList();
     gettingGameConnectionStatus = common.rpc.getGameConnectionStatus();
     pendingInitNationFlags = common.initNationFlags();
-    locale.setImperial(common.storage.get('/imperialUnits'));
     addEventListener('DOMContentLoaded', main);
 }
 

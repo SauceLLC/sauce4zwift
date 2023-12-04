@@ -4,7 +4,6 @@ import {Color} from './color.mjs';
 import * as ec from '../deps/src/echarts.mjs';
 import * as theme from './echarts-sauce-theme.mjs';
 
-locale.setImperial(!!common.storage.get('/imperialUnits'));
 ec.registerTheme('sauce', theme.getTheme('dynamic'));
 
 const H = locale.human;

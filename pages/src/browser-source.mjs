@@ -96,8 +96,11 @@ export function main() {
     setBackground();
     setOpacity();
     let reloadTimeout;
-    common.settingsStore.addEventListener('changed', ev => {
-        if (ev.data.changed.has('url')) {
+    common.settingsStore.addEventListener('set', ev => {
+        if (!ev.data.remote) {
+            return;
+        }
+        if (ev.data.key === 'url') {
             clearTimeout(reloadTimeout);
             reloadTimeout = setTimeout(() => load(settings.url), 2000);
             inputUrl.value = settings.url;

@@ -14,8 +14,6 @@ const H = L.human;
 let settings; // eslint-disable-line prefer-const
 let powerZones;
 let sport = 'cycling';
-let imperial = !!common.storage.get('/imperialUnits');
-L.setImperial(imperial);
 
 const defaultAxisColorBands = [[1, cssColor('fg', 1, 0.2)]];
 
@@ -95,7 +93,7 @@ const gaugeConfigs = {
     pace: {
         name: 'Speed',
         defaultColor: '#273',
-        ticks: imperial ? 6 : 10,
+        ticks: common.imperialUnits ? 6 : 10,
         defaultSettings: {
             min: 0,
             max: 100,
@@ -103,7 +101,9 @@ const gaugeConfigs = {
         getValue: x => settings.dataSmoothing ? x.stats.speed.smooth[settings.dataSmoothing] : x.state.speed,
         getLabel: x => H.pace(x, {precision: 0, sport}),
         detailFormatter: x => {
-            const unit = sport === 'running' ? (imperial ? '/mi' : '/km') : (imperial ? 'mph' : 'kph');
+            const unit = sport === 'running' ?
+                (common.imperialUnits ? '/mi' : '/km') :
+                (common.imperialUnits ? 'mph' : 'kph');
             return `{value|${H.pace(x, {precision: 1, sport})}}\n{unit|${unit}}`;
         },
         longPeriods: true,
@@ -178,6 +178,7 @@ settings = settingsStore.get(null, {
     ...config.defaultSettings,
 });
 common.themeInit(settingsStore);
+common.localeInit(settingsStore);
 doc.classList.remove('hidden-during-load');
 config.color = settings.colorOverride ? settings.color : config.defaultColor;
 
@@ -382,13 +383,9 @@ export function main() {
         renderer.render({force: true});
     });
     let reanimateTimeout;
-    settingsStore.addEventListener('changed', ev => {
-        const changed = ev.data.changed;
-        if (changed.has('/imperialUnits')) {
-            imperial = changed.get('/imperialUnits');
-            L.setImperial(imperial);
-        }
-        if (changed.has('color') || changed.has('colorOverride')) {
+    settingsStore.addEventListener('set', ev => {
+        const key = ev.data.key;
+        if (key === 'color' || key === 'colorOverride') {
             config.color = settings.colorOverride ? settings.color : config.defaultColor;
         }
         setBackground();

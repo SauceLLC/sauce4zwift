@@ -941,37 +941,43 @@ export class SettingsStore extends EventTarget {
             this._settings = {};
         }
         this._storage.addEventListener('globalupdate', ev => {
-            const changeEv = new Event('changed');
-            changeEv.data = {changed: new Map([[ev.data.key, ev.data.value]])};
-            this.dispatchEvent(changeEv);
+            const {key, value} = ev.data;
+            const legacyEv = new Event('changed');
+            legacyEv.data = {changed: new Map([[key, value]])};
+            this.dispatchEvent(legacyEv);
+            const setEv = new Event('set');
+            setEv.data = {key, value, remote: true};
+            this.dispatchEvent(setEv);
         });
         this._storage.addEventListener('update', ev => {
-            // These are only remote changes from other tabs.
             if (ev.data.key !== this.settingsKey) {
                 return;
             }
             const origKeys = new Set(Object.keys(this._settings));
             const changed = new Map();
-            for (const [k, v] of Object.entries(ev.data.value)) {
-                if (!origKeys.has(k)) {
-                    changed.set(k, v);
-                } else if (JSON.stringify(this._settings[k]) !== JSON.stringify(v)) {
-                    changed.set(k, v);
+            for (const [key, value] of Object.entries(ev.data.value)) {
+                if (!origKeys.has(key)) {
+                    changed.set(key, value);
+                } else if (JSON.stringify(this._settings[key]) !== JSON.stringify(value)) {
+                    changed.set(key, value);
                 }
-                this._settings[k] = v;
-                origKeys.delete(k);
+                this._settings[key] = value;
+                origKeys.delete(key);
             }
-            for (const k of origKeys) {
+            for (const key of origKeys) {
                 // set -> unset
-                changed.set(k, undefined);
-                delete this._settings[k];
+                changed.set(key, undefined);
+                delete this._settings[key];
             }
-            const changeEv = new Event('changed');
-            changeEv.data = {changed};
-            this.dispatchEvent(changeEv);
+            for (const [key, value] of changed) {
+                const setEv = new Event('set');
+                setEv.data = {key, value, remote: true};
+                this.dispatchEvent(setEv);
+            }
+            const legacyEv = new Event('changed');
+            legacyEv.data = {changed};
+            this.dispatchEvent(legacyEv);
         });
-        imperialUnits = this.get('/imperialUnits');
-        locale.setImperial(imperialUnits);
     }
 
     setDefault(value) {
@@ -1015,18 +1021,6 @@ export class SettingsStore extends EventTarget {
         }
         const ev = new Event('set');
         ev.data = {key, value};
-        this.dispatchEvent(ev);
-    }
-
-    delete(key) {
-        debugger;
-        if (key[0] !== '/') {
-            this.set(key, undefined);
-        } else {
-            this._storage.delete(key);
-        }
-        const ev = new Event('delete');
-        ev.data = {key};
         this.dispatchEvent(ev);
     }
 }
@@ -1367,18 +1361,22 @@ export function themeInit(store) {
             doc.dataset.theme = theme;
         }
     }
-    // For remote updates...
-    store.addEventListener('changed', ev => {
-        const changed = ev.data.changed;
-        if (changed.has('themeOverride') || changed.has('/theme')) {
-            doc.dataset.theme = store.get('themeOverride') || store.get('/theme') || '';
-        }
-    });
-    // For local updates...
     store.addEventListener('set', ev => {
         const key = ev.data.key;
         if (key === 'themeOverride' || key === '/theme') {
             doc.dataset.theme = store.get('themeOverride') || store.get('/theme') || '';
+        }
+    });
+}
+
+
+export function localeInit(store) {
+    imperialUnits = !!store.get('/imperialUnits');
+    locale.setImperial(imperialUnits);
+    store.addEventListener('set', ev => {
+        if (ev.data.key === '/imperialUnits') {
+            imperialUnits = !!ev.data.value;
+            locale.setImperial(imperialUnits);
         }
     });
 }
@@ -1653,4 +1651,5 @@ if (window.CSS && CSS.registerProperty) {
 
 if (settingsStore) {
     themeInit(settingsStore);
+    localeInit(settingsStore);
 }

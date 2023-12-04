@@ -7,8 +7,6 @@ common.enableSentry();
 const doc = document.documentElement;
 const L = locale;
 const H = L.human;
-let imperial = !!common.storage.get('/imperialUnits');
-L.setImperial(imperial);
 
 common.settingsStore.setDefault({
     leftFields: 2,
@@ -39,32 +37,26 @@ export function main() {
     let autoHideTimeout;
     doc.style.setProperty('--center-gap-size', common.settingsStore.get('centerGapSize') + 'px');
     let renderer = buildLayout();
-    common.settingsStore.addEventListener('changed', ev => {
-        for (const [k, v] of ev.data.changed.entries()) {
-            if (k === '/imperialUnits') {
-                imperial = v;
-                L.setImperial(imperial);
-                renderer.render();
-                return;
-            } else if (k === 'autoHideWindows') {
-                location.reload();  // Avoid state machine complications.
-                return;
-            } else if (k === 'centerGapSize') {
-                doc.style.setProperty('--center-gap-size', `${v}px`);
-                renderer.render({force: true});
-                return;
-            } else if (k.match(/hide.+Button/)) {
-                updateButtonVis();
-                return;
+    common.settingsStore.addEventListener('set', ev => {
+        const {key, value} = ev.data;
+        if (key === '/imperialUnits') {
+            renderer.render();
+        } else if (key === 'autoHideWindows') {
+            location.reload();  // Avoid state machine complications.
+        } else if (key === 'centerGapSize') {
+            doc.style.setProperty('--center-gap-size', `${value}px`);
+            renderer.render({force: true});
+        } else if (key.match(/hide.+Button/)) {
+            updateButtonVis();
+        } else {
+            if (renderer) {
+                renderer.stop();
+                renderer = null;
             }
+            renderer = buildLayout();
+            renderer.setData(lastData || {});
+            renderer.render();
         }
-        if (renderer) {
-            renderer.stop();
-            renderer = null;
-        }
-        renderer = buildLayout();
-        renderer.setData(lastData || {});
-        renderer.render();
     });
     document.querySelector('.button.show').addEventListener('click', () => {
         doc.classList.remove('windows-hidden');

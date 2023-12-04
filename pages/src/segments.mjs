@@ -79,7 +79,10 @@ async function updateResults() {
 export async function main() {
     common.initInteractionListeners();
     setBackground();
-    common.settingsStore.addEventListener('changed', ev => {
+    common.settingsStore.addEventListener('set', ev => {
+        if (!ev.data.remote) {
+            return;
+        }
         setBackground();
     });
     resultsTpl = await sauce.template.getTemplate(`templates/segment-results.html.tpl`);

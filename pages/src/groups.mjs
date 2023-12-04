@@ -7,8 +7,6 @@ const L = sauce.locale;
 const H = L.human;
 const positions = new Map();
 let zoomedPosition = common.storage.get('zoomedPosition');
-let imperial = common.settingsStore.get('/imperialUnits');
-L.setImperial(imperial);
 let curGroups;
 let eventSubgroup;
 let contentEl;
@@ -302,9 +300,9 @@ function renderZoomed(groups) {
                 dur = gap > 0.5 && (H.number(gap) + 's');
             } else {
                 const gapDistance = Math.abs(next.gapDistance - athlete.gapDistance);
-                const units = imperial ? 'ft' : 'm';
+                const units = common.imperialUnits ? 'ft' : 'm';
                 dur = gapDistance && gapDistance > 2 &&
-                    (H.number(gapDistance * (imperial ? 3.28084 : 1)) + units);
+                    (H.number(gapDistance * (common.imperialUnits ? 3.28084 : 1)) + units);
             }
             if (dur) {
                 gapLine = fmtLine(dur);
@@ -543,11 +541,7 @@ export async function main() {
         setMaxPositions();
         render();
     });
-    common.settingsStore.addEventListener('changed', ev => {
-        const changed = ev.data.changed;
-        if (changed.has('/imperialUnits')) {
-            L.setImperial(imperial = changed.get('/imperialUnits'));
-        }
+    common.settingsStore.addEventListener('set', ev => {
         setBackground();
         render();
     });

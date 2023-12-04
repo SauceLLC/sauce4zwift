@@ -1,4 +1,3 @@
-import * as sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
 import * as map from './map.mjs';
 import * as elevation from './elevation.mjs';
@@ -7,9 +6,6 @@ import * as fields from './fields.mjs';
 common.enableSentry();
 
 const doc = document.documentElement;
-const L = sauce.locale;
-const imperial = !!common.storage.get('/imperialUnits');
-L.setImperial(imperial);
 
 common.settingsStore.setDefault({
     // v0.13.0...
@@ -319,35 +315,37 @@ export async function main() {
             }
         });
     }
-    common.settingsStore.addEventListener('changed', ev => {
-        const changed = ev.data.changed;
-        if (changed.has('solidBackground') || changed.has('backgroundColor')) {
+    common.settingsStore.addEventListener('set', ev => {
+        if (!ev.data.remote) {
+            return;
+        }
+        const {key, value} = ev.data;
+        if (key === 'solidBackground' || key === 'backgroundColor') {
             setBackground();
-        } else if (changed.has('transparency')) {
-            zwiftMap.setOpacity(1 - 1 / (100 / (changed.get('transparency') || 0)));
-        } else if (changed.has('mapStyle')) {
-            zwiftMap.setStyle(changed.get('mapStyle'));
-        } else if (changed.has('tiltShift') || changed.has('tiltShiftAmount')) {
+        } else if (key === 'transparency') {
+            zwiftMap.setOpacity(1 - 1 / (100 / (value || 0)));
+        } else if (key === 'mapStyle') {
+            zwiftMap.setStyle(value);
+        } else if (key === 'tiltShift' || key === 'tiltShiftAmount') {
             zwiftMap.setTiltShift(settings.tiltShift && ((settings.tiltShiftAmount || 0) / 100));
-        } else if (changed.has('zoomPriorityTilt')) {
-            zwiftMap.setZoomPriorityTilt(changed.get('zoomPriorityTilt'));
-        } else if (changed.has('sparkle')) {
-            zwiftMap.setSparkle(changed.get('sparkle'));
-        } else if (changed.has('quality')) {
-            zwiftMap.setQuality(qualityScale(changed.get('quality')));
-        } else if (changed.has('zoom')) {
-            zwiftMap.setZoom(changed.get('zoom'));
-        } else if (changed.has('verticalOffset')) {
-            zwiftMap.setVerticalOffset(changed.get('verticalOffset') / 100);
-        } else if (changed.has('fpsLimit')) {
-            zwiftMap.setFPSLimit(changed.get('fpsLimit'));
-        } else if (changed.has('profileHeight')) {
+        } else if (key === 'zoomPriorityTilt') {
+            zwiftMap.setZoomPriorityTilt(value);
+        } else if (key === 'sparkle') {
+            zwiftMap.setSparkle(value);
+        } else if (key === 'quality') {
+            zwiftMap.setQuality(qualityScale(value));
+        } else if (key === 'zoom') {
+            zwiftMap.setZoom(value);
+        } else if (key === 'verticalOffset') {
+            zwiftMap.setVerticalOffset(value / 100);
+        } else if (key === 'fpsLimit') {
+            zwiftMap.setFPSLimit(value);
+        } else if (key === 'profileHeight') {
             if (elProfile) {
-                elProfile.el.style.setProperty('--profile-height', changed.get('profileHeight') / 100);
+                elProfile.el.style.setProperty('--profile-height', value / 100);
                 elProfile.chart.resize();
             }
-        } else if (changed.has('profileOverlay') || changed.has('fields') ||
-            changed.has('routeProfile') || changed.has('showElevationMaxLine')) {
+        } else if (['profileOverlay', 'fields', 'routeProfile', 'showElevationMaxLine'].includes(key)) {
             location.reload();
         }
     });
