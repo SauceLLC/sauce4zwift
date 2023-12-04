@@ -979,26 +979,60 @@ footer.legal {
     }
 }
 
-*:not(:hover)::-webkit-scrollbar {
-    display: none;
+html:not(.passive-overlay-scrollbars) {
+    ::-webkit-scrollbar {
+        width: 2.5mm;
+        height: 2.5mm;
+    }
+
+    ::-webkit-scrollbar-track {
+        background-color: #1114;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        border-radius: 1mm;
+        background-color: #eeec;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background-color: #eee;
+    }
+
+    ::-webkit-scrollbar-corner {
+        background-color: #1114;
+    }
 }
-::-webkit-scrollbar {
-    width: 2.5mm;
-    height: 2.5mm;
+
+html.passive-overlay-scrollbars {
+    --scrollbar-size: 2mm;
+    $min-hack-size: 1px; // must not be zero or chromium disables custom scrollbars
+
+    *:not(:hover) {
+        --scrollbar-border-color-override: transparent;
+        --scrollbar-size: 0;
+    }
+
+    ::-webkit-scrollbar {
+        width: $min-hack-size;
+        height: $min-hack-size;
+    }
+    ::-webkit-scrollbar-track {
+        outline: var(--scrollbar-size) solid #1114;
+    }
+    ::-webkit-scrollbar-thumb {
+        outline: var(--scrollbar-size) solid #eeec;
+        outline-offset: calc(-1 * var(--scrollbar-size)); // compensate on ends to prevent overflow
+        border: $min-hack-size solid var(--scrollbar-border-color-override, #eeec); // Fill void required by min-width
+    }
+
+    ::-webkit-scrollbar,
+    ::-webkit-scrollbar-track,
+    ::-webkit-scrollbar-thumb,
+    ::-webkit-scrollbar-corner {
+        background-color: transparent;
+    }
 }
-::-webkit-scrollbar-track {
-    background-color: #1114;
-}
-::-webkit-scrollbar-thumb {
-    border-radius: 1mm;
-    background-color: #eeec;
-}
-::-webkit-scrollbar-thumb:hover {
-    background-color: #eee;
-}
-::-webkit-scrollbar-corner {
-    background-color: #1114;
-}
+
 
 img {
     -webkit-user-select: none;
