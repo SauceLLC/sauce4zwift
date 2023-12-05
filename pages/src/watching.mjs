@@ -877,6 +877,7 @@ async function createLineChart(el, sectionId, settings) {
         color: fields.map(f => f.color),
         visualMap: fields.map((f, i) => ({
             ...visualMapCommon,
+            id: f.id,
             seriesIndex: i,
             range: f.outColor ? f.domain : undefined,
             min: f.visualMin || f.domain[0],
@@ -985,6 +986,44 @@ function bindLineChart(chart, renderer, settings) {
         lastRender = now;
         // Keep local data buffered for resizes (within reason)..
         const maxStreamLen = Math.max(2000, dataLen * 2);
+        if (powerZones && data.athlete.ftp) {
+            const pieces = [];
+            let curZone;
+            let gte = 0;
+            let lt = 0;
+            const colors = powerZoneColors(powerZones);
+            for (const [i, x] of chart._streams.power.slice(-dataLen).entries()) {
+                const xPct = x / data.athlete.ftp;
+                let zone;
+                for (const z of powerZones) {
+                    if (xPct >= z.from && (!z.to || xPct < z.to)) {
+                        zone = z;
+                        break;
+                    }
+                }
+                if (zone !== curZone) {
+                    if (curZone) {
+                        pieces.push({gte, lt, color: colors[curZone.zone].toString()});
+                    }
+                    gte = i;
+                    lt = i + 1;
+                    curZone = zone;
+                } else {
+                    lt++;
+                }
+            }
+            pieces.push({gte, color: colors[curZone.zone].toString()});
+            chart.setOption({
+                visualMap: {
+                    dimension: 0,
+                    id: 'power',
+                    seriesIndex: 0,
+                    type: 'piecewise',
+                    show: false,
+                    pieces,
+                }
+            }, {notMerge: false});
+        }
         chart.setOption({
             series: fields.map(field => {
                 const stream = chart._streams[field.id];
