@@ -660,6 +660,8 @@ const lineChartFields = [{
     id: 'wbal',
     name: 'W\'bal',
     color: '#4ee',
+    outColor: '#f7b',
+    visualMin: -5000,
     domain: [0, 22000],
     rangeAlpha: [0.1, 0.8],
     get: x => x.wBal || 0,
@@ -876,9 +878,13 @@ async function createLineChart(el, sectionId, settings) {
         visualMap: fields.map((f, i) => ({
             ...visualMapCommon,
             seriesIndex: i,
-            min: f.domain[0],
-            max: f.domain[1],
+            range: f.outColor ? f.domain : undefined,
+            min: f.visualMin || f.domain[0],
+            max: f.visualMax || f.domain[1],
             inRange: {colorAlpha: f.rangeAlpha},
+            outOfRange: f.outColor ?
+                {color: f.outColor, colorAlpha: [0.8, 0]} :
+                undefined,
         })),
         legend: {show: false},
         tooltip: {

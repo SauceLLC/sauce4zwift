@@ -97,6 +97,17 @@ const zoomableChartSeries = [{
     rangeAlpha: [0.1, 0.8],
     fmt: x => H.number(x, {suffix: ' rpm'}),
 }, {
+    id: 'wbal',
+    stream: 'wbal',
+    name: 'W\'bal',
+    color: '#4ee',
+    outColor: '#916',
+    domain: [0, 22],
+    visualMin: -20,
+    rangeAlpha: [0.1, 0.8],
+    get: x => x / 1000,
+    fmt: x => H.number(x, {precision: 1, fixed: true, separator: ' ', suffix: 'kJ'}),
+}, {
     id: 'draft',
     stream: 'draft',
     name: 'Draft',
@@ -378,9 +389,11 @@ function createZoomableLineChart(el) {
             type: 'continuous',
             hoverLink: false,
             seriesIndex: i,
-            min: f.domain[0],
-            max: f.domain[1],
+            range: f.domain,
+            min: f.visualMin || f.domain[0],
+            max: f.visualMax || f.domain[1],
             inRange: {colorAlpha: f.rangeAlpha},
+            outOfRange: {color: f.outColor, colorAlpha: Array.from(f.rangeAlpha).reverse()},
         })),
         grid: series.map((x, i) => {
             const count = series.length;
@@ -504,7 +517,8 @@ function createZoomableLineChart(el) {
                 endValue: state.streams.time[state.zoomEnd] * 1000,
             }] : [],
             series: series.map(f => ({
-                data: state.streams[f.stream].map((x, i) => [state.streams.time[i] * 1000, x]),
+                data: state.streams[f.stream].map((x, i) =>
+                    [state.streams.time[i] * 1000, f.get ? f.get(x) : x]),
             }))
         });
     };
