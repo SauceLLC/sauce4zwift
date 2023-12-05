@@ -253,6 +253,7 @@ class WBalAccumulator extends TimeSeriesAccumulator {
         const elapsed = (time - this._timeOffset) || 0;
         this._value = this._accumulator(value, elapsed);
         super.accumulate(time);
+        return this._value;
     }
 }
 
@@ -1291,6 +1292,7 @@ export class StatsProcessor extends events.EventEmitter {
                 distance: [],
                 altitude: [],
                 latlng: [],
+                wbal: [],
             },
             roadHistory: {
                 sig: null,
@@ -1517,7 +1519,7 @@ export class StatsProcessor extends events.EventEmitter {
     _recordAthleteStats(state, ad) {
         // Never auto pause wBal as it is a biometric. We use true worldTime to
         // survive resets as well.
-        ad.wBal.accumulate(state.worldTime / 1000, state.power);
+        const wbal = ad.wBal.accumulate(state.worldTime / 1000, state.power);
         if (!state.power && !state.speed) {
             // Emulate auto pause...
             const addCount = ad.collectors.power.flushBuffered();
@@ -1530,6 +1532,7 @@ export class StatsProcessor extends events.EventEmitter {
                     ad.streams.distance.push(ad.distanceOffset + state.distance);
                     ad.streams.altitude.push(state.altitude);
                     ad.streams.latlng.push(state.latlng);
+                    ad.streams.wbal.push(wbal);
                 }
             }
             return;
@@ -1545,6 +1548,7 @@ export class StatsProcessor extends events.EventEmitter {
             ad.streams.distance.push(ad.distanceOffset + state.distance);
             ad.streams.altitude.push(state.altitude);
             ad.streams.latlng.push(state.latlng);
+            ad.streams.wbal.push(wbal);
         }
         const curLap = ad.laps[ad.laps.length - 1];
         curLap.power.resize(time);
