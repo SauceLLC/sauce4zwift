@@ -131,7 +131,6 @@ common.settingsStore.setDefault({
 const doc = document.documentElement;
 const L = sauce.locale;
 const H = L.human;
-const defaultLineChartLen = el => Math.ceil(el.clientWidth);
 const chartRefs = new Set();
 let eventMetric;
 let eventSubgroup;
@@ -870,7 +869,7 @@ async function createLineChart(el, sectionId, settings) {
         emphasis: {disabled: true},
         areaStyle: {},
     };
-    chart._dataPoints = 0;
+    chart._dataPointsLen = 0;
     chart._streams = {};
     const options = {
         color: fields.map(f => f.color),
@@ -905,17 +904,20 @@ async function createLineChart(el, sectionId, settings) {
     };
     const _resize = chart.resize;
     chart.resize = function() {
-        const em = Number(getComputedStyle(el).fontSize.slice(0, -2));
-        chart._dataPoints = settings.dataPoints || defaultLineChartLen(el);
-        chart.setOption({
-            xAxis: [{data: Array.from(sauce.data.range(chart._dataPoints))}],
-            grid: {
-                top: 1 * em,
-                left: 0.5 * em,
-                right: 0.5 * em,
-                bottom: 0.1 * em,
-            },
-        });
+        const width = el.clientWidth;
+        if (width) {
+            const em = Number(getComputedStyle(el).fontSize.slice(0, -2));
+            chart._dataPointsLen = settings.dataPoints || Math.ceil(width);
+            chart.setOption({
+                xAxis: [{data: Array.from(sauce.data.range(chart._dataPointsLen))}],
+                grid: {
+                    top: 1 * em,
+                    left: 0.5 * em,
+                    right: 0.5 * em,
+                    bottom: 0.1 * em,
+                },
+            });
+        }
         return _resize.apply(this, arguments);
     };
     chart.setOption(options);
@@ -945,6 +947,7 @@ function bindLineChart(chart, renderer, settings) {
             lastSport = sport;
             chart._sauceLegend.render();
         }
+        const dataLen = chart._dataPointsLen;
         const now = Date.now();
         if (data.athleteId !== athleteId || created !== data.created) {
             console.info("Loading streams for:", data.athleteId);
@@ -958,7 +961,7 @@ function bindLineChart(chart, renderer, settings) {
                 loading = false;
             }
             streams = streams || {};
-            const nulls = Array.from(sauce.data.range(chart._dataPoints)).map(x => null);
+            const nulls = Array.from(sauce.data.range(dataLen)).map(x => null);
             for (const x of fields) {
                 // null pad for non stream types like wbal and to compensate for missing data
                 chart._streams[x.id] = nulls.concat(streams[x.id] || []);
@@ -974,14 +977,15 @@ function bindLineChart(chart, renderer, settings) {
             }
         }
         lastRender = now;
-        for (const x of fields) {
-            while (chart._streams[x.id].length > chart._dataPoints) {
-                chart._streams[x.id].shift();
-            }
-        }
+        // Keep local data buffered for resizes (within reason)..
+        const maxStreamLen = Math.max(2000, dataLen * 2);
         chart.setOption({
             series: fields.map(field => {
-                const points = chart._streams[field.id];
+                const stream = chart._streams[field.id];
+                if (stream.length > maxStreamLen + 100) {
+                    stream.splice(0, stream.length - maxStreamLen);
+                }
+                const points = stream.slice(-dataLen);
                 return {
                     data: points,
                     name: typeof field.name === 'function' ? field.name() : field.name,
@@ -997,7 +1001,7 @@ function bindLineChart(chart, renderer, settings) {
                                         ''.padStart(Math.max(0, 10 - x.value), nbsp),
                                         nbsp, nbsp, // for unit offset
                                         field.fmt(points[x.value]),
-                                        ''.padEnd(Math.max(0, x.value - (chart._dataPoints - 1) + 10), nbsp)
+                                        ''.padEnd(Math.max(0, x.value - (dataLen - 1) + 10), nbsp)
                                     ].join('');
                                 },
                             },
