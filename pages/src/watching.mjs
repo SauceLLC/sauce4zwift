@@ -615,60 +615,7 @@ const groupSpecs = {
 
 };
 
-const smallSpace = '\u0020';
-const lineChartFields = [{
-    id: 'power',
-    name: 'Power',
-    color: '#46f',
-    domain: [0, 700],
-    rangeAlpha: [0.4, 1],
-    get: x => x.state.power || 0,
-    fmt: x => H.power(x, {separator: smallSpace, suffix: true}),
-}, {
-    id: 'hr',
-    name: 'HR',
-    color: '#e22',
-    domain: [70, 190],
-    rangeAlpha: [0.1, 0.7],
-    get: x => x.state.heartrate || 0,
-    fmt: x => H.number(x) + ' bpm',
-}, {
-    id: 'speed',
-    name: speedLabel,
-    color: '#4e3',
-    domain: [0, 100],
-    rangeAlpha: [0.1, 0.8],
-    get: x => x.state.speed || 0,
-    fmt: x => fmtPace(x, {separator: smallSpace, suffix: true}),
-}, {
-    id: 'cadence',
-    name: 'Cadence',
-    color: '#ee3',
-    domain: [0, 140],
-    rangeAlpha: [0.1, 0.8],
-    get: x => x.state.cadence || 0,
-    fmt: x => H.number(x) + (sport === 'running' ? ' spm' : ' rpm'),
-}, {
-    id: 'draft',
-    name: 'Draft',
-    color: '#e88853',
-    domain: [0, 300],
-    rangeAlpha: [0.1, 0.9],
-    get: x => x.state.draft || 0,
-    fmt: x => H.power(x, {separator: smallSpace, suffix: true}),
-}, {
-    id: 'wbal',
-    name: 'W\'bal',
-    color: '#4ee',
-    outColor: '#f7b',
-    visualMin: -5000,
-    domain: [0, 22000],
-    rangeAlpha: [0.1, 0.8],
-    get: x => x.wBal || 0,
-    fmt: x => H.number(x / 1000, {precision: 1, fixed: true, separator: smallSpace, suffix: 'kJ'}),
-    markMin: true,
-}];
-
+const lineChartFields = ['power', 'hr', 'speed', 'cadence', 'draft', 'wbal'];
 
 function curLap(x) {
     return x && x.lap;
@@ -856,37 +803,16 @@ async function importEcharts() {
 
 async function createLineChart(el, sectionId, settings) {
     const echarts = await importEcharts();
-    const charts = await import('./charts.mjs');
-    const fields = lineChartFields.filter(x => settings[x.id + 'En']);
     const chart = echarts.init(el, 'sauce', {renderer: 'svg'});
-    const visualMapCommon = {
-        show: false,
-        type: 'continuous',
-        hoverLink: false,
-    };
-    const seriesCommon = {
-        type: 'line',
-        animation: false,  // looks better and saves gobs of CPU
-        showSymbol: false,
-        emphasis: {disabled: true},
-        areaStyle: {},
-    };
+    const charts = chart._chartsModule = await import('./charts.mjs');
+    const fields = chart._enFields = lineChartFields
+        .filter(x => settings[x + 'En'])
+        .map(x => charts.streamFields[x]);
     chart._dataPointsLen = 0;
     chart._streams = {};
     const options = {
         color: fields.map(f => f.color),
-        visualMap: fields.map((f, i) => ({
-            ...visualMapCommon,
-            id: f.id,
-            seriesIndex: i,
-            range: f.outColor ? f.domain : undefined,
-            min: f.visualMin || f.domain[0],
-            max: f.visualMax || f.domain[1],
-            inRange: {colorAlpha: f.rangeAlpha},
-            outOfRange: f.outColor ?
-                {color: f.outColor, colorAlpha: [0.8, 0]} :
-                undefined,
-        })),
+        visualMap: charts.getStreamFieldVisualMaps(fields),
         legend: {show: false},
         tooltip: {
             className: 'ec-tooltip',
@@ -900,7 +826,11 @@ async function createLineChart(el, sectionId, settings) {
             max: x => Math.max(f.domain[1], x.max),
         })),
         series: fields.map((f, i) => ({
-            ...seriesCommon,
+            type: 'line',
+            animation: false,  // looks better and saves gobs of CPU
+            showSymbol: false,
+            emphasis: {disabled: true},
+            areaStyle: {}, // fill
             id: f.id,
             name: typeof f.name === 'function' ? f.name() : f.name,
             z: fields.length - i + 1,
@@ -940,7 +870,7 @@ async function createLineChart(el, sectionId, settings) {
 
 
 function bindLineChart(chart, renderer, settings) {
-    const fields = lineChartFields.filter(x => settings[x.id + 'En']);
+    const fields = chart._enFields;
     let lastRender = 0;
     let lastSport;
     let created;
@@ -952,6 +882,7 @@ function bindLineChart(chart, renderer, settings) {
         }
         if (lastSport !== sport) {
             lastSport = sport;
+            chart._chartsModule.setSport(sport);
             chart._sauceLegend.render();
         }
         const dataLen = chart._dataPointsLen;
@@ -986,45 +917,16 @@ function bindLineChart(chart, renderer, settings) {
         lastRender = now;
         // Keep local data buffered for resizes (within reason)..
         const maxStreamLen = Math.max(2000, dataLen * 2);
+        let visualMap;
         if (powerZones && data.athlete.ftp) {
-            const pieces = [];
-            let curZone;
-            let gte = 0;
-            let lt = 0;
-            const colors = powerZoneColors(powerZones);
-            for (const [i, x] of chart._streams.power.slice(-dataLen).entries()) {
-                const xPct = x / data.athlete.ftp;
-                let zone;
-                for (const z of powerZones) {
-                    if (xPct >= z.from && (!z.to || xPct < z.to)) {
-                        zone = z;
-                        break;
-                    }
-                }
-                if (zone !== curZone) {
-                    if (curZone) {
-                        pieces.push({gte, lt, color: colors[curZone.zone].toString()});
-                    }
-                    gte = i;
-                    lt = i + 1;
-                    curZone = zone;
-                } else {
-                    lt++;
-                }
-            }
-            pieces.push({gte, color: colors[curZone.zone].toString()});
-            chart.setOption({
-                visualMap: {
-                    dimension: 0,
-                    id: 'power',
-                    seriesIndex: 0,
-                    type: 'piecewise',
-                    show: false,
-                    pieces,
-                }
-            }, {notMerge: false});
+            const powerStream = chart._streams.power.slice(-dataLen);
+            visualMap = chart._chartsModule.getPowerFieldZonedVisualMap(powerStream, powerZones,
+                                                                        data.athlete.ftp);
+            visualMap.seriesIndex = fields.findIndex(x => x.id === 'power');
+            console.log(visualMap.pieces);
         }
         chart.setOption({
+            visualMap,
             series: fields.map(field => {
                 const stream = chart._streams[field.id];
                 if (stream.length > maxStreamLen + 100) {
