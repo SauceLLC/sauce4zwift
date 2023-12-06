@@ -402,6 +402,7 @@ function createZoomableLineChart(el) {
                 align: 'left',
                 padding: [0, 0, 0, 4],
             },
+            z: 5, // sit above area fill
             gridIndex: i,
             min: x => f.domain[0] != null ? Math.min(f.domain[0], x.min) : x.min,
             max: x => f.domain[1] != null ? Math.max(f.domain[1], x.max) : x.max,
