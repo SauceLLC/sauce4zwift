@@ -875,7 +875,7 @@ class NetChannel extends events.EventEmitter {
         if (flags & headerFlags.relayId) {
             const relayId = data.readUInt32BE(headerOfft);
             if (relayId !== this.relayId) {
-                console.error("Unexpected relayId:", relayId, this.relayId);
+                console.error("Unexpected relayId:", relayId, this.toString());
                 throw new Error("Bad Relay ID");
             }
             headerOfft += 4;
@@ -1051,7 +1051,6 @@ class TCPChannel extends NetChannel {
     }
 
     _onTCPData(nread, buf) {
-        this.tickleWatchdog();
         this.recvCount++;
         const data = buf.subarray(0, nread);
         for (let offt = 0; offt < data.byteLength;) {
@@ -1091,6 +1090,7 @@ class TCPChannel extends NetChannel {
                 this.emit('inPacket', protos.ServerToClient.decode(plainBuf), this);
             }
         }
+        this.tickleWatchdog();
     }
 
     async sendPacket(props, options={}) {
@@ -1205,10 +1205,10 @@ class UDPChannel extends NetChannel {
     }
 
     onUDPData(buf) {
-        this.tickleWatchdog();
         this.recvCount++;
         const stc = protos.ServerToClient.decode(this.decrypt(buf));
         this.emit('inPacket', stc, this);
+        this.tickleWatchdog();
     }
 
     async sendPacket(props, options={}) {
