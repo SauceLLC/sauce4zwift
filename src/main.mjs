@@ -185,6 +185,10 @@ electron.ipcMain.handle('subscribe', (ev, {event, persistent, source='stats'}) =
     const sendMessage = data => {
         let json = serialCache.get(data);
         if (!json) {
+            if (data === undefined) {
+                console.warn("Converting undefined to null: prevent this at the emitter source");
+                data = null;
+            }
             json = JSON.stringify(data);
             if (data != null && typeof data === 'object') {
                 serialCache.set(data, json);
