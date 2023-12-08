@@ -136,6 +136,7 @@ let eventMetric;
 let eventSubgroup;
 let sport = 'cycling';
 let powerZones;
+let athleteFTP;
 
 const sectionSpecs = {
     'large-data-fields': {
@@ -801,6 +802,43 @@ async function importEcharts() {
 }
 
 
+function calcPowerZonesGraphics(chart) {
+    const children = [];
+    const graphic = [{type: 'group', silent: true, id: 'power-zones', children}];
+    const powerSeries = chart.getOption().series.find(x => x.id === 'power');
+    const visible = !chart._sauceLegend.hidden.has('power');
+    if (!powerSeries || !powerSeries.data || !powerZones || !athleteFTP || !visible) {
+        return graphic;
+    }
+    const pieces = chart._chartsModule.getPowerFieldZones(powerSeries.data, powerZones, athleteFTP);
+    const chartHeight = chart.getHeight();
+    for (const x of pieces) {
+        const startPx = chart.convertToPixel({xAxisIndex: 0}, x.start);
+        const widthPx = chart.convertToPixel({xAxisIndex: 0}, x.end) - startPx;
+        const top = x.zone.to ? chart.convertToPixel({yAxisId: 'power'}, x.zone.to * athleteFTP) : 0;
+        children.push({
+            type: 'rect',
+            shape: {
+                x: startPx,
+                y: top - 20,
+                width: widthPx,
+                height: chartHeight - top
+            },
+            style: {
+                stroke: 'magic-zones-graphics',
+                fill: {
+                    type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [
+                        {offset: 0, color: x.color.lighten(-0.2).toString()},
+                        {offset: 1, color: x.color.lighten(0.1).alpha(0.5).toString()}
+                    ],
+                },
+            }
+        });
+    }
+    return graphic;
+}
+
+
 async function createLineChart(el, sectionId, settings) {
     const echarts = await importEcharts();
     const chart = echarts.init(el, 'sauce', {renderer: 'svg'});
@@ -822,6 +860,7 @@ async function createLineChart(el, sectionId, settings) {
         xAxis: [{show: false, data: []}],
         yAxis: fields.map(f => ({
             show: false,
+            id: f.id,
             min: x => Math.min(f.domain[0], x.min),
             max: x => Math.max(f.domain[1], x.max),
         })),
@@ -846,6 +885,7 @@ async function createLineChart(el, sectionId, settings) {
             const em = Number(getComputedStyle(el).fontSize.slice(0, -2));
             chart._dataPointsLen = settings.dataPoints || Math.ceil(width);
             chart.setOption({
+                graphic: calcPowerZonesGraphics(chart),
                 xAxis: [{data: Array.from(sauce.data.range(chart._dataPointsLen))}],
                 grid: {
                     top: 1 * em,
@@ -853,17 +893,17 @@ async function createLineChart(el, sectionId, settings) {
                     right: 0.5 * em,
                     bottom: 0.1 * em,
                 },
-            });
+            }, {replaceMerge: 'graphic'});
         }
         return _resize.apply(this, arguments);
     };
     chart.setOption(options);
-    chart.resize();
     chart._sauceLegend = new charts.SauceLegend({
         el: el.nextElementSibling,
         chart,
         hiddenStorageKey: `watching-hidden-graph-p${sectionId}`,
     });
+    chart.resize();
     chartRefs.add(new WeakRef(chart));
     return chart;
 }
@@ -876,6 +916,27 @@ function bindLineChart(chart, renderer, settings) {
     let created;
     let athleteId;
     let loading;
+    // XXX Hack to get power zones (at least use safe IDs before shipping this.
+    chart.on('rendered', () => {
+        const pathEl = chart.getDom().querySelector('path[fill="magic-zones"]'); // XXX
+        if (pathEl) {
+            pathEl.id = 'xxx-foobar';
+            pathEl.style.setProperty('fill', 'transparent');
+            let clipEl = chart.getDom().querySelector('clipPath#clippy'); // XXX
+            if (!clipEl) {
+                clipEl = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+                clipEl.id = 'clippy'; // XXX
+                const useEl = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+                useEl.setAttribute('href', '#xxx-foobar');
+                clipEl.appendChild(useEl);
+                chart.getDom().querySelector('defs').appendChild(clipEl);
+            }
+            for (const x of chart.getDom().querySelectorAll('path[stroke="magic-zones-graphics"]')) {
+                x.setAttribute('clip-path', 'url(#clippy)');
+                x.removeAttribute('stroke');
+            }
+        }
+    });
     renderer.addCallback(async data => {
         if (loading || !data?.athleteId) {
             return;
@@ -917,16 +978,9 @@ function bindLineChart(chart, renderer, settings) {
         lastRender = now;
         // Keep local data buffered for resizes (within reason)..
         const maxStreamLen = Math.max(2000, dataLen * 2);
-        let visualMap;
-        if (powerZones && data.athlete.ftp) {
-            const powerStream = chart._streams.power.slice(-dataLen);
-            visualMap = chart._chartsModule.getPowerFieldZonedVisualMap(powerStream, powerZones,
-                                                                        data.athlete.ftp);
-            visualMap.seriesIndex = fields.findIndex(x => x.id === 'power');
-            console.log(visualMap.pieces);
-        }
+        const hasPowerZones = powerZones && athleteFTP && fields.find(x => x.id === 'power'); // XXX include legend vis
         chart.setOption({
-            visualMap,
+            graphic: calcPowerZonesGraphics(chart),
             series: fields.map(field => {
                 const stream = chart._streams[field.id];
                 if (stream.length > maxStreamLen + 100) {
@@ -936,6 +990,9 @@ function bindLineChart(chart, renderer, settings) {
                 return {
                     data: points,
                     name: typeof field.name === 'function' ? field.name() : field.name,
+                    areaStyle: field.id === 'power' && hasPowerZones ? {
+                        color: 'magic-zones', // XXX hack to find element and use it later
+                    } : {},
                     markLine: settings.markMax === field.id ? {
                         symbol: 'none',
                         data: [{
@@ -957,7 +1014,7 @@ function bindLineChart(chart, renderer, settings) {
                     } : undefined,
                 };
             }),
-        });
+        }, {replaceMerge: 'graphic'});
     });
 }
 
@@ -1509,6 +1566,7 @@ export async function main() {
         sport = ad.state.sport || 'cycling';
         eventMetric = ad.remainingMetric;
         eventSubgroup = getEventSubgroup(ad.state.eventSubgroupId);
+        athleteFTP = ad.athlete?.ftp;
         for (const x of renderers) {
             x.setData(ad);
             if (x.backgroundRender || !x._contentEl.classList.contains('hidden')) {

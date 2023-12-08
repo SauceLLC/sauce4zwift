@@ -1,4 +1,5 @@
 import * as common from './common.mjs';
+import {Color} from './color.mjs';
 import * as locale from '../../shared/sauce/locale.mjs';
 
 const H = locale.human;
@@ -100,10 +101,10 @@ export function getStreamFieldVisualMaps(fields) {
 }
 
 
-export function getPowerFieldZonedVisualMap(powerStream, powerZones, ftp) {
+export function getPowerFieldZones(powerStream, powerZones, ftp) {
     const pieces = [];
     let curZone;
-    let gte = 0;
+    let start = 0;
     const colors = common.getPowerZoneColors(powerZones);
     for (let i = 0; i < powerStream.length; i++) {
         const xPct = powerStream[i] / ftp;
@@ -114,35 +115,29 @@ export function getPowerFieldZonedVisualMap(powerStream, powerZones, ftp) {
                 break;
             }
         }
-        if (zone !== curZone && (!i || i - gte > 0)) {
+        const minWidth = 2;
+        if (zone !== curZone && (!i || i - start >= minWidth)) {
             if (curZone) {
                 pieces.push({
-                    gte,
-                    lt: i,
-                    color: colors[curZone.zone].toString(),
-                    zone: curZone.zone,
+                    start,
+                    end: i,
+                    color: Color.fromHex(colors[curZone.zone]),
+                    zone: curZone,
                 });
             }
-            gte = i;
+            start = i;
             curZone = zone;
         }
     }
-    if (curZone && gte < powerStream.length - 1) {
+    if (curZone && start < powerStream.length - 1) {
         pieces.push({
-            gte,
-            lt: powerStream.length,
-            color: colors[curZone.zone].toString(),
+            start,
+            end: powerStream.length,
+            color: Color.fromHex(colors[curZone.zone]),
             zone: curZone.zone,
         });
     }
-    return {
-        dimension: 0,
-        id: 'power',
-        seriesIndex: 0,
-        type: 'piecewise',
-        show: false,
-        pieces,
-    };
+    return pieces;
 }
 
 
