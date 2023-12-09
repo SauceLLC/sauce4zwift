@@ -1295,7 +1295,7 @@ async function initScreenSettings() {
     }
 
     common.settingsStore.addEventListener('set', ev => {
-        if (ev.data.key === 'hideBackgroundIcons') {
+        if (['hideBackgroundIcons', 'horizMode'].includes(ev.data.key)) {
             renderScreen();
         }
     });
@@ -1460,7 +1460,8 @@ export async function main() {
                         mapping,
                         fields: groupSpec.fields,
                     });
-                    if (typeof groupSpec.title === 'function') {
+                    if (typeof groupSpec.title === 'function' && !sectionSettings.customTitle &&
+                        !sectionSettings.hideTitle) {
                         const titleEl = groupEl.querySelector('.group-title');
                         renderer.addCallback(() => {
                             const title = groupSpec.title() || '';

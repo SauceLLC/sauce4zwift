@@ -33,37 +33,9 @@ html {
         #content {
             overflow-x: auto;
         }
-
-        .single-data-field {
-            font-size: 1.8em;
-        }
-
-        .screen {
-            flex-direction: row;
-            align-items: stretch;
-            flex: 1 1 0;
-        }
-
-        .screen-section {
-            flex: 1 1 0;
-            justify-content: center;
-            overflow-y: clip;
-
-            .sub:first-child {
-                margin-right: 1em;
-            }
-        }
-
-        .page-title {
-            font-size: 5em;
-        }
     }
 
     &:not(.horizontal) {
-        [data-base-section-type="data-fields"] + [data-base-section-type="data-fields"] {
-            border-top: 0.002em solid #fff5;
-        }
-
         #titlebar {
             --extra-height: 3.5rem; // tuned to button-bar font-size
         }
@@ -71,14 +43,63 @@ html {
         #content {
             overflow-y: auto;
         }
+    }
+}
 
-        .screen-section {
-            padding-top: 0.3rem;
-            overflow-x: clip;
+html:not(.settings-page).horizontal .screen,
+html.settings-page .screen.horizontal {
+    flex-direction: row;
+    align-items: stretch;
+    flex: 1 1 0;
+    --border-line-width: 0.02rem;
+    --border-line-height: calc(100% - 1rem);
 
-            &:last-child {
-                margin-bottom: 0;
+    &.configuring {
+        font-size: 0.86em;
+        height: 7em;
+        width: calc(96vw - 2rem) !important;
+        overflow-x: auto;
+        overflow-y: hidden;
+    }
+
+    .page-title {
+        font-size: 5em;
+    }
+
+    .screen-section {
+        flex: 1 1 0;
+        justify-content: center;
+        overflow-y: clip;
+
+        .sub:first-child {
+            margin-right: 0.5em;
+
+            .value {
+                min-width: 6ch;
             }
+        }
+    }
+
+    .single-data-field {
+        font-size: 1.8em;
+    }
+}
+
+html:not(.settings-page):not(.horizontal) .screen,
+html.settings-page .screen:not(.horizontal) {
+    --border-line-width: calc(100% - 1rem);
+    --border-line-height: 0.02rem;
+
+    &.configuring {
+        width: 14em;
+    }
+
+    .screen-section {
+        padding-top: 0.3rem;
+        overflow-x: clip;
+
+        &:last-child {
+            margin-bottom: 0;
         }
     }
 }
@@ -243,6 +264,14 @@ html {
         font-weight: bold;
         opacity: 0.5;
     }
+
+    .border-line {
+        flex: 0 0 auto;
+        align-self: center;
+        background-color: #fff5;
+        width: var(--border-line-width);
+        height: var(--border-line-height);
+    }
 }
 
 @container zone (width < 2em) {
@@ -334,7 +363,7 @@ html {
     }
 
     &[data-base-section-type="chart"] {
-        margin: 0;
+        // margin: 0; // causes way too many compat issues XXX
     }
 
     .chart-holder {
@@ -356,12 +385,12 @@ html {
         }
 
         &.pie {
-            padding: 0 1em;
+            padding: 0 0.3em;
             margin: -1em 0;
             aspect-ratio: 1 / 1;
             font-size: 0.7rem;
             align-items: center;
-            max-height: calc(99.9vh - 2em);
+            max-height: calc(99.9vh - 1em);
         }
 
         &.horiz-bar {
@@ -371,6 +400,8 @@ html {
             margin-right: 0.4rem;
             border-radius: 0.28em;
             overflow: hidden;
+            min-width: 8rem;
+            align-items: center;
 
             .zone {
                 container: zone / inline-size;
@@ -499,45 +530,48 @@ html {
 
 .screen.configuring {
     .screen-section {
-        transition: opacity 200ms;
-        overflow: visible !important; // allow button mask to show
-
         .button-mask {
             position: absolute;
             font-size: 0.8rem;
-            left: -6px;
-            top: -2px;
-            height: calc(100% + 4px);
-            width: calc(100% + 10px + 3rem);
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 100%;
             display: flex;
             align-items: center;
-            justify-content: flex-end;
-            border-radius: 0.25em;
+            justify-content: center;
+            border-radius: 0.28em;
             padding: 0.35em;
             background-color: #495ce863;
-            overflow: hidden;
             transition: opacity 200ms, visibility 200ms;
             transition-delay: 200ms;
             opacity: 0;
             visibility: hidden;
 
             .button-group {
+                background-color: #222c;
+                flex-direction: row;
                 flex: 0 0 auto;
+                border: 1px solid #7778;
+                font-size: 1.3em;
             }
         }
 
         img.example {
             width: 100%;
             height: 100%;
+            min-width: 7rem;
             object-fit: contain;
         }
 
         &:hover,
         &:focus {
             .button-mask {
+                display: flex !important;
                 visibility: visible;
                 opacity: 1;
                 transition-delay: 0s;
+                z-index: 1000;
             }
         }
 
@@ -703,7 +737,7 @@ html.always-show-buttons #titlebar {
             align-items: center;
 
             .active-screen {
-                padding: 1em 3rem 0.5em;
+                padding: 1em 1rem 0.5em;
 
                 > .screen {
                     position: relative;
@@ -714,10 +748,6 @@ html.always-show-buttons #titlebar {
                     background: #333;
                     color: white;
                     box-shadow: 1px 1px 8px 1px #0007;
-
-                    &.configuring {
-                        width: 14em;
-                    }
                 }
             }
 

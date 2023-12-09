@@ -1,4 +1,7 @@
-<div class="screen {{obj.configuring ? 'configuring' : ''}} {{obj.hidden ? 'hidden' : ''}}"
+<div class="screen
+            {{obj.configuring ? 'configuring' : ''}}
+            {{obj.configuring && settings.horizMode ? 'horizontal' : ''}}
+            {{obj.hidden ? 'hidden' : ''}}"
      data-id="{{screen.id}}" data-index="{{sIndex}}">
     <div class="page-title">{{(sIndex + 1).toLocaleString()}}</div>
     <% if (!obj.configuring && obj.athlete) { %>
@@ -11,18 +14,21 @@
         <div class="no-sections">No data sections added</div>
     <% } %>
     <% for (const [sectionIndex, section] of screen.sections.entries()) { %>
+        <% if (sectionIndex > 0 && !section.settings?.hideBorder) { %>
+            <div class="border-line"></div>
+        <% } %>
         <% const baseSectionType = sectionSpecs[section.type].baseType; %>
         <% if (['large-data-fields', 'data-fields'].includes(section.type)) { %>
             <% const group = section.groups[0]; %>
             <% const spec = groupSpecs[group.type]; %>
             <% const bgImg = !settings.hideBackgroundIcons ? spec.backgroundImage : null; %>
-            <div class="screen-section columns {{section.type}}" data-base-section-type="{{baseSectionType}}"
-                 data-section-type="{{section.type}}" data-section-id="{{section.id}}"
-                 data-group-type="{{group.type}}" data-group-id="{{group.id}}"
+            <div class="screen-section columns {{section.type}}"
+                 data-base-section-type="{{baseSectionType}}" data-section-type="{{section.type}}"
+                 data-section-id="{{section.id}}" data-group-type="{{group.type}}" data-group-id="{{group.id}}"
                  style="--background-image: {{bgImg || 'none'}};">
                 <div class="sub">
                     <% if (!section.settings?.hideTitle) { %>
-                        <% const title = section.settings?.customTitle || group.title || groupSpecs[group.type].title; %>
+                        <% const title = section.settings?.customTitle || spec.title; %>
                         <heading class="group-title">{{typeof title === 'function' ? title() : title}}</heading>
                     <% } %>
                     <div class="field-row" data-default="{{group.defaultFields?.[1] || '1'}}"
@@ -45,7 +51,12 @@
                     <dialog class="edit">
                         <header>Edit Section: {{sectionIndex + 1}}</header>
                         <form method="dialog">
-                            <label>Type: {{sectionSpecs[section.type].title}}</label>
+                            <label><b>{{sectionSpecs[section.type].title}}</b></label>
+                            <label>
+                                Hide border:
+                                <input type="checkbox" name="hideBorder"
+                                       {{settings.hideBorder ? 'checked' : ''}}/>
+                            </label>
                             <label>
                                 Hide title:
                                 <input type="checkbox" name="hideTitle"
@@ -53,8 +64,8 @@
                             </label>
                             <label>
                                 Custom title:
-                                <input type="text" placeholder="{{groupSpecs[group.type].title}}" name="customTitle"
-                                       value="{{settings.customTitle || ''}}"/>
+                                <input type="text" name="customTitle" value="{{settings.customTitle || ''}}"
+                                       placeholder="{{typeof spec.title === 'function' ? spec.title() : spec.title}}"/>
                             </label>
                             <label>Data Group:
                                 <select name="group" data-id="{{group.id}}">
@@ -76,14 +87,14 @@
             <% const group = section.groups[0]; %>
             <% const spec = groupSpecs[group.type]; %>
             <% const bgImg = !settings.hideBackgroundIcons ? spec.backgroundImage : null; %>
-            <div class="screen-section {{section.type}}" data-base-section-type="{{baseSectionType}}"
-                 data-section-type="{{section.type}}" data-section-id="{{section.id}}"
-                 data-group-type="{{group.type}}" data-group-id="{{group.id}}"
+            <div class="screen-section {{section.type}}"
+                 data-base-section-type="{{baseSectionType}}" data-section-type="{{section.type}}"
+                 data-section-id="{{section.id}}" data-group-type="{{group.type}}" data-group-id="{{group.id}}"
                  style="--background-image: {{bgImg || 'none'}};">
                 <div class="full-height" data-default="{{group.defaultFields?.[0] || '0'}}"
                      data-field="{{section.id}}-{{group.id}}-0">
                     <% if (!section.settings?.hideTitle) { %>
-                        <% const title = section.settings?.customTitle || group.title || groupSpecs[group.type].title; %>
+                        <% const title = section.settings?.customTitle || spec.title; %>
                         <heading class="group-title">{{typeof title === 'function' ? title() : title}}</heading>
                     <% } %>
                     <div class="value"></div>
@@ -98,7 +109,12 @@
                     <dialog class="edit">
                         <header>Edit Section: {{sectionIndex + 1}}</header>
                         <form method="dialog">
-                            <label>Type: {{sectionSpecs[section.type].title}}</label>
+                            <label><b>{{sectionSpecs[section.type].title}}</b></label>
+                            <label>
+                                Hide border:
+                                <input type="checkbox" name="hideBorder"
+                                       {{settings.hideBorder ? 'checked' : ''}}/>
+                            </label>
                             <label>
                                 Hide title:
                                 <input type="checkbox" name="hideTitle"
@@ -106,8 +122,8 @@
                             </label>
                             <label>
                                 Custom title:
-                                <input type="text" placeholder="{{groupSpecs[group.type].title}}" name="customTitle"
-                                       value="{{settings.customTitle || ''}}"/>
+                                <input type="text" name="customTitle" value="{{settings.customTitle || ''}}"
+                                       placeholder="{{typeof spec.title === 'function' ? spec.title() : spec.title}}"/>
                             </label>
                             <label>
                                 Data Group:
@@ -127,12 +143,13 @@
                 <% } %>
             <!-- leave section div open -->
         <% } else if (section.type === 'split-data-fields') { %>
-            <div class="screen-section columns {{section.type}}" data-section-type="{{section.type}}"
-                 data-base-section-type="{{baseSectionType}}" data-section-id="{{section.id}}">
+            <div class="screen-section columns {{section.type}}"
+                 data-section-type="{{section.type}}" data-base-section-type="{{baseSectionType}}"
+                 data-section-id="{{section.id}}">
                 <% for (const group of section.groups) { %>
                     <div class="sub" data-group-type="{{group.type}}" data-group-id="{{group.id}}">
                         <% if (!section.settings?.hideTitle) { %>
-                            <% const title = group.title || groupSpecs[group.type].title; %>
+                            <% const title = groupSpecs[group.type].title; %>
                             <heading class="group-title">{{typeof title === 'function' ? title() : title}}</heading>
                         <% } %>
                         <div class="field-row" data-default="{{group.defaultFields?.[0] || '0'}}" data-field="{{section.id}}-{{group.id}}-0">
@@ -148,7 +165,12 @@
                     <dialog class="edit">
                         <header>Edit Section: {{sectionIndex + 1}}</header>
                         <form method="dialog">
-                            <label>Type: {{sectionSpecs[section.type].title}}</label>
+                            <label><b>{{sectionSpecs[section.type].title}}</b></label>
+                            <label>
+                                Hide border:
+                                <input type="checkbox" name="hideBorder"
+                                       {{settings.hideBorder ? 'checked' : ''}}/>
+                            </label>
                             <label>
                                 Hide title:
                                 <input type="checkbox" name="hideTitle"
@@ -173,9 +195,9 @@
                 <% } %>
             <!-- leave section div open -->
         <% } else if (section.type === 'line-chart') { %>
-            <div class="screen-section {{section.type}}" tabindex="0"
+            <div class="screen-section {{section.type}}"
                  data-section-type="{{section.type}}" data-base-section-type="{{baseSectionType}}"
-                 data-section-id="{{section.id}}">
+                 data-section-id="{{section.id}}" tabindex="0">
                 <div class="chart-holder ec">
                     <% if (obj.configuring) { %>
                         <img class="example" src="images/examples/sauce-line-chart-cap-50pct.png"/>
@@ -187,7 +209,12 @@
                     <dialog class="edit">
                         <header>Edit Section: {{sectionIndex + 1}}</header>
                         <form method="dialog">
-                            <label>Type: {{sectionSpecs[section.type].title}}</label>
+                            <label><b>{{sectionSpecs[section.type].title}}</b></label>
+                            <label>
+                                Hide border:
+                                <input type="checkbox" name="hideBorder"
+                                       {{settings.hideBorder ? 'checked' : ''}}/>
+                            </label>
                             <label>Data points to show:
                                 <input name="dataPoints" type="number" placeholder="auto"
                                        value="{{settings.dataPoints || ''}}"/>
@@ -227,9 +254,9 @@
                 <% } %>
             <!-- leave section div open -->
         <% } else if (section.type === 'time-in-zones') { %>
-            <div class="screen-section {{section.type}}" tabindex="0"
+            <div class="screen-section {{section.type}}"
                  data-section-type="{{section.type}}" data-base-section-type="{{baseSectionType}}"
-                 data-section-id="{{section.id}}">
+                 data-section-id="{{section.id}}" tabindex="0">
                 <div class="zones-holder {{section.settings.style}}">
                     <% if (obj.configuring) { %>
                         <% if (section.settings.style === 'vert-bars') { %>
@@ -246,14 +273,12 @@
                     <dialog class="edit">
                         <header>Edit Section: {{sectionIndex + 1}}</header>
                         <form method="dialog">
-                            <label>Type: {{sectionSpecs[section.type].title}}</label>
-                            <hr/>
-                            <!--<label>Type
-                                <select name="type">
-                                    <option {{settings.type === 'power' ? 'selected' : ''}} value="power">Power</option>
-                                    <option disabled {{settings.type === 'hr' ? 'selected' : ''}} value="hr">Heart Rate (Soon Nordy!)</option>
-                                </select>
-                            </label>-->
+                            <label><b>{{sectionSpecs[section.type].title}}</b></label>
+                            <label>
+                                Hide border:
+                                <input type="checkbox" name="hideBorder"
+                                       {{settings.hideBorder ? 'checked' : ''}}/>
+                            </label>
                             <label>Style
                                 <select name="style">
                                     <option {{settings.style === 'vert-bars' ? 'selected' : ''}}
@@ -273,9 +298,9 @@
                 <% } %>
             <!-- leave section div open -->
         <% } else if (section.type === 'elevation-profile') { %>
-            <div class="screen-section {{section.type}}" tabindex="0"
+            <div class="screen-section {{section.type}}"
                  data-section-type="{{section.type}}" data-base-section-type="{{baseSectionType}}"
-                 data-section-id="{{section.id}}">
+                 data-section-id="{{section.id}}" tabindex="0">
                 <div class="elevation-profile-holder">
                     <% if (obj.configuring) { %>
                         <img class="example" src="images/examples/elevation-profile-chart.webp"/>
@@ -286,8 +311,12 @@
                     <dialog class="edit">
                         <header>Edit Section: {{sectionIndex + 1}}</header>
                         <form method="dialog">
-                            <label>Type: {{sectionSpecs[section.type].title}}</label>
-                            <hr/>
+                            <label><b>{{sectionSpecs[section.type].title}}</b></label>
+                            <label>
+                                Hide border:
+                                <input type="checkbox" name="hideBorder"
+                                       {{settings.hideBorder ? 'checked' : ''}}/>
+                            </label>
                             <label title="When available show the route based profile instead of the current road">
                                 Route profile: <input type="checkbox" name="preferRoute"
                                 {{settings.preferRoute ? 'checked' : ''}}/>
