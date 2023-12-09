@@ -91,7 +91,7 @@ html.settings-page .screen:not(.horizontal) {
     --border-line-height: 0.02rem;
 
     &.configuring {
-        width: 14em;
+        width: 14em !important;
     }
 
     .screen-section {
