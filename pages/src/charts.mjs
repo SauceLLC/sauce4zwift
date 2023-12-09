@@ -115,8 +115,7 @@ export function getPowerFieldZones(powerStream, powerZones, ftp) {
                 break;
             }
         }
-        const minWidth = 2;
-        if (zone !== curZone && (!i || i - start >= minWidth)) {
+        if (zone !== curZone) {
             if (curZone) {
                 pieces.push({
                     start,
@@ -134,7 +133,7 @@ export function getPowerFieldZones(powerStream, powerZones, ftp) {
             start,
             end: powerStream.length,
             color: Color.fromHex(colors[curZone.zone]),
-            zone: curZone.zone,
+            zone: curZone,
         });
     }
     return pieces;

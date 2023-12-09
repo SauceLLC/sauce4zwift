@@ -815,21 +815,22 @@ function calcPowerZonesGraphics(chart) {
     for (const x of pieces) {
         const startPx = chart.convertToPixel({xAxisIndex: 0}, x.start);
         const widthPx = chart.convertToPixel({xAxisIndex: 0}, x.end) - startPx;
-        const top = x.zone.to ? chart.convertToPixel({yAxisId: 'power'}, x.zone.to * athleteFTP) : 0;
+        const top = x.zone.to ? chart.convertToPixel({yAxisId: 'power'}, x.zone.to * athleteFTP * 1.05) : 0;
         children.push({
             type: 'rect',
+            z: 100,
             shape: {
                 x: startPx,
                 y: top,
                 width: widthPx,
-                height: chartHeight - top + 20,
+                height: chartHeight - top,
             },
             style: {
                 stroke: 'magic-zones-graphics',
                 fill: {
                     type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [
-                        {offset: 0, color: x.color.lighten(-0.2).toString()},
-                        {offset: 1, color: x.color.lighten(0.1).alpha(0.5).toString()}
+                        {offset: 0.1, color: x.color.alpha(1).lighten(0).toString()},
+                        {offset: 1, color: x.color.alpha(0.2).lighten(0).toString()}
                     ],
                 },
             }
@@ -923,7 +924,6 @@ function bindLineChart(chart, renderer, settings) {
     const clippyHackId = clippyHackCounter++;
     // XXX Hack to get power zones (at least use safe IDs before shipping this.
     chart.on('rendered', () => {
-        console.log("XXX line chart render, patch up magic zones");
         const pathEl = chart.getDom().querySelector('path[fill="magic-zones"]'); // XXX
         if (pathEl) {
             pathEl.id = `path-hack-${clippyHackId}`;
@@ -986,7 +986,6 @@ function bindLineChart(chart, renderer, settings) {
         const maxStreamLen = Math.max(2000, dataLen * 2);
         const hasPowerZones = powerZones && athleteFTP && fields.find(x => x.id === 'power'); // XXX include legend vis
         chart.setOption({
-            graphic: calcPowerZonesGraphics(chart),
             series: fields.map(field => {
                 const stream = chart._streams[field.id];
                 if (stream.length > maxStreamLen + 100) {
@@ -1020,6 +1019,9 @@ function bindLineChart(chart, renderer, settings) {
                     } : undefined,
                 };
             }),
+        }, {lazyUpdate: true});
+        chart.setOption({
+            graphic: calcPowerZonesGraphics(chart),
         }, {replaceMerge: 'graphic'});
     });
 }
@@ -1413,7 +1415,7 @@ export async function main() {
     const content = document.querySelector('#content');
     const renderers = [];
     let curScreen;
-    let curScreenIndex = Math.max(0, Math.min(settings.screenIndex || 0, settings.screens.length));
+    let curScreenIndex = Math.max(0, Math.min(settings.screenIndex || 0, settings.screens.length - 1));
     let athlete;
     if (customIdent) {
         athlete = await common.rpc.getAthlete(customIdent);
