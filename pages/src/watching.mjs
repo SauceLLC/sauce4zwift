@@ -820,9 +820,9 @@ function calcPowerZonesGraphics(chart) {
             type: 'rect',
             shape: {
                 x: startPx,
-                y: top - 20,
+                y: top,
                 width: widthPx,
-                height: chartHeight - top
+                height: chartHeight - top + 20,
             },
             style: {
                 stroke: 'magic-zones-graphics',
@@ -884,8 +884,10 @@ async function createLineChart(el, sectionId, settings) {
         if (width) {
             const em = Number(getComputedStyle(el).fontSize.slice(0, -2));
             chart._dataPointsLen = settings.dataPoints || Math.ceil(width);
+            // For power zones we need to set the data first (can be lazyUpdate).
+            // Then running calcPowerZonesGraphics will pick up the new dataset
+            // and do the actual render.
             chart.setOption({
-                graphic: calcPowerZonesGraphics(chart),
                 xAxis: [{data: Array.from(sauce.data.range(chart._dataPointsLen))}],
                 grid: {
                     top: 1 * em,
@@ -893,7 +895,8 @@ async function createLineChart(el, sectionId, settings) {
                     right: 0.5 * em,
                     bottom: 0.1 * em,
                 },
-            }, {replaceMerge: 'graphic'});
+            }, {lazyUpdate: true});
+            chart.setOption({graphic: calcPowerZonesGraphics(chart)}, {replaceMerge: 'graphic'});
         }
         return _resize.apply(this, arguments);
     };
@@ -909,6 +912,7 @@ async function createLineChart(el, sectionId, settings) {
 }
 
 
+let clippyHackCounter = 0;
 function bindLineChart(chart, renderer, settings) {
     const fields = chart._enFields;
     let lastRender = 0;
@@ -916,23 +920,25 @@ function bindLineChart(chart, renderer, settings) {
     let created;
     let athleteId;
     let loading;
+    const clippyHackId = clippyHackCounter++;
     // XXX Hack to get power zones (at least use safe IDs before shipping this.
     chart.on('rendered', () => {
+        console.log("XXX line chart render, patch up magic zones");
         const pathEl = chart.getDom().querySelector('path[fill="magic-zones"]'); // XXX
         if (pathEl) {
-            pathEl.id = 'xxx-foobar';
+            pathEl.id = `path-hack-${clippyHackId}`;
             pathEl.style.setProperty('fill', 'transparent');
-            let clipEl = chart.getDom().querySelector('clipPath#clippy'); // XXX
+            let clipEl = chart.getDom().querySelector(`clipPath#clip-hack-${clippyHackId}`); // XXX
             if (!clipEl) {
                 clipEl = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
-                clipEl.id = 'clippy'; // XXX
+                clipEl.id = `clip-hack-${clippyHackId}`;
                 const useEl = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-                useEl.setAttribute('href', '#xxx-foobar');
+                useEl.setAttribute('href', `#${pathEl.id}`);
                 clipEl.appendChild(useEl);
                 chart.getDom().querySelector('defs').appendChild(clipEl);
             }
             for (const x of chart.getDom().querySelectorAll('path[stroke="magic-zones-graphics"]')) {
-                x.setAttribute('clip-path', 'url(#clippy)');
+                x.setAttribute('clip-path', `url(#${clipEl.id})`);
                 x.removeAttribute('stroke');
             }
         }
