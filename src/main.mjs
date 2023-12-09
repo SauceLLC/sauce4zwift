@@ -29,31 +29,17 @@ const isDEV = !electron.app.isPackaged;
 const defaultUpdateChannel = pkg.version.match(/alpha/) ? 'alpha' :
     pkg.version.match(/beta/) ?  'beta' : 'stable';
 const updateChannelLevels = {stable: 10, beta: 20, alpha: 30};
-
-let zwiftAPI;
-let zwiftMonitorAPI;
-
-if (isDEV) {
-    const pb_Reader_skip = protobuf.Reader.prototype.skip;
-    protobuf.Reader.prototype.skip = function(length) {
-        const start = this.pos;
-        const r = pb_Reader_skip.apply(this, arguments);
-        const end = this.pos;
-        console.error("Protobuf missing field:", this, start, end,
-                      this.buf.subarray(start, end).toString('hex'));
-        console.info(this.buf.subarray(0, this.len).toString('hex'));
-        return r;
-    };
-}
-
-let sauceApp;
-let ipcSubIdInc = 1;
+const serialCache = new WeakMap();
+const windowEventSubs = new WeakMap();
 const rpcSources = {
     windows: windows.eventEmitter,
     updater: autoUpdater,
 };
-const serialCache = new WeakMap();
-const windowEventSubs = new WeakMap();
+
+let zwiftAPI;
+let zwiftMonitorAPI;
+let sauceApp;
+let ipcSubIdInc = 1;
 
 export let started;
 export let quiting;
@@ -111,6 +97,26 @@ electron.app.on('second-instance', (ev,_, __, {type, ...args}) => {
     }
 });
 electron.app.on('before-quit', () => void (quiting = true));
+
+
+let _debuggingProtobufFields;
+function debugMissingProtobufFields() {
+    if (_debuggingProtobufFields) {
+        return;
+    }
+    console.debug('Missing protobuf field detection enabled');
+    _debuggingProtobufFields = true;
+    const pb_Reader_skip = protobuf.Reader.prototype.skip;
+    protobuf.Reader.prototype.skip = function(length) {
+        const start = this.pos;
+        const r = pb_Reader_skip.apply(this, arguments);
+        const end = this.pos;
+        console.error("Protobuf missing field:", this, start, end,
+                      this.buf.subarray(start, end).toString('hex'));
+        console.info(this.buf.subarray(0, this.len).toString('hex'));
+        return r;
+    };
+}
 
 
 function monitorWindowForEventSubs(win, subs) {
@@ -452,6 +458,9 @@ class SauceApp extends EventEmitter {
     }
 
     async start(args) {
+        if (isDEV || args.debugGameFields) {
+            debugMissingProtobufFields();
+        }
         const gameMonitor = this.gameMonitor = new zwift.GameMonitor({
             zwiftMonitorAPI,
             gameAthleteId: args.athleteId || zwiftAPI.profile.id,
@@ -598,6 +607,8 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
          help: 'Watch random athlete; optionally specify a Course ID to choose the athlete from'},
         {arg: 'disable-game-connection', type: 'switch',
          help: 'Disable the companion protocol service'},
+        {arg: 'debug-game-fields', type: 'switch',
+         help: 'Include otherwise hidden fields from game data'},
     ]);
     if (args.help) {
         quit();

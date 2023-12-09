@@ -384,6 +384,9 @@ export class StatsProcessor extends events.EventEmitter {
             gc.on('powerup-set', this.onPowerupSet.bind(this));
             gc.on('custom-action-button', this.onCustomActionButton.bind(this));
         }
+        if (options.args.debugGameFields) {
+            this._cleanState = obj => obj;
+        }
     }
 
     getPowerZones(ftp) {
