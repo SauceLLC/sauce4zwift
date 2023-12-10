@@ -500,7 +500,7 @@ html.settings-page .screen:not(.horizontal) {
         }
 
         .value {
-            line-height: 0.9;
+            line-height: 0.75; // Prevent layout shift for large values;
         }
 
         small {
@@ -645,7 +645,7 @@ html.settings-page .screen:not(.horizontal) {
 .value {
     font-variant: tabular-nums;
     text-align: right;
-    min-width: 3ch;
+    min-width: 3.1ch; // The .1 makes a big difference for decimal place values like "13.1" w/kg
 
     &:empty {
         &::after {
