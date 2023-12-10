@@ -73,24 +73,25 @@ html {
         &:not(.frame) {
             &:not(.solid-background) body {
                 border-radius: 2mm;
-                outline: 1.5px solid #222a;
+                outline: 1.5px solid rgb(34 34 34 / calc(var(--outline-opacity) * 66%));
                 outline-offset: -1px;
-                box-shadow: 0 0 8px 0 #4444 inset;
+                box-shadow: 0 0 8px 0 rgb(68 68 68 / calc(var(--outline-opacity) * 26%)) inset;
             }
 
-            &:not(:hover) {
-                &:not(.settings-mode) body.transparent-bg {
-                    outline-color: #3330;
-                    box-shadow: none;
-                }
+            &:not(:hover) body.transparent-bg {
+                --outline-opacity: 0;
+                --bg-opacity: 0;
+            }
 
-                body.transparent-bg {
-                    --bg-opacity: 0;
+            &:focus-within,
+            &:hover {
+                body {
+                    --outline-opacity: 1 !important;
                 }
             }
 
-            &:hover body.transparent-bg {
-                --bg-opacity: 0.7;
+            &:hover body {
+                --min-bg-opacity: 0.7;
             }
 
             #titlebar header {
@@ -156,7 +157,10 @@ html {
     }
 
     body {
+        --min-bg-opacity: 0;
         --bg-opacity: 1;
+        --outline-opacity: 1;
+        --final-bg-opacity: max(var(--min-bg-opacity) * 100%, var(--bg-opacity) * 100%);
         margin: 0;
         width: 100%;
         height: 100%;
@@ -166,18 +170,23 @@ html {
         flex-direction: column;
         color: color.get(fg);
         transition:
-            --bg-opacity var(--bg-transition-duration),
+            --final-bg-opacity var(--bg-transition-duration),
             outline var(--bg-transition-duration),
             box-shadow var(--bg-transition-duration);
         background-image: linear-gradient(135deg,
-            color.get(bg, calc(var(--bg-opacity) * 100%)),
-            color.get(bg2, calc(var(--bg-opacity) * 100%)));
+            color.get(bg, var(--final-bg-opacity)),
+            color.get(bg2, var(--final-bg-opacity)));
 
         &.alt-background {
             color: color.get(fg-alt);
             background-image: linear-gradient(135deg,
-                color.get(bg-alt, calc(var(--bg-opacity) * 100%)),
-                color.get(bg-alt2, calc(var(--bg-opacity) * 100%)));
+                color.get(bg-alt, var(--final-bg-opacity)),
+                color.get(bg-alt2, var(--final-bg-opacity)));
+        }
+
+        &.transparent-bg {
+            --outline-opacity: 0;
+            --bg-opacity: 0;
         }
     }
 }

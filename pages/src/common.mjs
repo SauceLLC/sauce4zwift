@@ -1646,7 +1646,12 @@ export function asyncSerialize(asyncFunc) {
 
 
 if (window.CSS && CSS.registerProperty) {
-    CSS.registerProperty({name: '--bg-opacity', syntax: '<number>', inherits: true, initialValue: 1});
+    CSS.registerProperty({
+        name: '--final-bg-opacity',
+        syntax: '<percentage>',
+        inherits: true,
+        initialValue: '0%'
+    });
 }
 
 if (settingsStore) {
