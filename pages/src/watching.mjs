@@ -805,7 +805,7 @@ async function importEcharts() {
 function calcPowerZonesGraphics(chart) {
     const children = [];
     const graphic = [{type: 'group', silent: true, id: 'power-zones', children}];
-    const powerSeries = chart.getOption().series.find(x => x.id === 'power');
+    const powerSeries = chart.getOption().series.find(x => x.id === 'power'); // XXX pretty heavy..
     const visible = !chart._sauceLegend.hidden.has('power');
     if (!powerSeries || !powerSeries.data || !powerZones || !athleteFTP || !visible) {
         return graphic;
@@ -840,16 +840,22 @@ function calcPowerZonesGraphics(chart) {
 }
 
 
-async function createLineChart(el, sectionId, settings) {
+let clippyHackCounter = 0;
+async function createLineChart(el, sectionId, settings, renderer) {
     const echarts = await importEcharts();
     const chart = echarts.init(el, 'sauce', {renderer: 'svg'});
     const charts = chart._chartsModule = await import('./charts.mjs');
-    const fields = chart._enFields = lineChartFields
-        .filter(x => settings[x + 'En'])
-        .map(x => charts.streamFields[x]);
-    chart._dataPointsLen = 0;
-    chart._streams = {};
-    const options = {
+    const fields = lineChartFields.filter(x => settings[x + 'En']).map(x => charts.streamFields[x]);
+    const chartEl = chart.getDom();
+    let streamsCache;
+    let dataPointsLen = 0;
+    let lastSport;
+    let lastCreated;
+    let athleteId;
+    let loading;
+    const clippyHackId = clippyHackCounter++;
+
+    chart.setOption({
         color: fields.map(f => f.color),
         visualMap: charts.getStreamFieldVisualMaps(fields),
         legend: {show: false},
@@ -878,126 +884,60 @@ async function createLineChart(el, sectionId, settings) {
             tooltip: {valueFormatter: f.fmt},
             lineStyle: {color: f.color},
         })),
-    };
+    });
+
+    chart._sauceLegend = new charts.SauceLegend({
+        el: el.nextElementSibling,
+        chart,
+        hiddenStorageKey: `watching-hidden-graph-p${sectionId}`,
+    });
+
     const _resize = chart.resize;
     chart.resize = function() {
         const width = el.clientWidth;
         if (width) {
             const em = Number(getComputedStyle(el).fontSize.slice(0, -2));
-            chart._dataPointsLen = settings.dataPoints || Math.ceil(width);
-            // For power zones we need to set the data first (can be lazyUpdate).
-            // Then running calcPowerZonesGraphics will pick up the new dataset
-            // and do the actual render.
+            dataPointsLen = settings.dataPoints || Math.ceil(width);
+            if (streamsCache && streamsCache.time.length < dataPointsLen) {
+                const nulls = Array.from(sauce.data.range(dataPointsLen - streamsCache.time.length))
+                    .map(x => null);
+                for (const x of Object.values(streamsCache)) {
+                    x.unshift(...nulls);
+                }
+            }
             chart.setOption({
-                xAxis: [{data: Array.from(sauce.data.range(chart._dataPointsLen))}],
                 grid: {
                     top: 1 * em,
                     left: 0.5 * em,
                     right: 0.5 * em,
                     bottom: 0.1 * em,
                 },
-            }, {lazyUpdate: true});
-            chart.setOption({graphic: calcPowerZonesGraphics(chart)}, {replaceMerge: 'graphic'});
+            });
+            chart.renderStreams();
         }
         return _resize.apply(this, arguments);
     };
-    chart.setOption(options);
-    chart._sauceLegend = new charts.SauceLegend({
-        el: el.nextElementSibling,
-        chart,
-        hiddenStorageKey: `watching-hidden-graph-p${sectionId}`,
-    });
-    chart.resize();
-    chartRefs.add(new WeakRef(chart));
-    return chart;
-}
 
-
-let clippyHackCounter = 0;
-function bindLineChart(chart, renderer, settings) {
-    const fields = chart._enFields;
-    let lastRender = 0;
-    let lastSport;
-    let created;
-    let athleteId;
-    let loading;
-    const clippyHackId = clippyHackCounter++;
-    // XXX Hack to get power zones (at least use safe IDs before shipping this.
-    chart.on('rendered', () => {
-        const pathEl = chart.getDom().querySelector('path[fill="magic-zones"]'); // XXX
-        if (pathEl) {
-            pathEl.id = `path-hack-${clippyHackId}`;
-            pathEl.style.setProperty('fill', 'transparent');
-            let clipEl = chart.getDom().querySelector(`clipPath#clip-hack-${clippyHackId}`); // XXX
-            if (!clipEl) {
-                clipEl = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
-                clipEl.id = `clip-hack-${clippyHackId}`;
-                const useEl = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-                useEl.setAttribute('href', `#${pathEl.id}`);
-                clipEl.appendChild(useEl);
-                chart.getDom().querySelector('defs').appendChild(clipEl);
-            }
-            for (const x of chart.getDom().querySelectorAll('path[stroke="magic-zones-graphics"]')) {
-                x.setAttribute('clip-path', `url(#${clipEl.id})`);
-                x.removeAttribute('stroke');
-            }
-        }
-    });
-    renderer.addCallback(async data => {
-        if (loading || !data?.athleteId) {
+    chart.renderStreams = () => {
+        if (!streamsCache) {
             return;
         }
-        if (lastSport !== sport) {
-            lastSport = sport;
-            chart._chartsModule.setSport(sport);
-            chart._sauceLegend.render();
-        }
-        const dataLen = chart._dataPointsLen;
-        const now = Date.now();
-        if (data.athleteId !== athleteId || created !== data.created) {
-            console.info("Loading streams for:", data.athleteId);
-            loading = true;
-            athleteId = data.athleteId;
-            created = data.created;
-            let streams;
-            try {
-                streams = await common.rpc.getAthleteStreams(athleteId);
-            } finally {
-                loading = false;
-            }
-            streams = streams || {};
-            const nulls = Array.from(sauce.data.range(dataLen)).map(x => null);
-            for (const x of fields) {
-                // null pad for non stream types like wbal and to compensate for missing data
-                chart._streams[x.id] = nulls.concat(streams[x.id] || []);
-            }
-        } else {
-            if (now - lastRender < 900) {
-                return;
-            }
-            if (data?.state) {
-                for (const x of fields) {
-                    chart._streams[x.id].push(x.get(data));
-                }
+        const maxCacheSize = Math.max(2000, dataPointsLen * 2);
+        if (streamsCache.time.length > maxCacheSize + 100) {
+            for (const x of Object.values(streamsCache)) {
+                x.splice(0, x.length - maxCacheSize);
             }
         }
-        lastRender = now;
-        // Keep local data buffered for resizes (within reason)..
-        const maxStreamLen = Math.max(2000, dataLen * 2);
-        const hasPowerZones = powerZones && athleteFTP && fields.find(x => x.id === 'power'); // XXX include legend vis
+        const hasPowerZones = powerZones && athleteFTP && fields.find(x => x.id === 'power') &&
+            !chart._sauceLegend.hidden.has('power');
         chart.setOption({
+            xAxis: [{data: streamsCache.time.slice(-dataPointsLen)}],
             series: fields.map(field => {
-                const stream = chart._streams[field.id];
-                if (stream.length > maxStreamLen + 100) {
-                    stream.splice(0, stream.length - maxStreamLen);
-                }
-                const points = stream.slice(-dataLen);
+                const points = streamsCache[field.id].slice(-dataPointsLen);
                 return {
                     data: points,
                     name: typeof field.name === 'function' ? field.name() : field.name,
-                    areaStyle: field.id === 'power' && hasPowerZones ? {
-                        color: 'magic-zones', // XXX hack to find element and use it later
-                    } : {},
+                    areaStyle: field.id === 'power' && hasPowerZones ? {color: 'magic-zones'} : {},
                     markLine: settings.markMax === field.id ? {
                         symbol: 'none',
                         data: [{
@@ -1010,7 +950,7 @@ function bindLineChart(chart, renderer, settings) {
                                         ''.padStart(Math.max(0, 10 - x.value), nbsp),
                                         nbsp, nbsp, // for unit offset
                                         field.fmt(points[x.value]),
-                                        ''.padEnd(Math.max(0, x.value - (dataLen - 1) + 10), nbsp)
+                                        ''.padEnd(Math.max(0, x.value - (dataPointsLen - 1) + 10), nbsp)
                                     ].join('');
                                 },
                             },
@@ -1019,11 +959,76 @@ function bindLineChart(chart, renderer, settings) {
                     } : undefined,
                 };
             }),
-        }, {lazyUpdate: true});
-        chart.setOption({
-            graphic: calcPowerZonesGraphics(chart),
-        }, {replaceMerge: 'graphic'});
+        }, {lazyUpdate: true}); // lazy because we follow immediatly with another setOption
+        chart.setOption({graphic: calcPowerZonesGraphics(chart)}, {replaceMerge: 'graphic'});
+    };
+
+    chart.on('rendered', () => {
+        const pathEl = chartEl.querySelector('path[fill="magic-zones"]');
+        if (pathEl) {
+            if (!pathEl.id) {
+                pathEl.id = `path-hack-${clippyHackId}`;
+                pathEl.style.setProperty('fill', 'transparent');
+            }
+            let clipEl = chartEl.querySelector(`clipPath#clip-hack-${clippyHackId}`);
+            if (!clipEl) {
+                clipEl = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+                clipEl.id = `clip-hack-${clippyHackId}`;
+                const useEl = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+                useEl.setAttribute('href', `#${pathEl.id}`);
+                clipEl.appendChild(useEl);
+                chartEl.querySelector('defs').appendChild(clipEl);
+            }
+            for (const x of chartEl.querySelectorAll('path[stroke="magic-zones-graphics"]')) {
+                x.setAttribute('clip-path', `url(#${clipEl.id})`);
+                x.removeAttribute('stroke');
+            }
+        }
     });
+    common.subscribe(`streams/${athleteIdent}`, streams => {
+        if (!streamsCache) {
+            return; // early start, wait for renderer callback to fetch full streams
+        }
+        streamsCache.time.push(...streams.time);
+        for (const x of fields) {
+            streamsCache[x.id].push(...streams[x.id]);
+        }
+        if (common.isVisible() && (!chartEl.checkVisibility || chartEl.checkVisibility())) {
+            chart.renderStreams();
+        }
+    });
+    renderer.addCallback(async data => {
+        if (loading || !data?.athleteId) {
+            return;
+        }
+        if (lastSport !== sport) {
+            lastSport = sport;
+            charts.setSport(sport);
+            chart._sauceLegend.render();
+        }
+        if (data.athleteId !== athleteId || lastCreated !== data.created) {
+            console.info("Loading streams for:", data.athleteId);
+            loading = true;
+            athleteId = data.athleteId;
+            lastCreated = data.created;
+            let streams = {};
+            try {
+                streams = await common.rpc.getAthleteStreams(athleteId);
+            } finally {
+                loading = false;
+            }
+            streamsCache = {};
+            for (const x of fields) {
+                streamsCache[x.id] = streams[x.id];
+            }
+            streamsCache.time = streams.time;
+            chart.resize();
+        }
+    });
+
+    chart.resize();
+    chartRefs.add(new WeakRef(chart));
+    return chart;
 }
 
 
@@ -1481,11 +1486,8 @@ export async function main() {
                 }
             } else if (baseType === 'chart') {
                 if (section.type === 'line-chart') {
-                    const lineChart = await createLineChart(
-                        sectionEl.querySelector('.chart-holder.ec'),
-                        sectionEl.dataset.sectionId,
-                        sectionSettings);
-                    bindLineChart(lineChart, renderer, sectionSettings);
+                    await createLineChart(sectionEl.querySelector('.chart-holder.ec'),
+                                          sectionEl.dataset.sectionId, sectionSettings, renderer);
                 } else if (section.type === 'time-in-zones') {
                     const el = sectionEl.querySelector('.zones-holder');
                     const id = sectionEl.dataset.sectionId;
