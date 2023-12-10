@@ -297,6 +297,7 @@ html[data-theme="light"] {
 html[data-theme="transparent-light"] {
     &:not(.settings-mode):not(.settings-page):not(.frame) body:not(.transparent-bg):not(.alt-background) {
         --bg-opacity: 0;
+        --outline-opacity: 0;
     }
 
     --theme-base-color: transparent;
