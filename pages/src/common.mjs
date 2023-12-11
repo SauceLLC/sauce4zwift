@@ -794,7 +794,22 @@ export class Renderer {
                 unitEl: el.querySelector('.unit'),
             });
             el.setAttribute('tabindex', 0);
-            el.addEventListener('click', ev => this.rotateField(id));
+            //el.addEventListener('click', ev => this.rotateField(id));
+            el.addEventListener('click', () => {
+                const field = this.fields.get(id);
+                const options = field.available.map(x => {
+                    const name = stripHTML(
+                        fGet(x.key, this._data) + ' :: ' + 
+                        fGet(x.label, this._data)  + ' :: ' +
+                        x.id);
+                    return `<option id="${x.id}">${name}</option>`
+                });
+                el.insertAdjacentHTML('beforeend', `
+                    <select name="foobar">
+                        ${options}
+                    </select>
+                `);
+            });
             this.setFieldTooltip(id);
         }
     }
