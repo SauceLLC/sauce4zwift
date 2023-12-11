@@ -73,12 +73,12 @@ html {
         &:not(.frame) {
             &:not(.solid-background) body {
                 border-radius: 2mm;
-                outline: 1.5px solid rgb(34 34 34 / calc(var(--outline-opacity) * 66%));
+                outline: 1.5px solid rgb(34 34 34 / calc(var(--outline-opacity) * 70%));
                 outline-offset: -1px;
-                box-shadow: 0 0 8px 0 rgb(68 68 68 / calc(var(--outline-opacity) * 26%)) inset;
+                box-shadow: 0 0 8px 0 rgb(68 68 68 / calc(var(--outline-opacity) * 30%)) inset;
             }
 
-            &:not(:hover) body.transparent-bg {
+            body.transparent-bg {
                 --outline-opacity: 0;
                 --bg-opacity: 0;
             }
@@ -103,11 +103,6 @@ html {
                 }
             }
         }
-
-        /*&.html-frame #content {
-            border: 1.5mm solid color.get(bookend);
-            border-top-width: 0;
-        }*/
 
         .app-drag {
             app-region: drag;
@@ -159,7 +154,7 @@ html {
     body {
         --min-bg-opacity: 0;
         --bg-opacity: 1;
-        --outline-opacity: 1;
+        --outline-opacity: 0.4;
         --final-bg-opacity: max(var(--min-bg-opacity) * 100%, var(--bg-opacity) * 100%);
         margin: 0;
         width: 100%;
@@ -182,11 +177,6 @@ html {
             background-image: linear-gradient(135deg,
                 color.get(bg-alt, var(--final-bg-opacity)),
                 color.get(bg-alt2, var(--final-bg-opacity)));
-        }
-
-        &.transparent-bg {
-            --outline-opacity: 0;
-            --bg-opacity: 0;
         }
     }
 }
