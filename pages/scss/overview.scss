@@ -1,7 +1,6 @@
 @use 'color';
 
 html {
-    padding: 0;
     font-size: clamp(10px, calc(13px + 10vh), 24px);
 
     &:not(.windows-auto-hidden) {

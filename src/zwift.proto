@@ -41,6 +41,9 @@ message PlayerState {
     bool portal = 43;
     int32 _f44 = 44;
     int32 _f45 = 45;
+    int32 _f46 = 46; // 2?
+    int32 _f47 = 47; // 2?
+    int32 _f48 = 48;
 }
 
 enum WorldUpdatePayloadType {

@@ -7,8 +7,6 @@ const doc = document.documentElement;
 const L = sauce.locale;
 const H = L.human;
 const fieldsKey = 'nearby-fields-v2';
-let imperial = common.storage.get('/imperialUnits');
-L.setImperial(imperial);
 let eventSite = common.storage.get('/externalEventSite', 'zwift');
 let fieldStates;
 let nearbyData;
@@ -479,24 +477,25 @@ export async function main() {
         gameConnection = x.connected;
         doc.classList.toggle('game-connection', gameConnection);
     }, {source: 'gameConnection'});
-    common.settingsStore.addEventListener('changed', async ev => {
-        const changed = ev.data.changed;
-        if (window.isElectron && changed.has('overlayMode')) {
-            await common.rpc.updateWidgetWindowSpec(window.electron.context.id,
-                                                    {overlay: changed.get('overlayMode')});
+    common.settingsStore.addEventListener('set', async ev => {
+        if (!ev.data.remote) {
+            return;
+        }
+        const {key, value} = ev.data;
+        if (window.isElectron && key === 'overlayMode') {
+            await common.rpc.updateWidgetWindowSpec(window.electron.context.id, {overlay: value});
             await common.rpc.reopenWidgetWindow(window.electron.context.id);
         }
-        if (changed.has('refreshInterval')) {
+        if (key === 'refreshInterval') {
             setRefresh();
-        }
-        if (changed.has('onlyMarked')) {
-            onlyMarked = changed.get('onlyMarked');
-        }
-        if (changed.has('onlySameCategory')) {
-            onlySameCategory = changed.get('onlySameCategory');
-        }
-        if (changed.has('maxGap')) {
-            maxGap = changed.get('maxGap');
+        } else if (key === 'onlyMarked') {
+            onlyMarked = value;
+        } else if (key === 'onlySameCategory') {
+            onlySameCategory = value;
+        } else if (key === 'maxGap') {
+            maxGap = value;
+        } else if (key === '/exteranlEventSite') {
+            eventSite = ev.data.value;
         }
         setBackground();
         render();
@@ -511,13 +510,6 @@ export async function main() {
             if (nearbyData) {
                 renderData(nearbyData);
             }
-        }
-    });
-    common.storage.addEventListener('globalupdate', ev => {
-        if (ev.data.key === '/imperialUnits') {
-            L.setImperial(imperial = ev.data.value);
-        } else if (ev.data.key === '/exteranlEventSite') {
-            eventSite = ev.data.value;
         }
     });
     setBackground();

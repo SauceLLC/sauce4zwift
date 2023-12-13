@@ -39,15 +39,17 @@ export function main() {
     const backBtn = document.querySelector('#titlebar .button.back');
     const fwdBtn = document.querySelector('#titlebar .button.forward');
     if (settings.url) {
-        webview.src = settings.url;
-        inputUrl.value = settings.url;
+        load(settings.url);
     }
-    inputUrl.addEventListener('change', () => {
-        if (!inputUrl.value.match(/^[a-z]+:\/\//i)) {
-            inputUrl.value = `https://${inputUrl.value}`;
+    function load(url) {
+        if (!url.match(/^[a-z]+:\/\//i)) {
+            url = `https://${url}`;
         }
-        webview.src = inputUrl.value;
-    });
+        console.debug("Loading:", url);
+        inputUrl.value = url;
+        webview.src = url;
+    }
+    inputUrl.addEventListener('change', () => load(inputUrl.value));
     function onDidNav(url) {
         inputUrl.value = url;
         pinBtn.classList.toggle('pinned', url === settings.url);
@@ -93,7 +95,16 @@ export function main() {
     }
     setBackground();
     setOpacity();
-    common.settingsStore.addEventListener('changed', ev => {
+    let reloadTimeout;
+    common.settingsStore.addEventListener('set', ev => {
+        if (!ev.data.remote) {
+            return;
+        }
+        if (ev.data.key === 'url') {
+            clearTimeout(reloadTimeout);
+            reloadTimeout = setTimeout(() => load(settings.url), 2000);
+            inputUrl.value = settings.url;
+        }
         setBackground();
         setOpacity();
     });
@@ -103,4 +114,12 @@ export function main() {
 export async function settingsMain() {
     common.initInteractionListeners();
     await common.initSettingsForm('form')();
+}
+
+
+const importParams = new URL(import.meta.url).searchParams;
+if (importParams.has('main')) {
+    main();
+} else if (importParams.has('settings')) {
+    settingsMain();
 }

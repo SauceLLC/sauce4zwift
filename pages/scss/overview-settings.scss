@@ -1,6 +1,10 @@
 @use 'color';
 @import url('https://fonts.googleapis.com/css2?family=Gochi+Hand&display=swap');
 
+#settings > .section {
+    padding: 1.4em;
+}
+
 #windows {
     font-size: 16px;
 
@@ -334,16 +338,24 @@ img.avatar {
 
 img.logo {
     display: inline-block;
-    margin: -0.8em 0.2em;
+    margin: -0.8em 0;
     transform: rotate(-28deg);
     width: 3em;
 }
 
 .about {
+    .desc {
+        text-align: center;
+        width: 100%;
+    }
+
     .banner {
         font-family: 'Permanent Marker', Saira;
         padding: 0.5em 0 1em;
         margin: 0;
+        font-size: 2.2em;
+        color: #ebeae0;
+        filter: drop-shadow(2px 6px 6px #0008);
 
         sup {
             font-size: 0.4em;
@@ -358,6 +370,7 @@ img.logo {
         font-weight: 500;
         font-size: 1.2em;
         text-decoration: none !important;
+        margin-left: 0.12em;
 
         &:hover {
             text-decoration: underline !important;

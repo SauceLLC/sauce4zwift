@@ -253,6 +253,7 @@ class WBalAccumulator extends TimeSeriesAccumulator {
         const elapsed = (time - this._timeOffset) || 0;
         this._value = this._accumulator(value, elapsed);
         super.accumulate(time);
+        return this._value;
     }
 }
 
@@ -382,6 +383,9 @@ export class StatsProcessor extends events.EventEmitter {
             gc.on('powerup-activate', this.onPowerupActivate.bind(this));
             gc.on('powerup-set', this.onPowerupSet.bind(this));
             gc.on('custom-action-button', this.onCustomActionButton.bind(this));
+        }
+        if (options.args.debugGameFields) {
+            this._cleanState = obj => obj;
         }
     }
 
@@ -589,18 +593,22 @@ export class StatsProcessor extends events.EventEmitter {
         if (!ad) {
             return null;
         }
-        const cs = ad.collectors;
-        const timeStream = cs.power.roll.times();
-        let offt = 0;
+        let offt;
         if (startTime !== undefined) {
+            const timeStream = ad.collectors.power.roll.times();
             offt = timeStream.findIndex(x => x >= startTime);
             if (offt === -1) {
                 offt = Infinity;
             }
         }
+        return this._getAthleteStreams(ad, offt);
+    }
+
+    _getAthleteStreams(ad, offt) {
+        const cs = ad.collectors;
         const power = cs.power.roll.values(offt);
         const streams = {
-            time: timeStream.slice(offt),
+            time: cs.power.roll.times(offt),
             power,
             speed: cs.speed.roll.values(offt),
             hr: cs.hr.roll.values(offt),
@@ -984,7 +992,7 @@ export class StatsProcessor extends events.EventEmitter {
                 // Club rides we don't have rights to show up in our list
                 // I can't see a way to test for permissions before attempting
                 // access so we just catch the error
-                console.warn(e);
+                console.warn(Object.keys(e), e.message);
             }
         }
     }
@@ -1291,6 +1299,7 @@ export class StatsProcessor extends events.EventEmitter {
                 distance: [],
                 altitude: [],
                 latlng: [],
+                wbal: [],
             },
             roadHistory: {
                 sig: null,
@@ -1446,19 +1455,36 @@ export class StatsProcessor extends events.EventEmitter {
         }
         this._activeSegmentCheck(state, ad, roadSig);
         this._recordAthleteRoadHistory(state, ad, roadSig);
-        this._recordAthleteStats(state, ad);
+        const addCount = this._recordAthleteStats(state, ad);
         ad.mostRecentState = state;
         ad.updated = monotonic();
         this._stateProcessCount++;
         let emitData;
-        if (this.watching === state.athleteId && this.listenerCount('athlete/watching')) {
-            this.emit('athlete/watching', emitData || (emitData = this._formatAthleteData(ad)));
+        let streamsData;
+        if (this.watching === state.athleteId) {
+            if (this.listenerCount('athlete/watching')) {
+                this.emit('athlete/watching', emitData || (emitData = this._formatAthleteData(ad)));
+            }
+            if (addCount && this.listenerCount('streams/watching')) {
+                this.emit('streams/watching', streamsData ||
+                          (streamsData = this._getAthleteStreams(ad, -addCount)));
+            }
         }
-        if (this.athleteId === state.athleteId && this.listenerCount('athlete/self')) {
-            this.emit('athlete/self', emitData || (emitData = this._formatAthleteData(ad)));
+        if (this.athleteId === state.athleteId) {
+            if (this.listenerCount('athlete/self')) {
+                this.emit('athlete/self', emitData || (emitData = this._formatAthleteData(ad)));
+            }
+            if (addCount && this.listenerCount('streams/self')) {
+                this.emit('streams/self', streamsData ||
+                          (streamsData = this._getAthleteStreams(ad, -addCount)));
+            }
         }
         if (this.listenerCount(`athlete/${state.athleteId}`)) {
             this.emit(`athlete/${state.athleteId}`, emitData || (emitData = this._formatAthleteData(ad)));
+        }
+        if (addCount && this.listenerCount(`streams/${state.athleteId}`)) {
+            this.emit(`streams/${state.athleteId}`, streamsData ||
+                      (streamsData = this._getAthleteStreams(ad, -addCount)));
         }
         this.maybeUpdateAthleteFromServer(state.athleteId);
     }
@@ -1517,7 +1543,7 @@ export class StatsProcessor extends events.EventEmitter {
     _recordAthleteStats(state, ad) {
         // Never auto pause wBal as it is a biometric. We use true worldTime to
         // survive resets as well.
-        ad.wBal.accumulate(state.worldTime / 1000, state.power);
+        const wbal = ad.wBal.accumulate(state.worldTime / 1000, state.power);
         if (!state.power && !state.speed) {
             // Emulate auto pause...
             const addCount = ad.collectors.power.flushBuffered();
@@ -1530,9 +1556,10 @@ export class StatsProcessor extends events.EventEmitter {
                     ad.streams.distance.push(ad.distanceOffset + state.distance);
                     ad.streams.altitude.push(state.altitude);
                     ad.streams.latlng.push(state.latlng);
+                    ad.streams.wbal.push(wbal);
                 }
             }
-            return;
+            return addCount;
         }
         const time = (state.worldTime - ad.wtOffset) / 1000;
         ad.timeInPowerZones.accumulate(time, state.power);
@@ -1545,6 +1572,7 @@ export class StatsProcessor extends events.EventEmitter {
             ad.streams.distance.push(ad.distanceOffset + state.distance);
             ad.streams.altitude.push(state.altitude);
             ad.streams.latlng.push(state.latlng);
+            ad.streams.wbal.push(wbal);
         }
         const curLap = ad.laps[ad.laps.length - 1];
         curLap.power.resize(time);
@@ -1559,6 +1587,7 @@ export class StatsProcessor extends events.EventEmitter {
             s.draft.resize(time);
             s.cadence.resize(time);
         }
+        return addCount;
     }
 
     _activeSegmentCheck(state, ad, roadSig) {

@@ -4,7 +4,7 @@
         <meta charset="utf-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
         <meta name="apple-mobile-web-app-capable" content="yes"/>
-        <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
+        <meta http-equiv="Content-Security-Policy" content="script-src 'self';"/>
 
         <title>Segments - Settings - Sauce for Zwift™</title>
 
@@ -13,10 +13,7 @@
         <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
         <link rel="stylesheet" href="css/common.css"/>
 
-        <script type="module">
-            import {settingsMain} from './src/segments.mjs';
-            settingsMain();
-        </script>
+        <script type="module" src="./src/segments.mjs?settings"></script>
     </head>
     <body>
         <div id="titlebar">
@@ -44,10 +41,12 @@
                     <input type="color" name="backgroundColor" data-depends-on="solidBackground"/>
                     <input type="text" name="backgroundColor" data-depends-on="solidBackground" size="7"/>
                 </label>
-                <label class="Nelectron-only">
-                    <key>Background transparency:</key>
-                    <input type="range" name="bgTransparency" min="0" max="100" value="0" step="1"/>
-                    <input type="number" name="bgTransparency" value="0" style="--size: 4"/>%
+                <label class="electron-only">
+                    <key>Transparency:</key>
+                    <input type="range" name="bgTransparency" data-depends-on="solidBackground"
+                           min="0" max="100" value="0" step="1"/>
+                    <input type="number" name="bgTransparency" data-depends-on="solidBackground"
+                           value="0" style="--size: 5"/>%
                 </label>
             </form>
         </div>

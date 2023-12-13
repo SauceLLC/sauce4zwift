@@ -24,7 +24,16 @@ export function successReply(value, extra) {
 }
 
 
-export async function invoke(name, ...args) {
+export async function invoke() {
+    try {
+        return await _invoke.apply(this, arguments);
+    } catch(e) {
+        return errorReply(e);
+    }
+}
+
+
+async function _invoke(name, ...args) {
     const handler = handlers.get(name);
     if (!handler) {
         throw new Error('Invalid handler name: ' + name);

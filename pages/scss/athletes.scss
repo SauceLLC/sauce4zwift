@@ -35,7 +35,6 @@ html {
             justify-content: flex-end;
             max-height: 50vh;
             overflow: auto;
-            overflow: overlay;
         }
     }
 }
@@ -43,7 +42,6 @@ html {
 
 #content {
     overflow: auto;
-    overflow: overlay;
 
     section {
         margin: 0.5em 1em;
@@ -99,7 +97,6 @@ html {
             flex-wrap: wrap;
             max-height: 800vh;
             overflow: auto;
-            overflow: overlay;
             transition: max-height 500ms;
             transition-timing-function: cubic-bezier(0, 0, 1, 0);
         }

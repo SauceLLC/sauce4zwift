@@ -13,15 +13,9 @@ function updateConnStatus(s) {
 }
 
 
-/*function onAthleteData({gameState, state}) {
-    console.info("game state", gameState, state);
-}*/
-
-
 export async function main() {
     common.initInteractionListeners();
     common.subscribe('status', updateConnStatus, {source: 'gameConnection', persistent: true});
-    //common.subscribe('athlete/self', onAthleteData);
     document.querySelector('#content').addEventListener('click', ev => {
         const btn = ev.target.closest('.button');
         if (!btn) {

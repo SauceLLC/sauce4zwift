@@ -45,9 +45,17 @@ export function getCourseSegments(courseId) {
                     reverse,
                     id: x['id' + dir],
                     distance: x['distance' + dir],
-                    dirName: x.name + (reverse ? ' (Reverse)' : ''),
+                    name: reverse ? x.nameReverse || x.nameForward + ' Reverse' : x.nameForward,
                     roadStart: x['roadStart' + dir],
                 };
+                delete segment.nameForward;
+                delete segment.nameReverse;
+                delete segment.idForward;
+                delete segment.idReverse;
+                delete segment.distanceForward;
+                delete segment.distanceReverse;
+                delete segment.roadStartForward;
+                delete segment.roadStartReverse;
                 if (!segment.distance) {
                     continue;  // exclude single direction segments
                 }

@@ -42,6 +42,7 @@ html {box-sizing: border-box;}
 
 html {
     --aspect-ratio: 9 / 16;
+    --bg-transition-duration: 0;
     font-family: 'Saira', sans-serif;
     -webkit-font-smoothing: antialiased; // Fix heavy fonts on macOS
     width: 100%;
@@ -67,16 +68,31 @@ html {
     }
 
     &.electron-mode {
-        &:not(:hover) > body.transparent-bg {
-            --bg-opacity: 0;
-        }
+        --bg-transition-duration: 500ms;
 
-        &:hover > body.transparent-bg {
-            --bg-opacity: 0.7 !important;
-        }
+        &:not(.frame) {
+            &:not(.solid-background) body {
+                border-radius: 2mm;
+                outline: 1.5px solid rgb(34 34 34 / calc(var(--outline-opacity) * 70%));
+                outline-offset: -1px;
+                box-shadow: 0 0 8px 0 rgb(68 68 68 / calc(var(--outline-opacity) * 30%)) inset;
+            }
 
-        &:not(.frame) > body {
-            border-radius: 2mm;
+            body.transparent-bg {
+                --outline-opacity: 0;
+                --bg-opacity: 0;
+            }
+
+            &:focus-within,
+            &:hover {
+                body {
+                    --outline-opacity: 1 !important;
+                }
+            }
+
+            &:hover body {
+                --min-bg-opacity: 0.7;
+            }
 
             #titlebar header {
                 .logo,
@@ -86,11 +102,6 @@ html {
                     cursor: move;
                 }
             }
-        }
-
-        &.html-frame #content {
-            border: 1.5mm solid color.get(bookend);
-            border-top-width: 0;
         }
 
         .app-drag {
@@ -127,7 +138,6 @@ html {
 
         #content {
             overflow: auto;
-            overflow: overlay;
         }
     }
 
@@ -142,7 +152,10 @@ html {
     }
 
     body {
+        --min-bg-opacity: 0;
         --bg-opacity: 1;
+        --outline-opacity: 0.4;
+        --final-bg-opacity: max(var(--min-bg-opacity) * 100%, var(--bg-opacity) * 100%);
         margin: 0;
         width: 100%;
         height: 100%;
@@ -151,16 +164,19 @@ html {
         display: flex;
         flex-direction: column;
         color: color.get(fg);
-        transition: --bg-opacity 1s;
+        transition:
+            --final-bg-opacity var(--bg-transition-duration),
+            outline var(--bg-transition-duration),
+            box-shadow var(--bg-transition-duration);
         background-image: linear-gradient(135deg,
-            color.get(bg, calc(var(--bg-opacity) * 100%)),
-            color.get(bg2, calc(var(--bg-opacity) * 100%)));
+            color.get(bg, var(--final-bg-opacity)),
+            color.get(bg2, var(--final-bg-opacity)));
 
         &.alt-background {
             color: color.get(fg-alt);
             background-image: linear-gradient(135deg,
-                color.get(bg-alt, calc(var(--bg-opacity) * 100%)),
-                color.get(bg-alt2, calc(var(--bg-opacity) * 100%)));
+                color.get(bg-alt, var(--final-bg-opacity)),
+                color.get(bg-alt2, var(--final-bg-opacity)));
         }
     }
 }
@@ -299,7 +315,6 @@ dialog.sauce-attr {
 #settings {
     padding: 0.5em 0.8em;
     overflow: auto;
-    overflow: overlay;
     container: settings / inline-size;
 
     &.tabbed {
@@ -961,26 +976,60 @@ footer.legal {
     }
 }
 
-*:not(:hover)::-webkit-scrollbar {
-    display: none;
+html:not(.passive-overlay-scrollbars) {
+    ::-webkit-scrollbar {
+        width: 2.5mm;
+        height: 2.5mm;
+    }
+
+    ::-webkit-scrollbar-track {
+        background-color: #1114;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        border-radius: 1mm;
+        background-color: #eeec;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background-color: #eee;
+    }
+
+    ::-webkit-scrollbar-corner {
+        background-color: #1114;
+    }
 }
-::-webkit-scrollbar {
-    width: 2.5mm;
-    height: 2.5mm;
+
+html.passive-overlay-scrollbars {
+    --scrollbar-size: 2mm;
+    $min-hack-size: 1px; // must not be zero or chromium disables custom scrollbars
+
+    *:not(:hover) {
+        --scrollbar-border-color-override: transparent;
+        --scrollbar-size: 0;
+    }
+
+    ::-webkit-scrollbar {
+        width: $min-hack-size;
+        height: $min-hack-size;
+    }
+    ::-webkit-scrollbar-track {
+        outline: var(--scrollbar-size) solid #1114;
+    }
+    ::-webkit-scrollbar-thumb {
+        outline: var(--scrollbar-size) solid #eeec;
+        outline-offset: calc(-1 * var(--scrollbar-size)); // compensate on ends to prevent overflow
+        border: $min-hack-size solid var(--scrollbar-border-color-override, #eeec); // Fill void required by min-width
+    }
+
+    ::-webkit-scrollbar,
+    ::-webkit-scrollbar-track,
+    ::-webkit-scrollbar-thumb,
+    ::-webkit-scrollbar-corner {
+        background-color: transparent;
+    }
 }
-::-webkit-scrollbar-track {
-    background-color: #1114;
-}
-::-webkit-scrollbar-thumb {
-    border-radius: 1mm;
-    background-color: #eeec;
-}
-::-webkit-scrollbar-thumb:hover {
-    background-color: #eee;
-}
-::-webkit-scrollbar-corner {
-    background-color: #1114;
-}
+
 
 img {
     -webkit-user-select: none;

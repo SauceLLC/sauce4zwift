@@ -3,11 +3,7 @@ import * as common from './common.mjs';
 import {render as profileRender} from './profile.mjs';
 
 common.enableSentry();
-
-const L = sauce.locale;
 common.settingsStore.setDefault({});
-const imperial = common.settingsStore.get('/imperialUnits');
-L.setImperial(imperial);
 
 
 const _fetchingRoutes = new Map();

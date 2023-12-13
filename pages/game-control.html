@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html class="" tabindex="0" data-settings-key="game-control-settings-v1">
+<html class="passive-overlay-scrollbars" tabindex="0" data-settings-key="game-control-settings-v1">
     <head>
         <meta charset="utf-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
@@ -24,7 +24,7 @@
         <div id="titlebar">
             <header>
                 <div class="logo"><img src="images/icon128.png"/></div>
-                <div class="title">Game Control</div>
+                <div class="title"><div class="top">Game Control</div><div class="bottom status"></div></div>
                 <div class="filler"></div>
                 <div class="buttons">
                     <a class="button open-settings" href="game-control-settings.html?width=400&height=400&child-window"
@@ -35,10 +35,6 @@
             </header>
         </div>
         <div id="content">
-            <header>
-                Connection Status: <span class="status"></span>
-            </header>
-
             <div class="category">View:</div>
             <div class="button-group">
                 <div class="std button" data-call="changeCamera">Camera <ms>cameraswitch</ms></div>
@@ -49,7 +45,7 @@
             <div class="button-group">
                 <div class="std button" data-call="disableHUD">HUD Off <ms>layers_clear</ms></div>
                 <div class="std button" data-call="enableHUD">HUD On <ms>layers</ms></div>
-                <div class="std button" data-call="toggleGraphs">Power Graph <ms>area_chart</ms></div>
+                <div class="std button" data-call="toggleGraphs">Graph <ms>area_chart</ms></div>
             </div>
 
             <div class="category">Gesture:</div>

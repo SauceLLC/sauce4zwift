@@ -97,6 +97,15 @@ class WorldTimer extends events.EventEmitter {
         return wt + this._epoch;
     }
 
+    adjust(diff) {
+        if (Math.abs(diff) > 5000) {
+            console.warn("Shifting worldTimer offset:", diff);
+        }
+        this._offt = Math.round(this._offt + diff);
+        this.emit('offset', diff);
+
+    }
+
     setOffset(offt) {
         const diff = offt - this._offt;
         if (Math.abs(diff) > 5000) {
@@ -155,7 +164,19 @@ function decodeGroupEventUserRegistered(buf) {
 
 
 function decodeNotableMoment(buf) {
-    console.devWarn("Figure this out (notable momment):", buf.toString('hex'));
+    const typeInfo = buf.readInt32LE(0);
+    const athleteId = buf.readInt32LE(8);
+    console.devWarn("Figure this out (notable momment):", {typeInfo, athleteId}, buf.toString('hex'));
+    return {athleteId};
+}
+
+
+function decodeWorldTime(buf) {
+    const intLE = buf.readInt32LE();
+    const intBE = buf.readInt32BE();
+    const floatLE = buf.readFloatLE();
+    const floatBE = buf.readFloatBE();
+    console.devWarn("Figure this out (worldTime):", {intLE, intBE, floatLE, floatBE});
     return {};
 }
 
@@ -163,6 +184,7 @@ function decodeNotableMoment(buf) {
 const binaryWorldUpdatePayloads = {
     groupEventUserRegistered: decodeGroupEventUserRegistered,
     notableMoment: decodeNotableMoment,
+    worldTime: decodeWorldTime,
 };
 
 
@@ -853,7 +875,7 @@ class NetChannel extends events.EventEmitter {
         if (flags & headerFlags.relayId) {
             const relayId = data.readUInt32BE(headerOfft);
             if (relayId !== this.relayId) {
-                console.error("Unexpected relayId:", relayId, this.relayId);
+                console.error("Unexpected relayId:", relayId, this.toString());
                 throw new Error("Bad Relay ID");
             }
             headerOfft += 4;
@@ -1029,7 +1051,6 @@ class TCPChannel extends NetChannel {
     }
 
     _onTCPData(nread, buf) {
-        this.tickleWatchdog();
         this.recvCount++;
         const data = buf.subarray(0, nread);
         for (let offt = 0; offt < data.byteLength;) {
@@ -1069,6 +1090,7 @@ class TCPChannel extends NetChannel {
                 this.emit('inPacket', protos.ServerToClient.decode(plainBuf), this);
             }
         }
+        this.tickleWatchdog();
     }
 
     async sendPacket(props, options={}) {
@@ -1183,10 +1205,10 @@ class UDPChannel extends NetChannel {
     }
 
     onUDPData(buf) {
-        this.tickleWatchdog();
         this.recvCount++;
         const stc = protos.ServerToClient.decode(this.decrypt(buf));
         this.emit('inPacket', stc, this);
+        this.tickleWatchdog();
     }
 
     async sendPacket(props, options={}) {
@@ -1240,6 +1262,9 @@ export class GameMonitor extends events.EventEmitter {
         this.gameAthleteId = options.gameAthleteId;
         this.athleteId = this.api.profile.id;
         this.exclusions = options.exclusions || new Set();
+        if (this.gameAthleteId) {
+            this.exclusions.delete(getIDHash(this.gameAthleteId));
+        }
         this.watchingAthleteId = null;
         this.courseId = null;
         this._udpChannels = [];

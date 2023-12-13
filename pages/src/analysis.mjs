@@ -2,10 +2,10 @@ import * as sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
 import * as echarts from '../deps/src/echarts.mjs';
 import * as theme from './echarts-sauce-theme.mjs';
+import * as charts from './charts.mjs';
 import * as map from './map.mjs';
 import * as color from './color.mjs';
-// XXX
-// import * as fieldsMod from './fields.mjs';
+
 
 common.enableSentry();
 echarts.registerTheme('sauce', theme.getTheme('dynamic', {fg: 'intrinsic-inverted', bg: 'intrinsic'}));
@@ -64,47 +64,8 @@ const peakFormatters = {
     draft: x => H.power(x, {suffix: true, html: true}),
 };
 
-const zoomableChartSeries = [{
-    id: 'power',
-    stream: 'power',
-    name: 'Power',
-    color: '#46f',
-    domain: [0, 700],
-    rangeAlpha: [0.4, 1],
-    fmt: x => H.power(x, {separator: ' ', suffix: true}),
-}, {
-    id: 'hr',
-    stream: 'hr',
-    name: 'HR',
-    color: '#e22',
-    domain: [70, 190],
-    rangeAlpha: [0.1, 0.7],
-    fmt: x => H.number(x, {suffix: ' bpm'}),
-}, {
-    id: 'speed',
-    stream: 'speed',
-    name: x => sport === 'running' ? 'Pace' : 'Speed',
-    color: '#4e3',
-    domain: [0, 80],
-    rangeAlpha: [0.1, 0.8],
-    fmt: x => H.pace(x, {suffix: true, separator: ' ', sport}),
-}, {
-    id: 'cadence',
-    stream: 'cadence',
-    name: 'Cadence',
-    color: '#ee1',
-    domain: [0, 140],
-    rangeAlpha: [0.1, 0.8],
-    fmt: x => H.number(x, {suffix: ' rpm'}),
-}, {
-    id: 'draft',
-    stream: 'draft',
-    name: 'Draft',
-    color: '#e88853',
-    domain: [0, 300],
-    rangeAlpha: [0.1, 0.9],
-    fmt: x => H.power(x, {separator: ' ', suffix: true}),
-}];
+const zoomableChartSeries = ['power', 'hr', 'speed', 'cadence', 'wbal', 'draft']
+    .map(x => charts.streamFields[x]);
 
 
 async function getTemplates(basenames) {
@@ -326,7 +287,7 @@ function createElevationLineChart(el) {
         updateDeferred = false;
         chart.setOption({
             series: series.map(f => ({
-                data: state.streams[f.stream].map((x, i) =>
+                data: state.streams[f.id].map((x, i) =>
                     i >= state.startOffset ? [state.streams.distance[i], x] : [null, null]),
             }))
         });
@@ -373,15 +334,7 @@ function createZoomableLineChart(el) {
         animation: false, // slow and we want a responsive interface not a pretty static one
         color: series.map(f => f.color),
         legend: {show: false},  // required for sauceLegned to toggle series
-        visualMap: series.map((f, i) => ({
-            show: false,
-            type: 'continuous',
-            hoverLink: false,
-            seriesIndex: i,
-            min: f.domain[0],
-            max: f.domain[1],
-            inRange: {colorAlpha: f.rangeAlpha},
-        })),
+        visualMap: charts.getStreamFieldVisualMaps(series),
         grid: series.map((x, i) => {
             const count = series.length;
             return {
@@ -449,6 +402,7 @@ function createZoomableLineChart(el) {
                 align: 'left',
                 padding: [0, 0, 0, 4],
             },
+            z: 5, // sit above area fill
             gridIndex: i,
             min: x => f.domain[0] != null ? Math.min(f.domain[0], x.min) : x.min,
             max: x => f.domain[1] != null ? Math.max(f.domain[1], x.max) : x.max,
@@ -459,7 +413,7 @@ function createZoomableLineChart(el) {
             axisLabel: {
                 rotate: 45,
                 showMinLabel: false,
-                formatter: H.number,
+                formatter: x => f.fmt(x, {suffix: false}),
             },
         })),
         series: series.map((f, i) => ({
@@ -504,7 +458,8 @@ function createZoomableLineChart(el) {
                 endValue: state.streams.time[state.zoomEnd] * 1000,
             }] : [],
             series: series.map(f => ({
-                data: state.streams[f.stream].map((x, i) => [state.streams.time[i] * 1000, x]),
+                data: state.streams[f.id].map((x, i) =>
+                    [state.streams.time[i] * 1000, x]),
             }))
         });
     };
@@ -678,6 +633,7 @@ export async function main() {
         return;
     }
     sport = athleteData.state.sport;
+    charts.setSport(sport);
     const exportBtn = document.querySelector('.button.export-file');
     exportBtn.removeAttribute('disabled');
     exportBtn.addEventListener('click', () => {

@@ -11,22 +11,24 @@ html.settings-mode #content header {
     app-region: initial !important;
 }
 
-#content {
-    scroll-behavior: smooth;
-    overflow: auto;
-    overflow: overlay; // chromium only
-    font-size: 0.6em;
+#titlebar .title {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    justify-content: center !important;
 
-    header {
-        padding: 0.5em 1em;
-        background: color.shade(bookend, 5%, 90%);
+    .top { }
+
+    .bottom {
         font-variant: all-small-caps;
-        font-size: 1.1em;
         font-weight: 600;
-        color: color.shade(bookend, 80%);
-        margin-bottom: 0.2em;
-        app-region: drag;
+        line-height: 0.65;
+        opacity: 0.7;
     }
+}
+
+#content {
+    overflow: auto;
+    font-size: 0.6em;
 
     .category {
         font-weight: 800;
@@ -60,7 +62,7 @@ html.settings-mode #content header {
         text-align: center; // XXX tempted to make this std, makes wrapped text centered
 
         ms:not([xl]) {
-            padding-left: 0.5em;
+            padding-left: 0.3em;
             margin-bottom: 0;
         }
     }

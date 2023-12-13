@@ -24,6 +24,24 @@ export class Color {
         return new this(h, s, l, a);
     }
 
+    static fromHex(hex) {
+        if (hex.length >= 7) {
+            const r = parseInt(hex.substr(1, 2), 16) / 0xff;
+            const g = parseInt(hex.substr(3, 2), 16) / 0xff;
+            const b = parseInt(hex.substr(5, 2), 16) / 0xff;
+            const a = (hex.length === 9) ? parseInt(hex.substr(7, 2), 16)  / 0xff : 1;
+            return this.fromRGB(r, g, b, a);
+        } else if (hex.length >= 4) {
+            const r = parseInt(''.padStart(2, hex.substr(1, 1)), 16) / 0xff;
+            const g = parseInt(''.padStart(2, hex.substr(2, 1)), 16) / 0xff;
+            const b = parseInt(''.padStart(2, hex.substr(3, 1)), 16) / 0xff;
+            const a = (hex.length === 5) ? parseInt(''.padStart(2, hex.substr(4, 1)), 16) / 0xff : 1;
+            return this.fromRGB(r, g, b, a);
+        } else {
+            throw new Error('Invalid hex color');
+        }
+    }
+
     constructor(h, s, l, a=1) {
         this.h = h;
         this.s = s;

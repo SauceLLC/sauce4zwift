@@ -51,7 +51,6 @@ function fmtGap(gap) {
 
 function handleAthleteData(data) {
     const liveHtml = liveDataFormatter(data);
-    console.log(liveHtml);
     for (const el of athleteChatElements.get(data.athleteId)) {
         if (el._lastLiveHtml !== liveHtml) {
             el.querySelector('.live').innerHTML = liveHtml;
@@ -106,7 +105,7 @@ export async function main() {
     content.classList.toggle('right-align', settings.rightAlign === true);
     setBackground();
     setMsgOpacity();
-    common.settingsStore.addEventListener('changed', ev => {
+    common.settingsStore.addEventListener('set', ev => {
         setBackground();
         setMsgOpacity();
         content.classList.toggle('reverse-order', settings.reverseOrder === true);

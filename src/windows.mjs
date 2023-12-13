@@ -121,7 +121,7 @@ export const widgetWindowManifests = [{
     file: '/pages/game-control.html',
     prettyName: 'Game Control',
     prettyDesc: 'Control game actions like view, shouting, HUD toggle, etc',
-    options: {width: 300, aspectRatio: 1.65},
+    options: {width: 300, aspectRatio: 1.52},
 }, {
     type: 'segments',
     file: '/pages/segments.html',
@@ -708,6 +708,20 @@ rpc.register(highlightWidgetWindow);
 rpc.register(highlightWidgetWindow, {name: 'highlightWindow', deprecatedBy: highlightWidgetWindow});
 
 
+rpc.register(function() {
+    const wc = this;
+    if (!wc) {
+        throw new TypeError('electron-only rpc function');
+    }
+    const win = wc.getOwnerBrowserWindow();
+    if (isMac) {
+        electron.app.focus({steal: true});
+    }
+    win.focus();
+}, {name: 'focusOwnWindow'});
+
+
+
 function _highlightWindow(win) {
     if (!win.isVisible() || win.isMinimized()) {
         win.show();
@@ -954,12 +968,8 @@ function handleNewSubWindow(parent, spec, webPrefs) {
             });
         }
         newWin.setMenuBarVisibility(false);
-        console.warn('XXX overlay check, newwinspec-overlay:', newWinSpec?.overlay, 'par is top:',
-                     parent.isAlwaysOnTop(), 'par spec overlay:', spec?.overlay);
         if ((newWinSpec && newWinSpec.overlay !== false) || parent.isAlwaysOnTop()) {
             newWin.setAlwaysOnTop(true, 'pop-up-menu');
-        } else {
-            console.error("Non overlay, what gives?");
         }
         if (target && target !== '_blank') {
             newWin._url = url;

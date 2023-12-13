@@ -32,11 +32,8 @@ function setBackground() {
                 .toString(16).padStart(2, '0');
         }
         doc.style.setProperty('--background-color', backgroundColor + alpha);
-        document.body.style.removeProperty('--bg-opacity');
     } else {
         doc.style.removeProperty('--background-color');
-        const opacity = bgTransparency == null ? 1 : 1 - (bgTransparency / 100);
-        document.body.style.setProperty('--bg-opacity', opacity);
     }
 }
 
@@ -48,7 +45,7 @@ async function setCourse(id) {
     segmentSelect.replaceChildren();
     for (const x of segments) {
         segmentSelect.insertAdjacentHTML('beforeend', `
-            <option value="${x.id}">${common.sanitize(x.dirName)}</option>
+            <option value="${x.id}">${common.sanitize(x.name)}</option>
         `);
     }
     await updateTab();
@@ -82,7 +79,10 @@ async function updateResults() {
 export async function main() {
     common.initInteractionListeners();
     setBackground();
-    common.settingsStore.addEventListener('changed', ev => {
+    common.settingsStore.addEventListener('set', ev => {
+        if (!ev.data.remote) {
+            return;
+        }
         setBackground();
     });
     resultsTpl = await sauce.template.getTemplate(`templates/segment-results.html.tpl`);
@@ -115,4 +115,12 @@ export async function main() {
 export async function settingsMain() {
     common.initInteractionListeners();
     await common.initSettingsForm('form')();
+}
+
+
+const importParams = new URL(import.meta.url).searchParams;
+if (importParams.has('main')) {
+    main();
+} else if (importParams.has('settings')) {
+    settingsMain();
 }

@@ -5,8 +5,7 @@ html {
 }
 
 #content {
-    overflow: auto; // fallback
-    overflow: overlay; // Not in spec, but is perfect for chromium.
+    overflow: auto;
     padding: 1em;
 
     section {

@@ -397,19 +397,11 @@ export function getWorldList() {
 }
 
 
-const _segments = new Map();
-export function getSegments(worldId) {
-    if (!_segments.has(worldId)) {
-        _segments.set(worldId, (async () => {
-            const r = await fetch(`/shared/deps/data/worlds/${worldId}/segments.json`);
-            if (!r.ok) {
-                console.error("Failed to get segments for:", worldId, r.status);
-                return [];
-            }
-            return await r.json();
-        })());
-    }
-    return _segments.get(worldId);
+export async function getSegments(worldId) {
+    console.warn("DEPRECATED: use rpc.getSegments instead");
+    const worldList = await getWorldList();
+    const worldMeta = worldList.find(x => x.worldId === worldId);
+    return await rpcCall('getSegments', worldMeta.courseId);
 }
 
 
@@ -561,6 +553,10 @@ export function initInteractionListeners() {
         window.addEventListener('contextmenu', ev => {
             ev.preventDefault();
             doc.classList.toggle('settings-mode');
+            if (window.isElectron) {
+                // Helps ensure we get a blur event on defocus on mac.
+                rpcCall('focusOwnWindow');
+            }
         });
         window.addEventListener('blur', () => void doc.classList.remove('settings-mode'));
         window.addEventListener('click', ev => {
@@ -798,7 +794,22 @@ export class Renderer {
                 unitEl: el.querySelector('.unit'),
             });
             el.setAttribute('tabindex', 0);
-            el.addEventListener('click', ev => this.rotateField(id));
+            //el.addEventListener('click', ev => this.rotateField(id));
+            el.addEventListener('click', () => {
+                const field = this.fields.get(id);
+                const options = field.available.map(x => {
+                    const name = stripHTML(
+                        fGet(x.key, this._data) + ' :: ' + 
+                        fGet(x.label, this._data)  + ' :: ' +
+                        x.id);
+                    return `<option id="${x.id}">${name}</option>`
+                });
+                el.insertAdjacentHTML('beforeend', `
+                    <select name="foobar">
+                        ${options}
+                    </select>
+                `);
+            });
             this.setFieldTooltip(id);
         }
     }
@@ -945,37 +956,43 @@ export class SettingsStore extends EventTarget {
             this._settings = {};
         }
         this._storage.addEventListener('globalupdate', ev => {
-            const changeEv = new Event('changed');
-            changeEv.data = {changed: new Map([[ev.data.key, ev.data.value]])};
-            this.dispatchEvent(changeEv);
+            const {key, value} = ev.data;
+            const legacyEv = new Event('changed');
+            legacyEv.data = {changed: new Map([[key, value]])};
+            this.dispatchEvent(legacyEv);
+            const setEv = new Event('set');
+            setEv.data = {key, value, remote: true};
+            this.dispatchEvent(setEv);
         });
         this._storage.addEventListener('update', ev => {
-            // These are only remote changes from other tabs.
             if (ev.data.key !== this.settingsKey) {
                 return;
             }
             const origKeys = new Set(Object.keys(this._settings));
             const changed = new Map();
-            for (const [k, v] of Object.entries(ev.data.value)) {
-                if (!origKeys.has(k)) {
-                    changed.set(k, v);
-                } else if (JSON.stringify(this._settings[k]) !== JSON.stringify(v)) {
-                    changed.set(k, v);
+            for (const [key, value] of Object.entries(ev.data.value)) {
+                if (!origKeys.has(key)) {
+                    changed.set(key, value);
+                } else if (JSON.stringify(this._settings[key]) !== JSON.stringify(value)) {
+                    changed.set(key, value);
                 }
-                this._settings[k] = v;
-                origKeys.delete(k);
+                this._settings[key] = value;
+                origKeys.delete(key);
             }
-            for (const k of origKeys) {
+            for (const key of origKeys) {
                 // set -> unset
-                changed.set(k, undefined);
-                delete this._settings[k];
+                changed.set(key, undefined);
+                delete this._settings[key];
             }
-            const changeEv = new Event('changed');
-            changeEv.data = {changed};
-            this.dispatchEvent(changeEv);
+            for (const [key, value] of changed) {
+                const setEv = new Event('set');
+                setEv.data = {key, value, remote: true};
+                this.dispatchEvent(setEv);
+            }
+            const legacyEv = new Event('changed');
+            legacyEv.data = {changed};
+            this.dispatchEvent(legacyEv);
         });
-        imperialUnits = this.get('/imperialUnits');
-        locale.setImperial(imperialUnits);
     }
 
     setDefault(value) {
@@ -1019,18 +1036,6 @@ export class SettingsStore extends EventTarget {
         }
         const ev = new Event('set');
         ev.data = {key, value};
-        this.dispatchEvent(ev);
-    }
-
-    delete(key) {
-        debugger;
-        if (key[0] !== '/') {
-            this.set(key, undefined);
-        } else {
-            this._storage.delete(key);
-        }
-        const ev = new Event('delete');
-        ev.data = {key};
         this.dispatchEvent(ev);
     }
 }
@@ -1371,18 +1376,22 @@ export function themeInit(store) {
             doc.dataset.theme = theme;
         }
     }
-    // For remote updates...
-    store.addEventListener('changed', ev => {
-        const changed = ev.data.changed;
-        if (changed.has('themeOverride') || changed.has('/theme')) {
-            doc.dataset.theme = store.get('themeOverride') || store.get('/theme') || '';
-        }
-    });
-    // For local updates...
     store.addEventListener('set', ev => {
         const key = ev.data.key;
         if (key === 'themeOverride' || key === '/theme') {
             doc.dataset.theme = store.get('themeOverride') || store.get('/theme') || '';
+        }
+    });
+}
+
+
+export function localeInit(store) {
+    imperialUnits = !!store.get('/imperialUnits');
+    locale.setImperial(imperialUnits);
+    store.addEventListener('set', ev => {
+        if (ev.data.key === '/imperialUnits') {
+            imperialUnits = !!ev.data.value;
+            locale.setImperial(imperialUnits);
         }
     });
 }
@@ -1652,9 +1661,15 @@ export function asyncSerialize(asyncFunc) {
 
 
 if (window.CSS && CSS.registerProperty) {
-    CSS.registerProperty({name: '--bg-opacity', syntax: '<number>', inherits: true, initialValue: 1});
+    CSS.registerProperty({
+        name: '--final-bg-opacity',
+        syntax: '<percentage>',
+        inherits: true,
+        initialValue: '0%'
+    });
 }
 
 if (settingsStore) {
     themeInit(settingsStore);
+    localeInit(settingsStore);
 }
