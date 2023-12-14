@@ -70,16 +70,18 @@ export function main() {
             onDidNav(ev.validatedURL);
         }
     });
-    webview.addEventListener('dom-ready', () => {
-        // Hijack right clicks so we don't lose interaction capability
-        webview.executeJavaScript(
-            `addEventListener('contextmenu', ev => ev.stopPropagation(), {capture: true})`);
-    });
     webview.addEventListener('page-title-updated', ({title}) => {
         document.querySelector('#titlebar .title').textContent = title;
     });
-    webview.addEventListener('context-menu', ev => dispatchEvent(new Event('contextmenu')));
-    addEventListener('webview-message', ev => console.error(ev));
+    webview.addEventListener('ipc-message', ev => {
+        if (ev.channel === 'interaction') {
+            const [type, detail] = ev.args;
+            if (type === 'contextmenu') {
+                // Treat it like our right click so the header appears.
+                dispatchEvent(new Event('contextmenu'));
+            }
+        }
+    });
     const btns = {
         back: () => webview.goBack(),
         forward: () => webview.goForward(),

@@ -19,11 +19,6 @@ ipcRenderer.on('sauce-highlight-window', () => {
     doc.classList.add('highlight-window');
 });
 
-ipcRenderer.on('webview-message', detail => {
-    console.log('oh hi!', detail);
-    document.dispatchEvent(new CustomEvent('webview-messsage', {detail}));
-});
-
 
 const context = ipcRenderer.sendSync('getWindowContextSync');
 contextBridge.exposeInMainWorld('electron', {
