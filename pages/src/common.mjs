@@ -798,11 +798,8 @@ export class Renderer {
             el.addEventListener('click', () => {
                 const field = this.fields.get(id);
                 const options = field.available.map(x => {
-                    const name = stripHTML(
-                        fGet(x.key, this._data) + ' :: ' + 
-                        fGet(x.label, this._data)  + ' :: ' +
-                        x.id);
-                    return `<option id="${x.id}">${name}</option>`
+                    const name = stripHTML(fGet(x.longName) || fGet(x.key));
+                    return `<option id="${x.id}">${name}</option>`;
                 });
                 el.insertAdjacentHTML('beforeend', `
                     <select name="foobar">

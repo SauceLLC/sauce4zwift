@@ -743,12 +743,14 @@ function makeSmoothPowerFields(period) {
     const key = duration;
     return [{
         id: `power-smooth-${period}`,
+        longName: `Power ${duration}`,
         value: x => H.number(x.stats && x.stats.power.smooth[period]),
         label,
         key,
         unit: 'w',
     }, {
         id: `power-smooth-${period}-wkg`,
+        longName: `Watts/kg ${duration}`,
         value: x => humanWkg(x.stats && x.stats.power.smooth[period], x.athlete),
         label,
         key,
