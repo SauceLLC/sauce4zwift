@@ -105,16 +105,19 @@ const tpAttr = common.stripHTML(common.attributions.tp);
 
 export const fields = [{
     id: 'time-active',
+    longName: 'Active Time',
     value: x => fmtDur(x.stats && x.stats.activeTime || 0),
     key: 'Active',
     tooltip: 'Sauce based active time',
 }, {
     id: 'time-elapsed',
+    longName: 'Elapsed Time',
     value: x => fmtDur(x.stats && x.stats.elapsedTime || 0),
     key: 'Elapsed',
     tooltip: 'Sauce based elapsed time',
 }, {
     id: 'time-session',
+    longName: 'Session Time',
     value: x => fmtDur(x.state && x.state.time || 0),
     key: 'Time',
     tooltip: 'Time as reported by the current Zwift session',
@@ -124,6 +127,7 @@ export const fields = [{
     key: 'Time<small>(lap)</small>',
 }, {
     id: 'clock',
+    longName: 'Clock',
     value: x => new Date().toLocaleTimeString(),
     key: '',
 }, {

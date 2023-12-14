@@ -992,7 +992,7 @@ export class StatsProcessor extends events.EventEmitter {
                 // Club rides we don't have rights to show up in our list
                 // I can't see a way to test for permissions before attempting
                 // access so we just catch the error
-                console.warn(Object.keys(e), e.message);
+                console.warn('Failed to load event:', x, e.status, e.message);
             }
         }
     }
@@ -1041,6 +1041,10 @@ export class StatsProcessor extends events.EventEmitter {
         }
         if (packet.eventPositions) {
             const ep = packet.eventPositions;
+            if (ep.players1.length + ep.players2.length + ep.players3.length + ep.players4.length) {
+                console.log('xxx event positions unhandled players', ep);
+                debugger;
+            }
             if (ep.position && this._athleteData.has(ep.watchingAthleteId)) {
                 const ad = this._athleteData.get(ep.watchingAthleteId);
                 ad.eventPosition = ep.position;
@@ -1419,21 +1423,32 @@ export class StatsProcessor extends events.EventEmitter {
         const sg = state.eventSubgroupId &&
             this._recentEventSubgroups.get(state.eventSubgroupId) ||
             noSubgroup;
-        if (sg) {
+        if (state.eventSubgroupId && !sg) {
+            console.warn("Missing subgroup:", state.eventSubgroupId);
+        }
+        if (sg && sg.courseId !== state.courseId) {
+            console.log('subgtoup courseId mismatch (early, just ignore)', sg.courseId, sg);
+        }
+        if (sg && sg.courseId === state.courseId) {
             if (!ad.eventSubgroup || sg.id !== ad.eventSubgroup.id) {
                 ad.eventSubgroup = sg;
                 ad.privacy = {};
+                ad.eventPosition = undefined;
+                ad.eventParticipants = undefined;
                 if (state.athleteId !== this.athleteId) {
                     ad.privacy.hideWBal = sg.allTags.has('hidewbal');
                     ad.privacy.hideFTP = sg.allTags.has('hideftp');
                 }
                 ad.disabled = sg.allTags.has('hidethehud') || sg.allTags.has('nooverlays');
-                if (state.time) {
+                if (state.eventDistance || state.time) {
+                    if (!state.eventDistance !== !state.time) {
+                        console.log(state);
+                    }
                     this.triggerEventStart(ad, state);
                 } else {
                     ad.eventStartPending = true;
                 }
-            } else if (ad.eventStartPending && state.time) {
+            } else if (ad.eventStartPending && state.eventDistance) {
                 this.triggerEventStart(ad, state);
             }
         } else if (ad.eventSubgroup) {
@@ -1441,6 +1456,13 @@ export class StatsProcessor extends events.EventEmitter {
             ad.privacy = {};
             ad.disabled = false;
             ad.eventStartPending = false;
+            ad.eventPosition = undefined;
+            ad.eventParticipants = undefined;
+            if (ad.eventPosition && (!state.eventSubgroupId ||
+                prevState.eventSubgroupId !== state.eventSubgroupId)) {
+                delete ad.eventPosition;
+                delete ad.eventParticipants;
+            }
             this.triggerEventEnd(ad, state);
         }
         if (ad.disabled) {
@@ -1525,11 +1547,6 @@ export class StatsProcessor extends events.EventEmitter {
             } else if (shiftHistory === false) {
                 ad.roadHistory.prevSig = null;
                 ad.roadHistory.prevTimeline = null;
-            }
-            if (ad.eventPosition && (!state.eventSubgroupId ||
-                prevState.eventSubgroupId !== state.eventSubgroupId)) {
-                delete ad.eventPosition;
-                delete ad.eventParticipants;
             }
         }
         ad.roadHistory.sig = roadSig;
@@ -1735,6 +1752,7 @@ export class StatsProcessor extends events.EventEmitter {
         event.tags = event._tags.split(';');
         event.allTags = this._parseEventTags(event);
         event.ts = +new Date(event.eventStart);
+        event.courseId = env.getCourseId(event.mapId);
         if (!this._recentEvents.has(event.id)) {
             console.debug('New event added:', event.name, event.id);
         }
@@ -1748,6 +1766,7 @@ export class StatsProcessor extends events.EventEmitter {
                 }
                 sg.startOffset = +(new Date(sg.eventSubgroupStart)) - +(new Date(event.eventStart));
                 sg.allTags = new Set([...this._parseEventTags(sg), ...event.allTags]);
+                sg.courseId = env.getCourseId(sg.mapId);
                 this._recentEventSubgroups.set(sg.id, {event, ...sg});
             }
         }

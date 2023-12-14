@@ -135,13 +135,19 @@ export function getRoute(routeId) {
             routes = [];
         }
         _routes = Object.fromEntries(routes.map(route => {
-            route.courseId = Object.values(worldMetas).find(x => x.worldId === route.worldId)?.courseId;
+            route.courseId = getCourseId(route.worldId);
             return [route.id, route];
         }));
     }
     return _routes[routeId];
 }
 rpc.register(getRoute);
+
+
+export function getCourseId(worldId) {
+    return Object.values(worldMetas).find(x => x.worldId === worldId)?.courseId;
+}
+rpc.register(getCourseId);
 
 
 rpc.register(() => {
