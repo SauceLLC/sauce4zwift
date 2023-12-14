@@ -79,6 +79,7 @@ export function main() {
         document.querySelector('#titlebar .title').textContent = title;
     });
     webview.addEventListener('context-menu', ev => dispatchEvent(new Event('contextmenu')));
+    addEventListener('webview-message', ev => console.error(ev));
     const btns = {
         back: () => webview.goBack(),
         forward: () => webview.goForward(),
