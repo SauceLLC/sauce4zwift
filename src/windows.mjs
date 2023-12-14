@@ -949,13 +949,14 @@ function handleNewSubWindow(parent, spec, webPrefs) {
             parent: isChildWindow ? parent : undefined,
             ...bounds,
             webPreferences: {
-                sandbox: true,
-                preload: path.join(appPath, 'src/preload/common.js'),
+                preload: path.join(appPath, 'src/preload/common.js'),  // CAUTION: can be overridden
                 ...webPrefs,
+                sandbox: true,
             }
         });
-        newWin.webContents.on('will-attach-webview', (ev, webPreferences) => {
-            webPreferences.session = newWin.webContents.session;
+        newWin.webContents.on('will-attach-webview', ev => {
+            ev.preventDefault();
+            console.error("<webview> in sub window is not allowed");
         });
         if (windowId) {
             let _to;
@@ -998,9 +999,9 @@ export async function getWindowsStorage(session) {
     const win = new electron.BrowserWindow({
         show: false,
         webPreferences: {
-            sandbox: true,
             session,
             preload: path.join(appPath, 'src/preload/storage-proxy.js'),
+            sandbox: true,
         }
     });
     const p = new Promise(resolve =>
@@ -1024,9 +1025,9 @@ export async function setWindowsStorage(storage, session) {
     const win = new electron.BrowserWindow({
         show: false,
         webPreferences: {
-            sandbox: true,
             session,
             preload: path.join(appPath, 'src/preload/storage-proxy.js'),
+            sandbox: true,
         }
     });
     const p = new Promise((resolve, reject) =>
@@ -1083,16 +1084,16 @@ function _openWidgetWindow(spec) {
         transparent: frame === false,
         hasShadow: frame !== false,
         roundedCorners: frame !== false,
-        webPreferences: {
-            sandbox: true,
-            preload: path.join(appPath, 'src/preload/common.js'),
-            ...manifest.webPreferences,
-            ...spec.webPreferences,
-            session: activeProfileSession,
-        },
         ...options,
+        webPreferences: {
+            ...manifest.webPreferences,
+            preload: path.join(appPath, 'src/preload/common.js'),
+            session: activeProfileSession,
+            sandbox: true,
+        },
     });
     win.webContents.on('will-attach-webview', (ev, webPreferences) => {
+        webPreferences.preload = path.join(appPath, 'src/preload/webview.js');
         webPreferences.session = activeProfileSession;
     });
     if (spec.emulateNormalUserAgent) {
@@ -1177,14 +1178,14 @@ export function makeCaptiveWindow(options={}, webPrefs={}) {
         center: true,
         maximizable: false,
         fullscreenable: false,
-        webPreferences: {
-            sandbox: true,
-            preload: path.join(appPath, 'src/preload/common.js'),
-            ...webPrefs,
-            session,
-        },
         ...options,
         ...bounds,
+        webPreferences: {
+            preload: path.join(appPath, 'src/preload/common.js'),  // CAUTION: can be overridden
+            ...webPrefs,
+            session,
+            sandbox: true,
+        },
     });
     win.setMenuBarVisibility(false);
     if (!options.disableNewWindowHandler) {
@@ -1341,8 +1342,8 @@ export async function welcomeSplash() {
         alwaysOnTop: true,
         ...getCurrentDisplay().bounds,
         webPreferences: {
-            sandbox: true,
             preload: path.join(appPath, 'src/preload/common.js'),
+            sandbox: true,
         },
     });
     welcomeWin.removeMenu();
@@ -1446,8 +1447,8 @@ export function systemMessage(msg) {
         roundedCorners: false,
         alwaysOnTop: true,
         webPreferences: {
-            sandbox: true,
             preload: path.join(appPath, 'src/preload/common.js'),
+            sandbox: true,
         },
     });
     sysWin.removeMenu();
