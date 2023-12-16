@@ -20,7 +20,11 @@ protobuf.parse.defaults.keepCase = _case;
 
 // NOTE: this options object does not contain callback functions (as it might appear).
 // A static type comparision is used by protobufjs's toObject function instead. :(
-const _pbJSONOptions = {...protobuf.util.toJSONOptions, longs: Number};
+const _pbJSONOptions = {
+    ...protobuf.util.toJSONOptions,
+    longs: Number,
+    bytes: Buffer,
+};
 export function pbToObject(pb) {
     return pb.$type.toObject(pb, _pbJSONOptions);
 }
@@ -199,7 +203,7 @@ export function decodePlayerStateFlags1(bits) {
         companionApp: !!(bits & 0b10),
         reverse: !(bits & 0b100),  // It's actually a forward bit
         uTurn: !!(bits & 0b1000),
-        _b4_15: bits >>> 4 & 0xfff,
+        _b4_15: bits >>> 4 & 0xfff, // Client seems to send 0x1 when no-sensor and not moving
         auxCourseId: bits >>> 16 & 0xff,
         rideons: bits >>> 24,
     };
@@ -231,7 +235,7 @@ export function decodePlayerStateFlags2(bits) {
         turning: turningEnum[bits >>> 4 & 0x3],
         turnChoice: bits >>> 6 & 0x3,
         roadId: bits >>> 8 & 0xffff,
-        _rem: bits >>> 24,
+        _rem: bits >>> 24, // client seems to send 0x1 or 0x2 when no-sensor and not moving
     };
 }
 
@@ -390,7 +394,7 @@ export class ZwiftAPI {
         const defHeaders = {
             'Platform': 'OSX',
             'Source': 'Game Client',
-            'User-Agent': 'CNL/3.30.8 (macOS 13 Ventura; Darwin Kernel 22.4.0) zwift/1.0.110983 curl/7.78.0'
+            'User-Agent': 'CNL/3.44.0 (Darwin Kernel 23.2.0) zwift/1.0.122968 game/1.54.0 curl/8.4.0'
         };
         const host = options.host || this.host || `us-or-rly101.zwift.com`;
         let query = options.query;
@@ -1216,7 +1220,7 @@ class UDPChannel extends NetChannel {
             throw new InactiveChannelError();
         }
         const [pb, dataBuf] = this.makeDataPBAndBuffer(props);
-        const prefixBuf = options.dfPrefix ? Buffer.from([0xdf]) : Buffer.alloc(0);
+        const prefixBuf = options.dontForward ? Buffer.from([0xdf]) : Buffer.alloc(0);
         const headerBuf = this.encodeHeader({forceSeq: true, ...options});
         const hashBuf = this.makeHashBuf(dataBuf, options);
         const plainBuf = Buffer.concat([prefixBuf, dataBuf, hashBuf]);
@@ -1229,23 +1233,24 @@ class UDPChannel extends NetChannel {
         return pb;
     }
 
-    async sendPlayerState(state) {
+    async sendPlayerState(extraState) {
         const worldTime = worldTimer.now();
+        const state = {
+            athleteId: this.athleteId,
+            worldTime,
+            justWatching: true,
+            x: 0,
+            y: 0,
+            z: 0,
+            courseId: this.courseId,
+            ...extraState,
+        };
         await this.sendPacket({
             athleteId: this.athleteId,
             realm: 1,
             worldTime,
-            state: {
-                athleteId: this.athleteId,
-                worldTime,
-                justWatching: true,
-                x: 0,
-                y: 0,
-                z: 0,
-                courseId: this.courseId,
-                ...state,
-            }
-        }, {dfPrefix: true});
+            state,
+        }, {dontForward: !!state.justWatching});
     }
 }
 
@@ -1278,6 +1283,7 @@ export class GameMonitor extends events.EventEmitter {
         this._setWatchingWorldTime = 0;
         this._lastGameStateUpdated = 0;
         this._lastWatchingStateUpdated = 0;
+        this._lastWorldUpdate = 0;
         this._stateRefreshDelay = this._stateRefreshDelayMin;
         worldTimer.on('offset', diff => {
             const dev = Math.abs(diff);
@@ -1290,7 +1296,7 @@ export class GameMonitor extends events.EventEmitter {
                 }
             }
         });
-        setInterval(() => console.debug(this.toString()), 60000);
+        setInterval(() => this.logStatus(), 60000);
     }
 
     toString() {
@@ -1314,6 +1320,10 @@ export class GameMonitor extends events.EventEmitter {
         ].join('\n    ');
     }
 
+    logStatus() {
+        console.debug(this.toString());
+    }
+
     async login() {
         const aesKey = crypto.randomBytes(16);
         const login = await this.api.fetchPB('/api/users/login', {
@@ -1329,6 +1339,19 @@ export class GameMonitor extends events.EventEmitter {
             tcpServers: login.session.tcpConfig.servers,
             expires,
         };
+    }
+
+    async leave() {
+        return await this.api.fetchJSON('/relay/worlds/1/leave', {method: 'POST', json: {}});
+    }
+
+    async logout() {
+        // XXX This might take arguments... inspect with zwift-offline
+        const resp = await this.api.fetch('/api/users/logout', {method: 'POST'});
+        if (!resp.ok) {
+            throw new Error("Game client logout failed:" + await resp.text());
+        }
+        console.error("XXX", await resp.text());
     }
 
     async getRandomAthleteId(courseId) {
@@ -1366,8 +1389,6 @@ export class GameMonitor extends events.EventEmitter {
             if (s) {
                 this.setWatching(s.watchingAthleteId);
                 if (s.watchingAthleteId === this.gameAthleteId) {
-                    // Optimize first connect when watching self (common) by allowing
-                    // setUDPChannel to use best UDP server immediately..
                     this._setWatchingState(s);
                 }
             } else {
@@ -1414,6 +1435,7 @@ export class GameMonitor extends events.EventEmitter {
         if (this._starting) {
             throw new TypeError('invalid state');
         }
+        this._stopping = false;
         this._starting = true;
         console.info("Starting Zwift Game Monitor...");
         queueMicrotask(() => this.connect());
@@ -1423,6 +1445,7 @@ export class GameMonitor extends events.EventEmitter {
         console.info("Stopping Zwift Game Monitor...");
         this._stopping = true;
         this.disconnect();
+        this._starting = false;
     }
 
     _setConnecting() {
@@ -1447,6 +1470,8 @@ export class GameMonitor extends events.EventEmitter {
     async _connect() {
         this._setConnecting();
         const session = await this.login();
+        console.error({session});
+        console.error(await this.api.fetchPB('/relay/tcp-config', {protobuf: 'TCPConfig'}));
         await this.initHashSeeds();
         await this.initPlayerState();
         await this.establishTCPChannel(session);
@@ -1454,6 +1479,7 @@ export class GameMonitor extends events.EventEmitter {
         this._schedHashSeedsRefresh();
         this._playerStateInterval = setInterval(this.broadcastPlayerState.bind(this), 1000);
         this._refreshStatesTimeout = setTimeout(() => this._refreshStates(), this._stateRefreshDelay);
+        this.logStatus();
     }
 
     async renewSession() {
@@ -1467,6 +1493,7 @@ export class GameMonitor extends events.EventEmitter {
             console.error('Renew session attempt failed:', e);
             this._schedConnectRetry();
         }
+        this.logStatus();
     }
 
     async _renewSession() {
@@ -1477,6 +1504,7 @@ export class GameMonitor extends events.EventEmitter {
     }
 
     disconnect() {
+        console.info("Disconnecting from Zwift relay servers...");
         clearInterval(this._playerStateInterval);
         clearTimeout(this._sessionTimeout);
         clearTimeout(this._refreshHashSeedsTimeout);
@@ -1508,18 +1536,10 @@ export class GameMonitor extends events.EventEmitter {
     }
 
     makeUDPChannel(ip) {
-        let isDirect = !!ip;
+        const isDirect = !!ip;
         if (!ip) {
-            // Use a load balancer unless we have enough info for a direct server.
+            // Use a load balancer initially, We'll get swapped to a direct server soon after..
             ip = this._udpServerPools.get(0).servers[0].ip;
-            const lws = this._lastWatchingState;
-            if (lws && lws.courseId === this.courseId && worldTimer.now() - lws.worldTime < 60000) {
-                const best = this.findBestUDPServer(lws);
-                if (best) {
-                    ip = best.ip;
-                    isDirect = true;
-                }
-            }
         }
         const hashSeed = this._hashSeeds.at(-1);
         const hashSeedRemaining = hashSeed.expiresWorldTime - worldTimer.now();
@@ -1591,7 +1611,7 @@ export class GameMonitor extends events.EventEmitter {
         await Promise.race([error, session.tcpChannel.sendPacket({
             athleteId: this.athleteId,
             worldTime: 0,
-            largWaTime: 0,
+            largWaTime: this._lastWorldUpdate,
         }, {hello: true})]);
         if (udpServersPending) {
             await Promise.race([error, udpServersPending]);
@@ -1610,7 +1630,7 @@ export class GameMonitor extends events.EventEmitter {
             }
         }
         const renewDelay = session.expires - Date.now() - this._sessionRestartSlack;
-        console.info('Session renewal scheduled for:', fmtTime(renewDelay));
+        console.info('Next session renewal scheduled for:', fmtTime(renewDelay));
         this._sessionTimeout = setTimeout(this.renewSession.bind(this), renewDelay);
         this._session = session;
         if (!this.suspended && this.courseId) {
@@ -1638,6 +1658,7 @@ export class GameMonitor extends events.EventEmitter {
         for (const ch of this._udpChannels) {
             if (ch.active) {
                 try {
+                    // XXX do more duration testing without a single send here..
                     await ch.sendPlayerState({
                         watchingAthleteId: this.watchingAthleteId,
                         _flags2: portal ? encodePlayerStateFlags2({roadId: lws.roadId}) : undefined,
@@ -1662,7 +1683,7 @@ export class GameMonitor extends events.EventEmitter {
         if (this.suspended) {
             return;
         }
-        console.info("Suspending game monitor...");
+        console.warn("Suspending game monitor...");
         this.suspended = true;
         for (const x of this._udpChannels) {
             x.schedShutdown(30000);
@@ -1845,38 +1866,50 @@ export class GameMonitor extends events.EventEmitter {
             }
             queueMicrotask(() => this.emit('udpServerPoolsUpdated', this._udpServerPools));
         }
-        for (let i = 0; i < pb.worldUpdates.length; i++) {
-            const x = pb.worldUpdates[i];
-            x.payloadType = protos.WorldUpdatePayloadType[x._payloadType];
-            if (!x.payloadType) {
-                console.warn("No enum type for:", x._payloadType, x._payload.toString('hex'));
-            } else if (x.payloadType[0] !== '_') {
-                const payloadProto = protos.get(x.payloadType);
-                if (payloadProto) {
-                    x.payload = protos.get(x.payloadType).decode(x._payload);
-                } else {
-                    const handler = binaryWorldUpdatePayloads[x.payloadType];
-                    if (!handler) {
-                        console.warn("No protobuf for:", x.payloadType, x._payload.toString('hex'));
+        if (pb.worldUpdates.length) {
+            const worldUpdates = [];
+            for (let i = 0; i < pb.worldUpdates.length; i++) {
+                const x = pbToObject(pb.worldUpdates[i]);
+                if (x.ts <= this._lastWorldUpdate) {
+                    console.error("nah brah", x, this._lastWorldUpdate);
+                    continue;
+                }
+                this._lastWorldUpdate = x.ts;
+                if (!x.payloadType) {
+                    console.warn("No enum type for:", x.payloadType, x._payload.toString('hex'));
+                } else if (x.payloadType[0] !== '_') {
+                    const PayloadProto = protos.get(x.payloadType);
+                    if (PayloadProto) {
+                        x.payload = pbToObject(PayloadProto.decode(x._payload));
                     } else {
-                        x.payload = handler(x._payload, x.payloadType);
+                        const handler = binaryWorldUpdatePayloads[x.payloadType];
+                        if (handler) {
+                            x.payload = handler(x._payload, x.payloadType);
+                        } else {
+                            console.warn("No protobuf for:", x.payloadType, x._payload.toString('hex'));
+                        }
                     }
                 }
+                worldUpdates.push(x);
             }
+            pb.worldUpdates = worldUpdates;
         }
-        const dropList = [];
+        let dropList;
         for (let i = 0; i < pb.playerStates.length; i++) {
             const state = pb.playerStates[i] = processPlayerStateMessage(pb.playerStates[i]);
             if (state.athleteId === this.gameAthleteId) {
                 queueMicrotask(() => this._updateGameState(state));
             } else if (state.activePowerUp === 'NINJA' || this.exclusions.has(getIDHash(state.athleteId))) {
+                if (!dropList) {
+                    dropList = [];
+                }
                 dropList.unshift(i);
             }
             if (state.athleteId === this.watchingAthleteId) {
                 queueMicrotask(() => this._updateWatchingState(state));
             }
         }
-        if (dropList.length) {
+        if (dropList) {
             for (const i of dropList) {
                 pb.playerStates.splice(i, 1);
             }
@@ -1906,12 +1939,11 @@ export class GameMonitor extends events.EventEmitter {
     }
 
     setCourse(courseId) {
+        const moving = this.courseId !== courseId && !!this._session;
         this.courseId = courseId;
-        if (courseId) {
-            console.info(`Moving to ${env.worldMetas[courseId]?.name}, courseId: ${courseId}`);
-            if (this._session) {
-                this.renewSession();
-            }
+        if (moving) {
+            console.error(`Moving to ${env.worldMetas[courseId]?.name}, courseId: ${courseId}`);
+            this.setUDPChannel();
         }
     }
 

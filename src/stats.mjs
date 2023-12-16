@@ -1007,11 +1007,12 @@ export class StatsProcessor extends events.EventEmitter {
 
     _onIncoming(packet) {
         const updatedEvents = [];
+        const ignore = ['groupEventUserRegistered'];
         for (let i = 0; i < packet.worldUpdates.length; i++) {
             const x = packet.worldUpdates[i];
             if (x.payloadType) {
                 if (x.payloadType === 'PayloadChatMessage') {
-                    const ts = x.ts.toNumber() / 1000;
+                    const ts = x.ts / 1000;
                     this.handleChatPayload(x.payload, ts);
                 } else if (x.payloadType === 'PayloadRideOn') {
                     this.handleRideOnPayload(x.payload);
@@ -1019,10 +1020,12 @@ export class StatsProcessor extends events.EventEmitter {
                     // The event payload is more like a notification (it's incomplete)
                     // We also get multiples for each event, first with id = 0, then one
                     // for each subgroup.
-                    const event = zwift.pbToObject(x.payload);
-                    if (event.id && !updatedEvents.includes(event.id)) {
-                        updatedEvents.push(event.id);
+                    const eventId = x.payload.id;
+                    if (eventId && !updatedEvents.includes(eventId)) {
+                        updatedEvents.push(eventId);
                     }
+                } else if (!ignore.includes(x.payloadType)) {
+                    console.debug("Unhandled WorldUpdate:", x);
                 }
             }
         }
@@ -1134,7 +1137,8 @@ export class StatsProcessor extends events.EventEmitter {
                 team: athlete.team,
             });
         }
-        console.debug('Chat:', chat.firstName || '', chat.lastName || '', chat.message);
+        const name = `${chat.firstName || ''} ${chat.lastName || ''}`;
+        console.debug(`Chat from ${name} [id: ${athlete.id}, event: ${chat.eventSubgroup}]:`, chat.message);
         this._chatHistory.unshift(chat);
         if (this._chatHistory.length > 1000) {
             this._chatHistory.length = 1000;
@@ -1349,17 +1353,17 @@ export class StatsProcessor extends events.EventEmitter {
     triggerEventStart(ad, state) {
         ad.eventStartPending = false;
         if (this._autoResetEvents) {
-            console.warn("Event start triggering reset for:", ad.athleteId);
+            console.debug("Event start triggering reset for:", ad.athleteId, ad.eventSubgroup?.id);
             this._resetAthleteData(ad, state.worldTime);
         } else if (this._autoLapEvents) {
-            console.warn("Event start triggering lap for:", ad.athleteId);
+            console.debug("Event start triggering lap for:", ad.athleteId, ad.eventSubgroup?.id);
             this.startAthleteLap(ad);
         }
     }
 
     triggerEventEnd(ad, state) {
         if (this._autoResetEvents || this._autoLapEvents) {
-            console.warn("Event end triggering lap for:", ad.athleteId);
+            console.debug("Event end triggering lap for:", ad.athleteId, ad.eventSubgroup?.id);
             this.startAthleteLap(ad);
         }
     }
@@ -1423,12 +1427,6 @@ export class StatsProcessor extends events.EventEmitter {
         const sg = state.eventSubgroupId &&
             this._recentEventSubgroups.get(state.eventSubgroupId) ||
             noSubgroup;
-        if (state.eventSubgroupId && !sg) {
-            console.warn("Missing subgroup:", state.eventSubgroupId);
-        }
-        if (sg && sg.courseId !== state.courseId) {
-            console.log('subgtoup courseId mismatch (early, just ignore)', sg.courseId, sg);
-        }
         if (sg && sg.courseId === state.courseId) {
             if (!ad.eventSubgroup || sg.id !== ad.eventSubgroup.id) {
                 ad.eventSubgroup = sg;

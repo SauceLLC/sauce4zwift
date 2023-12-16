@@ -75,9 +75,9 @@ enum WorldUpdatePayloadType {
 }
 
 message WorldUpdate {
-    uint64 worldTime = 1;
+    uint64 _f1 = 1;
     int32 realm = 2;
-    WorldUpdatePayloadType _payloadType = 3;
+    WorldUpdatePayloadType payloadType = 3;
     bytes _payload = 4;
     uint64 worldTimeBorn = 5;
     int64 x = 6;
@@ -879,6 +879,8 @@ message LoginResponse {
 message LoginRequest {
     AnalyticsEventProperties properties = 1;
     required bytes aesKey = 2;
+    uint32 _f3 = 3; // Seen mac desktop client send as 1
+    uint32 _f4 = 4; // Seen mac desktop client send as 0
 }
 
 message AnalyticsEventProperty {
@@ -890,9 +892,13 @@ message AnalyticsEventProperties {
     repeated AnalyticsEventProperty entries = 2;
 }
 
+message RelaySessionRefreshRequest {
+    uint32 relaySessionId = 1;
+}
+
 message RelaySessionRefreshResponse {
-    required uint32 relaySessionId = 1;
-    required uint32 expiration = 2; // minutes
+    uint32 relaySessionId = 1;
+    uint32 expiration = 2; // minutes
 }
 
 enum UserBikeAction {
