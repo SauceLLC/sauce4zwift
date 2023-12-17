@@ -683,10 +683,11 @@ export class ZwiftAPI {
     }
 
     async getEventFeed(options={}) {
+        // WARNING: Does not work for historical events.
         const urn = '/api/events/search';
         const HOUR = 3600000;
-        const from = new Date(options.from || worldTimer.serverNow() - 1 * HOUR);
-        const to = new Date(options.to || worldTimer.serverNow() + 3 * HOUR);
+        const from = new Date(options.from || (worldTimer.serverNow() - 1 * HOUR));
+        const to = new Date(options.to || (worldTimer.serverNow() + 3 * HOUR));
         const query = {limit: options.limit};
         const json = {
             dateRangeStartISOString: from.toISOString(),
@@ -694,6 +695,36 @@ export class ZwiftAPI {
         };
         const obj = pbToObject(await this.fetchPB(urn, {method: 'POST', protobuf: 'Events', json, query}));
         return obj.events;
+    }
+
+    async getEventFeedHistoricalBuggy(options={}) {
+        // WARNING: this API is not stable.  It returns dups and skips entries on page boundaries.
+        const urn = '/api/event-feed';
+        const from = options.from && +options.from;
+        const to = options.to && +options.to;
+        const pageLimit = options.pageLimit ? options.pageLimit : 5; // default pageSize is 25
+        const limit = options.pageSize;
+        const query = {from, to, limit};
+        const ids = new Set();
+        const results = [];
+        let pages = 0;
+        let done;
+        while (!done) {
+            const page = await this.fetchJSON(urn, {query, protobuf: 'Events'});
+            for (const x of page.data) {
+                if (to && new Date(x.event.eventStart) >= to) {
+                    done = true;
+                } else if (!ids.has(x.event.id)) {
+                    results.push(await this.getEvent(x.event.id));
+                    ids.add(x.event.id);
+                }
+            }
+            if (!page.data.length || (limit && page.data.length < limit) || ++pages >= pageLimit) {
+                break;
+            }
+            query.cursor = page.cursor;
+        }
+        return results;
     }
 
     async getPrivateEventFeed(options={}) {
@@ -856,6 +887,7 @@ class NetChannel extends events.EventEmitter {
         this.sendCount = 0;
         this.errCount = 0;
         this.timeout = options.timeout || 30000;
+        this.active = undefined;
     }
 
     toString() {
@@ -1144,11 +1176,17 @@ class UDPChannel extends NetChannel {
         this.sock.on('error', () => this.shutdown());
         await new Promise((resolve, reject) =>
             this.sock.connect(3024, this.ip, e => void (e ? reject(e) : resolve())));
+        if (this.active === false) {
+            throw new InactiveChannelError();
+        }
         const syncStamps = new Map();
         let complete = false;
         const offsets = [];
-        const syncComplete = new Promise(resolve => {
+        const syncComplete = new Promise((resolve, reject) => {
             const onPacket = packet => {
+                if (this.active === false) {
+                    reject(new InactiveChannelError());
+                }
                 const localTime = Date.now();
                 const sent = syncStamps.get(packet.ackSeqno);
                 const latency = (localTime - sent) / 2;
@@ -1195,6 +1233,9 @@ class UDPChannel extends NetChannel {
             console.error("Timeout waiting for handshake sync:", this.toString());
             this.shutdown();
             return;
+        }
+        if (this.active === false) {
+            throw new InactiveChannelError();
         }
         super.establish();
     }
@@ -1354,7 +1395,7 @@ export class GameMonitor extends events.EventEmitter {
         console.error("XXX", await resp.text());
     }
 
-    async getRandomAthleteId(courseId) {
+    async getRnandomAthleteId(courseId) {
         const worlds = (await this.api.getDropInWorldList()).filter(x =>
             typeof courseId !== 'number' || x.courseId === courseId);
         for (let i = 0, start = Math.random() * worlds.length | 0; i < worlds.length; i++) {
@@ -1438,7 +1479,7 @@ export class GameMonitor extends events.EventEmitter {
         this._stopping = false;
         this._starting = true;
         console.info("Starting Zwift Game Monitor...");
-        queueMicrotask(() => this.connect());
+        queueMicrotask(() => this.connect(0));
     }
 
     stop() {
@@ -1453,10 +1494,10 @@ export class GameMonitor extends events.EventEmitter {
         this.connectingCount++;
     }
 
-    async connect() {
-        console.info("Connecting to Zwift relay servers...");
+    async connect(index) {
+        console.info("Connecting to Zwift relay servers...", index);
         try {
-            await this._connect();
+            await this._connect(index);
         } catch(e) {
             if (e.name === 'FetchError') {
                 console.warn('Connection attempt network problem:', e.message);
@@ -1467,14 +1508,14 @@ export class GameMonitor extends events.EventEmitter {
         }
     }
 
-    async _connect() {
+    async _connect(index) {
         this._setConnecting();
         const session = await this.login();
         console.error({session});
         console.error(await this.api.fetchPB('/relay/tcp-config', {protobuf: 'TCPConfig'}));
         await this.initHashSeeds();
         await this.initPlayerState();
-        await this.establishTCPChannel(session);
+        await this.establishTCPChannel(session, index);
         await this.activateSession(session);
         this._schedHashSeedsRefresh();
         this._playerStateInterval = setInterval(this.broadcastPlayerState.bind(this), 1000);
@@ -1523,11 +1564,12 @@ export class GameMonitor extends events.EventEmitter {
                 console.error(e); // A little extra paranoid for now.
             }
         }
+        return this.leave();
     }
 
-    async establishTCPChannel(session) {
+    async establishTCPChannel(session, index) {
         const servers = session.tcpServers.filter(x => x.realm === 0 && x.courseId === 0);
-        const ip = servers[Math.random() * servers.length | 0].ip;
+        const ip = servers[index == null ? Math.random() * servers.length | 0 : index].ip;
         console.info(`Establishing TCP channel to:`, ip);
         session.tcpChannel = new TCPChannel({ip, session});
         session.tcpChannel.on('shutdown', this.onTCPChannelShutdown.bind(this));
@@ -1814,12 +1856,8 @@ export class GameMonitor extends events.EventEmitter {
         }
         const legacyCh = this._udpChannels[0];
         if (legacyCh) {
-            if (this._isChannelReusable(legacyCh)) {
-                legacyCh.schedShutdown(60000);
-            } else {
-                console.debug("Removing:", legacyCh.toString());
-                queueMicrotask(() => legacyCh.shutdown());
-            }
+            const grace = this._isChannelReusable(legacyCh) ? 60000 : 1000;
+            legacyCh.schedShutdown(grace);
         }
         let ch;
         if (reuseIndex !== -1) {
