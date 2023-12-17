@@ -1395,7 +1395,7 @@ export class GameMonitor extends events.EventEmitter {
         console.error("XXX", await resp.text());
     }
 
-    async getRnandomAthleteId(courseId) {
+    async getRandomAthleteId(courseId) {
         const worlds = (await this.api.getDropInWorldList()).filter(x =>
             typeof courseId !== 'number' || x.courseId === courseId);
         for (let i = 0, start = Math.random() * worlds.length | 0; i < worlds.length; i++) {
@@ -1404,8 +1404,6 @@ export class GameMonitor extends events.EventEmitter {
                 .concat(w.others || [], w.followees || [], w.pacerBots || [], w.proPlayers || [])
                 .filter(x => x);
             athletes.sort((a, b) => (b.power || 0) - (a.power || 0));
-            // Run testing...
-            //athletes.sort((a, b) => a.sport === 'running' ? -1 : b.sport === 'running' ? 1 : 0);
             let athlete;
             // Avoid pacer bots if possible
             for (athlete of athletes) {
@@ -1508,11 +1506,11 @@ export class GameMonitor extends events.EventEmitter {
         }
     }
 
-    async _connect(index) {
+    async _connect(index=0) {
         this._setConnecting();
         const session = await this.login();
-        console.error({session});
-        console.error(await this.api.fetchPB('/relay/tcp-config', {protobuf: 'TCPConfig'}));
+        //console.error({session});
+        //console.error(await this.api.fetchPB('/relay/tcp-config', {protobuf: 'TCPConfig'}));
         await this.initHashSeeds();
         await this.initPlayerState();
         await this.establishTCPChannel(session, index);
