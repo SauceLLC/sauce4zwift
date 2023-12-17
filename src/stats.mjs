@@ -1047,7 +1047,9 @@ export class StatsProcessor extends events.EventEmitter {
             'groupEventUserRegistered',
             'PayloadSegmentResult',
             'notableMoment',
-            'PlayerLeftWorld2',
+            'PayloadLeftWorld2',
+            '_fenceConfig',
+            '_broadcastRideLeaderAction',
         ];
         for (let i = 0; i < packet.worldUpdates.length; i++) {
             const x = packet.worldUpdates[i];
