@@ -356,6 +356,8 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.getEventSubgroup, {scope: this});
         rpc.register(this.getEventSubgroupEntrants, {scope: this});
         rpc.register(this.getEventSubgroupResults, {scope: this});
+        rpc.register(this.loadOlderEvents, {scope: this});
+        rpc.register(this.loadNewerEvents, {scope: this});
         rpc.register(this.resetAthletesDB, {scope: this});
         rpc.register(this.getChatHistory, {scope: this});
         rpc.register(this.setFollowing, {scope: this});
@@ -479,6 +481,40 @@ export class StatsProcessor extends events.EventEmitter {
 
     async getEventSubgroupResults(id) {
         return await this.zwiftAPI.getEventSubgroupResults(id);
+    }
+
+    async loadOlderEvents() {
+        if (!this._lastLoadOlderEventsTS) {
+            const byTS = Array.from(this._recentEvents.values());
+            if (!byTS.length) {
+                this._lastLoadOlderEventsTS = Date.now();
+            } else {
+                byTS.sort((a, b) => a.ts - b.ts);
+                this._lastLoadOlderEventsTS = byTS[0].ts;
+            }
+        }
+        const to = new Date(this._lastLoadOlderEventsTS);
+        const from = new Date(+to - 1 * 3600 * 1000);
+        this._lastLoadOlderEventsTS = +from;
+        const zEvents = await this.zwiftAPI.getEventFeedHistoricalBuggy({from, to});
+        return zEvents ? zEvents.map(x => this._addEvent(x)) : [];
+    }
+
+    async loadNewerEvents() {
+        if (!this._lastLoadNewerEventsTS) {
+            const byTS = Array.from(this._recentEvents.values());
+            if (!byTS.length) {
+                this._lastLoadNewerEventsTS = Date.now();
+            } else {
+                byTS.sort((a, b) => b.ts - a.ts);
+                this._lastLoadNewerEventsTS = byTS[0].ts;
+            }
+        }
+        const from = new Date(this._lastLoadNewerEventsTS);
+        const to = new Date(+from + 1 * 3600 * 1000);
+        this._lastLoadNewerEventsTS = +to;
+        const zEvents = await this.zwiftAPI.getEventFeed({from, to});
+        return zEvents ? zEvents.map(x => this._addEvent(x)) : [];
     }
 
     getChatHistory() {
