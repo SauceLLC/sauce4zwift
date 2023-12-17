@@ -4,17 +4,12 @@ const {ipcRenderer} = require('electron');
 
 addEventListener('contextmenu', ev => {
     ipcRenderer.sendToHost('interaction', ev.type);
-}, {capture: false});
+});
 
-/*addEventListener('pointerdown', ev => {
-    ipcRenderer.sendToHost('interaction', ev.type, {
-        button: ev.button,
-        buttons: ev.buttons
-    });
-}, {capture: true});*/
-
-
-/*addEventListener('wheel', ev => {
-    console.log("wheel", ev);
-    ipcRenderer.sendToHost('interaction', ev.type, JSON.parse(JSON.stringify(ev)));
-});*/
+addEventListener('mouseup', ev => {
+    if (ev.button === 3 || ev.button === 4) {
+        ipcRenderer.sendToHost('interaction', 'navigate', {
+            direction: ev.button === 3 ? 'back' : 'forward',
+        });
+    }
+});
