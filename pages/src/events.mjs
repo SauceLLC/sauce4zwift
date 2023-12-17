@@ -5,6 +5,17 @@ import {render as profileRender} from './profile.mjs';
 common.enableSentry();
 common.settingsStore.setDefault({});
 
+let filterText;
+let filterType;
+
+const allEvents = new Map();
+const contentEl = document.querySelector('#content');
+let gcs;
+let eventDetailTpl;
+let profileTpl;
+
+const athletes = new Map();
+const pendingNationInit = common.initNationFlags();
 
 const _fetchingRoutes = new Map();
 async function getRoute(id) {
@@ -15,7 +26,7 @@ async function getRoute(id) {
 }
 
 
-async function getEventsWithRetry() {
+async function loadEventsWithRetry() {
     // We don't have any events for, well, events, so just poll to handle
     // mutual startup races with backend.
     let data;
@@ -26,30 +37,97 @@ async function getEventsWithRetry() {
         }
         await sauce.sleep(retry);
     }
-    const now = Date.now();
-    const events = new Map();
     for (const x of data) {
-        x.started = x.ts < now;
-        events.set(x.id, x);
+        allEvents.set(x.id, x);
     }
-    return events;
+}
+
+
+function applyEventFilters(el) {
+    const hide = new Set();
+    if (filterType) {
+        for (const x of allEvents.values()) {
+            if (x.eventType !== filterType) {
+                hide.add('' + x.id);
+            }
+        }
+    }
+    if (filterText) {
+        let re;
+        try {
+            re = new RegExp(filterText, 'i');
+        } catch(e) {/*no-pragma*/}
+        for (const x of allEvents.values()) {
+            const text = `name:${x.name} type:${x.eventType.replace(/_/g, ' ')} description:${x.description}`;
+            if (re ? !text.match(re) : !text.toLowerCase().includes(filterText)) {
+                hide.add('' + x.id);
+            }
+        }
+    }
+    for (const x of el.querySelectorAll('table.events > tbody > tr[data-event-id]')) {
+        x.classList.toggle('hidden', hide.has(x.dataset.eventId));
+    }
 }
 
 
 export async function main() {
     common.initInteractionListeners();
-    const pendingNationInit = common.initNationFlags();
-    let gcs = await common.rpc.getGameConnectionStatus();
+    eventDetailTpl = await sauce.template.getTemplate(`templates/event-details.html.tpl`);
+    profileTpl = await sauce.template.getTemplate(`templates/profile.html.tpl`);
+    gcs = await common.rpc.getGameConnectionStatus();
     common.subscribe('status', x => (gcs = x), {source: 'gameConnection'});
-    const events = await getEventsWithRetry();
-    const contentEl = await render(events);
-    const eventDetailTpl = await sauce.template.getTemplate(`templates/event-details.html.tpl`);
-    const profileTpl = await sauce.template.getTemplate(`templates/profile.html.tpl`);
-    const athletes = new Map();
+    await loadEventsWithRetry();
+    await render();
+    document.querySelector('#titlebar select[name="type"]').addEventListener('change', ev => {
+        const type = ev.currentTarget.value;
+        filterType = type || undefined;
+        applyEventFilters(contentEl);
+    });
+    document.querySelector('#titlebar input[name="filter"]').addEventListener('input', ev => {
+        filterText = ev.currentTarget.value || undefined;
+        applyEventFilters(contentEl);
+    });
+    document.documentElement.addEventListener('click', async ev => {
+        const loader = ev.target.closest('.events > .loader');
+        if (!loader) {
+            return;
+        }
+        let added;
+        loader.classList.add('loading');
+        try {
+            if (loader.dataset.dir === 'prev') {
+                added = await common.rpc.loadOlderEvents();
+            } else {
+                added = await common.rpc.loadNewerEvents();
+            }
+            for (const x of added) {
+                allEvents.set(x.id, x);
+            }
+        } finally {
+            loader.classList.remove('loading');
+        }
+        if (added && added.length) {
+            await render();
+        }
+    });
+    const nearest = contentEl.querySelector('table.events > tbody > tr[data-event-id]:not(.started)');
+    if (nearest) {
+        nearest.scrollIntoView();
+    }
+}
+
+
+async function render() {
+    const eventsTpl = await sauce.template.getTemplate(`templates/events.html.tpl`);
+    const events = Array.from(allEvents.values());
+    events.sort((a, b) => a.ts - b.ts);
+    const frag = await eventsTpl({
+        events,
+        eventBadge: common.eventBadge,
+    });
     const cleanupCallbacks = new Set();
-    common.initExpanderTable(contentEl.querySelector('table'), async (eventDetailsEl, eventSummaryEl) => {
-        const event = events.get(Number(eventSummaryEl.dataset.eventId));
-        console.log(event);
+    common.initExpanderTable(frag.querySelector('table'), async (eventDetailsEl, eventSummaryEl) => {
+        const event = allEvents.get(Number(eventSummaryEl.dataset.eventId));
         const route = await getRoute(event.routeId);
         const worldList = await common.getWorldList();
         const world = worldList.find(x =>
@@ -101,48 +179,8 @@ export async function main() {
             cb();
         }
     });
-    document.querySelector('#titlebar input[name="filter"]').addEventListener('input', ev => {
-        const hide = new Set();
-        const search = ev.currentTarget.value;
-        let re;
-        try {
-            re = search && new RegExp(search, 'i');
-        } catch(e) {/*no-pragma*/}
-        if (re) {
-            for (const x of events.values()) {
-                const text = `${x.name} ${x.eventType.replace(/_/g, ' ')} ${x.description}`;
-                if (!text.match(re)) {
-                    hide.add(x.id);
-                }
-            }
-        } else if (search) {
-            for (const x of events.values()) {
-                const text = `${x.name} ${x.eventType.replace(/_/g, ' ')} ${x.description}`;
-                if (!text.toLowerCase().includes()) {
-                    hide.add(x.id);
-                }
-            }
-        }
-        for (const el of contentEl.querySelectorAll('table.events > tbody > tr[data-event-id]')) {
-            el.classList.toggle('hidden', hide.has(Number(el.dataset.eventId)));
-        }
-    });
-    const nearest = contentEl.querySelector('table.events > tbody > tr[data-event-id]:not(.started)');
-    if (nearest) {
-        nearest.scrollIntoView();
-    }
-}
-
-
-async function render(events) {
-    const eventsTpl = await sauce.template.getTemplate(`templates/events.html.tpl`);
-    const frag = await eventsTpl({
-        events: Array.from(events.values()),
-        eventBadge: common.eventBadge,
-    });
-    const contentEl = document.querySelector('#content');
+    applyEventFilters(frag);
     contentEl.replaceChildren(frag);
-    return contentEl;
 }
 
 

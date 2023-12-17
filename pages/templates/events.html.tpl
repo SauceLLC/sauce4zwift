@@ -9,9 +9,10 @@
             <th>Entrants</th>
         </tr>
     </thead>
-    <tbody>
+    <thead class="loader" data-dir="prev"><tr><td colspan="6">Load More</td></tr></thead>
+    <tbody class="events">
         <% for (const event of events) { %>
-            <tr class="summary {{event.started ? 'started' : ''}}"
+            <tr class="summary {{event.ts < Date.now() ? 'started' : ''}}"
                 data-event-id="{{event.id}}">
                 <td class="start">{{humanTime(event.eventStart)}}</td>
                 <td class="type">{{event.eventType.replace(/_/g, ' ')}}</td>
@@ -36,4 +37,5 @@
             <tr class="details"><td colspan="7"></td></tr>
         <% } %>
     </tbody>
+    <tfoot class="loader" data-dir="next"><tr><td colspan="6">Load More</td></tr></tfoot>
 </table>

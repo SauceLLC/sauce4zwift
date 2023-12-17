@@ -9,7 +9,7 @@ html {
 #content > table {
     user-select: text;
 
-    > thead {
+    > thead:not(.loader) {
         position: sticky;
         z-index: 1;
         top: 0;
@@ -21,9 +21,33 @@ html {
 table {
     border-collapse: collapse;
 
-    thead th {
+    thead:not(.loader) th {
         font-variant: all-small-caps;
         font-weight: 500;
+    }
+
+    thead.loader,
+    tfoot.loader {
+        background-image: linear-gradient(to bottom, color.shade(intrinsic, 30%), color.shade(intrinsic, 15%));
+        color: color.shade(intrinsic-inverted, 0%);
+        transition: opacity 200ms;
+        opacity: 0.7;
+        cursor: pointer;
+        font-variant: all-small-caps;
+
+        &.loading {
+            pointer-events: none;
+            opacity: 0.2;
+        }
+
+        &:not(.loading):hover {
+            opacity: 1;
+        }
+
+        td {
+            text-align: center;
+            padding: 0.3em;
+        }
     }
 
     &.events {
