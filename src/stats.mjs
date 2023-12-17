@@ -1043,7 +1043,12 @@ export class StatsProcessor extends events.EventEmitter {
 
     _onIncoming(packet) {
         const updatedEvents = [];
-        const ignore = ['groupEventUserRegistered'];
+        const ignore = [
+            'groupEventUserRegistered',
+            'PayloadSegmentResult',
+            'notableMoment',
+            'PlayerLeftWorld2',
+        ];
         for (let i = 0; i < packet.worldUpdates.length; i++) {
             const x = packet.worldUpdates[i];
             if (x.payloadType) {
@@ -1174,7 +1179,7 @@ export class StatsProcessor extends events.EventEmitter {
             });
         }
         const name = `${chat.firstName || ''} ${chat.lastName || ''}`;
-        console.debug(`Chat from ${name} [id: ${athlete.id}, event: ${chat.eventSubgroup}]:`, chat.message);
+        console.debug(`Chat from ${name} [id: ${chat.from}, event: ${chat.eventSubgroup}]:`, chat.message);
         this._chatHistory.unshift(chat);
         if (this._chatHistory.length > 1000) {
             this._chatHistory.length = 1000;
@@ -1474,15 +1479,12 @@ export class StatsProcessor extends events.EventEmitter {
                     ad.privacy.hideFTP = sg.allTags.has('hideftp');
                 }
                 ad.disabled = sg.allTags.has('hidethehud') || sg.allTags.has('nooverlays');
-                if (state.eventDistance || state.time) {
-                    if (!state.eventDistance !== !state.time) {
-                        console.log(state);
-                    }
+                if (state.time) {
                     this.triggerEventStart(ad, state);
                 } else {
                     ad.eventStartPending = true;
                 }
-            } else if (ad.eventStartPending && state.eventDistance) {
+            } else if (ad.eventStartPending && state.time) {
                 this.triggerEventStart(ad, state);
             }
         } else if (ad.eventSubgroup) {
