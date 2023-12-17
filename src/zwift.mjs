@@ -168,9 +168,7 @@ function decodeGroupEventUserRegistered(buf) {
 
 
 function decodeNotableMoment(buf) {
-    const typeInfo = buf.readInt32LE(0);
     const athleteId = buf.readInt32LE(8);
-    console.devWarn("Figure this out (notable momment):", {typeInfo, athleteId}, buf.toString('hex'));
     return {athleteId};
 }
 
@@ -1325,6 +1323,7 @@ export class GameMonitor extends events.EventEmitter {
         this._lastGameStateUpdated = 0;
         this._lastWatchingStateUpdated = 0;
         this._lastWorldUpdate = 0;
+        this._lastTCPServer;
         this._stateRefreshDelay = this._stateRefreshDelayMin;
         worldTimer.on('offset', diff => {
             const dev = Math.abs(diff);
@@ -1477,7 +1476,7 @@ export class GameMonitor extends events.EventEmitter {
         this._stopping = false;
         this._starting = true;
         console.info("Starting Zwift Game Monitor...");
-        queueMicrotask(() => this.connect(0));
+        queueMicrotask(() => this.connect());
     }
 
     stop() {
@@ -1492,10 +1491,10 @@ export class GameMonitor extends events.EventEmitter {
         this.connectingCount++;
     }
 
-    async connect(index) {
-        console.info("Connecting to Zwift relay servers...", index);
+    async connect() {
+        console.info("Connecting to Zwift relay servers...");
         try {
-            await this._connect(index);
+            await this._connect();
         } catch(e) {
             if (e.name === 'FetchError') {
                 console.warn('Connection attempt network problem:', e.message);
@@ -1506,14 +1505,12 @@ export class GameMonitor extends events.EventEmitter {
         }
     }
 
-    async _connect(index=0) {
+    async _connect() {
         this._setConnecting();
         const session = await this.login();
-        //console.error({session});
-        //console.error(await this.api.fetchPB('/relay/tcp-config', {protobuf: 'TCPConfig'}));
         await this.initHashSeeds();
         await this.initPlayerState();
-        await this.establishTCPChannel(session, index);
+        await this.establishTCPChannel(session);
         await this.activateSession(session);
         this._schedHashSeedsRefresh();
         this._playerStateInterval = setInterval(this.broadcastPlayerState.bind(this), 1000);
@@ -1565,9 +1562,21 @@ export class GameMonitor extends events.EventEmitter {
         return this.leave();
     }
 
-    async establishTCPChannel(session, index) {
+    async establishTCPChannel(session) {
         const servers = session.tcpServers.filter(x => x.realm === 0 && x.courseId === 0);
-        const ip = servers[index == null ? Math.random() * servers.length | 0 : index].ip;
+        // After countless hours of testing and experiments I've concluded that I really need
+        // to stick to the same TCP server no matter what. :(
+        let ip;
+        if (this._lastTCPServer) {
+            const lastServer = servers.find(x => x.ip === this._lastTCPServer);
+            if (lastServer) {
+                ip = lastServer.ip;
+            }
+        }
+        if (!ip) {
+            ip = servers[0].ip;
+        }
+        this._lastTCPServer = ip;
         console.info(`Establishing TCP channel to:`, ip);
         session.tcpChannel = new TCPChannel({ip, session});
         session.tcpChannel.on('shutdown', this.onTCPChannelShutdown.bind(this));
@@ -1907,7 +1916,6 @@ export class GameMonitor extends events.EventEmitter {
             for (let i = 0; i < pb.worldUpdates.length; i++) {
                 const x = pbToObject(pb.worldUpdates[i]);
                 if (x.ts <= this._lastWorldUpdate) {
-                    console.error("nah brah", x, this._lastWorldUpdate);
                     continue;
                 }
                 this._lastWorldUpdate = x.ts;
@@ -1978,7 +1986,7 @@ export class GameMonitor extends events.EventEmitter {
         const moving = this.courseId !== courseId && !!this._session;
         this.courseId = courseId;
         if (moving) {
-            console.error(`Moving to ${env.worldMetas[courseId]?.name}, courseId: ${courseId}`);
+            console.info(`Moving to ${env.worldMetas[courseId]?.name}, courseId: ${courseId}`);
             this.setUDPChannel();
         }
     }
