@@ -14,7 +14,7 @@
         <% for (const event of events) { %>
             <tr class="summary {{event.ts < Date.now() ? 'started' : ''}}"
                 data-event-id="{{event.id}}">
-                <td class="start">{{humanTime(event.eventStart)}}</td>
+                <td class="start">{{humanTime(event.eventStart, {style: 'date'})}}</td>
                 <td class="type">{{event.eventType.replace(/_/g, ' ')}}</td>
                 <td class="name">{{event.name}}</td>
                 <% if (event.durationInSeconds) { %>
@@ -34,7 +34,7 @@
                 </td>
                 <td>{{event.totalEntrantCount}}</td>
             </tr>
-            <tr class="details"><td colspan="7"></td></tr>
+            <tr class="details"><td colspan="6"></td></tr>
         <% } %>
     </tbody>
     <tfoot class="loader" data-dir="next"><tr><td colspan="6">Load More</td></tr></tfoot>

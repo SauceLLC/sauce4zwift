@@ -65,9 +65,13 @@ table {
                 }
             }
 
+            > td.start {
+                font-size: 0.86em;
+            }
+
             > td.type {
-                font-variant: all-small-caps;
-                font-weight: 600;
+                font-size: 0.7em;
+                font-weight: 500;
             }
 
             > td.name {
@@ -89,9 +93,10 @@ table {
     }
 
     abbr.unit {
-        font-size: 0.82em;
-        opacity: 0.8;
+        font-size: 0.9em;
+        opacity: 0.9;
         margin-left: 0.1em;
+        font-variant: all-small-caps;
     }
 
     > thead > tr > th,
@@ -311,7 +316,6 @@ table {
         }
 
         &.events {
-
             > thead > tr > {
                 th.name {
                     visibility: hidden;
@@ -338,6 +342,7 @@ table {
                     overflow: hidden;
                     text-overflow: ellipsis;
                     white-space: nowrap;
+                    padding-left: 0.04em;
                 }
 
                 > td:not(.name) {

@@ -154,7 +154,8 @@ function humanDate(date, options={}) {
 
 const _intlTimeFormats = {
     'default': new Intl.DateTimeFormat([], {hour: 'numeric', minute: 'numeric', second: 'numeric'}),
-    'date': new Intl.DateTimeFormat([], {weekday: 'short', hour: 'numeric', minute: 'numeric', timeZoneName: 'short'}),
+    'date': new Intl.DateTimeFormat([], {weekday: 'short', hour: 'numeric', minute: 'numeric',
+                                         timeZoneName: 'short'}),
 };
 function humanTime(date, options={}) {
     if (!(date instanceof Date)) {
