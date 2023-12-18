@@ -210,7 +210,7 @@ if (window.isElectron) {
         }
     };
     rpcCall = async function(name, ...args) {
-        const env = await electron.ipcInvoke('rpc', name, ...args);
+        const env = JSON.parse(await electron.ipcInvoke('rpc', name, ...args));
         if (env.warning) {
             console.warn(env.warning);
         }
