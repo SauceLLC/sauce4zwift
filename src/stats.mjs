@@ -1477,10 +1477,10 @@ export class StatsProcessor extends events.EventEmitter {
                 ad.eventPosition = undefined;
                 ad.eventParticipants = undefined;
                 if (state.athleteId !== this.athleteId) {
-                    ad.privacy.hideWBal = sg.allTags.has('hidewbal');
-                    ad.privacy.hideFTP = sg.allTags.has('hideftp');
+                    ad.privacy.hideWBal = sg.allTags.includes('hidewbal');
+                    ad.privacy.hideFTP = sg.allTags.includes('hideftp');
                 }
-                ad.disabled = sg.allTags.has('hidethehud') || sg.allTags.has('nooverlays');
+                ad.disabled = sg.allTags.includes('hidethehud') || sg.allTags.includes('nooverlays');
                 if (state.time) {
                     this.triggerEventStart(ad, state);
                 } else {
@@ -1759,7 +1759,7 @@ export class StatsProcessor extends events.EventEmitter {
                 tags.add(x[1].toLowerCase());
             }
         }
-        return tags;
+        return Array.from(tags);
     }
 
     _zwiftMetaSync() {
@@ -1803,7 +1803,7 @@ export class StatsProcessor extends events.EventEmitter {
                     sg.routeClimbing = this._getRouteClimbing(rt, sg.laps);
                 }
                 sg.startOffset = +(new Date(sg.eventSubgroupStart)) - +(new Date(event.eventStart));
-                sg.allTags = new Set([...this._parseEventTags(sg), ...event.allTags]);
+                sg.allTags = Array.from(new Set([...this._parseEventTags(sg), ...event.allTags]));
                 sg.courseId = env.getCourseId(sg.mapId);
                 this._recentEventSubgroups.set(sg.id, {event, ...sg});
             }

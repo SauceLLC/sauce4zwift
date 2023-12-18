@@ -2,7 +2,7 @@ table.expandable {
     border-collapse: collapse;
 
     > tbody > tr {
-        transition: background 100ms;
+        transition: background 150ms, border 150ms;
 
         &:nth-child(4n - 1) {
             background-color: color.get(intrinsic-inverted, 0.03);
@@ -31,8 +31,6 @@ table.expandable {
             border-top: 0.2em solid color.shade(intrinsic-inverted, 0%, 50%);
 
             > td {
-                padding-top: 1em;
-                padding-bottom: 1em;
                 font-weight: bold;
             }
         }

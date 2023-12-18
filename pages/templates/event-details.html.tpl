@@ -17,53 +17,116 @@
             <h2>Groups</h2>
             <hr/>
             <% for (const sg of subgroups) { %>
-                <div class="event-subgroup" data-event-subgroup-id="{{sg.id}}">
+                <% const hasResults = sg.results && sg.results.length; %>
+                <div class="event-subgroup {{hasResults ? 'results' : ''}}"
+                     data-event-subgroup-id="{{sg.id}}">
                     <header>
-                        {-eventBadge(sg.subgroupLabel)-}
-                        <% if (sg.startOffset) { %>
-                            <div>Starts: +{-humanDuration(sg.startOffset / 1000)-}</div>
+                        <div>
+                            {-eventBadge(sg.subgroupLabel)-}
+                            <% if (hasResults) { %>
+                                <b>Results</b>
+                            <% } %>
+                        </div>
+                        <% if (!hasResults) { %>
+                            <% if (sg.startOffset) { %>
+                                <div>Starts: +{-humanDuration(sg.startOffset / 1000)-}</div>
+                            <% } %>
                         <% } %>
                         <% if (sg.durationInSeconds) { %>
                             <div>Duration: {-humanTimer(sg.durationInSeconds)-}</div>
                         <% } else { %>
                             <div>Distance: {-humanDistance(sg.distanceInMeters || sg.routeDistance, {suffix: true, html: true})-}</div>
                         <% } %>
-                        <div>Total Entrants: {{humanNumber(sg.totalEntrantCount)}}</div>
+                        <% if (hasResults) { %>
+                            <div>Finishers: {{humanNumber(sg.results.length)}}</div>
+                        <% } else { %>
+                            <div>Entrants: {{humanNumber(sg.entrants.length)}}</div>
+                        <% } %>
                         <div class="name">{{sg.name}}</div>
                     </header>
-                    <table class="entrants expandable">
-                        <thead>
-                            <tr>
-                                <th></th>
-                                <th>ZP</th>
-                                <th>Name</th>
-                                <th>Team</th>
-                                <th>FTP</th>
-                                <th>Weight</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <% for (const {id, athlete, likelyInGame} of sg.entrants) { %>
-                                <tr data-id="{{id}}" class="summary">
-                                    <td>
-                                        <% if (athlete.marked) { %><ms class="marked" title="Is marked">bookmark_added</ms><% } %>
-                                        <% if (athlete.following) { %><ms class="following" title="You are following">follow_the_signs</ms><% } %>
-                                        <% if (likelyInGame) { %><ms title="Likely in game" class="in-game">check_circle</ms><% } %>
-                                        <% if (athlete.powerMeter) { %><ms class="power" title="Has power meter">bolt</ms><% } %>
-                                        <% if (athlete.gender === 'female') { %><ms class="female" title="Is female">female</ms><% } %>
-                                    </td>
-                                    <td><a title="Open profile on Zwift Power"
-                                           href="https://zwiftpower.com/profile.php?z={{id}}"
-                                           target="_blank" external><ms>open_in_new</ms></a></td>
-                                    <td>{{athlete.sanitizedFullname}}</td>
-                                    <td><% if (athlete.team) { %>{-teamBadge(athlete.team)-}<% } %></td>
-                                    <td>{-humanPower(athlete.ftp, {suffix: true, html: true})-}</td>
-                                    <td>{-humanWeightClass(athlete.weight, {suffix: true, html: true})-}</td>
+
+                    <% if (!sg.results || !sg.results.length) { %>
+                        <table class="entrants expandable">
+                            <thead>
+                                <tr>
+                                    <th class="icon"><!-- marked --></th>
+                                    <th class="icon"><!-- following --></th>
+                                    <th class="icon"><!-- in-game --></th>
+                                    <th class="icon"><!-- power-meter --></th>
+                                    <th class="icon"><!-- gender --></th>
+                                    <th class="name">Name</th>
+                                    <th class="team">Team</th>
+                                    <th class="ftp">FTP</th>
+                                    <th class="weight">Weight</th>
                                 </tr>
-                                <tr class="details"><td colspan="6"></td></tr>
-                            <% } %>
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                <% for (const {id, athlete, likelyInGame} of sg.entrants) { %>
+                                    <tr data-id="{{id}}" class="summary">
+                                        <td class="icon">
+                                            <% if (athlete.marked) { %><ms class="marked" title="Is marked">bookmark_added</ms><% } %>
+                                        </td>
+                                        <td class="icon">
+                                            <% if (athlete.following) { %><ms class="following" title="You are following">follow_the_signs</ms><% } %>
+                                        </td>
+                                        <td class="icon">
+                                            <% if (likelyInGame) { %><ms title="Likely in game" class="in-game">check_circle</ms><% } %>
+                                        </td>
+                                        <td class="icon">
+                                            <% if (athlete.powerMeter) { %>
+                                                <% if (athlete.powerSourceModel === 'Smart Trainer') { %>
+                                                    <ms class="power" title="Has smart trainer">offline_bolt</ms>
+                                                <% } else { %>
+                                                    <ms class="power" title="Has power meter">bolt</ms>
+                                                <% } %>
+                                            <% } %>
+                                        </td>
+                                        <td class="icon">
+                                            <% if (athlete.gender === 'female' || Math.random() > 0.5) { %><ms class="female" title="Is female">female</ms><% } %>
+                                        </td>
+                                        <td class="name">{{athlete.sanitizedFullname}}</td>
+                                        <td class="team"><% if (athlete.team) { %>{-teamBadge(athlete.team)-}<% } %></td>
+                                        <td class="power">{-humanPower(athlete.ftp, {suffix: true, html: true})-}</td>
+                                        <td class="weight">{-humanWeightClass(athlete.weight, {suffix: true, html: true})-}</td>
+                                    </tr>
+                                    <tr class="details"><td colspan="9"></td></tr>
+                                <% } %>
+                            </tbody>
+                        </table>
+                    <% } else { %>
+                        <table class="entrants expandable">
+                            <thead>
+                                <tr>
+                                    <th></th>
+                                    <th>Name</th>
+                                    <th>Time</th>
+                                    <th>Power</th>
+                                    <th>Weight</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% for (const x of sg.results) { %>
+                                    {{console.log(x)}}
+                                    <tr data-id="{{x.profileId}}" class="summary">
+                                        <% if (x.rank === 1) { %>
+                                            <td><ms class="trophy gold">trophy</ms></td>
+                                        <% } else if (x.rank === 2) { %>
+                                            <td><ms class="trophy silver">trophy</ms></td>
+                                        <% } else if (x.rank === 3) { %>
+                                            <td><ms class="trophy bronze">trophy</ms></td>
+                                        <% } else { %>
+                                            <td>{-humanPlace(x.rank, {suffix: true, html: true})-}</td>
+                                        <% } %>
+                                        <td>{{x.profileData.firstName}} {{x.profileData.lastName}}</td>
+                                        <td>{-humanTimer(x.activityData.durationInMilliseconds / 1000, {html: true, ms: true})-}</td>
+                                        <td>{-humanPower(x.sensorData.avgWatts, {suffix: true, html: true})-}</td>
+                                        <td>{-humanWeightClass(x.profileData.weightInGrams / 1000, {suffix: true, html: true})-}</td>
+                                    </tr>
+                                    <tr class="details"><td colspan="5"></td></tr>
+                                <% } %>
+                            </tbody>
+                        </table>
+                    <% } %>
                 </div>
             <% } %>
         </div>

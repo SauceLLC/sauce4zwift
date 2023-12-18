@@ -140,6 +140,11 @@ async function render() {
             }
             return {...sg, route: sgRoute, entrants};
         })) : [];
+        await Promise.all(subgroups.map(async x => {
+            if (x.eventSubgroupStart < Date.now()) {
+                x.results = await common.rpc.getEventSubgroupResults(x.id);
+            }
+        }));
         console.info(event, subgroups);
         eventDetailsEl.append(await eventDetailTpl({
             event,

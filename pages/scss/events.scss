@@ -17,6 +17,28 @@ html {
     }
 }
 
+.trophy {
+    font-size: 1.3em;
+    border-radius: 50%;
+    width: 1.5em;
+    height: 1.5em;
+    line-height: 1.65em;
+    color: color.shade(intrinsic-inverted, 10%, 0.8);
+    text-align: center;
+    box-shadow: 1px 1px 3px 0 #0002;
+    margin-bottom: 0;
+
+    &.gold {
+        background-color: gold;
+    }
+    &.silver {
+        background-color: silver;
+    }
+    &.bronze {
+        background-color: #cd7f32;
+    }
+}
+
 
 table {
     border-collapse: collapse;
@@ -79,10 +101,10 @@ table {
             }
 
             > td.groups {
-                font-size: 0.7em;
+                font-size: 0.86em;
 
                 > * {
-                    margin-left: 0.2em;
+                    margin-left: 0.1em;
                 }
 
                 ms {
@@ -125,6 +147,8 @@ table {
                 padding: 1.5em;
                 border-radius: 0.28em;
                 box-shadow: 1px 1px 5px #0003;
+                max-height: 80vh;
+                overflow: auto;
 
                 &:empty {
                     min-height: 5em;
@@ -143,13 +167,8 @@ table {
         }
     }
 
-    .event-info {
-        max-height: max(400px, 20vh);
-        overflow: auto;
-
-        .desc {
-            white-space: pre-line;
-        }
+    .event-info .desc {
+        white-space: pre-line;
     }
 
     .subgroups {
@@ -183,28 +202,25 @@ table {
             border-radius: 0.3em;
             overflow: hidden;
 
-            thead tr {
+            > thead > tr {
                 background-color: #0003;
+
+                th.icon {
+                    padding: 0;
+                }
             }
 
-            ms.in-game {
+            td.icon {
+                padding: 0.1em;
+                width: 0;
+                text-align: center;
             }
 
-            ms.power {
-                color: gold;
-            }
-
-            ms.female {
-                color: #eb09eb;
-            }
-
-            ms.following {
-                color: color.get(following);
-            }
-
-            ms.marked {
-                color: color.get(marked);
-            }
+            ms.in-game { }
+            ms.power { color: gold; }
+            ms.female { color: #eb09eb; }
+            ms.following { color: color.get(following); }
+            ms.marked { color: color.get(marked); }
 
             .details {
                 > td {
@@ -215,6 +231,10 @@ table {
                     background-color: transparent;
                     padding: 0;
                 }
+            }
+
+            localized .milliseconds {
+                font-size: 0.7em;
             }
         }
     }
@@ -358,11 +378,30 @@ table {
 
         &.entrants {
             > thead > tr {
-                th.active,
-                th.power {
-                    opacity: 0;
-                    visibility: hidden;
-                    width: 1em;
+                display: none;
+            }
+
+            > tbody > tr.summary {
+                position: relative;
+
+                > td.icon {
+                    width: 1.8ch !important;
+                }
+
+                > td.weight {
+                    width: 10ch;
+                }
+
+                > td.name {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    padding-left: 0.3em;
+                }
+
+                > td:not(.name) {
+                    padding-top: 2em !important;
                 }
             }
         }
