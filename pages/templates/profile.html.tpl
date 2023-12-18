@@ -23,12 +23,9 @@
                 {{athlete.sanitizedFullname}}
             </div>
             <div class="buttons">
-                <a href="https://zwiftpower.com/profile.php?z={{athleteId}}"
-                   title="Open ZwiftPower profile"
-                   target="_blank" external><img src="images/zp_logo.png"/></a>
-                <a title="Open Watching window focused on this athlete"
+                <a title="Open Grid Window focused on this athlete"
                    href="/pages/watching.html?windowId=watching-link-popup&windowType=watching&id={{athlete.id}}"
-                   target="watching_popup_{{athlete.id}}" class="enabled-in-game-only" disabled><ms>live_tv</ms></a>
+                   target="watching_popup_{{athlete.id}}" class="enabled-in-game-only" disabled><ms>grid_view</ms></a>
                 <a title="Analysis view of this athletes session"
                    href="/pages/analysis.html?windowType=analysis&id={{athlete.id}}"
                    target="analysis_popup_{{athlete.id}}" class="enabled-in-game-only" disabled><ms>monitoring</ms></a>
@@ -116,6 +113,11 @@
                             class="inline-edit wprime">{-humanNumber(athlete.wPrime / 1000, {suffix: 'kJ', html: true})-}</a>
                     </div>
                 <% } %>
+                <div class="row p2">
+                    <key>ID</key><a href="https://zwiftpower.com/profile.php?z={{athleteId}}"
+                                    title="Open ZwiftPower profile" target="_blank"
+                                    external>{{athleteId}} <img class="inline-size" src="images/zp_logo.png"/></a>
+                </div>
             </div>
             <div class="info live">
                 <div class="row p2"><key>World</key><span class="live" data-id="world">-</span></div>
