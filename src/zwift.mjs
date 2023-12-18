@@ -713,7 +713,11 @@ export class ZwiftAPI {
                 if (to && new Date(x.event.eventStart) >= to) {
                     done = true;
                 } else if (!ids.has(x.event.id)) {
-                    results.push(await this.getEvent(x.event.id));
+                    if (!options.jsonMode) {
+                        results.push(await this.getEvent(x.event.id));
+                    } else {
+                        results.push(x.event);
+                    }
                     ids.add(x.event.id);
                 }
             }
@@ -790,6 +794,10 @@ export class ZwiftAPI {
 
     async eventSubgroupSignup(id) {
         return await this.fetchJSON(`/api/events/subgroups/signup/${id}`, {method: 'POST'});
+    }
+
+    async getUpcomingEvents(id) {
+        return await this.fetchJSON(`/api/events/upcoming`);
     }
 
     async postWorldUpdate(attrs) {
