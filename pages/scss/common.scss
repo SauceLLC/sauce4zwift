@@ -952,6 +952,33 @@ dialog {
     }
 }
 
+[data-field] {
+    position: relative;
+
+    @keyframes width-grow {
+        from {width: 0;}
+        to {width: 100%;}
+    }
+
+    &:active::after {
+        content: '';
+        position: absolute;
+        animation: width-grow 1.5s;
+        animation-fill-mode: forwards; // leave on final state
+        bottom: 0;
+        left: 0;
+        height: 0.2em;
+        background-color: color.get(intrinsic, 0.8);
+        mix-blend-mode: difference;
+        pointer-events: none;
+    }
+
+    select.rotating-field {
+        position: absolute;
+        width: 100%;
+    }
+}
+
 .unlocked [data-field] {
     cursor: pointer;
 }

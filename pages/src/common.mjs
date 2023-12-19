@@ -4,6 +4,7 @@ import * as locale from '../../shared/sauce/locale.mjs';
 import * as report from '../../shared/report.mjs';
 import * as elements from './custom-elements.mjs';
 import * as curves from '/shared/curves.mjs';
+import * as fields from './fields.mjs';
 
 export const sleep = _sleep; // Come on ES6 modules, really!?
 export let idle;
@@ -378,6 +379,21 @@ function makeRPCError({name, message, stack}) {
     const e = new Error(`${name}: ${message}`);
     e.stack = stack;
     return e;
+}
+
+
+export function longPressListener(el, timeout, callback) {
+    let matureTimeout;
+    const onCancel = ev => {
+        clearTimeout(matureTimeout);
+        document.removeEventListener('pointerup', onCancel);
+        document.removeEventListener('pointercancel', onCancel);
+    };
+    el.addEventListener('pointerdown', ev => {
+        document.addEventListener('pointerup', onCancel);
+        document.addEventListener('pointercancel', onCancel);
+        matureTimeout = setTimeout(() => callback(ev), timeout);
+    });
 }
 
 
@@ -758,8 +774,13 @@ export class Renderer {
         }
         const field = this.fields.get(groupId);
         const idx = this.getAdjacentFieldIndex(field, dir);
-        field.active = field.available[idx];
-        const id = field.active.id || idx;
+        const id = field.available[idx].id;
+        this.setField(groupId, id);
+    }
+
+    setField(groupId, id) {
+        const field = this.fields.get(groupId);
+        field.active = field.available.find(x => x.id === id);
         storage.set(field.storageKey, id);
         console.debug('Switching field', groupId, id);
         this.setFieldTooltip(groupId);
@@ -795,17 +816,32 @@ export class Renderer {
             });
             el.setAttribute('tabindex', 0);
             //el.addEventListener('click', ev => this.rotateField(id));
-            el.addEventListener('click', () => {
+            longPressListener(el, 1500, ev => {
                 const field = this.fields.get(id);
-                const options = field.available.map(x => {
-                    const name = stripHTML(fGet(x.longName) || fGet(x.key));
-                    return `<option id="${x.id}">${name}</option>`;
-                });
-                el.insertAdjacentHTML('beforeend', `
-                    <select name="foobar">
-                        ${options}
-                    </select>
-                `);
+                const groups = new Set(field.available.map(x => x.group));
+                const select = document.createElement('select');
+                select.classList.add('rotating-field');
+                select.tabindex = '0';
+                for (const group of groups) {
+                    const optgrp = document.createElement('optgroup');
+                    optgrp.label = fields.fieldGroupNames[group];
+                    for (const x of field.available) {
+                        if (x.group === group) {
+                            const option = document.createElement('option');
+                            if (x.id === field.active.id) {
+                                option.selected = true;
+                            }
+                            option.value = x.id;
+                            option.textContent = stripHTML(x.longName ? fGet(x.longName) : fGet(x.key));
+                            optgrp.append(option);
+                        }
+                    }
+                    select.append(optgrp);
+                }
+                select.addEventListener('change', () => this.setField(id, select.value));
+                el.insertAdjacentElement('beforeend', select);
+                select.focus();
+                select.addEventListener('blur', () => select.remove());
             });
             this.setFieldTooltip(id);
         }
@@ -817,7 +853,7 @@ export class Renderer {
         }
         const field = this.fields.get(id);
         const nextField = field.available[this.getAdjacentFieldIndex(field, 1)];
-        const tooltip = field.active?.tooltip ? field.active?.tooltip + '\n\n' : '';
+        const tooltip = field.active?.tooltip ? fGet(field.active.tooltip) + '\n\n' : '';
         try {
             const name = stripHTML(
                 fGet(nextField.key, this._data) ||
