@@ -953,7 +953,7 @@ dialog {
 }
 
 [data-field] {
-    position: relative;
+    position: relative !important;
 
     @keyframes width-grow {
         from {width: 0;}
@@ -965,15 +965,15 @@ dialog {
         position: absolute;
         animation: width-grow 1.5s;
         animation-fill-mode: forwards; // leave on final state
-        bottom: 0;
         left: 0;
-        height: 0.2em;
-        background-color: color.get(intrinsic, 0.8);
-        mix-blend-mode: difference;
+        height: 0.1rem;
+        background-color: color.get(intrinsic, 0.92);
         pointer-events: none;
+        border-radius: 0.28em;
     }
 
     select.rotating-field {
+        font-size: 0.8rem;
         position: absolute;
         width: 100%;
     }
