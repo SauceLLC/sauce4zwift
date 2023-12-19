@@ -112,7 +112,7 @@ export async function main() {
     });
     const nearest = contentEl.querySelector('table.events > tbody > tr[data-event-id]:not(.started)');
     if (nearest) {
-        nearest.scrollIntoView();
+        nearest.scrollIntoView({block: 'center'});
     }
 }
 
@@ -152,8 +152,10 @@ async function render() {
             route,
             subgroups,
             teamBadge: common.teamBadge,
-            eventBadge: common.eventBadge
+            eventBadge: common.eventBadge,
+            fmtFlag: common.fmtFlag,
         }));
+        eventSummaryEl.scrollIntoView({block: 'start'});
         const {nations, flags} = await pendingNationInit;
         for (const t of eventDetailsEl.querySelectorAll('table.expandable')) {
             let cleanup;

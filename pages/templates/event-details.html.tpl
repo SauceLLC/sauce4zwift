@@ -82,9 +82,9 @@
                                             <% } %>
                                         </td>
                                         <td class="icon">
-                                            <% if (athlete.gender === 'female' || Math.random() > 0.5) { %><ms class="female" title="Is female">female</ms><% } %>
+                                            <% if (athlete.gender === 'female') { %><ms class="female" title="Is female">female</ms><% } %>
                                         </td>
-                                        <td class="name">{{athlete.sanitizedFullname}}</td>
+                                        <td class="name">{-fmtFlag(athlete.countryCode, {empty: ''})-} {{athlete.sanitizedFullname}}</td>
                                         <td class="team"><% if (athlete.team) { %>{-teamBadge(athlete.team)-}<% } %></td>
                                         <td class="power">{-humanPower(athlete.ftp, {suffix: true, html: true})-}</td>
                                         <td class="weight">{-humanWeightClass(athlete.weight, {suffix: true, html: true})-}</td>
@@ -99,8 +99,10 @@
                                 <tr>
                                     <th></th>
                                     <th>Name</th>
+                                    <th>Team</th>
                                     <th>Time</th>
                                     <th>Power</th>
+                                    <th>HR</th>
                                     <th>Weight</th>
                                 </tr>
                             </thead>
@@ -108,19 +110,29 @@
                                 <% for (const x of sg.results) { %>
                                     {{console.log(x)}}
                                     <tr data-id="{{x.profileId}}" class="summary">
+                                        <td class="place">
                                         <% if (x.rank === 1) { %>
-                                            <td><ms class="trophy gold">trophy</ms></td>
+                                            <ms class="trophy gold">trophy</ms>
                                         <% } else if (x.rank === 2) { %>
-                                            <td><ms class="trophy silver">trophy</ms></td>
+                                            <ms class="trophy silver">trophy</ms>
                                         <% } else if (x.rank === 3) { %>
-                                            <td><ms class="trophy bronze">trophy</ms></td>
+                                            <ms class="trophy bronze">trophy</ms>
                                         <% } else { %>
-                                            <td>{-humanPlace(x.rank, {suffix: true, html: true})-}</td>
+                                            {-humanPlace(x.rank, {suffix: true, html: true})-}
                                         <% } %>
-                                        <td>{{x.profileData.firstName}} {{x.profileData.lastName}}</td>
-                                        <td>{-humanTimer(x.activityData.durationInMilliseconds / 1000, {html: true, ms: true})-}</td>
-                                        <td>{-humanPower(x.sensorData.avgWatts, {suffix: true, html: true})-}</td>
-                                        <td>{-humanWeightClass(x.profileData.weightInGrams / 1000, {suffix: true, html: true})-}</td>
+                                        </td>
+                                        <td class="name">
+                                            {-fmtFlag(x.athlete.countryCode, {empty: ''})-}
+                                            <% if (x.athlete.gender === 'female') { %>
+                                                <ms class="female" title="Is female">female</ms>
+                                            <% } %>
+                                            {{x.athlete.sanitizedFullname}}
+                                        </td>
+                                        <td class="team"><% if (x.athlete.team) { %>{-teamBadge(x.athlete.team)-}<% } %></td>
+                                        <td class="time">{-humanTimer(x.activityData.durationInMilliseconds / 1000, {html: true, ms: true})-}</td>
+                                        <td class="power" data-power-type="{{x.sensorData.powerType}}">{-humanPower(x.sensorData.avgWatts, {suffix: true, html: true})-}</td>
+                                        <td class="hr">{-humanNumber(x.sensorData.heartRateData?.avgHeartRate, {suffix: 'bpm', html: true})-}</td>
+                                        <td class="weight">{-humanWeightClass(x.profileData.weightInGrams / 1000, {suffix: true, html: true})-}</td>
                                     </tr>
                                     <tr class="details"><td colspan="5"></td></tr>
                                 <% } %>

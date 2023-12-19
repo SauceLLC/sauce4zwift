@@ -74,7 +74,7 @@ table {
 
     &.events {
         > tbody > tr {
-            scroll-margin-top: 4.58em;  // roughly one extra row plus header height
+            scroll-margin-top: 2.38em;  // roughly header height
 
             &.started > td {
                 opacity: 0.5;
@@ -88,11 +88,11 @@ table {
             }
 
             > td.start {
-                font-size: 0.86em;
+                font-size: 0.92em;
             }
 
             > td.type {
-                font-size: 0.7em;
+                font-size: 0.8em;
                 font-weight: 500;
             }
 
@@ -169,6 +169,7 @@ table {
 
     .event-info .desc {
         white-space: pre-line;
+        line-height: 1.4; // condense a bit
     }
 
     .subgroups {
@@ -201,6 +202,13 @@ table {
             margin-top: 1em;
             border-radius: 0.3em;
             overflow: hidden;
+            font-size: 0.9em;
+
+            img.nation-flag {
+                display: inline-block;
+                height: 1.3em;
+                margin-bottom: -0.36em;
+            }
 
             > thead > tr {
                 background-color: #0003;
@@ -214,6 +222,16 @@ table {
                 padding: 0.1em;
                 width: 0;
                 text-align: center;
+
+                ms {
+                    font-size: 1.2em;
+
+                    &.female {
+                        font-size: 1.4em;
+                        margin-left: -0.15em;
+                        margin-right: -0.15em;
+                    }
+                }
             }
 
             ms.in-game { }
@@ -283,7 +301,7 @@ table {
 .details .container .profile {
     .avatar {
         font-size: 0.6em;
-        flex-basis: 200px;
+        flex-basis: 240px;
     }
 
     header.title {
@@ -292,7 +310,25 @@ table {
         color: #f0f0f0;
 
         .buttons {
-            padding: 0.2em 0.5em 0;
+            margin: 0.2em 0.5em;
+            padding: 0;
+            border-radius: 0.28em;
+            overflow: hidden;
+            background-color: color.shade(intrinsic-inverted, 5%, 0.7);
+
+            > a {
+                height: 1.65em;
+                flex: 1 1 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin: 0;
+                text-decoration: none;
+
+                &:not([disabled]):hover {
+                    background-color: color.shade(intrinsic-inverted, 0%, 0.8);
+                }
+            }
         }
 
         .name {

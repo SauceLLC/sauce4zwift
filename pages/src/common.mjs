@@ -1282,12 +1282,12 @@ export function teamBadge(t) {
 
 
 let _nations, _flags;
-export function fmtFlag(code) {
+export function fmtFlag(code, {empty='-'}={}) {
     if (code && _flags && _flags[code]) {
         const nation = sanitizeAttr(_nations[code]);
-        return `<img src="${_flags[code]}" title="${nation}"/>`;
+        return `<img class="nation-flag" src="${_flags[code]}" title="${nation}"/>`;
     } else {
-        return '-';
+        return empty;
     }
 }
 

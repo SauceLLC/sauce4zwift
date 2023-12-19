@@ -480,7 +480,10 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     async getEventSubgroupResults(id) {
-        return await this.zwiftAPI.getEventSubgroupResults(id);
+        return (await this.zwiftAPI.getEventSubgroupResults(id)).map(x => {
+            x.athlete = this._getAthlete(x.profileId);
+            return x;
+        });
     }
 
     async loadOlderEvents() {
@@ -956,8 +959,8 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
-    async getAthlete(id, options={}) {
-        id = this._realAthleteId(id);
+    async getAthlete(ident, options={}) {
+        const id = this._realAthleteId(ident);
         if (options.refresh && this.zwiftAPI.isAuthenticated()) {
             const updating = this.zwiftAPI.getProfile(id).then(p =>
                 (p && this.updateAthlete(id, this._profileToAthlete(p))));
@@ -965,6 +968,10 @@ export class StatsProcessor extends events.EventEmitter {
                 await updating;
             }
         }
+        return this._getAthlete(id);
+    }
+
+    _getAthlete(id) {
         const athlete = this.loadAthlete(id);
         if (athlete) {
             const ad = this._athleteData.get(id);
