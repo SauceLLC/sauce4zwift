@@ -1314,9 +1314,6 @@ export class GameMonitor extends events.EventEmitter {
         this.gameAthleteId = options.gameAthleteId;
         this.athleteId = this.api.profile.id;
         this.exclusions = options.exclusions || new Set();
-        if (this.gameAthleteId) {
-            this.exclusions.delete(getIDHash(this.gameAthleteId));
-        }
         this.watchingAthleteId = null;
         this.courseId = null;
         this._udpChannels = [];
