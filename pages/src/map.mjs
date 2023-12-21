@@ -182,22 +182,21 @@ export class MapEntity extends EventTarget {
             this.pin = document.createElement('div');
             this.pin.setAttribute('tabindex', 0); // Support click to focus so it can stay higher
             this.pin.classList.add('pin-anchor');
-            const pinInner = document.createElement('div');
-            pinInner.classList.add('pin-inner');
-            this.pin.append(pinInner);
+            const inner = document.createElement('div');
+            inner.classList.add('pin-inner');
+            this.pin.append(inner);
+            const wrap = document.createElement('div');
+            wrap.classList.add('pin-content-wrap');
+            inner.append(wrap);
             this._pinContent = document.createElement('div');
             this._pinContent.classList.add('pin-content');
-            this._pinContent.addEventListener('click', ev => {
-                if (!ev.target.closest('a')) {
+            wrap.addEventListener('click', ev => {
+                if (ev.target === ev.currentTarget) { // basically just match pseudo X close
                     this.togglePin(false);
                 }
             });
-            pinInner.append(this._pinContent);
-            if (this._pinHTML) {
-                this._pinContent.innerHTML = this._pinHTML;
-            } else {
-                this.pin.classList.add('hidden');
-            }
+            wrap.append(this._pinContent);
+            this.renderPinHTML(this.getPinHTML());
         }
         const ev = new Event('pinned');
         ev.visible = !!this.pin;
@@ -217,6 +216,14 @@ export class MapEntity extends EventTarget {
             return;
         }
         this._pinHTML = html;
+        this.renderPinHTML(this.getPinHTML());
+    }
+
+    getPinHTML() {
+        return this._pinHTML;
+    }
+
+    renderPinHTML(html) {
         if (this.pin) {
             this._pinContent.innerHTML = html;
             this.pin.classList.toggle('hidden', !html);
@@ -239,6 +246,80 @@ export class MapEntity extends EventTarget {
 
     getPosition() {
         return this._position;
+    }
+}
+
+
+export class MapAthlete extends MapEntity {
+    constructor(athleteId) {
+        super(athleteId, 'athlete');
+        this.chats = [];
+        this._lastStateRender = 0;
+        this._hardPin = false;
+    }
+
+    setPinHTML() {
+        throw new TypeError("pin html is read-only for athletes");
+    }
+
+    togglePin(en, _soft) {
+        this._hardPin = !_soft && (en === undefined ? !this.pin : en);
+        return super.togglePin(en);
+    }
+
+    getPinHTML() {
+        const html = [];
+        const state = this._state;
+        if (state) {
+            const ad = common.getAthleteDataCacheEntry(state.athleteId);
+            const athlete = ad?.athlete;
+            const name = athlete ? `${athlete.fLast}` : `ID: ${state.athleteId}`;
+            const avatar = athlete?.avatar ?
+                `<avatar-pad></avatar-pad><img class="avatar" src="${athlete.avatar}"/>` : '';
+            html.push(`<a class="name" href="/pages/profile.html?id=${state.athleteId}&windowType=profile"
+                          target="profile_popup_${state.athleteId}">${common.sanitize(name)}${avatar}</a>`);
+            if (this._hardPin) {
+                html.push(`<br/>Power: ${H.power(state.power, {suffix: true, html: true})}`);
+                html.push(`<br/>Speed: ${H.pace(state.speed, {suffix: true, html: true,
+                                                              sport: state.sport})}`);
+            }
+        }
+        if (this.chats.length) {
+            if (html.length) {
+                html.push('<br/>');
+            }
+            html.push(`<q class="chat">${this.chats.map(x => x[0]).join('<br/>')}</q>`);
+        }
+        return html.length ? html.join('') : '';
+    }
+
+    setPlayerState(state) {
+        this._state = state;
+        if (this.pin) {
+            const sinceLast = Date.now() - this._lastStateRender;
+            if (sinceLast > 90000) {
+                this._lastStateRender = Date.now();
+                this.renderPinHTML(this.getPinHTML());
+            }
+        }
+    }
+
+    addChatMessage(message) {
+        const expires = 10000;
+        this.chats.push([message, Date.now() + expires]);
+        if (this.pin) {
+            this.renderPinHTML(this.getPinHTML());
+        } else {
+            this.togglePin(true, /*soft*/ true);
+        }
+        setTimeout(() => {
+            this.chats = this.chats.filter(x => x[1] > Date.now());
+            if (!this.chats.length && !this._hardPin) {
+                this.togglePin(false);
+            } else if (this.pin) {
+                this.renderPinHTML(this.getPinHTML());
+            }
+        }, expires + 10);
     }
 }
 
@@ -977,6 +1058,10 @@ export class SauceZwiftMap extends EventTarget {
         ent.addEventListener('position', () => this._pendingEntityUpdates.add(ent));
     }
 
+    getEntity(id) {
+        return this._ents.get(id);
+    }
+
     removeEntity(ent) {
         this._ents.delete(ent.id);
         this._pinned.delete(ent);
@@ -986,13 +1071,12 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     _addAthleteEntity(state) {
-        const ent = new MapEntity(state.athleteId, 'athlete');
+        const ent = new MapAthlete(state.athleteId);
         ent.lastSeen = 0;
         ent.gc = true;
         ent.delayEst = common.expWeightedAvg(6, 2000);
         ent.el.classList.toggle('self', state.athleteId === this.athleteId);
         ent.el.classList.toggle('watching', state.athleteId === this.watchingId);
-        ent.setPinHTML('<ms>hourglass_empty</ms>...');
         ent.setMap(this);
         ent.addEventListener('pinned', ev => {
             if (ev.visible) {
@@ -1093,19 +1177,7 @@ export class SauceZwiftMap extends EventTarget {
             ent.setPosition([state.x, state.y]);
             ent.el.dataset.powerLevel = powerLevel;
             ent.lastSeen = now;
-            if (ent.pin) {
-                const ad = common.getAthleteDataCacheEntry(state.athleteId);
-                const athlete = ad?.athlete;
-                const name = athlete ? `${athlete.fLast}` : `ID: ${state.athleteId}`;
-                const avatar = athlete?.avatar ?
-                    `<avatar-pad></avatar-pad><img class="avatar" src="${athlete.avatar}"/>` : '';
-                ent.setPinHTML(`
-                    <a href="/pages/profile.html?id=${state.athleteId}&windowType=profile"
-                       target="profile_popup_${state.athleteId}">${common.sanitize(name)}${avatar}</a><br/>
-                    Power: ${H.power(state.power, {suffix: true, html: true})}<br/>
-                    Speed: ${H.pace(state.speed, {suffix: true, html: true, sport: state.sport})}
-                `);
-            }
+            ent.setPlayerState(state);
             if (state.athleteId === this.watchingId && !this.trackingPaused) {
                 this._autoHeadingSaved = state.heading;
                 if (this.autoHeading) {

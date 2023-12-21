@@ -314,6 +314,12 @@ export async function main() {
                 elProfile.renderAthleteStates(states);
             }
         });
+        common.subscribe('chat', chat => {
+            const ent = zwiftMap.getEntity(chat.from);
+            if (ent) {
+                ent.addChatMessage(chat.message);
+            }
+        });
     }
     common.settingsStore.addEventListener('set', ev => {
         if (!ev.data.remote) {
