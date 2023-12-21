@@ -659,18 +659,28 @@ message PlayerProfile {
     int32 _f130 = 130; // seen 1 and 2, so likely an enum
     int32 _f131 = 131; // Added 2023/11/09
     int32 _f132 = 132; // Added 2023/11/09
-    int32 _f133 = 133; // Added 2023/11/09
+    uint32 _f133 = 133; // time epoch in seconds
     int32 _f134 = 134; // Added 2023/11/09
     int32 _f135 = 135; // Added 2023/11/09
     int32 _f136 = 136; // Added 2023/11/09
     int32 _f137 = 137; // Added 2023/11/09
     int32 _f138 = 138; // Added 2023/11/09
-    int32 _f139 = 139; // Added 2023/11/09
+    int32 _f139 = 139; // Added 2023/11/09 
     int32 _f140 = 140; // Added 2023/11/09
     int32 _f141 = 141; // Added 2023/11/09
     int32 _f142 = 142; // Added 2023/11/09
     int32 _f143 = 143; // Added 2023/11/09
     int32 _f144 = 144; // Added 2023/11/09
+
+    // These duplicate values from november.  Maybe they needed to be floats and are phasing over...
+    // Possibly x/y/z bounding box values...
+    float _f146 = 146; // Added 2023/12/21 (1.55) Matches 135/136
+    float _f147 = 147; // Added 2023/12/21 (1.55) Matches 137/138
+    float _f148 = 148; // Added 2023/12/21 (1.55) Matches 139/140
+
+    float _f149 = 149; // Added 2023/12/21 (1.55) Matches 135/136
+    float _f150 = 150; // Added 2023/12/21 (1.55) Matches 137/138
+    float _f151 = 151; // Added 2023/12/21 (1.55) Matches 139/140
 }
 
 message PlayerProfiles {
