@@ -53,7 +53,6 @@
         "curly": "warn",
         "eqeqeq": ["error", "always", {"null": "ignore"}],
         "no-implicit-globals": "error",
-        "no-shadow": "warn",
         "no-throw-literal": "error",
         "no-var": "error",
         "no-unreachable": "warn",
