@@ -665,7 +665,7 @@ message PlayerProfile {
     int32 _f136 = 136; // Added 2023/11/09
     int32 _f137 = 137; // Added 2023/11/09
     int32 _f138 = 138; // Added 2023/11/09
-    int32 _f139 = 139; // Added 2023/11/09 
+    int32 _f139 = 139; // Added 2023/11/09
     int32 _f140 = 140; // Added 2023/11/09
     int32 _f141 = 141; // Added 2023/11/09
     int32 _f142 = 142; // Added 2023/11/09
