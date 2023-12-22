@@ -22,28 +22,39 @@
             <% const group = section.groups[0]; %>
             <% const spec = groupSpecs[group.type]; %>
             <% const bgImg = !settings.hideBackgroundIcons ? spec.backgroundImage : null; %>
+            <% let rowOffset = 1; %>
             <div class="screen-section columns {{section.type}}"
                  data-base-section-type="{{baseSectionType}}" data-section-type="{{section.type}}"
                  data-section-id="{{section.id}}" data-group-type="{{group.type}}" data-group-id="{{group.id}}"
                  style="--background-image: {{bgImg || 'none'}};">
                 <div class="sub">
                     <% if (!section.settings?.hideTitle) { %>
+                        <% rowOffset++; %>
                         <% const title = section.settings?.customTitle || spec.title; %>
                         <heading class="group-title">{{typeof title === 'function' ? title() : title}}</heading>
                     <% } %>
                     <div class="field-row" data-default="{{group.defaultFields?.[1] || '1'}}"
                          data-field="{{section.id}}-{{group.id}}-0">
-                        <div class="key" tabindex="0"></div><div class="value" tabindex="0"></div><abbr class="unit"></abbr>
+                        <div class="key" tabindex="0"></div>
+                        <div class="value" tabindex="0"></div>
+                        <abbr class="unit"></abbr>
+                        <div class="editing-anchor" style="grid-row: {{rowOffset++}} / {{rowOffset}}"></div>
                     </div>
                     <div class="field-row" data-default="{{group.defaultFields?.[2] || '2'}}"
                          data-field="{{section.id}}-{{group.id}}-1">
-                        <div class="key" tabindex="0"></div><div class="value" tabindex="0"></div><abbr class="unit"></abbr>
+                        <div class="key" tabindex="0"></div>
+                        <div class="value" tabindex="0"></div>
+                        <abbr class="unit"></abbr>
+                        <div class="editing-anchor" style="grid-row: {{rowOffset++}} / {{rowOffset}}"></div>
                     </div>
                 </div>
                 <div class="full-height" data-default="{{group.defaultFields?.[0] || '0'}}"
                      data-field="{{section.id}}-{{group.id}}-2">
                     <div class="value"></div>
-                    <div class="line"><div class="label"></div><div class="unit"></div></div>
+                    <div class="line">
+                        <div class="label"></div>
+                        <div class="unit"></div>
+                    </div>
                     <div class="sub-label"></div>
                 </div>
                 <% if (obj.configuring) { %>
@@ -147,16 +158,26 @@
                  data-section-type="{{section.type}}" data-base-section-type="{{baseSectionType}}"
                  data-section-id="{{section.id}}">
                 <% for (const group of section.groups) { %>
+                    <% let rowOffset = 1; %>
                     <div class="sub" data-group-type="{{group.type}}" data-group-id="{{group.id}}">
                         <% if (!section.settings?.hideTitle) { %>
                             <% const title = groupSpecs[group.type].title; %>
                             <heading class="group-title">{{typeof title === 'function' ? title() : title}}</heading>
+                            <% rowOffset++; %>
                         <% } %>
-                        <div class="field-row" data-default="{{group.defaultFields?.[0] || '0'}}" data-field="{{section.id}}-{{group.id}}-0">
-                            <div class="key" tabindex="0"></div><div class="value" tabindex="0"></div><abbr class="unit"></abbr>
+                        <div class="field-row" data-default="{{group.defaultFields?.[0] || '0'}}"
+                             data-field="{{section.id}}-{{group.id}}-0">
+                            <div class="key" tabindex="0"></div>
+                            <div class="value" tabindex="0"></div>
+                            <abbr class="unit"></abbr>
+                            <div class="editing-anchor" style="grid-row: {{rowOffset++}} / {{rowOffset}}"></div>
                         </div>
-                        <div class="field-row" data-default="{{group.defaultFields?.[1] || '1'}}" data-field="{{section.id}}-{{group.id}}-1">
-                            <div class="key" tabindex="0"></div><div class="value" tabindex="0"></div><abbr class="unit"></abbr>
+                        <div class="field-row" data-default="{{group.defaultFields?.[1] || '1'}}"
+                             data-field="{{section.id}}-{{group.id}}-1">
+                            <div class="key" tabindex="0"></div>
+                            <div class="value" tabindex="0"></div>
+                            <abbr class="unit"></abbr>
+                            <div class="editing-anchor" style="grid-row: {{rowOffset++}} / {{rowOffset}}"></div>
                         </div>
                     </div>
                 <% } %>

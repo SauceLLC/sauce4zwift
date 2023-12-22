@@ -953,27 +953,46 @@ dialog {
 }
 
 [data-field] {
-    position: relative !important;
-
     @keyframes width-grow {
         from {width: 0;}
         to {width: 100%;}
     }
 
-    &:active::after {
-        content: '';
-        position: absolute;
-        animation: width-grow 1.5s;
-        animation-fill-mode: forwards; // leave on final state
-        left: 0;
-        height: 0.1rem;
-        background-color: color.get(intrinsic, 0.92);
-        pointer-events: none;
-        border-radius: 0.28em;
+    &.editing {
+        :not(select.rotating-field):not(.editing-anchor) {
+            visibility: hidden;
+        }
+        select.rotating-field * {
+            visibility: visible !important;
+        }
+    }
+
+    &.pointer-pressing {
+        &.editing-anchor,
+        .editing-anchor {
+            &::after {
+                content: '';
+                position: absolute;
+                animation: width-grow 1250ms;
+                animation-delay: 250ms;
+                animation-fill-mode: forwards; // leave on final state
+                left: 0;
+                bottom: 0;
+                height: 0.15rem;
+                background-color: color.get(intrinsic, 0.80);
+                pointer-events: none;
+                border-radius: 0.28em;
+            }
+        }
+    }
+
+    &.editing-anchor,
+    .editing-anchor {
+        position: relative;
     }
 
     select.rotating-field {
-        font-size: 0.8rem;
+        font-size: 16px;
         position: absolute;
         width: 100%;
     }

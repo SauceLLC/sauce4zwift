@@ -195,30 +195,36 @@ const groupSpecs = {
         title: 'Time',
         fields: [{
             id: 'time-active',
+            longName: 'Time (active)',
             value: x => fmtDur(x.stats && x.stats.activeTime),
             key: 'Active',
         }, {
             id: 'time-elapsed',
+            longName: 'Time (elapsed)',
             value: x => fmtDur(x.stats && x.stats.elapsedTime),
             key: 'Elapsed',
             label: 'elapsed',
         }, {
             id: 'time-lap',
+            longName: 'Time (lap)',
             value: x => fmtDur(curLap(x) && curLap(x).activeTime),
             key: 'Lap',
             label: 'lap',
         }, {
             id: 'time-session',
+            longName: 'Time (zwift session)',
             value: x => fmtDur(x.state && x.state.time),
             key: 'Session',
             label: 'session',
         }, {
             id: 'time-gap',
+            longName: 'Gap (time)',
             value: x => fmtDur(x.gap),
             key: 'Gap',
             label: 'gap',
         }, {
             id: 'time-gap-distance',
+            longName: 'Gap (distance)',
             value: x => fmtDistValue(x.gapDistance),
             key: 'Gap',
             label: 'gap',
@@ -230,34 +236,40 @@ const groupSpecs = {
         backgroundImage: 'url(../images/fa/bolt-duotone.svg)',
         fields: [{
             id: 'pwr-cur',
+            longName: 'Current Power',
             value: x => H.number(x.state && x.state.power),
             key: 'Current',
             unit: 'w',
         }, {
             id: 'pwr-cur-wkg',
+            longName: 'Current W/kg',
             value: x => humanWkg(x.state && x.state.power, x.athlete),
             key: 'Current',
             unit: 'w/kg',
         }, {
             id: 'pwr-avg',
+            longName: 'Avg Power',
             value: x => H.number(x.stats && x.stats.power.avg),
             label: 'avg',
             key: 'Avg',
             unit: 'w',
         }, {
             id: 'pwr-avg-wkg',
+            longName: 'Avg W/kg',
             value: x => humanWkg(x.state && x.stats.power.avg, x.athlete),
             label: 'avg',
             key: 'Avg',
             unit: 'w/kg',
         }, {
             id: 'pwr-max',
+            longName: 'Max Power',
             value: x => H.number(x.stats && x.stats.power.max),
             label: 'max',
             key: 'Max',
             unit: 'w',
         }, {
             id: 'pwr-max-wkg',
+            longName: 'Max W/kg',
             value: x => humanWkg(x.state && x.stats.power.max, x.athlete),
             label: 'max',
             key: 'Max',
@@ -287,76 +299,96 @@ const groupSpecs = {
         ...makePeakPowerFields(1200),
         {
             id: 'pwr-lap-avg',
+            group: 'Lap',
+            longName: 'Avg Power',
             value: x => H.number(curLap(x) && curLap(x).power.avg),
             label: 'lap',
             key: 'Lap',
             unit: 'w',
         }, {
             id: 'pwr-lap-wkg',
+            group: 'Lap',
+            longName: 'Avg W/kg',
             value: x => humanWkg(curLap(x) && curLap(x).power.avg, x.athlete),
             label: 'lap',
             key: 'Lap',
             unit: 'w/kg',
         }, {
             id: 'pwr-lap-max',
+            group: 'Lap',
+            longName: 'Max Power',
             value: x => H.number(curLap(x) && curLap(x).power.max),
             label: ['max', '(lap)'],
             key: 'Max<tiny>(lap)</tiny>',
             unit: 'w',
         }, {
             id: 'pwr-lap-max-wkg',
+            group: 'Lap',
+            longName: 'Max W/kg',
             value: x => humanWkg(curLap(x) && curLap(x).power.max, x.athlete),
             label: ['max', '(lap)'],
             key: 'Max<tiny>(lap)</tiny>',
             unit: 'w/kg',
         }, {
             id: 'pwr-lap-np',
+            group: 'Lap',
+            longName: 'NP®',
             value: x => H.number(curLap(x) && curLap(x).power.np),
             label: ['np', '(lap)'],
             key: 'NP®<tiny>(lap)</tiny>',
             tooltip: common.stripHTML(common.attributions.tp),
         },
-        ...makePeakPowerFields(5, -1),
-        ...makePeakPowerFields(15, -1),
-        ...makePeakPowerFields(60, -1),
-        ...makePeakPowerFields(300, -1),
-        ...makePeakPowerFields(1200, -1),
+        ...makePeakPowerFields(5, -1, {group: 'Lap'}),
+        ...makePeakPowerFields(15, -1, {group: 'Lap'}),
+        ...makePeakPowerFields(60, -1, {group: 'Lap'}),
+        ...makePeakPowerFields(300, -1, {group: 'Lap'}),
+        ...makePeakPowerFields(1200, -1, {group: 'Lap'}),
         {
             id: 'pwr-last-avg',
+            group: 'Last Lap',
+            longName: 'Avg Power',
             value: x => H.number(lastLap(x) && lastLap(x).power.avg || null),
             label: 'last lap',
             key: 'Last Lap',
             unit: 'w',
         }, {
             id: 'pwr-last-avg-wkg',
+            group: 'Last Lap',
+            longName: 'Avg W/kg',
             value: x => humanWkg(lastLap(x) && lastLap(x).power.avg, x.athlete),
             label: 'last lap',
             key: 'Last Lap',
             unit: 'w/kg',
         }, {
             id: 'pwr-last-max',
+            group: 'Last Lap',
+            longName: 'Max Power',
             value: x => H.number(lastLap(x) && lastLap(x).power.max || null),
             label: ['max', '(last lap)'],
             key: 'Max<tiny>(last lap)</tiny>',
             unit: 'w',
         }, {
             id: 'pwr-last-max-wkg',
+            group: 'Last Lap',
+            longName: 'Max W/kg',
             value: x => humanWkg(lastLap(x) && lastLap(x).power.max, x.athlete),
             label: ['max', '(last lap)'],
             key: 'Max<tiny>(last lap)</tiny>',
             unit: 'w/kg',
         }, {
             id: 'pwr-last-np',
+            group: 'Last Lap',
+            longName: 'NP®',
             value: x => H.number(lastLap(x) && lastLap(x).power.np || null),
             label: ['np', '(last lap)'],
             key: 'NP®<tiny>(last lap)</tiny>',
             tooltip: common.stripHTML(common.attributions.tp),
         },
-        ...makePeakPowerFields(5, -2),
-        ...makePeakPowerFields(15, -2),
-        ...makePeakPowerFields(60, -2),
-        ...makePeakPowerFields(300, -2),
-        ...makePeakPowerFields(1200, -2),
+        ...makePeakPowerFields(5, -2, {group: 'Last Lap'}),
+        ...makePeakPowerFields(15, -2, {group: 'Last Lap'}),
+        ...makePeakPowerFields(60, -2, {group: 'Last Lap'}),
+        ...makePeakPowerFields(300, -2, {group: 'Last Lap'}),
+        ...makePeakPowerFields(1200, -2, {group: 'Last Lap'}),
         {
             id: 'pwr-vi',
             value: x => H.number(x.stats && x.stats.power.np && x.stats.power.np / x.stats.power.avg,
@@ -687,7 +719,7 @@ function fmtDur(v, options) {
 }
 
 
-function makePeakPowerFields(period, lap) {
+function makePeakPowerFields(period, lap, extra) {
     const duration = shortDuration(period);
     const lapLabel = {
         '-1': '(lap)',
@@ -723,50 +755,58 @@ function makePeakPowerFields(period, lap) {
 
     return [{
         id: `power-peak-${period}`,
+        longName: `Peak Power (${duration})`,
         value: x => H.number(getValue(x)),
         label,
         key,
-        unit: 'w'
+        unit: 'w',
+        ...extra,
     }, {
         id: `power-peak-${period}-wkg`,
+        longName: `Peak W/kg (${duration})`,
         value: x => humanWkg(getValue(x), x.athlete),
         label,
         key,
-        unit: 'w/kg'
+        unit: 'w/kg',
+        ...extra,
     }];
 }
 
 
-function makeSmoothPowerFields(period) {
+function makeSmoothPowerFields(period, extra) {
     const duration = shortDuration(period);
     const label = duration;
     const key = duration;
     return [{
         id: `power-smooth-${period}`,
-        longName: `Power ${duration}`,
+        longName: `Smoothed Power (${duration})`,
         value: x => H.number(x.stats && x.stats.power.smooth[period]),
         label,
         key,
         unit: 'w',
+        ...extra,
     }, {
         id: `power-smooth-${period}-wkg`,
-        longName: `Watts/kg ${duration}`,
+        longName: `Smoothed W/kg (${duration})`,
         value: x => humanWkg(x.stats && x.stats.power.smooth[period], x.athlete),
         label,
         key,
         unit: 'w/kg',
+        ...extra,
     }];
 }
 
 
-function makeSmoothHRField(period) {
+function makeSmoothHRField(period, extra) {
     const duration = shortDuration(period);
     return {
         id: `hr-smooth-${period}`,
+        longName: `Smoothed (${duration})`,
         value: x => H.number(x.stats && x.stats.hr.smooth[period]),
         label: duration,
         key: duration,
         unit: 'bpm',
+        ...extra,
     };
 }
 

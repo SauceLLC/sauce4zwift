@@ -381,19 +381,41 @@ function makeRPCError({name, message, stack}) {
     return e;
 }
 
-
 export function longPressListener(el, timeout, callback) {
+    let paused;
     let matureTimeout;
-    const onCancel = ev => {
+    const onPointerDown = ev => {
+        if (paused) {
+            return;
+        }
+        let complete = false;
+        el.classList.add('pointer-pressing');
+        const onCancel = ev => {
+            clearTimeout(matureTimeout);
+            document.removeEventListener('pointerup', onCancel, {once: true});
+            document.removeEventListener('pointercancel', onCancel, {once: true});
+            if (!complete) {
+                el.classList.remove('pointer-pressing');
+            }
+            complete = true;
+        };
+        document.addEventListener('pointerup', onCancel, {once: true});
+        document.addEventListener('pointercancel', onCancel, {once: true});
         clearTimeout(matureTimeout);
-        document.removeEventListener('pointerup', onCancel);
-        document.removeEventListener('pointercancel', onCancel);
+        matureTimeout = setTimeout(() => {
+            complete = true;
+            el.classList.remove('pointer-pressing');
+            callback(ev);
+        }, timeout);
     };
-    el.addEventListener('pointerdown', ev => {
-        document.addEventListener('pointerup', onCancel);
-        document.addEventListener('pointercancel', onCancel);
-        matureTimeout = setTimeout(() => callback(ev), timeout);
-    });
+    el.addEventListener('pointerdown', onPointerDown);
+    return {
+        setPaused: en => paused = en,
+        removeListener: () => {
+            el.removeEventListener('pointerdown', onPointerDown);
+            clearTimeout(matureTimeout);
+        }
+    };
 }
 
 
@@ -745,9 +767,9 @@ export class Renderer {
             return;
         }
         const dataField = activeEl.closest('[data-field]');
-        const id = dataField && dataField.dataset.field;
-        if (id) {
-            this.rotateField(id, dir);
+        const mappingId = dataField && dataField.dataset.field;
+        if (mappingId) {
+            this.rotateField(mappingId, dir);
         }
     }
 
@@ -768,46 +790,47 @@ export class Renderer {
         return adjIdx < 0 ? field.available.length + adjIdx : adjIdx;
     }
 
-    rotateField(groupId, dir=1) {
+    rotateField(mappingId, dir=1) {
         if (this.locked) {
             return;
         }
-        const field = this.fields.get(groupId);
+        const field = this.fields.get(mappingId);
         const idx = this.getAdjacentFieldIndex(field, dir);
         const id = field.available[idx].id;
-        this.setField(groupId, id);
+        this.setField(mappingId, id);
     }
 
-    setField(groupId, id) {
-        const field = this.fields.get(groupId);
+    setField(mappingId, id) {
+        const field = this.fields.get(mappingId);
         field.active = field.available.find(x => x.id === id);
         storage.set(field.storageKey, id);
-        console.debug('Switching field', groupId, id);
-        this.setFieldTooltip(groupId);
+        console.debug('Switching field mapping', mappingId, id);
+        this.setFieldTooltip(mappingId);
         this.render({force: true});
     }
 
     addRotatingFields(spec) {
         for (const mapping of spec.mapping) {
-            const id = mapping.id;
             const el = (spec.el || this._contentEl).querySelector(`[data-field="${mapping.id}"]`);
-            const storageKey = `${this.id}-${id}`;
-            let savedId = storage.get(storageKey);
-            if (savedId == null) {
-                savedId = mapping.default;
+            const storageKey = `${this.id}-${mapping.id}`;
+            const savedId = storage.get(storageKey);
+            let active;
+            for (const id of [savedId, mapping.default, 0]) {
+                active = typeof id === 'number' ? spec.fields[id] : spec.fields.find(x => x.id === id);
+                if (active) {
+                    break;
+                }
             }
-            const active = typeof savedId === 'number' ?
-                spec.fields[savedId] :
-                spec.fields.find(x => x.id === savedId);
-            if (!active) {
-                console.warn("Field ID not found:", savedId);
+            if (savedId !== active.id) {
+                console.warn("Storing updated field ID:", savedId, '->', active.id);
+                storage.set(storageKey, active.id);
             }
-            this.fields.set(id, {
-                id,
+            this.fields.set(mapping.id, {
+                id: mapping.id,
                 el,
                 storageKey,
                 available: spec.fields,
-                active: active || spec.fields[0],
+                active,
                 valueEl: el.querySelector('.value'),
                 labelEl: el.querySelector('.label'),
                 subLabelEl: el.querySelector('.sub-label'),
@@ -815,16 +838,30 @@ export class Renderer {
                 unitEl: el.querySelector('.unit'),
             });
             el.setAttribute('tabindex', 0);
-            //el.addEventListener('click', ev => this.rotateField(id));
-            longPressListener(el, 1500, ev => {
-                const field = this.fields.get(id);
+            this.setFieldTooltip(mapping.id);
+            if (this.locked) {
+                continue;
+            }
+            let anchorEl = el.querySelector('.editing-anchor');
+            if (!anchorEl) {
+                anchorEl = el;
+                el.classList.add('editing-anchor');
+            }
+            const handler = longPressListener(el, 1500, ev => {
+                handler.setPaused(true);
+                const field = this.fields.get(mapping.id);
                 const groups = new Set(field.available.map(x => x.group));
                 const select = document.createElement('select');
                 select.classList.add('rotating-field');
-                select.tabindex = '0';
                 for (const group of groups) {
-                    const optgrp = document.createElement('optgroup');
-                    optgrp.label = fields.fieldGroupNames[group];
+                    // group can be undefined, this is fine.
+                    let container;
+                    if (group) {
+                        container = document.createElement('optgroup');
+                        container.label = fields.fieldGroupNames[group] || group;
+                    } else {
+                        container = select;
+                    }
                     for (const x of field.available) {
                         if (x.group === group) {
                             const option = document.createElement('option');
@@ -833,36 +870,42 @@ export class Renderer {
                             }
                             option.value = x.id;
                             option.textContent = stripHTML(x.longName ? fGet(x.longName) : fGet(x.key));
-                            optgrp.append(option);
+                            container.append(option);
                         }
                     }
-                    select.append(optgrp);
+                    if (container !== select) {
+                        select.append(container);
+                    }
                 }
-                select.addEventListener('change', () => this.setField(id, select.value));
-                el.insertAdjacentElement('beforeend', select);
+                const endEditing = () => {
+                    if (!select.isConnected) {
+                        return;
+                    }
+                    el.classList.remove('editing');
+                    select.remove();
+                    handler.setPaused(false);
+                };
+                select.addEventListener('change', () => {
+                    this.setField(mapping.id, select.value);
+                    endEditing();
+                });
+                // Avoid DOM errors caused by DOM manipulation in onblur with microtask..
+                select.addEventListener('blur', () => queueMicrotask(endEditing));
+                el.classList.add('editing');
+                anchorEl.append(select);
                 select.focus();
-                select.addEventListener('blur', () => select.remove());
             });
-            this.setFieldTooltip(id);
         }
     }
 
-    setFieldTooltip(id) {
-        if (this.locked) {
-            return;
-        }
-        const field = this.fields.get(id);
-        const nextField = field.available[this.getAdjacentFieldIndex(field, 1)];
+    setFieldTooltip(mappingId) {
+        const field = this.fields.get(mappingId);
         const tooltip = field.active?.tooltip ? fGet(field.active.tooltip) + '\n\n' : '';
         try {
-            const name = stripHTML(
-                fGet(nextField.key, this._data) ||
-                fGet(nextField.label, this._data) ||
-                nextField.id);
-            field.el.title = `${tooltip}Click to change this field to the next option: "${name}". ` +
-                `Or use the Left/Right keys when focused.`;
+            field.el.title = `${tooltip}Long click/press to change this field or use ` +
+                `the Left/Right keys when focused.`;
         } catch(e) {
-            console.error("Failed to get tooltip name for next field:", id, nextField, e);
+            console.error("Failed to get tooltip name for next field:", mappingId, e);
         }
     }
 
