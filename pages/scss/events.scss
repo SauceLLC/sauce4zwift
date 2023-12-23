@@ -80,6 +80,17 @@ table {
                 opacity: 0.5;
             }
 
+            &.signedup {
+                background-color: color.shade(intrinsic-inverted, 0%, 0.5);
+                color: color.shade(intrinsic, 0%);
+                outline: 4px solid color.get(bg2);
+                outline-offset: -4px;
+
+                &:not(.expanded):hover {
+                    background-color: color.shade(intrinsic-inverted, 18%, 0.9) !important;
+                }
+            }
+
             &.hidden {
                 display: none;
                 + tr {
@@ -163,6 +174,7 @@ table {
             &.expanded,
             &.expanded + tr.details {
                 background-color: color.shade(primary, 3%, 0.8);
+                color: color.shade(primary, 100%);
             }
         }
     }
@@ -170,6 +182,15 @@ table {
     .event-info .desc {
         white-space: pre-line;
         line-height: 1.4; // condense a bit
+    }
+
+    .event-info .tags {
+        margin-top: 1em;
+
+        .badge {
+            --sat: 0;
+            padding: 0.45em 0.5em 0.2em;
+        }
     }
 
     .subgroups {
@@ -184,6 +205,28 @@ table {
                 flex-wrap: wrap;
                 justify-content: space-between;
                 align-items: center;
+                background-image: linear-gradient(to bottom,
+                    color.shade(intrinsic-inverted, 0%, 0.3),
+                    color.shade(intrinsic-inverted, 0%, 0.85));
+                border-radius: 0.28em;
+                padding: 1em;
+                color: color.get(intrinsic);
+
+                @media (min-width: 768px)  {
+                    // Make it overlay band style
+                    margin: 0 -1.5em;
+                }
+
+                .label {
+                    display: flex;
+                    align-items: center;
+
+                    .button[data-action] ms {
+                        font-size: 1.3em;
+                        margin-left: -0.4em;
+                        margin-right: 0.15em;
+                    }
+                }
 
                 .badge {
                     font-size: 1.065em;
@@ -337,7 +380,7 @@ table {
     }
 }
 
-@media only screen and (max-width: 600px)  {
+@media only screen and (max-width: 768px)  {
     html, body {
         font-size: 3.7mm;
     }
@@ -381,7 +424,7 @@ table {
                 }
             }
 
-            > tbody > tr.summary {
+            > tbody > tr.event-row {
                 position: relative;
 
                 &.expanded > td.name {

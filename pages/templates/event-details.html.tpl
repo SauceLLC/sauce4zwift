@@ -11,6 +11,13 @@
             </div>
         </div>
         <div class="desc">{{event.description}}</div>
+        <% if (event.allTags.length) { %>
+            <div class="tags">
+                <% for (const x of event.allTags) { %>
+                    <div class="badge">{{x}}</div>
+                <% } %>
+            </div>
+        <% } %>
     </div>
     <% if (obj.subgroups && obj.subgroups.length) { %>
         <div class="subgroups">
@@ -21,10 +28,16 @@
                 <div class="event-subgroup {{hasResults ? 'results' : ''}}"
                      data-event-subgroup-id="{{sg.id}}">
                     <header>
-                        <div>
+                        <div class="label">
                             {-eventBadge(sg.subgroupLabel)-}
                             <% if (hasResults) { %>
                                 <b>Results</b>
+                            <% } else { %>
+                                <% if (sg.signedUp) { %>
+                                    <div class="std button danger" data-action="unsignup"><ms>delete</ms>Revoke Signup</div>
+                                <% } else if (!subgroups.some(x => x.signedup)) { %>
+                                    <div class="std button primary" data-action="signup"><ms>add_box</ms>Sign up</div>
+                                <% } %>
                             <% } %>
                         </div>
                         <% if (!hasResults) { %>
@@ -134,7 +147,7 @@
                                         <td class="hr">{-humanNumber(x.sensorData.heartRateData?.avgHeartRate, {suffix: 'bpm', html: true})-}</td>
                                         <td class="weight">{-humanWeightClass(x.profileData.weightInGrams / 1000, {suffix: true, html: true})-}</td>
                                     </tr>
-                                    <tr class="details"><td colspan="5"></td></tr>
+                                    <tr class="details"><td colspan="7"></td></tr>
                                 <% } %>
                             </tbody>
                         </table>

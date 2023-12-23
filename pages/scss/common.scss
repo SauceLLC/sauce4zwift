@@ -743,10 +743,6 @@ a.std.button {
 
         &.icon-only {
             padding: 0.1rem;
-
-            ms {
-                margin-bottom: 0;
-            }
         }
 
         &.hidden {
@@ -803,6 +799,10 @@ a.std.button {
 
         &.xl {
             font-size: 1.4em;
+        }
+
+        ms {
+            margin-bottom: 0;
         }
     }
 
@@ -880,14 +880,15 @@ span.button.std {
 .badge {
     display: inline-block;
     --hue: 90deg;
+    --sat: 1;
     color: #fff;
     vertical-align: middle;
     line-height: 1;
     text-transform: uppercase;
     font-weight: 700;
     background-image: linear-gradient(to bottom,
-        hsl(var(--hue) 70% 40% / 0.86),
-        hsl(var(--hue) 87% 50% / 0.86));
+        hsl(var(--hue) calc(var(--sat) * 70%) 40% / 0.86),
+        hsl(var(--hue) calc(var(--sat) * 87%) 50% / 0.86));
     border-radius: 0.28em;
     padding: 0.3em 0.4em 0.27em;
     padding: 0.48em 0.6em 0.4em;

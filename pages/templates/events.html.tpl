@@ -12,10 +12,14 @@
     <thead class="loader" data-dir="prev"><tr><td colspan="6">Load More</td></tr></thead>
     <tbody class="events">
         <% for (const event of events) { %>
-            <tr class="summary {{event.ts < Date.now() ? 'started' : ''}}"
+            <tr class="summary event-row {{event.ts < Date.now() ? 'started' : ''}}
+                       {{event.eventSubgroups && event.eventSubgroups.some(x => x.signedUp) ? 'signedup' : ''}}"
                 data-event-id="{{event.id}}">
                 <td class="start">{{humanTime(event.eventStart, {style: 'date'})}}</td>
-                <td class="type">{{event.eventType.replace(/_/g, ' ')}}</td>
+                <td class="type">
+                    {{event.eventType.replace(/_/g, ' ')}}
+                    {-event.sport === 'running' ? '<ms large title="Run">directions_run</ms>' : ''-}
+                </td>
                 <td class="name">{{event.name}}</td>
                 <% if (event.durationInSeconds) { %>
                     <td>{-humanDuration(event.durationInSeconds, {suffix: true, html: true})-}</td>
@@ -32,9 +36,13 @@
                         <% } %>
                     <% } %>
                 </td>
-                <td>{{event.totalEntrantCount}}</td>
+                <td>
+                    {{event.totalEntrantCount}}<% if (event.followeeEntrantCount) { %>,
+                        <span title="People your follow"><ms small>follow_the_signs</ms> {{event.followeeEntrantCount}}</span>
+                    <% } %>
+                </td>
             </tr>
-            <tr class="details"><td colspan="6"></td></tr>
+            <tr class="details" data-event-id="{{event.id}}"><td colspan="6"></td></tr>
         <% } %>
     </tbody>
     <tfoot class="loader" data-dir="next"><tr><td colspan="6">Load More</td></tr></tfoot>

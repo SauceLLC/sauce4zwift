@@ -792,11 +792,15 @@ export class ZwiftAPI {
         return entrants;
     }
 
-    async eventSubgroupSignup(id) {
-        return await this.fetchJSON(`/api/events/subgroups/signup/${id}`, {method: 'POST'});
+    async deleteEventSignup(eventId) {
+        return await this.fetchJSON(`/api/events/signup/${eventId}`, {method: 'DELETE'});
     }
 
-    async getUpcomingEvents(id) {
+    async addEventSubgroupSignup(subgroupId) {
+        return await this.fetchJSON(`/api/events/subgroups/signup/${subgroupId}`, {method: 'POST'});
+    }
+
+    async getUpcomingEvents() {
         return await this.fetchJSON(`/api/events/upcoming`);
     }
 
@@ -1564,7 +1568,6 @@ export class GameMonitor extends events.EventEmitter {
                 console.error(e); // A little extra paranoid for now.
             }
         }
-        return this.leave();
     }
 
     async establishTCPChannel(session) {

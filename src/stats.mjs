@@ -356,6 +356,8 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.getEventSubgroup, {scope: this});
         rpc.register(this.getEventSubgroupEntrants, {scope: this});
         rpc.register(this.getEventSubgroupResults, {scope: this});
+        rpc.register(this.addEventSubgroupSignup, {scope: this});
+        rpc.register(this.deleteEventSignup, {scope: this});
         rpc.register(this.loadOlderEvents, {scope: this});
         rpc.register(this.loadNewerEvents, {scope: this});
         rpc.register(this.resetAthletesDB, {scope: this});
@@ -484,6 +486,34 @@ export class StatsProcessor extends events.EventEmitter {
             x.athlete = this._getAthlete(x.profileId);
             return x;
         });
+    }
+
+    async addEventSubgroupSignup(id) {
+        await this.zwiftAPI.addEventSubgroupSignup(id);
+        await this.refreshEventSignups();
+    }
+
+    async deleteEventSignup(id) {
+        await this.zwiftAPI.deleteEventSignup(id);
+        // Patch local cache of events until server updates (it's only eventually consistent)
+        const event = this._recentEvents.get(id);
+        if (event && event.eventSubgroups) {
+            for (const sg of event.eventSubgroups) {
+                sg.signedUp = false;
+            }
+        }
+        await this.refreshEventSignups();
+    }
+
+    async refreshEventSignups() {
+        const upcoming = await this.zwiftAPI.getUpcomingEvents();
+        const ourSignups = new Set(upcoming.filter(x => x.profileId === this.zwiftAPI.profile.id)
+            .map(x => x.eventSubgroupId));
+        for (const x of this._recentEventSubgroups.values()) {
+            if (ourSignups.has(x.id)) {
+                x.signedUp = true;
+            }
+        }
     }
 
     async loadOlderEvents() {
@@ -683,14 +713,11 @@ export class StatsProcessor extends events.EventEmitter {
     async getSegmentResults(id, options={}) {
         let segments;
         if (id == null) {
-            console.warn("XXX get live seg leaders");
             segments = await this.zwiftAPI.getLiveSegmentLeaders();
         } else {
             if (options.live) {
-                console.warn("XXX get live seg leaderboard");
                 segments = await this.zwiftAPI.getLiveSegmentLeaderboard(id, options);
             } else {
-                console.warn("XXX get seg results");
                 segments = await this.zwiftAPI.getSegmentResults(id, options);
             }
         }
@@ -1050,6 +1077,7 @@ export class StatsProcessor extends events.EventEmitter {
                 console.warn('Failed to load event:', x, e.status, e.message);
             }
         }
+        await this.refreshEventSignups();
     }
 
     onIncoming(...args) {
@@ -1063,7 +1091,6 @@ export class StatsProcessor extends events.EventEmitter {
     _onIncoming(packet) {
         const updatedEvents = [];
         const ignore = [
-            'groupEventUserRegistered',
             'PayloadSegmentResult',
             'notableMoment',
             'PayloadLeftWorld2',
@@ -1085,6 +1112,22 @@ export class StatsProcessor extends events.EventEmitter {
                     const eventId = x.payload.id;
                     if (eventId && !updatedEvents.includes(eventId)) {
                         updatedEvents.push(eventId);
+                    }
+                } else if (x.payloadType === 'groupEventUserRegistered') {
+                    const sg = this._recentEventSubgroups.get(x.payload.subgroupId);
+                    if (sg) {
+                        const event = this._recentEvents.get(sg.eventId);
+                        if (this._followingIds.has(x.payload.athleteId)) {
+                            debugger;
+                            sg.followeeEntrantCount++;
+                            if (event) {
+                                event.followeeEntrantCount++;
+                            }
+                        }
+                        sg.totalEntrantCount++;
+                        if (event) {
+                            event.totalEntrantCount++;
+                        }
                     }
                 } else if (!ignore.includes(x.payloadType)) {
                     console.debug("Unhandled WorldUpdate:", x);
@@ -1746,7 +1789,7 @@ export class StatsProcessor extends events.EventEmitter {
             });
             this.gameMonitor.start();
         }
-        this._zwiftMetaRefresh = 15000;
+        this._zwiftMetaRefresh = 10000;
         this._zwiftMetaId = setTimeout(() => this._zwiftMetaSync(), 0);
         if (this._autoResetEvents) {
             console.info("Auto reset for events enabled");
@@ -1781,6 +1824,54 @@ export class StatsProcessor extends events.EventEmitter {
         return Array.from(tags);
     }
 
+    _addEvent(event) {
+        const route = env.getRoute(event.routeId);
+        if (route) {
+            event.routeDistance = this._getRouteDistance(route, event.laps);
+            event.routeClimbing = this._getRouteClimbing(route, event.laps);
+        }
+        event.tags = event._tags.split(';');
+        event.allTags = this._parseEventTags(event);
+        event.ts = +new Date(event.eventStart);
+        event.courseId = env.getCourseId(event.mapId);
+        if (!this._recentEvents.has(event.id)) {
+            const start = new Date(event.ts).toLocaleString();
+            console.debug(`Event added [${event.id}] - ${start}:`, event.name);
+        }
+        if (event.eventSubgroups) {
+            for (const sg of event.eventSubgroups) {
+                sg.eventId = event.id;
+                sg.startOffset = +(new Date(sg.eventSubgroupStart)) - +(new Date(event.eventStart));
+                sg.allTags = Array.from(new Set([...this._parseEventTags(sg), ...event.allTags]));
+                sg.courseId = env.getCourseId(sg.mapId);
+                const rt = env.getRoute(sg.routeId);
+                if (rt) {
+                    sg.routeDistance = this._getRouteDistance(rt, sg.laps);
+                    sg.routeClimbing = this._getRouteClimbing(rt, sg.laps);
+                }
+                this._recentEventSubgroups.set(sg.id, sg);
+            }
+        }
+        this._recentEvents.set(event.id, event);
+        return event;
+    }
+
+    _addMeetup(meetup) {
+        debugger;
+        meetup.routeDistance = this.getRouteDistance(meetup.routeId, meetup.laps, 'meetup');
+        meetup.routeClimbing = this.getRouteClimbing(meetup.routeId, meetup.laps, 'meetup');
+        meetup.type = 'MEETUP';
+        meetup.totalEntrantCount = meetup.acceptedTotalCount;
+        meetup.allTags = this._parseEventTags(meetup);
+        meetup.ts = +new Date(meetup.eventStart);
+        if (meetup.eventSubgroupId) {
+            // Meetups are basicaly a hybrid event/subgroup
+            meetup.eventId = meetup.id;
+            this._recentEventSubgroups.set(meetup.eventSubgroupId, meetup);
+        }
+        this._recentEvents.set(meetup.id, meetup);
+    }
+
     _zwiftMetaSync() {
         if (!this._active || !this.zwiftAPI.isAuthenticated()) {
             console.warn("Skipping social network update because not logged into zwift");
@@ -1796,39 +1887,8 @@ export class StatsProcessor extends events.EventEmitter {
             // The event feed APIs are horribly broken so we need to refresh more often
             // at startup to try and fill in the gaps.
             this._zwiftMetaId = setTimeout(() => this._zwiftMetaSync(), this._zwiftMetaRefresh);
-            this._zwiftMetaRefresh = Math.min(5 * 60 * 1000, this._zwiftMetaRefresh * 2);
+            this._zwiftMetaRefresh = Math.min(10 * 60 * 1000, this._zwiftMetaRefresh * 1.25);
         });
-    }
-
-    _addEvent(event) {
-        const route = env.getRoute(event.routeId);
-        if (route) {
-            event.routeDistance = this._getRouteDistance(route, event.laps);
-            event.routeClimbing = this._getRouteClimbing(route, event.laps);
-        }
-        event.tags = event._tags.split(';');
-        event.allTags = this._parseEventTags(event);
-        event.ts = +new Date(event.eventStart);
-        event.courseId = env.getCourseId(event.mapId);
-        if (!this._recentEvents.has(event.id)) {
-            const start = new Date(event.ts).toLocaleString();
-            console.debug(`Event added [${event.id}] - ${start}:`, event.name);
-        }
-        this._recentEvents.set(event.id, event);
-        if (event.eventSubgroups) {
-            for (const sg of event.eventSubgroups) {
-                const rt = env.getRoute(sg.routeId);
-                if (rt) {
-                    sg.routeDistance = this._getRouteDistance(rt, sg.laps);
-                    sg.routeClimbing = this._getRouteClimbing(rt, sg.laps);
-                }
-                sg.startOffset = +(new Date(sg.eventSubgroupStart)) - +(new Date(event.eventStart));
-                sg.allTags = Array.from(new Set([...this._parseEventTags(sg), ...event.allTags]));
-                sg.courseId = env.getCourseId(sg.mapId);
-                this._recentEventSubgroups.set(sg.id, {event, ...sg});
-            }
-        }
-        return event;
     }
 
     async __zwiftMetaSync() {
@@ -1838,22 +1898,12 @@ export class StatsProcessor extends events.EventEmitter {
             addedEventsCount += !this._recentEvents.has(x.id);
             this._addEvent(x);
         }
-        // XXX is this fixed now? We are using the same query args as the game now..
-        const someMeetups = await this.zwiftAPI.getPrivateEventFeed();
-        for (const x of someMeetups) {
-            x.routeDistance = this.getRouteDistance(x.routeId, x.laps, 'meetup');
-            x.routeClimbing = this.getRouteClimbing(x.routeId, x.laps, 'meetup');
-            x.type = 'EVENT_TYPE_MEETUP';
-            x.totalEntrantCount = x.acceptedTotalCount;
-            x.allTags = this._parseEventTags(x);
-            x.ts = +new Date(x.eventStart);
+        const meetups = await this.zwiftAPI.getPrivateEventFeed();
+        for (const x of meetups) {
             addedEventsCount += !this._recentEvents.has(x.id);
-            this._recentEvents.set(x.id, x);
-            if (x.eventSubgroupId) {
-                // Meetups are basicaly a hybrid event/subgroup
-                this._recentEventSubgroups.set(x.eventSubgroupId, {event: x, ...x});
-            }
+            this._addMeetup(x);
         }
+        await this.refreshEventSignups();
         let backoff = 100;
         let absent = new Set(this._followingIds);
         await this.zwiftAPI.getFollowing(this.athleteId, {

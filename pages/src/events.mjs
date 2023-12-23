@@ -58,13 +58,15 @@ function applyEventFilters(el) {
             re = new RegExp(filterText, 'i');
         } catch(e) {/*no-pragma*/}
         for (const x of allEvents.values()) {
-            const text = `name:${x.name} type:${x.eventType.replace(/_/g, ' ')} description:${x.description}`;
+            const text = `name:${x.name}\n` +
+                         `type:${x.eventType.replace(/_/g, ' ')}\n` +
+                         `description:${x.description}`;
             if (re ? !text.match(re) : !text.toLowerCase().includes(filterText)) {
                 hide.add('' + x.id);
             }
         }
     }
-    for (const x of el.querySelectorAll('table.events > tbody > tr[data-event-id]')) {
+    for (const x of el.querySelectorAll('table.events > tbody > tr.summary[data-event-id]')) {
         x.classList.toggle('hidden', hide.has(x.dataset.eventId));
     }
 }
@@ -110,7 +112,27 @@ export async function main() {
             await render();
         }
     });
-    const nearest = contentEl.querySelector('table.events > tbody > tr[data-event-id]:not(.started)');
+    document.documentElement.addEventListener('click', async ev => {
+        const button = ev.target.closest('.button[data-action]');
+        if (!button) {
+            return;
+        }
+        const action = button.dataset.action;
+        if (action === 'signup') {
+            const sgId = Number(button.closest('[data-event-subgroup-id]').dataset.eventSubgroupId);
+            await common.rpc.addEventSubgroupSignup(sgId);
+            // XXX
+            await loadEventsWithRetry();
+            await render(); // XXX
+        } else if (action === 'unsignup') {
+            const eventId = Number(button.closest('[data-event-id]').dataset.eventId);
+            await common.rpc.deleteEventSignup(eventId);
+            // XXX
+            await loadEventsWithRetry();
+            await render(); // XXX
+        }
+    });
+    const nearest = contentEl.querySelector('table.events > tbody > tr.summary[data-event-id]:not(.started)');
     if (nearest) {
         nearest.scrollIntoView({block: 'center'});
     }
