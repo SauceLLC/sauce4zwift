@@ -1,5 +1,6 @@
 import * as sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
+import * as elevationMod from './elevation.mjs';
 import {render as profileRender} from './profile.mjs';
 
 common.enableSentry();
@@ -13,6 +14,7 @@ let flags;
 let worldList;
 let gcs;
 
+const chartRefs = new Set();
 const allEvents = new Map();
 const contentEl = document.querySelector('#content');
 const athletes = new Map();
@@ -156,6 +158,30 @@ export async function main() {
 }
 
 
+async function createElevationProfile(el, sg) {
+    const elProfile = new elevationMod.SauceElevationProfile({
+        el,
+        worldList,
+        preferRoute: true,
+    });
+    await elProfile.setCourse(sg.courseId);
+    await elProfile.setRoute(sg.routeId, {laps: sg.laps, eventSubgroupId: sg.id, hideLaps: true});
+    chartRefs.add(new WeakRef(elProfile.chart));
+}
+
+
+function resizeCharts() {
+    for (const r of chartRefs) {
+        const c = r.deref();
+        if (!c) {
+            chartRefs.delete(r);
+        } else {
+            c.resize();
+        }
+    }
+}
+
+
 async function render() {
     const events = Array.from(allEvents.values());
     events.sort((a, b) => a.ts - b.ts);
@@ -193,6 +219,11 @@ async function render() {
             eventBadge: common.eventBadge,
             fmtFlag: common.fmtFlag,
         }));
+        for (const sg of subgroups) {
+            const el = eventDetailsEl.querySelector(`[data-event-subgroup-id="${sg.id}"] .elevation-chart`);
+            createElevationProfile(el, sg);
+        }
+        resizeCharts();
         eventSummaryEl.scrollIntoView({block: 'start'});
         for (const t of eventDetailsEl.querySelectorAll('table.expandable')) {
             let cleanup;
@@ -232,3 +263,6 @@ export async function settingsMain() {
     common.initInteractionListeners();
     await common.initSettingsForm('form')();
 }
+
+
+addEventListener('resize', resizeCharts);

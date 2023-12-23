@@ -58,6 +58,8 @@
                         <div class="name">{{sg.name}}</div>
                     </header>
 
+                    <div class="elevation-chart"></div>
+
                     <% if (!sg.results || !sg.results.length) { %>
                         <table class="entrants expandable">
                             <thead>

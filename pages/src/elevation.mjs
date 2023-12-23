@@ -200,7 +200,7 @@ export class SauceElevationProfile {
         }
     }
 
-    setRoute = common.asyncSerialize(async function(id, {laps=1, eventSubgroupId}={}) {
+    setRoute = common.asyncSerialize(async function(id, {laps=1, eventSubgroupId, hideLaps}={}) {
         this.road = null;
         this.reverse = null;
         this.routeId = id;
@@ -219,15 +219,17 @@ export class SauceElevationProfile {
         const notLeadin = this.route.manifest.findIndex(x => !x.leadin);
         const lapStartIdx = notLeadin === -1 ? 0 : this.curvePath.nodes.findIndex(x => x.index === notLeadin);
         if (lapStartIdx) {
-            markLines.push({
-                xAxis: distances[lapStartIdx],
-                lineStyle: {width: 6, type: 'solid'},
-                label: {
-                    distance: 7,
-                    position: 'insideMiddleBottom',
-                    formatter: `LAP 1`
-                }
-            });
+            if (!hideLaps) {
+                markLines.push({
+                    xAxis: distances[lapStartIdx],
+                    lineStyle: {width: 6, type: 'solid'},
+                    label: {
+                        distance: 7,
+                        position: 'insideMiddleBottom',
+                        formatter: `LAP 1`
+                    }
+                });
+            }
             this._routeLeadinDistance = distances[lapStartIdx];
         } else {
             this._routeLeadinDistance = 0;

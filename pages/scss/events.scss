@@ -246,9 +246,17 @@ table {
             }
         }
 
+        .elevation-chart {
+            font-size: 2.5em;
+            height: 3em;
+            margin: -0.5em 0 0;
+            mix-blend-mode: luminosity;
+            background-image: linear-gradient(to top, color.get(intrinsic-inverted, 0.5), transparent 80%);
+        }
+
         table.entrants {
             width: 100%;
-            margin-top: 1em;
+            //margin-top: 1em; // XXX try without for elevtion profile butting
             border-radius: 0.3em;
             overflow: hidden;
             font-size: 0.9em;
