@@ -34,8 +34,8 @@
                                 <b>Results</b>
                             <% } else { %>
                                 <% if (sg.signedUp) { %>
-                                    <div class="std button danger" data-action="unsignup"><ms>delete</ms>Revoke Signup</div>
-                                <% } else if (!subgroups.some(x => x.signedup)) { %>
+                                    <div class="std button danger" data-action="unsignup"><ms>delete</ms>Leave</div>
+                                <% } else if (!subgroups.some(x => x.signedUp)) { %>
                                     <div class="std button primary" data-action="signup"><ms>add_box</ms>Sign up</div>
                                 <% } %>
                             <% } %>

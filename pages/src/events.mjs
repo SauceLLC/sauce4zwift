@@ -7,15 +7,16 @@ common.settingsStore.setDefault({});
 
 let filterText;
 let filterType;
+let templates;
+let nations;
+let flags;
+let worldList;
+let gcs;
 
 const allEvents = new Map();
 const contentEl = document.querySelector('#content');
-let gcs;
-let eventDetailTpl;
-let profileTpl;
-
 const athletes = new Map();
-const pendingNationInit = common.initNationFlags();
+
 
 const _fetchingRoutes = new Map();
 async function getRoute(id) {
@@ -23,6 +24,14 @@ async function getRoute(id) {
         _fetchingRoutes.set(id, common.rpc.getRoute(id));
     }
     return await _fetchingRoutes.get(id);
+}
+
+
+async function getTemplates(basenames) {
+    return Object.fromEntries(await Promise.all(basenames.map(k =>
+        sauce.template.getTemplate(`templates/${k}.html.tpl`).then(v =>
+            // make it camelCase...
+            [k.replace(/[-_/]+(.)/g, (_, x) => x.toUpperCase()), v]))));
 }
 
 
@@ -74,12 +83,19 @@ function applyEventFilters(el) {
 
 export async function main() {
     common.initInteractionListeners();
-    eventDetailTpl = await sauce.template.getTemplate(`templates/event-details.html.tpl`);
-    profileTpl = await sauce.template.getTemplate(`templates/profile.html.tpl`);
-    gcs = await common.rpc.getGameConnectionStatus();
+    [,templates, {nations, flags}, worldList, gcs] = await Promise.all([
+        loadEventsWithRetry(),
+        getTemplates([
+            'events/list',
+            'events/summary',
+            'events/details',
+            'profile',
+        ]),
+        common.initNationFlags(),
+        common.getWorldList(),
+        common.rpc.getGameConnectionStatus(),
+    ]);
     common.subscribe('status', x => (gcs = x), {source: 'gameConnection'});
-    await loadEventsWithRetry();
-    await render();
     document.querySelector('#titlebar select[name="type"]').addEventListener('change', ev => {
         const type = ev.currentTarget.value;
         filterType = type || undefined;
@@ -132,6 +148,7 @@ export async function main() {
             await render(); // XXX
         }
     });
+    await render();
     const nearest = contentEl.querySelector('table.events > tbody > tr.summary[data-event-id]:not(.started)');
     if (nearest) {
         nearest.scrollIntoView({block: 'center'});
@@ -140,10 +157,10 @@ export async function main() {
 
 
 async function render() {
-    const eventsTpl = await sauce.template.getTemplate(`templates/events.html.tpl`);
     const events = Array.from(allEvents.values());
     events.sort((a, b) => a.ts - b.ts);
-    const frag = await eventsTpl({
+    const frag = await templates.eventsList({
+        templates,
         events,
         eventBadge: common.eventBadge,
     });
@@ -151,7 +168,6 @@ async function render() {
     common.initExpanderTable(frag.querySelector('table'), async (eventDetailsEl, eventSummaryEl) => {
         const event = allEvents.get(Number(eventSummaryEl.dataset.eventId));
         const route = await getRoute(event.routeId);
-        const worldList = await common.getWorldList();
         const world = worldList.find(x =>
             event.mapId ? x.worldId === event.mapId : x.stringId === route.world);
         const subgroups = event.eventSubgroups ? await Promise.all(event.eventSubgroups.map(async sg => {
@@ -168,7 +184,7 @@ async function render() {
             }
         }));
         console.info(event, subgroups);
-        eventDetailsEl.append(await eventDetailTpl({
+        eventDetailsEl.append(await templates.eventsDetails({
             event,
             world: world ? world.name : '',
             route,
@@ -178,12 +194,11 @@ async function render() {
             fmtFlag: common.fmtFlag,
         }));
         eventSummaryEl.scrollIntoView({block: 'start'});
-        const {nations, flags} = await pendingNationInit;
         for (const t of eventDetailsEl.querySelectorAll('table.expandable')) {
             let cleanup;
             common.initExpanderTable(t, async (el, entrantSummaryEl) => {
                 const athleteId = Number(entrantSummaryEl.dataset.id);
-                cleanup = await profileRender(el, profileTpl, {
+                cleanup = await profileRender(el, templates.profile, {
                     embedded: true,
                     athleteId,
                     athlete: athletes.get(athleteId),

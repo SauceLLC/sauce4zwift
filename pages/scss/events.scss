@@ -221,10 +221,16 @@ table {
                     display: flex;
                     align-items: center;
 
-                    .button[data-action] ms {
-                        font-size: 1.3em;
-                        margin-left: -0.4em;
-                        margin-right: 0.15em;
+                    .button[data-action] {
+                        text-transform: uppercase;
+                        font-weight: 600;
+                        font-size: 0.74em;
+
+                        ms {
+                            font-size: 1.2em;
+                            margin-left: -0.4em;
+                            margin-right: 0.15em;
+                        }
                     }
                 }
 
