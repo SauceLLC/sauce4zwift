@@ -681,7 +681,7 @@ export class ZwiftAPI {
     }
 
     async getEventFeed(options={}) {
-        // WARNING: Does not work for historical events.
+        // WARNING: Does not work for full ranges well outside the present.
         const urn = '/api/events/search';
         const HOUR = 3600000;
         const from = new Date(options.from || (worldTimer.serverNow() - 1 * HOUR));
@@ -695,7 +695,7 @@ export class ZwiftAPI {
         return obj.events;
     }
 
-    async getEventFeedHistoricalBuggy(options={}) {
+    async getEventFeedFullRangeBuggy(options={}) {
         // WARNING: this API is not stable.  It returns dups and skips entries on page boundaries.
         const urn = '/api/event-feed';
         const from = options.from && +options.from;
@@ -709,7 +709,7 @@ export class ZwiftAPI {
         let done;
         while (!done) {
             const page = await this.fetchJSON(urn, {query, protobuf: 'Events'});
-            for (const x of page.data) {
+            await Promise.all(page.data.map(async x => {
                 if (to && new Date(x.event.eventStart) >= to) {
                     done = true;
                 } else if (!ids.has(x.event.id)) {
@@ -720,7 +720,7 @@ export class ZwiftAPI {
                     }
                     ids.add(x.event.id);
                 }
-            }
+            }));
             if (!page.data.length || (limit && page.data.length < limit) || ++pages >= pageLimit) {
                 break;
             }

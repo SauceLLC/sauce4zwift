@@ -490,16 +490,22 @@ export class StatsProcessor extends events.EventEmitter {
         if (!this._lastLoadOlderEventsTS) {
             const byTS = Array.from(this._recentEvents.values());
             if (!byTS.length) {
-                this._lastLoadOlderEventsTS = Date.now();
+                this._lastLoadOlderEventsTS = worldTimer.serverNow();
             } else {
                 byTS.sort((a, b) => a.ts - b.ts);
                 this._lastLoadOlderEventsTS = byTS[0].ts;
             }
         }
-        const to = new Date(this._lastLoadOlderEventsTS);
-        const from = new Date(+to - 1 * 3600 * 1000);
-        this._lastLoadOlderEventsTS = +from;
-        const zEvents = await this.zwiftAPI.getEventFeedHistoricalBuggy({from, to});
+        const range = 1.5 * 3600 * 1000;
+        const to = this._lastLoadOlderEventsTS;
+        const from = to - range;
+        this._lastLoadOlderEventsTS = from;
+        let zEvents = await this.zwiftAPI.getEventFeed({from, to});
+        if (!zEvents || !zEvents.length || zEvents.every(x => this._recentEvents.has(x.id))) {
+            console.warn("Exhausted recent event feed, resorting to buggy event feed:", {from, to});
+            // Need to double range to fill in possible gaps from boundary
+            zEvents = await this.zwiftAPI.getEventFeedFullRangeBuggy({from, to: to + range});
+        }
         return zEvents ? zEvents.map(x => this._addEvent(x)) : [];
     }
 
@@ -507,16 +513,22 @@ export class StatsProcessor extends events.EventEmitter {
         if (!this._lastLoadNewerEventsTS) {
             const byTS = Array.from(this._recentEvents.values());
             if (!byTS.length) {
-                this._lastLoadNewerEventsTS = Date.now();
+                this._lastLoadNewerEventsTS = worldTimer.serverNow();
             } else {
                 byTS.sort((a, b) => b.ts - a.ts);
                 this._lastLoadNewerEventsTS = byTS[0].ts;
             }
         }
-        const from = new Date(this._lastLoadNewerEventsTS);
-        const to = new Date(+from + 1 * 3600 * 1000);
+        const range = 3 * 3600 * 1000;
+        const from = this._lastLoadNewerEventsTS;
+        const to = from + range;
         this._lastLoadNewerEventsTS = +to;
-        const zEvents = await this.zwiftAPI.getEventFeed({from, to});
+        let zEvents = await this.zwiftAPI.getEventFeed({from, to});
+        if (!zEvents || !zEvents.length || zEvents.every(x => this._recentEvents.has(x.id))) {
+            console.warn("Exhausted recent event feed, resorting to buggy event feed:", {from, to});
+            // Need to double range to fill in possible gaps from boundary
+            zEvents = await this.zwiftAPI.getEventFeedFullRangeBuggy({from: from - range, to});
+        }
         return zEvents ? zEvents.map(x => this._addEvent(x)) : [];
     }
 
@@ -1734,7 +1746,7 @@ export class StatsProcessor extends events.EventEmitter {
             });
             this.gameMonitor.start();
         }
-        this._zwiftMetaRefresh = 60000;
+        this._zwiftMetaRefresh = 15000;
         this._zwiftMetaId = setTimeout(() => this._zwiftMetaSync(), 0);
         if (this._autoResetEvents) {
             console.info("Auto reset for events enabled");
@@ -1784,7 +1796,7 @@ export class StatsProcessor extends events.EventEmitter {
             // The event feed APIs are horribly broken so we need to refresh more often
             // at startup to try and fill in the gaps.
             this._zwiftMetaId = setTimeout(() => this._zwiftMetaSync(), this._zwiftMetaRefresh);
-            this._zwiftMetaRefresh = Math.min(30 * 60 * 1000, this._zwiftMetaRefresh * 2);
+            this._zwiftMetaRefresh = Math.min(5 * 60 * 1000, this._zwiftMetaRefresh * 2);
         });
     }
 
@@ -1799,7 +1811,8 @@ export class StatsProcessor extends events.EventEmitter {
         event.ts = +new Date(event.eventStart);
         event.courseId = env.getCourseId(event.mapId);
         if (!this._recentEvents.has(event.id)) {
-            console.debug('New event added:', event.name, event.id);
+            const start = new Date(event.ts).toLocaleString();
+            console.debug(`Event added [${event.id}] - ${start}:`, event.name);
         }
         this._recentEvents.set(event.id, event);
         if (event.eventSubgroups) {
