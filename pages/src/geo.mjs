@@ -315,6 +315,10 @@ export async function main() {
             }
         });
         common.subscribe('chat', chat => {
+            if (chat.muted) {
+                console.debug("Ignoring muted chat message");
+                return;
+            }
             const ent = zwiftMap.getEntity(chat.from);
             if (ent) {
                 ent.addChatMessage(chat.message);
