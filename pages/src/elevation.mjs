@@ -243,15 +243,17 @@ export class SauceElevationProfile {
                 elevations.push(this.route.elevations[i]);
                 grades.push(this.route.grades[i]);
             }
-            markLines.push({
-                xAxis: this._routeLeadinDistance + lapDistance * lap,
-                lineStyle: {width: 5, type: 'solid'},
-                label: {
-                    distance: 7,
-                    position: 'insideMiddleBottom',
-                    formatter: `LAP ${lap + 1}`,
-                }
-            });
+            if (!hideLaps) {
+                markLines.push({
+                    xAxis: this._routeLeadinDistance + lapDistance * lap,
+                    lineStyle: {width: 5, type: 'solid'},
+                    label: {
+                        distance: 7,
+                        position: 'insideMiddleBottom',
+                        formatter: `LAP ${lap + 1}`,
+                    }
+                });
+            }
         }
         this.setData(distances, elevations, grades, {markLines});
         return this.route;
