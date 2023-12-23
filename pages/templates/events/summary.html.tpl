@@ -10,7 +10,10 @@
     <% if (event.durationInSeconds) { %>
         <td>{-humanDuration(event.durationInSeconds, {suffix: true, html: true})-}</td>
     <% } else { %>
-        <td>{-humanDistance(event.distanceInMeters || event.routeDistance, {suffix: true, html: true})-}</td>
+        <td>
+            {-humanDistance(event.distanceInMeters || event.routeDistance, {suffix: true, html: true})-}
+            <small title="Climbing elevation gain">({-humanElevation(event.routeClimbing, {suffix: true, html: true})-} <ms>landscape</ms>)</small>
+        </td>
     <% } %>
     <td class="groups">
         <% if (event.eventSubgroups) { %>
