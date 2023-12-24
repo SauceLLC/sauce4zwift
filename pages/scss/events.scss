@@ -175,21 +175,37 @@ table {
         }
     }
 
-    .event-info .desc {
-        white-space: pre-line;
-        line-height: 1.4; // condense a bit
-    }
+    .event-info {
+        display: flow-root;
 
-    .event-info .tags {
-        margin-top: 1em;
+        .card {
+            float: right;
+        }
 
-        .badge {
-            --sat: 0;
-            padding: 0.45em 0.5em 0.2em;
+        .desc {
+            white-space: pre-line;
+            line-height: 1.4; // condense a bit
+        }
+
+        .tags {
+            margin-top: 1em;
+
+            .badge {
+                --sat: 0;
+                padding: 0.45em 0.5em 0.2em;
+            }
         }
     }
 
+    .elevation-chart {
+        font-size: 2.5em;
+        height: 2em;
+        mix-blend-mode: luminosity;
+    }
+
     .subgroups {
+        padding-top: 1em;
+
         .event-subgroup {
             margin: 1em 0 2em;
             padding: 1em;
@@ -215,8 +231,19 @@ table {
                 }
 
                 .label {
+                    position: relative;
                     display: flex;
                     align-items: center;
+
+                    .group {
+                        position: absolute;
+                        top: -1.35em;
+                        left: 1px;
+                        font-variant: all-petite-caps;
+                        font-weight: 800;
+                        font-size: 0.85em;
+                        opacity: 0.6;
+                    }
 
                     .button[data-action] {
                         text-transform: uppercase;
@@ -244,16 +271,16 @@ table {
         }
 
         .elevation-chart {
-            font-size: 2.5em;
-            height: 3em;
-            margin: -0.5em 0 0;
-            mix-blend-mode: luminosity;
-            background-image: linear-gradient(to top, color.get(intrinsic-inverted, 0.5), transparent 80%);
+            background-image: linear-gradient(to top, color.get(intrinsic-inverted, 0.5), transparent);
+        }
+
+        .elevation-chart + table.entrants {
+            margin-top: 0;
         }
 
         table.entrants {
             width: 100%;
-            //margin-top: 1em; // XXX try without for elevtion profile butting
+            margin-top: 1em;
             border-radius: 0.3em;
             overflow: hidden;
             font-size: 0.9em;
@@ -312,8 +339,7 @@ table {
     }
 
     .card {
-        float: right;
-        max-width: clamp(50%, 400px, 100%);
+        width: clamp(50%, 400px, 100%);
         margin-left: 0.5em;
         margin-bottom: 0.5em;
         border-radius: 0.5em;
@@ -331,12 +357,20 @@ table {
             align-items: center;
             justify-content: space-between;
 
+            &:not(:last-child) {
+                padding-bottom: 0;
+            }
+
             ms {
                 opacity: 0.8;
             }
 
             > * {
                 padding: 0.2em;
+            }
+
+            a img {
+                height: 1.5em;
             }
         }
     }

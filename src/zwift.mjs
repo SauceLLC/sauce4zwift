@@ -501,6 +501,7 @@ export class ZwiftAPI {
     }
 
     async getProfiles(ids, options) {
+        ids = Array.from(ids);
         const unordered = pbToObject(await this.fetchPB('/api/profiles', {
             query: new URLSearchParams(ids.map(id => ['id', id])),
             protobuf: 'PlayerProfiles',

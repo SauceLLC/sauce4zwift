@@ -482,10 +482,24 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     async getEventSubgroupResults(id) {
-        return (await this.zwiftAPI.getEventSubgroupResults(id)).map(x => {
-            x.athlete = this._getAthlete(x.profileId);
-            return x;
-        });
+        const missingProfiles = new Set();
+        const results = await this.zwiftAPI.getEventSubgroupResults(id);
+        for (const x of results) {
+            const athlete = this._getAthlete(x.profileId);
+            if (!athlete) {
+                missingProfiles.add(x.profileId);
+            }
+        }
+        if (missingProfiles.size) {
+            for (const p of await this.zwiftAPI.getProfiles(missingProfiles)) {
+                if (p) {
+                    this._updateAthlete(p.id, this._profileToAthlete(p));
+                }
+            }
+        }
+        for (const x of results) {
+            x.athlete = this._getAthlete(x.profileId) || {};
+        }
     }
 
     async addEventSubgroupSignup(id) {
@@ -1857,18 +1871,17 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _addMeetup(meetup) {
-        debugger;
         meetup.routeDistance = this.getRouteDistance(meetup.routeId, meetup.laps, 'meetup');
         meetup.routeClimbing = this.getRouteClimbing(meetup.routeId, meetup.laps, 'meetup');
-        meetup.type = 'MEETUP';
+        meetup.eventType = 'MEETUP';
         meetup.totalEntrantCount = meetup.acceptedTotalCount;
+        meetup.followeeEntrantCount = meetup.acceptedFolloweeCount;
         meetup.allTags = this._parseEventTags(meetup);
         meetup.ts = +new Date(meetup.eventStart);
-        if (meetup.eventSubgroupId) {
-            // Meetups are basicaly a hybrid event/subgroup
-            meetup.eventId = meetup.id;
-            this._recentEventSubgroups.set(meetup.eventSubgroupId, meetup);
-        }
+        meetup.courseId = env.getCourseId(meetup.mapId);
+        // Meetups are basicaly a hybrid event/subgroup
+        meetup.eventSubgroups = [{...meetup, id: meetup.eventSubgroupId, eventId: meetup.id}];
+        this._recentEventSubgroups.set(meetup.eventSubgroupId, meetup);
         this._recentEvents.set(meetup.id, meetup);
     }
 

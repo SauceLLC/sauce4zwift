@@ -48,9 +48,15 @@ async function loadEventsWithRetry() {
         }
         await sauce.sleep(retry);
     }
-    for (const x of data) {
+    await Promise.all(data.map(async x => {
         allEvents.set(x.id, x);
-    }
+        x.route = await getRoute(x.routeId);
+        if (x.eventSubgroups) {
+            for (const sg of x.eventSubgroups) {
+                sg.route = await getRoute(sg.routeId);
+            }
+        }
+    }));
 }
 
 
@@ -163,9 +169,15 @@ async function createElevationProfile(el, sg) {
         el,
         worldList,
         preferRoute: true,
+        disableAthletePoints: true,
     });
     await elProfile.setCourse(sg.courseId);
-    await elProfile.setRoute(sg.routeId, {laps: sg.laps, eventSubgroupId: sg.id, hideLaps: true});
+    await elProfile.setRoute(sg.routeId, {
+        laps: sg.laps,
+        distance: sg.distanceInMeters,
+        eventSubgroupId: sg.id,
+        hideLaps: true,
+    });
     chartRefs.add(new WeakRef(elProfile.chart));
 }
 
@@ -193,16 +205,14 @@ async function render() {
     const cleanupCallbacks = new Set();
     common.initExpanderTable(frag.querySelector('table'), async (eventDetailsEl, eventSummaryEl) => {
         const event = allEvents.get(Number(eventSummaryEl.dataset.eventId));
-        const route = await getRoute(event.routeId);
         const world = worldList.find(x =>
-            event.mapId ? x.worldId === event.mapId : x.stringId === route.world);
+            event.mapId ? x.worldId === event.mapId : x.stringId === event.route.world);
         const subgroups = event.eventSubgroups ? await Promise.all(event.eventSubgroups.map(async sg => {
             const entrants = await common.rpc.getEventSubgroupEntrants(sg.id);
-            const sgRoute = await getRoute(sg.routeId);
             for (const x of entrants) {
                 athletes.set(x.id, x.athlete);
             }
-            return {...sg, route: sgRoute, entrants};
+            return {...sg, entrants};
         })) : [];
         await Promise.all(subgroups.map(async x => {
             if (x.eventSubgroupStart < Date.now()) {
@@ -211,16 +221,16 @@ async function render() {
         }));
         console.info(event, subgroups);
         eventDetailsEl.append(await templates.eventsDetails({
-            event,
             world: world ? world.name : '',
-            route,
+            event,
             subgroups,
             teamBadge: common.teamBadge,
             eventBadge: common.eventBadge,
             fmtFlag: common.fmtFlag,
         }));
-        for (const sg of subgroups) {
-            const el = eventDetailsEl.querySelector(`[data-event-subgroup-id="${sg.id}"] .elevation-chart`);
+        for (const el of eventDetailsEl.querySelectorAll('.elevation-chart[data-sg-id]')) {
+            const sg = subgroups.find(x => x.id === Number(el.dataset.sgId));
+            console.log({sg});
             createElevationProfile(el, sg);
         }
         resizeCharts();

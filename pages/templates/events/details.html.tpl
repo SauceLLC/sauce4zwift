@@ -1,14 +1,33 @@
 <div class="container">
+    <% const uRoutes = new Set(event.eventSubgroups ? event.eventSubgroups.map(x => x.route) : [event.route]); %>
+    <% const uLaps = new Set(event.eventSubgroups ? event.eventSubgroups.map(x => x.laps) : [event.laps]); %>
+    <% const sameRoute = uRoutes.size === 1 && uLaps.size === 1; %>
     <div class="event-info">
         <div class="card">
             <img class="event-image" src="{{event.imageUrl}}"/>
             <div class="meta">
                 <div title="Event World">{{world}} <ms>map</ms></div>
-                <div title="Route">{{(event.laps && event.laps > 1) ? event.laps + ' x ' : ''}}{{route.name}} <ms>route</ms></div>
-                <div title="Climbing">{-humanElevation(event.routeClimbing, {suffix: true, html: true})-} <ms>landscape</ms></div>
-                <div title="View event on Zwift Power"><a href="https://zwiftpower.com/events.php?zid={{event.id}}"
-                    target="_blank" external>Zwift Power <ms>open_in_new</ms></a></div>
+                <div title="Route">
+                    <% if (sameRoute) { %>
+                        {{(event.laps && event.laps > 1) ? event.laps + ' x ' : ''}}{{event.route.name}}
+                    <% } else { %>
+                        {{Array.from(uRoutes).map(x => x.name).join(', ')}}
+                    <% } %>
+                    <ms>route</ms>
+                </div>
+                <div title="Climbing">
+                    {-humanElevation(event.routeClimbing, {suffix: true, html: true})-}
+                    <ms>landscape</ms>
+                </div>
+                <div title="View event on Zwift Power">
+                    <a href="https://zwiftpower.com/events.php?zid={{event.id}}"
+                       target="_blank" external><img src="/pages/images/zp_logo.png"/></a>
+                </div>
             </div>
+            <% if (sameRoute) { %>
+                <div class="elevation-chart"
+                     data-sg-id="{{event.eventSubgroupId || event.eventSubgroups[0].id}}"></div>
+            <% } %>
         </div>
         <div class="desc">{{event.description}}</div>
         <% if (event.allTags.length) { %>
@@ -21,14 +40,13 @@
     </div>
     <% if (obj.subgroups && obj.subgroups.length) { %>
         <div class="subgroups">
-            <h2>Groups</h2>
-            <hr/>
             <% for (const sg of subgroups) { %>
                 <% const hasResults = sg.results && sg.results.length; %>
                 <div class="event-subgroup {{hasResults ? 'results' : ''}}"
                      data-event-subgroup-id="{{sg.id}}">
                     <header>
                         <div class="label">
+                            <div class="group">Group</div>
                             {-eventBadge(sg.subgroupLabel)-}
                             <% if (hasResults) { %>
                                 <b>Results</b>
@@ -50,6 +68,16 @@
                         <% } else { %>
                             <div>Distance: {-humanDistance(sg.distanceInMeters || sg.routeDistance, {suffix: true, html: true})-}</div>
                         <% } %>
+
+                        <% if (!sameRoute) { %>
+                            <div>
+                                <% if (sg.laps && sg.laps > 1) { %>
+                                    {{sg.laps}} x
+                                <% } %>
+                                {{sg.route.name}} <ms>route</ms>
+                            </div>
+                        <% } %>
+
                         <% if (hasResults) { %>
                             <div>Finishers: {{humanNumber(sg.results.length)}}</div>
                         <% } else { %>
@@ -58,7 +86,9 @@
                         <div class="name">{{sg.name}}</div>
                     </header>
 
-                    <div class="elevation-chart"></div>
+                    <% if (!sameRoute) { %>
+                        <div class="elevation-chart" data-sg-id="{{sg.id}}"></div>
+                    <% } %>
 
                     <% if (!sg.results || !sg.results.length) { %>
                         <table class="entrants expandable">
