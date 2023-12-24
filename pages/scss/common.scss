@@ -568,10 +568,8 @@ form {
         text-decoration: none !important;
 
         span {
-            background: pink;
-            font-size: 32px !important; // FIND THIS
             display: inline-block;
-            margin-top: -0.2em; // XXX offset by bottom margin of ms. :/
+            margin-top: -0.2em;
             padding: 0 0.1em;
             font-variant: all-petite-caps;
             vertical-align: middle;
