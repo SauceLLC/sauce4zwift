@@ -500,6 +500,7 @@ export class StatsProcessor extends events.EventEmitter {
         for (const x of results) {
             x.athlete = this._getAthlete(x.profileId) || {};
         }
+        return results;
     }
 
     async addEventSubgroupSignup(id) {

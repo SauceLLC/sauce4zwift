@@ -153,7 +153,6 @@
                             </thead>
                             <tbody>
                                 <% for (const x of sg.results) { %>
-                                    {{console.log(x)}}
                                     <tr data-id="{{x.profileId}}" class="summary">
                                         <td class="place">
                                         <% if (x.rank === 1) { %>

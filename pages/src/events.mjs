@@ -44,12 +44,19 @@ async function loadEventsWithRetry() {
     for (let retry = 100;; retry += 100) {
         data = await common.rpc.getEvents();
         if (data.length) {
+            for (const x of data) {
+                allEvents.set(x.id, x);
+            }
             break;
         }
         await sauce.sleep(retry);
     }
-    await Promise.all(data.map(async x => {
-        allEvents.set(x.id, x);
+    await fillInEvents();
+}
+
+
+async function fillInEvents() {
+    await Promise.all(Array.from(allEvents.values()).map(async x => {
         x.route = await getRoute(x.routeId);
         if (x.eventSubgroups) {
             for (const sg of x.eventSubgroups) {
@@ -129,6 +136,7 @@ export async function main() {
             for (const x of added) {
                 allEvents.set(x.id, x);
             }
+            await fillInEvents();
         } finally {
             loader.classList.remove('loading');
         }
@@ -230,7 +238,6 @@ async function render() {
         }));
         for (const el of eventDetailsEl.querySelectorAll('.elevation-chart[data-sg-id]')) {
             const sg = subgroups.find(x => x.id === Number(el.dataset.sgId));
-            console.log({sg});
             createElevationProfile(el, sg);
         }
         resizeCharts();
