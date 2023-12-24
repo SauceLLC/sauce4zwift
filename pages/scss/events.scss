@@ -117,10 +117,6 @@ table {
                 > * {
                     margin-left: 0.1em;
                 }
-
-                ms {
-                    margin: 0.1em 0 0 0.1em;
-                }
             }
         }
     }
@@ -215,6 +211,7 @@ table {
                 @media (min-width: 768px)  {
                     // Make it overlay band style
                     margin: 0 -1.5em;
+                    padding: 1em 1.25em;
                 }
 
                 .label {

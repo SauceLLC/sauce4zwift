@@ -568,6 +568,8 @@ form {
         text-decoration: none !important;
 
         span {
+            background: pink;
+            font-size: 32px !important; // FIND THIS
             display: inline-block;
             margin-top: -0.2em; // XXX offset by bottom margin of ms. :/
             padding: 0 0.1em;
@@ -799,10 +801,6 @@ a.std.button {
 
         &.xl {
             font-size: 1.4em;
-        }
-
-        ms {
-            margin-bottom: 0;
         }
     }
 
@@ -1100,7 +1098,6 @@ ms {
     -webkit-user-select: none;
     user-select: none;
     font-size: 1em;
-    margin-bottom: 0.165em;
     vertical-align: middle;
 
     &[large] {
