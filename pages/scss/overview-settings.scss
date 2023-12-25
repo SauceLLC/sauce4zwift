@@ -10,7 +10,8 @@
 
     .active-windows-wrap {
         width: 100%;
-        max-height: 14em;
+        min-height: 12em;
+        max-height: 40vh;
         overflow: auto;
         margin-bottom: 1em;
         position: relative;
