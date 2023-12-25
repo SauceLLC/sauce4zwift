@@ -103,18 +103,25 @@ export const widgetWindowManifests = [{
     options: {width: 900, height: 0.8},
     overlay: false,
 }, {
-    type: 'events',
-    file: '/pages/events.html',
-    prettyName: 'Events',
-    prettyDesc: 'Event listings and entrant information',
-    options: {width: 900, height: 0.8},
-    overlay: false,
-}, {
     type: 'analysis',
     file: '/pages/analysis.html',
     prettyName: 'Analysis',
     prettyDesc: 'Analyze your session laps, segments and other stats',
-    options: {width: 1080, height: 0.9},
+    options: {width: 1080, height: 0.8},
+    overlay: false,
+}, {
+    type: 'athletes',
+    file: '/pages/athletes.html',
+    prettyName: 'Athletes',
+    prettyDesc: 'View, find and manage athletes',
+    options: {width: 960, height: 0.7},
+    overlay: false,
+}, {
+    type: 'events',
+    file: '/pages/events.html',
+    prettyName: 'Events',
+    prettyDesc: 'Event listings and entrant information',
+    options: {width: 1000, height: 0.7},
     overlay: false,
 }, {
     type: 'game-control',
@@ -673,14 +680,14 @@ rpc.register(removeWidgetWindow);
 rpc.register(removeWidgetWindow, {name: 'removeWindow', deprecatedBy: removeWidgetWindow});
 
 
-function initWidgetWindowSpec({id, type, options, ...state}) {
+function initWidgetWindowSpec({id, type, options, ...rem}) {
     id = id || `user-${type}-${Date.now()}-${Math.random() * 1000000 | 0}`;
     const manifest = widgetWindowManifestsByType.get(type);
     const spec = {
         ...manifest,
         id,
         type,
-        ...state,
+        ...rem,
     };
     spec.options = Object.assign({}, spec.options, options);
     return spec;
@@ -748,7 +755,7 @@ export function openWidgetWindow(id) {
     if (spec.closed) {
         updateWidgetWindowSpec(id, {closed: false});
     }
-    _openWidgetWindow(spec);
+    _openSpecWindow(spec);
 }
 rpc.register(openWidgetWindow);
 rpc.register(openWidgetWindow, {name: 'openWindow', deprecatedBy: openWidgetWindow});
@@ -816,23 +823,26 @@ rpc.register(importProfile);
 function _getPositionForDisplay(display, {x, y, width, height}) {
     const db = display.bounds;
     if (x == null) {
-        x = db.x + Math.round((db.width - width) / 2);
+        x = db.x + (db.width - width) / 2;
     } else if (x < 0) {
         x = db.x + db.width + x - width;
     } else if (x <= 1) {
-        x = db.x + Math.round(db.width * x);
+        x = db.x + db.width * x;
     } else {
         x = db.x + x;
     }
     if (y == null) {
-        y = db.y + Math.round((db.height - height) / 2);
+        y = db.y + (db.height - height) / 2;
     } else if (y < 0) {
         y = db.y + db.height + y - height;
     } else if (y <= 1) {
-        y = db.y + Math.round(db.height * y);
+        y = db.y + db.height * y;
     } else {
         y = db.y + y;
     }
+    // Must use integer values for electron.BrowserWindow
+    x = Math.round(x);
+    y = Math.round(y);
     return {x, y};
 }
 
@@ -841,16 +851,16 @@ function getBoundsForDisplay(display, {x, y, width, height, aspectRatio}) {
     const defaultWidth = 800;
     const defaultHeight = 600;
     const dSize = display.size;
-    width = width != null && width <= 1 ? Math.round(dSize.width * width) : width;
-    height = height != null && height <= 1 ? Math.round(dSize.height * height) : height;
+    width = width != null && width <= 1 ? dSize.width * width : width;
+    height = height != null && height <= 1 ? dSize.height * height : height;
     if (aspectRatio) {
         if (width == null && height == null) {
             width = defaultWidth;
         }
         if (height == null) {
-            height = Math.round(width * aspectRatio);
+            height = width * aspectRatio;
         } else {
-            width = Math.round(width / aspectRatio);
+            width = width / aspectRatio;
         }
     } else {
         width = width || defaultWidth;
@@ -866,6 +876,9 @@ function getBoundsForDisplay(display, {x, y, width, height, aspectRatio}) {
         height = dSize.height;
         width = height * finalAspectRatio;
     }
+    // Must use integer values for electron.BrowserWindow
+    width = Math.round(width);
+    height = Math.round(height);
     ({x, y} = _getPositionForDisplay(display, {x, y, width, height}));
     return {x, y, width, height};
 }
@@ -1044,17 +1057,9 @@ export async function setWindowsStorage(storage, session) {
 }
 
 
-let _boundsSaveTimeout;
-function onBoundsUpdate(id, win) {
-    clearTimeout(_boundsSaveTimeout);
-    _boundsSaveTimeout = setTimeout(() =>
-        updateWidgetWindowSpec(id, {bounds: win.getBounds()}), 200);
-}
-
-
-function _openWidgetWindow(spec) {
+function _openSpecWindow(spec) {
     const id = spec.id;
-    console.debug("Opening window:", id, spec.type);
+    console.info(`Opening window [${spec.ephemeral ? 'EPHEMERAL' : 'WIDGET'}] (${spec.type}):`, id);
     const overlayOptions = {
         alwaysOnTop: true,
         maximizable: false,
@@ -1092,7 +1097,8 @@ function _openWidgetWindow(spec) {
             sandbox: true,
         },
     });
-    win.webContents.on('will-attach-webview', (ev, webPreferences) => {
+    const webContents = win.webContents;  // Save to prevent electron from killing us.
+    webContents.on('will-attach-webview', (ev, webPreferences) => {
         webPreferences.preload = path.join(appPath, 'src/preload/webview.js');
         webPreferences.session = activeProfileSession;
     });
@@ -1110,16 +1116,20 @@ function _openWidgetWindow(spec) {
     if (spec.overlay !== false) {
         win.setAlwaysOnTop(true, 'pop-up-menu');
     }
-    const webContents = win.webContents;  // Save to prevent electron from killing us.
     handleNewSubWindow(win, spec, {session: activeProfileSession});
-    win.on('move', () => onBoundsUpdate(id, win));
-    win.on('resize', () => onBoundsUpdate(id, win));
-    win.on('focus', () => _saveWindowAsTop(id));
-    win.on('close', () => {
+    let boundsSaveTimeout;
+    const onBoundsUpdate = () => {
+        clearTimeout(boundsSaveTimeout);
+        boundsSaveTimeout = setTimeout(() => {console.log(win.getBounds()); updateWidgetWindowSpec(id, {bounds: win.getBounds()})}, 200);
+    };
+    if (!spec.ephemeral) {
+        win.on('move', onBoundsUpdate);
+        win.on('resize', onBoundsUpdate);
+        win.on('focus', () => _saveWindowAsTop(id));
         if (!manifest.alwaysVisible) {
-            updateWidgetWindowSpec(id, {closed: true});
+            win.on('close', () => updateWidgetWindowSpec(id, {closed: true}));
         }
-    });
+    }
     if (modContentScripts.length) {
         for (const x of modContentScripts) {
             webContents.on('did-finish-load', () => webContents.executeJavaScript(x));
@@ -1161,7 +1171,7 @@ export function openWidgetWindows() {
         const manifest = widgetWindowManifestsByType.get(spec.type);
         if (manifest && (manifest.alwaysVisible || !spec.closed)) {
             try {
-                _openWidgetWindow(spec);
+                _openSpecWindow(spec);
             } catch(e) {
                 console.error("Failed to open window", spec.id, e);
             }
@@ -1196,6 +1206,12 @@ export function makeCaptiveWindow(options={}, webPrefs={}) {
         win.loadFile(options.file, {query});
     }
     return win;
+}
+
+
+export function makeOrFocusEphemeralWindow(options) {
+    const spec = initWidgetWindowSpec({...options, ephemeral: true});
+    return _openSpecWindow(spec);
 }
 
 
