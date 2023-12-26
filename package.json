@@ -112,7 +112,9 @@
       "!node_modules/rxjs",
       "!**/*.o.d",
       "!**/*.a.d",
-      "!**/*.node.d"
+      "!**/*.node.d",
+      "!**/*.iobj",
+      "!**/*.ipdb"
     ],
     "asar": false,
     "publish": [
