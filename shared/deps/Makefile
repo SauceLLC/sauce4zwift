@@ -10,14 +10,14 @@ WORLD_OBJ = data/countries.json
 default: $(ZU_OBJS) $(WORLD_OBJ)
 
 
-$(ZU_OBJS): $(ZU_SRCS)
+$(ZU_OBJS): $(ZU_SRCS) Makefile
 	mkdir -p $(@D)
 	node ../../tools/bin/jsonminify $(patsubst data/%,../../node_modules/zwift-utils/dist/%,$@) $@
 
 
-$(WORLD_OBJ): $(WORLD_SRC)
+$(WORLD_OBJ): $(WORLD_SRC) Makefile
 	mkdir -p $(@D)
-	cp $? $@
+	cp $< $@
 
 
 clean:
