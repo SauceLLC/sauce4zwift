@@ -75,18 +75,15 @@ else
 endif
 
 DATA_SRC_FILES = $(call rwildcard,node_modules/zwift-utils/dist,*.json)
-DATA_SRC2_FILES = $(patsubst node_modules/zwift-utils/dist/%,%,$(DATA_SRC_FILES))
-data = shared/deps/data
+DATA_DST_FILES = $(patsubst node_modules/zwift-utils/dist/%,shared/deps/data/%,$(DATA_SRC_FILES))
 
-#$(DATA_DST_FILES): $(DATA_SRC_FILES)
-data: $(DATA_SRC_FILES)
+$(DATA_DST_FILES): $(DATA_SRC_FILES)
 ifndef WINBLOWS
 	@mkdir -p $(@D)
 else
 	@mkdir -f $(@D) > $$null
 endif
-	cd node_modules/zwift-utils/dist ; \
-	node ../../../tools/bin/jsonminify $(DATA_SRC2_FILES) ../../../shared/deps/data
+	node tools/bin/jsonminify $(patsubst shared/deps/data/%,node_modules/zwift-utils/dist/%,$@) $@
 
 deps: $(DATA_DST_FILES)
 ifndef WINBLOWS

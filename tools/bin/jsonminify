@@ -1,24 +1,11 @@
 #!/usr/bin/env node
-/* global process */
 const fs = require('node:fs');
-const path = require('node:path');
 
-function main() {
-    if (process.argv.length < 4) {
-        console.error(`Usage: ${process.argv[1]} INPUT_FILE [...INPUT_FILE_N] OUTPUT_DIR`);
-        return 1;
-    }
-    const outDir = process.argv.at(-1);
-    if (outDir === '.') {
-        console.error('OUTPUT_DIR must be a different path');
-        return 1;
-    }
-    for (const x of process.argv.slice(2, -1)) {
-        const orig = JSON.parse(fs.readFileSync(x));
-        fs.mkdirSync(path.join(outDir, path.dirname(x)), {recursive: true});
-        fs.writeFileSync(path.join(outDir, x), JSON.stringify(orig));
-    }
+if (process.argv.length !== 4) {
+    console.error(`Usage: ${process.argv[1]} INPUT_FILE OUTPUT_FILE`);
+    process.exit(1);
+} else {
+    const [origFile, minFile] = process.argv.slice(2);
+    const orig = JSON.parse(fs.readFileSync(origFile));
+    fs.writeFileSync(minFile, JSON.stringify(orig));
 }
-
-
-process.exit(main() || 0);
