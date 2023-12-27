@@ -82,6 +82,7 @@
       "!tools",
       "!assets",
       "!pages/scss",
+      "!shared/deps/Makefile",
       "!**/xxhash-addon/bin",
       "!**/keytar/bin",
       "!**/keytar/node_modules",
