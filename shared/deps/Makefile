@@ -1,8 +1,4 @@
 
-ifeq ($(OS),Windows_NT)
-  WINBLOWS := true
-endif
-
 rwildcard=$(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) $(filter $(subst *,%,$2),$d))
 
 ZU_SRCS = $(call rwildcard,../../node_modules/zwift-utils/dist,*.json)
@@ -15,26 +11,14 @@ default: $(ZU_OBJS) $(WORLD_OBJ)
 
 
 $(ZU_OBJS): $(ZU_SRCS)
-ifndef WINBLOWS
 	mkdir -p $(@D)
-else
-	mkdir -f $(@D) > $$null
-endif
 	node ../../tools/bin/jsonminify $(patsubst data/%,../../node_modules/zwift-utils/dist/%,$@) $@
 
 
 $(WORLD_OBJ): $(WORLD_SRC)
-ifndef WINBLOWS
 	mkdir -p $(@D)
-else
-	mkdir -f $(@D) > $$null
-endif
 	cp $? $@
 
 
 clean:
-ifndef WINBLOWS
 	rm -rf data
-else
-	-rm -r -fo -ErrorAction SilentlyContinue data
-endif

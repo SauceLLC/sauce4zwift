@@ -5,8 +5,8 @@ BUILD := build.json
 
 ifeq ($(OS),Windows_NT)
   WINBLOWS := true
-  SHELL := powershell.exe
-  .SHELLFLAGS := -C
+  #SHELL := powershell.exe
+  #.SHELLFLAGS := -C
 else
   T := $(shell uname -s)
   ifeq ($(T),Linux)
@@ -75,8 +75,8 @@ endif
 
 
 deps:
-	$(MAKE) -j 16 -C pages/deps
-	$(MAKE) -j 16 -C shared/deps
+	$(MAKE) -j 32 -C pages/deps
+	$(MAKE) -j 32 -C shared/deps
 
 
 sass:
@@ -105,18 +105,10 @@ endif
 
 
 realclean: clean
-ifndef WINBLOWS
 	rm -rf node_modules
-else
-	-rm -r -fo -ErrorAction SilentlyContinue node_modules
-endif
 	
 clean:
-ifndef WINBLOWS
 	rm -f $(BUILD)
-else
-	-rm -fo -ErrorAction SilentlyContinue $(BUILD)
-endif
 	$(MAKE) -C shared/deps clean
 	$(MAKE) -C pages/deps clean
 
