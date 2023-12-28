@@ -1,7 +1,6 @@
 <div class="container">
-    <% const uRoutes = new Set(event.eventSubgroups ? event.eventSubgroups.map(x => x.route) : [event.route]); %>
-    <% const uLaps = new Set(event.eventSubgroups ? event.eventSubgroups.map(x => x.laps) : [event.laps]); %>
-    <% const sameRoute = uRoutes.size === 1 && uLaps.size === 1; %>
+    <% const uSigs = new Set((event.eventSubgroups ? event.eventSubgroups : [event]).map(x => JSON.stringify([x.laps, x.distanceInMeters, x.durationInSeconds, x.routeId]))); %>
+    <% const sameRoute = uSigs.size === 1; %>
     <div class="event-info">
         <div class="card">
             <img class="event-image" src="{{event.imageUrl}}"/>
@@ -11,7 +10,8 @@
                     <% if (sameRoute) { %>
                         {{(event.laps && event.laps > 1) ? event.laps + ' x ' : ''}}{{event.route.name}}
                     <% } else { %>
-                        {{Array.from(uRoutes).map(x => x.name).join(', ')}}
+                        <% const uRoutes = new Set(event.eventSubgroups ? event.eventSubgroups.map(x => x.route.name) : [event.route.name]); %>
+                        {{Array.from(uRoutes).join(', ')}}
                     <% } %>
                     <ms>route</ms>
                 </div>
