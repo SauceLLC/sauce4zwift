@@ -151,6 +151,11 @@ class LocalStorage extends EventTarget {
 }
 
 
+function b64urlEncode(data) {
+    return btoa(data).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+
 if (window.isElectron) {
     windowID = electron.context.id;
     const subs = [];
@@ -352,11 +357,8 @@ if (window.isElectron) {
         }
     };
     rpcCall = async function(name, ...args) {
-        const f = await fetch(`/api/rpc/v1/${name}`, {
-            method: 'POST',
-            headers: {"content-type": 'application/json'},
-            body: JSON.stringify(args),
-        });
+        const encodedArgs = args.map(x => b64urlEncode(JSON.stringify(x)));
+        const f = await fetch(`/api/rpc/v2/${name}/${encodedArgs.join('/')}`);
         const env = await f.json();
         if (env.warning) {
             console.warn(env.warning);
@@ -519,35 +521,65 @@ export async function getRoad(courseId, id) {
 }
 
 
-const _routes = new Map();
-export function getRoute(id) {
-    if (!_routes.has(id)) {
-        _routes.set(id, rpcCall('getRoute', id).then(async route => {
-            if (route) {
-                route.curvePath = new curves.CurvePath();
-                route.roadSegments = [];
-                const worldList = await getWorldList();
-                const worldMeta = worldList.find(x => x.courseId === route.courseId);
-                for (const [i, x] of route.manifest.entries()) {
-                    const road = await getRoad(route.courseId, x.roadId);
-                    const seg = road.curvePath.subpathAtRoadPercents(x.start, x.end);
-                    seg.reverse = x.reverse;
-                    seg.leadin = x.leadin;
-                    seg.roadId = x.roadId;
-                    for (const xx of seg.nodes) {
-                        xx.index = i;
-                    }
-                    route.roadSegments.push(seg);
-                    route.curvePath.extend(x.reverse ? seg.toReversed() : seg);
-                }
-                // NOTE: No support for physicsSlopeScaleOverride of portal roads.
-                // But I've not seen portal roads used in a route either.
-                Object.assign(route, supplimentPath(worldMeta, route.curvePath));
-            }
-            return route;
-        }));
+async function computeRoutePath(route) {
+    const curvePath = new curves.CurvePath();
+    const roadSegments = [];
+    const worldList = await getWorldList();
+    const worldMeta = worldList.find(x => x.courseId === route.courseId);
+    for (const [i, x] of route.manifest.entries()) {
+        const road = await getRoad(route.courseId, x.roadId);
+        const seg = road.curvePath.subpathAtRoadPercents(x.start, x.end);
+        seg.reverse = x.reverse;
+        seg.leadin = x.leadin;
+        seg.roadId = x.roadId;
+        for (const xx of seg.nodes) {
+            xx.index = i;
+        }
+        roadSegments.push(seg);
+        curvePath.extend(x.reverse ? seg.toReversed() : seg);
     }
-    return _routes.get(id);
+    // NOTE: No support for physicsSlopeScaleOverride of portal roads.
+    // But I've not seen portal roads used in a route either.
+    return {
+        curvePath,
+        roadSegments,
+        ...supplimentPath(worldMeta, curvePath),
+    };
+}
+
+
+let _routeListPromise;
+const _routePromises = new Map();
+export function getRoute(id) {
+    if (!_routePromises.has(id)) {
+        if (_routeListPromise) {
+            _routePromises.set(id, _routeListPromise.then(async routes => {
+                const route = routes && routes.find(x => x.id === id);
+                if (route) {
+                    Object.assign(route, computeRoutePath(route));
+                }
+                return route;
+            }));
+        } else {
+            _routePromises.set(id, rpcCall('getRoute', id).then(async route => {
+                if (route) {
+                    Object.assign(route, computeRoutePath(route));
+                }
+                return route;
+            }));
+        }
+    }
+    return _routePromises.get(id);
+}
+
+
+export function getRouteList(courseId) {
+    if (!_routeListPromise) {
+        _routeListPromise = rpcCall('getRoutes');
+    }
+    return courseId == null ?
+        _routeListPromise :
+        _routeListPromise.then(routes => routes.filter(x => x.courseId === courseId));
 }
 
 
