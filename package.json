@@ -2,7 +2,7 @@
   "name": "sauce4zwift",
   "productName": "Sauce for Zwift™",
   "private": true,
-  "version": "1.0.7-alpha",
+  "version": "1.0.8-alpha",
   "description": "Overlay widgets and advanced instrumentation for the serious Zwifter.",
   "homepage": "https://www.sauce.llc",
   "author": "Sauce, LLC",
@@ -32,7 +32,7 @@
     "xxhash-addon": "2.0.1"
   },
   "optionalDependencies": {
-    "zwift-utils": "https://github.com/SauceLLC/zwift-utils.git#8c0895ad676850efcda7ae9be3c7019a58bd0b6f"
+    "zwift-utils": "https://github.com/SauceLLC/zwift-utils.git#7f63b08b091ca3e6b27ebf3f1167a35e8af4da4f"
   },
   "devDependencies": {
     "@sentry/browser": "6.19.6",

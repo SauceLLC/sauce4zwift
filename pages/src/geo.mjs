@@ -227,6 +227,9 @@ export async function main() {
         })
     });
     const worldList = await common.getWorldList();
+    const courseSelect = document.querySelector('#titlebar select[name="course"]');
+    courseSelect.innerHTML = `<option>&lt;auto&gt;</option>` + worldList.map(x =>
+        `<option value="${x.courseId}">${x.name}</option>`).join('\n');
     zwiftMap = createZwiftMap({worldList});
     window.zwiftMap = zwiftMap;  // DEBUG
     window.MapEntity = map.MapEntity;
