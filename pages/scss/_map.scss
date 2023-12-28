@@ -313,7 +313,7 @@
             $carrot-height: 1em;
             $border-color: #fff;
             $border-size: 0.2em;
-            $bg-color: #254c85;
+            $bg-color: #0b49a3;
             bottom: $carrot-height;
             pointer-events: all;
             display: flex;
@@ -321,7 +321,7 @@
             align-items: center;
             min-width: 3em;
             min-height: 3em;
-            max-width: 14em;
+            max-width: 12em;
             color: #fff;
             background-color: $bg-color;
             border: $border-size solid $border-color;
@@ -356,6 +356,8 @@
         }
 
         .pin-content-wrap {
+            max-width: 100%;
+
             &::after {
                 content: 'X';
                 position: absolute;

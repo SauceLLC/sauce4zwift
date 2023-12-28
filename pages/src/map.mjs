@@ -305,7 +305,7 @@ export class MapAthlete extends MapEntity {
     }
 
     addChatMessage(message) {
-        const expires = 10000;
+        const expires = 15000;
         this.chats.push([message, Date.now() + expires]);
         if (this.pin) {
             this.renderPinHTML(this.getPinHTML());
