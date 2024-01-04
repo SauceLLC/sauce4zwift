@@ -556,14 +556,14 @@ export function getRoute(id) {
             _routePromises.set(id, _routeListPromise.then(async routes => {
                 const route = routes && routes.find(x => x.id === id);
                 if (route) {
-                    Object.assign(route, computeRoutePath(route));
+                    Object.assign(route, await computeRoutePath(route));
                 }
                 return route;
             }));
         } else {
             _routePromises.set(id, rpcCall('getRoute', id).then(async route => {
                 if (route) {
-                    Object.assign(route, computeRoutePath(route));
+                    Object.assign(route, await computeRoutePath(route));
                 }
                 return route;
             }));
@@ -1759,9 +1759,24 @@ export async function enableSentry() {
 
 
 export function asyncSerialize(asyncFunc) {
-    let p = Promise.resolve();
+    let p;
     const fn = function() {
-        return (p = p.catch(() => null).then(() => asyncFunc.apply(this, arguments)));
+        if (p) {
+            const chain = p = p.catch(() => null).then(() => asyncFunc.apply(this, arguments));
+            chain.finally(() => {
+                if (p === chain) {
+                    p = undefined; // optimize next call
+                }
+            });
+        } else {
+            const r = asyncFunc.apply(this, arguments);
+            if (r instanceof Promise) {
+                p = r;
+            } else {
+                return r;
+            }
+        }
+        return p;
     };
     Object.defineProperty(fn, 'name', {value: 'serialized ' + asyncFunc.name});
     return fn;
