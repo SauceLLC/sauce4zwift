@@ -2,6 +2,7 @@ import * as common from './common.mjs';
 import * as map from './map.mjs';
 import * as elevation from './elevation.mjs';
 import * as fields from './fields.mjs';
+import * as data from '/shared/sauce/data.mjs';
 
 common.enableSentry();
 
@@ -32,11 +33,14 @@ common.settingsStore.setDefault({
 });
 
 const settings = common.settingsStore.get();
+const url = new URL(location);
 
 let watchdog;
 let inGame;
 let zwiftMap;
 let elProfile;
+let courseId = Number(url.searchParams.get('course')) || undefined;
+let routeId = Number(url.searchParams.get('route')) || undefined;
 
 
 function setBackground() {
@@ -167,11 +171,9 @@ async function initialize() {
     const ad = await common.rpc.getAthleteData('self');
     inGame = !!ad;
     if (!inGame) {
-        console.info("User not active, starting demo mode...");
-        zwiftMap.setCourse(6);
-        if (elProfile) {
-            elProfile.setCourse(6);
-        }
+        //console.info("User not active. Just show something...");
+        //courseId = 6;
+        //await applyCourse();
         return;
     }
     zwiftMap.setAthlete(ad.athleteId);
@@ -196,6 +198,68 @@ async function initialize() {
         if (elProfile) {
             await elProfile.renderAthleteStates([ad.state]);
         }
+    }
+}
+
+
+function centerMap(positions, options) {
+    const xMin = data.min(positions.map(x => x[0]));
+    const yMin = data.min(positions.map(x => x[1]));
+    const xMax = data.max(positions.map(x => x[0]));
+    const yMax = data.max(positions.map(x => x[1]));
+    // XXX need to handle vertical offset too (tilt too?)
+    zwiftMap.setDragOffset([0, 0]);
+    zwiftMap.setBounds([xMin, yMax], [xMax, yMin], options);
+}
+
+
+let _routeHighlight;
+async function applyRoute() {
+    if (routeId != null) {
+        url.searchParams.set('route', routeId);
+    } else {
+        url.searchParams.delete('route');
+    }
+    history.replaceState({}, '', url);
+    if (_routeHighlight) {
+        _routeHighlight.elements.forEach(x => x.remove());
+    }
+    if (routeId != null) {
+        const route = await common.getRoute(routeId);
+        const path = route.curvePath;
+        _routeHighlight = zwiftMap.addHighlightPath(path, `route-${route.id}`,
+                                                    {width: 1, extraClass: 'foobar', color: '#34c'});
+        centerMap(route.curvePath.flatten(1/3));
+        if (elProfile) {
+            await elProfile.setRoute(routeId);
+        }
+    } else {
+        if (elProfile) {
+            elProfile.clear();
+        }
+    }
+}
+
+
+async function applyCourse() {
+    if (courseId != null) {
+        url.searchParams.set('course', courseId);
+    } else {
+        url.searchParams.delete('course');
+    }
+    history.replaceState({}, '', url);
+    const routeSelect = document.querySelector('#titlebar select[name="route"]');
+    for (const x of routeSelect.querySelectorAll('option[data-course]')) {
+        const hidden = x.dataset.course !== courseId.toString();
+        x.classList.toggle('hidden', hidden);
+        x.disabled = hidden;
+        if (hidden && x.selected) {
+            routeSelect.value = '';
+        }
+    }
+    await zwiftMap.setCourse(courseId);
+    if (elProfile) {
+        await elProfile.setCourse(courseId);
     }
 }
 
@@ -226,19 +290,55 @@ export async function main() {
             return ['ev', 'game-laps', 'progress', 'rt', 'el', 'grade', 'altitude'].includes(type);
         })
     });
-    const worldList = await common.getWorldList();
     const courseSelect = document.querySelector('#titlebar select[name="course"]');
-    courseSelect.innerHTML = `<option>&lt;auto&gt;</option>` + worldList.map(x =>
-        `<option value="${x.courseId}">${x.name}</option>`).join('\n');
+    const routeSelect = document.querySelector('#titlebar select[name="route"]');
+    let routesList;
+    common.getRouteList().then(_rl => {
+        routesList = _rl;
+        for (const x of routesList) {
+            routeSelect.insertAdjacentHTML('beforeend', `
+                <option class="${x.courseId !== courseId ? 'hidden' : ''}"
+                        data-course="${x.courseId}" ${x.id === routeId ? 'selected' : ''}
+                        value="${x.id}">${common.stripHTML(x.name)}</option>`);
+        }
+    });
+    routeSelect.addEventListener('change', ev => {
+        routeId = Number(routeSelect.value);
+        applyRoute();
+    });
+    courseSelect.addEventListener('change', ev => {
+        const id = Number(courseSelect.value);
+        if (id === courseId) {
+            console.debug("debounce course change");
+            return;
+        }
+        courseId = id;
+        routeId = undefined;
+        applyCourse();
+        applyRoute();
+    });
+    const worldList = await common.getWorldList();
+    for (const x of worldList) {
+        courseSelect.insertAdjacentHTML('beforeend', `
+            <option ${x.courseId === courseId ? 'selected' : ''}
+                    value="${x.courseId}">${common.stripHTML(x.name)}</option>`);
+    }
     zwiftMap = createZwiftMap({worldList});
     window.zwiftMap = zwiftMap;  // DEBUG
     window.MapEntity = map.MapEntity;
     elProfile = settings.profileOverlay && createElevationProfile({worldList});
-    const urlQuery = new URLSearchParams(location.search);
-    if (urlQuery.has('testing')) {
-        const center = urlQuery.get('center');
-        const [course, road] = urlQuery.get('testing').split(',');
-        const routeId = urlQuery.get('route');
+
+    if (courseId != null) {
+        await applyCourse();
+    }
+    if (routeId != null) {
+        await applyRoute();
+    }
+
+    if (url.searchParams.has('testing')) {
+        const center = url.searchParams.get('center');
+        const [course, road] = url.searchParams.get('testing').split(',');
+        const routeId = url.searchParams.get('route');
         await zwiftMap.setCourse(+course || 6);
         if (elProfile) {
             await elProfile.setCourse(+course || 6);
@@ -249,9 +349,6 @@ export async function main() {
         if (routeId) {
             const route = await zwiftMap.setActiveRoute(+routeId);
             console.log({route});
-            for (const [i, xx] of route.checkpoints.entries()) {
-                console.log(i, xx.roadPercent.toFixed(8), xx.roadId, xx.reverse, xx.leadin, xx.forceSplit);
-            }
             let start = 0;
             let end = route.curvePath.nodes.length;
             const point = zwiftMap.addPoint([0, 0], 'star');

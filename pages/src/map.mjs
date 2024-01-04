@@ -99,8 +99,9 @@ class Transition {
                 this._startTime = now;
                 this._endTime = now + this.duration;
                 this.playing = true;
+            } else {
+                this._cur = Array.from(values);
             }
-            this._cur.length = values.length;
         } else {
             this._cur = Array.from(values);
         }
@@ -365,6 +366,8 @@ export class SauceZwiftMap extends EventTarget {
         this._pinned = new Set();
         this._mapScale = null;
         this._lastFrameTime = 0;
+        this._frameTimeAvg = 0;
+        this._frameTimeWeighted = common.expWeightedAvg(10);
         this._perspective = 800;
         this._wheelState = {
             nextAnimFrame: null,
@@ -732,6 +735,7 @@ export class SauceZwiftMap extends EventTarget {
         canvas.width = img.naturalWidth * this._canvasScale;
         canvas.height = img.naturalHeight * this._canvasScale;
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        this._updateGlobalTransform();
         this._renderFrame(/*force*/ true);
     });
 
@@ -1297,6 +1301,9 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     _renderFrame(force) {
+        const frameTime = document.timeline.currentTime;
+        this._frameTimeAvg = this._frameTimeWeighted(frameTime - this._lastFrameTime);
+        this._lastFrameTime = frameTime;
         let affectedPins;
         const transform = (this._mapTransition.disabled || this._mapTransition.playing || force) &&
             this._mapTransition.getStep();
@@ -1357,10 +1364,10 @@ export class SauceZwiftMap extends EventTarget {
 
     _transformAnimationLoop(frameTime) {
         requestAnimationFrame(this._transformAnimationLoopBound);
-        if (frameTime - this._lastFrameTime < this._msPerFrame) {
+        const elapsed = frameTime - this._lastFrameTime;
+        if (elapsed < this._msPerFrame && this._frameTimeAvg < this._msPerFrame) {
             return;
         }
-        this._lastFrameTime = frameTime;
         this._renderFrame();
     }
 

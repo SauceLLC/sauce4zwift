@@ -18,6 +18,22 @@ html {
     }
 }
 
+select[name="course"],
+select[name="route"] {
+    &:invalid {
+        font-weight: 300;
+    }
+
+    option {
+        &.hidden {
+            display: none;
+        }
+
+        &:disabled {
+        }
+    }
+}
+
 #content {
     max-height: 100%;
 
