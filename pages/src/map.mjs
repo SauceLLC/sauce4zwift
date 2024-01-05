@@ -1126,7 +1126,7 @@ export class SauceZwiftMap extends EventTarget {
         const watching = states.find(x => x.athleteId === this.watchingId);
         if (!watching && this.courseId == null) {
             return;
-        } else if (watching && !this.locked) {
+        } else if (watching) {
             if (watching.portal) {
                 if (!this.portal || watching.roadId !== this.roadId || watching.courseId !== this.courseId) {
                     await this.setCourse(watching.courseId, {portalRoad: watching.roadId});

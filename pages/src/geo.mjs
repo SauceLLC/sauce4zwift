@@ -34,7 +34,11 @@ common.settingsStore.setDefault({
 
 const settings = common.settingsStore.get();
 const url = new URL(location);
+const courseSelect = document.querySelector('#titlebar select[name="course"]');
+const routeSelect = document.querySelector('#titlebar select[name="route"]');
 
+let worldList;
+let routesList;
 let watchdog;
 let inGame;
 let zwiftMap;
@@ -67,7 +71,7 @@ function getSetting(key, def) {
 }
 
 
-function createZwiftMap({worldList}) {
+function createZwiftMap() {
     const opacity = 1 - 1 / (100 / (settings.transparency || 0));
     const autoCenter = getSetting('autoCenter', true);
     const zm = new map.SauceZwiftMap({
@@ -147,7 +151,7 @@ function createZwiftMap({worldList}) {
 }
 
 
-function createElevationProfile({worldList}) {
+function createElevationProfile() {
     const el = document.querySelector('.elevation-profile');
     if (settings.profileHeight) {
         el.style.setProperty('--profile-height', settings.profileHeight / 100);
@@ -207,13 +211,12 @@ function centerMap(positions, options) {
     const yMin = data.min(positions.map(x => x[1]));
     const xMax = data.max(positions.map(x => x[0]));
     const yMax = data.max(positions.map(x => x[1]));
-    // XXX need to handle vertical offset too (tilt too?)
     zwiftMap.setDragOffset([0, 0]);
     zwiftMap.setBounds([xMin, yMax], [xMax, yMin], options);
 }
 
 
-let _routeHighlight;
+const _routeHighlights = [];
 async function applyRoute() {
     if (routeId != null) {
         url.searchParams.set('route', routeId);
@@ -221,19 +224,35 @@ async function applyRoute() {
         url.searchParams.delete('route');
     }
     history.replaceState({}, '', url);
-    if (_routeHighlight) {
-        _routeHighlight.elements.forEach(x => x.remove());
+    while (_routeHighlights.length) {
+        _routeHighlights.pop().elements.forEach(x => x.remove());
+    }
+    routeSelect.replaceChildren();
+    routeSelect.insertAdjacentHTML('beforeend', `<option value disabled selected>Route</option>`);
+    for (const x of routesList) {
+        if (x.courseId !== courseId) {
+            continue;
+        }
+        routeSelect.insertAdjacentHTML('beforeend', `
+            <option ${x.id === routeId ? 'selected' : ''}
+                    value="${x.id}">${common.stripHTML(x.name)}</option>`);
     }
     if (routeId != null) {
         const route = await common.getRoute(routeId);
         const path = route.curvePath;
-        _routeHighlight = zwiftMap.addHighlightPath(path, `route-${route.id}`,
-                                                    {width: 1, extraClass: 'foobar', color: '#34c'});
+        _routeHighlights.push(
+            zwiftMap.addHighlightPath(path, `route-1-${route.id}`, {width: 5, color: '#0004'}),
+            zwiftMap.addHighlightPath(path, `route-2-${route.id}`, {width: 1.2, color: 'black'}),
+            zwiftMap.addHighlightPath(path, `route-3-${route.id}`, {width: 0.5, color: 'gold'}),
+        );
         centerMap(route.curvePath.flatten(1/3));
         if (elProfile) {
             await elProfile.setRoute(routeId);
         }
     } else {
+        zwiftMap.setVerticalOffset(0);
+        zwiftMap.setDragOffset([0, 0]);
+        zwiftMap.setZoom(0.2);
         if (elProfile) {
             elProfile.clear();
         }
@@ -248,18 +267,17 @@ async function applyCourse() {
         url.searchParams.delete('course');
     }
     history.replaceState({}, '', url);
-    const routeSelect = document.querySelector('#titlebar select[name="route"]');
-    for (const x of routeSelect.querySelectorAll('option[data-course]')) {
-        const hidden = x.dataset.course !== courseId.toString();
-        x.classList.toggle('hidden', hidden);
-        x.disabled = hidden;
-        if (hidden && x.selected) {
-            routeSelect.value = '';
-        }
+    courseSelect.replaceChildren();
+    for (const x of worldList) {
+        courseSelect.insertAdjacentHTML('beforeend', `
+            <option ${x.courseId === courseId ? 'selected' : ''}
+                    value="${x.courseId}">${common.stripHTML(x.name)}</option>`);
     }
-    await zwiftMap.setCourse(courseId);
-    if (elProfile) {
-        await elProfile.setCourse(courseId);
+    if (courseId != null) {
+        await zwiftMap.setCourse(courseId);
+        if (elProfile) {
+            await elProfile.setCourse(courseId);
+        }
     }
 }
 
@@ -290,23 +308,11 @@ export async function main() {
             return ['ev', 'game-laps', 'progress', 'rt', 'el', 'grade', 'altitude'].includes(type);
         })
     });
-    const courseSelect = document.querySelector('#titlebar select[name="course"]');
-    const routeSelect = document.querySelector('#titlebar select[name="route"]');
-    let routesList;
-    common.getRouteList().then(_rl => {
-        routesList = _rl;
-        for (const x of routesList) {
-            routeSelect.insertAdjacentHTML('beforeend', `
-                <option class="${x.courseId !== courseId ? 'hidden' : ''}"
-                        data-course="${x.courseId}" ${x.id === routeId ? 'selected' : ''}
-                        value="${x.id}">${common.stripHTML(x.name)}</option>`);
-        }
-    });
-    routeSelect.addEventListener('change', ev => {
+    routeSelect.addEventListener('change', async ev => {
         routeId = Number(routeSelect.value);
-        applyRoute();
+        await applyRoute();
     });
-    courseSelect.addEventListener('change', ev => {
+    courseSelect.addEventListener('change', async ev => {
         const id = Number(courseSelect.value);
         if (id === courseId) {
             console.debug("debounce course change");
@@ -314,28 +320,23 @@ export async function main() {
         }
         courseId = id;
         routeId = undefined;
-        applyCourse();
-        applyRoute();
+        await applyCourse();
+        await applyRoute();
     });
-    const worldList = await common.getWorldList();
-    for (const x of worldList) {
-        courseSelect.insertAdjacentHTML('beforeend', `
-            <option ${x.courseId === courseId ? 'selected' : ''}
-                    value="${x.courseId}">${common.stripHTML(x.name)}</option>`);
-    }
-    zwiftMap = createZwiftMap({worldList});
+    [worldList, routesList] = await Promise.all([common.getWorldList(), common.getRouteList()]);
+    zwiftMap = createZwiftMap();
     window.zwiftMap = zwiftMap;  // DEBUG
     window.MapEntity = map.MapEntity;
-    elProfile = settings.profileOverlay && createElevationProfile({worldList});
+    elProfile = settings.profileOverlay && createElevationProfile();
 
     if (courseId != null) {
+        zwiftMap.setZoom(0.2);
+        zwiftMap.setTiltShift(0);
+        zwiftMap.setVerticalOffset(0);
+        zwiftMap._mapTransition.setDuration(1500);
         await applyCourse();
-    }
-    if (routeId != null) {
         await applyRoute();
-    }
-
-    if (url.searchParams.has('testing')) {
+    } else if (url.searchParams.has('testing')) {
         const center = url.searchParams.get('center');
         const [course, road] = url.searchParams.get('testing').split(',');
         const routeId = url.searchParams.get('route');
@@ -389,6 +390,8 @@ export async function main() {
             }
         }
     } else {
+        routeSelect.remove();
+        courseSelect.remove();
         await initialize();
         common.subscribe('watching-athlete-change', async athleteId => {
             if (!inGame) {
