@@ -7,13 +7,16 @@
             <div class="meta">
                 <div title="Event World">{{world}} <ms>map</ms></div>
                 <div title="Route">
-                    <% if (sameRoute) { %>
-                        {{(event.laps && event.laps > 1) ? event.laps + ' x ' : ''}}{{event.route.name}}
-                    <% } else { %>
-                        <% const uRoutes = new Set(event.eventSubgroups ? event.eventSubgroups.map(x => x.route.name) : [event.route.name]); %>
-                        {{Array.from(uRoutes).join(', ')}}
-                    <% } %>
-                    <ms>route</ms>
+                    <a href="/pages/geo.html?course={{event.courseId}}&route={{event.routeId}}"
+                       target="event-route-preview">
+                        <% if (sameRoute) { %>
+                            {{(event.laps && event.laps > 1) ? event.laps + ' x ' : ''}}{{event.route.name}}
+                        <% } else { %>
+                            <% const uRoutes = new Set(event.eventSubgroups ? event.eventSubgroups.map(x => x.route.name) : [event.route.name]); %>
+                            {{Array.from(uRoutes).join(', ')}}
+                        <% } %>
+                        <ms>route</ms>
+                    </a>
                 </div>
                 <div title="Climbing">
                     {-humanElevation(event.routeClimbing, {suffix: true, html: true})-}

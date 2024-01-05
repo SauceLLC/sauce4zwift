@@ -16,6 +16,18 @@ html {
             background: var(--background-color);
         }
     }
+
+    &.explore {
+        .map-controls {
+            display: none !important;
+        }
+    }
+    &:not(.explore) {
+        #titlebar .course,
+        #titlebar .route {
+            display: none;
+        }
+    }
 }
 
 select[name="course"],
@@ -24,14 +36,8 @@ select[name="route"] {
         font-weight: 300;
     }
 
-    option {
-        &.hidden {
-            display: none;
-        }
-
-        &:disabled {
-        }
-    }
+    max-width: 25vw;
+    text-overflow: ellipsis;
 }
 
 #content {

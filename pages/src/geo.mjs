@@ -330,6 +330,8 @@ export async function main() {
     elProfile = settings.profileOverlay && createElevationProfile();
 
     if (courseId != null) {
+        doc.classList.add('explore');
+        doc.querySelector('#titlebar').classList.add('always-visible');
         zwiftMap.setZoom(0.2);
         zwiftMap.setTiltShift(0);
         zwiftMap.setVerticalOffset(0);
@@ -390,8 +392,6 @@ export async function main() {
             }
         }
     } else {
-        routeSelect.remove();
-        courseSelect.remove();
         await initialize();
         common.subscribe('watching-athlete-change', async athleteId => {
             if (!inGame) {
