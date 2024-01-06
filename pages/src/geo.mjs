@@ -424,7 +424,7 @@ export async function main() {
             }
             const ent = zwiftMap.getEntity(chat.from);
             if (ent) {
-                ent.addChatMessage(chat.message);
+                ent.addChatMessage(chat);
             }
         });
     }

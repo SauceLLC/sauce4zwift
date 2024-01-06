@@ -274,7 +274,15 @@ export class MapAthlete extends MapEntity {
         if (state) {
             const ad = common.getAthleteDataCacheEntry(state.athleteId);
             const athlete = ad?.athlete;
-            const name = athlete ? `${athlete.fLast}` : `ID: ${state.athleteId}`;
+            let name;
+            if (athlete) {
+                name = `${athlete.fLast}`;
+            } else if (this.chats.length) {
+                const c = this.chats[0][0];
+                name = `${c.firstName[0]}.${c.lastName}`;
+            } else {
+                name = `ID: ${state.athleteId}`;
+            }
             const avatar = athlete?.avatar ?
                 `<avatar-pad></avatar-pad><img class="avatar" src="${athlete.avatar}"/>` : '';
             html.push(`<a class="name" href="/pages/profile.html?id=${state.athleteId}&windowType=profile"
@@ -289,7 +297,7 @@ export class MapAthlete extends MapEntity {
             if (html.length) {
                 html.push('<br/>');
             }
-            html.push(`<q class="chat">${this.chats.map(x => x[0]).join('<br/>')}</q>`);
+            html.push(`<q class="chat">${this.chats.map(x => x[0].message).join('<br/>')}</q>`);
         }
         return html.length ? html.join('') : '';
     }
@@ -305,9 +313,9 @@ export class MapAthlete extends MapEntity {
         }
     }
 
-    addChatMessage(message) {
+    addChatMessage(chat) {
         const expires = 15000;
-        this.chats.push([message, Date.now() + expires]);
+        this.chats.push([chat, Date.now() + expires]);
         if (this.pin) {
             this.renderPinHTML(this.getPinHTML());
         } else {
