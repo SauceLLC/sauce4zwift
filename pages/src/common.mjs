@@ -357,7 +357,7 @@ if (window.isElectron) {
         }
     };
     rpcCall = async function(name, ...args) {
-        const encodedArgs = args.map(x => b64urlEncode(JSON.stringify(x)));
+        const encodedArgs = args.map(x => x !== undefined ? b64urlEncode(JSON.stringify(x)) : '');
         const f = await fetch(`/api/rpc/v2/${name}/${encodedArgs.join('/')}`);
         const env = await f.json();
         if (env.warning) {
