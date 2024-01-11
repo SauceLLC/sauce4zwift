@@ -2,7 +2,7 @@
   "name": "sauce4zwift",
   "productName": "Sauce for Zwift™",
   "private": true,
-  "version": "1.0.4-dev",
+  "version": "1.0.8-beta",
   "description": "Overlay widgets and advanced instrumentation for the serious Zwifter.",
   "homepage": "https://www.sauce.llc",
   "author": "Sauce, LLC",
@@ -32,7 +32,7 @@
     "xxhash-addon": "2.0.1"
   },
   "optionalDependencies": {
-    "zwift-utils": "https://github.com/SauceLLC/zwift-utils.git#2663d7e32812ba718dd01d6711a60a7c1d54eb34"
+    "zwift-utils": "https://github.com/SauceLLC/zwift-utils.git#7f63b08b091ca3e6b27ebf3f1167a35e8af4da4f"
   },
   "devDependencies": {
     "@sentry/browser": "6.19.6",
@@ -82,6 +82,7 @@
       "!tools",
       "!assets",
       "!pages/scss",
+      "!shared/deps/Makefile",
       "!**/xxhash-addon/bin",
       "!**/keytar/bin",
       "!**/keytar/node_modules",
@@ -112,7 +113,9 @@
       "!node_modules/rxjs",
       "!**/*.o.d",
       "!**/*.a.d",
-      "!**/*.node.d"
+      "!**/*.node.d",
+      "!**/*.iobj",
+      "!**/*.ipdb"
     ],
     "asar": false,
     "publish": [

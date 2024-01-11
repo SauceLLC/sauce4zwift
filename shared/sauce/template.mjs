@@ -76,15 +76,7 @@ const helpers = {
             const localeKey = this.options.localeKey;
             tpl = await getTemplate(tpl, {localeKey, html: true});
         }
-        const resp = await tpl(data);
-        if (typeof resp === 'string') {
-            return resp;
-        } else {
-            // This is mildly suboptimal, not sure it warrants a warning though.
-            const el = document.createElement('div');
-            el.append(resp);
-            return el.innerHTML;
-        }
+        return await tpl(data, {html: true});
     },
     ...localeHelpers,
 };
@@ -115,8 +107,9 @@ function makeRender(text, options, helperVars, attrVars) {
         (regexps.evaluate || noMatch).source,
     ].join('|') + '|$', 'g');
     const code = [`
-        return async function sauceTemplateRender(__tplContext, obj) {
+        return async function sauceTemplateRender(__tplContext, obj, __options={}) {
             let __t; // tmp
+            const __htmlMode = __options.html != null ? __options.html : ${Boolean(options.html)};
             const __p = []; // output buffer
     `];
     const allVars = new Set(helperVars);
@@ -180,18 +173,14 @@ function makeRender(text, options, helperVars, attrVars) {
     });
     code.push(`
         const html = __p.join('');
+        if (__htmlMode) {
+            return html;
+        } else {
+            const t = document.createElement('template');
+            t.innerHTML = html;
+            return t.content;  // DocumentFragment
+        }
     `);
-    if (options.html) {
-        code.push(`return html;`);
-    } else {
-        code.push(`
-            const el = document.createElement('div');
-            el.innerHTML = html;
-            const frag = document.createDocumentFragment();
-            frag.append(...el.childNodes);
-            return frag;
-        `);
-    }
     code.push(`}; /*end-func*/`);
     const source = code.join('\n');
     let render;
@@ -214,7 +203,7 @@ function compile(text, options={}) {
     let render;
     let statics;
     let localeMessages;
-    const wrap = async obj => {
+    const wrap = async (obj, ...args) => {
         // To avoid using the deprecated `with` statement we need to memoize the obj vars.
         const vars = obj && !Array.isArray(obj) ? Object.keys(obj) : [];
         if (!render || vars.join() !== renderFuncVars.join()) {
@@ -235,7 +224,7 @@ function compile(text, options={}) {
             helpers: boundHelpers,
             localeMessages,
             statics
-        }, obj);
+        }, obj, ...args);
     };
     return wrap;
 }

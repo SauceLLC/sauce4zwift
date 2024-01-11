@@ -92,7 +92,6 @@
                 &[data-action="toggleMuted"] {
                     ms {
                         font-size: 0.9em;
-                        margin-bottom: 0.085em;
                     }
                 }
                 &[data-action="toggleMarked"].active {
@@ -184,6 +183,14 @@
     key::after {
         content: ':';
         margin-right: 0.2em;
+    }
+
+    img.inline-size {
+        display: inline-block;
+        height: 1.6em;
+        margin-top: -0.3em;
+        margin-bottom: -0.3em;
+        padding-top: 0.2em;
     }
 
     abbr.unit {

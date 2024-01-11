@@ -1,3 +1,4 @@
+/* global Buffer */
 import express from 'express';
 import * as rpc from './rpc.mjs';
 import * as mods from './mods.mjs';
@@ -241,13 +242,16 @@ async function _start({ip, port, rpcSources, statsProc}) {
         'nearby/v1': '[GET] Information for all nearby athletes',
         'groups/v1': '[GET] Information for all nearby groups',
         'rpc/v1': '[GET] List available RPC resources',
-        'rpc/v1/<name>': '[POST] Make an RPC call into the backend. ' +
-            'Content body should be JSON Array of arguments',
-        'rpc/v1/<name>/[<arg1>, <arg2>, ...<argN>]': '[GET] Simple mode RPC call into the backend. ' +
+        'rpc/v1/<name>': '[POST] Make an RPC to the backend. ' +
+            'Content body should be JSON array of arguments',
+        'rpc/v1/<name>[/<arg1>][.../<argN>]': '[GET] Simple RPC to the backend. ' +
             'CAUTION: Types are inferred based on value.  Values of null, undefined, true, false, NaN, ' +
             'Infinity and -Infinity are converted to their native JavaScript counterpart.  Number-like ' +
             'values are converted to the native number type.  For advanced call patterns use the POST ' +
-            'method.',
+            'method or the v2 endpoint.',
+        'rpc/v2/<name>[/<base64url_arg1>][.../<base64url_argN>]': '[GET] Make an RPC to the backend. ' +
+            'URL components following the name should be Base64[URL] encoded JSON representing each ' +
+            'RPC argument.',
         'mods/v1': '[GET] List available mods (i.e. plugins)',
     }], null, 4);
     const api = express.Router();
@@ -326,6 +330,24 @@ async function _start({ip, port, rpcSources, statsProc}) {
     api.get('/rpc/v1', (req, res) =>
         res.send(JSON.stringify(Array.from(rpc.handlers.keys()).map(name =>
             `${name}: [POST,GET]`), null, 4)));
+    api.get('/rpc/v2/:name*', async (req, res) => {
+        try {
+            const args = req.params[0].split('/').slice(1).map(x =>
+                x ? JSON.parse(Buffer.from(x, 'base64url')) : undefined);
+            const replyEnvelope = await rpc.invoke.call(null, req.params.name, ...args);
+            if (!replyEnvelope.success) {
+                res.status(400);
+            }
+            res.send(replyEnvelope);
+        } catch(e) {
+            res.status(500);
+            res.send(rpc.errorReply(e));
+        }
+    });
+    api.get('/rpc/v2', (req, res) =>
+        res.send(JSON.stringify(Array.from(rpc.handlers.keys()).map(name =>
+            `${name}: [GET]`), null, 4)));
+
     api.get('/mods/v1', (req, res) => res.send(JSON.stringify(mods.available, null, 4)));
     api.options('*', (req, res) => {
         res.setHeader('Access-Control-Allow-Origin', '*');

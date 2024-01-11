@@ -313,7 +313,7 @@
             $carrot-height: 1em;
             $border-color: #fff;
             $border-size: 0.2em;
-            $bg-color: #254c85;
+            $bg-color: #0b49a3;
             bottom: $carrot-height;
             pointer-events: all;
             display: flex;
@@ -321,7 +321,7 @@
             align-items: center;
             min-width: 3em;
             min-height: 3em;
-            max-width: 14em;
+            max-width: 12em;
             color: #fff;
             background-color: $bg-color;
             border: $border-size solid $border-color;
@@ -355,11 +355,7 @@
             }
         }
 
-        .pin-content {
-            padding: 0.4em;
-            white-space: nowrap;
-            text-overflow: ellipsis;
-            overflow: hidden;
+        .pin-content-wrap {
             max-width: 100%;
 
             &::after {
@@ -370,7 +366,7 @@
                 width: 100%;
                 height: 0;
                 transition: height 400ms;
-                font-size: 1.3em;
+                font-size: 1em;
                 font-weight: 500;
                 background-color: #0008;
                 color: #fff;
@@ -380,9 +376,21 @@
                 overflow: hidden;
                 z-index: 10;
             }
+
             &:hover::after {
-                height: 1.5em;
+                height: 1.8em;
             }
+        }
+
+        .pin-content {
+            padding: 0.4em;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            overflow: hidden;
+            max-width: 100%;
+            line-height: 1.35;
+            font-size: 0.94em;
+            font-variation-settings: "wdth" 94;
 
             avatar-pad {
                 display: inline-block;
@@ -401,6 +409,22 @@
                 background-color: white;
                 border: 3px solid white;
                 box-shadow: 1px 1px 2px 0 #0006;
+            }
+
+            .name {
+                font-weight: 600;
+            }
+
+            .chat {
+                margin-top: 0.3em;
+                font-size: 0.88em;
+                font-style: italic;
+                font-weight: 450;
+                white-space: pre-wrap;
+                line-height: 1.2;
+                display: block;
+                margin-left: 0.55ex;
+                text-indent: -0.55ex;
             }
         }
 

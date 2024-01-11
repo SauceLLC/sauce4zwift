@@ -131,6 +131,27 @@ export function updateTrayMenu() {
         });
     }
     menu.push({
+        label: 'Debug Logs',
+        click: () => windows.makeOrFocusEphemeralWindow({type: 'logs', id: 'debug-logs-tray-menu'})
+    }, {
+        label: 'Stats for Nerds',
+        click: () => windows.makeOrFocusEphemeralWindow({type: 'stats-for-nerds', id: 'stats-tray-menu'})
+    }, {
+        type: 'separator',
+    }, {
+        label: 'Analysis',
+        click: () => windows.makeOrFocusEphemeralWindow({type: 'analysis', id: 'analysis-tray-menu'})
+    }, {
+        label: 'Athletes',
+        click: () => windows.makeOrFocusEphemeralWindow({type: 'athletes', id: 'athletes-tray-menu'})
+    }, {
+        label: 'Events',
+        click: () => windows.makeOrFocusEphemeralWindow({type: 'events', id: 'events-tray-menu'})
+    }, {
+        label: 'Your Profile',
+        click: () => windows.makeOrFocusEphemeralWindow({type: 'profile', id: 'profile-tray-menu'})
+    });
+    menu.push({
         type: 'separator',
     }, {
         label: 'Settings',

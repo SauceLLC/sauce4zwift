@@ -32,15 +32,14 @@ function setOpacity() {
 
 export function main() {
     common.initInteractionListeners();
+    setBackground();
+    setOpacity();
     const content = document.querySelector('#content');
     const webview = document.querySelector('webview');
     const inputUrl = document.querySelector('input[name="url"]');
     const pinBtn = document.querySelector('#titlebar .button.pin');
     const backBtn = document.querySelector('#titlebar .button.back');
     const fwdBtn = document.querySelector('#titlebar .button.forward');
-    if (settings.url) {
-        load(settings.url);
-    }
     function load(url) {
         if (!url.match(/^[a-z]+:\/\//i)) {
             url = `https://${url}`;
@@ -53,8 +52,8 @@ export function main() {
     function onDidNav(url) {
         inputUrl.value = url;
         pinBtn.classList.toggle('pinned', url === settings.url);
-        backBtn.classList.toggle('disabled', !webview.canGoBack());
-        fwdBtn.classList.toggle('disabled', !webview.canGoForward());
+        backBtn.classList.toggle('disabled', !webview.canGoToOffset(-2)); // can go back is broken
+        fwdBtn.classList.toggle('disabled',!webview.canGoForward());
     }
     webview.addEventListener('load-commit', ev => {
         if (ev.isMainFrame) {
@@ -70,15 +69,24 @@ export function main() {
             onDidNav(ev.validatedURL);
         }
     });
-    webview.addEventListener('dom-ready', () => {
-        // Hijack right clicks so we don't lose interaction capability
-        webview.executeJavaScript(
-            `addEventListener('contextmenu', ev => ev.stopPropagation(), {capture: true})`);
-    });
     webview.addEventListener('page-title-updated', ({title}) => {
         document.querySelector('#titlebar .title').textContent = title;
     });
-    webview.addEventListener('context-menu', ev => dispatchEvent(new Event('contextmenu')));
+    webview.addEventListener('ipc-message', ev => {
+        if (ev.channel === 'interaction') {
+            const [type, detail] = ev.args;
+            if (type === 'contextmenu') {
+                // Treat it like our right click so the header appears.
+                dispatchEvent(new Event('contextmenu'));
+            } else if (type === 'navigate') {
+                if (detail.direction === 'back') {
+                    webview.goBack();
+                } else {
+                    webview.goForward();
+                }
+            }
+        }
+    });
     const btns = {
         back: () => webview.goBack(),
         forward: () => webview.goForward(),
@@ -93,8 +101,6 @@ export function main() {
     for (const [btn, cb] of Object.entries(btns)) {
         document.querySelector(`.button.${btn}`).addEventListener('click', cb);
     }
-    setBackground();
-    setOpacity();
     let reloadTimeout;
     common.settingsStore.addEventListener('set', ev => {
         if (!ev.data.remote) {
@@ -108,6 +114,9 @@ export function main() {
         setBackground();
         setOpacity();
     });
+    if (settings.url) {
+        load(settings.url);
+    }
 }
 
 

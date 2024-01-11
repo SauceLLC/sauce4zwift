@@ -76,9 +76,9 @@ function humanDuration(elapsed, options={}) {
                 humanNumber(Math.floor(elapsed / period));
             if (val !== '0' || (isLast && !stack.length)) {
                 key += val !== '1' ? 's' : '';
-                const unit = options.short ? hdUnits[key][0] : ` ${hdUnits[key]}`;
+                const unit = options.short ? hdUnits[key][0] : hdUnits[key];
                 const suffix = options.html ? `<abbr class="unit">${unit}</abbr>` : unit;
-                stack.push(`${val}${suffix}`);
+                stack.push(`${val}${!options.html && !options.short ? ' ' : ''}${suffix}`);
             }
             elapsed %= period;
         }
@@ -154,6 +154,8 @@ function humanDate(date, options={}) {
 
 const _intlTimeFormats = {
     'default': new Intl.DateTimeFormat([], {hour: 'numeric', minute: 'numeric', second: 'numeric'}),
+    'date': new Intl.DateTimeFormat([], {weekday: 'short', hour: 'numeric', minute: 'numeric',
+                                         timeZoneName: 'short'}),
 };
 function humanTime(date, options={}) {
     if (!(date instanceof Date)) {

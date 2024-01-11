@@ -189,7 +189,7 @@ function fmtActions(obj) {
     return [
         `<a class="link" target="watching_popup_${obj.athleteId}"
             href="watching.html?windowId=watching-link-popup&windowType=watching&id=${obj.athleteId}"
-            title="Load Watching window for this athlete"><ms>live_tv</ms></a>`,
+            title="Load Watching window for this athlete"><ms>grid_view</ms></a>`,
         `<a class="link" target="analysis_popup_${obj.athleteId}"
             href="analysis.html?windowId=analysis-link-popup&windowType=analysis&id=${obj.athleteId}"
             title="Load Analysis window for this athlete's session"><ms>monitoring</ms></a>`,

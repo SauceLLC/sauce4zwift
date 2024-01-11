@@ -4,6 +4,7 @@ import * as locale from '../../shared/sauce/locale.mjs';
 import * as report from '../../shared/report.mjs';
 import * as elements from './custom-elements.mjs';
 import * as curves from '/shared/curves.mjs';
+import * as fields from './fields.mjs';
 
 export const sleep = _sleep; // Come on ES6 modules, really!?
 export let idle;
@@ -150,6 +151,11 @@ class LocalStorage extends EventTarget {
 }
 
 
+function b64urlEncode(data) {
+    return btoa(data).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+
 if (window.isElectron) {
     windowID = electron.context.id;
     const subs = [];
@@ -210,7 +216,7 @@ if (window.isElectron) {
         }
     };
     rpcCall = async function(name, ...args) {
-        const env = await electron.ipcInvoke('rpc', name, ...args);
+        const env = JSON.parse(await electron.ipcInvoke('rpc', name, ...args));
         if (env.warning) {
             console.warn(env.warning);
         }
@@ -351,11 +357,8 @@ if (window.isElectron) {
         }
     };
     rpcCall = async function(name, ...args) {
-        const f = await fetch(`/api/rpc/v1/${name}`, {
-            method: 'POST',
-            headers: {"content-type": 'application/json'},
-            body: JSON.stringify(args),
-        });
+        const encodedArgs = args.map(x => x !== undefined ? b64urlEncode(JSON.stringify(x)) : '');
+        const f = await fetch(`/api/rpc/v2/${name}/${encodedArgs.join('/')}`);
         const env = await f.json();
         if (env.warning) {
             console.warn(env.warning);
@@ -378,6 +381,43 @@ function makeRPCError({name, message, stack}) {
     const e = new Error(`${name}: ${message}`);
     e.stack = stack;
     return e;
+}
+
+export function longPressListener(el, timeout, callback) {
+    let paused;
+    let matureTimeout;
+    const onPointerDown = ev => {
+        if (paused) {
+            return;
+        }
+        let complete = false;
+        el.classList.add('pointer-pressing');
+        const onCancel = ev => {
+            clearTimeout(matureTimeout);
+            document.removeEventListener('pointerup', onCancel, {once: true});
+            document.removeEventListener('pointercancel', onCancel, {once: true});
+            if (!complete) {
+                el.classList.remove('pointer-pressing');
+            }
+            complete = true;
+        };
+        document.addEventListener('pointerup', onCancel, {once: true});
+        document.addEventListener('pointercancel', onCancel, {once: true});
+        clearTimeout(matureTimeout);
+        matureTimeout = setTimeout(() => {
+            complete = true;
+            el.classList.remove('pointer-pressing');
+            callback(ev);
+        }, timeout);
+    };
+    el.addEventListener('pointerdown', onPointerDown);
+    return {
+        setPaused: en => paused = en,
+        removeListener: () => {
+            el.removeEventListener('pointerdown', onPointerDown);
+            clearTimeout(matureTimeout);
+        }
+    };
 }
 
 
@@ -481,35 +521,65 @@ export async function getRoad(courseId, id) {
 }
 
 
-const _routes = new Map();
-export function getRoute(id) {
-    if (!_routes.has(id)) {
-        _routes.set(id, rpcCall('getRoute', id).then(async route => {
-            if (route) {
-                route.curvePath = new curves.CurvePath();
-                route.roadSegments = [];
-                const worldList = await getWorldList();
-                const worldMeta = worldList.find(x => x.courseId === route.courseId);
-                for (const [i, x] of route.manifest.entries()) {
-                    const road = await getRoad(route.courseId, x.roadId);
-                    const seg = road.curvePath.subpathAtRoadPercents(x.start, x.end);
-                    seg.reverse = x.reverse;
-                    seg.leadin = x.leadin;
-                    seg.roadId = x.roadId;
-                    for (const xx of seg.nodes) {
-                        xx.index = i;
-                    }
-                    route.roadSegments.push(seg);
-                    route.curvePath.extend(x.reverse ? seg.toReversed() : seg);
-                }
-                // NOTE: No support for physicsSlopeScaleOverride of portal roads.
-                // But I've not seen portal roads used in a route either.
-                Object.assign(route, supplimentPath(worldMeta, route.curvePath));
-            }
-            return route;
-        }));
+async function computeRoutePath(route) {
+    const curvePath = new curves.CurvePath();
+    const roadSegments = [];
+    const worldList = await getWorldList();
+    const worldMeta = worldList.find(x => x.courseId === route.courseId);
+    for (const [i, x] of route.manifest.entries()) {
+        const road = await getRoad(route.courseId, x.roadId);
+        const seg = road.curvePath.subpathAtRoadPercents(x.start, x.end);
+        seg.reverse = x.reverse;
+        seg.leadin = x.leadin;
+        seg.roadId = x.roadId;
+        for (const xx of seg.nodes) {
+            xx.index = i;
+        }
+        roadSegments.push(seg);
+        curvePath.extend(x.reverse ? seg.toReversed() : seg);
     }
-    return _routes.get(id);
+    // NOTE: No support for physicsSlopeScaleOverride of portal roads.
+    // But I've not seen portal roads used in a route either.
+    return {
+        curvePath,
+        roadSegments,
+        ...supplimentPath(worldMeta, curvePath),
+    };
+}
+
+
+let _routeListPromise;
+const _routePromises = new Map();
+export function getRoute(id) {
+    if (!_routePromises.has(id)) {
+        if (_routeListPromise) {
+            _routePromises.set(id, _routeListPromise.then(async routes => {
+                const route = routes && routes.find(x => x.id === id);
+                if (route) {
+                    Object.assign(route, await computeRoutePath(route));
+                }
+                return route;
+            }));
+        } else {
+            _routePromises.set(id, rpcCall('getRoute', id).then(async route => {
+                if (route) {
+                    Object.assign(route, await computeRoutePath(route));
+                }
+                return route;
+            }));
+        }
+    }
+    return _routePromises.get(id);
+}
+
+
+export function getRouteList(courseId) {
+    if (!_routeListPromise) {
+        _routeListPromise = rpcCall('getRoutes');
+    }
+    return courseId == null ?
+        _routeListPromise :
+        _routeListPromise.then(routes => routes.filter(x => x.courseId === courseId));
 }
 
 
@@ -729,9 +799,9 @@ export class Renderer {
             return;
         }
         const dataField = activeEl.closest('[data-field]');
-        const id = dataField && dataField.dataset.field;
-        if (id) {
-            this.rotateField(id, dir);
+        const mappingId = dataField && dataField.dataset.field;
+        if (mappingId) {
+            this.rotateField(mappingId, dir);
         }
     }
 
@@ -752,41 +822,47 @@ export class Renderer {
         return adjIdx < 0 ? field.available.length + adjIdx : adjIdx;
     }
 
-    rotateField(groupId, dir=1) {
+    rotateField(mappingId, dir=1) {
         if (this.locked) {
             return;
         }
-        const field = this.fields.get(groupId);
+        const field = this.fields.get(mappingId);
         const idx = this.getAdjacentFieldIndex(field, dir);
-        field.active = field.available[idx];
-        const id = field.active.id || idx;
+        const id = field.available[idx].id;
+        this.setField(mappingId, id);
+    }
+
+    setField(mappingId, id) {
+        const field = this.fields.get(mappingId);
+        field.active = field.available.find(x => x.id === id);
         storage.set(field.storageKey, id);
-        console.debug('Switching field', groupId, id);
-        this.setFieldTooltip(groupId);
+        console.debug('Switching field mapping', mappingId, id);
+        this.setFieldTooltip(mappingId);
         this.render({force: true});
     }
 
     addRotatingFields(spec) {
         for (const mapping of spec.mapping) {
-            const id = mapping.id;
             const el = (spec.el || this._contentEl).querySelector(`[data-field="${mapping.id}"]`);
-            const storageKey = `${this.id}-${id}`;
-            let savedId = storage.get(storageKey);
-            if (savedId == null) {
-                savedId = mapping.default;
+            const storageKey = `${this.id}-${mapping.id}`;
+            const savedId = storage.get(storageKey);
+            let active;
+            for (const id of [savedId, mapping.default, 0]) {
+                active = typeof id === 'number' ? spec.fields[id] : spec.fields.find(x => x.id === id);
+                if (active) {
+                    break;
+                }
             }
-            const active = typeof savedId === 'number' ?
-                spec.fields[savedId] :
-                spec.fields.find(x => x.id === savedId);
-            if (!active) {
-                console.warn("Field ID not found:", savedId);
+            if (savedId !== active.id) {
+                console.warn("Storing updated field ID:", savedId, '->', active.id);
+                storage.set(storageKey, active.id);
             }
-            this.fields.set(id, {
-                id,
+            this.fields.set(mapping.id, {
+                id: mapping.id,
                 el,
                 storageKey,
                 available: spec.fields,
-                active: active || spec.fields[0],
+                active,
                 valueEl: el.querySelector('.value'),
                 labelEl: el.querySelector('.label'),
                 subLabelEl: el.querySelector('.sub-label'),
@@ -794,42 +870,74 @@ export class Renderer {
                 unitEl: el.querySelector('.unit'),
             });
             el.setAttribute('tabindex', 0);
-            //el.addEventListener('click', ev => this.rotateField(id));
-            el.addEventListener('click', () => {
-                const field = this.fields.get(id);
-                const options = field.available.map(x => {
-                    const name = stripHTML(
-                        fGet(x.key, this._data) + ' :: ' + 
-                        fGet(x.label, this._data)  + ' :: ' +
-                        x.id);
-                    return `<option id="${x.id}">${name}</option>`
+            this.setFieldTooltip(mapping.id);
+            if (this.locked) {
+                continue;
+            }
+            let anchorEl = el.querySelector('.editing-anchor');
+            if (!anchorEl) {
+                anchorEl = el;
+                el.classList.add('editing-anchor');
+            }
+            const handler = longPressListener(el, 1500, ev => {
+                handler.setPaused(true);
+                const field = this.fields.get(mapping.id);
+                const groups = new Set(field.available.map(x => x.group));
+                const select = document.createElement('select');
+                select.classList.add('rotating-field');
+                for (const group of groups) {
+                    // group can be undefined, this is fine.
+                    let container;
+                    if (group) {
+                        container = document.createElement('optgroup');
+                        container.label = fields.fieldGroupNames[group] || group;
+                    } else {
+                        container = select;
+                    }
+                    for (const x of field.available) {
+                        if (x.group === group) {
+                            const option = document.createElement('option');
+                            if (x.id === field.active.id) {
+                                option.selected = true;
+                            }
+                            option.value = x.id;
+                            option.textContent = stripHTML(x.longName ? fGet(x.longName) : fGet(x.key));
+                            container.append(option);
+                        }
+                    }
+                    if (container !== select) {
+                        select.append(container);
+                    }
+                }
+                const endEditing = () => {
+                    if (!select.isConnected) {
+                        return;
+                    }
+                    el.classList.remove('editing');
+                    select.remove();
+                    handler.setPaused(false);
+                };
+                select.addEventListener('change', () => {
+                    this.setField(mapping.id, select.value);
+                    endEditing();
                 });
-                el.insertAdjacentHTML('beforeend', `
-                    <select name="foobar">
-                        ${options}
-                    </select>
-                `);
+                // Avoid DOM errors caused by DOM manipulation in onblur with microtask..
+                select.addEventListener('blur', () => queueMicrotask(endEditing));
+                el.classList.add('editing');
+                anchorEl.append(select);
+                select.focus();
             });
-            this.setFieldTooltip(id);
         }
     }
 
-    setFieldTooltip(id) {
-        if (this.locked) {
-            return;
-        }
-        const field = this.fields.get(id);
-        const nextField = field.available[this.getAdjacentFieldIndex(field, 1)];
-        const tooltip = field.active?.tooltip ? field.active?.tooltip + '\n\n' : '';
+    setFieldTooltip(mappingId) {
+        const field = this.fields.get(mappingId);
+        const tooltip = field.active?.tooltip ? fGet(field.active.tooltip) + '\n\n' : '';
         try {
-            const name = stripHTML(
-                fGet(nextField.key, this._data) ||
-                fGet(nextField.label, this._data) ||
-                nextField.id);
-            field.el.title = `${tooltip}Click to change this field to the next option: "${name}". ` +
-                `Or use the Left/Right keys when focused.`;
+            field.el.title = `${tooltip}Long click/press to change this field or use ` +
+                `the Left/Right keys when focused.`;
         } catch(e) {
-            console.error("Failed to get tooltip name for next field:", id, nextField, e);
+            console.error("Failed to get tooltip name for next field:", mappingId, e);
         }
     }
 
@@ -1285,12 +1393,12 @@ export function teamBadge(t) {
 
 
 let _nations, _flags;
-export function fmtFlag(code) {
+export function fmtFlag(code, {empty='-'}={}) {
     if (code && _flags && _flags[code]) {
         const nation = sanitizeAttr(_nations[code]);
-        return `<img src="${_flags[code]}" title="${nation}"/>`;
+        return `<img class="nation-flag" src="${_flags[code]}" title="${nation}"/>`;
     } else {
-        return '-';
+        return empty;
     }
 }
 
@@ -1651,9 +1759,24 @@ export async function enableSentry() {
 
 
 export function asyncSerialize(asyncFunc) {
-    let p = Promise.resolve();
+    let p;
     const fn = function() {
-        return (p = p.catch(() => null).then(() => asyncFunc.apply(this, arguments)));
+        if (p) {
+            const chain = p = p.catch(() => null).then(() => asyncFunc.apply(this, arguments));
+            chain.finally(() => {
+                if (p === chain) {
+                    p = undefined; // optimize next call
+                }
+            });
+        } else {
+            const r = asyncFunc.apply(this, arguments);
+            if (r instanceof Promise) {
+                p = r;
+            } else {
+                return r;
+            }
+        }
+        return p;
     };
     Object.defineProperty(fn, 'name', {value: 'serialized ' + asyncFunc.name});
     return fn;

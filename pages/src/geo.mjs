@@ -2,6 +2,7 @@ import * as common from './common.mjs';
 import * as map from './map.mjs';
 import * as elevation from './elevation.mjs';
 import * as fields from './fields.mjs';
+import * as data from '/shared/sauce/data.mjs';
 
 common.enableSentry();
 
@@ -32,11 +33,18 @@ common.settingsStore.setDefault({
 });
 
 const settings = common.settingsStore.get();
+const url = new URL(location);
+const courseSelect = document.querySelector('#titlebar select[name="course"]');
+const routeSelect = document.querySelector('#titlebar select[name="route"]');
 
+let worldList;
+let routesList;
 let watchdog;
 let inGame;
 let zwiftMap;
 let elProfile;
+let courseId = Number(url.searchParams.get('course')) || undefined;
+let routeId = Number(url.searchParams.get('route')) || undefined;
 
 
 function setBackground() {
@@ -63,7 +71,7 @@ function getSetting(key, def) {
 }
 
 
-function createZwiftMap({worldList}) {
+function createZwiftMap() {
     const opacity = 1 - 1 / (100 / (settings.transparency || 0));
     const autoCenter = getSetting('autoCenter', true);
     const zm = new map.SauceZwiftMap({
@@ -143,7 +151,7 @@ function createZwiftMap({worldList}) {
 }
 
 
-function createElevationProfile({worldList}) {
+function createElevationProfile() {
     const el = document.querySelector('.elevation-profile');
     if (settings.profileHeight) {
         el.style.setProperty('--profile-height', settings.profileHeight / 100);
@@ -167,11 +175,9 @@ async function initialize() {
     const ad = await common.rpc.getAthleteData('self');
     inGame = !!ad;
     if (!inGame) {
-        console.info("User not active, starting demo mode...");
-        zwiftMap.setCourse(6);
-        if (elProfile) {
-            elProfile.setCourse(6);
-        }
+        //console.info("User not active. Just show something...");
+        //courseId = 6;
+        //await applyCourse();
         return;
     }
     zwiftMap.setAthlete(ad.athleteId);
@@ -195,6 +201,82 @@ async function initialize() {
         }
         if (elProfile) {
             await elProfile.renderAthleteStates([ad.state]);
+        }
+    }
+}
+
+
+function centerMap(positions, options) {
+    const xMin = data.min(positions.map(x => x[0]));
+    const yMin = data.min(positions.map(x => x[1]));
+    const xMax = data.max(positions.map(x => x[0]));
+    const yMax = data.max(positions.map(x => x[1]));
+    zwiftMap.setDragOffset([0, 0]);
+    zwiftMap.setBounds([xMin, yMax], [xMax, yMin], options);
+}
+
+
+const _routeHighlights = [];
+async function applyRoute() {
+    if (routeId != null) {
+        url.searchParams.set('route', routeId);
+    } else {
+        url.searchParams.delete('route');
+    }
+    history.replaceState({}, '', url);
+    while (_routeHighlights.length) {
+        _routeHighlights.pop().elements.forEach(x => x.remove());
+    }
+    routeSelect.replaceChildren();
+    routeSelect.insertAdjacentHTML('beforeend', `<option value disabled selected>Route</option>`);
+    for (const x of routesList) {
+        if (x.courseId !== courseId) {
+            continue;
+        }
+        routeSelect.insertAdjacentHTML('beforeend', `
+            <option ${x.id === routeId ? 'selected' : ''}
+                    value="${x.id}">${common.stripHTML(x.name)}</option>`);
+    }
+    if (routeId != null) {
+        const route = await common.getRoute(routeId);
+        const path = route.curvePath;
+        _routeHighlights.push(
+            zwiftMap.addHighlightPath(path, `route-1-${route.id}`, {width: 5, color: '#0004'}),
+            zwiftMap.addHighlightPath(path, `route-2-${route.id}`, {width: 1.2, color: 'black'}),
+            zwiftMap.addHighlightPath(path, `route-3-${route.id}`, {width: 0.5, color: 'gold'}),
+        );
+        centerMap(route.curvePath.flatten(1/3));
+        if (elProfile) {
+            await elProfile.setRoute(routeId);
+        }
+    } else {
+        zwiftMap.setVerticalOffset(0);
+        zwiftMap.setDragOffset([0, 0]);
+        zwiftMap.setZoom(0.2);
+        if (elProfile) {
+            elProfile.clear();
+        }
+    }
+}
+
+
+async function applyCourse() {
+    if (courseId != null) {
+        url.searchParams.set('course', courseId);
+    } else {
+        url.searchParams.delete('course');
+    }
+    history.replaceState({}, '', url);
+    courseSelect.replaceChildren();
+    for (const x of worldList) {
+        courseSelect.insertAdjacentHTML('beforeend', `
+            <option ${x.courseId === courseId ? 'selected' : ''}
+                    value="${x.courseId}">${common.stripHTML(x.name)}</option>`);
+    }
+    if (courseId != null) {
+        await zwiftMap.setCourse(courseId);
+        if (elProfile) {
+            await elProfile.setCourse(courseId);
         }
     }
 }
@@ -226,16 +308,40 @@ export async function main() {
             return ['ev', 'game-laps', 'progress', 'rt', 'el', 'grade', 'altitude'].includes(type);
         })
     });
-    const worldList = await common.getWorldList();
-    zwiftMap = createZwiftMap({worldList});
+    routeSelect.addEventListener('change', async ev => {
+        routeId = Number(routeSelect.value);
+        await applyRoute();
+    });
+    courseSelect.addEventListener('change', async ev => {
+        const id = Number(courseSelect.value);
+        if (id === courseId) {
+            console.debug("debounce course change");
+            return;
+        }
+        courseId = id;
+        routeId = undefined;
+        await applyCourse();
+        await applyRoute();
+    });
+    [worldList, routesList] = await Promise.all([common.getWorldList(), common.getRouteList()]);
+    zwiftMap = createZwiftMap();
     window.zwiftMap = zwiftMap;  // DEBUG
     window.MapEntity = map.MapEntity;
-    elProfile = settings.profileOverlay && createElevationProfile({worldList});
-    const urlQuery = new URLSearchParams(location.search);
-    if (urlQuery.has('testing')) {
-        const center = urlQuery.get('center');
-        const [course, road] = urlQuery.get('testing').split(',');
-        const routeId = urlQuery.get('route');
+    elProfile = settings.profileOverlay && createElevationProfile();
+
+    if (courseId != null) {
+        doc.classList.add('explore');
+        doc.querySelector('#titlebar').classList.add('always-visible');
+        zwiftMap.setZoom(0.2);
+        zwiftMap.setTiltShift(0);
+        zwiftMap.setVerticalOffset(0);
+        zwiftMap._mapTransition.setDuration(1500);
+        await applyCourse();
+        await applyRoute();
+    } else if (url.searchParams.has('testing')) {
+        const center = url.searchParams.get('center');
+        const [course, road] = url.searchParams.get('testing').split(',');
+        const routeId = url.searchParams.get('route');
         await zwiftMap.setCourse(+course || 6);
         if (elProfile) {
             await elProfile.setCourse(+course || 6);
@@ -246,9 +352,6 @@ export async function main() {
         if (routeId) {
             const route = await zwiftMap.setActiveRoute(+routeId);
             console.log({route});
-            for (const [i, xx] of route.checkpoints.entries()) {
-                console.log(i, xx.roadPercent.toFixed(8), xx.roadId, xx.reverse, xx.leadin, xx.forceSplit);
-            }
             let start = 0;
             let end = route.curvePath.nodes.length;
             const point = zwiftMap.addPoint([0, 0], 'star');
@@ -312,6 +415,16 @@ export async function main() {
             zwiftMap.renderAthleteStates(states);
             if (elProfile) {
                 elProfile.renderAthleteStates(states);
+            }
+        });
+        common.subscribe('chat', chat => {
+            if (chat.muted) {
+                console.debug("Ignoring muted chat message");
+                return;
+            }
+            const ent = zwiftMap.getEntity(chat.from);
+            if (ent) {
+                ent.addChatMessage(chat);
             }
         });
     }

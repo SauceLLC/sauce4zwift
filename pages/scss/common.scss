@@ -569,7 +569,7 @@ form {
 
         span {
             display: inline-block;
-            margin-top: -0.2em; // XXX offset by bottom margin of ms. :/
+            margin-top: -0.2em;
             padding: 0 0.1em;
             font-variant: all-petite-caps;
             vertical-align: middle;
@@ -743,10 +743,6 @@ a.std.button {
 
         &.icon-only {
             padding: 0.1rem;
-
-            ms {
-                margin-bottom: 0;
-            }
         }
 
         &.hidden {
@@ -880,14 +876,15 @@ span.button.std {
 .badge {
     display: inline-block;
     --hue: 90deg;
+    --sat: 1;
     color: #fff;
     vertical-align: middle;
     line-height: 1;
     text-transform: uppercase;
     font-weight: 700;
     background-image: linear-gradient(to bottom,
-        hsl(var(--hue) 70% 40% / 0.86),
-        hsl(var(--hue) 87% 50% / 0.86));
+        hsl(var(--hue) calc(var(--sat) * 70%) 40% / 0.86),
+        hsl(var(--hue) calc(var(--sat) * 87%) 50% / 0.86));
     border-radius: 0.28em;
     padding: 0.3em 0.4em 0.27em;
     padding: 0.48em 0.6em 0.4em;
@@ -949,6 +946,52 @@ dialog {
         &:active {
             box-shadow: inset 0 0 5px #0006;
         }
+    }
+}
+
+[data-field] {
+    @keyframes width-grow {
+        from {width: 0;}
+        to {width: 100%;}
+    }
+
+    &.editing {
+        :not(select.rotating-field):not(.editing-anchor) {
+            visibility: hidden;
+        }
+        select.rotating-field * {
+            visibility: visible !important;
+        }
+    }
+
+    &.pointer-pressing {
+        &.editing-anchor,
+        .editing-anchor {
+            &::after {
+                content: '';
+                position: absolute;
+                animation: width-grow 1250ms;
+                animation-delay: 250ms;
+                animation-fill-mode: forwards; // leave on final state
+                left: 0;
+                bottom: 0;
+                height: 0.15rem;
+                background-color: color.get(intrinsic, 0.80);
+                pointer-events: none;
+                border-radius: 0.28em;
+            }
+        }
+    }
+
+    &.editing-anchor,
+    .editing-anchor {
+        position: relative;
+    }
+
+    select.rotating-field {
+        font-size: 16px;
+        position: absolute;
+        width: 100%;
     }
 }
 
@@ -1053,7 +1096,6 @@ ms {
     -webkit-user-select: none;
     user-select: none;
     font-size: 1em;
-    margin-bottom: 0.165em;
     vertical-align: middle;
 
     &[large] {

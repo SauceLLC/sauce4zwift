@@ -75,9 +75,9 @@ enum WorldUpdatePayloadType {
 }
 
 message WorldUpdate {
-    uint64 worldTime = 1;
+    uint64 _f1 = 1;
     int32 realm = 2;
-    WorldUpdatePayloadType _payloadType = 3;
+    WorldUpdatePayloadType payloadType = 3;
     bytes _payload = 4;
     uint64 worldTimeBorn = 5;
     int64 x = 6;
@@ -659,7 +659,7 @@ message PlayerProfile {
     int32 _f130 = 130; // seen 1 and 2, so likely an enum
     int32 _f131 = 131; // Added 2023/11/09
     int32 _f132 = 132; // Added 2023/11/09
-    int32 _f133 = 133; // Added 2023/11/09
+    uint32 _f133 = 133; // time epoch in seconds
     int32 _f134 = 134; // Added 2023/11/09
     int32 _f135 = 135; // Added 2023/11/09
     int32 _f136 = 136; // Added 2023/11/09
@@ -671,6 +671,16 @@ message PlayerProfile {
     int32 _f142 = 142; // Added 2023/11/09
     int32 _f143 = 143; // Added 2023/11/09
     int32 _f144 = 144; // Added 2023/11/09
+
+    // These duplicate values from november.  Maybe they needed to be floats and are phasing over...
+    // Possibly x/y/z bounding box values...
+    float _f146 = 146; // Added 2023/12/21 (1.55) Matches 135/136
+    float _f147 = 147; // Added 2023/12/21 (1.55) Matches 137/138
+    float _f148 = 148; // Added 2023/12/21 (1.55) Matches 139/140
+
+    float _f149 = 149; // Added 2023/12/21 (1.55) Matches 135/136
+    float _f150 = 150; // Added 2023/12/21 (1.55) Matches 137/138
+    float _f151 = 151; // Added 2023/12/21 (1.55) Matches 139/140
 }
 
 message PlayerProfiles {
@@ -879,6 +889,8 @@ message LoginResponse {
 message LoginRequest {
     AnalyticsEventProperties properties = 1;
     required bytes aesKey = 2;
+    uint32 _f3 = 3; // Seen mac desktop client send as 1
+    uint32 _f4 = 4; // Seen mac desktop client send as 0
 }
 
 message AnalyticsEventProperty {
@@ -890,9 +902,13 @@ message AnalyticsEventProperties {
     repeated AnalyticsEventProperty entries = 2;
 }
 
+message RelaySessionRefreshRequest {
+    uint32 relaySessionId = 1;
+}
+
 message RelaySessionRefreshResponse {
-    required uint32 relaySessionId = 1;
-    required uint32 expiration = 2; // minutes
+    uint32 relaySessionId = 1;
+    uint32 expiration = 2; // minutes
 }
 
 enum UserBikeAction {
@@ -1291,7 +1307,7 @@ message EventSubgroup {
     string description = 3;
     int32 _f4 = 4;
     int32 totalJoinedCount = 5;
-    int32 _f6 = 6;
+    int32 _f6 = 6; // maybe totalJoinedCount?
     string scode = 7;
     uint32 rulesId = 8;
     uint64 registrationStart = 9;
@@ -1306,7 +1322,7 @@ message EventSubgroup {
     uint64 eventSubgroupStartWT = 18;
     int64 _f19 = 19;
     int64 _f20 = 20;
-    bool _f21 = 21;
+    bool signedUp = 21;
     uint64 routeId = 22;
     repeated uint64 invitedLeaders = 23;
     float distanceInMeters = 24;
@@ -1320,14 +1336,14 @@ message EventSubgroup {
     uint32 durationInSeconds = 34;
     uint32 _f35 = 35;
     uint64 jerseyHash = 36; // 493134166, tag672
-    bool _f37 = 37;
+    bool _f37 = 37; // maybe one of unlisted, restricted, recurring
     uint32 _f38 = 38;
     string auxiliaryUrl = 39;
     uint64 bikeHash = 40; // 4208139356, tag704
     repeated uint64 invitedSweepers = 41;
     uint64 _f42 = 42;
     string customUrl = 43;
-    bool _f44 = 44;
+    bool _f44 = 44; // maybe one of unlisted, restricted, recurring
     string _tags = 45; // semi-colon seperated
     uint32 lateJoinInMinutes = 46;
     int32 mapId = 47; // actually worldId, but stay consistent with JSON
@@ -1336,7 +1352,7 @@ message EventSubgroup {
     repeated int32 _f50 = 50;
     bool accessValidationResult = 51;
     int32 totalEntrantCount = 52; // or signed-up count
-    int32 _f53 = 53;
+    int32 followeeEntrantCount = 53; // or signed-up count
 }
 
 enum EventVisibility {
@@ -1392,7 +1408,7 @@ message Event {
     string _f6 = 6;
     float distanceInMeters = 7;
     uint32 laps = 8;
-    uint32 _f9 = 9;
+    uint32 _f9 = 9; // followeeJoinedCount?
     repeated EventSubgroup eventSubgroups = 10;
     string _f11 = 11;
     string imageUrl = 12;
@@ -1425,7 +1441,7 @@ message Event {
     uint32 _f39 = 39;
     MicroserviceEventData msed = 40;
     int32 totalEntrantCount = 42; // or signed up count
-    int64 _f43 = 43;
+    int32 followeeEntrantCount = 43; // or signed up count
     bool categoryEnforcement = 44;
 }
 

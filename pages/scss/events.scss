@@ -9,7 +9,7 @@ html {
 #content > table {
     user-select: text;
 
-    > thead {
+    > thead:not(.loader) {
         position: sticky;
         z-index: 1;
         top: 0;
@@ -17,21 +17,78 @@ html {
     }
 }
 
+.trophy {
+    font-size: 1.3em;
+    border-radius: 50%;
+    width: 1.5em;
+    height: 1.5em;
+    line-height: 1.65em;
+    color: color.shade(intrinsic-inverted, 10%, 0.8);
+    text-align: center;
+    box-shadow: 1px 1px 3px 0 #0002;
+    margin-bottom: 0;
+
+    &.gold {
+        background-color: gold;
+    }
+    &.silver {
+        background-color: silver;
+    }
+    &.bronze {
+        background-color: #cd7f32;
+    }
+}
+
 
 table {
     border-collapse: collapse;
 
-    thead th {
+    thead:not(.loader) th {
         font-variant: all-small-caps;
         font-weight: 500;
     }
 
+    thead.loader,
+    tfoot.loader {
+        background-image: linear-gradient(to bottom, color.shade(intrinsic, 30%), color.shade(intrinsic, 15%));
+        color: color.shade(intrinsic-inverted, 0%);
+        transition: opacity 200ms;
+        opacity: 0.7;
+        cursor: pointer;
+        font-variant: all-small-caps;
+
+        &.loading {
+            pointer-events: none;
+            opacity: 0.2;
+        }
+
+        &:not(.loading):hover {
+            opacity: 1;
+        }
+
+        td {
+            text-align: center;
+            padding: 0.3em;
+        }
+    }
+
     &.events {
         > tbody > tr {
-            scroll-margin-top: 4.58em;  // roughly one extra row plus header height
+            scroll-margin-top: 2.38em;  // roughly header height
 
             &.started > td {
                 opacity: 0.5;
+            }
+
+            &.signedup {
+                background-color: color.shade(intrinsic-inverted, 0%, 0.5);
+                color: color.shade(intrinsic, 0%);
+                outline: 4px solid color.get(bg2);
+                outline-offset: -4px;
+
+                &:not(.expanded):hover {
+                    background-color: color.shade(intrinsic-inverted, 18%, 0.9) !important;
+                }
             }
 
             &.hidden {
@@ -41,9 +98,13 @@ table {
                 }
             }
 
+            > td.start {
+                font-size: 0.92em;
+            }
+
             > td.type {
-                font-variant: all-small-caps;
-                font-weight: 600;
+                font-size: 0.8em;
+                font-weight: 500;
             }
 
             > td.name {
@@ -51,23 +112,20 @@ table {
             }
 
             > td.groups {
-                font-size: 0.7em;
+                font-size: 0.86em;
 
                 > * {
-                    margin-left: 0.2em;
-                }
-
-                ms {
-                    margin: 0.1em 0 0 0.1em;
+                    margin-left: 0.1em;
                 }
             }
         }
     }
 
     abbr.unit {
-        font-size: 0.82em;
-        opacity: 0.8;
+        font-size: 0.9em;
+        opacity: 0.9;
         margin-left: 0.1em;
+        font-variant: all-small-caps;
     }
 
     > thead > tr > th,
@@ -96,6 +154,8 @@ table {
                 padding: 1.5em;
                 border-radius: 0.28em;
                 box-shadow: 1px 1px 5px #0003;
+                max-height: 80vh;
+                overflow: auto;
 
                 &:empty {
                     min-height: 5em;
@@ -110,20 +170,42 @@ table {
             &.expanded,
             &.expanded + tr.details {
                 background-color: color.shade(primary, 3%, 0.8);
+                color: color.shade(primary, 100%);
             }
         }
     }
 
     .event-info {
-        max-height: max(400px, 20vh);
-        overflow: auto;
+        display: flow-root;
+
+        .card {
+            float: right;
+        }
 
         .desc {
             white-space: pre-line;
+            line-height: 1.4; // condense a bit
+        }
+
+        .tags {
+            margin-top: 1em;
+
+            .badge {
+                --sat: 0;
+                padding: 0.45em 0.5em 0.2em;
+            }
         }
     }
 
+    .elevation-chart {
+        font-size: 2.5em;
+        height: 2em;
+        mix-blend-mode: luminosity;
+    }
+
     .subgroups {
+        padding-top: 1em;
+
         .event-subgroup {
             margin: 1em 0 2em;
             padding: 1em;
@@ -135,6 +217,46 @@ table {
                 flex-wrap: wrap;
                 justify-content: space-between;
                 align-items: center;
+                background-image: linear-gradient(to bottom,
+                    color.shade(intrinsic-inverted, 0%, 0.3),
+                    color.shade(intrinsic-inverted, 0%, 0.85));
+                border-radius: 0.28em;
+                padding: 1em;
+                color: color.get(intrinsic);
+
+                @media (min-width: 768px)  {
+                    // Make it overlay band style
+                    margin: 0 -1.5em;
+                    padding: 1em 1.25em;
+                }
+
+                .label {
+                    position: relative;
+                    display: flex;
+                    align-items: center;
+
+                    .group {
+                        position: absolute;
+                        top: -1.35em;
+                        left: 1px;
+                        font-variant: all-petite-caps;
+                        font-weight: 800;
+                        font-size: 0.85em;
+                        opacity: 0.6;
+                    }
+
+                    .button[data-action] {
+                        text-transform: uppercase;
+                        font-weight: 600;
+                        font-size: 0.74em;
+
+                        ms {
+                            font-size: 1.2em;
+                            margin-left: -0.4em;
+                            margin-right: 0.15em;
+                        }
+                    }
+                }
 
                 .badge {
                     font-size: 1.065em;
@@ -148,34 +270,56 @@ table {
             }
         }
 
+        .elevation-chart {
+            background-image: linear-gradient(to top, color.get(intrinsic-inverted, 0.5), transparent);
+        }
+
+        .elevation-chart + table.entrants {
+            margin-top: 0;
+        }
+
         table.entrants {
             width: 100%;
             margin-top: 1em;
             border-radius: 0.3em;
             overflow: hidden;
+            font-size: 0.9em;
 
-            thead tr {
+            img.nation-flag {
+                display: inline-block;
+                height: 1.3em;
+                margin-bottom: -0.36em;
+            }
+
+            > thead > tr {
                 background-color: #0003;
+
+                th.icon {
+                    padding: 0;
+                }
             }
 
-            ms.in-game {
+            td.icon {
+                padding: 0.1em;
+                width: 0;
+                text-align: center;
+
+                ms {
+                    font-size: 1.2em;
+
+                    &.female {
+                        font-size: 1.4em;
+                        margin-left: -0.15em;
+                        margin-right: -0.15em;
+                    }
+                }
             }
 
-            ms.power {
-                color: gold;
-            }
-
-            ms.female {
-                color: #eb09eb;
-            }
-
-            ms.following {
-                color: color.get(following);
-            }
-
-            ms.marked {
-                color: color.get(marked);
-            }
+            ms.in-game { }
+            ms.power { color: gold; }
+            ms.female { color: #eb09eb; }
+            ms.following { color: color.get(following); }
+            ms.marked { color: color.get(marked); }
 
             .details {
                 > td {
@@ -187,12 +331,15 @@ table {
                     padding: 0;
                 }
             }
+
+            localized .milliseconds {
+                font-size: 0.7em;
+            }
         }
     }
 
     .card {
-        float: right;
-        max-width: clamp(50%, 400px, 100%);
+        width: clamp(50%, 400px, 100%);
         margin-left: 0.5em;
         margin-bottom: 0.5em;
         border-radius: 0.5em;
@@ -210,12 +357,20 @@ table {
             align-items: center;
             justify-content: space-between;
 
+            &:not(:last-child) {
+                padding-bottom: 0;
+            }
+
             ms {
                 opacity: 0.8;
             }
 
             > * {
                 padding: 0.2em;
+            }
+
+            a img {
+                height: 1.5em;
             }
         }
     }
@@ -234,7 +389,7 @@ table {
 .details .container .profile {
     .avatar {
         font-size: 0.6em;
-        flex-basis: 200px;
+        flex-basis: 240px;
     }
 
     header.title {
@@ -243,7 +398,25 @@ table {
         color: #f0f0f0;
 
         .buttons {
-            padding: 0.2em 0.5em 0;
+            margin: 0.2em 0.5em;
+            padding: 0;
+            border-radius: 0.28em;
+            overflow: hidden;
+            background-color: color.shade(intrinsic-inverted, 5%, 0.7);
+
+            > a {
+                height: 1.65em;
+                flex: 1 1 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin: 0;
+                text-decoration: none;
+
+                &:not([disabled]):hover {
+                    background-color: color.shade(intrinsic-inverted, 0%, 0.8);
+                }
+            }
         }
 
         .name {
@@ -252,7 +425,7 @@ table {
     }
 }
 
-@media only screen and (max-width: 600px)  {
+@media only screen and (max-width: 768px)  {
     html, body {
         font-size: 3.7mm;
     }
@@ -287,7 +460,6 @@ table {
         }
 
         &.events {
-
             > thead > tr > {
                 th.name {
                     visibility: hidden;
@@ -297,7 +469,7 @@ table {
                 }
             }
 
-            > tbody > tr.summary {
+            > tbody > tr.event-row {
                 position: relative;
 
                 &.expanded > td.name {
@@ -314,6 +486,7 @@ table {
                     overflow: hidden;
                     text-overflow: ellipsis;
                     white-space: nowrap;
+                    padding-left: 0.04em;
                 }
 
                 > td:not(.name) {
@@ -329,11 +502,30 @@ table {
 
         &.entrants {
             > thead > tr {
-                th.active,
-                th.power {
-                    opacity: 0;
-                    visibility: hidden;
-                    width: 1em;
+                display: none;
+            }
+
+            > tbody > tr.summary {
+                position: relative;
+
+                > td.icon {
+                    width: 1.8ch !important;
+                }
+
+                > td.weight {
+                    width: 10ch;
+                }
+
+                > td.name {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    padding-left: 0.3em;
+                }
+
+                > td:not(.name) {
+                    padding-top: 2em !important;
                 }
             }
         }
