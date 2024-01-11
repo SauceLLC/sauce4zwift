@@ -358,7 +358,7 @@ if (window.isElectron) {
     };
     rpcCall = async function(name, ...args) {
         const encodedArgs = args.map(x => x !== undefined ? b64urlEncode(JSON.stringify(x)) : '');
-        const f = await fetch(`/api/rpc/v2/${name}/${encodedArgs.join('/')}`);
+        const f = await fetch(`/api/rpc/v2/${name}${args.length ? '/' : ''}${encodedArgs.join('/')}`);
         const env = await f.json();
         if (env.warning) {
             console.warn(env.warning);
@@ -521,6 +521,15 @@ export async function getRoad(courseId, id) {
 }
 
 
+const _segments = new Map();
+export function getSegment(id) {
+    if (!_segments.has(id)) {
+        _segments.set(id, rpcCall('getSegment', id));
+    }
+    return _segments.get(id);
+}
+
+
 async function computeRoutePath(route) {
     const curvePath = new curves.CurvePath();
     const roadSegments = [];
@@ -548,6 +557,15 @@ async function computeRoutePath(route) {
 }
 
 
+async function addRouteSegments(route) {
+    const allSegmentIds = [].concat(...route.manifest.map(x => x.segmentIds || []));
+    const segments = await Promise.all(allSegmentIds.map(x => getSegment(x)));
+    for (const m of route.manifest.filter(x => x.segmentIds)) {
+        m.segments = m.segmentIds.map(id => segments.find(x => x.id === id));
+    }
+}
+
+
 let _routeListPromise;
 const _routePromises = new Map();
 export function getRoute(id) {
@@ -556,14 +574,20 @@ export function getRoute(id) {
             _routePromises.set(id, _routeListPromise.then(async routes => {
                 const route = routes && routes.find(x => x.id === id);
                 if (route) {
-                    Object.assign(route, await computeRoutePath(route));
+                    await Promise.all([
+                        addRouteSegments(route),
+                        computeRoutePath(route).then(x => Object.assign(route, x)),
+                    ]);
                 }
                 return route;
             }));
         } else {
             _routePromises.set(id, rpcCall('getRoute', id).then(async route => {
                 if (route) {
-                    Object.assign(route, await computeRoutePath(route));
+                    await Promise.all([
+                        addRouteSegments(route),
+                        computeRoutePath(route).then(x => Object.assign(route, x)),
+                    ]);
                 }
                 return route;
             }));

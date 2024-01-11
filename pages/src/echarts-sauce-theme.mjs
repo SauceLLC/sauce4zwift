@@ -13,6 +13,11 @@ const staticTheme = {
         textBorderColor: 'transparent',
         textBorderWidth: 0,
     },
+    endLabel: {
+        color: '#fffc',
+        textBorderColor: '#000c',
+        textBorderWidth: 2,
+    },
     title: {
         textStyle: {
             color: "rgba(255,255,255,0.92)",
@@ -193,6 +198,13 @@ function genDynamicTheme({fg='fg', bg='bg'}={}) {
             fontSize: '0.8em',
             textBorderColor: 'transparent',
             textBorderWidth: 0,
+        },
+        endLabel: {
+            color: cssColor(fg, 0, 0.80),
+            fontWeight: 600,
+            fontSize: '0.6em',
+            textBorderColor: cssColor(fg, 1, 0.80),
+            textBorderWidth: 2,
         },
         title: {
             textStyle: {

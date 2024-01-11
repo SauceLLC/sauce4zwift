@@ -15,6 +15,12 @@ try {
 } catch {/*no-pragma*/}
 
 
+export function getCourseId(worldId) {
+    return Object.values(worldMetas).find(x => x.worldId === worldId)?.courseId;
+}
+rpc.register(getCourseId);
+
+
 export function getRoadSig(courseId, roadId, reverse) {
     return courseId << 18 | roadId << 1 | reverse;
 }
@@ -84,9 +90,9 @@ export function getRoadSegments(courseId, roadSig) {
 }
 
 
-const _roadsByCourse = {};
+const _roadsByCourse = new Map();
 export function getRoads(courseId) {
-    if (_roadsByCourse[courseId] === undefined) {
+    if (!_roadsByCourse.has(courseId)) {
         let fname;
         if (courseId === 'portal') {
             fname = path.join(__dirname, `../shared/deps/data/portal_roads.json`);
@@ -95,37 +101,37 @@ export function getRoads(courseId) {
             fname = path.join(__dirname, `../shared/deps/data/worlds/${worldId}/roads.json`);
         }
         try {
-            _roadsByCourse[courseId] = JSON.parse(fs.readFileSync(fname));
+            _roadsByCourse.set(courseId, JSON.parse(fs.readFileSync(fname)));
         } catch(e) {
-            _roadsByCourse[courseId] = [];
+            _roadsByCourse.set(courseId, []);
         }
     }
-    return _roadsByCourse[courseId];
+    return _roadsByCourse.get(courseId);
 }
 rpc.register(getRoads);
 
 
-const _roads = {};
+const _roads = new Map();
 export function getRoad(courseId, roadId) {
     if (roadId >= 10000) {
         courseId = 'portal';
     }
     const sig = `${courseId}-${roadId}`;
-    if (_roads[sig] === undefined) {
+    if (!_roads.has(sig)) {
         const road = getRoads(courseId).find(x => x.id === roadId);
         if (road) {
-            _roads[sig] = road;
+            _roads.set(sig, road);
         } else {
-            _roads[sig] = null;
+            _roads.set(sig, null);
         }
     }
-    return _roads[sig];
+    return _roads.get(sig);
 }
 rpc.register(getRoad);
 
 
 let _routes;
-export function getRoute(routeId) {
+function loadRoutes() {
     if (!_routes) {
         const fname = path.join(__dirname, `../shared/deps/data/routes.json`);
         let routes;
@@ -134,22 +140,49 @@ export function getRoute(routeId) {
         } catch(e) {
             routes = [];
         }
-        _routes = Object.fromEntries(routes.map(route => {
+        _routes = new Map(routes.map(route => {
             route.courseId = getCourseId(route.worldId);
+            const allSegments = getCourseSegments(route.courseId);
+            for (const m of route.manifest) {
+                const segments = [];
+                for (const x of allSegments) {
+                    if (x.roadId === m.roadId && !!x.reverse === !!m.reverse) {
+                        if (!x.reverse) {
+                            if (x.roadStart >= m.start && x.roadFinish <= m.end) {
+                                segments.push(x);
+                            }
+                        } else {
+                            if (x.roadStart <= m.end && x.roadFinish >= m.start) {
+                                segments.push(x);
+                            }
+                        }
+                    }
+                }
+                if (segments.length) {
+                    segments.sort((a, b) =>
+                        m.reverse ? b.roadStart - a.roadStart : a.roadStart - b.roadStart);
+                    m.segmentIds = segments.map(x => x.id);
+                }
+            }
             return [route.id, route];
         }));
     }
-    return _routes[routeId];
+}
+
+
+export function getRoute(routeId) {
+    loadRoutes();
+    return _routes.get(routeId);
 }
 rpc.register(getRoute);
 
 
-export function getCourseId(worldId) {
-    return Object.values(worldMetas).find(x => x.worldId === worldId)?.courseId;
+export function getRoutes(courseId) {
+    loadRoutes();
+    let routes = Array.from(_routes.values());
+    if (courseId != null) {
+        routes = routes.filter(x => x.courseId === courseId);
+    }
+    return routes;
 }
-rpc.register(getCourseId);
-
-
-rpc.register(() => {
-    return Object.values(_routes);
-}, {name: 'getRoutes'});
+rpc.register(getRoutes);

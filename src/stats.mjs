@@ -377,7 +377,9 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.getAthleteLaps, {scope: this});
         rpc.register(this.getAthleteSegments, {scope: this});
         rpc.register(this.getAthleteStreams, {scope: this});
+        rpc.register(this.getSegment, {scope: this});
         rpc.register(this.getSegments, {scope: this});
+        rpc.register(this.getSegmentsForRoad, {scope: this});
         rpc.register(this.getSegmentResults, {scope: this});
         rpc.register(this.putState, {scope: this});
         this._athleteSubs = new Map();
@@ -718,11 +720,25 @@ export class StatsProcessor extends events.EventEmitter {
         return streams;
     }
 
+    getSegment(id) {
+        if (id == null) {
+            throw new TypeError('id required');
+        }
+        return env.cachedSegments.get(id);
+    }
+
     getSegments(courseId) {
         if (courseId == null) {
             throw new TypeError('courseId required');
         }
         return env.getCourseSegments(courseId);
+    }
+
+    getSegmentsForRoad(courseId, roadId, reverse=false) {
+        if (courseId == null || roadId == null) {
+            throw new TypeError('courseId and roadId required');
+        }
+        return env.getCourseSegments(courseId).filter(x => x.roadId === roadId && !!x.reverse === !!reverse);
     }
 
     async getSegmentResults(id, options={}) {
