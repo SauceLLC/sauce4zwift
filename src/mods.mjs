@@ -8,7 +8,8 @@ const require = createRequire(import.meta.url);
 const electron = require('electron');
 
 const settingsKey = 'mod-settings';
-const settings = storage.get(settingsKey) || {};
+let settings;
+let modRoot;
 
 export const available = [];
 
@@ -87,10 +88,10 @@ const manifestSchema = {
 };
 
 
-export function init() {
+export function init(...args) {
     available.length = 0;
     try {
-        _init();
+        _init(...args);
     } catch(e) {
         console.error("MODS init error:", e);
     }
@@ -98,37 +99,20 @@ export function init() {
 }
 
 
-let _modRoot;
-export function getModsRootPath() {
-    if (_modRoot !== undefined) {
-        return _modRoot;
-    }
-    let modRoot = path.join(electron.app.getPath('documents'), 'SauceMods');
-    try {
-        fs.mkdirSync(modRoot, {recursive: true});
-        modRoot = fs.realpathSync(modRoot);
-    } catch(e) {
-        console.warn('MODS folder uncreatable:', modRoot, e);
-    }
-    _modRoot = modRoot || null;
-    return _modRoot;
-}
-rpc.register(getModsRootPath);
-
-
 function showModsRootFolder() {
-    const root = getModsRootPath();
-    if (!root) {
-        console.error("Mod path unavailable");
-        return;
-    }
-    electron.shell.openPath(root);
+    electron.shell.openPath(modRoot);
 }
 rpc.register(showModsRootFolder);
 
 
-function _init() {
-    const modRoot = getModsRootPath();
+function _init(root) {
+    settings = storage.get(settingsKey) || {};
+    try {
+        fs.mkdirSync(root, {recursive: true});
+        modRoot = fs.realpathSync(root);
+    } catch(e) {
+        console.warn('MODS folder uncreatable:', root, e);
+    }
     if (modRoot && fs.existsSync(modRoot) && fs.statSync(modRoot).isDirectory()) {
         for (const x of fs.readdirSync(modRoot)) {
             const modPath = fs.realpathSync(path.join(modRoot, x));

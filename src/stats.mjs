@@ -1,4 +1,5 @@
 import events from 'node:events';
+import path from 'node:path';
 import {worldTimer} from './zwift.mjs';
 import {SqliteDatabase, deleteDatabase} from './db.mjs';
 import * as rpc from './rpc.mjs';
@@ -7,7 +8,6 @@ import * as report from '../shared/report.mjs';
 import * as zwift from './zwift.mjs';
 import * as env from './env.mjs';
 import * as curves from '../shared/curves.mjs';
-import {getApp} from './main.mjs';
 import {createRequire} from 'node:module';
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
@@ -16,28 +16,6 @@ const pkg = require('../package.json');
 const monotonic = performance.now;
 const roadDistances = new Map();
 const wPrimeDefault = 20000;
-const dbs = {};
-
-
-function getAthletesDB() {
-    if (!dbs.athletes) {
-        dbs.athletes = new SqliteDatabase('athletes', {
-            tables: {
-                athletes: {
-                    id: 'INTEGER PRIMARY KEY',
-                    data: 'TEXT',
-                }
-            }
-        });
-    }
-    return dbs.athletes;
-}
-
-
-function deleteDB(db) {
-    dbs[db] = null;
-    deleteDatabase(db);
-}
 
 
 function updateRoadDistance(courseId, roadId) {
@@ -302,6 +280,7 @@ export class StatsProcessor extends events.EventEmitter {
         this.disableGameMonitor = options.args.disableMonitor;
         this.exclusions = options.args.exclusions || new Set();
         this.athleteId = options.args.athleteId || this.gameMonitor.gameAthleteId;
+        this._userDataPath = options.userDataPath;
         this.watching = null;
         this.emitStatesMinRefresh = 200;
         this._athleteData = new Map();
@@ -324,7 +303,7 @@ export class StatsProcessor extends events.EventEmitter {
         this._pendingEgressStates = [];
         this._lastEgressStates = 0;
         this._timeoutEgressStates = null;
-        const app = getApp();
+        const app = options.app;
         this._autoResetEvents = !!app.getSetting('autoResetEvents');
         this._autoLapEvents = !!app.getSetting('autoLapEvents');
         const autoLap = !!app.getSetting('autoLap');
@@ -1789,13 +1768,24 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     resetAthletesDB() {
-        deleteDB('athletes');
+        deleteDatabase(this.athletesDB.name);
+        this.athletesDB = null;
         this._athletesCache.clear();
         this.initAthletesDB();
     }
 
     initAthletesDB() {
-        this.athletesDB = getAthletesDB();
+        if (this.athletesDB) {
+            throw new TypeError("Already initialized");
+        }
+        this.athletesDB = new SqliteDatabase(path.join(this._userDataPath, 'athletes.sqlite'), {
+            tables: {
+                athletes: {
+                    id: 'INTEGER PRIMARY KEY',
+                    data: 'TEXT',
+                }
+            }
+        });
         this.getAthleteStmt = this.athletesDB.prepare('SELECT data FROM athletes WHERE id = ?');
         queueMicrotask(() => this._loadMarkedAthletes());
     }

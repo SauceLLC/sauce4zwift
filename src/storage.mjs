@@ -1,12 +1,25 @@
+import path from 'node:path';
 import {SqliteDatabase, deleteDatabase} from './db.mjs';
 
 
+let _initialized = false;
+let _dir;
 let _db;
+
+
+function getName() {
+    if (!_initialized) {
+        throw new Error("initialize(...) required before use");
+    }
+    return path.join(_dir, 'storage.sqlite');
+}
+
+
 function getDB() {
     if (_db) {
         return _db;
     }
-    _db = new SqliteDatabase('storage', {
+    _db = new SqliteDatabase(getName(), {
         tables: {
             store: {
                 id: 'TEXT PRIMARY KEY',
@@ -18,12 +31,17 @@ function getDB() {
 }
 
 
-export function reset() {
-    if (_db) {
-        _db.close();
-        _db = null;
+export function initialize(dir) {
+    if (_initialized) {
+        throw new Error("Already initialized");
     }
-    deleteDatabase('storage');
+    _dir = dir;
+    _initialized = true;
+}
+
+
+export function reset() {
+    deleteDatabase(getName());
 }
 
 

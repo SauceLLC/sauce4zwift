@@ -77,6 +77,7 @@ rpc.register(restart);
 
 
 try {
+    storage.initialize(userDataPath());
     storage.get(0);
 } catch(e) {
     quiting = true;
@@ -484,7 +485,14 @@ class SauceApp extends EventEmitter {
             this.gameConnection = gameConnection; // debug
         }
         rpcSources.gameConnection = gameConnection || new EventEmitter();
-        this.statsProc = new StatsProcessor({zwiftAPI, gameMonitor, gameConnection, args});
+        this.statsProc = new StatsProcessor({
+            app: this,
+            userDataPath: userDataPath(),
+            zwiftAPI,
+            gameMonitor,
+            gameConnection,
+            args
+        });
         this.statsProc.start();
         rpcSources.stats = this.statsProc;
         rpcSources.app = this;
@@ -729,7 +737,8 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         return restart();
     }
     await maybeUpdateAndRestart();
-    for (const mod of mods.init()) {
+    const modPath = path.join(electron.app.getPath('documents'), 'SauceMods');
+    for (const mod of mods.init(modPath)) {
         if (mod.isNew) {
             const enable = await windows.confirmDialog({
                 title: 'New Sauce MOD Found',

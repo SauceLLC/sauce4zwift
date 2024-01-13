@@ -1,24 +1,14 @@
-import path from 'node:path';
 import fs from 'node:fs';
 import process from 'node:process';
 import Database from 'better-sqlite3';
-import {createRequire} from 'node:module';
-const require = createRequire(import.meta.url);
-const {app} = require('electron');
 
 export const databases = new Map();
 
 
-function getFilename(name) {
-    return path.join(app.getPath('userData'), name + '.sqlite');
-}
-
-
 export class SqliteDatabase extends Database {
     constructor(name, {tables, indexes={}, ...options}={}) {
-        const filename = getFilename(name);
-        console.info("Opening DB:", filename);
-        super(filename, options);
+        console.info("Opening DB:", name);
+        super(name, options);
         this.pragma('journal_mode = WAL');  // improve performance substantially
         for (const [table, schema] of Object.entries(tables)) {
             const schemaText = Object.entries(schema).map(([col, type]) => `${col} ${type}`).join(', ');
@@ -36,13 +26,12 @@ export class SqliteDatabase extends Database {
 export function deleteDatabase(name) {
     const db = databases.get(name);
     if (db) {
-        console.warn(`Closing DB [via delete]:`, db.name);
+        console.warn(`Closing DB [via delete]:`, name);
         db.close();
         databases.delete(name);
     }
-    const filename = getFilename(name);
-    console.warn(`Deleting DB:`, filename);
-    fs.rmSync(filename, {force: true, maxRetries: 5});
+    console.warn(`Deleting DB:`, name);
+    fs.rmSync(name, {force: true, maxRetries: 5});
 }
 
 
