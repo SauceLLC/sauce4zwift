@@ -13,7 +13,7 @@ const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 
 
-const monotonic = performance.now;
+const monotonic = performance.now.bind(performance);
 const roadDistances = new Map();
 const wPrimeDefault = 20000;
 

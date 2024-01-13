@@ -554,7 +554,9 @@ export async function settingsMain() {
             await appSettingsUpdate(extraData);
         }, {source: 'gameConnection'});
     }
-    extraData.gpuEnabled = await common.rpc.getLoaderSetting('gpuEnabled');
+    if (window.isElectron) {
+        extraData.gpuEnabled = await common.rpc.getLoaderSetting('gpuEnabled');
+    }
     const forms = document.querySelectorAll('form');
     forms.forEach(x => x.addEventListener('input', async ev => {
         const el = ev.target.closest('[data-store="loader"]');
