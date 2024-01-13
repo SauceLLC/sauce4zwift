@@ -33,11 +33,7 @@ export class SauceElevationProfile {
                     const value = series[0].value;
                     let segmentInfo = '';
                     if (series.length > 1) {
-                        console.log("segment", series[1]);
-                        segmentInfo = `
-                            <br/>
-                            ${series[1].seriesName}
-                        `;
+                        segmentInfo = `<br/>${series[1].seriesName}`;
                     }
                     const dist = (this.reverse && this._distances) ?
                         this._distances.at(-1) - value[0] : value[0];
@@ -226,7 +222,6 @@ export class SauceElevationProfile {
         this._roadSigs = new Set();
         this.curvePath = null;
         this.route = await common.getRoute(id);
-        console.log(this.route);
         const segments = [];
         for (const [i, m] of this.route.manifest.entries()) {
             if (!m.segments) {
@@ -243,7 +238,6 @@ export class SauceElevationProfile {
                 segments.push({start, end, segment});
             }
         }
-        console.log(segments);
         for (const {roadId, reverse} of this.route.manifest) {
             this._roadSigs.add(`${roadId}-${!!reverse}`);
         }
@@ -251,20 +245,12 @@ export class SauceElevationProfile {
         const distances = Array.from(this.route.distances);
         const elevations = Array.from(this.route.elevations);
         const grades = Array.from(this.route.grades);
-        const markLines = [];
+        const lapOffsets = [];
         const notLeadin = this.route.manifest.findIndex(x => !x.leadin);
         const lapStartIdx = notLeadin === -1 ? 0 : this.curvePath.nodes.findIndex(x => x.index === notLeadin);
         if (lapStartIdx) {
             if (!hideLaps) {
-                markLines.push({
-                    xAxis: distances[lapStartIdx],
-                    lineStyle: {width: 6, type: 'solid'},
-                    label: {
-                        distance: 7,
-                        position: 'insideMiddleBottom',
-                        formatter: `LAP 1`
-                    }
-                });
+                lapOffsets.push(distances[lapStartIdx]);
             }
             this._routeLeadinDistance = distances[lapStartIdx];
         } else {
@@ -283,15 +269,7 @@ export class SauceElevationProfile {
                 grades.push(this.route.grades[i]);
             }
             if (!hideLaps) {
-                markLines.push({
-                    xAxis: this._routeLeadinDistance + lapDistance * lap,
-                    lineStyle: {width: 5, type: 'solid'},
-                    label: {
-                        distance: 7,
-                        position: 'insideMiddleBottom',
-                        formatter: `LAP ${lap + 1}`,
-                    }
-                });
+                lapOffsets.push(this._routeLeadinDistance + lapDistance * lap);
             }
             if (distance && distances[distances.length - 1] >= distance) {
                 break;
@@ -304,7 +282,7 @@ export class SauceElevationProfile {
                 grades.pop();
             }
         }
-        this.setData(distances, elevations, grades, {markLines, segments});
+        this.setData(distances, elevations, grades, {lapOffsets, segments});
         return this.route;
     });
 
@@ -312,7 +290,6 @@ export class SauceElevationProfile {
         this._distances = distances;
         this._elevations = elevations;
         this._grades = grades;
-        const distance = distances[distances.length - 1] - distances[0];
         this._yMax = Math.max(...elevations);
         this._yMin = Math.min(...elevations);
         const minEl = Math.max(this._yMin + 200, this._yMax);
@@ -320,18 +297,75 @@ export class SauceElevationProfile {
         // Echarts bug requires floor/ceil to avoid missing markLines
         this._yAxisMin = Math.floor(this._yMin - (vRange * 0.10));
         this._yAxisMax = Math.ceil(minEl + (vRange * 0.10));
+        const commonSeriesOptions = {
+            type: 'line',
+            symbol: 'none',
+            smooth: 0.5,
+        };
         const markLineData = [];
+        if (options.lapOffsets) {
+            for (const [i, distance] of options.lapOffsets.entries()) {
+                markLineData.push([{
+                    xAxis: distance,
+                    yAxis: this._yAxisMin,
+                    symbol: 'none',
+                    lineStyle: {
+                        width: this.em(0.12),
+                        type: 'solid',
+                        color: '#dd9c',
+                        cap: 'butt',
+                    },
+                    name: `LAP ${i + 1}`,
+                    label: {
+                        show: false,
+                    },
+                    emphasis: {
+                        lineStyle: {
+                            color: '#dd9',
+                        },
+                        label: {
+                            show: true,
+                            fontSize: '0.4em',
+                            offset: [0, -4],
+                            position: 'end',
+                            rotate: 0,
+                        }
+                    },
+                }, {
+                    symbol: 'none',
+                    xAxis: distance,
+                    yAxis: elevations[common.binarySearchClosest(distances, distance)],
+                    emphasis: {
+                        lineStyle: {
+                            width: 5,
+                        },
+                        label: {
+                            fontSize: '0.5em',
+                        }
+                    },
+                }]);
+            }
+        }
         if (this.showMaxLine) {
+            const distance = distances[elevations.indexOf(this._yMax)];
+            const relOffset = distance / distances.at(-1);
             markLineData.push([{
-                xAxis: distances[elevations.indexOf(this._yMax)],
+                xAxis: distance,
                 yAxis: this._yMax,
+                emphasis: {disabled: true},
+                lineStyle: {
+                    width: this.em(0.04),
+                    color: '#fff5',
+                },
                 label: {
                     opacity: 0.8,
+                    offset: [0, -4],
+                    fontSize: '0.35em',
                     formatter: x => H.elevation(this._yMax, {suffix: true}),
-                    position: options.reverse ? 'insideStartTop' : 'insideEndTop',
+                    position: 'insideEndTop',
                 },
             }, {
-                xAxis: distances.at(-1),
+                xAxis: relOffset > 0.5 ? distances.at(-1) : 0,
                 yAxis: this._yMax,
             }]);
         }
@@ -340,20 +374,16 @@ export class SauceElevationProfile {
         }
         const seriesExtra = [];
         if (options.segments) {
-            for (const [i, {start, end, segment}] of options.segments.entries()) {
-                const lastIdx = distances.length - 1;
-                const endPct = end / lastIdx;
+            for (const {start, end, segment} of options.segments) {
                 seriesExtra.push({
+                    ...commonSeriesOptions,
                     zlevel: seriesExtra.length + 2,
                     id: `${segment.id}-${seriesExtra.length}`,
                     name: segment.name,
-                    smooth: 0.5,
-                    type: 'line',
-                    symbol: 'none',
                     lineStyle: {width: 0},
                     emphasis: {
                         areaStyle: {
-                            opacity: 0.6,
+                            opacity: 0.5,
                         },
                     },
                     areaStyle: {
@@ -367,7 +397,7 @@ export class SauceElevationProfile {
                         emphasis: {
                             lineStyle: {
                                 color: '#fff', // required to avoid being hidden
-                            }
+                            },
                         },
                         lineStyle: {
                             type: 'solid',
@@ -397,12 +427,9 @@ export class SauceElevationProfile {
                 max: this._yAxisMax,
             },
             series: [{
+                ...commonSeriesOptions,
                 name: 'Elevation',
                 id: 'elevation',
-                type: 'line',
-                smooth: 0.5,
-                symbol: 'none',
-                silent: true,
                 emphasis: {disabled: true},
                 encode: {
                     x: 0,
@@ -423,7 +450,7 @@ export class SauceElevationProfile {
                                 .lighten(-0.25)
                                 .saturate(steepness - 0.33);
                             return {
-                                offset: x / distance,
+                                offset: x / (distances[distances.length - 1] - distances[0]),
                                 color: color.toString(),
                             };
                         }),
@@ -431,8 +458,9 @@ export class SauceElevationProfile {
                 },
                 markLine: {
                     symbol: 'none',
-                    silent: true,
-                    lineStyle: {},
+                    //silent: true,
+                    //lineStyle: {},
+                    emphasis: {disabled: false},
                     data: markLineData,
                 },
                 data: distances.map((x, i) => [x, elevations[i], grades[i] * (options.reverse ? -1 : 1)]),
@@ -444,7 +472,7 @@ export class SauceElevationProfile {
                     const deemphasize = api.value(3);
                     //const athleteId = api.value(4);
                     //const state = this.marks.get(athleteId);
-                    const size = this.em(isWatching ? 1.4 : deemphasize ? 0.45 : 0.7);
+                    const size = this.em(isWatching ? 0.9 : deemphasize ? 0.3 : 0.5);
                     return {
                         type: 'path',
                         shape: {
@@ -464,7 +492,7 @@ export class SauceElevationProfile {
                         position: api.coord([api.value(0), api.value(1)]),
                         style: {
                             stroke: deemphasize ? '#0008' : '#000b',
-                            lineWidth: isWatching ? 2 : 1,
+                            lineWidth: isWatching ? 1 : 0.5,
                             fill: isWatching ? {
                                 type: 'linear',
                                 x: 0,
