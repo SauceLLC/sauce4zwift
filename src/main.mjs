@@ -76,18 +76,6 @@ function restart() {
 rpc.register(restart);
 
 
-try {
-    storage.initialize(userDataPath());
-    storage.get(0);
-} catch(e) {
-    quiting = true;
-    console.error('Storage error:', e);
-    Promise.all([
-        storage.reset(),
-        electron.dialog.showErrorBox('Storage error. Resetting database...', '' + e)
-    ]).finally(() => quit(1));
-}
-
 electron.app.on('second-instance', (ev,_, __, {type, ...args}) => {
     if (type === 'quit') {
         console.warn("Another instance requested us to quit.");
@@ -597,7 +585,6 @@ async function getExclusions() {
 
 export async function main({logEmitter, logFile, logQueue, sentryAnonId,
                             loaderSettings, saveLoaderSettings, buildEnv}) {
-    const s = Date.now();
     const args = parseArgs([
         {arg: 'headless', type: 'switch',
          help: 'Do not open windows (unless required on startup)'},
@@ -622,6 +609,8 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         quit();
         return;
     }
+    const s = Date.now();
+    storage.initialize(userDataPath());
     if (logEmitter) {
         rpcSources['logs'] = logEmitter;
         rpc.register(() => logQueue, {name: 'getLogs'});
