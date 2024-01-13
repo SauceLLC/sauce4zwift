@@ -75,6 +75,7 @@ function makeLazyGetter(cb) {
 
 
 const lazyGetSubgroup = makeLazyGetter(id => common.rpc.getEventSubgroup(id));
+const lazyGetEvent = makeLazyGetter(id => common.rpc.getEvent(id));
 const lazyGetRoute = makeLazyGetter(id => common.rpc.getRoute(id));
 
 
@@ -137,10 +138,9 @@ function fmtEvent(sgid) {
     }
     const sg = lazyGetSubgroup(sgid);
     if (sg) {
-        return `<a href="${eventUrl(sg.event.id)}" target="_blank" external>${sg.event.name}</a>`;
-    } else {
-        return '...';
+        return `<a href="${eventUrl(sg.eventId)}" target="_blank" external>${sg.name}</a>`;
     }
+    return '...';
 }
 
 
