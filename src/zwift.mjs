@@ -1378,9 +1378,10 @@ export class GameMonitor extends events.EventEmitter {
             protobuf: 'LoginResponse',
         });
         const t2 = worldTimer.serverNow();
-        const tMean = (t2 - t1) / 2 + t1;
+        const tMean = t1 + ((t2 - t1) / 2);
         const serverTime = login.session.time.toNumber() * 1000;
-        const tDelta = serverTime - tMean
+        const tDelta = tMean - serverTime;
+        console.error('tDelta (pos means were ahead)', tDelta);
         if (Math.abs(tDelta) > 0) {
             // Perform course clock correction prior to any SNTP fine tuning done by UDP channels
             worldTimer.adjust(-tDelta);
@@ -1645,7 +1646,7 @@ export class GameMonitor extends events.EventEmitter {
     }
 
     onTCPChannelShutdown(ch) {
-        console.info("TCP channel shutdown:", ch.toString());
+        console.warn("TCP channel shutdown:", ch.toString());
         if (this._session && this._session.tcpChannel === ch && !this._stopping) {
             this._schedConnectRetry();
         }
