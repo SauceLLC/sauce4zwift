@@ -107,7 +107,6 @@ class WorldTimer extends events.EventEmitter {
         }
         this._offt = Math.round(this._offt + diff);
         this.emit('offset', diff);
-
     }
 
     setOffset(offt) {
@@ -1340,10 +1339,10 @@ export class GameMonitor extends events.EventEmitter {
             if (dev > 200) {
                 // Otherwise we could be stuck watching the wrong athlete.
                 this._setWatchingWorldTime = 0;
-                if (dev > 5000) {
+                /*if (dev > 5000) {
                     // Uses worldTime for expiration.
                     this._schedHashSeedsRefresh();
-                }
+                }*/
             }
         });
         setInterval(() => this.logStatus(), 60000);
@@ -1376,11 +1375,20 @@ export class GameMonitor extends events.EventEmitter {
 
     async login() {
         const aesKey = crypto.randomBytes(16);
+        const t1 = worldTimer.serverNow();
         const login = await this.api.fetchPB('/api/users/login', {
             method: 'POST',
             pb: protos.LoginRequest.encode({aesKey}),
             protobuf: 'LoginResponse',
         });
+        const t2 = worldTimer.serverNow();
+        const tMean = (t2 - t1) / 2 + t1;
+        const serverTime = login.session.time.toNumber() * 1000;
+        const tDelta = serverTime - tMean
+        if (Math.abs(tDelta) > 5000) {
+            // Perform course clock correction prior to any SNTP fine tuning done by UDP channels
+            worldTimer.adjust(-tDelta);
+        }
         const expires = Date.now() + (login.expiration * 60 * 1000);
         await sleep(1000); // No joke this is required (100ms works about 50% of the time)
         return {
@@ -1451,7 +1459,7 @@ export class GameMonitor extends events.EventEmitter {
 
     _schedHashSeedsRefresh(delay) {
         clearTimeout(this._refreshHashSeedsTimeout);
-        if (this._stopping || (!delay && !this._hashSeeds.length)) {
+        if (this._stopping || (!delay && !this._hashSeeds.length)) { // XXX hashSeeds.length will always be !0
             return;
         }
         if (!delay) {
