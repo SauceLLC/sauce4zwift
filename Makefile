@@ -73,6 +73,16 @@ else
 	npm run publish
 endif
 
+docker-linux-publish:
+	docker build --build-arg arch=amd64 -t linux-s4z-build -f ./build/linux.Dockerfile .
+	docker run -it -v $$HOME/.git-credentials:/root/.git-credentials \
+		-e GH_TOKEN_SAUCE4ZWIFT_RELEASE linux-s4z-build make publish
+
+docker-arm-linux-publish:
+	docker build --build-arg arch=arm64 -t linux-s4z-build-arm -f ./build/linux.Dockerfile .
+	docker run -it -v $$HOME/.git-credentials:/root/.git-credentials \
+		-e GH_TOKEN_SAUCE4ZWIFT_RELEASE linux-s4z-build-arm make publish
+
 
 deps:
 	$(MAKE) -j 32 -C pages/deps
