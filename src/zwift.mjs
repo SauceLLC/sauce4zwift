@@ -102,20 +102,16 @@ class WorldTimer extends events.EventEmitter {
     }
 
     adjust(diff) {
-        if (Math.abs(diff) > 0) {
-            console.warn("Shifting worldTimer offset:", diff);
-        }
-        this._offt = Math.round(this._offt + diff);
-        this.emit('offset', diff);
+        this.setOffset(this._offt + diff);
     }
 
     setOffset(offt) {
         const diff = offt - this._offt;
-        if (Math.abs(diff) > 0) {
-            console.warn("Shifting worldTimer offset:", diff);
-        }
         this._offt = Math.round(offt);
         this.emit('offset', diff);
+        if (Math.abs(diff) > 0) {
+            console.warn("Shifted WorldTime offset:", diff, this._epoch - this._offt);
+        }
     }
 }
 
@@ -1385,7 +1381,7 @@ export class GameMonitor extends events.EventEmitter {
         const tMean = (t2 - t1) / 2 + t1;
         const serverTime = login.session.time.toNumber() * 1000;
         const tDelta = serverTime - tMean
-        if (Math.abs(tDelta) > 5000) {
+        if (Math.abs(tDelta) > 0) {
             // Perform course clock correction prior to any SNTP fine tuning done by UDP channels
             worldTimer.adjust(-tDelta);
         }
