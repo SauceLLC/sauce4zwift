@@ -102,7 +102,7 @@ class WorldTimer extends events.EventEmitter {
     }
 
     adjust(diff) {
-        if (Math.abs(diff) > 5000) {
+        if (Math.abs(diff) > 0) {
             console.warn("Shifting worldTimer offset:", diff);
         }
         this._offt = Math.round(this._offt + diff);
@@ -111,7 +111,7 @@ class WorldTimer extends events.EventEmitter {
 
     setOffset(offt) {
         const diff = offt - this._offt;
-        if (Math.abs(diff) > 5000) {
+        if (Math.abs(diff) > 0) {
             console.warn("Shifting worldTimer offset:", diff);
         }
         this._offt = Math.round(offt);
