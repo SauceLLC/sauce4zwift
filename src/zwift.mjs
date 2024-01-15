@@ -79,7 +79,7 @@ function fmtTime(ms) {
 class WorldTimer extends events.EventEmitter {
     constructor() {
         super();
-        this._epoch = 1414016074335;
+        this._epoch = 1414016074400;
         this._offt = 0;
     }
 
@@ -104,7 +104,6 @@ class WorldTimer extends events.EventEmitter {
         this.emit('offset', diff);
         if (Math.abs(diff) > 0) {
             console.warn("Shifted WorldTime offset:", diff, this._offt);
-            console.error(new Date(), new Date(worldTimer.serverNow()));
         }
     }
 }
@@ -1189,10 +1188,14 @@ class UDPChannel extends NetChannel {
                 }
                 const localWorldTime = worldTimer.now();
                 const sent = syncStamps.get(packet.ackSeqno);
+                if (sent === undefined) {
+                    return;  // already measured / non-hello packet
+                }
+                syncStamps.delete(packet.ackSeqno);
                 const latency = (localWorldTime - sent) / 2;
                 const offt = localWorldTime - (packet.worldTime.toNumber() + latency);
                 offsets.push({latency, offt});
-                if (offsets.length > 4) {
+                if (offsets.length > 5) {
                     // SNTP ...
                     offsets.sort((a, b) => a.latency - b.latency);
                     const mean = offsets.reduce((a, x) => a + x.latency, 0) / offsets.length;
@@ -1200,7 +1203,7 @@ class UDPChannel extends NetChannel {
                     const stddev = Math.sqrt(variance.reduce((a, x) => a + x, 0) / variance.length);
                     const median = offsets[offsets.length / 2 | 0].latency;
                     const validOffsets = offsets.filter(x => Math.abs(x.latency - median) < stddev);
-                    if (validOffsets.length > 2) {
+                    if (validOffsets.length > 4) {
                         const meanOffset = validOffsets.reduce((a, x) => a + x.offt, 0) / validOffsets.length;
                         worldTimer.adjustOffset(-meanOffset);
                         this.off('inPacket', onPacket);
@@ -1227,7 +1230,7 @@ class UDPChannel extends NetChannel {
                 worldTime: 0,
             }, {hello: true});
             syncStamps.set(seqno, ts);
-            await Promise.race([sleep(20 * i), syncComplete]);
+            await Promise.race([sleep(10 * i), syncComplete]);
         }
         if (!complete) {
             console.error("Timeout waiting for handshake sync:", this.toString());
@@ -1375,9 +1378,9 @@ export class GameMonitor extends events.EventEmitter {
         const tMean = t1 + ((t2 - t1) / 2);
         const serverTime = login.session.time.toNumber() * 1000;
         const tDelta = tMean - serverTime;
-        console.error('tDelta (pos means were ahead)', tDelta);
         if (Math.abs(tDelta) > 0) {
-            // Perform course clock correction prior to any SNTP fine tuning done by UDP channels
+            // Perform course clock correction prior to any SNTP fine tuning to avoid hash seed errors
+            console.warn('System clock is highly inaccurate:', fmtTime(tDelta));
             worldTimer.adjustOffset(-tDelta);
         }
         const expires = Date.now() + (login.expiration * 60 * 1000);
