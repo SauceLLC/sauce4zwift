@@ -1378,7 +1378,7 @@ export class GameMonitor extends events.EventEmitter {
         const tMean = t1 + ((t2 - t1) / 2);
         const serverTime = login.session.time.toNumber() * 1000;
         const tDelta = tMean - serverTime;
-        if (Math.abs(tDelta) > 0) {
+        if (Math.abs(tDelta) > 60000) {
             // Perform course clock correction prior to any SNTP fine tuning to avoid hash seed errors
             console.warn('System clock is highly inaccurate:', fmtTime(tDelta));
             worldTimer.adjustOffset(-tDelta);
