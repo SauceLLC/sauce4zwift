@@ -162,7 +162,7 @@ class DataCollector {
                 peaks[p] = {
                     avg: peak.avg(),
                     time,
-                    ts: worldTimer.toTime(wtOffset + (time * 1000)),
+                    ts: worldTimer.toLocalTime(wtOffset + (time * 1000)),
                 };
             } else {
                 peaks[p] = {avg: null, time: null, ts: null};
@@ -734,7 +734,7 @@ export class StatsProcessor extends events.EventEmitter {
         if (segments) {
             return segments.map(x => ({
                 ...x,
-                ts: worldTimer.toTime(x.worldTime),
+                ts: worldTimer.toLocalTime(x.worldTime),
                 weight: x.weight / 1000,
                 elapsed: x.elapsed / 1000,
                 gender: x.male === false ? 'female' : 'male',
@@ -824,7 +824,7 @@ export class StatsProcessor extends events.EventEmitter {
             });
         }
         const {laps, streams, wtOffset, mostRecentState} = this._athleteData.get(athleteId);
-        const tsOffset = worldTimer.toTime(wtOffset);
+        const tsOffset = worldTimer.toServerTime(wtOffset);
         const sport = {
             'cycling': 'cycling',
             'running': 'running',
@@ -1408,7 +1408,7 @@ export class StatsProcessor extends events.EventEmitter {
     _createAthleteData(state) {
         const collectors = this._makeDataCollectors();
         const ad = {
-            created: worldTimer.toTime(state.worldTime),
+            created: worldTimer.toLocalTime(state.worldTime),
             wtOffset: state.worldTime,
             athleteId: state.athleteId,
             courseId: state.courseId,
@@ -1447,7 +1447,7 @@ export class StatsProcessor extends events.EventEmitter {
     _resetAthleteData(ad, wtOffset) {
         const collectors = this._makeDataCollectors();
         Object.assign(ad, {
-            created: worldTimer.toTime(wtOffset),
+            created: worldTimer.toLocalTime(wtOffset),
             wtOffset,
             collectors,
             laps: [this._createNewLapish(ad)],

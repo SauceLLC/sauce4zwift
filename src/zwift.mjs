@@ -79,38 +79,32 @@ function fmtTime(ms) {
 class WorldTimer extends events.EventEmitter {
     constructor() {
         super();
-        // Start with assumption that Date.now() is accurate but it will be tuned
-        // on each UDP connection.
         this._epoch = 1414016074335;
-        this._offt = this._epoch;
+        this._offt = 0;
     }
 
     now() {
-        return Date.now() - this._offt;
+        return Date.now() + this._offt - this._epoch;
     }
 
     serverNow() {
-        return Date.now() + (this._epoch - this._offt);
+        return Date.now() + this._offt;
     }
 
-    toTime(wt) {
-        return wt + this._offt;
+    toLocalTime(wt) {
+        return wt + this._epoch - this._offt;
     }
 
     toServerTime(wt) {
         return wt + this._epoch;
     }
 
-    adjust(diff) {
-        this.setOffset(this._offt + diff);
-    }
-
-    setOffset(offt) {
-        const diff = offt - this._offt;
-        this._offt = Math.round(offt);
+    adjustOffset(diff) {
+        this._offt = Math.round(this._offt + diff);
         this.emit('offset', diff);
         if (Math.abs(diff) > 0) {
-            console.warn("Shifted WorldTime offset:", diff, this._epoch - this._offt);
+            console.warn("Shifted WorldTime offset:", diff, this._offt);
+            console.error(new Date(), new Date(worldTimer.serverNow()));
         }
     }
 }
@@ -1193,10 +1187,10 @@ class UDPChannel extends NetChannel {
                 if (this.active === false) {
                     reject(new InactiveChannelError());
                 }
-                const localTime = Date.now();
+                const localWorldTime = worldTimer.now();
                 const sent = syncStamps.get(packet.ackSeqno);
-                const latency = (localTime - sent) / 2;
-                const offt = localTime - (packet.worldTime.toNumber() + latency);
+                const latency = (localWorldTime - sent) / 2;
+                const offt = localWorldTime - (packet.worldTime.toNumber() + latency);
                 offsets.push({latency, offt});
                 if (offsets.length > 4) {
                     // SNTP ...
@@ -1208,7 +1202,7 @@ class UDPChannel extends NetChannel {
                     const validOffsets = offsets.filter(x => Math.abs(x.latency - median) < stddev);
                     if (validOffsets.length > 2) {
                         const meanOffset = validOffsets.reduce((a, x) => a + x.offt, 0) / validOffsets.length;
-                        worldTimer.setOffset(meanOffset);
+                        worldTimer.adjustOffset(-meanOffset);
                         this.off('inPacket', onPacket);
                         complete = true;
                         resolve();
@@ -1226,7 +1220,7 @@ class UDPChannel extends NetChannel {
             // but if our clock is too far off they will ignore us, so we need to sync our
             // worldTime offset too.  Some research on common game timer sync methods
             // suggests SNTP should be fine here.
-            const ts = Date.now();
+            const ts = worldTimer.now();
             const {seqno} = await this.sendPacket({
                 athleteId: this.athleteId,
                 realm: 1,
@@ -1384,7 +1378,7 @@ export class GameMonitor extends events.EventEmitter {
         console.error('tDelta (pos means were ahead)', tDelta);
         if (Math.abs(tDelta) > 0) {
             // Perform course clock correction prior to any SNTP fine tuning done by UDP channels
-            worldTimer.adjust(-tDelta);
+            worldTimer.adjustOffset(-tDelta);
         }
         const expires = Date.now() + (login.expiration * 60 * 1000);
         await sleep(1000); // No joke this is required (100ms works about 50% of the time)
