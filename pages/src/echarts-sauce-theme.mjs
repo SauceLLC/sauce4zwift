@@ -377,9 +377,9 @@ function genDynamicTheme({fg='fg', bg='bg'}={}) {
                 fontSize: '0.76em',
                 color: cssColor(fg, 0, 1),
                 textBorderColor: cssColor(fg, 1, 0.8),
-                textBorderWidth: 2,
-                textShadowColor: cssColor(fg, 1, 0.5),
-                textShadowBlur: 8,
+                textBorderWidth: 1,
+                textShadowColor: cssColor(fg, 1, 0.4),
+                textShadowBlur: 4,
             },
         },
         markPoint: {

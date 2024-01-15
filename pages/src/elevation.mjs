@@ -354,13 +354,13 @@ export class SauceElevationProfile {
                 yAxis: this._yMax,
                 emphasis: {disabled: true},
                 lineStyle: {
-                    width: this.em(0.04),
-                    color: '#fff5',
+                    width: this.em(0.05),
+                    color: '#fff6',
                 },
                 label: {
                     opacity: 0.8,
-                    offset: [0, -4],
-                    fontSize: '0.35em',
+                    offset: [(relOffset> 0.5 ? -1 : 1) * this.em(0.05), this.em(-0.08)],
+                    fontSize: '0.45em',
                     formatter: x => H.elevation(this._yMax, {suffix: true}),
                     position: 'insideEndTop',
                 },
