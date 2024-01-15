@@ -1106,6 +1106,9 @@ export class StatsProcessor extends events.EventEmitter {
             'PayloadLeftWorld2',
             '_fenceConfig',
             '_broadcastRideLeaderAction',
+            '_handlePacePartnerInfo',
+            '_flag',
+            '_performAction',
         ];
         for (let i = 0; i < packet.worldUpdates.length; i++) {
             const x = packet.worldUpdates[i];
