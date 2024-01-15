@@ -102,7 +102,7 @@ class WorldTimer extends events.EventEmitter {
     adjustOffset(diff) {
         this._offt = Math.round(this._offt + diff);
         this.emit('offset', diff);
-        if (Math.abs(diff) > 0) {
+        if (Math.abs(diff) > 5000) {
             console.warn("Shifted WorldTime offset:", diff, this._offt);
         }
     }
