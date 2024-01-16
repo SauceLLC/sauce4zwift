@@ -75,7 +75,6 @@ function makeLazyGetter(cb) {
 
 
 const lazyGetSubgroup = makeLazyGetter(id => common.rpc.getEventSubgroup(id));
-const lazyGetEvent = makeLazyGetter(id => common.rpc.getEvent(id));
 const lazyGetRoute = makeLazyGetter(id => common.rpc.getRoute(id));
 
 

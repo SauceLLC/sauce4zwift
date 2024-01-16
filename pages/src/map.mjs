@@ -1127,6 +1127,14 @@ export class SauceZwiftMap extends EventTarget {
         ent.togglePin();
     }
 
+    setTransitionDuration(ms) {
+        this._mapTransition.setDuration(ms);
+    }
+
+    getTransitionDuration(ms) {
+        return this._mapTransition.duration;
+    }
+
     renderAthleteStates = common.asyncSerialize(async states => {
         if (this.watchingId == null || !common.isVisible()) {
             return;

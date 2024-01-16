@@ -43,6 +43,8 @@ let watchdog;
 let inGame;
 let zwiftMap;
 let elProfile;
+let demoIntervalId;
+let normalMapTransDuration;
 let courseId = Number(url.searchParams.get('course')) || undefined;
 let routeId = Number(url.searchParams.get('route')) || undefined;
 
@@ -175,10 +177,29 @@ async function initialize() {
     const ad = await common.rpc.getAthleteData('self');
     inGame = !!ad;
     if (!inGame) {
-        //console.info("User not active. Just show something...");
-        //courseId = 6;
-        //await applyCourse();
+        if (!demoIntervalId) {
+            console.info("User not active: Starting demo mode...");
+            if (elProfile) {
+                elProfile.clear();
+            }
+            const randomCourseId = worldList[worldList.length * Math.random() | 0].courseId;
+            let heading = 0;
+            normalMapTransDuration = zwiftMap.getTransitionDuration();
+            zwiftMap.setZoom(0.2, {disableEvent: true});
+            await zwiftMap.setCourse(randomCourseId);
+            zwiftMap.setHeading(heading += 5);
+            zwiftMap.setTransitionDuration(1100);
+            demoIntervalId = setInterval(() => {
+                zwiftMap.setHeading(heading += 5);
+            }, 1000);
+        }
         return;
+    } else if (demoIntervalId) {
+        console.info("User detected in game: Ending demo mode.");
+        clearInterval(demoIntervalId);
+        demoIntervalId = null;
+        zwiftMap.setTransitionDuration(normalMapTransDuration);
+        zwiftMap.setZoom(settings.zoom);
     }
     zwiftMap.setAthlete(ad.athleteId);
     if (elProfile) {
@@ -405,7 +426,7 @@ export async function main() {
             fieldRenderer.render();
         });
         setInterval(() => {
-            inGame = performance.now() - watchdog < 10000;
+            inGame = inGame && performance.now() - watchdog < 10000;
         }, 3333);
         common.subscribe('states', async states => {
             if (!inGame) {
