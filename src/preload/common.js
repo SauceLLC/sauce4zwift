@@ -1,4 +1,4 @@
-const {ipcRenderer, contextBridge} = require('electron');
+const {ipcRenderer, contextBridge, webFrame} = require('electron');
 
 
 ipcRenderer.on('subscribe-port', (ev, subId) =>
@@ -20,13 +20,12 @@ ipcRenderer.on('sauce-highlight-window', () => {
 });
 
 
-const context = ipcRenderer.sendSync('getWindowContextSync');
+const meta = ipcRenderer.sendSync('getWindowMetaSync');
 contextBridge.exposeInMainWorld('electron', {
-    context,
+    context: meta.context,
     ipcInvoke: ipcRenderer.invoke.bind(ipcRenderer),
 });
 contextBridge.exposeInMainWorld('isElectron', true);
-
 
 function onReadyStateChange(ev) {
     if (document.readyState === 'interactive') {
@@ -34,7 +33,7 @@ function onReadyStateChange(ev) {
         document.removeEventListener('readystatechange', onReadyStateChange);
         const doc = document.documentElement;
         doc.classList.add('electron-mode');
-        doc.classList.toggle('frame', !!context.frame);
+        doc.classList.toggle('frame', !!meta.context.frame);
         const theme = localStorage.getItem('/theme');
         if (theme) {
             doc.dataset.theme = JSON.parse(theme);
@@ -43,3 +42,15 @@ function onReadyStateChange(ev) {
 }
 // Fires for interactive before defer scripts.
 document.addEventListener('readystatechange', onReadyStateChange);
+
+if (meta.modContentScripts && meta.modContentScripts.length) {
+    for (const x of meta.modContentScripts) {
+        webFrame.executeJavaScript(x);
+    }
+}
+
+if (meta.modContentStylesheets && meta.modContentStylesheets.length) {
+    for (const x of meta.modContentStylesheets) {
+        webFrame.insertCSS(x);
+    }
+}

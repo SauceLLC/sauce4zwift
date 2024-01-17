@@ -18,7 +18,7 @@ const isWindows = os.platform() === 'win32';
 const isMac = !isWindows && os.platform() === 'darwin';
 const isLinux = !isWindows && !isMac && os.platform() === 'linux';
 const modContentScripts = [];
-const modContentStyle = [];
+const modContentStylesheets = [];
 const sessions = new Map();
 const magicLegacySessionId = '___LEGACY-SESSION___';
 const profilesKey = 'window-profiles';
@@ -306,16 +306,20 @@ function onInterceptFileProtocol(request, callback) {
 
 electron.protocol.interceptFileProtocol('file', onInterceptFileProtocol);
 
-electron.ipcMain.on('getWindowContextSync', ev => {
-    const returnValue = {
-        id: null,
-        type: null,
+electron.ipcMain.on('getWindowMetaSync', ev => {
+    const meta = {
+        context: {
+            id: null,
+            type: null,
+        },
+        modContentScripts,
+        modContentStylesheets,
     };
     try {
         const win = ev.sender.getOwnerBrowserWindow();
-        returnValue.frame = win.frame;
+        meta.context.frame = win.frame;
         if (win.spec) {
-            Object.assign(returnValue, {
+            Object.assign(meta.context, {
                 id: win.spec.id,
                 type: win.spec.type,
                 spec: win.spec,
@@ -323,7 +327,10 @@ electron.ipcMain.on('getWindowContextSync', ev => {
             });
         }
     } finally {
-        ev.returnValue = returnValue; // MUST set otherwise page blocks.
+        // CAUTION: ev.returnValue is highly magical.  It MUST be set to avoid hanging
+        // the page load and it can only be set once the value is frozen because it will
+        // copy/serialize the contents when assigned.
+        ev.returnValue = meta;
     }
 });
 
@@ -990,16 +997,6 @@ function handleNewSubWindow(parent, spec, webPrefs) {
             targetRefs.set(target, new WeakRef(newWin));
         }
         handleNewSubWindow(newWin, newWinSpec, webPrefs);
-        if (modContentScripts.length) {
-            for (const x of modContentScripts) {
-                newWin.webContents.on('did-finish-load', () => newWin.webContents.executeJavaScript(x));
-            }
-        }
-        if (modContentStyle.length) {
-            for (const x of modContentStyle) {
-                newWin.webContents.on('did-finish-load', () => newWin.webContents.insertCSS(x));
-            }
-        }
         newWin.loadURL(url);
         newWin.show();
         return {action: 'deny'};
@@ -1130,16 +1127,6 @@ function _openSpecWindow(spec) {
             win.on('close', () => updateWidgetWindowSpec(id, {closed: true}));
         }
     }
-    if (modContentScripts.length) {
-        for (const x of modContentScripts) {
-            webContents.on('did-finish-load', () => webContents.executeJavaScript(x));
-        }
-    }
-    if (modContentStyle.length) {
-        for (const x of modContentStyle) {
-            webContents.on('did-finish-load', () => webContents.insertCSS(x));
-        }
-    }
     const query = manifest.query;
     const p = path.parse(manifest.file);
     p.name += `.___${id}___`;
@@ -1162,7 +1149,7 @@ export function openWidgetWindows() {
                 widgetWindowManifestsByType.set(x.type, x);
             }
             modContentScripts.push(...mods.getWindowContentScripts());
-            modContentStyle.push(...mods.getWindowContentStyle());
+            modContentStylesheets.push(...mods.getWindowContentStyle());
         } catch(e) {
             console.error("Failed to load mod window data", e);
         }
