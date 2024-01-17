@@ -190,7 +190,7 @@ const sectionSpecs = {
     },
 };
 
-const groupSpecs = {
+export const groupSpecs = {
     time: {
         title: 'Time',
         fields: [{
