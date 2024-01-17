@@ -2247,6 +2247,7 @@ export class StatsProcessor extends events.EventEmitter {
         const lapCount = ad.laps.length;
         return {
             created: ad.created,
+            age: monotonic() - ad.updated,
             watching: ad.athleteId === this.watching ? true : undefined,
             self: ad.athleteId === this.athleteId ? true : undefined,
             courseId: ad.courseId,

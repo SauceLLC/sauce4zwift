@@ -174,7 +174,7 @@ function setWatching(id) {
 
 async function initialize() {
     const ad = await common.rpc.getAthleteData('self');
-    inGame = !!ad;
+    inGame = !!ad && ad.age < 15000;
     if (!inGame) {
         if (!demoState.intervalId) {
             console.info("User not active: Starting demo mode...");
@@ -199,12 +199,7 @@ async function initialize() {
         clearInterval(demoState.intervalId);
         demoState.intervalId = null;
         zwiftMap.setTransitionDuration(demoState.transitionDurationSave);
-        zwiftMap.setZoom(demoState.zoomSave);
-        if (!settings.zoom) {
-            console.error("fuck", settings.zoom);
-            throw new Error('adsf');
-        }
-        zwiftMap.setZoom(settings.zoom);
+        zwiftMap.setZoom(demoState.zoomSave, {disableEvent: true});
     }
     zwiftMap.setAthlete(ad.athleteId);
     if (elProfile) {
@@ -388,7 +383,11 @@ export async function main() {
             fieldRenderer.render();
         });
         setInterval(() => {
-            inGame = inGame && performance.now() - watchdog < 10000;
+            if (inGame && performance.now() - watchdog > 10000) {
+                console.warn("Watchdog triggered by inactivity");
+                inGame = false;
+                initialize();
+            }
         }, 3333);
         common.subscribe('states', async states => {
             if (!inGame) {
