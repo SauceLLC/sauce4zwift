@@ -153,6 +153,10 @@
                     --clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
                 }
 
+                &.circle {
+                    --clip-path: circle(50%);
+                }
+
                 &.athlete {
                     --zone: 0;
                     z-index: calc(var(--zone) + var(--priority));
