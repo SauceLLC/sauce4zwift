@@ -91,13 +91,6 @@ function createZwiftMap() {
         zoomPriorityTilt: getSetting('zoomPriorityTilt', true),
         preferRoute: settings.routeProfile !== false,
     });
-    let settingsSaveTimeout;
-    zm.addEventListener('zoom', ev => {
-        clearTimeout(settingsSaveTimeout);
-        settings.zoom = Number(ev.zoom.toFixed(2));
-        settingsSaveTimeout = setTimeout(() => common.settingsStore.set(null, settings), 100);
-    });
-
     const autoCenterBtn = document.querySelector('.map-controls .button.toggle-auto-center');
     const autoHeadingBtn = document.querySelector('.map-controls .button.toggle-auto-heading');
 
@@ -370,6 +363,12 @@ export async function main() {
         await applyCourse();
         await applyRoute();
     } else {
+        let settingsSaveTimeout;
+        zwiftMap.addEventListener('zoom', ev => {
+            clearTimeout(settingsSaveTimeout);
+            settings.zoom = Number(ev.zoom.toFixed(2));
+            settingsSaveTimeout = setTimeout(() => common.settingsStore.set(null, settings), 100);
+        });
         await initialize();
         common.subscribe('watching-athlete-change', async athleteId => {
             if (!inGame) {

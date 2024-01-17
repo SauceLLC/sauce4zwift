@@ -833,7 +833,12 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     _resetElements(viewBox) {
+        if (this._routeHighlight) {
+            this._routeHighlight.elements.forEach(x => x.remove());
+            this._routeHighlight = null;
+        }
         Object.values(this._elements.roadLayers).forEach(x => x.replaceChildren());
+        Object.values(this._elements.userLayers).forEach(x => x.replaceChildren());
         for (const ent of Array.from(this._ents.values()).filter(x => x.gc)) {
             this.removeEntity(ent);
         }

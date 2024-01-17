@@ -522,6 +522,7 @@ export class SauceElevationProfile {
                         return `${name}, ${H.power(mark.state.power, {suffix: true})}`;
                     }
                 },
+                data: [],
             }, ...seriesExtra]
         }, {replaceMerge: 'series'});
     }
@@ -696,18 +697,8 @@ export class SauceElevationProfile {
             return [xCoord, yCoord, isWatching, deemphasize, state.athleteId];
         }).filter(x => x);
         // echarts merge algo is quite broken.. must reset data.
-        this.chart.setOption({
-            series: {
-                id: 'mark-points',
-                data: []
-            }
-        });
-        this.chart.setOption({
-            series: {
-                id: 'mark-points',
-                data,
-            },
-        });
+        this.chart.setOption({series: {id: 'mark-points', data: []}});
+        this.chart.setOption({series: {id: 'mark-points', data}});
         for (const [athleteId, mark] of this.marks.entries()) {
             if (now - mark.lastSeen > 15000) {
                 this.marks.delete(athleteId);
