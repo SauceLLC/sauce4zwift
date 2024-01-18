@@ -331,7 +331,8 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.getMarkedAthletes, {scope: this});
         rpc.register(this.searchAthletes, {scope: this});
         rpc.register(this.getEvent, {scope: this});
-        rpc.register(this.getEvents, {scope: this});
+        rpc.register(this.getCachedEvent, {scope: this});
+        rpc.register(this.getCachedEvents, {scope: this});
         rpc.register(this.getEventSubgroup, {scope: this});
         rpc.register(this.getEventSubgroupEntrants, {scope: this});
         rpc.register(this.getEventSubgroupResults, {scope: this});
@@ -437,11 +438,21 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
-    getEvent(id) {
+    getCachedEvent(id) {
         return this._recentEvents.get(id);
     }
 
-    getEvents() {
+    async getEvent(id) {
+        if (!this._recentEvents.has(id)) {
+            const event = await this.zwiftAPI.getEvent(id);
+            if (event) {
+                this._addEvent(event);
+            }
+        }
+        return this._recentEvents.get(id);
+    }
+
+    getCachedEvents() {
         return Array.from(this._recentEvents.values()).sort((a, b) => a.ts - b.ts);
     }
 

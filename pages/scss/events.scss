@@ -18,7 +18,7 @@ html {
 }
 
 .trophy {
-    font-size: 1.3em;
+    font-size: 1.1em;
     border-radius: 50%;
     width: 1.5em;
     height: 1.5em;
@@ -291,11 +291,81 @@ table {
                 margin-bottom: -0.36em;
             }
 
+            > tbody > tr.summary.self:not(.expanded) {
+                clip-path: xywh(0 0 100% 100% round 0.5em); // tr border-radius
+                background-image: linear-gradient(to bottom, // must be vertical heading for Safari
+                    color.shade(primary, -30%, 0.9),
+                    color.shade(primary, -40%, 0.8));
+
+                td {
+                    padding-top: 0.65em;
+                    padding-bottom: 0.65em;
+                }
+
+                &:hover {
+                    background-image: linear-gradient(to bottom, // must be vertical heading for Safari
+                        color.shade(primary, -22%, 0.9),
+                        color.shade(primary, -32%, 0.8));
+                }
+            }
+
             > thead > tr {
                 background-color: #0003;
 
                 th.icon {
                     padding: 0;
+                }
+            }
+
+            &.results {
+                > thead th.time,
+                > thead th.distance {
+                    text-align: right;
+                }
+
+                > tbody > tr.summary {
+                    &.invalid {
+                        opacity: 0.7;
+                        font-weight: 200 !important;
+                    }
+
+                    > td.time,
+                    > td.distance {
+                        text-align: right;
+                        font-variant-numeric: tabular-nums;
+
+                        &.relative {
+                            font-size: 0.8em;
+                        }
+                    }
+
+                    > td.place {
+                        text-align: center;
+                    }
+
+                    > td.icons {
+                        ms {
+                            font-size: 1.3em;
+                            font-weight: 600;
+                            line-height: 0.7;
+                            filter: drop-shadow(0 0 1px black);
+                        }
+
+                        .flag {
+                            color: #f32d24;
+                        }
+
+                        .warning {
+                            color: #ffe200;
+                        }
+                    }
+
+                    > td.power {
+                        &[data-power-type="VIRTUAL_POWER"] {
+                            text-decoration: line-through;
+                            text-decoration-color: darkred;
+                        }
+                    }
                 }
             }
 
@@ -311,6 +381,10 @@ table {
                         font-size: 1.4em;
                         margin-left: -0.15em;
                         margin-right: -0.15em;
+                    }
+
+                    .danger {
+                        color: color.get(danger);
                     }
                 }
             }

@@ -6,13 +6,15 @@ import {render as profileRender} from './profile.mjs';
 common.enableSentry();
 common.settingsStore.setDefault({});
 
+const settings = common.settingsStore.get();
+
 let filterText;
-let filterType;
 let templates;
 let nations;
 let flags;
 let worldList;
 let gcs;
+let selfAthlete;
 
 const chartRefs = new Set();
 const allEvents = new Map();
@@ -42,7 +44,7 @@ async function loadEventsWithRetry() {
     // mutual startup races with backend.
     let data;
     for (let retry = 100;; retry += 100) {
-        data = await common.rpc.getEvents();
+        data = await common.rpc.getCachedEvents();
         if (data.length) {
             for (const x of data) {
                 allEvents.set(x.id, x);
@@ -69,9 +71,9 @@ async function fillInEvents() {
 
 function applyEventFilters(el) {
     const hide = new Set();
-    if (filterType) {
+    if (settings.filterType) {
         for (const x of allEvents.values()) {
-            if (x.eventType !== filterType) {
+            if (x.eventType !== settings.filterType) {
                 hide.add('' + x.id);
             }
         }
@@ -98,7 +100,11 @@ function applyEventFilters(el) {
 
 export async function main() {
     common.initInteractionListeners();
-    [,templates, {nations, flags}, worldList, gcs] = await Promise.all([
+    addEventListener('resize', resizeCharts);
+    if (settings.filterType) {
+        document.querySelector('#titlebar select[name="type"]').value = settings.filterType;
+    }
+    [,templates, {nations, flags}, worldList, gcs, selfAthlete] = await Promise.all([
         loadEventsWithRetry(),
         getTemplates([
             'events/list',
@@ -109,11 +115,13 @@ export async function main() {
         common.initNationFlags(),
         common.getWorldList(),
         common.rpc.getGameConnectionStatus(),
+        common.rpc.getAthlete('self'),
     ]);
     common.subscribe('status', x => (gcs = x), {source: 'gameConnection'});
     document.querySelector('#titlebar select[name="type"]').addEventListener('change', ev => {
         const type = ev.currentTarget.value;
-        filterType = type || undefined;
+        settings.filterType = type || undefined;
+        common.settingsStore.set(null, settings);
         applyEventFilters(contentEl);
     });
     document.querySelector('#titlebar input[name="filter"]').addEventListener('input', ev => {
@@ -235,6 +243,7 @@ async function render() {
             teamBadge: common.teamBadge,
             eventBadge: common.eventBadge,
             fmtFlag: common.fmtFlag,
+            selfAthlete,
         }));
         for (const el of eventDetailsEl.querySelectorAll('.elevation-chart[data-sg-id]')) {
             const sg = subgroups.find(x => x.id === Number(el.dataset.sgId));
@@ -280,6 +289,3 @@ export async function settingsMain() {
     common.initInteractionListeners();
     await common.initSettingsForm('form')();
 }
-
-
-addEventListener('resize', resizeCharts);
