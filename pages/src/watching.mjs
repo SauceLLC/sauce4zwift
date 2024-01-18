@@ -1001,7 +1001,7 @@ async function createLineChart(el, sectionId, settings, renderer) {
                     } : undefined,
                 };
             }),
-        }, {lazyUpdate: true}); // lazy because we follow immediatly with another setOption
+        }, {lazyUpdate: true}); // lazy because we follow immediately with another setOption
         chart.setOption({graphic: calcPowerZonesGraphics(chart)}, {replaceMerge: 'graphic'});
     };
 
