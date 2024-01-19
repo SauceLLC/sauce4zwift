@@ -103,16 +103,14 @@
                     </sauce-row-editor>
                 </div>-->
                 <div class="row p2"><key>FTP</key>{-humanPower(athlete.ftp, {suffix: true, html: true})-}</div>
-                <% if (athlete.cp || athlete.ftp) { %>
-                    <div class="row p2" title="CP is Critical Power (often similiar to FTP) and W' (pronounced &quot;W Prime&quot;) is a the amount of energy (kJ) available when working harder than the CP value.  Think of it as a battery level." >
-                        <key>CP</key><a title="Click to edit - Press Enter to save"
-                            href="javascript:void(0)" data-key="cp" data-type="number"
-                            class="inline-edit cp">{-humanPower(athlete.cp || athlete.ftp, {suffix: true, html: true})-}</a>,
-                        W': <a title="Click to edit - Press Enter to save"
-                            href="javascript:void(0)" data-key="wPrime" data-type="number"
-                            class="inline-edit wprime">{-humanNumber(athlete.wPrime / 1000, {suffix: 'kJ', html: true})-}</a>
-                    </div>
-                <% } %>
+                <div class="row p2" title="CP is Critical Power (often similiar to FTP) and W' (pronounced &quot;W Prime&quot;) is a the amount of energy (kJ) available when working harder than the CP value.  Think of it as a battery level." >
+                    <key>CP</key><a title="Click to edit - Press Enter to save"
+                        href="javascript:void(0)" data-key="cp" data-type="number"
+                        class="inline-edit cp">{-humanPower(athlete.cp || athlete.ftp, {suffix: true, html: true})-}</a>,
+                    W': <a title="Click to edit - Press Enter to save"
+                        href="javascript:void(0)" data-key="wPrime" data-type="number" data-conv-factor="1000"
+                        class="inline-edit wprime">{-humanNumber(athlete.wPrime / 1000, {suffix: 'kJ', html: true, precision: 1})-}</a>
+                </div>
                 <div class="row p2">
                     <key>ID</key><a href="https://zwiftpower.com/profile.php?z={{athleteId}}"
                                     title="Open ZwiftPower profile" target="_blank"
