@@ -1142,7 +1142,6 @@ export class StatsProcessor extends events.EventEmitter {
                     if (sg) {
                         const event = this._recentEvents.get(sg.eventId);
                         if (this._followingIds.has(x.payload.athleteId)) {
-                            debugger;
                             sg.followeeEntrantCount++;
                             if (event) {
                                 event.followeeEntrantCount++;
@@ -1173,19 +1172,16 @@ export class StatsProcessor extends events.EventEmitter {
         }
         if (packet.eventPositions) {
             const ep = packet.eventPositions;
+            // There are several groups of fields on eventPositions, but I don't understand/see them.
             if (ep.players1.length + ep.players2.length + ep.players3.length + ep.players4.length) {
-                console.log('xxx event positions unhandled players', ep);
-                debugger;
+                console.warn('Unhandled event positions arrays 1, 2, 3 or 4', ep);
             }
-            if (ep.position && this._athleteData.has(ep.watchingAthleteId)) {
-                const ad = this._athleteData.get(ep.watchingAthleteId);
-                ad.eventPosition = ep.position;
-                ad.eventParticipants = ep.activeAthleteCount;
-            }
-            // There are several groups of fields on eventPositions, but I don't understand them.
-            for (const x of ep.players10) {
+            const positions = ep.position ? ep.players10.concat(ep.position) : ep.players10;
+            for (let i = 0; i < positions.length; i++) {
+                const x = positions[i];
                 const ad = this._athleteData.get(x.athleteId);
-                if (ad) {
+                // Must check eventSubgroup as these can lag an event finish and get stuck on.
+                if (ad && ad.eventSubgroup) {
                     ad.eventPosition = x.position;
                     ad.eventParticipants = ep.activeAthleteCount;
                 }
@@ -1582,11 +1578,6 @@ export class StatsProcessor extends events.EventEmitter {
             ad.eventStartPending = false;
             ad.eventPosition = undefined;
             ad.eventParticipants = undefined;
-            if (ad.eventPosition && (!state.eventSubgroupId ||
-                prevState.eventSubgroupId !== state.eventSubgroupId)) {
-                delete ad.eventPosition;
-                delete ad.eventParticipants;
-            }
             this.triggerEventEnd(ad, state);
         }
         if (ad.disabled) {
