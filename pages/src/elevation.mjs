@@ -557,7 +557,11 @@ export class SauceElevationProfile {
                         }
                         // Note sg.routeId is sometimes out of sync with state.routeId; avoid thrash
                         if (sg && sg.routeId === watching.routeId) {
-                            await this.setRoute(sg.routeId, {laps: sg.laps, eventSubgroupId: sg.id});
+                            await this.setRoute(sg.routeId, {
+                                laps: sg.laps,
+                                distance: sg.distanceInMeters,
+                                eventSubgroupId: sg.id
+                            });
                         } else if (this.routeId !== watching.routeId) {
                             await this.setRoute(watching.routeId);
                         }
