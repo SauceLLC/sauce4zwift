@@ -288,9 +288,16 @@ export class MapAthlete extends MapEntity {
             html.push(`<a class="name" href="/pages/profile.html?id=${state.athleteId}&windowType=profile"
                           target="profile_popup_${state.athleteId}">${common.sanitize(name)}${avatar}</a>`);
             if (this._hardPin) {
-                html.push(`<br/>Power: ${H.power(state.power, {suffix: true, html: true})}`);
-                html.push(`<br/>Speed: ${H.pace(state.speed, {suffix: true, html: true,
-                                                              sport: state.sport})}`);
+                html.push(`<br/>${H.power(state.power, {suffix: true, html: true})}`);
+                if (state.heartrate) {
+                    html.push(`, ${H.number(state.heartrate, {suffix: 'bpm', html: true})}`);
+                }
+                html.push(`, ${H.pace(state.speed, {suffix: true, html: true, sport: state.sport})}`);
+                if (ad?.gap) {
+                    const placement = ad.gap > 0 ? 'behind' : 'ahead';
+                    const d = H.duration(Math.abs(ad.gap), {short: true, separator: ' ', html: true});
+                    html.push(`<br/>${d} <abbr class="unit">${placement}</abbr>`);
+                }
             }
         }
         if (this.chats.length) {
@@ -304,12 +311,8 @@ export class MapAthlete extends MapEntity {
 
     setPlayerState(state) {
         this._state = state;
-        if (this.pin) {
-            const sinceLast = Date.now() - this._lastStateRender;
-            if (sinceLast > 90000) {
-                this._lastStateRender = Date.now();
-                this.renderPinHTML(this.getPinHTML());
-            }
+        if (this.pin && this._hardPin) {
+            this.renderPinHTML(this.getPinHTML());
         }
     }
 
