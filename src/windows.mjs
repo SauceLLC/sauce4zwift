@@ -347,7 +347,9 @@ function canToggleVisibility(win) {
 rpc.register(() => {
     for (const win of SauceBrowserWindow.getAllWindows()) {
         if (canToggleVisibility(win)) {
-            win.hide();
+            if (!win.isMinimized()) {
+                win.hide();
+            }
         }
     }
 }, {name: 'hideAllWindows'});
