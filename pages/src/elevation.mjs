@@ -32,8 +32,11 @@ export class SauceElevationProfile {
                     }
                     const value = series[0].value;
                     let segmentInfo = '';
-                    if (series.length > 1) {
-                        segmentInfo = `<br/>${series[1].seriesName}`;
+                    const segmentSeries = series.find(x => x.seriesId.startsWith('segment-'));
+                    if (segmentSeries) {
+                        const segment = segmentSeries.data[2];
+                        segmentInfo = `<br/>${segment.name}, ` +
+                            H.distance(segment.distance, {suffix: true, html: true});
                     }
                     const dist = (this.reverse && this._distances) ?
                         this._distances.at(-1) - value[0] : value[0];
@@ -228,13 +231,18 @@ export class SauceElevationProfile {
                 continue;
             }
             for (const segment of m.segments) {
+                const road = this.route.roadSegments[i];
+                const i1 = Math.round(road.roadPercentToOffset(segment.roadStart));
+                const i2 = Math.round(road.roadPercentToOffset(segment.roadFinish));
                 const offt = this.route.curvePath.nodes.findIndex(x => x.index === i);
-                let [a, b] = [segment.roadStart, segment.roadFinish];
+                let start, end;
                 if (segment.reverse) {
-                    [a, b] = [b, a];
+                    start = offt + (road.nodes.length - 1 - i1);
+                    end = offt + (road.nodes.length - 1 - i2);
+                } else {
+                    start = offt + i1;
+                    end = offt + i2;
                 }
-                const start = Math.round(offt + this.route.roadSegments[i].roadPercentToOffset(a));
-                const end = Math.round(offt + this.route.roadSegments[i].roadPercentToOffset(b));
                 segments.push({start, end, segment});
             }
         }
@@ -378,7 +386,7 @@ export class SauceElevationProfile {
                 seriesExtra.push({
                     ...commonSeriesOptions,
                     zlevel: seriesExtra.length + 2,
-                    id: `${segment.id}-${seriesExtra.length}`,
+                    id: `segment-${segment.id}-${seriesExtra.length}`,
                     name: segment.name,
                     lineStyle: {width: 0},
                     emphasis: {
@@ -392,7 +400,7 @@ export class SauceElevationProfile {
                         origin: 'start',
                     },
                     data: distances.slice(start, end + 1).map((x, i) =>
-                        [x, elevations.at(i + start), grades.at(i + start)]),
+                        [x, elevations.at(i + start), segment]),
                     markLine: {
                         emphasis: {
                             lineStyle: {

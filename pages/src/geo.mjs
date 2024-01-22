@@ -341,6 +341,7 @@ export async function main() {
         await applyRoute();
     });
     [worldList, routesList] = await Promise.all([common.getWorldList(), common.getRouteList()]);
+    routesList = Array.from(routesList).sort((a, b) => a.name < b.name ? -1 : 1);
     zwiftMap = createZwiftMap();
     window.zwiftMap = zwiftMap;  // DEBUG
     window.MapEntity = map.MapEntity;
