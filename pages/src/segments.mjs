@@ -40,7 +40,7 @@ function setBackground() {
 
 async function setCourse(id) {
     segments = await common.rpc.getSegments(id);
-    segmentId = segments ? segments[0].id : null;
+    segmentId = (segments && segments.length) ? segments[0].id : null;
     const segmentSelect = document.querySelector('select[name="segment"]');
     segmentSelect.replaceChildren();
     for (const x of segments) {
@@ -64,13 +64,13 @@ async function updateTab() {
 async function updateResults() {
     const tab = settings.currentTab || 'live';
     const getResults = {
-        'live': () => common.rpc.getSegmentResults(segmentId),
-        'just-me': () => common.rpc.getSegmentResults(segmentId, {
+        'live': () => segmentId ? common.rpc.getSegmentResults(segmentId) : undefined,
+        'just-me': () => athleteData ? common.rpc.getSegmentResults(segmentId, {
             athleteId: athleteData.athleteId,
             from: Date.now() - 86400000 * 90,
-        }),
+        }) : undefined,
     }[tab];
-    const results = (await getResults()) || [];
+    const results = segmentId && (await getResults()) || [];
     document.querySelector('.tabbed > .tab.active').replaceChildren(await resultsTpl({results}));
     console.log(results);
 }
