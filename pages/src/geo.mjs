@@ -170,6 +170,7 @@ async function initialize() {
     inGame = !!ad && ad.age < 15000;
     if (!inGame) {
         if (!demoState.intervalId) {
+            demoState.intervalId = true; // lock
             console.info("User not active: Starting demo mode...");
             if (elProfile) {
                 elProfile.clear();
@@ -180,11 +181,13 @@ async function initialize() {
             demoState.zoomSave = zwiftMap.zoom;
             zwiftMap.setZoom(0.2, {disableEvent: true});
             await zwiftMap.setCourse(randomCourseId);
-            zwiftMap.setHeading(heading += 5);
-            zwiftMap.setTransitionDuration(1100);
-            demoState.intervalId = setInterval(() => {
+            if (demoState.intervalId === true) {  // could have been cancelled during await
                 zwiftMap.setHeading(heading += 5);
-            }, 1000);
+                zwiftMap.setTransitionDuration(1100);
+                demoState.intervalId = setInterval(() => {
+                    zwiftMap.setHeading(heading += 5);
+                }, 1000);
+            }
         }
         return;
     } else if (demoState.intervalId) {
