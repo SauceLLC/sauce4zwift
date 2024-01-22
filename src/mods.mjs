@@ -126,33 +126,35 @@ function _init(root) {
                 let manifest;
                 try {
                     manifest = JSON.parse(fs.readFileSync(manifestPath));
-                    validateManifest(manifest, modPath);
-                    const id = manifest.id || x;
+                    const id = manifest?.id || x;
                     const isNew = !settings[id];
                     const enabled = !isNew && !!settings[id].enabled;
+                    const label = `${manifest.name} (${id})`;
+                    console.info(`Detected MOD: ${label} [${enabled ? 'ENABLED' : 'DISABLED'}]`);
+                    if (isNew || enabled) {
+                        validateManifest(manifest, modPath, label);
+                    }
                     available.push({manifest, isNew, enabled, id, modPath});
-                    console.info(`Found MOD: (${manifest.name}) ` +
-                        `[${enabled ? 'ENABLED' : 'DISABLED'}] ${id} -> ${modPath}`);
                 } catch(e) {
                     console.error('Invalid manifest.json for:', x, e);
                 }
-            } else {
+            } else if (!['.DS_Store'].includes(x)) {
                 console.warn("Ignoring non-directory in mod path:", x);
             }
         }
     }
     if (!available.length) {
-        console.info("No (valid) mods found at:", modRoot);
+        console.info("No MODS found in:", modRoot);
     }
 }
 
 
-function validateManifest(manifest, modPath) {
-    validateSchema(manifest, modPath, manifestSchema);
+function validateManifest(manifest, modPath, label) {
+    validateSchema(manifest, modPath, manifestSchema, label);
 }
 
 
-function validateSchema(obj, modPath, schema) {
+function validateSchema(obj, modPath, schema, label) {
     if (typeof obj !== 'object') {
         throw new TypeError("Invalid manifest root type: expected object");
     }
@@ -168,7 +170,7 @@ function validateSchema(obj, modPath, schema) {
         const vArr = info.isArray ? v : [v];
         for (const xv of vArr) {
             if (info.deprecated) {
-                console.warn(`Deprecated MOD manifest field "${k}" found in: ${modPath}`);
+                console.warn(`Deprecated MOD manifest field "${k}": ${label}`);
             }
             if (typeof xv !== info.type) {
                 throw TypeError(`Invalid type: "${k}" should be a "${info.type}"`);
@@ -177,7 +179,7 @@ function validateSchema(obj, modPath, schema) {
                 throw TypeError(`Invalid value: "${xv}" is not valid for the key "${k}"`);
             }
             if (info.schema) {
-                validateSchema(xv, modPath, info.schema);
+                validateSchema(xv, modPath, info.schema, label);
             }
         }
         required.delete(k);
