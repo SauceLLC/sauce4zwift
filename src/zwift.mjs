@@ -583,7 +583,7 @@ export class ZwiftAPI {
 
     async getSegmentResults(segmentId, options={}) {
         const query = {
-            world_id: 1,
+            world_id: 1,  // mislabeled realm
             segment_id: segmentId,
         };
         if (options.athleteId) {
@@ -598,13 +598,9 @@ export class ZwiftAPI {
         if (options.best) {
             query['only-best'] = 'true';
         }
-        const resp = pbToObject(await this.fetchPB('/api/segment-results',
-                                                   {query, protobuf: 'SegmentResults'}));
-        if (!resp.results) {
-            return;
-        }
+        const resp = await this.fetchPB('/api/segment-results', {query, protobuf: 'SegmentResults'});
         resp.results.sort((a, b) => a.elapsed - b.elapsed);
-        return resp.results;
+        return resp.results.map(pbToObject);
     }
 
     async getGameInfo() {
