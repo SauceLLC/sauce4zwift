@@ -191,7 +191,7 @@ async function renderAvailableMods() {
     const mods = await common.rpc.getAvailableMods();
     const el = document.querySelector('#mods-container');
     if (!mods || !mods.length) {
-        el.innerHTML = `<b><i>No mods detected</i></b>`;
+        el.innerHTML = `<b><i>No Mods detected</i></b>`;
         return;
     }
     const html = [];
