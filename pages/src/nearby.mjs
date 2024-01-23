@@ -439,6 +439,8 @@ const fieldGroups = [{
         {id: 'route-progress', defaultEn: false, label: 'Route Progress', get: x => x.state.routeProgress},
         {id: 'route-road-index', defaultEn: false, label: 'Route Road Index',
          get: x => x.state.routeRoadIndex},
+        {id: 'road-time', defaultEn: false, label: 'RoadTime',
+         get: x => (x.state.roadTime - 5000) / 1e6, fmt: x => x.toFixed(6)},
     ],
 }];
 
