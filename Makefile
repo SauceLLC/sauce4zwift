@@ -73,12 +73,14 @@ else
 	npm run publish
 endif
 
-docker-linux-publish:
+publish-docker-linux-native:
 	docker build --build-arg arch=amd64 -t linux-s4z-build -f ./build/linux.Dockerfile .
 	docker run -it -v $$HOME/.git-credentials:/root/.git-credentials \
 		-e GH_TOKEN_SAUCE4ZWIFT_RELEASE linux-s4z-build make publish
 
-docker-arm-linux-publish:
+_publis-docker-linux-arm_DO_NOT_USE:
+	# Artifacts collide with non arm builds.  I think this is possible to avoid but haven't dived in
+	# Also this takes like an hour or more to finish on highend 2023 AMD CPU, yikes.
 	docker build --build-arg arch=arm64 -t linux-s4z-build-arm -f ./build/linux.Dockerfile .
 	docker run -it -v $$HOME/.git-credentials:/root/.git-credentials \
 		-e GH_TOKEN_SAUCE4ZWIFT_RELEASE linux-s4z-build-arm make publish
