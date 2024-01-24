@@ -1176,7 +1176,7 @@ export class StatsProcessor extends events.EventEmitter {
             if (ep.players1.length + ep.players2.length + ep.players3.length + ep.players4.length) {
                 console.warn('Unhandled event positions arrays 1, 2, 3 or 4', ep);
             }
-            const positions = ep.position ? ep.players10.concat(ep.position) : ep.players10;
+            const positions = ep.players10;
             for (let i = 0; i < positions.length; i++) {
                 const x = positions[i];
                 const ad = this._athleteData.get(x.athleteId);
@@ -1185,6 +1185,11 @@ export class StatsProcessor extends events.EventEmitter {
                     ad.eventPosition = x.position;
                     ad.eventParticipants = ep.activeAthleteCount;
                 }
+            }
+            if (ep.position && this._athleteData.has(ep.watchingAthleteId)) {
+                const ad = this._athleteData.get(ep.watchingAthleteId);
+                ad.eventPosition = ep.position;
+                ad.eventParticipants = ep.activeAthleteCount;
             }
         }
         this._schedStatesEmit();
