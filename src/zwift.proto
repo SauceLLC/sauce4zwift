@@ -44,7 +44,7 @@ message PlayerState {
     int32 _f46 = 46; // 2?
     int32 _f47 = 47; // 2?
     int32 _f48 = 48;
-    int32 _f49 = 48; // 9
+    int32 _f49 = 49; // 9
 }
 
 enum WorldUpdatePayloadType {
