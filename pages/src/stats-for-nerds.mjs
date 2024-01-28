@@ -221,21 +221,36 @@ const debugFormatters = {
     appMem: x => H.number(x.memTotal / 1024, {suffix: 'GB', precision: 1, html: true}),
     os: x => `${friendlyPlatforms[x.sys.platform]} ${x.sys.productVersion}`,
     cpuModel: x => x.sys.cpus[0]?.model || x.sys.arch,
-    sysUptime: x => H.duration(x.sys.uptime, {short: true}),
+    cpuCores: x => x.sys.cpus.length,
+    cpuSpeed: x => H.number(sauce.data.avg(x.sys.cpus.map(x => x.speed / 1000)),
+                            {suffix: 'Ghz', precision: 1, fixed: true, html: true}),
     sysMem: x => H.number(x.sys.mem.total / MB, {suffix: 'GB', html: true}),
     gpu: x => x.gpu.gpu_compositing,
-    statesDropped: x => H.number(x.stats.stateDupCount) + ' / ' + H.number(x.stats.stateStaleCount),
+    statesDups: x => H.number(x.stats.stateDupCount),
+    statesStale: x => H.number(x.stats.stateStaleCount),
     dbRowsAthletes: x => H.number(
         x.databases.find(xx => xx.tableName === 'athletes').rows, {suffix: 'rows', html: true}),
     dbRowsSettings: x => H.number(
         x.databases.find(xx => xx.tableName === 'store').rows, {suffix: 'rows', html: true}),
+    zwiftActive: x => x.zwift.active ? 'active' : 'inactive'
 };
-function defaultDebugFormatter(path) {
+
+
+function defaultDebugFormatter(path, type) {
+    if (!type) {
+        debugger;
+    }
     return data => {
         for (const p of path.split('.')) {
             data = data[p];
         }
-        return H.number(data);
+        return {
+            number: H.number,
+            string: x => x,
+            timer: x => H.timer(x / 1000, {html: true}),
+            msDuration: x => H.number(x, {suffix: 'ms', html: true}),
+            time: x => H.time(x, {style: 'default'}),
+        }[type || 'string'](data);
     };
 }
 
@@ -310,7 +325,7 @@ export async function main() {
                             position: maxMemIndex > maxLen / 2 ? 'insideEndTop' : 'insideStartTop',
                             formatter: x => H.number(datas.mem[x.value], {suffix: 'MB'}),
                             distance: [3, 35],
-                            opacity: 0.7,
+                            opacity: 0.8,
                         },
                         emphasis: {disabled: true},
                         data: [{xAxis: maxMemIndex}],
@@ -332,8 +347,10 @@ export async function main() {
             });
         }
         Object.assign(debugInfo, {cpuTotal, memTotal});
+        console.log({debugInfo, metrics});
         for (const el of debugEl.querySelectorAll('value[data-id]')) {
-            const fmt = debugFormatters[el.dataset.id] || defaultDebugFormatter(el.dataset.id);
+            const fmt = debugFormatters[el.dataset.id] ||
+                defaultDebugFormatter(el.dataset.id, el.dataset.type);
             el.innerHTML = fmt(debugInfo);
             el.title = el.textContent;
         }
