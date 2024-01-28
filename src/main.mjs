@@ -401,6 +401,7 @@ class SauceApp extends EventEmitter {
                     rows: db.prepare(`SELECT COUNT(*) as rows FROM ${t.name}`).get().rows,
                 }));
             })),
+            zwift: this.gameMonitor?.getDebugInfo(),
         };
     }
 
