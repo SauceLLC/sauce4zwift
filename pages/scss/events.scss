@@ -256,10 +256,6 @@ table {
                 padding: 1em;
                 color: color.get(intrinsic);
 
-                > *:not(:last-child) {
-                    padding-right: 0.8em;
-                }
-
                 @media (min-width: 768px)  {
                     // Make it overlay band style
                     margin: 0 -1.5em;
