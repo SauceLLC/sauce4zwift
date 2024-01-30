@@ -190,7 +190,7 @@ export const widgetWindowManifests = [{
     file: '/pages/stats-for-nerds.html',
     prettyName: 'Stats for Nerds',
     prettyDesc: 'Debug info (cpu/mem) about Sauce',
-    options: {width: 900, height: 600},
+    options: {width: 1000, height: 600},
     overlay: false,
 }, {
     type: 'logs',
