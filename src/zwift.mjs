@@ -760,13 +760,14 @@ export class ZwiftAPI {
         return results;
     }
 
-    async getEventSubgroupEntrants(id) {
+    async getEventSubgroupEntrants(id, options={}) {
         const entrants = [];
-        const limit = 100;
-        let start = 0;
+        const limit = options.limit || 100;
+        let start = (options.page != null) ? options.page * limit : 0;
         // XXX signed_up seems to be more inclusive but sometimes a user is only in registered
         // I don't know the difference but I can't stand the idea of hitting both.
-        while (true) {
+        do {
+            console.log(1, id, limit, start);
             const data = await this.fetchJSON(`/api/events/subgroups/entrants/${id}`, {
                 query: {
                     type: 'all',
@@ -775,12 +776,13 @@ export class ZwiftAPI {
                     start,
                 }
             });
+            console.log(2, id, data);
             entrants.push(...data);
             if (data.length < limit) {
                 break;
             }
             start += data.length;
-        }
+        } while (options.page == null);
         return entrants;
     }
 

@@ -76,8 +76,26 @@ table {
         > tbody > tr {
             scroll-margin-top: 2.38em;  // roughly header height
 
-            &.started > td {
-                opacity: 0.5;
+            &.started {
+                &.joinable > td.start {
+                    text-decoration-skip-ink: none;
+                    text-decoration: underline wavy;
+                    color: #ffc500;
+                }
+
+                &:not(.joinable) {
+                    > td {
+                        opacity: 0.6;
+
+                        &.start {
+                            text-decoration: line-through;
+                        }
+                    }
+
+                    + tr.details header .button.signup-action {
+                        display: none;
+                    }
+                }
             }
 
             &.signedup {
@@ -212,6 +230,20 @@ table {
             background: #0300001f;
             border-radius: 0.3em;
 
+            &:not(.results) .only-results,
+            &:not(.signups) .only-signups,
+            &:not(.loading) .only-loading,
+            &:not(.can-signup) .only-can-signup,
+            &:not(.signedup) .only-signedup {
+                display: none;
+            }
+
+            &:not(.signups) {
+                header .button.signup-action {
+                    display: none;
+                }
+            }
+
             header {
                 display: flex;
                 flex-wrap: wrap;
@@ -223,6 +255,10 @@ table {
                 border-radius: 0.28em;
                 padding: 1em;
                 color: color.get(intrinsic);
+
+                > *:not(:last-child) {
+                    padding-right: 0.8em;
+                }
 
                 @media (min-width: 768px)  {
                     // Make it overlay band style
@@ -266,6 +302,10 @@ table {
 
                 .name {
                     font-weight: 600;
+
+                    @media (min-width: 600px)  {
+                        max-width: 40vw;
+                    }
                 }
             }
         }

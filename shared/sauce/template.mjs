@@ -23,7 +23,7 @@ export async function getTemplate(url, options) {
                     _tplCache.set(cacheKey, undefined);
                     return;
                 }
-                _tplCache.set(cacheKey, compile(tplText, options));
+                _tplCache.set(cacheKey, compile(url, tplText, options));
             }).finally(() => _tplFetching.delete(cacheKey)));
         }
         await _tplFetching.get(cacheKey);
@@ -86,7 +86,7 @@ const staticHelpers = {
 };
 
 
-function makeRender(text, options, helperVars, attrVars) {
+function makeRender(name, text, options, helperVars, attrVars) {
     const localePrefix = options.localeKey ? options.localeKey + '_' : '';
     const regexps = {
         localeLookup: /\{\{\{\[(.+?)\]\}\}\}/g,         // {{{[ <locale expression> ]}}}
@@ -107,7 +107,7 @@ function makeRender(text, options, helperVars, attrVars) {
         (regexps.evaluate || noMatch).source,
     ].join('|') + '|$', 'g');
     const code = [`
-        return async function sauceTemplateRender(__tplContext, obj, __options={}) {
+        return async function(__tplContext, obj, __options={}) {
             let __t; // tmp
             const __htmlMode = __options.html != null ? __options.html : ${Boolean(options.html)};
             const __p = []; // output buffer
@@ -191,11 +191,12 @@ function makeRender(text, options, helperVars, attrVars) {
         e.source = source;
         throw e;
     }
+    Object.defineProperty(render, 'name', {value: name});
     return [render, localeKeys, staticCalls];
 }
 
 
-function compile(text, options={}) {
+function compile(name, text, options={}) {
     const boundHelpers = Object.fromEntries(Object.entries(helpers)
         .map(([k, fn]) => [k, fn.bind({options})]));
     let renderFuncVars;
@@ -212,7 +213,7 @@ function compile(text, options={}) {
                 console.warn("Highly variadic template function detected");
             }
             let localeKeys, staticCalls;
-            [render, localeKeys, staticCalls] = makeRender(text, options, Object.keys(helpers), vars);
+            [render, localeKeys, staticCalls] = makeRender(name, text, options, Object.keys(helpers), vars);
             localeMessages = localeKeys.length ?
                 await localeMod.fastGetMessagesObject(localeKeys) : undefined;
             statics = staticCalls.length ?

@@ -1754,6 +1754,11 @@ export async function getAthletesDataCached(ids, {maxAge=60000}={}) {
 }
 
 
+export async function getAthleteDataCached(id, {maxAge=60000}={}) {
+    return (await getAthletesDataCached([id]))[0];
+}
+
+
 let _sentryEnabled;
 export async function enableSentry() {
     if (location.pathname.startsWith('/mods/')) {

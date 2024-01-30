@@ -1,7 +1,16 @@
-<tr class="summary event-row {{event.ts < Date.now() ? 'started' : ''}}
-           {{event.eventSubgroups && event.eventSubgroups.some(x => x.signedUp) ? 'signedup' : ''}}"
+<% const started = event.ts < Date.now(); %>
+<% const joinable = event.ts + ((event.lateJoinInMinutes || 0) * 60 * 1000) - Date.now(); %>
+<tr class="summary event-row
+           {{started ? 'started' : ''}}
+           {{joinable > 0 ? 'joinable' : ''}}
+           {{event.signedUp ? 'signedup' : ''}}"
     data-event-id="{{event.id}}">
-    <td class="start">{{humanTime(event.eventStart, {style: 'date'})}}</td>
+    <td class="start">
+        {{humanTime(event.eventStart, {style: 'date'})}}
+        <% if (started && joinable > 0) { %>
+            <ms title="Can late join">acute</ms>
+        <% } %>
+    </td>
     <td class="type">
         {{event.eventType.replace(/_/g, ' ')}}
         {-event.sport === 'running' ? '<ms large title="Run">directions_run</ms>' : ''-}

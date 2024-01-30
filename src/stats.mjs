@@ -483,10 +483,14 @@ export class StatsProcessor extends events.EventEmitter {
             }
         }
         if (missingProfiles.size) {
+            const updates = [];
             for (const p of await this.zwiftAPI.getProfiles(missingProfiles)) {
                 if (p) {
-                    this._updateAthlete(p.id, this._profileToAthlete(p));
+                    updates.push([p.id, this._updateAthlete(p.id, this._profileToAthlete(p))]);
                 }
+            }
+            if (updates.length) {
+                this.saveAthletes(updates);
             }
         }
         for (const x of results) {
@@ -1019,12 +1023,16 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
-    async getAthlete(ident, options={}) {
+    async getAthlete(ident, {refresh, noWait, allowFetch}={}) {
         const id = this._realAthleteId(ident);
-        if (options.refresh && this.zwiftAPI.isAuthenticated()) {
+        if (allowFetch && !this.loadAthlete(id)) {
+            refresh = true;
+            noWait = false;
+        }
+        if (refresh && this.zwiftAPI.isAuthenticated()) {
             const updating = this.zwiftAPI.getProfile(id).then(p =>
                 (p && this.updateAthlete(id, this._profileToAthlete(p))));
-            if (!options.noWait) {
+            if (!noWait) {
                 await updating;
             }
         }

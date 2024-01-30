@@ -18,8 +18,8 @@ let selfAthlete;
 
 const chartRefs = new Set();
 const allEvents = new Map();
+const allSubgroups = new Map();
 const contentEl = document.querySelector('#content');
-const athletes = new Map();
 
 
 const _fetchingRoutes = new Map();
@@ -58,11 +58,22 @@ async function loadEventsWithRetry() {
 
 
 async function fillInEvents() {
-    await Promise.all(Array.from(allEvents.values()).map(async x => {
-        x.route = await getRoute(x.routeId);
-        if (x.eventSubgroups) {
-            for (const sg of x.eventSubgroups) {
+    await Promise.all(Array.from(allEvents.values()).map(async event => {
+        event.route = await getRoute(event.routeId);
+        event.sameRoute = true;
+        event.signedUp = false;
+        if (event.eventSubgroups) {
+            event.sameRoute = (new Set(event.eventSubgroups.map(sg =>
+                JSON.stringify([
+                    sg.laps,
+                    sg.distanceInMeters,
+                    sg.durationInSeconds,
+                    sg.routeId]
+                )))).size === 1;
+            event.signedUp = event.eventSubgroups.some(x => x.signedUp);
+            for (const sg of event.eventSubgroups) {
                 sg.route = await getRoute(sg.routeId);
+                allSubgroups.set(sg.id, {sg, event});
             }
         }
     }));
@@ -110,6 +121,7 @@ export async function main() {
             'events/list',
             'events/summary',
             'events/details',
+            'events/subgroup',
             'profile',
         ]),
         common.initNationFlags(),
@@ -158,18 +170,30 @@ export async function main() {
             return;
         }
         const action = button.dataset.action;
-        if (action === 'signup') {
-            const sgId = Number(button.closest('[data-event-subgroup-id]').dataset.eventSubgroupId);
-            await common.rpc.addEventSubgroupSignup(sgId);
+        try {
+            if (action === 'signup' || action === 'unsignup') {
+                const el = button.closest('[data-event-subgroup-id]');
+                const sgId = Number(el.dataset.eventSubgroupId);
+                const {sg, event} = allSubgroups.get(sgId);
+                if (action === 'signup') {
+                    await common.rpc.addEventSubgroupSignup(sgId);
+                    sg.signedUp = event.signedUp = true;
+                    el.parentElement.querySelectorAll(':scope > [data-event-subgroup-id]').forEach(x =>
+                        x.classList.remove('can-signup'));
+                    el.classList.add('signedup');
+                    el.closest('tr.details').previousElementSibling.classList.add('signedup');
+                } else {
+                    await common.rpc.deleteEventSignup(event.id);
+                    sg.signedUp = event.signedUp = false;
+                    el.parentElement.querySelectorAll(':scope > [data-event-subgroup-id]').forEach(x =>
+                        x.classList.add('can-signup'));
+                    el.classList.remove('signedup');
+                    el.closest('tr.details').previousElementSibling.classList.remove('signedup');
+                }
+            }
+        } catch(e) {
             // XXX
-            await loadEventsWithRetry();
-            await render(); // XXX
-        } else if (action === 'unsignup') {
-            const eventId = Number(button.closest('[data-event-id]').dataset.eventId);
-            await common.rpc.deleteEventSignup(eventId);
-            // XXX
-            await loadEventsWithRetry();
-            await render(); // XXX
+            alert(e.message);
         }
     });
     await render();
@@ -220,59 +244,84 @@ async function render() {
     });
     const cleanupCallbacks = new Set();
     common.initExpanderTable(frag.querySelector('table'), async (eventDetailsEl, eventSummaryEl) => {
+        eventDetailsEl.innerHTML = '<h2><i>Loading...</i></h2>';
         const event = allEvents.get(Number(eventSummaryEl.dataset.eventId));
         const world = worldList.find(x =>
             event.mapId ? x.worldId === event.mapId : x.stringId === event.route.world);
-        const subgroups = event.eventSubgroups ? await Promise.all(event.eventSubgroups.map(async sg => {
-            const entrants = await common.rpc.getEventSubgroupEntrants(sg.id);
-            for (const x of entrants) {
-                athletes.set(x.id, x.athlete);
-            }
-            return {...sg, entrants};
-        })) : [];
-        await Promise.all(subgroups.map(async x => {
-            if (x.eventSubgroupStart < Date.now()) {
-                x.results = await common.rpc.getEventSubgroupResults(x.id);
-            }
-        }));
-        console.info(event, subgroups);
-        eventDetailsEl.append(await templates.eventsDetails({
+        console.debug('Opening event:', event);
+        eventDetailsEl.replaceChildren(await templates.eventsDetails({
             world: world ? world.name : '',
             event,
-            subgroups,
-            teamBadge: common.teamBadge,
             eventBadge: common.eventBadge,
-            fmtFlag: common.fmtFlag,
-            selfAthlete,
+            templates,
         }));
-        for (const el of eventDetailsEl.querySelectorAll('.elevation-chart[data-sg-id]')) {
-            const sg = subgroups.find(x => x.id === Number(el.dataset.sgId));
-            createElevationProfile(el, sg);
+        for (const el of eventDetailsEl.querySelectorAll('[data-event-subgroup-id]')) {
+            const sg = event.eventSubgroups.find(x => x.id === Number(el.dataset.eventSubgroupId));
+            const table = el.querySelector('table.entrants');
+            const elChart = el.querySelector('.elevation-chart');
+            if (elChart) {
+                createElevationProfile(elChart, sg);
+            }
+            (async () => {
+                let results, entrants, fieldSize;
+                if (sg.eventSubgroupStart < (Date.now() - (300 * 1000))) {
+                    const maybeResults = await common.rpc.getEventSubgroupResults(sg.id);
+                    if (maybeResults && maybeResults.length) {
+                        results = maybeResults;
+                        fieldSize = results.length;
+                        el.classList.add('results');
+                        table.classList.add('results');
+                    }
+                }
+                if (!results) {
+                    if (sg.startOffset) {
+                        el.querySelector('header .optional-1').innerHTML =
+                            `Starts: +${sauce.locale.human.duration(sg.startOffset / 1000)}`;
+                    }
+                    el.classList.toggle('signedup', !!sg.signedUp);
+                    el.classList.toggle('can-signup', !event.signedUp);
+                    entrants = await common.rpc.getEventSubgroupEntrants(sg.id);
+                    fieldSize = entrants.length;
+                    el.classList.add('signups');
+                    table.classList.add('signups');
+                }
+                if (fieldSize != null) {
+                    el.querySelector('.field-size').innerHTML = sauce.locale.human.number(fieldSize);
+                }
+                table.replaceChildren(await templates.eventsSubgroup({
+                    event,
+                    sg,
+                    results: (results && results.length) ? results : undefined,
+                    entrants,
+                    selfAthlete,
+                    fmtFlag: common.fmtFlag,
+                    teamBadge: common.teamBadge,
+                }));
+                let cleanup;
+                common.initExpanderTable(table, async (el, entrantSummaryEl) => {
+                    const athleteId = Number(entrantSummaryEl.dataset.id);
+                    cleanup = await profileRender(el, templates.profile, {
+                        embedded: true,
+                        athleteId,
+                        athlete: await common.rpc.getAthlete(athleteId, {allowFetch: true}),
+                        gameConnection: gcs && gcs.connected,
+                        nations,
+                        flags,
+                        common,
+                        worldList,
+                    });
+                    cleanupCallbacks.add(cleanup);
+                }, () => {
+                    if (cleanup) {
+                        cleanupCallbacks.delete(cleanup);
+                        cleanup();
+                    }
+                });
+                el.classList.remove('loading');
+            })();
         }
         resizeCharts();
         eventSummaryEl.scrollIntoView({block: 'start'});
-        for (const t of eventDetailsEl.querySelectorAll('table.expandable')) {
-            let cleanup;
-            common.initExpanderTable(t, async (el, entrantSummaryEl) => {
-                const athleteId = Number(entrantSummaryEl.dataset.id);
-                cleanup = await profileRender(el, templates.profile, {
-                    embedded: true,
-                    athleteId,
-                    athlete: athletes.get(athleteId),
-                    gameConnection: gcs && gcs.connected,
-                    nations,
-                    flags,
-                    common,
-                    worldList,
-                });
-                cleanupCallbacks.add(cleanup);
-            }, () => {
-                if (cleanup) {
-                    cleanupCallbacks.delete(cleanup);
-                    cleanup();
-                }
-            });
-        }
     }, () => {
         const cleanups = Array.from(cleanupCallbacks);
         cleanupCallbacks.clear();
