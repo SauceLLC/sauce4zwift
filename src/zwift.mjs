@@ -297,6 +297,9 @@ export class ZwiftAPI {
         if (options.host) {
             this.host = options.host;
         }
+        if (options.scheme) {
+            this.scheme = options.scheme;
+        }
         const r = await this.fetch('/auth/realms/zwift/protocol/openid-connect/token', {
             host: this.host || 'secure.zwift.com',
             noAuth: true,
@@ -383,18 +386,21 @@ export class ZwiftAPI {
             'Source': 'Game Client',
             'User-Agent': 'CNL/3.44.0 (Darwin Kernel 23.2.0) zwift/1.0.122968 game/1.54.0 curl/8.4.0'
         };
-        const host = options.host || this.host || `us-or-rly101.zwift.com`;
+        const timeout = options.timeout !== undefined ? options.timeout : 30000;
+        const abort = new AbortController();
+        const to = timeout && setTimeout(() => abort.abort(), timeout);
         let query = options.query;
         if (query && !(query instanceof URLSearchParams)) {
             query = new URLSearchParams(Object.entries(query).filter(([k, v]) => v != null));
         }
         const q = query ? `?${query}` : '';
-        const timeout = options.timeout !== undefined ? options.timeout : 30000;
-        const abort = new AbortController();
-        const to = timeout && setTimeout(() => abort.abort(), timeout);
+        const host = options.host || this.host || 'us-or-rly101.zwift.com';
+        const scheme = options.scheme || this.scheme || 'https';
+        const uri = `${scheme}://${host}/${urn.replace(/^\//, '')}`;
+        console.debug(`Fetch: ${options.method || 'GET'} ${uri}`);
         let r;
         try {
-            r = await fetch(`https://${host}/${urn.replace(/^\//, '')}${q}`, {
+            r = await fetch(`${uri}${q}`, {
                 signal: abort.signal,
                 headers: {...defHeaders, ...headers},
                 ...options,
@@ -767,7 +773,6 @@ export class ZwiftAPI {
         // XXX signed_up seems to be more inclusive but sometimes a user is only in registered
         // I don't know the difference but I can't stand the idea of hitting both.
         do {
-            console.log(1, id, limit, start);
             const data = await this.fetchJSON(`/api/events/subgroups/entrants/${id}`, {
                 query: {
                     type: 'all',
@@ -776,7 +781,6 @@ export class ZwiftAPI {
                     start,
                 }
             });
-            console.log(2, id, data);
             entrants.push(...data);
             if (data.length < limit) {
                 break;
