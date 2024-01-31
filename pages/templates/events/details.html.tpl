@@ -60,12 +60,13 @@
                             <div>Distance: {-humanDistance(sg.distanceInMeters || sg.routeDistance, {suffix: true, html: true})-}</div>
                         <% } %>
                         <% if (!event.sameRoute) { %>
-                            <div>
+                            <a href="/pages/geo.html?course={{event.courseId}}&route={{sg.routeId}}"
+                               target="event-route-preview">
                                 <% if (sg.laps && sg.laps > 1) { %>
                                     {{sg.laps}} x
                                 <% } %>
                                 {{sg.route.name}} <ms>route</ms>
-                            </div>
+                            </a>
                         <% } %>
                         <div>Athletes: <span class="field-size">{{humanNumber(sg.totalEntrantCount)}}<!--rough estimate--></span></div>
                         <div class="name">{{sg.name}}</div>
