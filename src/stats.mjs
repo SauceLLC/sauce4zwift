@@ -528,17 +528,8 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     async loadOlderEvents() {
-        if (!this._lastLoadOlderEventsTS) {
-            const byTS = Array.from(this._recentEvents.values());
-            if (!byTS.length) {
-                this._lastLoadOlderEventsTS = worldTimer.serverNow();
-            } else {
-                byTS.sort((a, b) => a.ts - b.ts);
-                this._lastLoadOlderEventsTS = byTS[0].ts;
-            }
-        }
         const range = 1.5 * 3600 * 1000;
-        const to = this._lastLoadOlderEventsTS;
+        const to = this._lastLoadOlderEventsTS || worldTimer.serverNow();
         const from = to - range;
         this._lastLoadOlderEventsTS = from;
         let zEvents = await this.zwiftAPI.getEventFeed({from, to});
@@ -551,17 +542,8 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     async loadNewerEvents() {
-        if (!this._lastLoadNewerEventsTS) {
-            const byTS = Array.from(this._recentEvents.values());
-            if (!byTS.length) {
-                this._lastLoadNewerEventsTS = worldTimer.serverNow();
-            } else {
-                byTS.sort((a, b) => b.ts - a.ts);
-                this._lastLoadNewerEventsTS = byTS[0].ts;
-            }
-        }
         const range = 3 * 3600 * 1000;
-        const from = this._lastLoadNewerEventsTS;
+        const from = this._lastLoadNewerEventsTS || worldTimer.serverNow();
         const to = from + range;
         this._lastLoadNewerEventsTS = +to;
         let zEvents = await this.zwiftAPI.getEventFeed({from, to});
@@ -1932,6 +1914,12 @@ export class StatsProcessor extends events.EventEmitter {
     async __zwiftMetaSync() {
         let addedEventsCount = 0;
         const zEvents = await this.zwiftAPI.getEventFeed();
+        if (zEvents.length) {
+            this._lastLoadOlderEventsTS = Math.min(this._lastLoadOlderEventsTS || Infinity,
+                                                   zEvents.at(0).eventStart);
+            this._lastLoadNewerEventsTS = Math.max(this._lastLoadNewerEventsTS || -Infinity,
+                                                   zEvents.at(-1).eventStart);
+        }
         for (const x of zEvents) {
             addedEventsCount += !this._recentEvents.has(x.id);
             this._addEvent(x);
