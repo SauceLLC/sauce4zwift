@@ -37,7 +37,7 @@ message PlayerState {
     bool canSteer = 38;
     uint32 routeId = 39;
     int32 _f40 = 40; // 63, 51?
-    int32 _f41 = 41; // rare, only seen as 0
+    bool activeSteer = 41;
     bool portal = 43;
     int32 _f44 = 44;
     int32 _f45 = 45;
