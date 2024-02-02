@@ -62,6 +62,13 @@
                 <a class="avatar"><img src="images/blankavatar.png"/></a>
             <% } %>
             <div class="info">
+                <% if (athlete.racingScore != null) { %>
+                    <div class="row p2">
+                        <key>Race Category</key>
+                        {-common.eventBadge(athlete.gender === 'female' ? athlete.categoryFemale : athlete.category)-}
+                        <small title="Racing score is the event results based indicator of your racing level">({{humanNumber(athlete.racingScore)}})</small>
+                    </div>
+                <% } %>
                 <% if (athlete.team) { %>
                     <div class="row p2"><key>Team</key>{-common.teamBadge(athlete.team)-}</div>
                 <% } %>

@@ -916,6 +916,7 @@ export class StatsProcessor extends events.EventEmitter {
             age: !minor && p.privacy && p.privacy.displayAge ? p.age : null,
             level: p.achievementLevel ? Math.floor(p.achievementLevel / 100) : undefined,
             powerMeter,
+            ...p.competitionMetrics,
         };
         if (p.socialFacts) {
             o.follower = p.socialFacts.followeeStatusOfLoggedInPlayer === 'IS_FOLLOWING';
