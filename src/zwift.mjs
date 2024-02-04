@@ -1311,7 +1311,6 @@ class UDPChannel extends NetChannel {
 export class GameMonitor extends events.EventEmitter {
 
     _stateRefreshDelayMin = 3000;
-    _sessionRestartSlack = 300 * 1000;
 
     constructor(options={}) {
         super();
@@ -1556,25 +1555,25 @@ export class GameMonitor extends events.EventEmitter {
         this.logStatus();
     }
 
-    async renewSession() {
+    async refreshSession() {
         if (!this._starting || this._stopping) {
             throw new TypeError('invalid state');
         }
-        console.info("Renewing Zwift relay session...");
-        try {
-            await this._renewSession();
-        } catch(e) {
-            console.error('Renew session attempt failed:', e);
-            this._schedConnectRetry();
+        console.info("Refreshing Zwift relay session...");
+        const relaySessionId = this._session.relayId;
+        const resp = await this.api.fetchPB('/relay/session/refresh', {
+            method: 'POST',
+            pb: protos.RelaySessionRefreshRequest.encode({relaySessionId}),
+            protobuf: 'RelaySessionRefreshResponse',
+        });
+        if (resp.relaySessionId !== relaySessionId) {
+            // TBD: Remove after long session verification tests...
+            console.error("Different Relay Session ID encountered during session refresh:", relaySessionId,
+                          resp.relaySessionId);
+            throw new Error('Unhandled session refresh state');
         }
-        this.logStatus();
-    }
-
-    async _renewSession() {
-        this._setConnecting();
-        const session = await this.login();
-        await this.establishTCPChannel(session);
-        await this.activateSession(session);
+        this._session.expires = Date.now() + (resp.expiration * 60 * 1000);
+        this._schedSessionRefresh(this._session.expires);
     }
 
     disconnect() {
@@ -1628,14 +1627,10 @@ export class GameMonitor extends events.EventEmitter {
             ip = this._udpServerPools.get(0).servers[0].ip;
         }
         const hashSeed = this._hashSeeds.at(-1);
-        const hashSeedRemaining = hashSeed.expiresWorldTime - worldTimer.now();
-        const sessionRemaining = this._session.expires - Date.now();
-        const expiresIn = Math.min(
-            hashSeedRemaining - 120 * 1000,
-            sessionRemaining - this._sessionRestartSlack / 2);
+        const expiresIn = (hashSeed.expiresWorldTime - worldTimer.now()) * 0.90;
         if (!expiresIn || expiresIn < 0) {
             // Internal error
-            console.error('Expired session or hash seeds:', {expiresIn, hashSeedRemaining, sessionRemaining});
+            console.error('Expired session or hash seeds:', expiresIn);
             throw new TypeError('Expired session or hash seeds');
         }
         const ch = new UDPChannel({
@@ -1707,7 +1702,6 @@ export class GameMonitor extends events.EventEmitter {
         const old = this._session;
         this._session = null;
         if (old) {
-            clearTimeout(this._sessionTimeout);
             if (old.tcpChannel) {
                 try {
                     old.tcpChannel.shutdown();
@@ -1716,16 +1710,23 @@ export class GameMonitor extends events.EventEmitter {
                 }
             }
         }
-        const renewDelay = session.expires - Date.now() - this._sessionRestartSlack;
-        console.info('Next session renewal scheduled for:', fmtTime(renewDelay));
-        this._sessionTimeout = setTimeout(this.renewSession.bind(this), renewDelay);
         this._session = session;
+        this._schedSessionRefresh(session.expires);
         if (!this.suspended && this.courseId) {
             this.setUDPChannel();
         } else {
             console.warn("User not in game: waiting for activity...");
             this.suspend();
         }
+    }
+
+    _schedSessionRefresh(expires) {
+        const refreshDelay = (expires - Date.now()) * 0.90;
+        console.debug('Next session refresh:', fmtTime(refreshDelay));
+        if (this._sessionTimeout) {
+            clearTimeout(this._sessionTimeout);
+        }
+        this._sessionTimeout = setTimeout(this.refreshSession.bind(this), refreshDelay);
     }
 
     incErrorCount() {
