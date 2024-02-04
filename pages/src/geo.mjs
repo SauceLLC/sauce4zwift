@@ -30,6 +30,8 @@ common.settingsStore.setDefault({
     routeProfile: true,
     showElevationMaxLine: true,
     autoCenter: true,
+    // v1.1+
+    disableChat: false,
 });
 
 const settings = common.settingsStore.get();
@@ -403,6 +405,9 @@ export async function main() {
             }
         });
         common.subscribe('chat', chat => {
+            if (settings.disableChat) {
+                return;
+            }
             if (chat.muted) {
                 console.debug("Ignoring muted chat message");
                 return;
