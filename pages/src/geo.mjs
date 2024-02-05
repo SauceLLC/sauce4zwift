@@ -50,17 +50,6 @@ let courseId = Number(url.searchParams.get('course')) || undefined;
 let routeId = Number(url.searchParams.get('route')) || undefined;
 
 
-function setBackground() {
-    const {solidBackground, backgroundColor} = common.settingsStore.get();
-    doc.classList.toggle('solid-background', !!solidBackground);
-    if (solidBackground) {
-        doc.style.setProperty('--background-color', backgroundColor);
-    } else {
-        doc.style.removeProperty('--background-color');
-    }
-}
-
-
 function qualityScale(raw) {
     raw = raw || 1;
     const min = 0.2;
@@ -303,6 +292,7 @@ async function applyCourse() {
 
 export async function main() {
     common.initInteractionListeners();
+    common.setBackground(settings);
     const fieldsEl = document.querySelector('#content .fields');
     const fieldRenderer = new common.Renderer(fieldsEl, {fps: 1});
     const mapping = [];
@@ -423,8 +413,8 @@ export async function main() {
             return;
         }
         const {key, value} = ev.data;
-        if (key === 'solidBackground' || key === 'backgroundColor') {
-            setBackground();
+        if (['solidBackground', 'backgroundColor', 'backgroundAlpha'].includes(key)) {
+            common.setBackground(settings);
         } else if (key === 'transparency') {
             zwiftMap.setOpacity(1 - 1 / (100 / (value || 0)));
         } else if (key === 'mapStyle') {
@@ -459,6 +449,3 @@ export async function settingsMain() {
     common.initInteractionListeners();
     (await common.initSettingsForm('form'))();
 }
-
-
-setBackground();

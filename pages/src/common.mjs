@@ -5,6 +5,7 @@ import * as report from '../../shared/report.mjs';
 import * as elements from './custom-elements.mjs';
 import * as curves from '/shared/curves.mjs';
 import * as fields from './fields.mjs';
+import * as color from './color.mjs';
 
 export const sleep = _sleep; // Come on ES6 modules, really!?
 export let idle;
@@ -1809,6 +1810,30 @@ export function asyncSerialize(asyncFunc) {
     };
     Object.defineProperty(fn, 'name', {value: 'serialized ' + asyncFunc.name});
     return fn;
+}
+
+
+export function parseBackgroundColor({backgroundColor, solidBackground, backgroundAlpha}={}) {
+    if (!solidBackground || !backgroundColor) {
+        return;
+    }
+    try {
+        const c = color.parse(backgroundColor);
+        return (c.a === undefined && backgroundAlpha !== undefined) ? c.alpha(backgroundAlpha / 100) : c;
+    } catch(e) {
+        console.warn(e.message);
+    }
+}
+
+
+export function setBackground(settings) {
+    const bgColor = parseBackgroundColor(settings);
+    doc.classList.toggle('solid-background', !!bgColor);
+    if (bgColor) {
+        doc.style.setProperty('--background-color', bgColor.toString());
+    } else {
+        doc.style.removeProperty('--background-color');
+    }
 }
 
 

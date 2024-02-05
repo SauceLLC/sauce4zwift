@@ -20,21 +20,11 @@ common.settingsStore.setDefault({
 
 const doc = document.documentElement;
 const settings = common.settingsStore.get();
-
-
-function setBackground() {
-    const {solidBackground, backgroundColor, bgTransparency} = settings;
-    doc.classList.toggle('solid-background', solidBackground);
-    if (solidBackground) {
-        let alpha = '';
-        if (bgTransparency) {
-            alpha = Math.round(0xff * (1 - Math.min(100, bgTransparency) / 100))
-                .toString(16).padStart(2, '0');
-        }
-        doc.style.setProperty('--background-color', backgroundColor + alpha);
-    } else {
-        doc.style.removeProperty('--background-color');
-    }
+// Migration hack...
+if (settings.bgTransparency !== undefined) {
+    settings.backgroundAlpha = 100 - settings.bgTransparency;
+    delete settings.bgTransparency;
+    common.settingsStore.set(null, settings);
 }
 
 
@@ -78,12 +68,12 @@ async function updateResults() {
 
 export async function main() {
     common.initInteractionListeners();
-    setBackground();
+    common.setBackground(settings);
     common.settingsStore.addEventListener('set', ev => {
         if (!ev.data.remote) {
             return;
         }
-        setBackground();
+        common.setBackground(settings);
     });
     resultsTpl = await sauce.template.getTemplate(`templates/segment-results.html.tpl`);
     athleteData = await common.rpc.getAthleteData(athleteIdent);

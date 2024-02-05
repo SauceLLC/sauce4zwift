@@ -16,8 +16,10 @@ common.settingsStore.setDefault({
     centerGapSize: 0,
 });
 
+const settings = common.settingsStore.get();
+
+
 function updateButtonVis() {
-    const settings = common.settingsStore.get();
     for (const x of ['Analysis', 'Athletes', 'Events']) {
         const btn = document.querySelector(`.controls .button[data-settings-key="${x}"]`);
         if (!btn) {
@@ -31,6 +33,7 @@ function updateButtonVis() {
 
 export function main() {
     common.initInteractionListeners();
+    common.setBackground(settings);
     updateButtonVis();
     let autoHidden;
     let lastData;
@@ -49,6 +52,7 @@ export function main() {
         } else if (key.match(/hide.+Button/)) {
             updateButtonVis();
         } else {
+            common.setBackground(settings);
             if (renderer) {
                 renderer.stop();
                 renderer = null;

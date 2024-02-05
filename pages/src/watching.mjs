@@ -1306,14 +1306,9 @@ function resizeCharts() {
 
 
 function setStyles() {
-    const {solidBackground, backgroundColor, horizMode} = common.settingsStore.get();
-    doc.classList.toggle('horizontal', !!horizMode);
-    doc.classList.toggle('solid-background', !!solidBackground);
-    if (solidBackground) {
-        doc.style.setProperty('--background-color', backgroundColor);
-    } else {
-        doc.style.removeProperty('--background-color');
-    }
+    const settings = common.settingsStore.get();
+    common.setBackground(settings);
+    doc.classList.toggle('horizontal', !!settings.horizMode);
     requestAnimationFrame(resizeCharts);
 }
 
@@ -1606,7 +1601,7 @@ export async function main() {
             return;
         }
         const key = ev.data.key;
-        if (['backgroundColor', 'horizMode'].includes(key)) {
+        if (['backgroundColor', 'solidBackground', 'backgroundAlpha', 'horizMode'].includes(key)) {
             setStyles();
         } else if (!['/theme', '/imperialUnits', 'themeOverride'].includes(key)) {
             location.reload();

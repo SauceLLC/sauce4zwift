@@ -12,17 +12,6 @@ const doc = document.documentElement;
 const settings = common.settingsStore.get();
 
 
-function setBackground() {
-    const {solidBackground, backgroundColor} = settings;
-    doc.classList.toggle('solid-background', solidBackground);
-    if (solidBackground) {
-        doc.style.setProperty('--background-color', backgroundColor);
-    } else {
-        doc.style.removeProperty('--background-color');
-    }
-}
-
-
 function setOpacity() {
     const {transparency} = settings;
     const opacity = transparency == null ? 1 : 1 - (transparency / 100);
@@ -32,7 +21,7 @@ function setOpacity() {
 
 export function main() {
     common.initInteractionListeners();
-    setBackground();
+    common.setBackground(settings);
     setOpacity();
     const content = document.querySelector('#content');
     const webview = document.querySelector('webview');
@@ -111,7 +100,7 @@ export function main() {
             reloadTimeout = setTimeout(() => load(settings.url), 2000);
             inputUrl.value = settings.url;
         }
-        setBackground();
+        common.setBackground(settings);
         setOpacity();
     });
     if (settings.url) {

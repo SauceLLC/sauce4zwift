@@ -78,17 +78,6 @@ function liveDataFormatter(data) {
 }
 
 
-function setBackground() {
-    const {solidBackground, backgroundColor} = settings;
-    doc.classList.toggle('solid-background', solidBackground);
-    if (solidBackground) {
-        doc.style.setProperty('--background-color', backgroundColor);
-    } else {
-        doc.style.removeProperty('--background-color');
-    }
-}
-
-
 function setMsgOpacity() {
     const {messageTransparency} = settings;
     const opacity = messageTransparency == null ? 0.7 : 1 - (messageTransparency / 100);
@@ -103,10 +92,10 @@ export async function main() {
     content.style.setProperty('--fadeout-time', `${fadeoutTime}s`);
     content.classList.toggle('reverse-order', settings.reverseOrder === true);
     content.classList.toggle('right-align', settings.rightAlign === true);
-    setBackground();
+    common.setBackground(settings);
     setMsgOpacity();
     common.settingsStore.addEventListener('set', ev => {
-        setBackground();
+        common.setBackground(settings);
         setMsgOpacity();
         content.classList.toggle('reverse-order', settings.reverseOrder === true);
         content.classList.toggle('right-align', settings.rightAlign === true);
