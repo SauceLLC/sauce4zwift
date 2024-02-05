@@ -77,19 +77,18 @@ table {
             scroll-margin-top: 2.38em;  // roughly header height
 
             &.started {
+                > td {
+                    opacity: 0.6;
+                }
+
                 &.joinable > td.start {
-                    text-decoration-skip-ink: none;
-                    text-decoration: underline wavy;
+                    opacity: 1;
                     color: #ffc500;
                 }
 
                 &:not(.joinable) {
-                    > td {
-                        opacity: 0.6;
-
-                        &.start {
-                            text-decoration: line-through;
-                        }
+                    > td &.start {
+                        text-decoration: line-through;
                     }
 
                     + tr.details header .button.signup-action {

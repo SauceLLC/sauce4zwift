@@ -5,10 +5,13 @@
            {{joinable > 0 ? 'joinable' : ''}}
            {{event.signedUp ? 'signedup' : ''}}"
     data-event-id="{{event.id}}">
-    <td class="start">
+    <td class="start"
+        <% if (event.lateJoinInMinutes && joinable > 0) { %>
+            title="Can late join until {{humanTime(event.ts + ((event.lateJoinInMinutes || 0) * 60 * 1000))}}"
+        <% } %>>
         {{humanTime(event.eventStart, {style: 'date'})}}
-        <% if (started && joinable > 0) { %>
-            <ms title="Can late join">acute</ms>
+        <% if (event.lateJoinInMinutes) { %>
+            <ms title="Allows joining late">acute</ms>
         <% } %>
     </td>
     <td class="type">
