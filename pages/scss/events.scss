@@ -87,7 +87,7 @@ table {
                 }
 
                 &:not(.joinable) {
-                    > td &.start {
+                    > td.start {
                         text-decoration: line-through;
                     }
 
