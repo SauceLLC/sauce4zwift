@@ -111,7 +111,7 @@ export const fieldGroupNames = {
     power: 'Power',
     speed: 'Speed',
     draft: 'Draft',
-    cadence: 'Power',
+    cadence: 'Cadence',
     hr: 'Heart Rate',
     course: 'Course',
 };
