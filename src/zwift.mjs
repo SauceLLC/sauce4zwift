@@ -770,13 +770,17 @@ export class ZwiftAPI {
         const entrants = [];
         const limit = options.limit || 100;
         let start = (options.page != null) ? options.page * limit : 0;
-        // XXX signed_up seems to be more inclusive but sometimes a user is only in registered
-        // I don't know the difference but I can't stand the idea of hitting both.
+        // There is some cruft around participation type:
+        //   "signed_up" is just signed up.
+        //   "registered" is actually athletes that joined the event in-game.
+        //   The companion app shows a value of 'entered' but this doesn't work.
+        //   So this API will allow asking for {joined: true} as a yet-another-variant
+        //   as a means of abstracting from the ambiguous other names.
         do {
             const data = await this.fetchJSON(`/api/events/subgroups/entrants/${id}`, {
                 query: {
-                    type: 'all',
-                    participation: 'signed_up',
+                    type: options.type || 'all', // or 'leader', 'sweeper', 'favorite', 'following', 'other'
+                    participation: options.joined ? 'registered' : 'signed_up',
                     limit,
                     start,
                 }
