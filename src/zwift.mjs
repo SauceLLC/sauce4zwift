@@ -397,7 +397,9 @@ export class ZwiftAPI {
         const host = options.host || this.host || 'us-or-rly101.zwift.com';
         const scheme = options.scheme || this.scheme || 'https';
         const uri = `${scheme}://${host}/${urn.replace(/^\//, '')}`;
-        console.debug(`Fetch: ${options.method || 'GET'} ${uri}`);
+        if (!options.silent) {
+            console.debug(`Fetch: ${options.method || 'GET'} ${uri}`);
+        }
         let r;
         try {
             r = await fetch(`${uri}${q}`, {

@@ -1350,9 +1350,11 @@ export class StatsProcessor extends events.EventEmitter {
         }
         this._profileFetchIds.add(athleteId);
         this._pendingProfileFetches.push(athleteId);
-        if (!this._athleteProfileUpdater && this._pendingProfileFetches.length) {
-            this._athleteProfileUpdater = this.runAthleteProfileUpdater().finally(() =>
-                this._athleteProfileUpdater = null);
+        if (!this._athleteProfileUpdaterActive) {
+            this._athleteProfileUpdaterActive = true;
+            // wait for next task so looped calls will fill the batch first...
+            queueMicrotask(() => this.runAthleteProfileUpdater()
+                .finally(() => this._athleteProfileUpdaterActive = false));
         }
     }
 
@@ -1360,7 +1362,7 @@ export class StatsProcessor extends events.EventEmitter {
         const updates = [];
         let allowRefetchAfter = 1000; // err
         try {
-            for (const p of await this.zwiftAPI.getProfiles(batch)) {
+            for (const p of await this.zwiftAPI.getProfiles(batch, {silent: true})) {
                 if (p) {
                     updates.push([p.id, this._updateAthlete(p.id, this._profileToAthlete(p))]);
                 }
@@ -1386,7 +1388,7 @@ export class StatsProcessor extends events.EventEmitter {
             this._profileFetchCount += batch.length;
             try {
                 await this._updateAthleteProfilesFromServer(batch);
-                this._profileFetchBackoff = 100;
+                this._profileFetchBackoff = 1000;
             } catch(e) {
                 if (e.name === 'FetchError') {
                     console.warn("Network problem while collecting profiles:", e.message);
@@ -1935,6 +1937,7 @@ export class StatsProcessor extends events.EventEmitter {
         let absent = new Set(this._followingIds);
         await this.zwiftAPI.getFollowing(this.athleteId, {
             pageLimit: 0,
+            silent: true,
             onPage: async page => {
                 const updates = [];
                 for (const x of page) {
@@ -1958,6 +1961,7 @@ export class StatsProcessor extends events.EventEmitter {
         absent = new Set(this._followerIds);
         await this.zwiftAPI.getFollowers(this.athleteId, {
             pageLimit: 0,
+            silent: true,
             onPage: async page => {
                 const updates = [];
                 for (const x of page) {

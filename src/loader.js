@@ -296,7 +296,14 @@ async function initSentry(logEmitter) {
 (async () => {
     const logMeta = initLogging();
     nativeTheme.themeSource = 'dark';
+    // Use non-electron naming for windows updater.
+    // https://github.com/electron-userland/electron-builder/issues/2700
+    app.setAppUserModelId('io.saucellc.sauce4zwift'); // must match build.appId for windows
+
     // If we are foreced to update to 114+ we'll have to switch our scrollbars to this...
+    // EDIT 2024-02  Maybe not, but it could look nicer in places where we will now require
+    // a visible scrollbar on windows and linux.  Last I looked it was kind of buggy though
+    // so we have to retest everything before using.
     //app.commandLine.appendSwitch('enable-features', 'OverlayScrollbar');
     if (settings.gpuEnabled === undefined) {
         settings.gpuEnabled = settings.forceEnableGPU == null ?
@@ -308,9 +315,7 @@ async function initSentry(logEmitter) {
         app.commandLine.appendSwitch('disable-gpu-compositing');
     }
     app.commandLine.appendSwitch('force-gpu-mem-available-mb', '1024');
-    // Use non-electron naming for windows updater.
-    // https://github.com/electron-userland/electron-builder/issues/2700
-    app.setAppUserModelId('io.saucellc.sauce4zwift'); // must match build.appId for windows
+    //app.commandLine.appendSwitch('disable-frame-rate-limit');
     const sentryAnonId = await initSentry(logMeta.logEmitter);
     await app.whenReady();
     if (await ensureSingleInstance() === false) {
