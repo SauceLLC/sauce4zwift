@@ -1,5 +1,6 @@
+import test from 'node:test';
+import assert from 'node:assert';
 import * as sauce from '../shared/sauce/index.mjs';
-//import console from 'node:console'; // Don't use jest's overly verbose console
 
 
 test('wbal sample rate accuracy', () => {
@@ -26,9 +27,9 @@ test('wbal sample rate accuracy', () => {
             wbals.rnd = incCalcRnd(v, t / 2);
         }
         if (i && (i % 10 === 0)) {
-            expect(Math.abs(wbals.fine - wbals.nom)).toBeLessThan(1000);
-            expect(Math.abs(wbals.fine - wbals.dbl)).toBeLessThan(1000);
-            expect(Math.abs(wbals.fine - wbals.rnd)).toBeLessThan(1000);
+            assert(Math.abs(wbals.fine - wbals.nom) < 1000);
+            assert(Math.abs(wbals.fine - wbals.dbl) < 1000);
+            assert(Math.abs(wbals.fine - wbals.rnd) < 1000);
         }
     }
 });

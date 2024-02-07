@@ -1,11 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert';
 import * as curves from '../shared/curves.mjs';
-import console from 'node:console'; // Don't use jest's overly verbose console
 
 
-function fmtPath(p) {
-    const o = p.toJSON();
-    o.nodes = p.nodes.map(JSON.stringify);
-    return o;
+function assertCloseTo(a, b, t=0.001) {
+    assert(Math.abs(a - b) < t);
 }
 
 
@@ -14,13 +13,13 @@ test('pathReverse bezier 2d', () => {
     const path = curves.cubicBezierPath(points);
     const revPath = path.toReversed();
     for (const [i, x] of path.nodes.entries()) {
-        expect(x.end).toEqual(revPath.nodes[points.length - 1 - i].end);
+        assert.deepStrictEqual(x.end, revPath.nodes[points.length - 1 - i].end);
     }
     const dblRevPath = revPath.toReversed();
-    expect(path.nodes.length).toBe(revPath.nodes.length);
-    expect(path.nodes.length).toBe(dblRevPath.nodes.length);
+    assert.strictEqual(path.nodes.length, revPath.nodes.length);
+    assert.strictEqual(path.nodes.length, dblRevPath.nodes.length);
     for (const [i, x] of path.nodes.entries()) {
-        expect(x).toEqual(dblRevPath.nodes[i]);
+        assert.deepStrictEqual(x.end, dblRevPath.nodes[i].end);
     }
 });
 
@@ -29,10 +28,10 @@ test('pathReverse catmullRom 2d', () => {
     const path = curves.catmullRomPath(points);
     const revPath = path.toReversed();
     const dblRevPath = revPath.toReversed();
-    expect(path.nodes.length).toBe(revPath.nodes.length);
-    expect(path.nodes.length).toBe(dblRevPath.nodes.length);
+    assert.strictEqual(path.nodes.length, revPath.nodes.length);
+    assert.strictEqual(path.nodes.length, dblRevPath.nodes.length);
     for (const [i, x] of path.nodes.entries()) {
-        expect(x).toEqual(dblRevPath.nodes[i]);
+        assert.deepStrictEqual(x.end, dblRevPath.nodes[i].end);
     }
 });
 
@@ -41,10 +40,10 @@ test('pathReverse bezier 3d', () => {
     const path = curves.cubicBezierPath(points);
     const revPath = path.toReversed();
     const dblRevPath = revPath.toReversed();
-    expect(path.nodes.length).toBe(revPath.nodes.length);
-    expect(path.nodes.length).toBe(dblRevPath.nodes.length);
+    assert.strictEqual(path.nodes.length, revPath.nodes.length);
+    assert.strictEqual(path.nodes.length, dblRevPath.nodes.length);
     for (const [i, x] of path.nodes.entries()) {
-        expect(x).toEqual(dblRevPath.nodes[i]);
+        assert.deepStrictEqual(x.end, dblRevPath.nodes[i].end);
     }
 });
 
@@ -53,10 +52,10 @@ test('pathReverse catmullRom 3d', () => {
     const path = curves.catmullRomPath(points);
     const revPath = path.toReversed();
     const dblRevPath = revPath.toReversed();
-    expect(path.nodes.length).toBe(revPath.nodes.length);
-    expect(path.nodes.length).toBe(dblRevPath.nodes.length);
+    assert.strictEqual(path.nodes.length, revPath.nodes.length);
+    assert.strictEqual(path.nodes.length, dblRevPath.nodes.length);
     for (const [i, x] of path.nodes.entries()) {
-        expect(x).toEqual(dblRevPath.nodes[i]);
+        assert.deepStrictEqual(x.end, dblRevPath.nodes[i].end);
     }
 });
 
@@ -66,7 +65,7 @@ test('pathReverse with straights', () => {
     const revPath = path.toReversed();
     const dblRevPath = revPath.toReversed();
     for (const [i, x] of path.nodes.entries()) {
-        expect(x).toEqual(dblRevPath.nodes[i]);
+        assert.deepStrictEqual(x.end, dblRevPath.nodes[i].end);
     }
 });
 
@@ -76,44 +75,44 @@ test('pathReverse with straights on n +/- 1 edges', () => {
     const revPath = path.toReversed();
     const dblRevPath = revPath.toReversed();
     for (const [i, x] of path.nodes.entries()) {
-        expect(x).toEqual(dblRevPath.nodes[i]);
+        assert.deepStrictEqual(x.end, dblRevPath.nodes[i].end);
     }
 });
 
 test('point at distance 0', () => {
     const points = [[10, 20, -10], [20, 30, 100], [44, 424, 200], [44, 566, -100]];
     const path = curves.catmullRomPath(points);
-    expect(path.pointAtDistance(0)).toStrictEqual(points[0]);
+    assert.deepStrictEqual(path.pointAtDistance(0), points[0]);
 });
 
 test('point at roadPercent 0', () => {
     const points = [[10, 20, -10], [20, 30, 100], [44, 424, 200], [44, 566, -100]];
     const path = curves.catmullRomPath(points, {road: true});
-    expect(path.boundsAtRoadPercent(0).point).toStrictEqual(points[1]);
+    assert.deepStrictEqual(path.boundsAtRoadPercent(0).point, points[1]);
 });
 
 test('point at roadPercent 1', () => {
     const points = [[10, 20, -10], [20, 30, 100], [44, 424, 200], [44, 566, -100]];
     const path = curves.catmullRomPath(points, {road: true});
-    expect(path.boundsAtRoadPercent(1).point).toStrictEqual(points.at(-2));
+    assert.deepStrictEqual(path.boundsAtRoadPercent(1).point, points.at(-2));
 });
 
 test('point at roadPercent 3 points', () => {
     const points = [[0, 0], [1, 1], [2, 2]];
     const path = curves.catmullRomPath(points, {road: true});
-    expect(path.boundsAtRoadPercent(-1).point.slice(0, 2)).toEqual([1, 1]);
-    expect(path.boundsAtRoadPercent(0).point.slice(0, 2)).toEqual([1, 1]);
-    expect(path.boundsAtRoadPercent(0.5).point.slice(0, 2)).toEqual([1, 1]);
-    expect(path.boundsAtRoadPercent(1).point.slice(0, 2)).toEqual([1, 1]);
-    expect(path.boundsAtRoadPercent(2).point.slice(0, 2)).toEqual([1, 1]);
+    assert.deepStrictEqual(path.boundsAtRoadPercent(-1).point.slice(0, 2), [1, 1]);
+    assert.deepStrictEqual(path.boundsAtRoadPercent(0).point.slice(0, 2), [1, 1]);
+    assert.deepStrictEqual(path.boundsAtRoadPercent(0.5).point.slice(0, 2), [1, 1]);
+    assert.deepStrictEqual(path.boundsAtRoadPercent(1).point.slice(0, 2), [1, 1]);
+    assert.deepStrictEqual(path.boundsAtRoadPercent(2).point.slice(0, 2), [1, 1]);
 });
 
 test('point at roadPercent 4 points', () => {
     const points = [[0, 0], [1, 1], [2, 2], [3, 3]];
     const path = curves.catmullRomPath(points, {road: true});
-    expect(path.boundsAtRoadPercent(0).point.slice(0, 2)).toEqual([1, 1]);
-    expect(path.boundsAtRoadPercent(0.5).point.slice(0, 2)).toEqual([1.5, 1.5]);
-    expect(path.boundsAtRoadPercent(1).point.slice(0, 2)).toEqual([2, 2]);
+    assert.deepStrictEqual(path.boundsAtRoadPercent(0).point.slice(0, 2), [1, 1]);
+    assert.deepStrictEqual(path.boundsAtRoadPercent(0.5).point.slice(0, 2), [1.5, 1.5]);
+    assert.deepStrictEqual(path.boundsAtRoadPercent(1).point.slice(0, 2), [2, 2]);
 });
 
 test('subpath 0 -> 1', () => {
@@ -121,13 +120,13 @@ test('subpath 0 -> 1', () => {
         [300, 200, 2000]];
     const path = curves.cubicBezierPath(points, {road: true});
     const subpath = path.subpathAtRoadPercents(0, 1);
-    expect(subpath.roadLength).toBe(6);
-    expect(subpath.offsetIndex).toBe(1);
-    expect(subpath.offsetPercent).toBe(0);
-    expect(subpath.cropPercent).toBe(0);
-    expect(subpath.nodes.length).toBe(path.nodes.length - 2);
+    assert.strictEqual(subpath.roadLength, 6);
+    assert.strictEqual(subpath.offsetIndex, 1);
+    assert.strictEqual(subpath.offsetPercent, 0);
+    assert.strictEqual(subpath.cropPercent, 0);
+    assert.strictEqual(subpath.nodes.length, path.nodes.length - 2);
     for (const [i, x] of subpath.nodes.entries()) {
-        expect(x.end).toStrictEqual(points[i + 1]);
+        assert.deepStrictEqual(x.end, points[i + 1]);
     }
 });
 
@@ -136,10 +135,10 @@ test('subpath 1e-10 -> 1', () => {
         [300, 200, 2000]];
     const path = curves.cubicBezierPath(points, {road: true});
     const subpath = path.subpathAtRoadPercents(1e-10, 1);
-    expect(subpath.nodes.length).toBe(path.nodes.length - 2);
+    assert.strictEqual(subpath.nodes.length, path.nodes.length - 2);
     for (const [i, x] of subpath.nodes.entries()) {
         for (const [ii, n] of x.end.entries()) {
-            expect(n).toBeCloseTo(points[i + 1][ii], 2);
+            assertCloseTo(n, points[i + 1][ii], 0.0001);
         }
     }
 });
@@ -149,10 +148,10 @@ test('subpath 0 -> 0.99999999', () => {
         [300, 200, 2000]];
     const path = curves.cubicBezierPath(points, {road: true});
     const subpath = path.subpathAtRoadPercents(0, 1 - 1e-10);
-    expect(subpath.nodes.length).toBe(path.nodes.length - 2);
+    assert.strictEqual(subpath.nodes.length, path.nodes.length - 2);
     for (const [i, x] of subpath.nodes.entries()) {
         for (const [ii, n] of x.end.entries()) {
-            expect(n).toBeCloseTo(points[i + 1][ii], 2);
+            assertCloseTo(n, points[i + 1][ii], 0.001);
         }
     }
 });
@@ -162,10 +161,10 @@ test('subpath 1e-8 -> 0.99999999', () => {
         [300, 200, 2000]];
     const path = curves.cubicBezierPath(points, {road: true});
     const subpath = path.subpathAtRoadPercents(1e-10, 1 - 1e-10);
-    expect(subpath.nodes.length).toBe(path.nodes.length - 2);
+    assert.strictEqual(subpath.nodes.length, path.nodes.length - 2);
     for (const [i, x] of subpath.nodes.entries()) {
         for (const [ii, n] of x.end.entries()) {
-            expect(n).toBeCloseTo(points[i + 1][ii], 2);
+            assertCloseTo(n, points[i + 1][ii], 0.001);
         }
     }
 });
@@ -175,16 +174,16 @@ test('double subpath', () => {
         [300, 200, 2000]];
     const path = curves.cubicBezierPath(points, {road: true});
     const subpath = path.subpathAtRoadPercents(0.22, 0.55);
-    expect(subpath.nodes.length).toBe(3);
+    assert.strictEqual(subpath.nodes.length, 3);
     const subpath2 = subpath.subpathAtRoadPercents(0.22, 0.55);
-    expect(subpath2.nodes.length).toBe(3);
-    expect(subpath.roadLength).toBe(subpath2.roadLength);
-    expect(subpath.offsetIndex).toBe(subpath2.offsetIndex);
-    expect(subpath.offsetPercent).toBe(subpath2.offsetPercent);
-    expect(subpath.cropPercent).toBe(subpath2.cropPercent);
+    assert.strictEqual(subpath2.nodes.length, 3);
+    assert.strictEqual(subpath.roadLength, subpath2.roadLength);
+    assert.strictEqual(subpath.offsetIndex, subpath2.offsetIndex);
+    assert.strictEqual(subpath.offsetPercent, subpath2.offsetPercent);
+    assert.strictEqual(subpath.cropPercent, subpath2.cropPercent);
     for (const [i, x] of subpath.nodes.entries()) {
         for (const [ii, n] of x.end.entries()) {
-            expect(n).toBeCloseTo(subpath2.nodes[i].end[ii], 2);
+            assertCloseTo(n, subpath2.nodes[i].end[ii], 0.0001);
         }
     }
 });
@@ -194,7 +193,7 @@ test('subpath start > end', () => {
         [300, 200, 2000]];
     const path = curves.cubicBezierPath(points, {road: true});
     const subpath = path.subpathAtRoadPercents(0.6, 0.4);
-    expect(subpath.nodes.length).toBe(0);
+    assert.strictEqual(subpath.nodes.length, 0);
 });
 
 test('subpath small data/selection - perfect boundary', () => {
@@ -204,11 +203,11 @@ test('subpath small data/selection - perfect boundary', () => {
         // Make deep copy just in case the internal design changes in the future
         const path = curves.cubicBezierPath(points.map(x => Array.from(x)), {road: true});
         const subpath = path.subpathAtRoadPercents(0, 1);
-        expect(subpath.nodes.length).toBe(i - 1);
-        expect(subpath.roadLength).toBe(i + 1);
-        expect(subpath.offsetIndex).toBe(1);
-        expect(subpath.offsetPercent).toBe(0);
-        expect(subpath.cropPercent).toBe(0);
+        assert.strictEqual(subpath.nodes.length, i - 1);
+        assert.strictEqual(subpath.roadLength, i + 1);
+        assert.strictEqual(subpath.offsetIndex, 1);
+        assert.strictEqual(subpath.offsetPercent, 0);
+        assert.strictEqual(subpath.cropPercent, 0);
     }
 });
 
@@ -216,100 +215,120 @@ test('subpath small data/selection - minimum size (3)', () => {
     const points = [[0, 0, 0], [1, 1, 1], [2, 2, 2]];
     const path = curves.catmullRomPath(points, {road: true});
     const subpath = path.subpathAtRoadPercents(0.4, 0.999); // any number returns start/end of index 1
-    expect(subpath.nodes.length).toBe(1);
-    expect(subpath.offsetIndex).toBe(1);
-    expect(subpath.offsetPercent).toBe(0);
-    expect(subpath.cropPercent).toBe(0);
-    expect(subpath.nodes[0].end).toEqual([1, 1, 1]);
+    assert.strictEqual(subpath.nodes.length, 1);
+    assert.strictEqual(subpath.offsetIndex, 1);
+    assert.strictEqual(subpath.offsetPercent, 0);
+    assert.strictEqual(subpath.cropPercent, 0);
+    assert.deepStrictEqual(subpath.nodes[0].end, [1, 1, 1]);
 });
 
 test('subpath small data/selection - perfect boundary', () => {
     const points = [[0, 0], [1, 1], [2, 2], [3, 3]];
     const path = curves.catmullRomPath(points, {road: true});
     const subpath = path.subpathAtRoadPercents(0, 1);
-    expect(subpath.nodes[0].end.slice(0, 2)).toEqual([1, 1]);
-    expect(subpath.nodes[1].end.slice(0, 2)).toEqual([2, 2]);
-    expect(subpath.nodes.length).toBe(2);
-    expect(subpath.offsetIndex).toBe(1);
-    expect(subpath.offsetPercent).toBe(0);
-    expect(subpath.cropPercent).toBe(0);
+    assert.deepStrictEqual(subpath.nodes[0].end.slice(0, 2), [1, 1]);
+    assert.deepStrictEqual(subpath.nodes[1].end.slice(0, 2), [2, 2]);
+    assert.strictEqual(subpath.nodes.length, 2);
+    assert.strictEqual(subpath.offsetIndex, 1);
+    assert.strictEqual(subpath.offsetPercent, 0);
+    assert.strictEqual(subpath.cropPercent, 0);
 });
 
 test('subpath small data/selection - perfect boundary with float selection', () => {
     const points = [[0, 0], [1, 1], [2, 2], [3, 3], [4, 4]];
     const path = curves.catmullRomPath(points, {road: true});
     const subpath = path.subpathAtRoadPercents(0.5, 1);
-    expect(subpath.nodes[0].end.slice(0, 2)).toEqual([2, 2]);
-    expect(subpath.nodes[1].end.slice(0, 2)).toEqual([3, 3]);
-    expect(subpath.nodes.length).toBe(2);
-    expect(subpath.offsetIndex).toBe(2);
-    expect(subpath.offsetPercent).toBe(0);
-    expect(subpath.cropPercent).toBe(0);
+    assert.deepStrictEqual(subpath.nodes[0].end.slice(0, 2), [2, 2]);
+    assert.deepStrictEqual(subpath.nodes[1].end.slice(0, 2), [3, 3]);
+    assert.strictEqual(subpath.nodes.length, 2);
+    assert.strictEqual(subpath.offsetIndex, 2);
+    assert.strictEqual(subpath.offsetPercent, 0);
+    assert.strictEqual(subpath.cropPercent, 0);
 });
 
 test('subpath small data/selection - perfect boundary with real selection', () => {
     const points = [[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5]];
     const path = curves.catmullRomPath(points, {road: true});
     const subpath = path.subpathAtRoadPercents(1/3, 2/3);
-    expect(subpath.nodes[0].end.slice(0, 2)).toEqual([2, 2]);
-    expect(subpath.nodes[1].end.slice(0, 2)).toEqual([3, 3]);
-    expect(subpath.nodes.length).toBe(2);
-    expect(subpath.offsetIndex).toBe(2);
-    expect(subpath.offsetPercent).toBe(0);
-    expect(subpath.cropPercent).toBe(0);
+    assert.deepStrictEqual(subpath.nodes[0].end.slice(0, 2), [2, 2]);
+    assert.deepStrictEqual(subpath.nodes[1].end.slice(0, 2), [3, 3]);
+    assert.strictEqual(subpath.nodes.length, 2);
+    assert.strictEqual(subpath.offsetIndex, 2);
+    assert.strictEqual(subpath.offsetPercent, 0);
+    assert.strictEqual(subpath.cropPercent, 0);
 });
 
 test('subpath small data/selection - imperfect boundary', () => {
     const points = [[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5]];
     const path = curves.catmullRomPath(points, {road: true});
     const subpath = path.subpathAtRoadPercents(0.5, 0.5 + 1/3);
-    expect(subpath.nodes[0].end.slice(0, 2)).toEqual([2.5, 2.5]);
-    expect(subpath.nodes[1].end.slice(0, 2)).toEqual([3, 3]);
-    expect(subpath.nodes[2].end.slice(0, 2)).toEqual([3.5, 3.5]);
-    expect(subpath.nodes.length).toBe(3);
-    expect(subpath.offsetIndex).toBe(2);
-    expect(subpath.offsetPercent).toBe(0.5);
-    expect(subpath.cropPercent).toBe(0.5);
+    assert.deepStrictEqual(subpath.nodes[0].end.slice(0, 2), [2.5, 2.5]);
+    assert.deepStrictEqual(subpath.nodes[1].end.slice(0, 2), [3, 3]);
+    assert.deepStrictEqual(subpath.nodes[2].end.slice(0, 2), [3.5, 3.5]);
+    assert.strictEqual(subpath.nodes.length, 3);
+    assert.strictEqual(subpath.offsetIndex, 2);
+    assert.strictEqual(subpath.offsetPercent, 0.5);
+    assert.strictEqual(subpath.cropPercent, 0.5);
+});
+
+test('subpath roadTime integrity - start clipped', () => {
+    const points = [[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5]];
+    const path = curves.catmullRomPath(points, {road: true});
+    const start = 0.789;
+    const end = 1;
+    const subpath = path.subpathAtRoadPercents(start, end);
+    debugger;
+    assert(subpath.includesRoadPercent((end - start) / 2 + start));
+});
+
+test('subpath roadTime integrity - end clipped', () => {
+    const points = [[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5]];
+    const path = curves.catmullRomPath(points, {road: true});
+    const start = 0;
+    const end = 0.654;
+    const subpath = path.subpathAtRoadPercents(start, end);
+    debugger;
+    assert(subpath.includesRoadPercent((end - start) / 2 + start));
 });
 
 test('roadTimeToPercent', () => {
-    expect(curves.roadTimeToPercent(5000)).toBe(0);
-    expect(curves.roadTimeToPercent(1005000)).toBe(1);
+    assert.strictEqual(curves.roadTimeToPercent(5000), 0);
+    assert.strictEqual(curves.roadTimeToPercent(1005000), 1);
 });
 
 test('roadPercentToTime', () => {
-    expect(curves.roadPercentToTime(0)).toBe(5000);
-    expect(curves.roadPercentToTime(1)).toBe(1005000);
+    assert.strictEqual(curves.roadPercentToTime(0), 5000);
+    assert.strictEqual(curves.roadPercentToTime(1), 1005000);
 });
 
 test('roadPercentToOffset', () => {
-    expect(curves.roadPercentToOffset(-2, 3)).toBe(1);
-    expect(curves.roadPercentToOffset(-1, 3)).toBe(1);
-    expect(curves.roadPercentToOffset(0, 3)).toBe(1);
-    expect(curves.roadPercentToOffset(1, 3)).toBe(1);
-    expect(curves.roadPercentToOffset(2, 3)).toBe(1);
-    expect(curves.roadPercentToOffset(0, 4)).toBe(1);
-    expect(curves.roadPercentToOffset(1, 4)).toBe(2);
-    expect(curves.roadPercentToOffset(0, 100)).toBe(1);
-    expect(curves.roadPercentToOffset(1, 100)).toBe(98);
+    assert.strictEqual(curves.roadPercentToOffset(-2, 3), 1);
+    assert.strictEqual(curves.roadPercentToOffset(-1, 3), 1);
+    assert.strictEqual(curves.roadPercentToOffset(0, 3), 1);
+    assert.strictEqual(curves.roadPercentToOffset(1, 3), 1);
+    assert.strictEqual(curves.roadPercentToOffset(2, 3), 1);
+    assert.strictEqual(curves.roadPercentToOffset(0, 4), 1);
+    assert.strictEqual(curves.roadPercentToOffset(1, 4), 2);
+    assert.strictEqual(curves.roadPercentToOffset(0, 100), 1);
+    assert.strictEqual(curves.roadPercentToOffset(1, 100), 98);
 });
 
 test('roadOffsetToPercent', () => {
-    expect(curves.roadOffsetToPercent(0, 3)).toBe(-Infinity);
-    expect(curves.roadOffsetToPercent(1, 3)).toBe(NaN);
-    expect(curves.roadOffsetToPercent(2, 3)).toBe(Infinity);
-    expect(curves.roadOffsetToPercent(1, 4)).toBe(0);
-    expect(curves.roadOffsetToPercent(2, 4)).toBe(1);
-    expect(curves.roadOffsetToPercent(1, 100)).toBe(0);
-    expect(curves.roadOffsetToPercent(98, 100)).toBe(1);
+    assert.strictEqual(curves.roadOffsetToPercent(0, 3), -Infinity);
+    assert.strictEqual(curves.roadOffsetToPercent(1, 3), NaN);
+    assert.strictEqual(curves.roadOffsetToPercent(2, 3), Infinity);
+    assert.strictEqual(curves.roadOffsetToPercent(1, 4), 0);
+    assert.strictEqual(curves.roadOffsetToPercent(2, 4), 1);
+    assert.strictEqual(curves.roadOffsetToPercent(1, 100), 0);
+    assert.strictEqual(curves.roadOffsetToPercent(98, 100), 1);
 });
 
 test('roadOffsetToTime', () => {
-    expect(curves.roadOffsetToTime(0, 3)).toBe(-Infinity);
-    expect(curves.roadOffsetToTime(1, 3)).toBe(NaN);
-    expect(curves.roadOffsetToTime(2, 3)).toBe(Infinity);
-    expect(curves.roadOffsetToTime(1, 4)).toBe(5000);
-    expect(curves.roadOffsetToTime(2, 4)).toBe(1005000);
-    expect(curves.roadOffsetToTime(1, 100)).toBe(5000);
-    expect(curves.roadOffsetToTime(98, 100)).toBe(1005000);
+    assert.strictEqual(curves.roadOffsetToTime(0, 3), -Infinity);
+    assert.strictEqual(curves.roadOffsetToTime(1, 3), NaN);
+    assert.strictEqual(curves.roadOffsetToTime(2, 3), Infinity);
+    assert.strictEqual(curves.roadOffsetToTime(1, 4), 5000);
+    assert.strictEqual(curves.roadOffsetToTime(2, 4), 1005000);
+    assert.strictEqual(curves.roadOffsetToTime(1, 100), 5000);
+    assert.strictEqual(curves.roadOffsetToTime(98, 100), 1005000);
 });
