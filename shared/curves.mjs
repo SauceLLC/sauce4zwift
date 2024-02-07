@@ -287,8 +287,8 @@ export class RoadPath extends CurvePath {
             return false;
         }
         const start = roadOffsetToPercent(this.offsetIndex + this.offsetPercent, this.roadLength);
-        const end = roadOffsetToPercent(this.offsetIndex + this.nodes.length - 1 - (1 - this.cropPercent),
-                                        this.roadLength);
+        const cropAdj = this.cropPercent ? 1 - this.cropPercent : 0;
+        const end = roadOffsetToPercent(this.offsetIndex + this.nodes.length - 1 - cropAdj, this.roadLength);
         return rp >= start && rp <= end;
     }
 
