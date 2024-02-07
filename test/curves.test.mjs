@@ -272,23 +272,54 @@ test('subpath small data/selection - imperfect boundary', () => {
 });
 
 test('subpath roadTime integrity - start clipped', () => {
-    const points = [[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5]];
-    const path = curves.catmullRomPath(points, {road: true});
-    const start = 0.789;
-    const end = 1;
-    const subpath = path.subpathAtRoadPercents(start, end);
-    debugger;
-    assert(subpath.includesRoadPercent((end - start) / 2 + start));
+    const ep = 0.000001;
+    for (let i = 0; i < 1000; i++) {
+        const points = [[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5]];
+        const path = curves.catmullRomPath(points, {road: true});
+        const start = Math.random();
+        const end = 1;
+        const subpath = path.subpathAtRoadPercents(start, end);
+        assert(subpath.includesRoadPercent((end - start) / 2 + start));
+        assert(subpath.includesRoadPercent(start + ep));
+        assert(subpath.includesRoadPercent(end - ep));
+        assert(!subpath.includesRoadPercent(end + ep));
+        assert(!subpath.includesRoadPercent(start - ep));
+    }
 });
 
 test('subpath roadTime integrity - end clipped', () => {
-    const points = [[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5]];
-    const path = curves.catmullRomPath(points, {road: true});
-    const start = 0;
-    const end = 0.654;
-    const subpath = path.subpathAtRoadPercents(start, end);
-    debugger;
-    assert(subpath.includesRoadPercent((end - start) / 2 + start));
+    const ep = 0.000001;
+    for (let i = 0; i < 1000; i++) {
+        const points = [[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5]];
+        const path = curves.catmullRomPath(points, {road: true});
+        const start = 0;
+        const end = Math.random();
+        const subpath = path.subpathAtRoadPercents(start, end);
+        assert(subpath.includesRoadPercent((end - start) / 2 + start));
+        assert(subpath.includesRoadPercent((end - start) / 2 + start));
+        assert(subpath.includesRoadPercent(start + ep));
+        assert(subpath.includesRoadPercent(end - ep));
+        assert(!subpath.includesRoadPercent(end + ep));
+        assert(!subpath.includesRoadPercent(start - ep));
+
+    }
+});
+
+test('subpath roadTime integrity - start and end clipped', () => {
+    const ep = 0.000001;
+    for (let i = 0; i < 1000; i++) {
+        const points = [[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5]];
+        const path = curves.catmullRomPath(points, {road: true});
+        const a = Math.random();
+        const b = Math.random();
+        const [start, end] = a < b ? [a, b] : [b, a];
+        const subpath = path.subpathAtRoadPercents(start, end);
+        assert(subpath.includesRoadPercent((end - start) / 2 + start));
+        assert(subpath.includesRoadPercent(start + ep));
+        assert(subpath.includesRoadPercent(end - ep));
+        assert(!subpath.includesRoadPercent(end + ep));
+        assert(!subpath.includesRoadPercent(start - ep));
+    }
 });
 
 test('roadTimeToPercent', () => {
