@@ -467,7 +467,7 @@ export class SauceElevationProfile {
             }, {
                 id: 'mark-points',
                 type: 'custom',
-                z: 5,
+                //z: 5,
                 renderItem: (param, api) => {
                     const [distance, elevation, visualGrade, isWatching, deemphasize/*, athleteId*/] =
                         [api.value(0), api.value(1), api.value(2), api.value(3), api.value(4), api.value(5)];
@@ -514,7 +514,7 @@ export class SauceElevationProfile {
                 tooltip: {
                     trigger: 'item',
                     formatter: params => {
-                        const mark = this.marks.get(params.data[4]);
+                        const mark = this.marks.get(+params.name);
                         if (!mark) {
                             return;
                         }
