@@ -18,7 +18,6 @@ common.settingsStore.setDefault({
     currentTab: 'live',
 });
 
-const doc = document.documentElement;
 const settings = common.settingsStore.get();
 // Migration hack...
 if (settings.bgTransparency !== undefined) {
