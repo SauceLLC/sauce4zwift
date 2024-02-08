@@ -1627,7 +1627,9 @@ export function expWeightedAvg(size=2, seed=0) {
     const cPrev = Math.exp(-1 / size);
     const cNext = 1 - cPrev;
     let avg = seed;
-    return v => avg = (avg * cPrev) + (v * cNext);
+    const setGet = v => avg = (avg * cPrev) + (v * cNext);
+    setGet.get = () => avg;
+    return setGet;
 }
 
 

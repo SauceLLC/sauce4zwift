@@ -1,4 +1,5 @@
 import * as locale from '../../shared/sauce/locale.mjs';
+import {smooth} from '../../shared/sauce/data.mjs';
 import * as common from './common.mjs';
 import {Color} from './color.mjs';
 import * as ec from '../deps/src/echarts.mjs';
@@ -300,7 +301,6 @@ export class SauceElevationProfile {
         const commonSeriesOptions = {
             type: 'line',
             symbol: 'none',
-            smooth: 0.5,
         };
         const markLineData = [];
         if (options.lapOffsets) {
@@ -415,6 +415,7 @@ export class SauceElevationProfile {
             }
         }
         this.chart.setOption({
+            dataZoom: {type: 'inside'},
             xAxis: {inverse: options.reverse},
             yAxis: {
                 min: this._yAxisMin,
@@ -481,9 +482,9 @@ export class SauceElevationProfile {
                             height: size
                         },
                         rotation: Math.atan(visualGrade),
-                        position: api.coord([distance, elevation + 1]),
+                        position: api.coord([distance, elevation]),
                         style: {
-                            opacity: ghost ? 0.4 : 1,
+                            opacity: ghost ? 0.6 : 1,
                             stroke: deemphasize ? '#0007' : '#000b',
                             lineWidth: isWatching ? 1 : 0.5,
                             fill: isWatching ? {
@@ -576,6 +577,7 @@ export class SauceElevationProfile {
                 this.marks.set(state.athleteId, {
                     athleteId: state.athleteId,
                     state,
+                    smoothGrade: common.expWeightedAvg(10, state.grade),
                 });
             }
             const mark = this.marks.get(state.athleteId);
@@ -617,7 +619,6 @@ export class SauceElevationProfile {
             }
             let xCoord;
             let yCoord;
-            let visualGrade;
             if (xIdx % 1) {
                 // TBD: Use closest node instead of always next (which might be unavailable too)
                 const i = xIdx | 0;
@@ -628,12 +629,14 @@ export class SauceElevationProfile {
                 const eDelta = this._elevations[i + 1] - this._elevations[i];
                 xCoord = this._distances[i] + dDelta * (xIdx % 1);
                 yCoord = this._elevations[i] + eDelta * (xIdx % 1);
-                visualGrade = chartAspectRatio * (eDelta / dDelta);
             } else {
+                debugger;
                 xCoord = this._distances[xIdx];
                 yCoord = this._elevations[xIdx];
-                visualGrade = chartAspectRatio * this._grades[xIdx];
             }
+            const maxExaggeration = 30;
+            const visualGrade = Math.min(chartAspectRatio, maxExaggeration) *
+                mark.smoothGrade(state.grade) * 0.5;
             const isWatching = state.athleteId === this.watchingId;
             const deemphasize = this.routeId != null && (
                 state.routeId !== this.routeId ||
