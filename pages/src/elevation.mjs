@@ -79,7 +79,6 @@ export class SauceElevationProfile {
         this._distances = null;
         this._elevations = null;
         this._grades = null;
-        this._roadSigs = null;
         this._statesQueue = [];
         this._busy = false;
         this.onResize();
@@ -191,7 +190,6 @@ export class SauceElevationProfile {
         this.route = null;
         this.routeId = null;
         this._eventSubgroupId = null;
-        this._roadSigs = new Set();
         this._routeLeadinDistance = 0;
         this.road = undefined;
         this.reverse = undefined;
@@ -203,13 +201,11 @@ export class SauceElevationProfile {
         this.route = null;
         this.routeId = null;
         this._eventSubgroupId = null;
-        this._roadSigs = new Set();
         this._routeLeadinDistance = 0;
         this.road = this.roads ? this.roads.find(x => x.id === id) : undefined;
         if (this.road) {
             this.reverse = reverse;
             this.curvePath = this.road.curvePath;
-            this._roadSigs.add(`${id}-${!!reverse}`);
             this.setData(this.road.distances, this.road.elevations, this.road.grades, {reverse});
         } else {
             this.reverse = undefined;
@@ -222,7 +218,6 @@ export class SauceElevationProfile {
         this.reverse = null;
         this.routeId = id;
         this._eventSubgroupId = eventSubgroupId;
-        this._roadSigs = new Set();
         this.curvePath = null;
         this.route = await common.getRoute(id);
         const segments = [];
@@ -245,9 +240,6 @@ export class SauceElevationProfile {
                 }
                 segments.push({start, end, segment});
             }
-        }
-        for (const {roadId, reverse} of this.route.manifest) {
-            this._roadSigs.add(`${roadId}-${!!reverse}`);
         }
         this.curvePath = this.route.curvePath.slice();
         const distances = Array.from(this.route.distances);
@@ -469,9 +461,8 @@ export class SauceElevationProfile {
                 type: 'custom',
                 z: 5,
                 renderItem: (param, api) => {
-                    const [distance, elevation, visualGrade, isWatching, deemphasize/*, athleteId*/] =
+                    const [distance, elevation, visualGrade, isWatching, deemphasize, ghost] =
                         [api.value(0), api.value(1), api.value(2), api.value(3), api.value(4), api.value(5)];
-                    //const state = this.marks.get(athleteId);
                     const size = this.em(isWatching ? 0.9 : deemphasize ? 0.28 : 0.4);
                     return {
                         type: 'path',
@@ -492,6 +483,7 @@ export class SauceElevationProfile {
                         rotation: Math.atan(visualGrade),
                         position: api.coord([distance, elevation + 1]),
                         style: {
+                            opacity: ghost ? 0.4 : 1,
                             stroke: deemphasize ? '#0007' : '#000b',
                             lineWidth: isWatching ? 1 : 0.5,
                             fill: isWatching ? {
@@ -604,113 +596,55 @@ export class SauceElevationProfile {
             return;
         }
         this._lastRender = now;
-        const marks = Array.from(this.marks.values()).filter(x => {
-            const sig = `${x.state.roadId}-${!!x.state.reverse}`;
-            return this._roadSigs.has(sig);
-        });
         const x1 = this.chart.convertToPixel({xAxisIndex: 0}, 0);
         const x2 = this.chart.convertToPixel({xAxisIndex: 0}, 1);
         const y1 = this.chart.convertToPixel({yAxisIndex: 0}, 0);
         const y2 = this.chart.convertToPixel({yAxisIndex: 0}, -1);
         const chartAspectRatio = (y2 - y1) / (x2 - x1);
+        const marks = Array.from(this.marks.values());
         marks.sort((a, b) => a.athleteId === this.watchingId ? 1 : b.athleteId === this.watchingId ? -1 : 0);
-        const nodes = this.curvePath.nodes;
-        const data = marks.map(({state}) => {
-            let roadSeg;
-            let nodeRoadOfft;
-            let deemphasize;
-            const isWatching = state.athleteId === this.watchingId;
-            if (this.routeId != null) {
-                if (state.routeId === this.routeId) {
-                    let distance;
-                    if (this._eventSubgroupId != null) {
-                        deemphasize = state.eventSubgroupId !== this._eventSubgroupId;
-                        distance = state.eventDistance;
-                    } else {
-                        // Outside of events state.progress represents the progress of single lap.
-                        // However, if the lap counter is > 0 then the progress % does not include
-                        // leadin.
-                        const floor = state.laps ? this._routeLeadinDistance : 0;
-                        const totDist = this._distances[this._distances.length - 1];
-                        distance = state.progress * (totDist - floor) + floor;
-                    }
-                    const nearIdx = common.binarySearchClosest(this._distances, distance);
-                    const nearRoadSegIdx = nodes[nearIdx].index;
-                    // NOTE: This technique does not work for bots or people who joined a bot.
-                    // I don't know why but progress and eventDistance are completely wrong.
-                    roadSearch:
-                    for (let offt = 0; offt < 12; offt++) {
-                        for (const dir of [1, -1]) {
-                            const segIdx = nearRoadSegIdx + (offt * dir);
-                            const s = this.route.roadSegments[segIdx];
-                            if (s && s.roadId === state.roadId && !!s.reverse === !!state.reverse &&
-                                s.includesRoadTime(state.roadTime)) {
-                                roadSeg = s;
-                                // We found the road segment but need to find the exact node offset
-                                // to support multi-lap configurations...
-                                for (let i = nearIdx; i >= 0 && i < nodes.length; i += dir) {
-                                    if (nodes[i].index === segIdx) {
-                                        // Rewind to first node of this segment.
-                                        while (i > 0 && nodes[i - 1].index === segIdx) {
-                                            i--;
-                                        }
-                                        nodeRoadOfft = i;
-                                        break;
-                                    }
-                                }
-                                break roadSearch;
-                            }
-                        }
-                    }
-                }
-                if (!roadSeg) {
-                    // Not on our route but might be nearby..
-                    const i = this.route.roadSegments.findIndex(x =>
-                        x.roadId === state.roadId &&
-                        !!x.reverse === !!state.reverse &&
-                        x.includesRoadTime(state.roadTime));
-                    if (i === -1) {
-                        return null;
-                    }
-                    roadSeg = this.route.roadSegments[i];
-                    nodeRoadOfft = nodes.findIndex(x => x.index === i);
-                    deemphasize = true;
-                }
-            } else if (this.road && this.road.id === state.roadId) {
-                roadSeg = this.road.curvePath;
-                nodeRoadOfft = 0;
+        const data = marks.map(mark => {
+            let state = mark.state;
+            let xIdx = this.findMarkPosition(state);
+            let ghost;
+            if (xIdx === undefined && mark.lastVisualState && now - mark.lastVisualTS < 5000) {
+                xIdx = this.findMarkPosition(mark.lastVisualState);
+                state = mark.lastVisualState;
+                ghost = true;
             }
-            if (!roadSeg) {
-                return null;
-            }
-            const bounds = roadSeg.boundsAtRoadTime(state.roadTime);
-            const nodeOfft = roadSeg.reverse ?
-                roadSeg.nodes.length - 1 - (bounds.index + bounds.percent) :
-                bounds.index + bounds.percent;
-            const xIdx = nodeRoadOfft + nodeOfft;
-            if (xIdx < 0 || xIdx > this._distances.length - 1) {
-                console.error("route index offset bad!", {xIdx});
-                return null;
+            if (xIdx === undefined) {
+                return;
             }
             let xCoord;
             let yCoord;
             let visualGrade;
             if (xIdx % 1) {
+                // TBD: Use closest node instead of always next (which might be unavailable too)
                 const i = xIdx | 0;
+                if (i === this._distances.length - 1) {
+                    debugger; // FIXME
+                }
                 const dDelta = this._distances[i + 1] - this._distances[i];
                 const eDelta = this._elevations[i + 1] - this._elevations[i];
                 xCoord = this._distances[i] + dDelta * (xIdx % 1);
                 yCoord = this._elevations[i] + eDelta * (xIdx % 1);
                 visualGrade = chartAspectRatio * (eDelta / dDelta);
             } else {
-                debugger; // just want to verify this one time, it seems possibly unnessisary
                 xCoord = this._distances[xIdx];
                 yCoord = this._elevations[xIdx];
                 visualGrade = chartAspectRatio * this._grades[xIdx];
             }
+            const isWatching = state.athleteId === this.watchingId;
+            const deemphasize = this.routeId != null && (
+                state.routeId !== this.routeId ||
+                (this._eventSubgroupId != null && state.eventSubgroupId !== this._eventSubgroupId));
+            if (state !== mark.lastVisualState) {
+                mark.lastVisualState = state;
+                mark.lastVisualTS = now;
+            }
             return {
                 name: state.athleteId,
-                value: [xCoord, yCoord, visualGrade, isWatching, deemphasize, xIdx]
+                value: [xCoord, yCoord, visualGrade, isWatching, deemphasize, ghost]
             };
         }).filter(x => x);
         // echarts merge algo is quite broken.. must reset data.
@@ -721,6 +655,83 @@ export class SauceElevationProfile {
                 this.marks.delete(athleteId);
             }
         }
+    }
+
+    findMarkPosition(state) {
+        let roadSeg;
+        let nodeRoadOfft;
+        const nodes = this.curvePath.nodes;
+        if (this.routeId != null) {
+            if (state.routeId === this.routeId) {
+                let distance;
+                if (this._eventSubgroupId != null) {
+                    distance = state.eventDistance;
+                } else {
+                    // Outside of events state.progress represents the progress of single lap.
+                    // However, if the lap counter is > 0 then the progress % does not include
+                    // leadin.
+                    const floor = state.laps ? this._routeLeadinDistance : 0;
+                    const totDist = this._distances[this._distances.length - 1];
+                    distance = state.progress * (totDist - floor) + floor;
+                }
+                const nearIdx = common.binarySearchClosest(this._distances, distance);
+                const nearRoadSegIdx = nodes[nearIdx].index;
+                // NOTE: This technique does not work for bots or people who joined a bot.
+                // I don't know why but progress and eventDistance are completely wrong.
+                roadSearch:
+                for (let offt = 0; offt < 12; offt++) {
+                    for (const dir of [1, -1]) {
+                        const segIdx = nearRoadSegIdx + (offt * dir);
+                        const s = this.route.roadSegments[segIdx];
+                        if (s && s.roadId === state.roadId && !!s.reverse === !!state.reverse &&
+                            s.includesRoadTime(state.roadTime)) {
+                            roadSeg = s;
+                            // We found the road segment but need to find the exact node offset
+                            // to support multi-lap configurations...
+                            for (let i = nearIdx; i >= 0 && i < nodes.length; i += dir) {
+                                if (nodes[i].index === segIdx) {
+                                    // Rewind to first node of this segment.
+                                    while (i > 0 && nodes[i - 1].index === segIdx) {
+                                        i--;
+                                    }
+                                    nodeRoadOfft = i;
+                                    break;
+                                }
+                            }
+                            break roadSearch;
+                        }
+                    }
+                }
+            }
+            if (!roadSeg) {
+                // Not on our route but might be nearby..
+                const i = this.route.roadSegments.findIndex(x =>
+                    x.roadId === state.roadId &&
+                    !!x.reverse === !!state.reverse &&
+                    x.includesRoadTime(state.roadTime));
+                if (i === -1) {
+                    return;
+                }
+                roadSeg = this.route.roadSegments[i];
+                nodeRoadOfft = nodes.findIndex(x => x.index === i);
+            }
+        } else if (this.road && this.road.id === state.roadId && !!this.reverse === !!state.reverse) {
+            roadSeg = this.road.curvePath;
+            nodeRoadOfft = 0;
+        }
+        if (!roadSeg) {
+            return;
+        }
+        const bounds = roadSeg.boundsAtRoadTime(state.roadTime);
+        const nodeOfft = roadSeg.reverse ?
+            roadSeg.nodes.length - 1 - (bounds.index + bounds.percent) :
+            bounds.index + bounds.percent;
+        const xIdx = nodeRoadOfft + nodeOfft;
+        if (xIdx < 0 || xIdx > this._distances.length - 1) {
+            console.error("route index offset bad!", {xIdx});
+            return;
+        }
+        return xIdx;
     }
 
     onMarkEmphasisLabel(params) {
