@@ -328,9 +328,7 @@ export class SauceElevationProfile {
                         show: false,
                     },
                     emphasis: {
-                        lineStyle: {
-                            color: '#dd9',
-                        },
+                        lineStyle: {color: '#dd9'},
                         label: {
                             show: true,
                             fontSize: '0.4em',
@@ -344,12 +342,8 @@ export class SauceElevationProfile {
                     xAxis: distance,
                     yAxis: elevations[common.binarySearchClosest(distances, distance)],
                     emphasis: {
-                        lineStyle: {
-                            width: 5,
-                        },
-                        label: {
-                            fontSize: '0.5em',
-                        }
+                        lineStyle: {width: 5},
+                        label: {fontSize: '0.5em'}
                     },
                 }]);
             }
@@ -466,8 +460,6 @@ export class SauceElevationProfile {
                 },
                 markLine: {
                     symbol: 'none',
-                    //silent: true,
-                    //lineStyle: {},
                     emphasis: {disabled: false},
                     data: markLineData,
                 },
@@ -475,10 +467,10 @@ export class SauceElevationProfile {
             }, {
                 id: 'mark-points',
                 type: 'custom',
+                z: 5,
                 renderItem: (param, api) => {
-                    const isWatching = api.value(2);
-                    const deemphasize = api.value(3);
-                    //const athleteId = api.value(4);
+                    const [distance, elevation, visualGrade, isWatching, deemphasize/*, athleteId*/] =
+                        [api.value(0), api.value(1), api.value(2), api.value(3), api.value(4), api.value(5)];
                     //const state = this.marks.get(athleteId);
                     const size = this.em(isWatching ? 0.9 : deemphasize ? 0.3 : 0.5);
                     return {
@@ -497,7 +489,8 @@ export class SauceElevationProfile {
                             width: size,
                             height: size
                         },
-                        position: api.coord([api.value(0), api.value(1)]),
+                        rotation: Math.atan(visualGrade),
+                        position: api.coord([distance, elevation + 1]),
                         style: {
                             stroke: deemphasize ? '#0008' : '#000b',
                             lineWidth: isWatching ? 1 : 0.5,
@@ -615,6 +608,11 @@ export class SauceElevationProfile {
             const sig = `${x.state.roadId}-${!!x.state.reverse}`;
             return this._roadSigs.has(sig);
         });
+        const x1 = this.chart.convertToPixel({xAxisIndex: 0}, 0);
+        const x2 = this.chart.convertToPixel({xAxisIndex: 0}, 1);
+        const y1 = this.chart.convertToPixel({yAxisIndex: 0}, 0);
+        const y2 = this.chart.convertToPixel({yAxisIndex: 0}, -1);
+        const chartAspectRatio = (y2 - y1) / (x2 - x1);
         marks.sort((a, b) => a.athleteId === this.watchingId ? 1 : b.athleteId === this.watchingId ? -1 : 0);
         const nodes = this.curvePath.nodes;
         const data = marks.map(({state}) => {
@@ -696,17 +694,24 @@ export class SauceElevationProfile {
             }
             let xCoord;
             let yCoord;
+            let visualGrade;
             if (xIdx % 1) {
                 const i = xIdx | 0;
                 const dDelta = this._distances[i + 1] - this._distances[i];
                 const eDelta = this._elevations[i + 1] - this._elevations[i];
                 xCoord = this._distances[i] + dDelta * (xIdx % 1);
                 yCoord = this._elevations[i] + eDelta * (xIdx % 1);
+                visualGrade = chartAspectRatio * (eDelta / dDelta);
             } else {
+                debugger; // just want to verify this one time, it seems possibly unnessisary
                 xCoord = this._distances[xIdx];
                 yCoord = this._elevations[xIdx];
+                visualGrade = chartAspectRatio * this._grades[xIdx];
             }
-            return [xCoord, yCoord, isWatching, deemphasize, state.athleteId];
+            return {
+                name: state.athleteId,
+                value: [xCoord, yCoord, visualGrade, isWatching, deemphasize, xIdx]
+            };
         }).filter(x => x);
         // echarts merge algo is quite broken.. must reset data.
         this.chart.setOption({series: {id: 'mark-points', data: []}});
@@ -719,7 +724,6 @@ export class SauceElevationProfile {
     }
 
     onMarkEmphasisLabel(params) {
-        console.log('asdf', params);
         if (!params || !params.data || !params.data.name) {
             return;
         }
