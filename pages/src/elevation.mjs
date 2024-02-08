@@ -467,12 +467,12 @@ export class SauceElevationProfile {
             }, {
                 id: 'mark-points',
                 type: 'custom',
-                //z: 5,
+                z: 5,
                 renderItem: (param, api) => {
                     const [distance, elevation, visualGrade, isWatching, deemphasize/*, athleteId*/] =
                         [api.value(0), api.value(1), api.value(2), api.value(3), api.value(4), api.value(5)];
                     //const state = this.marks.get(athleteId);
-                    const size = this.em(isWatching ? 0.9 : deemphasize ? 0.3 : 0.5);
+                    const size = this.em(isWatching ? 0.9 : deemphasize ? 0.28 : 0.4);
                     return {
                         type: 'path',
                         shape: {
@@ -492,7 +492,7 @@ export class SauceElevationProfile {
                         rotation: Math.atan(visualGrade),
                         position: api.coord([distance, elevation + 1]),
                         style: {
-                            stroke: deemphasize ? '#0008' : '#000b',
+                            stroke: deemphasize ? '#0007' : '#000b',
                             lineWidth: isWatching ? 1 : 0.5,
                             fill: isWatching ? {
                                 type: 'linear',
@@ -507,7 +507,7 @@ export class SauceElevationProfile {
                                     offset: 0.5,
                                     color: '#e03c',
                                 }],
-                            } : deemphasize ? '#7775' : '#fffb',
+                            } : deemphasize ? '#9995' : '#fffb',
                         }
                     };
                 },
