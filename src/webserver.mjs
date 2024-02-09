@@ -262,8 +262,9 @@ async function _start({ip, port, rpcSources, statsProc}) {
         res.on('finish', () => {
             const client = req.client.remoteAddress;
             const elapsed = (performance.now() - req.start).toFixed(1);
+            const sizeKB = (res._contentLength / 1024).toFixed(1);
             const msg = `HTTP API request: (${client}) [${req.method}] ${req.originalUrl} -> ` +
-                `${res.statusCode}, ${elapsed}ms`;
+                `${res.statusCode}, ${elapsed} ms, ${sizeKB} KB`;
             if (res.statusCode >= 400) {
                 console.error(msg);
             } else {
