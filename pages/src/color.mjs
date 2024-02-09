@@ -89,12 +89,20 @@ export class Color {
         return c;
     }
 
-    toString() {
+    toString(options={}) {
         const h = Math.round(this.h * 360);
         const s = Math.round(this.s * 100);
         const l = Math.round(this.l * 100);
-        const a = this.a !== undefined ? ` / ${Math.round(this.a * 100)}%` : '';
-        return `hsl(${h}deg ${s}% ${l}%${a})`;
+        if (options.legacy) {
+            if (this.a !== undefined) {
+                return `hsla(${h}deg, ${s}%, ${l}%, ${Number(this.a.toFixed(4))})`;
+            } else {
+                return `hsl(${h}deg, ${s}%, ${l}%)`;
+            }
+        } else {
+            const a = this.a !== undefined ? ` / ${Math.round(this.a * 100)}%` : '';
+            return `hsl(${h}deg ${s}% ${l}%${a})`;
+        }
     }
 }
 

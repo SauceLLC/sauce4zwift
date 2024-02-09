@@ -569,8 +569,8 @@ function createTimeInPowerZonesPie(el) {
             colors = powerZoneColors(powerZones, c => ({
                 c,
                 g: new echarts.graphic.LinearGradient(0, 0, 1, 1, [
-                    {offset: 0, color: c.toString()},
-                    {offset: 1, color: c.alpha(0.6).toString()}
+                    {offset: 0, color: c.toString({legacy: true})},
+                    {offset: 1, color: c.alpha(0.6).toString({legacy: true})}
                 ])
             }));
             normZones = new Set(powerZones.filter(x => !x.overlap).map(x => x.zone));
