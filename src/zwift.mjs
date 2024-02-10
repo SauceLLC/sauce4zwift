@@ -549,9 +549,6 @@ export class ZwiftAPI {
         } catch(e) {
             if (e.status === 404) {
                 return;
-            } else if (e.name === 'TimeoutError' || e.name === 'AbortError') { // API is influx, check both
-                console.warn("Network timeout during player-state fetch");
-                return;
             }
             throw e;
         }
@@ -1808,6 +1805,8 @@ export class GameMonitor extends events.EventEmitter {
             if (e.status !== 429) {
                 if (e.name === 'FetchError') {
                     console.warn("Refresh states network problem:", e.message);
+                } else if (e.name === 'TimeoutError' || e.name === 'AbortError') { // API is influx
+                    console.warn("Refresh states network timeout");
                 } else {
                     console.error("Refresh states error:", e);
                 }
