@@ -274,6 +274,11 @@ async function initSentry(logEmitter) {
     process.on('uncaughtException', report.errorThrottled);
     Sentry.setTag('version', pkg.version);
     Sentry.setTag('git_commit', buildEnv.git_commit);
+    // Leave some state for our beforeSendFilter that can customize reported events. (see report.mjs)
+    Sentry._sauceSpecialState = {
+        startClock: Date.now(),
+        startTimer: performance.now(),
+    };
     let id = settings.sentryId;
     if (!id) {
         id = Array.from(crypto.randomBytes(16)).map(x => String.fromCharCode(97 + (x % 26))).join('');
@@ -281,6 +286,11 @@ async function initSentry(logEmitter) {
         saveSettings(settings);
     }
     Sentry.setUser({id});
+    Sentry.setContext('os', {
+        machine: os.machine(),
+        platform: os.platform(),
+        release: os.release(),
+    });
     app.on('before-quit', () => Sentry.flush());
     logEmitter.on('message', ({message, level}) => {
         Sentry.addBreadcrumb({

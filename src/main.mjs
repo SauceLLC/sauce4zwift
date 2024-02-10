@@ -761,3 +761,4 @@ global.zwift = zwift;
 global.windows = windows;
 global.electron = electron;
 global.mods = mods;
+global.report = report;

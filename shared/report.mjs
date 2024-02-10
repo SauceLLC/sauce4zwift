@@ -88,6 +88,10 @@ export function beforeSentrySend(result) {
     } else {
         result = JSON.parse(JSON.stringify(result));
     }
+    const uptime = Date.now() - Sentry._sauceSpecialState.startClock;
+    const runtime = performance.now() - Sentry._sauceSpecialState.startTimer;
+    const sleepOrClockDrift = uptime - runtime;
+    result.extra = Object.assign(result.extra || {}, {uptime, runtime, sleepOrClockDrift});
     try {
         if (result.exception && result.exception.values) {
             for (const exc of result.exception.values) {
