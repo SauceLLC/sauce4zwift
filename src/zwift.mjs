@@ -386,9 +386,6 @@ export class ZwiftAPI {
             'Source': 'Game Client',
             'User-Agent': 'CNL/3.44.0 (Darwin Kernel 23.2.0) zwift/1.0.122968 game/1.54.0 curl/8.4.0'
         };
-        const timeout = options.timeout !== undefined ? options.timeout : 30000;
-        const abort = new AbortController();
-        const to = timeout && setTimeout(() => abort.abort(), timeout);
         let query = options.query;
         if (query && !(query instanceof URLSearchParams)) {
             query = new URLSearchParams(Object.entries(query).filter(([k, v]) => v != null));
@@ -400,18 +397,12 @@ export class ZwiftAPI {
         if (!options.silent) {
             console.debug(`Fetch: ${options.method || 'GET'} ${uri}`);
         }
-        let r;
-        try {
-            r = await fetch(`${uri}${q}`, {
-                signal: abort.signal,
-                headers: {...defHeaders, ...headers},
-                ...options,
-            });
-        } finally {
-            if (to) {
-                clearTimeout(to);
-            }
-        }
+        const timeout = options.timeout !== undefined ? options.timeout : 30000;
+        const r = await fetch(`${uri}${q}`, {
+            signal: timeout ? AbortSignal.timeout(timeout) : undefined,
+            headers: {...defHeaders, ...headers},
+            ...options,
+        });
         if (!r.ok && (!options.ok || !options.ok.includes(r.status))) {
             const msg = await r.text();
             const e = new Error(`Zwift HTTP Error: [${r.status}]: ${msg}`);
