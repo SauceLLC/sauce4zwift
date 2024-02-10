@@ -549,6 +549,9 @@ export class ZwiftAPI {
         } catch(e) {
             if (e.status === 404) {
                 return;
+            } else if (e.name === 'TimeoutError' || e.name === 'AbortError') { // API is influx, check both
+                console.warn("Network timeout during player-state fetch");
+                return;
             }
             throw e;
         }
