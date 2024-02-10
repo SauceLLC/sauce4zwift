@@ -753,6 +753,13 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         windows.openWidgetWindows();
         menu.updateTrayMenu();
     }
+    electron.powerMonitor.on('thermal-state-change', state =>
+        console.warn("Power thermal state change:", state));
+    electron.powerMonitor.on('speed-limit-change', limit =>
+        console.warn("Power CPU speed limit change:", limit));
+    // TBD: Probably want to invalidate connections and reauth stuff when a resume happens
+    electron.powerMonitor.on('suspend', limit => console.warn("System is being suspended"));
+    electron.powerMonitor.on('resume', limit => console.warn("System is waking from suspend"));
     started = true;
 }
 
@@ -761,4 +768,3 @@ global.zwift = zwift;
 global.windows = windows;
 global.electron = electron;
 global.mods = mods;
-global.report = report;
