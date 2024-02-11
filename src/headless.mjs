@@ -62,6 +62,9 @@ async function main() {
     storage.initialize(appPath);
     const s = Date.now();
     const args = parseArgs([
+        // Do not remove headless arg.  It's informational here but handled by loader.mjs
+        {arg: 'headless', type: 'switch',
+         help: 'Run in headless mode.  NOTE: All settings for headless mode are seperate from normal mode.'},
         {arg: 'main-username', label: 'USERNAME', required: true, env: 'MAIN_USERNAME',
          help: 'The main Zwift username (email)'},
         {arg: 'main-password', label: 'PASSWORD', required: true, env: 'MAIN_PASSWORD',

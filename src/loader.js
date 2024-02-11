@@ -2,20 +2,15 @@
 
 Error.stackTraceLimit = 25;
 
-console.info('Starting...');
-
 const os = require('node:os');
 const path = require('node:path');
 const fs = require('node:fs');
 const process = require('node:process');
-const crypto = require('node:crypto');
 const pkg = require('../package.json');
 const {EventEmitter} = require('node:events');
 const {app, dialog, nativeTheme} = require('electron');
-const Sentry = require('@sentry/node');
 
 const logFileName = 'sauce.log';
-
 
 let settings = {};
 if (fs.existsSync(joinAppPath('userData', 'loader_settings.json'))) {
@@ -258,9 +253,9 @@ async function checkMacOSInstall() {
 
 async function initSentry(logEmitter) {
     if (!app.isPackaged || !buildEnv.sentry_dsn) {
-        console.info("Sentry disabled: non production build");
         return;
     }
+    const Sentry = require('@sentry/node');
     const report = await import('../shared/report.mjs');
     report.setSentry(Sentry);
     const skipIntegrations = new Set(['OnUncaughtException', 'Console']);
@@ -281,6 +276,7 @@ async function initSentry(logEmitter) {
     };
     let id = settings.sentryId;
     if (!id) {
+        const crypto = require('node:crypto');
         id = Array.from(crypto.randomBytes(16)).map(x => String.fromCharCode(97 + (x % 26))).join('');
         settings.sentryId = id;
         saveSettings(settings);
@@ -303,7 +299,7 @@ async function initSentry(logEmitter) {
 }
 
 
-(async () => {
+async function startNormal() {
     const logMeta = initLogging();
     nativeTheme.themeSource = 'dark';
     // Use non-electron naming for windows updater.
@@ -348,8 +344,32 @@ async function initSentry(logEmitter) {
             throw e;
         }
     }
-})().catch(async e => {
-    console.error('Startup Error:', e.stack);
-    await dialog.showErrorBox('Sauce Startup Error', e.stack);
-    app.exit(1);
-});
+}
+
+
+function startHeadless() {
+    // NOTE: Node doesn't expose posix-like exec() or fork() calls, so read the docs before
+    // infering anything about this type of child_process handling.
+    const args = ['src/headless.mjs'].concat(process.argv);
+    try {
+        require('node:child_process').execFileSync(process.execPath, args, {
+            detached: false,
+            stdio: 'inherit',
+            env: {...process.env, ELECTRON_RUN_AS_NODE: 1}
+        });
+    } finally {
+        // Can hang without explicit exit..
+        process.exit();
+    }
+}
+
+
+if (process.argv.includes('--headless')) {
+    startHeadless();
+} else {
+    startNormal().catch(async e => {
+        console.error('Startup Error:', e.stack);
+        await dialog.showErrorBox('Sauce Startup Error', e.stack);
+        app.exit(1);
+    });
+}

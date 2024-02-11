@@ -1361,7 +1361,7 @@ export async function welcomeSplash() {
 }
 
 
-export async function patronLink(forceCheck, {sauceApp}) {
+export async function patronLink({sauceApp, forceCheck}) {
     let membership = storageMod.get('patron-membership');
     if (membership && membership.patronLevel >= 10 && !forceCheck) {
         // XXX Implement refresh once in a while.
