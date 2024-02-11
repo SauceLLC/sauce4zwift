@@ -1,5 +1,4 @@
 import * as locale from '../../shared/sauce/locale.mjs';
-import {smooth} from '../../shared/sauce/data.mjs';
 import * as common from './common.mjs';
 import {Color} from './color.mjs';
 import * as ec from '../deps/src/echarts.mjs';

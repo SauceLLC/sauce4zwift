@@ -1361,7 +1361,7 @@ export async function welcomeSplash() {
 }
 
 
-export async function patronLink(forceCheck) {
+export async function patronLink(forceCheck, {sauceApp}) {
     let membership = storageMod.get('patron-membership');
     if (membership && membership.patronLevel >= 10 && !forceCheck) {
         // XXX Implement refresh once in a while.
@@ -1387,7 +1387,7 @@ export async function patronLink(forceCheck) {
     });
     win.webContents.ipc.on('patreon-auth-code', (ev, code) => resolve({code, legacy: true}));
     win.webContents.ipc.on('patreon-special-token', (ev, token) => resolve({token}));
-    main.getApp().on('external-open', x => {
+    sauceApp.on('external-open', x => {
         if (x.name === 'patron' && x.path === '/link') {
             resolve({code: x.data.code});
         }

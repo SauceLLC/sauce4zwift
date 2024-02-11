@@ -110,7 +110,7 @@ function jsonCache(data) {
 }
 
 
-async function _start({ip, port, rpcSources, statsProc}) {
+async function _start({ip, port, rpcEventEmitters, statsProc}) {
     app = express();
     app.use((req, res, next) => {
         req.start = performance.now();
@@ -164,7 +164,7 @@ async function _start({ip, port, rpcSources, statsProc}) {
                 if (!event) {
                     throw new TypeError('"event" arg required');
                 }
-                const emitter = rpcSources[source];
+                const emitter = rpcEventEmitters.get(source);
                 if (!emitter) {
                     throw new TypeError('Invalid emitter source: ' + source);
                 }

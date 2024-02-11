@@ -3,7 +3,6 @@ import os from 'node:os';
 import path from 'node:path';
 import * as windows from './windows.mjs';
 import {fileURLToPath} from 'node:url';
-import {getApp} from './main.mjs';
 import {createRequire} from 'node:module';
 const require = createRequire(import.meta.url);
 const {Menu, app, shell, nativeImage, Tray} = require('electron');
@@ -88,6 +87,12 @@ export function installTrayIcon() {
 }
 
 
+let _webServerURL;
+export function setWebServerURL(url) {
+    _webServerURL = url;
+}
+
+
 export function updateTrayMenu() {
     const pad = '  ';
     const wins = windows.getWidgetWindowSpecs();
@@ -121,13 +126,12 @@ export function updateTrayMenu() {
             }))
         );
     }
-    const sauceApp = getApp();
-    if (sauceApp.webServerURL) {
+    if (_webServerURL) {
         menu.push({
             type: 'separator',
         }, {
-            label: `Web: ${sauceApp.webServerURL}`,
-            click: () => shell.openExternal(sauceApp.webServerURL),
+            label: `Web: ${_webServerURL}`,
+            click: () => shell.openExternal(_webServerURL),
         });
     }
     menu.push({

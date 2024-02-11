@@ -42,6 +42,9 @@ export function parseArgs(_options) {
     const fulfilled = new Set();
     const iter = process.argv.entries();
     const args = {};
+    for (const x of options.filter(x => x.default !== undefined)) {
+        args[snakeToCamelCase(x.arg)] = x.default;
+    }
     for (let [i, arg] of iter) {
         if (!arg.startsWith('--')) {
             continue;

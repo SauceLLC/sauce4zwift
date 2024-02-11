@@ -277,9 +277,8 @@ export class StatsProcessor extends events.EventEmitter {
         this.setMaxListeners(100);
         this.zwiftAPI = options.zwiftAPI;
         this.gameMonitor = options.gameMonitor;
-        this.disableGameMonitor = options.args.disableMonitor;
-        this.exclusions = options.args.exclusions || new Set();
-        this.athleteId = options.args.athleteId || this.gameMonitor.gameAthleteId;
+        this.exclusions = options.exclusions || new Set();
+        this.athleteId = options.athleteId || this.gameMonitor?.gameAthleteId;
         this._userDataPath = options.userDataPath;
         this.watching = null;
         this.emitStatesMinRefresh = 200;
@@ -370,7 +369,7 @@ export class StatsProcessor extends events.EventEmitter {
             gc.on('powerup-set', this.onPowerupSet.bind(this));
             gc.on('custom-action-button', this.onCustomActionButton.bind(this));
         }
-        if (options.args.debugGameFields) {
+        if (options.debugGameFields) {
             this._cleanState = obj => obj;
         }
     }
@@ -1803,7 +1802,7 @@ export class StatsProcessor extends events.EventEmitter {
         }
         this._statesJob = this._statesProcessor();
         this._gcInterval = setInterval(this.gcAthleteData.bind(this), 62768);
-        if (!this.disableGameMonitor) {
+        if (this.gameMonitor) {
             this.gameMonitor.on('inPacket', this.onIncoming.bind(this));
             this.gameMonitor.on('watching-athlete', this.setWatching.bind(this));
             this.gameMonitor.on('game-athlete', id => {
