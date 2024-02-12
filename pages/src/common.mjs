@@ -1563,7 +1563,7 @@ export function initExpanderTable(table, expandCallback, cleanupCallback) {
 
 
 export const powerZonesColorSpectrum = [
-    {midPct: 0.275, color: '#444'},
+    {midPct: 0.275, color: '#666'},
     {midPct: 0.650, color: '#24d'},
     {midPct: 0.825, color: '#5b5'},
     {midPct: 0.975, color: '#dd3'},
