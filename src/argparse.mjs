@@ -123,7 +123,8 @@ export function parseArgs(_options) {
             helps.push('  ' + arg.padEnd(argColWidth - 3, ' ') + ' ' + helpText[0],
                        ...helpText.slice(1).map(xx => ''.padStart(argColWidth, ' ') + xx));
         }
-        console.warn(wrapText(`Usage: ${process.argv[0]} ` + usage.join(' '), maxWidth).join('\n  '));
+        const program = process.env.ARGV0 || process.execPath;
+        console.warn(wrapText(`Usage: ${program} ` + usage.join(' '), maxWidth).join('\n  '));
         console.warn('\nArguments:\n' + helps.join('\n'));
     } else if (required.size) {
         console.warn(`\nMissing required arguments: ${Array.from(required).map(x => x.arg).join(', ')}`);
