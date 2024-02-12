@@ -16,7 +16,7 @@ run S4Z on any device, anywhere.
 
 Download for Mac / Windows / Linux:
 --------
-### https://www.sauce.llc/products/sauce4zwift/download
+## https://www.sauce.llc/products/sauce4zwift/download
 
 
 --------
