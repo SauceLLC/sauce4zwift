@@ -1569,7 +1569,7 @@ export const powerZonesColorSpectrum = [
     {midPct: 0.975, color: '#dd3'},
     {midPct: 1.125, color: '#fa0'},
     {midPct: 1.350, color: '#b22'},
-    {midPct: 1.750, color: '#407'},
+    {midPct: 1.750, color: '#a0b'},
 ];
 
 
