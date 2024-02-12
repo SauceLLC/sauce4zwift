@@ -5,7 +5,6 @@ import * as storage from './storage.mjs';
 import {createRequire} from 'node:module';
 
 const require = createRequire(import.meta.url);
-const electron = require('electron');
 
 const settingsKey = 'mod-settings';
 let settings;
@@ -100,7 +99,16 @@ export function init(...args) {
 
 
 function showModsRootFolder() {
-    electron.shell.openPath(modRoot);
+    let electron;
+    try {
+        electron = require('electron');
+    } catch(e) {/*no-pragma*/}
+    if (electron && electron.shell) {
+        electron.shell.openPath(modRoot);
+    } else {
+        console.info(modRoot);
+    }
+    return modRoot;
 }
 rpc.register(showModsRootFolder);
 

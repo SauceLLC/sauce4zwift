@@ -10,6 +10,8 @@ import * as mods from './mods.mjs';
 import {parseArgs} from './argparse.mjs';
 import * as app from './app.mjs';
 
+Error.stackTraceLimit = 25;
+
 const isDEV = true;
 
 
@@ -83,7 +85,7 @@ async function main() {
          help: 'Include otherwise hidden fields from game data'},
     ]);
     if (!args || args.help) {
-        quit();
+        quit(!args ? 1 : 0);
         return;
     }
     rpc.register(() => null, {name: 'getSentryAnonId'});

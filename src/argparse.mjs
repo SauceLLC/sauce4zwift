@@ -116,6 +116,8 @@ export function parseArgs(_options) {
             }
             if (x.required) {
                 help.push('[REQUIRED]');
+            } else if (x.default !== undefined) {
+                help.push(`[default=${x.default}]`);
             }
             const helpText = wrapText(help.join('\n'), maxWidth - argColWidth);
             helps.push('  ' + arg.padEnd(argColWidth - 3, ' ') + ' ' + helpText[0],
@@ -123,8 +125,7 @@ export function parseArgs(_options) {
         }
         console.warn(wrapText(`Usage: ${process.argv[0]} ` + usage.join(' '), maxWidth).join('\n  '));
         console.warn('\nArguments:\n' + helps.join('\n'));
-    }
-    if (required.size) {
+    } else if (required.size) {
         console.warn(`\nMissing required arguments: ${Array.from(required).map(x => x.arg).join(', ')}`);
         return;
     }

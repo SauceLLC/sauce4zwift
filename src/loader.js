@@ -349,27 +349,29 @@ async function startNormal() {
 
 function startHeadless() {
     // NOTE: Node doesn't expose posix-like exec() or fork() calls, so read the docs before
-    // infering anything about this type of child_process handling.
-    const args = ['src/headless.mjs'].concat(process.argv);
-    try {
-        require('node:child_process').execFileSync(process.execPath, args, {
-            detached: false,
-            stdio: 'inherit',
-            env: {...process.env, ELECTRON_RUN_AS_NODE: 1}
-        });
-    } finally {
-        // Can hang without explicit exit..
-        process.exit();
-    }
+    // infering anything related to child_process handling.
+    const fqMod = path.join(__dirname, 'headless.mjs');
+    const args = [fqMod].concat(process.argv.slice(app.isPackaged ? 1 : 2));
+    const {status} = require('node:child_process').spawnSync(process.execPath, args, {
+        windowsHide: false,
+        stdio: 'inherit',
+        env: {...process.env, ELECTRON_RUN_AS_NODE: 1}
+    });
+    process.exit(status);
 }
 
 
 if (process.argv.includes('--headless')) {
-    startHeadless();
+    try {
+        startHeadless();
+    } catch(e) {
+        console.error('Runtime error:', e.stack);
+        process.exit(1);
+    }
 } else {
     startNormal().catch(async e => {
-        console.error('Startup Error:', e.stack);
-        await dialog.showErrorBox('Sauce Startup Error', e.stack);
+        console.error('Runtime error:', e.stack);
+        await dialog.showErrorBox('Runtime error', e.stack);
         app.exit(1);
     });
 }
