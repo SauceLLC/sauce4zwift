@@ -62,12 +62,6 @@ endif
 
 publish: $(BUILD)
 ifndef WINBLOWS
-	@echo
-	@echo Double check this git status is acceptable...
-	@echo
-	git status
-	@echo
-	@sleep 5
 	GH_TOKEN="$${GH_TOKEN_SAUCE4ZWIFT_RELEASE}" npm run publish
 else
 	npm run publish
