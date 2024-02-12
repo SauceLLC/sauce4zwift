@@ -1309,7 +1309,6 @@ function setStyles() {
     const settings = common.settingsStore.get();
     common.setBackground(settings);
     doc.classList.toggle('horizontal', !!settings.horizMode);
-    requestAnimationFrame(resizeCharts);
 }
 
 
@@ -1603,6 +1602,9 @@ export async function main() {
         const key = ev.data.key;
         if (['backgroundColor', 'solidBackground', 'backgroundAlpha', 'horizMode'].includes(key)) {
             setStyles();
+            if (key === 'horizMode') {
+                requestAnimationFrame(resizeCharts);
+            }
         } else if (!['/theme', '/imperialUnits', 'themeOverride'].includes(key)) {
             location.reload();
         }
