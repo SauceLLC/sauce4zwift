@@ -629,7 +629,6 @@ export class SauceElevationProfile {
                 xCoord = this._distances[i] + dDelta * (xIdx % 1);
                 yCoord = this._elevations[i] + eDelta * (xIdx % 1);
             } else {
-                debugger;
                 xCoord = this._distances[xIdx];
                 yCoord = this._elevations[xIdx];
             }
