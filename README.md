@@ -16,15 +16,16 @@ run S4Z on any device, anywhere.
 
 Download for Mac / Windows / Linux:
 --------
-## https://www.sauce.llc/products/sauce4zwift/download
+https://www.sauce.llc/products/sauce4zwift/download
 
 
 --------
 <img src="assets/images/screenshot.jpg" width="640"/>
 <img src="assets/images/slideshow.webp" width="400"/>
 
-Great overview video from Si Bradeley:
-[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/NZNgZW6YCp0/0.jpg)](https://www.youtube.com/watch?v=NZNgZW6YCp0)
+Great overview video from Si Bradeley...
+
+[![Intro Video](https://img.youtube.com/vi/NZNgZW6YCp0/hqdefault.jpg)](https://www.youtube.com/watch?v=NZNgZW6YCp0)
 
 
 Feature Highlights
@@ -109,12 +110,28 @@ Arguments:
   --help                          Show this info about args
 ```
 
+```shell
+$ MON_PASSWORD=secret MAIN_PASSWORD=othersecret ./sauce4zwift-1.1.4-dev.AppImage \
+    --headless \
+    --main-username foobar@gmail.com \
+    --monitor-username foobar+sauce@gmail.com
+...
+Startup took 385ms
+Web server started at: http://192.168.17.100:1080/
+  HTTP API at: http://192.168.17.100:1080/api
+  WebSocket API at: ws://192.168.17.100:1080/api/ws/events
+Web server started at: https://192.168.17.100:1081/
+  HTTP API at: https://192.168.17.100:1081/api
+  WebSocket API at: wss://192.168.17.100:1081/api/ws/events
+...
+```
+
 
 Event Organizer Hashtags
 --------
 **For Event Organizers only:**
-Control Sauce behavior for your events with these tags.
-#### https://www.sauce.llc/products/sauce4zwift/event_hashtags
+Control Sauce behavior for your events with these tags:
+https://www.sauce.llc/products/sauce4zwift/event_hashtags
 
 
 
