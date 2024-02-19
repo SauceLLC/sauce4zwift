@@ -26,7 +26,7 @@ endif
 
 
 $(PACKAGES): package.json
-	npm install --loglevel verbose
+	npm install
 	echo "" > $@
 
 
