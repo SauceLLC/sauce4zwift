@@ -19,6 +19,13 @@
         {-event.sport === 'running' ? '<ms large title="Run">directions_run</ms>' : ''-}
     </td>
     <td class="name">{{event.name}}</td>
+    <td><% if (event.sameRoute) { %>
+            {{event.route.name}}
+        <% } else { %>
+            <% const uRoutes = new Set(event.eventSubgroups ? event.eventSubgroups.map(x => x.route.name) : [event.route.name]); %>
+            {{Array.from(uRoutes).join(', ')}}
+        <% } %>
+    </td>
     <% if (event.durationInSeconds) { %>
         <td>{-humanDuration(event.durationInSeconds, {suffix: true, html: true})-}</td>
     <% } else { %>
