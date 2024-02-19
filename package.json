@@ -21,29 +21,29 @@
   },
   "dependencies": {
     "@sentry/node": "6.19.6",
-    "better-sqlite3": "9.1.1",
-    "electron-updater": "6.1.4",
+    "better-sqlite3": "9.4.1",
+    "electron-updater": "6.1.7",
     "express": "4.18.2",
     "express-ws": "5.0.2",
     "jsfit": "github:saucellc/jsfit.git#617a6e1087",
     "keytar": "7.9.0",
     "lossless-json": "4.0.1",
     "node-fetch": "3.3.2",
-    "protobufjs": "7.2.5",
-    "xxhash-addon": "2.0.1"
+    "protobufjs": "7.2.6",
+    "xxhash-addon": "2.0.3"
   },
   "optionalDependencies": {
-    "zwift-utils": "https://github.com/SauceLLC/zwift-utils.git#19fa2c9284f087f397f80b870a50771a398e2c8c"
+    "zwift-utils": "https://github.com/SauceLLC/zwift-utils.git#8813e8cfad3188384e69cb6dbd30a775ebcbedb5"
   },
   "devDependencies": {
-    "@electron/notarize": "2.1.0",
+    "@electron/notarize": "2.3.0",
     "@sentry/browser": "6.19.6",
-    "echarts": "5.4.3",
-    "electron": "24.8.8",
-    "electron-builder": "24.6.0",
-    "eslint": "8.53.0",
-    "sass": "1.69.5",
-    "world_countries_lists": "2.8.2"
+    "echarts": "5.5.0",
+    "electron": "28.2.3",
+    "electron-builder": "24.9.1",
+    "eslint": "8.56.0",
+    "sass": "1.71.0",
+    "world_countries_lists": "2.9.0"
   },
   "build": {
     "appId": "io.saucellc.sauce4zwift",
