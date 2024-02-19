@@ -4,6 +4,7 @@
             <th>Start</th>
             <th>Type</th>
             <th class="name">Name</th>
+            <th>Route</th>
             <th>Length</th>
             <th title="Climbing elevation gain"><ms>landscape</ms></th>
             <th>Groups</th>
