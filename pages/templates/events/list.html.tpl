@@ -11,12 +11,12 @@
             <th>Entrants</th>
         </tr>
     </thead>
-    <thead class="loader" data-dir="prev"><tr><td colspan="7">Load More</td></tr></thead>
+    <thead class="loader" data-dir="prev"><tr><td colspan="8">Load More</td></tr></thead>
     <tbody class="events">
         <% for (const event of events) { %>
             {-embed(templates.eventsSummary, {event, eventBadge})-}
-            <tr class="details" data-event-id="{{event.id}}"><td colspan="7"></td></tr>
+            <tr class="details" data-event-id="{{event.id}}"><td colspan="8"></td></tr>
         <% } %>
     </tbody>
-    <tfoot class="loader" data-dir="next"><tr><td colspan="7">Load More</td></tr></tfoot>
+    <tfoot class="loader" data-dir="next"><tr><td colspan="8">Load More</td></tr></tfoot>
 </table>

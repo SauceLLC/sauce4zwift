@@ -3,8 +3,9 @@
         <div class="card">
             <img class="event-image" src="{{event.imageUrl}}"/>
             <div class="meta">
-                <div title="Event World">{{world}} <ms>map</ms></div>
+                <div title="Event World"><ms>map</ms> {{world}}</div>
                 <div title="Route">
+                    <ms>route</ms>
                     <a href="/pages/geo.html?course={{event.courseId}}&route={{event.routeId}}"
                        target="event-route-preview">
                         <% if (event.sameRoute) { %>
@@ -13,12 +14,11 @@
                             <% const uRoutes = new Set(event.eventSubgroups ? event.eventSubgroups.map(x => x.route.name) : [event.route.name]); %>
                             {{Array.from(uRoutes).join(', ')}}
                         <% } %>
-                        <ms>route</ms>
                     </a>
                 </div>
                 <div title="Climbing">
-                    {-humanElevation(event.routeClimbing, {suffix: true, html: true})-}
                     <ms>landscape</ms>
+                    {-humanElevation(event.routeClimbing, {suffix: true, html: true})-}
                 </div>
                 <div title="View event on Zwift Power">
                     <a href="https://zwiftpower.com/events.php?zid={{event.id}}"

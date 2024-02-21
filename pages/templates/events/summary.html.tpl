@@ -14,20 +14,23 @@
             <ms title="Allows joining late">acute</ms>
         <% } %>
     </td>
+    <% const prettyType = event.eventType.replace(/_/g, ' ').replace(/GROUP WORKOUT/, 'WORKOUT') %>
     <td class="type">
-        {{event.eventType.replace(/_/g, ' ')}}
-        {-event.sport === 'running' ? '<ms large title="Run">directions_run</ms>' : ''-}
-    </td>
-    <td class="name">{{event.name}}</td>
-    <td><% if (event.sameRoute) { %>
-            {{event.route.name}}
+        <% if (event.sport === 'running') { %>
+            {{prettyType.replace(/RIDE/, 'RUN')}}
+            <ms title="Run">directions_run</ms>
         <% } else { %>
-            <% const uRoutes = new Set(event.eventSubgroups ? event.eventSubgroups.map(x => x.route.name) : [event.route.name]); %>
-            {{Array.from(uRoutes).join(', ')}}
+            {{prettyType}}
         <% } %>
     </td>
+    <td class="name" title="{{event.name}}">{{event.name}}</td>
+    <% if (event.sameRoute && event.route.name) { %>
+        <td class="route" title="Event route: {{event.route.name}}"><ms>route</ms> {{event.route.name}}</td>
+    <% } else { %>
+        <td class="route">-</td>
+    <% } %>
     <% if (event.durationInSeconds) { %>
-        <td>{-humanDuration(event.durationInSeconds, {suffix: true, html: true})-}</td>
+        <td>{-humanDuration(event.durationInSeconds, {suffix: true, html: true, short: true})-}</td>
     <% } else { %>
         <td>{-humanDistance(event.distanceInMeters || event.routeDistance, {suffix: true, html: true})-}</td>
     <% } %>
