@@ -1,14 +1,14 @@
 <table class="events expandable">
     <thead>
         <tr>
-            <th>Start</th>
+            <th class="start">Start</th>
             <th>Type</th>
             <th class="name">Name</th>
-            <th>Route</th>
+            <th class="route">Route</th>
             <th>Length</th>
             <th title="Climbing elevation gain"><ms>landscape</ms></th>
             <th>Groups</th>
-            <th>Entrants</th>
+            <th class="count">Entrants</th>
         </tr>
     </thead>
     <thead class="loader" data-dir="prev"><tr><td colspan="8">Load More</td></tr></thead>

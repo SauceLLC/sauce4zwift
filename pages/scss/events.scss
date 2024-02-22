@@ -117,15 +117,25 @@ table {
 
             > td.start {
                 font-size: 0.92em;
+                font-stretch: 94%;
             }
 
             > td.type {
-                font-size: 0.8em;
+                font-size: 0.86em;
                 font-weight: 500;
+                font-stretch: 94%;
             }
 
             > td.name {
-                max-width: 30vw;
+                max-width: 28vw;
+            }
+
+            > td.route {
+                max-width: 11vw;
+                font-weight: 310;
+                font-style: italic;
+                font-size: 0.92em;
+                font-stretch: 91%;
             }
 
             > td.groups {
@@ -147,14 +157,14 @@ table {
 
     > thead > tr > th,
     > tbody > tr > td {
-        padding: 0.4em;
+        padding: 0.4em 0.2em;;
         text-align: left;
 
         &:first-child {
-            padding-left: 1.5em;
+            padding-left: 1.4em;
         }
         &:last-child {
-            padding-right: 1.5em;
+            padding-right: 1.4em;
         }
     }
 
@@ -540,7 +550,6 @@ table {
     }
 
     table {
-        table-layout: fixed;
         width: 100%;
 
         > thead > tr > th,
@@ -570,37 +579,67 @@ table {
 
         &.events {
             > thead > tr > {
-                th.name {
-                    visibility: hidden;
-                    width: 0;
-                    padding: 0;
-                    margin: 0;
+                th.start,
+                th.name,
+                th.route {
+                    visibility: hidden !important;
+                    position: absolute !important;
+                    width: 0 !important;
+                    padding: 0 !important;
+                    margin: 0 !important;
                 }
             }
 
             > tbody > tr.event-row {
+                $start-width: 10rem;
+                $side-pad: 0.3rem;
                 position: relative;
 
                 &.expanded > td.name {
                     padding-top: 0.2em;
                 }
 
+                > td.type {
+                    padding-left: $side-pad;
+                    max-width: max(10vw, 12ch);
+                }
+
+                > td.start,
                 > td.name {
                     max-width: initial;
                     position: absolute;
-                    top: 0.2em;
-                    left: 0.4em;
-                    width: calc(100% - 0.8em);
+                    top: 0.4rem;
                     font-weight: 500;
                     overflow: hidden;
                     text-overflow: ellipsis;
                     white-space: nowrap;
-                    padding-left: 0.04em;
+                    padding: 0;
                 }
 
-                > td:not(.name) {
-                    padding-top: 2.1rem;
-                    padding-bottom: 0.5rem;
+                > td.start {
+                    right: $side-pad;
+                    width: $start-width;
+                    text-align: right;
+                }
+                > td.name {
+                    left: $side-pad;
+                    width: calc(100% - (2 * $side-pad) - $start-width);
+                }
+                > td.route {
+                    visibility: none;
+                    position: absolute;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    width: 0 !important;
+                }
+
+                > td:not(.name):not(.route):not(.start) {
+                    padding-top: 2.4rem;
+                    padding-bottom: 0.4rem;
+                }
+
+                > td.count {
+                    text-align: right;
                 }
             }
         }

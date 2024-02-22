@@ -45,7 +45,7 @@
             <% } %>
         <% } %>
     </td>
-    <td>
+    <td class="count">
         {{event.totalEntrantCount}}<% if (event.followeeEntrantCount) { %>,
             <span title="People your follow"><ms small>follow_the_signs</ms> {{event.followeeEntrantCount}}</span>
         <% } %>
