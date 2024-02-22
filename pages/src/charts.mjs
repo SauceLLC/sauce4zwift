@@ -5,6 +5,7 @@ import * as locale from '../../shared/sauce/locale.mjs';
 const H = locale.human;
 const smallSpace = '\u0020';
 let sport = 'cycling';
+let magicZonesClippyHackCounter = 0;
 
 
 export function setSport(s) {
@@ -101,7 +102,7 @@ export function getStreamFieldVisualMaps(fields) {
 }
 
 
-export function getPowerFieldZones(powerStream, powerZones, ftp) {
+export function getPowerFieldPieces(powerStream, powerZones, ftp) {
     const pieces = [];
     let curZone;
     let start = 0;
@@ -131,12 +132,101 @@ export function getPowerFieldZones(powerStream, powerZones, ftp) {
     if (curZone && start < powerStream.length - 1) {
         pieces.push({
             start,
-            end: powerStream.length,
+            end: powerStream.length - 1,
             color: Color.fromHex(colors[curZone.zone]),
             zone: curZone,
         });
     }
     return pieces;
+}
+
+
+export function magicZonesAfterRender({hackId, chart, ftp, zones, seriesId, zLevel}) {
+    const chartEl = chart.getDom();
+    const pathEl = chartEl.querySelector('path[fill="magic-zones"]');
+    if (pathEl) {
+        if (!pathEl.id) {
+            pathEl.id = `path-hack-${hackId}`;
+            pathEl.style.setProperty('fill', 'transparent');
+        }
+        let clipEl = chartEl.querySelector(`clipPath#clip-hack-${hackId}`);
+        if (!clipEl) {
+            clipEl = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+            clipEl.id = `clip-hack-${hackId}`;
+            const useEl = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+            useEl.setAttribute('href', `#${pathEl.id}`);
+            clipEl.appendChild(useEl);
+            chartEl.querySelector('defs').appendChild(clipEl);
+        }
+        for (const x of chartEl.querySelectorAll('path[stroke="magic-zones-graphics"]')) {
+            x.setAttribute('clip-path', `url(#${clipEl.id})`);
+            x.removeAttribute('stroke');
+        }
+    }
+    if (chart._magicZonesActive) {
+        console.warn('skip');
+        return;
+    }
+    chart._magicZonesActive = true;
+    requestAnimationFrame(() => {
+        try {
+            chart.setOption({
+                graphic: calcMagicPowerZonesGraphics(chart, zones, seriesId, ftp, {zLevel})
+            }, {replaceMerge: 'graphic', silent: false});
+        } finally {
+            chart._magicZonesActive = false;
+        }
+    });
+}
+
+
+export function calcMagicPowerZonesGraphics(chart, zones, seriesId, ftp, options={}) {
+    const children = [];
+    const graphic = [{type: 'group', silent: true, id: 'magic-zones', children}];
+    const series = chart.getModel().getSeries().find(x => x.id === seriesId);
+    const visible = !chart._sauceLegend?.hidden.has(seriesId);
+    if (!series || !zones || !ftp || !visible) {
+        return graphic;
+    }
+    const seriesData = series.getData();
+    const data = [];
+    for (let i = 0, len = seriesData.count(); i < len; i++) {
+        data.push(seriesData.getByRawIndex('y', i));
+    }
+    const pieces = getPowerFieldPieces(data, zones, ftp);
+    const chartHeight = chart.getHeight();
+    const xAxisIndex = series.option.xAxisIndex || 0;
+    const yAxisIndex = series.option.yAxisIndex || 0;
+    for (const x of pieces) {
+        const startPx = chart.convertToPixel({xAxisIndex}, seriesData.getByRawIndex('x', x.start));
+        const widthPx = chart.convertToPixel({xAxisIndex}, seriesData.getByRawIndex('x', x.end)) - startPx;
+        const top = x.zone.to ? chart.convertToPixel({yAxisIndex}, x.zone.to * ftp * 1.05) : 0;
+        children.push({
+            type: 'rect',
+            z: options.zLevel,
+            shape: {
+                x: startPx,
+                y: top,
+                width: widthPx,
+                height: chartHeight - top,
+            },
+            style: {
+                stroke: 'magic-zones-graphics',
+                fill: {
+                    type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [
+                        {offset: 0.1, color: x.color.alpha(1).lighten(0).toString()},
+                        {offset: 1, color: x.color.alpha(0.2).lighten(0).toString()}
+                    ],
+                },
+            }
+        });
+    }
+    return graphic;
+}
+
+
+export function getMagicZonesClippyHackId() {
+    return magicZonesClippyHackCounter++;
 }
 
 

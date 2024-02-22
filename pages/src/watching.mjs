@@ -2,6 +2,7 @@ import * as sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
 import * as color from './color.mjs';
 import * as elevationMod from './elevation.mjs';
+import * as charts from './charts.mjs';
 
 common.enableSentry();
 
@@ -844,49 +845,9 @@ async function importEcharts() {
 }
 
 
-function calcPowerZonesGraphics(chart) {
-    const children = [];
-    const graphic = [{type: 'group', silent: true, id: 'power-zones', children}];
-    const powerSeries = chart.getOption().series.find(x => x.id === 'power'); // XXX pretty heavy..
-    const visible = !chart._sauceLegend.hidden.has('power');
-    if (!powerSeries || !powerSeries.data || !powerZones || !athleteFTP || !visible) {
-        return graphic;
-    }
-    const pieces = chart._chartsModule.getPowerFieldZones(powerSeries.data, powerZones, athleteFTP);
-    const chartHeight = chart.getHeight();
-    for (const x of pieces) {
-        const startPx = chart.convertToPixel({xAxisIndex: 0}, x.start);
-        const widthPx = chart.convertToPixel({xAxisIndex: 0}, x.end) - startPx;
-        const top = x.zone.to ? chart.convertToPixel({yAxisId: 'power'}, x.zone.to * athleteFTP * 1.05) : 0;
-        children.push({
-            type: 'rect',
-            z: 100,
-            shape: {
-                x: startPx,
-                y: top,
-                width: widthPx,
-                height: chartHeight - top,
-            },
-            style: {
-                stroke: 'magic-zones-graphics',
-                fill: {
-                    type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [
-                        {offset: 0.1, color: x.color.alpha(1).lighten(0).toString()},
-                        {offset: 1, color: x.color.alpha(0.2).lighten(0).toString()}
-                    ],
-                },
-            }
-        });
-    }
-    return graphic;
-}
-
-
-let clippyHackCounter = 0;
 async function createLineChart(el, sectionId, settings, renderer) {
     const echarts = await importEcharts();
     const chart = echarts.init(el, 'sauce', {renderer: 'svg'});
-    const charts = chart._chartsModule = await import('./charts.mjs');
     const fields = lineChartFields.filter(x => settings[x + 'En']).map(x => charts.streamFields[x]);
     const chartEl = chart.getDom();
     let streamsCache;
@@ -895,9 +856,10 @@ async function createLineChart(el, sectionId, settings, renderer) {
     let lastCreated;
     let athleteId;
     let loading;
-    const clippyHackId = clippyHackCounter++;
+    const clippyHackId = charts.getMagicZonesClippyHackId();
 
     chart.setOption({
+        animation: false,
         color: fields.map(f => f.color),
         visualMap: charts.getStreamFieldVisualMaps(fields),
         legend: {show: false},
@@ -906,7 +868,10 @@ async function createLineChart(el, sectionId, settings, renderer) {
             trigger: 'axis',
             axisPointer: {label: {formatter: () => ''}}
         },
-        xAxis: [{show: false, data: []}],
+        xAxis: [{
+            show: false, data: []
+            //type: 'time', XXX
+        }],
         yAxis: fields.map(f => ({
             show: false,
             id: f.id,
@@ -1001,32 +966,17 @@ async function createLineChart(el, sectionId, settings, renderer) {
                     } : undefined,
                 };
             }),
-        }, {lazyUpdate: true}); // lazy because we follow immediately with another setOption
-        chart.setOption({graphic: calcPowerZonesGraphics(chart)}, {replaceMerge: 'graphic'});
+        });
     };
 
-    chart.on('rendered', () => {
-        const pathEl = chartEl.querySelector('path[fill="magic-zones"]');
-        if (pathEl) {
-            if (!pathEl.id) {
-                pathEl.id = `path-hack-${clippyHackId}`;
-                pathEl.style.setProperty('fill', 'transparent');
-            }
-            let clipEl = chartEl.querySelector(`clipPath#clip-hack-${clippyHackId}`);
-            if (!clipEl) {
-                clipEl = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
-                clipEl.id = `clip-hack-${clippyHackId}`;
-                const useEl = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-                useEl.setAttribute('href', `#${pathEl.id}`);
-                clipEl.appendChild(useEl);
-                chartEl.querySelector('defs').appendChild(clipEl);
-            }
-            for (const x of chartEl.querySelectorAll('path[stroke="magic-zones-graphics"]')) {
-                x.setAttribute('clip-path', `url(#${clipEl.id})`);
-                x.removeAttribute('stroke');
-            }
-        }
-    });
+    chart.on('rendered', () => charts.magicZonesAfterRender({
+        chart,
+        hackId: clippyHackId,
+        seriesId: 'power',
+        zones: powerZones,
+        ftp: athleteFTP,
+        zLevel: 5,
+    }));
     common.subscribe(`streams/${athleteIdent}`, streams => {
         if (!streamsCache) {
             return; // early start, wait for renderer callback to fetch full streams
@@ -1457,12 +1407,10 @@ export async function main() {
     const renderers = [];
     let curScreen;
     let curScreenIndex = Math.max(0, Math.min(settings.screenIndex || 0, settings.screens.length - 1));
-    let athlete;
-    if (customIdent) {
-        athlete = await common.rpc.getAthlete(customIdent);
-    }
     powerZones = await common.rpc.getPowerZones(1);
     const layoutTpl = await getTpl('watching-screen-layout');
+    const ad = await common.rpc.getAthleteData(athleteIdent);
+    assignAthleteGlobals(ad);
     const persistentData = settings.screens.some(x =>
         x.sections.some(xx => sectionSpecs[xx.type].alwaysRender));
     for (const [sIndex, screen] of settings.screens.entries()) {
@@ -1472,7 +1420,7 @@ export async function main() {
             sIndex,
             groupSpecs,
             sectionSpecs,
-            athlete,
+            athlete: customIdent && ad?.athlete ? ad.athlete : undefined,
             hidden,
             settings,
         })).firstElementChild;
@@ -1611,12 +1559,9 @@ export async function main() {
     });
     let athleteId;
     common.subscribe(`athlete/${athleteIdent}`, ad => {
+        assignAthleteGlobals(ad);
         const force = ad.athleteId !== athleteId;
         athleteId = ad.athleteId;
-        sport = ad.state.sport || 'cycling';
-        eventMetric = ad.remainingMetric;
-        eventSubgroup = getEventSubgroup(ad.state.eventSubgroupId);
-        athleteFTP = ad.athlete?.ftp;
         for (const x of renderers) {
             x.setData(ad);
             if (x.backgroundRender || !x._contentEl.classList.contains('hidden')) {
@@ -1624,6 +1569,14 @@ export async function main() {
             }
         }
     }, {persistent: persistentData});
+}
+
+
+function assignAthleteGlobals(ad) {
+    sport = ad?.state.sport || 'cycling';
+    eventMetric = ad?.remainingMetric;
+    eventSubgroup = getEventSubgroup(ad?.state.eventSubgroupId);
+    athleteFTP = ad?.athlete?.ftp;
 }
 
 
