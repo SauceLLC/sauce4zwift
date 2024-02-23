@@ -459,8 +459,8 @@ export class StatsProcessor extends events.EventEmitter {
         return this._recentEventSubgroups.get(id);
     }
 
-    async getEventSubgroupEntrants(id) {
-        const profiles = await this.zwiftAPI.getEventSubgroupEntrants(id);
+    async getEventSubgroupEntrants(id, options={}) {
+        const profiles = await this.zwiftAPI.getEventSubgroupEntrants(id, options);
         const entrants = [];
         for (const p of profiles) {
             entrants.push({
