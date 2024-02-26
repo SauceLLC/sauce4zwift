@@ -24,8 +24,8 @@
         <% } %>
     </td>
     <td class="name" title="{{event.name}}">{{event.name}}</td>
-    <% if (event.sameRoute && event.route.name) { %>
-        <td class="route" title="Event route: {{event.route.name}}"><ms>route</ms> {{event.route.name}}</td>
+    <% if (event.sameRoute && event.route?.name) { %>
+        <td class="route" title="Event route: {{event.route?.name}}"><ms>route</ms> {{event.route?.name}}</td>
     <% } else { %>
         <td class="route">-</td>
     <% } %>

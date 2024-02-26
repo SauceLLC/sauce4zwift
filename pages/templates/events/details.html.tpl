@@ -9,9 +9,9 @@
                     <a href="/pages/geo.html?course={{event.courseId}}&route={{event.routeId}}"
                        target="event-route-preview">
                         <% if (event.sameRoute) { %>
-                            {{(event.laps && event.laps > 1) ? event.laps + ' x ' : ''}}{{event.route.name}}
+                            {{(event.laps && event.laps > 1) ? event.laps + ' x ' : ''}}{{event.route?.name}}
                         <% } else { %>
-                            <% const uRoutes = new Set(event.eventSubgroups ? event.eventSubgroups.map(x => x.route.name) : [event.route.name]); %>
+                            <% const uRoutes = new Set(event.eventSubgroups ? event.eventSubgroups.map(x => x.route?.name) : [event.route?.name]); %>
                             {{Array.from(uRoutes).join(', ')}}
                         <% } %>
                     </a>
@@ -65,7 +65,7 @@
                                 <% if (sg.laps && sg.laps > 1) { %>
                                     {{sg.laps}} x
                                 <% } %>
-                                {{sg.route.name}} <ms>route</ms>
+                                {{sg.route?.name}} <ms>route</ms>
                             </a>
                         <% } %>
                         <div>Athletes: <span class="field-size">{{humanNumber(sg.totalEntrantCount)}}<!--rough estimate--></span></div>
