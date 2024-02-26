@@ -39,7 +39,7 @@
     "@electron/notarize": "2.3.0",
     "@sentry/browser": "6.19.6",
     "echarts": "5.5.0",
-    "electron": "29.0.1",
+    "electron": "28",
     "electron-builder": "24.13.2",
     "eslint": "8.57.0",
     "sass": "1.71.1",
