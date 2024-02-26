@@ -21,8 +21,8 @@
   },
   "dependencies": {
     "@sentry/node": "6.19.6",
-    "better-sqlite3": "9.4.1",
-    "electron-updater": "6.1.7",
+    "better-sqlite3": "9.4.3",
+    "electron-updater": "6.1.9",
     "express": "4.18.2",
     "express-ws": "5.0.2",
     "jsfit": "github:saucellc/jsfit.git#617a6e1087",
@@ -39,10 +39,10 @@
     "@electron/notarize": "2.3.0",
     "@sentry/browser": "6.19.6",
     "echarts": "5.5.0",
-    "electron": "28.2.3",
-    "electron-builder": "24.9.1",
-    "eslint": "8.56.0",
-    "sass": "1.71.0",
+    "electron": "29.0.1",
+    "electron-builder": "24.13.2",
+    "eslint": "8.57.0",
+    "sass": "1.71.1",
     "world_countries_lists": "2.9.0"
   },
   "build": {
