@@ -11,7 +11,7 @@
             <key>Distance:</key><value>{-humanDistance(env.distance, {suffix: true, html: true})-}</value>
         </div>
 
-        <div class="seperator"></div>
+        <div class="separator"></div>
 
         <div class="stats key-value-grid">
             <key class="header"><ms>bolt</ms> Power:</key>
@@ -42,7 +42,7 @@
             <% } %>
         </div>
 
-        <div class="seperator"></div>
+        <div class="separator"></div>
 
         <div class="stats key-value-grid">
             <key class="header"><ms>readiness_score</ms> Energy:</key>
@@ -50,7 +50,7 @@
             <key><attr for="tp">TSS®</attr>:</key><value>{-humanNumber(power.tss)-}</value>
         </div>
 
-        <div class="seperator"></div>
+        <div class="separator"></div>
 
         <div class="stats key-value-grid">
             <key class="header"><ms>elevation</ms> Grade:</key>
@@ -61,7 +61,7 @@
         </div>
 
         <% if (power.rank) { %>
-            <div class="seperator"></div>
+            <div class="separator"></div>
 
             <div class="stats key-value-grid">
                 <key class="header"><ms>social_leaderboard</ms> Rank:</key>
