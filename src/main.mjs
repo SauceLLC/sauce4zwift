@@ -61,7 +61,6 @@ electron.app.on('second-instance', (ev,_, __, {type, ...args}) => {
 electron.app.on('before-quit', () => void (quiting = true));
 
 
-
 function monitorWindowForEventSubs(win, subs) {
     // NOTE: MacOS emits show/hide AND restore/minimize but Windows only does restore/minimize
     const resumeEvents = ['responsive', 'show', 'restore'];

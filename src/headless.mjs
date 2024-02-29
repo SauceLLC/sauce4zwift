@@ -9,6 +9,7 @@ import * as zwift from './zwift.mjs';
 import * as mods from './mods.mjs';
 import {parseArgs} from './argparse.mjs';
 import * as app from './app.mjs';
+import * as logging from './logging.js';
 
 Error.stackTraceLimit = 25;
 
@@ -59,6 +60,7 @@ class NodeSauceApp extends app.SauceApp {
 
 
 async function main() {
+    logging.initTTYLogging();
     const appPath = path.join(os.homedir(), '.sauce4zwift');
     fs.mkdirSync(appPath, {recursive: true});
     storage.initialize(appPath);

@@ -7,10 +7,8 @@ const path = require('node:path');
 const fs = require('node:fs');
 const process = require('node:process');
 const pkg = require('../package.json');
-const {EventEmitter} = require('node:events');
+const logging = require('./logging.js');
 const {app, dialog, nativeTheme} = require('electron');
-
-const logFileName = 'sauce.log';
 
 let settings = {};
 let buildEnv = {};
@@ -40,141 +38,6 @@ function saveSettings(data) {
 
 function joinAppPath(subject, ...args) {
     return path.join(app.getPath(subject), ...args);
-}
-
-
-function fmtLogDate(d) {
-    const h = d.getHours().toString();
-    const m = d.getMinutes().toString().padStart(2, '0');
-    const s = d.getSeconds().toString().padStart(2, '0');
-    const ms = d.getMilliseconds().toString().padStart(3, '0');
-    return `${h}:${m}:${s}.${ms}`;
-}
-
-
-function rotateLogFiles(limit=5) {
-    const logs = fs.readdirSync(joinAppPath('logs')).filter(x => x.startsWith(logFileName));
-    logs.sort((a, b) => a < b ? 1 : -1);
-    while (logs.length > limit) {
-        // NOTE: this is only for if we change the limit to a lower number
-        // in a subsequent release.
-        const fName = logs.shift();
-        console.warn("Delete old log file:", fName);
-        fs.unlinkSync(joinAppPath('logs', fName));
-    }
-    let end = Math.min(logs.length, limit - 1);
-    for (const fName of logs.slice(-(limit - 1))) {
-        const newFName = `${logFileName}.${end--}`;
-        if (newFName === fName) {
-            continue;
-        }
-        fs.renameSync(joinAppPath('logs', fName), joinAppPath('logs', newFName));
-    }
-}
-
-
-function getConsoleSymbol(name) {
-    /*
-     * The symbols of functions in the console module are somehow not in the
-     * global registry.  So we need to use this hack to get the real symbols
-     * for monkey patching.
-     */
-    const symString = Symbol.for(name).toString();
-    return Object.getOwnPropertySymbols(console).filter(x =>
-        x.toString() === symString)[0];
-}
-
-
-function monkeyPatchConsoleWithEmitter() {
-    /*
-     * This is highly Node specific but it maintains console logging,
-     * devtools logging with correct file:lineno references, and allows
-     * us to support file logging and logging windows.
-     */
-    let curLogLevel;
-    const descriptors = Object.getOwnPropertyDescriptors(console);
-    const levels = {
-        debug: 'debug',
-        info: 'info',
-        log: 'info',
-        count: 'info',
-        dir: 'info',
-        warn: 'warn',
-        assert: 'warn',
-        error: 'error',
-        trace: 'error',
-    };
-    for (const [fn, level] of Object.entries(levels)) {
-        Object.defineProperty(console, fn, {
-            enumerable: descriptors[fn].enumerable,
-            get: () => (curLogLevel = level, descriptors[fn].value),
-            set: () => {
-                throw new Error("Double console monkey patch detected!");
-            },
-        });
-    }
-    const kWriteToConsoleSymbol = getConsoleSymbol('kWriteToConsole');
-    const kWriteToConsoleFunction = console[kWriteToConsoleSymbol];
-    const emitter = new EventEmitter();
-    let seqno = 1;
-    console[kWriteToConsoleSymbol] = function(useStdErr, message) {
-        try {
-            return kWriteToConsoleFunction.call(this, useStdErr, message);
-        } finally {
-            const o = {};
-            const saveTraceLimit = Error.stackTraceLimit;
-            Error.stackTraceLimit = 3;
-            Error.captureStackTrace(o);
-            Error.stackTraceLimit = saveTraceLimit;
-            const stack = o.stack;
-            const fileMatch = stack.match(/([^/\\: (]+:[0-9]+):[0-9]+\)?$/);
-            emitter.emit('message', {
-                seqno: seqno++,
-                date: new Date(),
-                level: curLogLevel,
-                message,
-                file: fileMatch ? fileMatch[1] : null,
-            });
-        }
-    };
-    return emitter;
-}
-
-
-function initLogging() {
-    const logsPath = path.join(app.getPath('documents'), 'Sauce', 'logs');
-    app.setAppLogsPath(logsPath);
-    let rotateErr;
-    try {
-        rotateLogFiles();
-    } catch(e) {
-        // Probably windows with anti virus. :/
-        rotateErr = e;
-    }
-    process.env.TERM = 'dumb';  // Prevent color tty commands
-    const logEmitter = monkeyPatchConsoleWithEmitter();
-    const logFile = joinAppPath('logs', logFileName);
-    const logQueue = [];
-    const logFileStream = fs.createWriteStream(logFile);
-    logEmitter.on('message', o => {
-        logQueue.push(o);
-        const time = fmtLogDate(o.date);
-        const level = `[${o.level.toUpperCase()}]`;
-        logFileStream.write(`${time} ${level} (${o.file}): ${o.message}\n`);
-        if (logQueue.length > 2000) {
-            logQueue.shift();
-        }
-    });
-    console.dev = app.isPackaged ? () => undefined : console.debug;
-    console.devDebug = app.isPackaged ? () => undefined : console.debug;
-    console.devInfo = app.isPackaged ? () => undefined : console.info;
-    console.devWarn = app.isPackaged ? () => undefined : console.warn;
-    console.devError = app.isPackaged ? () => undefined : console.error;
-    if (rotateErr) {
-        console.error('Log rotate error:', rotateErr);
-    }
-    console.info("Sauce log file:", logFile);
-    return {logEmitter, logQueue, logFile};
 }
 
 
@@ -306,16 +169,20 @@ async function initSentry(logEmitter) {
 
 async function startNormal() {
     initSettings();
-    const logMeta = initLogging();
+    const logsPath = path.join(app.getPath('documents'), 'Sauce', 'logs');
+    app.setAppLogsPath(logsPath);
+    const logMeta = logging.initFileLogging(logsPath, app.isPackaged);
     nativeTheme.themeSource = 'dark';
     // Use non-electron naming for windows updater.
     // https://github.com/electron-userland/electron-builder/issues/2700
     app.setAppUserModelId('io.saucellc.sauce4zwift'); // must match build.appId for windows
 
-    // If we are foreced to update to 114+ we'll have to switch our scrollbars to this...
+    // If we are forced to update to 114+ we'll have to switch our scrollbars to this...
     // EDIT 2024-02  Maybe not, but it could look nicer in places where we will now require
     // a visible scrollbar on windows and linux.  Last I looked it was kind of buggy though
     // so we have to retest everything before using.
+    // EDIT 2024-03  We have reworked to support normal scrollbars but this still might look
+    // better.
     //app.commandLine.appendSwitch('enable-features', 'OverlayScrollbar');
     if (settings.gpuEnabled === undefined) {
         settings.gpuEnabled = settings.forceEnableGPU == null ?
@@ -358,6 +225,15 @@ function startHeadless() {
     // infering anything related to child_process handling.
     const fqMod = path.join(__dirname, 'headless.mjs');
     const args = [fqMod].concat(process.argv.slice(app?.isPackaged ? 1 : 2));
+    if (args.indexOf('--inspect') !== -1) {
+        console.error("--inspect arg should not be used for headless mode.  Use --inspect-child intead");
+    }
+    // We have to proxy the --inspect arg so the parent process doesn't steal the inspect server
+    const inspectArg = args.indexOf('--inspect-child');
+    if (inspectArg !== -1) {
+        args.splice(inspectArg, 1);
+        args.unshift('--inspect'); // must be first
+    }
     const {status} = require('node:child_process').spawnSync(process.execPath, args, {
         windowsHide: false,
         stdio: 'inherit',
