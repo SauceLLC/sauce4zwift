@@ -359,7 +359,7 @@ enum FitnessPrivacy {
 message ActivityFull {  //where is primaryImageUrl, feedImageThumbnailUrl, activityRideOnCount, activityCommentCount, eventId, rideOnGiven
     uint64 id = 1;
     required uint64 athleteId = 2;
-    required int32 courseId = 3; // XXX double check that is is the same as the relay server courseId concept ie 6=watopia
+    required int32 courseId = 3; // XXX double check that is the same as the relay server courseId concept ie 6=watopia
     required string name = 4;
     string _f5 = 5;
     bool privateActivity = 6;
