@@ -623,7 +623,7 @@ export function cyclingPowerVelocitySearch({power, ...args}) {
             results.length = Math.min(Math.floor(sampleSize * filterPct), results.length);
             const velocities = results.map(x => x[0]);
             if (velocities.length === 0) {
-                throw new Error("Emnty Range");
+                throw new Error("Empty Range");
             }
             start = sauce.data.min(velocities);
             end = sauce.data.max(velocities);
