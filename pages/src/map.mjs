@@ -1166,7 +1166,7 @@ export class SauceZwiftMap extends EventTarget {
                         if (watching.eventSubgroupId) {
                             sg = await common.rpc.getEventSubgroup(watching.eventSubgroupId);
                         }
-                        // Note sg.routeId is sometimes out of sync with state.routeId; avoid thrash
+                        // Note sg.routeId is sometimes out of sync with state.routeId; avoid trash
                         if (sg && sg.routeId === watching.routeId) {
                             await this.setActiveRoute(sg.routeId, sg.laps);
                         } else {
