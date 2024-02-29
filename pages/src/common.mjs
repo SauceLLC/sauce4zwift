@@ -1,6 +1,7 @@
 /* global Sentry, electron */
 import {sleep as _sleep} from '../../shared/sauce/base.mjs';
 import * as locale from '../../shared/sauce/locale.mjs';
+import {expWeightedAvg as _expWeightedAvg} from '/shared/sauce/data.mjs';
 import * as report from '../../shared/report.mjs';
 import * as elements from './custom-elements.mjs';
 import * as curves from '/shared/curves.mjs';
@@ -8,6 +9,7 @@ import * as fields from './fields.mjs';
 import * as color from './color.mjs';
 
 export const sleep = _sleep; // Come on ES6 modules, really!?
+export const expWeightedAvg = _expWeightedAvg;
 export let idle;
 if (window.requestIdleCallback) {
     idle = options => new Promise(resolve => requestIdleCallback(resolve, options));
@@ -1620,16 +1622,6 @@ export function rotateCoords([x, y], angle) {
 
 export function chunkNumber(n, step) {
     return Math.round(n / step) * step;
-}
-
-
-export function expWeightedAvg(size=2, seed=0) {
-    const cPrev = Math.exp(-1 / size);
-    const cNext = 1 - cPrev;
-    let avg = seed;
-    const setGet = v => avg = (avg * cPrev) + (v * cNext);
-    setGet.get = () => avg;
-    return setGet;
 }
 
 
