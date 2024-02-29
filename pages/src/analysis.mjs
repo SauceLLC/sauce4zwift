@@ -569,7 +569,7 @@ function createTimeInPowerZonesPie(el) {
     let aid;
     let normZones;
     chart.updateData = () => {
-        if (!powerZones || !ftp) {
+        if (!powerZones || !ftp || !athleteData.timeInPowerZones) {
             return;
         }
         if (athleteData.athleteId !== aid) {
@@ -643,7 +643,7 @@ export async function main() {
         return;
     }
     sport = athleteData.state.sport;
-    ftp = athleteData.athlete?.ftp;
+    ftp = athleteData.athlete?.ftp || 250; // XXX
     charts.setSport(sport);
     const exportBtn = document.querySelector('.button.export-file');
     exportBtn.removeAttribute('disabled');
@@ -880,6 +880,7 @@ async function updateData() {
     if (!streams || !streams.time.length) {
         return;
     }
+    //streams.power.forEach((x, i) => streams.power[i] = Math.max(0, Math.cos(i / (streams.power.length / 20)) * 400 + Math.sin(i / (streams.power.length / 200)) * 150 + 300 + Math.random() * 1000 - 500));
     state.timeOfft = streams.time.at(-1) + 1e-6;
     for (const [k, stream] of Object.entries(streams)) {
         if (!state.streams[k]) {

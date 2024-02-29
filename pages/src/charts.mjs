@@ -102,13 +102,13 @@ export function getStreamFieldVisualMaps(fields) {
 }
 
 
-export function getPowerFieldPieces(powerStream, powerZones, ftp) {
+export function getPowerFieldPieces(data, powerZones, ftp) {
     const pieces = [];
     let curZone;
     let start = 0;
     const colors = common.getPowerZoneColors(powerZones);
-    for (let i = 0; i < powerStream.length; i++) {
-        const xPct = powerStream[i] / ftp;
+    for (let i = 0; i < data.length; i++) {
+        const xPct = data[i][1] / ftp;
         let zone;
         for (const z of powerZones) {
             if (xPct >= z.from && (!z.to || xPct < z.to)) {
@@ -129,10 +129,10 @@ export function getPowerFieldPieces(powerStream, powerZones, ftp) {
             curZone = zone;
         }
     }
-    if (curZone && start < powerStream.length - 1) {
+    if (curZone && start < data.length - 1) {
         pieces.push({
             start,
-            end: powerStream.length - 1,
+            end: data.length - 1,
             color: Color.fromHex(colors[curZone.zone]),
             zone: curZone,
         });
@@ -164,15 +164,22 @@ export function magicZonesAfterRender({hackId, chart, ftp, zones, seriesId, zLev
         }
     }
     if (chart._magicZonesActive) {
-        console.warn('skip');
+        console.error('skip');
+        return;
+    }
+    const s = performance.now();
+    const graphic = calcMagicPowerZonesGraphics(chart, zones, seriesId, ftp, {zLevel});
+    console.log(performance.now() - s, graphic[0].children.length);
+    const sig = JSON.stringify(graphic);
+    console.log(performance.now() - s, graphic[0].children.length);
+    if (sig === chart._magicZonesLastSig) {
         return;
     }
     chart._magicZonesActive = true;
+    chart._magicZonesLastSig = sig;
     requestAnimationFrame(() => {
         try {
-            chart.setOption({
-                graphic: calcMagicPowerZonesGraphics(chart, zones, seriesId, ftp, {zLevel})
-            }, {replaceMerge: 'graphic', silent: false});
+            chart.setOption({graphic}, {replaceMerge: 'graphic', silent: true});
         } finally {
             chart._magicZonesActive = false;
         }
@@ -188,34 +195,49 @@ export function calcMagicPowerZonesGraphics(chart, zones, seriesId, ftp, options
     if (!series || !zones || !ftp || !visible) {
         return graphic;
     }
-    const seriesData = series.getData();
-    const data = [];
-    for (let i = 0, len = seriesData.count(); i < len; i++) {
-        data.push(seriesData.getByRawIndex('y', i));
-    }
-    const pieces = getPowerFieldPieces(data, zones, ftp);
-    const chartHeight = chart.getHeight();
     const xAxisIndex = series.option.xAxisIndex || 0;
     const yAxisIndex = series.option.yAxisIndex || 0;
+    const xAxis = chart.getModel().getComponent('xAxis', xAxisIndex);
+    const yAxis = chart.getModel().getComponent('yAxis', yAxisIndex);
+    const dataZoom = chart.getModel().getComponent('dataZoom');
+    const seriesData = series.getData();
+    const [zoomStart, zoomEnd] = dataZoom.getValueRange();
+    console.log('zoom range', zoomStart, zoomEnd);
+    const data = [];
+    for (let i = 0, len = seriesData.count(); i < len; i++) {
+        const x = seriesData.get('x', i);
+        if (x >= zoomStart && x <= zoomEnd) {
+            data.push([x, seriesData.get('y', i)]);
+        } else {
+            debugger;
+        }
+    }
+    const pieces = getPowerFieldPieces(data, zones, ftp);
+    const [bottomY, topY]= yAxis.axis.getGlobalExtent();
+    const height = bottomY - topY;
     for (const x of pieces) {
-        const startPx = chart.convertToPixel({xAxisIndex}, seriesData.getByRawIndex('x', x.start));
-        const widthPx = chart.convertToPixel({xAxisIndex}, seriesData.getByRawIndex('x', x.end)) - startPx;
-        const top = x.zone.to ? chart.convertToPixel({yAxisIndex}, x.zone.to * ftp * 1.05) : 0;
+        const startPx = chart.convertToPixel({xAxisIndex}, data[x.start][0]);
+        const widthPx = chart.convertToPixel({xAxisIndex}, data[x.end][0]) - startPx;
+        if (widthPx < 0) {
+            debugger;
+            continue;
+        }
+        const top = x.zone.to ? chart.convertToPixel({yAxisIndex}, x.zone.to * ftp * 0.95) : 0;
         children.push({
             type: 'rect',
             z: options.zLevel,
             shape: {
                 x: startPx,
-                y: top,
+                y: topY,
                 width: widthPx,
-                height: chartHeight - top,
+                height,
             },
             style: {
                 stroke: 'magic-zones-graphics',
                 fill: {
-                    type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [
-                        {offset: 0.1, color: x.color.alpha(1).lighten(0).toString()},
-                        {offset: 1, color: x.color.alpha(0.2).lighten(0).toString()}
+                    type: 'linear', x: 0, y: 1, x2: 0, y2: 0, colorStops: [
+                        {offset: 0, color: x.color.alpha(0.2).toString()},
+                        {offset: top ? 1 - (top - topY) / height : 1, color: x.color.alpha(1).toString()},
                     ],
                 },
             }
