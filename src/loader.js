@@ -13,18 +13,23 @@ const {app, dialog, nativeTheme} = require('electron');
 const logFileName = 'sauce.log';
 
 let settings = {};
-if (fs.existsSync(joinAppPath('userData', 'loader_settings.json'))) {
-    try {
-        settings = JSON.parse(fs.readFileSync(joinAppPath('userData', 'loader_settings.json')));
-    } catch(e) {
-        console.error("Error loading 'loader_settings.json':", e);
-    }
-}
 let buildEnv = {};
+
 try {
     buildEnv = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'build.json')));
 } catch(e) {
     console.error("Error loading 'build.json':", e);
+}
+
+
+function initSettings() {
+    if (fs.existsSync(joinAppPath('userData', 'loader_settings.json'))) {
+        try {
+            settings = JSON.parse(fs.readFileSync(joinAppPath('userData', 'loader_settings.json')));
+        } catch(e) {
+            console.error("Error loading 'loader_settings.json':", e);
+        }
+    }
 }
 
 
@@ -300,6 +305,7 @@ async function initSentry(logEmitter) {
 
 
 async function startNormal() {
+    initSettings();
     const logMeta = initLogging();
     nativeTheme.themeSource = 'dark';
     // Use non-electron naming for windows updater.
@@ -351,7 +357,7 @@ function startHeadless() {
     // NOTE: Node doesn't expose posix-like exec() or fork() calls, so read the docs before
     // infering anything related to child_process handling.
     const fqMod = path.join(__dirname, 'headless.mjs');
-    const args = [fqMod].concat(process.argv.slice(app.isPackaged ? 1 : 2));
+    const args = [fqMod].concat(process.argv.slice(app?.isPackaged ? 1 : 2));
     const {status} = require('node:child_process').spawnSync(process.execPath, args, {
         windowsHide: false,
         stdio: 'inherit',
