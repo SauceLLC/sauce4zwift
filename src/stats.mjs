@@ -1,3 +1,4 @@
+/* global setImmediate */
 import events from 'node:events';
 import path from 'node:path';
 import {worldTimer} from './zwift.mjs';
@@ -8,14 +9,75 @@ import * as report from '../shared/report.mjs';
 import * as zwift from './zwift.mjs';
 import * as env from './env.mjs';
 import * as curves from '../shared/curves.mjs';
+import {expWeightedAvg} from '../shared/sauce/data.mjs';
 import {createRequire} from 'node:module';
+
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 
-
-const monotonic = performance.now.bind(performance);
 const roadDistances = new Map();
 const wPrimeDefault = 20000;
+
+
+function monotonic() {
+    return performance.timeOrigin + performance.now();
+}
+
+
+function nextMacrotask() {
+    return new Promise(setImmediate);
+}
+
+
+async function calibrateEventLoopRes() {
+    // Evade erroneous GC influence by taking fastest result.
+    let best = Infinity;
+    for (let i = 0; i < 100; i++) {
+        const start = performance.now();
+        await void 0;
+        const end = performance.now();
+        const d = end - start;
+        if (d < best) {
+            console.warn(i, best, d);
+            best = d;
+        }
+    }
+    return best;
+}
+
+
+const _hrSleepState = {
+    epsilon: undefined,
+    latency: 10,
+    latencyRoll: expWeightedAvg(10, 10 ** 2),
+};
+async function highResSleepTill(deadline) {
+    // NOTE: V8 can and does wake up early.
+    // NOTE: GC pauses can and will cause delays.
+    const state = _hrSleepState;
+    if (state.epsilon === undefined) {
+        state.epsilon = await calibrateEventLoopRes();
+    }
+    const t = monotonic();
+    const macroDelay = (deadline - t) - (state.latency * 2) - state.epsilon;
+    if (macroDelay > 1) {
+        await new Promise(r => setTimeout(r, macroDelay));
+        const timerLatency = (monotonic() - t) - macroDelay;
+        if (timerLatency > 0) {
+            state.latency = Math.sqrt(state.latencyRoll(timerLatency ** 2));
+        }
+    }
+    let macro = 0;
+    while (monotonic() < deadline - state.epsilon) {
+        await nextMacrotask();
+        macro++;
+    }
+    state.macro = macro;
+}
+
+setInterval(() => {
+    console.log(_hrSleepState);
+}, 1000);
 
 
 function updateRoadDistance(courseId, roadId) {
@@ -53,14 +115,6 @@ function splitNameAndTeam(name) {
         name.substr(m.index + m[0].length).trim()
     ].filter(x => x).join(' ');
     return [name, team];
-}
-
-
-function makeExpWeighted(period=100) {
-    const cPrev = Math.exp(-1 / period);
-    const cNext = 1 - cPrev;
-    let w;
-    return x => (w = w === undefined ? x : (w * cPrev) + (x * cNext));
 }
 
 
@@ -1441,7 +1495,7 @@ export class StatsProcessor extends events.EventEmitter {
             laps: [],
             segments: [],
             activeSegments: new Map(),
-            smoothGrade: makeExpWeighted(8),
+            smoothGrade: expWeightedAvg(8),
         };
         ad.laps.push(this._createNewLapish(ad));
         const athlete = this.loadAthlete(state.athleteId);
@@ -2127,31 +2181,50 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     async _statesProcessor() {
-        let errBackoff = 1;
         const interval = 1000;
-        // Useful for testing as it puts us on a perfect boundry.
-        await sauce.sleep(interval - (monotonic() % interval));
-        // Use a incrementing target to provide skew resistent intervals
-        // I.e. make it emulate the typcial realtime nature of a head unit
-        // which most of our stats code performs best with.
-        let target = monotonic();
+        // Align interval with realtime second boundary for aesthetics and to avoid potential
+        // rounding issues in stats code.
+        //await highResSleep(interval - (t % 1000));
+        let target = (monotonic() / 1000 | 0) * 1000 + interval;
+        console.error('starting states processor on "perfect" time boundary', target);
+        let errBackoff = 1;
+        let sli = 0;
+        const slAvg = expWeightedAvg(10, 1000);
+        let lastSl = monotonic();
+        const start = monotonic();
         while (this._active) {
             let skipped = 0;
-            while (monotonic() > (target += interval)) {
+            const now = monotonic();
+            while (now > (target += interval)) {
                 skipped++;
             }
             if (skipped) {
                 console.warn("States processor skipped:", skipped);
+                sli += skipped;
             }
-            await sauce.sleep(target - monotonic());
+            if (sli % 1 === 0) {
+                //console.log("sleep", target - now);
+            }
+            await highResSleepTill(target);
+            //await sauce.sleep(target - now);
+            let t = monotonic();
+            sli++;
+            slAvg(t - lastSl);
+            if (sli % 1 === 0) {
+                const elapsed = t - start;
+                console.log(t, target, target - t, 'sleep ', 'totavg:', elapsed / sli, 'i:', sli, 'rollavg:', slAvg.get(),
+                            'last:', t - lastSl);
+            }
+            lastSl = t;
+
             if (this.watching == null) {
                 continue;
             }
             try {
                 const nearby = this._mostRecentNearby = this._computeNearby();
                 const groups = this._mostRecentGroups = this._computeGroups(nearby);
-                queueMicrotask(() => this.emit('nearby', nearby));
-                queueMicrotask(() => this.emit('groups', groups));
+                this.emit('nearby', nearby);
+                this.emit('groups', groups);
             } catch(e) {
                 report.errorThrottled(e);
                 target += errBackoff++ * interval;
@@ -2295,7 +2368,7 @@ export class StatsProcessor extends events.EventEmitter {
         // We need to use a speed value for estimates and just using one value is
         // dangerous, so we use a weighted function that's seeded (skewed) to the
         // the watching rider.
-        const refSpeedForEstimates = makeExpWeighted(10); // maybe mv up and reuse? XXX
+        const refSpeedForEstimates = expWeightedAvg(10); // maybe mv up and reuse? XXX
         const watchingSpeed = watching.mostRecentState.speed;
         if (watchingSpeed > 1) {
             refSpeedForEstimates(watchingSpeed);
