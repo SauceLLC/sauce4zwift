@@ -120,7 +120,7 @@ export function resample(inData, outLen, options={}) {
     }
     const outData = [];
     for (let i = 0; i < outLen; i++) {
-        // Round 0.5 down to avoid single use of index 0 and tripple use of final index.
+        // Round 0.5 down to avoid single use of index 0 and triple use of final index.
         outData.push(inData[Math.min(inLen - 1, -Math.round(-i * step))]);
     }
     return outData;
