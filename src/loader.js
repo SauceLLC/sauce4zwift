@@ -312,7 +312,7 @@ async function startNormal() {
     // https://github.com/electron-userland/electron-builder/issues/2700
     app.setAppUserModelId('io.saucellc.sauce4zwift'); // must match build.appId for windows
 
-    // If we are foreced to update to 114+ we'll have to switch our scrollbars to this...
+    // If we are forced to update to 114+ we'll have to switch our scrollbars to this...
     // EDIT 2024-02  Maybe not, but it could look nicer in places where we will now require
     // a visible scrollbar on windows and linux.  Last I looked it was kind of buggy though
     // so we have to retest everything before using.
@@ -355,7 +355,7 @@ async function startNormal() {
 
 function startHeadless() {
     // NOTE: Node doesn't expose posix-like exec() or fork() calls, so read the docs before
-    // infering anything related to child_process handling.
+    // inferring anything related to child_process handling.
     const fqMod = path.join(__dirname, 'headless.mjs');
     const args = [fqMod].concat(process.argv.slice(app?.isPackaged ? 1 : 2));
     const {status} = require('node:child_process').spawnSync(process.execPath, args, {
