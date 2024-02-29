@@ -197,7 +197,7 @@ async function ensureSingleInstance() {
         noLink: true,
     });
     if (response === 0) {
-        console.debug("User quiting due to existing instance");
+        console.debug("User quitting due to existing instance");
         app.quit(0);
         return false;
     }

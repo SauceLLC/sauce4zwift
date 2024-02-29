@@ -41,7 +41,7 @@ rpc.register(url => {
 
 class NodeSauceApp extends app.SauceApp {
     resetStorageState(sender) {
-        console.warn('Reseting state and quiting...');
+        console.warn('Reseting state and quitting…');
         super.resetStorageState();
         quit();
     }
