@@ -4,6 +4,19 @@ const process = require('node:process');
 const path = require('node:path');
 
 const logFileName = 'sauce.log';
+const levels = {
+    debug: 'debug',
+    info: 'info',
+    log: 'info',
+    count: 'info',
+    dir: 'info',
+    warn: 'warn',
+    assert: 'warn',
+    error: 'error',
+    trace: 'error',
+};
+const consoleDescriptors = Object.getOwnPropertyDescriptors(console);
+
 
 
 function fmtLogDate(d) {
@@ -93,6 +106,24 @@ function ansiColorize(text, color, options={}) {
 }
 
 
+function metaPrefix({date, level, file}) {
+    let color;
+    const style = {};
+    if (level === 'debug') {
+        style.faint = true;
+    } else if (level === 'warn') {
+        style.faint = true;
+        color = 'yellow';
+    } else if (level === 'error') {
+        color = 'red';
+        style.bold = true;
+    }
+    const prettyTime = ansiColorize(fmtLogDate(date), null, style);
+    const prettyLevel = ansiColorize(level.toUpperCase(), color, style);
+    const prettyFile = ansiColorize(file, null, style);
+    return `${prettyTime} [${prettyLevel}] (${prettyFile})`;
+}
+
 
 function monkeyPatchConsoleWithEmitter() {
     /*
@@ -101,22 +132,10 @@ function monkeyPatchConsoleWithEmitter() {
      * us to support file logging and logging windows.
      */
     let curLogLevel;
-    const descriptors = Object.getOwnPropertyDescriptors(console);
-    const levels = {
-        debug: 'debug',
-        info: 'info',
-        log: 'info',
-        count: 'info',
-        dir: 'info',
-        warn: 'warn',
-        assert: 'warn',
-        error: 'error',
-        trace: 'error',
-    };
     for (const [fn, level] of Object.entries(levels)) {
         Object.defineProperty(console, fn, {
-            enumerable: descriptors[fn].enumerable,
-            get: () => (curLogLevel = level, descriptors[fn].value),
+            enumerable: consoleDescriptors[fn].enumerable,
+            get: () => (curLogLevel = level, consoleDescriptors[fn].value),
             set: () => {
                 throw new Error("Double console monkey patch detected!");
             },
@@ -127,15 +146,14 @@ function monkeyPatchConsoleWithEmitter() {
     const emitter = new EventEmitter();
     let seqno = 1;
     console[kWriteToConsoleSymbol] = function(useStdErr, message) {
+        const date = new Date();
         try {
-            const time = fmtLogDate(new Date());
-            const level = `[${curLogLevel.toUpperCase()}]`;
-            const ttyMessage = `${time} ${level} (${getCurStackFrameFile()}): ${message}`;
-            return kWriteToConsoleFunction.call(this, useStdErr, ttyMessage);
+            const prefix = metaPrefix({date, level: curLogLevel, file: getCurStackFrameFile()});
+            return kWriteToConsoleFunction.call(this, useStdErr, `${prefix}: ${message}`);
         } finally {
             emitter.emit('message', {
                 seqno: seqno++,
-                date: new Date(),
+                date,
                 level: curLogLevel,
                 message,
                 file: getCurStackFrameFile(),
@@ -151,22 +169,10 @@ function monkeyPatchConsoleWithMetaInfo() {
      * Add meta info to TTY based output for NodeJS.
      */
     let curLogLevel;
-    const descriptors = Object.getOwnPropertyDescriptors(console);
-    const levels = {
-        debug: 'debug',
-        info: 'info',
-        log: 'info',
-        count: 'info',
-        dir: 'info',
-        warn: 'warn',
-        assert: 'warn',
-        error: 'error',
-        trace: 'error',
-    };
     for (const [fn, level] of Object.entries(levels)) {
         Object.defineProperty(console, fn, {
-            enumerable: descriptors[fn].enumerable,
-            get: () => (curLogLevel = level, descriptors[fn].value),
+            enumerable: consoleDescriptors[fn].enumerable,
+            get: () => (curLogLevel = level, consoleDescriptors[fn].value),
             set: () => {
                 throw new Error("Double console monkey patch detected!");
             },
@@ -175,21 +181,8 @@ function monkeyPatchConsoleWithMetaInfo() {
     const kWriteToConsoleSymbol = getConsoleSymbol('kWriteToConsole');
     const kWriteToConsoleFunction = console[kWriteToConsoleSymbol];
     console[kWriteToConsoleSymbol] = function(useStdErr, message) {
-        let color;
-        const style = {};
-        if (curLogLevel === 'debug') {
-            style.faint = true;
-        } else if (curLogLevel === 'warn') {
-            style.faint = true;
-            color = 'yellow';
-        } else if (curLogLevel === 'error') {
-            color = 'red';
-            style.bold = true;
-        }
-        const time = ansiColorize(fmtLogDate(new Date()), null, style);
-        const level = ansiColorize(curLogLevel.toUpperCase(), color, style);
-        const file = ansiColorize(getCurStackFrameFile(), null, style);
-        return kWriteToConsoleFunction.call(this, useStdErr, `${time} [${level}] (${file}): ${message}`);
+        const prefix = metaPrefix({date: new Date(), level: curLogLevel, file: getCurStackFrameFile()});
+        return kWriteToConsoleFunction.call(this, useStdErr, `${prefix}: ${message}`);
     };
 }
 
