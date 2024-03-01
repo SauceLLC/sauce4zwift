@@ -1,6 +1,7 @@
 /* global setImmediate */
 import events from 'node:events';
 import path from 'node:path';
+import {nextTick} from 'node:process';
 import {worldTimer} from './zwift.mjs';
 import {SqliteDatabase, deleteDatabase} from './db.mjs';
 import * as rpc from './rpc.mjs';
@@ -25,29 +26,12 @@ function monotonic() {
 
 
 function nextMacrotask() {
-    return new Promise(setImmediate);
-}
-
-
-async function calibrateEventLoopRes() {
-    // Evade erroneous GC influence by taking fastest result.
-    let best = Infinity;
-    for (let i = 0; i < 100; i++) {
-        const start = performance.now();
-        await void 0;
-        const end = performance.now();
-        const d = end - start;
-        if (d < best) {
-            console.warn(i, best, d);
-            best = d;
-        }
-    }
-    return best;
+    // NOTE: setImmediate is much slower in electron.
+    return new Promise(nextTick);
 }
 
 
 const _hrSleepState = {
-    epsilon: undefined,
     latency: 10,
     latencyRoll: expWeightedAvg(10, 10 ** 2),
 };
@@ -55,21 +39,25 @@ async function highResSleepTill(deadline) {
     // NOTE: V8 can and does wake up early.
     // NOTE: GC pauses can and will cause delays.
     const state = _hrSleepState;
-    if (state.epsilon === undefined) {
-        state.epsilon = await calibrateEventLoopRes();
-    }
     const t = monotonic();
-    const macroDelay = (deadline - t) - (state.latency * 2) - state.epsilon;
+    const origDelay = deadline - t;
+    // Re Math.ceil: setTimeout only has 1ms precision and uses Math.trunc()..
+    const macroDelay = Math.ceil((deadline - t) - (state.latency * 2));
+    let timerLatency;
     if (macroDelay > 1) {
         await new Promise(r => setTimeout(r, macroDelay));
-        const timerLatency = (monotonic() - t) - macroDelay;
+        timerLatency = (monotonic() - t) - macroDelay;
         if (timerLatency > 0) {
             state.latency = Math.sqrt(state.latencyRoll(timerLatency ** 2));
         }
+        state.timerLatency = timerLatency;
     }
     let macro = 0;
     const remaining = deadline - monotonic();
-    while (monotonic() < deadline - state.epsilon) {
+    if (remaining < 0) {
+        console.error("You fucked up or GC fucked us:", remaining, timerLatency, origDelay, macroDelay);
+    }
+    while (monotonic() < deadline) {
         await nextMacrotask();
         macro++;
     }
@@ -79,7 +67,7 @@ async function highResSleepTill(deadline) {
 
 setInterval(() => {
     console.log(_hrSleepState);
-}, 1000);
+}, 5000);
 
 
 function updateRoadDistance(courseId, roadId) {
