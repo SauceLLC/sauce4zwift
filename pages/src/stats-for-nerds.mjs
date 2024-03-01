@@ -18,7 +18,9 @@ async function makeMetricCharts(proc, el) {
         GPU: 'GPU Bridge', // not GPU usage but the ps that proxies to GPU or does SW rendering.
         Tab: 'Window',
     };
-    const {spec, title, subWindow} = (await common.rpc.getWindowInfoForPID(proc.pid)) || {};
+    const {spec, title, subWindow} = proc.type !== 'Node' &&
+        (await common.rpc.getWindowInfoForPID(proc.pid)) ||
+        {};
     const lineEl = document.createElement('div');
     const gaugeEl = document.createElement('div');
     lineEl.classList.add('chart', 'line');
@@ -225,7 +227,7 @@ const debugFormatters = {
     cpuSpeed: x => H.number(sauce.data.avg(x.sys.cpus.map(x => x.speed / 1000)),
                             {suffix: 'Ghz', precision: 1, fixed: true, html: true}),
     sysMem: x => H.number(x.sys.mem.total / MB, {suffix: 'GB', html: true}),
-    gpu: x => x.gpu.gpu_compositing,
+    gpu: x => x.gpu?.gpu_compositing || 'n/a',
     statesDups: x => H.number(x.stats.stateDupCount),
     statesStale: x => H.number(x.stats.stateStaleCount),
     dbRowsAthletes: x => H.number(

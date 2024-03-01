@@ -68,11 +68,13 @@ async function highResSleepTill(deadline) {
         }
     }
     let macro = 0;
+    const remaining = deadline - monotonic();
     while (monotonic() < deadline - state.epsilon) {
         await nextMacrotask();
         macro++;
     }
     state.macro = macro;
+    state.macroPerSec = macro / remaining * 1000;
 }
 
 setInterval(() => {

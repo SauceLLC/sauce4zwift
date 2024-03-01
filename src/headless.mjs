@@ -56,6 +56,30 @@ class NodeSauceApp extends app.SauceApp {
                 'This is usually an indicator that your Monitor Login is not the correct one.');
         });
     }
+
+    getAppMetrics() {
+        const usage = process.resourceUsage();
+        let percentCPUUsage;
+        const ts = Date.now();
+        if (this._lastUsage) {
+            const elapsed = ts - this._lastUsageTS;
+            percentCPUUsage = ((usage.userCPUTime + usage.systemCPUTime) -
+                               (this._lastUsage.userCPUTime + this._lastUsage.systemCPUTime)) /
+                              elapsed / 1000;
+        }
+        this._lastUsageTS = ts;
+        this._lastUsage = usage;
+        return [{
+            pid: process.pid,
+            type: 'Node',
+            cpu: {
+                percentCPUUsage,
+            },
+            memory: {
+                workingSetSize: process.memoryUsage().rss / 1024
+            }
+        }];
+    }
 }
 
 

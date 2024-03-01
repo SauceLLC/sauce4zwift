@@ -135,7 +135,7 @@ export class SauceApp extends EventEmitter {
 
     getAppMetrics() {
         console.warn("UNIMPLEMENTED");
-        return {};
+        return [];
     }
 
     async pollMetrics() {
@@ -159,8 +159,12 @@ export class SauceApp extends EventEmitter {
                 platform: os.platform(),
                 release: os.release(),
                 version: os.version(),
-                productVersion: process.getSystemVersion(). split(/-/, 1)[0],
-                mem: process.getSystemMemoryInfo(),
+                productVersion: (process.getSystemVersion ? process.getSystemVersion() : os.release())
+                    . split(/-/, 1)[0],
+                mem: {
+                    total: os.totalmem() / 1024,
+                    free: os.freemem() / 1024,
+                },
                 uptime: os.uptime(),
                 cpus: os.cpus(),
             },
