@@ -43,19 +43,18 @@ async function highResSleepTill(deadline) {
     const origDelay = deadline - t;
     // Re Math.ceil: setTimeout only has 1ms precision and uses Math.trunc()..
     const macroDelay = Math.ceil((deadline - t) - (state.latency * 2));
-    let timerLatency;
     if (macroDelay > 1) {
         await new Promise(r => setTimeout(r, macroDelay));
-        timerLatency = (monotonic() - t) - macroDelay;
+        const timerLatency = (monotonic() - t) - macroDelay;
         if (timerLatency > 0) {
-            state.latency = Math.sqrt(state.latencyRoll(timerLatency ** 2));
+            state.latency = Math.sqrt(state.latencyRoll((timerLatency + 1) ** 2));
         }
         state.timerLatency = timerLatency;
     }
     let macro = 0;
     const remaining = deadline - monotonic();
     if (remaining < 0) {
-        console.error("You fucked up or GC fucked us:", remaining, timerLatency, origDelay, macroDelay);
+        console.error("You messed up or GC got us:", remaining, state.timerLatency, origDelay, macroDelay, );
     }
     while (monotonic() < deadline) {
         await nextMacrotask();
@@ -2173,10 +2172,8 @@ export class StatsProcessor extends events.EventEmitter {
     async _statesProcessor() {
         const interval = 1000;
         // Align interval with realtime second boundary for aesthetics and to avoid potential
-        // rounding issues in stats code.
-        //await highResSleep(interval - (t % 1000));
+        // rounding issues in stats code or UX code.
         let target = (monotonic() / 1000 | 0) * 1000 + interval;
-        console.error('starting states processor on "perfect" time boundary', target);
         let errBackoff = 1;
         let sli = 0;
         const slAvg = expWeightedAvg(10, 1000);
@@ -2196,7 +2193,6 @@ export class StatsProcessor extends events.EventEmitter {
                 //console.log("sleep", target - now);
             }
             await highResSleepTill(target);
-            //await sauce.sleep(target - now);
             let t = monotonic();
             sli++;
             slAvg(t - lastSl);
