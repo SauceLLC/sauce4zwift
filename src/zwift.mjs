@@ -167,7 +167,7 @@ function decodeWorldTime(buf) {
     const intBE = buf.readInt32BE();
     const floatLE = buf.readFloatLE();
     const floatBE = buf.readFloatBE();
-    console.devWarn("Figure this out (worldTime):", {intLE, intBE, floatLE, floatBE});
+    console.debug("Figure this out (worldTime):", {intLE, intBE, floatLE, floatBE});
     return {};
 }
 
@@ -451,7 +451,7 @@ export class ZwiftAPI {
         const r = await this.fetch(urn, {accept: 'protobuf', ...options}, headers);
         const data = Buffer.from(await r.arrayBuffer());
         if (options.debug) {
-            console.dev('PB API DEBUG', urn, data.toString('hex'));
+            console.debug('PB API DEBUG', urn, data.toString('hex'));
         }
         const ProtoBuf = protos.get(options.protobuf);
         return ProtoBuf.decode(data);

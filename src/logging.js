@@ -16,7 +16,7 @@ const levels = {
     trace: 'error',
 };
 const consoleDescriptors = Object.getOwnPropertyDescriptors(console);
-
+const ansiEscRegex = new RegExp(`\x1b(?:[@-Z\\-_]|[[0-?]*[ -/]*[@-~])`, 'g');
 
 
 function fmtLogDate(d) {
@@ -155,35 +155,12 @@ function monkeyPatchConsoleWithEmitter() {
                 seqno: seqno++,
                 date,
                 level: curLogLevel,
-                message,
+                message: message.replace(ansiEscRegex, ''),
                 file: getCurStackFrameFile(),
             });
         }
     };
     return emitter;
-}
-
-
-function monkeyPatchConsoleWithMetaInfo() {
-    /*
-     * Add meta info to TTY based output for NodeJS.
-     */
-    let curLogLevel;
-    for (const [fn, level] of Object.entries(levels)) {
-        Object.defineProperty(console, fn, {
-            enumerable: consoleDescriptors[fn].enumerable,
-            get: () => (curLogLevel = level, consoleDescriptors[fn].value),
-            set: () => {
-                throw new Error("Double console monkey patch detected!");
-            },
-        });
-    }
-    const kWriteToConsoleSymbol = getConsoleSymbol('kWriteToConsole');
-    const kWriteToConsoleFunction = console[kWriteToConsoleSymbol];
-    console[kWriteToConsoleSymbol] = function(useStdErr, message) {
-        const prefix = metaPrefix({date: new Date(), level: curLogLevel, file: getCurStackFrameFile()});
-        return kWriteToConsoleFunction.call(this, useStdErr, `${prefix}: ${message}`);
-    };
 }
 
 
@@ -195,7 +172,6 @@ function initFileLogging(logsPath, isDev) {
         // Probably windows with anti virus. :/
         rotateErr = e;
     }
-    process.env.TERM = 'dumb';  // Prevent color tty commands
     const logEmitter = monkeyPatchConsoleWithEmitter();
     const logFile = path.join(logsPath, logFileName);
     const logQueue = [];
@@ -205,15 +181,10 @@ function initFileLogging(logsPath, isDev) {
         const time = fmtLogDate(o.date);
         const level = `[${o.level.toUpperCase()}]`;
         logFileStream.write(`${time} ${level} (${o.file}): ${o.message}\n`);
-        if (logQueue.length > 2000) {
+        while (logQueue.length > 2000) {
             logQueue.shift();
         }
     });
-    console.dev = isDev ? () => undefined : console.debug;
-    console.devDebug = isDev ? () => undefined : console.debug;
-    console.devInfo = isDev ? () => undefined : console.info;
-    console.devWarn = isDev ? () => undefined : console.warn;
-    console.devError = isDev ? () => undefined : console.error;
     if (rotateErr) {
         console.error('Log rotate error:', rotateErr);
     }
@@ -223,13 +194,19 @@ function initFileLogging(logsPath, isDev) {
 
 
 function initTTYLogging(logsPath, isDev) {
-    monkeyPatchConsoleWithMetaInfo();
+    const logEmitter = monkeyPatchConsoleWithEmitter();
+    const logQueue = [];
+    logEmitter.on('message', o => {
+        logQueue.push(o);
+        while (logQueue.length > 2000) {
+            logQueue.shift();
+        }
+    });
+    return {logEmitter, logQueue};
 }
 
 
 module.exports = {
-    monkeyPatchConsoleWithMetaInfo,
-    monkeyPatchConsoleWithEmitter,
     initFileLogging,
     initTTYLogging,
 };

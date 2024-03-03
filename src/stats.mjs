@@ -38,8 +38,9 @@ const _hrSleepState = {
 async function highResSleepTill(deadline) {
     // NOTE: V8 can and does wake up early.
     // NOTE: GC pauses can and will cause delays.
-    const state = _hrSleepState;
     const t = monotonic();
+    return sauce.sleep(deadline - t);
+    const state = _hrSleepState;
     const origDelay = deadline - t;
     // Re Math.ceil: setTimeout only has 1ms precision and uses Math.trunc()..
     const macroDelay = Math.ceil((deadline - t) - (state.latency * 2));
@@ -65,7 +66,7 @@ async function highResSleepTill(deadline) {
 }
 
 setInterval(() => {
-    console.log(_hrSleepState);
+    console.log({..._hrSleepState, latencyRoll: undefined});
 }, 5000);
 
 
@@ -2176,7 +2177,7 @@ export class StatsProcessor extends events.EventEmitter {
         let target = (monotonic() / 1000 | 0) * 1000 + interval;
         let errBackoff = 1;
         let sli = 0;
-        const slAvg = expWeightedAvg(10, 1000);
+        const slAvg = expWeightedAvg(100, 1000);
         let lastSl = monotonic();
         const start = monotonic();
         while (this._active) {
@@ -2196,7 +2197,7 @@ export class StatsProcessor extends events.EventEmitter {
             let t = monotonic();
             sli++;
             slAvg(t - lastSl);
-            if (sli % 1 === 0) {
+            if (sli % 10 === 0) {
                 const elapsed = t - start;
                 console.log(t, target, target - t, 'sleep ', 'totavg:', elapsed / sli, 'i:', sli, 'rollavg:', slAvg.get(),
                             'last:', t - lastSl);

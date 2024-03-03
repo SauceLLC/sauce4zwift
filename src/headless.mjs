@@ -84,7 +84,7 @@ class NodeSauceApp extends app.SauceApp {
 
 
 async function main() {
-    logging.initTTYLogging();
+    const {logEmitter, logQueue} = logging.initTTYLogging();
     const appPath = path.join(os.homedir(), '.sauce4zwift');
     fs.mkdirSync(appPath, {recursive: true});
     storage.initialize(appPath);
@@ -125,6 +125,11 @@ async function main() {
     ]);
     mods.init(path.join(os.homedir(), 'Documents', 'SauceMods'));
     const sauceApp = new NodeSauceApp({appPath});
+    sauceApp.rpcEventEmitters.set('logs', logEmitter);
+    rpc.register(() => logQueue, {name: 'getLogs'});
+    rpc.register(() => logQueue.length = 0, {name: 'clearLogs'});
+    rpc.register(() => () => console.warn("File logging disabled for headless mode"),
+                 {name: 'showLogInFolder'});
     await sauceApp.start({...args, exclusions, zwiftAPI, zwiftMonitorAPI});
     console.debug(`Startup took ${Date.now() - s}ms`);
 }
