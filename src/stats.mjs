@@ -1,4 +1,3 @@
-/* global setImmediate */
 import events from 'node:events';
 import path from 'node:path';
 import {nextTick} from 'node:process';
@@ -31,43 +30,28 @@ function nextMacrotask() {
 }
 
 
-const _hrSleepState = {
-    latency: 10,
-    latencyRoll: expWeightedAvg(10, 10 ** 2),
-};
+let _hrSleepLatency = 1;
+const _hrSleepLatencyRoll = expWeightedAvg(10, _hrSleepLatency);
 async function highResSleepTill(deadline) {
     // NOTE: V8 can and does wake up early.
     // NOTE: GC pauses can and will cause delays.
-    const t = monotonic();
-    return sauce.sleep(deadline - t);
-    const state = _hrSleepState;
-    const origDelay = deadline - t;
-    // Re Math.ceil: setTimeout only has 1ms precision and uses Math.trunc()..
-    const macroDelay = Math.ceil((deadline - t) - (state.latency * 2));
+    let t = monotonic();
+    const macroDelay = Math.trunc((deadline - t) - _hrSleepLatency);
     if (macroDelay > 1) {
         await new Promise(r => setTimeout(r, macroDelay));
-        const timerLatency = (monotonic() - t) - macroDelay;
-        if (timerLatency > 0) {
-            state.latency = Math.sqrt(state.latencyRoll((timerLatency + 1) ** 2));
+        const t2 = monotonic();
+        const stoLatency = (t2 - t) - macroDelay;
+        t = t2;
+        if (stoLatency > 0) {
+            _hrSleepLatency = Math.sqrt(_hrSleepLatencyRoll((stoLatency + 1) ** 2));
         }
-        state.timerLatency = timerLatency;
     }
-    let macro = 0;
-    const remaining = deadline - monotonic();
-    if (remaining < 0) {
-        console.error("You messed up or GC got us:", remaining, state.timerLatency, origDelay, macroDelay, );
-    }
-    while (monotonic() < deadline) {
+    while (t < deadline) {
         await nextMacrotask();
-        macro++;
+        t = monotonic();
     }
-    state.macro = macro;
-    state.macroPerSec = macro / remaining * 1000;
+    return t;
 }
-
-setInterval(() => {
-    console.log({..._hrSleepState, latencyRoll: undefined});
-}, 5000);
 
 
 function updateRoadDistance(courseId, roadId) {
@@ -2177,9 +2161,6 @@ export class StatsProcessor extends events.EventEmitter {
         let target = (monotonic() / 1000 | 0) * 1000 + interval;
         let errBackoff = 1;
         let sli = 0;
-        const slAvg = expWeightedAvg(100, 1000);
-        let lastSl = monotonic();
-        const start = monotonic();
         while (this._active) {
             let skipped = 0;
             const now = monotonic();
@@ -2194,16 +2175,6 @@ export class StatsProcessor extends events.EventEmitter {
                 //console.log("sleep", target - now);
             }
             await highResSleepTill(target);
-            let t = monotonic();
-            sli++;
-            slAvg(t - lastSl);
-            if (sli % 10 === 0) {
-                const elapsed = t - start;
-                console.log(t, target, target - t, 'sleep ', 'totavg:', elapsed / sli, 'i:', sli, 'rollavg:', slAvg.get(),
-                            'last:', t - lastSl);
-            }
-            lastSl = t;
-
             if (this.watching == null) {
                 continue;
             }
