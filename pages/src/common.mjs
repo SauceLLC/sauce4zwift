@@ -1776,6 +1776,7 @@ export async function enableSentry() {
             dsn,
             beforeSend: report.beforeSentrySend,
             integrations: arr => arr.filter(x => !['Breadcrumbs', 'TryCatch'].includes(x.name)),
+            sampleRate: 0.1,
         });
         report.setSentry(Sentry);
     }

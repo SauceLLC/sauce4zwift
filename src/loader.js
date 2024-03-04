@@ -133,6 +133,7 @@ async function initSentry(logEmitter) {
         // be fixed in newer versions though.
         integrations: data => data.filter(x => !skipIntegrations.has(x.name)),
         beforeSend: report.beforeSentrySend,
+        sampleRate: 0.1,
     });
     process.on('uncaughtException', report.errorThrottled);
     Sentry.setTag('version', pkg.version);
