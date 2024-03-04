@@ -1068,7 +1068,7 @@ function _openSpecWindow(spec) {
     let bounds = spec.bounds;
     const inBounds = !bounds || isWithinDisplayBounds(bounds);
     if (!inBounds) {
-        console.warn("Reseting window that is out of bounds:", bounds);
+        console.warn("Resetting window that is out of bounds:", bounds);
     }
     if (!inBounds || !bounds) {
         bounds = getBoundsForDisplay(getCurrentDisplay(), {...manifest.options, ...spec.options});

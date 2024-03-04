@@ -87,7 +87,7 @@ Usage: ./sauce4zwift-1.1.4-dev.AppImage [--headless] --main-username USERNAME
 
 Arguments:
   --headless                      Run in headless mode.  NOTE: All settings for
-                                  headless mode are seperate from normal mode.
+                                  headless mode are separated from normal mode.
   --main-username USERNAME        The main Zwift username (email)
                                   (env variable: MAIN_USERNAME)
                                   [REQUIRED]
