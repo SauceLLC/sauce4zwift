@@ -1,6 +1,5 @@
 const {EventEmitter} = require('node:events');
 const fs = require('node:fs');
-const process = require('node:process');
 const path = require('node:path');
 
 const logFileName = 'sauce.log';
