@@ -189,7 +189,7 @@ function validateSchema(obj, modPath, schema, label, path, unique) {
         }
         const info = schema[k] || schema['*'];
         if (info.isArray && !Array.isArray(v)) {
-            throw new ValidationError(path, k, 'Invalid type: Expected array');
+            throw new ValidationError(path, k, 'Invalid type, expected "array"');
         }
         const vUnique = info.schema && new Map(Object.entries(info.schema)
             .filter(([_, x]) => x.unique)
@@ -201,7 +201,7 @@ function validateSchema(obj, modPath, schema, label, path, unique) {
                 console.warn(`Deprecated MOD manifest field "${pathKey}": ${label}`);
             }
             if (typeof xv !== info.type) {
-                throw new ValidationError(path, pathKey, 'Invalid type: Expected ${info.type}');
+                throw new ValidationError(path, pathKey, `Invalid type, expected "${info.type}"`);
             }
             if (info.valid && !info.valid(xv, schema, modPath)) {
                 throw new ValidationError(path, pathKey, `Invalid value: "${xv}"`);
