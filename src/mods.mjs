@@ -16,6 +16,15 @@ rpc.register(() => available, {name: 'getAvailableMods'});
 rpc.register(() => available.filter(x => x.enabled), {name: 'getEnabledMods'});
 
 
+export class ValidationError extends TypeError {
+    constructor(path, key, message) {
+        super(message);
+        this.path = path;
+        this.key = key;
+    }
+}
+
+
 export function setEnabled(id, enabled) {
     const mod = available.find(x => x.id === id);
     if (!mod) {
@@ -51,7 +60,7 @@ const manifestSchema = {
         type: 'object',
         isArray: true,
         schema: {
-            file: {type: 'string', required: true, desc: 'Path to web page html file',
+            file: {type: 'string', required: true, unique: true, desc: 'Path to web page html file',
                    valid: isSafePath},
             query: {
                 type: 'object',
@@ -60,8 +69,8 @@ const manifestSchema = {
                     "*": {type: 'string', desc: "Value of query argument"},
                 }
             },
-            id: {type: 'string', required: true, desc: 'Unique identifier for this window'},
-            name: {type: 'string', required: true, desc: 'Name to show in listings'},
+            id: {type: 'string', required: true, unique: true, desc: 'Unique identifier for this window'},
+            name: {type: 'string', required: true, unique: true, desc: 'Name to show in listings'},
             description: {type: 'string', desc: 'Extra optional info about the window'},
             always_visible: {type: 'boolean', desc: 'DEPRECATED', deprecated: true},
             overlay: {type: 'boolean', desc: 'Set to make window stay on top of normal windows'},
@@ -144,7 +153,12 @@ function _init(root) {
                     }
                     available.push({manifest, isNew, enabled, id, modPath});
                 } catch(e) {
-                    console.error('Invalid manifest.json for:', x, e);
+                    if (e instanceof ValidationError) {
+                        const path = e.key ? e.path.concat(e.key) : e.path;
+                        console.error(`Mod validation error [${x}] (${path.join('.')}): ${e.message}`);
+                    } else {
+                        console.error('Invalid manifest.json for:', x, e);
+                    }
                 }
             } else if (!['.DS_Store'].includes(x)) {
                 console.warn("Ignoring non-directory in mod path:", x);
@@ -158,42 +172,55 @@ function _init(root) {
 
 
 function validateManifest(manifest, modPath, label) {
-    validateSchema(manifest, modPath, manifestSchema, label);
+    validateSchema(manifest, modPath, manifestSchema, label, []);
 }
 
 
-function validateSchema(obj, modPath, schema, label) {
+function validateSchema(obj, modPath, schema, label, path, unique) {
     if (typeof obj !== 'object') {
-        throw new TypeError("Invalid manifest root type: expected object");
+        throw new ValidationError(path, undefined, "Invalid manifest root type: expected object");
     }
-    const required = new Set(Object.entries(schema).filter(([_, x]) => x.required).map(([k]) => k));
+    const required = new Set(Object.entries(schema)
+        .filter(([_, x]) => x.required)
+        .map(([k]) => k));
     for (const [k, v] of Object.entries(obj)) {
         if (!schema['*'] && !Object.prototype.hasOwnProperty.call(schema, k)) {
-            throw TypeError("Unexpected key: " + k);
+            throw new ValidationError(path, k, 'Unexpected key');
         }
         const info = schema[k] || schema['*'];
         if (info.isArray && !Array.isArray(v)) {
-            throw TypeError(`Invalid type: "${k}" should be an array`);
+            throw new ValidationError(path, k, 'Invalid type: Expected array');
         }
+        const vUnique = info.schema && new Map(Object.entries(info.schema)
+            .filter(([_, x]) => x.unique)
+            .map(([k]) => [k, new Set()]));
         const vArr = info.isArray ? v : [v];
-        for (const xv of vArr) {
+        for (const [i, xv] of vArr.entries()) {
+            const pathKey = info.isArray ? `${k}[${i}]` : k;
             if (info.deprecated) {
-                console.warn(`Deprecated MOD manifest field "${k}": ${label}`);
+                console.warn(`Deprecated MOD manifest field "${pathKey}": ${label}`);
             }
             if (typeof xv !== info.type) {
-                throw TypeError(`Invalid type: "${k}" should be a "${info.type}"`);
+                throw new ValidationError(path, pathKey, 'Invalid type: Expected ${info.type}');
             }
             if (info.valid && !info.valid(xv, schema, modPath)) {
-                throw TypeError(`Invalid value: "${xv}" is not valid for the key "${k}"`);
+                throw new ValidationError(path, pathKey, `Invalid value: "${xv}"`);
             }
             if (info.schema) {
-                validateSchema(xv, modPath, info.schema, label);
+                validateSchema(xv, modPath, info.schema, label, [...path, pathKey], vUnique);
+            }
+            if (unique && unique.has(k)) {
+                const used = unique.get(k);
+                if (used.has(xv)) {
+                    throw new ValidationError(path, pathKey, `Duplicate value for unique field: "${xv}"`);
+                }
+                used.add(xv);
             }
         }
         required.delete(k);
     }
     if (required.size) {
-        throw TypeError(`Missing required keys: ${[...required]}`);
+        throw new ValidationError(path, undefined, `Missing required key(s): ${[...required]}`);
     }
 }
 
