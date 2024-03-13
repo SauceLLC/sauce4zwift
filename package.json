@@ -29,6 +29,7 @@
     "keytar": "7.9.0",
     "lossless-json": "4.0.1",
     "node-fetch": "3.3.2",
+    "node-stream": "1.7.0",
     "protobufjs": "7.2.6",
     "xxhash-addon": "2.0.3"
   },
