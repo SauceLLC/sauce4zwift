@@ -9,7 +9,8 @@ document.head.append(...fonts.map(x => {
     link.href = x;
     link.as = 'font';
     link.type = 'font/woff2';
-    if (!window.isElectron) {
+    // preloads + cors + file:// are a trainwreck in the w3c spec.
+    if (!location.protocol === 'file:') {
         link.crossOrigin = 'anonymous';
     }
     return link;
