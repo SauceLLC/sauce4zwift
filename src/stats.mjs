@@ -1,6 +1,6 @@
+/* global setImmediate */
 import events from 'node:events';
 import path from 'node:path';
-import {nextTick} from 'node:process';
 import {worldTimer} from './zwift.mjs';
 import {SqliteDatabase, deleteDatabase} from './db.mjs';
 import * as rpc from './rpc.mjs';
@@ -25,14 +25,13 @@ function monotonic() {
 
 
 function nextMacrotask() {
-    // NOTE: setImmediate is much slower in electron.
-    return new Promise(nextTick);
+    return new Promise(setImmediate);
 }
 
 
 let _hrSleepLatency = 1;
 const _hrSleepLatencyRoll = expWeightedAvg(10, _hrSleepLatency);
-async function highResSleepTill(deadline) {
+async function highResSleepTill(deadline, options={}) {
     // NOTE: V8 can and does wake up early.
     // NOTE: GC pauses can and will cause delays.
     let t = monotonic();
@@ -1839,9 +1838,9 @@ export class StatsProcessor extends events.EventEmitter {
                 this.athleteId = id;
             });
             this.gameMonitor.start();
+            this._zwiftMetaRefresh = 10000;
+            this._zwiftMetaId = setTimeout(() => this._zwiftMetaSync(), 0);
         }
-        this._zwiftMetaRefresh = 10000;
-        this._zwiftMetaId = setTimeout(() => this._zwiftMetaSync(), 0);
         if (this._autoResetEvents) {
             console.info("Auto reset for events enabled");
         } else if (this._autoLapEvents) {
