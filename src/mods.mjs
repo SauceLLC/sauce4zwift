@@ -1,14 +1,19 @@
 import path from 'node:path';
 import fs from 'node:fs';
+import StreamZip from 'node-stream-zip';
 import * as rpc from './rpc.mjs';
 import * as storage from './storage.mjs';
+import fetch from 'node-fetch';
 import {createRequire} from 'node:module';
 
 const require = createRequire(import.meta.url);
 
 const settingsKey = 'mod-settings';
+const directoryKey = 'mod-directory';
 let settings;
-let modRoot;
+let directory;
+let unpackedModRoot;
+let packedModRoot;
 
 export const available = [];
 
@@ -41,7 +46,7 @@ rpc.register(setEnabled, {name: 'setModEnabled'});
 
 function isSafePath(x, _, modPath) {
     return !!x.match(/^[a-z0-9]+[a-z0-9_\-./]*$/i) && !x.match(/\.\./) &&
-        fs.realpathSync(path.join(modPath, x)).startsWith(modPath);
+        (!modPath || fs.realpathSync(path.join(modPath, x)).startsWith(modPath));
 }
 
 
@@ -106,10 +111,13 @@ const manifestSchema = {
 };
 
 
-export function init(...args) {
+export async function init(unpackedDir, packedDir) {
+    settings = storage.get(settingsKey) || {};
+    directory = storage.get(directoryKey) || {};
     available.length = 0;
     try {
-        _init(...args);
+        available.push(..._initUnpacked(unpackedDir));
+        available.push(...(await _initPacked(packedDir)));
     } catch(e) {
         console.error("MODS init error:", e);
     }
@@ -117,67 +125,120 @@ export function init(...args) {
 }
 
 
-function showModsRootFolder() {
-    let electron;
-    try {
-        electron = require('electron');
-    } catch(e) {/*no-pragma*/}
-    if (electron && electron.shell) {
-        electron.shell.openPath(modRoot);
-    } else {
-        console.info(modRoot);
-    }
-    return modRoot;
-}
-rpc.register(showModsRootFolder);
-
-
-function _init(root) {
-    settings = storage.get(settingsKey) || {};
+function _initUnpacked(root) {
     try {
         fs.mkdirSync(root, {recursive: true});
-        modRoot = fs.realpathSync(root);
+        unpackedModRoot = root = fs.realpathSync(root);
     } catch(e) {
         console.warn('MODS folder uncreatable:', root, e);
     }
-    if (modRoot && fs.existsSync(modRoot) && fs.statSync(modRoot).isDirectory()) {
-        for (const x of fs.readdirSync(modRoot)) {
-            const modPath = fs.realpathSync(path.join(modRoot, x));
-            const f = fs.statSync(modPath);
-            if (f.isDirectory()) {
-                const manifestPath = path.join(modPath, 'manifest.json');
-                if (!fs.existsSync(manifestPath)) {
-                    console.warn("Ignoring mod directory without manifest.json:", x);
-                    continue;
+    if (!root || !fs.existsSync(root) || !fs.statSync(root).isDirectory()) {
+        return [];
+    }
+    const validMods = [];
+    for (const x of fs.readdirSync(root)) {
+        const modPath = fs.realpathSync(path.join(root, x));
+        const f = fs.statSync(modPath);
+        if (f.isDirectory()) {
+            const manifestPath = path.join(modPath, 'manifest.json');
+            if (!fs.existsSync(manifestPath)) {
+                console.warn("Ignoring mod directory without manifest.json:", x);
+                continue;
+            }
+            try {
+                const manifest = JSON.parse(fs.readFileSync(manifestPath));
+                const id = manifest?.id || sanitizeID(x);
+                const isNew = !settings[id];
+                const enabled = !isNew && !!settings[id].enabled;
+                const label = `${manifest.name} (${id})`;
+                console.info(`Detected unpacked MOD: ${label} [${enabled ? 'ENABLED' : 'DISABLED'}]`);
+                if (isNew || enabled) {
+                    validateManifest(manifest, modPath, label);
                 }
-                let manifest;
-                try {
-                    manifest = JSON.parse(fs.readFileSync(manifestPath));
-                    const id = manifest?.id || sanitizeID(x);
-                    const isNew = !settings[id];
-                    const enabled = !isNew && !!settings[id].enabled;
-                    const label = `${manifest.name} (${id})`;
-                    console.info(`Detected MOD: ${label} [${enabled ? 'ENABLED' : 'DISABLED'}]`);
-                    if (isNew || enabled) {
-                        validateManifest(manifest, modPath, label);
-                    }
-                    available.push({manifest, isNew, enabled, id, modPath});
-                } catch(e) {
-                    if (e instanceof ValidationError) {
-                        const path = e.key ? e.path.concat(e.key) : e.path;
-                        console.error(`Mod validation error [${x}] (${path.join('.')}): ${e.message}`);
-                    } else {
-                        console.error('Invalid manifest.json for:', x, e);
-                    }
+                validMods.push({manifest, isNew, enabled, id, modPath, unpacked: true});
+            } catch(e) {
+                if (e instanceof ValidationError) {
+                    const path = e.key ? e.path.concat(e.key) : e.path;
+                    console.error(`Mod validation error [${x}] (${path.join('.')}): ${e.message}`);
+                } else {
+                    console.error('Invalid manifest.json for:', x, e);
                 }
-            } else if (!['.DS_Store'].includes(x)) {
-                console.warn("Ignoring non-directory in mod path:", x);
+            }
+        } else if (!['.DS_Store'].includes(x)) {
+            console.warn("Ignoring non-directory in mod path:", x);
+        }
+    }
+    return validMods;
+}
+
+
+async function _initPacked(root) {
+    try {
+        fs.mkdirSync(root, {recursive: true});
+        unpackedModRoot = root = fs.realpathSync(root);
+    } catch(e) {
+        console.warn('MODS folder uncreatable:', root, e);
+        root = null;
+    }
+    if (!root || !directory) {
+        return [];
+    }
+    await getGithubSourceURL({
+        "type": "github",
+    "org": "mayfield",
+    "id": "b7a17692-cbcb-493a-827f-c84a64f14af1",
+    "repo": "s4z-wolf3d-mod",
+    "logoURL": "https://raw.githubusercontent.com/mayfield/s4z-wolf3d-mod/main/pages/images/favicon.png",
+    "releases": [{
+        "id": 145384817,
+        "assetId": 155706162
+    }, {
+        "id": 145384817,
+        "assetId": 155706162,
+        "minVersion": "1.1"
+    }, {
+        "id": 145384817,
+        "assetId": 155706162,
+        "minVersion": "1.x"
+    }, {
+        "id": 145384817,
+        "assetId": 155706162,
+        "minVersion": "1.1.5"
+    }, {
+        "id": 145384817,
+        "assetId": 155706162,
+        "minVersion": "1.2"
+    }]
+
+    });
+    const validMods = [];
+    for (const x of directory) {
+        try {
+            const packedFile = fs.realpathSync(path.join(root, x.file));
+            const zip = new StreamZip.async({file: fs.statSync(packedFile)});
+            const manifest = JSON.parse(zip.entryData('/manifest.json'));
+            if (manifest.id && manifest.id !== x.id) {
+                console.warn("Packed extention ID is diffrent from directory entry", x.id, manifest.id);
+            }
+            const id = x.id;
+            const isNew = !settings[id];
+            const enabled = !isNew && !!settings[id].enabled;
+            const label = `${manifest.name} (${id})`;
+            console.info(`Detected packed MOD: ${label} [${enabled ? 'ENABLED' : 'DISABLED'}]`);
+            if (isNew || enabled) {
+                validateManifest(manifest, null, label);
+            }
+            validMods.push({manifest, isNew, enabled, id, zip, unpacked: false});
+        } catch(e) {
+            if (e instanceof ValidationError) {
+                const path = e.key ? e.path.concat(e.key) : e.path;
+                console.error(`Mod validation error [${x}] (${path.join('.')}): ${e.message}`);
+            } else {
+                console.error('Invalid manifest.json for:', x, e);
             }
         }
     }
-    if (!available.length) {
-        console.info("No MODS found in:", modRoot);
-    }
+    return validMods;
 }
 
 
@@ -233,6 +294,22 @@ function validateSchema(obj, modPath, schema, label, path, unique) {
         throw new ValidationError(path, undefined, `Missing required key(s): ${[...required]}`);
     }
 }
+
+
+// Might deprecate this when unpacked becomes a dev-only feature.
+function showModsRootFolder() {
+    let electron;
+    try {
+        electron = require('electron');
+    } catch(e) {/*no-pragma*/}
+    if (electron && electron.shell) {
+        electron.shell.openPath(unpackModRoot);
+    } else {
+        console.info(unpackModRoot);
+    }
+    return unpackModRoot;
+}
+rpc.register(showModsRootFolder);
 
 
 export function getWindowManifests() {
@@ -302,4 +379,62 @@ export function getWindowContentStyle() {
         }
     }
     return css;
+}
+
+
+export function installPackedMod(entry) {
+    const existing = directory[entry.id];
+    storage.set(settingsKey, settings);
+}
+
+
+export function updatePackedMod(entry) {
+    debugger;
+}
+
+
+export function removePackedMod(entry) {
+    debugger;
+}
+
+
+function semverOrder(a, b) {
+    if (a === b || (!a && !b)) {
+        return 0;
+    }
+    const A = a ? a.split('.') : [];
+    if (A.includes('x')) {
+        A.splice(A.indexOf('x'), A.length);
+    }
+    const B = b ? b.split('.') : [];
+    if (B.includes('x')) {
+        B.splice(B.indexOf('x'), B.length);
+    }
+    for (let i = 0; i < Math.max(A.length, B.length); i++) {
+        if (A[i] && B[i]) {
+            if (+A[i] > +B[i]) {
+                return 1;
+            } else if (+A[i] < +B[i]) {
+                return -1;
+            }
+        } else {
+            return A[i] ? 1 : -1;
+        }
+    }
+    return 0;
+}
+
+
+async function getGithubSourceURL(entry) {
+    debugger;
+    const releases = entry.releases.sort((a, b) => semverOrder(b.minVersion, a.minVersion));
+    console.log(releases);
+    for (const x of entry.releases) {
+        const resp = await fetch(`https://api.github.com/repos/${entry.org}/${entry.repo}/releases/${x.id}`);
+        if (!resp.ok) {
+            throw new Error('Github Mod fetch error:', resp.status, await resp.text());
+        }
+        const rel = await resp.json();
+        const asset = rel.assets.find(xx => xx.id === x.assetId);
+    }
 }

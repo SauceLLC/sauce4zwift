@@ -123,7 +123,7 @@ async function main() {
         zwiftAPI.authenticate(args.mainUsername, args.mainPassword),
         zwiftMonitorAPI.authenticate(args.monitorUsername, args.monitorPassword),
     ]);
-    mods.init(path.join(os.homedir(), 'Documents', 'SauceMods'));
+    await mods.init(path.join(os.homedir(), 'Documents', 'SauceMods'));
     const sauceApp = new NodeSauceApp({appPath});
     sauceApp.rpcEventEmitters.set('logs', logEmitter);
     rpc.register(() => logQueue, {name: 'getLogs'});

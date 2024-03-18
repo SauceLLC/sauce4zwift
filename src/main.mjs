@@ -476,7 +476,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     }
     await maybeUpdateAndRestart();
     const modPath = path.join(electron.app.getPath('documents'), 'SauceMods');
-    for (const mod of mods.init(modPath)) {
+    for (const mod of await mods.init(modPath, path.join(appPath, 'mods'))) {
         if (mod.isNew) {
             const enable = await windows.confirmDialog({
                 title: 'New Sauce MOD Found',
