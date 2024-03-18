@@ -39,15 +39,25 @@ export function setEnabled(id, enabled) {
 rpc.register(setEnabled, {name: 'setModEnabled'});
 
 
-function isSafePath(p, _, modPath) {
-    return !!p.match(/^[a-z0-9]+[a-z0-9_\-./]*$/i) && !p.match(/\.\./) &&
-        fs.realpathSync(path.join(modPath, p)).startsWith(modPath);
+function isSafePath(x, _, modPath) {
+    return !!x.match(/^[a-z0-9]+[a-z0-9_\-./]*$/i) && !x.match(/\.\./) &&
+        fs.realpathSync(path.join(modPath, x)).startsWith(modPath);
+}
+
+
+function isSafeID(x) {
+    return !!x.match(/^[a-z0-9-]+$/i);
+}
+
+
+function sanitizeID(x) {
+    return x.replace(/[^a-z0-9-]/ig, '-');
 }
 
 
 const manifestSchema = {
     manifest_version: {type: 'number', required: true, desc: 'Manifest version', valid: x => x === 1},
-    id: {type: 'string', desc: 'Optional ID for this mod, defaults to the directory name'},
+    id: {type: 'string', desc: 'Optional ID for this mod, defaults to the directory name', valid: isSafeID},
     name: {type: 'string', required: true, desc: 'Pretty name of the mod'},
     description: {type: 'string', required: true, desc: 'Description of the mod'},
     version: {type: 'string', required: true, desc: 'MOD version, i.e. 1.2.3'},
@@ -143,7 +153,7 @@ function _init(root) {
                 let manifest;
                 try {
                     manifest = JSON.parse(fs.readFileSync(manifestPath));
-                    const id = manifest?.id || x;
+                    const id = manifest?.id || sanitizeID(x);
                     const isNew = !settings[id];
                     const enabled = !isNew && !!settings[id].enabled;
                     const label = `${manifest.name} (${id})`;
@@ -235,6 +245,8 @@ export function getWindowManifests() {
                     winManifests.push({
                         type: `${id}-${x.id}`,
                         file: `/mods/${id}/${x.file}`,
+                        mod: true,
+                        modId: id,
                         query: x.query,
                         groupTitle: `[MOD]: ${manifest.name}`,
                         prettyName: x.name,

@@ -195,7 +195,6 @@ async function startNormal() {
         app.commandLine.appendSwitch('disable-gpu-compositing');
     }
     app.commandLine.appendSwitch('force-gpu-mem-available-mb', '1024');
-    //app.commandLine.appendSwitch('disable-frame-rate-limit');
     const sentryAnonId = await initSentry(logMeta.logEmitter);
     await app.whenReady();
     if (await ensureSingleInstance() === false) {

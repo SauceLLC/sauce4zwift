@@ -1,6 +1,6 @@
 import path from 'node:path';
 import os from 'node:os';
-import {fileURLToPath} from 'node:url';
+import urlMod from 'node:url';
 import * as storageMod from './storage.mjs';
 import * as patreon from './patreon.mjs';
 import * as rpc from './rpc.mjs';
@@ -233,8 +233,13 @@ const defaultWidgetWindows = [{
 }];
 
 // NEVER use app.getAppPath() it uses asar for universal builds
-const appPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+const appPath = path.join(path.dirname(urlMod.fileURLToPath(import.meta.url)), '..');
 export const eventEmitter = new EventEmitter();
+
+
+function isInternalScheme(url) {
+    return ['file'].includes(new URL(url).protocol);
+}
 
 
 export function loadSession(name, options={}) {
@@ -244,7 +249,7 @@ export function loadSession(name, options={}) {
     const persist = options.persist !== false;
     const partition = name !== magicLegacySessionId ? (persist ? 'persist:' : '') + name : '';
     const s = electron.session.fromPartition(partition);
-    s.protocol.interceptFileProtocol('file', onInterceptFileProtocol);
+    s.protocol.handle('file', onHandleFileProtocol.bind(s));
     sessions.set(name, s);
     return s;
 }
@@ -277,34 +282,44 @@ function emulateNormalUserAgent(win) {
 }
 
 
-function onInterceptFileProtocol(request, callback) {
-    let file = fileURLToPath(request.url);
-    const fInfo = path.parse(file);
-    file = file.substr(fInfo.root.length);
+function onHandleFileProtocol(request) {
+    console.error("NEW SCHOOL file protgo", request.url);
+    const url = urlMod.parse(request.url);
+    let pathname = url.pathname;
     let rootPath = appPath;
-    if (file.startsWith('mods' + path.sep)) {
-        for (const x of mods.available) {
-            const prefix = path.normalize(`mods/${x.id}/`);
-            if (file.startsWith(prefix)) {
-                rootPath = x.modPath;
-                file = file.substr(prefix.length);
-                break;
+    if (pathname === '/sauce:dummy') {
+        return new Response('');
+    } else {
+        const modMatch = pathname.match(/\/mods\/(.+?)\//);
+        if (modMatch) {
+            const modId = modMatch[1]; // e.g. "foo-mod-123"
+            const mod = mods.available.find(x => x.id === modId);
+            if (mod) {
+                rootPath = mod.modPath;
+                const root = modMatch[0]; // e.g. "/mods/foo-mod-123/"
+                pathname = pathname.substr(root.length);
+            } else {
+                console.error("Invalid Mod ID:", modId);
+                return new Response(null, {status: 404});
             }
         }
     }
     // This allows files to be loaded like watching.___id-here___.html which ensures
-    // some settings like zoom factor are unique to each window.
-    let m;
-    if (fInfo.ext === '.html' && (m = fInfo.name.match(/.\.___.+___$/))) {
-        const p = path.parse(file);
-        p.name = p.name.substr(0, m.index + 1);
-        p.base = undefined;
-        file = path.format(p);
+    // some settings like zoom factor are unique to each window (they don't conform to origin
+    // based sandboxing).
+    const pInfo = path.parse(pathname);
+    const idMatch = pInfo.name.match(/\.___.+___$/);
+    if (idMatch) {
+        pInfo.name = pInfo.name.substr(0, idMatch.index);
+        pInfo.base = undefined;
+        pathname = path.format(pInfo);
     }
-    callback(path.join(rootPath, file));
+    const elFetch = this ? this.fetch.bind(this) : electron.net.fetch;
+    return elFetch(`file://${path.join(rootPath, pathname)}`, {bypassCustomProtocolHandlers: true});
 }
 
-electron.protocol.interceptFileProtocol('file', onInterceptFileProtocol);
+
+electron.protocol.handle('file', onHandleFileProtocol);
 
 electron.ipcMain.on('getWindowMetaSync', ev => {
     const meta = {
@@ -959,7 +974,7 @@ function handleNewSubWindow(parent, spec, webPrefs) {
         const bounds = getBoundsForDisplay(display, newWinOptions);
         const newWinSpec = (windowId || windowType) ?
             initWidgetWindowSpec({type: windowType, id: windowId || spec?.id}) : spec;
-        const frame = q.has('frame') || !url.startsWith('file://') || !!newWinSpec?.options?.frame;
+        const frame = q.has('frame') || isInternalScheme(url) || !!newWinSpec?.options?.frame;
         const newWin = new SauceBrowserWindow({
             subWindow: true,
             spec: newWinSpec,
@@ -1016,12 +1031,13 @@ export async function getWindowsStorage(session) {
             sandbox: true,
         }
     });
-    const p = new Promise(resolve =>
-        win.webContents.on('ipc-message', (ev, ch, storage) => resolve(storage)));
-    let storage;
+    let _resolve;
+    win.webContents.on('ipc-message', (ev, ch, storage) => _resolve(storage));
     win.webContents.on('did-finish-load', () => win.webContents.send('export'));
-    win.loadFile('/pages/dummy.html');
+    const p = new Promise(resolve => _resolve = resolve);
+    let storage;
     try {
+        win.loadURL('file:///sauce:dummy');
         storage = await p;
     } finally {
         if (!win.isDestroyed()) {
@@ -1042,11 +1058,12 @@ export async function setWindowsStorage(storage, session) {
             sandbox: true,
         }
     });
-    const p = new Promise((resolve, reject) =>
-        win.webContents.on('ipc-message', (ev, ch, success) => success ? resolve() : reject()));
+    let _resolve, _reject;
+    win.webContents.on('ipc-message', (ev, ch, success) => success ? _resolve() : _reject());
     win.webContents.on('did-finish-load', () => win.webContents.send('import', storage));
-    win.loadFile('/pages/dummy.html');
+    const p = new Promise((resolve, reject) => (_resolve = resolve, _reject = reject));
     try {
+        win.loadURL('file:///sauce:dummy');
         await p;
     } finally {
         if (!win.isDestroyed()) {
