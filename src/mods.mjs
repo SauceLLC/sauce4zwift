@@ -1,5 +1,7 @@
+/* global Buffer */
 import path from 'node:path';
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import StreamZip from 'node-stream-zip';
 import * as rpc from './rpc.mjs';
 import * as storage from './storage.mjs';
@@ -10,9 +12,10 @@ const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 
 const settingsKey = 'mod-settings';
-const directoryKey = 'mod-directory';
+const installedKey = 'mod-installed';
 let settings;
-let directory;
+let installed;
+let upstreamDirectory;
 let unpackedModRoot;
 let packedModRoot;
 
@@ -114,7 +117,7 @@ const manifestSchema = {
 
 export async function init(unpackedDir, packedDir) {
     settings = storage.get(settingsKey) || {};
-    directory = storage.get(directoryKey) || {};
+    installed = storage.get(installedKey) || {};
     available.length = 0;
     try {
         available.push(..._initUnpacked(unpackedDir));
@@ -173,6 +176,14 @@ function _initUnpacked(root) {
 }
 
 
+async function getUpstreamDirectory() {
+    if (!upstreamDirectory) {
+        upstreamDirectory = await (await fetch('https://mods.sauce.llc/directory.json')).json();
+    }
+    return upstreamDirectory;
+}
+
+
 async function _initPacked(root) {
     try {
         fs.mkdirSync(root, {recursive: true});
@@ -181,63 +192,33 @@ async function _initPacked(root) {
         console.warn('MODS folder uncreatable:', root, e);
         root = null;
     }
-    if (!root || !directory) {
+    if (!root) {
         return [];
     }
-    const dlURL = await getGithubSourceURL({
-        "type": "github",
-        "org": "mayfield",
-        "id": "b7a17692-cbcb-493a-827f-c84a64f14af1",
-        "repo": "s4z-wolf3d-mod",
-        "logoURL": "https://raw.githubusercontent.com/mayfield/s4z-wolf3d-mod/main/pages/images/favicon.png",
-        "releases": [{
-            "id": 145384817,
-            "assetId": 155706162
-        }, {
-            "id": 145384817,
-            "assetId": 155706162,
-            "minVersion": "1.1"
-        }, {
-            "id": 145384817,
-            "assetId": 155706162,
-            "minVersion": "1.x"
-        }, {
-            "id": 145384817,
-            "assetId": 155706162,
-            "minVersion": "1.1.5"
-        }, {
-            "id": 145384817,
-            "assetId": 155706162,
-            "minVersion": "1.2"
-        }, {
-            "id": 145384817,
-            "assetId": 155706162,
-            "minVersion": "1.3.x"
-        }, {
-            "id": 145384817,
-            "assetId": 155706162,
-            "minVersion": "1.3.3"
-        }, {
-            "id": 145384817,
-            "assetId": 155706162,
-            "minVersion": "1.3"
-        }, {
-            "id": 145384817,
-            "assetId": 155706162,
-            "minVersion": "2"
-        }]
-    });
     const validMods = [];
-    for (const [id, entry] of Object.entries(directory)) {
+    for (const [id, entry] of Object.entries(installed)) {
         const modSettings = settings[id];
         if (!modSettings || !modSettings.enabled) {
             console.warn('Skipping disabled mod:', id);
             continue;
         }
         try {
-            const file = fs.realpathSync(path.join(root, entry.installed.file));
-            const zip = new StreamZip.async({file: fs.statSync(file)});
-            const manifest = JSON.parse(zip.entryData('/manifest.json'));
+            const file = fs.realpathSync(path.join(root, entry.file));
+            const zip = new StreamZip.async({file});
+            let modRootDir;
+            for (const entry of Object.values(await zip.entries())) {
+                if (!entry.isDirectory) {
+                    const p = path.parse(entry.name);
+                    if (p.base === 'manifest.json') {
+                        modRootDir = p.dir;
+                        break;
+                    }
+                }
+            }
+            if (modRootDir === undefined) {
+                throw new Error("manifest.json not found");
+            }
+            const manifest = JSON.parse(await zip.entryData(`${modRootDir}/manifest.json`));
             if (manifest.id && manifest.id !== id) {
                 console.warn("Packed extention ID is diffrent from directory entry", id, manifest.id);
             }
@@ -398,11 +379,35 @@ export function getWindowContentStyle() {
 }
 
 
-export async function installPackedMod(entry) {
-    const dlURL = await getGithubSourceURL(entry);
-    const existing = directory[entry.id];
+export async function installPackedMod(id) {
+    const dir = await getUpstreamDirectory();
+    const entry = dir.find(x => x.id === id);
+    if (!entry) {
+        throw new Error("ID not found: " + id);
+    }
+    if (entry.type === 'github') {
+        const release = await getGithubRelease(entry);
+        const resp = await fetch(release.url);
+        if (!resp.ok) {
+            throw new Error("Mod install fetch error: " + resp.status);
+        }
+        const data = Buffer.from(await resp.arrayBuffer());
+        const file = `${crypto.randomUUID()}.zip`;
+        fs.writeFileSync(path.join(packedModRoot, file), data);
+        console.error({release});
+        installed[id] = {
+            release,
+            file,
+        };
+        settings[id] = settings[id] || {};
+        settings[id].enabled = true;
+    } else {
+        throw new TypeError("Unsupported mod release type: " + entry.type);
+    }
+    storage.set(installedKey, installed);
     storage.set(settingsKey, settings);
 }
+rpc.register(installPackedMod);
 
 
 export function updatePackedMod(entry) {
@@ -442,11 +447,10 @@ function semverOrder(a, b) {
 }
 
 
-async function getGithubSourceURL(entry) {
+async function getGithubRelease(entry) {
     const releases = entry.releases
         .sort((a, b) => semverOrder(b.minVersion, a.minVersion))
         .filter(x => semverOrder(pkg.version, x.minVersion) >= 0);
-    console.log(releases);
     const release = releases[0];
     if (!release) {
         console.warn("No compatible release found");
@@ -459,6 +463,10 @@ async function getGithubSourceURL(entry) {
     }
     const upstreamRelInfo = await resp.json();
     const asset = upstreamRelInfo.assets.find(xx => xx.id === release.assetId);
-    console.warn({upstreamRelInfo, asset});
-    return asset.browser_download_url;
+    return {
+        sig: `${release.id}-${release.assetId}`,
+        url: asset.browser_download_url,
+        date: new Date(asset.updated_at),
+        version: upstreamRelInfo.tag_name,
+    };
 }
