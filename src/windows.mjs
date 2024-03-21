@@ -10,6 +10,7 @@ import {sleep} from '../shared/sauce/base.mjs';
 import {createRequire} from 'node:module';
 import * as menu from './menu.mjs';
 import * as main from './main.mjs';
+import * as mime from './mime.mjs';
 
 const require = createRequire(import.meta.url);
 const electron = require('electron');
@@ -283,27 +284,14 @@ function emulateNormalUserAgent(win) {
 
 
 function onHandleFileProtocol(request) {
-    console.error("NEW SCHOOL file protgo", request.url);
+    console.info("NEW SCHOOL file protgo", request.url);
     const url = urlMod.parse(request.url);
     let pathname = url.pathname;
     let rootPath = appPath;
     if (pathname === '/sauce:dummy') {
         return new Response('');
-    } else {
-        const modMatch = pathname.match(/\/mods\/(.+?)\//);
-        if (modMatch) {
-            const modId = modMatch[1]; // e.g. "foo-mod-123"
-            const mod = mods.available.find(x => x.id === modId);
-            if (mod) {
-                rootPath = mod.modPath;
-                const root = modMatch[0]; // e.g. "/mods/foo-mod-123/"
-                pathname = pathname.substr(root.length);
-            } else {
-                console.error("Invalid Mod ID:", modId);
-                return new Response(null, {status: 404});
-            }
-        }
     }
+
     // This allows files to be loaded like watching.___id-here___.html which ensures
     // some settings like zoom factor are unique to each window (they don't conform to origin
     // based sandboxing).
@@ -314,6 +302,41 @@ function onHandleFileProtocol(request) {
         pInfo.base = undefined;
         pathname = path.format(pInfo);
     }
+
+    const modMatch = pathname.match(/\/mods\/(.+?)\//);
+    if (modMatch) {
+        const modId = modMatch[1]; // e.g. "foo-mod-123"
+        const mod = mods.available.find(x => x.id === modId);
+        if (mod) {
+            const root = modMatch[0]; // e.g. "/mods/foo-mod-123/"
+            pathname = pathname.substr(root.length);
+            if (mod.unpacked) {
+                rootPath = mod.modPath;
+            } else {
+                return mod.zip.entryData(path.join(mod.modRootDir, pathname)).then(data => {
+                    const headers = {};
+                    const mimeType = mime.mimeTypesByExt.get(pInfo.ext.substr(1));
+                    if (mimeType) {
+                        headers['content-type'] = mimeType;
+                    } else {
+                        console.warn("Could not determine mime type for:", pathname);
+                    }
+                    return new Response(data, {status: data.byteLength ? 200 : 204, headers});
+                }).catch(e => {
+                    debugger;
+                    if (e.message === 'Entry not found') {
+                        return new Response(null, {status: 404});
+                    } else {
+                        throw e;
+                    }
+                });
+            }
+        } else {
+            console.error("Invalid Mod ID:", modId);
+            return new Response(null, {status: 404});
+        }
+    }
+
     const elFetch = this ? this.fetch.bind(this) : electron.net.fetch;
     return elFetch(`file://${path.join(rootPath, pathname)}`, {bypassCustomProtocolHandlers: true});
 }

@@ -200,20 +200,24 @@ async function renderAvailableMods() {
     }
     const html = [];
     const ids = {};
-    for (const {manifest, id, enabled} of mods) {
+    for (const {manifest, id, enabled, unpacked} of mods) {
         if (!manifest) {
             continue;
         }
         const safeId = common.sanitizeAttr(id);
         ids[safeId] = id;
+        const optRemove = !unpacked ?
+            `<span class="button std xs danger" data-mod-action="remove">Remove</span>` :
+            `<small>[unpacked]</small>`;
         html.push(`
             <div class="mod" data-id="${safeId}">
-                <div class="title">
+                <div class="header">
                     <div>
                         <span class="name">${common.stripHTML(manifest.name)}</span>
                         <span class="version">(v${manifest.version})</span>
+                        ${optRemove}
                     </div>
-                    <label class="enabled">
+                    <label data-mod-action="enable-toggle" class="enabled">
                         Enabled
                         <input type="checkbox" ${enabled ? 'checked' : ''}/>
                         <span class="restart-required"></span>
@@ -237,14 +241,17 @@ async function renderAvailableMods() {
     }
     el.innerHTML = html.join('');
     el.addEventListener('click', async ev => {
-        const label = ev.target.closest('label.enabled');
-        if (!label) {
-            return;
+        const actionEl = ev.target.closest('[data-mod-action]');
+        if (actionEl.dataset.modAction === 'enable-toggle') {
+            const label = ev.target.closest('label.enabled');
+            const enabled = label.querySelector('input').checked;
+            const id = ids[ev.target.closest('.mod[data-id]').dataset.id];
+            label.classList.add('edited');
+            await common.rpc.setModEnabled(id, enabled);
+        } else if (actionEl.dataset.modAction === 'remove') {
+            const id = ids[ev.target.closest('.mod[data-id]').dataset.id];
+            await common.rpc.removePackedMod(id);
         }
-        const enabled = label.querySelector('input').checked;
-        const id = ids[ev.target.closest('.mod[data-id]').dataset.id];
-        label.classList.add('edited');
-        await common.rpc.setModEnabled(id, enabled);
     });
 }
 
@@ -461,14 +468,14 @@ async function initWindowsPanel() {
         await common.rpc.openWidgetWindow(id);
     });
     winsEl.addEventListener('click', async ev => {
-        const btn = ev.target.closest('.button[data-action]');
+        const btn = ev.target.closest('.button[data-win-action]');
         if (!btn) {
             return;
         }
-        if (btn.dataset.action === 'profile-create') {
+        if (btn.dataset.winAction === 'profile-create') {
             await common.rpc.createProfile();
             await renderProfiles();
-        } else if (btn.dataset.action === 'profile-import') {
+        } else if (btn.dataset.winAction === 'profile-import') {
             const fileEl = document.createElement('input');
             fileEl.type = 'file';
             fileEl.accept='.json';

@@ -2,6 +2,7 @@
 import express from 'express';
 import * as rpc from './rpc.mjs';
 import * as mods from './mods.mjs';
+import * as mime from './mime.mjs';
 import expressWebSocketPatch from 'express-ws';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -318,6 +319,11 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
     });
     api.post('/rpc/v1/:name', async (req, res) => {
         try {
+            if (req.headers['content-type'] !== 'application/json') {
+                res.status(400);
+                res.send(rpc.errorReply(new TypeError('Expected content-type header of application/json')));
+                return;
+            }
             const replyEnvelope = await rpc.invoke.call(null, req.params.name, ...req.body);
             if (!replyEnvelope.success) {
                 res.status(400);
@@ -373,11 +379,40 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
             const modRouter = express.Router();
             try {
                 const urn = path.posix.join('/', mod.id, mod.manifest.web_root);
-                const fullPath = path.join(mod.modPath, mod.manifest.web_root);
-                console.warn('Adding Mod web root:', '/mods' + urn, '->', fullPath);
-                modRouter.use(urn, express.static(fullPath, {
-                    setHeaders: res => res.setHeader('Access-Control-Allow-Origin', '*')
-                }));
+                if (mod.unpacked) {
+                    const fullPath = path.join(mod.modPath, mod.manifest.web_root);
+                    console.warn('Adding unpacked Mod web root:', '/mods' + urn, '->', fullPath);
+                    modRouter.use(urn, express.static(fullPath, {
+                        setHeaders: res => res.setHeader('Access-Control-Allow-Origin', '*')
+                    }));
+                } else {
+                    const fullPath = path.join(mod.modRootDir, mod.manifest.web_root);
+                    console.warn('Adding Mod web root:', '/mods' + urn, '->', fullPath);
+                    modRouter.use(urn, async (req, res) => {
+                        console.log(req.path, req.originalUrl, req);
+                        let data;
+                        try {
+                            data = await mod.zip.entryData(path.join(fullPath, req.path));
+                        } catch(e) {
+                            if (!e.message.match(/(not found|not file)/)) {
+                                res.status(500);
+                                res.send("Internal Mod zip entry error");
+                                console.error("Mod file error:", e);
+                            } else {
+                                res.status(404);
+                                res.send("Not found");
+                                console.warn("Mod file not found:", req.path);
+                            }
+                            return;
+                        }
+                        res.setHeader('Access-Control-Allow-Origin', '*');
+                        const ct = mime.mimeTypesByExt.get(path.parse(req.path).ext.substr(1));
+                        if (ct) {
+                            res.setHeader('Content-Type', ct);
+                        }
+                        res.end(data);
+                    });
+                }
                 router.use('/mods', modRouter);
             } catch(e) {
                 console.error('Failed to add mod web root:', mod, e);

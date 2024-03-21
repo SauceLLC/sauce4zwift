@@ -55,7 +55,7 @@ function isSafePath(x, _, modPath) {
 
 
 function isSafeID(x) {
-    return !!x.match(/^[a-z0-9-]+$/i);
+    return !!x.match(/^[a-z0-9-_]+$/i);
 }
 
 
@@ -210,6 +210,10 @@ async function _initPacked(root) {
                 if (!entry.isDirectory) {
                     const p = path.parse(entry.name);
                     if (p.base === 'manifest.json') {
+                        if (p.dir.split(path.sep).length > 1) {
+                            console.warn("Ignoring over nested manifest.json file:", entry.name);
+                            continue;
+                        }
                         modRootDir = p.dir;
                         break;
                     }
@@ -225,7 +229,7 @@ async function _initPacked(root) {
             const label = `${manifest.name} (${id})`;
             console.info(`Detected packed MOD: ${label} [ENABLED]`);
             validateManifest(manifest, null, label);
-            validMods.push({manifest, isNew: false, enabled: true, id, zip, unpacked: false});
+            validMods.push({manifest, isNew: false, enabled: true, id, zip, unpacked: false, modRootDir});
         } catch(e) {
             if (e instanceof ValidationError) {
                 const path = e.key ? e.path.concat(e.key) : e.path;
@@ -380,6 +384,7 @@ export function getWindowContentStyle() {
 
 
 export async function installPackedMod(id) {
+    console.warn("Installing Mod:", id);
     const dir = await getUpstreamDirectory();
     const entry = dir.find(x => x.id === id);
     if (!entry) {
@@ -410,14 +415,20 @@ export async function installPackedMod(id) {
 rpc.register(installPackedMod);
 
 
-export function updatePackedMod(entry) {
-    debugger;
+export function removePackedMod(id) {
+    console.warn("Removing Mod:", id);
+    const entry = installed[id];
+    if (!entry) {
+        throw new Error("Mod not found: " + id);
+    }
+    delete installed[id];
+    delete settings[id];
+    storage.set(installedKey, installed);
+    storage.set(settingsKey, settings);
+    // maxRetries is for Windows which is broken by design.
+    fs.rmSync(path.join(packedModRoot, entry.file), {maxRetries: 5});
 }
-
-
-export function removePackedMod(entry) {
-    debugger;
-}
+rpc.register(removePackedMod);
 
 
 function semverOrder(a, b) {
