@@ -313,7 +313,7 @@ function onHandleFileProtocol(request) {
             if (mod.unpacked) {
                 rootPath = mod.modPath;
             } else {
-                return mod.zip.entryData(path.join(mod.modRootDir, pathname)).then(data => {
+                return mod.zip.entryData(path.join(mod.zipRootDir, pathname)).then(data => {
                     const headers = {};
                     const mimeType = mime.mimeTypesByExt.get(pInfo.ext.substr(1));
                     if (mimeType) {

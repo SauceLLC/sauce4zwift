@@ -126,6 +126,7 @@ async function main() {
     await mods.init(path.join(os.homedir(), 'Documents', 'SauceMods'));
     const sauceApp = new NodeSauceApp({appPath});
     sauceApp.rpcEventEmitters.set('logs', logEmitter);
+    sauceApp.rpcEventEmitters.set('mods', mods.eventEmitter);
     rpc.register(() => logQueue, {name: 'getLogs'});
     rpc.register(() => logQueue.length = 0, {name: 'clearLogs'});
     rpc.register(() => () => console.warn("File logging disabled for headless mode"),

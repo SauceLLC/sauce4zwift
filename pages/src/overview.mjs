@@ -191,7 +191,6 @@ async function renderProfiles() {
 
 
 async function renderAvailableMods() {
-    document.querySelector('.mods-path.button').addEventListener('click', common.rpc.showModsRootFolder);
     const mods = await common.rpc.getAvailableMods();
     const el = document.querySelector('#mods-container');
     if (!mods || !mods.length) {
@@ -200,26 +199,28 @@ async function renderAvailableMods() {
     }
     const html = [];
     const ids = {};
-    for (const {manifest, id, enabled, unpacked} of mods) {
+    for (const {manifest, id, enabled, unpacked, restartRequired, status} of mods) {
         if (!manifest) {
             continue;
         }
         const safeId = common.sanitizeAttr(id);
         ids[safeId] = id;
-        const optRemove = !unpacked ?
+        const optRemove = !restartRequired ? !unpacked ?
             `<span class="button std xs danger" data-mod-action="remove">Remove</span>` :
-            `<small>[unpacked]</small>`;
+            `<small class="badge" style="--sat: 0">unpacked</small>` : '';
+        const enBox = !restartRequired ?
+            `Enabled <input type="checkbox" ${enabled ? 'checked' : ''}/>` :
+            `<small class="badge" style="--sat: 0">${status}</small>`;
         html.push(`
-            <div class="mod" data-id="${safeId}">
+            <div class="mod ${restartRequired ? 'restart-required' : ''}" data-id="${safeId}">
                 <div class="header">
                     <div>
                         <span class="name">${common.stripHTML(manifest.name)}</span>
                         <span class="version">(v${manifest.version})</span>
                         ${optRemove}
                     </div>
-                    <label data-mod-action="enable-toggle" class="enabled">
-                        Enabled
-                        <input type="checkbox" ${enabled ? 'checked' : ''}/>
+                    <label data-mod-action="enable-toggle" class="enabled ${restartRequired ? 'edited' : ''}">
+                        ${enBox}
                         <span class="restart-required"></span>
                     </label>
                 </div>
@@ -499,6 +500,7 @@ async function initWindowsPanel() {
             fileEl.click();
         }
     });
+    document.querySelector('.mods-path.button').addEventListener('click', common.rpc.showModsRootFolder);
 }
 
 
@@ -543,6 +545,7 @@ export async function settingsMain() {
     });
     common.subscribe('save-widget-window-specs', renderWindows, {source: 'windows'});
     common.subscribe('set-windows', renderWindows, {source: 'windows'});
+    common.subscribe('available-mods-changed', renderAvailableMods, {source: 'mods'});
     extraData.webServerURL = await common.rpc.getWebServerURL();
     const athlete = await common.rpc.getAthlete('self');
     extraData.profileDesc = athlete && athlete.sanitizedFullname;

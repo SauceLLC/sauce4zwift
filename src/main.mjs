@@ -374,6 +374,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     }, {name: 'setLoaderSetting'});
     sauceApp.rpcEventEmitters.set('windows', windows.eventEmitter);
     sauceApp.rpcEventEmitters.set('updater', autoUpdater);
+    sauceApp.rpcEventEmitters.set('mods', mods.eventEmitter);
     if (!args.headless) {
         menu.installTrayIcon();
         menu.setAppMenu();

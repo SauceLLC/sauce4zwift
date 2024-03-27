@@ -386,7 +386,7 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
                         setHeaders: res => res.setHeader('Access-Control-Allow-Origin', '*')
                     }));
                 } else {
-                    const fullPath = path.join(mod.modRootDir, mod.manifest.web_root);
+                    const fullPath = path.join(mod.zipRootDir, mod.manifest.web_root);
                     console.warn('Adding Mod web root:', '/mods' + urn, '->', fullPath);
                     modRouter.use(urn, async (req, res) => {
                         console.log(req.path, req.originalUrl, req);
