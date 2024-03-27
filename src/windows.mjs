@@ -52,6 +52,19 @@ class SauceBrowserWindow extends electron.BrowserWindow {
         return (this.subWindow ? '[sub-window] ' : '') +
             (this.spec ? `specId:${this.spec.id}` : `id:${this.id}`);
     }
+
+    loadFile(pathname, options) {
+        // Same as stock loadFile except we don't inject electron.app.getAppPath().
+        // On windows this will add a drive letter root to all paths. This is
+        // machine dependent, unnecessary and increases the complexity of our
+        // electron.protocol.handle(...) interceptor.
+        return this.loadURL(urlMod.format({
+            protocol: 'file',
+            slashes: true,
+            pathname,
+            ...options,
+        }));
+    }
 }
 
 
