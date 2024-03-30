@@ -213,7 +213,8 @@ async function _initPacked(root) {
             continue;
         }
         try {
-            const {manifest, zip, zipRootDir} = await parsePacked(entry.file, id);
+            const fullpath = path.join(packedModRoot, entry.file);
+            const {manifest, zip, zipRootDir} = await parsePackedMod(fullpath, id);
             console.info(`Detected packed MOD: ${manifest.name} [ENABLED]`);
             validMods.push({manifest, enabled: true, id, zip, zipRootDir});
         } catch(e) {
@@ -229,8 +230,16 @@ async function _initPacked(root) {
 }
 
 
-async function parsePacked(file, id) {
-    file = fs.realpathSync(path.join(packedModRoot, file));
+function packedModHash({file, data}) {
+    const sha256 = crypto.createHash('sha256');
+    if (file) {
+        data = fs.readFileSync(file);
+    }
+    return sha256.update(data).digest('hex');
+}
+
+
+async function parsePackedMod(file, id) {
     const zip = new StreamZip.async({file});
     let zipRootDir;
     for (const zEntry of Object.values(await zip.entries())) {
@@ -250,12 +259,13 @@ async function parsePacked(file, id) {
         throw new Error("manifest.json not found");
     }
     const manifest = JSON.parse(await zip.entryData(`${zipRootDir}/manifest.json`));
-    if (manifest.id && manifest.id !== id) {
+    if (id && manifest.id && manifest.id !== id) {
         console.warn("Packed extention ID is diffrent from directory ID", id, manifest.id);
     }
-    const label = `${manifest.name} (${id})`;
+    const label = `${manifest.name} (${id || 'missing-id'})`;
     validateManifest(manifest, null, label);
-    return {manifest, zipRootDir, zip};
+    const hash = packedModHash({file});
+    return {manifest, zipRootDir, zip, hash};
 }
 
 
@@ -399,6 +409,25 @@ export function getWindowContentStyle() {
 }
 
 
+export async function validatePackedMod(zipUrl) {
+    const resp = await fetch(zipUrl);
+    if (!resp.ok) {
+        throw new Error("Mod fetch error: " + resp.status);
+    }
+    const data = Buffer.from(await resp.arrayBuffer());
+    const tmpFile = path.join(packedModRoot, `tmp-${crypto.randomUUID()}.zip`);
+    fs.writeFileSync(tmpFile, data);
+    try {
+        const {manifest, zip, hash} = await parsePackedMod(tmpFile);
+        zip.close();
+        return {manifest, hash};
+    } finally {
+        fs.rmSync(tmpFile, {maxRetries: 5});
+    }
+}
+rpc.register(validatePackedMod);
+
+
 export async function installPackedMod(id) {
     console.warn("Installing Mod:", id);
     const dir = await getUpstreamDirectory();
@@ -408,18 +437,19 @@ export async function installPackedMod(id) {
     }
     let file;
     if (dirEntry.type === 'github') {
-        const release = await getGithubRelease(dirEntry);
-        const resp = await fetch(release.url);
+        const relDetails = await getGithubReleaseDetails(dirEntry);
+        const resp = await fetch(relDetails.url);
         if (!resp.ok) {
             throw new Error("Mod install fetch error: " + resp.status);
         }
         const data = Buffer.from(await resp.arrayBuffer());
+        const hash = packedModHash({data});
+        if (hash !== relDetails.hash) {
+            throw new Error("Mod file hash does not match upstream directory hash");
+        }
         file = `${crypto.randomUUID()}.zip`;
         fs.writeFileSync(path.join(packedModRoot, file), data);
-        installed[id] = {
-            release,
-            file,
-        };
+        installed[id] = {hash, file};
         settings[id] = settings[id] || {};
         settings[id].enabled = true;
     } else {
@@ -427,7 +457,7 @@ export async function installPackedMod(id) {
     }
     storage.set(installedKey, installed);
     storage.set(settingsKey, settings);
-    const availEntry = await parsePacked(file, id);
+    const availEntry = await parsePackedMod(path.join(packedModRoot, file), id);
     availEntry.id = id;
     availEntry.enabled = true;
     availEntry.restartRequired = true;
@@ -440,6 +470,10 @@ export async function installPackedMod(id) {
     }
     eventEmitter.emit('installed-mod', availEntry);
     eventEmitter.emit('available-mods-changed', availEntry, available);
+    debugger;
+    const resp = await fetch(`https://mod-rank.sauce.llc/edit/${id}/installs`, {method: 'POST'}); // bg okay
+    console.log(resp, resp.ok, resp.status);
+    console.log(await resp.text());
 }
 rpc.register(installPackedMod);
 
@@ -463,6 +497,33 @@ export function removePackedMod(id) {
     eventEmitter.emit('available-mods-changed', availEntry, available);
 }
 rpc.register(removePackedMod);
+
+
+export async function checkUpdatePackedMod(id) {
+    const installEntry = installed[id];
+    if (!installEntry) {
+        throw new Error("Mod ID not installed");
+    }
+    const dir = await getUpstreamDirectory();
+    const dirEntry = dir.find(x => x.id === id);
+    if (!dirEntry) {
+        throw new Error("Upstream Mod ID not found: " + id);
+    }
+    let release;
+    if (dirEntry.type === 'github') {
+        release = packedModBestRelease(dirEntry.releases);
+    } else {
+        throw new TypeError("Unsupported mod release type: " + dirEntry.type);
+    }
+    if (!release) {
+        console.error('No compatible upstream release found for:', id);
+        return;
+    }
+    if (release.hash !== installEntry.hash) {
+        return release;
+    }
+}
+rpc.register(checkUpdatePackedMod);
 
 
 function semverOrder(a, b) {
@@ -492,11 +553,15 @@ function semverOrder(a, b) {
 }
 
 
-async function getGithubRelease(entry) {
-    const releases = entry.releases
+function packedModBestRelease(releases) {
+    return releases
         .sort((a, b) => semverOrder(b.minVersion, a.minVersion))
-        .filter(x => semverOrder(pkg.version, x.minVersion) >= 0);
-    const release = releases[0];
+        .filter(x => semverOrder(pkg.version, x.minVersion) >= 0)[0];
+}
+
+
+async function getGithubReleaseDetails(entry) {
+    const release = packedModBestRelease(entry.releases);
     if (!release) {
         console.warn("No compatible release found");
         return;
@@ -509,7 +574,7 @@ async function getGithubRelease(entry) {
     const upstreamRelInfo = await resp.json();
     const asset = upstreamRelInfo.assets.find(xx => xx.id === release.assetId);
     return {
-        sig: `${release.id}-${release.assetId}`,
+        hash: release.hash,
         url: asset.browser_download_url,
         date: new Date(asset.updated_at),
         version: upstreamRelInfo.tag_name,
