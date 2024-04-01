@@ -470,10 +470,7 @@ export async function installPackedMod(id) {
     }
     eventEmitter.emit('installed-mod', availEntry);
     eventEmitter.emit('available-mods-changed', availEntry, available);
-    debugger;
-    const resp = await fetch(`https://mod-rank.sauce.llc/edit/${id}/installs`, {method: 'POST'}); // bg okay
-    console.log(resp, resp.ok, resp.status);
-    console.log(await resp.text());
+    fetch(`https://mod-rank.sauce.llc/edit/${id}/installs`, {method: 'POST'}); // bg okay
 }
 rpc.register(installPackedMod);
 
