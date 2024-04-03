@@ -419,6 +419,7 @@ export async function validatePackedMod(zipUrl) {
     fs.writeFileSync(tmpFile, data);
     try {
         const {manifest, zip, hash} = await parsePackedMod(tmpFile);
+        debugger;
         zip.close();
         return {manifest, hash};
     } finally {
@@ -435,26 +436,24 @@ export async function installPackedMod(id) {
     if (!dirEntry) {
         throw new Error("ID not found: " + id);
     }
-    let file;
-    if (dirEntry.type === 'github') {
-        const relDetails = await getGithubReleaseDetails(dirEntry);
-        const resp = await fetch(relDetails.url);
-        if (!resp.ok) {
-            throw new Error("Mod install fetch error: " + resp.status);
-        }
-        const data = Buffer.from(await resp.arrayBuffer());
-        const hash = packedModHash({data});
-        if (hash !== relDetails.hash) {
-            throw new Error("Mod file hash does not match upstream directory hash");
-        }
-        file = `${crypto.randomUUID()}.zip`;
-        fs.writeFileSync(path.join(packedModRoot, file), data);
-        installed[id] = {hash, file};
-        settings[id] = settings[id] || {};
-        settings[id].enabled = true;
-    } else {
-        throw new TypeError("Unsupported mod release type: " + dirEntry.type);
+    const release = packedModBestRelease(dirEntry.releases);
+    if (!release) {
+        throw new TypeError("No compatible mod release found");
     }
+    const resp = await fetch(release.url);
+    if (!resp.ok) {
+        throw new Error("Mod install fetch error: " + resp.status);
+    }
+    const data = Buffer.from(await resp.arrayBuffer());
+    const hash = packedModHash({data});
+    if (hash !== release.hash) {
+        throw new Error("Mod file hash does not match upstream directory hash");
+    }
+    const file = `${crypto.randomUUID()}.zip`;
+    fs.writeFileSync(path.join(packedModRoot, file), data);
+    installed[id] = {hash, file, size: data.byteLength};
+    settings[id] = settings[id] || {};
+    settings[id].enabled = true;
     storage.set(installedKey, installed);
     storage.set(settingsKey, settings);
     const availEntry = await parsePackedMod(path.join(packedModRoot, file), id);
@@ -506,12 +505,7 @@ export async function checkUpdatePackedMod(id) {
     if (!dirEntry) {
         throw new Error("Upstream Mod ID not found: " + id);
     }
-    let release;
-    if (dirEntry.type === 'github') {
-        release = packedModBestRelease(dirEntry.releases);
-    } else {
-        throw new TypeError("Unsupported mod release type: " + dirEntry.type);
-    }
+    const release = packedModBestRelease(dirEntry.releases);
     if (!release) {
         console.error('No compatible upstream release found for:', id);
         return;
@@ -527,11 +521,11 @@ function semverOrder(a, b) {
     if (a === b || (!a && !b)) {
         return 0;
     }
-    const A = a ? a.split('.').map(x => x.split('-')[0]) : [];
+    const A = a != null ? a.toString().split('.').map(x => x.split('-')[0]) : [];
     if (A.includes('x')) {
         A.splice(A.indexOf('x'), A.length);
     }
-    const B = b ? b.split('.').map(x => x.split('-')[0]) : [];
+    const B = b != null ? b.toString().split('.').map(x => x.split('-')[0]) : [];
     if (B.includes('x')) {
         B.splice(B.indexOf('x'), B.length);
     }
@@ -554,26 +548,4 @@ function packedModBestRelease(releases) {
     return releases
         .sort((a, b) => semverOrder(b.minVersion, a.minVersion))
         .filter(x => semverOrder(pkg.version, x.minVersion) >= 0)[0];
-}
-
-
-async function getGithubReleaseDetails(entry) {
-    const release = packedModBestRelease(entry.releases);
-    if (!release) {
-        console.warn("No compatible release found");
-        return;
-    }
-    const resp = await fetch(
-        `https://api.github.com/repos/${entry.org}/${entry.repo}/releases/${release.id}`);
-    if (!resp.ok) {
-        throw new Error('Github Mod fetch error:', resp.status, await resp.text());
-    }
-    const upstreamRelInfo = await resp.json();
-    const asset = upstreamRelInfo.assets.find(xx => xx.id === release.assetId);
-    return {
-        hash: release.hash,
-        url: asset.browser_download_url,
-        date: new Date(asset.updated_at),
-        version: upstreamRelInfo.tag_name,
-    };
 }
