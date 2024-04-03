@@ -419,9 +419,8 @@ export async function validatePackedMod(zipUrl) {
     fs.writeFileSync(tmpFile, data);
     try {
         const {manifest, zip, hash} = await parsePackedMod(tmpFile);
-        debugger;
         zip.close();
-        return {manifest, hash};
+        return {manifest, hash, size: data.byteLength};
     } finally {
         fs.rmSync(tmpFile, {maxRetries: 5});
     }
