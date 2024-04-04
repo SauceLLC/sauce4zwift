@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "@sentry/node": "6.19.6",
-    "better-sqlite3": "9.4.3",
+    "better-sqlite3": "9.4.5",
     "electron-updater": "6.1.9",
     "express": "4.19.2",
     "express-ws": "5.0.2",
@@ -40,10 +40,10 @@
     "@electron/notarize": "2.3.0",
     "@sentry/browser": "6.19.6",
     "echarts": "5.5.0",
-    "electron": "28",
-    "electron-builder": "24.13.2",
+    "electron": "29.2.0",
+    "electron-builder": "24.13.3",
     "eslint": "8.57.0",
-    "sass": "1.71.1",
+    "sass": "1.74.1",
     "world_countries_lists": "2.9.0"
   },
   "build": {
