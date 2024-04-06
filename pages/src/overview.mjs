@@ -199,15 +199,18 @@ async function renderAvailableMods() {
     }
     const html = [];
     const ids = {};
-    for (const {manifest, id, enabled, unpacked, restartRequired, status} of mods) {
+    for (const {manifest, id, enabled, packed, restartRequired, status} of mods) {
         if (!manifest) {
             continue;
         }
         const safeId = common.sanitizeAttr(id);
         ids[safeId] = id;
-        const optRemove = !restartRequired ? !unpacked ?
-            `<span class="button std xs danger" data-mod-action="remove">Remove</span>` :
-            `<small class="badge" style="--sat: 0">unpacked</small>` : '';
+        const optRemove = !restartRequired ?
+            packed ?
+                `<span class="button std xs danger" data-mod-action="remove">Remove</span>` :
+                `<small class="badge" style="--sat: 0"
+                        title="Mod is manually installed in the SauceMods folder">unpacked</small>` :
+            '';
         const enBox = !restartRequired ?
             `Enabled <input type="checkbox" ${enabled ? 'checked' : ''}/>` :
             `<small class="badge" style="--sat: 0">${status}</small>`;

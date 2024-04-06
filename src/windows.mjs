@@ -18,8 +18,6 @@ const electron = require('electron');
 const isWindows = os.platform() === 'win32';
 const isMac = !isWindows && os.platform() === 'darwin';
 const isLinux = !isWindows && !isMac && os.platform() === 'linux';
-const modContentScripts = [];
-const modContentStylesheets = [];
 const sessions = new Map();
 const magicLegacySessionId = '___LEGACY-SESSION___';
 const profilesKey = 'window-profiles';
@@ -297,14 +295,12 @@ function emulateNormalUserAgent(win) {
 
 
 function onHandleFileProtocol(request) {
-    console.info("NEW SCHOOL file protgo", request.url);
     const url = urlMod.parse(request.url);
     let pathname = url.pathname;
     let rootPath = appPath;
     if (pathname === '/sauce:dummy') {
         return new Response('');
     }
-
     // This allows files to be loaded like watching.___id-here___.html which ensures
     // some settings like zoom factor are unique to each window (they don't conform to origin
     // based sandboxing).
@@ -315,7 +311,6 @@ function onHandleFileProtocol(request) {
         pInfo.base = undefined;
         pathname = path.format(pInfo);
     }
-
     const modMatch = pathname.match(/\/mods\/(.+?)\//);
     if (modMatch) {
         const modId = modMatch[1]; // e.g. "foo-mod-123"
@@ -323,7 +318,7 @@ function onHandleFileProtocol(request) {
         if (mod) {
             const root = modMatch[0]; // e.g. "/mods/foo-mod-123/"
             pathname = pathname.substr(root.length);
-            if (mod.unpacked) {
+            if (!mod.packed) {
                 rootPath = mod.modPath;
             } else {
                 return mod.zip.entryData(path.join(mod.zipRootDir, pathname)).then(data => {
@@ -353,9 +348,8 @@ function onHandleFileProtocol(request) {
     const elFetch = this ? this.fetch.bind(this) : electron.net.fetch;
     return elFetch(`file://${path.join(rootPath, pathname)}`, {bypassCustomProtocolHandlers: true});
 }
-
-
 electron.protocol.handle('file', onHandleFileProtocol);
+
 
 electron.ipcMain.on('getWindowMetaSync', ev => {
     const meta = {
@@ -363,8 +357,8 @@ electron.ipcMain.on('getWindowMetaSync', ev => {
             id: null,
             type: null,
         },
-        modContentScripts,
-        modContentStylesheets,
+        modContentScripts: mods.contentScripts,
+        modContentStylesheets: mods.contentCSS,
     };
     try {
         const win = ev.sender.getOwnerBrowserWindow();
@@ -1203,8 +1197,6 @@ export function openWidgetWindows() {
             for (const x of widgetWindowManifests) {
                 widgetWindowManifestsByType.set(x.type, x);
             }
-            modContentScripts.push(...mods.getWindowContentScripts());
-            modContentStylesheets.push(...mods.getWindowContentStyle());
         } catch(e) {
             console.error("Failed to load mod window data", e);
         }

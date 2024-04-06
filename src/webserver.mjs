@@ -379,7 +379,7 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
             const modRouter = express.Router();
             try {
                 const urn = path.posix.join('/', mod.id, mod.manifest.web_root);
-                if (mod.unpacked) {
+                if (!mod.packed) {
                     const fullPath = path.join(mod.modPath, mod.manifest.web_root);
                     console.warn('Adding unpacked Mod web root:', '/mods' + urn, '->', fullPath);
                     modRouter.use(urn, express.static(fullPath, {

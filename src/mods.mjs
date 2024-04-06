@@ -22,6 +22,8 @@ let packedModRoot;
 
 export const eventEmitter = new EventEmitter();
 export const available = [];
+export const contentScripts = [];
+export const contentCSS = [];
 
 rpc.register(() => available, {name: 'getAvailableMods'});
 rpc.register(() => available.filter(x => x.enabled), {name: 'getEnabledMods'});
@@ -127,14 +129,44 @@ export async function init(unpackedDir, packedDir) {
     available.length = 0;
     try {
         available.push(..._initUnpacked(unpackedDir));
-        available.push(...(await _initPacked(packedDir)));
+        available.push(...await _initPacked(packedDir));
     } catch(e) {
         console.error("MODS init error:", e);
     }
-    for (const x of available) {
-        x.status = 'active';
+    debugger;
+    for (const mod of available) {
+        mod.status = 'active';
+        if (mod.enabled && mod.manifest.content_js) {
+            for (const file of mod.manifest.content_js) {
+                try {
+                    contentScripts.push(await getModFile(mod, file, 'utf8'));
+                } catch(e) {
+                    console.error("Failed to load content script:", mod, e);
+                }
+            }
+        }
+        if (mod.enabled && mod.manifest.content_css) {
+            for (const file of mod.manifest.content_css) {
+                try {
+                    contentCSS.push(await getModFile(mod, file, 'utf8'));
+                } catch(e) {
+                    console.error("Failed to load content style:", mod, e);
+                }
+            }
+        }
+
     }
     return available;
+}
+
+
+async function getModFile(mod, file, encoding) {
+    if (mod.zip) {
+        const data = await mod.zip.entryData(path.join(mod.zipRootDir, file));
+        return encoding ? data.toString(encoding) : data;
+    } else {
+        return fs.readFileSync(path.join(mod.modPath, file), encoding);
+    }
 }
 
 
@@ -169,7 +201,7 @@ function _initUnpacked(root) {
                 if (isNew || enabled) {
                     validateManifest(manifest, modPath, label);
                 }
-                validMods.push({manifest, isNew, enabled, id, modPath, unpacked: true});
+                validMods.push({manifest, isNew, enabled, id, modPath, packed: false});
             } catch(e) {
                 if (e instanceof ValidationError) {
                     const path = e.key ? e.path.concat(e.key) : e.path;
@@ -188,7 +220,8 @@ function _initUnpacked(root) {
 
 async function getUpstreamDirectory() {
     if (!upstreamDirectory) {
-        upstreamDirectory = await (await fetch('https://mods.sauce.llc/directory.json')).json();
+        //upstreamDirectory = await (await fetch('https://mods.sauce.llc/directory.json')).json();
+        upstreamDirectory = await (await fetch('http://localhost:8000/directory.json')).json();
     }
     return upstreamDirectory;
 }
@@ -214,9 +247,14 @@ async function _initPacked(root) {
         }
         try {
             const fullpath = path.join(packedModRoot, entry.file);
-            const {manifest, zip, zipRootDir} = await parsePackedMod(fullpath, id);
+            let {manifest, zip, zipRootDir, hash} = await parsePackedMod(fullpath, id);
+            const latestRelease = await getLatestPackedModRelease(id);
+            if (latestRelease && latestRelease.hash !== hash) {
+                console.warn('Updating packed Mod:', manifest.name);
+                ({manifest, zip, zipRootDir, hash} = await updatePackedMod(id, latestRelease));
+            }
             console.info(`Detected packed MOD: ${manifest.name} [ENABLED]`);
-            validMods.push({manifest, enabled: true, id, zip, zipRootDir});
+            validMods.push({manifest, enabled: true, id, zip, zipRootDir, packed: true});
         } catch(e) {
             if (e instanceof ValidationError) {
                 const path = e.key ? e.path.concat(e.key) : e.path;
@@ -265,7 +303,7 @@ async function parsePackedMod(file, id) {
     const label = `${manifest.name} (${id || 'missing-id'})`;
     validateManifest(manifest, null, label);
     const hash = packedModHash({file});
-    return {manifest, zipRootDir, zip, hash};
+    return {id, manifest, zipRootDir, zip, hash};
 }
 
 
@@ -375,40 +413,6 @@ export function getWindowManifests() {
 }
 
 
-export function getWindowContentScripts() {
-    const scripts = [];
-    for (const {enabled, manifest, modPath} of available) {
-        if (enabled && manifest.content_js) {
-            for (const x of manifest.content_js) {
-                try {
-                    scripts.push(fs.readFileSync(path.join(modPath, x), 'utf8'));
-                } catch(e) {
-                    console.error("Failed to load content script:", x, e);
-                }
-            }
-        }
-    }
-    return scripts;
-}
-
-
-export function getWindowContentStyle() {
-    const css = [];
-    for (const {enabled, manifest, modPath} of available) {
-        if (enabled && manifest.content_css) {
-            for (const x of manifest.content_css) {
-                try {
-                    css.push(fs.readFileSync(path.join(modPath, x), 'utf8'));
-                } catch(e) {
-                    console.error("Failed to load content style:", x, e);
-                }
-            }
-        }
-    }
-    return css;
-}
-
-
 export async function validatePackedMod(zipUrl) {
     const resp = await fetch(zipUrl);
     if (!resp.ok) {
@@ -439,28 +443,19 @@ export async function installPackedMod(id) {
     if (!release) {
         throw new TypeError("No compatible mod release found");
     }
-    const resp = await fetch(release.url);
-    if (!resp.ok) {
-        throw new Error("Mod install fetch error: " + resp.status);
-    }
-    const data = Buffer.from(await resp.arrayBuffer());
-    const hash = packedModHash({data});
-    if (hash !== release.hash) {
-        throw new Error("Mod file hash does not match upstream directory hash");
-    }
+    const data = await fetchPackedModRelease(release);
     const file = `${crypto.randomUUID()}.zip`;
     fs.writeFileSync(path.join(packedModRoot, file), data);
-    installed[id] = {hash, file, size: data.byteLength};
+    installed[id] = {hash: release.hash, file, size: data.byteLength};
     settings[id] = settings[id] || {};
     settings[id].enabled = true;
     storage.set(installedKey, installed);
     storage.set(settingsKey, settings);
     const availEntry = await parsePackedMod(path.join(packedModRoot, file), id);
-    availEntry.id = id;
     availEntry.enabled = true;
     availEntry.restartRequired = true;
-    availEntry.status = 'installing';
     const existing = available.find(x => x.id === id);
+    availEntry.status = 'installing';
     if (existing) {
         Object.assign(existing, availEntry);
     } else {
@@ -486,7 +481,7 @@ export function removePackedMod(id) {
     const availEntry = available.find(x => x.id === id);
     availEntry.restartRequired = true;
     availEntry.status = 'removing';
-    // maxRetries is for Windows which is broken by design.
+    // maxRetries is for Windows which is broken.
     fs.rmSync(path.join(packedModRoot, entry.file), {maxRetries: 5});
     eventEmitter.emit('removed-mod', availEntry);
     eventEmitter.emit('available-mods-changed', availEntry, available);
@@ -494,11 +489,42 @@ export function removePackedMod(id) {
 rpc.register(removePackedMod);
 
 
-export async function checkUpdatePackedMod(id) {
-    const installEntry = installed[id];
-    if (!installEntry) {
-        throw new Error("Mod ID not installed");
+async function updatePackedMod(id, release) {
+    const data = await fetchPackedModRelease(release);
+    const file = `${crypto.randomUUID()}.zip`;
+    fs.writeFileSync(path.join(packedModRoot, file), data);
+    Object.assign(installed[id], {hash: release.hash, file, size: data.byteLength});
+    storage.set(installedKey, installed);
+    const updatedEntry = await parsePackedMod(path.join(packedModRoot, file), id);
+    const existingEntry = available.find(x => x.id === id);
+    debugger;
+    existingEntry.zip.close();
+    const oldFile = path.join(packedModRoot, existingEntry.file);
+    if (fs.existsSync(oldFile)) {
+        fs.rmSync(oldFile, {maxRetries: 5});
     }
+    Object.assign(existingEntry, updatedEntry);
+    eventEmitter.emit('updated-mod', existingEntry);
+    fetch(`https://mod-rank.sauce.llc/edit/${id}/installs`, {method: 'POST'}); // bg okay
+    return existingEntry;
+}
+
+
+async function fetchPackedModRelease(release) {
+    const resp = await fetch(release.url);
+    if (!resp.ok) {
+        throw new Error("Mod install fetch error: " + resp.status);
+    }
+    const data = Buffer.from(await resp.arrayBuffer());
+    const hash = packedModHash({data});
+    if (hash !== release.hash) {
+        throw new Error("Mod file hash does not match upstream directory hash");
+    }
+    return data;
+}
+
+
+async function getLatestPackedModRelease(id) {
     const dir = await getUpstreamDirectory();
     const dirEntry = dir.find(x => x.id === id);
     if (!dirEntry) {
@@ -509,11 +535,8 @@ export async function checkUpdatePackedMod(id) {
         console.error('No compatible upstream release found for:', id);
         return;
     }
-    if (release.hash !== installEntry.hash) {
-        return release;
-    }
+    return release;
 }
-rpc.register(checkUpdatePackedMod);
 
 
 function semverOrder(a, b) {
