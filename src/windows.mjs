@@ -314,37 +314,34 @@ function onHandleFileProtocol(request) {
     const modMatch = pathname.match(/\/mods\/(.+?)\//);
     if (modMatch) {
         const modId = modMatch[1]; // e.g. "foo-mod-123"
-        const mod = mods.available.find(x => x.id === modId);
-        if (mod) {
-            const root = modMatch[0]; // e.g. "/mods/foo-mod-123/"
-            pathname = pathname.substr(root.length);
-            if (!mod.packed) {
-                rootPath = mod.modPath;
-            } else {
-                return mod.zip.entryData(path.join(mod.zipRootDir, pathname)).then(data => {
-                    const headers = {};
-                    const mimeType = mime.mimeTypesByExt.get(pInfo.ext.substr(1));
-                    if (mimeType) {
-                        headers['content-type'] = mimeType;
-                    } else {
-                        console.warn("Could not determine mime type for:", pathname);
-                    }
-                    return new Response(data, {status: data.byteLength ? 200 : 204, headers});
-                }).catch(e => {
-                    debugger;
-                    if (e.message === 'Entry not found') {
-                        return new Response(null, {status: 404});
-                    } else {
-                        throw e;
-                    }
-                });
-            }
-        } else {
+        const mod = mods.getMod(modId);
+        if (!mod) {
             console.error("Invalid Mod ID:", modId);
             return new Response(null, {status: 404});
         }
+        const root = modMatch[0]; // e.g. "/mods/foo-mod-123/"
+        pathname = pathname.substr(root.length);
+        if (!mod.packed) {
+            rootPath = mod.modPath;
+        } else {
+            return mod.zip.entryData(path.join(mod.zipRootDir, pathname)).then(data => {
+                const headers = {};
+                const mimeType = mime.mimeTypesByExt.get(pInfo.ext.substr(1));
+                if (mimeType) {
+                    headers['content-type'] = mimeType;
+                } else {
+                    console.warn("Could not determine mime type for:", pathname);
+                }
+                return new Response(data, {status: data.byteLength ? 200 : 204, headers});
+            }).catch(e => {
+                if (e.message.match(/(not found|not file)/)) {
+                    return new Response(null, {status: 404});
+                } else {
+                    throw e;
+                }
+            });
+        }
     }
-
     const elFetch = this ? this.fetch.bind(this) : electron.net.fetch;
     return elFetch(`file://${path.join(rootPath, pathname)}`, {bypassCustomProtocolHandlers: true});
 }

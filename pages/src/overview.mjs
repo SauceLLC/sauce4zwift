@@ -18,6 +18,7 @@ common.settingsStore.setDefault({
 
 const settings = common.settingsStore.get();
 
+const modSafeIds = new Map();
 
 function updateButtonVis() {
     for (const x of ['Analysis', 'Athletes', 'Events']) {
@@ -198,13 +199,12 @@ async function renderAvailableMods() {
         return;
     }
     const html = [];
-    const ids = {};
     for (const {manifest, id, enabled, packed, restartRequired, status} of mods) {
         if (!manifest) {
             continue;
         }
         const safeId = common.sanitizeAttr(id);
-        ids[safeId] = id;
+        modSafeIds.set(safeId, id);
         const optRemove = !restartRequired ?
             packed ?
                 `<span class="button std xs danger" data-mod-action="remove">Remove</span>` :
@@ -244,19 +244,6 @@ async function renderAvailableMods() {
         html.push(`</div>`);
     }
     el.innerHTML = html.join('');
-    el.addEventListener('click', async ev => {
-        const actionEl = ev.target.closest('[data-mod-action]');
-        if (actionEl.dataset.modAction === 'enable-toggle') {
-            const label = ev.target.closest('label.enabled');
-            const enabled = label.querySelector('input').checked;
-            const id = ids[ev.target.closest('.mod[data-id]').dataset.id];
-            label.classList.add('edited');
-            await common.rpc.setModEnabled(id, enabled);
-        } else if (actionEl.dataset.modAction === 'remove') {
-            const id = ids[ev.target.closest('.mod[data-id]').dataset.id];
-            await common.rpc.removePackedMod(id);
-        }
-    });
 }
 
 
@@ -501,6 +488,19 @@ async function initWindowsPanel() {
             });
             document.body.append(fileEl);
             fileEl.click();
+        }
+    });
+    document.querySelector('#mods-container').addEventListener('click', async ev => {
+        const actionEl = ev.target.closest('[data-mod-action]');
+        if (actionEl.dataset.modAction === 'enable-toggle') {
+            const label = ev.target.closest('label.enabled');
+            const enabled = label.querySelector('input').checked;
+            const id = modSafeIds.get(ev.target.closest('.mod[data-id]').dataset.id);
+            label.classList.add('edited');
+            await common.rpc.setModEnabled(id, enabled);
+        } else if (actionEl.dataset.modAction === 'remove') {
+            const id = modSafeIds.get(ev.target.closest('.mod[data-id]').dataset.id);
+            await common.rpc.removePackedMod(id);
         }
     });
     document.querySelector('.mods-path.button').addEventListener('click', common.rpc.showModsRootFolder);

@@ -62,7 +62,9 @@ export async function stop() {
     }
     stopping = true;
     for (const s of servers) {
-        await closeServer(s);
+        if (s._handle) {
+            await closeServer(s);
+        }
     }
     servers.length = 0;
     app = null;
@@ -355,7 +357,7 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
         res.send(JSON.stringify(Array.from(rpc.handlers.keys()).map(name =>
             `${name}: [GET]`), null, 4)));
 
-    api.get('/mods/v1', (req, res) => res.send(JSON.stringify(mods.available, null, 4)));
+    api.get('/mods/v1', (req, res) => res.send(JSON.stringify(mods.getAvailableMods())));
     api.options('*', (req, res) => {
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Headers', '*');
@@ -371,52 +373,51 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
     });
     api.all('*', (req, res) => res.status(404).send(apiDirectory));
     router.use('/api', api);
-    if (mods.available) {
-        for (const mod of mods.available) {
-            if (!mod.enabled || !mod.manifest.web_root) {
-                continue;
-            }
-            const modRouter = express.Router();
-            try {
-                const urn = path.posix.join('/', mod.id, mod.manifest.web_root);
-                if (!mod.packed) {
-                    const fullPath = path.join(mod.modPath, mod.manifest.web_root);
-                    console.warn('Adding unpacked Mod web root:', '/mods' + urn, '->', fullPath);
-                    modRouter.use(urn, express.static(fullPath, {
-                        setHeaders: res => res.setHeader('Access-Control-Allow-Origin', '*')
-                    }));
-                } else {
-                    const fullPath = path.join(mod.zipRootDir, mod.manifest.web_root);
-                    console.warn('Adding Mod web root:', '/mods' + urn, '->', fullPath);
-                    modRouter.use(urn, async (req, res) => {
-                        console.log(req.path, req.originalUrl, req);
-                        let data;
-                        try {
-                            data = await mod.zip.entryData(path.join(fullPath, req.path));
-                        } catch(e) {
-                            if (!e.message.match(/(not found|not file)/)) {
-                                res.status(500);
-                                res.send("Internal Mod zip entry error");
-                                console.error("Mod file error:", e);
-                            } else {
-                                res.status(404);
-                                res.send("Not found");
-                                console.warn("Mod file not found:", req.path);
-                            }
-                            return;
+    for (const {id} of mods.getEnabledMods()) {
+        const mod = mods.getMod(id);
+        if (!mod.manifest.web_root) {
+            continue;
+        }
+        const modRouter = express.Router();
+        try {
+            const urn = path.posix.join('/', mod.id, mod.manifest.web_root);
+            if (!mod.packed) {
+                const fullPath = path.join(mod.modPath, mod.manifest.web_root);
+                console.warn('Adding unpacked Mod web root:', '/mods' + urn, '->', fullPath);
+                modRouter.use(urn, express.static(fullPath, {
+                    setHeaders: res => res.setHeader('Access-Control-Allow-Origin', '*')
+                }));
+            } else {
+                const fullPath = path.join(mod.zipRootDir, mod.manifest.web_root);
+                console.warn('Adding Mod web root:', '/mods' + urn, '->', fullPath);
+                modRouter.use(urn, async (req, res) => {
+                    console.log(req.path, req.originalUrl, req);
+                    let data;
+                    try {
+                        data = await mod.zip.entryData(path.join(fullPath, req.path));
+                    } catch(e) {
+                        if (!e.message.match(/(not found|not file)/)) {
+                            res.status(500);
+                            res.send("Internal Mod zip entry error");
+                            console.error("Mod file error:", e);
+                        } else {
+                            res.status(404);
+                            res.send("Not found");
+                            console.warn("Mod file not found:", req.path);
                         }
-                        res.setHeader('Access-Control-Allow-Origin', '*');
-                        const ct = mime.mimeTypesByExt.get(path.parse(req.path).ext.substr(1));
-                        if (ct) {
-                            res.setHeader('Content-Type', ct);
-                        }
-                        res.end(data);
-                    });
-                }
-                router.use('/mods', modRouter);
-            } catch(e) {
-                console.error('Failed to add mod web root:', mod, e);
+                        return;
+                    }
+                    res.setHeader('Access-Control-Allow-Origin', '*');
+                    const ct = mime.mimeTypesByExt.get(path.parse(req.path).ext.substr(1));
+                    if (ct) {
+                        res.setHeader('Content-Type', ct);
+                    }
+                    res.end(data);
+                });
             }
+            router.use('/mods', modRouter);
+        } catch(e) {
+            console.error('Failed to add mod web root:', mod, e);
         }
     }
     router.all('*', (req, res) => res.status(404).send('Invalid URL'));
