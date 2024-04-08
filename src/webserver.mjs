@@ -391,7 +391,6 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
                 const fullPath = path.join(mod.zipRootDir, mod.manifest.web_root);
                 console.warn('Adding Mod web root:', '/mods' + urn, '->', fullPath);
                 modRouter.use(urn, async (req, res) => {
-                    console.log(req.path, req.originalUrl, req);
                     let data;
                     try {
                         data = await mod.zip.entryData(path.join(fullPath, req.path));
@@ -403,7 +402,6 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
                         } else {
                             res.status(404);
                             res.send("Not found");
-                            console.warn("Mod file not found:", req.path);
                         }
                         return;
                     }
