@@ -137,6 +137,7 @@ export function getPowerFieldPieces(data, powerZones, ftp) {
             zone: curZone,
         });
     }
+    console.warn("datalen", data.length, 'pieces', pieces.length);
     return pieces;
 }
 
@@ -164,7 +165,6 @@ export function magicZonesAfterRender({hackId, chart, ftp, zones, seriesId, zLev
         }
     }
     if (chart._magicZonesActive) {
-        console.error('skip');
         return;
     }
     const s = performance.now();
@@ -188,6 +188,7 @@ export function magicZonesAfterRender({hackId, chart, ftp, zones, seriesId, zLev
 
 
 export function calcMagicPowerZonesGraphics(chart, zones, seriesId, ftp, options={}) {
+    let s = performance.now();
     const children = [];
     const graphic = [{type: 'group', silent: true, id: 'magic-zones', children}];
     const series = chart.getModel().getSeries().find(x => x.id === seriesId);
@@ -197,26 +198,28 @@ export function calcMagicPowerZonesGraphics(chart, zones, seriesId, ftp, options
     }
     const xAxisIndex = series.option.xAxisIndex || 0;
     const yAxisIndex = series.option.yAxisIndex || 0;
-    const xAxis = chart.getModel().getComponent('xAxis', xAxisIndex);
     const yAxis = chart.getModel().getComponent('yAxis', yAxisIndex);
-    const dataZoom = chart.getModel().getComponent('dataZoom');
-    const seriesData = series.getData();
-    const [zoomStart, zoomEnd] = dataZoom.getValueRange();
-    console.log('zoom range', zoomStart, zoomEnd);
     const data = [];
-    for (let i = 0, len = seriesData.count(); i < len; i++) {
-        const x = seriesData.get('x', i);
-        if (x >= zoomStart && x <= zoomEnd) {
-            data.push([x, seriesData.get('y', i)]);
-        } else {
-            debugger;
-        }
+    const seriesData = series.getData();
+    console.log(11, performance.now() - s);
+    s = performance.now();
+    const len = seriesData.count();
+    const step = 1; //Math.max(1, (len / (devicePixelRatio * innerWidth)) | 0);
+    for (let i = 0; i < len; i += step) {
+        data.push([seriesData.get('x', i), seriesData.get('y', i)]);
     }
+    console.log(22, performance.now() - s);
+    s = performance.now();
     const pieces = getPowerFieldPieces(data, zones, ftp);
     const [bottomY, topY]= yAxis.axis.getGlobalExtent();
     const height = bottomY - topY;
+    let startPx;
+    console.log(33, performance.now() - s);
+    s = performance.now();
     for (const x of pieces) {
-        const startPx = chart.convertToPixel({xAxisIndex}, data[x.start][0]);
+        if (startPx == null) {
+            startPx = chart.convertToPixel({xAxisIndex}, data[x.start][0]);
+        }
         const widthPx = chart.convertToPixel({xAxisIndex}, data[x.end][0]) - startPx;
         if (widthPx < 0) {
             debugger;
@@ -242,7 +245,10 @@ export function calcMagicPowerZonesGraphics(chart, zones, seriesId, ftp, options
                 },
             }
         });
+        startPx = null;
     }
+    console.log(44, performance.now() - s);
+    s = performance.now();
     return graphic;
 }
 
