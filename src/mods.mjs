@@ -251,8 +251,7 @@ function _initUnpacked(root) {
 
 async function getUpstreamDirectory() {
     if (!upstreamDirectory) {
-        //upstreamDirectory = await (await fetch('https://mods.sauce.llc/directory.json')).json();
-        upstreamDirectory = await (await fetch('http://localhost:8000/directory.json')).json();
+        upstreamDirectory = await (await fetch('https://mods.sauce.llc/directory.json')).json();
     }
     return upstreamDirectory;
 }
