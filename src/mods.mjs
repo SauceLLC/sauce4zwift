@@ -228,7 +228,7 @@ function _initUnpacked(root) {
                 const settings = modsSettings[id] = (modsSettings[id] || {});
                 const enabled = !isNew && !!settings.enabled;
                 const label = `${manifest.name} (${id})`;
-                console.info(`Detected unpacked MOD: ${label} [${enabled ? 'ENABLED' : 'DISABLED'}]`);
+                console.info(`Detected unpacked MOD: ${label} ${!enabled ? '[DISABLED]' : ''}`);
                 if (isNew || enabled) {
                     validateManifest(manifest, modPath, label);
                 }
@@ -278,16 +278,19 @@ async function _initPacked(root) {
         try {
             const zipFile = path.join(packedModRoot, entry.file);
             let mod = await openPackedMod(zipFile, id);
-            const latestRelease = await getLatestPackedModRelease(id);
-            if (latestRelease && latestRelease.hash !== mod.hash) {
-                console.warn('Updating packed Mod:', mod.manifest.name);
-                debugger;
-                const oldZip = mod.zip;
-                mod = await installPackedModRelease(id, latestRelease);
-                oldZip.close();
-                fsRemoveFile(zipFile);
+            console.info(`Detected packed MOD: ${mod.manifest.name} - v${mod.manifest.version}`);
+            try {
+                const latestRelease = await getLatestPackedModRelease(id);
+                if (latestRelease && latestRelease.hash !== mod.hash) {
+                    console.warn('Updating packed Mod:', mod.manifest.name, '->', latestRelease.version);
+                    const oldZip = mod.zip;
+                    mod = await installPackedModRelease(id, latestRelease);
+                    oldZip.close();
+                    fsRemoveFile(zipFile);
+                }
+            } catch(e) {
+                console.warn("Failed to check/update Mod:", e);
             }
-            console.info(`Detected packed MOD: ${mod.manifest.name} - v${mod.manifest.version} [ENABLED]`);
             validMods.push(mod);
         } catch(e) {
             if (e instanceof ValidationError) {
