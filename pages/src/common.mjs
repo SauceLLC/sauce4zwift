@@ -361,8 +361,18 @@ if (window.isElectron) {
     };
     rpcCall = async function(name, ...args) {
         const encodedArgs = args.map(x => x !== undefined ? b64urlEncode(JSON.stringify(x)) : '');
-        const f = await fetch(`/api/rpc/v2/${name}${args.length ? '/' : ''}${encodedArgs.join('/')}`);
-        const env = await f.json();
+        let resp = await fetch(`/api/rpc/v2/${name}${args.length ? '/' : ''}${encodedArgs.join('/')}`);
+        if (!resp.ok && resp.status === 431) {
+            resp = await fetch(`/api/rpc/v1/${name}`, {
+                method: 'POST',
+                headers: {'content-type': 'application/json'},
+                body: JSON.stringify(args),
+            });
+        }
+        if (!resp.ok) {
+            throw new Error(`RPC network error: ${resp.status}`);
+        }
+        const env = await resp.json();
         if (env.warning) {
             console.warn(env.warning);
         }
