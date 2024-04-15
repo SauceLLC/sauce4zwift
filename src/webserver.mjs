@@ -258,7 +258,7 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
         'mods/v1': '[GET] List available mods (i.e. plugins)',
     }], null, 4);
     const api = express.Router();
-    api.use(express.json());
+    api.use(express.json({limit: 32 * 1024 * 1024}));
     api.use((req, res, next) => {
         res.setHeader('Content-Type', 'application/json');
         res.setHeader('Access-Control-Allow-Origin', '*');
