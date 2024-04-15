@@ -369,7 +369,7 @@ if (window.isElectron) {
                 body: JSON.stringify(args),
             });
         }
-        if (!resp.ok) {
+        if (!resp.ok && resp.status >= 500) {
             throw new Error(`RPC network error: ${resp.status}`);
         }
         const env = await resp.json();
