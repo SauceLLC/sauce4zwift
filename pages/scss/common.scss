@@ -759,7 +759,8 @@ a.std.button {
             box-shadow: inset 0 0 0.8rem 0 #0008;
         }
 
-        &.danger {
+        &.danger,
+        &.negative {
             --bg-from-color: #{color.shade(negative, 0%)};
             --bg-to-color: #{color.shade(negative, -10%)};
             color: color.shade(negative, 100%);
@@ -767,6 +768,17 @@ a.std.button {
             &:not([disabled]):not(.disabled):hover {
                 --bg-from-color: #{color.shade(negative, 5%)};
                 --bg-to-color: #{color.shade(negative, -5%)};
+            }
+        }
+
+        &.positive {
+            --bg-from-color: #{color.shade(positive, 0%)};
+            --bg-to-color: #{color.shade(positive, -10%)};
+            color: color.shade(positive, 100%);
+
+            &:not([disabled]):not(.disabled):hover {
+                --bg-from-color: #{color.shade(positive, 5%)};
+                --bg-to-color: #{color.shade(positive, -5%)};
             }
         }
 
