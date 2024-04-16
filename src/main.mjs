@@ -359,6 +359,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     const appPath = electron.app.getPath('userData');
     storage.initialize(appPath);
     sauceApp = new ElectronSauceApp({appPath});
+    global.sauceApp = sauceApp;
     if (logEmitter) {
         sauceApp.rpcEventEmitters.set('logs', logEmitter);
         rpc.register(() => logQueue, {name: 'getLogs'});
@@ -516,4 +517,3 @@ global.zwift = zwift;
 global.windows = windows;
 global.electron = electron;
 global.mods = mods;
-global.sauceApp = sauceApp;
