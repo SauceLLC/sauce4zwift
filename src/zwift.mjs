@@ -96,6 +96,10 @@ class WorldTimer extends events.EventEmitter {
         return wt + this._epoch - this._offt;
     }
 
+    fromLocalTime(ts) {
+        return ts - this._epoch + this._offt;
+    }
+
     toServerTime(wt) {
         return wt + this._epoch;
     }
