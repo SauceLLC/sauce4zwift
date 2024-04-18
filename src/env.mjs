@@ -5,8 +5,21 @@ import {fileURLToPath} from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+export const realWorldCourseId = -2;
 export const cachedSegments = new Map();
-export const worldMetas = {};
+export const worldMetas = {
+    [realWorldCourseId]: {
+        worldId: realWorldCourseId,
+        courseId: realWorldCourseId,
+        lonOffset: 0,
+        latOffset: 0,
+        lonDegDist: 0.01,
+        latDegDist: -0.01,
+        altitudeOffsetHack: 0,
+        physicsSlopeScale: 100,
+        waterPlaneLevel: 0,
+    }
+};
 try {
     const worldListFile = path.join(__dirname, `../shared/deps/data/worldlist.json`);
     for (const x of JSON.parse(fs.readFileSync(worldListFile))) {

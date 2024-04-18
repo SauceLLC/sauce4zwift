@@ -402,14 +402,15 @@ class ActivityReplay extends events.EventEmitter {
                 }
             }
         }
-        return new this({athlete, activity, streams});
+        return new this({athlete, activity, streams, laps});
     }
 
-    constructor({athlete, activity, streams}) {
+    constructor({athlete, activity, streams, laps}) {
         super();
         this.athlete = athlete;
         this.activity = activity;
         this.streams = streams;
+        this.laps = laps;
         this.playing = false;
         this.pos = 0;
         this._stopEvent = new Event();
@@ -437,6 +438,7 @@ class ActivityReplay extends events.EventEmitter {
 
     emitNextRecord() {
         if (this.pos >= this.streams.time.length) {
+            this.emit('timesync', null);
             return;
         }
         const i = this.pos++;
@@ -491,7 +493,9 @@ class ActivityReplay extends events.EventEmitter {
 
     fastForward(steps) {
         for (let i = 0; i < steps; i++) {
-            this.emitNextRecord();
+            if (this.emitNextRecord() === undefined) {
+                break;
+            }
         }
     }
 }
@@ -525,7 +529,7 @@ export class StatsProcessor extends events.EventEmitter {
         this._markedIds = new Set();
         this._followingIds = new Set();
         this._followerIds = new Set();
-        this._pendingEgressStates = [];
+        this._pendingEgressStates = new Map();
         this._lastEgressStates = 0;
         this._timeoutEgressStates = null;
         const app = options.app;
@@ -633,7 +637,6 @@ export class StatsProcessor extends events.EventEmitter {
         this._activityReplay.on('record', record => {
             const fakeState = this.emulatePlayerStateFromRecord(record, {
                 athleteId,
-                courseId: 6,
                 sport: this._activityReplay.activity.sport
             });
             if (!this._athleteData.has(athleteId)) {
@@ -642,9 +645,7 @@ export class StatsProcessor extends events.EventEmitter {
             const ad = this._athleteData.get(athleteId);
             if (this._preprocessState(fakeState, ad) !== false) {
                 this._recordAthleteStats(fakeState, ad);
-                if (this.listenerCount('states')) {
-                    this._pendingEgressStates.push(fakeState);
-                }
+                this._pendingEgressStates.set(fakeState.athleteId, fakeState);
                 this._schedStatesEmit();
             }
         });
@@ -653,18 +654,13 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     emulatePlayerStateFromRecord(record, extra) {
-        const courseId = 6;
+        const courseId = env.realWorldCourseId;
         const worldMeta = env.worldMetas[courseId];
         let x = 0, y = 0, z = 0;
         if (record.latlng) {
             const [lat, lng] = record.latlng;
-            if (worldMeta.flippedHack) {
-                x = (lat - worldMeta.latOffset) * worldMeta.latDegDist * 100;
-                y = (lng - worldMeta.lonOffset) * worldMeta.lonDegDist * 100;
-            } else {
-                x = (lng - worldMeta.lonOffset) * worldMeta.lonDegDist * 100;
-                y = -(lat - worldMeta.latOffset) * worldMeta.latDegDist * 100;
-            }
+            x = (lng - worldMeta.lonOffset) * worldMeta.lonDegDist * 100;
+            y = -(lat - worldMeta.latOffset) * worldMeta.latDegDist * 100;
         }
         if (record.altitude != null) {
             z = (record.altitude - worldMeta.altitudeOffsetHack) / worldMeta.physicsSlopeScale * 100 -
@@ -679,9 +675,7 @@ export class StatsProcessor extends events.EventEmitter {
             speed: record.speed,
             heartrate: record.heartrate,
             latlng: record.latlng,
-            x,
-            y,
-            z,
+            x, y, z,
             ...extra,
         };
     }
@@ -696,14 +690,14 @@ export class StatsProcessor extends events.EventEmitter {
         return this._activityReplay.stop();
     }
 
-    fileReplayRewind() {
-        console.info("Fast forward 10 activity replay records...");
-        return this._activityReplay.rewind(10);
+    fileReplayRewind(steps=10) {
+        console.info(`Rewinding ${steps} steps in activity replay...`);
+        return this._activityReplay.rewind(steps);
     }
 
-    fileReplayForward() {
-        console.info("Fast forward 10 activity replay records...");
-        return this._activityReplay.fastForward(10);
+    fileReplayForward(steps=10) {
+        console.info(`Fast forwarding ${steps} steps in activity replay...`);
+        return this._activityReplay.fastForward(steps);
     }
 
     fileReplayStatus() {
@@ -1531,15 +1525,12 @@ export class StatsProcessor extends events.EventEmitter {
         if (updatedEvents.length) {
             queueMicrotask(() => this._loadEvents(updatedEvents));
         }
-        const hasStatesListener = !!this.listenerCount('states');
         for (let i = 0; i < packet.playerStates.length; i++) {
             const x = packet.playerStates[i];
             if (this.processState(x) === false) {
                 continue;
             }
-            if (hasStatesListener) {
-                this._pendingEgressStates.push(x);
-            }
+            this._pendingEgressStates.set(x.athleteId, x);
         }
         if (packet.eventPositions) {
             const ep = packet.eventPositions;
@@ -1567,22 +1558,19 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _schedStatesEmit() {
-        if (this._pendingEgressStates.length && !this._timeoutEgressStates) {
-            const now = monotonic();
-            const delay = this.emitStatesMinRefresh - (now - this._lastEgressStates);
-            if (delay > 0) {
-                this._timeoutEgressStates = setTimeout(() => {
-                    this._timeoutEgressStates = null;
-                    this._lastEgressStates = monotonic();
-                    this.emit('states', this._pendingEgressStates.map(x => this._cleanState(x)));
-                    this._pendingEgressStates.length = 0;
-                }, delay);
-            } else {
-                this.emit('states', this._pendingEgressStates.map(x => this._cleanState(x)));
-                this._pendingEgressStates.length = 0;
-                this._lastEgressStates = now;
-            }
+        if (this._pendingEgressStates.size && !this._timeoutEgressStates) {
+            const delay = this.emitStatesMinRefresh - (monotonic() - this._lastEgressStates);
+            this._timeoutEgressStates = setTimeout(() => this._flushPendingEgressStates(), delay);
         }
+    }
+
+    _flushPendingEgressStates() {
+        console.log("emit");
+        const states = Array.from(this._pendingEgressStates.values()).map(x => this._cleanState(x));
+        this._pendingEgressStates.clear();
+        this._lastEgressStates = monotonic();
+        this._timeoutEgressStates = null;
+        this.emit('states', states);
     }
 
     putState(state) {
@@ -1590,9 +1578,7 @@ export class StatsProcessor extends events.EventEmitter {
             console.warn("State skipped by processer");
             return;
         }
-        if (this.listenerCount('states')) {
-            this._pendingEgressStates.push(state);
-        }
+        this._pendingEgressStates.set(state.athleteId, state);
         this._schedStatesEmit();
     }
 
