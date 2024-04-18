@@ -422,6 +422,7 @@ class ActivityReplay extends events.EventEmitter {
             return;
         }
         this.playing = true;
+        this.emitTimeSync();
         this._stopEvent.clear();
         this._playPromise = this._playLoop();
     }
@@ -433,18 +434,22 @@ class ActivityReplay extends events.EventEmitter {
         this.playing = false;
         this._stopEvent.set();
         await this._playPromise;
-        this.emit('timesync', null);
+        this.emitTimeSync();
     }
 
-    emitNextRecord() {
-        if (this.pos >= this.streams.time.length) {
-            this.emit('timesync', null);
-            return;
-        }
-        const i = this.pos++;
-        const time = this.streams.time[i];
+    emitTimeSync() {
+        const ts = this.streams.time[Math.max(0, Math.min(this.streams.time.length - 1, this.pos))];
+        this.emit('timesync', {
+            time: ts ? ts - this.startTime : ts,
+            playing: this.playing,
+            position: this.pos,
+        });
+    }
+
+    emitRecord() {
+        const i = this.pos;
         this.emit('record', {
-            time,
+            time: this.streams.time[i],
             power: this.streams.power && this.streams.power[i],
             cadence: this.streams.cadence && this.streams.cadence[i],
             latlng: this.streams.latlng && this.streams.latlng[i],
@@ -453,20 +458,21 @@ class ActivityReplay extends events.EventEmitter {
             heartrate: this.streams.hr && this.streams.hr[i],
             altitude: this.streams.altitude && this.streams.altitude[i],
         });
-        this.emit('timesync', time - this.startTime);
-        return i;
     }
 
     async _playLoop() {
         while (this.playing) {
-            const pos = this.emitNextRecord();
-            if (pos === undefined) {
+            if (this.pos >= this.streams.time.length) {
                 this.playing = false;
-                break;
+                this.emitTimeSync('playloop exit');
+                return;
             }
-            const nextTime = this.streams.time[pos + 1];
+            this.emitRecord();
+            this.emitTimeSync('playloop outer');
+            this.pos++;
+            const nextTime = this.streams.time[this.pos];
             if (nextTime !== undefined) {
-                const next = (nextTime - this.streams.time[pos]) * 1000 + monotonic();
+                const next = (nextTime - this.streams.time[this.pos - 1]) * 1000 + monotonic();
                 await Promise.race([
                     highResSleepTill(next),
                     this._stopEvent.wait(),
@@ -480,23 +486,29 @@ class ActivityReplay extends events.EventEmitter {
         if (this.pos < 0) {
             this.pos = 0;
         }
-        this.emit('timesync', this.streams.time[this.pos] - this.startTime);
+        this.emitTimeSync('rewind');
     }
 
     forward(steps) {
         this.pos += steps;
-        if (this.pos > this.streams.time.length) {
+        if (this.pos >= this.streams.time.length) {
+            this.playing = false;
             this.pos = this.streams.time.length;
         }
-        this.emit('timesync', this.streams.time[this.pos] - this.startTime);
+        this.emitTimeSync('forward');
     }
 
     fastForward(steps) {
-        for (let i = 0; i < steps; i++) {
-            if (this.emitNextRecord() === undefined) {
+        for (let i = 0; i < steps && this.pos < this.streams.time.length; i++) {
+            this.emitRecord();
+            this.pos++;
+            if (this.pos >= this.streams.time.length) {
+                this.playing = false;
+                this.pos = this.streams.time.length;
                 break;
             }
         }
+        this.emitTimeSync();
     }
 }
 
@@ -645,8 +657,10 @@ export class StatsProcessor extends events.EventEmitter {
             const ad = this._athleteData.get(athleteId);
             if (this._preprocessState(fakeState, ad) !== false) {
                 this._recordAthleteStats(fakeState, ad);
-                this._pendingEgressStates.set(fakeState.athleteId, fakeState);
-                this._schedStatesEmit();
+                if (this.listenerCount('states')) {
+                    this._pendingEgressStates.set(fakeState.athleteId, fakeState);
+                    this._schedStatesEmit();
+                }
             }
         });
         this._activityReplay.on('timesync', (...args) => this.emit('file-replay-timesync', ...args));
@@ -1525,13 +1539,6 @@ export class StatsProcessor extends events.EventEmitter {
         if (updatedEvents.length) {
             queueMicrotask(() => this._loadEvents(updatedEvents));
         }
-        for (let i = 0; i < packet.playerStates.length; i++) {
-            const x = packet.playerStates[i];
-            if (this.processState(x) === false) {
-                continue;
-            }
-            this._pendingEgressStates.set(x.athleteId, x);
-        }
         if (packet.eventPositions) {
             const ep = packet.eventPositions;
             // There are several groups of fields on eventPositions, but I don't understand/see them.
@@ -1554,7 +1561,19 @@ export class StatsProcessor extends events.EventEmitter {
                 ad.eventParticipants = ep.activeAthleteCount;
             }
         }
-        this._schedStatesEmit();
+        const hasStatesListeners = !!this.listenerCount('states');
+        for (let i = 0; i < packet.playerStates.length; i++) {
+            const x = packet.playerStates[i];
+            if (this.processState(x) === false) {
+                continue;
+            }
+            if (hasStatesListeners) {
+                this._pendingEgressStates.set(x.athleteId, x);
+            }
+        }
+        if (hasStatesListeners) {
+            this._schedStatesEmit();
+        }
     }
 
     _schedStatesEmit() {
@@ -1565,7 +1584,6 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _flushPendingEgressStates() {
-        console.log("emit");
         const states = Array.from(this._pendingEgressStates.values()).map(x => this._cleanState(x));
         this._pendingEgressStates.clear();
         this._lastEgressStates = monotonic();
@@ -2411,6 +2429,9 @@ export class StatsProcessor extends events.EventEmitter {
         const b = bData.roadHistory;
         const aTail = a.timeline[a.timeline.length - 1];
         const bTail = b.timeline[b.timeline.length - 1];
+        if (aTail === undefined || bTail === undefined) {
+            return null;
+        }
         const aComp = aTail.roadCompletion;
         const bComp = bTail.roadCompletion;
         // Is A currently leading B or vice versa...

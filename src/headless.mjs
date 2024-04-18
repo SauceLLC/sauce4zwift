@@ -3,6 +3,7 @@ import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
 import childProcess from 'node:child_process';
+import {EventEmitter} from 'node:events';
 import * as storage from './storage.mjs';
 import * as rpc from './rpc.mjs';
 import * as zwift from './zwift.mjs';
@@ -123,10 +124,11 @@ async function main() {
         zwiftAPI.authenticate(args.mainUsername, args.mainPassword),
         zwiftMonitorAPI.authenticate(args.monitorUsername, args.monitorPassword),
     ]);
-    await mods.init(path.join(os.homedir(), 'Documents', 'SauceMods'));
+    await mods.init(path.join(os.homedir(), 'Documents', 'SauceMods'), path.join(appPath, 'mods'));
     const sauceApp = new NodeSauceApp({appPath});
     sauceApp.rpcEventEmitters.set('logs', logEmitter);
     sauceApp.rpcEventEmitters.set('mods', mods.eventEmitter);
+    sauceApp.rpcEventEmitters.set('windows', new EventEmitter());
     rpc.register(() => logQueue, {name: 'getLogs'});
     rpc.register(() => logQueue.length = 0, {name: 'clearLogs'});
     rpc.register(() => () => console.warn("File logging disabled for headless mode"),
