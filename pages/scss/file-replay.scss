@@ -1,0 +1,51 @@
+@use 'color';
+
+input[type="file"] {
+    color: fieldtext;
+}
+
+#content {
+    overflow: auto;
+    font-size: 0.6em;
+    padding: 1em;
+
+    .category {
+        font-weight: 800;
+        font-size: 1.1em;
+        font-variant: all-small-caps;
+        line-height: 1;
+        text-shadow: 0 0 1px #000;
+        opacity: 0.9;
+    }
+
+    .button-group {
+        margin: 0.5em 0;
+    }
+
+    .button {
+        margin: 0;
+        padding: 0.1rem;
+
+        &:not(:last-child) {
+            margin-right: 0.4em;
+        }
+
+        ms {
+            font-size: 2em;
+        }
+    }
+
+    .timecode {
+        font-size: 1.2em;
+        font-weight: 800;
+        letter-spacing: 5px;
+        background: white;
+        color: black;
+        padding: 0.2em 1em;
+        margin-top: 0.2em;
+        border-radius: 10em;
+        box-shadow: 1px 1px 4px 0 #0003;
+        font-variant-numeric: tabular-nums;
+        align-self: flex-start;
+    }
+}

@@ -1,4 +1,4 @@
-/* global setImmediate */
+/* global setImmediate, Buffer */
 import events from 'node:events';
 import path from 'node:path';
 import {worldTimer} from './zwift.mjs';
@@ -298,6 +298,205 @@ class ZonesAccumulator extends TimeSeriesAccumulator {
 }
 
 
+class Event {
+    constructor() {
+        this.clear();
+    }
+
+    set() {
+        this._resolve();
+    }
+
+    clear() {
+        this._promise = new Promise(r => this._resolve = r);
+    }
+
+    wait() {
+        return this._promise;
+    }
+}
+
+
+class ActivityReplay extends events.EventEmitter {
+    static async fromFITFile(data) {
+        const fit = await import('jsfit');
+        const parser = fit.FitParser.decode(data);
+        const athlete = {};
+        const activity = {};
+        const streams = {};
+        const laps = [];
+        for (const {type, name, fields} of parser.messages) {
+            if (type !== 'data') {
+                continue;
+            }
+            if (name === 'record') {
+                if (fields.altitude != null) {
+                    streams.altitude = streams.altitude || [];
+                    streams.altitude.push(fields.altitude);
+                }
+                if (fields.cadence != null) {
+                    streams.cadence = streams.cadence || [];
+                    streams.cadence.push(fields.cadence);
+                }
+                if (fields.distance != null) {
+                    streams.distance = streams.distance || [];
+                    streams.distance.push(fields.distance);
+                }
+                if (fields.heart_rate != null) {
+                    streams.hr = streams.hr || [];
+                    streams.hr.push(fields.heart_rate);
+                }
+                if (fields.position_lat != null) {
+                    streams.latlng = streams.latlng || [];
+                    streams.latlng.push([fields.position_lat, fields.position_long]);
+                }
+                if (fields.speed != null) {
+                    streams.speed = streams.speed || [];
+                    streams.speed.push(fields.speed);
+                }
+                if (fields.timestamp != null) {
+                    streams.time = streams.time || [];
+                    streams.time.push(+fields.timestamp / 1000);
+                }
+                if (fields.power != null) {
+                    streams.power = streams.power || [];
+                    streams.power.push(fields.power);
+                }
+            } else if (name === 'lap') {
+                console.log('lap', fields);
+            } else if (name === 'file_id') {
+                if (fields.type && fields.type !== 'activity') {
+                    throw new TypeError("Expected 'activity' file type");
+                }
+                activity.created = fields.time_created;
+                console.info(`Activity [${fields.product_name}]: ${activity.created.toLocaleString()}`);
+            } else if (name === 'user_profile') {
+                Object.assign(athlete, {
+                    name: fields.friendly_name,
+                    gender: fields.gender,
+                    weight: fields.weight,
+                    height: fields.height,
+                    age: fields.age,
+                });
+                console.info(`Athlete: ${athlete.name}, ${athlete.weight.toFixed(1)}kg`);
+            } else if (name === 'sport') {
+                if (fields.sport) {
+                    activity.sport = {
+                        cycling: 'cycling',
+                        running: 'running',
+                    }[fields.sport];
+                }
+            } else if (name === 'session') {
+                if (fields.sport) {
+                    activity.sport = {
+                        cycling: 'cycling',
+                        running: 'running',
+                    }[fields.sport];
+                }
+            } else if (name === 'zones_target') {
+                if (fields.functional_threshold_power) {
+                    athlete.ftp = fields.functional_threshold_power;
+                }
+                if (fields.threshold_heart_rate) {
+                    athlete.hrt = fields.threshold_heart_rate;
+                }
+            }
+        }
+        return new this({athlete, activity, streams});
+    }
+
+    constructor({athlete, activity, streams}) {
+        super();
+        this.athlete = athlete;
+        this.activity = activity;
+        this.streams = streams;
+        this.playing = false;
+        this.pos = 0;
+        this._stopEvent = new Event();
+        this.startTime = streams ? streams.time[0] : undefined;
+    }
+
+    play() {
+        if (this.playing) {
+            return;
+        }
+        this.playing = true;
+        this._stopEvent.clear();
+        this._playPromise = this._playLoop();
+    }
+
+    async stop() {
+        if (!this.playing) {
+            return;
+        }
+        this.playing = false;
+        this._stopEvent.set();
+        await this._playPromise;
+        this.emit('timesync', null);
+    }
+
+    emitNextRecord() {
+        if (this.pos >= this.streams.time.length) {
+            return;
+        }
+        const i = this.pos++;
+        const time = this.streams.time[i];
+        this.emit('record', {
+            time,
+            power: this.streams.power && this.streams.power[i],
+            cadence: this.streams.cadence && this.streams.cadence[i],
+            latlng: this.streams.latlng && this.streams.latlng[i],
+            distance: this.streams.distance && this.streams.distance[i],
+            speed: this.streams.speed && this.streams.speed[i],
+            heartrate: this.streams.hr && this.streams.hr[i],
+            altitude: this.streams.altitude && this.streams.altitude[i],
+        });
+        this.emit('timesync', time - this.startTime);
+        return i;
+    }
+
+    async _playLoop() {
+        while (this.playing) {
+            const pos = this.emitNextRecord();
+            if (pos === undefined) {
+                this.playing = false;
+                break;
+            }
+            const nextTime = this.streams.time[pos + 1];
+            if (nextTime !== undefined) {
+                const next = (nextTime - this.streams.time[pos]) * 1000 + monotonic();
+                await Promise.race([
+                    highResSleepTill(next),
+                    this._stopEvent.wait(),
+                ]);
+            }
+        }
+    }
+
+    rewind(steps) {
+        this.pos -= steps;
+        if (this.pos < 0) {
+            this.pos = 0;
+        }
+        this.emit('timesync', this.streams.time[this.pos] - this.startTime);
+    }
+
+    forward(steps) {
+        this.pos += steps;
+        if (this.pos > this.streams.time.length) {
+            this.pos = this.streams.time.length;
+        }
+        this.emit('timesync', this.streams.time[this.pos] - this.startTime);
+    }
+
+    fastForward(steps) {
+        for (let i = 0; i < steps; i++) {
+            this.emitNextRecord();
+        }
+    }
+}
+
+
 export class StatsProcessor extends events.EventEmitter {
     constructor(options={}) {
         super();
@@ -388,6 +587,13 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.getSegmentsForRoad, {scope: this});
         rpc.register(this.getSegmentResults, {scope: this});
         rpc.register(this.putState, {scope: this});
+        rpc.register(this.fileReplayLoad, {scope: this});
+        rpc.register(this.fileReplayPlay, {scope: this});
+        rpc.register(this.fileReplayStop, {scope: this});
+        rpc.register(this.fileReplayRewind, {scope: this});
+        rpc.register(this.fileReplayForward, {scope: this});
+        rpc.register(this.fileReplayStatus, {scope: this});
+        rpc.register(this.getIRLMapTile, {scope: this});
         this._athleteSubs = new Map();
         if (options.gameConnection) {
             const gc = options.gameConnection;
@@ -399,6 +605,150 @@ export class StatsProcessor extends events.EventEmitter {
         if (options.debugGameFields) {
             this._cleanState = obj => obj;
         }
+    }
+
+    async fileReplayLoad(info) {
+        let data;
+        if (info.type === 'base64') {
+            data = Buffer.from(info.payload, 'base64');
+        } else {
+            throw new TypeError('Invalid payload type');
+        }
+        if (this._activityReplay) {
+            await this._activityReplay.stop();
+        }
+        const athleteId = -1;
+        this._athleteData.delete(athleteId);
+        this._activityReplay = await ActivityReplay.fromFITFile(data);
+        const a = this._activityReplay.athlete;
+        const names = (a.name || 'noname').split(/(\s+)/);
+        this.updateAthlete(athleteId, {
+            ...a,
+            name: undefined,
+            type: 'FILE_REPLAY',
+            firstName: names[0],
+            lastName: names.slice(2).join(''),
+        });
+        this._activityReplay.on('record', record => {
+            const fakeState = this.emulatePlayerStateFromRecord(record, {
+                athleteId,
+                courseId: 6,
+                sport: this._activityReplay.activity.sport
+            });
+            if (!this._athleteData.has(athleteId)) {
+                this._athleteData.set(athleteId, this._createAthleteData(fakeState));
+            }
+            const ad = this._athleteData.get(athleteId);
+            if (this._preprocessState(fakeState, ad) !== false) {
+                this._recordAthleteStats(fakeState, ad);
+                if (this.listenerCount('states')) {
+                    this._pendingEgressStates.push(fakeState);
+                }
+                this._schedStatesEmit();
+            }
+        });
+        this._activityReplay.on('timesync', (...args) => this.emit('file-replay-timesync', ...args));
+        this.setWatching(athleteId);
+    }
+
+    emulatePlayerStateFromRecord(record, extra) {
+        const courseId = 6;
+        const worldMeta = env.worldMetas[courseId];
+        let x = 0, y = 0, z = 0;
+        if (record.latlng) {
+            const [lat, lng] = record.latlng;
+            if (worldMeta.flippedHack) {
+                x = (lat - worldMeta.latOffset) * worldMeta.latDegDist * 100;
+                y = (lng - worldMeta.lonOffset) * worldMeta.lonDegDist * 100;
+            } else {
+                x = (lng - worldMeta.lonOffset) * worldMeta.lonDegDist * 100;
+                y = -(lat - worldMeta.latOffset) * worldMeta.latDegDist * 100;
+            }
+        }
+        if (record.altitude != null) {
+            z = (record.altitude - worldMeta.altitudeOffsetHack) / worldMeta.physicsSlopeScale * 100 -
+                worldMeta.waterPlaneLevel;
+        }
+        return {
+            courseId,
+            worldTime: worldTimer.fromLocalTime(record.time * 1000),
+            power: record.power,
+            cadence: record.cadence,
+            distance: record.distance,
+            speed: record.speed,
+            heartrate: record.heartrate,
+            latlng: record.latlng,
+            x,
+            y,
+            z,
+            ...extra,
+        };
+    }
+
+    fileReplayPlay() {
+        console.info("Starting playback of activity file...");
+        return this._activityReplay.play();
+    }
+
+    fileReplayStop() {
+        console.info("Stoping playback of activity file.");
+        return this._activityReplay.stop();
+    }
+
+    fileReplayRewind() {
+        console.info("Fast forward 10 activity replay records...");
+        return this._activityReplay.rewind(10);
+    }
+
+    fileReplayForward() {
+        console.info("Fast forward 10 activity replay records...");
+        return this._activityReplay.fastForward(10);
+    }
+
+    fileReplayStatus() {
+        return this._activityReplay ? (this._activityReplay.playing ? 'playing' : 'stopped') : 'inactive';
+    }
+
+    async getIRLMapTile(x, y, z) {
+        const key = 'AIzaSyD_nk0Xd9vrB9SOHDxnZZ7Vym6vEMaJqAc';
+        if (!this._gmapSession) {
+            // https://developers.google.com/maps/documentation/tile/session_tokens
+            const resp = await fetch(`https://tile.googleapis.com/v1/createSession?key=${key}`, {
+                method: 'POST',
+                headers: {'content-type': 'application/json'},
+                body: JSON.stringify({
+                    mapType: 'roadmap', // roadmap, satellite, terrain, streetview
+                    language: 'en-US',
+                    region: 'US',
+                    //imageFormat: 'png', // png, jpeg
+                    //scale: 'scaleFactor1x', // 1x, 2x, 4x
+                    //highDpi: false, // set to true with scaleFactor2x or 4x only
+                }),
+            });
+            if (!resp.ok) {
+                console.error("Failed to create google map API session:", resp.status, await resp.text());
+                throw new Error("Map Session Error");
+            }
+            this._gmapSession = await resp.json();
+        }
+        const q = new URLSearchParams({
+            session: this._gmapSession.session,
+            key,
+            orientation: 0
+        });
+        // https://developers.google.com/maps/documentation/tile/roadmap
+        // z = 0 to 22
+        // [0, 0] = top left / north west
+        const resp = await fetch(`https://tile.googleapis.com/v1/2dtiles/${z}/${x}/${y}?${q}`);
+        if (!resp.ok) {
+            console.error("Failed to get google map tile:", resp.status, await resp.text());
+            throw new Error("Map Tile Error");
+        }
+        return {
+            contentType: resp.headers.get('content-type'),
+            encoding: 'base64',
+            data: Buffer.from(await resp.arrayBuffer()).toString('base64'),
+        };
     }
 
     getPowerZones(ftp) {
@@ -1499,6 +1849,13 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
+    _resetAthleteDataById(id, wtOffset) {
+        const ad = this._athleteData.get(id);
+        if (ad) {
+            this._resetAthleteData(ad, wtOffset);
+        }
+    }
+
     triggerEventStart(ad, state) {
         ad.eventStartPending = false;
         if (this._autoResetEvents) {
@@ -1518,59 +1875,12 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     processState(state) {
-        const worldMeta = env.worldMetas[state.courseId];
-        if (worldMeta) {
-            state.latlng = worldMeta.flippedHack ?
-                [(state.x / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
-                    (state.y / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset] :
-                [-(state.y / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
-                    (state.x / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset];
-            let slopeScale;
-            if (state.portal) {
-                const road = env.getRoad(state.courseId, state.roadId);
-                slopeScale = road?.physicsSlopeScaleOverride;
-            } else {
-                slopeScale = worldMeta.physicsSlopeScale;
-            }
-            state.altitude = (state.z + worldMeta.waterPlaneLevel) / 100 * slopeScale +
-                worldMeta.altitudeOffsetHack;
-        }
         if (!this._athleteData.has(state.athleteId)) {
             this._athleteData.set(state.athleteId, this._createAthleteData(state));
         }
         const ad = this._athleteData.get(state.athleteId);
-        const prevState = ad.mostRecentState;
-        if (prevState) {
-            const elapsed = state.worldTime - prevState.worldTime;
-            if (elapsed < 0) {
-                this._stateStaleCount++;
-                return false;
-            } else if (elapsed === 0) {
-                this._stateDupCount++;
-                return false;
-            }
-            if (prevState.sport !== state.sport || prevState.courseId !== state.courseId ||
-                state.distance < prevState.distance) {
-                ad.sport = state.sport;
-                ad.courseId = state.courseId;
-                ad.distanceOffset += prevState.distance;
-                ad.autoLapMark = undefined;
-                state.grade = 0;
-                this.startAthleteLap(ad);
-            } else {
-                const elevationChange = state.altitude - prevState.altitude;
-                const distanceChange = state.eventDistance ?
-                    (state.eventDistance - prevState.eventDistance) :
-                    (state.distance - prevState.distance);
-                state.grade = ad.smoothGrade(distanceChange ?
-                    (elevationChange / distanceChange) :
-                    prevState.grade);
-                // Leaving around because it's pretty darn useful for debugging...
-                //state.mapurl = `https://maps.google.com/maps?` +
-                //    `q=${state.latlng[0]},${state.latlng[1]}&z=17`;
-            }
-        } else {
-            state.grade = 0;
+        if (this._preprocessState(state, ad) === false) {
+            return false;
         }
         const noSubgroup = null;
         const sg = state.eventSubgroupId &&
@@ -1607,6 +1917,23 @@ export class StatsProcessor extends events.EventEmitter {
         if (ad.disabled) {
             return;
         }
+        const worldMeta = env.worldMetas[state.courseId];
+        if (worldMeta) {
+            state.latlng = worldMeta.flippedHack ?
+                [(state.x / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
+                    (state.y / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset] :
+                [-(state.y / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
+                    (state.x / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset];
+            let slopeScale;
+            if (state.portal) {
+                const road = env.getRoad(state.courseId, state.roadId);
+                slopeScale = road?.physicsSlopeScaleOverride;
+            } else {
+                slopeScale = worldMeta.physicsSlopeScale;
+            }
+            state.altitude = (state.z + worldMeta.waterPlaneLevel) / 100 * slopeScale +
+                worldMeta.altitudeOffsetHack;
+        }
         const roadSig = this._roadSig(state);
         if (this._autoLap) {
             this._autoLapCheck(state, ad);
@@ -1616,37 +1943,7 @@ export class StatsProcessor extends events.EventEmitter {
         }
         this._activeSegmentCheck(state, ad, roadSig);
         this._recordAthleteRoadHistory(state, ad, roadSig);
-        const addCount = this._recordAthleteStats(state, ad);
-        ad.mostRecentState = state;
-        ad.updated = monotonic();
-        this._stateProcessCount++;
-        let emitData;
-        let streamsData;
-        if (this.watching === state.athleteId) {
-            if (this.listenerCount('athlete/watching')) {
-                this.emit('athlete/watching', emitData || (emitData = this._formatAthleteData(ad)));
-            }
-            if (addCount && this.listenerCount('streams/watching')) {
-                this.emit('streams/watching', streamsData ||
-                          (streamsData = this._getAthleteStreams(ad, -addCount)));
-            }
-        }
-        if (this.athleteId === state.athleteId) {
-            if (this.listenerCount('athlete/self')) {
-                this.emit('athlete/self', emitData || (emitData = this._formatAthleteData(ad)));
-            }
-            if (addCount && this.listenerCount('streams/self')) {
-                this.emit('streams/self', streamsData ||
-                          (streamsData = this._getAthleteStreams(ad, -addCount)));
-            }
-        }
-        if (this.listenerCount(`athlete/${state.athleteId}`)) {
-            this.emit(`athlete/${state.athleteId}`, emitData || (emitData = this._formatAthleteData(ad)));
-        }
-        if (addCount && this.listenerCount(`streams/${state.athleteId}`)) {
-            this.emit(`streams/${state.athleteId}`, streamsData ||
-                      (streamsData = this._getAthleteStreams(ad, -addCount)));
-        }
+        this._recordAthleteStats(state, ad);
         this.maybeUpdateAthleteFromServer(state.athleteId);
     }
 
@@ -1696,13 +1993,50 @@ export class StatsProcessor extends events.EventEmitter {
         });
     }
 
+    _preprocessState(state, ad) {
+        const prevState = ad.mostRecentState;
+        if (prevState) {
+            const elapsed = state.worldTime - prevState.worldTime;
+            if (elapsed < 0) {
+                this._stateStaleCount++;
+                return false;
+            } else if (elapsed === 0) {
+                this._stateDupCount++;
+                return false;
+            }
+            if (prevState.sport !== state.sport || prevState.courseId !== state.courseId ||
+                state.distance < prevState.distance) {
+                ad.sport = state.sport;
+                ad.courseId = state.courseId;
+                ad.distanceOffset += prevState.distance;
+                ad.autoLapMark = undefined;
+                state.grade = 0;
+                this.startAthleteLap(ad);
+            } else {
+                const elevationChange = state.altitude - prevState.altitude;
+                const distanceChange = state.eventDistance ?
+                    (state.eventDistance - prevState.eventDistance) :
+                    (state.distance - prevState.distance);
+                state.grade = ad.smoothGrade(distanceChange ?
+                    (elevationChange / distanceChange) :
+                    prevState.grade);
+                // Leaving around because it's pretty darn useful for debugging...
+                //state.mapurl = `https://maps.google.com/maps?` +
+                //    `q=${state.latlng[0]},${state.latlng[1]}&z=17`;
+            }
+        } else {
+            state.grade = 0;
+        }
+    }
+
     _recordAthleteStats(state, ad) {
         // Never auto pause wBal as it is a biometric. We use true worldTime to
         // survive resets as well.
         const wbal = ad.wBal.accumulate(state.worldTime / 1000, state.power);
+        let addCount;
         if (!state.power && !state.speed) {
             // Emulate auto pause...
-            const addCount = ad.collectors.power.flushBuffered();
+            addCount = ad.collectors.power.flushBuffered();
             if (addCount) {
                 ad.collectors.speed.flushBuffered();
                 ad.collectors.hr.flushBuffered();
@@ -1715,35 +2049,64 @@ export class StatsProcessor extends events.EventEmitter {
                     ad.streams.wbal.push(wbal);
                 }
             }
-            return addCount;
+        } else {
+            const time = (state.worldTime - ad.wtOffset) / 1000;
+            ad.timeInPowerZones.accumulate(time, state.power);
+            addCount = ad.collectors.power.add(time, state.power);
+            ad.collectors.speed.add(time, state.speed);
+            ad.collectors.hr.add(time, state.heartrate);
+            ad.collectors.draft.add(time, state.draft);
+            ad.collectors.cadence.add(time, state.cadence);
+            for (let i = 0; i < addCount; i++) {
+                ad.streams.distance.push(ad.distanceOffset + state.distance);
+                ad.streams.altitude.push(state.altitude);
+                ad.streams.latlng.push(state.latlng);
+                ad.streams.wbal.push(wbal);
+            }
+            const curLap = ad.laps[ad.laps.length - 1];
+            curLap.power.resize(time);
+            curLap.speed.resize(time);
+            curLap.hr.resize(time);
+            curLap.draft.resize(time);
+            curLap.cadence.resize(time);
+            for (const s of ad.activeSegments.values()) {
+                s.power.resize(time);
+                s.speed.resize(time);
+                s.hr.resize(time);
+                s.draft.resize(time);
+                s.cadence.resize(time);
+            }
         }
-        const time = (state.worldTime - ad.wtOffset) / 1000;
-        ad.timeInPowerZones.accumulate(time, state.power);
-        const addCount = ad.collectors.power.add(time, state.power);
-        ad.collectors.speed.add(time, state.speed);
-        ad.collectors.hr.add(time, state.heartrate);
-        ad.collectors.draft.add(time, state.draft);
-        ad.collectors.cadence.add(time, state.cadence);
-        for (let i = 0; i < addCount; i++) {
-            ad.streams.distance.push(ad.distanceOffset + state.distance);
-            ad.streams.altitude.push(state.altitude);
-            ad.streams.latlng.push(state.latlng);
-            ad.streams.wbal.push(wbal);
+        ad.mostRecentState = state;
+        ad.updated = monotonic();
+        this._stateProcessCount++;
+        let emitData;
+        let streamsData;
+        if (this.watching === state.athleteId) {
+            if (this.listenerCount('athlete/watching')) {
+                this.emit('athlete/watching', emitData || (emitData = this._formatAthleteData(ad)));
+            }
+            if (addCount && this.listenerCount('streams/watching')) {
+                this.emit('streams/watching', streamsData ||
+                          (streamsData = this._getAthleteStreams(ad, -addCount)));
+            }
         }
-        const curLap = ad.laps[ad.laps.length - 1];
-        curLap.power.resize(time);
-        curLap.speed.resize(time);
-        curLap.hr.resize(time);
-        curLap.draft.resize(time);
-        curLap.cadence.resize(time);
-        for (const s of ad.activeSegments.values()) {
-            s.power.resize(time);
-            s.speed.resize(time);
-            s.hr.resize(time);
-            s.draft.resize(time);
-            s.cadence.resize(time);
+        if (this.athleteId === state.athleteId) {
+            if (this.listenerCount('athlete/self')) {
+                this.emit('athlete/self', emitData || (emitData = this._formatAthleteData(ad)));
+            }
+            if (addCount && this.listenerCount('streams/self')) {
+                this.emit('streams/self', streamsData ||
+                          (streamsData = this._getAthleteStreams(ad, -addCount)));
+            }
         }
-        return addCount;
+        if (this.listenerCount(`athlete/${state.athleteId}`)) {
+            this.emit(`athlete/${state.athleteId}`, emitData || (emitData = this._formatAthleteData(ad)));
+        }
+        if (addCount && this.listenerCount(`streams/${state.athleteId}`)) {
+            this.emit(`streams/${state.athleteId}`, streamsData ||
+                      (streamsData = this._getAthleteStreams(ad, -addCount)));
+        }
     }
 
     _activeSegmentCheck(state, ad, roadSig) {
