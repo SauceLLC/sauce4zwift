@@ -37,10 +37,12 @@
             <div class="category">Load activity <i>(i.e. .fit file)</i>:</div>
             <input type="file" name="activity" accept=".fit"/>
             <div class="button-group">
+                <div class="std button disabled" data-call="fileReplayRewind" data-args="[1e20]"><ms>skip_previous</ms></div>
                 <div class="std button disabled" data-call="fileReplayRewind"><ms>fast_rewind</ms></div>
                 <div class="std button negative disabled" data-call="fileReplayStop"><ms>stop_circle</ms></div>
                 <div class="std button positive disabled" data-call="fileReplayPlay"><ms>play_circle</ms></div>
                 <div class="std button disabled" data-call="fileReplayForward"><ms>fast_forward</ms></div>
+                <div class="std button disabled" data-call="fileReplayForward" data-args="[1e20]"><ms>skip_next</ms></div>
             </div>
             <div class="category">Time code:</div>
             <div class="timecode">mm:ss.---</div>

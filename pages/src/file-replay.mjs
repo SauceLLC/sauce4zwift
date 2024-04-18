@@ -7,13 +7,12 @@ let playing;
 let timecodeOffset;
 let timecode;
 
+
 const _timeCodeEl = document.querySelector('.timecode');
 function drawTimeCode() {
     requestAnimationFrame(drawTimeCode);
-    if (!playing) {
-        return;
-    }
-    const ts = timecode + ((Date.now() - timecodeOffset) / 1000);
+    const realTimeAdjust = playing ? (Date.now() - timecodeOffset) / 1000 : 0;
+    const ts = timecode + realTimeAdjust;
     _timeCodeEl.innerHTML = locale.human.timer(ts, {ms: true, long: true});
 }
 
@@ -46,10 +45,10 @@ export async function main() {
         const args = btn.dataset.args ? JSON.parse(btn.dataset.args) : [];
         common.rpc[btn.dataset.call](...args);
     });
-    common.subscribe('file-replay-timesync', ts => {
+    common.subscribe('file-replay-timesync', ev => {
         timecodeOffset = Date.now();
-        timecode = ts;
-        playing = ts !== null;
+        timecode = ev.time;
+        playing = ev.playing;
     });
     const status = await common.rpc.fileReplayStatus();
     if (status === 'playing') {
