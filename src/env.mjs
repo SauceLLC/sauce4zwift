@@ -28,6 +28,12 @@ try {
 } catch {/*no-pragma*/}
 
 
+export function getWorldMetas() {
+    return Object.values(worldMetas);
+}
+rpc.register(getWorldMetas);
+
+
 export function getCourseId(worldId) {
     return Object.values(worldMetas).find(x => x.worldId === worldId)?.courseId;
 }

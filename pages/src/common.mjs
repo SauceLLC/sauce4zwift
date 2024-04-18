@@ -435,18 +435,11 @@ export function longPressListener(el, timeout, callback) {
 
 
 let _worldList;
-export function getWorldList() {
+export async function getWorldList() {
     if (!_worldList) {
-        _worldList = (async () => {
-            const r = await fetch('/shared/deps/data/worldlist.json');
-            if (!r.ok) {
-                console.error("Failed to get worldlist:", r.status);
-                return [];
-            }
-            return await r.json();
-        })();
+        _worldList = rpcCall('getWorldMetas');
     }
-    return _worldList;
+    return await _worldList;
 }
 
 
