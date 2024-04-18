@@ -529,6 +529,7 @@ export class StatsProcessor extends events.EventEmitter {
         this._lastEgressStates = 0;
         this._timeoutEgressStates = null;
         const app = options.app;
+        this._googleMapTileKey = app.buildEnv?.google_map_tile_key;
         this._autoResetEvents = !!app.getSetting('autoResetEvents');
         this._autoLapEvents = !!app.getSetting('autoLapEvents');
         const autoLap = !!app.getSetting('autoLap');
@@ -710,7 +711,10 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     async getIRLMapTile(x, y, z) {
-        const key = 'AIzaSyD_nk0Xd9vrB9SOHDxnZZ7Vym6vEMaJqAc';
+        const key = this._googleMapTileKey;
+        if (!key) {
+            throw new Error("google map tile key required");
+        }
         if (!this._gmapSession) {
             // https://developers.google.com/maps/documentation/tile/session_tokens
             const resp = await fetch(`https://tile.googleapis.com/v1/createSession?key=${key}`, {

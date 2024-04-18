@@ -358,7 +358,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     }
     const appPath = electron.app.getPath('userData');
     storage.initialize(appPath);
-    sauceApp = new ElectronSauceApp({appPath});
+    sauceApp = new ElectronSauceApp({appPath, buildEnv});
     global.sauceApp = sauceApp;
     if (logEmitter) {
         sauceApp.rpcEventEmitters.set('logs', logEmitter);

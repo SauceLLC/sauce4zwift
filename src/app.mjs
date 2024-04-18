@@ -60,10 +60,11 @@ export class SauceApp extends EventEmitter {
     _metricsPromise;
     _lastMetricsTS = 0;
 
-    constructor({appPath}) {
+    constructor({appPath, buildEnv={}}) {
         super();
         this.rpcEventEmitters = new Map();
         this.appPath = appPath;
+        this.buildEnv = buildEnv;
         this.zwiftAPI = undefined;
         this.zwiftMonitorAPI = undefined;
         const _this = this;
