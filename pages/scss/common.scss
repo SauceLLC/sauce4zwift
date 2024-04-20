@@ -733,7 +733,8 @@ a.std.button {
         margin: 0.1rem 0.2rem;
         padding: 0.1rem 1rem;
         box-shadow: none;
-        transition: box-shadow 100ms, --bg-from-color 150ms, --bg-to-color 150ms;
+        outline: 0px transparent;
+        transition: box-shadow 100ms, --bg-from-color 150ms, --bg-to-color 150ms, outline 100ms;
 
         &.outline {
             --bg-from-color: #{color.shade(primary, 120%)};
@@ -790,6 +791,18 @@ a.std.button {
             &:not([disabled]):not(.disabled):hover {
                 --bg-from-color: #{color.shade(primary, 5%)};
                 --bg-to-color: #{color.shade(primary, -5%)};
+            }
+        }
+
+        &.alt {
+            --bg-from-color: #{color.shade(intrinsic-inverted, 5%)};
+            --bg-to-color: #{color.shade(intrinsic-inverted, 20%)};
+            color: color.shade(intrinsic-inverted, 100%);
+
+            &:not([disabled]):not(.disabled):hover {
+                --bg-from-color: #{color.shade(intrinsic-inverted, -5%)};
+                --bg-to-color: #{color.shade(intrinsic-inverted, 10%)};
+                outline: 2px outset color.get(intrinsic, 0.3);
             }
         }
 
