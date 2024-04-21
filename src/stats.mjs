@@ -412,9 +412,14 @@ class ActivityReplay extends events.EventEmitter {
         this.streams = streams;
         this.laps = laps;
         this.playing = false;
-        this.pos = 0;
+        this.position = 0;
         this._stopEvent = new Event();
         this.startTime = streams ? streams.time[0] : undefined;
+    }
+
+    getTimestamp(i) {
+        const t = this.streams.time[i === undefined ? this.position : i];
+        return t !== undefined ? t - this.startTime : undefined;
     }
 
     play() {
@@ -438,16 +443,15 @@ class ActivityReplay extends events.EventEmitter {
     }
 
     emitTimeSync() {
-        const ts = this.streams.time[Math.max(0, Math.min(this.streams.time.length - 1, this.pos))];
         this.emit('timesync', {
-            time: ts ? ts - this.startTime : ts,
+            ts: this.getTimestamp(Math.max(0, Math.min(this.streams.time.length - 1, this.position))),
             playing: this.playing,
-            position: this.pos,
+            position: this.position,
         });
     }
 
     emitRecord() {
-        const i = this.pos;
+        const i = this.position;
         this.emit('record', {
             time: this.streams.time[i],
             power: this.streams.power && this.streams.power[i],
@@ -462,17 +466,17 @@ class ActivityReplay extends events.EventEmitter {
 
     async _playLoop() {
         while (this.playing) {
-            if (this.pos >= this.streams.time.length) {
+            if (this.position >= this.streams.time.length) {
                 this.playing = false;
-                this.emitTimeSync('playloop exit');
+                this.emitTimeSync();
                 return;
             }
             this.emitRecord();
-            this.emitTimeSync('playloop outer');
-            this.pos++;
-            const nextTime = this.streams.time[this.pos];
+            this.emitTimeSync();
+            this.position++;
+            const nextTime = this.streams.time[this.position];
             if (nextTime !== undefined) {
-                const next = (nextTime - this.streams.time[this.pos - 1]) * 1000 + monotonic();
+                const next = (nextTime - this.streams.time[this.position - 1]) * 1000 + monotonic();
                 await Promise.race([
                     highResSleepTill(next),
                     this._stopEvent.wait(),
@@ -482,29 +486,29 @@ class ActivityReplay extends events.EventEmitter {
     }
 
     rewind(steps) {
-        this.pos -= steps;
-        if (this.pos < 0) {
-            this.pos = 0;
+        this.position -= steps;
+        if (this.position < 0) {
+            this.position = 0;
         }
-        this.emitTimeSync('rewind');
+        this.emitTimeSync();
     }
 
     forward(steps) {
-        this.pos += steps;
-        if (this.pos >= this.streams.time.length) {
+        this.position += steps;
+        if (this.position >= this.streams.time.length) {
             this.playing = false;
-            this.pos = this.streams.time.length;
+            this.position = this.streams.time.length;
         }
-        this.emitTimeSync('forward');
+        this.emitTimeSync();
     }
 
     fastForward(steps) {
-        for (let i = 0; i < steps && this.pos < this.streams.time.length; i++) {
+        for (let i = 0; i < steps && this.position < this.streams.time.length; i++) {
             this.emitRecord();
-            this.pos++;
-            if (this.pos >= this.streams.time.length) {
+            this.position++;
+            if (this.position >= this.streams.time.length) {
                 this.playing = false;
-                this.pos = this.streams.time.length;
+                this.position = this.streams.time.length;
                 break;
             }
         }
@@ -715,7 +719,20 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     fileReplayStatus() {
-        return this._activityReplay ? (this._activityReplay.playing ? 'playing' : 'stopped') : 'inactive';
+        const r = this._activityReplay;
+        if (!r) {
+            return {
+                state: 'inactive',
+            };
+        }
+        return {
+            state: r.playing ? 'playing' : 'stopped',
+            startTime: r.startTime,
+            athlete: r.athlete,
+            activity:  r.activity,
+            position: r.position,
+            ts: r.getTimestamp(),
+        };
     }
 
     async getIRLMapTile(x, y, z) {

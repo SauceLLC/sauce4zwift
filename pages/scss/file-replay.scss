@@ -36,6 +36,16 @@ input[type="file"] {
     }
 
     .timecode {
+        justify-content: space-evenly;
+        align-items: center;
+
+        .button {
+            flex: 0 0 auto;
+            margin: 0;
+        }
+    }
+
+    .timecode-value {
         font-size: 1.2em;
         font-weight: 800;
         letter-spacing: 5px;
@@ -46,6 +56,5 @@ input[type="file"] {
         border-radius: 10em;
         box-shadow: 1px 1px 4px 0 #0003;
         font-variant-numeric: tabular-nums;
-        align-self: flex-start;
     }
 }

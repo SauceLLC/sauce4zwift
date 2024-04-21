@@ -45,7 +45,11 @@
                 <div class="std button disabled" data-call="fileReplayForward" data-args="[1e20]"><ms>skip_next</ms></div>
             </div>
             <div class="category">Time code:</div>
-            <div class="timecode">mm:ss.---</div>
+            <div class="button-group timecode">
+                <div class="std button disabled" title="Single step" data-call="fileReplayRewind" data-args="[1]"><ms>navigate_before</ms></div>
+                <div class="timecode-value"></div>
+                <div class="std button disabled" title="Single step"  data-call="fileReplayForward" data-args="[1]"><ms>navigate_next</ms></div>
+            </div>
         </div>
         <div id="hintbar">
             <div class="hint"></div>
