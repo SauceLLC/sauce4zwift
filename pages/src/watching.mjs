@@ -1570,7 +1570,9 @@ export async function main() {
         }
     }
     common.subscribe(`athlete/${athleteIdent}`, onAthleteData, {persistent: persistentData});
-    onAthleteData(ad);
+    if (ad) {
+        onAthleteData(ad);
+    }
 }
 
 
