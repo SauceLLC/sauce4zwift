@@ -418,7 +418,10 @@ class ActivityReplay extends events.EventEmitter {
     }
 
     getTimestamp(i) {
-        const t = this.streams.time[i === undefined ? this.position : i];
+        i = i === undefined ?
+            Math.max(0, Math.min(this.streams.time.length - 1, this.position)) :
+            i;
+        const t = this.streams.time[i];
         return t !== undefined ? t - this.startTime : undefined;
     }
 
@@ -444,7 +447,7 @@ class ActivityReplay extends events.EventEmitter {
 
     emitTimeSync() {
         this.emit('timesync', {
-            ts: this.getTimestamp(Math.max(0, Math.min(this.streams.time.length - 1, this.position))),
+            ts: this.getTimestamp(),
             playing: this.playing,
             position: this.position,
         });
