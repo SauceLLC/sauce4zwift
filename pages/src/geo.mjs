@@ -157,7 +157,11 @@ function setWatching(id) {
 
 
 async function initialize() {
-    const ad = await common.rpc.getAthleteData('self');
+    let ad = await common.rpc.getAthleteData('self');
+    if (!ad) {
+        // Support file replay mode too...
+        ad = await common.rpc.getAthleteData('watching');
+    }
     inGame = !!ad && ad.age < 15000;
     if (!inGame) {
         if (!demoState.intervalId) {
@@ -378,7 +382,7 @@ export async function main() {
             fieldRenderer.render();
         });
         setInterval(() => {
-            if (inGame && performance.now() - watchdog > 10000) {
+            if (inGame && performance.now() - watchdog > 30000) {
                 console.warn("Watchdog triggered by inactivity");
                 inGame = false;
                 initialize();
