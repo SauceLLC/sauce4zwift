@@ -566,6 +566,7 @@ export class StatsProcessor extends events.EventEmitter {
             console.error("Custom power zones are invalid:", e);
             this._customPowerZones = null;
         }
+        this._gmapTileCache = new Map();
         rpc.register(this.getPowerZones, {scope: this});
         rpc.register(this.updateAthlete, {scope: this});
         rpc.register(this.startLap, {scope: this});
@@ -736,6 +737,10 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     async getIRLMapTile(x, y, z) {
+        const sig = [x,y,z].join();
+        if (this._gmapTileCache.has(sig)) {
+            return this._gmapTileCache.get(sig);
+        }
         const key = this._googleMapTileKey;
         if (!key) {
             throw new Error("google map tile key required");
@@ -773,11 +778,13 @@ export class StatsProcessor extends events.EventEmitter {
             console.error("Failed to get google map tile:", resp.status, await resp.text());
             throw new Error("Map Tile Error");
         }
-        return {
+        const entry = {
             contentType: resp.headers.get('content-type'),
             encoding: 'base64',
             data: Buffer.from(await resp.arrayBuffer()).toString('base64'),
         };
+        this._gmapTileCache.set(sig, entry);
+        return entry;
     }
 
     getPowerZones(ftp) {
