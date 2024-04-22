@@ -676,20 +676,15 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     emulatePlayerStateFromRecord(record, extra) {
-        const courseId = env.realWorldCourseId;
-        const worldMeta = env.worldMetas[courseId];
         let x = 0, y = 0, z = 0;
         if (record.latlng) {
-            const [lat, lng] = record.latlng;
-            x = (lng - worldMeta.lonOffset) * worldMeta.lonDegDist * 100;
-            y = -(lat - worldMeta.latOffset) * worldMeta.latDegDist * 100;
+            [x, y] = env.webMercatorProjection(record.latlng);
         }
         if (record.altitude != null) {
-            z = (record.altitude - worldMeta.altitudeOffsetHack) / worldMeta.physicsSlopeScale * 100 -
-                worldMeta.waterPlaneLevel;
+            z = record.altitude;
         }
         return {
-            courseId,
+            courseId: env.realWorldCourseId,
             worldTime: worldTimer.fromLocalTime(record.time * 1000),
             power: record.power,
             cadence: record.cadence,
@@ -739,47 +734,49 @@ export class StatsProcessor extends events.EventEmitter {
         };
     }
 
+    async _initGmapSession(key) {
+        // https://developers.google.com/maps/documentation/tile/session_tokens
+        const resp = await fetch(`https://tile.googleapis.com/v1/createSession?key=${key}`, {
+            method: 'POST',
+            headers: {'content-type': 'application/json'},
+            body: JSON.stringify({
+                mapType: 'roadmap', // roadmap, satellite, terrain, streetview
+                language: 'en-US',
+                region: 'US',
+                //imageFormat: 'png', // png, jpeg
+                //scale: 'scaleFactor1x', // 1x, 2x, 4x
+                //highDpi: false, // set to true with scaleFactor2x or 4x only
+            }),
+        });
+        if (!resp.ok) {
+            console.error("Failed to create google map API session:", resp.status, await resp.text());
+            throw new Error("Map Session Error");
+        }
+        return await resp.json();
+    }
+
     async getIRLMapTile(x, y, z) {
         const sig = [x,y,z].join();
         if (this._gmapTileCache.has(sig)) {
-            return this._gmapTileCache.get(sig);
+            return await this._gmapTileCache.get(sig);
         }
         const key = this._googleMapTileKey;
         if (!key) {
             throw new Error("google map tile key required");
         }
-        if (!this._gmapSession) {
-            // https://developers.google.com/maps/documentation/tile/session_tokens
-            const resp = await fetch(`https://tile.googleapis.com/v1/createSession?key=${key}`, {
-                method: 'POST',
-                headers: {'content-type': 'application/json'},
-                body: JSON.stringify({
-                    mapType: 'roadmap', // roadmap, satellite, terrain, streetview
-                    language: 'en-US',
-                    region: 'US',
-                    //imageFormat: 'png', // png, jpeg
-                    //scale: 'scaleFactor1x', // 1x, 2x, 4x
-                    //highDpi: false, // set to true with scaleFactor2x or 4x only
-                }),
-            });
-            if (!resp.ok) {
-                console.error("Failed to create google map API session:", resp.status, await resp.text());
-                throw new Error("Map Session Error");
-            }
-            this._gmapSession = await resp.json();
+        if (!this._gmapSessionPromise) {
+            this._gmapSessionPromise = this._initGmapSession(key);
         }
-        const q = new URLSearchParams({
-            session: this._gmapSession.session,
-            key,
-            orientation: 0
-        });
+        const session = await this._gmapSessionPromise;
+        const q = new URLSearchParams({session: session.session, key});
         // https://developers.google.com/maps/documentation/tile/roadmap
-        // z = 0 to 22
-        // [0, 0] = top left / north west
+        console.log(x, y, z);
         const resp = await fetch(`https://tile.googleapis.com/v1/2dtiles/${z}/${x}/${y}?${q}`);
         if (!resp.ok) {
-            console.error("Failed to get google map tile:", resp.status, await resp.text());
-            throw new Error("Map Tile Error");
+            const msg = await resp.text();
+            const e = new Error(`Map Tile Error [${resp.status}]: ` + msg);
+            this._gmapTileCache.set(sig, Promise.reject(e));
+            throw e;
         }
         const entry = {
             contentType: resp.headers.get('content-type'),

@@ -18,6 +18,14 @@ export const worldMetas = {
         altitudeOffsetHack: 0,
         physicsSlopeScale: 100,
         waterPlaneLevel: 0,
+        anchorX: 500, // XXX
+        anchorY: 500, // XXX
+        minX: -1000, // XXX
+        minY: -1000, // XXX
+        maxX: 1000, // XXX
+        maxY: 1000, // XXX
+        tileScale: 1, // XXX
+        mapScale: 4096, // XXX
     }
 };
 try {
@@ -205,3 +213,13 @@ export function getRoutes(courseId) {
     return routes;
 }
 rpc.register(getRoutes);
+
+
+export function webMercatorProjection([lat, lng]) {
+    let siny = Math.sin((lat * Math.PI) / 180);
+    siny = Math.min(Math.max(siny, -0.9999), 0.9999);
+    return [
+        0.5 + lng / 360,
+        0.5 - Math.log((1 + siny) / (1 - siny)) / (4 * Math.PI),
+    ];
+}
