@@ -266,7 +266,7 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
             const client = req.client.remoteAddress;
             const elapsed = (performance.now() - req.start).toFixed(1);
             const sizeKB = (res._contentLength / 1024).toFixed(1);
-            const msg = `HTTP API request: (${client}) [${req.method}] ${req.originalUrl} -> ` +
+            const msg = `HTTP API request: (${client}) [${req.method}] ${req.logURL || req.originalUrl} -> ` +
                 `${res.statusCode}, ${elapsed} ms, ${sizeKB} KB`;
             if (res.statusCode >= 400) {
                 console.error(msg);
@@ -341,9 +341,11 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
             `${name}: [POST,GET]`), null, 4)));
     api.get('/rpc/v2/:name*', async (req, res) => {
         try {
-            const args = req.params[0].split('/').slice(1).map(x =>
-                x ? JSON.parse(Buffer.from(x, 'base64url')) : undefined);
+            const encodedArgs = req.params[0].split('/').slice(1);
+            const jsonArgs = encodedArgs.map(x => x ? Buffer.from(x, 'base64url').toString() : undefined);
+            const args = jsonArgs.map(x => x ? JSON.parse(x) : undefined);
             const replyEnvelope = await rpc.invoke.call(null, req.params.name, ...args);
+            req.logURL = `/rpc/v2/${req.params.name}/${jsonArgs.join('/')}`;
             if (!replyEnvelope.success) {
                 res.status(400);
             }
