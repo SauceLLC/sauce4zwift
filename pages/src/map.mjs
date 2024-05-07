@@ -612,14 +612,14 @@ export class SauceZwiftMap extends EventTarget {
             if (this._wheelState.done) {
                 clearTimeout(this._wheelState.done);
             } else {
-                this._mapTransition.incDisabled();
+                //this._mapTransition.incDisabled();
             }
             this._applyZoom();
             // Lazy re-enable of animations to avoid need for forced paint
             this._wheelState.done = setTimeout(() => {
                 this.trackingPaused = false;
                 this._wheelState.done = null;
-                this._mapTransition.decDisabled();
+                //this._mapTransition.decDisabled();
             }, 100);
         });
     }
@@ -771,24 +771,21 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     _drawRealWorldBackground(tilesConfig) {
-        const canvasOld = this._elements.mapCanvas;
-        const transformerNode = canvasOld.parentElement.cloneNode();
-        canvasOld.parentElement.insertAdjacentElement('afterend', transformerNode);
-        //const oldRect = canvasOld.getBoundingClientRect();
-        //canvasOld.style.width = oldRect.width + 'px';
-        //canvasOld.style.height = oldRect.height + 'px';
-        //canvasOld.style.top = oldRect.top + 'px';
-        //canvasOld.style.left = oldRect.left + 'px';
-        //canvasOld.classList.add('deprecated');
-        setTimeout(() => transformerNode.remove(), 2000);
-        const canvasNew = this._elements.mapCanvas = document.createElement('canvas');
-        this._drawRealWorld(tilesConfig, canvasNew);
-        canvasOld.replaceWith(canvasNew);
-        transformerNode.append(canvasOld);
-        transformerNode.offsetWidth;
-        transformerNode.classList.add('deprecating');
-        
-        //canvasOld.remove();
+        const swap = false;
+        if (swap) {
+            const canvasOld = this._elements.mapCanvas;
+            const transformerNode = canvasOld.parentElement.cloneNode();
+            canvasOld.parentElement.insertAdjacentElement('afterend', transformerNode);
+            setTimeout(() => transformerNode.remove(), 2000);
+            const canvasNew = this._elements.mapCanvas = document.createElement('canvas');
+            this._drawRealWorld(tilesConfig, canvasNew);
+            canvasOld.replaceWith(canvasNew);
+            transformerNode.append(canvasOld);
+            transformerNode.offsetWidth;
+            transformerNode.classList.add('deprecating');
+        } else {
+            this._drawRealWorld(tilesConfig, this._elements.mapCanvas);
+        }
     }
 
     _drawRealWorld(tilesConfig, canvas) {
@@ -1551,8 +1548,10 @@ export class SauceZwiftMap extends EventTarget {
         if (this.courseId < 0) {
             this._updateRealWorldTiles();
         }
-        const x = this._centerXY[0] - this._anchorXY[0] - this._dragXY[0];
-        const y = this._centerXY[1] - this._anchorXY[1] - this._dragXY[1];
+        //const x = this._centerXY[0] - this._anchorXY[0] - this._dragXY[0];
+        //const y = this._centerXY[1] - this._anchorXY[1] - this._dragXY[1];
+        const x = this._centerXY[0] - this._dragXY[0];
+        const y = this._centerXY[1] - this._dragXY[1];
         this._mapTransition.setValues([
             x, y,
             this.zoom,
@@ -1573,8 +1572,8 @@ export class SauceZwiftMap extends EventTarget {
             let [x, y, zoom, tiltAngle, vertOffset, rotate] = transform;
             this._updateLayerScale(zoom, tiltAngle, force);
             const mapLayerScale = this._mapScale * this._layerScale// * this._zoomScale;
-            x *= mapLayerScale;
-            y *= mapLayerScale;
+            x = (x - this._anchorXY[0]) * mapLayerScale;
+            y = (y - this._anchorXY[1]) * mapLayerScale;
             const scale = zoom / this._zoomScale2 / this._layerScale / this._canvasScale// * this._zoomScale;
             this._rotate = rotate;
             this._elements.map.style.setProperty('transform-origin', `${x}px ${y}px`);
