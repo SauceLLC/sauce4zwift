@@ -132,9 +132,11 @@ export class CurvePath {
         return o;
     }
 
-    toSVGPath({includeEdges}={}) {
+    toSVGPath({includeEdges, scale=1, offset}={}) {
         const svg = [];
-        const xy = point => `${point[0]},${point[1]}`;
+        const xOfft = offset ? offset[0] : 0;
+        const yOfft = offset ? offset[1] : 0;
+        const xy = point => `${point[0] * scale + xOfft},${point[1] * scale + yOfft}`;
         const start = includeEdges ? 0 : 1;
         const end = includeEdges ? this.nodes.length : this.nodes.length - 1;
         for (let i = start; i < end; i++) {

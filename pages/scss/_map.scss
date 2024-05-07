@@ -52,6 +52,11 @@
         position: absolute;
         left: 50%;
         top: 50%;
+        transition: opacity 2s;
+
+        &.deprecating {
+            opacity: 0;
+        }
 
         > svg {
             position: absolute;

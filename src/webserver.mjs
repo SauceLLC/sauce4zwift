@@ -218,22 +218,22 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
         return getAthleteDataHandler(res, id);
     }
     function getAthleteDataHandler(res, id) {
-        id = id === 'self' ? sp.athleteId : id === 'watching' ? sp.watching : Number(id);
+        id = id === 'self' ? sp.athleteId : id === 'watching' ? sp.watchingId : Number(id);
         const data = sp.getAthleteData(id);
         data ? res.json(data) : res.status(404).json(null);
     }
     function getAthleteLapsHandler(res, id) {
-        id = id === 'self' ? sp.athleteId : id === 'watching' ? sp.watching : Number(id);
+        id = id === 'self' ? sp.athleteId : id === 'watching' ? sp.watchingId : Number(id);
         const data = sp.getAthleteLaps(id);
         data ? res.json(data) : res.status(404).json(null);
     }
     function getAthleteSegmentsHandler(res, id) {
-        id = id === 'self' ? sp.athleteId : id === 'watching' ? sp.watching : Number(id);
+        id = id === 'self' ? sp.athleteId : id === 'watching' ? sp.watchingId : Number(id);
         const data = sp.getAthleteSegments(id);
         data ? res.json(data) : res.status(404).json(null);
     }
     function getAthleteStreamsHandler(res, id) {
-        id = id === 'self' ? sp.athleteId : id === 'watching' ? sp.watching : Number(id);
+        id = id === 'self' ? sp.athleteId : id === 'watching' ? sp.watchingId : Number(id);
         const data = sp.getAthleteStreams(id);
         data ? res.json(data) : res.status(404).json(null);
     }

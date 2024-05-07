@@ -29,6 +29,7 @@ function nextMacrotask() {
 }
 
 
+
 let _hrSleepLatency = 1;
 const _hrSleepLatencyRoll = expWeightedAvg(10, _hrSleepLatency);
 async function highResSleepTill(deadline, options={}) {
@@ -448,6 +449,7 @@ class ActivityReplay extends events.EventEmitter {
     emitTimeSync() {
         this.emit('timesync', {
             ts: this.getTimestamp(),
+            time: this.streams.time[this.position],
             playing: this.playing,
             position: this.position,
         });
@@ -464,6 +466,7 @@ class ActivityReplay extends events.EventEmitter {
             speed: this.streams.speed && this.streams.speed[i],
             heartrate: this.streams.hr && this.streams.hr[i],
             altitude: this.streams.altitude && this.streams.altitude[i],
+            position: i,
         });
     }
 
@@ -529,7 +532,7 @@ export class StatsProcessor extends events.EventEmitter {
         this.exclusions = options.exclusions || new Set();
         this.athleteId = options.athleteId || this.gameMonitor?.gameAthleteId;
         this._userDataPath = options.userDataPath;
-        this.watching = null;
+        this.watchingId = null;
         this.emitStatesMinRefresh = 200;
         this._athleteData = new Map();
         this._athletesCache = new Map();
@@ -570,6 +573,7 @@ export class StatsProcessor extends events.EventEmitter {
             this._customPowerZones = null;
         }
         this._gmapTileCache = new Map();
+        this._gmapSessions = new Map();
         rpc.register(this.getPowerZones, {scope: this});
         rpc.register(this.updateAthlete, {scope: this});
         rpc.register(this.startLap, {scope: this});
@@ -654,10 +658,49 @@ export class StatsProcessor extends events.EventEmitter {
             firstName: names[0],
             lastName: names.slice(2).join(''),
         });
+        const roadId = -1;
+        const road = {
+            id: roadId,
+            path: this._activityReplay.streams.latlng.map((x, i) =>
+                [...env.webMercatorProjection(x), this._activityReplay.streams.altitude[i]]),
+            distances: Array.from(this._activityReplay.streams.distance),
+            splineType: 'CatmullRom',
+            isAvailable: true,
+            sports: ['cycling', 'running'],
+        };
+        env.setRoad(env.realWorldCourseId, roadId, road);
+        const routeId = -1;
+        const route = {
+            id: routeId,
+            world: env.worldMetas[env.realWorldCourseId].stringId,
+            courseId: env.realWorldCourseId,
+            worldId: env.realWorldCourseId,
+            distanceBetweenFirstLastLrCPsInMeters: 0,
+            distanceInMeters: this._activityReplay.streams.distance.at(-1),
+            freeRideLeadinAscentInMeters: 0,
+            freeRideLeadinDistanceInMeters: 0,
+            leadinAscentInMeters: 0,
+            leadinDistanceInMeters: 0,
+            manifest: [{
+                start: 0, // Actually needs to be < 0 a bit but we need ot use the road's curvepath to know exactly
+                end: 1, // Actually needs to be > 1 a bit but we need ot use the road's curvepath to know exactly
+                roadId,
+            }],
+            distances: Array.from(road.distances), // XXX need to make manifest match exactly, See ^^^
+            meetupLeadinAscentInMeters: 0,
+            meetupLeadinDistanceInMeters: 0,
+            name: 'The Real World',
+            //sportType: 2,
+            //supportedLaps: false
+        };
+        env.setRoute(routeId, route);
         this._activityReplay.on('record', record => {
             const fakeState = this.emulatePlayerStateFromRecord(record, {
                 athleteId,
-                sport: this._activityReplay.activity.sport
+                sport: this._activityReplay.activity.sport,
+                roadId,
+                routeId,
+                progress: record.postion / this._activityReplay.streams.time.length,
             });
             if (!this._athleteData.has(athleteId)) {
                 this._athleteData.set(athleteId, this._createAthleteData(fakeState));
@@ -730,22 +773,22 @@ export class StatsProcessor extends events.EventEmitter {
             athlete: r.athlete,
             activity:  r.activity,
             position: r.position,
+            time: r.streams.time[r.position],
             ts: r.getTimestamp(),
         };
     }
 
-    async _initGmapSession(key) {
+    async _initGmapSession(key, {mapType='roadmap', language='en-US', region='US', scale=1, ...options}) {
         // https://developers.google.com/maps/documentation/tile/session_tokens
         const resp = await fetch(`https://tile.googleapis.com/v1/createSession?key=${key}`, {
             method: 'POST',
             headers: {'content-type': 'application/json'},
             body: JSON.stringify({
-                mapType: 'roadmap', // roadmap, satellite, terrain, streetview
-                language: 'en-US',
-                region: 'US',
-                //imageFormat: 'png', // png, jpeg
-                //scale: 'scaleFactor1x', // 1x, 2x, 4x
-                //highDpi: false, // set to true with scaleFactor2x or 4x only
+                ...options,
+                mapType,
+                language,
+                region,
+                scale: `scaleFactor${scale}x`,
             }),
         });
         if (!resp.ok) {
@@ -755,35 +798,50 @@ export class StatsProcessor extends events.EventEmitter {
         return await resp.json();
     }
 
-    async getIRLMapTile(x, y, z) {
-        const sig = [x,y,z].join();
-        if (this._gmapTileCache.has(sig)) {
-            return await this._gmapTileCache.get(sig);
+    async getIRLMapTile(x, y, z, sessionOptions={}) {
+        const sessionSig = JSON.stringify(sessionOptions);
+        const tileSig = sessionSig + JSON.stringify([x, y, z]);
+        if (this._gmapTileCache.has(tileSig)) {
+            return await this._gmapTileCache.get(tileSig);
+        }
+        const dbEntry = this.irlMapTilesDB.prepare('SELECT data,meta FROM tiles WHERE signature = ?')
+            .get(tileSig);
+        if (dbEntry) {
+            console.info("DB HIT", tileSig);
+            const entry = {
+                contentType: JSON.parse(dbEntry.meta).contentType,
+                encoding: 'base64',
+                data: dbEntry.data.toString('base64'),
+            };
+            this._gmapTileCache.set(tileSig, entry);
+            return entry;
         }
         const key = this._googleMapTileKey;
         if (!key) {
             throw new Error("google map tile key required");
         }
-        if (!this._gmapSessionPromise) {
-            this._gmapSessionPromise = this._initGmapSession(key);
+        if (!this._gmapSessions.has(sessionSig)) {
+            this._gmapSessions.set(sessionSig, this._initGmapSession(key, sessionOptions));
         }
-        const session = await this._gmapSessionPromise;
+        const session = await this._gmapSessions.get(sessionSig);
         const q = new URLSearchParams({session: session.session, key});
         // https://developers.google.com/maps/documentation/tile/roadmap
-        console.log(x, y, z);
         const resp = await fetch(`https://tile.googleapis.com/v1/2dtiles/${z}/${x}/${y}?${q}`);
         if (!resp.ok) {
             const msg = await resp.text();
             const e = new Error(`Map Tile Error [${resp.status}]: ` + msg);
-            this._gmapTileCache.set(sig, Promise.reject(e));
+            this._gmapTileCache.set(tileSig, Promise.reject(e));
             throw e;
         }
+        const buffer = Buffer.from(await resp.arrayBuffer());
         const entry = {
             contentType: resp.headers.get('content-type'),
             encoding: 'base64',
-            data: Buffer.from(await resp.arrayBuffer()).toString('base64'),
+            data: buffer.toString('base64'),
         };
-        this._gmapTileCache.set(sig, entry);
+        this._gmapTileCache.set(tileSig, entry);
+        this.irlMapTilesDB.prepare('INSERT OR REPLACE INTO tiles (signature,ts,meta,data) VALUES(?,?,?,?)')
+            .run(tileSig, Date.now() / 1000 | 0, JSON.stringify({contentType: entry.contentType}), buffer);
         return entry;
     }
 
@@ -988,7 +1046,7 @@ export class StatsProcessor extends events.EventEmitter {
         return ident === 'self' ?
             this.athleteId :
             ident === 'watching' ?
-                this.watching : Number(ident);
+                this.watchingId : Number(ident);
     }
 
     getAthleteStats(id) {
@@ -1676,11 +1734,11 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     setWatching(athleteId) {
-        if (athleteId === this.watching) {
+        if (athleteId === this.watchingId) {
             return;
         }
         console.info("Now watching:", athleteId);
-        this.watching = athleteId;
+        this.watchingId = athleteId;
         this._pendingProfileFetches.length = 0;
         this.emit('watching-athlete-change', athleteId);
     }
@@ -2114,7 +2172,7 @@ export class StatsProcessor extends events.EventEmitter {
         this._stateProcessCount++;
         let emitData;
         let streamsData;
-        if (this.watching === state.athleteId) {
+        if (this.watchingId === state.athleteId) {
             if (this.listenerCount('athlete/watching')) {
                 this.emit('athlete/watching', emitData || (emitData = this._formatAthleteData(ad)));
             }
@@ -2195,10 +2253,10 @@ export class StatsProcessor extends events.EventEmitter {
         deleteDatabase(this.athletesDB.name);
         this.athletesDB = null;
         this._athletesCache.clear();
-        this.initAthletesDB();
+        this.initDatabases();
     }
 
-    initAthletesDB() {
+    initDatabases() {
         if (this.athletesDB) {
             throw new TypeError("Already initialized");
         }
@@ -2211,13 +2269,24 @@ export class StatsProcessor extends events.EventEmitter {
             }
         });
         this.getAthleteStmt = this.athletesDB.prepare('SELECT data FROM athletes WHERE id = ?');
+        this.irlMapTilesDB = new SqliteDatabase(path.join(this._userDataPath, 'irl_map_tiles.sqlite'), {
+            tables: {
+                tiles: {
+                    signature: 'TEXT PRIMARY KEY',
+                    ts: 'INTEGER',
+                    meta: 'TEXT',
+                    data: 'BLOB',
+                }
+            }
+        });
+        this.irlMapTilesDB.prepare('DELETE FROM tiles WHERE ts < ?').run((Date.now() / 1000) - (86400 * 30));
         queueMicrotask(() => this._loadMarkedAthletes());
     }
 
     start() {
         this._active = true;
         try {
-            this.initAthletesDB();
+            this.initDatabases();
         } catch(e) {
             report.errorOnce(e);
             this.resetAthletesDB();
@@ -2543,10 +2612,13 @@ export class StatsProcessor extends events.EventEmitter {
     gcAthleteData() {
         const now = monotonic();
         const expiration = now - 1800 * 1000;
-        for (const [k, {updated}] of this._athleteData.entries()) {
+        for (const [id, {updated}] of this._athleteData.entries()) {
+            if (id === this.watchingId || id === this.athleteId) {
+                continue;
+            }
             if (updated < expiration) {
-                this._athleteData.delete(k);
-                this._athletesCache.delete(k);
+                this._athleteData.delete(id);
+                this._athletesCache.delete(id);
             }
         }
     }
@@ -2572,7 +2644,7 @@ export class StatsProcessor extends events.EventEmitter {
                 //console.log("sleep", target - now);
             }
             await highResSleepTill(target);
-            if (this.watching == null) {
+            if (this.watchingId == null) {
                 continue;
             }
             try {
@@ -2683,7 +2755,7 @@ export class StatsProcessor extends events.EventEmitter {
         return {
             created: ad.created,
             age: monotonic() - ad.updated,
-            watching: ad.athleteId === this.watching ? true : undefined,
+            watching: ad.athleteId === this.watchingId ? true : undefined,
             self: ad.athleteId === this.athleteId ? true : undefined,
             courseId: ad.courseId,
             athleteId: state.athleteId,
@@ -2708,7 +2780,7 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _computeNearby() {
-        const watching = this._athleteData.get(this.watching);
+        const watching = this._athleteData.get(this.watchingId);
         if (!watching || !watching.mostRecentState) {
             for (const ad of this._athleteData.values()) {
                 ad.gap = undefined;
@@ -2733,7 +2805,7 @@ export class StatsProcessor extends events.EventEmitter {
         const ahead = [];
         const behind = [];
         for (const ad of this._athleteData.values()) {
-            if (ad.athleteId !== this.watching) {
+            if (ad.athleteId !== this.watchingId) {
                 const age = monotonic() - ad.updated;
                 if ((filterStopped && !ad.mostRecentState.speed) || age > 10000) {
                     continue;
@@ -2845,7 +2917,7 @@ export class StatsProcessor extends events.EventEmitter {
             curGroup.draft += x.state.draft || 0;
             curGroup.heartrate += x.state.heartrate || 0;
             curGroup.heartrateCount += !!x.state.heartrate;
-            if (x.athleteId === this.watching) {
+            if (x.athleteId === this.watchingId) {
                 curGroup.watching = true;
                 watchingIdx = groups.length;
             }

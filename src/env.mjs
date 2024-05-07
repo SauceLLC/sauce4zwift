@@ -11,6 +11,8 @@ export const worldMetas = {
     [realWorldCourseId]: {
         worldId: realWorldCourseId,
         courseId: realWorldCourseId,
+        name: 'The Real World',
+        stringId: 'REALWORLD',
         lonOffset: 0,
         latOffset: 0,
         lonDegDist: 0.01,
@@ -18,14 +20,18 @@ export const worldMetas = {
         altitudeOffsetHack: 0,
         physicsSlopeScale: 100,
         waterPlaneLevel: 0,
-        anchorX: 500, // XXX
-        anchorY: 500, // XXX
-        minX: -1000, // XXX
-        minY: -1000, // XXX
-        maxX: 1000, // XXX
-        maxY: 1000, // XXX
-        tileScale: 1, // XXX
-        mapScale: 4096, // XXX
+        rotateRouteSelect: 0,
+
+        // XXX try to get rid of these, they are basically dynamic and should not be used in map code (or anywhere)
+        anchorX: 0,
+        anchorY: 0,
+        minX: 0,
+        minY: 0,
+        maxX: 1, // works when it matches the number of tiles used
+        maxY: 1, // works when it matches the number of tiles used
+        tileScale: 1000,
+        mapScale: 1024 * 5 * 100, // svgScale * tiles * 100 (for some reason) ?
+        svgScale: 100000,
     }
 };
 try {
@@ -157,6 +163,22 @@ export function getRoad(courseId, roadId) {
 rpc.register(getRoad);
 
 
+export function setRoad(courseId, roadId, road) {
+    const sig = `${courseId}-${roadId}`;
+    _roads.set(sig, road);
+    if (!_roadsByCourse.has(courseId)) {
+        _roadsByCourse.set(courseId, []);
+    }
+    const roads = _roadsByCourse.get(courseId);
+    const prevIdx = roads.findIndex(x => x.id === roadId);
+    if (prevIdx !== -1) {
+        roads[prevIdx] = road;
+    } else {
+        roads.push(road);
+    }
+}
+
+
 let _routes;
 function loadRoutes() {
     if (!_routes) {
@@ -215,11 +237,17 @@ export function getRoutes(courseId) {
 rpc.register(getRoutes);
 
 
+export function setRoute(routeId, route) {
+    loadRoutes();
+    return _routes.set(routeId, route);
+}
+
+
 export function webMercatorProjection([lat, lng]) {
-    let siny = Math.sin((lat * Math.PI) / 180);
-    siny = Math.min(Math.max(siny, -0.9999), 0.9999);
-    return [
-        0.5 + lng / 360,
-        0.5 - Math.log((1 + siny) / (1 - siny)) / (4 * Math.PI),
-    ];
+    const lngRad = lng / 180 * Math.PI;
+    const latRad = lat / 180 * Math.PI;
+    const term1 = 1 / (2 * Math.PI);
+    const x = term1 * (Math.PI + lngRad);
+    const y = term1 * (Math.PI - Math.log(Math.tan((Math.PI / 4) + (latRad / 2))));
+    return [x, y];
 }

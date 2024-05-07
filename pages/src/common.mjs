@@ -457,39 +457,58 @@ function zToAltitude(worldMeta, z, {physicsSlopeScale}={}) {
 }
 
 
-function supplimentPath(worldMeta, curvePath, {physicsSlopeScale}={}) {
+function supplimentPath(worldMeta, curvePath, {physicsSlopeScale, distances}={}) {
     const balancedT = 1 / 125; // tests to within 0.27 meters (worst case)
     const distEpsilon = 1e-6;
     const elevations = [];
     const grades = [];
-    const distances = [];
-    let prevIndex;
-    let distance = 0;
-    let prevDist = 0;
     let prevEl = 0;
-    let prevNode;
-    curvePath.trace(x => {
-        distance += prevNode ? curves.vecDist(prevNode, x.stepNode) / 100 : 0;
-        if (x.index !== prevIndex) {
+    if (!distances) {
+        distances = [];
+        let distance = 0;
+        let prevDist = 0;
+        let prevNode;
+        let prevIndex;
+        curvePath.trace(x => {
+            distance += prevNode ? curves.vecDist(prevNode, x.stepNode) / 100 : 0;
+            if (x.index !== prevIndex) {
+                const elevation = worldMeta ?
+                    zToAltitude(worldMeta, x.stepNode[2], {physicsSlopeScale}) :
+                    x.stepNode[2] / 100 * (physicsSlopeScale || 1);
+                if (elevations.length) {
+                    if (distance - prevDist > distEpsilon) {
+                        const grade = (elevation - prevEl) / (distance - prevDist);
+                        grades.push(grade);
+                    } else {
+                        grades.push(grades.at(-1) || 0);
+                    }
+                }
+                distances.push(distance);
+                elevations.push(elevation);
+                prevDist = distance;
+                prevEl = elevation;
+                prevIndex = x.index;
+            }
+            prevNode = x.stepNode;
+        }, balancedT);
+    } else {
+        for (const [i, distance] of distances.entries()) {
+            const node = curvePath.nodes[i];
             const elevation = worldMeta ?
-                zToAltitude(worldMeta, x.stepNode[2], {physicsSlopeScale}) :
-                x.stepNode[2] / 100 * (physicsSlopeScale || 1);
-            if (elevations.length) {
-                if (distance - prevDist > distEpsilon) {
-                    const grade = (elevation - prevEl) / (distance - prevDist);
+                zToAltitude(worldMeta, node[2], {physicsSlopeScale}) :
+                node[2] / 100 * (physicsSlopeScale || 1);
+            if (i) {
+                if (distance - distances[i - 1] > distEpsilon) {
+                    const grade = (elevation - prevEl) / (distance - distances[i - 1]);
                     grades.push(grade);
                 } else {
                     grades.push(grades.at(-1) || 0);
                 }
             }
-            distances.push(distance);
             elevations.push(elevation);
-            prevDist = distance;
             prevEl = elevation;
-            prevIndex = x.index;
         }
-        prevNode = x.stepNode;
-    }, balancedT);
+    }
     grades.unshift(grades[0]);
     return {
         elevations,
@@ -512,7 +531,8 @@ export function getRoads(courseId) {
                 }[x.splineType];
                 x.curvePath = curveFunc(x.path, {loop: x.looped, road: true});
                 const physicsSlopeScale = x.physicsSlopeScaleOverride;
-                Object.assign(x, supplimentPath(worldMeta, x.curvePath, {physicsSlopeScale}));
+                const distances = x.distances;
+                Object.assign(x, supplimentPath(worldMeta, x.curvePath, {physicsSlopeScale, distances}));
             }
             return roads;
         }));
@@ -558,7 +578,7 @@ async function computeRoutePath(route) {
     return {
         curvePath,
         roadSegments,
-        ...supplimentPath(worldMeta, curvePath),
+        ...supplimentPath(worldMeta, curvePath, {distances: route.distances}),
     };
 }
 
@@ -1674,7 +1694,7 @@ export function makeCRC32(type) {
         }
     }
     let crc = -1;
-    if (type === 'btye') {
+    if (type === 'byte') {
         return u8 => {
             if (u8 === undefined) {
                 return (crc ^ (-1)) >>> 0;

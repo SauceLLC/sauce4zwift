@@ -40,10 +40,10 @@ async function getTemplates(basenames) {
 
 
 async function loadEventsWithRetry() {
-    // We don't have any events for, well, events, so just poll to handle
+    // We don't have any events for, well, Events, so just poll to handle
     // mutual startup races with backend.
     let data;
-    for (let retry = 100;; retry += 100) {
+    for (let retry = 1; retry < 10; retry++) {
         data = await common.rpc.getCachedEvents();
         if (data.length) {
             for (const x of data) {
@@ -51,7 +51,7 @@ async function loadEventsWithRetry() {
             }
             break;
         }
-        await sauce.sleep(retry);
+        await sauce.sleep(retry * 100);
     }
     await fillInEvents();
 }

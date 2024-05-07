@@ -48,6 +48,8 @@ const minVAMTime = 60;
 const rolls = {
     power: new sauce.power.RollingPower(null, {idealGap: 1, maxGap: 15}),
 };
+const statsWidth = 120;
+
 
 function formatPreferredPower(x, options) {
     if (settings.preferWkg && athleteData?.athlete?.weight) {
@@ -170,6 +172,41 @@ async function exportFITActivity(name) {
 }
 
 
+function monkeyPatchEchartsDownsampling(eChartsModule) {
+    const dummy = eChartsModule.init(document.createElement('div'));
+    dummy.setOption({xAxis: {}, yAxis: {}, series: {type: 'line'}});
+    const model = dummy.getModel();
+    const DataStore = model.getSeriesByIndex(0).getData().getStore().constructor;
+    DataStore.prototype.indexOfRawIndex = function(rawIndex) {
+        if (rawIndex >= this._rawCount || rawIndex < 0) {
+            return -1;
+        }
+        if (!this._indices) {
+            return rawIndex;
+        }
+        const indices = this._indices;
+        const rawDataIndex = indices[rawIndex];
+        if (rawDataIndex != null && rawDataIndex < this._count && rawDataIndex === rawIndex) {
+            return rawIndex;
+        }
+        let left = 0;
+        let right = this._count - 1;
+        let mid = -1;
+        while (left <= right) {
+            mid = (left + right) / 2 | 0;
+            if (indices[mid] < rawIndex) {
+                left = mid + 1;
+            } else if (indices[mid] > rawIndex) {
+                right = mid - 1;
+            } else {
+                return mid;
+            }
+        }
+        return mid;
+    };
+}
+
+
 function createElevationLineChart(el) {
     const series = [{
         id: 'altitude',
@@ -188,7 +225,6 @@ function createElevationLineChart(el) {
     const leftPad = 20;
     const rightPad = 20;
     let updateDeferred;
-
     const options = {
         animation: false, // slow and we want a responsive interface not a pretty static one
         color: series.map(f => f.color),
@@ -199,7 +235,7 @@ function createElevationLineChart(el) {
                 top: `${topPad + i / count * (100 - topPad - bottomPad)}%`,
                 height: `${(100 - topPad - bottomPad) / count - seriesPad}%`,
                 left: leftPad,
-                right: rightPad,
+                right: rightPad + statsWidth,
             };
         }),
         brush: {
@@ -242,9 +278,104 @@ function createElevationLineChart(el) {
             interval: Infinity, // disable except for min/max
             splitLine: {show: false},
         })),
+        graphic: [{
+            elements: [{
+                type: 'group',
+                right: rightPad,
+                top: 'top',
+                width: statsWidth,
+                height: 100,
+                children: [{
+                    type: 'group',
+                    left: 0,
+                    top: 0,
+                    norotation: Math.PI / 4,
+                    children: [{
+                        left: 'center',
+                        top: 20,
+                        type: 'rect',
+                        shape: {
+                            x: 0,
+                            y: 0,
+                            height: 4,
+                            width: 40,
+                        },
+                        style: {
+                            shadowColor: theme.cssColor('fg', 1, 2/3),
+                            shadowBlur: 5,
+                            fill: {
+                                type: 'linear',
+                                x: 0,
+                                y: 0,
+                                x2: 0,
+                                y2: 1,
+                                colorStops: [{
+                                    offset: 0,
+                                    color: '#000',
+                                }, {
+                                    offset: 1,
+                                    color: '#f0f'
+                                }],
+                            },
+                            lineWidth: 0,
+                            opacity: 0.8,
+                        }
+                    }, {
+                        type: 'text',
+                        left: 'center',
+                        top: 'top',
+                        style: {
+                            text: 'directions_bike',
+                            fontFamily: 'Material Symbols Rounded',
+                            fontSize: 20,
+                        }
+                    }]
+                }, {
+                    type: 'text',
+                    left: statsWidth / 2,
+                    top: 'top',
+                    style: {
+                        text: '10%',
+                        fontSize: 20,
+                    }
+
+                }, {
+                    type: 'rect',
+                    top: '0%',
+                    left: '0%',
+                    shape: {
+                        width: statsWidth,
+                        height: 50,
+                    },
+                    style: {
+                        fill: 'rgba(255,0,0,0.3)'
+                    }
+                }, {
+                    type: 'text',
+                    left: 'center',
+                    top: 40,
+                    style: {
+                        text: '1023ft',
+                        fontSize: 20,
+                    }
+                }, {
+                    type: 'rect',
+                    top: '50%',
+                    left: 0,
+                    shape: {
+                        width: statsWidth,
+                        height: 100,
+                    },
+                    style: {
+                        fill: 'rgba(0,0,0,0.3)'
+                    }
+                }]
+            }]
+        }],
         series: series.map((f, i) => ({
             type: 'line',
             animation: false,
+            sampling: 'lttb',
             showSymbol: false,
             emphasis: {disabled: true},
             id: f.id,
@@ -344,7 +475,7 @@ function createZoomableLineChart(el) {
                 top: `${topPad + i / count * (100 - topPad - bottomPad)}%`,
                 height: `${(100 - topPad - bottomPad) / count - seriesPad}%`,
                 left: leftPad,
-                right: rightPad,
+                right: rightPad + statsWidth,
             };
         }),
         dataZoom: [{
@@ -381,7 +512,6 @@ function createZoomableLineChart(el) {
                 formatter: t => H.timer(t / 1000),
             },
             axisPointer: {
-                snap: true,
                 show: true,
                 label: {
                     show: true,
@@ -419,9 +549,60 @@ function createZoomableLineChart(el) {
                 formatter: x => f.fmt(x, {suffix: false}),
             },
         })),
+        graphic: {
+            id: 'stats',
+            elements: series.map((f, i) => ({
+                type: 'group',
+                right: rightPad,
+                top: i * 100,
+                width: statsWidth,
+                height: 100,
+                children: [{
+                    type: 'text',
+                    left: statsWidth / 2,
+                    top: 'top',
+                    style: {
+                        text: '----',
+                        fontSize: 20,
+                    }
+
+                }, {
+                    type: 'rect',
+                    top: '0%',
+                    left: '0%',
+                    shape: {
+                        width: statsWidth,
+                        height: 50,
+                    },
+                    style: {
+                        fill: 'rgba(255,0,0,0.3)'
+                    }
+                }, {
+                    type: 'text',
+                    left: 'center',
+                    top: 40,
+                    style: {
+                        text: '1023ft',
+                        fontSize: 20,
+                    }
+                }, {
+                    type: 'rect',
+                    top: '50%',
+                    left: 0,
+                    shape: {
+                        width: statsWidth,
+                        height: 100,
+                    },
+                    style: {
+                        fill: 'rgba(0,0,0,0.3)'
+                    }
+                }]
+            })),
+        },
         series: series.map((f, i) => ({
             type: 'line',
             animation: false,
+            sampling: 'lttb',
             showSymbol: false,
             emphasis: {disabled: true},
             id: f.id,
@@ -609,6 +790,7 @@ function centerMap(positions) {
 
 export async function main() {
     common.initInteractionListeners();
+    monkeyPatchEchartsDownsampling(echarts);
     addEventListener('resize', resizeCharts);
     const [_ad, _templates, nationFlags, worldList, _powerZones] = await Promise.all([
         common.rpc.getAthleteData(athleteIdent),
@@ -660,7 +842,7 @@ export async function main() {
     zwiftMap = new map.SauceZwiftMap({
         el: document.querySelector('#map'),
         worldList,
-        zoomMin: 0.05,
+        zoomMin: 0,//.05, // XXX
         fpsLimit: 60,
     });
     window.zwiftMap = zwiftMap; // debug
@@ -880,7 +1062,6 @@ async function updateData() {
     if (!streams || !streams.time.length) {
         return;
     }
-    //streams.power.forEach((x, i) => streams.power[i] = Math.max(0, Math.cos(i / (streams.power.length / 20)) * 400 + Math.sin(i / (streams.power.length / 200)) * 150 + 300 + Math.random() * 1000 - 500));
     state.timeOfft = streams.time.at(-1) + 1e-6;
     for (const [k, stream] of Object.entries(streams)) {
         if (!state.streams[k]) {
@@ -922,10 +1103,14 @@ async function updateData() {
         const coursePositions = state.positions.slice(state.startOffset);
         state.startEnt.setPosition(coursePositions[0]);
         state.endEntity.setPosition(coursePositions.at(-1));
+        console.log(coursePositions.at(-1));
         if (state.histPath) {
             state.histPath.elements.forEach(x => x.remove());
         }
         state.histPath = zwiftMap.addHighlightLine(coursePositions, 'history', {layer: 'low'});
+        for (let i = 0; i < coursePositions.length; i += 20) {
+            zwiftMap.addPoint(coursePositions[i], 'circle').el.style.fontSize = '0.2em';
+        }
         if (!state.voidAutoCenter) {
             centerMap(coursePositions);
         }

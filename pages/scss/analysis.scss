@@ -80,13 +80,18 @@ abbr.unit {
     }
 }
 
+header.about {
+    display: none !important; // XXX
+}
 #map {
     height: clamp(150px, 25vh, 500px);
+    height: 600px; // XXX
     border-radius: 0.28em;
     background-color: color.shade(intrinsic, 5%);
 
     .map-background {
-        filter: contrast(0.4) brightness(1.5);
+        // XXX
+        //filter: contrast(0.4) brightness(1.5);
     }
 
     .entity[data-id="start"] {

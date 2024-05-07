@@ -11,7 +11,7 @@
             <a class="avatar">
         <% } %>
             <img src="{{athlete.avatar || 'images/blankavatar.png'}}"/>
-            <% if (athlete.type !== 'NORMAL') { %>
+            <% if (athlete.type && athlete.type !== 'NORMAL') { %>
                 <div class="special badge">{{athlete.type.replace(/_/, ' ')}}</div>
             <% } %>
         </a>
@@ -41,7 +41,7 @@
             </nav>
             <main>
                 <section class="analysis selection">
-                    <div class="world">{{worldList.find(x => x.courseId === athleteData.state.courseId).name}}</div>
+                    <div class="world">{{worldList.find(x => x.courseId === athleteData.state.courseId)?.name}}</div>
                     <div id="map"></div>
                     {-embed(templates.selectionStats, obj)-}
                     <div class="chart-holder elevation"><div class="chart"></div></div>
