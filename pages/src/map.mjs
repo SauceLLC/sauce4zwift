@@ -790,21 +790,50 @@ export class SauceZwiftMap extends EventTarget {
 
     _drawRealWorld(tilesConfig, canvas) {
         canvas.classList.toggle('hidden', !!this.portal);
-        const naturalWidth = canvas.dataset.naturalWidth = tilesConfig.size * tilesConfig.cols;
-        const naturalHeight = canvas.dataset.naturalHeight = tilesConfig.size * tilesConfig.rows;
+        const tileSize = tilesConfig.size;
+        const tileScale = tilesConfig.scale;
+        const anchorX = Math.round(this._anchorXY[0] * tileScale);
+        const anchorY = Math.round(this._anchorXY[1] * tileScale);
+        const naturalWidth = canvas.dataset.naturalWidth = tileSize * tilesConfig.cols;
+        const naturalHeight = canvas.dataset.naturalHeight = tileSize * tilesConfig.rows;
         const ctx = canvas.getContext('2d');
-        //ctx.clearRect(0, 0, canvas.width, canvas.height);
-        canvas.width = naturalWidth * this._canvasScale;
-        canvas.height = naturalHeight * this._canvasScale;
-        const canvasTileWidth = canvas.width / tilesConfig.cols;
-        const canvasTileHeight = canvas.height / tilesConfig.rows;
-        console.log('anchorXY', this._anchorXY, tilesConfig);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const width = naturalWidth * this._canvasScale;
+        const height = naturalHeight * this._canvasScale;
+        // Avoid setting canvas width and height as they will reset everything causing jank
+        // on otherwise smooth transitions like zooming.
+        if (canvas.width !== width) {
+            canvas.width = width;
+        }
+        if (canvas.height !== height) {
+            canvas.height = height;
+        }
+        if (canvas.tileQueue) {
+            // Pre fill the current canvas with scaled or moved tiles from the previous render.
+            // If any of these tiles need to be fetched from the network they'll stand in while
+            // we wait making for much reduced jank.  Namely this works nicely for zooming.
+            for (const entry of canvas.tileQueue) {
+                if (!entry.img) {
+                    continue;
+                }
+                const scale = tileScale / entry.tileScale;
+                const x = (entry.x * scale - anchorX) * tileSize;
+                const y = (entry.y * scale - anchorY) * tileSize;
+                if (x >= 0 && x < width && y >= 0 && y < height) {
+                    const scaledTileSize = tileSize * scale;
+                    ctx.drawImage(entry.img, x, y, scaledTileSize, scaledTileSize);
+                }
+            }
+        }
         const ticket = ++this._irlDrawTicketCount;
+        const tileQueue = [];
         for (let row = 0; row < tilesConfig.rows; row++) {
             for (let col = 0; col < tilesConfig.cols; col++) {
+                const x = anchorX + col;
+                const y = anchorY + row;
                 const z = tilesConfig.zoom;
-                const x = Math.round(this._anchorXY[0] * tilesConfig.scale + col);
-                const y = Math.round(this._anchorXY[1] * tilesConfig.scale + row);
+                const entry = {x, y, tileScale};
+                tileQueue.push(entry);
                 const sig = [x, y, z].join();
                 const img = this._irlMapTileCache.get(sig);
                 if (img === undefined) {
@@ -813,19 +842,22 @@ export class SauceZwiftMap extends EventTarget {
                         if (this._irlDrawTicketCount !== ticket) {
                             return;
                         }
+                        entry.img = img;
                         //console.info("IRL map tile image GOOD:", {x, y, z});
-                        ctx.drawImage(img, col * canvasTileWidth, row * canvasTileHeight,
-                                      canvasTileWidth, canvasTileHeight);
+                        ctx.drawImage(img, col * tileSize, row * tileSize, tileSize, tileSize);
                     }).catch(e => {
                         this._irlMapTileCache.set(sig, null);
-                        console.error("IRL map tile image error:", {x, y, z, tilesConfig, anchorXY: this._anchorXY}, e.message.split('\n')[0]);
+                        console.error("IRL map tile image error:",
+                                      {x, y, z, tilesConfig, anchorXY: this._anchorXY},
+                                      e.message.split('\n')[0]);
                     });
                 } else if (img) {
-                    ctx.drawImage(img, col * canvasTileWidth, row * canvasTileHeight,
-                                  canvasTileWidth, canvasTileHeight);
+                    entry.img = img;
+                    ctx.drawImage(img, col * tileSize, row * tileSize, tileSize, tileSize);
                 }
             }
         }
+        canvas.tileQueue = tileQueue;
     }
 
     async _drawZwiftWorldBackground() {
