@@ -70,7 +70,7 @@
         }
 
         > div.entities {
-            font-size: calc((3px * var(--layer-scale)) + (1 / var(--zoom) * var(--layer-scale) * 8px));
+            font-size: calc((3px * var(--layer-scale)) + (1 / var(--scale) * var(--layer-scale) * 8px));
             position: absolute;
             top: 0;
             left: 0;
@@ -255,7 +255,7 @@
 
             .highlight {
                 --width: 1;
-                stroke-width: calc(((var(--width) * 8) + (1 / var(--zoom) * (var(--width) * 7))) * 1em);
+                stroke-width: calc(((var(--width) * 8) + (1 / var(--scale) * (var(--width) * 7))) * 1em);
                 stroke: #cf0606b0;
             }
 

@@ -843,7 +843,7 @@ export async function main() {
         el: document.querySelector('#map'),
         worldList,
         zoomMin: 0,//.05, // XXX
-        fpsLimit: 60,
+        fpsLimit: 90,
     });
     window.zwiftMap = zwiftMap; // debug
     zwiftMap.addEventListener('drag', () => state.voidAutoCenter = true);

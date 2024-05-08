@@ -21,17 +21,15 @@ export const worldMetas = {
         physicsSlopeScale: 100,
         waterPlaneLevel: 0,
         rotateRouteSelect: 0,
-
-        // XXX try to get rid of these, they are basically dynamic and should not be used in map code (or anywhere)
-        anchorX: 0,
-        anchorY: 0,
         minX: 0,
         minY: 0,
-        maxX: 1, // works when it matches the number of tiles used
-        maxY: 1, // works when it matches the number of tiles used
-        tileScale: 1000,
-        mapScale: 1024 * 5 * 100, // svgScale * tiles * 100 (for some reason) ?
-        svgScale: 100000,
+        maxX: 1,
+        maxY: 1,
+        tileScale: 1,
+        // NOTE: anchorX, anchorY and mapScale are dynamic and handled by map code.
+        anchorX: 0,
+        anchorY: 0,
+        mapScale: 1,
     }
 };
 try {

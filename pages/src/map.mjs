@@ -448,6 +448,7 @@ export class SauceZwiftMap extends EventTarget {
                 surfacesHigh: createElementSVG('g', {class: 'surfaces high'}),
             }
         };
+        this._elements.paths.renderers = [];
         this._elements.paths.append(this._elements.roadDefs, this._elements.pathLayersGroup);
         this._elements.pathLayersGroup.append(...Object.values(this._elements.roadLayers));
         this._elements.pathLayersGroup.append(...Object.values(this._elements.userLayers));
@@ -531,7 +532,6 @@ export class SauceZwiftMap extends EventTarget {
 
     _qualityToCanvasScale(quality) {
         if (this.worldMeta.courseId < 0) {
-            //const tilesConfig = this._getRealWorldTileConfig();
             return 1;
         }
         const cd = this._elements.mapCanvas.dataset;
@@ -589,7 +589,7 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     _applyZoom(options={}) {
-        this._elements.map.style.setProperty('--zoom', this.zoom / this._zoomScale2);
+        this._elements.map.style.setProperty('--zoom', this.zoom);
         if (this._zoomPrioTilt && this.tiltShift) {
             this._updateTiltAngle();
         }
@@ -707,7 +707,7 @@ export class SauceZwiftMap extends EventTarget {
                 const a = Math.atan2(ty, tx) - (this._rotate / 180 * Math.PI);
                 const adjX = Math.cos(a) * l;
                 const adjY = Math.sin(a) * l;
-                const f = 1 / (this.zoom * this._mapScale / this._canvasScale / this._zoomScale2);
+                const f = 1 / (this.zoom * this._mapScale / this._canvasScale / this._zoomScale);
                 const pos = [this.dragOffset[0] + adjX * f, this.dragOffset[1] + adjY * f];
                 this.setDragOffset(pos);
                 dragEv.drag = pos;
@@ -753,7 +753,7 @@ export class SauceZwiftMap extends EventTarget {
 
     _updateMapBackground = common.asyncSerialize(async function() {
         if (this.worldMeta.courseId < 0) {
-            this._updateRealWorldTiles();
+            this._updateRealWorldTiles(this.zoom);
         } else {
             await this._drawZwiftWorldBackground();
         }
@@ -770,32 +770,15 @@ export class SauceZwiftMap extends EventTarget {
         return [x, y];
     }
 
-    _drawRealWorldBackground(tilesConfig) {
-        const swap = false;
-        if (swap) {
-            const canvasOld = this._elements.mapCanvas;
-            const transformerNode = canvasOld.parentElement.cloneNode();
-            canvasOld.parentElement.insertAdjacentElement('afterend', transformerNode);
-            setTimeout(() => transformerNode.remove(), 2000);
-            const canvasNew = this._elements.mapCanvas = document.createElement('canvas');
-            this._drawRealWorld(tilesConfig, canvasNew);
-            canvasOld.replaceWith(canvasNew);
-            transformerNode.append(canvasOld);
-            transformerNode.offsetWidth;
-            transformerNode.classList.add('deprecating');
-        } else {
-            this._drawRealWorld(tilesConfig, this._elements.mapCanvas);
-        }
-    }
-
-    _drawRealWorld(tilesConfig, canvas) {
+    _drawRealWorldBackground(config) {
+        const canvas = this._elements.mapCanvas;
         canvas.classList.toggle('hidden', !!this.portal);
-        const tileSize = tilesConfig.size;
-        const tileScale = tilesConfig.scale;
+        const tileSize = config.size;
+        const tileScale = config.scale;
         const anchorX = Math.round(this._anchorXY[0] * tileScale);
         const anchorY = Math.round(this._anchorXY[1] * tileScale);
-        const naturalWidth = canvas.dataset.naturalWidth = tileSize * tilesConfig.cols;
-        const naturalHeight = canvas.dataset.naturalHeight = tileSize * tilesConfig.rows;
+        const naturalWidth = canvas.dataset.naturalWidth = tileSize * config.cols;
+        const naturalHeight = canvas.dataset.naturalHeight = tileSize * config.rows;
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         const width = naturalWidth * this._canvasScale;
@@ -827,11 +810,11 @@ export class SauceZwiftMap extends EventTarget {
         }
         const ticket = ++this._irlDrawTicketCount;
         const tileQueue = [];
-        for (let row = 0; row < tilesConfig.rows; row++) {
-            for (let col = 0; col < tilesConfig.cols; col++) {
+        for (let row = 0; row < config.rows; row++) {
+            for (let col = 0; col < config.cols; col++) {
                 const x = anchorX + col;
                 const y = anchorY + row;
-                const z = tilesConfig.zoom;
+                const z = config.zoom;
                 const entry = {x, y, tileScale};
                 tileQueue.push(entry);
                 const sig = [x, y, z].join();
@@ -848,7 +831,7 @@ export class SauceZwiftMap extends EventTarget {
                     }).catch(e => {
                         this._irlMapTileCache.set(sig, null);
                         console.error("IRL map tile image error:",
-                                      {x, y, z, tilesConfig, anchorXY: this._anchorXY},
+                                      {x, y, z, config, anchorXY: this._anchorXY},
                                       e.message.split('\n')[0]);
                     });
                 } else if (img) {
@@ -933,24 +916,6 @@ export class SauceZwiftMap extends EventTarget {
             this.courseId = courseId;
             this.portal = isPortal;
             const m = this.worldMeta = this.worldList.find(x => x.courseId === courseId);
-
-            if (courseId < 0) {
-                //const config = this._getRealWorldTileConfig();
-                //m.maxX = config.cols;
-                //m.maxY = config.rows;
-                //m.mapScale = 1024 * 100 * config.cols; // XXX or rows?  I dunno
-                // XXX get rid of these...
-                //        m.anchorX = 0;
-                //        m.anchorY = 0;
-                //        m.minX = 0;
-                //        m.minY = 0;
-                //        m.maxX = 5;
-                //        m.maxY = 5;
-                //        m.tileScale = 1000;
-                //        m.mapScale = 1024 * 5 * 100;
-                //        m.svgScale = 100000;
-            }
-
             this._anchorXY = [m.minX + m.anchorX, m.minY + m.anchorY];
             this.rotateCoordinates = isPortal ? false : !!this.worldMeta.rotateRouteSelect;
             this.geoCenter = this._unrotateWorldPos([
@@ -1008,6 +973,7 @@ export class SauceZwiftMap extends EventTarget {
         for (const ent of Array.from(this._ents.values()).filter(x => x.gc)) {
             this.removeEntity(ent);
         }
+        this._elements.paths.renderers.length = 0;
         this._elements.roadDefs.replaceChildren();
         this._elements.pins.replaceChildren();
         this._elements.pathLayersGroup.classList.toggle('rotated-coordinates', !!this.rotateCoordinates);
@@ -1018,6 +984,10 @@ export class SauceZwiftMap extends EventTarget {
 
     _setPathsViewBox([x, y, width, height]) {
         this._elements.paths.setAttribute('viewBox', [x, y, width, height].join(' '));
+        const scale = this.worldMeta.svgScale || 1;
+        for (const x of this._elements.paths.renderers) {
+            x(scale);
+        }
     }
 
     setWatching(id) {
@@ -1074,10 +1044,11 @@ export class SauceZwiftMap extends EventTarget {
             if ((!road.sports.includes('cycling') && !road.sports.includes('running')) || !road.isAvailable) {
                 continue;
             }
-            this._elements.roadDefs.append(createElementSVG('path', {
-                id: `road-path-${road.id}`,
-                d: road.curvePath.toSVGPath({scale})
-            }));
+            const path = createElementSVG('path', {id: `road-path-${road.id}`});
+            const render = scale => path.setAttribute('d', road.curvePath.toSVGPath({scale}));
+            render(scale);
+            this._elements.roadDefs.append(path);
+            this._elements.paths.renderers.push(render);
             for (const g of [gutters, surfacesLow]) {
                 g.append(createElementSVG('use', {
                     "class": 'road ' + road.sports.map(x => `sport-${x}`).join(' '),
@@ -1226,8 +1197,10 @@ export class SauceZwiftMap extends EventTarget {
         const node = createElementSVG('path', {
             class: `highlight ${extraClass}`,
             "data-id": id,
-            d: path.toSVGPath({includeEdges, scale, offset: [-580000000 * 0, -1190000000 * 0]}),
         });
+        const render = scale => node.setAttribute('d', path.toSVGPath({includeEdges, scale, offset: [0, 0]}));
+        render(scale);
+        this._elements.paths.renderers.push(render);
         if (width) {
             node.style.setProperty('--width', width);
         }
@@ -1241,7 +1214,7 @@ export class SauceZwiftMap extends EventTarget {
         }[layer]];
         surfaceEl.append(node);
         elements.push(node);
-        return {id, path, elements};
+        return {id, node, elements};
     }
 
     addHighlightLine(points, id, options={}) {
@@ -1471,75 +1444,52 @@ export class SauceZwiftMap extends EventTarget {
         }
     }
 
-    _getRealWorldTileConfig() {
+    _getRealWorldTileConfig(mapZoom) {
         const etagAdd = common.makeCRC32('number');
         const size = 256;  // Based on params used in getIRLMapTileImage
-        const zoomFactor = Math.round(Math.log2(this.zoom));
+        const zoomFactor = Math.round(Math.log2(mapZoom));
         // XXX constrain zoomFactor.
         const zoom = 14 + zoomFactor;
-        const scale = 2 ** zoom; //zoomFactor;
-        //const zoomScale = (2 ** zoomFactor) || 1;
+        const scale = 2 ** zoom;
         const cols = Math.ceil(this._elRect.width / size  + 2);
         const rows = Math.ceil(this._elRect.height / size + 2);
         etagAdd(rows);
         etagAdd(cols);
         etagAdd(zoomFactor);
         const etag = etagAdd();
-        //console.info('tle config', {scale, zoomFactor, zoom, rows, cols, etag});
         return {cols, rows, scale, zoom, zoomFactor, size, etag};
     }
 
-    _updateRealWorldTiles() {
-        const m = this.worldMeta;
-        const tilesConfig = this._getRealWorldTileConfig();
-        const ax = Math.round((this._centerXY[0] - this._dragXY[0]) * tilesConfig.scale - tilesConfig.cols / 2);
-        const ay = Math.round((this._centerXY[1] - this._dragXY[1]) * tilesConfig.scale - tilesConfig.rows / 2);
-            this._zoomScale = this.zoom / (2 ** tilesConfig.zoomFactor);
-            this._zoomScale2 = (2 ** tilesConfig.zoomFactor);
-        //const aX = Math.floor(this._centerXY[0] - 2);
-        //const aY = Math.floor(this._centerXY[1] - 2);
-        if (ax !== this._irlX || ay !== this._irlY || tilesConfig.etag !== this._irlTilesEtag) {
+    _updateRealWorldTiles(zoom) {
+        const config = this._getRealWorldTileConfig(zoom);
+        const ax = Math.round((this._centerXY[0] - this._dragXY[0]) * config.scale - config.cols / 2);
+        const ay = Math.round((this._centerXY[1] - this._dragXY[1]) * config.scale - config.rows / 2);
+        this._zoomScale = 2 ** config.zoomFactor;
+        if (ax !== this._irlX || ay !== this._irlY || config.etag !== this._irlTilesEtag) {
             this._irlX = ax;
             this._irlY = ay;
-            this._irlTilesEtag = tilesConfig.etag;
-            //m.tileScale = tileScale;
-            console.error("update real world tiles", {ax, ay, tilesConfig});
-            //m.maxX = tilesConfig.cols;
-            //m.maxY = tilesConfig.rows;
-            
-            m.tileScale = 1 / tilesConfig.scale  * 20; //0.001222222222222222; // * (tilesConfig.scale);
-            m.tileScale = 0.0012222;
-            //m.tileScale = 0.000977;
-            m.mapScale = 1024 * 5; // 1024 * 5 * 100 / 2**14; //  * (tilesConfig.scale); // XXX I need to figure out why 5 and 1024 is so magic
-            //m.mapScale = 1024 * 4.0; // 1024 * 5 * 100 / 2**14; //  * (tilesConfig.scale); // XXX I need to figure out why 5 and 1024 is so magic
-
-            // works at zoom 14...
-            m.tileScale = 0.001;
-            m.mapScale = m.tileScale * 2**22;
-
-            // works at zoom ?...
-            m.tileScale = 0.001;
-            m.mapScale = m.tileScale * 2**22 * 2 ** tilesConfig.zoomFactor;
-
-            //m.mapScale = 1024 * 5 * 100// * tilesConfig.scale //1024 * 100 * tilesConfig.cols; // XXX or rows?  I dunno
-            this._mapScale = 1 / (m.tileScale / m.mapScale / this._canvasScale);
-            this._anchorXY = [ax / tilesConfig.scale, ay / tilesConfig.scale];
-
+            this._irlTilesEtag = config.etag;
+            console.error("update real world tiles", {ax, ay, config});
+            const m = this.worldMeta;
+            m.mapScale = config.size * config.scale;
+            m.svgScale = config.scale * 100000;
             this._canvasScale = this._qualityToCanvasScale(this.quality);
-            const scale = m.svgScale || 1;
+            this._mapScale = 1 / (m.tileScale / m.mapScale / this._canvasScale);
+            this._anchorXY = [ax / config.scale, ay / config.scale];
             this._setPathsViewBox([
-                (m.minX + ax) * scale - 580000000 * 0,
-                (m.minY + ay) * scale - 1190000000 * 0,
-                (m.maxX - m.minX) * scale,
-                (m.maxY - m.minY) * scale,
+                ax / config.scale * m.svgScale,
+                ay / config.scale * m.svgScale,
+                (config.cols) / config.scale * m.svgScale,
+                (config.rows) / config.scale * m.svgScale,
             ]);
-            this._drawRealWorldBackground(tilesConfig);
-            this._renderFrame(/*force*/ true);
+            this._drawRealWorldBackground(config);
+            return true;
         }
     }
 
     _updateLayerScale(zoom, tiltAngle, force) {
         // This is a solution for 3 problems:
+        // *0. Handling IRL map tile scaling.
         //  1. Blink will convert compositing layers to bitmaps using suboptimal
         //     resolutions during transitions, which we are always doing.  This
         //     makes all scaled elements look fuzzy and very low resolution.
@@ -1550,6 +1500,9 @@ export class SauceZwiftMap extends EventTarget {
         //     causes the render pipeline to fail spectacularly and the page is broken.
         //  3. Performance because of #2 is pretty bad for large worlds when zoomed
         //     out.
+        if (this.courseId < 0) {
+            force = this._updateRealWorldTiles(zoom) || force;
+        }
         let quality = this.quality;
         if (tiltAngle) {
             // When zoomed in tiltShift can exploded the GPU budget if a lot of
@@ -1558,9 +1511,9 @@ export class SauceZwiftMap extends EventTarget {
             quality *= Math.min(1, 20 / Math.max(0, tiltAngle - 30));
         }
         const minScale = this.zoomMin * quality;
-        const scale = Math.max(minScale, Math.round(zoom * quality / this._canvasScale / this._zoomScale2 / 0.25) * 0.25);
+        const scale = Math.max(minScale, Math.round(zoom * quality / this._canvasScale / this._zoomScale / 0.25) * 0.25);
         if (this._layerScale !== scale || force) {
-            console.warn("new layer scale", {scale, zoom, mapScale: this._mapScale, zoomscale: this._zoomScale, zs2: this._zoomScale2});
+            console.debug("new layer scale", {scale, zoom, mapScale: this._mapScale, zoomscale: this._zoomScale});
             this._layerScale = scale;
             const {mapCanvas, ents, map} = this._elements;
             mapCanvas.style.setProperty('width', `${mapCanvas.width * scale}px`);
@@ -1577,11 +1530,6 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     _updateGlobalTransform() {
-        if (this.courseId < 0) {
-            this._updateRealWorldTiles();
-        }
-        //const x = this._centerXY[0] - this._anchorXY[0] - this._dragXY[0];
-        //const y = this._centerXY[1] - this._anchorXY[1] - this._dragXY[1];
         const x = this._centerXY[0] - this._dragXY[0];
         const y = this._centerXY[1] - this._dragXY[1];
         this._mapTransition.setValues([
@@ -1603,11 +1551,15 @@ export class SauceZwiftMap extends EventTarget {
         if (transform && transform.length) {
             let [x, y, zoom, tiltAngle, vertOffset, rotate] = transform;
             this._updateLayerScale(zoom, tiltAngle, force);
-            const mapLayerScale = this._mapScale * this._layerScale// * this._zoomScale;
+            const mapLayerScale = this._mapScale * this._layerScale;
             x = (x - this._anchorXY[0]) * mapLayerScale;
             y = (y - this._anchorXY[1]) * mapLayerScale;
-            const scale = zoom / this._zoomScale2 / this._layerScale / this._canvasScale// * this._zoomScale;
+            const scale = zoom / this._zoomScale / this._layerScale / this._canvasScale;
             this._rotate = rotate;
+            if (this._lastScale !== scale) {
+                this._lastScale = scale;
+                this._elements.map.style.setProperty('--scale', scale * this._layerScale);
+            }
             this._elements.map.style.setProperty('transform-origin', `${x}px ${y}px`);
             this._elements.map.style.setProperty('transform', `
                 translate(${-x}px, ${-y}px)
@@ -1621,7 +1573,7 @@ export class SauceZwiftMap extends EventTarget {
             affectedPins = [];
         }
         if (this._pendingEntityUpdates.size) {
-            const mapLayerScale = this._mapScale * this._layerScale// * this._zoomScale;
+            const mapLayerScale = this._mapScale * this._layerScale;
             for (const ent of this._pendingEntityUpdates) {
                 const pos = ent.transition.getStep();
                 if (pos) {

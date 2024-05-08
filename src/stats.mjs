@@ -682,8 +682,8 @@ export class StatsProcessor extends events.EventEmitter {
             leadinAscentInMeters: 0,
             leadinDistanceInMeters: 0,
             manifest: [{
-                start: 0, // Actually needs to be < 0 a bit but we need ot use the road's curvepath to know exactly
-                end: 1, // Actually needs to be > 1 a bit but we need ot use the road's curvepath to know exactly
+                start: -1e9,
+                end: 1e9,
                 roadId,
             }],
             distances: Array.from(road.distances), // XXX need to make manifest match exactly, See ^^^
