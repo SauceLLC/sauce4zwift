@@ -694,14 +694,27 @@ export class StatsProcessor extends events.EventEmitter {
             //supportedLaps: false
         };
         env.setRoute(routeId, route);
+        const smoothHeading = expWeightedAvg(8);
+        let prevState;
+        let prevPosition;
         this._activityReplay.on('record', record => {
-            const fakeState = this.emulatePlayerStateFromRecord(record, {
+            record.prevLocation = record.position ?
+                this._activityReplay.streams.latlng[record.position - 1] : null;
+            const fakeState = this.emulatePlayerStateFromRecord(record);
+            Object.assign(fakeState, {
                 athleteId,
                 sport: this._activityReplay.activity.sport,
                 roadId,
                 routeId,
                 progress: record.postion / this._activityReplay.streams.time.length,
             });
+            if (prevState && prevPosition === record.position - 1) {
+                const dx = fakeState.x - prevState.x;
+                const dy = fakeState.y - prevState.y;
+                const heading = -90 - Math.atan2(dy, dx) / Math.PI * 180;
+                fakeState.heading = smoothHeading(heading);
+                console.warn(heading, fakeState.heading);
+            }
             if (!this._athleteData.has(athleteId)) {
                 this._athleteData.set(athleteId, this._createAthleteData(fakeState));
             }
@@ -713,12 +726,14 @@ export class StatsProcessor extends events.EventEmitter {
                     this._schedStatesEmit();
                 }
             }
+            prevState = fakeState;
+            prevPosition = record.position;
         });
         this._activityReplay.on('timesync', (...args) => this.emit('file-replay-timesync', ...args));
         this.setWatching(athleteId);
     }
 
-    emulatePlayerStateFromRecord(record, extra) {
+    emulatePlayerStateFromRecord(record) {
         let x = 0, y = 0, z = 0;
         if (record.latlng) {
             [x, y] = env.webMercatorProjection(record.latlng);
@@ -736,7 +751,6 @@ export class StatsProcessor extends events.EventEmitter {
             heartrate: record.heartrate,
             latlng: record.latlng,
             x, y, z,
-            ...extra,
         };
     }
 
