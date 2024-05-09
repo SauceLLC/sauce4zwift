@@ -376,7 +376,7 @@ class ActivityReplay extends events.EventEmitter {
                     name: fields.friendly_name,
                     gender: fields.gender,
                     weight: fields.weight,
-                    height: fields.height,
+                    height: fields.height * 100,
                     age: fields.age,
                 });
                 console.info(`Athlete: ${athlete.name}, ${athlete.weight.toFixed(1)}kg`);
@@ -706,14 +706,13 @@ export class StatsProcessor extends events.EventEmitter {
                 sport: this._activityReplay.activity.sport,
                 roadId,
                 routeId,
-                progress: record.postion / this._activityReplay.streams.time.length,
+                progress: record.position / this._activityReplay.streams.time.length,
             });
             if (prevState && prevPosition === record.position - 1) {
                 const dx = fakeState.x - prevState.x;
                 const dy = fakeState.y - prevState.y;
                 const heading = -90 - Math.atan2(dy, dx) / Math.PI * 180;
                 fakeState.heading = smoothHeading(heading);
-                console.warn(heading, fakeState.heading);
             }
             if (!this._athleteData.has(athleteId)) {
                 this._athleteData.set(athleteId, this._createAthleteData(fakeState));
@@ -813,6 +812,10 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     async getIRLMapTile(x, y, z, sessionOptions={}) {
+        const max = 2 ** z;
+        if (x < 0 || y < 0 || x >= max || y >= max) {
+            return;
+        }
         const sessionSig = JSON.stringify(sessionOptions);
         const tileSig = sessionSig + JSON.stringify([x, y, z]);
         if (this._gmapTileCache.has(tileSig)) {
@@ -821,7 +824,6 @@ export class StatsProcessor extends events.EventEmitter {
         const dbEntry = this.irlMapTilesDB.prepare('SELECT data,meta FROM tiles WHERE signature = ?')
             .get(tileSig);
         if (dbEntry) {
-            console.info("DB HIT", tileSig);
             const entry = {
                 contentType: JSON.parse(dbEntry.meta).contentType,
                 encoding: 'base64',
