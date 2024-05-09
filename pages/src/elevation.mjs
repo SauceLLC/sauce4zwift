@@ -300,6 +300,7 @@ export class SauceElevationProfile {
         const commonSeriesOptions = {
             type: 'line',
             symbol: 'none',
+            sampling: 'lttb', // TESTING: Hopefully low/no impact except for IRL routes that are 10k+ points
         };
         const markLineData = [];
         if (options.lapOffsets) {
