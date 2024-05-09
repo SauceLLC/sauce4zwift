@@ -6,6 +6,8 @@ import * as data from '/shared/sauce/data.mjs';
 
 common.enableSentry();
 
+const q = new URLSearchParams(location.search);
+const customIdent = q.get('id');
 const doc = document.documentElement;
 
 common.settingsStore.setDefault({
@@ -157,8 +159,8 @@ function setWatching(id) {
 
 
 async function initialize() {
-    let ad = await common.rpc.getAthleteData('self');
-    if (!ad) {
+    let ad = await common.rpc.getAthleteData(customIdent || 'self');
+    if (!ad && !customIdent) {
         // Support file replay mode too...
         ad = await common.rpc.getAthleteData('watching');
     }
@@ -196,7 +198,7 @@ async function initialize() {
     if (elProfile) {
         elProfile.setAthlete(ad.athleteId);
     }
-    if (!ad.watching) {
+    if (!ad.watching && !customIdent) {
         const watching = await common.rpc.getAthleteData('watching');
         if (watching) {
             setWatching(watching.athleteId);
@@ -370,14 +372,16 @@ export async function main() {
             settingsSaveTimeout = setTimeout(() => common.settingsStore.set(null, settings), 100);
         });
         await initialize();
-        common.subscribe('watching-athlete-change', async athleteId => {
-            if (!inGame) {
-                await initialize();
-            } else {
-                setWatching(athleteId);
-            }
-        });
-        common.subscribe('athlete/watching', ad => {
+        if (!customIdent) {
+            common.subscribe('watching-athlete-change', async athleteId => {
+                if (!inGame) {
+                    await initialize();
+                } else {
+                    setWatching(athleteId);
+                }
+            });
+        }
+        common.subscribe(`athlete/${customIdent || 'watching'}`, ad => {
             fieldRenderer.setData(ad);
             fieldRenderer.render();
         });
