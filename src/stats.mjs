@@ -555,7 +555,6 @@ export class StatsProcessor extends events.EventEmitter {
         this._lastEgressStates = 0;
         this._timeoutEgressStates = null;
         const app = options.app;
-        this._googleMapTileKey = app.buildEnv?.google_map_tile_key;
         this._autoResetEvents = !!app.getSetting('autoResetEvents');
         this._autoLapEvents = !!app.getSetting('autoLapEvents');
         const autoLap = !!app.getSetting('autoLap');
@@ -686,7 +685,7 @@ export class StatsProcessor extends events.EventEmitter {
                 end: 1e9,
                 roadId,
             }],
-            distances: Array.from(road.distances), // XXX need to make manifest match exactly, See ^^^
+            distances: Array.from(road.distances),
             meetupLeadinAscentInMeters: 0,
             meetupLeadinDistanceInMeters: 0,
             name: 'The Real World',
@@ -791,33 +790,14 @@ export class StatsProcessor extends events.EventEmitter {
         };
     }
 
-    async _initGmapSession(key, {mapType='roadmap', language='en-US', region='US', scale=1, ...options}) {
-        // https://developers.google.com/maps/documentation/tile/session_tokens
-        const resp = await fetch(`https://tile.googleapis.com/v1/createSession?key=${key}`, {
-            method: 'POST',
-            headers: {'content-type': 'application/json'},
-            body: JSON.stringify({
-                ...options,
-                mapType,
-                language,
-                region,
-                scale: `scaleFactor${scale}x`,
-            }),
-        });
-        if (!resp.ok) {
-            console.error("Failed to create google map API session:", resp.status, await resp.text());
-            throw new Error("Map Session Error");
-        }
-        return await resp.json();
-    }
-
-    async getIRLMapTile(x, y, z, sessionOptions={}) {
+    async getIRLMapTile(x, y, z, options={}) {
+        z = Math.max(0, Math.min(22, z));
         const max = 2 ** z;
         if (x < 0 || y < 0 || x >= max || y >= max) {
             return;
         }
-        const sessionSig = JSON.stringify(sessionOptions);
-        const tileSig = sessionSig + JSON.stringify([x, y, z]);
+        const optionsJSON = JSON.stringify(options);
+        const tileSig = 'v2' + optionsJSON + JSON.stringify([x, y, z]);
         if (this._gmapTileCache.has(tileSig)) {
             return await this._gmapTileCache.get(tileSig);
         }
@@ -825,39 +805,32 @@ export class StatsProcessor extends events.EventEmitter {
             .get(tileSig);
         if (dbEntry) {
             const entry = {
-                contentType: JSON.parse(dbEntry.meta).contentType,
+                ...JSON.parse(dbEntry.meta),
                 encoding: 'base64',
                 data: dbEntry.data.toString('base64'),
             };
             this._gmapTileCache.set(tileSig, entry);
             return entry;
         }
-        const key = this._googleMapTileKey;
-        if (!key) {
-            throw new Error("google map tile key required");
-        }
-        if (!this._gmapSessions.has(sessionSig)) {
-            this._gmapSessions.set(sessionSig, this._initGmapSession(key, sessionOptions));
-        }
-        const session = await this._gmapSessions.get(sessionSig);
-        const q = new URLSearchParams({session: session.session, key});
-        // https://developers.google.com/maps/documentation/tile/roadmap
-        const resp = await fetch(`https://tile.googleapis.com/v1/2dtiles/${z}/${x}/${y}?${q}`);
+        const b64options = Buffer.from(optionsJSON).toString('base64url');
+        const resp = await fetch(`https://d38imdnya8dl4.cloudfront.net/tiles/${x}/${y}/${z}/${b64options}`);
         if (!resp.ok) {
             const msg = await resp.text();
             const e = new Error(`Map Tile Error [${resp.status}]: ` + msg);
             this._gmapTileCache.set(tileSig, Promise.reject(e));
             throw e;
         }
-        const buffer = Buffer.from(await resp.arrayBuffer());
-        const entry = {
-            contentType: resp.headers.get('content-type'),
-            encoding: 'base64',
-            data: buffer.toString('base64'),
+        const entry = await resp.json();
+        const dataBuf = Buffer.from(entry.data, 'base64');
+        const meta = {
+            x: entry.x,
+            y: entry.y,
+            z: entry.z,
+            contentType: entry.contentType,
         };
         this._gmapTileCache.set(tileSig, entry);
         this.irlMapTilesDB.prepare('INSERT OR REPLACE INTO tiles (signature,ts,meta,data) VALUES(?,?,?,?)')
-            .run(tileSig, Date.now() / 1000 | 0, JSON.stringify({contentType: entry.contentType}), buffer);
+            .run(tileSig, Date.now() / 1000 | 0, JSON.stringify(meta), dataBuf);
         return entry;
     }
 
@@ -2295,7 +2268,10 @@ export class StatsProcessor extends events.EventEmitter {
                 }
             }
         });
-        this.irlMapTilesDB.prepare('DELETE FROM tiles WHERE ts < ?').run((Date.now() / 1000) - (86400 * 30));
+        setTimeout(() => {
+            const stale = (Date.now() / 1000) - (86400 * 30); // 30 days
+            this.irlMapTilesDB.prepare('DELETE FROM tiles WHERE ts < ?').run(stale);
+        }, 120 * 1000);
         queueMicrotask(() => this._loadMarkedAthletes());
     }
 
