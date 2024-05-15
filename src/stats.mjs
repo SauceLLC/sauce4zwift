@@ -555,6 +555,7 @@ export class StatsProcessor extends events.EventEmitter {
         this._lastEgressStates = 0;
         this._timeoutEgressStates = null;
         const app = options.app;
+        this._irlMapTileHost = app.buildEnv.map_tile_host;
         this._autoResetEvents = !!app.getSetting('autoResetEvents');
         this._autoLapEvents = !!app.getSetting('autoLapEvents');
         const autoLap = !!app.getSetting('autoLap');
@@ -793,19 +794,26 @@ export class StatsProcessor extends events.EventEmitter {
     async getIRLMapTile(x, y, z, options={}) {
         z = Math.max(0, Math.min(22, z));
         const max = 2 ** z;
-        if (x < 0 || y < 0 || x >= max || y >= max) {
+        const host = this._irlMapTileHost;
+        if (x < 0 || y < 0 || x >= max || y >= max || !host) {
             return;
         }
+        const version = 4;
         const optionsJSON = JSON.stringify(options);
-        const tileSig = 'v2' + optionsJSON + JSON.stringify([x, y, z]);
+        const tileSig = `v${version}` + optionsJSON + JSON.stringify([x, y, z]);
         if (this._gmapTileCache.has(tileSig)) {
-            return await this._gmapTileCache.get(tileSig);
+            const entry = this._gmapTileCache.get(tileSig);
+            if (entry instanceof Error) {
+                throw entry;
+            } else {
+                return entry;
+            }
         }
         const dbEntry = this.irlMapTilesDB.prepare('SELECT data,meta FROM tiles WHERE signature = ?')
             .get(tileSig);
         if (dbEntry) {
             const entry = {
-                ...JSON.parse(dbEntry.meta),
+                meta: JSON.parse(dbEntry.meta),
                 encoding: 'base64',
                 data: dbEntry.data.toString('base64'),
             };
@@ -813,24 +821,18 @@ export class StatsProcessor extends events.EventEmitter {
             return entry;
         }
         const b64options = Buffer.from(optionsJSON).toString('base64url');
-        const resp = await fetch(`https://d38imdnya8dl4.cloudfront.net/tiles/${x}/${y}/${z}/${b64options}`);
+        const resp = await fetch(`https://${host}/tiles/${x}/${y}/${z}/${b64options}?v=${version}`);
         if (!resp.ok) {
             const msg = await resp.text();
             const e = new Error(`Map Tile Error [${resp.status}]: ` + msg);
-            this._gmapTileCache.set(tileSig, Promise.reject(e));
+            this._gmapTileCache.set(tileSig, e);
             throw e;
         }
         const entry = await resp.json();
-        const dataBuf = Buffer.from(entry.data, 'base64');
-        const meta = {
-            x: entry.x,
-            y: entry.y,
-            z: entry.z,
-            contentType: entry.contentType,
-        };
         this._gmapTileCache.set(tileSig, entry);
+        const dataBuf = Buffer.from(entry.data, 'base64');
         this.irlMapTilesDB.prepare('INSERT OR REPLACE INTO tiles (signature,ts,meta,data) VALUES(?,?,?,?)')
-            .run(tileSig, Date.now() / 1000 | 0, JSON.stringify(meta), dataBuf);
+            .run(tileSig, Date.now() / 1000 | 0, JSON.stringify(entry.meta), dataBuf);
         return entry;
     }
 
