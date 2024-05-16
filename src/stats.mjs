@@ -353,7 +353,7 @@ class ActivityReplay extends events.EventEmitter {
                 }
                 if (fields.speed != null) {
                     streams.speed = streams.speed || [];
-                    streams.speed.push(fields.speed);
+                    streams.speed.push(fields.speed * 3600 / 1000);  // m/s -> k/h
                 }
                 if (fields.timestamp != null) {
                     streams.time = streams.time || [];
@@ -1304,7 +1304,7 @@ export class StatsProcessor extends events.EventEmitter {
             for (let i = 0; i < power.roll.size(); i++, offt++) {
                 lastTS = tsOffset + (power.roll.timeAt(i) * 1000);
                 const record = {timestamp: lastTS};
-                record.speed = speed.roll.valueAt(i) * 1000 / 3600;
+                record.speed = speed.roll.valueAt(i) * 1000 / 3600;  // k/h -> m/s
                 record.heart_rate = +hr.roll.valueAt(i);
                 record.cadence = Math.round(cadence.roll.valueAt(i));
                 record.power = Math.round(power.roll.valueAt(i));
