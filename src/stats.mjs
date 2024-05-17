@@ -826,6 +826,11 @@ export class StatsProcessor extends events.EventEmitter {
             const msg = await resp.text();
             const e = new Error(`Map Tile Error [${resp.status}]: ` + msg);
             this._gmapTileCache.set(tileSig, e);
+            setTimeout(() => {
+                if (this._gmapTileCache.get(tileSig) === e) {
+                    this._gmapTileCache.delete(tileSig);
+                }
+            }, 60000);
             throw e;
         }
         const entry = await resp.json();
