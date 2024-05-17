@@ -842,8 +842,9 @@ export async function main() {
     zwiftMap = new map.SauceZwiftMap({
         el: document.querySelector('#map'),
         worldList,
-        zoomMin: 0,//.05, // XXX
-        fpsLimit: 90,
+        zoomMin: .0002,
+        zoomMax: 100,
+        fpsLimit: 60,
     });
     window.zwiftMap = zwiftMap; // debug
     zwiftMap.addEventListener('drag', () => state.voidAutoCenter = true);
@@ -1067,7 +1068,9 @@ async function updateData() {
         if (!state.streams[k]) {
             state.streams[k] = [];
         }
-        state.streams[k].push(...stream);
+        for (const x of stream) {
+            state.streams[k].push(x);
+        }
     }
     if (segments.length) {
         state.segments.push(...segments);
@@ -1103,16 +1106,14 @@ async function updateData() {
         const coursePositions = state.positions.slice(state.startOffset);
         state.startEnt.setPosition(coursePositions[0]);
         state.endEntity.setPosition(coursePositions.at(-1));
-        console.log(coursePositions.at(-1));
         if (state.histPath) {
             state.histPath.elements.forEach(x => x.remove());
         }
         state.histPath = zwiftMap.addHighlightLine(coursePositions, 'history', {layer: 'low'});
-        for (let i = 0; i < coursePositions.length; i += 20) {
-            zwiftMap.addPoint(coursePositions[i], 'circle').el.style.fontSize = '0.2em';
-        }
         if (!state.voidAutoCenter) {
+            zwiftMap.incPause();
             centerMap(coursePositions);
+            zwiftMap.decPause();
         }
     }
 

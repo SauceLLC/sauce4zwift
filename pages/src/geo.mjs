@@ -164,7 +164,7 @@ async function initialize() {
         // Support file replay mode too...
         ad = await common.rpc.getAthleteData('watching');
     }
-    inGame = !!ad && ad.age < 15000;
+    inGame = !!ad && ad.age < 60000;
     if (!inGame) {
         if (!demoState.intervalId) {
             demoState.intervalId = true; // lock
@@ -174,13 +174,11 @@ async function initialize() {
             }
             const randomCourseId = worldList[worldList.length * Math.random() | 0].courseId;
             let heading = 0;
-            demoState.transitionDurationSave = zwiftMap.getTransitionDuration();
             demoState.zoomSave = zwiftMap.zoom;
             zwiftMap.setZoom(0.2, {disableEvent: true});
             await zwiftMap.setCourse(randomCourseId);
             if (demoState.intervalId === true) {  // could have been cancelled during await
                 zwiftMap.setHeading(heading += 5);
-                zwiftMap.setTransitionDuration(1100);
                 demoState.intervalId = setInterval(() => {
                     zwiftMap.setHeading(heading += 5);
                 }, 1000);
@@ -191,7 +189,6 @@ async function initialize() {
         console.info("User detected in game: Ending demo mode.");
         clearInterval(demoState.intervalId);
         demoState.intervalId = null;
-        zwiftMap.setTransitionDuration(demoState.transitionDurationSave);
         zwiftMap.setZoom(demoState.zoomSave, {disableEvent: true});
     }
     zwiftMap.setAthlete(ad.athleteId);
@@ -361,7 +358,10 @@ export async function main() {
         zwiftMap.setZoom(0.2);
         zwiftMap.setTiltShift(0);
         zwiftMap.setVerticalOffset(0);
-        zwiftMap._mapTransition.setDuration(1500);
+        zwiftMap.mapTransition.setDuration(1500);
+        zwiftMap.viewTransition.setDuration(2000);
+        zwiftMap.mapTransition.setEasing('both');
+        zwiftMap.viewTransition.setEasing([.25, .5, .5, 1]);
         await applyCourse();
         await applyRoute();
     } else {
@@ -386,15 +386,23 @@ export async function main() {
             fieldRenderer.render();
         });
         setInterval(() => {
-            if (inGame && performance.now() - watchdog > 30000) {
+            if (inGame && performance.now() - watchdog > 60000) {
                 console.warn("Watchdog triggered by inactivity");
                 inGame = false;
                 initialize();
             }
         }, 3333);
+        let stateInitThrottleTill = 0;
         common.subscribe('states', async states => {
             if (!inGame) {
-                await initialize();
+                // In a couple rare scenerios we end up pulling too much because the page
+                // might be set to watch a specific athlete that's not in game but we are
+                // still getting states from other athletes we aren't watching.
+                const now = Date.now();
+                if (stateInitThrottleTill < now) {
+                    stateInitThrottleTill = now + 5000;
+                    await initialize();
+                }
             }
             watchdog = performance.now();
             zwiftMap.renderAthleteStates(states);

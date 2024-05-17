@@ -53,6 +53,7 @@
         left: 50%;
         top: 50%;
         transition: opacity 400ms;
+        transform: translate(-50%, -50%); // just for initial load centering
 
         &.deprecating {
             opacity: 0;

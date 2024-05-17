@@ -493,11 +493,7 @@ function supplimentPath(worldMeta, curvePath, {physicsSlopeScale, distances}={})
         }, balancedT);
     } else {
         for (const [i, distance] of distances.entries()) {
-            let node;
-            try {
-                 node = curvePath.nodes[i].end;
-            } catch(e) { debugger; }
-            
+            const node = curvePath.nodes[i].end;
             const elevation = worldMeta ?
                 zToAltitude(worldMeta, node[2], {physicsSlopeScale}) :
                 node[2] / 100 * (physicsSlopeScale || 1);

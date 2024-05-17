@@ -24,21 +24,73 @@ function createElement(name, attrs={}) {
 }
 
 
+// We could use eval to make these but it can trigger browser warnings..
+const _fastArrayEmplacers = [
+    (a, b) => void (a[0] = b[0]),
+    (a, b) => void (a[0] = b[0], a[1] = b[1]),
+    (a, b) => void (a[0] = b[0], a[1] = b[1], a[2] = b[2]),
+    (a, b) => void (a[0] = b[0], a[1] = b[1], a[2] = b[2], a[3] = b[3]),
+    (a, b) => void (a[0] = b[0], a[1] = b[1], a[2] = b[2], a[3] = b[3], a[4] = b[4]),
+    (a, b) => void (a[0] = b[0], a[1] = b[1], a[2] = b[2], a[3] = b[3], a[4] = b[4], a[5] = b[5]),
+];
+
+// Fast GC-free array emplace with branchless code for small arrays
+function makeFastArrayEmplace(size) {
+    if (size <= _fastArrayEmplacers.length - 1) {
+        return _fastArrayEmplacers[size - 1];
+    } else {
+        console.warn("Creating branchfull emplace function...");
+        return (a, b) => {
+            for (let i = 0; i < size; i++) {
+                a[i] = b[i];
+            }
+        };
+    }
+}
+
+
 class Transition {
 
-    EPSILON = 1 / 0x800000;
-
-    constructor({duration=1000}={}) {
+    constructor({duration=1000, easing}={}) {
         this.duration = duration;
         this.disabled = false;
-        this._src = undefined;
+        this._src = [];
         this._cur = [];
-        this._dst = undefined;
+        this._dst = [];
         this._startTime = 0;
         this._endTime = 0;
+        this._easing = undefined;
         this._disabledRefCnt = 0;
         this.disabled = false;
         this.playing = false;
+        this.nextId = 1;
+        this._emplace = undefined;
+        this._valuesSize = undefined;
+        if (easing) {
+            this.setEasing(easing);
+        }
+    }
+
+    setEasing(type) {
+        if (!type || type === 'linear') {
+            this._easing = undefined;
+            return;
+        }
+        let params;
+        if (['both', 'in', 'out'].includes(type)) {
+            params = {
+                'in': [0.42, 0, 1, 1],
+                'out': [0, 0, 0.58, 1],
+                'both': [0.42, 0, 0.58, 1],
+            }[type];
+        } else if (Array.isArray(type)) {
+            params = type;
+        }
+        if (!params) {
+            throw new TypeError('invalid easing argument');
+        }
+        const ub = new curves.UnitBezier(...params);
+        this._easing = x => ub.solve(x);
     }
 
     now() {
@@ -50,8 +102,12 @@ class Transition {
         if (this._disabledRefCnt === 1) {
             this.disabled = true;
             this.playing = false;
-            this._dst = Array.from(this._cur);
+            if (this._cur.length) {
+                // halt at current progress
+                this._emplace(this._dst, this._cur);
+            }
             this._startTime = this._endTime = 0;
+            this.nextId++;
         }
     }
 
@@ -62,21 +118,15 @@ class Transition {
         }
         if (this._disabledRefCnt === 0) {
             this.disabled = false;
-            if (this.playing && this._remainingTime) {
-                const now = this.now();
-                this._startTime = now;
-                this._endTime = now + this._remainingTime;
-            }
-            this._remainingTime = null;
         }
     }
 
     setDuration(duration) {
         if (!this.disabled) {
-            this._recalcCurrent();
             if (this.playing) {
                 // Prevent jitter by forwarding the current transition.
-                this._src = Array.from(this._cur);
+                this._recalcCurrent();
+                this._emplace(this._src, this._cur);
                 this._startTime = this.now();
                 this._endTime += duration - this.duration;
             }
@@ -85,58 +135,53 @@ class Transition {
     }
 
     setValues(values) {
+        if (!this._emplace) {
+            this._valuesSize = values.length;
+            this._emplace = makeFastArrayEmplace(this._valuesSize);
+        } else if (this._valuesSize !== values.length) {
+            throw new Error('values array size must not change');
+        }
         if (!this.disabled) {
-            if (this._dst) {
-                const now = this.now();
-                if (now < this._endTime) {
-                    // Start from current position (and prevent Zeno's paradaox)
-                    this._recalcCurrent();
-                    this._src = this._cur.map((x, i) =>
-                        Math.abs(values[i] - x) < this.EPSILON ? values[i] : x);
-                } else {
-                    // Start from last position.
-                    this._src = this._dst;
-                }
-                this._startTime = now;
-                this._endTime = now + this.duration;
+            if (this._dst.length) {
+                this._recalcCurrent();
+                this._emplace(this._src, this._cur);
+                this._startTime = this.now();
+                this._endTime = this._startTime + this.duration;
                 this.playing = true;
             } else {
-                this._cur = Array.from(values);
+                this._emplace(this._cur, values);
             }
         } else {
-            this._cur = Array.from(values);
+            this._emplace(this._cur, values);
         }
-        this._dst = Array.from(values);
+        this._emplace(this._dst, values);
+        this.nextId++;
     }
 
     getStep() {
-        if (this.disabled) {
-            // Return the last used position
-            return this._cur;
-        } else if (this.playing) {
+        if (this.playing) {
             this._recalcCurrent();
+            this.nextId++;
             return this._cur;
-        } else if (this._dst) {
+        } else {
             return this._dst;
         }
     }
 
-    getValues() {
-        return this._dst ? Array.from(this._dst) : null;
-    }
-
     _recalcCurrent() {
-        const now = this.now();
-        const progress = (now - this._startTime) / (this._endTime - this._startTime);
+        const duration = this._endTime - this._startTime;
+        const progress = duration ? (this.now() - this._startTime) / duration : 1;
         if (progress >= 1 || this.disabled) {
-            if (this._dst) {
-                this._cur = this._dst;
+            if (!this._dst || !this._dst.length) {
+                debugger;
             }
+            this._emplace(this._cur, this._dst);
             this.playing = false;
         } else {
+            const t = this._easing ? this._easing(progress) : progress;
             for (let i = 0; i < this._dst.length; i++) {
                 const delta = this._dst[i] - this._src[i];
-                this._cur[i] = this._src[i] + (delta * progress);
+                this._cur[i] = this._src[i] + (delta * t);
             }
         }
     }
@@ -282,7 +327,6 @@ export class MapAthlete extends MapEntity {
                 const c = this.chats[0][0];
                 name = `${c.firstName[0]}.${c.lastName}`;
             } else {
-                debugger;
                 name = `ID: ${state.athleteId}`;
             }
             const avatar = athlete?.avatar ?
@@ -338,17 +382,20 @@ export class MapAthlete extends MapEntity {
 }
 
 
-async function getIRLMapTileImage(x, y, z) {
+async function getIRLMapTileImage(x, y, z, options={}) {
+    const mapType = options.mapType || 'terrain';
     const tile = await common.rpc.getIRLMapTile(x, y, z, {
         scale: 1,
         highDpi: false,
-        mapType: 'terrain',
-        //mapType: 'satellite',
+        mapType,
         layerTypes: ['layerRoadmap']
     });
+    if (!tile) {
+        return null;
+    }
     let url;
     if (tile.encoding === 'base64') {
-        url = `data:${tile.contentType};base64,` + tile.data;
+        url = `data:${tile.meta.contentType};base64,` + tile.data;
     } else {
         throw new TypeError('unsupported encoding');
     }
@@ -362,6 +409,30 @@ async function getIRLMapTileImage(x, y, z) {
         img.src = url;
     });
     return img;
+}
+
+
+function drawGridOnCanvas(ctx, x, y, width, height, size=16, color='#25e', background='#fffa', lineWidth=1) {
+    ctx.save();
+    try {
+        ctx.fillStyle = background;
+        ctx.fillRect(x, y, width, height);
+        ctx.beginPath();
+        ctx.lineWidth = lineWidth;
+        ctx.strokeStyle = color;
+        for (let lx = x; lx < x + width; lx += size) {
+            ctx.moveTo(lx, y);
+            ctx.lineTo(lx, y + height);
+        }
+        for (let ly = y; ly < y + height; ly += size) {
+            ctx.moveTo(x, ly);
+            ctx.lineTo(x + width, ly);
+        }
+        ctx.stroke();
+        ctx.closePath();
+    } finally {
+        ctx.restore();
+    }
 }
 
 
@@ -427,10 +498,11 @@ export class SauceZwiftMap extends EventTarget {
         this._transformAnimationLoopBound = this._transformAnimationLoop.bind(this);
         this._onPointerMoveBound = this._onPointerMove.bind(this);
         this._onPointerDoneBound = this._onPointerDone.bind(this);
-        this._mapTransition = new Transition({duration: 500});
+        this.viewTransition = new Transition({duration: 400, easing: 'out'});
+        this.mapTransition = new Transition({duration: 2500});
         this._elements = {
             map: createElement('div', {class: 'sauce-map'}),
-            mapCanvas: createElement('canvas', {class: 'map-background'}),
+            mapCanvas: createElement('canvas', {class: 'map-background', width: 4096, height: 4096}),
             ents: createElement('div', {class: 'entities'}),
             pins: createElement('div', {class: 'pins'}),
             paths: createElementSVG('svg', {class: 'paths'}),
@@ -453,7 +525,7 @@ export class SauceZwiftMap extends EventTarget {
         this._elements.pathLayersGroup.append(...Object.values(this._elements.roadLayers));
         this._elements.pathLayersGroup.append(...Object.values(this._elements.userLayers));
         this._elements.map.append(this._elements.mapCanvas, this._elements.paths, this._elements.ents);
-        this.el.addEventListener('wheel', this._onWheelZoom.bind(this));
+        this.el.addEventListener('wheel', this._onWheelZoom.bind(this), {passive: false});
         this.el.addEventListener('pointerdown', this._onPointerDown.bind(this));
         this._elements.ents.addEventListener('click', this._onEntsClick.bind(this));
         this.setZoom(zoom);
@@ -496,8 +568,8 @@ export class SauceZwiftMap extends EventTarget {
         this._elements.map.style.setProperty('--opacity', isNaN(v) ? 1 : v);
     }
 
-    _fullUpdateAsNeeded() {
-        const takeAction = !this.isPaused();
+    _fullUpdateAsNeeded(takeAction) {
+        takeAction = takeAction || !this.isPaused();
         if (takeAction) {
             this._updateGlobalTransform();
             this._renderFrame();
@@ -531,7 +603,7 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     _qualityToCanvasScale(quality) {
-        if (this.worldMeta.courseId < 0) {
+        if (this.courseId < 0) {
             return 1;
         }
         const cd = this._elements.mapCanvas.dataset;
@@ -572,16 +644,27 @@ export class SauceZwiftMap extends EventTarget {
         let width = br[0] - tl[0];
         let height = tl[1] - br[1];
         const center = [tl[0] + width / 2, br[1] + height / 2];
-        // As strange as this seems, every world is rotated by -90deg when other
-        // correction factors are applied, so width and height are swapped for
-        // purposes of finding our ideal bounding box sizes.
-        [width, height] = [height, width];
+        width *= (1 + padding);
+        height *= (1 + padding);
+        if (this.courseId >= 0) {
+            // As strange as this seems, every world is rotated by -90deg when other
+            // correction factors are applied, so width and height are swapped for
+            // purposes of finding our ideal bounding box sizes.
+            [width, height] = [height, width];
+        }
         const boundsRatio = width / height;
         const viewRatio = this._elRect.width / this._elRect.height;
-        const zoom = viewRatio > boundsRatio ? this._elRect.height / height : this._elRect.width / width;
-        const zoomFactor = 1 / (this.worldMeta.mapScale / this.worldMeta.tileScale);
+        const axis = viewRatio > boundsRatio ? 'height' : 'width';
+        let zoom;
+        if (this.courseId < 0) {
+            zoom = this._getRealWorldZoom(axis === 'height' ? height : width, axis);
+        } else {
+            const scale = 1 / (this.worldMeta.mapScale / this.worldMeta.tileScale);
+            const pxRatio = axis === 'height' ? this._elRect.height / height : this._elRect.width / width;
+            zoom = pxRatio * scale;
+        }
         this._setCenter(center);
-        this.setZoom(zoom * zoomFactor * (1 - padding), {disableEvent: true});
+        this.setZoom(zoom, {disableEvent: true});
     }
 
     _adjustZoom(adj) {
@@ -606,20 +689,19 @@ export class SauceZwiftMap extends EventTarget {
         }
         ev.preventDefault();
         this.trackingPaused = true;
-        this._adjustZoom(-ev.deltaY / 2000 * this.zoom);
+        const f = Math.log10(1 + this.zoom);
+        const isPinch = ev.ctrlKey; // I can't find a better way to detect this
+        const adj = -ev.deltaY / 300 * f * (isPinch ? 5 : 1);
+        this._adjustZoom(adj);
         cancelAnimationFrame(this._wheelState.nextAnimFrame);
         this._wheelState.nextAnimFrame = requestAnimationFrame(() => {
             if (this._wheelState.done) {
                 clearTimeout(this._wheelState.done);
-            } else {
-                //this._mapTransition.incDisabled();
             }
             this._applyZoom();
-            // Lazy re-enable of animations to avoid need for forced paint
             this._wheelState.done = setTimeout(() => {
                 this.trackingPaused = false;
                 this._wheelState.done = null;
-                //this._mapTransition.decDisabled();
             }, 100);
         });
     }
@@ -653,7 +735,7 @@ export class SauceZwiftMap extends EventTarget {
         }
         this.dragOffset = pos;
         this._dragXY = this._rotateWorldPos(pos);
-        this._fullUpdateAsNeeded();
+        this._fullUpdateAsNeeded(true);
     }
 
     setAutoHeading(en) {
@@ -676,7 +758,7 @@ export class SauceZwiftMap extends EventTarget {
             state.active = true;
             this.trackingPaused = true;
             this.el.classList.add('moving');
-            this._mapTransition.incDisabled();
+            this.incPause();
         }
         if (!state.ev2) {
             this._handlePointerDragEvent(ev, state);
@@ -695,11 +777,12 @@ export class SauceZwiftMap extends EventTarget {
             state.lastY = ev.pageY;
             if (ev.ctrlKey) {
                 const heading = this.headingOffset - dx * 0.1;
-                this.setHeadingOffset(heading);
+                this.headingOffset = heading;
                 dragEv.heading = heading;
                 const tiltShift = this.tiltShift - dy * 0.001;
                 this._zoomPrioTilt = false;
                 this.setTiltShift(tiltShift);
+                this._fullUpdateAsNeeded(true);
                 dragEv.tiltShift = tiltShift;
             } else {
                 const [tx, ty] = this._unrotateWorldPos([dx, dy]);
@@ -709,6 +792,7 @@ export class SauceZwiftMap extends EventTarget {
                 const adjY = Math.sin(a) * l;
                 const f = 1 / (this.zoom * this._mapScale / this._canvasScale / this._zoomScale);
                 const pos = [this.dragOffset[0] + adjX * f, this.dragOffset[1] + adjY * f];
+                console.log(pos, this.heading, this._adjHeading, this._rotate, this.headingOffset);
                 this.setDragOffset(pos);
                 dragEv.drag = pos;
             }
@@ -740,9 +824,9 @@ export class SauceZwiftMap extends EventTarget {
     _onPointerDone(ev) {
         const state = this._pointerState;
         if (state.active) {
-            this.el.classList.remove('moving');
-            this._mapTransition.decDisabled();
             state.active = false;
+            this.el.classList.remove('moving');
+            this.decPause();
         }
         document.removeEventListener('pointermove', this._onPointerMoveBound);
         document.removeEventListener('pointerup', this._onPointerDoneBound, {once: true});
@@ -752,7 +836,7 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     _updateMapBackground = common.asyncSerialize(async function() {
-        if (this.worldMeta.courseId < 0) {
+        if (this.courseId < 0) {
             this._updateRealWorldTiles(this.zoom);
         } else {
             await this._drawZwiftWorldBackground();
@@ -772,7 +856,7 @@ export class SauceZwiftMap extends EventTarget {
 
     _drawRealWorldBackground(config) {
         const canvas = this._elements.mapCanvas;
-        canvas.classList.toggle('hidden', !!this.portal);
+        //canvas.classList.toggle('hidden', !!this.portal);
         const tileSize = config.size;
         const tileScale = config.scale;
         const anchorX = Math.round(this._anchorXY[0] * tileScale);
@@ -791,6 +875,7 @@ export class SauceZwiftMap extends EventTarget {
         if (canvas.height !== height) {
             canvas.height = height;
         }
+        drawGridOnCanvas(ctx, 0, 0, width, height);
         if (canvas.tileQueue) {
             // Pre fill the current canvas with scaled or moved tiles from the previous render.
             // If any of these tiles need to be fetched from the network they'll stand in while
@@ -800,11 +885,11 @@ export class SauceZwiftMap extends EventTarget {
                     continue;
                 }
                 const scale = tileScale / entry.tileScale;
-                const x = (entry.x * scale - anchorX) * tileSize;
-                const y = (entry.y * scale - anchorY) * tileSize;
-                if (x >= 0 && x < width && y >= 0 && y < height) {
+                const cx = (entry.x * scale - anchorX) * tileSize;
+                const cy = (entry.y * scale - anchorY) * tileSize;
+                if (cx >= 0 && cx < width && cy >= 0 && cy < height) {
                     const scaledTileSize = tileSize * scale;
-                    ctx.drawImage(entry.img, x, y, scaledTileSize, scaledTileSize);
+                    ctx.drawImage(entry.img, cx, cy, scaledTileSize, scaledTileSize);
                 }
             }
         }
@@ -819,15 +904,16 @@ export class SauceZwiftMap extends EventTarget {
                 tileQueue.push(entry);
                 const sig = [x, y, z].join();
                 const img = this._irlMapTileCache.get(sig);
+                const cx = col * tileSize;
+                const cy = row * tileSize;
                 if (img === undefined) {
                     getIRLMapTileImage(x, y, z).then(img => {
                         this._irlMapTileCache.set(sig, img);
-                        if (this._irlDrawTicketCount !== ticket) {
+                        if (!img || this._irlDrawTicketCount !== ticket) {
                             return;
                         }
                         entry.img = img;
-                        //console.info("IRL map tile image GOOD:", {x, y, z});
-                        ctx.drawImage(img, col * tileSize, row * tileSize, tileSize, tileSize);
+                        ctx.drawImage(img, cx, cy, tileSize, tileSize);
                     }).catch(e => {
                         this._irlMapTileCache.set(sig, null);
                         console.error("IRL map tile image error:",
@@ -836,7 +922,7 @@ export class SauceZwiftMap extends EventTarget {
                     });
                 } else if (img) {
                     entry.img = img;
-                    ctx.drawImage(img, col * tileSize, row * tileSize, tileSize, tileSize);
+                    ctx.drawImage(img, cx, cy, tileSize, tileSize);
                 }
             }
         }
@@ -844,6 +930,11 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     async _drawZwiftWorldBackground() {
+        const canvas = this._elements.mapCanvas;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        //canvas.classList.toggle('hidden', !!this.portal);
+        drawGridOnCanvas(ctx, 0, 0, canvas.width, canvas.height);
         const img = new Image();
         try {
             await new Promise((resolve, reject) => {
@@ -864,23 +955,35 @@ export class SauceZwiftMap extends EventTarget {
             console.warn("Image decode interrupted/failed", e);
             return;
         }
-        const canvas = this._elements.mapCanvas;
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        canvas.classList.toggle('hidden', !!this.portal);
         canvas.dataset.naturalWidth = img.naturalWidth;
         canvas.dataset.naturalHeight = img.naturalHeight;
         this._canvasScale = this._qualityToCanvasScale(this.quality);
         this._mapScale = 1 / (this.worldMeta.tileScale / this.worldMeta.mapScale / this._canvasScale);
         canvas.width = img.naturalWidth * this._canvasScale;
         canvas.height = img.naturalHeight * this._canvasScale;
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        //canvas.classList.toggle('hidden', !!this.portal);
+        if (!this.portal) {
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        }
     }
 
     incPause() {
         this._pauseRefCnt++;
         if (this._pauseRefCnt === 1) {
-            this._mapTransition.incDisabled();
+            if (this.mapTransition.playing) {
+                // Freeze current position and heading transitioning value instead of target value.
+                // Otherwise we hard teleport and spin on the next render.
+                // NOTE: We assume the dragXY and headingOffset components are static at this point even
+                // though they might be mid transition if set by user code.  In this case there will be jank.
+                const [x, y, h] = this.mapTransition.getStep();
+                if (this._rotate != null) {
+                    this._adjHeading = h - this.headingOffset;
+                }
+                this._centerXY[0] = x + this._dragXY[0];
+                this._centerXY[1] = y + this._dragXY[1];
+            }
+            this.viewTransition.incDisabled();
+            this.mapTransition.incDisabled();
         }
     }
 
@@ -893,7 +996,8 @@ export class SauceZwiftMap extends EventTarget {
                 this._updateGlobalTransform();
                 this._renderFrame();
             } finally {
-                this._mapTransition.decDisabled();
+                this.viewTransition.decDisabled();
+                this.mapTransition.decDisabled();
             }
         }
     }
@@ -1063,7 +1167,7 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     latlngToPosition([lat, lng]) {
-        if (this.worldMeta.courseId >= 0) {
+        if (this.courseId >= 0) {
             return this.worldMeta.flippedHack ? [
                 (lat - this.worldMeta.latOffset) * this.worldMeta.latDegDist * 100,
                 (lng - this.worldMeta.lonOffset) * this.worldMeta.lonDegDist * 100
@@ -1293,14 +1397,6 @@ export class SauceZwiftMap extends EventTarget {
         ent.togglePin();
     }
 
-    setTransitionDuration(ms) {
-        this._mapTransition.setDuration(ms);
-    }
-
-    getTransitionDuration(ms) {
-        return this._mapTransition.duration;
-    }
-
     renderAthleteStates = common.asyncSerialize(async states => {
         if (this.watchingId == null || !common.isVisible()) {
             return;
@@ -1343,6 +1439,9 @@ export class SauceZwiftMap extends EventTarget {
         const lowPrioAthleteUpdates = [];
         const highPrioAthleteUpdates = [];
         for (const state of states) {
+            if (state.courseId !== this.courseId) {
+                continue;
+            }
             if (!this._ents.has(state.athleteId)) {
                 this._addAthleteEntity(state);
             }
@@ -1418,8 +1517,8 @@ export class SauceZwiftMap extends EventTarget {
         if (Math.abs(this.heading - heading) > 180) {
             this._headingRotations += Math.sign(this.heading - heading);
         }
-        const mapAdj = (this.rotateCoordinates || this.worldMeta?.courseId < 0) ? 0 : -90;
-        this._adjHeading = heading + this.headingOffset + this._headingRotations * 360 + mapAdj;
+        const mapAdj = (this.rotateCoordinates || this.courseId < 0) ? 0 : -90;
+        this._adjHeading = heading + this._headingRotations * 360 + mapAdj;
         this.heading = heading;
     }
 
@@ -1446,12 +1545,12 @@ export class SauceZwiftMap extends EventTarget {
 
     _getRealWorldTileConfig(mapZoom) {
         const etagAdd = common.makeCRC32('number');
+        const normal = 14;
         const size = 256;  // Based on params used in getIRLMapTileImage
-        const zoomFactor = Math.round(Math.log2(mapZoom));
-        // XXX constrain zoomFactor.
-        const zoom = 14 + zoomFactor;
+        const zoomFactor = Math.max(-normal, Math.min(22 - normal, Math.round(Math.log2(mapZoom))));
+        const zoom = normal + zoomFactor;
         const scale = 2 ** zoom;
-        const cols = Math.ceil(this._elRect.width / size  + 2);
+        const cols = Math.ceil(this._elRect.width / size + 2);
         const rows = Math.ceil(this._elRect.height / size + 2);
         etagAdd(rows);
         etagAdd(cols);
@@ -1460,8 +1559,18 @@ export class SauceZwiftMap extends EventTarget {
         return {cols, rows, scale, zoom, zoomFactor, size, etag};
     }
 
+    _getRealWorldZoom(range, axis='width') {
+        const normal = 14;
+        const size = 256;  // Based on params used in getIRLMapTileImage
+        const tiles = (axis === 'width' ? this._elRect.width : this._elRect.height) / size;
+        const spanRange = range / tiles;
+        const zoom = 2 ** (-Math.log2(spanRange) - normal);
+        return zoom;
+    }
+
     _updateRealWorldTiles(zoom) {
         const config = this._getRealWorldTileConfig(zoom);
+        // XXX should be floor maybe?
         const ax = Math.round((this._centerXY[0] - this._dragXY[0]) * config.scale - config.cols / 2);
         const ay = Math.round((this._centerXY[1] - this._dragXY[1]) * config.scale - config.rows / 2);
         this._zoomScale = 2 ** config.zoomFactor;
@@ -1469,19 +1578,19 @@ export class SauceZwiftMap extends EventTarget {
             this._irlX = ax;
             this._irlY = ay;
             this._irlTilesEtag = config.etag;
-            console.error("update real world tiles", {ax, ay, config});
+            console.info("update real world tiles", {ax, ay, config});
             const m = this.worldMeta;
             m.mapScale = config.size * config.scale;
             m.svgScale = config.scale * 100000;
             this._canvasScale = this._qualityToCanvasScale(this.quality);
             this._mapScale = 1 / (m.tileScale / m.mapScale / this._canvasScale);
             this._anchorXY = [ax / config.scale, ay / config.scale];
-            this._setPathsViewBox([
+            /*this._setPathsViewBox([
                 ax / config.scale * m.svgScale,
                 ay / config.scale * m.svgScale,
                 (config.cols) / config.scale * m.svgScale,
                 (config.rows) / config.scale * m.svgScale,
-            ]);
+            ]);*/
             this._drawRealWorldBackground(config);
             return true;
         }
@@ -1503,6 +1612,9 @@ export class SauceZwiftMap extends EventTarget {
         if (this.courseId < 0) {
             force = this._updateRealWorldTiles(zoom) || force;
         }
+        if (!this._canvasScale) {
+            return;
+        }
         let quality = this.quality;
         if (tiltAngle) {
             // When zoomed in tiltShift can exploded the GPU budget if a lot of
@@ -1510,17 +1622,18 @@ export class SauceZwiftMap extends EventTarget {
             // users from having to constantly adjust quality.
             quality *= Math.min(1, 20 / Math.max(0, tiltAngle - 30));
         }
-        const minScale = this.zoomMin * quality;
-        const scale = Math.max(minScale, Math.round(zoom * quality / this._canvasScale / this._zoomScale / 0.25) * 0.25);
+        const fineScale = zoom * quality / this._canvasScale / this._zoomScale;
+        const scale = 2 ** Math.round(Math.log2(fineScale));
         if (this._layerScale !== scale || force) {
-            console.debug("new layer scale", {scale, zoom, mapScale: this._mapScale, zoomscale: this._zoomScale});
+            console.debug("new layer scale", this._layerScale,
+                          {scale, zoom, mapScale: this._mapScale, zoomscale: this._zoomScale});
             this._layerScale = scale;
             const {mapCanvas, ents, map} = this._elements;
             mapCanvas.style.setProperty('width', `${mapCanvas.width * scale}px`);
             mapCanvas.style.setProperty('height', `${mapCanvas.height * scale}px`);
-            mapCanvas.classList.toggle('hidden', !!this.portal);
-            ents.style.setProperty('left', `${-this._anchorXY[0] * scale * this._mapScale}px`);
-            ents.style.setProperty('top', `${-this._anchorXY[1] * scale * this._mapScale}px`);
+            //mapCanvas.classList.toggle('hidden', !!this.portal);
+            ents.style.setProperty('left', `0px`);
+            ents.style.setProperty('top', `0px`);
             map.style.setProperty('--layer-scale', scale * this._canvasScale);
             for (const x of this._ents.values()) {
                 // force refresh of _all_ ents.
@@ -1532,13 +1645,8 @@ export class SauceZwiftMap extends EventTarget {
     _updateGlobalTransform() {
         const x = this._centerXY[0] - this._dragXY[0];
         const y = this._centerXY[1] - this._dragXY[1];
-        this._mapTransition.setValues([
-            x, y,
-            this.zoom,
-            this._tiltAngle,
-            this.verticalOffset,
-            this._adjHeading,
-        ]);
+        this.mapTransition.setValues([x, y, this._adjHeading + this.headingOffset]);
+        this.viewTransition.setValues([this.zoom, this._tiltAngle, this.verticalOffset]);
     }
 
     _renderFrame(force) {
@@ -1546,41 +1654,48 @@ export class SauceZwiftMap extends EventTarget {
         this._frameTimeAvg = this._frameTimeWeighted(frameTime - this._lastFrameTime);
         this._lastFrameTime = frameTime;
         let affectedPins;
-        const transform = (this._mapTransition.disabled || this._mapTransition.playing || force) &&
-            this._mapTransition.getStep();
-        if (transform && transform.length) {
-            let [x, y, zoom, tiltAngle, vertOffset, rotate] = transform;
-            this._updateLayerScale(zoom, tiltAngle, force);
-            const mapLayerScale = this._mapScale * this._layerScale;
-            x = (x - this._anchorXY[0]) * mapLayerScale;
-            y = (y - this._anchorXY[1]) * mapLayerScale;
-            const scale = zoom / this._zoomScale / this._layerScale / this._canvasScale;
-            this._rotate = rotate;
-            if (this._lastScale !== scale) {
-                this._lastScale = scale;
-                this._elements.map.style.setProperty('--scale', scale * this._layerScale);
+        const nextRenderSig = `${this.mapTransition.nextId}-${this.viewTransition.nextId}`;
+        if (this._nextRenderSig !== nextRenderSig || force) {
+            const mapStep = this.mapTransition.getStep();
+            const viewStep = this.viewTransition.getStep();
+            if (mapStep.length && viewStep.length) {
+                this._nextRenderSig = nextRenderSig;
+                let [x, y, rotate] = mapStep;
+                const [zoom, tiltAngle, vertOffset] = viewStep;
+                this._updateLayerScale(zoom, tiltAngle, force);
+                const mapLayerScale = this._mapScale * this._layerScale;
+                x = (x - this._anchorXY[0]) * mapLayerScale;
+                y = (y - this._anchorXY[1]) * mapLayerScale;
+                const scale = zoom / this._zoomScale / this._layerScale / this._canvasScale;
+                this._rotate = rotate;
+                if (this._lastScale !== scale) {
+                    this._lastScale = scale;
+                    this._elements.map.style.setProperty('--scale', scale * this._layerScale);
+                }
+                this._elements.map.style.setProperty('transform-origin', `${x}px ${y}px`);
+                this._elements.map.style.setProperty('transform', `
+                    translate(${-x}px, ${-y}px)
+                    scale(${scale})
+                    ${tiltAngle ? `perspective(${this._perspective / scale}px) rotateX(${tiltAngle}deg)` : ''}
+                    ${vertOffset ? `translate(0, ${vertOffset * this._elRect.height / scale}px)` : ''}
+                    rotate(${rotate}deg)
+                `);
+                affectedPins = new Set(this._pinned);
             }
-            this._elements.map.style.setProperty('transform-origin', `${x}px ${y}px`);
-            this._elements.map.style.setProperty('transform', `
-                translate(${-x}px, ${-y}px)
-                scale(${scale})
-                ${tiltAngle ? `perspective(${this._perspective / scale}px) rotateX(${tiltAngle}deg)` : ''}
-                ${vertOffset ? `translate(0, ${vertOffset * this._elRect.height / scale}px)` : ''}
-                rotate(${rotate}deg)
-            `);
-            affectedPins = this._pinned.size ? Array.from(this._pinned).map(ent => ({ent})) : [];
-        } else {
-            affectedPins = [];
+        }
+        if (!affectedPins) {
+            affectedPins = new Set();
         }
         if (this._pendingEntityUpdates.size) {
             const mapLayerScale = this._mapScale * this._layerScale;
             for (const ent of this._pendingEntityUpdates) {
                 const pos = ent.transition.getStep();
                 if (pos) {
-                    ent.el.style.setProperty('transform', `translate(${pos[0] * mapLayerScale}px,
-                                                                     ${pos[1] * mapLayerScale}px)`);
-                    if (!transform && ent.pin) {
-                        affectedPins.push({ent});
+                    const x = (pos[0] - this._anchorXY[0] * 1) * mapLayerScale;
+                    const y = (pos[1] - this._anchorXY[1] * 1) * mapLayerScale;
+                    ent.el.style.setProperty('transform', `translate(${x}px, ${y}px)`);
+                    if (ent.pin) {
+                        affectedPins.add(ent);
                     }
                 }
                 if (ent.new) {
@@ -1592,16 +1707,16 @@ export class SauceZwiftMap extends EventTarget {
                 }
             }
         }
-        if (affectedPins.length) {
+        if (affectedPins.size) {
             // Avoid spurious reflow with batched reads followed by writes.
             const xOfft = -this._elRect.left;
             const yOfft = -this._elRect.top;
-            for (let i = 0; i < affectedPins.length; i++) {
-                const x = affectedPins[i];
-                x.rect = x.ent.el.getBoundingClientRect();
+            const batch = [];
+            for (const x of affectedPins) {
+                batch.push([x, x.el.getBoundingClientRect()]);
             }
-            for (let i = 0; i < affectedPins.length; i++) {
-                const {rect, ent} = affectedPins[i];
+            for (let i = 0; i < batch.length; i++) {
+                const [ent, rect] = batch[i];
                 ent.pin.style.setProperty('transform', `translate(${rect.x + rect.width / 2 + xOfft}px,
                                                                   ${rect.y + yOfft}px)`);
             }
