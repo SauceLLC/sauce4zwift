@@ -22,7 +22,7 @@ async function main() {
     fs.writeFileSync(process.argv[2], JSON.stringify({
         git_commit: (await shexec('git rev-parse HEAD')).stdout.trim(),
         sentry_dsn: process.env.SAUCE4ZWIFT_SENTRY_DSN,
-        google_map_tile_key: process.env.SAUCE4ZWIFT_GOOGLE_MAP_TILE_KEY,
+        map_tile_host: process.env.SAUCE4ZWIFT_MAP_TILE_HOST,
     }));
 }
 
