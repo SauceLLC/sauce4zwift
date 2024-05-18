@@ -9,6 +9,7 @@
  * so everything works on the backend or frontend.
  */
 
+import {simplify} from './simplify-path.mjs';
 
 const curvePathSchemaVersion = 1;
 
@@ -294,7 +295,7 @@ export class CurvePath {
         const svg = [];
         const xOfft = offset ? offset[0] : 0;
         const yOfft = offset ? offset[1] : 0;
-        const xy = point => `${point[0] * scale + xOfft},${point[1] * scale + yOfft}`;
+        const xy = point => `${point[0] * scale - xOfft},${point[1] * scale - yOfft}`;
         const start = includeEdges ? 0 : 1;
         const end = includeEdges ? this.nodes.length : this.nodes.length - 1;
         for (let i = start; i < end; i++) {
@@ -310,6 +311,11 @@ export class CurvePath {
             }
         }
         return svg.join('\n');
+    }
+
+    toCanvasPath(options) {
+        const d = this.toSVGPath(options);
+        return new Path2D(d);
     }
 
     flatten(t) {
@@ -569,6 +575,30 @@ export class RoadPath extends CurvePath {
 }
 
 
+function sum(data) {
+    let total = 0;
+    for (let i = 0, len = data.length; i < len; i++) {
+        total += data[i];
+    }
+    return total;
+}
+
+
+function avg(data) {
+    if (!data || !data.length) {
+        return;
+    }
+    return sum(data) / data.length;
+}
+
+
+function stddev(data) {
+    const mean = avg(data);
+    const variance = data.map(x => (mean - x) ** 2);
+    return Math.sqrt(avg(variance));
+}
+
+
 /**
  * Original author: Nikolas Kyriakides
  * https://gist.github.com/nicholaswmin/c2661eb11cad5671d816
@@ -579,12 +609,13 @@ export class RoadPath extends CurvePath {
  * This is a simplified uniform (alpha=0) impl, as that is all Zwift uses.
  */
 export function catmullRomPath(points, {loop, epsilon, road}={}) {
+    console.count("bench catmullrom");
     if (loop) {
         points = Array.from(points);
         points.unshift(points[points.length - 1]);
         points.push(...points.slice(1, 3));
     }
-    const nodes = [{end: points[0]}];
+    const nodes = [{end: points[0].slice(0, 3)}];
     for (let i = 0; i < points.length - 1; i++) {
         const p_1 = points[i - 1];
         const p0 = points[i];
@@ -593,7 +624,7 @@ export function catmullRomPath(points, {loop, epsilon, road}={}) {
         const meta = p0[3];
         const straight = meta?.straight;
         if (straight) {
-            nodes.push({end: p1});
+            nodes.push({end: p1.slice(0, 3)});
             continue;
         }
         const A = 6;
@@ -604,13 +635,13 @@ export function catmullRomPath(points, {loop, epsilon, road}={}) {
             (-p_1[0] + A * p0[0] + 1 * p1[0]) * N,
             (-p_1[1] + A * p0[1] + 1 * p1[1]) * N,
             (-p_1[2] + A * p0[2] + 1 * p1[2]) * N,
-        ] : p0;
+        ] : p0.slice(0, 3);
         const cp2 = p2 ? [
             (p0[0] + B * p1[0] - 1 * p2[0]) * M,
             (p0[1] + B * p1[1] - 1 * p2[1]) * M,
             (p0[2] + B * p1[2] - 1 * p2[2]) * M
-        ] : p1;
-        nodes.push({cp1, cp2, end: p1});
+        ] : p1.slice(0, 3);
+        nodes.push({cp1, cp2, end: p1.slice(0, 3)});
     }
     const Klass = road ? RoadPath : CurvePath;
     return new Klass({nodes, epsilon});
@@ -618,12 +649,13 @@ export function catmullRomPath(points, {loop, epsilon, road}={}) {
 
 
 export function cubicBezierPath(points, {loop, smoothing=0.2, epsilon, road}={}) {
+    console.count("bench cubic bezier");
     if (loop) {
         points = Array.from(points);
         points.unshift(points[points.length - 1]);
         points.push(...points.slice(1, 3));
     }
-    const nodes = [{end: points[0]}];
+    const nodes = [{end: points[0].slice(0, 3)}];
     for (let i = 0; i < points.length - 1; i++) {
         const p_1 = points[i - 1];
         const p0 = points[i];
@@ -632,19 +664,83 @@ export function cubicBezierPath(points, {loop, smoothing=0.2, epsilon, road}={})
         const meta = i ? p0[3] : null;
         const straight = meta?.straight;
         if (straight) {
-            nodes.push({end: p1});
+            nodes.push({end: p1.slice(0, 3)});
             continue;
         }
         const tanIn = p1[3]?.tanIn;
         const tanOut = p0[3]?.tanOut;
         const cp1 = tanOut ?
             [p0[0] + tanOut[0], p0[1] + tanOut[1], p0[2] + tanOut[2]] :
-            p_1 ? bezierControl(p_1, p0, p1, smoothing) : p0;
+            p_1 ? bezierControl(p_1, p0, p1, smoothing) : p0.slice(0, 3);
         const cp2 = tanIn ?
             [p1[0] + tanIn[0], p1[1] + tanIn[1], p1[2] + tanIn[2]] :
-            p2 ? bezierControl(p0, p1, p2, smoothing, true) : p1;
-        nodes.push({cp1, cp2, end: p1});
+            p2 ? bezierControl(p0, p1, p2, smoothing, true) : p1.slice(0, 3);
+        nodes.push({cp1, cp2, end: p1.slice(0, 3)});
     }
+    const Klass = road ? RoadPath : CurvePath;
+    return new Klass({nodes, epsilon});
+}
+
+
+export function fittedPath(points, {loop, epsilon, road, sampling=0.5}={}) {
+    if (loop) {
+        points = Array.from(points);
+        points.unshift(points[points.length - 1]);
+        points.push(...points.slice(1, 3));
+    }
+    {
+        // XXX no idea if using stddev and that fixed factor are viable; tuned to a single mtn bike ride.
+        const tolerance = (stddev(points.map(x => x[0])) + stddev(points.map(x => x[1]))) / 2 / 1e10;
+        const nodes = simplify(points, {precision: Infinity, tolerance});
+        console.error();
+        console.error('stddev based sampling:', nodes.length, points.length, 'reducedby', nodes.length / points.length);
+        console.error();
+    }
+    const box = [[Infinity, Infinity], [-Infinity, -Infinity]];
+    let maxD = -Infinity;
+    let avgD = 0;
+    const deltas = points.map((x, i) => {
+        const d = i ? Math.sqrt((x[0] - points[i - 1][0]) ** 2 + (x[1] - points[i - 1][1]) ** 2) : 0;
+        if (x[0] < box[0][0]) {
+            box[0][0] = x[0];
+        }
+        if (x[1] < box[0][1]) {
+            box[0][1] = x[1];
+        }
+        if (x[0] > box[1][0]) {
+            box[1][0] = x[0];
+        }
+        if (x[1] > box[1][1]) {
+            box[1][1] = x[1];
+        }
+        if (d > maxD) {
+            maxD = d;
+        }
+        avgD += d;
+    });
+    avgD /= deltas.length;
+    const area = (box[1][0] - box[0][0]) * (box[1][1] - box[0][1]);
+    const res = Math.sqrt(area);
+    let nodes;
+    const targetSize = points.length * sampling;
+    while (!nodes || Math.abs(nodes.length - targetSize) / targetSize < 0.05) {
+        nodes = simplify(points, {precision: Infinity, tolerance: avgD / 1e10});
+    }
+    console.error({avgD, box, maxD, res, area});
+    console.error('avgD based sampling:', nodes.length, points.length, 'reducedby', nodes.length / points.length);
+    console.error();
+    const Klass = road ? RoadPath : CurvePath;
+    return new Klass({nodes, epsilon});
+}
+
+
+export function linePath(points, {loop, epsilon, road}={}) {
+    if (loop) {
+        points = Array.from(points);
+        points.unshift(points[points.length - 1]);
+        points.push(...points.slice(1, 3));
+    }
+    const nodes = points.map(end => ({end}));
     const Klass = road ? RoadPath : CurvePath;
     return new Klass({nodes, epsilon});
 }

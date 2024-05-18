@@ -659,12 +659,27 @@ export class StatsProcessor extends events.EventEmitter {
             lastName: names.slice(2).join(''),
         });
         const roadId = -1;
+        const points = this._activityReplay.streams.latlng.map(x => env.webMercatorProjection(x));
+        let roadCurvePath;
+        if (points.length < 1000) {
+            roadCurvePath = curves.linePath(points);
+        } else {
+            roadCurvePath = curves.fittedPath(points, {sampling: 1000 / points.length});
+        }
+        const roadDistances = roadCurvePath.nodes.map(x =>
+            this._activityReplay.streams.distance[x.originalIndex]);
         const road = {
             id: roadId,
-            path: this._activityReplay.streams.latlng.map((x, i) =>
-                [...env.webMercatorProjection(x), this._activityReplay.streams.altitude[i]]),
-            distances: Array.from(this._activityReplay.streams.distance),
-            splineType: 'CatmullRom',
+            path: roadCurvePath.nodes.map((x, i) => {
+                const p0 = x.end;
+                const p1_cp1 = roadCurvePath.nodes[i + 1]?.cp1;
+                const tanOut = p1_cp1 ? [p1_cp1[0] - p0[0], p1_cp1[1] - p0[1], 0] : undefined;
+                const tanIn =   x.cp2 ? [x.cp2[0]  - p0[0], x.cp2[1]  - p0[1], 0] : undefined;
+                return [p0[0], p0[1], this._activityReplay.streams.altitude[x.originalIndex],
+                    {tanOut, tanIn, straight: !x.cp1 && !x.cp2}];
+            }),
+            distances: roadDistances,
+            splineType: 'Bezier',
             isAvailable: true,
             sports: ['cycling', 'running'],
         };
