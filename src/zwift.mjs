@@ -791,6 +791,55 @@ export class ZwiftAPI {
         return entrants;
     }
 
+    async getQueue() {
+        const results = await this.fetchJSON(`/api/queue`, {});
+        return results;
+    }
+
+    async getWorkout(workoutId, options={}) {        
+        let results = {};
+        if (options.all) {
+            let page = 1;
+            let pageSize = 100;
+            let allWorkouts = []
+            while (true) {
+                const workouts = await this.fetchJSON(`/api/workout/workouts`, {
+                    query: {
+                        filter: null,
+                        sort: null,
+                        page: page,
+                        pageSize: pageSize,
+                    }
+                });
+                if (workouts.length > 0) {                        
+                    for (let w of workouts) {
+                        allWorkouts.push(w);
+                    }
+                    page++;
+                } else {
+                    break;
+                }
+            }
+            results = allWorkouts;
+        } else {
+            await this.fetchJSON(`/api/workout/workouts/${workoutId}`) // get the workout
+                .then(workout => this.fetch(workout.workoutAssetUrl.replace("https://us-or-rly101.zwift.com/",""))) // get the workoutAsset
+                .then(workoutDetails => workoutDetails.text()) 
+                .then(workoutText => results = workoutText)
+        }
+        return results;
+    }
+
+    async getWorkoutCollection(collectionID, options={}) {        
+        let results = {};
+        if (options.all) {
+            results = await this.fetchJSON(`/api/workout/collections?pageSize=100`)
+        } else {
+            results = await this.fetchJSON(`/api/workout/collections/${collectionID}/workouts?pageSize=100`)
+        }
+        return results;
+    }
+
     async deleteEventSignup(eventId) {
         return await this.fetchJSON(`/api/events/signup/${eventId}`, {method: 'DELETE'});
     }
