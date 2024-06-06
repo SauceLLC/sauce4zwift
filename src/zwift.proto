@@ -682,6 +682,7 @@ message PlayerProfile {
     float _f149 = 149; // Added 2023/12/21 (1.55) Matches 135/136
     float _f150 = 150; // Added 2023/12/21 (1.55) Matches 137/138
     float _f151 = 151; // Added 2023/12/21 (1.55) Matches 139/140
+    int32 _f153 = 153; // Added 2024/06/06 Seen 0
 }
 
 message PlayerProfiles {
