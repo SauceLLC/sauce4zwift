@@ -1276,7 +1276,7 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     resetStats() {
-        console.debug("Reseting stats...");
+        console.debug("Resetting stats...");
         const wt = worldTimer.now();
         for (const ad of this._athleteData.values()) {
             this._resetAthleteData(ad, wt);
@@ -1702,7 +1702,7 @@ export class StatsProcessor extends events.EventEmitter {
 
     putState(state) {
         if (this.processState(state) === false) {
-            console.warn("State skipped by processer");
+            console.warn("State skipped by processor");
             return;
         }
         this._pendingEgressStates.set(state.athleteId, state);
@@ -1723,7 +1723,7 @@ export class StatsProcessor extends events.EventEmitter {
             if (x.ts === ts && x.from === payload.from) {
                 console.warn("Deduping chat message:", ts, payload.from, payload.message);
                 return;
-            } else if (x.from === payload.from && x.mesage === payload.message &&
+            } else if (x.from === payload.from && x.message === payload.message &&
                        payload.ts - x.ts < 5000) {
                 console.warn("Deduping chat message (content based):", ts, payload.from, payload.message);
                 debugger;
@@ -2088,7 +2088,7 @@ export class StatsProcessor extends events.EventEmitter {
                     if (delta < -10000) {
                         shiftHistory = true;
                     } else {
-                        // Stopped and wiggling backwards. For safety we just nuke hist.
+                        // Stopped and wiggling backwards. For safety we just nuke history.
                         ad.roadHistory.timeline.length = 0;
                     }
                 }
@@ -2395,7 +2395,7 @@ export class StatsProcessor extends events.EventEmitter {
         meetup.allTags = this._parseEventTags(meetup);
         meetup.ts = +new Date(meetup.eventStart);
         meetup.courseId = env.getCourseId(meetup.mapId);
-        // Meetups are basicaly a hybrid event/subgroup
+        // Meetups are basically a hybrid event/subgroup
         meetup.eventSubgroups = [{...meetup, id: meetup.eventSubgroupId, eventId: meetup.id}];
         this._recentEventSubgroups.set(meetup.eventSubgroupId, meetup);
         this._recentEvents.set(meetup.id, meetup);

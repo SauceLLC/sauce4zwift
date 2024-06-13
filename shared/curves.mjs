@@ -347,7 +347,7 @@ export class RoadPath extends CurvePath {
                 nodes.push({end: end.point});
             }
             if (this.cropPercent && end.index === this.nodes.length - 2) {
-                // subpath is on our boundry so denormalize percent based on our trim..
+                // subpath is on our boundary so denormalize percent based on our trim..
                 cropPercent = end.percent * this.cropPercent;
             } else {
                 cropPercent = end.percent;

@@ -148,7 +148,7 @@ html.settings-page .screen:not(.horizontal) {
         //align-items: center;
 
         // Begin horrible CSS hack.
-        // Echarts doesn't put classes on any of their spagetti old school tooltip html. :(
+        // Echarts doesn't put classes on any of their spaghetti old school tooltip html. :(
         // Two items: key above \n (dot, value)
         span:first-of-type:nth-last-of-type(2) {
             // dot...
