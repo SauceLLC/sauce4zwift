@@ -843,7 +843,7 @@ export async function main() {
         el: document.querySelector('#map'),
         worldList,
         zoomMin: .0002,
-        zoomMax: 100,
+        zoomMax: 50,
         fpsLimit: 60,
     });
     window.zwiftMap = zwiftMap; // debug
@@ -1111,9 +1111,14 @@ async function updateData() {
         }
         state.histPath = zwiftMap.addHighlightLine(coursePositions, 'history', {layer: 'low'});
         if (!state.voidAutoCenter) {
-            zwiftMap.incPause();
+            if (!state.centered) {
+                zwiftMap.incPause();
+            }
             centerMap(coursePositions);
-            zwiftMap.decPause();
+            if (!state.centered) {
+                zwiftMap.decPause();
+            }
+            state.centered = true;
         }
     }
 

@@ -661,10 +661,12 @@ export class StatsProcessor extends events.EventEmitter {
         const roadId = -1;
         const points = this._activityReplay.streams.latlng.map(x => env.webMercatorProjection(x));
         let roadCurvePath;
-        if (points.length < 1000) {
+        if (points.length < 500) {
+            roadCurvePath = curves.catmullRomPath(points);
+        } else if (points.length < 500000) {
             roadCurvePath = curves.linePath(points);
         } else {
-            roadCurvePath = curves.fittedPath(points, {sampling: 1000 / points.length});
+            roadCurvePath = curves.fittedPath(points, {accuracy: 0.5});
         }
         const roadDistances = roadCurvePath.nodes.map(x =>
             this._activityReplay.streams.distance[x.originalIndex]);

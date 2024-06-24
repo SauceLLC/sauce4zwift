@@ -164,7 +164,7 @@ async function initialize() {
         // Support file replay mode too...
         ad = await common.rpc.getAthleteData('watching');
     }
-    inGame = !!ad && ad.age < 60000;
+    inGame = !!ad && (ad.courseId < 0 || ad.age < 60000);
     if (!inGame) {
         if (!demoState.intervalId) {
             demoState.intervalId = true; // lock
@@ -191,6 +191,8 @@ async function initialize() {
         demoState.intervalId = null;
         zwiftMap.setZoom(demoState.zoomSave, {disableEvent: true});
     }
+    zwiftMap.zoomMin = ad.courseId < 0 ? 0.001 : 0.05;
+    zwiftMap.zoomMax = ad.courseId < 0 ? 10 : 10;
     zwiftMap.setAthlete(ad.athleteId);
     if (elProfile) {
         elProfile.setAthlete(ad.athleteId);
@@ -368,7 +370,7 @@ export async function main() {
         let settingsSaveTimeout;
         zwiftMap.addEventListener('zoom', ev => {
             clearTimeout(settingsSaveTimeout);
-            settings.zoom = Number(ev.zoom.toFixed(2));
+            settings.zoom = Number(ev.zoom.toFixed(4));
             settingsSaveTimeout = setTimeout(() => common.settingsStore.set(null, settings), 100);
         });
         await initialize();

@@ -66,7 +66,10 @@ function fit(points, closed, error) {
 
 
 // Fit a Bezier curve to a (sub)set of digitized points
-function fitCubic(points, segments, error, first, last, tan1, tan2) {
+function fitCubic(points, segments, error, first, last, tan1, tan2, depth=0) {
+    if (depth > 64) {
+        console.warn("Dangerously close to stack overflow, rewrite this without recursion", depth);
+    }
     //  Use heuristic if region only has two points in it
     if (last - first === 1) {
         const pt1 = points[first];
@@ -104,8 +107,8 @@ function fitCubic(points, segments, error, first, last, tan1, tan2) {
     }
     // Fitting failed -- split at max error point and fit recursively
     const tanCenter = pointSubtract(points[split - 1], points[split + 1]);
-    fitCubic(points, segments, error, first, split, tan1, tanCenter);
-    fitCubic(points, segments, error, split, last, pointNegate(tanCenter), tan2);
+    fitCubic(points, segments, error, first, split, tan1, tanCenter, depth+1);
+    fitCubic(points, segments, error, split, last, pointNegate(tanCenter), tan2, depth+1);
 }
 
 

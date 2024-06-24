@@ -6,6 +6,39 @@ import {LRUCache} from '/shared/sauce/base.mjs';
 const H = locale.human;
 
 
+function getCanvasBudget() {
+    let budget = JSON.parse(localStorage.getItem('sauce-map-canvas-budget'));
+    return 1024 ** 2;
+    if (!budget) {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        let safeSize = 256;
+        for (let s = safeSize; s <= 32768; s *= 2) {
+            canvas.width = canvas.height = s;
+            ctx.clearRect(0, 0, s, s);
+            if (ctx.isContextLost) {
+                if (ctx.isContextLost()) {
+                    break;
+                }
+            } else {
+                ctx.fillStyle = '#aaaaaa';
+                ctx.fillRect(s - 1, s - 1, 1, 1);
+                if (ctx.getImageData(s - 1, s - 1, 1, 1).data[0] !== 0xaa) {
+                    break;
+                }
+            }
+            safeSize = s;
+        }
+        canvas.width = canvas.height = 0;
+        budget = safeSize ** 2;
+        localStorage.setItem('sauce-map-canvas-budget', JSON.stringify(budget));
+    }
+    const s = Math.sqrt(budget) | 0;
+    console.debug(`Max <canvas> size: ${s}x${s}`);
+    return budget;
+}
+
+
 function createElementSVG(name, attrs={}) {
     const el = document.createElementNS('http://www.w3.org/2000/svg', name);
     for (const [key, value] of Object.entries(attrs)) {
@@ -468,6 +501,8 @@ export class SauceZwiftMap extends EventTarget {
         this.headingOffset = 0;
         this._ents = new Map();
         this._pendingEntityUpdates = new Set();
+        this._roads = [];
+        this._roadPathsCache = new LRUCache(500);
         this.center = [0, 0];
         this._centerXY = [0, 0];
         this._anchorXY = [0, 0];
@@ -483,6 +518,17 @@ export class SauceZwiftMap extends EventTarget {
         this._perspective = 800;
         this._irlMapTileCache = new LRUCache(1000);
         this._irlDrawTicketCount = 1;
+        this._canvasPixelBudget = getCanvasBudget();
+        this.pathStyle = {
+            highlight: {color: '#cf0606b0'},
+            roadGutter: {color: '#000'},
+            roadSurface: {color: '#e9e9e9'},
+            roadActive: {color: '#ff3939bf'},
+            roadRunning: {color: '#69a573'},
+        };
+        this._styleEl = document.createElement('style');
+        this._styleEl.type = 'text/css';
+        el.appendChild(this._styleEl);
         this._wheelState = {
             nextAnimFrame: null,
             done: null,
@@ -501,8 +547,10 @@ export class SauceZwiftMap extends EventTarget {
         this.viewTransition = new Transition({duration: 400, easing: 'out'});
         this.mapTransition = new Transition({duration: 2500});
         this._elements = {
+            style: createElement('style', {type: 'text/css'}),
             map: createElement('div', {class: 'sauce-map'}),
-            mapCanvas: createElement('canvas', {class: 'map-background', width: 4096, height: 4096}),
+            mapCanvas: createElement('canvas', {class: 'map-background', width: 2048, height: 2048}),
+            pathCanvas: createElement('canvas', {class: 'path-background'}),
             ents: createElement('div', {class: 'entities'}),
             pins: createElement('div', {class: 'pins'}),
             paths: createElementSVG('svg', {class: 'paths'}),
@@ -518,13 +566,23 @@ export class SauceZwiftMap extends EventTarget {
                 surfacesLow: createElementSVG('g', {class: 'surfaces low'}),
                 surfacesMid: createElementSVG('g', {class: 'surfaces mid'}),
                 surfacesHigh: createElementSVG('g', {class: 'surfaces high'}),
-            }
+            },
         };
+        document.head.append(this._elements.style);
+        const css = document.styleSheets[document.styleSheets.length - 1];
+        const pathSel = '.sauce-map-container > .sauce-map > svg.paths ';
+        css.insertRule(pathSel + '.highlight' + `{stroke: ${this.pathStyle.highlight.color};}`);
+        css.insertRule(pathSel + '.gutters .road' + `{stroke: ${this.pathStyle.roadGutter.color};}`);
+        css.insertRule(pathSel + '.surfaces .road' + `{stroke: ${this.pathStyle.roadSurface.color};}`);
+        css.insertRule(pathSel + '.surfaces .road.active' + `{stroke: ${this.pathStyle.roadActive.color};}`);
+        css.insertRule(pathSel + '.surfaces .road.sport-running:not(.sport-cycling)' +
+                       `{stroke: ${this.pathStyle.roadRunning.color};}`);
         this._elements.paths.renderers = [];
         this._elements.paths.append(this._elements.roadDefs, this._elements.pathLayersGroup);
         this._elements.pathLayersGroup.append(...Object.values(this._elements.roadLayers));
         this._elements.pathLayersGroup.append(...Object.values(this._elements.userLayers));
-        this._elements.map.append(this._elements.mapCanvas, this._elements.paths, this._elements.ents);
+        this._elements.map.append(this._elements.mapCanvas, this._elements.pathCanvas,
+                                  this._elements.paths, this._elements.ents);
         this.el.addEventListener('wheel', this._onWheelZoom.bind(this), {passive: false});
         this.el.addEventListener('pointerdown', this._onPointerDown.bind(this));
         this._elements.ents.addEventListener('click', this._onEntsClick.bind(this));
@@ -572,7 +630,7 @@ export class SauceZwiftMap extends EventTarget {
         takeAction = takeAction || !this.isPaused();
         if (takeAction) {
             this._updateGlobalTransform();
-            this._renderFrame();
+            this._renderFrame(takeAction && false); // XXX jank, avoid if possible, like on non irl tils I think
         }
         return takeAction;
     }
@@ -606,15 +664,14 @@ export class SauceZwiftMap extends EventTarget {
         if (this.courseId < 0) {
             return 1;
         }
-        const cd = this._elements.mapCanvas.dataset;
-        const pixels = Number(cd.naturalWidth) * Number(cd.naturalHeight);
+        const pixels = this._elements.mapCanvas._pixels;
         if (!pixels) {
             console.warn("Using naive canvas scale method");
             return quality < 0.5 ? 0.25 : quality < 0.85 ? 0.5 : 1;
         }
         const pixelMegabyte = 1024 * 1024 / 4; // RGBA 8 bits per channel, 4 channels
         const lowBudget = 4 * pixelMegabyte; // ~1024^2
-        const highBudget = 192 * pixelMegabyte; // ~7094^2
+        const highBudget = Math.min(192 * pixelMegabyte /* ~7094^2 */, this._canvasPixelBudget);
         const ratio = Math.sqrt(((highBudget - lowBudget) * quality + lowBudget) / pixels);
         const q = 15;
         const quantizedRatio = Math.round(ratio * q) / q;
@@ -792,7 +849,6 @@ export class SauceZwiftMap extends EventTarget {
                 const adjY = Math.sin(a) * l;
                 const f = 1 / (this.zoom * this._mapScale / this._canvasScale / this._zoomScale);
                 const pos = [this.dragOffset[0] + adjX * f, this.dragOffset[1] + adjY * f];
-                console.log(pos, this.heading, this._adjHeading, this._rotate, this.headingOffset);
                 this.setDragOffset(pos);
                 dragEv.drag = pos;
             }
@@ -841,6 +897,7 @@ export class SauceZwiftMap extends EventTarget {
         } else {
             await this._drawZwiftWorldBackground();
         }
+        //this._renderRoads();
         this._updateGlobalTransform();
         this._renderFrame(/*force*/ true);
     });
@@ -861,12 +918,10 @@ export class SauceZwiftMap extends EventTarget {
         const tileScale = config.scale;
         const anchorX = Math.round(this._anchorXY[0] * tileScale);
         const anchorY = Math.round(this._anchorXY[1] * tileScale);
-        const naturalWidth = canvas.dataset.naturalWidth = tileSize * config.cols;
-        const naturalHeight = canvas.dataset.naturalHeight = tileSize * config.rows;
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', {alpha: false});
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        const width = naturalWidth * this._canvasScale;
-        const height = naturalHeight * this._canvasScale;
+        const width = tileSize * config.cols * this._canvasScale;
+        const height = tileSize * config.rows * this._canvasScale;
         // Avoid setting canvas width and height as they will reset everything causing jank
         // on otherwise smooth transitions like zooming.
         if (canvas.width !== width) {
@@ -955,8 +1010,7 @@ export class SauceZwiftMap extends EventTarget {
             console.warn("Image decode interrupted/failed", e);
             return;
         }
-        canvas.dataset.naturalWidth = img.naturalWidth;
-        canvas.dataset.naturalHeight = img.naturalHeight;
+        canvas._pixels = img.naturalWidth * img.naturalHeight;
         this._canvasScale = this._qualityToCanvasScale(this.quality);
         this._mapScale = 1 / (this.worldMeta.tileScale / this.worldMeta.mapScale / this._canvasScale);
         canvas.width = img.naturalWidth * this._canvasScale;
@@ -1008,6 +1062,7 @@ export class SauceZwiftMap extends EventTarget {
 
     setCourse = common.asyncSerialize(async function(courseId, {portalRoad}={}) {
         const isPortal = portalRoad != null;
+        this._elements.map.classList.toggle('real-world', courseId < 0);
         if (isPortal) {
             if (courseId === this.courseId && this.portal && portalRoad === this.roadId) {
                 return;
@@ -1046,11 +1101,10 @@ export class SauceZwiftMap extends EventTarget {
             (m.maxX - m.minX) * scale,
             (m.maxY - m.minY) * scale,
         ]);
-        const [roads] = await Promise.all([
-            common.getRoads(this.courseId),
-            this._updateMapBackground(),
-        ]);
-        this._renderRoads(roads);
+        this._roads.length = 0;
+        this._roads.push(...await common.getRoads(this.courseId));
+        await this._updateMapBackground();
+        //this._renderRoads(roads);
     }
 
     async _applyPortal(roadId) {
@@ -1062,8 +1116,10 @@ export class SauceZwiftMap extends EventTarget {
             m.maxX - m.minX,
             m.maxY - m.minY
         ]);
+        this._roads.length = 0;
+        this._roads.push(road);
         await this._updateMapBackground();
-        this._renderRoads([road]);
+        //this._renderRoads([road]);
         this.setActiveRoad(roadId);
     }
 
@@ -1087,10 +1143,18 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     _setPathsViewBox([x, y, width, height]) {
-        this._elements.paths.setAttribute('viewBox', [x, y, width, height].join(' '));
+        this._foo = (this._foo || 0) + 1;
+        if (this._foo < 5) {
+            console.warn("set viewbox");
+            this._elements.paths.setAttribute('viewBox', [x, y, width, height].join(' '));
+        }
         const scale = this.worldMeta.svgScale || 1;
+        const offset = this.worldMeta.svgOffset || [0, 0];
         for (const x of this._elements.paths.renderers) {
-            x(scale);
+            if (!x.el.isConnected) {
+                continue;
+            }
+            x(scale, offset);
         }
     }
 
@@ -1129,29 +1193,162 @@ export class SauceZwiftMap extends EventTarget {
         return this.rotateCoordinates ? [-pos[1], pos[0], pos[2]] : pos;
     }
 
-    _createCurvePath(points, loop, type='CatmullRom') {
+    _createCurvePath(points, loop, type='Fitted', options) {
         const curveFunc = {
+            Line: curves.linePath,
+            Fitted: curves.fittedPath,
             CatmullRom: curves.catmullRomPath,
             Bezier: curves.cubicBezierPath,
+
         }[type];
-        return curveFunc(points, {loop});
+        return curveFunc(points, {loop, ...options});
     }
 
-    _renderRoads(roads) {
-        const {surfacesLow, gutters} = this._elements.roadLayers;
+    _renderRoadsCanvas(roads) {
         // Because roads overlap and we want to style some of them differently this
         // make multi-sport roads higher so we don't randomly style overlapping sections.
         roads = Array.from(roads);
         roads.sort((a, b) => a.sports.length - b.sports.length);
-        const scale = this.worldMeta?.svgScale;
+        const paths = [];
+        const etagAdd = common.makeCRC32('number');
+        etagAdd(this.courseId);
+        for (const road of roads) {
+            if ((!road.sports.includes('cycling') && !road.sports.includes('running')) || !road.isAvailable) {
+                continue;
+            }
+            etagAdd(road.id);
+            const key = `${this.courseId}-${road.id}`;
+            let path = this._roadPathsCache.get(key);
+            if (!path || true) {
+                const scale = this.worldMeta?.svgScale || 1;
+                const offset = this.worldMeta?.svgOffset || [0, 0];
+                path = road.curvePath.toCanvasPath({scale, offset});
+                this._roadPathsCache.set(key, path);
+                //console.info("MISS", key);
+            }
+            let color;
+            if (road.sports[0] === 'running' && road.sports.length === 1) {
+                color = this.pathStyle.roadRunning.color;
+            } else {
+                color = this.pathStyle.roadSurface.color;
+            }
+            paths.push({path, color});
+        }
+        const {mapCanvas, pathCanvas} = this._elements;
+        // XXX I'd like to get mapCanvas.width statically from worldList.
+        // This will make background updates non async as well since we won't need
+        // to wait for the network image load to know our foundational size.
+        const m = this.worldMeta;
+        const surfaceWidth = mapCanvas.width * this._layerScale;
+        const surfaceHeight = mapCanvas.height * this._layerScale;
+        const pixelBudget = this._canvasPixelBudget;
+        const pixelRequest = surfaceWidth * surfaceHeight;
+        const clipOffset = [0, 0];
+        let width = surfaceWidth;
+        let height = surfaceHeight;
+        if (pixelRequest > pixelBudget) {
+            const budgetScale = Math.sqrt(pixelBudget / pixelRequest);
+            width = surfaceWidth * budgetScale | 0;
+            height = surfaceHeight * budgetScale | 0;
+            const mapLayerScale = 1 / (m.tileScale / m.mapScale / this._canvasScale) * this._layerScale;
+            const centerX = (this._centerXY[0] - this._dragXY[0] - this._anchorXY[0]) * mapLayerScale;
+            const centerY = (this._centerXY[1] - this._dragXY[1] - this._anchorXY[1]) * mapLayerScale;
+            clipOffset[0] = (((surfaceWidth - width) * (centerX / surfaceWidth)) / 50 | 0) * 50;
+            clipOffset[1] = (((surfaceHeight - height) * (centerY / surfaceHeight)) / 50 | 0) * 50;
+        }
+        const scale = m.mapScale * this._canvasScale / m.tileScale * this._layerScale;
+        const offset = [
+            (m.minX + m.anchorX + (clipOffset[0] / scale)) * (this.worldMeta?.svgScale || 1),
+            (m.minY + m.anchorY + (clipOffset[1] / scale)) * (this.worldMeta?.svgScale || 1)
+        ];
+        etagAdd(scale);
+        etagAdd(width);
+        etagAdd(height);
+        etagAdd(offset[0]);
+        etagAdd(offset[1]);
+        const etag = etagAdd();
+        if (etag === this._lastRenderRoadsCanvasEtag && false) {
+            return;
+        } else {
+            //console.log(m.mapScale, this._canvasScale, m.tileScale, this._layerScale);
+            //console.log({scale, width, height}, offset[0], offset[1], ...clipOffset);
+            //console.count("DOOOOOO rnd");
+        }
+        this._lastRenderRoadsCanvasEtag = etag;
+
+        const ctx = pathCanvas.getContext('2d');
+        pathCanvas.style.setProperty('transform', `translate(${clipOffset[0]}px, ${clipOffset[1]}px)`);
+        // Use clearRect (lighter impact) when possible..
+        if (pathCanvas.width !== width || pathCanvas.height !== height) {
+            pathCanvas.width = width;
+            pathCanvas.height = height;
+        } else {
+            ctx.clearRect(0, 0, pathCanvas.width, pathCanvas.height);
+        }
+        ctx.save();
+        try {
+            //ctx.scale(scale, scale);
+            //console.count("draw");
+            if (this.courseId < 0) { 
+                const config = this._getRealWorldTileConfig(this.zoom);
+                const scale = config.size / (this.worldMeta.svgScale / config.scale);
+                ctx.scale(scale, scale);
+            } else {
+                ctx.scale(scale, scale);
+            }
+            ctx.translate(-offset[0], -offset[1]);
+            if (this.rotateCoordinates) {
+                ctx.rotate(-90 * Math.PI / 180);
+            }
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.strokeStyle = this.pathStyle.roadGutter.color;
+            ctx.lineWidth = 3200;
+            for (const {path} of paths) {
+                ctx.stroke(path);
+            }
+            ctx.lineWidth = 2200;
+            for (const {path, color} of paths) {
+                ctx.strokeStyle = color;
+                ctx.stroke(path);
+            }
+        } finally {
+            ctx.restore();
+        }
+        if (this.roadId != null) {
+            this.setActiveRoad(this.roadId);
+        }
+    }
+
+    _renderRoads() {
+        const roads = Array.from(this._roads);
+        roads.sort((a, b) => a.sports.length - b.sports.length);
+        this._renderRoadsCanvas(roads);
+        return;
+        const {surfacesLow, gutters} = this._elements.roadLayers;
+        // Because roads overlap and we want to style some of them differently this
+        // makes multi-sport roads higher so we don't randomly style overlapping sections.
+        const scale = this.worldMeta?.svgScale || 1;
+        const offset = this.worldMeta?.svgOffset || [0, 0];
         for (const road of roads) {
             if ((!road.sports.includes('cycling') && !road.sports.includes('running')) || !road.isAvailable) {
                 continue;
             }
             const path = createElementSVG('path', {id: `road-path-${road.id}`});
-            const render = scale => path.setAttribute('d', road.curvePath.toSVGPath({scale}));
-            render(scale);
+            const cache = new LRUCache(100);
+            const render = (scale, offset) => {
+                const key = '' + scale + offset.join();
+                let d = cache.get(key);
+                if (!d) {
+                    console.debug("'rnede roadmiss", key);
+                    d = road.curvePath.toSVGPath({scale, offset});
+                    cache.set(key, d);
+                }
+                path.setAttribute('d', d);
+            };
+            render(scale, offset);
             this._elements.roadDefs.append(path);
+            render.el = path;
             this._elements.paths.renderers.push(render);
             for (const g of [gutters, surfacesLow]) {
                 g.append(createElementSVG('use', {
@@ -1197,6 +1394,7 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     setActiveRoad(id) {
+        return;
         this.roadId = id;
         this.routeId = null;
         this.route = null;
@@ -1297,13 +1495,27 @@ export class SauceZwiftMap extends EventTarget {
                 elements.push(this.drawCircle(nodes.at(-1).end, {color: '#f009', size: 8, title: 'end'}));
             }
         }
-        const scale = this.worldMeta?.svgScale;
+        const scale = this.worldMeta?.svgScale || 1;
+        const offset = this.worldMeta?.svgOffset || [0, 0];
         const node = createElementSVG('path', {
             class: `highlight ${extraClass}`,
             "data-id": id,
         });
-        const render = scale => node.setAttribute('d', path.toSVGPath({includeEdges, scale, offset: [0, 0]}));
-        render(scale);
+        const cache = new LRUCache(100);
+        const render = (scale, offset) => {
+            const key = '' + scale + offset.join();
+            let d = cache.get(key);
+            if (!d) {
+                console.debug('addhlpath miss', key);
+                d = path.toSVGPath({includeEdges, scale, offset});
+                cache.set(key, d);
+            } else {
+                console.count('hit');
+            }
+            node.setAttribute('d', d);
+        };
+        render(scale, offset);
+        render.el = node;
         this._elements.paths.renderers.push(render);
         if (width) {
             node.style.setProperty('--width', width);
@@ -1530,6 +1742,7 @@ export class SauceZwiftMap extends EventTarget {
     _setCenter(pos) {
         this.center = pos;
         this._centerXY = this._rotateWorldPos(pos);
+        this._renderRoads();
     }
 
     async _gcLoop() {
@@ -1582,15 +1795,16 @@ export class SauceZwiftMap extends EventTarget {
             const m = this.worldMeta;
             m.mapScale = config.size * config.scale;
             m.svgScale = config.scale * 100000;
+            m.svgOffset = [ax / config.scale * m.svgScale, ay / config.scale * m.svgScale];
             this._canvasScale = this._qualityToCanvasScale(this.quality);
             this._mapScale = 1 / (m.tileScale / m.mapScale / this._canvasScale);
             this._anchorXY = [ax / config.scale, ay / config.scale];
-            /*this._setPathsViewBox([
-                ax / config.scale * m.svgScale,
-                ay / config.scale * m.svgScale,
+            this._setPathsViewBox([
+                0, // ax / config.scale * m.svgScale,
+                0, // ay / config.scale * m.svgScale,
                 (config.cols) / config.scale * m.svgScale,
                 (config.rows) / config.scale * m.svgScale,
-            ]);*/
+            ]);
             this._drawRealWorldBackground(config);
             return true;
         }
@@ -1626,20 +1840,22 @@ export class SauceZwiftMap extends EventTarget {
         const scale = 2 ** Math.round(Math.log2(fineScale));
         if (this._layerScale !== scale || force) {
             console.debug("new layer scale", this._layerScale,
-                          {scale, zoom, mapScale: this._mapScale, zoomscale: this._zoomScale});
+                          {force, scale, zoom, mapScale: this._mapScale, zoomscale: this._zoomScale});
             this._layerScale = scale;
-            const {mapCanvas, ents, map} = this._elements;
+            const {mapCanvas, map} = this._elements;
             mapCanvas.style.setProperty('width', `${mapCanvas.width * scale}px`);
             mapCanvas.style.setProperty('height', `${mapCanvas.height * scale}px`);
             //mapCanvas.classList.toggle('hidden', !!this.portal);
-            ents.style.setProperty('left', `0px`);
-            ents.style.setProperty('top', `0px`);
             map.style.setProperty('--layer-scale', scale * this._canvasScale);
+            map.style.setProperty('--canvas-scale', this._canvasScale);
+            map.style.setProperty('--scale-scale', scale);
             for (const x of this._ents.values()) {
                 // force refresh of _all_ ents.
                 this._pendingEntityUpdates.add(x);
             }
+            this._renderRoads(); // if we can only be slow, maybe toggle based on sys perf?
         }
+        //this._renderRoads(); // if we can make renderRoads super fast.
     }
 
     _updateGlobalTransform() {
