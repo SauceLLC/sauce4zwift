@@ -116,7 +116,7 @@
       }
     ],
     "win": {
-      "certificateFile": "../../Documents/sauce-code-signing-bundle.pfx"
+      "certificateSubjectName": "Sauce, LLC"
     },
     "mac": {
       "target": {
