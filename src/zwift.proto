@@ -1303,6 +1303,11 @@ enum EventSubgroupLabel {
     E = 5;
 }
 
+message EventAccessRules {
+    string name = 1;
+    bool result = 2;
+}
+
 message EventSubgroup {
     int32 id = 1;
     string name = 2;
@@ -1355,6 +1360,8 @@ message EventSubgroup {
     bool accessValidationResult = 51;
     int32 totalEntrantCount = 52; // or signed-up count
     int32 followeeEntrantCount = 53; // or signed-up count
+    string rangeAccessLabel = 55;
+    repeated EventAccessRules accessRules = 56;
 }
 
 enum EventVisibility {
@@ -1445,6 +1452,7 @@ message Event {
     int32 totalEntrantCount = 42; // or signed up count
     int32 followeeEntrantCount = 43; // or signed up count
     bool categoryEnforcement = 44;
+    string rangeAccessLabel = 45;
 }
 
 message Events {
