@@ -624,7 +624,7 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.fileReplayStatus, {scope: this});
         rpc.register(this.getIRLMapTile, {scope: this});
         rpc.register(this.getWorkouts, {scope: this});
-        rpc.register(this.getWorkout, {scope: this});
+        rpc.register(this.getWorkoutData, {scope: this});
         rpc.register(this.getWorkoutCollection, {scope: this});
         rpc.register(this.getWorkoutCollections, {scope: this});
         rpc.register(this.getQueue, {scope: this}); // XXX ambiguous name
