@@ -791,51 +791,51 @@ export class ZwiftAPI {
         return entrants;
     }
 
+    // XXX rename to something meaningful.  What queue?
     async getQueue() {
-        const results = await this.fetchJSON(`/api/queue`, {});
-        return results;
+        return await this.fetchJSON(`/api/queue`, {});
     }
 
-    async getWorkout(workoutId, options={}) {        
-        let results = {};
-        if (options.all) {
-            let page = 1;
-            let pageSize = 100;
-            let allWorkouts = []
-            while (true) {
-                const workouts = await this.fetchJSON(`/api/workout/workouts`, {
-                    query: {
-                        filter: null,
-                        sort: null,
-                        page: page,
-                        pageSize: pageSize,
-                    }
-                });
-                if (workouts.length > 0) {                        
-                    for (let w of workouts) {
-                        allWorkouts.push(w);
-                    }
-                    page++;
-                } else {
-                    break;
+    async getWorkouts() {
+        const pageSize = 100;
+        const allWorkouts = [];
+        let page = 1;
+        while (true) {
+            const workouts = await this.fetchJSON(`/api/workout/workouts`, {
+                query: {
+                    filter: null,
+                    sort: null,
+                    page,
+                    pageSize,
                 }
+            });
+            if (workouts.length > 0) {
+                allWorkouts.push(...workouts);
+                page++;
+            } else {
+                break;
             }
-            results = allWorkouts;
-        } else {
-            await this.fetchJSON(`/api/workout/workouts/${workoutId}`) // get the workout
-                .then(workout => this.fetch(workout.workoutAssetUrl.replace("https://us-or-rly101.zwift.com/",""))) // get the workoutAsset
-                .then(workoutDetails => workoutDetails.text()) 
-                .then(workoutText => results = workoutText)
         }
-        return results;
+        return allWorkouts;
     }
 
-    async getWorkoutCollection(collectionID, options={}) {        
+    async getWorkoutData(workoutId, options={}) {
+        const workout = await this.fetchJSON(`/api/workout/workouts/${workoutId}`);
+        const assetResp = await fetch(workout.workoutAssetUrl);
+        if (!assetResp.ok) {
+            console.error('Fetch workout asset error:', assetResp.status, await assetResp.text());
+            throw new Error('Workout Asset Error');
+        }
+        // XXX parse it...
+        return await assetResp.text();
+    }
+
+    async getWorkoutCollection(collectionID, options={}) {
         let results = {};
         if (options.all) {
-            results = await this.fetchJSON(`/api/workout/collections?pageSize=100`)
+            results = await this.fetchJSON(`/api/workout/collections?pageSize=100`);
         } else {
-            results = await this.fetchJSON(`/api/workout/collections/${collectionID}/workouts?pageSize=100`)
+            results = await this.fetchJSON(`/api/workout/collections/${collectionID}/workouts?pageSize=100`);
         }
         return results;
     }

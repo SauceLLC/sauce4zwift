@@ -627,7 +627,7 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.getWorkout, {scope: this});
         rpc.register(this.getWorkoutCollection, {scope: this});
         rpc.register(this.getWorkoutCollections, {scope: this});
-        rpc.register(this.getQueue, {scope: this});
+        rpc.register(this.getQueue, {scope: this}); // XXX ambiguous name
         this._athleteSubs = new Map();
         if (options.gameConnection) {
             const gc = options.gameConnection;
@@ -864,20 +864,22 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     async getWorkoutCollections() {
-        const results = await this.zwiftAPI.getWorkoutCollection(null,{all: true})
-        return results;
+        return await this.zwiftAPI.getWorkoutCollection(null, {all: true});
     }
+
     async getWorkoutCollection(collectionID) {
-        const results = await this.zwiftAPI.getWorkoutCollection(collectionID);
-        return results;
+        return await this.zwiftAPI.getWorkoutCollection(collectionID);
     }
+
     async getWorkouts() {
-        const results = await this.zwiftAPI.getWorkout(null,{all: true})
-        return results;
+        return await this.zwiftAPI.getWorkouts();
     }
-    async getWorkout(workoutId) {        
-        const workoutText = await this.zwiftAPI.getWorkout(workoutId)
-        const workoutData = workoutText.substring(workoutText.indexOf('<workout_file>') + 14, workoutText.indexOf('<workout>'))
+
+    async getWorkoutData(workoutId) {
+        // XXX use XML parser and push this into zwift.mjs..
+        const workoutText = await this.zwiftAPI.getWorkoutData(workoutId);
+        const workoutData = workoutText.substring(workoutText.indexOf('<workout_file>') + 14,
+                                                  workoutText.indexOf('<workout>'));
         const workout = {};
         const tagPattern = /<(\w+)(?:\s[^>]*)?>([^]*?)<\/\1>/g;
         const tagSinglePattern = /<(\w+)\s+name="([^"]+)"\s*\/>/g;
@@ -898,49 +900,55 @@ export class StatsProcessor extends events.EventEmitter {
             }
         }
         workout.workout = [];
-        const workoutDetails = workoutText.substring(workoutText.indexOf('<workout>') + 9, workoutText.indexOf('</workout>'))    
+        // XXX use XML parser...
+        const workoutDetails = workoutText.substring(workoutText.indexOf('<workout>') + 9,
+                                                     workoutText.indexOf('</workout>'));
         const lines = workoutDetails.split("\n");
         let totalDuration = 0;
         for (let line of lines) {
             line = line.trim();
-            if (line == "" || line.indexOf("!-") > -1) {  // ignore blank lines and whatever <!-- is supposed to be (comments?)
-                continue
+            // XXX use XML parser...
+            // ignore blank lines and whatever <!-- is supposed to be (comments?)
+            if (line === "" || line.indexOf("!-") > -1) {
+                continue;
             }
             const objLine = {};
-            if (line.indexOf("</") > -1) {  // ignore closing tags    
-                continue
-            } else {    
+            if (line.indexOf("</") > -1) {  // ignore closing tags
+                continue;
+            } else {
                 const lineType = line.substring(1, line.indexOf(" "));
                 objLine.type = lineType.toLowerCase();
                 const regex = /(\w+)="([^"]*)"/g;
                 let match;
-                while (match = regex.exec(line)) {
+                while ((match = regex.exec(line))) {
                     objLine[match[1]] = match[2];
                 }
             }
-            if (objLine.type == "intervalst") {
-                objLine.Duration = (parseInt(objLine.OffDuration) + parseInt(objLine.OnDuration)) * parseInt(objLine.Repeat)
-            }            
-            if (objLine.type == "textevent" || objLine.type == "textnotification" ) {
+            if (objLine.type === "intervalst") {
+                objLine.Duration = (parseInt(objLine.OffDuration) +
+                    parseInt(objLine.OnDuration)) * parseInt(objLine.Repeat);
+            }
+            if (objLine.type === "textevent" || objLine.type === "textnotification" ) {
                 if (!workout.workout[workout.workout.length - 1].textEvents) {
                     workout.workout[workout.workout.length - 1].textEvents = [objLine];
                 } else {
-                    workout.workout[workout.workout.length - 1].textEvents.push(objLine)
+                    workout.workout[workout.workout.length - 1].textEvents.push(objLine);
                 }
             } else {
-                workout.workout.push(objLine)
-                let parsedDuration = parseInt(objLine.Duration);
+                workout.workout.push(objLine);
+                const parsedDuration = parseInt(objLine.Duration);
                 if (!isNaN(parsedDuration)) {
                     totalDuration += parsedDuration;
                 }
-            }            
-        }    
+            }
+        }
         workout.totalDuration = totalDuration;
-        return workout;        
+        return workout;
     }
+
+    // XXX name is abmbiguous..
     async getQueue() {
-        const results = await this.zwiftAPI.getQueue();
-        return results;
+        return await this.zwiftAPI.getQueue();
     }
 
     getPowerZones(ftp) {
