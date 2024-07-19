@@ -137,15 +137,16 @@ const pbProfilePrivacyFlags = {
 const pbProfilePrivacyFlagsInverted = {
     displayAge: 0x40,
 };
-const sportsEnum = Object.fromEntries(Object.entries(protos.Sport).map(([k, v]) => [v, k]));
-const powerUpsEnum = Object.fromEntries(Object.entries(protos.POWERUP_TYPE)
-    .map(([label, id]) => [id, label]));
-powerUpsEnum[0xf] = null;  // masked
-const turningEnum = {
-    0: null,
-    1: 'RIGHT',
-    2: 'LEFT',
+const turningFlags = {
+    RIGHT: 1,
+    LEFT: 2,
+    STRAIGHT: 4,
 };
+
+const sportsEnum = new Map(Object.entries(protos.Sport).map(([k, v]) => [v, k]));
+const powerUpsEnum = new Map(Object.entries(protos.POWERUP_TYPE).map(([k, v]) => [v, k]));
+powerUpsEnum.set(0xf, null);  // masked
+const turningEnum = new Map(Object.entries(turningFlags).map(([k, v]) => [v, k]));
 
 
 function decodeGroupEventUserRegistered(buf) {
@@ -203,52 +204,33 @@ export function decodePlayerStateFlags1(bits) {
 
 export function encodePlayerStateFlags1(props) {
     let bits = 0;
-    bits |= props.rideons & 0xff;
-    bits <<= 8;
-    bits |= props.auxCourseId & 0xff;
-    bits <<= 12;
-    bits |= props._b4_15 & 0xfff;
-    bits <<= 1;
-    bits |= props.uTurn;
-    bits <<= 1;
-    bits |= !props.reverse;
-    bits <<= 1;
-    bits |= props.companionApp;
-    bits <<= 1;
-    bits |= props.powerMeter;
+    bits |= props.powerMeter << 0;
+    bits |= props.companionApp << 1;
+    bits |= !props.reverse << 2;
+    bits |= props.uTurn << 3;
+    bits |= (props._b4_15 & 0xfff) << 4;
+    bits |= (props.auxCourseId & 0xff) << 16;
+    bits |= (props.rideons & 0xff) << 24;
     return bits;
 }
 
 
 export function decodePlayerStateFlags2(bits) {
     return {
-        activePowerUp: powerUpsEnum[bits & 0xf],
-        turning: turningEnum[bits >>> 4 & 0x3],
-        turnChoice: bits >>> 6 & 0x3,
+        activePowerUp: powerUpsEnum.get(bits & 0xf),
+        turning: turningEnum.get(bits >>> 4 & 0xf),
         roadId: bits >>> 8 & 0xffff,
         _rem: bits >>> 24, // client seems to send 0x1 or 0x2 when no-sensor and not moving
     };
 }
 
 
-export function encodePlayerStateFlags2(props) {
+export function encdodePlayerStateFlags2(props) {
     let bits = 0;
-    bits |= props._rem & 0xff;
-    bits <<= 16;
-    bits |= props.roadId & 0xffff;
-    bits <<= 2;
-    bits |= props.turnChoice & 0x3;
-    bits <<= 2;
-    bits |= {
-        RIGHT: 1,
-        LEFT: 2,
-    }[props.turning] || 0;
-    bits <<= 4;
-    let powerUping = 0xf;
-    if (props.activePowerUp) {
-        powerUping = protos.POWERUP_TYPE[props.activePowerUp];
-    }
-    bits |= powerUping & 0xf;
+    bits |= props.activePowerUp ? protos.POWERUP_TYPE[props.activePowerUp] || 0 : 0xf;
+    bits |= (turningFlags[props.turning] || 0) << 4;
+    bits |= (props.roadId & 0xffff) << 8;
+    bits |= (props._rem & 0xff) << 24;
     return bits;
 }
 
@@ -276,7 +258,7 @@ export function processPlayerStateMessage(msg) {
         heading: (((msg._heading + halfCircle) / (2 * halfCircle)) * 360) % 360,  // degrees
         speed: msg._speed / 1e6,  // km/h
         joinTime: msg._joinTime.toNumber(),
-        sport: sportsEnum[msg.sport],
+        sport: sportsEnum.get(msg.sport),
         cadence: (msg._cadenceUHz && msg._cadenceUHz < cadenceMax) ?
             Math.round(msg._cadenceUHz / 1e6 * 60) : 0,  // rpm
         eventDistance: msg._eventDistance / 100,  // meters
