@@ -660,7 +660,7 @@ message PlayerProfile {
     int32 _f130 = 130; // seen 1 and 2, so likely an enum
     int32 _f131 = 131; // Added 2023/11/09
     int32 _f132 = 132; // Added 2023/11/09
-    uint32 _f133 = 133; // time epoch in seconds
+    uint32 lastLoginTime = 133;
     int32 _f134 = 134; // Added 2023/11/09
     int32 _f135 = 135; // Added 2023/11/09
     int32 _f136 = 136; // Added 2023/11/09
