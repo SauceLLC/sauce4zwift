@@ -494,13 +494,13 @@ export class ZwiftAPI {
                 return;
             }
             x.privacy = {
-                defaultActivityPrivacy: x.default_activity_privacy,
+                defaultActivityPrivacy: x.defaultActivityPrivacy,
             };
             for (const [k, flag] of Object.entries(pbProfilePrivacyFlags)) {
-                x.privacy[k] = !!(+x.privacy_bits & flag);
+                x.privacy[k] = !!(+x.privacyBits & flag);
             }
             for (const [k, flag] of Object.entries(pbProfilePrivacyFlagsInverted)) {
-                x.privacy[k] = !(+x.privacy_bits & flag);
+                x.privacy[k] = !(+x.privacyBits & flag);
             }
             x.powerSourceModel = {
                 VIRTUAL: 'zPower', // consistent with JSON api; applies to runs too
