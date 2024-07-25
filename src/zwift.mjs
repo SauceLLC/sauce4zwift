@@ -225,7 +225,7 @@ export function decodePlayerStateFlags2(bits) {
 }
 
 
-export function encdodePlayerStateFlags2(props) {
+export function encodePlayerStateFlags2(props) {
     let bits = 0;
     bits |= props.activePowerUp ? protos.POWERUP_TYPE[props.activePowerUp] || 0 : 0xf;
     bits |= (turningFlags[props.turning] || 0) << 4;
