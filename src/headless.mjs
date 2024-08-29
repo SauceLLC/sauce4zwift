@@ -40,6 +40,11 @@ rpc.register(url => {
     childProcess.execSync(`${opener} ${url}`, {windowsHide: true});
 }, {name: 'openExternalLink'});
 
+// Stub out window related RPC handlers..
+rpc.register(() => [], {name: 'getWidgetWindowSpecs'});
+rpc.register(() => [], {name: 'getWidgetWindowManifests'});
+rpc.register(() => [], {name: 'getProfiles'});
+
 
 class NodeSauceApp extends app.SauceApp {
     resetStorageState(sender) {
