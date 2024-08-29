@@ -20,7 +20,9 @@ let zoomableChart;
 let powerZonesChart;
 let templates;
 let athleteData;
+let ftp;
 let sport;
+let powerZones;
 
 const state = {
     laps: [],
@@ -128,7 +130,7 @@ function getSelectionStats() {
             max: sauce.data.max(powerRoll.values()),
             np,
             kj: powerRoll.joules() / 1000,
-            tss: sauce.power.calcTSS(np > powerAvg ? np : powerAvg, activeTime, athlete?.ftp),
+            tss: sauce.power.calcTSS(np > powerAvg ? np : powerAvg, activeTime, ftp),
             rank,
         },
         el: {
@@ -329,6 +331,7 @@ function createZoomableLineChart(el) {
     const leftPad = 50;
     const rightPad = 20;
     let updateDeferred;
+    const clippyHackId = charts.getMagicZonesClippyHackId();
 
     const options = {
         animation: false, // slow and we want a responsive interface not a pretty static one
@@ -427,7 +430,7 @@ function createZoomableLineChart(el) {
             xAxisIndex: i,
             yAxisIndex: i,
             tooltip: {valueFormatter: f.fmt},
-            areaStyle: {},
+            areaStyle: f.id === 'power' && powerZones && ftp ? {color: 'magic-zones'} : {},
             lineStyle: {
                 color: f.color,
                 width: 1
@@ -484,6 +487,13 @@ function createZoomableLineChart(el) {
             requestAnimationFrame(chart.updateData);
         }
     });
+    chart.on('rendered', () => charts.magicZonesAfterRender({
+        chart,
+        hackId: clippyHackId,
+        seriesId: 'power',
+        zones: powerZones,
+        ftp,
+    }));
     el.addEventListener('click', () => {
         // Only triggered when brush never selects data, i.e. naked click, so clear...
         state.paused = false;
@@ -558,10 +568,8 @@ function createTimeInPowerZonesPie(el) {
     let colors;
     let aid;
     let normZones;
-    let powerZones;
-    common.rpc.getPowerZones(1).then(x => powerZones = x);
     chart.updateData = () => {
-        if (!powerZones || !athleteData || !athleteData.athlete || !athleteData.athlete.ftp) {
+        if (!powerZones || !ftp || !athleteData.timeInPowerZones) {
             return;
         }
         if (athleteData.athleteId !== aid) {
@@ -569,8 +577,8 @@ function createTimeInPowerZonesPie(el) {
             colors = powerZoneColors(powerZones, c => ({
                 c,
                 g: new echarts.graphic.LinearGradient(0, 0, 1, 1, [
-                    {offset: 0, color: c.toString()},
-                    {offset: 1, color: c.alpha(0.6).toString()}
+                    {offset: 0, color: c.toString({legacy: true})},
+                    {offset: 1, color: c.alpha(0.6).toString({legacy: true})}
                 ])
             }));
             normZones = new Set(powerZones.filter(x => !x.overlap).map(x => x.zone));
@@ -602,7 +610,7 @@ function centerMap(positions) {
 export async function main() {
     common.initInteractionListeners();
     addEventListener('resize', resizeCharts);
-    const [_ad, _templates, nationFlags, worldList] = await Promise.all([
+    const [_ad, _templates, nationFlags, worldList, _powerZones] = await Promise.all([
         common.rpc.getAthleteData(athleteIdent),
         getTemplates([
             'main',
@@ -615,9 +623,11 @@ export async function main() {
         ]),
         common.initNationFlags(),
         common.getWorldList(),
+        common.rpc.getPowerZones(1),
     ]);
     athleteData = _ad;
     templates = _templates;
+    powerZones = _powerZones;
     const contentEl = document.querySelector('#content');
     contentEl.innerHTML = await templates.main({
         ...state,
@@ -633,6 +643,7 @@ export async function main() {
         return;
     }
     sport = athleteData.state.sport;
+    ftp = athleteData.athlete?.ftp || 250; // XXX
     charts.setSport(sport);
     const exportBtn = document.querySelector('.button.export-file');
     exportBtn.removeAttribute('disabled');
@@ -869,6 +880,7 @@ async function updateData() {
     if (!streams || !streams.time.length) {
         return;
     }
+    //streams.power.forEach((x, i) => streams.power[i] = Math.max(0, Math.cos(i / (streams.power.length / 20)) * 400 + Math.sin(i / (streams.power.length / 200)) * 150 + 300 + Math.random() * 1000 - 500));
     state.timeOfft = streams.time.at(-1) + 1e-6;
     for (const [k, stream] of Object.entries(streams)) {
         if (!state.streams[k]) {

@@ -52,8 +52,12 @@ function handleInlineEdit(el, {athleteId, athlete}, rerender) {
     const key = el.dataset.key;
     const type = el.dataset.type;
     const input = document.createElement('input');
+    const convFactor = Number(el.dataset.convFactor);
     input.type = type;
-    input.value = athlete[key];
+    const value = athlete[key];
+    input.value = (type === 'number' && convFactor) ?
+        Number((value / convFactor).toFixed(6)) :
+        value;
     input.classList.add('hide-spinner');
     el.replaceChildren(input);
     let done;
@@ -70,6 +74,9 @@ function handleInlineEdit(el, {athleteId, athlete}, rerender) {
                 if (isNaN(v)) {
                     alert('Invalid number');
                     return;
+                }
+                if (convFactor) {
+                    v *= convFactor;
                 }
             } else {
                 throw new TypeError("unimplemented");

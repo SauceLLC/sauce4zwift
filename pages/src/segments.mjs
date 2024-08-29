@@ -18,29 +18,18 @@ common.settingsStore.setDefault({
     currentTab: 'live',
 });
 
-const doc = document.documentElement;
 const settings = common.settingsStore.get();
-
-
-function setBackground() {
-    const {solidBackground, backgroundColor, bgTransparency} = settings;
-    doc.classList.toggle('solid-background', solidBackground);
-    if (solidBackground) {
-        let alpha = '';
-        if (bgTransparency) {
-            alpha = Math.round(0xff * (1 - Math.min(100, bgTransparency) / 100))
-                .toString(16).padStart(2, '0');
-        }
-        doc.style.setProperty('--background-color', backgroundColor + alpha);
-    } else {
-        doc.style.removeProperty('--background-color');
-    }
+// Migration hack...
+if (settings.bgTransparency !== undefined) {
+    settings.backgroundAlpha = 100 - settings.bgTransparency;
+    delete settings.bgTransparency;
+    common.settingsStore.set(null, settings);
 }
 
 
 async function setCourse(id) {
     segments = await common.rpc.getSegments(id);
-    segmentId = segments ? segments[0].id : null;
+    segmentId = (segments && segments.length) ? segments[0].id : null;
     const segmentSelect = document.querySelector('select[name="segment"]');
     segmentSelect.replaceChildren();
     for (const x of segments) {
@@ -64,13 +53,13 @@ async function updateTab() {
 async function updateResults() {
     const tab = settings.currentTab || 'live';
     const getResults = {
-        'live': () => common.rpc.getSegmentResults(segmentId),
-        'just-me': () => common.rpc.getSegmentResults(segmentId, {
+        'live': () => segmentId ? common.rpc.getSegmentResults(segmentId) : undefined,
+        'just-me': () => athleteData ? common.rpc.getSegmentResults(segmentId, {
             athleteId: athleteData.athleteId,
             from: Date.now() - 86400000 * 90,
-        }),
+        }) : undefined,
     }[tab];
-    const results = (await getResults()) || [];
+    const results = segmentId && (await getResults()) || [];
     document.querySelector('.tabbed > .tab.active').replaceChildren(await resultsTpl({results}));
     console.log(results);
 }
@@ -78,12 +67,12 @@ async function updateResults() {
 
 export async function main() {
     common.initInteractionListeners();
-    setBackground();
+    common.setBackground(settings);
     common.settingsStore.addEventListener('set', ev => {
         if (!ev.data.remote) {
             return;
         }
-        setBackground();
+        common.setBackground(settings);
     });
     resultsTpl = await sauce.template.getTemplate(`templates/segment-results.html.tpl`);
     athleteData = await common.rpc.getAthleteData(athleteIdent);

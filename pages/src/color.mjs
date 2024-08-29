@@ -1,6 +1,6 @@
 
 export class Color {
-    static fromRGB(r, g, b, a=1) {
+    static fromRGB(r, g, b, a) {
         const maxC = Math.max(r, g, b);
         const minC = Math.min(r, g, b);
         const d = maxC - minC;
@@ -29,20 +29,20 @@ export class Color {
             const r = parseInt(hex.substr(1, 2), 16) / 0xff;
             const g = parseInt(hex.substr(3, 2), 16) / 0xff;
             const b = parseInt(hex.substr(5, 2), 16) / 0xff;
-            const a = (hex.length === 9) ? parseInt(hex.substr(7, 2), 16)  / 0xff : 1;
+            const a = (hex.length === 9) ? parseInt(hex.substr(7, 2), 16)  / 0xff : undefined;
             return this.fromRGB(r, g, b, a);
         } else if (hex.length >= 4) {
             const r = parseInt(''.padStart(2, hex.substr(1, 1)), 16) / 0xff;
             const g = parseInt(''.padStart(2, hex.substr(2, 1)), 16) / 0xff;
             const b = parseInt(''.padStart(2, hex.substr(3, 1)), 16) / 0xff;
-            const a = (hex.length === 5) ? parseInt(''.padStart(2, hex.substr(4, 1)), 16) / 0xff : 1;
+            const a = (hex.length === 5) ? parseInt(''.padStart(2, hex.substr(4, 1)), 16) / 0xff : undefined;
             return this.fromRGB(r, g, b, a);
         } else {
             throw new Error('Invalid hex color');
         }
     }
 
-    constructor(h, s, l, a=1) {
+    constructor(h, s, l, a) {
         this.h = h;
         this.s = s;
         this.l = l;
@@ -89,33 +89,27 @@ export class Color {
         return c;
     }
 
-    toString() {
+    toString(options={}) {
         const h = Math.round(this.h * 360);
         const s = Math.round(this.s * 100);
         const l = Math.round(this.l * 100);
-        const a = Math.round(this.a * 100);
-        return `hsla(${h}deg, ${s}%, ${l}%, ${a}%)`;
+        if (options.legacy) {
+            if (this.a !== undefined) {
+                return `hsla(${h}deg, ${s}%, ${l}%, ${Number(this.a.toFixed(4))})`;
+            } else {
+                return `hsl(${h}deg, ${s}%, ${l}%)`;
+            }
+        } else {
+            const a = this.a !== undefined ? ` / ${Math.round(this.a * 100)}%` : '';
+            return `hsl(${h}deg ${s}% ${l}%${a})`;
+        }
     }
 }
 
 
 export function parse(s) {
-    if (s.startsWith('#')) {
-        let r, g, b, a;
-        if (s.length >= 7) {
-            r = parseInt(s.slice(1, 3), 16) / 0xff;
-            g = parseInt(s.slice(3, 5), 16) / 0xff;
-            b = parseInt(s.slice(5, 7), 16) / 0xff;
-            a = s.length > 7 ? parseInt(s.slice(7), 16) / 0xff : 1;
-        } else if (s.length >= 4) {
-            r = parseInt(s.slice(1, 2), 16) / 0xf;
-            g = parseInt(s.slice(2, 3), 16) / 0xf;
-            b = parseInt(s.slice(3, 4), 16) / 0xf;
-            a = s.length > 4 ? parseInt(s.slice(4), 16) / 0xf : 1;
-        } else {
-            throw new TypeError('Invalid color');
-        }
-        return Color.fromRGB(r, g, b, a);
+    if (s && (typeof s) === 'string' && s.startsWith('#')) {
+        return Color.fromHex(s);
     } else {
         throw new TypeError('Unsupported color format');
     }

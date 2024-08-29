@@ -1,12 +1,15 @@
 /* global Sentry, electron */
 import {sleep as _sleep} from '../../shared/sauce/base.mjs';
 import * as locale from '../../shared/sauce/locale.mjs';
+import {expWeightedAvg as _expWeightedAvg} from '/shared/sauce/data.mjs';
 import * as report from '../../shared/report.mjs';
 import * as elements from './custom-elements.mjs';
 import * as curves from '/shared/curves.mjs';
 import * as fields from './fields.mjs';
+import * as color from './color.mjs';
 
 export const sleep = _sleep; // Come on ES6 modules, really!?
+export const expWeightedAvg = _expWeightedAvg;
 export let idle;
 if (window.requestIdleCallback) {
     idle = options => new Promise(resolve => requestIdleCallback(resolve, options));
@@ -358,8 +361,18 @@ if (window.isElectron) {
     };
     rpcCall = async function(name, ...args) {
         const encodedArgs = args.map(x => x !== undefined ? b64urlEncode(JSON.stringify(x)) : '');
-        const f = await fetch(`/api/rpc/v2/${name}/${encodedArgs.join('/')}`);
-        const env = await f.json();
+        let resp = await fetch(`/api/rpc/v2/${name}${args.length ? '/' : ''}${encodedArgs.join('/')}`);
+        if (!resp.ok && resp.status === 431) {
+            resp = await fetch(`/api/rpc/v1/${name}`, {
+                method: 'POST',
+                headers: {'content-type': 'application/json'},
+                body: JSON.stringify(args),
+            });
+        }
+        if (!resp.ok && resp.status >= 500) {
+            throw new Error(`RPC network error: ${resp.status}`);
+        }
+        const env = await resp.json();
         if (env.warning) {
             console.warn(env.warning);
         }
@@ -422,18 +435,11 @@ export function longPressListener(el, timeout, callback) {
 
 
 let _worldList;
-export function getWorldList() {
+export async function getWorldList() {
     if (!_worldList) {
-        _worldList = (async () => {
-            const r = await fetch('/shared/deps/data/worldlist.json');
-            if (!r.ok) {
-                console.error("Failed to get worldlist:", r.status);
-                return [];
-            }
-            return await r.json();
-        })();
+        _worldList = rpcCall('getWorldMetas');
     }
-    return _worldList;
+    return await _worldList;
 }
 
 
@@ -521,6 +527,15 @@ export async function getRoad(courseId, id) {
 }
 
 
+const _segments = new Map();
+export function getSegment(id) {
+    if (!_segments.has(id)) {
+        _segments.set(id, rpcCall('getSegment', id));
+    }
+    return _segments.get(id);
+}
+
+
 async function computeRoutePath(route) {
     const curvePath = new curves.CurvePath();
     const roadSegments = [];
@@ -548,6 +563,15 @@ async function computeRoutePath(route) {
 }
 
 
+async function addRouteSegments(route) {
+    const allSegmentIds = [].concat(...route.manifest.map(x => x.segmentIds || []));
+    const segments = await Promise.all(allSegmentIds.map(x => getSegment(x)));
+    for (const m of route.manifest.filter(x => x.segmentIds)) {
+        m.segments = m.segmentIds.map(id => segments.find(x => x.id === id));
+    }
+}
+
+
 let _routeListPromise;
 const _routePromises = new Map();
 export function getRoute(id) {
@@ -556,14 +580,20 @@ export function getRoute(id) {
             _routePromises.set(id, _routeListPromise.then(async routes => {
                 const route = routes && routes.find(x => x.id === id);
                 if (route) {
-                    Object.assign(route, await computeRoutePath(route));
+                    await Promise.all([
+                        addRouteSegments(route),
+                        computeRoutePath(route).then(x => Object.assign(route, x)),
+                    ]);
                 }
                 return route;
             }));
         } else {
             _routePromises.set(id, rpcCall('getRoute', id).then(async route => {
                 if (route) {
-                    Object.assign(route, await computeRoutePath(route));
+                    await Promise.all([
+                        addRouteSegments(route),
+                        computeRoutePath(route).then(x => Object.assign(route, x)),
+                    ]);
                 }
                 return route;
             }));
@@ -1538,13 +1568,13 @@ export function initExpanderTable(table, expandCallback, cleanupCallback) {
 
 
 export const powerZonesColorSpectrum = [
-    {midPct: 0.275, color: '#444'},
+    {midPct: 0.275, color: '#666'},
     {midPct: 0.650, color: '#24d'},
     {midPct: 0.825, color: '#5b5'},
     {midPct: 0.975, color: '#dd3'},
     {midPct: 1.125, color: '#fa0'},
     {midPct: 1.350, color: '#b22'},
-    {midPct: 1.750, color: '#407'},
+    {midPct: 1.750, color: '#a0b'},
 ];
 
 
@@ -1598,14 +1628,6 @@ export function chunkNumber(n, step) {
 }
 
 
-export function expWeightedAvg(size=2, seed=0) {
-    const cPrev = Math.exp(-1 / size);
-    const cNext = 1 - cPrev;
-    let avg = seed;
-    return v => avg = (avg * cPrev) + (v * cNext);
-}
-
-
 export function isVisible() {
     return document.visibilityState === 'visible';
 }
@@ -1635,6 +1657,56 @@ export function cyrb53(str, seed=0) {
 
 export function hash(str) {
     return cyrb53(str || '');
+}
+
+
+let _crc32Table;
+export function makeCRC32(type) {
+    if (!_crc32Table) {
+        let c;
+        _crc32Table = [];
+        for (let i = 0; i < 256; i++) {
+            c = i;
+            for (let ii = 0; ii < 8; ii++){
+                c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+            }
+            _crc32Table[i] = c;
+        }
+    }
+    let crc = -1;
+    if (type === 'btye') {
+        return u8 => {
+            if (u8 === undefined) {
+                return (crc ^ (-1)) >>> 0;
+            }
+            crc = (crc >>> 8) ^ _crc32Table[(crc ^ u8) & 0xff];
+        };
+    } else if (type === 'number') {
+        const f64Arr = new Float64Array(1);
+        const f64View = new DataView(f64Arr.buffer);
+        return num => {
+            if (num === undefined) {
+                return (crc ^ (-1)) >>> 0;
+            }
+            f64Arr[0] = num;
+            for (let i = 0; i < 8; i++) {
+                crc = (crc >>> 8) ^ _crc32Table[(crc ^ f64View.getUint8(i)) & 0xff];
+            }
+        };
+    } else if (type === 'string') {
+        const encoder = new TextEncoder();
+        return str => {
+            if (str === undefined) {
+                return (crc ^ (-1)) >>> 0;
+            }
+            const arr = encoder.encode(str);
+            for (let i = 0; i < arr.length; i++) {
+                crc = (crc >>> 8) ^ _crc32Table[(crc ^ arr[i]) & 0xff];
+            }
+        };
+    } else {
+        throw new Error("valid type required");
+    }
 }
 
 
@@ -1730,6 +1802,11 @@ export async function getAthletesDataCached(ids, {maxAge=60000}={}) {
 }
 
 
+export async function getAthleteDataCached(id, {maxAge=60000}={}) {
+    return (await getAthletesDataCached([id]))[0];
+}
+
+
 let _sentryEnabled;
 export async function enableSentry() {
     if (location.pathname.startsWith('/mods/')) {
@@ -1752,6 +1829,7 @@ export async function enableSentry() {
             dsn,
             beforeSend: report.beforeSentrySend,
             integrations: arr => arr.filter(x => !['Breadcrumbs', 'TryCatch'].includes(x.name)),
+            sampleRate: 0.1,
         });
         report.setSentry(Sentry);
     }
@@ -1780,6 +1858,30 @@ export function asyncSerialize(asyncFunc) {
     };
     Object.defineProperty(fn, 'name', {value: 'serialized ' + asyncFunc.name});
     return fn;
+}
+
+
+export function parseBackgroundColor({backgroundColor, solidBackground, backgroundAlpha}={}) {
+    if (!solidBackground || !backgroundColor) {
+        return;
+    }
+    try {
+        const c = color.parse(backgroundColor);
+        return (c.a === undefined && backgroundAlpha !== undefined) ? c.alpha(backgroundAlpha / 100) : c;
+    } catch(e) {
+        console.warn(e.message);
+    }
+}
+
+
+export function setBackground(settings) {
+    const bgColor = parseBackgroundColor(settings);
+    doc.classList.toggle('solid-background', !!bgColor);
+    if (bgColor) {
+        doc.style.setProperty('--background-color', bgColor.toString());
+    } else {
+        doc.style.removeProperty('--background-color');
+    }
 }
 
 

@@ -176,6 +176,8 @@ function clear() {
 
 export async function main() {
     common.initInteractionListeners();
+    countEl = document.querySelector('header .count');
+    contentEl = document.querySelector('#content');
     common.subscribe('message', async o => {
         if (o.seqno < lastSeqno) {
             clear();
@@ -198,8 +200,6 @@ export async function main() {
         lastSeqno = x.seqno;
         addEntry(x);
     }
-    countEl = document.querySelector('header .count');
-    contentEl = document.querySelector('#content');
     requestAnimationFrame(() => contentEl.scrollTop = Number.MAX_SAFE_INTEGER >>> 1);
     document.querySelector('input[name="filter"]').addEventListener('input', onFilterInput);
     document.querySelector('select[name="level"]').addEventListener('change', onLevelChange);

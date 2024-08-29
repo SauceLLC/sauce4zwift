@@ -30,6 +30,7 @@ common.settingsStore.setDefault({
     hideHeader: false,
 });
 
+const settings = common.settingsStore.get();
 const spd = (v, entry) => H.pace(v, {precision: 0, suffix: true, html: true, sport: entry.state.sport});
 const weightClass = v => H.weightClass(v, {suffix: true, html: true});
 const pwr = v => H.power(v, {suffix: true, html: true});
@@ -37,17 +38,6 @@ const hr = v => H.number(v || null, {suffix: 'bpm', html: true});
 const kj = (v, options) => H.number(v, {suffix: 'kJ', html: true, ...options});
 const pct = (v, options) => H.number(v * 100, {suffix: '%', html: true, ...options});
 const gapTime = (v, entry) => H.timer(v) + (entry.isGapEst ? '<small> (est)</small>' : '');
-
-let overlayMode;
-if (window.isElectron) {
-    overlayMode = !!window.electron.context.spec.overlay;
-    doc.classList.toggle('overlay-mode', overlayMode);
-    document.querySelector('#titlebar').classList.toggle('always-visible', overlayMode !== true);
-    if (common.settingsStore.get('overlayMode') !== overlayMode) {
-        // Sync settings to our actual window state, not going to risk updating the window now
-        common.settingsStore.set('overlayMode', overlayMode);
-    }
-}
 
 
 function makeLazyGetter(cb) {
@@ -137,10 +127,9 @@ function fmtEvent(sgid) {
     }
     const sg = lazyGetSubgroup(sgid);
     if (sg) {
-        return `<a href="${eventUrl(sg.event.id)}" target="_blank" external>${sg.event.name}</a>`;
-    } else {
-        return '...';
+        return `<a href="${eventUrl(sg.eventId)}" target="_blank" external>${sg.name}</a>`;
     }
+    return '...';
 }
 
 
@@ -233,8 +222,6 @@ const fieldGroups = [{
          tooltip: 'NP® / FTP: A value of 100% means NP® = FTP\n\n' + tpAttr},
         {id: 'distance', defaultEn: false, label: 'Distance', headerLabel: 'Dist',
          get: x => x.state.distance, fmt: fmtDist},
-        {id: 'event-distance', defaultEn: false, label: 'Event Distance', headerLabel: 'Ev Dist',
-         get: x => x.state.eventDistance, fmt: fmtDist},
         {id: 'rideons', defaultEn: false, label: 'Ride Ons', headerLabel: '<ms>thumb_up</ms>',
          get: x => x.state.rideons, fmt: H.number},
         {id: 'kj', defaultEn: false, label: 'Energy (kJ)', headerLabel: 'kJ', get: x => x.state.kj, fmt: kj},
@@ -265,6 +252,8 @@ const fieldGroups = [{
          fmt: (v, entry) => entry.remainingMetric === 'distance' ? fmtDist(v) : fmtDur(v)},
         {id: 'position', defaultEn: false, label: 'Event Position', headerLabel: 'Pos',
          get: x => x.eventPosition, fmt: H.number},
+        {id: 'event-distance', defaultEn: false, label: 'Event Distance', headerLabel: 'Ev Dst',
+         get: x => x.state.eventDistance, fmt: fmtDist},
         {id: 'event', defaultEn: false, label: 'Event', headerLabel: '<ms>event</ms>',
          get: x => x.state.eventSubgroupId, fmt: fmtEvent},
         {id: 'route', defaultEn: false, label: 'Route', headerLabel: '<ms>route</ms>',
@@ -273,8 +262,8 @@ const fieldGroups = [{
          get: x => x.state.progress, fmt: pct},
         {id: 'workout-zone', defaultEn: false, label: 'Workout Zone', headerLabel: 'Zone',
          get: x => x.state.workoutZone, fmt: x => x || '-'},
-        {id: 'road', defaultEn: false, label: 'Road ID', get: x => x.state.roadId},
-        {id: 'roadcom', defaultEn: false, label: 'Road Completion', headerLabel: 'Road %',
+        {id: 'road', defaultEn: false, label: 'Road ID', headerLabel: 'Rd ID', get: x => x.state.roadId},
+        {id: 'roadcom', defaultEn: false, label: 'Road Completion', headerLabel: 'Rd %',
          get: x => x.state.roadCompletion / 1e6, fmt: pct},
     ],
 }, {
@@ -437,9 +426,12 @@ const fieldGroups = [{
          get: x => x.eventLeader, fmt: x => x ? '<ms style="color: gold">star</ms>' : ''},
         {id: 'event-sweeper', defaultEn: false, label: 'Event Sweeper', headerLabel: '<ms>mop</ms>',
          get: x => x.eventSweeper, fmt: x => x ? '<ms style="color: darkred">mop</ms>' : ''},
-        {id: 'route-progress', defaultEn: false, label: 'Route Progress', get: x => x.state.routeProgress},
-        {id: 'route-road-index', defaultEn: false, label: 'Route Road Index',
+        {id: 'route-progress', defaultEn: false, label: 'Route Progress', headerLabel: 'RP',
+         get: x => x.state.routeProgress},
+        {id: 'route-road-index', defaultEn: false, label: 'Route Road Index', headerLabel: 'RPI',
          get: x => x.state.routeRoadIndex},
+        {id: 'road-time', defaultEn: false, label: 'Road Time', headerLabel: 'Rd Time',
+         get: x => (x.state.roadTime - 5000) / 1e6, fmt: x => x.toFixed(5)},
     ],
 }];
 
@@ -447,8 +439,8 @@ const fieldGroups = [{
 function onFilterInput(ev) {
     const f = ev.currentTarget.value;
     filters = parseFilters(f);
-    renderData(nearbyData);
     common.settingsStore.set('filtersRaw', f);
+    renderData(nearbyData);
 }
 
 
@@ -461,15 +453,17 @@ function parseFilters(raw) {
 
 
 export async function main() {
+    if (window.isElectron) {
+        const overlayMode = !!window.electron.context.spec.overlay;
+        doc.classList.toggle('overlay-mode', overlayMode);
+        document.querySelector('#titlebar').classList.toggle('always-visible', overlayMode !== true);
+        if (settings.overlayMode !== overlayMode) {
+            // Electron context overlay setting is the authority.
+            common.settingsStore.set('overlayMode', overlayMode);
+        }
+    }
     common.initInteractionListeners();
     common.initNationFlags();  // bg okay
-    let onlyMarked = common.settingsStore.get('onlyMarked');
-    let onlySameCategory= common.settingsStore.get('onlySameCategory');
-    let maxGap = common.settingsStore.get('maxGap');
-    let refresh;
-    const setRefresh = () => {
-        refresh = (common.settingsStore.get('refreshInterval') || 0) * 1000 - 100; // within 100ms is fine.
-    };
     const gcs = await common.rpc.getGameConnectionStatus();
     gameConnection = !!(gcs && gcs.connected);
     doc.classList.toggle('game-connection', gameConnection);
@@ -485,19 +479,13 @@ export async function main() {
         if (window.isElectron && key === 'overlayMode') {
             await common.rpc.updateWidgetWindowSpec(window.electron.context.id, {overlay: value});
             await common.rpc.reopenWidgetWindow(window.electron.context.id);
-        }
-        if (key === 'refreshInterval') {
-            setRefresh();
-        } else if (key === 'onlyMarked') {
-            onlyMarked = value;
-        } else if (key === 'onlySameCategory') {
-            onlySameCategory = value;
-        } else if (key === 'maxGap') {
-            maxGap = value;
+            return;
         } else if (key === '/exteranlEventSite') {
             eventSite = ev.data.value;
+        } else if (['solidBackground', 'backgroundColor', 'backgroundAlpha', 'hideHeader'].includes(key)) {
+            setStyles();
+            return;
         }
-        setBackground();
         render();
         if (nearbyData) {
             renderData(nearbyData);
@@ -512,7 +500,7 @@ export async function main() {
             }
         }
     });
-    setBackground();
+    setStyles();
     const fields = [].concat(...fieldGroups.map(x => x.fields));
     fieldStates = common.storage.get(fieldsKey, Object.fromEntries(fields.map(x => [x.id, x.defaultEn])));
     render();
@@ -566,24 +554,11 @@ export async function main() {
         filters = parseFilters(filtersRaw);
     }
     filterInput.addEventListener('input', onFilterInput);
-    setRefresh();
     let lastRefresh = 0;
     common.subscribe('nearby', data => {
-        if (onlyMarked) {
-            data = data.filter(x => x.watching || (x.athlete && x.athlete.marked));
-        }
-        if (onlySameCategory) {
-            const watching = data.find(x => x.watching);
-            const sgid = watching && watching.state.eventSubgroupId;
-            if (sgid) {
-                data = data.filter(x => x.state.eventSubgroupId === sgid);
-            }
-        }
-        if (maxGap) {
-            data = data.filter(x => Math.abs(x.gap) <= maxGap);
-        }
         nearbyData = data;
         const elapsed = Date.now() - lastRefresh;
+        const refresh = (settings.refreshInterval || 0) * 1000 - 100; // within 100ms is fine.
         if (elapsed >= refresh) {
             lastRefresh = Date.now();
             renderData(data);
@@ -604,8 +579,8 @@ async function watch(athleteId) {
 
 
 function render() {
-    doc.classList.toggle('autoscroll', common.settingsStore.get('autoscroll'));
-    doc.style.setProperty('--font-scale', common.settingsStore.get('fontScale') || 1);
+    doc.classList.toggle('autoscroll', settings.autoscroll);
+    doc.style.setProperty('--font-scale', settings.fontScale || 1);
     const fields = [].concat(...fieldGroups.map(x => x.fields));
     enFields = fields.filter(x => fieldStates[x.id]);
     enFields.forEach((x, i) => {
@@ -698,6 +673,19 @@ function renderData(data, {recenter}={}) {
     if (!data || !data.length || document.hidden) {
         return;
     }
+    if (settings.onlyMarked) {
+        data = data.filter(x => x.watching || (x.athlete && x.athlete.marked));
+    }
+    if (settings.onlySameCategory) {
+        const watching = data.find(x => x.watching);
+        const sgid = watching && watching.state.eventSubgroupId;
+        if (sgid) {
+            data = data.filter(x => x.state.eventSubgroupId === sgid);
+        }
+    }
+    if (settings.maxGap) {
+        data = data.filter(x => Math.abs(x.gap) <= settings.maxGap);
+    }
     const sortField = enFields.find(x => x.id === sortBy);
     const sortGet = sortField && (sortField.sortValue || sortField.get);
     if (sortGet) {
@@ -742,7 +730,7 @@ function renderData(data, {recenter}={}) {
     while (row.nextElementSibling) {
         disableRow(row = row.nextElementSibling);
     }
-    if ((!frames++ || recenter) && common.settingsStore.get('autoscroll')) {
+    if ((!frames++ || recenter) && settings.autoscroll) {
         requestAnimationFrame(() => {
             const r = tbody.querySelector('tr.watching');
             if (r) {
@@ -753,15 +741,9 @@ function renderData(data, {recenter}={}) {
 }
 
 
-function setBackground() {
-    const {solidBackground, backgroundColor, hideHeader} = common.settingsStore.get();
-    doc.classList.toggle('solid-background', !!solidBackground);
-    if (solidBackground) {
-        doc.style.setProperty('--background-color', backgroundColor);
-    } else {
-        doc.style.removeProperty('--background-color');
-    }
-    doc.classList.toggle('hide-header', !!hideHeader);
+function setStyles() {
+    common.setBackground(settings);
+    doc.classList.toggle('hide-header', !!settings.hideHeader);
 }
 
 

@@ -154,6 +154,8 @@ function humanDate(date, options={}) {
 
 const _intlTimeFormats = {
     'default': new Intl.DateTimeFormat([], {hour: 'numeric', minute: 'numeric', second: 'numeric'}),
+    'ms': new Intl.DateTimeFormat([], {hour: 'numeric', minute: 'numeric', second: 'numeric',
+                                       fractionalSecondDigits: 3}),
     'date': new Intl.DateTimeFormat([], {weekday: 'short', hour: 'numeric', minute: 'numeric',
                                          timeZoneName: 'short'}),
 };

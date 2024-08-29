@@ -272,7 +272,7 @@ export class MapAthlete extends MapEntity {
         const html = [];
         const state = this._state;
         if (state) {
-            const ad = common.getAthleteDataCacheEntry(state.athleteId);
+            const ad = common.getAthleteDataCacheEntry(state.athleteId, {maxAge: Infinity});
             const athlete = ad?.athlete;
             let name;
             if (athlete) {
@@ -281,6 +281,7 @@ export class MapAthlete extends MapEntity {
                 const c = this.chats[0][0];
                 name = `${c.firstName[0]}.${c.lastName}`;
             } else {
+                debugger;
                 name = `ID: ${state.athleteId}`;
             }
             const avatar = athlete?.avatar ?
@@ -288,9 +289,16 @@ export class MapAthlete extends MapEntity {
             html.push(`<a class="name" href="/pages/profile.html?id=${state.athleteId}&windowType=profile"
                           target="profile_popup_${state.athleteId}">${common.sanitize(name)}${avatar}</a>`);
             if (this._hardPin) {
-                html.push(`<br/>Power: ${H.power(state.power, {suffix: true, html: true})}`);
-                html.push(`<br/>Speed: ${H.pace(state.speed, {suffix: true, html: true,
-                                                              sport: state.sport})}`);
+                html.push(`<br/>${H.power(state.power, {suffix: true, html: true})}`);
+                if (state.heartrate) {
+                    html.push(`, ${H.number(state.heartrate, {suffix: 'bpm', html: true})}`);
+                }
+                html.push(`, ${H.pace(state.speed, {suffix: true, html: true, sport: state.sport})}`);
+                if (ad?.gap) {
+                    const placement = ad.gap > 0 ? 'behind' : 'ahead';
+                    const d = H.duration(Math.abs(ad.gap), {short: true, separator: ' ', html: true});
+                    html.push(`<br/>${d} <abbr class="unit">${placement}</abbr>`);
+                }
             }
         }
         if (this.chats.length) {
@@ -304,12 +312,8 @@ export class MapAthlete extends MapEntity {
 
     setPlayerState(state) {
         this._state = state;
-        if (this.pin) {
-            const sinceLast = Date.now() - this._lastStateRender;
-            if (sinceLast > 90000) {
-                this._lastStateRender = Date.now();
-                this.renderPinHTML(this.getPinHTML());
-            }
+        if (this.pin && this._hardPin) {
+            this.renderPinHTML(this.getPinHTML());
         }
     }
 
@@ -833,7 +837,12 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     _resetElements(viewBox) {
+        if (this._routeHighlight) {
+            this._routeHighlight.elements.forEach(x => x.remove());
+            this._routeHighlight = null;
+        }
         Object.values(this._elements.roadLayers).forEach(x => x.replaceChildren());
+        Object.values(this._elements.userLayers).forEach(x => x.replaceChildren());
         for (const ent of Array.from(this._ents.values()).filter(x => x.gc)) {
             this.removeEntity(ent);
         }
@@ -1127,6 +1136,14 @@ export class SauceZwiftMap extends EventTarget {
         ent.togglePin();
     }
 
+    setTransitionDuration(ms) {
+        this._mapTransition.setDuration(ms);
+    }
+
+    getTransitionDuration(ms) {
+        return this._mapTransition.duration;
+    }
+
     renderAthleteStates = common.asyncSerialize(async states => {
         if (this.watchingId == null || !common.isVisible()) {
             return;
@@ -1166,6 +1183,8 @@ export class SauceZwiftMap extends EventTarget {
             }
         }
         const now = Date.now();
+        const lowPrioAthleteUpdates = [];
+        const highPrioAthleteUpdates = [];
         for (const state of states) {
             if (!this._ents.has(state.athleteId)) {
                 this._addAthleteEntity(state);
@@ -1185,6 +1204,11 @@ export class SauceZwiftMap extends EventTarget {
                 powerLevel = 'z6';
             }
             const ent = this._ents.get(state.athleteId);
+            if (ent && ent.pin) {
+                highPrioAthleteUpdates.push(state.athleteId);
+            } else {
+                lowPrioAthleteUpdates.push(state.athleteId);
+            }
             const age = now - ent.lastSeen;
             if (age) {
                 if (age < 2500) {
@@ -1217,7 +1241,10 @@ export class SauceZwiftMap extends EventTarget {
             }
             this._pendingEntityUpdates.add(ent);
         }
-        common.idle().then(() => this._updateAthleteDetails(states.map(x => x.athleteId)));
+        common.idle().then(() => {
+            this._updateAthleteDetails(lowPrioAthleteUpdates, {maxAge: 300000});
+            this._updateAthleteDetails(highPrioAthleteUpdates, {maxAge: 2000});
+        });
     });
 
     setHeadingOffset(heading) {
@@ -1407,8 +1434,8 @@ export class SauceZwiftMap extends EventTarget {
         }
     }
 
-    async _updateAthleteDetails(ids) {
-        const ads = await common.getAthletesDataCached(ids);
+    async _updateAthleteDetails(ids, options) {
+        const ads = await common.getAthletesDataCached(ids, options);
         for (const ad of ads) {
             const ent = this._ents.get(ad?.athleteId);
             if (ent && ad) {

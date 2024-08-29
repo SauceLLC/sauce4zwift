@@ -153,6 +153,10 @@
                     --clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
                 }
 
+                &.circle {
+                    --clip-path: circle(50%);
+                }
+
                 &.athlete {
                     --zone: 0;
                     z-index: calc(var(--zone) + var(--priority));
@@ -280,6 +284,8 @@
     }
 
     .pins {
+        $border-color: #fff;
+        $border-size: 0.18em;
         pointer-events: none;
         position: absolute;
         top: 0;
@@ -311,8 +317,6 @@
         .pin-inner {
             $carrot-width: 1em;
             $carrot-height: 1em;
-            $border-color: #fff;
-            $border-size: 0.2em;
             $bg-color: #0b49a3;
             bottom: $carrot-height;
             pointer-events: all;
@@ -325,7 +329,7 @@
             color: #fff;
             background-color: $bg-color;
             border: $border-size solid $border-color;
-            border-radius: 0.5em;
+            border-radius: 0.8em;
             position: absolute;
             will-change: transform;
 
@@ -383,13 +387,13 @@
         }
 
         .pin-content {
-            padding: 0.4em;
+            padding: 0.3em 0.5em;
             white-space: nowrap;
             text-overflow: ellipsis;
             overflow: hidden;
             max-width: 100%;
             line-height: 1.35;
-            font-size: 0.94em;
+            font-weight: 550;
             font-variation-settings: "wdth" 94;
 
             avatar-pad {
@@ -402,12 +406,12 @@
                 float: right;
                 position: absolute;
                 right: -1em;
-                top: -1em;
+                top: -1.6em;
                 width: 3em;
                 height: 3em;
                 border-radius: 50%;
                 background-color: white;
-                border: 3px solid white;
+                border: $border-size solid $border-color;
                 box-shadow: 1px 1px 2px 0 #0006;
             }
 
@@ -417,9 +421,9 @@
 
             .chat {
                 margin-top: 0.3em;
+                margin-bottom: 0.3em;
                 font-size: 0.88em;
                 font-style: italic;
-                font-weight: 450;
                 white-space: pre-wrap;
                 line-height: 1.2;
                 display: block;
@@ -430,8 +434,7 @@
 
         abbr.unit {
             font-size: 0.86em;
-            opacity: 0.8;
-            padding-left: 0.2em;
+            padding-left: 0.1em;
         }
     }
 }

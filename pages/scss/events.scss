@@ -18,7 +18,7 @@ html {
 }
 
 .trophy {
-    font-size: 1.3em;
+    font-size: 1.1em;
     border-radius: 50%;
     width: 1.5em;
     height: 1.5em;
@@ -76,8 +76,25 @@ table {
         > tbody > tr {
             scroll-margin-top: 2.38em;  // roughly header height
 
-            &.started > td {
-                opacity: 0.5;
+            &.started {
+                > td {
+                    opacity: 0.6;
+                }
+
+                &.joinable > td.start {
+                    opacity: 1;
+                    color: #ffc500;
+                }
+
+                &:not(.joinable) {
+                    > td.start {
+                        text-decoration: line-through;
+                    }
+
+                    + tr.details header .button.signup-action {
+                        display: none;
+                    }
+                }
             }
 
             &.signedup {
@@ -100,15 +117,25 @@ table {
 
             > td.start {
                 font-size: 0.92em;
+                font-stretch: 94%;
             }
 
             > td.type {
-                font-size: 0.8em;
+                font-size: 0.86em;
                 font-weight: 500;
+                font-stretch: 94%;
             }
 
             > td.name {
-                max-width: 30vw;
+                max-width: 28vw;
+            }
+
+            > td.route {
+                max-width: 11vw;
+                font-weight: 310;
+                font-style: italic;
+                font-size: 0.92em;
+                font-stretch: 91%;
             }
 
             > td.groups {
@@ -130,14 +157,14 @@ table {
 
     > thead > tr > th,
     > tbody > tr > td {
-        padding: 0.4em;
+        padding: 0.4em 0.2em;;
         text-align: left;
 
         &:first-child {
-            padding-left: 1.5em;
+            padding-left: 1.4em;
         }
         &:last-child {
-            padding-right: 1.5em;
+            padding-right: 1.4em;
         }
     }
 
@@ -212,6 +239,20 @@ table {
             background: #0300001f;
             border-radius: 0.3em;
 
+            &:not(.results) .only-results,
+            &:not(.signups) .only-signups,
+            &:not(.loading) .only-loading,
+            &:not(.can-signup) .only-can-signup,
+            &:not(.signedup) .only-signedup {
+                display: none;
+            }
+
+            &:not(.signups) {
+                header .button.signup-action {
+                    display: none;
+                }
+            }
+
             header {
                 display: flex;
                 flex-wrap: wrap;
@@ -266,6 +307,10 @@ table {
 
                 .name {
                     font-weight: 600;
+
+                    @media (min-width: 600px)  {
+                        max-width: 40vw;
+                    }
                 }
             }
         }
@@ -291,11 +336,81 @@ table {
                 margin-bottom: -0.36em;
             }
 
+            > tbody > tr.summary.self:not(.expanded) {
+                clip-path: xywh(0 0 100% 100% round 0.5em); // tr border-radius
+                background-image: linear-gradient(to bottom, // must be vertical heading for Safari
+                    color.shade(primary, -30%, 0.9),
+                    color.shade(primary, -40%, 0.8));
+
+                td {
+                    padding-top: 0.65em;
+                    padding-bottom: 0.65em;
+                }
+
+                &:hover {
+                    background-image: linear-gradient(to bottom, // must be vertical heading for Safari
+                        color.shade(primary, -22%, 0.9),
+                        color.shade(primary, -32%, 0.8));
+                }
+            }
+
             > thead > tr {
                 background-color: #0003;
 
                 th.icon {
                     padding: 0;
+                }
+            }
+
+            &.results {
+                > thead th.time,
+                > thead th.distance {
+                    text-align: right;
+                }
+
+                > tbody > tr.summary {
+                    &.invalid {
+                        opacity: 0.7;
+                        font-weight: 200 !important;
+                    }
+
+                    > td.time,
+                    > td.distance {
+                        text-align: right;
+                        font-variant-numeric: tabular-nums;
+
+                        &.relative {
+                            font-size: 0.8em;
+                        }
+                    }
+
+                    > td.place {
+                        text-align: center;
+                    }
+
+                    > td.icons {
+                        ms {
+                            font-size: 1.3em;
+                            font-weight: 600;
+                            line-height: 0.7;
+                            filter: drop-shadow(0 0 1px black);
+                        }
+
+                        .flag {
+                            color: #f32d24;
+                        }
+
+                        .warning {
+                            color: #ffe200;
+                        }
+                    }
+
+                    > td.power {
+                        &[data-power-type="VIRTUAL_POWER"] {
+                            text-decoration: line-through;
+                            text-decoration-color: darkred;
+                        }
+                    }
                 }
             }
 
@@ -311,6 +426,10 @@ table {
                         font-size: 1.4em;
                         margin-left: -0.15em;
                         margin-right: -0.15em;
+                    }
+
+                    .danger {
+                        color: color.get(danger);
                     }
                 }
             }
@@ -431,7 +550,6 @@ table {
     }
 
     table {
-        table-layout: fixed;
         width: 100%;
 
         > thead > tr > th,
@@ -461,37 +579,67 @@ table {
 
         &.events {
             > thead > tr > {
-                th.name {
-                    visibility: hidden;
-                    width: 0;
-                    padding: 0;
-                    margin: 0;
+                th.start,
+                th.name,
+                th.route {
+                    visibility: hidden !important;
+                    position: absolute !important;
+                    width: 0 !important;
+                    padding: 0 !important;
+                    margin: 0 !important;
                 }
             }
 
             > tbody > tr.event-row {
+                $start-width: 10rem;
+                $side-pad: 0.3rem;
                 position: relative;
 
                 &.expanded > td.name {
                     padding-top: 0.2em;
                 }
 
+                > td.type {
+                    padding-left: $side-pad;
+                    max-width: max(10vw, 12ch);
+                }
+
+                > td.start,
                 > td.name {
                     max-width: initial;
                     position: absolute;
-                    top: 0.2em;
-                    left: 0.4em;
-                    width: calc(100% - 0.8em);
+                    top: 0.4rem;
                     font-weight: 500;
                     overflow: hidden;
                     text-overflow: ellipsis;
                     white-space: nowrap;
-                    padding-left: 0.04em;
+                    padding: 0;
                 }
 
-                > td:not(.name) {
-                    padding-top: 2.1rem;
-                    padding-bottom: 0.5rem;
+                > td.start {
+                    right: $side-pad;
+                    width: $start-width;
+                    text-align: right;
+                }
+                > td.name {
+                    left: $side-pad;
+                    width: calc(100% - (2 * $side-pad) - $start-width);
+                }
+                > td.route {
+                    visibility: none;
+                    position: absolute;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    width: 0 !important;
+                }
+
+                > td:not(.name):not(.route):not(.start) {
+                    padding-top: 2.4rem;
+                    padding-bottom: 0.4rem;
+                }
+
+                > td.count {
+                    text-align: right;
                 }
             }
         }

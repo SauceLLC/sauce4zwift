@@ -13,6 +13,11 @@ const staticTheme = {
         textBorderColor: 'transparent',
         textBorderWidth: 0,
     },
+    endLabel: {
+        color: '#fffc',
+        textBorderColor: '#000c',
+        textBorderWidth: 2,
+    },
     title: {
         textStyle: {
             color: "rgba(255,255,255,0.92)",
@@ -194,6 +199,13 @@ function genDynamicTheme({fg='fg', bg='bg'}={}) {
             textBorderColor: 'transparent',
             textBorderWidth: 0,
         },
+        endLabel: {
+            color: cssColor(fg, 0, 0.80),
+            fontWeight: 600,
+            fontSize: '0.6em',
+            textBorderColor: cssColor(fg, 1, 0.80),
+            textBorderWidth: 2,
+        },
         title: {
             textStyle: {
                 color: cssColor(fg, 0, 0.92),
@@ -365,9 +377,9 @@ function genDynamicTheme({fg='fg', bg='bg'}={}) {
                 fontSize: '0.76em',
                 color: cssColor(fg, 0, 1),
                 textBorderColor: cssColor(fg, 1, 0.8),
-                textBorderWidth: 2,
-                textShadowColor: cssColor(fg, 1, 0.5),
-                textShadowBlur: 8,
+                textBorderWidth: 1,
+                textShadowColor: cssColor(fg, 1, 0.4),
+                textShadowBlur: 4,
             },
         },
         markPoint: {

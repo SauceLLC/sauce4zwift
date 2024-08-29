@@ -9,6 +9,7 @@ import protobuf from 'protobufjs';
 import * as env from './env.mjs';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
+import * as losslessJSON from 'lossless-json';
 const require = createRequire(import.meta.url);
 const {XXHash32} = require('xxhash-addon');
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -79,44 +80,36 @@ function fmtTime(ms) {
 class WorldTimer extends events.EventEmitter {
     constructor() {
         super();
-        // Start with assumption that Date.now() is accurate but it will be tuned
-        // on each UDP connection.
-        this._epoch = 1414016074335;
-        this._offt = this._epoch;
+        this._epoch = 1414016074400;
+        this._offt = 0;
     }
 
     now() {
-        return Date.now() - this._offt;
+        return Date.now() + this._offt - this._epoch;
     }
 
     serverNow() {
-        return Date.now() + (this._epoch - this._offt);
+        return Date.now() + this._offt;
     }
 
-    toTime(wt) {
-        return wt + this._offt;
+    toLocalTime(wt) {
+        return wt + this._epoch - this._offt;
+    }
+
+    fromLocalTime(ts) {
+        return ts - this._epoch + this._offt;
     }
 
     toServerTime(wt) {
         return wt + this._epoch;
     }
 
-    adjust(diff) {
-        if (Math.abs(diff) > 5000) {
-            console.warn("Shifting worldTimer offset:", diff);
-        }
+    adjustOffset(diff) {
         this._offt = Math.round(this._offt + diff);
         this.emit('offset', diff);
-
-    }
-
-    setOffset(offt) {
-        const diff = offt - this._offt;
         if (Math.abs(diff) > 5000) {
-            console.warn("Shifting worldTimer offset:", diff);
+            console.warn("Shifted WorldTime offset:", diff, this._offt);
         }
-        this._offt = Math.round(offt);
-        this.emit('offset', diff);
     }
 }
 
@@ -178,7 +171,7 @@ function decodeWorldTime(buf) {
     const intBE = buf.readInt32BE();
     const floatLE = buf.readFloatLE();
     const floatBE = buf.readFloatBE();
-    console.devWarn("Figure this out (worldTime):", {intLE, intBE, floatLE, floatBE});
+    console.debug("Figure this out (worldTime):", {intLE, intBE, floatLE, floatBE});
     return {};
 }
 
@@ -308,6 +301,9 @@ export class ZwiftAPI {
         if (options.host) {
             this.host = options.host;
         }
+        if (options.scheme) {
+            this.scheme = options.scheme;
+        }
         const r = await this.fetch('/auth/realms/zwift/protocol/openid-connect/token', {
             host: this.host || 'secure.zwift.com',
             noAuth: true,
@@ -394,27 +390,23 @@ export class ZwiftAPI {
             'Source': 'Game Client',
             'User-Agent': 'CNL/3.44.0 (Darwin Kernel 23.2.0) zwift/1.0.122968 game/1.54.0 curl/8.4.0'
         };
-        const host = options.host || this.host || `us-or-rly101.zwift.com`;
         let query = options.query;
         if (query && !(query instanceof URLSearchParams)) {
             query = new URLSearchParams(Object.entries(query).filter(([k, v]) => v != null));
         }
         const q = query ? `?${query}` : '';
-        const timeout = options.timeout !== undefined ? options.timeout : 30000;
-        const abort = new AbortController();
-        const to = timeout && setTimeout(() => abort.abort(), timeout);
-        let r;
-        try {
-            r = await fetch(`https://${host}/${urn.replace(/^\//, '')}${q}`, {
-                signal: abort.signal,
-                headers: {...defHeaders, ...headers},
-                ...options,
-            });
-        } finally {
-            if (to) {
-                clearTimeout(to);
-            }
+        const host = options.host || this.host || 'us-or-rly101.zwift.com';
+        const scheme = options.scheme || this.scheme || 'https';
+        const uri = `${scheme}://${host}/${urn.replace(/^\//, '')}`;
+        if (!options.silent) {
+            console.debug(`Fetch: ${options.method || 'GET'} ${uri}`);
         }
+        const timeout = options.timeout !== undefined ? options.timeout : 30000;
+        const r = await fetch(`${uri}${q}`, {
+            signal: timeout ? AbortSignal.timeout(timeout) : undefined,
+            headers: {...defHeaders, ...headers},
+            ...options,
+        });
         if (!r.ok && (!options.ok || !options.ok.includes(r.status))) {
             const msg = await r.text();
             const e = new Error(`Zwift HTTP Error: [${r.status}]: ${msg}`);
@@ -463,7 +455,7 @@ export class ZwiftAPI {
         const r = await this.fetch(urn, {accept: 'protobuf', ...options}, headers);
         const data = Buffer.from(await r.arrayBuffer());
         if (options.debug) {
-            console.dev('PB API DEBUG', urn, data.toString('hex'));
+            console.debug('PB API DEBUG', urn, data.toString('hex'));
         }
         const ProtoBuf = protos.get(options.protobuf);
         return ProtoBuf.decode(data);
@@ -595,7 +587,7 @@ export class ZwiftAPI {
 
     async getSegmentResults(segmentId, options={}) {
         const query = {
-            world_id: 1,
+            world_id: 1,  // mislabeled realm
             segment_id: segmentId,
         };
         if (options.athleteId) {
@@ -610,17 +602,19 @@ export class ZwiftAPI {
         if (options.best) {
             query['only-best'] = 'true';
         }
-        const resp = pbToObject(await this.fetchPB('/api/segment-results',
-                                                   {query, protobuf: 'SegmentResults'}));
-        if (!resp.results) {
-            return;
-        }
+        const resp = await this.fetchPB('/api/segment-results', {query, protobuf: 'SegmentResults'});
         resp.results.sort((a, b) => a.elapsed - b.elapsed);
-        return resp.results;
+        return resp.results.map(pbToObject);
     }
 
     async getGameInfo() {
-        return await this.fetchJSON(`/api/game_info`, {apiVersion: '2.7'});
+        const r = await this.fetch('/api/game_info', {accept: 'json'}, {apiVersion: '2.7'});
+        return losslessJSON.parse(await r.text(), function(key, x) {
+            if (x instanceof losslessJSON.LosslessNumber) {
+                return (key !== 'id' && !Array.isArray(this) ? Number(x.value) : x.toString());
+            }
+            return x;
+        });
     }
 
     async getDropInWorldList() {
@@ -769,17 +763,21 @@ export class ZwiftAPI {
         return results;
     }
 
-    async getEventSubgroupEntrants(id) {
+    async getEventSubgroupEntrants(id, options={}) {
         const entrants = [];
-        const limit = 100;
-        let start = 0;
-        // XXX signed_up seems to be more inclusive but sometimes a user is only in registered
-        // I don't know the difference but I can't stand the idea of hitting both.
-        while (true) {
+        const limit = options.limit || 100;
+        let start = (options.page != null) ? options.page * limit : 0;
+        // There is some cruft around participation type:
+        //   "signed_up" is just signed up.
+        //   "registered" is actually athletes that joined the event in-game.
+        //   The companion app shows a value of 'entered' but this doesn't work.
+        //   So this API will allow asking for {joined: true} as a yet-another-variant
+        //   as a means of abstracting from the ambiguous other names.
+        do {
             const data = await this.fetchJSON(`/api/events/subgroups/entrants/${id}`, {
                 query: {
-                    type: 'all',
-                    participation: 'signed_up',
+                    type: options.type || 'all', // or 'leader', 'sweeper', 'favorite', 'following', 'other'
+                    participation: options.joined ? 'registered' : 'signed_up',
                     limit,
                     start,
                 }
@@ -789,8 +787,57 @@ export class ZwiftAPI {
                 break;
             }
             start += data.length;
-        }
+        } while (options.page == null);
         return entrants;
+    }
+
+    async getQueue() {
+        const results = await this.fetchJSON(`/api/queue`, {});
+        return results;
+    }
+
+    async getWorkout(workoutId, options={}) {        
+        let results = {};
+        if (options.all) {
+            let page = 1;
+            let pageSize = 100;
+            let allWorkouts = []
+            while (true) {
+                const workouts = await this.fetchJSON(`/api/workout/workouts`, {
+                    query: {
+                        filter: null,
+                        sort: null,
+                        page: page,
+                        pageSize: pageSize,
+                    }
+                });
+                if (workouts.length > 0) {                        
+                    for (let w of workouts) {
+                        allWorkouts.push(w);
+                    }
+                    page++;
+                } else {
+                    break;
+                }
+            }
+            results = allWorkouts;
+        } else {
+            await this.fetchJSON(`/api/workout/workouts/${workoutId}`) // get the workout
+                .then(workout => this.fetch(workout.workoutAssetUrl.replace("https://us-or-rly101.zwift.com/",""))) // get the workoutAsset
+                .then(workoutDetails => workoutDetails.text()) 
+                .then(workoutText => results = workoutText)
+        }
+        return results;
+    }
+
+    async getWorkoutCollection(collectionID, options={}) {        
+        let results = {};
+        if (options.all) {
+            results = await this.fetchJSON(`/api/workout/collections?pageSize=100`)
+        } else {
+            results = await this.fetchJSON(`/api/workout/collections/${collectionID}/workouts?pageSize=100`)
+        }
+        return results;
     }
 
     async deleteEventSignup(eventId) {
@@ -1198,12 +1245,16 @@ class UDPChannel extends NetChannel {
                 if (this.active === false) {
                     reject(new InactiveChannelError());
                 }
-                const localTime = Date.now();
+                const localWorldTime = worldTimer.now();
                 const sent = syncStamps.get(packet.ackSeqno);
-                const latency = (localTime - sent) / 2;
-                const offt = localTime - (packet.worldTime.toNumber() + latency);
+                if (sent === undefined) {
+                    return;  // already measured / non-hello packet
+                }
+                syncStamps.delete(packet.ackSeqno);
+                const latency = (localWorldTime - sent) / 2;
+                const offt = localWorldTime - (packet.worldTime.toNumber() + latency);
                 offsets.push({latency, offt});
-                if (offsets.length > 4) {
+                if (offsets.length > 5) {
                     // SNTP ...
                     offsets.sort((a, b) => a.latency - b.latency);
                     const mean = offsets.reduce((a, x) => a + x.latency, 0) / offsets.length;
@@ -1211,12 +1262,12 @@ class UDPChannel extends NetChannel {
                     const stddev = Math.sqrt(variance.reduce((a, x) => a + x, 0) / variance.length);
                     const median = offsets[offsets.length / 2 | 0].latency;
                     const validOffsets = offsets.filter(x => Math.abs(x.latency - median) < stddev);
-                    if (validOffsets.length > 2) {
+                    if (validOffsets.length > 4) {
                         const meanOffset = validOffsets.reduce((a, x) => a + x.offt, 0) / validOffsets.length;
-                        worldTimer.setOffset(meanOffset);
+                        worldTimer.adjustOffset(-meanOffset);
                         this.off('inPacket', onPacket);
                         complete = true;
-                        resolve();
+                        this.emit('latency', median);
                     }
                 }
             };
@@ -1231,14 +1282,14 @@ class UDPChannel extends NetChannel {
             // but if our clock is too far off they will ignore us, so we need to sync our
             // worldTime offset too.  Some research on common game timer sync methods
             // suggests SNTP should be fine here.
-            const ts = Date.now();
+            const ts = worldTimer.now();
             const {seqno} = await this.sendPacket({
                 athleteId: this.athleteId,
                 realm: 1,
                 worldTime: 0,
             }, {hello: true});
             syncStamps.set(seqno, ts);
-            await Promise.race([sleep(20 * i), syncComplete]);
+            await Promise.race([sleep(10 * i), syncComplete]);
         }
         if (!complete) {
             console.error("Timeout waiting for handshake sync:", this.toString());
@@ -1310,7 +1361,6 @@ class UDPChannel extends NetChannel {
 export class GameMonitor extends events.EventEmitter {
 
     _stateRefreshDelayMin = 3000;
-    _sessionRestartSlack = 300 * 1000;
 
     constructor(options={}) {
         super();
@@ -1335,15 +1385,12 @@ export class GameMonitor extends events.EventEmitter {
         this._lastWorldUpdate = 0;
         this._lastTCPServer;
         this._stateRefreshDelay = this._stateRefreshDelayMin;
+        this._latency;
         worldTimer.on('offset', diff => {
             const dev = Math.abs(diff);
             if (dev > 200) {
                 // Otherwise we could be stuck watching the wrong athlete.
                 this._setWatchingWorldTime = 0;
-                if (dev > 5000) {
-                    // Uses worldTime for expiration.
-                    this._schedHashSeedsRefresh();
-                }
             }
         });
         setInterval(() => this.logStatus(), 60000);
@@ -1360,7 +1407,7 @@ export class GameMonitor extends events.EventEmitter {
         return `GameMonitor [game-id: ${this.gameAthleteId}, monitor-id: ${this.athleteId}]\n${pad}` + [
             `course-id:            ${this.courseId}`,
             `watching-id:          ${this.watchingAthleteId}`,
-            `connect-duration:     ${fmtTime(Date.now() - this.connectingTS)}`,
+            `connect-duration:     ${fmtTime(now - this.connectingTS)}`,
             `connect-count:        ${this.connectingCount}`,
             `last-game-state:      ${fmtTime(lgs)} ago`,
             `last-watching-state:  ${fmtTime(lws)} ago`,
@@ -1370,17 +1417,47 @@ export class GameMonitor extends events.EventEmitter {
         ].join('\n    ');
     }
 
+    getDebugInfo() {
+        const now = Date.now();
+        const lgs = this._lastGameStateUpdated ? now - this._lastGameStateUpdated : '-';
+        const lws = this._lastWatchingStateUpdated ? now - this._lastWatchingStateUpdated : '-';
+        return {
+            connectionStatus: (this._session && this._session.tcpChannel) ? 'connected' : 'disconnected',
+            active: this._udpChannels.some(x => x.active),
+            latency: this._latency,
+            connectTime: now - this.connectingTS,
+            connectCount: this.connectingCount,
+            lastGameState: lgs,
+            lastWatchingState: lws,
+            stateRefreshDelay: this._stateRefreshDelay,
+            worldTime: worldTimer.now(),
+            serverTime: worldTimer.serverNow(),
+            localTime: now,
+            worldTimeOffset: worldTimer._offt,
+        };
+    }
+
     logStatus() {
         console.debug(this.toString());
     }
 
     async login() {
         const aesKey = crypto.randomBytes(16);
+        const t1 = worldTimer.serverNow();
         const login = await this.api.fetchPB('/api/users/login', {
             method: 'POST',
             pb: protos.LoginRequest.encode({aesKey}),
             protobuf: 'LoginResponse',
         });
+        const t2 = worldTimer.serverNow();
+        const tMean = t1 + ((t2 - t1) / 2);
+        const serverTime = login.session.time.toNumber() * 1000;
+        const tDelta = tMean - serverTime;
+        if (Math.abs(tDelta) > 60000) {
+            // Perform course clock correction prior to any SNTP fine tuning to avoid hash seed errors
+            console.warn('System clock is highly inaccurate:', fmtTime(tDelta));
+            worldTimer.adjustOffset(-tDelta);
+        }
         const expires = Date.now() + (login.expiration * 60 * 1000);
         await sleep(1000); // No joke this is required (100ms works about 50% of the time)
         return {
@@ -1451,7 +1528,7 @@ export class GameMonitor extends events.EventEmitter {
 
     _schedHashSeedsRefresh(delay) {
         clearTimeout(this._refreshHashSeedsTimeout);
-        if (this._stopping || (!delay && !this._hashSeeds.length)) {
+        if (this._stopping || (!delay && !this._hashSeeds.length)) { // XXX hashSeeds.length will always be !0
             return;
         }
         if (!delay) {
@@ -1528,25 +1605,25 @@ export class GameMonitor extends events.EventEmitter {
         this.logStatus();
     }
 
-    async renewSession() {
+    async refreshSession() {
         if (!this._starting || this._stopping) {
             throw new TypeError('invalid state');
         }
-        console.info("Renewing Zwift relay session...");
-        try {
-            await this._renewSession();
-        } catch(e) {
-            console.error('Renew session attempt failed:', e);
-            this._schedConnectRetry();
+        console.info("Refreshing Zwift relay session...");
+        const relaySessionId = this._session.relayId;
+        const resp = await this.api.fetchPB('/relay/session/refresh', {
+            method: 'POST',
+            pb: protos.RelaySessionRefreshRequest.encode({relaySessionId}),
+            protobuf: 'RelaySessionRefreshResponse',
+        });
+        if (resp.relaySessionId !== relaySessionId) {
+            // TBD: Remove after long session verification tests...
+            console.error("Different Relay Session ID encountered during session refresh:", relaySessionId,
+                          resp.relaySessionId);
+            throw new Error('Unhandled session refresh state');
         }
-        this.logStatus();
-    }
-
-    async _renewSession() {
-        this._setConnecting();
-        const session = await this.login();
-        await this.establishTCPChannel(session);
-        await this.activateSession(session);
+        this._session.expires = Date.now() + (resp.expiration * 60 * 1000);
+        this._schedSessionRefresh(this._session.expires);
     }
 
     disconnect() {
@@ -1600,14 +1677,10 @@ export class GameMonitor extends events.EventEmitter {
             ip = this._udpServerPools.get(0).servers[0].ip;
         }
         const hashSeed = this._hashSeeds.at(-1);
-        const hashSeedRemaining = hashSeed.expiresWorldTime - worldTimer.now();
-        const sessionRemaining = this._session.expires - Date.now();
-        const expiresIn = Math.min(
-            hashSeedRemaining - 120 * 1000,
-            sessionRemaining - this._sessionRestartSlack / 2);
+        const expiresIn = (hashSeed.expiresWorldTime - worldTimer.now()) * 0.90;
         if (!expiresIn || expiresIn < 0) {
             // Internal error
-            console.error('Expired session or hash seeds:', {expiresIn, hashSeedRemaining, sessionRemaining});
+            console.error('Expired session or hash seeds:', expiresIn);
             throw new TypeError('Expired session or hash seeds');
         }
         const ch = new UDPChannel({
@@ -1633,6 +1706,7 @@ export class GameMonitor extends events.EventEmitter {
             }
         });
         ch.on('inPacket', this.onInPacket.bind(this));
+        ch.on('latency', x => this._latency = x);
         ch.on('timeout', () => {
             console.warn("Data watchdog timeout triggered:", ch.toString());
             ch.shutdown();
@@ -1641,7 +1715,7 @@ export class GameMonitor extends events.EventEmitter {
     }
 
     onTCPChannelShutdown(ch) {
-        console.info("TCP channel shutdown:", ch.toString());
+        console.warn("TCP channel shutdown:", ch.toString());
         if (this._session && this._session.tcpChannel === ch && !this._stopping) {
             this._schedConnectRetry();
         }
@@ -1678,7 +1752,6 @@ export class GameMonitor extends events.EventEmitter {
         const old = this._session;
         this._session = null;
         if (old) {
-            clearTimeout(this._sessionTimeout);
             if (old.tcpChannel) {
                 try {
                     old.tcpChannel.shutdown();
@@ -1687,16 +1760,23 @@ export class GameMonitor extends events.EventEmitter {
                 }
             }
         }
-        const renewDelay = session.expires - Date.now() - this._sessionRestartSlack;
-        console.info('Next session renewal scheduled for:', fmtTime(renewDelay));
-        this._sessionTimeout = setTimeout(this.renewSession.bind(this), renewDelay);
         this._session = session;
+        this._schedSessionRefresh(session.expires);
         if (!this.suspended && this.courseId) {
             this.setUDPChannel();
         } else {
             console.warn("User not in game: waiting for activity...");
             this.suspend();
         }
+    }
+
+    _schedSessionRefresh(expires) {
+        const refreshDelay = (expires - Date.now()) * 0.90;
+        console.debug('Next session refresh:', fmtTime(refreshDelay));
+        if (this._sessionTimeout) {
+            clearTimeout(this._sessionTimeout);
+        }
+        this._sessionTimeout = setTimeout(this.refreshSession.bind(this), refreshDelay);
     }
 
     incErrorCount() {
@@ -1778,6 +1858,8 @@ export class GameMonitor extends events.EventEmitter {
             if (e.status !== 429) {
                 if (e.name === 'FetchError') {
                     console.warn("Refresh states network problem:", e.message);
+                } else if (e.name === 'TimeoutError' || e.name === 'AbortError') { // API is influx
+                    console.warn("Refresh states network timeout");
                 } else {
                     console.error("Refresh states error:", e);
                 }

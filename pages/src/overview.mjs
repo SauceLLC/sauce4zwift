@@ -16,8 +16,11 @@ common.settingsStore.setDefault({
     centerGapSize: 0,
 });
 
+const settings = common.settingsStore.get();
+
+const modSafeIds = new Map();
+
 function updateButtonVis() {
-    const settings = common.settingsStore.get();
     for (const x of ['Analysis', 'Athletes', 'Events']) {
         const btn = document.querySelector(`.controls .button[data-settings-key="${x}"]`);
         if (!btn) {
@@ -31,6 +34,7 @@ function updateButtonVis() {
 
 export function main() {
     common.initInteractionListeners();
+    common.setBackground(settings);
     updateButtonVis();
     let autoHidden;
     let lastData;
@@ -49,6 +53,7 @@ export function main() {
         } else if (key.match(/hide.+Button/)) {
             updateButtonVis();
         } else {
+            common.setBackground(settings);
             if (renderer) {
                 renderer.stop();
                 renderer = null;
@@ -187,31 +192,38 @@ async function renderProfiles() {
 
 
 async function renderAvailableMods() {
-    document.querySelector('.mods-path.button').addEventListener('click', common.rpc.showModsRootFolder);
     const mods = await common.rpc.getAvailableMods();
     const el = document.querySelector('#mods-container');
     if (!mods || !mods.length) {
-        el.innerHTML = `<b><i>No mods detected</i></b>`;
+        el.innerHTML = `<b><i>No Mods detected</i></b>`;
         return;
     }
     const html = [];
-    const ids = {};
-    for (const {manifest, id, enabled} of mods) {
+    for (const {manifest, id, enabled, packed, restartRequired, status} of mods) {
         if (!manifest) {
             continue;
         }
         const safeId = common.sanitizeAttr(id);
-        ids[safeId] = id;
+        modSafeIds.set(safeId, id);
+        const optRemove = !restartRequired ?
+            packed ?
+                `<span class="button std xs danger" data-mod-action="remove">Remove</span>` :
+                `<small class="badge" style="--sat: 0"
+                        title="Mod is manually installed in the SauceMods folder">unpacked</small>` :
+            '';
+        const enBox = !restartRequired ?
+            `Enabled <input type="checkbox" ${enabled ? 'checked' : ''}/>` :
+            `<small class="badge" style="--sat: 0">${status}</small>`;
         html.push(`
-            <div class="mod" data-id="${safeId}">
-                <div class="title">
+            <div class="mod ${restartRequired ? 'restart-required' : ''}" data-id="${safeId}">
+                <div class="header">
                     <div>
                         <span class="name">${common.stripHTML(manifest.name)}</span>
                         <span class="version">(v${manifest.version})</span>
+                        ${optRemove}
                     </div>
-                    <label class="enabled">
-                        Enabled
-                        <input type="checkbox" ${enabled ? 'checked' : ''}/>
+                    <label data-mod-action="enable-toggle" class="enabled ${restartRequired ? 'edited' : ''}">
+                        ${enBox}
                         <span class="restart-required"></span>
                     </label>
                 </div>
@@ -232,16 +244,6 @@ async function renderAvailableMods() {
         html.push(`</div>`);
     }
     el.innerHTML = html.join('');
-    el.addEventListener('click', async ev => {
-        const label = ev.target.closest('label.enabled');
-        if (!label) {
-            return;
-        }
-        const enabled = label.querySelector('input').checked;
-        const id = ids[ev.target.closest('.mod[data-id]').dataset.id];
-        label.classList.add('edited');
-        await common.rpc.setModEnabled(id, enabled);
-    });
 }
 
 
@@ -457,14 +459,14 @@ async function initWindowsPanel() {
         await common.rpc.openWidgetWindow(id);
     });
     winsEl.addEventListener('click', async ev => {
-        const btn = ev.target.closest('.button[data-action]');
+        const btn = ev.target.closest('.button[data-win-action]');
         if (!btn) {
             return;
         }
-        if (btn.dataset.action === 'profile-create') {
+        if (btn.dataset.winAction === 'profile-create') {
             await common.rpc.createProfile();
             await renderProfiles();
-        } else if (btn.dataset.action === 'profile-import') {
+        } else if (btn.dataset.winAction === 'profile-import') {
             const fileEl = document.createElement('input');
             fileEl.type = 'file';
             fileEl.accept='.json';
@@ -488,6 +490,20 @@ async function initWindowsPanel() {
             fileEl.click();
         }
     });
+    document.querySelector('#mods-container').addEventListener('click', async ev => {
+        const actionEl = ev.target.closest('[data-mod-action]');
+        if (actionEl.dataset.modAction === 'enable-toggle') {
+            const label = ev.target.closest('label.enabled');
+            const enabled = label.querySelector('input').checked;
+            const id = modSafeIds.get(ev.target.closest('.mod[data-id]').dataset.id);
+            label.classList.add('edited');
+            await common.rpc.setModEnabled(id, enabled);
+        } else if (actionEl.dataset.modAction === 'remove') {
+            const id = modSafeIds.get(ev.target.closest('.mod[data-id]').dataset.id);
+            await common.rpc.removePackedMod(id);
+        }
+    });
+    document.querySelector('.mods-path.button').addEventListener('click', common.rpc.showModsRootFolder);
 }
 
 
@@ -532,6 +548,7 @@ export async function settingsMain() {
     });
     common.subscribe('save-widget-window-specs', renderWindows, {source: 'windows'});
     common.subscribe('set-windows', renderWindows, {source: 'windows'});
+    common.subscribe('available-mods-changed', renderAvailableMods, {source: 'mods'});
     extraData.webServerURL = await common.rpc.getWebServerURL();
     const athlete = await common.rpc.getAthlete('self');
     extraData.profileDesc = athlete && athlete.sanitizedFullname;
@@ -554,7 +571,9 @@ export async function settingsMain() {
             await appSettingsUpdate(extraData);
         }, {source: 'gameConnection'});
     }
-    extraData.gpuEnabled = await common.rpc.getLoaderSetting('gpuEnabled');
+    if (window.isElectron) {
+        extraData.gpuEnabled = await common.rpc.getLoaderSetting('gpuEnabled');
+    }
     const forms = document.querySelectorAll('form');
     forms.forEach(x => x.addEventListener('input', async ev => {
         const el = ev.target.closest('[data-store="loader"]');

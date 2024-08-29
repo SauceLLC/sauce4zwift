@@ -38,7 +38,6 @@ common.settingsStore.get('groupsPrimaryField', 'power');
 common.settingsStore.get('zoomedPrimaryField', 'power');
 
 const settings = common.settingsStore.get();
-setBackground();
 
 
 const _subgroups = new Map();
@@ -508,13 +507,8 @@ function renderGroups(groups) {
 }
 
 
-function setBackground() {
-    doc.classList.toggle('solid-background', !!settings.solidBackground);
-    if (settings.solidBackground) {
-        doc.style.setProperty('--background-color', settings.backgroundColor);
-    } else {
-        doc.style.removeProperty('--background-color');
-    }
+function setStyles() {
+    common.setBackground(settings);
     if (settings.horizMode != null) {
         doc.classList.toggle('horizontal', settings.horizMode);
     }
@@ -530,6 +524,7 @@ function setBackground() {
 
 export async function main() {
     common.initInteractionListeners();
+    setStyles();
     contentEl = document.querySelector('#content');
     metaEl = document.querySelector('#meta');
     containerEl = document.querySelector('#container');
@@ -542,7 +537,7 @@ export async function main() {
         render();
     });
     common.settingsStore.addEventListener('set', ev => {
-        setBackground();
+        setStyles();
         render();
     });
     const gcs = await common.rpc.getGameConnectionStatus();

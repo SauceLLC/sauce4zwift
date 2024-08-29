@@ -30,12 +30,15 @@ common.settingsStore.setDefault({
     routeProfile: true,
     showElevationMaxLine: true,
     autoCenter: true,
+    // v1.1+
+    disableChat: false,
 });
 
 const settings = common.settingsStore.get();
 const url = new URL(location);
 const courseSelect = document.querySelector('#titlebar select[name="course"]');
 const routeSelect = document.querySelector('#titlebar select[name="route"]');
+const demoState = {};
 
 let worldList;
 let routesList;
@@ -45,17 +48,6 @@ let zwiftMap;
 let elProfile;
 let courseId = Number(url.searchParams.get('course')) || undefined;
 let routeId = Number(url.searchParams.get('route')) || undefined;
-
-
-function setBackground() {
-    const {solidBackground, backgroundColor} = common.settingsStore.get();
-    doc.classList.toggle('solid-background', !!solidBackground);
-    if (solidBackground) {
-        doc.style.setProperty('--background-color', backgroundColor);
-    } else {
-        doc.style.removeProperty('--background-color');
-    }
-}
 
 
 function qualityScale(raw) {
@@ -90,13 +82,6 @@ function createZwiftMap() {
         zoomPriorityTilt: getSetting('zoomPriorityTilt', true),
         preferRoute: settings.routeProfile !== false,
     });
-    let settingsSaveTimeout;
-    zm.addEventListener('zoom', ev => {
-        clearTimeout(settingsSaveTimeout);
-        settings.zoom = Number(ev.zoom.toFixed(2));
-        settingsSaveTimeout = setTimeout(() => common.settingsStore.set(null, settings), 100);
-    });
-
     const autoCenterBtn = document.querySelector('.map-controls .button.toggle-auto-center');
     const autoHeadingBtn = document.querySelector('.map-controls .button.toggle-auto-heading');
 
@@ -172,13 +157,40 @@ function setWatching(id) {
 
 
 async function initialize() {
-    const ad = await common.rpc.getAthleteData('self');
-    inGame = !!ad;
+    let ad = await common.rpc.getAthleteData('self');
+    if (!ad) {
+        // Support file replay mode too...
+        ad = await common.rpc.getAthleteData('watching');
+    }
+    inGame = !!ad && ad.age < 15000;
     if (!inGame) {
-        //console.info("User not active. Just show something...");
-        //courseId = 6;
-        //await applyCourse();
+        if (!demoState.intervalId) {
+            demoState.intervalId = true; // lock
+            console.info("User not active: Starting demo mode...");
+            if (elProfile) {
+                elProfile.clear();
+            }
+            const randomCourseId = worldList[worldList.length * Math.random() | 0].courseId;
+            let heading = 0;
+            demoState.transitionDurationSave = zwiftMap.getTransitionDuration();
+            demoState.zoomSave = zwiftMap.zoom;
+            zwiftMap.setZoom(0.2, {disableEvent: true});
+            await zwiftMap.setCourse(randomCourseId);
+            if (demoState.intervalId === true) {  // could have been cancelled during await
+                zwiftMap.setHeading(heading += 5);
+                zwiftMap.setTransitionDuration(1100);
+                demoState.intervalId = setInterval(() => {
+                    zwiftMap.setHeading(heading += 5);
+                }, 1000);
+            }
+        }
         return;
+    } else if (demoState.intervalId) {
+        console.info("User detected in game: Ending demo mode.");
+        clearInterval(demoState.intervalId);
+        demoState.intervalId = null;
+        zwiftMap.setTransitionDuration(demoState.transitionDurationSave);
+        zwiftMap.setZoom(demoState.zoomSave, {disableEvent: true});
     }
     zwiftMap.setAthlete(ad.athleteId);
     if (elProfile) {
@@ -284,6 +296,7 @@ async function applyCourse() {
 
 export async function main() {
     common.initInteractionListeners();
+    common.setBackground(settings);
     const fieldsEl = document.querySelector('#content .fields');
     const fieldRenderer = new common.Renderer(fieldsEl, {fps: 1});
     const mapping = [];
@@ -324,11 +337,22 @@ export async function main() {
         await applyRoute();
     });
     [worldList, routesList] = await Promise.all([common.getWorldList(), common.getRouteList()]);
+    routesList = Array.from(routesList).sort((a, b) => a.name < b.name ? -1 : 1);
     zwiftMap = createZwiftMap();
     window.zwiftMap = zwiftMap;  // DEBUG
     window.MapEntity = map.MapEntity;
-    elProfile = settings.profileOverlay && createElevationProfile();
-
+    if (settings.profileOverlay) {
+        const point = zwiftMap.addPoint([0, 0], 'circle');
+        point.toggleHidden(true);
+        elProfile = createElevationProfile();
+        elProfile.chart.on('updateAxisPointer', ev => {
+            const pos = elProfile.curvePath.nodes[ev.dataIndex]?.end;
+            point.toggleHidden(!pos);
+            if (pos) {
+                point.setPosition(pos);
+            }
+        });
+    }
     if (courseId != null) {
         doc.classList.add('explore');
         doc.querySelector('#titlebar').classList.add('always-visible');
@@ -338,60 +362,13 @@ export async function main() {
         zwiftMap._mapTransition.setDuration(1500);
         await applyCourse();
         await applyRoute();
-    } else if (url.searchParams.has('testing')) {
-        const center = url.searchParams.get('center');
-        const [course, road] = url.searchParams.get('testing').split(',');
-        const routeId = url.searchParams.get('route');
-        await zwiftMap.setCourse(+course || 6);
-        if (elProfile) {
-            await elProfile.setCourse(+course || 6);
-        }
-        if (center) {
-            zwiftMap.setCenter(center.split(',').map(Number));
-        }
-        if (routeId) {
-            const route = await zwiftMap.setActiveRoute(+routeId);
-            console.log({route});
-            let start = 0;
-            let end = route.curvePath.nodes.length;
-            const point = zwiftMap.addPoint([0, 0], 'star');
-            let hi;
-            const drawRouteHighlight = () => {
-                if (hi) {
-                    hi.elements.forEach(x => x.remove());
-                }
-                const path = route.curvePath.slice(start, end);
-                point.setPosition(route.curvePath.nodes[start].end);
-                console.debug({start, end});
-                hi = zwiftMap.addHighlightPath(path, `route-${route.id}`, {width: 0.3, color: 'yellow'});
-            };
-            window.addEventListener('keydown', ev => {
-                if (ev.key === 'ArrowRight') {
-                    end = Math.min(route.curvePath.nodes.length, end + 1);
-                } else if (ev.key === 'ArrowLeft') {
-                    end = Math.max(start, end - 1);
-                } else if (ev.key === 'ArrowUp') {
-                    start = Math.min(end, start + 1);
-                } else if (ev.key === 'ArrowDown') {
-                    start = Math.max(0, start - 1);
-                } else {
-                    return;
-                }
-                ev.preventDefault();
-                drawRouteHighlight();
-            });
-            drawRouteHighlight();
-        } else {
-            zwiftMap.setActiveRoad(+road || 0);
-        }
-        if (elProfile) {
-            if (routeId) {
-                await elProfile.setRoute(+routeId);
-            } else {
-                elProfile.setRoad(+road || 0);
-            }
-        }
     } else {
+        let settingsSaveTimeout;
+        zwiftMap.addEventListener('zoom', ev => {
+            clearTimeout(settingsSaveTimeout);
+            settings.zoom = Number(ev.zoom.toFixed(2));
+            settingsSaveTimeout = setTimeout(() => common.settingsStore.set(null, settings), 100);
+        });
         await initialize();
         common.subscribe('watching-athlete-change', async athleteId => {
             if (!inGame) {
@@ -405,7 +382,11 @@ export async function main() {
             fieldRenderer.render();
         });
         setInterval(() => {
-            inGame = performance.now() - watchdog < 10000;
+            if (inGame && performance.now() - watchdog > 30000) {
+                console.warn("Watchdog triggered by inactivity");
+                inGame = false;
+                initialize();
+            }
         }, 3333);
         common.subscribe('states', async states => {
             if (!inGame) {
@@ -418,6 +399,9 @@ export async function main() {
             }
         });
         common.subscribe('chat', chat => {
+            if (settings.disableChat) {
+                return;
+            }
             if (chat.muted) {
                 console.debug("Ignoring muted chat message");
                 return;
@@ -433,8 +417,8 @@ export async function main() {
             return;
         }
         const {key, value} = ev.data;
-        if (key === 'solidBackground' || key === 'backgroundColor') {
-            setBackground();
+        if (['solidBackground', 'backgroundColor', 'backgroundAlpha'].includes(key)) {
+            common.setBackground(settings);
         } else if (key === 'transparency') {
             zwiftMap.setOpacity(1 - 1 / (100 / (value || 0)));
         } else if (key === 'mapStyle') {
@@ -469,6 +453,3 @@ export async function settingsMain() {
     common.initInteractionListeners();
     (await common.initSettingsForm('form'))();
 }
-
-
-setBackground();

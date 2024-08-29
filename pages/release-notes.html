@@ -62,6 +62,7 @@
                 justify-content: center;
                 flex-direction: column;
                 max-width: 600px;
+                margin-bottom: 4em;
             }
 
             header h1 {
@@ -113,10 +114,19 @@
                 font-size: 0.92em;
             }
 
+            .dismiss-wrap {
+                padding: 1em;
+                display: flex;
+                justify-content: center;
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                width: 100%;
+                background: #0007;
+            }
+
             .close.button {
                 font-size: 1.2em;
-                margin-top: 1em;
-                align-self: center;
             }
 
             body > header .version {
@@ -196,9 +206,8 @@
                 ]);
                 const updated = lastVersion !== version;
                 if (updated) {
-                    document.querySelector('.from-version').textContent = fakeSHU(lastVersion);
-                    document.querySelector('.to-version').textContent = fakeSHU(version);
-                    document.querySelector('.version').textContent = 'v' + version;
+                    document.querySelectorAll('.from-version').forEach(x => x.textContent = 'v' + lastVersion);
+                    document.querySelectorAll('.version').forEach(x => x.textContent = 'v' + version);
                     document.documentElement.classList.add('updated');
                 }
                 let notes = await notesPromise;
@@ -235,15 +244,17 @@
         <header>
             <img class="logo" src="images/logo_vert_120x320.png"/>
             <div>
-                <h2 class="update-only">Sauce Updated to <span class="version"></span>!</h2>
-                <h4 class="update-only">You just went from <span class="from-version"></span> to <span class="to-version"></span> scovilles!!! 🌶️🔥</h4>
+                <h2 class="update-only">Sauce Updated to: <span class="version"></span>!</h2>
+                <div class="update-only">Updated from: <span class="from-version"></span></div>
                 <h1 class="not-update">Release Notes</h1>
             </div>
         </header>
         <main>
             <h3 class="notes-only">What's New...</h3>
             <section class="notes notes-only"></section>
-            <div class="std button close electron-only">Dismiss</div>
+            <div class="dismiss-wrap electron-only">
+                <div class="std button close">Dismiss</div>
+            </div>
         </main>
     </body>
 </html>

@@ -112,8 +112,7 @@
 
                 <label class="indent">
                     <key>Port:</key>
-                    <input data-depends-on="webServerEnabled" type="number" size="5"
-                           name="webServerPort"/>
+                    <input data-depends-on="webServerEnabled" type="number" style="--size: 7" name="webServerPort"/>
                     <span class="restart-required"></span>
                 </label>
 
@@ -239,6 +238,17 @@ If you require the Zwift Companion App's Game mode, DO NOT enable this feature."
                     <key>Lock fields:</key>
                     <input type="checkbox" name="lockedFields"/>
                 </label>
+                <label title="Mostly useful for streamers using OBS window and browser sources">
+                    <key>Solid background:</key>
+                    <input type="checkbox" name="solidBackground"/>
+                </label>
+                <label>
+                    <key>Background color:</key>
+                    <input type="color" name="backgroundColor" data-depends-on="solidBackground"/>
+                    <input type="text" name="backgroundColor" data-depends-on="solidBackground" size="7"/>
+                    <input type="number" title="Opacity" name="backgroundAlpha" data-depends-on="solidBackground"
+                           style="--size: 5" min="0" max="100" value="100"/>%
+                </label>
 
                 <hr/>
 
@@ -287,29 +297,38 @@ If you require the Zwift Companion App's Game mode, DO NOT enable this feature."
                     <tbody></tbody>
                 </table>
                 <div class="action-buttons">
-                    <div class="std small button" data-action="profile-create">Create new profile</div>
-                    <div class="std small button" data-action="profile-import">Import from file</div>
+                    <div class="std small button" data-win-action="profile-create">Create new profile</div>
+                    <div class="std small button" data-win-action="profile-import">Import from file</div>
                 </div>
             </form>
 
-            <div class="settings section tab">
+            <div class="settings section tab mods">
                 <div class="desc">
-                    Mods allow you to modify and extend the functionality of Sauce.
-                    There is an active community of Mod developers on the
-                    <a href="https://discord.com/invite/3d8TwBHaX2" target="_blank"
-                       external>Sauce discord server</a>.<br/><br/>
-                    If you're a developer check out the
-                    <a href="https://github.com/SauceLLC/sauce4zwift-mod-example" target="_blank"
-                       external>example Mod on GitHub</a> to get started.
+                    <p>Mods add new functionality <i>(i.e. window types, data fields, etc.)</i> or change existing behavior.</p>
+
+                    <a class="official-mod-store" href="https://mods.sauce.llc/?width=1000&height=0.9&frame"
+                       target="mod-browse"><img src="images/mod-store-badge.webp"/></a>
+                    <footer><b>NOTE:</b> Mods are written by 3rd parties, so be sure
+                        you trust the author before installing.</footer>
                 </div>
 
                 <hr/>
 
+                <div class="title">Installed:</div>
                 <div id="mods-container"></div>
 
                 <hr/>
 
-                <div class="std button mods-path">Open SauceMods Folder</span></div>
+                If you need help there is an active community of Mod developers on the
+                <a href="https://discord.com/invite/3d8TwBHaX2" target="_blank"
+                   external>Sauce discord server</a>.<br/>
+                <br/>Developers looking to get started should look at the
+                <a href="https://github.com/SauceLLC/sauce4zwift-mod-example" target="_blank"
+                   external>example Mod on GitHub</a>.
+
+                <hr/>
+
+                <div class="std button mods-path">Open unpacked SauceMods folder</span></div>
             </div>
         </div>
 

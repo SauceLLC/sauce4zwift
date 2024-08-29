@@ -1,17 +1,19 @@
+import test from 'node:test';
+import assert from 'node:assert';
 import {LRUCache} from '../shared/sauce/index.mjs';
-//import console from 'node:console'; // Don't use jest's overly verbose console
 
-function expectCacheKeys(cache, keys) {
-    expect(new Set(cache.keys())).toEqual(new Set(keys));
+
+function assertCacheKeys(cache, keys) {
+    assert.deepStrictEqual(new Set(cache.keys()), new Set(keys));
 }
 
 
 test('lru replace', () => {
     const c = new LRUCache(10);
     c.set('A', 111);
-    expect(c.get('A')).toBe(111);
+    assert.strictEqual(c.get('A'), 111);
     c.set('A', 222);
-    expect(c.get('A')).toBe(222);
+    assert.strictEqual(c.get('A'), 222);
 });
 
 test('lru fill exact', () => {
@@ -21,7 +23,7 @@ test('lru fill exact', () => {
         c.set(i, i * 10);
     }
     for (let i = 0; i < size; i++) {
-        expect(c.get(i)).toBe(i * 10);
+        assert.strictEqual(c.get(i), i * 10);
     }
 });
 
@@ -31,9 +33,9 @@ test('lru fill overflow 1', () => {
     for (let i = 0; i < size + 1; i++) {
         c.set(i, i * 10);
     }
-    expect(c.get(0)).toBe(undefined);
+    assert.strictEqual(c.get(0), undefined);
     for (let i = 1; i < size + 1; i++) {
-        expect(c.get(i)).toBe(i * 10);
+        assert.strictEqual(c.get(i), i * 10);
     }
 });
 
@@ -45,11 +47,11 @@ test('lru fill overflow 1, reordered', () => {
     }
     c.get(0);
     c.set(size, size * 10);
-    expect(c.get(0)).toBe(0);
-    expect(c.get(1)).toBe(undefined);
-    expect(c.get(2)).toBe(20);
-    expect(c.get(3)).toBe(30);
-    expect(c.get(4)).toBe(40);
+    assert.strictEqual(c.get(0), 0);
+    assert.strictEqual(c.get(1), undefined);
+    assert.strictEqual(c.get(2), 20);
+    assert.strictEqual(c.get(3), 30);
+    assert.strictEqual(c.get(4), 40);
 });
 
 test('lru cache consistency', () => {
@@ -59,13 +61,13 @@ test('lru cache consistency', () => {
     c.set(3, true);
     c.set(4, true); // bump 1
     c.get(2); // 2 4 3
-    expectCacheKeys(c, [2, 4, 3]);
+    assertCacheKeys(c, [2, 4, 3]);
     c.get(4); // 4 2 3
-    expectCacheKeys(c, [4, 2, 3]);
+    assertCacheKeys(c, [4, 2, 3]);
     c.set(5, true); // 5 4 2
-    expectCacheKeys(c, [5, 4, 2]);
+    assertCacheKeys(c, [5, 4, 2]);
     c.set(6, true); // 6 5 4
-    expectCacheKeys(c, [6, 5, 4]);
+    assertCacheKeys(c, [6, 5, 4]);
 });
 
 test('lru fuzz', () => {
@@ -90,7 +92,7 @@ test('lru fuzz', () => {
                     ref.set(key, i);
                 }
             }
-            expectCacheKeys(cache, ref.keys());
+            assertCacheKeys(cache, ref.keys());
         }
     }
 });

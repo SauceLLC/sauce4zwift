@@ -139,7 +139,7 @@ select[name="route"] {
         --profile-height: 0.20;
         flex: 0 0 auto;
         position: absolute;
-        font-size: clamp(16px, calc(var(--profile-height) * 42vh), 65px);
+        font-size: clamp(16px, calc(var(--profile-height) * 30vh + 10px), 60px);
         left: 0;
         bottom: 0;
         z-index: 10000;

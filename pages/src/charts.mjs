@@ -5,6 +5,7 @@ import * as locale from '../../shared/sauce/locale.mjs';
 const H = locale.human;
 const smallSpace = '\u0020';
 let sport = 'cycling';
+let magicZonesClippyHackCounter = 0;
 
 
 export function setSport(s) {
@@ -101,13 +102,13 @@ export function getStreamFieldVisualMaps(fields) {
 }
 
 
-export function getPowerFieldZones(powerStream, powerZones, ftp) {
+export function getPowerFieldPieces(data, powerZones, ftp) {
     const pieces = [];
     let curZone;
     let start = 0;
     const colors = common.getPowerZoneColors(powerZones);
-    for (let i = 0; i < powerStream.length; i++) {
-        const xPct = powerStream[i] / ftp;
+    for (let i = 0; i < data.length; i++) {
+        const xPct = data[i][1] / ftp;
         let zone;
         for (const z of powerZones) {
             if (xPct >= z.from && (!z.to || xPct < z.to)) {
@@ -128,15 +129,132 @@ export function getPowerFieldZones(powerStream, powerZones, ftp) {
             curZone = zone;
         }
     }
-    if (curZone && start < powerStream.length - 1) {
+    if (curZone && start < data.length - 1) {
         pieces.push({
             start,
-            end: powerStream.length,
+            end: data.length - 1,
             color: Color.fromHex(colors[curZone.zone]),
             zone: curZone,
         });
     }
+    console.warn("datalen", data.length, 'pieces', pieces.length);
     return pieces;
+}
+
+
+export function magicZonesAfterRender({hackId, chart, ftp, zones, seriesId, zLevel}) {
+    const chartEl = chart.getDom();
+    const pathEl = chartEl.querySelector('path[fill="magic-zones"]');
+    if (pathEl) {
+        if (!pathEl.id) {
+            pathEl.id = `path-hack-${hackId}`;
+            pathEl.style.setProperty('fill', 'transparent');
+        }
+        let clipEl = chartEl.querySelector(`clipPath#clip-hack-${hackId}`);
+        if (!clipEl) {
+            clipEl = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+            clipEl.id = `clip-hack-${hackId}`;
+            const useEl = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+            useEl.setAttribute('href', `#${pathEl.id}`);
+            clipEl.appendChild(useEl);
+            chartEl.querySelector('defs').appendChild(clipEl);
+        }
+        for (const x of chartEl.querySelectorAll('path[stroke="magic-zones-graphics"]')) {
+            x.setAttribute('clip-path', `url(#${clipEl.id})`);
+            x.removeAttribute('stroke');
+        }
+    }
+    if (chart._magicZonesActive) {
+        return;
+    }
+    const s = performance.now();
+    const graphic = calcMagicPowerZonesGraphics(chart, zones, seriesId, ftp, {zLevel});
+    console.log(performance.now() - s, graphic[0].children.length);
+    const sig = JSON.stringify(graphic);
+    console.log(performance.now() - s, graphic[0].children.length);
+    if (sig === chart._magicZonesLastSig) {
+        return;
+    }
+    chart._magicZonesActive = true;
+    chart._magicZonesLastSig = sig;
+    requestAnimationFrame(() => {
+        try {
+            chart.setOption({graphic}, {replaceMerge: 'graphic', silent: true});
+        } finally {
+            chart._magicZonesActive = false;
+        }
+    });
+}
+
+
+export function calcMagicPowerZonesGraphics(chart, zones, seriesId, ftp, options={}) {
+    let s = performance.now();
+    const children = [];
+    const graphic = [{type: 'group', silent: true, id: 'magic-zones', children}];
+    const series = chart.getModel().getSeries().find(x => x.id === seriesId);
+    const visible = !chart._sauceLegend?.hidden.has(seriesId);
+    if (!series || !zones || !ftp || !visible) {
+        return graphic;
+    }
+    const xAxisIndex = series.option.xAxisIndex || 0;
+    const yAxisIndex = series.option.yAxisIndex || 0;
+    const yAxis = chart.getModel().getComponent('yAxis', yAxisIndex);
+    const data = [];
+    const seriesData = series.getData();
+    console.log(11, performance.now() - s);
+    s = performance.now();
+    const len = seriesData.count();
+    const step = 1; //Math.max(1, (len / (devicePixelRatio * innerWidth)) | 0);
+    for (let i = 0; i < len; i += step) {
+        data.push([seriesData.get('x', i), seriesData.get('y', i)]);
+    }
+    console.log(22, performance.now() - s);
+    s = performance.now();
+    const pieces = getPowerFieldPieces(data, zones, ftp);
+    const [bottomY, topY]= yAxis.axis.getGlobalExtent();
+    const height = bottomY - topY;
+    let startPx;
+    console.log(33, performance.now() - s);
+    s = performance.now();
+    for (const x of pieces) {
+        if (startPx == null) {
+            startPx = chart.convertToPixel({xAxisIndex}, data[x.start][0]);
+        }
+        const widthPx = chart.convertToPixel({xAxisIndex}, data[x.end][0]) - startPx;
+        if (widthPx < 0) {
+            debugger;
+            continue;
+        }
+        const top = x.zone.to ? chart.convertToPixel({yAxisIndex}, x.zone.to * ftp * 0.95) : 0;
+        children.push({
+            type: 'rect',
+            z: options.zLevel,
+            shape: {
+                x: startPx,
+                y: topY,
+                width: widthPx,
+                height,
+            },
+            style: {
+                stroke: 'magic-zones-graphics',
+                fill: {
+                    type: 'linear', x: 0, y: 1, x2: 0, y2: 0, colorStops: [
+                        {offset: 0, color: x.color.alpha(0.2).toString()},
+                        {offset: top ? 1 - (top - topY) / height : 1, color: x.color.alpha(1).toString()},
+                    ],
+                },
+            }
+        });
+        startPx = null;
+    }
+    console.log(44, performance.now() - s);
+    s = performance.now();
+    return graphic;
+}
+
+
+export function getMagicZonesClippyHackId() {
+    return magicZonesClippyHackCounter++;
 }
 
 

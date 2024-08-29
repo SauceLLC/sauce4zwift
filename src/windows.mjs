@@ -1,6 +1,6 @@
 import path from 'node:path';
 import os from 'node:os';
-import {fileURLToPath} from 'node:url';
+import urlMod from 'node:url';
 import * as storageMod from './storage.mjs';
 import * as patreon from './patreon.mjs';
 import * as rpc from './rpc.mjs';
@@ -10,6 +10,7 @@ import {sleep} from '../shared/sauce/base.mjs';
 import {createRequire} from 'node:module';
 import * as menu from './menu.mjs';
 import * as main from './main.mjs';
+import * as mime from './mime.mjs';
 
 const require = createRequire(import.meta.url);
 const electron = require('electron');
@@ -17,8 +18,6 @@ const electron = require('electron');
 const isWindows = os.platform() === 'win32';
 const isMac = !isWindows && os.platform() === 'darwin';
 const isLinux = !isWindows && !isMac && os.platform() === 'linux';
-const modContentScripts = [];
-const modContentStyle = [];
 const sessions = new Map();
 const magicLegacySessionId = '___LEGACY-SESSION___';
 const profilesKey = 'window-profiles';
@@ -50,6 +49,19 @@ class SauceBrowserWindow extends electron.BrowserWindow {
     ident() {
         return (this.subWindow ? '[sub-window] ' : '') +
             (this.spec ? `specId:${this.spec.id}` : `id:${this.id}`);
+    }
+
+    loadFile(pathname, options) {
+        // Same as stock loadFile except we don't inject electron.app.getAppPath().
+        // On windows this will add a drive letter root to all paths. This is
+        // machine dependent, unnecessary and increases the complexity of our
+        // electron.protocol.handle(...) interceptor.
+        return this.loadURL(urlMod.format({
+            protocol: 'file',
+            slashes: true,
+            pathname,
+            ...options,
+        }));
     }
 }
 
@@ -190,7 +202,7 @@ export const widgetWindowManifests = [{
     file: '/pages/stats-for-nerds.html',
     prettyName: 'Stats for Nerds',
     prettyDesc: 'Debug info (cpu/mem) about Sauce',
-    options: {width: 900, height: 600},
+    options: {width: 1000, height: 600},
     overlay: false,
 }, {
     type: 'logs',
@@ -233,8 +245,13 @@ const defaultWidgetWindows = [{
 }];
 
 // NEVER use app.getAppPath() it uses asar for universal builds
-const appPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+const appPath = path.join(path.dirname(urlMod.fileURLToPath(import.meta.url)), '..');
 export const eventEmitter = new EventEmitter();
+
+
+function isInternalScheme(url) {
+    return ['file'].includes(new URL(url).protocol);
+}
 
 
 export function loadSession(name, options={}) {
@@ -244,7 +261,7 @@ export function loadSession(name, options={}) {
     const persist = options.persist !== false;
     const partition = name !== magicLegacySessionId ? (persist ? 'persist:' : '') + name : '';
     const s = electron.session.fromPartition(partition);
-    s.protocol.interceptFileProtocol('file', onInterceptFileProtocol);
+    s.protocol.handle('file', onHandleFileProtocol.bind(s));
     sessions.set(name, s);
     return s;
 }
@@ -277,45 +294,74 @@ function emulateNormalUserAgent(win) {
 }
 
 
-function onInterceptFileProtocol(request, callback) {
-    let file = fileURLToPath(request.url);
-    const fInfo = path.parse(file);
-    file = file.substr(fInfo.root.length);
+function onHandleFileProtocol(request) {
+    const url = urlMod.parse(request.url);
+    let pathname = url.pathname;
     let rootPath = appPath;
-    if (file.startsWith('mods' + path.sep)) {
-        for (const x of mods.available) {
-            const prefix = path.normalize(`mods/${x.id}/`);
-            if (file.startsWith(prefix)) {
-                rootPath = x.modPath;
-                file = file.substr(prefix.length);
-                break;
-            }
-        }
+    if (pathname === '/sauce:dummy') {
+        return new Response('');
     }
     // This allows files to be loaded like watching.___id-here___.html which ensures
-    // some settings like zoom factor are unique to each window.
-    let m;
-    if (fInfo.ext === '.html' && (m = fInfo.name.match(/.\.___.+___$/))) {
-        const p = path.parse(file);
-        p.name = p.name.substr(0, m.index + 1);
-        p.base = undefined;
-        file = path.format(p);
+    // some settings like zoom factor are unique to each window (they don't conform to origin
+    // based sandboxing).
+    const pInfo = path.parse(pathname);
+    const idMatch = pInfo.name.match(/\.___.+___$/);
+    if (idMatch) {
+        pInfo.name = pInfo.name.substr(0, idMatch.index);
+        pInfo.base = undefined;
+        pathname = path.format(pInfo);
     }
-    callback(path.join(rootPath, file));
+    const modMatch = pathname.match(/\/mods\/(.+?)\//);
+    if (modMatch) {
+        const modId = modMatch[1]; // e.g. "foo-mod-123"
+        const mod = mods.getMod(modId);
+        if (!mod) {
+            console.error("Invalid Mod ID:", modId);
+            return new Response(null, {status: 404});
+        }
+        const root = modMatch[0]; // e.g. "/mods/foo-mod-123/"
+        pathname = pathname.substr(root.length);
+        if (!mod.packed) {
+            rootPath = mod.modPath;
+        } else {
+            return mod.zip.entryData(path.join(mod.zipRootDir, pathname)).then(data => {
+                const headers = {};
+                const mimeType = mime.mimeTypesByExt.get(pInfo.ext.substr(1));
+                if (mimeType) {
+                    headers['content-type'] = mimeType;
+                } else {
+                    console.warn("Could not determine mime type for:", pathname);
+                }
+                return new Response(data, {status: data.byteLength ? 200 : 204, headers});
+            }).catch(e => {
+                if (e.message.match(/(not found|not file)/)) {
+                    return new Response(null, {status: 404});
+                } else {
+                    throw e;
+                }
+            });
+        }
+    }
+    const elFetch = this ? this.fetch.bind(this) : electron.net.fetch;
+    return elFetch(`file://${path.join(rootPath, pathname)}`, {bypassCustomProtocolHandlers: true});
 }
+electron.protocol.handle('file', onHandleFileProtocol);
 
-electron.protocol.interceptFileProtocol('file', onInterceptFileProtocol);
 
-electron.ipcMain.on('getWindowContextSync', ev => {
-    const returnValue = {
-        id: null,
-        type: null,
+electron.ipcMain.on('getWindowMetaSync', ev => {
+    const meta = {
+        context: {
+            id: null,
+            type: null,
+        },
+        modContentScripts: mods.contentScripts,
+        modContentStylesheets: mods.contentCSS,
     };
     try {
         const win = ev.sender.getOwnerBrowserWindow();
-        returnValue.frame = win.frame;
+        meta.context.frame = win.frame;
         if (win.spec) {
-            Object.assign(returnValue, {
+            Object.assign(meta.context, {
                 id: win.spec.id,
                 type: win.spec.type,
                 spec: win.spec,
@@ -323,7 +369,10 @@ electron.ipcMain.on('getWindowContextSync', ev => {
             });
         }
     } finally {
-        ev.returnValue = returnValue; // MUST set otherwise page blocks.
+        // CAUTION: ev.returnValue is highly magical.  It MUST be set to avoid hanging
+        // the page load and it can only be set once the value is frozen because it will
+        // copy/serialize the contents when assigned.
+        ev.returnValue = meta;
     }
 });
 
@@ -340,7 +389,9 @@ function canToggleVisibility(win) {
 rpc.register(() => {
     for (const win of SauceBrowserWindow.getAllWindows()) {
         if (canToggleVisibility(win)) {
-            win.hide();
+            if (!win.isMinimized()) {  // Workaround for electron/electron#41063
+                win.hide();
+            }
         }
     }
 }, {name: 'hideAllWindows'});
@@ -950,7 +1001,7 @@ function handleNewSubWindow(parent, spec, webPrefs) {
         const bounds = getBoundsForDisplay(display, newWinOptions);
         const newWinSpec = (windowId || windowType) ?
             initWidgetWindowSpec({type: windowType, id: windowId || spec?.id}) : spec;
-        const frame = q.has('frame') || !url.startsWith('file://') || !!newWinSpec?.options?.frame;
+        const frame = q.has('frame') || isInternalScheme(url) || !!newWinSpec?.options?.frame;
         const newWin = new SauceBrowserWindow({
             subWindow: true,
             spec: newWinSpec,
@@ -990,16 +1041,6 @@ function handleNewSubWindow(parent, spec, webPrefs) {
             targetRefs.set(target, new WeakRef(newWin));
         }
         handleNewSubWindow(newWin, newWinSpec, webPrefs);
-        if (modContentScripts.length) {
-            for (const x of modContentScripts) {
-                newWin.webContents.on('did-finish-load', () => newWin.webContents.executeJavaScript(x));
-            }
-        }
-        if (modContentStyle.length) {
-            for (const x of modContentStyle) {
-                newWin.webContents.on('did-finish-load', () => newWin.webContents.insertCSS(x));
-            }
-        }
         newWin.loadURL(url);
         newWin.show();
         return {action: 'deny'};
@@ -1017,12 +1058,13 @@ export async function getWindowsStorage(session) {
             sandbox: true,
         }
     });
-    const p = new Promise(resolve =>
-        win.webContents.on('ipc-message', (ev, ch, storage) => resolve(storage)));
-    let storage;
+    let _resolve;
+    win.webContents.on('ipc-message', (ev, ch, storage) => _resolve(storage));
     win.webContents.on('did-finish-load', () => win.webContents.send('export'));
-    win.loadFile('/pages/dummy.html');
+    const p = new Promise(resolve => _resolve = resolve);
+    let storage;
     try {
+        win.loadURL('file:///sauce:dummy');
         storage = await p;
     } finally {
         if (!win.isDestroyed()) {
@@ -1043,11 +1085,12 @@ export async function setWindowsStorage(storage, session) {
             sandbox: true,
         }
     });
-    const p = new Promise((resolve, reject) =>
-        win.webContents.on('ipc-message', (ev, ch, success) => success ? resolve() : reject()));
+    let _resolve, _reject;
+    win.webContents.on('ipc-message', (ev, ch, success) => success ? _resolve() : _reject());
     win.webContents.on('did-finish-load', () => win.webContents.send('import', storage));
-    win.loadFile('/pages/dummy.html');
+    const p = new Promise((resolve, reject) => (_resolve = resolve, _reject = reject));
     try {
+        win.loadURL('file:///sauce:dummy');
         await p;
     } finally {
         if (!win.isDestroyed()) {
@@ -1120,7 +1163,7 @@ function _openSpecWindow(spec) {
     let boundsSaveTimeout;
     const onBoundsUpdate = () => {
         clearTimeout(boundsSaveTimeout);
-        boundsSaveTimeout = setTimeout(() => {console.log(win.getBounds()); updateWidgetWindowSpec(id, {bounds: win.getBounds()})}, 200);
+        boundsSaveTimeout = setTimeout(() => updateWidgetWindowSpec(id, {bounds: win.getBounds()}), 200);
     };
     if (!spec.ephemeral) {
         win.on('move', onBoundsUpdate);
@@ -1128,16 +1171,6 @@ function _openSpecWindow(spec) {
         win.on('focus', () => _saveWindowAsTop(id));
         if (!manifest.alwaysVisible) {
             win.on('close', () => updateWidgetWindowSpec(id, {closed: true}));
-        }
-    }
-    if (modContentScripts.length) {
-        for (const x of modContentScripts) {
-            webContents.on('did-finish-load', () => webContents.executeJavaScript(x));
-        }
-    }
-    if (modContentStyle.length) {
-        for (const x of modContentStyle) {
-            webContents.on('did-finish-load', () => webContents.insertCSS(x));
         }
     }
     const query = manifest.query;
@@ -1161,8 +1194,6 @@ export function openWidgetWindows() {
             for (const x of widgetWindowManifests) {
                 widgetWindowManifestsByType.set(x.type, x);
             }
-            modContentScripts.push(...mods.getWindowContentScripts());
-            modContentStyle.push(...mods.getWindowContentStyle());
         } catch(e) {
             console.error("Failed to load mod window data", e);
         }
@@ -1372,7 +1403,7 @@ export async function welcomeSplash() {
 }
 
 
-export async function patronLink(forceCheck) {
+export async function patronLink({sauceApp, forceCheck}) {
     let membership = storageMod.get('patron-membership');
     if (membership && membership.patronLevel >= 10 && !forceCheck) {
         // XXX Implement refresh once in a while.
@@ -1398,7 +1429,7 @@ export async function patronLink(forceCheck) {
     });
     win.webContents.ipc.on('patreon-auth-code', (ev, code) => resolve({code, legacy: true}));
     win.webContents.ipc.on('patreon-special-token', (ev, token) => resolve({token}));
-    main.getApp().on('external-open', x => {
+    sauceApp.on('external-open', x => {
         if (x.name === 'patron' && x.path === '/link') {
             resolve({code: x.data.code});
         }

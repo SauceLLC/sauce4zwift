@@ -19,8 +19,8 @@
             async function main() {
                 const mods = await (await fetch('/api/mods/v1')).json();
                 if (mods && mods.length) {
-                    for (const {enabled, manifest, id} of mods) {
-                        if (!enabled || !manifest || !manifest.web_root || !manifest.windows || !manifest.windows.length) {
+                    for (const {enabled, manifest, id, status} of mods) {
+                        if (status !== 'active' || !enabled || !manifest || !manifest.web_root || !manifest.windows || !manifest.windows.length) {
                             continue;
                         }
                         const windows = manifest.windows.map(x =>

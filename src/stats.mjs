@@ -1,4 +1,6 @@
+/* global setImmediate, Buffer */
 import events from 'node:events';
+import path from 'node:path';
 import {worldTimer} from './zwift.mjs';
 import {SqliteDatabase, deleteDatabase} from './db.mjs';
 import * as rpc from './rpc.mjs';
@@ -7,36 +9,47 @@ import * as report from '../shared/report.mjs';
 import * as zwift from './zwift.mjs';
 import * as env from './env.mjs';
 import * as curves from '../shared/curves.mjs';
-import {getApp} from './main.mjs';
+import {expWeightedAvg} from '../shared/sauce/data.mjs';
 import {createRequire} from 'node:module';
+
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 
-
-const monotonic = performance.now;
 const roadDistances = new Map();
 const wPrimeDefault = 20000;
-const dbs = {};
 
 
-function getAthletesDB() {
-    if (!dbs.athletes) {
-        dbs.athletes = new SqliteDatabase('athletes', {
-            tables: {
-                athletes: {
-                    id: 'INTEGER PRIMARY KEY',
-                    data: 'TEXT',
-                }
-            }
-        });
-    }
-    return dbs.athletes;
+function monotonic() {
+    return performance.timeOrigin + performance.now();
 }
 
 
-function deleteDB(db) {
-    dbs[db] = null;
-    deleteDatabase(db);
+function nextMacrotask() {
+    return new Promise(setImmediate);
+}
+
+
+let _hrSleepLatency = 1;
+const _hrSleepLatencyRoll = expWeightedAvg(10, _hrSleepLatency);
+async function highResSleepTill(deadline, options={}) {
+    // NOTE: V8 can and does wake up early.
+    // NOTE: GC pauses can and will cause delays.
+    let t = monotonic();
+    const macroDelay = Math.trunc((deadline - t) - _hrSleepLatency);
+    if (macroDelay > 1) {
+        await new Promise(r => setTimeout(r, macroDelay));
+        const t2 = monotonic();
+        const stoLatency = (t2 - t) - macroDelay;
+        t = t2;
+        if (stoLatency > 0) {
+            _hrSleepLatency = Math.sqrt(_hrSleepLatencyRoll((stoLatency + 1) ** 2));
+        }
+    }
+    while (t < deadline) {
+        await nextMacrotask();
+        t = monotonic();
+    }
+    return t;
 }
 
 
@@ -75,14 +88,6 @@ function splitNameAndTeam(name) {
         name.substr(m.index + m[0].length).trim()
     ].filter(x => x).join(' ');
     return [name, team];
-}
-
-
-function makeExpWeighted(period=100) {
-    const cPrev = Math.exp(-1 / period);
-    const cNext = 1 - cPrev;
-    let w;
-    return x => (w = w === undefined ? x : (w * cPrev) + (x * cNext));
 }
 
 
@@ -184,7 +189,7 @@ class DataCollector {
                 peaks[p] = {
                     avg: peak.avg(),
                     time,
-                    ts: worldTimer.toTime(wtOffset + (time * 1000)),
+                    ts: worldTimer.toLocalTime(wtOffset + (time * 1000)),
                 };
             } else {
                 peaks[p] = {avg: null, time: null, ts: null};
@@ -293,15 +298,237 @@ class ZonesAccumulator extends TimeSeriesAccumulator {
 }
 
 
+class Event {
+    constructor() {
+        this.clear();
+    }
+
+    set() {
+        this._resolve();
+    }
+
+    clear() {
+        this._promise = new Promise(r => this._resolve = r);
+    }
+
+    wait() {
+        return this._promise;
+    }
+}
+
+
+class ActivityReplay extends events.EventEmitter {
+    static async fromFITFile(data) {
+        const fit = await import('jsfit');
+        const parser = fit.FitParser.decode(data);
+        const athlete = {};
+        const activity = {};
+        const streams = {};
+        const laps = [];
+        for (const {type, name, fields} of parser.messages) {
+            if (type !== 'data') {
+                continue;
+            }
+            if (name === 'record') {
+                if (fields.altitude != null) {
+                    streams.altitude = streams.altitude || [];
+                    streams.altitude.push(fields.altitude);
+                }
+                if (fields.cadence != null) {
+                    streams.cadence = streams.cadence || [];
+                    streams.cadence.push(fields.cadence);
+                }
+                if (fields.distance != null) {
+                    streams.distance = streams.distance || [];
+                    streams.distance.push(fields.distance);
+                }
+                if (fields.heart_rate != null) {
+                    streams.hr = streams.hr || [];
+                    streams.hr.push(fields.heart_rate);
+                }
+                if (fields.position_lat != null) {
+                    streams.latlng = streams.latlng || [];
+                    streams.latlng.push([fields.position_lat, fields.position_long]);
+                }
+                if (fields.speed != null) {
+                    streams.speed = streams.speed || [];
+                    streams.speed.push(fields.speed);
+                }
+                if (fields.timestamp != null) {
+                    streams.time = streams.time || [];
+                    streams.time.push(+fields.timestamp / 1000);
+                }
+                if (fields.power != null) {
+                    streams.power = streams.power || [];
+                    streams.power.push(fields.power);
+                }
+            } else if (name === 'lap') {
+                console.log('lap', fields);
+            } else if (name === 'file_id') {
+                if (fields.type && fields.type !== 'activity') {
+                    throw new TypeError("Expected 'activity' file type");
+                }
+                activity.created = fields.time_created;
+                console.info(`Activity [${fields.product_name}]: ${activity.created.toLocaleString()}`);
+            } else if (name === 'user_profile') {
+                Object.assign(athlete, {
+                    name: fields.friendly_name,
+                    gender: fields.gender,
+                    weight: fields.weight,
+                    height: fields.height,
+                    age: fields.age,
+                });
+                console.info(`Athlete: ${athlete.name}, ${athlete.weight.toFixed(1)}kg`);
+            } else if (name === 'sport') {
+                if (fields.sport) {
+                    activity.sport = {
+                        cycling: 'cycling',
+                        running: 'running',
+                    }[fields.sport];
+                }
+            } else if (name === 'session') {
+                if (fields.sport) {
+                    activity.sport = {
+                        cycling: 'cycling',
+                        running: 'running',
+                    }[fields.sport];
+                }
+            } else if (name === 'zones_target') {
+                if (fields.functional_threshold_power) {
+                    athlete.ftp = fields.functional_threshold_power;
+                }
+                if (fields.threshold_heart_rate) {
+                    athlete.hrt = fields.threshold_heart_rate;
+                }
+            }
+        }
+        return new this({athlete, activity, streams, laps});
+    }
+
+    constructor({athlete, activity, streams, laps}) {
+        super();
+        this.athlete = athlete;
+        this.activity = activity;
+        this.streams = streams;
+        this.laps = laps;
+        this.playing = false;
+        this.position = 0;
+        this._stopEvent = new Event();
+        this.startTime = streams ? streams.time[0] : undefined;
+    }
+
+    getTimestamp(i) {
+        i = i === undefined ?
+            Math.max(0, Math.min(this.streams.time.length - 1, this.position)) :
+            i;
+        const t = this.streams.time[i];
+        return t !== undefined ? t - this.startTime : undefined;
+    }
+
+    play() {
+        if (this.playing) {
+            return;
+        }
+        this.playing = true;
+        this.emitTimeSync();
+        this._stopEvent.clear();
+        this._playPromise = this._playLoop();
+    }
+
+    async stop() {
+        if (!this.playing) {
+            return;
+        }
+        this.playing = false;
+        this._stopEvent.set();
+        await this._playPromise;
+        this.emitTimeSync();
+    }
+
+    emitTimeSync() {
+        this.emit('timesync', {
+            ts: this.getTimestamp(),
+            playing: this.playing,
+            position: this.position,
+        });
+    }
+
+    emitRecord() {
+        const i = this.position;
+        this.emit('record', {
+            time: this.streams.time[i],
+            power: this.streams.power && this.streams.power[i],
+            cadence: this.streams.cadence && this.streams.cadence[i],
+            latlng: this.streams.latlng && this.streams.latlng[i],
+            distance: this.streams.distance && this.streams.distance[i],
+            speed: this.streams.speed && this.streams.speed[i],
+            heartrate: this.streams.hr && this.streams.hr[i],
+            altitude: this.streams.altitude && this.streams.altitude[i],
+        });
+    }
+
+    async _playLoop() {
+        while (this.playing) {
+            if (this.position >= this.streams.time.length) {
+                this.playing = false;
+                this.emitTimeSync();
+                return;
+            }
+            this.emitRecord();
+            this.emitTimeSync();
+            this.position++;
+            const nextTime = this.streams.time[this.position];
+            if (nextTime !== undefined) {
+                const next = (nextTime - this.streams.time[this.position - 1]) * 1000 + monotonic();
+                await Promise.race([
+                    highResSleepTill(next),
+                    this._stopEvent.wait(),
+                ]);
+            }
+        }
+    }
+
+    rewind(steps) {
+        this.position -= steps;
+        if (this.position < 0) {
+            this.position = 0;
+        }
+        this.emitTimeSync();
+    }
+
+    forward(steps) {
+        this.position += steps;
+        if (this.position >= this.streams.time.length) {
+            this.playing = false;
+            this.position = this.streams.time.length;
+        }
+        this.emitTimeSync();
+    }
+
+    fastForward(steps) {
+        for (let i = 0; i < steps && this.position < this.streams.time.length; i++) {
+            this.emitRecord();
+            this.position++;
+            if (this.position >= this.streams.time.length) {
+                this.playing = false;
+                this.position = this.streams.time.length;
+                break;
+            }
+        }
+        this.emitTimeSync();
+    }
+}
+
+
 export class StatsProcessor extends events.EventEmitter {
     constructor(options={}) {
         super();
         this.setMaxListeners(100);
         this.zwiftAPI = options.zwiftAPI;
         this.gameMonitor = options.gameMonitor;
-        this.disableGameMonitor = options.args.disableMonitor;
-        this.exclusions = options.args.exclusions || new Set();
-        this.athleteId = options.args.athleteId || this.gameMonitor.gameAthleteId;
+        this.exclusions = options.exclusions || new Set();
+        this.athleteId = options.athleteId || this.gameMonitor?.gameAthleteId;
+        this._userDataPath = options.userDataPath;
         this.watching = null;
         this.emitStatesMinRefresh = 200;
         this._athleteData = new Map();
@@ -321,10 +548,11 @@ export class StatsProcessor extends events.EventEmitter {
         this._markedIds = new Set();
         this._followingIds = new Set();
         this._followerIds = new Set();
-        this._pendingEgressStates = [];
+        this._pendingEgressStates = new Map();
         this._lastEgressStates = 0;
         this._timeoutEgressStates = null;
-        const app = getApp();
+        const app = options.app;
+        this._googleMapTileKey = app.buildEnv?.google_map_tile_key;
         this._autoResetEvents = !!app.getSetting('autoResetEvents');
         this._autoLapEvents = !!app.getSetting('autoLapEvents');
         const autoLap = !!app.getSetting('autoLap');
@@ -341,6 +569,7 @@ export class StatsProcessor extends events.EventEmitter {
             console.error("Custom power zones are invalid:", e);
             this._customPowerZones = null;
         }
+        this._gmapTileCache = new Map();
         rpc.register(this.getPowerZones, {scope: this});
         rpc.register(this.updateAthlete, {scope: this});
         rpc.register(this.startLap, {scope: this});
@@ -352,7 +581,8 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.getMarkedAthletes, {scope: this});
         rpc.register(this.searchAthletes, {scope: this});
         rpc.register(this.getEvent, {scope: this});
-        rpc.register(this.getEvents, {scope: this});
+        rpc.register(this.getCachedEvent, {scope: this});
+        rpc.register(this.getCachedEvents, {scope: this});
         rpc.register(this.getEventSubgroup, {scope: this});
         rpc.register(this.getEventSubgroupEntrants, {scope: this});
         rpc.register(this.getEventSubgroupResults, {scope: this});
@@ -377,9 +607,23 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.getAthleteLaps, {scope: this});
         rpc.register(this.getAthleteSegments, {scope: this});
         rpc.register(this.getAthleteStreams, {scope: this});
+        rpc.register(this.getSegment, {scope: this});
         rpc.register(this.getSegments, {scope: this});
+        rpc.register(this.getSegmentsForRoad, {scope: this});
         rpc.register(this.getSegmentResults, {scope: this});
         rpc.register(this.putState, {scope: this});
+        rpc.register(this.fileReplayLoad, {scope: this});
+        rpc.register(this.fileReplayPlay, {scope: this});
+        rpc.register(this.fileReplayStop, {scope: this});
+        rpc.register(this.fileReplayRewind, {scope: this});
+        rpc.register(this.fileReplayForward, {scope: this});
+        rpc.register(this.fileReplayStatus, {scope: this});
+        rpc.register(this.getIRLMapTile, {scope: this});
+        rpc.register(this.getWorkouts, {scope: this});
+        rpc.register(this.getWorkout, {scope: this});
+        rpc.register(this.getWorkoutCollection, {scope: this});
+        rpc.register(this.getWorkoutCollections, {scope: this});
+        rpc.register(this.getQueue, {scope: this});
         this._athleteSubs = new Map();
         if (options.gameConnection) {
             const gc = options.gameConnection;
@@ -388,9 +632,244 @@ export class StatsProcessor extends events.EventEmitter {
             gc.on('powerup-set', this.onPowerupSet.bind(this));
             gc.on('custom-action-button', this.onCustomActionButton.bind(this));
         }
-        if (options.args.debugGameFields) {
+        if (options.debugGameFields) {
             this._cleanState = obj => obj;
         }
+    }
+
+    async fileReplayLoad(info) {
+        let data;
+        if (info.type === 'base64') {
+            data = Buffer.from(info.payload, 'base64');
+        } else {
+            throw new TypeError('Invalid payload type');
+        }
+        if (this._activityReplay) {
+            await this._activityReplay.stop();
+        }
+        const athleteId = -1;
+        this._athleteData.delete(athleteId);
+        this._activityReplay = await ActivityReplay.fromFITFile(data);
+        const a = this._activityReplay.athlete;
+        const names = (a.name || 'noname').split(/(\s+)/);
+        this.updateAthlete(athleteId, {
+            ...a,
+            name: undefined,
+            type: 'FILE_REPLAY',
+            firstName: names[0],
+            lastName: names.slice(2).join(''),
+        });
+        this._activityReplay.on('record', record => {
+            const fakeState = this.emulatePlayerStateFromRecord(record, {
+                athleteId,
+                sport: this._activityReplay.activity.sport
+            });
+            if (!this._athleteData.has(athleteId)) {
+                this._athleteData.set(athleteId, this._createAthleteData(fakeState));
+            }
+            const ad = this._athleteData.get(athleteId);
+            if (this._preprocessState(fakeState, ad) !== false) {
+                this._recordAthleteStats(fakeState, ad);
+                if (this.listenerCount('states')) {
+                    this._pendingEgressStates.set(fakeState.athleteId, fakeState);
+                    this._schedStatesEmit();
+                }
+            }
+        });
+        this._activityReplay.on('timesync', (...args) => this.emit('file-replay-timesync', ...args));
+        this.setWatching(athleteId);
+    }
+
+    emulatePlayerStateFromRecord(record, extra) {
+        let x = 0, y = 0, z = 0;
+        if (record.latlng) {
+            [x, y] = env.webMercatorProjection(record.latlng);
+        }
+        if (record.altitude != null) {
+            z = record.altitude;
+        }
+        return {
+            courseId: env.realWorldCourseId,
+            worldTime: worldTimer.fromLocalTime(record.time * 1000),
+            power: record.power,
+            cadence: record.cadence,
+            distance: record.distance,
+            speed: record.speed,
+            heartrate: record.heartrate,
+            latlng: record.latlng,
+            x, y, z,
+            ...extra,
+        };
+    }
+
+    fileReplayPlay() {
+        console.info("Starting playback of activity file...");
+        return this._activityReplay.play();
+    }
+
+    fileReplayStop() {
+        console.info("Stoping playback of activity file.");
+        return this._activityReplay.stop();
+    }
+
+    fileReplayRewind(steps=10) {
+        console.info(`Rewinding ${steps} steps in activity replay...`);
+        return this._activityReplay.rewind(steps);
+    }
+
+    fileReplayForward(steps=10) {
+        console.info(`Fast forwarding ${steps} steps in activity replay...`);
+        return this._activityReplay.fastForward(steps);
+    }
+
+    fileReplayStatus() {
+        const r = this._activityReplay;
+        if (!r) {
+            return {
+                state: 'inactive',
+            };
+        }
+        return {
+            state: r.playing ? 'playing' : 'stopped',
+            startTime: r.startTime,
+            athlete: r.athlete,
+            activity:  r.activity,
+            position: r.position,
+            ts: r.getTimestamp(),
+        };
+    }
+
+    async _initGmapSession(key) {
+        // https://developers.google.com/maps/documentation/tile/session_tokens
+        const resp = await fetch(`https://tile.googleapis.com/v1/createSession?key=${key}`, {
+            method: 'POST',
+            headers: {'content-type': 'application/json'},
+            body: JSON.stringify({
+                mapType: 'roadmap', // roadmap, satellite, terrain, streetview
+                language: 'en-US',
+                region: 'US',
+                //imageFormat: 'png', // png, jpeg
+                //scale: 'scaleFactor1x', // 1x, 2x, 4x
+                //highDpi: false, // set to true with scaleFactor2x or 4x only
+            }),
+        });
+        if (!resp.ok) {
+            console.error("Failed to create google map API session:", resp.status, await resp.text());
+            throw new Error("Map Session Error");
+        }
+        return await resp.json();
+    }
+
+    async getIRLMapTile(x, y, z) {
+        const sig = [x,y,z].join();
+        if (this._gmapTileCache.has(sig)) {
+            return await this._gmapTileCache.get(sig);
+        }
+        const key = this._googleMapTileKey;
+        if (!key) {
+            throw new Error("google map tile key required");
+        }
+        if (!this._gmapSessionPromise) {
+            this._gmapSessionPromise = this._initGmapSession(key);
+        }
+        const session = await this._gmapSessionPromise;
+        const q = new URLSearchParams({session: session.session, key});
+        // https://developers.google.com/maps/documentation/tile/roadmap
+        console.log(x, y, z);
+        const resp = await fetch(`https://tile.googleapis.com/v1/2dtiles/${z}/${x}/${y}?${q}`);
+        if (!resp.ok) {
+            const msg = await resp.text();
+            const e = new Error(`Map Tile Error [${resp.status}]: ` + msg);
+            this._gmapTileCache.set(sig, Promise.reject(e));
+            throw e;
+        }
+        const entry = {
+            contentType: resp.headers.get('content-type'),
+            encoding: 'base64',
+            data: Buffer.from(await resp.arrayBuffer()).toString('base64'),
+        };
+        this._gmapTileCache.set(sig, entry);
+        return entry;
+    }
+
+    async getWorkoutCollections() {
+        const results = await this.zwiftAPI.getWorkoutCollection(null,{all: true})
+        return results;
+    }
+    async getWorkoutCollection(collectionID) {
+        const results = await this.zwiftAPI.getWorkoutCollection(collectionID);
+        return results;
+    }
+    async getWorkouts() {
+        const results = await this.zwiftAPI.getWorkout(null,{all: true})
+        return results;
+    }
+    async getWorkout(workoutId) {        
+        const workoutText = await this.zwiftAPI.getWorkout(workoutId)
+        const workoutData = workoutText.substring(workoutText.indexOf('<workout_file>') + 14, workoutText.indexOf('<workout>'))
+        const workout = {};
+        const tagPattern = /<(\w+)(?:\s[^>]*)?>([^]*?)<\/\1>/g;
+        const tagSinglePattern = /<(\w+)\s+name="([^"]+)"\s*\/>/g;
+        let match;
+        while ((match = tagPattern.exec(workoutData)) !== null) {
+            const tagName = match[1];
+            const tagContent = match[2].trim();
+
+            if (tagName === "tags") {
+                const tags = [];
+                let tagMatch;
+                while ((tagMatch = tagSinglePattern.exec(tagContent)) !== null) {
+                    tags.push(tagMatch[2]);
+                }
+                workout[tagName] = tags;
+            } else {
+                workout[tagName] = tagContent;
+            }
+        }
+        workout.workout = [];
+        const workoutDetails = workoutText.substring(workoutText.indexOf('<workout>') + 9, workoutText.indexOf('</workout>'))    
+        const lines = workoutDetails.split("\n");
+        let totalDuration = 0;
+        for (let line of lines) {
+            line = line.trim();
+            if (line == "" || line.indexOf("!-") > -1) {  // ignore blank lines and whatever <!-- is supposed to be (comments?)
+                continue
+            }
+            const objLine = {};
+            if (line.indexOf("</") > -1) {  // ignore closing tags    
+                continue
+            } else {    
+                const lineType = line.substring(1, line.indexOf(" "));
+                objLine.type = lineType.toLowerCase();
+                const regex = /(\w+)="([^"]*)"/g;
+                let match;
+                while (match = regex.exec(line)) {
+                    objLine[match[1]] = match[2];
+                }
+            }
+            if (objLine.type == "intervalst") {
+                objLine.Duration = (parseInt(objLine.OffDuration) + parseInt(objLine.OnDuration)) * parseInt(objLine.Repeat)
+            }            
+            if (objLine.type == "textevent" || objLine.type == "textnotification" ) {
+                if (!workout.workout[workout.workout.length - 1].textEvents) {
+                    workout.workout[workout.workout.length - 1].textEvents = [objLine];
+                } else {
+                    workout.workout[workout.workout.length - 1].textEvents.push(objLine)
+                }
+            } else {
+                workout.workout.push(objLine)
+                let parsedDuration = parseInt(objLine.Duration);
+                if (!isNaN(parsedDuration)) {
+                    totalDuration += parsedDuration;
+                }
+            }            
+        }    
+        workout.totalDuration = totalDuration;
+        return workout;        
+    }
+    async getQueue() {
+        const results = await this.zwiftAPI.getQueue();
+        return results;
     }
 
     getPowerZones(ftp) {
@@ -456,11 +935,21 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
-    getEvent(id) {
+    getCachedEvent(id) {
         return this._recentEvents.get(id);
     }
 
-    getEvents() {
+    async getEvent(id) {
+        if (!this._recentEvents.has(id)) {
+            const event = await this.zwiftAPI.getEvent(id);
+            if (event) {
+                this._addEvent(event);
+            }
+        }
+        return this._recentEvents.get(id);
+    }
+
+    getCachedEvents() {
         return Array.from(this._recentEvents.values()).sort((a, b) => a.ts - b.ts);
     }
 
@@ -468,8 +957,8 @@ export class StatsProcessor extends events.EventEmitter {
         return this._recentEventSubgroups.get(id);
     }
 
-    async getEventSubgroupEntrants(id) {
-        const profiles = await this.zwiftAPI.getEventSubgroupEntrants(id);
+    async getEventSubgroupEntrants(id, options={}) {
+        const profiles = await this.zwiftAPI.getEventSubgroupEntrants(id, options);
         const entrants = [];
         for (const p of profiles) {
             entrants.push({
@@ -491,10 +980,14 @@ export class StatsProcessor extends events.EventEmitter {
             }
         }
         if (missingProfiles.size) {
+            const updates = [];
             for (const p of await this.zwiftAPI.getProfiles(missingProfiles)) {
                 if (p) {
-                    this._updateAthlete(p.id, this._profileToAthlete(p));
+                    updates.push([p.id, this._updateAthlete(p.id, this._profileToAthlete(p))]);
                 }
+            }
+            if (updates.length) {
+                this.saveAthletes(updates);
             }
         }
         for (const x of results) {
@@ -532,17 +1025,8 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     async loadOlderEvents() {
-        if (!this._lastLoadOlderEventsTS) {
-            const byTS = Array.from(this._recentEvents.values());
-            if (!byTS.length) {
-                this._lastLoadOlderEventsTS = worldTimer.serverNow();
-            } else {
-                byTS.sort((a, b) => a.ts - b.ts);
-                this._lastLoadOlderEventsTS = byTS[0].ts;
-            }
-        }
         const range = 1.5 * 3600 * 1000;
-        const to = this._lastLoadOlderEventsTS;
+        const to = this._lastLoadOlderEventsTS || worldTimer.serverNow();
         const from = to - range;
         this._lastLoadOlderEventsTS = from;
         let zEvents = await this.zwiftAPI.getEventFeed({from, to});
@@ -555,17 +1039,8 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     async loadNewerEvents() {
-        if (!this._lastLoadNewerEventsTS) {
-            const byTS = Array.from(this._recentEvents.values());
-            if (!byTS.length) {
-                this._lastLoadNewerEventsTS = worldTimer.serverNow();
-            } else {
-                byTS.sort((a, b) => b.ts - a.ts);
-                this._lastLoadNewerEventsTS = byTS[0].ts;
-            }
-        }
         const range = 3 * 3600 * 1000;
-        const from = this._lastLoadNewerEventsTS;
+        const from = this._lastLoadNewerEventsTS || worldTimer.serverNow();
         const to = from + range;
         this._lastLoadNewerEventsTS = +to;
         let zEvents = await this.zwiftAPI.getEventFeed({from, to});
@@ -718,11 +1193,25 @@ export class StatsProcessor extends events.EventEmitter {
         return streams;
     }
 
+    getSegment(id) {
+        if (id == null) {
+            throw new TypeError('id required');
+        }
+        return env.cachedSegments.get(id);
+    }
+
     getSegments(courseId) {
         if (courseId == null) {
             throw new TypeError('courseId required');
         }
         return env.getCourseSegments(courseId);
+    }
+
+    getSegmentsForRoad(courseId, roadId, reverse=false) {
+        if (courseId == null || roadId == null) {
+            throw new TypeError('courseId and roadId required');
+        }
+        return env.getCourseSegments(courseId).filter(x => x.roadId === roadId && !!x.reverse === !!reverse);
     }
 
     async getSegmentResults(id, options={}) {
@@ -739,7 +1228,7 @@ export class StatsProcessor extends events.EventEmitter {
         if (segments) {
             return segments.map(x => ({
                 ...x,
-                ts: worldTimer.toTime(x.worldTime),
+                ts: worldTimer.toLocalTime(x.worldTime),
                 weight: x.weight / 1000,
                 elapsed: x.elapsed / 1000,
                 gender: x.male === false ? 'female' : 'male',
@@ -829,7 +1318,7 @@ export class StatsProcessor extends events.EventEmitter {
             });
         }
         const {laps, streams, wtOffset, mostRecentState} = this._athleteData.get(athleteId);
-        const tsOffset = worldTimer.toTime(wtOffset);
+        const tsOffset = worldTimer.toServerTime(wtOffset);
         const sport = {
             'cycling': 'cycling',
             'running': 'running',
@@ -924,6 +1413,7 @@ export class StatsProcessor extends events.EventEmitter {
             age: !minor && p.privacy && p.privacy.displayAge ? p.age : null,
             level: p.achievementLevel ? Math.floor(p.achievementLevel / 100) : undefined,
             powerMeter,
+            ...p.competitionMetrics,
         };
         if (p.socialFacts) {
             o.follower = p.socialFacts.followeeStatusOfLoggedInPlayer === 'IS_FOLLOWING';
@@ -1013,12 +1503,16 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
-    async getAthlete(ident, options={}) {
+    async getAthlete(ident, {refresh, noWait, allowFetch}={}) {
         const id = this._realAthleteId(ident);
-        if (options.refresh && this.zwiftAPI.isAuthenticated()) {
+        if (allowFetch && !this.loadAthlete(id)) {
+            refresh = true;
+            noWait = false;
+        }
+        if (refresh && this.zwiftAPI.isAuthenticated()) {
             const updating = this.zwiftAPI.getProfile(id).then(p =>
                 (p && this.updateAthlete(id, this._profileToAthlete(p))));
-            if (!options.noWait) {
+            if (!noWait) {
                 await updating;
             }
         }
@@ -1111,6 +1605,9 @@ export class StatsProcessor extends events.EventEmitter {
             'PayloadLeftWorld2',
             '_fenceConfig',
             '_broadcastRideLeaderAction',
+            '_handlePacePartnerInfo',
+            '_flag',
+            '_performAction',
         ];
         for (let i = 0; i < packet.worldUpdates.length; i++) {
             const x = packet.worldUpdates[i];
@@ -1133,7 +1630,6 @@ export class StatsProcessor extends events.EventEmitter {
                     if (sg) {
                         const event = this._recentEvents.get(sg.eventId);
                         if (this._followingIds.has(x.payload.athleteId)) {
-                            debugger;
                             sg.followeeEntrantCount++;
                             if (event) {
                                 event.followeeEntrantCount++;
@@ -1152,56 +1648,56 @@ export class StatsProcessor extends events.EventEmitter {
         if (updatedEvents.length) {
             queueMicrotask(() => this._loadEvents(updatedEvents));
         }
-        const hasStatesListener = !!this.listenerCount('states');
-        for (let i = 0; i < packet.playerStates.length; i++) {
-            const x = packet.playerStates[i];
-            if (this.processState(x) === false) {
-                continue;
-            }
-            if (hasStatesListener) {
-                this._pendingEgressStates.push(x);
-            }
-        }
         if (packet.eventPositions) {
             const ep = packet.eventPositions;
+            // There are several groups of fields on eventPositions, but I don't understand/see them.
             if (ep.players1.length + ep.players2.length + ep.players3.length + ep.players4.length) {
-                console.log('xxx event positions unhandled players', ep);
-                debugger;
+                console.warn('Unhandled event positions arrays 1, 2, 3 or 4', ep);
+            }
+            const positions = ep.players10;
+            for (let i = 0; i < positions.length; i++) {
+                const x = positions[i];
+                const ad = this._athleteData.get(x.athleteId);
+                // Must check eventSubgroup as these can lag an event finish and get stuck on.
+                if (ad && ad.eventSubgroup) {
+                    ad.eventPosition = x.position;
+                    ad.eventParticipants = ep.activeAthleteCount;
+                }
             }
             if (ep.position && this._athleteData.has(ep.watchingAthleteId)) {
                 const ad = this._athleteData.get(ep.watchingAthleteId);
                 ad.eventPosition = ep.position;
                 ad.eventParticipants = ep.activeAthleteCount;
             }
-            // There are several groups of fields on eventPositions, but I don't understand them.
-            for (const x of ep.players10) {
-                const ad = this._athleteData.get(x.athleteId);
-                if (ad) {
-                    ad.eventPosition = x.position;
-                    ad.eventParticipants = ep.activeAthleteCount;
-                }
+        }
+        const hasStatesListeners = !!this.listenerCount('states');
+        for (let i = 0; i < packet.playerStates.length; i++) {
+            const x = packet.playerStates[i];
+            if (this.processState(x) === false) {
+                continue;
+            }
+            if (hasStatesListeners) {
+                this._pendingEgressStates.set(x.athleteId, x);
             }
         }
-        this._schedStatesEmit();
+        if (hasStatesListeners) {
+            this._schedStatesEmit();
+        }
     }
 
     _schedStatesEmit() {
-        if (this._pendingEgressStates.length && !this._timeoutEgressStates) {
-            const now = monotonic();
-            const delay = this.emitStatesMinRefresh - (now - this._lastEgressStates);
-            if (delay > 0) {
-                this._timeoutEgressStates = setTimeout(() => {
-                    this._timeoutEgressStates = null;
-                    this._lastEgressStates = monotonic();
-                    this.emit('states', this._pendingEgressStates.map(x => this._cleanState(x)));
-                    this._pendingEgressStates.length = 0;
-                }, delay);
-            } else {
-                this.emit('states', this._pendingEgressStates.map(x => this._cleanState(x)));
-                this._pendingEgressStates.length = 0;
-                this._lastEgressStates = now;
-            }
+        if (this._pendingEgressStates.size && !this._timeoutEgressStates) {
+            const delay = this.emitStatesMinRefresh - (monotonic() - this._lastEgressStates);
+            this._timeoutEgressStates = setTimeout(() => this._flushPendingEgressStates(), delay);
         }
+    }
+
+    _flushPendingEgressStates() {
+        const states = Array.from(this._pendingEgressStates.values()).map(x => this._cleanState(x));
+        this._pendingEgressStates.clear();
+        this._lastEgressStates = monotonic();
+        this._timeoutEgressStates = null;
+        this.emit('states', states);
     }
 
     putState(state) {
@@ -1209,9 +1705,7 @@ export class StatsProcessor extends events.EventEmitter {
             console.warn("State skipped by processer");
             return;
         }
-        if (this.listenerCount('states')) {
-            this._pendingEgressStates.push(state);
-        }
+        this._pendingEgressStates.set(state.athleteId, state);
         this._schedStatesEmit();
     }
 
@@ -1349,9 +1843,11 @@ export class StatsProcessor extends events.EventEmitter {
         }
         this._profileFetchIds.add(athleteId);
         this._pendingProfileFetches.push(athleteId);
-        if (!this._athleteProfileUpdater && this._pendingProfileFetches.length) {
-            this._athleteProfileUpdater = this.runAthleteProfileUpdater().finally(() =>
-                this._athleteProfileUpdater = null);
+        if (!this._athleteProfileUpdaterActive) {
+            this._athleteProfileUpdaterActive = true;
+            // wait for next task so looped calls will fill the batch first...
+            queueMicrotask(() => this.runAthleteProfileUpdater()
+                .finally(() => this._athleteProfileUpdaterActive = false));
         }
     }
 
@@ -1359,7 +1855,7 @@ export class StatsProcessor extends events.EventEmitter {
         const updates = [];
         let allowRefetchAfter = 1000; // err
         try {
-            for (const p of await this.zwiftAPI.getProfiles(batch)) {
+            for (const p of await this.zwiftAPI.getProfiles(batch, {silent: true})) {
                 if (p) {
                     updates.push([p.id, this._updateAthlete(p.id, this._profileToAthlete(p))]);
                 }
@@ -1385,7 +1881,7 @@ export class StatsProcessor extends events.EventEmitter {
             this._profileFetchCount += batch.length;
             try {
                 await this._updateAthleteProfilesFromServer(batch);
-                this._profileFetchBackoff = 100;
+                this._profileFetchBackoff = 1000;
             } catch(e) {
                 if (e.name === 'FetchError') {
                     console.warn("Network problem while collecting profiles:", e.message);
@@ -1413,7 +1909,7 @@ export class StatsProcessor extends events.EventEmitter {
     _createAthleteData(state) {
         const collectors = this._makeDataCollectors();
         const ad = {
-            created: worldTimer.toTime(state.worldTime),
+            created: worldTimer.toLocalTime(state.worldTime),
             wtOffset: state.worldTime,
             athleteId: state.athleteId,
             courseId: state.courseId,
@@ -1439,7 +1935,7 @@ export class StatsProcessor extends events.EventEmitter {
             laps: [],
             segments: [],
             activeSegments: new Map(),
-            smoothGrade: makeExpWeighted(8),
+            smoothGrade: expWeightedAvg(8),
         };
         ad.laps.push(this._createNewLapish(ad));
         const athlete = this.loadAthlete(state.athleteId);
@@ -1452,7 +1948,7 @@ export class StatsProcessor extends events.EventEmitter {
     _resetAthleteData(ad, wtOffset) {
         const collectors = this._makeDataCollectors();
         Object.assign(ad, {
-            created: worldTimer.toTime(wtOffset),
+            created: worldTimer.toLocalTime(wtOffset),
             wtOffset,
             collectors,
             laps: [this._createNewLapish(ad)],
@@ -1467,6 +1963,13 @@ export class StatsProcessor extends events.EventEmitter {
         const athlete = this.loadAthlete(ad.athleteId);
         if (athlete) {
             this._updateAthleteDataFromDatabase(ad, athlete);
+        }
+    }
+
+    _resetAthleteDataById(id, wtOffset) {
+        const ad = this._athleteData.get(id);
+        if (ad) {
+            this._resetAthleteData(ad, wtOffset);
         }
     }
 
@@ -1489,59 +1992,12 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     processState(state) {
-        const worldMeta = env.worldMetas[state.courseId];
-        if (worldMeta) {
-            state.latlng = worldMeta.flippedHack ?
-                [(state.x / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
-                    (state.y / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset] :
-                [-(state.y / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
-                    (state.x / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset];
-            let slopeScale;
-            if (state.portal) {
-                const road = env.getRoad(state.courseId, state.roadId);
-                slopeScale = road?.physicsSlopeScaleOverride;
-            } else {
-                slopeScale = worldMeta.physicsSlopeScale;
-            }
-            state.altitude = (state.z + worldMeta.waterPlaneLevel) / 100 * slopeScale +
-                worldMeta.altitudeOffsetHack;
-        }
         if (!this._athleteData.has(state.athleteId)) {
             this._athleteData.set(state.athleteId, this._createAthleteData(state));
         }
         const ad = this._athleteData.get(state.athleteId);
-        const prevState = ad.mostRecentState;
-        if (prevState) {
-            const elapsed = state.worldTime - prevState.worldTime;
-            if (elapsed < 0) {
-                this._stateStaleCount++;
-                return false;
-            } else if (elapsed === 0) {
-                this._stateDupCount++;
-                return false;
-            }
-            if (prevState.sport !== state.sport || prevState.courseId !== state.courseId ||
-                state.distance < prevState.distance) {
-                ad.sport = state.sport;
-                ad.courseId = state.courseId;
-                ad.distanceOffset += prevState.distance;
-                ad.autoLapMark = undefined;
-                state.grade = 0;
-                this.startAthleteLap(ad);
-            } else {
-                const elevationChange = state.altitude - prevState.altitude;
-                const distanceChange = state.eventDistance ?
-                    (state.eventDistance - prevState.eventDistance) :
-                    (state.distance - prevState.distance);
-                state.grade = ad.smoothGrade(distanceChange ?
-                    (elevationChange / distanceChange) :
-                    prevState.grade);
-                // Leaving around because it's pretty darn useful for debugging...
-                //state.mapurl = `https://maps.google.com/maps?` +
-                //    `q=${state.latlng[0]},${state.latlng[1]}&z=17`;
-            }
-        } else {
-            state.grade = 0;
+        if (this._preprocessState(state, ad) === false) {
+            return false;
         }
         const noSubgroup = null;
         const sg = state.eventSubgroupId &&
@@ -1573,15 +2029,27 @@ export class StatsProcessor extends events.EventEmitter {
             ad.eventStartPending = false;
             ad.eventPosition = undefined;
             ad.eventParticipants = undefined;
-            if (ad.eventPosition && (!state.eventSubgroupId ||
-                prevState.eventSubgroupId !== state.eventSubgroupId)) {
-                delete ad.eventPosition;
-                delete ad.eventParticipants;
-            }
             this.triggerEventEnd(ad, state);
         }
         if (ad.disabled) {
             return;
+        }
+        const worldMeta = env.worldMetas[state.courseId];
+        if (worldMeta) {
+            state.latlng = worldMeta.flippedHack ?
+                [(state.x / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
+                    (state.y / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset] :
+                [-(state.y / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
+                    (state.x / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset];
+            let slopeScale;
+            if (state.portal) {
+                const road = env.getRoad(state.courseId, state.roadId);
+                slopeScale = road?.physicsSlopeScaleOverride;
+            } else {
+                slopeScale = worldMeta.physicsSlopeScale;
+            }
+            state.altitude = (state.z + worldMeta.waterPlaneLevel) / 100 * slopeScale +
+                worldMeta.altitudeOffsetHack;
         }
         const roadSig = this._roadSig(state);
         if (this._autoLap) {
@@ -1592,37 +2060,7 @@ export class StatsProcessor extends events.EventEmitter {
         }
         this._activeSegmentCheck(state, ad, roadSig);
         this._recordAthleteRoadHistory(state, ad, roadSig);
-        const addCount = this._recordAthleteStats(state, ad);
-        ad.mostRecentState = state;
-        ad.updated = monotonic();
-        this._stateProcessCount++;
-        let emitData;
-        let streamsData;
-        if (this.watching === state.athleteId) {
-            if (this.listenerCount('athlete/watching')) {
-                this.emit('athlete/watching', emitData || (emitData = this._formatAthleteData(ad)));
-            }
-            if (addCount && this.listenerCount('streams/watching')) {
-                this.emit('streams/watching', streamsData ||
-                          (streamsData = this._getAthleteStreams(ad, -addCount)));
-            }
-        }
-        if (this.athleteId === state.athleteId) {
-            if (this.listenerCount('athlete/self')) {
-                this.emit('athlete/self', emitData || (emitData = this._formatAthleteData(ad)));
-            }
-            if (addCount && this.listenerCount('streams/self')) {
-                this.emit('streams/self', streamsData ||
-                          (streamsData = this._getAthleteStreams(ad, -addCount)));
-            }
-        }
-        if (this.listenerCount(`athlete/${state.athleteId}`)) {
-            this.emit(`athlete/${state.athleteId}`, emitData || (emitData = this._formatAthleteData(ad)));
-        }
-        if (addCount && this.listenerCount(`streams/${state.athleteId}`)) {
-            this.emit(`streams/${state.athleteId}`, streamsData ||
-                      (streamsData = this._getAthleteStreams(ad, -addCount)));
-        }
+        this._recordAthleteStats(state, ad);
         this.maybeUpdateAthleteFromServer(state.athleteId);
     }
 
@@ -1672,13 +2110,50 @@ export class StatsProcessor extends events.EventEmitter {
         });
     }
 
+    _preprocessState(state, ad) {
+        const prevState = ad.mostRecentState;
+        if (prevState) {
+            const elapsed = state.worldTime - prevState.worldTime;
+            if (elapsed < 0) {
+                this._stateStaleCount++;
+                return false;
+            } else if (elapsed === 0) {
+                this._stateDupCount++;
+                return false;
+            }
+            if (prevState.sport !== state.sport || prevState.courseId !== state.courseId ||
+                state.distance < prevState.distance) {
+                ad.sport = state.sport;
+                ad.courseId = state.courseId;
+                ad.distanceOffset += prevState.distance;
+                ad.autoLapMark = undefined;
+                state.grade = 0;
+                this.startAthleteLap(ad);
+            } else {
+                const elevationChange = state.altitude - prevState.altitude;
+                const distanceChange = state.eventDistance ?
+                    (state.eventDistance - prevState.eventDistance) :
+                    (state.distance - prevState.distance);
+                state.grade = ad.smoothGrade(distanceChange ?
+                    (elevationChange / distanceChange) :
+                    prevState.grade);
+                // Leaving around because it's pretty darn useful for debugging...
+                //state.mapurl = `https://maps.google.com/maps?` +
+                //    `q=${state.latlng[0]},${state.latlng[1]}&z=17`;
+            }
+        } else {
+            state.grade = 0;
+        }
+    }
+
     _recordAthleteStats(state, ad) {
         // Never auto pause wBal as it is a biometric. We use true worldTime to
         // survive resets as well.
         const wbal = ad.wBal.accumulate(state.worldTime / 1000, state.power);
+        let addCount;
         if (!state.power && !state.speed) {
             // Emulate auto pause...
-            const addCount = ad.collectors.power.flushBuffered();
+            addCount = ad.collectors.power.flushBuffered();
             if (addCount) {
                 ad.collectors.speed.flushBuffered();
                 ad.collectors.hr.flushBuffered();
@@ -1691,35 +2166,64 @@ export class StatsProcessor extends events.EventEmitter {
                     ad.streams.wbal.push(wbal);
                 }
             }
-            return addCount;
+        } else {
+            const time = (state.worldTime - ad.wtOffset) / 1000;
+            ad.timeInPowerZones.accumulate(time, state.power);
+            addCount = ad.collectors.power.add(time, state.power);
+            ad.collectors.speed.add(time, state.speed);
+            ad.collectors.hr.add(time, state.heartrate);
+            ad.collectors.draft.add(time, state.draft);
+            ad.collectors.cadence.add(time, state.cadence);
+            for (let i = 0; i < addCount; i++) {
+                ad.streams.distance.push(ad.distanceOffset + state.distance);
+                ad.streams.altitude.push(state.altitude);
+                ad.streams.latlng.push(state.latlng);
+                ad.streams.wbal.push(wbal);
+            }
+            const curLap = ad.laps[ad.laps.length - 1];
+            curLap.power.resize(time);
+            curLap.speed.resize(time);
+            curLap.hr.resize(time);
+            curLap.draft.resize(time);
+            curLap.cadence.resize(time);
+            for (const s of ad.activeSegments.values()) {
+                s.power.resize(time);
+                s.speed.resize(time);
+                s.hr.resize(time);
+                s.draft.resize(time);
+                s.cadence.resize(time);
+            }
         }
-        const time = (state.worldTime - ad.wtOffset) / 1000;
-        ad.timeInPowerZones.accumulate(time, state.power);
-        const addCount = ad.collectors.power.add(time, state.power);
-        ad.collectors.speed.add(time, state.speed);
-        ad.collectors.hr.add(time, state.heartrate);
-        ad.collectors.draft.add(time, state.draft);
-        ad.collectors.cadence.add(time, state.cadence);
-        for (let i = 0; i < addCount; i++) {
-            ad.streams.distance.push(ad.distanceOffset + state.distance);
-            ad.streams.altitude.push(state.altitude);
-            ad.streams.latlng.push(state.latlng);
-            ad.streams.wbal.push(wbal);
+        ad.mostRecentState = state;
+        ad.updated = monotonic();
+        this._stateProcessCount++;
+        let emitData;
+        let streamsData;
+        if (this.watching === state.athleteId) {
+            if (this.listenerCount('athlete/watching')) {
+                this.emit('athlete/watching', emitData || (emitData = this._formatAthleteData(ad)));
+            }
+            if (addCount && this.listenerCount('streams/watching')) {
+                this.emit('streams/watching', streamsData ||
+                          (streamsData = this._getAthleteStreams(ad, -addCount)));
+            }
         }
-        const curLap = ad.laps[ad.laps.length - 1];
-        curLap.power.resize(time);
-        curLap.speed.resize(time);
-        curLap.hr.resize(time);
-        curLap.draft.resize(time);
-        curLap.cadence.resize(time);
-        for (const s of ad.activeSegments.values()) {
-            s.power.resize(time);
-            s.speed.resize(time);
-            s.hr.resize(time);
-            s.draft.resize(time);
-            s.cadence.resize(time);
+        if (this.athleteId === state.athleteId) {
+            if (this.listenerCount('athlete/self')) {
+                this.emit('athlete/self', emitData || (emitData = this._formatAthleteData(ad)));
+            }
+            if (addCount && this.listenerCount('streams/self')) {
+                this.emit('streams/self', streamsData ||
+                          (streamsData = this._getAthleteStreams(ad, -addCount)));
+            }
         }
-        return addCount;
+        if (this.listenerCount(`athlete/${state.athleteId}`)) {
+            this.emit(`athlete/${state.athleteId}`, emitData || (emitData = this._formatAthleteData(ad)));
+        }
+        if (addCount && this.listenerCount(`streams/${state.athleteId}`)) {
+            this.emit(`streams/${state.athleteId}`, streamsData ||
+                      (streamsData = this._getAthleteStreams(ad, -addCount)));
+        }
     }
 
     _activeSegmentCheck(state, ad, roadSig) {
@@ -1773,13 +2277,24 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     resetAthletesDB() {
-        deleteDB('athletes');
+        deleteDatabase(this.athletesDB.name);
+        this.athletesDB = null;
         this._athletesCache.clear();
         this.initAthletesDB();
     }
 
     initAthletesDB() {
-        this.athletesDB = getAthletesDB();
+        if (this.athletesDB) {
+            throw new TypeError("Already initialized");
+        }
+        this.athletesDB = new SqliteDatabase(path.join(this._userDataPath, 'athletes.sqlite'), {
+            tables: {
+                athletes: {
+                    id: 'INTEGER PRIMARY KEY',
+                    data: 'TEXT',
+                }
+            }
+        });
         this.getAthleteStmt = this.athletesDB.prepare('SELECT data FROM athletes WHERE id = ?');
         queueMicrotask(() => this._loadMarkedAthletes());
     }
@@ -1794,7 +2309,7 @@ export class StatsProcessor extends events.EventEmitter {
         }
         this._statesJob = this._statesProcessor();
         this._gcInterval = setInterval(this.gcAthleteData.bind(this), 62768);
-        if (!this.disableGameMonitor) {
+        if (this.gameMonitor) {
             this.gameMonitor.on('inPacket', this.onIncoming.bind(this));
             this.gameMonitor.on('watching-athlete', this.setWatching.bind(this));
             this.gameMonitor.on('game-athlete', id => {
@@ -1803,9 +2318,9 @@ export class StatsProcessor extends events.EventEmitter {
                 this.athleteId = id;
             });
             this.gameMonitor.start();
+            this._zwiftMetaRefresh = 10000;
+            this._zwiftMetaId = setTimeout(() => this._zwiftMetaSync(), 0);
         }
-        this._zwiftMetaRefresh = 10000;
-        this._zwiftMetaId = setTimeout(() => this._zwiftMetaSync(), 0);
         if (this._autoResetEvents) {
             console.info("Auto reset for events enabled");
         } else if (this._autoLapEvents) {
@@ -1908,6 +2423,12 @@ export class StatsProcessor extends events.EventEmitter {
     async __zwiftMetaSync() {
         let addedEventsCount = 0;
         const zEvents = await this.zwiftAPI.getEventFeed();
+        if (zEvents.length) {
+            this._lastLoadOlderEventsTS = Math.min(this._lastLoadOlderEventsTS || Infinity,
+                                                   zEvents.at(0).eventStart);
+            this._lastLoadNewerEventsTS = Math.max(this._lastLoadNewerEventsTS || -Infinity,
+                                                   zEvents.at(-1).eventStart);
+        }
         for (const x of zEvents) {
             addedEventsCount += !this._recentEvents.has(x.id);
             this._addEvent(x);
@@ -1918,10 +2439,11 @@ export class StatsProcessor extends events.EventEmitter {
             this._addMeetup(x);
         }
         await this.refreshEventSignups();
-        let backoff = 100;
+        let backoff = 10;
         let absent = new Set(this._followingIds);
         await this.zwiftAPI.getFollowing(this.athleteId, {
             pageLimit: 0,
+            silent: true,
             onPage: async page => {
                 const updates = [];
                 for (const x of page) {
@@ -1935,16 +2457,17 @@ export class StatsProcessor extends events.EventEmitter {
                 if (updates.length) {
                     this.saveAthletes(updates);
                 }
-                await sauce.sleep(backoff *= 1.5);
+                await sauce.sleep(Math.min(1000, backoff *= 1.1));
             }
         });
         for (const x of absent) {
             this._followingIds.delete(x);
         }
-        backoff = 100;
+        backoff = 10;
         absent = new Set(this._followerIds);
         await this.zwiftAPI.getFollowers(this.athleteId, {
             pageLimit: 0,
+            silent: true,
             onPage: async page => {
                 const updates = [];
                 for (const x of page) {
@@ -1958,7 +2481,7 @@ export class StatsProcessor extends events.EventEmitter {
                 if (updates.length) {
                     this.saveAthletes(updates);
                 }
-                await sauce.sleep(backoff *= 1.5);
+                await sauce.sleep(Math.min(1000, backoff *= 1.1));
             }
         });
         for (const x of absent) {
@@ -2015,6 +2538,9 @@ export class StatsProcessor extends events.EventEmitter {
         const b = bData.roadHistory;
         const aTail = a.timeline[a.timeline.length - 1];
         const bTail = b.timeline[b.timeline.length - 1];
+        if (aTail === undefined || bTail === undefined) {
+            return null;
+        }
         const aComp = aTail.roadCompletion;
         const bComp = bTail.roadCompletion;
         // Is A currently leading B or vice versa...
@@ -2111,31 +2637,34 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     async _statesProcessor() {
-        let errBackoff = 1;
         const interval = 1000;
-        // Useful for testing as it puts us on a perfect boundry.
-        await sauce.sleep(interval - (monotonic() % interval));
-        // Use a incrementing target to provide skew resistent intervals
-        // I.e. make it emulate the typcial realtime nature of a head unit
-        // which most of our stats code performs best with.
-        let target = monotonic();
+        // Align interval with realtime second boundary for aesthetics and to avoid potential
+        // rounding issues in stats code or UX code.
+        let target = (monotonic() / 1000 | 0) * 1000 + interval;
+        let errBackoff = 1;
+        let sli = 0;
         while (this._active) {
             let skipped = 0;
-            while (monotonic() > (target += interval)) {
+            const now = monotonic();
+            while (now > (target += interval)) {
                 skipped++;
             }
             if (skipped) {
                 console.warn("States processor skipped:", skipped);
+                sli += skipped;
             }
-            await sauce.sleep(target - monotonic());
+            if (sli % 1 === 0) {
+                //console.log("sleep", target - now);
+            }
+            await highResSleepTill(target);
             if (this.watching == null) {
                 continue;
             }
             try {
                 const nearby = this._mostRecentNearby = this._computeNearby();
                 const groups = this._mostRecentGroups = this._computeGroups(nearby);
-                queueMicrotask(() => this.emit('nearby', nearby));
-                queueMicrotask(() => this.emit('groups', groups));
+                this.emit('nearby', nearby);
+                this.emit('groups', groups);
             } catch(e) {
                 report.errorThrottled(e);
                 target += errBackoff++ * interval;
@@ -2238,6 +2767,7 @@ export class StatsProcessor extends events.EventEmitter {
         const lapCount = ad.laps.length;
         return {
             created: ad.created,
+            age: monotonic() - ad.updated,
             watching: ad.athleteId === this.watching ? true : undefined,
             self: ad.athleteId === this.athleteId ? true : undefined,
             courseId: ad.courseId,
@@ -2278,7 +2808,7 @@ export class StatsProcessor extends events.EventEmitter {
         // We need to use a speed value for estimates and just using one value is
         // dangerous, so we use a weighted function that's seeded (skewed) to the
         // the watching rider.
-        const refSpeedForEstimates = makeExpWeighted(10); // maybe mv up and reuse? XXX
+        const refSpeedForEstimates = expWeightedAvg(10); // maybe mv up and reuse? XXX
         const watchingSpeed = watching.mostRecentState.speed;
         if (watchingSpeed > 1) {
             refSpeedForEstimates(watchingSpeed);

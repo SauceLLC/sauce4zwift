@@ -15,10 +15,12 @@ const MB = 1024 * 1024;
 async function makeMetricCharts(proc, el) {
     const decodedNames = {
         Browser: 'Backend Service', // node
-        GPU: 'GPU Bridge', // not GPU usage but the proc that proxies GPU ops.
+        GPU: 'GPU Bridge', // not GPU usage but the ps that proxies to GPU or does SW rendering.
         Tab: 'Window',
     };
-    const {spec, title, subWindow} = (await common.rpc.getWindowInfoForPID(proc.pid)) || {};
+    const {spec, title, subWindow} = proc.type !== 'Node' &&
+        (await common.rpc.getWindowInfoForPID(proc.pid)) ||
+        {};
     const lineEl = document.createElement('div');
     const gaugeEl = document.createElement('div');
     lineEl.classList.add('chart', 'line');
@@ -54,8 +56,8 @@ async function makeMetricCharts(proc, el) {
             },
         }],
         grid: {
-            top: 30,
-            left: 10,
+            top: 20,
+            left: 1,
             right: 10,
             bottom: 10,
         },
@@ -111,6 +113,7 @@ async function makeMetricCharts(proc, el) {
     };
     lineChart.setOption(options);
     const gaugeChart = new echarts.init(gaugeEl, 'sauce', {renderer: 'svg'});
+    const gWidth = 8;
     const commonGaugeSeries = {
         type: 'gauge',
         radius: '95%',
@@ -119,23 +122,23 @@ async function makeMetricCharts(proc, el) {
             roundCap: true,
             lineStyle: {
                 color: [[1, '#777']],
-                width: 10,
+                width: gWidth,
             },
         },
         progress: {
             show: true,
             roundCap: true,
-            width: 10,
+            width: gWidth,
         },
         pointer: {
-            length: 40,
+            length: 25,
             width: 3,
-            itemStyle: {icon: 'circle'}
+            itemStyle: {icon: 'circle', borderWidth: 1.5, borderColor: '#fff5'}
         },
         anchor: {
             show: true,
             showAbove: true,
-            size: 10,
+            size: gWidth,
             itemStyle: {
                 color: '#aaa',
                 borderColor: '#000',
@@ -216,27 +219,40 @@ const friendlyPlatforms = {
 const debugFormatters = {
     uptime: x => H.timer(x.app.uptime),
     version: x => x.app.version,
-    appCPU: x => H.number(
-        (x.app.cpu.user + x.app.cpu.system) / 1000000 / x.app.uptime * 100,
-        {suffix: '%', html: true}),
-    appMemHeap: x => H.number(x.app.mem.heapTotal / MB, {suffix: 'MB', html: true}),
+    appCPU: x => H.number(x.cpuTotal, {suffix: '%', html: true}),
+    appMem: x => H.number(x.memTotal / 1024, {suffix: 'GB', precision: 1, html: true}),
     os: x => `${friendlyPlatforms[x.sys.platform]} ${x.sys.productVersion}`,
-    arch: x => `${x.sys.arch}`,
-    sysUptime: x => H.duration(x.sys.uptime, {short: true}),
-    sysMem: x => H.number(x.sys.mem.total / 1024 / 1024, {suffix: 'GB', html: true}),
-    gpu: x => x.gpu.gpu_compositing,
-    statesDropped: x => H.number(x.stats.stateDupCount) + ' / ' + H.number(x.stats.stateStaleCount),
+    cpuModel: x => x.sys.cpus[0]?.model || x.sys.arch,
+    cpuCores: x => x.sys.cpus.length,
+    cpuSpeed: x => H.number(sauce.data.avg(x.sys.cpus.map(x => x.speed / 1000)),
+                            {suffix: 'Ghz', precision: 1, fixed: true, html: true}),
+    sysMem: x => H.number(x.sys.mem.total / MB, {suffix: 'GB', html: true}),
+    gpu: x => x.gpu?.gpu_compositing || 'n/a',
+    statesDups: x => H.number(x.stats.stateDupCount),
+    statesStale: x => H.number(x.stats.stateStaleCount),
     dbRowsAthletes: x => H.number(
         x.databases.find(xx => xx.tableName === 'athletes').rows, {suffix: 'rows', html: true}),
     dbRowsSettings: x => H.number(
         x.databases.find(xx => xx.tableName === 'store').rows, {suffix: 'rows', html: true}),
+    zwiftActive: x => x.zwift.active ? 'active' : 'inactive'
 };
-function defaultDebugFormatter(path) {
+
+
+function defaultDebugFormatter(path, type) {
+    if (!type) {
+        debugger;
+    }
     return data => {
         for (const p of path.split('.')) {
             data = data[p];
         }
-        return H.number(data);
+        return {
+            number: H.number,
+            string: x => x,
+            timer: x => H.timer(x / 1000, {html: true}),
+            msDuration: x => H.number(x, {suffix: 'ms', html: true}),
+            time: x => H.time(x, {style: 'default'}),
+        }[type || 'string'](data);
     };
 }
 
@@ -263,11 +279,9 @@ export async function main() {
             continue;
         }
         const cpuCount = debugInfo.sys.cpus.length;
-        for (const el of debugEl.querySelectorAll('value[data-id]')) {
-            const fmt = debugFormatters[el.dataset.id] || defaultDebugFormatter(el.dataset.id);
-            el.innerHTML = fmt(debugInfo);
-        }
         const unused = new Set(allCharts.keys());
+        let cpuTotal = 0;
+        let memTotal = 0;
         for (const metric of metrics) {
             if (!allCharts.has(metric.pid)) {
                 const el = document.createElement('div');
@@ -285,10 +299,12 @@ export async function main() {
             }
             unused.delete(metric.pid);
             const {charts, datas} = allCharts.get(metric.pid);
-            const cpu = Math.round(metric.cpu.percentCPUUsage * cpuCount);
-            const mem = Number((metric.memory.workingSetSize / 1024).toFixed(1));  // MB
-            datas.cpu.push(cpu);
-            datas.mem.push(mem);
+            const cpu = metric.cpu.percentCPUUsage * cpuCount; // % of one core
+            const mem = metric.memory.workingSetSize / 1024; // MB
+            cpuTotal += cpu;
+            memTotal += mem;
+            datas.cpu.push(Math.round(cpu));
+            datas.mem.push(Number(mem.toFixed(1)));
             datas.count++;
             while (datas.cpu.length > maxLen) {
                 datas.cpu.shift();
@@ -306,17 +322,15 @@ export async function main() {
                     data: datas.mem,
                     markLine: {
                         symbol: 'none',
-                        data: [{
-                            name: 'Max',
-                            xAxis: maxMemIndex,
-                            label: {
-                                position: maxMemIndex > maxLen / 2 ? 'insideEndTop' : 'insideEndBottom',
-                                formatter: x => H.number(datas.mem[x.value], {suffix: 'MB'}),
-                            },
-                            emphasis: {
-                                disabled: true,
-                            },
-                        }],
+                        label: {
+                            rotate: 0,
+                            position: maxMemIndex > maxLen / 2 ? 'insideEndTop' : 'insideStartTop',
+                            formatter: x => H.number(datas.mem[x.value], {suffix: 'MB'}),
+                            distance: [3, 35],
+                            opacity: 0.8,
+                        },
+                        emphasis: {disabled: true},
+                        data: [{xAxis: maxMemIndex}],
                     },
                 }]
             });
@@ -324,7 +338,7 @@ export async function main() {
                 offsetCenter: [0, '-40%'],
                 color: cssColor('fg-alt', 0, 0.9),
                 fontSize: 12,
-                fontWeight: 700,
+                fontWeight: 600,
             };
             charts.gauge.setOption({
                 series: [{
@@ -333,6 +347,14 @@ export async function main() {
                     data: [{name: 'Mem', value: Math.round(mem), title: gaugeTitle}],
                 }]
             });
+        }
+        Object.assign(debugInfo, {cpuTotal, memTotal});
+        console.log({debugInfo, metrics});
+        for (const el of debugEl.querySelectorAll('value[data-id]')) {
+            const fmt = debugFormatters[el.dataset.id] ||
+                defaultDebugFormatter(el.dataset.id, el.dataset.type);
+            el.innerHTML = fmt(debugInfo);
+            el.title = el.textContent;
         }
         iter++;
         for (const pid of unused) {

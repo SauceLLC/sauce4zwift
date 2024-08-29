@@ -15,7 +15,15 @@ html {
         display: none;
     }
 
-    body {
+    &.solid-background {
+        background: var(--background-color);
+
+        body {
+            background: transparent;
+        }
+    }
+
+    &:not(.solid-background) body {
         background-color: transparent !important;
         --center-gap-offt: calc(50% - (var(--center-gap-size) / 2));
         --center-gap-right: calc(50% + (var(--center-gap-size) / 2));

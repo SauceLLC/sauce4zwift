@@ -405,6 +405,7 @@ html[data-theme="transparent-dark"] {
 html[data-theme="semi-transparent-dark"] {
     &:not(.settings-mode):not(.settings-page):not(.frame) body:not(.transparent-bg):not(.alt-background) {
         --bg-opacity: 0.5;
+        --outline-opacity: 0;
     }
 
     --theme-base-color: transparent;

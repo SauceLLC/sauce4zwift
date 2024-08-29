@@ -52,7 +52,7 @@ class ThemeSelect extends HTMLSelectElement {
     }
 
     update() {
-        while (this.childNodes) {
+        while (this.childNodes.length) {
             this.removeChild(this.childNodes[0]);
         }
         this.render();

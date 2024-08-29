@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html class="passive-overlay-scrollbars" tabindex="0" data-settings-key="file-replay-v1">
+    <head>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+        <meta name="apple-mobile-web-app-capable" content="yes"/>
+        <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
+
+        <title>File Replay - Sauce for Zwift™</title>
+
+        <script src="./src/preloads.js"></script>
+
+        <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
+        <link rel="stylesheet" href="css/common.css"/>
+        <link rel="stylesheet" href="css/file-replay.css"/>
+
+        <script type="module">
+            import {main} from './src/file-replay.mjs';
+            main();
+        </script>
+    </head>
+    <body class="">
+        <div id="titlebar">
+            <header>
+                <div class="logo"><img src="images/icon128.png"/></div>
+                <div class="title">File Replay</div>
+                <div class="filler"></div>
+                <div class="buttons">
+                    <a class="button open-settings" href="file-replay-settings.html?width=400&height=400&child-window"
+                       title="Open settings window" target="file-replay-settings"><ms>settings</ms></a>
+                    <div title="Minimize" class="button minimize electron-only"><ms>minimize</ms></div>
+                    <div title="Close this window" class="button close electron-only"><ms>close</ms></div>
+                </div>
+            </header>
+        </div>
+        <div id="content">
+            <div class="category">Load activity <i>(i.e. .fit file)</i>:</div>
+            <input type="file" name="activity" accept=".fit"/>
+            <div class="button-group">
+                <div class="std button disabled" data-call="fileReplayRewind" data-args="[1e20]"><ms>skip_previous</ms></div>
+                <div class="std button disabled" data-call="fileReplayRewind"><ms>fast_rewind</ms></div>
+                <div class="std button negative disabled" data-call="fileReplayStop"><ms>stop_circle</ms></div>
+                <div class="std button positive disabled" data-call="fileReplayPlay"><ms>play_circle</ms></div>
+                <div class="std button disabled" data-call="fileReplayForward"><ms>fast_forward</ms></div>
+                <div class="std button disabled" data-call="fileReplayForward" data-args="[1e20]"><ms>skip_next</ms></div>
+            </div>
+            <div class="category">Time code:</div>
+            <div class="button-group timecode">
+                <div class="std button disabled" title="Single step" data-call="fileReplayRewind" data-args="[1]"><ms>navigate_before</ms></div>
+                <div class="timecode-value"></div>
+                <div class="std button disabled" title="Single step"  data-call="fileReplayForward" data-args="[1]"><ms>navigate_next</ms></div>
+            </div>
+        </div>
+        <div id="hintbar">
+            <div class="hint"></div>
+        </div>
+    </body>
+</html>

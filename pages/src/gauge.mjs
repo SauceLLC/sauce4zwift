@@ -183,17 +183,6 @@ doc.classList.remove('hidden-during-load');
 config.color = settings.colorOverride ? settings.color : config.defaultColor;
 
 
-function setBackground() {
-    const {solidBackground, backgroundColor} = settings;
-    doc.classList.toggle('solid-background', solidBackground);
-    if (solidBackground) {
-        doc.style.setProperty('--background-color', backgroundColor);
-    } else {
-        doc.style.removeProperty('--background-color');
-    }
-}
-
-
 function colorAlpha(color, alpha) {
     if (color.length <= 5) {
         return color.slice(0, 4) + alpha[0];
@@ -206,7 +195,7 @@ function colorAlpha(color, alpha) {
 export function main() {
     common.addOpenSettingsParam('t', type);
     common.initInteractionListeners();
-    setBackground();
+    common.setBackground(settings);
     const content = document.querySelector('#content');
     const gauge = echarts.init(content.querySelector('.gauge'), 'sauce', {renderer: 'svg'});
     let relSize;
@@ -388,7 +377,7 @@ export function main() {
         if (key === 'color' || key === 'colorOverride') {
             config.color = settings.colorOverride ? settings.color : config.defaultColor;
         }
-        setBackground();
+        common.setBackground(settings);
         renderer.fps = 1 / settings.refreshInterval;
         initGauge();
         gauge.setOption({series: [{animation: false}]});

@@ -2,6 +2,7 @@
 import express from 'express';
 import * as rpc from './rpc.mjs';
 import * as mods from './mods.mjs';
+import * as mime from './mime.mjs';
 import expressWebSocketPatch from 'express-ws';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -61,7 +62,9 @@ export async function stop() {
     }
     stopping = true;
     for (const s of servers) {
-        await closeServer(s);
+        if (s._handle) {
+            await closeServer(s);
+        }
     }
     servers.length = 0;
     app = null;
@@ -110,7 +113,7 @@ function jsonCache(data) {
 }
 
 
-async function _start({ip, port, rpcSources, statsProc}) {
+async function _start({ip, port, rpcEventEmitters, statsProc}) {
     app = express();
     app.use((req, res, next) => {
         req.start = performance.now();
@@ -164,7 +167,7 @@ async function _start({ip, port, rpcSources, statsProc}) {
                 if (!event) {
                     throw new TypeError('"event" arg required');
                 }
-                const emitter = rpcSources[source];
+                const emitter = rpcEventEmitters.get(source);
                 if (!emitter) {
                     throw new TypeError('Invalid emitter source: ' + source);
                 }
@@ -255,15 +258,16 @@ async function _start({ip, port, rpcSources, statsProc}) {
         'mods/v1': '[GET] List available mods (i.e. plugins)',
     }], null, 4);
     const api = express.Router();
-    api.use(express.json());
+    api.use(express.json({limit: 32 * 1024 * 1024}));
     api.use((req, res, next) => {
         res.setHeader('Content-Type', 'application/json');
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.on('finish', () => {
             const client = req.client.remoteAddress;
             const elapsed = (performance.now() - req.start).toFixed(1);
-            const msg = `HTTP API request: (${client}) [${req.method}] ${req.originalUrl} -> ` +
-                `${res.statusCode}, ${elapsed}ms`;
+            const sizeKB = (res._contentLength / 1024).toFixed(1);
+            const msg = `HTTP API request: (${client}) [${req.method}] ${req.logURL || req.originalUrl} -> ` +
+                `${res.statusCode}, ${elapsed} ms, ${sizeKB} KB`;
             if (res.statusCode >= 400) {
                 console.error(msg);
             } else {
@@ -317,6 +321,11 @@ async function _start({ip, port, rpcSources, statsProc}) {
     });
     api.post('/rpc/v1/:name', async (req, res) => {
         try {
+            if (req.headers['content-type'] !== 'application/json') {
+                res.status(400);
+                res.send(rpc.errorReply(new TypeError('Expected content-type header of application/json')));
+                return;
+            }
             const replyEnvelope = await rpc.invoke.call(null, req.params.name, ...req.body);
             if (!replyEnvelope.success) {
                 res.status(400);
@@ -332,9 +341,11 @@ async function _start({ip, port, rpcSources, statsProc}) {
             `${name}: [POST,GET]`), null, 4)));
     api.get('/rpc/v2/:name*', async (req, res) => {
         try {
-            const args = req.params[0].split('/').slice(1).map(x =>
-                x ? JSON.parse(Buffer.from(x, 'base64url')) : undefined);
+            const encodedArgs = req.params[0].split('/').slice(1);
+            const jsonArgs = encodedArgs.map(x => x ? Buffer.from(x, 'base64url').toString() : undefined);
+            const args = jsonArgs.map(x => x ? JSON.parse(x) : undefined);
             const replyEnvelope = await rpc.invoke.call(null, req.params.name, ...args);
+            req.logURL = `/rpc/v2/${req.params.name}/${jsonArgs.join('/')}`;
             if (!replyEnvelope.success) {
                 res.status(400);
             }
@@ -348,7 +359,7 @@ async function _start({ip, port, rpcSources, statsProc}) {
         res.send(JSON.stringify(Array.from(rpc.handlers.keys()).map(name =>
             `${name}: [GET]`), null, 4)));
 
-    api.get('/mods/v1', (req, res) => res.send(JSON.stringify(mods.available, null, 4)));
+    api.get('/mods/v1', (req, res) => res.send(JSON.stringify(mods.getAvailableMods())));
     api.options('*', (req, res) => {
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Headers', '*');
@@ -364,23 +375,49 @@ async function _start({ip, port, rpcSources, statsProc}) {
     });
     api.all('*', (req, res) => res.status(404).send(apiDirectory));
     router.use('/api', api);
-    if (mods.available) {
-        for (const mod of mods.available) {
-            if (!mod.enabled || !mod.manifest.web_root) {
-                continue;
-            }
-            const modRouter = express.Router();
-            try {
-                const urn = path.posix.join('/', mod.id, mod.manifest.web_root);
+    for (const {id} of mods.getEnabledMods()) {
+        const mod = mods.getMod(id);
+        if (!mod.manifest.web_root) {
+            continue;
+        }
+        const modRouter = express.Router();
+        try {
+            const urn = path.posix.join('/', mod.id, mod.manifest.web_root);
+            if (!mod.packed) {
                 const fullPath = path.join(mod.modPath, mod.manifest.web_root);
-                console.warn('Adding Mod web root:', '/mods' + urn, '->', fullPath);
+                console.warn('Adding unpacked Mod web root:', '/mods' + urn, '->', fullPath);
                 modRouter.use(urn, express.static(fullPath, {
                     setHeaders: res => res.setHeader('Access-Control-Allow-Origin', '*')
                 }));
-                router.use('/mods', modRouter);
-            } catch(e) {
-                console.error('Failed to add mod web root:', mod, e);
+            } else {
+                const fullPath = path.join(mod.zipRootDir, mod.manifest.web_root);
+                console.warn('Adding Mod web root:', '/mods' + urn, '->', fullPath);
+                modRouter.use(urn, async (req, res) => {
+                    let data;
+                    try {
+                        data = await mod.zip.entryData(path.join(fullPath, req.path));
+                    } catch(e) {
+                        if (!e.message.match(/(not found|not file)/)) {
+                            res.status(500);
+                            res.send("Internal Mod zip entry error");
+                            console.error("Mod file error:", e);
+                        } else {
+                            res.status(404);
+                            res.send("Not found");
+                        }
+                        return;
+                    }
+                    res.setHeader('Access-Control-Allow-Origin', '*');
+                    const ct = mime.mimeTypesByExt.get(path.parse(req.path).ext.substr(1));
+                    if (ct) {
+                        res.setHeader('Content-Type', ct);
+                    }
+                    res.end(data);
+                });
             }
+            router.use('/mods', modRouter);
+        } catch(e) {
+            console.error('Failed to add mod web root:', mod, e);
         }
     }
     router.all('*', (req, res) => res.status(404).send('Invalid URL'));

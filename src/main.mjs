@@ -1,24 +1,15 @@
-import process from 'node:process';
-import os from 'node:os';
-import net from 'node:net';
-import fs from 'node:fs';
 import path from 'node:path';
-import {EventEmitter} from 'node:events';
 import * as report from '../shared/report.mjs';
 import * as storage from './storage.mjs';
 import * as menu from './menu.mjs';
 import * as rpc from './rpc.mjs';
-import {databases} from './db.mjs';
-import * as webServer from './webserver.mjs';
-import {StatsProcessor} from './stats.mjs';
 import {createRequire} from 'node:module';
 import * as secrets from './secrets.mjs';
 import * as zwift from './zwift.mjs';
 import * as windows from './windows.mjs';
 import * as mods from './mods.mjs';
 import {parseArgs} from './argparse.mjs';
-import protobuf from 'protobufjs';
-import fetch from 'node-fetch';
+import * as app from './app.mjs';
 
 const sauceScheme = 'sauce4zwift';
 const require = createRequire(import.meta.url);
@@ -31,31 +22,13 @@ const defaultUpdateChannel = pkg.version.match(/alpha/) ? 'alpha' :
 const updateChannelLevels = {stable: 10, beta: 20, alpha: 30};
 const serialCache = new WeakMap();
 const windowEventSubs = new WeakMap();
-const rpcSources = {
-    windows: windows.eventEmitter,
-    updater: autoUpdater,
-};
 
-let zwiftAPI;
-let zwiftMonitorAPI;
 let sauceApp;
-let ipcSubIdInc = 1;
 
 export let started;
 export let quiting;
 
-
 export class Exiting extends Error {}
-
-
-export function getApp() {
-    return sauceApp;
-}
-
-
-function userDataPath(...args) {
-    return path.join(electron.app.getPath('userData'), ...args);
-}
 
 
 function quit(retcode) {
@@ -76,17 +49,6 @@ function restart() {
 rpc.register(restart);
 
 
-try {
-    storage.get(0);
-} catch(e) {
-    quiting = true;
-    console.error('Storage error:', e);
-    Promise.all([
-        storage.reset(),
-        electron.dialog.showErrorBox('Storage error. Resetting database...', '' + e)
-    ]).finally(() => quit(1));
-}
-
 electron.app.on('second-instance', (ev,_, __, {type, ...args}) => {
     if (type === 'quit') {
         console.warn("Another instance requested us to quit.");
@@ -97,26 +59,6 @@ electron.app.on('second-instance', (ev,_, __, {type, ...args}) => {
     }
 });
 electron.app.on('before-quit', () => void (quiting = true));
-
-
-let _debuggingProtobufFields;
-function debugMissingProtobufFields() {
-    if (_debuggingProtobufFields) {
-        return;
-    }
-    console.debug('Missing protobuf field detection enabled');
-    _debuggingProtobufFields = true;
-    const pb_Reader_skip = protobuf.Reader.prototype.skip;
-    protobuf.Reader.prototype.skip = function(length) {
-        const start = this.pos;
-        const r = pb_Reader_skip.apply(this, arguments);
-        const end = this.pos;
-        console.error("Protobuf missing field:", this, start, end,
-                      this.buf.subarray(start, end).toString('hex'));
-        console.info(this.buf.subarray(0, this.len).toString('hex'));
-        return r;
-    };
-}
 
 
 function monitorWindowForEventSubs(win, subs) {
@@ -178,9 +120,10 @@ function monitorWindowForEventSubs(win, subs) {
 }
 
 
+let _ipcSubIdInc = 1;
 electron.ipcMain.handle('subscribe', (ev, {event, persistent, source='stats'}) => {
     const win = ev.sender.getOwnerBrowserWindow();
-    const emitter = rpcSources[source];
+    const emitter = sauceApp.rpcEventEmitters.get(source);
     if (!emitter) {
         throw new TypeError('Invalid emitter source: ' + source);
     }
@@ -202,7 +145,7 @@ electron.ipcMain.handle('subscribe', (ev, {event, persistent, source='stats'}) =
         }
         ourPort.postMessage(json);
     };
-    const subId = ipcSubIdInc++;
+    const subId = _ipcSubIdInc++;
     const sub = {subId, event, emitter, persistent, sendMessage};
     let subs = windowEventSubs.get(win);
     if (subs) {
@@ -241,23 +184,7 @@ electron.ipcMain.handle('rpc', (ev, name, ...args) =>
     rpc.invoke.call(ev.sender, name, ...args).then(JSON.stringify));
 
 rpc.register(() => isDEV, {name: 'isDEV'});
-rpc.register(() => pkg.version, {name: 'getVersion'});
 rpc.register(url => electron.shell.openExternal(url), {name: 'openExternalLink'});
-rpc.register(() => sauceApp && sauceApp.webServerURL, {name: 'getWebServerURL'});
-rpc.register(() => {
-    return {
-        main: {
-            username: zwiftAPI.username,
-            id: zwiftAPI.profile ? zwiftAPI.profile.id : null,
-            authenticated: zwiftAPI.isAuthenticated(),
-        },
-        monitor: {
-            username: zwiftMonitorAPI.username,
-            id: zwiftMonitorAPI.profile ? zwiftMonitorAPI.profile.id : null,
-            authenticated: zwiftMonitorAPI.isAuthenticated(),
-        },
-    };
-}, {name: 'getZwiftLoginInfo'});
 
 
 async function zwiftLogout(id) {
@@ -273,158 +200,47 @@ async function zwiftLogout(id) {
 rpc.register(zwiftLogout);
 
 
-function registerRPCMethods(instance, ...methodNames) {
-    for (const name of methodNames) {
-        if (!instance[name]) {
-            throw new TypeError('Invalid method name: ' + name);
+async function checkForUpdates(channel) {
+    autoUpdater.disableWebInstaller = true;
+    autoUpdater.autoDownload = false;
+    autoUpdater.channel = {
+        stable: 'latest',
+        beta: 'beta',
+        alpha: 'alpha'
+    }[channel] || 'latest';
+    // NOTE: The github provider for electron-updater is pretty nuanced.
+    // We might want to replace it with our own at some point as this very
+    // important logic.
+    autoUpdater.allowPrerelease = autoUpdater.channel !== 'latest';
+    let updateAvail;
+    // Auto updater was written by an alien.  Must use events to affirm update status.
+    autoUpdater.once('update-available', () => void (updateAvail = true));
+    console.info(`Checking for update on channel: ${autoUpdater.channel}`);
+    try {
+        const update = await autoUpdater.checkForUpdates();
+        if (updateAvail) {
+            return update.updateInfo;
         }
-        rpc.register(instance[name].bind(instance), {name});
+    } catch(e) {
+        // A variety of non critical conditions can lead to this, log and move on.
+        console.warn("Auto update problem:", e.stack);
+        return;
     }
 }
 
 
-async function getLocalRoutedIP() {
-    const conn = net.createConnection(80, 'www.zwift.com');
-    return await new Promise((resolve, reject) => {
-        conn.on('connect', () => {
-            try {
-                resolve(conn.address().address);
-            } finally {
-                conn.end();
-            }
-        });
-        conn.on('error', reject);
-    });
-}
-
-
-class SauceApp extends EventEmitter {
-    _settings;
-    _settingsKey = 'app-settings';
-    _metricsPromise;
-    _lastMetricsTS = 0;
-
-    constructor() {
-        super();
-        const _this = this;
-        rpc.register(function() {
-            _this._resetStorageState.call(_this, /*sender*/ this);
-        }, {name: 'resetStorageState'});
-        registerRPCMethods(this, 'getSetting', 'setSetting', 'pollMetrics', 'getDebugInfo',
-                           'getGameConnectionStatus');
-    }
-
-    getSetting(key, def) {
-        if (!this._settings) {
-            this._settings = storage.get(this._settingsKey) || {};
-        }
-        if (!Object.prototype.hasOwnProperty.call(this._settings, key) && def !== undefined) {
-            this._settings[key] = def;
-            storage.set(this._settingsKey, this._settings);
-        }
-        return this._settings[key];
-    }
-
-    setSetting(key, value) {
-        if (!this._settings) {
-            this._settings = storage.get(this._settingsKey) || {};
-        }
-        this._settings[key] = value;
-        storage.set(this._settingsKey, this._settings);
-        this.emit('setting-change', {key, value});
-    }
-
-    async checkForUpdates() {
-        autoUpdater.disableWebInstaller = true;
-        autoUpdater.autoDownload = false;
-        autoUpdater.channel = {
-            stable: 'latest',
-            beta: 'beta',
-            alpha: 'alpha'
-        }[this.getSetting('updateChannel', defaultUpdateChannel)] || 'latest';
-        // NOTE: The github provider for electron-updater is pretty nuanced.
-        // We might want to replace it with our own at some point as this very
-        // important logic.
-        autoUpdater.allowPrerelease = autoUpdater.channel !== 'latest';
-        let updateAvail;
-        // Auto updater was written by an alien.  Must use events to affirm update status.
-        autoUpdater.once('update-available', () => void (updateAvail = true));
-        console.info(`Checking for update on channel: ${autoUpdater.channel}`);
-        try {
-            const update = await autoUpdater.checkForUpdates();
-            if (updateAvail) {
-                return update.updateInfo;
-            }
-        } catch(e) {
-            // A variety of non critical conditions can lead to this, log and move on.
-            console.warn("Auto update problem:", e.stack);
-            return;
-        }
-    }
-
-    _getMetrics(reentrant) {
-        return new Promise(resolve => setTimeout(() => {
-            if (reentrant !== true) {
-                // Schedule one more in anticipation of pollers
-                this._metricsPromise = this._getMetrics(true);
-            } else {
-                this._metricsPromise = null;
-            }
-            this._lastMetricsTS = Date.now();
-            resolve(electron.app.getAppMetrics());
-        }, 2000 - (Date.now() - this._lastMetricsTS)));
-    }
-
-    async pollMetrics() {
-        if (!this._metricsPromise) {
-            this._metricsPromise = this._getMetrics();
-        }
-        return await this._metricsPromise;
+class ElectronSauceApp extends app.SauceApp {
+    getAppMetrics() {
+        return electron.app.getAppMetrics();
     }
 
     getDebugInfo() {
-        return {
-            app: {
-                version: pkg.version,
-                uptime: process.uptime(),
-                mem: process.memoryUsage(),
-                cpu: process.cpuUsage(),
-                cwd: process.cwd(),
-            },
+        return Object.assign(super.getDebugInfo(), {
             gpu: electron.app.getGPUFeatureStatus(),
-            sys: {
-                arch: process.arch,
-                platform: os.platform(),
-                release: os.release(),
-                version: os.version(),
-                productVersion: process.getSystemVersion(),
-                mem: process.getSystemMemoryInfo(),
-                uptime: os.uptime(),
-                cpus: os.cpus(),
-            },
-            stats: this.statsProc.getDebugInfo(),
-            databases: [].concat(...Array.from(databases.entries()).map(([dbName, db]) => {
-                const stats = db.prepare('SELECT * FROM sqlite_schema WHERE type = ? AND name NOT LIKE ?')
-                    .all('table', 'sqlite_%');
-                return stats.map(t => ({
-                    dbName,
-                    tableName: t.name,
-                    rows: db.prepare(`SELECT COUNT(*) as rows FROM ${t.name}`).get().rows,
-                }));
-            })),
-        };
+        });
     }
 
-    startGameConnectionServer(ip) {
-        const gcs = new zwift.GameConnectionServer({ip, zwiftAPI});
-        registerRPCMethods(gcs, 'watch', 'join', 'teleportHome', 'say', 'wave', 'elbow',
-                           'takePicture', 'powerup', 'changeCamera', 'enableHUD', 'disableHUD', 'chatMessage',
-                           'reverse', 'toggleGraphs', 'sendCommands', 'turnLeft', 'turnRight', 'goStraight');
-        gcs.start().catch(report.error);
-        return gcs;
-    }
-
-    async _resetStorageState(sender) {
+    async resetStorageState(sender) {
         const confirmed = await windows.confirmDialog({
             title: 'Confirm Reset State',
             message: '<h3>This operation will reset ALL settings completely!</h3>' +
@@ -448,58 +264,21 @@ class SauceApp extends EventEmitter {
                 await s.clearStorageData().catch(report.error);
                 await s.clearCache().catch(report.error);
             }
-            storage.reset();
+            super.resetStorageState();
             restart();
         }
     }
 
-    getGameConnectionStatus() {
-        return this.gameConnection && this.gameConnection.getStatus();
-    }
-
-    async start(args) {
-        if (isDEV || args.debugGameFields) {
-            debugMissingProtobufFields();
-        }
-        const gameMonitor = this.gameMonitor = new zwift.GameMonitor({
-            zwiftMonitorAPI,
-            gameAthleteId: args.athleteId || zwiftAPI.profile.id,
-            randomWatch: args.randomWatch,
-            exclusions: args.exclusions,
-        });
-        gameMonitor.on('multiple-logins', () => {
-            electron.dialog.showErrorBox(
-                'Multiple Logins Detected',
-                'Your Monitor Zwift Login is being used by more than 1 application. ' +
-                'This is usually an indicator that your Monitor Login is not the correct one. ' +
-                'Go to the main settings panel and logout if it is incorrect.');
-        });
-        let ip;
-        let gameConnection;
-        if (this.getSetting('gameConnectionEnabled') && !args.disableGameConnection) {
-            ip = ip || await getLocalRoutedIP();
-            gameConnection = this.startGameConnectionServer(ip);
-            // This isn't required but reduces latency..
-            gameConnection.on('watch-command', id => gameMonitor.setWatching(id));
-            this.gameConnection = gameConnection; // debug
-        }
-        rpcSources.gameConnection = gameConnection || new EventEmitter();
-        this.statsProc = new StatsProcessor({zwiftAPI, gameMonitor, gameConnection, args});
-        this.statsProc.start();
-        rpcSources.stats = this.statsProc;
-        rpcSources.app = this;
-        if (this.getSetting('webServerEnabled', true)) {
-            ip = ip || await getLocalRoutedIP();
-            this.webServerEnabled = true;
-            this.webServerPort = this.getSetting('webServerPort', 1080);
-            this.webServerURL = `http://${ip}:${this.webServerPort}`;
-            // Will stall when there is a port conflict..
-            webServer.start({
-                ip,
-                port: this.webServerPort,
-                rpcSources,
-                statsProc: this.statsProc,
-            }).catch(report.error);
+    async start(options) {
+        await super.start(options);
+        if (this.gameMonitor) {
+            this.gameMonitor.on('multiple-logins', () => {
+                electron.dialog.showErrorBox(
+                    'Multiple Logins Detected',
+                    'Your Monitor Zwift Login is being used by more than 1 application. ' +
+                    'This is usually an indicator that your Monitor Login is not the correct one. ' +
+                    'Go to the main settings panel and logout if it is incorrect.');
+            });
         }
     }
 }
@@ -555,67 +334,34 @@ async function maybeDownloadAndInstallUpdate({version}) {
 }
 
 
-async function updateExclusions() {
-    let data;
-    try {
-        const r = await fetch('https://www.sauce.llc/products/sauce4zwift/exclusions.json');
-        data = await r.json();
-    } catch(e) {
-        report.error(e);
-    }
-    if (!data) {
-        console.warn("No exclusions list found");
-        return;
-    }
-    await fs.promises.writeFile(userDataPath('exclusions_cached.json'), JSON.stringify(data));
-    return data;
-}
-
-
-async function getExclusions() {
-    // use the local cache copy if possible and update in the bg.
-    let data;
-    try {
-        data = JSON.parse(fs.readFileSync(userDataPath('exclusions_cached.json')));
-    } catch(e) {/*no-pragma*/}
-    const updating = updateExclusions();
-    if (!data) {
-        console.info("Waiting for network fetch of exclusions...");
-        data = await updating;
-    }
-    return data && new Set(data.map(x => x.idhash));
-}
-
-
 export async function main({logEmitter, logFile, logQueue, sentryAnonId,
                             loaderSettings, saveLoaderSettings, buildEnv}) {
     const s = Date.now();
     const args = parseArgs([
+        // Do not remove headless arg.  It's informational here but handled by loader.mjs
         {arg: 'headless', type: 'switch',
-         help: 'Do not open windows (unless required on startup)'},
-        {arg: 'force-login', type: 'switch',
-         help: 'Re-login to Zwift accounts'},
-        {arg: 'force-patron-check', type: 'switch',
-         help: 'Force check of patron membership'},
+         help: 'Run in headless mode.  NOTE: All settings for headless mode are seperate from normal mode.'},
         {arg: 'disable-monitor', type: 'switch',
          help: 'Do not start the Zwift monitor (no data)'},
-        {arg: 'host', type: 'str', label: 'HOSTNAME',
-         help: 'Use alternate server for Zwift (i.e. zwift-offline)'},
         {arg: 'athlete-id', type: 'num', label: 'ATHLETE_ID',
          help: 'Override the athlete ID for the main Zwift account'},
         {arg: 'random-watch', type: 'num', optional: true, label: 'COURSE_ID',
          help: 'Watch random athlete; optionally specify a Course ID to choose the athlete from'},
         {arg: 'disable-game-connection', type: 'switch',
          help: 'Disable the companion protocol service'},
-        {arg: 'debug-game-fields', type: 'switch',
+        {arg: 'debug-game-fields', type: 'switch', default: isDEV,
          help: 'Include otherwise hidden fields from game data'},
     ]);
-    if (args.help) {
-        quit();
+    if (!args || args.help) {
+        quit(!args ? 1 : 0);
         return;
     }
+    const appPath = electron.app.getPath('userData');
+    storage.initialize(appPath);
+    sauceApp = new ElectronSauceApp({appPath, buildEnv});
+    global.sauceApp = sauceApp;
     if (logEmitter) {
-        rpcSources['logs'] = logEmitter;
+        sauceApp.rpcEventEmitters.set('logs', logEmitter);
         rpc.register(() => logQueue, {name: 'getLogs'});
         rpc.register(() => logQueue.length = 0, {name: 'clearLogs'});
         rpc.register(() => electron.shell.showItemInFolder(logFile), {name: 'showLogInFolder'});
@@ -627,8 +373,9 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         loaderSettings[key] = value;
         saveLoaderSettings(loaderSettings);
     }, {name: 'setLoaderSetting'});
-    sauceApp = new SauceApp();
-    global.app = sauceApp;  // devTools debug
+    sauceApp.rpcEventEmitters.set('windows', windows.eventEmitter);
+    sauceApp.rpcEventEmitters.set('updater', autoUpdater);
+    sauceApp.rpcEventEmitters.set('mods', mods.eventEmitter);
     if (!args.headless) {
         menu.installTrayIcon();
         menu.setAppMenu();
@@ -656,7 +403,8 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         }
         sauceApp.setSetting('lastVersion', pkg.version);
     } else if (!isDEV) {
-        const updateCheck = sauceApp.checkForUpdates();
+        const channel = sauceApp.getSetting('updateChannel', defaultUpdateChannel);
+        const updateCheck = checkForUpdates(channel);
         maybeUpdateAndRestart = async () => {
             const updateInfo = await updateCheck;
             if (updateInfo) {
@@ -674,6 +422,8 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
                 console.error("Unexpected protocol:", url.protocol);
                 return;
             }
+            // XXX Just make a signal thing between this and windows.patronLink..
+            // It's silly to proxy through sauceApp just because it's an EventEmitter
             sauceApp.emit('external-open', {
                 name: url.host,
                 path: url.pathname,
@@ -682,7 +432,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         });
     }
     try {
-        if (!await windows.eulaConsent() || !await windows.patronLink(args.forcePatronCheck)) {
+        if (!await windows.eulaConsent() || !await windows.patronLink({sauceApp})) {
             console.error('Activation failed or aborted by user.');
             await maybeUpdateAndRestart();
             return quit();
@@ -693,11 +443,10 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         await maybeUpdateAndRestart();
         return quit(1);
     }
-    const exclusions = await getExclusions();
-    zwiftAPI = new zwift.ZwiftAPI({exclusions});
-    global.zwiftAPI = zwiftAPI;  // devTool debug
-    zwiftMonitorAPI = new zwift.ZwiftAPI({exclusions});
-    const mainUser = await zwiftAuthenticate({api: zwiftAPI, ident: 'zwift-login', ...args});
+    const exclusions = await app.getExclusions(appPath);
+    const zwiftAPI = new zwift.ZwiftAPI({exclusions});
+    const zwiftMonitorAPI = new zwift.ZwiftAPI({exclusions});
+    const mainUser = await zwiftAuthenticate({api: zwiftAPI, ident: 'zwift-login'});
     if (!mainUser) {
         await maybeUpdateAndRestart();
         return quit(1);
@@ -706,7 +455,6 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         api: zwiftMonitorAPI,
         ident: 'zwift-monitor-login',
         monitor: true,
-        ...args
     });
     if (!monUser) {
         await maybeUpdateAndRestart();
@@ -729,7 +477,8 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
         return restart();
     }
     await maybeUpdateAndRestart();
-    for (const mod of mods.init()) {
+    const modPath = path.join(electron.app.getPath('documents'), 'SauceMods');
+    for (const mod of await mods.init(modPath, path.join(appPath, 'mods'))) {
         if (mod.isNew) {
             const enable = await windows.confirmDialog({
                 title: 'New Sauce MOD Found',
@@ -748,12 +497,18 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
             mods.setEnabled(mod.id, enable);
         }
     }
-    await sauceApp.start({...args, exclusions});
+    await sauceApp.start({...args, exclusions, zwiftAPI, zwiftMonitorAPI});
+    windows.openWidgetWindows();
+    menu.setWebServerURL(sauceApp.getWebServerURL());
+    menu.updateTrayMenu();
+    electron.powerMonitor.on('thermal-state-change', state =>
+        console.warn("Power thermal state change:", state));
+    electron.powerMonitor.on('speed-limit-change', limit =>
+        console.warn("Power CPU speed limit change:", limit));
+    // TBD: Probably want to invalidate connections and reauth stuff when a resume happens
+    electron.powerMonitor.on('suspend', limit => console.warn("System is being suspended"));
+    electron.powerMonitor.on('resume', limit => console.warn("System is waking from suspend"));
     console.debug(`Startup took ${Date.now() - s}ms`);
-    if (!args.headless) {
-        windows.openWidgetWindows();
-        menu.updateTrayMenu();
-    }
     started = true;
 }
 

@@ -36,14 +36,15 @@ message PlayerState {
     int32 routeRoadIndex = 37; // Offset into the road segment of a route (very close to our route's road manifest indexes)
     bool canSteer = 38;
     uint32 routeId = 39;
-    int32 _f40 = 40; // 63, 51?
-    int32 _f41 = 41; // rare, only seen as 0
+    int32 pacerBotGroupSize = 40;
+    bool activeSteer = 41;
     bool portal = 43;
-    int32 _f44 = 44;
-    int32 _f45 = 45;
-    int32 _f46 = 46; // 2?
-    int32 _f47 = 47; // 2?
-    int32 _f48 = 48;
+    int32 portalGradientScale = 44; // 0 = 50%, 1 = 75%, 2 = 100%, 3 = 125%
+    int32 portalElevationScale = 45; // 50, 75, 100 or 125
+    int32 boostPad = 46;
+    int32 hazardPad = 47;
+    int32 timeBonus = 48;
+    int32 rideonBomb = 49; // always seems to be x5 with value of 9
 }
 
 enum WorldUpdatePayloadType {
