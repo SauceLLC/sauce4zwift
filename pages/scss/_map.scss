@@ -72,6 +72,8 @@
 
 
         > div.entities {
+            //font-size: calc((3px * var(--layer-scale)) + (1 / var(--scale) * var(--layer-scale) * 8px));
+            //font-size: calc(100px + 2px * (1 / var(--scale-scale)));
             font-size: calc(((3px * var(--layer-scale)) + (1 / var(--scale) * var(--layer-scale) * 8px)) * var(--canvas-scale));
             position: absolute;
             top: 0;
@@ -266,7 +268,7 @@
 
             .highlight {
                 --width: 1;
-                stroke-width: calc(((var(--width) * 8) + (1 / var(--scale) * (var(--width) * 7))) * 1em);
+                stroke-width: calc(((var(--width) * 8) + (1 / var(--scale) * (var(--width) * 7))) * 1em); // XXX
                 stroke: #cf0606b0;
             }
 
@@ -446,6 +448,7 @@
                 display: block;
                 margin-left: 0.55ex;
                 text-indent: -0.55ex;
+                min-width: 14ch;
             }
         }
 

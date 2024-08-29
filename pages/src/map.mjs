@@ -8,7 +8,8 @@ const H = locale.human;
 
 function getCanvasBudget() {
     let budget = JSON.parse(localStorage.getItem('sauce-map-canvas-budget'));
-    return 1024 ** 2;
+    console.warn(Math.sqrt(budget));
+    //return 2560 ** 2;
     if (!budget) {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
@@ -1143,11 +1144,11 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     _setPathsViewBox([x, y, width, height]) {
-        this._foo = (this._foo || 0) + 1;
+        /*this._foo = (this._foo || 0) + 1;
         if (this._foo < 5) {
             console.warn("set viewbox");
             this._elements.paths.setAttribute('viewBox', [x, y, width, height].join(' '));
-        }
+        }*/
         const scale = this.worldMeta.svgScale || 1;
         const offset = this.worldMeta.svgOffset || [0, 0];
         for (const x of this._elements.paths.renderers) {
@@ -1267,7 +1268,8 @@ export class SauceZwiftMap extends EventTarget {
         etagAdd(offset[0]);
         etagAdd(offset[1]);
         const etag = etagAdd();
-        if (etag === this._lastRenderRoadsCanvasEtag && false) {
+        if (etag === this._lastRenderRoadsCanvasEtag) {
+            //console.debug('could debounce');
             return;
         } else {
             //console.log(m.mapScale, this._canvasScale, m.tileScale, this._layerScale);

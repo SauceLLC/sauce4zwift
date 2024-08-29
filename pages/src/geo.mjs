@@ -192,7 +192,7 @@ async function initialize() {
         zwiftMap.setZoom(demoState.zoomSave, {disableEvent: true});
     }
     zwiftMap.zoomMin = ad.courseId < 0 ? 0.001 : 0.05;
-    zwiftMap.zoomMax = ad.courseId < 0 ? 10 : 10;
+    zwiftMap.zoomMax = ad.courseId < 0 ? 20 : 10;
     zwiftMap.setAthlete(ad.athleteId);
     if (elProfile) {
         elProfile.setAthlete(ad.athleteId);
