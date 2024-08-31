@@ -525,7 +525,7 @@ export function cyclingDraftDragReduction(riders, position) {
      *    https://doi.org/10.1007/s12283-021-00345-2
      *
      * The values from this paper have been curve fitted to an exponential func
-     * so we can infer average CdA adaption with dynamic pack positions.
+     * so we can infer average CdA adaptation with dynamic pack positions.
      */
     if (riders == null || position == null) {
         throw new TypeError("riders and position are required arguments");
@@ -591,7 +591,7 @@ export function cyclingPowerVelocitySearchMultiPosition(riders, positions, args)
 
 
 export function cyclingPowerVelocitySearch({power, ...args}) {
-    // Do not adjust without running test suite and tuning for 50% tollerance above failure
+    // Do not adjust without running test suite and tuning for 50% tolerance above failure
     const epsilon = 0.000001;
     const sampleSize = 300;
     const filterPct = 0.50;
@@ -623,7 +623,7 @@ export function cyclingPowerVelocitySearch({power, ...args}) {
             results.length = Math.min(Math.floor(sampleSize * filterPct), results.length);
             const velocities = results.map(x => x[0]);
             if (velocities.length === 0) {
-                throw new Error("Emnty Range");
+                throw new Error("Empty Range");
             }
             start = sauce.data.min(velocities);
             end = sauce.data.max(velocities);

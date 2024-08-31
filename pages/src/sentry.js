@@ -3994,7 +3994,7 @@ globalThis.Sentry = function(exports) {
 					const {referrer} = global$1.document || {};
 					const {userAgent} = global$1.navigator || {};
 					const headers = Object.assign(Object.assign(Object.assign({}, event.request && event.request.headers), referrer && {
-						Referer: referrer
+						Referrer: referrer
 					}), userAgent && {
 						'User-Agent': userAgent
 					});
