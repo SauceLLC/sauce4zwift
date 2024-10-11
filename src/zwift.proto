@@ -1014,6 +1014,7 @@ enum CompanionToGameCommandType {
     PAIRING_AS = 28;
     PHONE_TO_GAME_PACKET = 29;
     BLEPERIPHERAL_DISCOVERY = 30;
+    TAKE_VIDEO_SCREENSHOT = 31;
 }
 
 message CompanionToGameCommand {
