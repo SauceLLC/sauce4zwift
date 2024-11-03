@@ -361,8 +361,12 @@ if (window.isElectron) {
     };
     rpcCall = async function(name, ...args) {
         const encodedArgs = args.map(x => x !== undefined ? b64urlEncode(JSON.stringify(x)) : '');
-        let resp = await fetch(`/api/rpc/v2/${name}${args.length ? '/' : ''}${encodedArgs.join('/')}`);
-        if (!resp.ok && resp.status === 431) {
+        let resp;
+        // 16384 is total header size limit, stay safely within that..
+        if (encodedArgs.reduce((agg, x) => agg + x.length, 0) < 16384 - 4000) {
+            resp = await fetch(`/api/rpc/v2/${name}${args.length ? '/' : ''}${encodedArgs.join('/')}`);
+        }
+        if (!resp || (!resp.ok && resp.status === 431)) {
             resp = await fetch(`/api/rpc/v1/${name}`, {
                 method: 'POST',
                 headers: {'content-type': 'application/json'},
