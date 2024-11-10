@@ -30,10 +30,14 @@
         <td class="route">-</td>
     <% } %>
     <% if (event.durations.length) { %>
-        <td>{-event.durations.map(x => humanDuration(x, {suffix: true, html: true, short: false})).join(', ')-}</td>
+        <% if (event.durations.length > 1) { %>
+            <td>{-humanDuration(event.durations[0], {html: true, short: true})-} - {-humanDuration(event.durations.at(-1), {html: true, short: false})-}</td>
+        <% } else { %>
+            <td>{-humanDuration(event.durations[0], {html: true})-}</td>
+        <% } %>
     <% } else if (event.distances.length) { %>
         <% if (event.distances.length > 1) { %>
-            <td>{-humanDistance(event.distances[0])-}-{-humanDistance(event.distances.at(-1), {suffix: true, html: true})-}</td>
+            <td>{-humanDistance(event.distances[0])-} - {-humanDistance(event.distances.at(-1), {suffix: true, html: true})-}</td>
         <% } else { %>
             <td>{-humanDistance(event.distances[0], {suffix: true, html: true})-}</td>
         <% } %>

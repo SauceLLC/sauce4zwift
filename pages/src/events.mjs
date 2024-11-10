@@ -80,13 +80,12 @@ async function fillInEvents() {
                 sg.route = await getRoute(sg.routeId);
                 durations.push(sg.durationInSeconds);
                 distances.push(sg.distanceInMeters || sg.routeDistance);
-                climbings.push(sg.routeClimbing); // XXX is valid, not used before?
                 allSubgroups.set(sg.id, {sg, event});
             }
         }
-        event.durations = Array.from(new Set(durations.filter(x => x).sort()));
-        event.distances = Array.from(new Set(distances.filter(x => x).sort()));
-        event.climbings = Array.from(new Set(climbings.filter(x => x).sort()));
+        const desc = (a, b) => a - b;
+        event.durations = Array.from(new Set(durations.filter(x => x))).sort(desc);
+        event.distances = Array.from(new Set(distances.filter(x => x))).sort(desc);
     }));
 }
 
