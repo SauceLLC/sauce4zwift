@@ -24,15 +24,22 @@
         <% } %>
     </td>
     <td class="name" title="{{event.name}}">{{event.name}}</td>
-    <% if (event.sameRoute && event.route?.name) { %>
+    <% if (event.sameRouteName && event.route?.name) { %>
         <td class="route" title="Event route: {{event.route?.name}}"><ms>route</ms> {{event.route?.name}}</td>
     <% } else { %>
         <td class="route">-</td>
     <% } %>
-    <% if (event.durationInSeconds) { %>
-        <td>{-humanDuration(event.durationInSeconds, {suffix: true, html: true, short: true})-}</td>
+    <% if (event.durations.length) { %>
+        <td>{-event.durations.map(x => humanDuration(x, {suffix: true, html: true, short: false})).join(', ')-}</td>
+    <% } else if (event.distances.length) { %>
+        <% if (event.distances.length > 1) { %>
+            <td>{-humanDistance(event.distances[0])-}-{-humanDistance(event.distances.at(-1), {suffix: true, html: true})-}</td>
+        <% } else { %>
+            <td>{-humanDistance(event.distances[0], {suffix: true, html: true})-}</td>
+        <% } %>
     <% } else { %>
-        <td>{-humanDistance(event.distanceInMeters || event.routeDistance, {suffix: true, html: true})-}</td>
+        {{console.warn("Event duration/distance bug:", event)}}
+        <td>-</td>
     <% } %>
     <td title="Climbing elevation gain">{-humanElevation(event.routeClimbing, {suffix: true, html: true})-}</td>
     <td class="groups">

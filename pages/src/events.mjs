@@ -61,7 +61,11 @@ async function fillInEvents() {
     await Promise.all(Array.from(allEvents.values()).map(async event => {
         event.route = await getRoute(event.routeId);
         event.sameRoute = true;
+        event.sameRouteName = true;
         event.signedUp = false;
+        const durations = [event.durationInSeconds];
+        const distances = [event.distanceInMeters || event.routeDistance];
+        const climbings = [event.routeClimbing];
         if (event.eventSubgroups) {
             event.sameRoute = (new Set(event.eventSubgroups.map(sg =>
                 JSON.stringify([
@@ -70,12 +74,19 @@ async function fillInEvents() {
                     sg.durationInSeconds,
                     sg.routeId]
                 )))).size === 1;
+            event.sameRouteName = (new Set(event.eventSubgroups.map(sg => sg.routeId))).size === 1;
             event.signedUp = event.eventSubgroups.some(x => x.signedUp);
             for (const sg of event.eventSubgroups) {
                 sg.route = await getRoute(sg.routeId);
+                durations.push(sg.durationInSeconds);
+                distances.push(sg.distanceInMeters || sg.routeDistance);
+                climbings.push(sg.routeClimbing); // XXX is valid, not used before?
                 allSubgroups.set(sg.id, {sg, event});
             }
         }
+        event.durations = Array.from(new Set(durations.filter(x => x).sort()));
+        event.distances = Array.from(new Set(distances.filter(x => x).sort()));
+        event.climbings = Array.from(new Set(climbings.filter(x => x).sort()));
     }));
 }
 
@@ -255,6 +266,12 @@ async function render() {
             eventBadge: common.eventBadge,
             templates,
         }));
+        if (event.sameRoute) {
+            const elChart = eventDetailsEl.querySelector('.elevation-chart');
+            if (elChart) {
+                createElevationProfile(elChart, event.eventSubgroups[0] || event);
+            }
+        }
         for (const el of eventDetailsEl.querySelectorAll('[data-event-subgroup-id]')) {
             const sg = event.eventSubgroups.find(x => x.id === Number(el.dataset.eventSubgroupId));
             const table = el.querySelector('table.entrants');
