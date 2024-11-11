@@ -1725,7 +1725,7 @@ export class GameMonitor extends events.EventEmitter {
         clearTimeout(this._connectRetryTimeout);
         this.disconnect();
         const backoffCount = this.connectingCount + this._errCount;
-        const delay = Math.max(1000, (backoffCount * 1000) - (Date.now() - this.connectingTS));
+        const delay = Math.max(1000, (1000 * 1.2 ** backoffCount) - (Date.now() - this.connectingTS));
         console.warn('Next connect retry:', fmtTime(delay));
         this._connectRetryTimeout = setTimeout(this.connect.bind(this), delay);
     }
@@ -1989,10 +1989,10 @@ export class GameMonitor extends events.EventEmitter {
 
     onInPacket(pb, ch) {
         if (pb.multipleLogins) {
-            console.error("Multiple logins detected!");
-            this.emit('multiple-logins');
-            this.stop();
-            return;
+            console.warn("Multiple logins detected!");
+            //this.emit('multiple-logins');
+            //this.stop();
+            //return;
         }
         if (pb.udpConfigVOD) {
             for (const x of pb.udpConfigVOD.pools) {
