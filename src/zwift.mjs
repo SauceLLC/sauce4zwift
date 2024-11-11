@@ -1801,6 +1801,7 @@ export class GameMonitor extends events.EventEmitter {
                         watchingAthleteId: this.watchingAthleteId,
                         _flags2: portal ? encodePlayerStateFlags2({roadId: lws.roadId}) : undefined,
                         portal,
+                        eventSubgroupId: lws.eventSubgroupId,
                         ...this.watchingStateExtra});
                     break;
                 } catch(e) {
