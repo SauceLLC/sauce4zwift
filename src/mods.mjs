@@ -289,15 +289,22 @@ async function _initPacked(root) {
     }
     const validMods = [];
     for (const [id, entry] of modsInstalled.entries()) {
-        const settings = getOrInitModSettings(id);
-        if (!settings.enabled) {
-            console.warn('Skipping disabled Mod:', id);
+        let mod;
+        let zipFile;
+        try {
+            zipFile = path.join(packedModRoot, entry.file);
+            mod = await openPackedMod(zipFile, id);
+            console.info(`Detected packed Mod: ${mod.manifest.name} - v${mod.manifest.version}`);
+        } catch(e) {
+            if (e instanceof ValidationError) {
+                const path = e.key ? e.path.concat(e.key) : e.path;
+                console.error(`Mod validation error [${id}] (${path.join('.')}): ${e.message}`);
+            } else {
+                console.error('Invalid Mod:', id, entry.file, e);
+            }
             continue;
         }
-        try {
-            const zipFile = path.join(packedModRoot, entry.file);
-            let mod = await openPackedMod(zipFile, id);
-            console.info(`Detected packed Mod: ${mod.manifest.name} - v${mod.manifest.version}`);
+        if (getOrInitModSettings(id).enabled) {
             try {
                 const latestRelease = await getLatestPackedModRelease(id);
                 if (latestRelease && latestRelease.hash !== mod.hash) {
@@ -308,17 +315,10 @@ async function _initPacked(root) {
                     fsRemoveFile(zipFile);
                 }
             } catch(e) {
-                console.warn("Failed to check/update Mod:", e);
-            }
-            validMods.push(mod);
-        } catch(e) {
-            if (e instanceof ValidationError) {
-                const path = e.key ? e.path.concat(e.key) : e.path;
-                console.error(`Mod validation error [${id}] (${path.join('.')}): ${e.message}`);
-            } else {
-                console.error('Invalid Mod:', id, entry.file, e);
+                console.error("Failed to check/update Mod:", e);
             }
         }
+        validMods.push(mod);
     }
     return validMods;
 }
