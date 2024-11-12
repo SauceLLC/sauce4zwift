@@ -1320,6 +1320,15 @@ class UDPChannel extends NetChannel {
     }
 
     onUDPData(buf) {
+        try {
+            this._onUDPData(buf);
+        } catch(e) {
+            console.error("UDP recv handler error:", e);
+            this.incError();
+        }
+    }
+
+    _onUDPData(buf) {
         this.recvCount++;
         const stc = protos.ServerToClient.decode(this.decrypt(buf));
         this.emit('inPacket', stc, this);
