@@ -65,7 +65,6 @@ async function fillInEvents() {
         event.signedUp = false;
         const durations = [event.durationInSeconds];
         const distances = [event.distanceInMeters || event.routeDistance];
-        const climbings = [event.routeClimbing];
         if (event.eventSubgroups) {
             event.sameRoute = (new Set(event.eventSubgroups.map(sg =>
                 JSON.stringify([

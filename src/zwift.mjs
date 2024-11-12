@@ -395,9 +395,12 @@ export class ZwiftAPI {
             query = new URLSearchParams(Object.entries(query).filter(([k, v]) => v != null));
         }
         const q = query ? `?${query}` : '';
-        const host = options.host || this.host || 'us-or-rly101.zwift.com';
-        const scheme = options.scheme || this.scheme || 'https';
-        const uri = `${scheme}://${host}/${urn.replace(/^\//, '')}`;
+        let uri = options.uri;
+        if (!uri) {
+            const host = options.host || this.host || 'us-or-rly101.zwift.com';
+            const scheme = options.scheme || this.scheme || 'https';
+            uri = `${scheme}://${host}/${urn.replace(/^\//, '')}`;
+        }
         if (!options.silent) {
             console.debug(`Fetch: ${options.method || 'GET'} ${uri}`);
         }
@@ -796,23 +799,26 @@ export class ZwiftAPI {
         return results;
     }
 
-    async getWorkout(workoutId, options={}) {        
+    // XXX this returns different data types and values depending on options.all
+    // XXX probably should be two unrelated functions
+    async getWorkout(workoutId, options={}) {
+        console.warn('XXX: subject to change');
         let results = {};
         if (options.all) {
             let page = 1;
-            let pageSize = 100;
-            let allWorkouts = []
+            const pageSize = 100;
+            const allWorkouts = [];
             while (true) {
                 const workouts = await this.fetchJSON(`/api/workout/workouts`, {
                     query: {
                         filter: null,
                         sort: null,
                         page: page,
-                        pageSize: pageSize,
+                        pageSize,
                     }
                 });
-                if (workouts.length > 0) {                        
-                    for (let w of workouts) {
+                if (workouts.length) {
+                    for (const w of workouts) {
                         allWorkouts.push(w);
                     }
                     page++;
@@ -822,20 +828,22 @@ export class ZwiftAPI {
             }
             results = allWorkouts;
         } else {
-            await this.fetchJSON(`/api/workout/workouts/${workoutId}`) // get the workout
-                .then(workout => this.fetch(workout.workoutAssetUrl.replace("https://us-or-rly101.zwift.com/",""))) // get the workoutAsset
-                .then(workoutDetails => workoutDetails.text()) 
-                .then(workoutText => results = workoutText)
+            const workout = await this.fetchJSON(`/api/workout/workouts/${workoutId}`);
+            const detailsResp = await this.fetch({uri: workout.workoutAssetUrl});
+            const details = await detailsResp.text();
+            return details; // XXX should probably return workout with property containing parsed xml
         }
         return results;
     }
 
-    async getWorkoutCollection(collectionID, options={}) {        
+    async getWorkoutCollection(collectionID, options={}) {
         let results = {};
         if (options.all) {
-            results = await this.fetchJSON(`/api/workout/collections?pageSize=100`)
+            // XXX Handle paging...
+            results = await this.fetchJSON(`/api/workout/collections?pageSize=100`);
         } else {
-            results = await this.fetchJSON(`/api/workout/collections/${collectionID}/workouts?pageSize=100`)
+            // XXX Handle paging...
+            results = await this.fetchJSON(`/api/workout/collections/${collectionID}/workouts?pageSize=100`);
         }
         return results;
     }
