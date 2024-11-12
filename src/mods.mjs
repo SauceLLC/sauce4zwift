@@ -45,7 +45,7 @@ function getAvailableModsV1() {
         restartRequired: x.restartRequired,
         status: x.status,
         isNew: !!x.isNew,
-        enabled: !!modsSettings[x.id]?.enabled,
+        enabled: !!(modsSettings.get(x.id)?.enabled),
     }));
 }
 rpc.register(getAvailableModsV1); // For stable use outside sauce, i.e. mods.sauce.llc
@@ -62,6 +62,24 @@ function fsRemoveFile(path) {
 }
 
 
+function getOrInitModSettings(id) {
+    let settings = modsSettings.get(id);
+    if (!settings) {
+        settings = {};
+        modsSettings.set(id, settings);
+    }
+    return settings;
+}
+
+
+function saveModsSettings() {
+    storage.set(settingsKey, Object.fromEntries(modsSettings.entries()));
+}
+
+
+function saveModsInstalled() {
+    storage.set(installedKey, Object.fromEntries(modsInstalled.entries()));
+}
 
 
 export function setEnabled(id, enabled) {
@@ -69,11 +87,8 @@ export function setEnabled(id, enabled) {
     if (!mod) {
         throw new Error('ID not found');
     }
-    if (!modsSettings[id]) {
-        modsSettings[id] = {};
-    }
-    modsSettings[id].enabled = enabled;
-    storage.set(settingsKey, modsSettings);
+    getOrInitModSettings(id).enabled = enabled;
+    saveModsSettings();
     mod.restartRequired = true;
     mod.status = enabled ? 'enabling' : 'disabling';
     eventEmitter.emit('enabled-mod', enabled, mod);
@@ -94,7 +109,7 @@ function isSafeID(x) {
 
 
 function sanitizeID(x) {
-    return x.replace(/[^a-z0-9-]/ig, '-');
+    return x.replace(/[^a-z0-9\-_]/ig, '-');
 }
 
 
@@ -103,7 +118,7 @@ const manifestSchema = {
     id: {type: 'string', desc: 'Optional ID for this mod, defaults to the directory name', valid: isSafeID},
     name: {type: 'string', required: true, desc: 'Pretty name of the mod'},
     description: {type: 'string', required: true, desc: 'Description of the mod'},
-    version: {type: 'string', required: true, desc: 'MOD version, i.e. 1.2.3'},
+    version: {type: 'string', required: true, desc: 'Mod version, i.e. 1.2.3'},
     author: {type: 'string', desc: 'Author name or company'},
     website_url: {type: 'string', desc: 'External URL related to the mod'},
     web_root: {type: 'string', desc: 'Sub directory containing web assets.', valid: isSafePath},
@@ -150,19 +165,19 @@ const manifestSchema = {
 
 
 export async function init(unpackedDir, packedDir) {
-    modsSettings = storage.get(settingsKey) || {};
-    modsInstalled = storage.get(installedKey) || {};
+    modsSettings = new Map(Object.entries(storage.get(settingsKey) || {}));
+    modsInstalled = new Map(Object.entries(storage.get(installedKey) || {}));
     availableMods.length = 0;
     modsById.clear();
     try {
         availableMods.push(..._initUnpacked(unpackedDir));
         availableMods.push(...await _initPacked(packedDir));
     } catch(e) {
-        console.error("MODS init error:", e);
+        console.error("Mods init error:", e);
     }
     for (const mod of availableMods) {
         modsById.set(mod.id, mod);
-        if (!modsSettings[mod.id]?.enabled) {
+        if (!modsSettings.get(mod.id)?.enabled) {
             continue;
         }
         mod.status = 'active';
@@ -205,7 +220,7 @@ function _initUnpacked(root) {
         unpackedModRoot = fs.realpathSync(root);
         fs.mkdirSync(unpackedModRoot, {recursive: true});
     } catch(e) {
-        console.warn('MODS folder uncreatable:', root, e);
+        console.warn('Mods folder uncreatable:', root, e);
         unpackedModRoot = null;
     }
     if (!unpackedModRoot || !fs.existsSync(unpackedModRoot) || !fs.statSync(unpackedModRoot).isDirectory()) {
@@ -224,15 +239,19 @@ function _initUnpacked(root) {
             try {
                 const manifest = JSON.parse(fs.readFileSync(manifestPath));
                 const id = manifest?.id || sanitizeID(x);
-                const isNew = !modsSettings[id];
-                const settings = modsSettings[id] = (modsSettings[id] || {});
+                const isNew = !modsSettings.has(id);
+                const legacyId = (isNew && !manifest?.id && modsSettings.has(x)) ? x : undefined;
+                if (legacyId) {
+                    console.warn(`Mod may have a settings from legacy ID: ${legacyId} vs ${id}`);
+                }
+                const settings = getOrInitModSettings(id);
                 const enabled = !isNew && !!settings.enabled;
                 const label = `${manifest.name} (${id})`;
-                console.info(`Detected unpacked MOD: ${label} ${!enabled ? '[DISABLED]' : ''}`);
+                console.info(`Detected unpacked Mod: ${label} ${!enabled ? '[DISABLED]' : ''}`);
                 if (isNew || enabled) {
                     validateManifest(manifest, modPath, label);
                 }
-                validMods.push({manifest, isNew, id, modPath, packed: false});
+                validMods.push({manifest, isNew, id, legacyId, modPath, packed: false});
             } catch(e) {
                 if (e instanceof ValidationError) {
                     const path = e.key ? e.path.concat(e.key) : e.path;
@@ -262,23 +281,23 @@ async function _initPacked(root) {
         packedModRoot = root;
         fs.mkdirSync(packedModRoot, {recursive: true});
     } catch(e) {
-        console.warn('MODS folder uncreatable:', root, e);
+        console.warn('Mods folder uncreatable:', root, e);
         packedModRoot = null;
     }
     if (!packedModRoot) {
         return [];
     }
     const validMods = [];
-    for (const [id, entry] of Object.entries(modsInstalled)) {
-        const settings = modsSettings[id] = (modsSettings[id] || {});
+    for (const [id, entry] of modsInstalled.entries()) {
+        const settings = getOrInitModSettings(id);
         if (!settings.enabled) {
-            console.warn('Skipping disabled mod:', id);
+            console.warn('Skipping disabled Mod:', id);
             continue;
         }
         try {
             const zipFile = path.join(packedModRoot, entry.file);
             let mod = await openPackedMod(zipFile, id);
-            console.info(`Detected packed MOD: ${mod.manifest.name} - v${mod.manifest.version}`);
+            console.info(`Detected packed Mod: ${mod.manifest.name} - v${mod.manifest.version}`);
             try {
                 const latestRelease = await getLatestPackedModRelease(id);
                 if (latestRelease && latestRelease.hash !== mod.hash) {
@@ -371,7 +390,7 @@ function validateSchema(obj, modPath, schema, label, path, unique) {
         for (const [i, xv] of vArr.entries()) {
             const pathKey = info.isArray ? `${k}[${i}]` : k;
             if (info.deprecated) {
-                console.warn(`Deprecated MOD manifest field "${pathKey}": ${label}`);
+                console.warn(`Deprecated Mod manifest field "${pathKey}": ${label}`);
             }
             if (typeof xv !== info.type) {
                 throw new ValidationError(path, pathKey, `Invalid type, expected "${info.type}"`);
@@ -417,7 +436,7 @@ rpc.register(showModsRootFolder);
 export function getWindowManifests() {
     const winManifests = [];
     for (const {manifest, id} of availableMods) {
-        if (!modsSettings[id]?.enabled || !manifest.windows) {
+        if (!modsSettings.get(id)?.enabled || !manifest.windows) {
             continue;
         }
         for (const x of manifest.windows) {
@@ -475,16 +494,16 @@ async function installPackedModRelease(id, release) {
     const file = `${crypto.randomUUID()}.zip`;
     fs.writeFileSync(path.join(packedModRoot, file), data);
     const mod = await openPackedMod(path.join(packedModRoot, file), id);
-    if (!modsInstalled[id]) {
-        modsInstalled[id] = {};
+    if (!modsInstalled.has(id)) {
+        modsInstalled.set(id, {});
     }
-    Object.assign(modsInstalled[id], {
+    Object.assign(modsInstalled.get(id), {
         hash: release.hash,
         file,
         size: data.byteLength
     });
-    storage.set(installedKey, modsInstalled);
-    fetch(`https://mod-rank.sauce.llc/edit/${id}/installs`, {method: 'POST'}); // bg okay
+    saveModsInstalled();
+    queueMicrotask(() => fetch(`https://mod-rank.sauce.llc/edit/${id}/installs`, {method: 'POST'}));
     return mod;
 }
 
@@ -503,9 +522,8 @@ export async function installPackedMod(id) {
     const mod = await installPackedModRelease(id, release);
     mod.restartRequired = true;
     mod.status = 'installing';
-    modsSettings[id] = (modsSettings[id] || {});
-    modsSettings[id].enabled = true;
-    storage.set(settingsKey, modsSettings);
+    getOrInitModSettings(id).enabled = true;
+    saveModsSettings();
     const existing = availableMods.find(x => x.id === id);
     if (existing) {
         Object.assign(existing, mod);
@@ -515,21 +533,20 @@ export async function installPackedMod(id) {
     }
     eventEmitter.emit('installed-mod', mod);
     eventEmitter.emit('available-mods-changed', mod, availableMods);
-    fetch(`https://mod-rank.sauce.llc/edit/${id}/installs`, {method: 'POST'}); // bg okay
 }
 rpc.register(installPackedMod);
 
 
 export function removePackedMod(id) {
     console.warn("Removing Mod:", id);
-    const installed = modsInstalled[id];
+    const installed = modsInstalled.get(id);
     if (!installed) {
         throw new Error("Mod not found: " + id);
     }
-    delete modsInstalled[id];
-    delete modsSettings[id];
-    storage.set(installedKey, modsInstalled);
-    storage.set(settingsKey, modsSettings);
+    modsInstalled.delete(id);
+    saveModsInstalled();
+    modsSettings.delete(id);
+    saveModsSettings();
     const mod = modsById.get(id);
     mod.restartRequired = true;
     mod.status = 'removing';
