@@ -261,6 +261,10 @@ export function loadSession(name, options={}) {
     const persist = options.persist !== false;
     const partition = name !== magicLegacySessionId ? (persist ? 'persist:' : '') + name : '';
     const s = electron.session.fromPartition(partition);
+    if (s.protocol.isProtocolHandled('file')) {
+        console.warn("Replacing builtin file:// handler for:", name, s);
+        s.protocol.unhandle('file');
+    }
     s.protocol.handle('file', onHandleFileProtocol.bind(s));
     sessions.set(name, s);
     return s;
