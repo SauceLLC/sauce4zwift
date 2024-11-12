@@ -37,7 +37,7 @@
     "zwift-utils": "https://github.com/SauceLLC/zwift-utils.git#2fb8feca79f2ead767cfee88bf9258d6c8b93980"
   },
   "devDependencies": {
-    "@electron/notarize": "2.3.0",
+    "@electron/notarize": "2.3.2",
     "@sentry/browser": "6.19.6",
     "echarts": "5.5.0",
     "electron": "29.2.0",
