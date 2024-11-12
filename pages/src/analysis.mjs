@@ -805,7 +805,6 @@ export async function main() {
 function setSelection(startIndex, endIndex, scrollTo) {
     state.zoomStart = startIndex;
     state.zoomEnd = endIndex;
-    console.log("set selection:", startIndex, endIndex);
     if (startIndex != null && endIndex != null) {
         zoomableChart.dispatchAction({
             type: 'dataZoom',

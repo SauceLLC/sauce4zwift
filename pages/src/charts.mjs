@@ -137,7 +137,6 @@ export function getPowerFieldPieces(data, powerZones, ftp) {
             zone: curZone,
         });
     }
-    console.warn("datalen", data.length, 'pieces', pieces.length);
     return pieces;
 }
 
@@ -167,11 +166,8 @@ export function magicZonesAfterRender({hackId, chart, ftp, zones, seriesId, zLev
     if (chart._magicZonesActive) {
         return;
     }
-    const s = performance.now();
     const graphic = calcMagicPowerZonesGraphics(chart, zones, seriesId, ftp, {zLevel});
-    console.log(performance.now() - s, graphic[0].children.length);
     const sig = JSON.stringify(graphic);
-    console.log(performance.now() - s, graphic[0].children.length);
     if (sig === chart._magicZonesLastSig) {
         return;
     }
@@ -188,7 +184,6 @@ export function magicZonesAfterRender({hackId, chart, ftp, zones, seriesId, zLev
 
 
 export function calcMagicPowerZonesGraphics(chart, zones, seriesId, ftp, options={}) {
-    let s = performance.now();
     const children = [];
     const graphic = [{type: 'group', silent: true, id: 'magic-zones', children}];
     const series = chart.getModel().getSeries().find(x => x.id === seriesId);
@@ -201,21 +196,15 @@ export function calcMagicPowerZonesGraphics(chart, zones, seriesId, ftp, options
     const yAxis = chart.getModel().getComponent('yAxis', yAxisIndex);
     const data = [];
     const seriesData = series.getData();
-    console.log(11, performance.now() - s);
-    s = performance.now();
     const len = seriesData.count();
     const step = 1; //Math.max(1, (len / (devicePixelRatio * innerWidth)) | 0);
     for (let i = 0; i < len; i += step) {
         data.push([seriesData.get('x', i), seriesData.get('y', i)]);
     }
-    console.log(22, performance.now() - s);
-    s = performance.now();
     const pieces = getPowerFieldPieces(data, zones, ftp);
     const [bottomY, topY]= yAxis.axis.getGlobalExtent();
     const height = bottomY - topY;
     let startPx;
-    console.log(33, performance.now() - s);
-    s = performance.now();
     for (const x of pieces) {
         if (startPx == null) {
             startPx = chart.convertToPixel({xAxisIndex}, data[x.start][0]);
@@ -247,8 +236,6 @@ export function calcMagicPowerZonesGraphics(chart, zones, seriesId, ftp, options
         });
         startPx = null;
     }
-    console.log(44, performance.now() - s);
-    s = performance.now();
     return graphic;
 }
 
