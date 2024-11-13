@@ -116,29 +116,70 @@
         }
     }
 
-    a.avatar {
-        flex: 1 0 280px;
+    .avatar {
+        flex: 1 0 250px;
         display: block;
         overflow: hidden;
         max-width: 100%;
         max-height: calc(100vh - 4rem);
         display: flex;
-        padding: 1em;
+        margin: 1em;
         align-items: flex-start;
         justify-content: center;
+        position: relative;
+        --av-border-width: 0.4rem;
 
         img {
+            aspect-ratio: 1 / 1;
+            object-fit: cover;
             width: fit-content;
             max-width: 100%;
             max-height: 100%;
-            border-radius: 2.5em 0.6em;
-            border: 0.4em solid #0007;
+            border-radius: 2.5rem 0.6rem;
+            border: var(--av-border-width) solid #0007;
             box-shadow: 1px 1px 5px #0003;
             background-image: radial-gradient(ellipse at 11% 0,
                 rgb(32 2 72 / 0.8) 0%,
                 rgb(10 12 142 / 0.8) 42%,
                 rgb(132 70 13 / 0.8) 94%);
             background-clip: content-box;
+        }
+    }
+
+    .racing-score-avatar-badge {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        position: absolute;
+        top: calc(var(--av-border-width) - 0.5px);
+        right: calc(var(--av-border-width) - 0.5px);
+        opacity: 0.9;
+        font-size: 3em;
+        text-decoration: none;
+        transition: filter 100ms, opacity 100ms;
+
+        &:hover {
+            filter: drop-shadow(1px 1px 5px #0003);
+            opacity: 1;
+        }
+
+        .badge {
+            border-top-right-radius: 0.25rem;
+            border-top-left-radius: 0;
+            border-bottom-right-radius: 0;
+            padding: 0.2em 0.6em 0.6em;
+        }
+
+        .number {
+            color: #000;
+            font-size: 0.3em;
+            font-weight: 800;
+            text-shadow:
+                0px 0px 1px #fff,
+                0px 0px 1px #fff,
+                0px 0px 1px #fff;
+            margin-top: -1.7em;
+            font-stretch: extra-expanded;
         }
     }
 
@@ -160,10 +201,17 @@
 
         .row {
             padding: 0.4em 0.7em;
+            display: flex;
+            align-items: center;
         }
 
         .row:nth-child(odd) {
             background-color: #0003;
+        }
+
+        .racing-score {
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
         }
     }
 
@@ -177,7 +225,7 @@
         min-width: 10ch;
         font-variant: small-caps;
         font-weight: bold;
-        font-size: 0.8em;
+        font-size: 0.82em;
     }
 
     key::after {

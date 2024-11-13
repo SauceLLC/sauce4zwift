@@ -127,10 +127,10 @@ function zwiftCompatDate(date) {
 const cadenceMax = 240 * 1e6 / 60;
 const halfCircle = 1e6 * Math.PI;
 const pbProfilePrivacyFlags = {
-    approvalRequired: 0x1,
+    privateMessaging: 0x1,
     minor: 0x2,
     displayWeight: 0x4,
-    privateMessaging: 0x8,
+    approvalRequired: 0x8,
     defaultFitnessDataPrivacy: 0x10,
     suppressFollowerNotification: 0x20,
 };
@@ -515,19 +515,25 @@ export class ZwiftAPI {
                 return;
             }
             x.privacy = {
-                defaultActivityPrivacy: x.default_activity_privacy,
+                defaultActivityPrivacy: x.defaultActivityPrivacy,
             };
+            delete x.defaultActivityPrivacy;
             for (const [k, flag] of Object.entries(pbProfilePrivacyFlags)) {
-                x.privacy[k] = !!(+x.privacy_bits & flag);
+                x.privacy[k] = !!(+x.privacyBits & flag);
             }
             for (const [k, flag] of Object.entries(pbProfilePrivacyFlagsInverted)) {
-                x.privacy[k] = !(+x.privacy_bits & flag);
+                x.privacy[k] = !(+x.privacyBits & flag);
             }
+            delete x.privacyBits;
             x.powerSourceModel = {
                 VIRTUAL: 'zPower', // consistent with JSON api; applies to runs too
                 POWER_METER: 'Power Meter',
                 SMART_TRAINER: 'Smart Trainer',
             }[x.powerType];
+            x.socialFacts = x.socialFacts || {
+                followerStatusOfLoggedInPlayer: x.followerStatusOfLoggedInPlayer,
+            };
+            delete x.followerStatusOfLoggedInPlayer;
             return x;
         });
     }

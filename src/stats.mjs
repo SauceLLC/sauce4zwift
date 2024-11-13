@@ -1404,6 +1404,33 @@ export class StatsProcessor extends events.EventEmitter {
         const powerMeterSources = ['Power Meter', 'Smart Trainer'];
         const powerMeter = p.powerSourceModel ? powerMeterSources.includes(p.powerSourceModel) : undefined;
         const minor = p.privacy && p.privacy.minor;
+        /*
+        if (p.competitionMetrics) {
+            this.zwiftAPI.getProfiles([p.id]).then(pp => {
+                pp = pp[0];
+                const json = Object.fromEntries(Object.entries(p).sort((a, b) => a[0] < b[0] ? -1 : 1));
+                const pb = Object.fromEntries(Object.entries(pp).sort((a, b) => a[0] < b[0] ? -1 : 1));
+                console.log(pb, json);
+                const diff = new Map(Object.entries(json));
+                for (const [k, v] of Array.from(diff.entries())) {
+                    if (!pb.hasOwnProperty(k)) {
+                        diff.set('JSONONLY: ' + k, v);
+                        diff.delete(k);
+                    }
+                }
+                for (const [k, v] of Object.entries(pb)) {
+                    if (!diff.has(k)) {
+                        diff.set('PBONLY: ' + k, v);
+                    } else if (JSON.stringify(diff.get(k)) === JSON.stringify(v)) {
+                        diff.delete(k);
+                    } else {
+                        diff.set(k, {json: diff.get(k), pb: v});
+                    }
+                }
+                console.log(Object.fromEntries(diff.entries()));
+            });
+        }
+        */
         const o = {
             firstName: p.firstName,
             lastName: p.lastName,
@@ -1418,7 +1445,10 @@ export class StatsProcessor extends events.EventEmitter {
             age: !minor && p.privacy && p.privacy.displayAge ? p.age : null,
             level: p.achievementLevel ? Math.floor(p.achievementLevel / 100) : undefined,
             powerMeter,
-            ...p.competitionMetrics,
+            racingScore: p.cometitionMetrics?.racingScore,
+            racingCategory: minor || p.male !== false ?
+                p.cometitionMetrics?.category :
+                p.cometitionMetrics?.categoryWomen,
         };
         if (p.socialFacts) {
             o.follower = p.socialFacts.followeeStatusOfLoggedInPlayer === 'IS_FOLLOWING';

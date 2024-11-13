@@ -315,10 +315,12 @@ async function render() {
                 let cleanup;
                 common.initExpanderTable(table, async (el, entrantSummaryEl) => {
                     const athleteId = Number(entrantSummaryEl.dataset.id);
+                    const athlete = await common.rpc.getAthlete(athleteId, {allowFetch: true});
+                    console.debug("Athlete:", athlete);
                     cleanup = await profileRender(el, templates.profile, {
                         embedded: true,
                         athleteId,
-                        athlete: await common.rpc.getAthlete(athleteId, {allowFetch: true}),
+                        athlete,
                         gameConnection: gcs && gcs.connected,
                         nations,
                         flags,
