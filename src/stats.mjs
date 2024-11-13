@@ -1445,10 +1445,10 @@ export class StatsProcessor extends events.EventEmitter {
             age: !minor && p.privacy && p.privacy.displayAge ? p.age : null,
             level: p.achievementLevel ? Math.floor(p.achievementLevel / 100) : undefined,
             powerMeter,
-            racingScore: p.cometitionMetrics?.racingScore,
+            racingScore: p.competitionMetrics?.racingScore,
             racingCategory: minor || p.male !== false ?
-                p.cometitionMetrics?.category :
-                p.cometitionMetrics?.categoryWomen,
+                p.competitionMetrics?.category :
+                p.competitionMetrics?.categoryWomen,
         };
         if (p.socialFacts) {
             o.follower = p.socialFacts.followeeStatusOfLoggedInPlayer === 'IS_FOLLOWING';
