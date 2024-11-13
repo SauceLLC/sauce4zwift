@@ -390,12 +390,12 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
                     setHeaders: res => res.setHeader('Access-Control-Allow-Origin', '*')
                 }));
             } else {
-                const fullPath = path.join(mod.zipRootDir, mod.manifest.web_root);
+                const fullPath = path.posix.join(mod.zipRootDir, mod.manifest.web_root);
                 console.warn('Adding Mod web root:', '/mods' + urn, '->', fullPath);
                 modRouter.use(urn, async (req, res) => {
                     let data;
                     try {
-                        data = await mod.zip.entryData(path.join(fullPath, req.path));
+                        data = await mod.zip.entryData(path.posix.join(fullPath, req.path));
                     } catch(e) {
                         if (!e.message.match(/(not found|not file)/)) {
                             res.status(500);
@@ -408,7 +408,7 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
                         return;
                     }
                     res.setHeader('Access-Control-Allow-Origin', '*');
-                    const ct = mime.mimeTypesByExt.get(path.parse(req.path).ext.substr(1));
+                    const ct = mime.mimeTypesByExt.get(path.posix.parse(req.path).ext.substr(1));
                     if (ct) {
                         res.setHeader('Content-Type', ct);
                     }
