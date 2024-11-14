@@ -118,23 +118,23 @@
 
     .avatar {
         flex: 1 0 250px;
-        display: block;
-        overflow: hidden;
-        max-width: 100%;
-        max-height: calc(100vh - 4rem);
         display: flex;
-        margin: 1em;
         align-items: flex-start;
         justify-content: center;
         position: relative;
+        overflow: hidden;
+        margin: 1em;
         --av-border-width: 0.4rem;
+
+        a[target="profile-avatar"] {
+            display: contents;
+        }
 
         img {
             aspect-ratio: 1 / 1;
             object-fit: cover;
-            width: fit-content;
-            max-width: 100%;
-            max-height: 100%;
+            width: 100%;
+            height: 100%;
             border-radius: 2.5rem 0.6rem;
             border: var(--av-border-width) solid #0007;
             box-shadow: 1px 1px 5px #0003;
