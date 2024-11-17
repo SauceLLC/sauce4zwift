@@ -623,7 +623,7 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.getWorkout, {scope: this});
         rpc.register(this.getWorkoutCollection, {scope: this});
         rpc.register(this.getWorkoutCollections, {scope: this});
-        rpc.register(this.getQueue, {scope: this});
+        rpc.register(this.getQueue, {scope: this}); // XXX ambiguous name
         this._athleteSubs = new Map();
         if (options.gameConnection) {
             const gc = options.gameConnection;
@@ -793,20 +793,22 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     async getWorkoutCollections() {
-        const results = await this.zwiftAPI.getWorkoutCollection(null,{all: true})
-        return results;
+        return await this.zwiftAPI.getWorkoutCollection(null, {all: true});
     }
+
     async getWorkoutCollection(collectionID) {
-        const results = await this.zwiftAPI.getWorkoutCollection(collectionID);
-        return results;
+        return await this.zwiftAPI.getWorkoutCollection(collectionID);
     }
+
     async getWorkouts() {
-        const results = await this.zwiftAPI.getWorkout(null,{all: true})
-        return results;
+        return await this.zwiftAPI.getWorkout(null, {all: true});
     }
-    async getWorkout(workoutId) {        
-        const workoutText = await this.zwiftAPI.getWorkout(workoutId)
-        const workoutData = workoutText.substring(workoutText.indexOf('<workout_file>') + 14, workoutText.indexOf('<workout>'))
+
+    async getWorkout(workoutId) {
+        // XXX replace with XML parser...
+        const workoutText = await this.zwiftAPI.getWorkout(workoutId);
+        const workoutData = workoutText.substring(workoutText.indexOf('<workout_file>') + 14,
+                                                  workoutText.indexOf('<workout>'));
         const workout = {};
         const tagPattern = /<(\w+)(?:\s[^>]*)?>([^]*?)<\/\1>/g;
         const tagSinglePattern = /<(\w+)\s+name="([^"]+)"\s*\/>/g;
@@ -814,7 +816,6 @@ export class StatsProcessor extends events.EventEmitter {
         while ((match = tagPattern.exec(workoutData)) !== null) {
             const tagName = match[1];
             const tagContent = match[2].trim();
-
             if (tagName === "tags") {
                 const tags = [];
                 let tagMatch;
@@ -827,49 +828,53 @@ export class StatsProcessor extends events.EventEmitter {
             }
         }
         workout.workout = [];
-        const workoutDetails = workoutText.substring(workoutText.indexOf('<workout>') + 9, workoutText.indexOf('</workout>'))    
+        const workoutDetails = workoutText.substring(workoutText.indexOf('<workout>') + 9,
+                                                     workoutText.indexOf('</workout>'));
         const lines = workoutDetails.split("\n");
         let totalDuration = 0;
         for (let line of lines) {
             line = line.trim();
-            if (line == "" || line.indexOf("!-") > -1) {  // ignore blank lines and whatever <!-- is supposed to be (comments?)
-                continue
+            if (line === "" || line.indexOf("!-") > -1) {  // ignore blank lines and comments
+                continue;
             }
             const objLine = {};
-            if (line.indexOf("</") > -1) {  // ignore closing tags    
-                continue
-            } else {    
+            if (line.indexOf("</") > -1) {  // ignore closing tags
+                continue;
+            } else {
                 const lineType = line.substring(1, line.indexOf(" "));
                 objLine.type = lineType.toLowerCase();
                 const regex = /(\w+)="([^"]*)"/g;
                 let match;
-                while (match = regex.exec(line)) {
+                while ((match = regex.exec(line))) {
                     objLine[match[1]] = match[2];
                 }
             }
-            if (objLine.type == "intervalst") {
-                objLine.Duration = (parseInt(objLine.OffDuration) + parseInt(objLine.OnDuration)) * parseInt(objLine.Repeat)
-            }            
-            if (objLine.type == "textevent" || objLine.type == "textnotification" ) {
+            // XXX intervalst or intervals?
+            if (objLine.type === "intervalst") {
+                objLine.Duration = (parseInt(objLine.OffDuration) + parseInt(objLine.OnDuration)) *
+                    parseInt(objLine.Repeat);
+            }
+            if (objLine.type === "textevent" || objLine.type === "textnotification" ) {
                 if (!workout.workout[workout.workout.length - 1].textEvents) {
                     workout.workout[workout.workout.length - 1].textEvents = [objLine];
                 } else {
-                    workout.workout[workout.workout.length - 1].textEvents.push(objLine)
+                    workout.workout[workout.workout.length - 1].textEvents.push(objLine);
                 }
             } else {
-                workout.workout.push(objLine)
-                let parsedDuration = parseInt(objLine.Duration);
+                workout.workout.push(objLine);
+                const parsedDuration = parseInt(objLine.Duration);
                 if (!isNaN(parsedDuration)) {
                     totalDuration += parsedDuration;
                 }
-            }            
-        }    
+            }
+        }
         workout.totalDuration = totalDuration;
-        return workout;        
+        return workout;
     }
+
+    // XXX ambiguous name
     async getQueue() {
-        const results = await this.zwiftAPI.getQueue();
-        return results;
+        return await this.zwiftAPI.getQueue();
     }
 
     getPowerZones(ftp) {
@@ -1399,6 +1404,33 @@ export class StatsProcessor extends events.EventEmitter {
         const powerMeterSources = ['Power Meter', 'Smart Trainer'];
         const powerMeter = p.powerSourceModel ? powerMeterSources.includes(p.powerSourceModel) : undefined;
         const minor = p.privacy && p.privacy.minor;
+        /*
+        if (p.competitionMetrics) {
+            this.zwiftAPI.getProfiles([p.id]).then(pp => {
+                pp = pp[0];
+                const json = Object.fromEntries(Object.entries(p).sort((a, b) => a[0] < b[0] ? -1 : 1));
+                const pb = Object.fromEntries(Object.entries(pp).sort((a, b) => a[0] < b[0] ? -1 : 1));
+                console.log(pb, json);
+                const diff = new Map(Object.entries(json));
+                for (const [k, v] of Array.from(diff.entries())) {
+                    if (!pb.hasOwnProperty(k)) {
+                        diff.set('JSONONLY: ' + k, v);
+                        diff.delete(k);
+                    }
+                }
+                for (const [k, v] of Object.entries(pb)) {
+                    if (!diff.has(k)) {
+                        diff.set('PBONLY: ' + k, v);
+                    } else if (JSON.stringify(diff.get(k)) === JSON.stringify(v)) {
+                        diff.delete(k);
+                    } else {
+                        diff.set(k, {json: diff.get(k), pb: v});
+                    }
+                }
+                console.log(Object.fromEntries(diff.entries()));
+            });
+        }
+        */
         const o = {
             firstName: p.firstName,
             lastName: p.lastName,
@@ -1413,7 +1445,10 @@ export class StatsProcessor extends events.EventEmitter {
             age: !minor && p.privacy && p.privacy.displayAge ? p.age : null,
             level: p.achievementLevel ? Math.floor(p.achievementLevel / 100) : undefined,
             powerMeter,
-            ...p.competitionMetrics,
+            racingScore: p.competitionMetrics?.racingScore,
+            racingCategory: minor || p.male !== false ?
+                p.competitionMetrics?.category :
+                p.competitionMetrics?.categoryWomen,
         };
         if (p.socialFacts) {
             o.follower = p.socialFacts.followeeStatusOfLoggedInPlayer === 'IS_FOLLOWING';
@@ -1995,6 +2030,21 @@ export class StatsProcessor extends events.EventEmitter {
         if (!this._athleteData.has(state.athleteId)) {
             this._athleteData.set(state.athleteId, this._createAthleteData(state));
         }
+        const worldMeta = env.worldMetas[state.courseId];
+        if (worldMeta) {
+            state.latlng = worldMeta.flippedHack ?
+                [(state.x / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
+                    (state.y / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset] :
+                [-(state.y / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
+                    (state.x / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset];
+            let slopeScale = worldMeta.physicsSlopeScale;
+            if (state.portal) {
+                const road = env.getRoad(state.courseId, state.roadId);
+                slopeScale = road?.physicsSlopeScaleOverride;
+            }
+            state.altitude = (state.z + worldMeta.waterPlaneLevel) / 100 * slopeScale +
+                worldMeta.altitudeOffsetHack;
+        }
         const ad = this._athleteData.get(state.athleteId);
         if (this._preprocessState(state, ad) === false) {
             return false;
@@ -2033,23 +2083,6 @@ export class StatsProcessor extends events.EventEmitter {
         }
         if (ad.disabled) {
             return;
-        }
-        const worldMeta = env.worldMetas[state.courseId];
-        if (worldMeta) {
-            state.latlng = worldMeta.flippedHack ?
-                [(state.x / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
-                    (state.y / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset] :
-                [-(state.y / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
-                    (state.x / (worldMeta.lonDegDist * 100)) + worldMeta.lonOffset];
-            let slopeScale;
-            if (state.portal) {
-                const road = env.getRoad(state.courseId, state.roadId);
-                slopeScale = road?.physicsSlopeScaleOverride;
-            } else {
-                slopeScale = worldMeta.physicsSlopeScale;
-            }
-            state.altitude = (state.z + worldMeta.waterPlaneLevel) / 100 * slopeScale +
-                worldMeta.altitudeOffsetHack;
         }
         const roadSig = this._roadSig(state);
         if (this._autoLap) {

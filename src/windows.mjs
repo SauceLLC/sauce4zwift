@@ -261,6 +261,10 @@ export function loadSession(name, options={}) {
     const persist = options.persist !== false;
     const partition = name !== magicLegacySessionId ? (persist ? 'persist:' : '') + name : '';
     const s = electron.session.fromPartition(partition);
+    if (s.protocol.isProtocolHandled('file')) {
+        console.warn("Replacing builtin file:// handler for:", name, s);
+        s.protocol.unhandle('file');
+    }
     s.protocol.handle('file', onHandleFileProtocol.bind(s));
     sessions.set(name, s);
     return s;
@@ -295,6 +299,7 @@ function emulateNormalUserAgent(win) {
 
 
 function onHandleFileProtocol(request) {
+    // NOTE: Always use path.posix here...
     const url = urlMod.parse(request.url);
     let pathname = url.pathname;
     let rootPath = appPath;
@@ -304,12 +309,12 @@ function onHandleFileProtocol(request) {
     // This allows files to be loaded like watching.___id-here___.html which ensures
     // some settings like zoom factor are unique to each window (they don't conform to origin
     // based sandboxing).
-    const pInfo = path.parse(pathname);
+    const pInfo = path.posix.parse(pathname);
     const idMatch = pInfo.name.match(/\.___.+___$/);
     if (idMatch) {
         pInfo.name = pInfo.name.substr(0, idMatch.index);
         pInfo.base = undefined;
-        pathname = path.format(pInfo);
+        pathname = path.posix.format(pInfo);
     }
     const modMatch = pathname.match(/\/mods\/(.+?)\//);
     if (modMatch) {
@@ -324,7 +329,7 @@ function onHandleFileProtocol(request) {
         if (!mod.packed) {
             rootPath = mod.modPath;
         } else {
-            return mod.zip.entryData(path.join(mod.zipRootDir, pathname)).then(data => {
+            return mod.zip.entryData(path.posix.join(mod.zipRootDir, pathname)).then(data => {
                 const headers = {};
                 const mimeType = mime.mimeTypesByExt.get(pInfo.ext.substr(1));
                 if (mimeType) {
@@ -343,7 +348,7 @@ function onHandleFileProtocol(request) {
         }
     }
     const elFetch = this ? this.fetch.bind(this) : electron.net.fetch;
-    return elFetch(`file://${path.join(rootPath, pathname)}`, {bypassCustomProtocolHandlers: true});
+    return elFetch(`file://${path.posix.join(rootPath, pathname)}`, {bypassCustomProtocolHandlers: true});
 }
 electron.protocol.handle('file', onHandleFileProtocol);
 

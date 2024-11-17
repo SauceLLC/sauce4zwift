@@ -340,16 +340,6 @@ message ClubAttribution {
     float value = 2;
 }
 
-enum ProfileFollowStatus {
-    UNKNOWN = 1;
-    REQUESTS_TO_FOLLOW = 2;
-    IS_FOLLOWING = 3;
-    IS_BLOCKED = 4;
-    NO_RELATIONSHIP = 5;
-    SELF = 6;
-    HAS_BEEN_DECLINED = 7;
-}
-
 enum FitnessPrivacy {
     UNSET = 0;
     HIDE_SENSITIVE_DATA = 1;
@@ -379,7 +369,7 @@ message ActivityFull {  //where is primaryImageUrl, feedImageThumbnailUrl, activ
     uint32 stravaUploadId = 20; //uint64 stored as int32
     uint32 stravaActivityId = 21; //uint64 stored as int32
     string _f22 = 22;
-    uint32 _f23 = 23; //empty; stored as int32; enum up to 5 - ProfileFollowStatus?
+    uint32 _f23 = 23; //empty; stored as int32; enum up to 5 - FollowStatus?
     bytes fit = 24;
     string fitFilename = 25;
     uint64 eventSubgroupId = 26;
@@ -423,7 +413,7 @@ message Activity { //field names pinned to db
     uint32 stravaUploadId = 20; //uint64 stored as int32
     uint32 stravaActivityId = 21; //uint64 stored as int32
     //string _f22 = 22;
-    uint32 _f23 = 23; //empty; stored as int32; enum up to 5 - ProfileFollowStatus?
+    uint32 _f23 = 23; //empty; stored as int32; enum up to 5 - FollowStatus?
     bytes fit = 24;
     string fitFilename = 25;
     //uint64 eventSubgroupId = 26;
@@ -558,7 +548,7 @@ message PlayerProfile {
     }
 
     SocialFacts socialFacts = 61;
-    FollowStatus followStatus = 62;
+    FollowStatus followerStatusOfLoggedInPlayer = 62;
     bool connectedToTrainingPeaks = 63;
     bool connectedToTodaysPlan = 64;
 
@@ -592,7 +582,7 @@ message PlayerProfile {
     uint32 runAchievementLevel = 84;
     uint32 totalRunTimeInMinutes = 85;
     Sport sport = 86;
-    uint32 utcOffsetInMinutes = 87;
+    int64 utcOffsetInMinutes = 87;
     bool connectedToUnderArmour = 88;
     string preferredLanguage = 89;
     uint32 hairColour = 90;
@@ -658,30 +648,36 @@ message PlayerProfile {
     uint32 targetExperiencePoints = 128;
     uint32 targetRunExperiencePoints = 129;
     int32 _f130 = 130; // seen 1 and 2, so likely an enum
-    int32 _f131 = 131; // Added 2023/11/09
-    int32 _f132 = 132; // Added 2023/11/09
-    uint32 _f133 = 133; // time epoch in seconds
-    int32 _f134 = 134; // Added 2023/11/09
-    int32 _f135 = 135; // Added 2023/11/09
+    uint32 streaksCurrentLength = 131;
+    uint32 streaksMaxLength = 132;
+    uint32 lastLoginTime = 133;
+    int32 _f134_possible_session_count_accum = 134; // Added 2023/11/09
+
+    int32 _totalDistanceForUnknownInt = 135;
     int32 _f136 = 136; // Added 2023/11/09
-    int32 _f137 = 137; // Added 2023/11/09
+    int32 _totalClimbedForUnknownInt = 137;
     int32 _f138 = 138; // Added 2023/11/09
-    int32 _f139 = 139; // Added 2023/11/09
+    int32 _totalCaloriesForUnknownInt = 139;
     int32 _f140 = 140; // Added 2023/11/09
-    int32 _f141 = 141; // Added 2023/11/09
+
+    int32 _totalExperiencePointsForUnknown = 141;
     int32 _f142 = 142; // Added 2023/11/09
-    int32 _f143 = 143; // Added 2023/11/09
+    int32 _totalGoldForUnknown = 143;
+
     int32 _f144 = 144; // Added 2023/11/09
 
-    // These duplicate values from november.  Maybe they needed to be floats and are phasing over...
-    // Possibly x/y/z bounding box values...
-    float _f146 = 146; // Added 2023/12/21 (1.55) Matches 135/136
-    float _f147 = 147; // Added 2023/12/21 (1.55) Matches 137/138
-    float _f148 = 148; // Added 2023/12/21 (1.55) Matches 139/140
+    // These duplicate values from November.  Maybe they needed to be floats and are phasing over... Added around v1.55, 12-2023
+    float _totalDistanceForUnknown = 146;
+    float _totalClimbedForUnknown = 147;
+    float _totalCaloriesForUnknown = 148;
 
-    float _f149 = 149; // Added 2023/12/21 (1.55) Matches 135/136
-    float _f150 = 150; // Added 2023/12/21 (1.55) Matches 137/138
-    float _f151 = 151; // Added 2023/12/21 (1.55) Matches 139/140
+    // Possibly running accumulators?
+    float _f149_matches_f136 = 149; // Added 2023/12/21 (1.55) Matches 136
+    float _f150_matches_f138 = 150; // Added 2023/12/21 (1.55) Matches 138
+    float _f151_matches_f140 = 151; // Added 2023/12/21 (1.55) Matches 140
+
+    int32 _f153 = 153; // Added 2024/06/06 Seen 0
+    string publicId = 154;
 }
 
 message PlayerProfiles {
@@ -736,7 +732,6 @@ message ProfileEntitlement {
 }
 
 enum FollowStatus {
-    FOLLOWSTATUS0 = 0;
     UNKNOWN = 1;
     REQUESTS_TO_FOLLOW = 2;
     IS_FOLLOWING = 3;
@@ -1013,6 +1008,7 @@ enum CompanionToGameCommandType {
     PAIRING_AS = 28;
     PHONE_TO_GAME_PACKET = 29;
     BLEPERIPHERAL_DISCOVERY = 30;
+    TAKE_VIDEO_SCREENSHOT = 31;
 }
 
 message CompanionToGameCommand {
@@ -1302,6 +1298,11 @@ enum EventSubgroupLabel {
     E = 5;
 }
 
+message EventAccessRules {
+    string name = 1;
+    bool result = 2;
+}
+
 message EventSubgroup {
     int32 id = 1;
     string name = 2;
@@ -1354,6 +1355,8 @@ message EventSubgroup {
     bool accessValidationResult = 51;
     int32 totalEntrantCount = 52; // or signed-up count
     int32 followeeEntrantCount = 53; // or signed-up count
+    string rangeAccessLabel = 55;
+    repeated EventAccessRules accessRules = 56;
 }
 
 enum EventVisibility {
@@ -1444,6 +1447,7 @@ message Event {
     int32 totalEntrantCount = 42; // or signed up count
     int32 followeeEntrantCount = 43; // or signed up count
     bool categoryEnforcement = 44;
+    string rangeAccessLabel = 45;
 }
 
 message Events {

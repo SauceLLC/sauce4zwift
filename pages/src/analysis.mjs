@@ -805,7 +805,6 @@ export async function main() {
 function setSelection(startIndex, endIndex, scrollTo) {
     state.zoomStart = startIndex;
     state.zoomEnd = endIndex;
-    console.log("set selection:", startIndex, endIndex);
     if (startIndex != null && endIndex != null) {
         zoomableChart.dispatchAction({
             type: 'dataZoom',
@@ -880,7 +879,6 @@ async function updateData() {
     if (!streams || !streams.time.length) {
         return;
     }
-    //streams.power.forEach((x, i) => streams.power[i] = Math.max(0, Math.cos(i / (streams.power.length / 20)) * 400 + Math.sin(i / (streams.power.length / 200)) * 150 + 300 + Math.random() * 1000 - 500));
     state.timeOfft = streams.time.at(-1) + 1e-6;
     for (const [k, stream] of Object.entries(streams)) {
         if (!state.streams[k]) {

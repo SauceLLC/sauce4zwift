@@ -54,76 +54,66 @@
             </div>
         </header>
         <section>
-            <% if (athlete.avatar) { %>
-                <a class="avatar" href="profile-avatar.html?id={{athlete.id}}" target="profile-avatar">
-                    <img src="{{athlete.avatar}}"/>
-                </a>
-            <% } else { %>
-                <a class="avatar"><img src="images/blankavatar.png"/></a>
-            <% } %>
+            <div class="avatar">
+                <% if (athlete.avatar) { %>
+                    <a href="profile-avatar.html?id={{athlete.id}}" target="profile-avatar"><img src="{{athlete.avatar}}"/></a>
+                <% } else { %>
+                    <img src="images/blankavatar.png"/>
+                <% } %>
+                <% if (athlete.racingCategory) { %>
+                    <a class="racing-score-avatar-badge" external
+                       title="Zwift Racing Score is a results based ranking system"
+                       href="https://support.zwift.com/en_us/racing-score-faq-BkG9_Rqrh">
+                        {-common.eventBadge(athlete.racingCategory)-}
+                        <div class="number">{{humanNumber(athlete.racingScore || null)}}</div>
+                    </a>
+                <% } %>
+            </div>
             <div class="info">
                 <% if (athlete.team) { %>
-                    <div class="row p2"><key>Team</key>{-common.teamBadge(athlete.team)-}</div>
+                    <div class="row p2"><key>Team</key><value>{-common.teamBadge(athlete.team)-}</value></div>
                 <% } %>
                 <% if (athlete.level) { %>
-                    <div class="row p2"><key>Level</key>{{athlete.level}}</div>
+                    <div class="row p2"><key>Level</key><value>{{athlete.level}}</value></div>
                 <% } %>
                 <% if (athlete.age) { %>
-                    <div class="row p2"><key>Age</key>{{athlete.age}}</div>
+                    <div class="row p2"><key>Age</key><value>{{athlete.age}}</value></div>
                 <% } %>
-                <% if (athlete.weight) { %>
-                    <div class="row p2"><key>Weight</key>{-humanWeightClass(athlete.weight, {suffix: true, html: true})-}</div>
+                <% if (athlete.weight || athlete.height) { %>
+                    <div class="row p2">
+                        <key>Body</key>
+                        <value>
+                            {-humanWeightClass(athlete.weight, {suffix: true, html: true})-},
+                            {-humanHeight(athlete.height, {html: true, suffix: true})-}
+                        </value>
+                    </div>
                 <% } %>
-                <% if (athlete.height) { %>
-                    <div class="row p2"><key>Height</key>{-humanHeight(athlete.height, {html: true, suffix: true})-}</div>
-                <% } %>
-                <!--<div class="row p2"><key>Threshold HR</key>{{athlete.hrzones}}<a href data-id="hr-edit"><ms>settings</ms></a></div>
-                <div class="row p2">
-                    <sauce-row-editor>
-                        <header>
-                            <div>Heart Rate Zones</div>
-                            <a add><ms>add_circle</ms></a>
-                        </header>
-                        <row>
-                            <column>Z1</column>
-                            <column>
-                                <input type="number" name="from" value="1"/> 🠚
-                                <input type="number" name="to" value="100"/>
-                            </column>
-                            <column><a remove><ms>delete</ms></a></column>
-                        </row>
-                        <row>
-                            <column>Z2</column>
-                            <column>
-                                <input type="number" name="from" value="1"/> 🠚
-                                <input type="number" name="to" value="100"/>
-                            </column>
-                            <column><a remove><ms>delete</ms></a></column>
-                        </row>
-                    </sauce-row-editor>
-                </div>-->
-                <div class="row p2"><key>FTP</key>{-humanPower(athlete.ftp, {suffix: true, html: true})-}</div>
+                <div class="row p2"><key>FTP</key><value>{-humanPower(athlete.ftp, {suffix: true, html: true})-}</value></div>
                 <div class="row p2" title="CP is Critical Power (often similiar to FTP) and W' (pronounced &quot;W Prime&quot;) is a the amount of energy (kJ) available when working harder than the CP value.  Think of it as a battery level." >
-                    <key>CP</key><a title="Click to edit - Press Enter to save"
-                        href="javascript:void(0)" data-key="cp" data-type="number"
-                        class="inline-edit cp">{-humanPower(athlete.cp || athlete.ftp, {suffix: true, html: true})-}</a>,
-                    W': <a title="Click to edit - Press Enter to save"
-                        href="javascript:void(0)" data-key="wPrime" data-type="number" data-conv-factor="1000"
-                        class="inline-edit wprime">{-humanNumber(athlete.wPrime / 1000, {suffix: 'kJ', html: true, precision: 1})-}</a>
+                    <key>CP</key>
+                    <value>
+                        <a title="Click to edit - Press Enter to save"
+                           href="javascript:void(0)" data-key="cp" data-type="number"
+                           class="inline-edit cp">{-humanPower(athlete.cp || athlete.ftp, {suffix: true, html: true})-}</a>,
+                        <a title="Click to edit - Press Enter to save"
+                            href="javascript:void(0)" data-key="wPrime" data-type="number" data-conv-factor="1000"
+                            class="inline-edit wprime">{-humanNumber(athlete.wPrime / 1000, {suffix: 'kJ', html: true, precision: 1})-}</a> W'
+                    </value>
                 </div>
                 <div class="row p2">
-                    <key>ID</key><a href="https://zwiftpower.com/profile.php?z={{athleteId}}"
+                    <key>ID</key>
+                    <value><a href="https://zwiftpower.com/profile.php?z={{athleteId}}"
                                     title="Open ZwiftPower profile" target="_blank"
-                                    external>{{athleteId}} <img class="inline-size" src="images/zp_logo.png"/></a>
+                                    external>{{athleteId}} <img class="inline-size" src="images/zp_logo.png"/></a></value>
                 </div>
             </div>
             <div class="info live">
-                <div class="row p2"><key>World</key><span class="live" data-id="world">-</span></div>
-                <div class="row p2"><key>Power</key><span class="live" data-id="power">-</span></div>
-                <div class="row p2"><key>Speed</key><span class="live" data-id="speed">-</span></div>
-                <div class="row p2"><key>HR</key><span class="live" data-id="hr">-</span><abbr class="unit">bpm</abbr></div>
-                <div class="row p2"><key>Ride Ons</key><span class="live" data-id="rideons">-</span></div>
-                <div class="row p2"><key>Energy</key><span class="live" data-id="kj">-</span><abbr class="unit">kJ</abbr></div>
+                <div class="row p2"><key>World</key><value class="live" data-id="world">-</value></div>
+                <div class="row p2"><key>Power</key><value class="live" data-id="power">-</span></div>
+                <div class="row p2"><key>Speed</key><value class="live" data-id="speed">-</value></div>
+                <div class="row p2"><key>HR</key><value class="live" data-id="hr">-</value></div>
+                <div class="row p2"><key>Ride Ons</key><value class="live" data-id="rideons">-</value></div>
+                <div class="row p2"><key>Energy</key><value class="live" data-id="kj">-</value></div>
             </div>
         </section>
     <% } %>

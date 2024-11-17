@@ -150,9 +150,9 @@ export async function render(el, tpl, tplData) {
         liveEls.world.textContent = world ? world.name : '-';
         liveEls.power.innerHTML = H.power(state.power, {suffix: true, html: true});
         liveEls.speed.innerHTML = H.pace(state.speed, {suffix: true, html: true, sport: state.sport});
-        liveEls.hr.textContent = H.number(state.heartrate);
+        liveEls.hr.innerHTML = H.number(state.heartrate, {suffix: 'bpm', html: true});
         liveEls.rideons.textContent = H.number(state.rideons);
-        liveEls.kj.textContent = H.number(state.kj);
+        liveEls.kj.innerHTML = H.number(state.kj, {suffix: 'kJ', html: true});
         if (tplData.debug) {
             document.querySelector('.debug').textContent = JSON.stringify([state, tplData.athlete], null, 4);
         }

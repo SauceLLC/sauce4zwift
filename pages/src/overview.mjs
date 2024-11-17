@@ -253,7 +253,7 @@ async function renderWindows(wins) {
     const el = document.querySelector('#windows');
     const descs = Object.fromEntries(manifests.map(x => [x.type, x]));
     windows.sort((a, b) => !!a.closed - !!b.closed);
-    el.querySelector('table.active-windows tbody').innerHTML = windows.map(x => {
+    common.softInnerHTML(el.querySelector('table.active-windows tbody'), windows.map(x => {
         const desc = descs[x.type] || {
             prettyName: `Unknown window: ${x.type}`,
             prettyDesc: common.sanitizeAttr(JSON.stringify(x, null, 4)),
@@ -271,7 +271,7 @@ async function renderWindows(wins) {
                     `<a class="link danger win-delete"><ms>delete_forever</ms></a></td>
             </tr>
         `;
-    }).join('\n');
+    }).join('\n'));
     const mGroups = new Map();
     for (const m of manifests.filter(x => !x.private)) {
         if (!mGroups.has(m.groupTitle)) {
@@ -279,11 +279,12 @@ async function renderWindows(wins) {
         }
         mGroups.get(m.groupTitle).push(m);
     }
-    el.querySelector('.add-new select').innerHTML = Array.from(mGroups.entries()).map(([title, ms]) =>
-        `<optgroup label="${common.sanitizeAttr(common.stripHTML(title || 'Main'))}">${ms.map(x =>
-            `<option title="${common.sanitizeAttr(common.stripHTML(x.prettyDesc))}"
-                     value="${x.type}">${common.stripHTML(x.prettyName)}</option>`)}</optgroup>`
-    ).join('');
+    common.softInnerHTML(
+        el.querySelector('.add-new select'),
+        Array.from(mGroups.entries()).map(([title, ms]) =>
+            `<optgroup label="${common.sanitizeAttr(common.stripHTML(title || 'Main'))}">${ms.map(x =>
+                `<option title="${common.sanitizeAttr(common.stripHTML(x.prettyDesc))}"
+                     value="${x.type}">${common.stripHTML(x.prettyName)}</option>`)}</optgroup>`).join(''));
 }
 
 
