@@ -435,11 +435,12 @@ export function longPressListener(el, timeout, callback) {
 
 
 let _worldList;
-export async function getWorldList() {
+export async function getWorldList({all}={}) {
     if (!_worldList) {
         _worldList = rpcCall('getWorldMetas');
     }
-    return await _worldList;
+    const data = await _worldList;
+    return all ? data : data.filter(x => x.courseId > 0);
 }
 
 
