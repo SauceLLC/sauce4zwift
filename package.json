@@ -22,8 +22,8 @@
   "dependencies": {
     "@sentry/node": "6.19.6",
     "better-sqlite3": "9.4.5",
-    "electron-updater": "6.1.9",
-    "express": "4.19.2",
+    "electron-updater": "6.3.9",
+    "express": "4.21.1",
     "express-ws": "5.0.2",
     "jsfit": "https://github.com/SauceLLC/jsfit.git#c55550a6ad28bff30942eafca3be18cc48f5e304",
     "keytar": "7.9.0",
