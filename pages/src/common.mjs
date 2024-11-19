@@ -229,13 +229,6 @@ if (window.isElectron) {
             throw makeRPCError(env.error);
         }
     };
-    doc.addEventListener('click', async ev => {
-        const link = ev.target.closest('a[external][href]');
-        if (link) {
-            ev.preventDefault();
-            await rpcCall('openExternalLink', link.href);
-        }
-    });
     let storageFlushTimeout;
     schedStorageFlush = () => {
         clearTimeout(storageFlushTimeout);

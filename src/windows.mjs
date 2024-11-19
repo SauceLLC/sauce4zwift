@@ -250,7 +250,7 @@ export const eventEmitter = new EventEmitter();
 
 
 function isInternalScheme(url) {
-    return ['file'].includes(new URL(url).protocol);
+    return ['file:'].includes(new URL(url).protocol);
 }
 
 
@@ -354,24 +354,29 @@ electron.protocol.handle('file', onHandleFileProtocol);
 
 
 electron.ipcMain.on('getWindowMetaSync', ev => {
+    const internalScheme = isInternalScheme(ev.sender.getURL());
     const meta = {
         context: {
             id: null,
             type: null,
         },
-        modContentScripts: mods.contentScripts,
-        modContentStylesheets: mods.contentCSS,
     };
     try {
         const win = ev.sender.getOwnerBrowserWindow();
         meta.context.frame = win.frame;
-        if (win.spec) {
+        if (internalScheme && win.spec) {
+            meta.internal = true;
+            meta.modContentScripts = mods.contentScripts;
+            meta.modContentStylesheets = mods.contentCSS;
             Object.assign(meta.context, {
                 id: win.spec.id,
                 type: win.spec.type,
                 spec: win.spec,
                 manifest: widgetWindowManifestsByType.get(win.spec.type),
             });
+        } else {
+            meta.internal = false;
+            console.warn("NON INTERNAL PAGE, make sure is okay", ev.sender.getURL());
         }
     } finally {
         // CAUTION: ev.returnValue is highly magical.  It MUST be set to avoid hanging
@@ -1006,7 +1011,10 @@ function handleNewSubWindow(parent, spec, webPrefs) {
         const bounds = getBoundsForDisplay(display, newWinOptions);
         const newWinSpec = (windowId || windowType) ?
             initWidgetWindowSpec({type: windowType, id: windowId || spec?.id}) : spec;
-        const frame = q.has('frame') || isInternalScheme(url) || !!newWinSpec?.options?.frame;
+        // Window frame prio: url query -> is external page -> win-spec options -> copy parent
+        const frame = q.has('frame') ?
+            !['false', '0', 'no', 'off'].includes(q.get('frame').toLowerCase()) :
+            !isInternalScheme(url) || (newWinSpec ? !!newWinSpec.options?.frame : parent.frame);
         const newWin = new SauceBrowserWindow({
             subWindow: true,
             spec: newWinSpec,
@@ -1018,7 +1026,7 @@ function handleNewSubWindow(parent, spec, webPrefs) {
             parent: isChildWindow ? parent : undefined,
             ...bounds,
             webPreferences: {
-                preload: path.join(appPath, 'src/preload/common.js'),  // CAUTION: can be overridden
+                preload: path.join(appPath, 'src/preload/common.js'),
                 ...webPrefs,
                 sandbox: true,
             }
