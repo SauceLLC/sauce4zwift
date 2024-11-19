@@ -1,4 +1,4 @@
-/* global Buffer */
+import process from 'node:process';
 import path from 'node:path';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
@@ -221,7 +221,8 @@ function _initUnpacked(root) {
 
 async function getUpstreamDirectory() {
     if (!upstreamDirectory) {
-        upstreamDirectory = await (await fetch('https://mods.sauce.llc/directory.json')).json();
+        const url = process.env.MOD_DIRECTORY_URL || 'https://mods.sauce.llc/directory.json';
+        upstreamDirectory = await (await fetch(url)).json();
     }
     return upstreamDirectory;
 }
