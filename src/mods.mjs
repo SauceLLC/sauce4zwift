@@ -165,7 +165,7 @@ export async function init(unpackedDir, packedDir) {
 
 async function getModFile(mod, file, encoding) {
     if (mod.zip) {
-        const data = await mod.zip.entryData(path.join(mod.zipRootDir, file));
+        const data = await mod.zip.entryData(path.posix.join(mod.zipRootDir, file));
         return encoding ? data.toString(encoding) : data;
     } else {
         return fs.readFileSync(path.join(mod.modPath, file), encoding);
