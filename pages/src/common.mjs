@@ -160,6 +160,9 @@ function b64urlEncode(data) {
 
 
 if (window.isElectron) {
+    // Probably already set by src/preload/common.js but not always for non widget pages..
+    doc.classList.add('electron-mode');
+    doc.classList.toggle('frame', !!electron.context.frame);
     windowID = electron.context.id;
     const subs = [];
     const pendingPorts = new Map();
