@@ -111,7 +111,7 @@ export async function init(unpackedDir, packedDir) {
         const settings = getOrInitModSettings(mod.id);
         const label = `${mod.manifest.name} (${mod.id})`;
         const tags = [];
-        if (mod.disabled) {
+        if (!settings.enabled) {
             tags.push('DISABLED');
         }
         if (!mod.packed) {
@@ -198,20 +198,15 @@ function _initUnpacked(root) {
             }
             try {
                 const manifest = JSON.parse(fs.readFileSync(manifestPath));
-                const id = manifest?.id || core.sanitizeID(x);
+                const id = manifest.id || core.sanitizeID(x);
                 const isNew = !modsSettings.has(id);
-                const legacyId = (isNew && !manifest?.id && modsSettings.has(x)) ? x : undefined;
+                const legacyId = (isNew && !manifest.id && modsSettings.has(x)) ? x : undefined;
                 if (legacyId) {
-                    console.warn(`Mod may have a settings from legacy ID: ${legacyId} vs ${id}`);
+                    console.warn(`Mod may have lost settings from legacy ID: ${legacyId} vs ${id}`);
                 }
                 mods.push({manifest, isNew, id, legacyId, modPath, packed: false});
             } catch(e) {
-                if (e instanceof core.ValidationError) {
-                    const path = e.key ? e.path.concat(e.key) : e.path;
-                    console.error(`Mod validation error [${x}] (${path.join('.')}): ${e.message}`);
-                } else {
-                    console.error('Invalid manifest.json for:', x, e);
-                }
+                console.error('Invalid manifest.json for:', x, e);
             }
         } else if (!['.DS_Store'].includes(x)) {
             console.warn("Ignoring non-directory in mod path:", x);
