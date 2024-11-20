@@ -1,6 +1,6 @@
 @use 'color';
-@import 'profile_tpl';
-@import 'expandable-table';
+@import url(profile_tpl.css);
+@import url(expandable-table.css);
 
 html {
     font-size: 4.1mm;

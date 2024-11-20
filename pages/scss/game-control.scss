@@ -1,5 +1,3 @@
-@use 'color';
-
 html:not(.connected) {
     #content .button {
         pointer-events: none;

@@ -1,8 +1,8 @@
 @use 'color';
 @use 'charts';
-@import 'map';
-@import 'profile_tpl';
-@import 'expandable-table';
+@import url(map.css);
+@import url(profile_tpl.css);
+@import url(expandable-table.css);
 
 $light-border: 1px solid color.shade(intrinsic-inverted, 0%, 0.08);
 $medium-border: 1px solid color.shade(intrinsic-inverted, 0%, 0.2);

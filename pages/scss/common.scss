@@ -1,6 +1,6 @@
 @use 'color';
-@import 'themes';
-@import 'animations';
+@import url(themes.css);
+@import url(animations.css);
 
 @font-face {
     font-family: 'Saira';
