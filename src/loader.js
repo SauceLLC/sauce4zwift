@@ -4,7 +4,7 @@ Error.stackTraceLimit = 25;
 
 const os = require('node:os');
 const path = require('node:path');
-const fs = require('node:fs');
+const fs = require('./fs-safe.js');
 const process = require('node:process');
 const pkg = require('../package.json');
 const logging = require('./logging.js');

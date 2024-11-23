@@ -2,7 +2,7 @@
 
 import process from 'node:process';
 import path from 'node:path';
-import fs from 'node:fs';
+import fs from './fs-safe.js';
 import crypto from 'node:crypto';
 import StreamZip from 'node-stream-zip';
 import * as rpc from './rpc.mjs';
@@ -52,12 +52,6 @@ rpc.register(getAvailableModsV1, {name: 'getAvailableMods'});
 export const getAvailableMods = getAvailableModsV1;
 export const getEnabledMods = () => getAvailableMods().filter(x => x.enabled);
 export const getMod = modsById.get.bind(modsById);
-
-
-function fsRemoveFile(path) {
-    // retries requried for windows.
-    return fs.rmSync(path, {maxRetries: 5});
-}
 
 
 function getOrInitModSettings(id) {
@@ -255,7 +249,7 @@ async function _initPacked(root) {
                     const oldZip = mod.zip;
                     mod = await installPackedModRelease(id, latestRelease);
                     oldZip.close();
-                    fsRemoveFile(zipFile);
+                    fs.rmSync(zipFile);
                 }
             } catch(e) {
                 console.error("Failed to check/update Mod:", e);
@@ -373,7 +367,7 @@ export async function validatePackedMod(zipUrl) {
         const {warnings} = core.validateMod(mod);
         return {manifest: mod.manifest, hash: mod.has, warnings, size: data.byteLength};
     } finally {
-        fsRemoveFile(tmpFile);
+        fs.rmSync(tmpFile);
     }
 }
 rpc.register(validatePackedMod);
@@ -441,7 +435,7 @@ export function removePackedMod(id) {
     const mod = modsById.get(id);
     mod.restartRequired = true;
     mod.status = 'removing';
-    fsRemoveFile(path.join(packedModRoot, installed.file));
+    fs.rmSync(path.join(packedModRoot, installed.file));
     eventEmitter.emit('removed-mod', mod);
     eventEmitter.emit('available-mods-changed', mod, availableMods);
 }

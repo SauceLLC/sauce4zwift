@@ -1,7 +1,7 @@
 import process from 'node:process';
 import os from 'node:os';
 import net from 'node:net';
-import fs from 'node:fs';
+import fs from 'graceful-fs';
 import path from 'node:path';
 import {EventEmitter} from 'node:events';
 import * as report from '../shared/report.mjs';

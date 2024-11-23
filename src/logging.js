@@ -1,5 +1,5 @@
 const {EventEmitter} = require('node:events');
-const fs = require('node:fs');
+const fs = require('./fs-safe.js');
 const path = require('node:path');
 
 const logFileName = 'sauce.log';
@@ -35,7 +35,7 @@ function rotateLogFiles(logsPath, limit=5) {
         // in a subsequent release.
         const fName = logs.shift();
         console.warn("Delete old log file:", fName);
-        fs.unlinkSync(path.join(logsPath, fName));
+        fs.rmSync(path.join(logsPath, fName), {force: true});
     }
     let end = Math.min(logs.length, limit - 1);
     for (const fName of logs.slice(-(limit - 1))) {

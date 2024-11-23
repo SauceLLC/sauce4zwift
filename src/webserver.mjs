@@ -6,7 +6,7 @@ import * as mime from './mime.mjs';
 import expressWebSocketPatch from 'express-ws';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import fs from 'node:fs';
+import fs from './fs-safe.js';
 import http from 'node:http';
 import https from 'node:https';
 

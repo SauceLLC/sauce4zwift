@@ -1,9 +1,9 @@
 import process from 'node:process';
 import os from 'node:os';
-import fs from 'node:fs';
 import path from 'node:path';
 import childProcess from 'node:child_process';
 import {EventEmitter} from 'node:events';
+import fs from './fs-safe.js';
 import * as storage from './storage.mjs';
 import * as rpc from './rpc.mjs';
 import * as zwift from './zwift.mjs';
