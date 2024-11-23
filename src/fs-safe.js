@@ -3,7 +3,7 @@ const node = require('node:fs');
 
 
 const _emptySharedArray = new Int32Array(new SharedArrayBuffer(4));
-function sleep(ms) {
+function sleepSync(ms) {
     Atomics.wait(_emptySharedArray, 0, 0, ms);
 }
 
@@ -20,11 +20,11 @@ function renameSync(oldPath, newPath, {maxRetries=10}={}) {
         try {
             return node.renameSync(oldPath, newPath);
         } catch(e) {
-            console.error("EERRR!!!!!!", e.errno, e.code, e);
             if (e.errno === -4048 && e.code === 'EPERM') {
-                sleep(delay * (2 ** i));
+                sleepSync(delay * (2 ** i));
                 continue;
             }
+            throw e;
         }
     }
 }
@@ -34,4 +34,5 @@ module.exports = {
     ...node,
     rmSync,
     renameSync,
+    sleepSync,
 };
