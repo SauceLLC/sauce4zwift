@@ -376,7 +376,6 @@ electron.ipcMain.on('getWindowMetaSync', ev => {
             });
         } else {
             meta.internal = false;
-            console.warn("NON INTERNAL PAGE, make sure is okay", ev.sender.getURL());
         }
     } finally {
         // CAUTION: ev.returnValue is highly magical.  It MUST be set to avoid hanging
