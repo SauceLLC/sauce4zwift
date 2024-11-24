@@ -1,7 +1,6 @@
 const node = require('node:fs');
 
 
-
 const _emptySharedArray = new Int32Array(new SharedArrayBuffer(4));
 function sleepSync(ms) {
     Atomics.wait(_emptySharedArray, 0, 0, ms);
