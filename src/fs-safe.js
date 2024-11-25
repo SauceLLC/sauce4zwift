@@ -15,17 +15,20 @@ function rmSync(path, {maxRetries=10, recursive, ...options}={}) {
 
 function renameSync(oldPath, newPath, {maxRetries=10}={}) {
     const delay = 100;
+    let error;
     for (let i = 0; i < maxRetries; i++) {
         try {
             return node.renameSync(oldPath, newPath);
         } catch(e) {
             if (e.errno === -4048 && e.code === 'EPERM') {
+                error = e;
                 sleepSync(delay * (2 ** i));
                 continue;
             }
             throw e;
         }
     }
+    throw error;
 }
 
 
