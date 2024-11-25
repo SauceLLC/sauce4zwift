@@ -71,12 +71,10 @@
                     <% if (x.scoreHistory) { %>
                         {{humanNumber(x.scoreHistory.newScore)}}
                         <% const delta = x.scoreHistory.newScore - x.scoreHistory.previousScore; %>
-                        <% if (delta > 0) { %>
-                            <sup class="delta {{delta > 0 ? 'positive' : 'negative'}}"
-                                >{{delta > 0 ? '+' : '-'}}{{humanNumber(delta, {precision: 1})}}</sup>
-                        <% } else if (delta < 0) { %>
-                            <sub class="delta {{delta > 0 ? 'positive' : 'negative'}}"
-                                >{{delta > 0 ? '+' : '-'}}{{humanNumber(-delta, {precision: 1})}}</sub>
+                        <% if (delta > 0.5) { %>
+                            <sup class="delta {{delta > 0 ? 'positive' : 'negative'}}">+{{humanNumber(delta)}}</sup>
+                        <% } else if (delta < -0.5) { %>
+                            <sub class="delta {{delta > 0 ? 'positive' : 'negative'}}">{{humanNumber(delta)}}</sub>
                         <% } %>
                     <% } %>
                 </td>
@@ -133,7 +131,7 @@
                 <% } %></td>
                 <td class="icon"><% if (athlete.powerMeter) { %>
                     <% if (athlete.powerSourceModel === 'Smart Trainer') { %>
-                        <ms class="power" title="Has smart trainer">offline_bolt</ms>
+                        <ms class="power" title="Has smart trainer">{{=inlineURL /pages/images/smart_trainer.svg=}}</ms>
                     <% } else { %>
                         <ms class="power" title="Has power meter">bolt</ms>
                     <% } %>

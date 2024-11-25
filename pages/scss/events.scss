@@ -370,7 +370,8 @@ table {
 
                 td, th { 
                     svg {
-                        width: 1.15em;
+                        width: 1.1em;
+                        opacity: 0.88;
                         vertical-align: middle;
                     }
                 }
@@ -382,11 +383,17 @@ table {
                     }
 
                     > td.racing-score {
+                        .positive,
+                        .negative {
+                            font-weight: 550;
+                            font-size: 0.76em;
+                        }
+
                         .positive {
-                            color: color.get(positive);
+                            color: color-mix(in srgb, color.get(positive), currentColor 10%);
                         }
                         .negative {
-                            color: color.get(negative);
+                            color: color-mix(in srgb, color.get(negative), currentColor 10%);
                         }
                     }
 
@@ -457,6 +464,10 @@ table {
             ms.female { color: #eb09eb; }
             ms.following { color: color.get(following); }
             ms.marked { color: color.get(marked); }
+
+            ms svg {
+                height: 1em;
+            }
 
             .details {
                 > td {

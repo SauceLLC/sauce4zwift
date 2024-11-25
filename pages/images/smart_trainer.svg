@@ -1,30 +1,24 @@
 <svg
-   viewBox="0 0 125 125.00004"
+   viewBox="0 0 500 500"
    version="1.1"
    xmlns="http://www.w3.org/2000/svg"
+   nostyle="width: 1000px; height: 1000px; border: 1px solid red; color:white; background: black;"
    xmlns:svg="http://www.w3.org/2000/svg">
-  <g transform="translate(-49.599962,-90.693585)">
+  <g>
     <path
+       style="stroke: color-mix(in srgb, currentColor, grey 10%);"
        fill="none"
-       style="stroke: color-mix(in srgb, currentColor, grey 40%); opacity: 0.7;"
-       stroke-width="16"
+       stroke-width="48"
        stroke-linecap="round"
        stroke-linejoin="round"
-       d="m 112.44163,153.42291 44.03026,56.58093 -88.977265,-0.59659"/>
+       d="m 250,230 200,245 -380,0"/>
     <circle
-       stroke-width="12"
-       style="stroke: color-mix(in srgb, currentColor, grey 50%); opacity: 0.8;"
-       fill="none"
-       stroke="currentColor"
-       inkscape:highlight-color="#000000"
-       cy="153.19359"
-       cx="112.09996"
-       r="42"/>
+       style="stroke: color-mix(in srgb, currentColor, grey 30%); fill: #fff5;"
+       stroke-width="30"
+       cx="250" cy="230" r="200"/>
     <circle
-       style="fill: color-mix(in srgb, currentColor, grey 40%); stroke: color-mix(in srgb, currentColor, grey 20%); opacity: 0.8;"
-       stroke-width="12"
-       cx="112.09996"
-       cy="153.19359"
-       r="20"/>
+       style="fill: color-mix(in srgb, currentColor, grey 90%); stroke: color-mix(in srgb, currentColor, grey 10%);"
+       stroke-width="50"
+       cx="250" cy="230" r="80"/>
   </g>
 </svg>
