@@ -197,7 +197,7 @@ table {
             &.expanded,
             &.expanded + tr.details {
                 background-color: color.shade(primary, 3%, 0.8);
-                color: color.shade(primary, 100%);
+                color: color.shade(primary, 100%, $saturate: -100%);
             }
         }
     }
@@ -374,6 +374,15 @@ table {
                         font-weight: 200 !important;
                     }
 
+                    > td.racing-score {
+                        .positive {
+                            color: color.get(positive);
+                        }
+                        .negative {
+                            color: color.get(negative);
+                        }
+                    }
+
                     > td.time,
                     > td.distance {
                         text-align: right;
@@ -389,11 +398,18 @@ table {
                     }
 
                     > td.icons {
+                        color: inherit;
+
                         ms {
                             font-size: 1.3em;
                             font-weight: 600;
                             line-height: 0.7;
                             filter: drop-shadow(0 0 1px black);
+                        }
+
+                        svg {
+                            width: 12em;
+                            height: 12em;
                         }
 
                         .flag {
@@ -521,6 +537,7 @@ table {
             border-radius: 0.28em;
             overflow: hidden;
             background-color: color.shade(intrinsic-inverted, 5%, 0.7);
+            color: color.get(intrinsic);
 
             > a {
                 height: 1.65em;
