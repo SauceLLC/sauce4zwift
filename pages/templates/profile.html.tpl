@@ -58,7 +58,7 @@
                 <% if (athlete.avatar) { %>
                     <a href="profile-avatar.html?id={{athlete.id}}" target="profile-avatar"><img src="{{athlete.avatar}}"/></a>
                 <% } else { %>
-                    <img src="images/blankavatar.png"/>
+                    <img class="blank" src="images/blankavatar.png"/>
                 <% } %>
                 <% if (athlete.racingCategory) { %>
                     <a class="racing-score-avatar-badge" external
