@@ -530,9 +530,6 @@ export class ZwiftAPI {
                 POWER_METER: 'Power Meter',
                 SMART_TRAINER: 'Smart Trainer',
             }[x.powerType];
-            x.socialFacts = x.socialFacts || {
-                followerStatusOfLoggedInPlayer: x.followerStatusOfLoggedInPlayer,
-            };
             delete x.followerStatusOfLoggedInPlayer;
             return x;
         });
