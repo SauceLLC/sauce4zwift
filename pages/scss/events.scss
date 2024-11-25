@@ -368,6 +368,13 @@ table {
                     text-align: right;
                 }
 
+                td, th { 
+                    svg {
+                        width: 1.15em;
+                        vertical-align: middle;
+                    }
+                }
+
                 > tbody > tr.summary {
                     &.invalid {
                         opacity: 0.7;
@@ -405,11 +412,6 @@ table {
                             font-weight: 600;
                             line-height: 0.7;
                             filter: drop-shadow(0 0 1px black);
-                        }
-
-                        svg {
-                            width: 12em;
-                            height: 12em;
                         }
 
                         .flag {

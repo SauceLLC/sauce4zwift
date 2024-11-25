@@ -1,0 +1,30 @@
+<svg
+   viewBox="0 0 125 125.00004"
+   version="1.1"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <g transform="translate(-49.599962,-90.693585)">
+    <path
+       fill="none"
+       style="stroke: color-mix(in srgb, currentColor, grey 40%); opacity: 0.7;"
+       stroke-width="16"
+       stroke-linecap="round"
+       stroke-linejoin="round"
+       d="m 112.44163,153.42291 44.03026,56.58093 -88.977265,-0.59659"/>
+    <circle
+       stroke-width="12"
+       style="stroke: color-mix(in srgb, currentColor, grey 50%); opacity: 0.8;"
+       fill="none"
+       stroke="currentColor"
+       inkscape:highlight-color="#000000"
+       cy="153.19359"
+       cx="112.09996"
+       r="42"/>
+    <circle
+       style="fill: color-mix(in srgb, currentColor, grey 40%); stroke: color-mix(in srgb, currentColor, grey 20%); opacity: 0.8;"
+       stroke-width="12"
+       cx="112.09996"
+       cy="153.19359"
+       r="20"/>
+  </g>
+</svg>
