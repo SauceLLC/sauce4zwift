@@ -199,27 +199,45 @@ function makeRender(name, text, options, helperVars, attrVars) {
 function compile(name, text, options={}) {
     const boundHelpers = Object.fromEntries(Object.entries(helpers)
         .map(([k, fn]) => [k, fn.bind({options})]));
-    let renderFuncVars;
     let recompiles = 0;
-    let render;
+    let recentCompile;
+    let rendering;
     let statics;
     let localeMessages;
     const wrap = async (obj, ...args) => {
         // To avoid using the deprecated `with` statement we need to memoize the obj vars.
         const vars = obj && !Array.isArray(obj) ? Object.keys(obj) : [];
-        if (!render || vars.join() !== renderFuncVars.join()) {
-            renderFuncVars = vars;
-            if (recompiles++ > 10) {
-                console.warn("Highly variadic template function detected");
+        const sig = JSON.stringify(vars);
+        let compile;
+        while (!(compile = recentCompile) || sig !== compile._sig) {
+            if (rendering) {
+                await rendering;
+                continue;
             }
-            let localeKeys, staticCalls;
-            [render, localeKeys, staticCalls] = makeRender(name, text, options, Object.keys(helpers), vars);
-            localeMessages = localeKeys.length ?
-                await localeMod.fastGetMessagesObject(localeKeys) : undefined;
-            statics = staticCalls.length ?
-                await Promise.all(staticCalls.map(([name, args]) => staticHelpers[name](args))) : undefined;
+            console.warn("Compile it!", name);
+            if (recompiles++ > 10) {
+                console.warn("Highly variadic template function detected", name);
+            }
+            rendering = (async () => {
+                try {
+                    let localeKeys, staticCalls;
+                    [compile, localeKeys, staticCalls] =
+                        makeRender(name, text, options, Object.keys(helpers), vars);
+                    localeMessages = localeKeys.length ?
+                        await localeMod.fastGetMessagesObject(localeKeys) : undefined;
+                    statics = staticCalls.length ?
+                        await Promise.all(staticCalls.map(([name, args]) => staticHelpers[name](args))) :
+                        undefined;
+                    compile._sig = sig;
+                    recentCompile = compile;
+                } finally {
+                    rendering = undefined;
+                }
+            })();
+            await rendering;
+            break;
         }
-        return render.call(this, {
+        return compile.call(this, {
             localeMod,
             htmlEscape,
             helpers: boundHelpers,
