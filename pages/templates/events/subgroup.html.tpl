@@ -25,7 +25,7 @@
             <% const validResult = !noPower && !x.flaggedCheating && !x.flaggedSandbagging; %>
             <tr data-id="{{x.profileId}}"
                 class="summary
-                       {{x.profileId === selfAthlete.id ? 'self' : ''}}
+                       {{x.profileId === selfAthlete?.id ? 'self' : ''}}
                        {{x.flaggedCheating ? 'cheating' : ''}}
                        {{x.flaggedSandbagging ? 'sandbagging' : ''}}
                        {{noPower ? 'nopower' : ''}}
@@ -103,7 +103,7 @@
     </thead>
     <tbody>
         <% for (const {id, athlete, likelyInGame} of entrants) { %>
-            <tr data-id="{{id}}" class="summary {{id === selfAthlete.id ? 'self' : ''}}">
+            <tr data-id="{{id}}" class="summary {{id === selfAthlete?.id ? 'self' : ''}}">
                 <td class="icon"><% if (athlete.marked) { %>
                     <ms class="marked" title="Is marked">bookmark_added</ms>
                 <% } %></td>

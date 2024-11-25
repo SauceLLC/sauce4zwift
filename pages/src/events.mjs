@@ -296,6 +296,11 @@ async function render() {
                     el.classList.toggle('signedup', !!sg.signedUp);
                     el.classList.toggle('can-signup', !event.signedUp);
                     entrants = await common.rpc.getEventSubgroupEntrants(sg.id);
+                    entrants.sort((a, b) =>
+                        a.athlete?.lastName.toLowerCase() < b.athlete?.lastName.toLowerCase() ? -1 : 1);
+                    entrants.sort((a, b) =>
+                        !!b.athlete?.following - !!a.athlete?.following ||
+                        !!b.athlete?.follower - !!a.athlete?.follower);
                     fieldSize = entrants.length;
                     el.classList.add('signups');
                     table.classList.add('signups');
