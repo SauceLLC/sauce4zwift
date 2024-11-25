@@ -978,22 +978,29 @@ export class StatsProcessor extends events.EventEmitter {
     async getEventSubgroupResults(id) {
         const missingProfiles = new Set();
         const results = await this.zwiftAPI.getEventSubgroupResults(id);
+        const updates = new Map();
         for (const x of results) {
             const athlete = this._getAthlete(x.profileId);
             if (!athlete) {
                 missingProfiles.add(x.profileId);
+            } else {
+                if (x.scoreHistory) {
+                    updates.set(x.profileId, this._updateAthlete(x.profileId, {
+                        racingScore: x.scoreHistory.newScore,
+                        racingScoreTS: new Date(x.activityData.endDate).getTime(),
+                    }));
+                }
             }
         }
         if (missingProfiles.size) {
-            const updates = [];
             for (const p of await this.zwiftAPI.getProfiles(missingProfiles)) {
                 if (p) {
-                    updates.push([p.id, this._updateAthlete(p.id, this._profileToAthlete(p))]);
+                    updates.set(p.id, this._updateAthlete(p.id, this._profileToAthlete(p)));
                 }
             }
-            if (updates.length) {
-                this.saveAthletes(updates);
-            }
+        }
+        if (updates.size) {
+            this.saveAthletes(Array.from(updates.entries()));
         }
         for (const x of results) {
             x.athlete = this._getAthlete(x.profileId) || {};
@@ -1402,59 +1409,33 @@ export class StatsProcessor extends events.EventEmitter {
 
     _profileToAthlete(p) {
         const powerMeterSources = ['Power Meter', 'Smart Trainer'];
-        const powerMeter = p.powerSourceModel ? powerMeterSources.includes(p.powerSourceModel) : undefined;
         const minor = p.privacy && p.privacy.minor;
-        /*
-        if (p.competitionMetrics) {
-            this.zwiftAPI.getProfiles([p.id]).then(pp => {
-                pp = pp[0];
-                const json = Object.fromEntries(Object.entries(p).sort((a, b) => a[0] < b[0] ? -1 : 1));
-                const pb = Object.fromEntries(Object.entries(pp).sort((a, b) => a[0] < b[0] ? -1 : 1));
-                console.log(pb, json);
-                const diff = new Map(Object.entries(json));
-                for (const [k, v] of Array.from(diff.entries())) {
-                    if (!pb.hasOwnProperty(k)) {
-                        diff.set('JSONONLY: ' + k, v);
-                        diff.delete(k);
-                    }
-                }
-                for (const [k, v] of Object.entries(pb)) {
-                    if (!diff.has(k)) {
-                        diff.set('PBONLY: ' + k, v);
-                    } else if (JSON.stringify(diff.get(k)) === JSON.stringify(v)) {
-                        diff.delete(k);
-                    } else {
-                        diff.set(k, {json: diff.get(k), pb: v});
-                    }
-                }
-                console.log(Object.fromEntries(diff.entries()));
-            });
-        }
-        */
         const o = {
             firstName: p.firstName,
             lastName: p.lastName,
             ftp: p.ftp,
             type: p.playerType,
             countryCode: p.countryCode, // iso 3166
-            powerSourceModel: p.powerSourceModel,
             avatar: !minor ? p.imageSrcLarge || p.imageSrc : undefined,
             weight: !minor && p.weight ? p.weight / 1000 : undefined,
             height: !minor && p.height ? p.height / 10 : undefined,
             gender: !minor && p.male === false ? 'female' : 'male',
             age: !minor && p.privacy && p.privacy.displayAge ? p.age : null,
             level: p.achievementLevel ? Math.floor(p.achievementLevel / 100) : undefined,
-            powerMeter,
-            racingScore: p.competitionMetrics?.racingScore,
-            racingCategory: minor || p.male !== false ?
-                p.competitionMetrics?.category :
-                p.competitionMetrics?.categoryWomen,
+            powerSourceModel: p.powerSourceModel,
+            powerMeter: p.powerSourceModel ? powerMeterSources.includes(p.powerSourceModel) : undefined,
         };
+        if (p.competitionMetrics) {
+            o.racingScore = p.competitionMetrics.racingScore;
+            o.racingCategory = minor || p.male !== false ?
+                p.competitionMetrics.category :
+                p.competitionMetrics.categoryWomen;
+        }
         if (p.socialFacts) {
             o.follower = p.socialFacts.followeeStatusOfLoggedInPlayer === 'IS_FOLLOWING';
             o.following = p.socialFacts.followerStatusOfLoggedInPlayer === 'IS_FOLLOWING';
             o.followRequest = p.socialFacts.followerStatusOfLoggedInPlayer === 'REQUESTS_TO_FOLLOW';
-            o.favorite = p.socialFacts.isFavoriteOfLoggedInPlayer;
+            o.favorite = !!p.socialFacts.isFavoriteOfLoggedInPlayer;
         }
         return o;
     }
@@ -1465,60 +1446,107 @@ export class StatsProcessor extends events.EventEmitter {
         return fullData;
     }
 
-    _updateAthlete(id, data) {
-        const d = this.loadAthlete(id) || {};
-        d.id = id;
-        d.updated = Date.now();
-        d.name = (data.firstName || data.lastName) ? [data.firstName, data.lastName].map(x =>
-            (x && x.trim) ? x.trim() : null).filter(x => x) : d.name;
-        d.fullname = d.name && d.name.join(' ');
+    _updateAthlete(id, updates) {
+        const athlete = this.loadAthlete(id) || {};
+        athlete.id = id;
+        athlete.updated = Date.now();
+        athlete.name = (updates.firstName || updates.lastName) ?
+            [updates.firstName, updates.lastName]
+                .map(x => (x && x.trim) ? x.trim() : null)
+                .filter(x => x) :
+            athlete.name;
+        athlete.fullname = athlete.name && athlete.name.join(' ');
         let saniFirst;
         let saniLast;
-        if (d.name && d.name.length) {
+        if (athlete.name && athlete.name.length) {
             const edgeJunk = /^[.*_#\-\s]+|[.*_#\-\s]+$/g;
-            saniFirst = d.name[0].replace(edgeJunk, '');
-            const idx = d.name.length - 1;
-            const [name, team] = splitNameAndTeam(d.name[idx]);
+            saniFirst = athlete.name[0].replace(edgeJunk, '');
+            const idx = athlete.name.length - 1;
+            const [name, team] = splitNameAndTeam(athlete.name[idx]);
             if (idx > 0) {
                 saniLast = name && name.replace(edgeJunk, '');
             } else {
                 // User only set a last name, sometimes because this looks better in game.
                 saniFirst = name;
             }
-            d.team = team;
+            athlete.team = team;
         }
-        d.sanitizedName = (saniFirst || saniLast) ? [saniFirst, saniLast].filter(x => x) : null;
-        d.sanitizedFullname = d.sanitizedName && d.sanitizedName.join(' ');
-        if (d.sanitizedName) {
-            const n = d.sanitizedName;
-            d.initials = n
+        athlete.sanitizedName = (saniFirst || saniLast) ? [saniFirst, saniLast].filter(x => x) : null;
+        athlete.sanitizedFullname = athlete.sanitizedName && athlete.sanitizedName.join(' ');
+        if (athlete.sanitizedName) {
+            const n = athlete.sanitizedName;
+            athlete.initials = n
                 .map(x => String.fromCodePoint(x.codePointAt(0)))
                 .join('')
                 .toUpperCase();
-            d.fLast = n.length > 1 ? `${String.fromCodePoint(n[0].codePointAt(0))}.${n[1]}` : n[0];
+            athlete.fLast = n.length > 1 ? `${String.fromCodePoint(n[0].codePointAt(0))}.${n[1]}` : n[0];
         } else {
-            d.fLast = d.initials = null;
+            athlete.fLast = athlete.initials = null;
         }
-        if (d.wPrime === undefined && data.wPrime === undefined) {
-            data.wPrime = wPrimeDefault; // Po-boy migration
+        if (athlete.wPrime === undefined && updates.wPrime === undefined) {
+            updates = {...updates, wPrime: wPrimeDefault}; // Po-boy migration
         }
-        for (const [k, v] of Object.entries(data)) {
+        if (updates.racingScore != null) {
+            // Fill in history of racing scores and update cur value when most
+            // recent value is updated.
+            if (!athlete.racingScoreIncompleteHistory) {
+                athlete.racingScoreIncompleteHistory = [];
+            }
+            const entry = {
+                score: updates.racingScore,
+                ts: updates.racingScoreTS || athlete.updated,
+            };
+            const hist = athlete.racingScoreIncompleteHistory;
+            hist.push(entry);
+            hist.sort((a, b) => a.ts - b.ts);
+            const idx = hist.indexOf(entry);
+            const before = hist[idx - 1];
+            const after = hist[idx + 1];
+            if (before && before.score === entry.score) {
+                // Dedup ourselves, we didn't learn anything new..
+                hist.splice(idx, 1);
+            } else if (after && after.score === entry.score) {
+                // We learned the score was older than previously known..
+                hist.splice(idx + 1, 1);
+            }
+            if (hist.indexOf(entry) !== hist.length - 1) {
+                // Don't clobber more up to date value..
+                updates = {
+                    ...updates,
+                    racingScore: undefined,
+                    racingScoreTS: undefined,
+                    racingCategory: undefined,
+                };
+            } else {
+                updates = {...updates, racingScoreTS: undefined};
+                console.warn("new racing score!!!", hist, updates.racingScore);
+            }
+        }
+        if (updates.racingScore && updates.racingCategory == null && athlete.racingCategory == null) {
+            // Fallback to setting estimated racing category..
+            // https://support.zwift.com/en_us/racing-score-faq-BkG9_Rqrh
+            const offt = [690, 520, 350, 180, 1].findIndex(x => updates.racingScore >= x);
+            if (offt !== -1) {
+                updates = {...updates, racingCategory: String.fromCharCode(65 + offt)};
+            }
+        }
+        for (const [k, v] of Object.entries(updates)) {
             if (v !== undefined) {
-                d[k] = v;
+                athlete[k] = v;
             }
         }
         const ad = this._athleteData.get(id);
         if (ad) {
-            this._updateAthleteDataFromDatabase(ad, d);
+            this._updateAthleteDataFromDatabase(ad, athlete);
         }
-        if (data.marked !== undefined) {
-            if (data.marked) {
+        if (updates.marked !== undefined) {
+            if (updates.marked) {
                 this._markedIds.add(id);
             } else {
                 this._markedIds.delete(id);
             }
         }
-        return d;
+        return athlete;
     }
 
     loadAthlete(id) {
