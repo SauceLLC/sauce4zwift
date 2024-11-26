@@ -1,12 +1,14 @@
 svg.sauce-sparkline {
     stroke-width: 0.1em;
+    --t-duration: 400ms;
+    --t-timing: linear;
 
     path.data {
         stroke: currentColor;
         fill: none;
         stroke-linecap: round;
         stroke-linejoin: round;
-        transition: d 100ms linear;
+        transition: d var(--t-duration) var(--t-timing);
     }
 
     g.points {
@@ -14,7 +16,10 @@ svg.sauce-sparkline {
             r: 0.4em;
             stroke: currentColor;
             fill: color-mix(in srgb, currentColor, transparent 50%);
-            transition: r 100ms, cx 100ms linear, cy 100ms linear;
+            transition:
+                cx var(--t-duration) var(--t-timing),
+                cy var(--t-duration) var(--t-timing),
+                r 140ms ease;
 
             &:hover {
                 r: 1em;
