@@ -1,0 +1,25 @@
+svg.sauce-sparkline {
+    stroke-width: 0.1em;
+
+    path.data {
+        stroke: currentColor;
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        transition: d 100ms linear;
+    }
+
+    g.points {
+        circle {
+            r: 0.4em;
+            stroke: currentColor;
+            fill: color-mix(in srgb, currentColor, transparent 50%);
+            transition: r 100ms, cx 100ms linear, cy 100ms linear;
+
+            &:hover {
+                r: 1em;
+            }
+        }
+    }
+}
+
