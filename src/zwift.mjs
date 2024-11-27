@@ -1869,13 +1869,20 @@ export class GameMonitor extends events.EventEmitter {
         }
         const id = this._refreshStatesTimeout;
         try {
-            await this._refreshGameState();
+            const age = await this._refreshGameState();
             if (this.gameAthleteId !== this.watchingAthleteId) {
                 await this._refreshWatchingState();
             }
-            this._stateRefreshDelay = Math.max(this._stateRefreshDelayMin, this._stateRefreshDelay * 0.999);
+            if (age > 15000) {
+                // Stop harassing relay servers and relax state fetch...
+                this.suspend();
+                this._stateRefreshDelay = Math.min(this._stateRefreshDelay * 1.02, 30000);
+            } else {
+                this._stateRefreshDelay = Math.max(this._stateRefreshDelay * 0.99,
+                                                   this._stateRefreshDelayMin);
+            }
         } catch(e) {
-            this._stateRefreshDelay *= 1.15;
+            this._stateRefreshDelay = Math.min(this._stateRefreshDelay * 1.15, 300000);
             if (e.status !== 429) {
                 if (e.name === 'FetchError') {
                     console.warn("Refresh states network problem:", e.message);
@@ -1895,7 +1902,7 @@ export class GameMonitor extends events.EventEmitter {
         const age = Date.now() - this._lastGameStateUpdated;
         if (age < this._stateRefreshDelay * 0.95) {
             // Optimized out by data stream
-            return;
+            return age;
         }
         const state = this.gameAthleteId != null ? await this.api.getPlayerState(this.gameAthleteId) : null;
         if (!state) {
@@ -1907,9 +1914,6 @@ export class GameMonitor extends events.EventEmitter {
                 } else {
                     console.info("Switching to new random athlete:", this.gameAthleteId);
                 }
-            } else if (age > 15 * 1000) {
-                // Stop harassing the UDP channel..
-                this.suspend();
             }
         } else {
             // The stats proc works better with these being recently available.
@@ -1919,6 +1923,7 @@ export class GameMonitor extends events.EventEmitter {
                 this._updateWatchingState(state);
             }
         }
+        return Date.now() - this._lastGameStateUpdated;
     }
 
     async _refreshWatchingState() {
