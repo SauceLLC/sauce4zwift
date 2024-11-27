@@ -1,4 +1,5 @@
 {
+    "plugins": ["eslint-plugin-html"],
     "env": {
         "browser": true,
         "commonjs": true,

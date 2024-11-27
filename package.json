@@ -43,6 +43,7 @@
     "electron": "33.2.0",
     "electron-builder": "25.1.8",
     "eslint": "8.57.1",
+    "eslint-plugin-html": "8.1.2",
     "sass": "1.81.0",
     "world_countries_lists": "2.9.0"
   },
