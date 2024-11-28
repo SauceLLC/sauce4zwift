@@ -6,11 +6,12 @@ function createSVGElement(tag) {
 
 
 export class Sparkline {
-    constructor({el, data, yMin, yMax, xMin, xMax, padding, onTooltip}={}) {
+    constructor({el, data, yMin, yMax, xMin, xMax, padding, onTooltip, noPoints}={}) {
         this.yMin = yMin;
         this.yMax = yMax;
         this.xMin = xMin;
         this.xMax = xMax;
+        this.noPoints = noPoints;
         this.padding = padding || [4, 4, 4, 4];
         this.onTooltip = onTooltip;
         this.aspectRatio = 1;
@@ -180,68 +181,70 @@ export class Sparkline {
                 needForceLayout = true;
             }
         }
-        const remPoints = new Set(this._pointsMap.values());
-        const newPoints = [];
         const pointUpdates = [];
-        for (let index = 0; index < coords.length; index++) {
-            const coord = coords[index];
-            const dataRef = this.data[index];
-            let point = this._pointsMap.get(dataRef);
-            if (point) {
-                remPoints.delete(point);
-            } else {
-                const nd = normalized[index];
-                point = createSVGElement('circle');
-                point._dataRef = dataRef;
-                point.classList.add('data-point');
-                point._tooltipFormat = nd.tooltip ?
-                    nd.tooltip.bind(this, nd, point) :
-                    this.onTooltip ?
-                        this.onTooltip.bind(this, nd, point) :
-                        () => nd.y.toLocaleString();
-                newPoints.push(point);
-                this._pointsMap.set(dataRef, point);
-                // Look for some animation opportunities...
-                if (this._prevNormalized) {
-                    let beginCoord = [coord[0], this._plotHeight];
-                    const maxSearch = 10;
-                    if (index >= coords.length / 2) {
-                        // right-to-left movement...
-                        const edge = this._prevNormalized[this._prevNormalized.length - 1];
-                        for (let i = 0; i < Math.min(maxSearch, normalized.length); i++) {
-                            const n = normalized[normalized.length - 1 - i];
-                            if (n.x === edge.x && n.y === edge.y) {
-                                beginCoord = this._prevCoords[this._prevCoords.length - 1];
-                                break;
+        if (!this.noPoints) {
+            const remPoints = new Set(this._pointsMap.values());
+            const newPoints = [];
+            for (let index = 0; index < coords.length; index++) {
+                const coord = coords[index];
+                const dataRef = this.data[index];
+                let point = this._pointsMap.get(dataRef);
+                if (point) {
+                    remPoints.delete(point);
+                } else {
+                    const nd = normalized[index];
+                    point = createSVGElement('circle');
+                    point._dataRef = dataRef;
+                    point.classList.add('data-point');
+                    point._tooltipFormat = nd.tooltip ?
+                        nd.tooltip.bind(this, nd, point) :
+                        this.onTooltip ?
+                            this.onTooltip.bind(this, nd, point) :
+                            () => nd.y.toLocaleString();
+                    newPoints.push(point);
+                    this._pointsMap.set(dataRef, point);
+                    // Look for some animation opportunities...
+                    if (this._prevNormalized) {
+                        let beginCoord = [coord[0], this._plotHeight];
+                        const maxSearch = 10;
+                        if (index >= coords.length / 2) {
+                            // right-to-left movement...
+                            const edge = this._prevNormalized[this._prevNormalized.length - 1];
+                            for (let i = 0; i < Math.min(maxSearch, normalized.length); i++) {
+                                const n = normalized[normalized.length - 1 - i];
+                                if (n.x === edge.x && n.y === edge.y) {
+                                    beginCoord = this._prevCoords[this._prevCoords.length - 1];
+                                    break;
+                                }
+                            }
+                        } else {
+                            // left-to-right movement...
+                            const edge = this._prevNormalized[0];
+                            for (let i = 0; i < Math.min(maxSearch, normalized.length); i++) {
+                                const n = normalized[i];
+                                if (n.x === edge.x && n.y === edge.y) {
+                                    beginCoord = this._prevCoords[0];
+                                    break;
+                                }
                             }
                         }
-                    } else {
-                        // left-to-right movement...
-                        const edge = this._prevNormalized[0];
-                        for (let i = 0; i < Math.min(maxSearch, normalized.length); i++) {
-                            const n = normalized[i];
-                            if (n.x === edge.x && n.y === edge.y) {
-                                beginCoord = this._prevCoords[0];
-                                break;
-                            }
-                        }
+                        point.setAttribute('cx', beginCoord[0]);
+                        point.setAttribute('cy', beginCoord[1]);
+                        needForceLayout = true;
                     }
-                    point.setAttribute('cx', beginCoord[0]);
-                    point.setAttribute('cy', beginCoord[1]);
-                    needForceLayout = true;
+                }
+                const sig = coord.join();
+                if (point._sig !== sig) {
+                    pointUpdates.push([point, coord]);
+                    point._sig = sig;
                 }
             }
-            const sig = coord.join();
-            if (point._sig !== sig) {
-                pointUpdates.push([point, coord]);
-                point._sig = sig;
+            for (const x of remPoints) {
+                this._pointsMap.delete(x._dataRef);
+                x.remove();
             }
+            this._pointsEl.append(...newPoints);
         }
-        for (const x of remPoints) {
-            this._pointsMap.delete(x._dataRef);
-            x.remove();
-        }
-        this._pointsEl.append(...newPoints);
         if (needForceLayout) {
             this._svgEl.clientWidth;
         }
