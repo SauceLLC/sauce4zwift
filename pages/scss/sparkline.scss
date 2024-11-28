@@ -1,30 +1,38 @@
 svg.sauce-sparkline {
     stroke-width: 0.1em;
-    --t-duration: 400ms;
-    --t-timing: linear;
+    --transition-duration: 400ms;
+    --transition-timing: linear;
 
-    path.data {
+    .data-def {
+        transition: d var(--transition-duration) var(--transition-timing);
+    }
+
+    .visual-data-line {
         stroke: currentColor;
         fill: none;
         stroke-linecap: round;
         stroke-linejoin: round;
-        transition: d var(--t-duration) var(--t-timing);
+    }
+
+    .visual-data-area {
+        width: 100%;
+        height: 100%;
+        background-image: linear-gradient(to top, #000a, red);
     }
 
     g.points {
         circle {
-            r: 0.4em;
+            r: 0.2em;
             stroke: currentColor;
             fill: color-mix(in srgb, currentColor, transparent 50%);
             transition:
-                cx var(--t-duration) var(--t-timing),
-                cy var(--t-duration) var(--t-timing),
+                cx var(--transition-duration) var(--transition-timing),
+                cy var(--transition-duration) var(--transition-timing),
                 r 140ms ease;
 
             &:hover {
-                r: 1em;
+                r: 0.4em;
             }
         }
     }
 }
-
