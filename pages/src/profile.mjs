@@ -1,5 +1,6 @@
 import * as common from './common.mjs';
 import {locale, template} from '../../shared/sauce/index.mjs';
+import {Sparkline} from './sparkline.mjs';
 
 common.enableSentry();
 
@@ -94,7 +95,9 @@ function handleInlineEdit(el, {athleteId, athlete}, rerender) {
 
 export async function render(el, tpl, tplData) {
     const athleteId = tplData.athleteId;
-    const rerender = async () => el.replaceChildren(...(await tpl(tplData)).children);
+    const rerender = async () => {
+        el.replaceChildren(...(await tpl(tplData)).children);
+    };
     el.addEventListener('click', async ev => {
         const a = ev.target.closest('header a[data-action]');
         if (!a) {
@@ -127,6 +130,25 @@ export async function render(el, tpl, tplData) {
             alert("Invalid command: " + a.dataset.action);
         }
         await rerender();
+    });
+    let sl;
+    el.addEventListener('pointerover', async ev => {
+        const badgeEl = ev.target.closest('.racing-score-avatar-badge');
+        if (!badgeEl) {
+            return;
+        }
+        const history = tplData.athlete?.racingScoreIncompleteHistory?.map(x => [x.ts, x.score]);
+        if (!history?.length) {
+            return;
+        }
+        if (history.length === 1) {
+            history.unshift(history[0]);
+            history[0].ts -= 1;
+        }
+        if (!sl) {
+            sl = new Sparkline({el: badgeEl.querySelector('.sparkline')});
+        }
+        sl.setData(history);
     });
     let inGame;
     function setInGame(en) {

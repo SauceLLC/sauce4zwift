@@ -65,6 +65,7 @@
                        title="Zwift Racing Score is a results based ranking system"
                        href="https://support.zwift.com/en_us/racing-score-faq-BkG9_Rqrh">
                         {-common.eventBadge(athlete.racingCategory)-}
+                        <div class="sparkline"></div>
                         <div class="number">{{humanNumber(athlete.racingScore || null)}}</div>
                     </a>
                 <% } %>
