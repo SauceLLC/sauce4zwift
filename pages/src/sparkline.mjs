@@ -1,4 +1,5 @@
 
+let globalIdCounter = 0;
 
 function createSVGElement(tag) {
     return document.createElementNS('http://www.w3.org/2000/svg', tag);
@@ -6,27 +7,48 @@ function createSVGElement(tag) {
 
 
 export class Sparkline {
-    constructor({el, data, yMin, yMax, xMin, xMax, padding, onTooltip, noPoints}={}) {
-        this.yMin = yMin;
-        this.yMax = yMax;
-        this.xMin = xMin;
-        this.xMax = xMax;
-        this.noPoints = noPoints;
-        this.padding = padding || [4, 4, 4, 4];
-        this.onTooltip = onTooltip;
+    constructor(options={}) {
+        this.id = globalIdCounter++;
+        this._yMin = options.yMin;
+        this._yMax = options.yMax;
+        this._xMin = options.xMin;
+        this._xMax = options.xMax;
+        this.noPoints = options.noPoints;
+        this.padding = options.padding || [4, 4, 4, 4];
+        this.onTooltip = options.onTooltip;
         this.aspectRatio = 1;
         this.onPointeroverForTooltips = this._onPointeroverForTooltips.bind(this);
-        this._resizeObserver = new ResizeObserver(this._adjustAspectRatio.bind(this));
-        if (data) {
-            this.setData(el);
+        this._resizeObserver = new ResizeObserver(
+            requestAnimationFrame.bind(null, this._adjustAspectRatio.bind(this)));
+        if (options.data) {
+            this.setData(options.data);
         }
-        if (el) {
-            this.setElement(el);
+        if (options.el) {
+            this.setElement(options.el);
         }
+    }
+
+    get yMin() {
+        return this._yMin != null ? this._yMin : this._yMinCalculated;
+    }
+
+    get yMax() {
+        return this._yMax != null ? this._yMax : this._yMaxCalculated;
+    }
+
+    get xMin() {
+        return this._xMin != null ? this._xMin : this._xMinCalculated;
+    }
+
+    get xMax() {
+        return this._xMax != null ? this._xMax : this._xMaxCalculated;
     }
 
     _adjustAspectRatio() {
         const rect = this.el.getBoundingClientRect();
+        if (!rect.width || !rect.height) {
+            return;
+        }
         const ar = rect.width / rect.height;
         const forceRender = ar / this.aspectRatio > 0.01;
         const dpr = devicePixelRatio || 1;
@@ -42,12 +64,12 @@ export class Sparkline {
         }
         const hPad = (this.padding[1] + this.padding[3]) * dpr;
         const vPad = (this.padding[0] + this.padding[2]) * dpr;
-        this._plotWidth = this._boxWidth - hPad;
-        this._plotHeight = this._boxHeight - vPad;
+        this._plotWidth = Math.max(0, this._boxWidth - hPad);
+        this._plotHeight = Math.max(0, this._boxHeight - vPad);
         this._svgEl.setAttribute('viewBox', `0 0 ${this._boxWidth} ${this._boxHeight}`);
-        const fo = this._svgEl.querySelector('foreignObject.css-background');
-        fo.setAttribute('width', this._plotWidth);
-        fo.setAttribute('height', this._plotHeight);
+        const foBackground = this._svgEl.querySelector('foreignObject.sl-css-background');
+        foBackground.setAttribute('width', this._plotWidth);
+        foBackground.setAttribute('height', this._plotHeight);
         if (forceRender) {
             this.render();
         }
@@ -56,7 +78,7 @@ export class Sparkline {
     setElement(el) {
         const old = this.el;
         if (old) {
-            this._resizeObserver.unobserve(old);
+            this._resizeObserver.disconnect();
             old.removeEventListener('pointerover', this.onPointeroverForTooltips);
         }
         const dpr = devicePixelRatio || 1;
@@ -64,41 +86,38 @@ export class Sparkline {
             Math.round(this.padding[3] * dpr),
             Math.round(this.padding[0] * dpr)
         ];
+        const pathId = `path-def-${this.id}`;
         this.el = el;
-        const magic = '' + Math.random() + performance.now();
-        const pathId = `path-def-${magic}`;
-        this.el.innerHTML = `
-            <svg class="sauce-sparkline"
-                 preserveAspectRatio="none"
-                 version="1.1"
-                 xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                    <clipPath id="${pathId}-clip"><path class="data-def area"/></clipPath>
-                </defs>
-                <g class="plot-region" transform="translate(${translate.join()})">
-                    <foreignObject class="css-background" clip-path="url(#${pathId}-clip)">
-                        <div class="visual-data-area"></div>
-                    </foreignObject>
-                    <path class="data-def line visual-data-line"/>
-                    <g class="points"></g>
-                </g>
-            </svg>
-        `;
-        this._svgEl = this.el.querySelector('svg');
-        this._pointsEl = this.el.querySelector('g.points');
-        this._pathLineDefEl = this.el.querySelector('path.data-def.line');
-        this._pathAreaDefEl = this.el.querySelector('path.data-def.area');
+        this.el.innerHTML =
+            `<div class="sauce-sparkline sl-wrap resize-observer" style="position:relative;">
+                <svg version="1.1" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none"
+                     data-id="${this.id}" class="sl-root"
+                     style="position:absolute; top:0; left:0; width:100%; height:100%;">
+                    <defs>
+                        <clipPath id="${pathId}-clip"><path class="sl-data-def sl-area"/></clipPath>
+                    </defs>
+                    <g class="sl-plot-region" transform="translate(${translate.join()})">
+                        <foreignObject class="sl-css-background" clip-path="url(#${pathId}-clip)">
+                            <div class="sl-visual-data-area"></div>
+                        </foreignObject>
+                        <path class="sl-data-def sl-line sl-visual-data-line"/>
+                        <g class="sl-points"></g>
+                    </g>
+                </svg>
+            </div>`;
+        this._svgEl = this.el.querySelector('svg.sl-root');
+        this._pointsEl = this._svgEl.querySelector('g.sl-points');
+        this._pathLineDefEl = this._svgEl.querySelector('path.sl-data-def.sl-line');
+        this._pathAreaDefEl = this._svgEl.querySelector('path.sl-data-def.sl-area');
         this._pointsMap = new Map();
         this._adjustAspectRatio();
         this.el.addEventListener('pointerover', this.onPointeroverForTooltips);
-        this._resizeObserver.observe(el);
+        this._resizeObserver.observe(this.el.querySelector('.resize-observer'));
     }
 
     setData(data) {
         this.data = data;
-        if (this.el) {
-            this.render();
-        }
+        this.render();
     }
 
     normalizeData(data) {
@@ -129,17 +148,33 @@ export class Sparkline {
         point.replaceChildren(title);
     }
 
+    reset() {
+        if (this.data) {
+            this.data.length = 0;
+        }
+        this._reset();
+    }
+
+    _reset() {
+        this._pathLineDefEl.removeAttribute('d');
+        this._pathAreaDefEl.removeAttribute('d');
+        this._pointsEl.innerHTML = '';
+        this._pointsMap.clear();
+        this._prevCoords = null;
+        this._prevNormalized = null;
+    }
+
     render() {
         if (!this.data || !this.data.length) {
-            this._pathLineDefEl.removeAttribute('d');
-            this._pathAreaDefEl.removeAttribute('d');
-            this._pointsEl.innerHTML = '';
-            this._pointsMap.clear();
+            this._reset();
             return;
         }
         const {coords, normalized} = this._renderData();
-        const {pointUpdates} = this._renderStageUpdates(coords, normalized); // XXX no async
-        this._renderFinal(coords, pointUpdates);
+        const {needForceLayout, ...layoutOptions} = this._renderBeforeLayout({coords, normalized});
+        if (needForceLayout) {
+            this._svgEl.clientWidth;
+        }
+        this._renderDoLayout({coords, ...layoutOptions});
         this._prevCoords = coords;
         this._prevNormalized = normalized;
     }
@@ -148,23 +183,25 @@ export class Sparkline {
         // Step 1: data processing
         const normalized = this.normalizeData(this.data);
         let yND;
-        const yMin = this.yMin != null ? this.yMin : Math.min(...(yND = normalized.map(o => o.y)));
-        const yMax = this.yMax != null ? this.yMax : Math.max(...(yND || normalized.map(o => o.y)));
-        this._yRange = (yMax - yMin) || 1;
+        this._yMinCalculated = this._yMin != null ? this._yMin :
+            Math.min(...(yND = normalized.map(o => o.y)));
+        this._yMaxCalculated = this._yMax != null ? this._yMax :
+            Math.max(...(yND || normalized.map(o => o.y)));
+        this._yRange = (this._yMaxCalculated - this._yMinCalculated) || 1;
         this._yScale = this._plotHeight / this._yRange;
-        const xMin = this.xMin != null ? this.xMin : normalized[0].x;
-        const xMax = this.xMax != null ? this.xMax : normalized[normalized.length - 1].x;
-        this._xRange = (xMax - xMin) || 1;
+        this._xMinCalculated = this._xMin != null ? this._xMin : normalized[0].x;
+        this._xMaxCalculated = this._xMax != null ? this._xMax : normalized[normalized.length - 1].x;
+        this._xRange = (this._xMaxCalculated - this._xMinCalculated) || 1;
         this._xScale = this._plotWidth / this._xRange;
         const coords = normalized.map(o => [
-            (o.x - xMin) * this._xScale,
-            this._plotHeight - ((o.y - yMin) * this._yScale)
+            (o.x - this._xMinCalculated) * this._xScale,
+            this._plotHeight - ((o.y - this._yMinCalculated) * this._yScale)
         ]);
         return {coords, normalized};
     }
 
-    _renderStageUpdates(coords, normalized) {
-        let needForceLayout;
+    _renderBeforeLayout({coords, normalized}) {
+        let needForceLayout = false;
         if (this._prevCoords) {
             // We can use CSS to animate the transition but we have to use a little hack
             // because it only animates when the path has the same number of points.
@@ -195,7 +232,7 @@ export class Sparkline {
                     const nd = normalized[index];
                     point = createSVGElement('circle');
                     point._dataRef = dataRef;
-                    point.classList.add('data-point');
+                    point.classList.add('sl-data-point');
                     point._tooltipFormat = nd.tooltip ?
                         nd.tooltip.bind(this, nd, point) :
                         this.onTooltip ?
@@ -245,10 +282,17 @@ export class Sparkline {
             }
             this._pointsEl.append(...newPoints);
         }
-        if (needForceLayout) {
-            this._svgEl.clientWidth;
+        return {pointUpdates, needForceLayout};
+    }
+
+    _renderDoLayout({coords, pointUpdates, needForceLayout}) {
+        this._pathLineDefEl.setAttribute('d', this._makePath(coords));
+        this._pathAreaDefEl.setAttribute('d', this._makePath(coords, {closed: true}));
+        for (let i = 0; i < pointUpdates.length; i++) {
+            const [point, coord] = pointUpdates[i];
+            point.setAttribute('cx', coord[0]);
+            point.setAttribute('cy', coord[1]);
         }
-        return {pointUpdates};
     }
 
     _makePath(coords, {closed}={}) {
@@ -258,15 +302,5 @@ export class Sparkline {
         const start = closed ? `M0,${this._plotHeight}L` : 'M';
         const end = closed ? `L${this._plotWidth},${this._plotHeight}Z` : '';
         return start + coords.map(c => `${c[0]},${c[1]}`).join('L') + end;
-    }
-
-    _renderFinal(coords, pointUpdates) {
-        this._pathLineDefEl.setAttribute('d', this._makePath(coords));
-        this._pathAreaDefEl.setAttribute('d', this._makePath(coords, {closed: true}));
-        for (let i = 0; i < pointUpdates.length; i++) {
-            const [point, coord] = pointUpdates[i];
-            point.setAttribute('cx', coord[0]);
-            point.setAttribute('cy', coord[1]);
-        }
     }
 }

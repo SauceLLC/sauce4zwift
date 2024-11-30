@@ -1,37 +1,49 @@
-svg.sauce-sparkline {
-    stroke-width: 0.1em;
-    --transition-duration: 400ms;
-    --transition-timing: linear;
+.sauce-sparkline {
+    width: 100%;
+    height: 100%;
 
-    .data-def {
-        transition: d var(--transition-duration) var(--transition-timing);
-    }
+    > svg.sl-root {
+        stroke-width: 0.1em;
+        --transition-duration: 400ms;
+        --transition-timing: linear;
 
-    .visual-data-line {
-        stroke: currentColor;
-        fill: none;
-        stroke-linecap: round;
-        stroke-linejoin: round;
-    }
-
-    .visual-data-area {
-        width: 100%;
-        height: 100%;
-        background-image: linear-gradient(to top, #000a, red);
-    }
-
-    g.points {
-        circle {
-            r: 0.2em;
-            stroke: currentColor;
-            fill: color-mix(in srgb, currentColor, transparent 50%);
+        .sl-data-def {
             transition:
-                cx var(--transition-duration) var(--transition-timing),
-                cy var(--transition-duration) var(--transition-timing),
-                r 140ms ease;
+                d var(--transition-duration) var(--transition-timing),
+                offset-path var(--transition-duration) var(--transition-timing),
+        }
 
-            &:hover {
-                r: 0.4em;
+        .sl-visual-data-line {
+            stroke: currentColor;
+            fill: none;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            clip-path: rect(0px 672px 89px 0px);
+        }
+
+        .sl-css-background {
+            pointer-events: none;
+        }
+
+        .sl-visual-data-area {
+            width: 100%;
+            height: 100%;
+            background-image: linear-gradient(to top, #000a, red);
+        }
+
+        g.sl-points {
+            circle {
+                r: 0.2em;
+                stroke: currentColor;
+                fill: color-mix(in srgb, currentColor, transparent 50%);
+                transition:
+                    cx var(--transition-duration) var(--transition-timing),
+                    cy var(--transition-duration) var(--transition-timing),
+                    r 140ms ease;
+
+                &:hover {
+                    r: 0.4em;
+                }
             }
         }
     }
