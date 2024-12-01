@@ -1,16 +1,17 @@
 .sauce-sparkline {
     width: 100%;
     height: 100%;
+    overflow: visible !important; // DEBUG XXX
+    --transition-duration: 400ms;
+    --transition-timing: linear;
 
     > svg.sl-root {
+        overflow: visible !important; // Must render coords outside viewBox
         stroke-width: 0.1em;
-        --transition-duration: 400ms;
-        --transition-timing: linear;
+        transition: offset-path var(--transition-duration) var(--transition-timing);
 
         .sl-data-def {
-            transition:
-                d var(--transition-duration) var(--transition-timing),
-                offset-path var(--transition-duration) var(--transition-timing),
+            transition: d var(--transition-duration) var(--transition-timing),
         }
 
         .sl-visual-data-line {
@@ -18,7 +19,10 @@
             fill: none;
             stroke-linecap: round;
             stroke-linejoin: round;
-            clip-path: rect(0px 672px 89px 0px);
+        }
+
+        svg {
+            overflow: visible !important; // Must render coords outside viewBox
         }
 
         .sl-css-background {
