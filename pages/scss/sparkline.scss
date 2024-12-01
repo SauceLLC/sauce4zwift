@@ -4,6 +4,18 @@
     --transition-duration: 400ms;
     --transition-timing: linear;
 
+    .sl-title {
+        font-size: 0.8em;
+        font-weight: 600;
+        opacity: 0.7;
+        font-variant: all-small-caps;
+        font-family: sans-serif;
+        pointer-events: none;
+        padding: 0.2em;
+        line-height: 1;
+        display: inline-flex;
+    }
+
     > svg.sl-root {
         stroke-width: 0.1em;
 
@@ -29,7 +41,12 @@
         .sl-visual-data-area {
             width: 100%;
             height: 100%;
-            background-image: linear-gradient(to top, #000a, red);
+            background-image: linear-gradient(to top, #000a, #f00a);
+        }
+        .sl-visual-data-area {
+            width: 100%;
+            height: 100%;
+            background-image: linear-gradient(to top, #000a, #f00a);
         }
 
         g.sl-points {

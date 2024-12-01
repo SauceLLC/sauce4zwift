@@ -14,6 +14,7 @@ export class Sparkline {
         this._yMax = options.yMax;
         this._xMin = options.xMin;
         this._xMax = options.xMax;
+        this.title = options.title;
         this.hidePoints = options.hidePoints;
         this.padding = options.padding || [4, 4, 4, 4];
         this.onTooltip = options.onTooltip;
@@ -45,11 +46,6 @@ export class Sparkline {
     }
 
     _adjustSize() {
-        if (!this._rootSvgEl) {
-            console.warn("NOPE");
-            debugger;
-            return;
-        }
         const {width, height} = this._rootSvgEl.getBoundingClientRect();
         if (!width || !height) {
             return;
@@ -91,7 +87,6 @@ export class Sparkline {
             this._resizeObserver.disconnect();
             old.removeEventListener('pointerover', this.onPointeroverForTooltips);
         }
-        const pathId = `path-def-${this.id}`;
         if (!merge) {
             el.innerHTML =
                 `<div class="sauce-sparkline sl-wrap resize-observer" style="position:relative;">
@@ -105,12 +100,13 @@ export class Sparkline {
         if (!defs) {
             throw new Error('Existing merge target element is not a sparkline');
         }
+        const pathId = `path-def-${this.id}`;
         defs.insertAdjacentHTML('beforeend', `
-            <clipPath data-sparkline-id="${this.id}" id="${pathId}-clip">
+            <clipPath data-sl-id="${this.id}" id="${pathId}-clip">
                 <path class="sl-data-def sl-area"/>
             </clipPath>`);
         el.querySelector('svg.sl-root').insertAdjacentHTML('beforeend', `
-            <g data-sparkline-id="${this.id}" class="sl-plot-region">
+            <g data-sl-id="${this.id}" class="sl-plot-region">
                 <foreignObject class="sl-css-background" clip-path="url(#${pathId}-clip)"
                                width="100%" height="100%">
                     <div class="sl-visual-data-area"></div>
@@ -118,7 +114,12 @@ export class Sparkline {
                 <path class="sl-data-def sl-line sl-visual-data-line"/>
                 <g class="sl-points"></g>
             </g>`);
-        const qs = `[data-sparkline-id="${this.id}"]`;
+        if (this.title) {
+            el.querySelector(':scope > .sl-wrap').insertAdjacentHTML(
+                'beforeend',
+                `<div data-sl-id="${this.id}" class="sl-title">${this.title}</div>`);
+        }
+        const qs = `[data-sl-id="${this.id}"]`;
         this._rootSvgEl = el.querySelector(`svg.sl-root`);
         this._plotRegionEl = el.querySelector(`${qs}.sl-plot-region`);
         this._pointsEl = el.querySelector(`${qs} g.sl-points`);
