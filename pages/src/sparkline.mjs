@@ -7,6 +7,7 @@ function createSVGElement(tag) {
 
 
 export class Sparkline {
+
     constructor(options={}) {
         this.id = globalIdCounter++;
         this._yMin = options.yMin;
@@ -16,15 +17,14 @@ export class Sparkline {
         this.hidePoints = options.hidePoints;
         this.padding = options.padding || [4, 4, 4, 4];
         this.onTooltip = options.onTooltip;
-        this.aspectRatio = 1;
         this.onPointeroverForTooltips = this._onPointeroverForTooltips.bind(this);
         this._resizeObserver = new ResizeObserver(
-            requestAnimationFrame.bind(null, this._adjustAspectRatio.bind(this)));
+            requestAnimationFrame.bind(null, this._adjustSize.bind(this)));
         if (options.data) {
             this.setData(options.data);
         }
         if (options.el) {
-            this.setElement(options.el);
+            this.setElement(options.el, {merge: options.merge});
         }
     }
 
@@ -44,70 +44,90 @@ export class Sparkline {
         return this._xMax != null ? this._xMax : this._xMaxCalculated;
     }
 
-    _adjustAspectRatio() {
-        const rect = this.el.getBoundingClientRect();
-        if (!rect.width || !rect.height) {
+    _adjustSize() {
+        if (!this._rootSvgEl) {
+            console.warn("NOPE");
+            debugger;
             return;
         }
-        const ar = rect.width / rect.height;
-        const forceRender = ar / this.aspectRatio > 0.01;
-        this.aspectRatio = ar;
-        // SVG viewbox is a virtual coord system but using very small or large values
-        // does impact gpu mem and visual quality, so try to make good choices...
+        const {width, height} = this._rootSvgEl.getBoundingClientRect();
+        if (!width || !height) {
+            return;
+        }
+        const pixelScale = devicePixelRatio || 1;
+        const ar = width / height;
         if (ar > 1) {
-            this._boxWidth = Math.round(rect.width * this._pixelScale);
+            this._boxWidth = Math.round(width * pixelScale);
             this._boxHeight = Math.round(this._boxWidth / ar);
         } else {
-            this._boxHeight = Math.round(rect.height * this._pixelScale);
+            this._boxHeight = Math.round(height * pixelScale);
             this._boxWidth = Math.round(this._boxHeight * ar);
         }
-        const hPad = (this.padding[1] + this.padding[3]) * this._pixelScale;
-        const vPad = (this.padding[0] + this.padding[2]) * this._pixelScale;
+        const hPad = (this.padding[1] + this.padding[3]) * pixelScale;
+        const vPad = (this.padding[0] + this.padding[2]) * pixelScale;
         this._plotWidth = Math.max(0, this._boxWidth - hPad);
         this._plotHeight = Math.max(0, this._boxHeight - vPad);
-        this._svgEl.setAttribute('viewBox', `0 0 ${this._boxWidth} ${this._boxHeight}`);
-        const foBackground = this._svgEl.querySelector('foreignObject.sl-css-background');
-        foBackground.setAttribute('width', this._plotWidth);
-        foBackground.setAttribute('height', this._plotHeight);
-        if (forceRender) {
-            this.render();
+        const sig = [width, height, pixelScale, hPad, vPad].join();
+        if (this._rootSvgEl._lastSig !== sig) {
+            const xOfft = this.padding[3] * pixelScale;
+            const yOfft = this.padding[0] * pixelScale;
+            this._rootSvgEl._lastSig = sig;
+            this._rootSvgEl.classList.add('disable-animation');
+            try {
+                this._rootSvgEl.setAttribute('viewBox',
+                                             `${-xOfft} ${-yOfft} ${this._boxWidth} ${this._boxHeight}`);
+                this.render();
+                this._rootSvgEl.clientWidth;
+            } finally {
+                this._rootSvgEl.classList.remove('disable-animation');
+            }
         }
     }
 
-    setElement(el) {
+    setElement(el, {merge}={}) {
         const old = this.el;
+        this.el = el;
         if (old) {
             this._resizeObserver.disconnect();
             old.removeEventListener('pointerover', this.onPointeroverForTooltips);
         }
-        this._pixelScale = devicePixelRatio || 1;
         const pathId = `path-def-${this.id}`;
-        this.el = el;
-        this.el.innerHTML =
-            `<div class="sauce-sparkline sl-wrap resize-observer" style="position:relative;">
-                <svg version="1.1" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none"
-                     data-id="${this.id}" class="sl-root"
-                     style="position:absolute; top:0; left:0; width:100%; height:100%;">
-                    <defs>
-                        <clipPath id="${pathId}-clip"><path class="sl-data-def sl-area"/></clipPath>
-                    </defs>
-                    <svg class="sl-plot-region" x="${this.padding[3]}" y="${this.padding[0]}">
-                        <foreignObject class="sl-css-background" clip-path="url(#${pathId}-clip)">
-                            <div class="sl-visual-data-area"></div>
-                        </foreignObject>
-                        <path class="sl-data-def sl-line sl-visual-data-line"/>
-                        <g class="sl-points"></g>
-                    </g>
-                </svg>
-            </div>`;
-        this._svgEl = this.el.querySelector('svg.sl-root');
-        this._pointsEl = this._svgEl.querySelector('g.sl-points');
-        this._pathLineDefEl = this._svgEl.querySelector('path.sl-data-def.sl-line');
-        this._pathAreaDefEl = this._svgEl.querySelector('path.sl-data-def.sl-area');
+        if (!merge) {
+            el.innerHTML =
+                `<div class="sauce-sparkline sl-wrap resize-observer" style="position:relative;">
+                    <svg version="1.1" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none"
+                         class="sl-root" style="position:absolute; top:0; left:0; width:100%; height:100%;">
+                        <defs></defs>
+                    </svg>
+                </div>`;
+        }
+        const defs = el.querySelector('svg.sl-root > defs');
+        if (!defs) {
+            throw new Error('Existing merge target element is not a sparkline');
+        }
+        defs.insertAdjacentHTML('beforeend', `
+            <clipPath data-sparkline-id="${this.id}" id="${pathId}-clip">
+                <path class="sl-data-def sl-area"/>
+            </clipPath>`);
+        el.querySelector('svg.sl-root').insertAdjacentHTML('beforeend', `
+            <g data-sparkline-id="${this.id}" class="sl-plot-region">
+                <foreignObject class="sl-css-background" clip-path="url(#${pathId}-clip)"
+                               width="100%" height="100%">
+                    <div class="sl-visual-data-area"></div>
+                </foreignObject>
+                <path class="sl-data-def sl-line sl-visual-data-line"/>
+                <g class="sl-points"></g>
+            </g>`);
+        const qs = `[data-sparkline-id="${this.id}"]`;
+        this._rootSvgEl = el.querySelector(`svg.sl-root`);
+        this._plotRegionEl = el.querySelector(`${qs}.sl-plot-region`);
+        this._pointsEl = el.querySelector(`${qs} g.sl-points`);
+        this._pathLineDefEl = el.querySelector(`${qs} path.sl-data-def.sl-line`);
+        this._pathAreaDefEl = el.querySelector(`${qs} path.sl-data-def.sl-area`);
         this._pointsMap = new Map();
-        this._adjustAspectRatio();
-        this.el.addEventListener('pointerover', this.onPointeroverForTooltips);
-        this._resizeObserver.observe(this.el.querySelector('.resize-observer'));
+        this._adjustSize();
+        el.addEventListener('pointerover', this.onPointeroverForTooltips);
+        this._resizeObserver.observe(el.querySelector('.resize-observer'));
     }
 
     setData(data) {
@@ -167,7 +187,7 @@ export class Sparkline {
         const {coords, normalized} = this._renderData();
         const {needForceLayout, ...layoutOptions} = this._renderBeforeLayout({coords, normalized});
         if (needForceLayout) {
-            this._svgEl.clientWidth;
+            this._plotRegionEl.clientWidth;
         }
         this._renderDoLayout({coords, ...layoutOptions});
         this._prevCoords = coords;
