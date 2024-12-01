@@ -54,7 +54,6 @@ export class Sparkline {
         this.aspectRatio = ar;
         // SVG viewbox is a virtual coord system but using very small or large values
         // does impact gpu mem and visual quality, so try to make good choices...
-        console.warn("xxx rec width", rect.width, this._pixelScale); // XXX
         if (ar > 1) {
             this._boxWidth = Math.round(rect.width * this._pixelScale);
             this._boxHeight = Math.round(this._boxWidth / ar);
@@ -82,10 +81,6 @@ export class Sparkline {
             old.removeEventListener('pointerover', this.onPointeroverForTooltips);
         }
         this._pixelScale = devicePixelRatio || 1;
-        const translate = [
-            Math.round(this.padding[3] * this._pixelScale),
-            Math.round(this.padding[0] * this._pixelScale)
-        ];
         const pathId = `path-def-${this.id}`;
         this.el = el;
         this.el.innerHTML =
@@ -96,7 +91,7 @@ export class Sparkline {
                     <defs>
                         <clipPath id="${pathId}-clip"><path class="sl-data-def sl-area"/></clipPath>
                     </defs>
-                    <g class="sl-plot-region" notransform="translate(${translate.join()})">
+                    <svg class="sl-plot-region" x="${this.padding[3]}" y="${this.padding[0]}">
                         <foreignObject class="sl-css-background" clip-path="url(#${pathId}-clip)">
                             <div class="sl-visual-data-area"></div>
                         </foreignObject>
@@ -180,7 +175,6 @@ export class Sparkline {
     }
 
     _renderData() {
-        // Step 1: data processing
         const normalized = this.normalizeData(this.data);
         let yND;
         this._yMinCalculated = this._yMin != null ? this._yMin :
@@ -193,14 +187,9 @@ export class Sparkline {
         this._xMaxCalculated = this._xMax != null ? this._xMax : normalized[normalized.length - 1].x;
         this._xRange = (this._xMaxCalculated - this._xMinCalculated) || 1;
         this._xScale = this._plotWidth / this._xRange;
-        this._xOffset = this._xMinCalculated * this._xScale;
-        this._yOffset = this._yMinCalculated * this._yScale;
-        //const fo = this._svgEl.querySelector('foreignObject.sl-css-background');
-        //fo.setAttribute('x', this._xOffset);
-        //fo.setAttribute('y', -this._yOffset);
         const coords = normalized.map(o => [
-            (o.x - (this._xMinCalculated && 0)) * this._xScale,
-            this._plotHeight - ((o.y - (this._yMinCalculated && 0)) * this._yScale)
+            (o.x - (this._xMinCalculated)) * this._xScale,
+            this._plotHeight - ((o.y - (this._yMinCalculated)) * this._yScale)
         ]);
         return {coords, normalized};
     }
@@ -210,8 +199,6 @@ export class Sparkline {
         const pointUpdates = [];
         const remPoints = new Set(this._pointsMap.values());
         const newPointEls = [];
-        let added = 0;
-        let replaced = 0;
         for (let index = 0; index < coords.length; index++) {
             const coord = coords[index];
             const ref = this.data[index];
@@ -258,11 +245,8 @@ export class Sparkline {
                             }
                         }
                     }
-                    if (beginCoord) {
-                        added++;
-                    } else {
+                    if (!beginCoord) {
                         beginCoord = [coord[0], this._plotHeight];
-                        replaced++;
                     }
                     if (point.circle) {
                         point.circle.setAttribute('cx', beginCoord[0]);
@@ -274,38 +258,41 @@ export class Sparkline {
             const sig = coord.join();
             if (point.sig !== sig) {
                 if (point.circle) {
-                    // XXX might need to take note of update
                     pointUpdates.push([point, coord]);
                 }
                 point.sig = sig;
             }
         }
-        if (coords.length > 1 && !replaced && added - remPoints.size === 0) {
-        }
-
-
         if (this._prevCoords) {
             // We can use CSS to animate the transition but we have to use a little hack
-            // because it only animates when the path has the same number of points.
-            if (this._prevCoords.length !== coords.length && false) {
+            // because it only animates when the path has the same number (or more) points.
+            if (this._prevCoords.length !== coords.length) {
+                const identityIdx = normalized.length / 2 | 0;
+                const identity = normalized[identityIdx];
+                const prevIdentityIdx = this._prevNormalized.findIndex(o =>
+                    o.x === identity.x && o.y === identity.y);
+                const ltr = prevIdentityIdx === -1 || identityIdx <= prevIdentityIdx;
                 const prev = Array.from(this._prevCoords);
-                while (prev.length > coords.length) {
-                    prev.shift();
-                }
-                while (prev.length < coords.length) {
-                    prev.push(prev[prev.length - 1]);
+                if (ltr) {
+                    while (prev.length > coords.length) {
+                        prev.shift();
+                    }
+                    while (prev.length < coords.length) {
+                        prev.push(prev[prev.length - 1]);
+                    }
+                } else {
+                    while (prev.length > coords.length) {
+                        prev.pop();
+                    }
+                    while (prev.length < coords.length) {
+                        prev.unshift(prev[0]);
+                    }
                 }
                 this._pathLineDefEl.setAttribute('d', this._makePath(prev));
-                //this._pathAreaDefEl.setAttribute('d', this._makePath(prev, {closed: true}));
-                needForceLayout = true;
-            } else {
-                this._pathLineDefEl.setAttribute('d', this._makePath([this._prevCoords[0], ...this._prevCoords, this._prevCoords.at(-1)]));
-                // this._pathAreaDefEl.setAttribute('d', this._makePath(coords, {closed: true}));
+                this._pathAreaDefEl.setAttribute('d', this._makePath(prev, {closed: true}));
                 needForceLayout = true;
             }
         }
-
-
         for (const x of remPoints) {
             this._pointsMap.delete(x.ref);
             if (x.circle) {
@@ -317,13 +304,8 @@ export class Sparkline {
     }
 
     _renderDoLayout({coords, pointUpdates, needForceLayout}) {
-        this._svgEl.style.setProperty('offset', `path('M ${-(this._xOffset / this._pixelScale)} ${this._yOffset / this._pixelScale}') / 0 0`);
-        if (this._prevCoords) {
-            this._pathLineDefEl.setAttribute('d', this._makePath([this._prevCoords[0], ...coords]));
-        } else {
-            this._pathLineDefEl.setAttribute('d', this._makePath([...coords]));
-        }
-        //this._pathAreaDefEl.setAttribute('d', this._makePath(coords, {closed: true}));
+        this._pathLineDefEl.setAttribute('d', this._makePath(coords));
+        this._pathAreaDefEl.setAttribute('d', this._makePath(coords, {closed: true}));
         for (let i = 0; i < pointUpdates.length; i++) {
             const [point, coord] = pointUpdates[i];
             if (point.circle) {
@@ -337,8 +319,8 @@ export class Sparkline {
         if (!coords.length) {
             return '';
         }
-        const start = closed ? `M0,${this._plotHeight | 0}L` : 'M';
-        const end = closed ? `L${this._plotWidth | 0},${this._plotHeight | 0}Z` : '';
-        return start + coords.map(c => `${c[0] | 0},${c[1] | 0}`).join('\nL') + end;
+        const start = closed ? `\nM 0 ${this._plotHeight}\nL` : '\nM ';
+        const end = closed ? `\nL ${this._plotWidth} ${this._plotHeight}\nZ` : '';
+        return start + coords.map(c => `${c[0]} ${c[1]}`).join('\nL ') + end;
     }
 }
