@@ -30,6 +30,15 @@ common.settingsStore.setDefault({
     hideHeader: false,
 });
 
+const legacySort = common.storage.get('nearby-sort-by');
+if (legacySort !== undefined) {
+    common.storage.delete('nearby-sort-by');
+    common.storage.set('nearby-sort-by-v2', legacySort);
+    if (legacySort === 'gap' || legacySort === 'gap-distance') {
+        common.storage.set('nearby-sort-dir', common.storage.get('nearby-sort-dir') > 0 ? -1 : 1);
+    }
+}
+
 const settings = common.settingsStore.get();
 const spd = (v, entry) => H.pace(v, {precision: 0, suffix: true, html: true, sport: entry.state.sport});
 const weightClass = v => H.weightClass(v, {suffix: true, html: true});
@@ -86,12 +95,11 @@ function fmtDur(v) {
 }
 
 
-function fmtWkg(v, entry) {
+function fmtWkg(v) {
     if (v == null) {
         return '-';
     }
-    const wkg = v / (entry.athlete && entry.athlete.weight);
-    return H.number(wkg, {precision: 1, fixed: true, suffix: 'w/kg', html: true});
+    return H.number(v, {precision: 1, fixed: true, suffix: 'w/kg', html: true});
 }
 
 
@@ -108,19 +116,6 @@ function fmtName(name, entry) {
 }
 
 
-function fmtRoute({route, laps}) {
-    if (!route) {
-        return '-';
-    }
-    const parts = [];
-    if (laps) {
-        parts.push(`${laps} x`);
-    }
-    parts.push(route.name);
-    return parts.join(' ');
-}
-
-
 function fmtEvent(sgid) {
     if (!sgid) {
         return '-';
@@ -134,15 +129,19 @@ function fmtEvent(sgid) {
 
 
 function getRoute({state, routeId}) {
+    let route;
+    let laps;
     if (state.eventSubgroupId) {
         const sg = lazyGetSubgroup(state.eventSubgroupId);
         if (sg) {
-            return {route: lazyGetRoute(sg.routeId), laps: sg.laps};
+            route = lazyGetRoute(sg.routeId);
+            laps = sg.laps;
         }
     } else if (state.routeId) {
-        return {route: lazyGetRoute(state.routeId), laps: 0};
+        route = lazyGetRoute(state.routeId);
+        laps = 0;
     }
-    return {};
+    return !route ? undefined : laps ? `${laps} x ${route.name}` : route.name;
 }
 
 
@@ -237,8 +236,9 @@ const fieldGroups = [{
     group: 'event',
     label: 'Event / Road',
     fields: [
-        {id: 'gap', defaultEn: true, label: 'Gap', get: x => x.gap, fmt: gapTime},
-        {id: 'gap-distance', defaultEn: false, label: 'Gap (dist)', get: x => x.gapDistance, fmt: fmtDist},
+        {id: 'gap', defaultEn: true, label: 'Gap', get: x => x.gap, fmt: gapTime, reverse: true},
+        {id: 'gap-distance', defaultEn: false, label: 'Gap (dist)', get: x => x.gapDistance,
+         fmt: fmtDist, reverse: true},
         {id: 'grade', defaultEn: false, label: 'Grade', get: x => x.state.grade,
          fmt: x => pct(x, {precision: 1, fixed: true})},
         {id: 'altitude', defaultEn: false, label: 'Altitude', headerLabel: 'Alt', get: x => x.state.altitude,
@@ -256,8 +256,7 @@ const fieldGroups = [{
          get: x => x.state.eventDistance, fmt: fmtDist},
         {id: 'event', defaultEn: false, label: 'Event', headerLabel: '<ms>event</ms>',
          get: x => x.state.eventSubgroupId, fmt: fmtEvent},
-        {id: 'route', defaultEn: false, label: 'Route', headerLabel: '<ms>route</ms>',
-         get: getRoute, fmt: fmtRoute},
+        {id: 'route', defaultEn: false, label: 'Route', headerLabel: '<ms>route</ms>', get: getRoute},
         {id: 'progress', defaultEn: false, label: 'Route %', headerLabel: 'RT %',
          get: x => x.state.progress, fmt: pct},
         {id: 'workout-zone', defaultEn: false, label: 'Workout Zone', headerLabel: 'Zone',
@@ -273,35 +272,35 @@ const fieldGroups = [{
         {id: 'pwr-cur', defaultEn: true, label: 'Current Power', headerLabel: 'Pwr',
          get: x => x.state.power, fmt: pwr},
         {id: 'wkg-cur', defaultEn: true, label: 'Current Watts/kg', headerLabel: 'W/kg',
-         get: x => x.state.power, fmt: fmtWkg},
+         get: x => x.state.power / x.athlete?.weight, fmt: fmtWkg},
         {id: 'pwr-5s', defaultEn: false, label: '5s average', headerLabel: 'Pwr (5s)',
          get: x => x.stats.power.smooth[5], fmt: pwr},
         {id: 'wkg-5s', defaultEn: false, label: '5s average (w/kg)', headerLabel: 'W/kg (5s)',
-         get: x => x.stats.power.smooth[5], fmt: fmtWkg},
+         get: x => x.stats.power.smooth[5] / x.athlete?.weight, fmt: fmtWkg},
         {id: 'pwr-15s', defaultEn: false, label: '15 sec average', headerLabel: 'Pwr (15s)',
          get: x => x.stats.power.smooth[15], fmt: pwr},
         {id: 'wkg-15s', defaultEn: false, label: '15 sec average (w/kg)', headerLabel: 'W/kg (15s)',
-         get: x => x.stats.power.smooth[15], fmt: fmtWkg},
+         get: x => x.stats.power.smooth[15] / x.athlete?.weight, fmt: fmtWkg},
         {id: 'pwr-60s', defaultEn: false, label: '1 min average', headerLabel: 'Pwr (1m)',
          get: x => x.stats.power.smooth[60], fmt: pwr},
         {id: 'wkg-60s', defaultEn: false, label: '1 min average (w/kg', headerLabel: 'W/kg (1m)',
-         get: x => x.stats.power.smooth[60], fmt: fmtWkg},
+         get: x => x.stats.power.smooth[60] / x.athlete?.weight, fmt: fmtWkg},
         {id: 'pwr-300s', defaultEn: false, label: '5 min average', headerLabel: 'Pwr (5m)',
          get: x => x.stats.power.smooth[300], fmt: pwr},
         {id: 'wkg-300s', defaultEn: false, label: '5 min average (w/kg)', headerLabel: 'W/kg (5m)',
-         get: x => x.stats.power.smooth[300], fmt: fmtWkg},
+         get: x => x.stats.power.smooth[300] / x.athlete?.weight, fmt: fmtWkg},
         {id: 'pwr-1200s', defaultEn: false, label: '20 min average', headerLabel: 'Pwr (20m)',
          get: x => x.stats.power.smooth[1200], fmt: pwr},
         {id: 'wkg-1200s', defaultEn: false, label: '20 min average (w/kg)', headerLabel: 'W/kg (20m)',
-         get: x => x.stats.power.smooth[1200], fmt: fmtWkg},
+         get: x => x.stats.power.smooth[1200] / x.athlete?.weight, fmt: fmtWkg},
         {id: 'pwr-avg', defaultEn: true, label: 'Total Average', headerLabel: 'Pwr (avg)',
          get: x => x.stats.power.avg, fmt: pwr},
         {id: 'wkg-avg', defaultEn: false, label: 'Total W/kg Average', headerLabel: 'W/kg (avg)',
-         get: x => x.stats.power.avg, fmt: fmtWkg},
+         get: x => x.stats.power.avg / x.athlete?.weight, fmt: fmtWkg},
         {id: 'pwr-np', defaultEn: true, label: 'NP®', headerLabel: 'NP®',
          get: x => x.stats.power.np, fmt: pwr, tooltip: tpAttr},
         {id: 'wkg-np', defaultEn: false, label: 'NP® (w/kg)', headerLabel: 'NP® (w/kg)',
-         get: x => x.stats.power.np, fmt: fmtWkg, tooltip: tpAttr},
+         get: x => x.stats.power.np / x.athlete?.weight, fmt: fmtWkg, tooltip: tpAttr},
         {id: 'pwr-vi', defaultEn: true, label: 'Variability Index', headerLabel: 'VI',
          get: x => x.stats.power.np / x.stats.power.avg, fmt: x => H.number(x, {precision: 2, fixed: true}),
          tooltip: 'NP® / Average-power.  A value of 1.0 means the effort is very smooth, higher ' +
@@ -309,11 +308,11 @@ const fieldGroups = [{
         {id: 'power-lap', defaultEn: false, label: 'Lap Average', headerLabel: 'Pwr (lap)',
          get: x => x.lap.power.avg, fmt: pwr},
         {id: 'wkg-lap', defaultEn: false, label: 'Lap W/kg Average', headerLabel: 'W/kg (lap)',
-         get: x => x.lap.power.avg, fmt: fmtWkg},
+         get: x => x.lap.power.avg / x.athlete?.weight, fmt: fmtWkg},
         {id: 'power-last-lap', defaultEn: false, label: 'Last Lap Average', headerLabel: 'Pwr (last)',
          get: x => x.lastLap ? x.lastLap.power.avg : null, fmt: pwr},
         {id: 'wkg-last-lap', defaultEn: false, label: 'Last Lap W/kg Average', headerLabel: 'W/kg (last)',
-         get: x => x.lastLap ? x.lastLap.power.avg : null, fmt: fmtWkg},
+         get: x => x.lastLap?.power.avg / x.athlete?.weight, fmt: fmtWkg},
     ],
 }, {
     group: 'speed',
@@ -382,27 +381,27 @@ const fieldGroups = [{
         {id: 'pwr-max', defaultEn: true, label: 'Power Max', headerLabel: 'Pwr (max)',
          get: x => x.stats.power.max || null, fmt: pwr},
         {id: 'wkg-max', defaultEn: false, label: 'Watts/kg Max', headerLabel: 'W/kg (max)',
-         get: x => x.stats.power.max || null, fmt: fmtWkg},
+         get: x => (x.stats.power.max || null) / x.athlete?.weight, fmt: fmtWkg},
         {id: 'pwr-p5s', defaultEn: false, label: 'Power 5 sec peak', headerLabel: 'Pwr (peak 5s)',
          get: x => x.stats.power.peaks[5].avg, fmt: pwr},
         {id: 'wkg-p5s', defaultEn: false, label: 'Watts/kg 5 sec peak', headerLabel: 'W/kg (peak 5s)',
-         get: x => x.stats.power.peaks[5].avg, fmt: fmtWkg},
+         get: x => x.stats.power.peaks[5].avg / x.athlete?.weight, fmt: fmtWkg},
         {id: 'pwr-p15s', defaultEn: false, label: 'Power 15 sec peak', headerLabel: 'Pwr (peak 15s)',
          get: x => x.stats.power.peaks[15].avg, fmt: pwr},
         {id: 'wkg-p15s', defaultEn: false, label: 'Watts/kg 15 sec peak', headerLabel: 'W/kg (peak 15s)',
-         get: x => x.stats.power.peaks[15].avg, fmt: fmtWkg},
+         get: x => x.stats.power.peaks[15].avg / x.athlete?.weight, fmt: fmtWkg},
         {id: 'pwr-p60s', defaultEn: false, label: 'Power 1 min peak', headerLabel: 'Pwr (peak 1m)',
          get: x => x.stats.power.peaks[60].avg, fmt: pwr},
         {id: 'wkg-p60s', defaultEn: false, label: 'Watts/kg 1 min peak', headerLabel: 'W/kg (peak 1m)',
-         get: x => x.stats.power.peaks[60].avg, fmt: fmtWkg},
+         get: x => x.stats.power.peaks[60].avg / x.athlete?.weight, fmt: fmtWkg},
         {id: 'pwr-p300s', defaultEn: true, label: 'Power 5 min peak', headerLabel: 'Pwr (peak 5m)',
          get: x => x.stats.power.peaks[300].avg, fmt: pwr},
         {id: 'wkg-p300s', defaultEn: false, label: 'Watts/kg 5 min peak', headerLabel: 'W/kg (peak 5m)',
-         get: x => x.stats.power.peaks[300].avg, fmt: fmtWkg},
+         get: x => x.stats.power.peaks[300].avg / x.athlete?.weight, fmt: fmtWkg},
         {id: 'pwr-p1200s', defaultEn: false, label: 'Power 20 min peak', headerLabel: 'Pwr (peak 20m)',
          get: x => x.stats.power.peaks[1200].avg, fmt: pwr},
         {id: 'wkg-p1200s', defaultEn: false, label: 'Watts/kg 20 min peak', headerLabel: 'W/kg (peak 20m)',
-         get: x => x.stats.power.peaks[1200].avg, fmt: fmtWkg},
+         get: x => x.stats.power.peaks[1200].avg / x.athlete?.weight, fmt: fmtWkg},
         {id: 'spd-p60s', defaultEn: false, label: 'Speed 1 min peak', headerLabel: 'Spd (peak 1m)',
          get: x => x.stats.speed.peaks[60].avg, fmt: spd},
         {id: 'hr-p60s', defaultEn: false, label: 'Heart Rate 1 min peak', headerLabel: 'HR (peak 1m)',
@@ -533,9 +532,9 @@ export async function main() {
             for (const td of tbody.querySelectorAll(`td[data-id="${sortBy}"]`)) {
                 td.classList.add('sorted');
             }
-            common.storage.set(`nearby-sort-by`, id);
+            common.storage.set(`nearby-sort-by-v2`, id);
         }
-        col.classList.add('sorted', sortByDir > 0 ? 'sort-asc' : 'sort-desc');
+        col.classList.add('sorted', sortByDir < 0 ? 'sort-asc' : 'sort-desc');
         renderData(nearbyData, {recenter: true});
     });
     tbody.addEventListener('click', async ev => {
@@ -588,13 +587,13 @@ function render() {
         x._idx = i + adj + (adj * 0.00001);
     });
     enFields.sort((a, b) => a._idx < b._idx ? -1 : a._idx === b._idx ? 0 : 1);
-    sortBy = common.storage.get('nearby-sort-by', 'gap');
+    sortBy = common.storage.get('nearby-sort-by-v2', 'gap');
     const isFieldAvail = !!enFields.find(x => x.id === sortBy);
     if (!isFieldAvail) {
         sortBy = enFields[0].id;
     }
-    sortByDir = common.storage.get('nearby-sort-dir', -1);
-    const sortDirClass = sortByDir > 0 ? 'sort-asc' : 'sort-desc';
+    sortByDir = common.storage.get('nearby-sort-dir', 1);
+    const sortDirClass = sortByDir < 0 ? 'sort-asc' : 'sort-desc';
     table = document.querySelector('#content table');
     tbody = table.querySelector('tbody');
     tbody.innerHTML = '';
@@ -688,6 +687,7 @@ function renderData(data, {recenter}={}) {
     }
     const sortField = enFields.find(x => x.id === sortBy);
     const sortGet = sortField && (sortField.sortValue || sortField.get);
+    const sortReverse = sortField.reverse ? -1 : 1;
     if (sortGet) {
         data.sort((a, b) => {
             let av = sortGet(a);
@@ -698,15 +698,17 @@ function renderData(data, {recenter}={}) {
             if (Array.isArray(bv)) {
                 bv = bv[0];
             }
-            // eslint-disable-next-line eqeqeq
-            if (av == bv) {
+            const dir = sortByDir * sortReverse;
+            if (av === bv || (Number.isNaN(av) && Number.isNaN(av))) {
                 return 0;
             } else if (av == null || bv == null) {
-                return av == null ? 1 : -1;
-            } else if (typeof av === 'number') {
-                return (av < bv ? 1 : -1) * sortByDir;
+                return av == null ? 1 : -1; // Always on the bottom
+            } else if (typeof av === 'number' || typeof bv === 'number') {
+                const aNotNum = Number.isNaN(av);
+                const bNotNum = Number.isNaN(bv);
+                return !aNotNum && !bNotNum ? (bv - av) * dir : aNotNum ? 1 : -1;
             } else {
-                return (('' + av).toLowerCase() < ('' + bv).toLowerCase() ? 1 : -1) * sortByDir;
+                return (('' + av).toLowerCase() > ('' + bv).toLowerCase() ? -1 : 1) * dir;
             }
         });
     }
