@@ -16,9 +16,10 @@ export class Sparkline {
         this._xMax = options.xMax;
         this.title = options.title;
         this.hidePoints = options.hidePoints;
-        this.padding = options.padding || [4, 4, 4, 4];
+        this.padding = options.padding || [0, 0, 0, 0];
         this.onTooltip = options.onTooltip;
         this.onPointeroverForTooltips = this._onPointeroverForTooltips.bind(this);
+        this._pointsMap = new Map();
         this._resizeObserver = new ResizeObserver(
             requestAnimationFrame.bind(null, this._adjustSize.bind(this)));
         if (options.data) {
@@ -50,7 +51,7 @@ export class Sparkline {
         if (!width || !height) {
             return;
         }
-        const pixelScale = devicePixelRatio || 1;
+        const pixelScale = 1; //devicePixelRatio || 1;
         const ar = width / height;
         if (ar > 1) {
             this._boxWidth = Math.round(width * pixelScale);
@@ -63,20 +64,19 @@ export class Sparkline {
         const vPad = (this.padding[0] + this.padding[2]) * pixelScale;
         this._plotWidth = Math.max(0, this._boxWidth - hPad);
         this._plotHeight = Math.max(0, this._boxHeight - vPad);
-        const sig = [width, height, pixelScale, hPad, vPad].join();
-        if (this._rootSvgEl._lastSig !== sig) {
-            const xOfft = this.padding[3] * pixelScale;
-            const yOfft = this.padding[0] * pixelScale;
-            this._rootSvgEl._lastSig = sig;
-            this._rootSvgEl.classList.add('disable-animation');
-            try {
-                this._rootSvgEl.setAttribute('viewBox',
-                                             `${-xOfft} ${-yOfft} ${this._boxWidth} ${this._boxHeight}`);
-                this.render();
-                this._rootSvgEl.clientWidth;
-            } finally {
-                this._rootSvgEl.classList.remove('disable-animation');
-            }
+        const xOfft = this.padding[3] * pixelScale;
+        const yOfft = this.padding[0] * pixelScale;
+        this._rootSvgEl.classList.add('disable-animation');
+        try {
+            this._rootSvgEl.setAttribute('viewBox', `0 0 ${this._boxWidth} ${this._boxHeight}`);
+            this._plotRegionEl.setAttribute('x', xOfft);
+            this._plotRegionEl.setAttribute('y', yOfft);
+            this._plotRegionEl.setAttribute('width', this._plotWidth);
+            this._plotRegionEl.setAttribute('height', this._plotHeight);
+            this.render();
+            this._rootSvgEl.clientWidth;
+        } finally {
+            this._rootSvgEl.classList.remove('disable-animation');
         }
     }
 
@@ -106,14 +106,14 @@ export class Sparkline {
                 <path class="sl-data-def sl-area"/>
             </clipPath>`);
         el.querySelector('svg.sl-root').insertAdjacentHTML('beforeend', `
-            <g data-sl-id="${this.id}" class="sl-plot-region">
+            <svg data-sl-id="${this.id}" class="sl-plot-region">
                 <foreignObject class="sl-css-background" clip-path="url(#${pathId}-clip)"
                                width="100%" height="100%">
                     <div class="sl-visual-data-area"></div>
                 </foreignObject>
                 <path class="sl-data-def sl-line sl-visual-data-line"/>
                 <g class="sl-points"></g>
-            </g>`);
+            </svg>`);
         if (this.title) {
             el.querySelector(':scope > .sl-wrap').insertAdjacentHTML(
                 'beforeend',
@@ -125,7 +125,9 @@ export class Sparkline {
         this._pointsEl = el.querySelector(`${qs} g.sl-points`);
         this._pathLineDefEl = el.querySelector(`${qs} path.sl-data-def.sl-line`);
         this._pathAreaDefEl = el.querySelector(`${qs} path.sl-data-def.sl-area`);
-        this._pointsMap = new Map();
+        if (this.color) {
+            this._plotRegionEl.setyle.setProperty('--color', this.color);
+        }
         this._adjustSize();
         el.addEventListener('pointerover', this.onPointeroverForTooltips);
         this._resizeObserver.observe(el.querySelector('.resize-observer'));

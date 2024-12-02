@@ -27,8 +27,38 @@
             transition: d var(--transition-duration) var(--transition-timing),
         }
 
+        svg.sl-plot-region {
+            overflow: visible; // positional only..
+
+            &:nth-of-type(1) {
+                --color: red;
+            }
+            &:nth-of-type(2) {
+                --color: #22b; // blue
+            }
+            &:nth-of-type(3) {
+                --color: #ebeb0f; // yellow
+            }
+            &:nth-of-type(4) {
+                --color: #2c2; // green
+            }
+            &:nth-of-type(5) {
+                --color: cyan;
+            }
+            &:nth-of-type(6) {
+                --color: magenta;
+            }
+            &:nth-of-type(7) {
+                --color: chartreuse;
+            }
+            &:nth-of-type(7) {
+                --color: coral;
+            }
+        }
+
         .sl-visual-data-line {
-            stroke: currentColor;
+            stroke: color-mix(in srgb, currentColor, grey 10%);
+            opacity: 0.8;
             fill: none;
             stroke-linecap: round;
             stroke-linejoin: round;
@@ -42,17 +72,16 @@
             width: 100%;
             height: 100%;
             background-image: linear-gradient(to top, #000a, #f00a);
-        }
-        .sl-visual-data-area {
-            width: 100%;
-            height: 100%;
-            background-image: linear-gradient(to top, #000a, #f00a);
+            background-image: linear-gradient(to top,
+                color-mix(in srgb, var(--color), color-mix(in srgb, #777, transparent 50%) 80%),
+                color-mix(in srgb, var(--color), color-mix(in srgb, #111, transparent 20%) 20%));
         }
 
         g.sl-points {
             circle {
-                r: 0.2em;
+                r: 0.12em;
                 stroke: currentColor;
+                opacity: 0.8;
                 fill: color-mix(in srgb, currentColor, transparent 50%);
                 transition:
                     cx var(--transition-duration) var(--transition-timing),
@@ -60,7 +89,7 @@
                     r 140ms ease;
 
                 &:hover {
-                    r: 0.4em;
+                    r: 0.3em;
                 }
             }
         }
