@@ -15,6 +15,7 @@ export class Sparkline {
         this._xMin = options.xMin;
         this._xMax = options.xMax;
         this.title = options.title;
+        this.color = options.color;
         this.hidePoints = options.hidePoints;
         this.padding = options.padding || [0, 0, 0, 0];
         this.onTooltip = options.onTooltip;
@@ -126,7 +127,7 @@ export class Sparkline {
         this._pathLineDefEl = el.querySelector(`${qs} path.sl-data-def.sl-line`);
         this._pathAreaDefEl = el.querySelector(`${qs} path.sl-data-def.sl-area`);
         if (this.color) {
-            this._plotRegionEl.setyle.setProperty('--color', this.color);
+            this._plotRegionEl.style.setProperty('--color', this.color);
         }
         this._adjustSize();
         el.addEventListener('pointerover', this.onPointeroverForTooltips);
