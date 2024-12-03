@@ -51,19 +51,20 @@ table {
         background-image: linear-gradient(to bottom, color.shade(bg, -10%), color.shade(bg, 0%));
 
         td {
+            font-weight: 600;
+            font-size: 0.80em;
             padding-top: 0.5em;
             padding-bottom: 0.5em;
-            font-weight: normal;
-            font-variant: all-small-caps;
+            text-transform: uppercase;
             white-space: nowrap;
-            font-weight: 700;
 
             &:hover {
                 background-color: #9355;
             }
 
             ms {
-                font-weight: 350;
+                font-size: 1.38em;
+                font-weight: 450;
             }
 
             &[data-id="avatar"] {
