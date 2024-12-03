@@ -224,7 +224,7 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
     }
     function getAthleteLapsHandler(res, id) {
         id = id === 'self' ? sp.athleteId : id === 'watching' ? sp.watching : Number(id);
-        const data = sp.getAthleteLaps(id);
+        const data = sp.getAthleteLaps(id, {active: true});
         data ? res.json(data) : res.status(404).json(null);
     }
     function getAthleteSegmentsHandler(res, id) {
