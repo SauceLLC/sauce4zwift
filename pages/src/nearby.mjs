@@ -91,7 +91,7 @@ function fmtDur(v) {
     if (v == null || v === Infinity || v === -Infinity || isNaN(v)) {
         return '-';
     }
-    return H.timer(v);
+    return H.timer(v, {long: true, html: true});
 }
 
 
@@ -264,6 +264,7 @@ const fieldGroups = [{
         {id: 'road', defaultEn: false, label: 'Road ID', headerLabel: 'Rd ID', get: x => x.state.roadId},
         {id: 'roadcom', defaultEn: false, label: 'Road Completion', headerLabel: 'Rd %',
          get: x => x.state.roadCompletion / 1e6, fmt: pct},
+
     ],
 }, {
     group: 'power',
@@ -431,6 +432,20 @@ const fieldGroups = [{
          get: x => x.state.routeRoadIndex},
         {id: 'road-time', defaultEn: false, label: 'Road Time', headerLabel: 'Rd Time',
          get: x => (x.state.roadTime - 5000) / 1e6, fmt: x => x.toFixed(5)},
+
+        {id: 'time-session', defaultEn: false, label: 'Session Time', headerLabel: 'Time',
+         get: x => x.state.time, fmt: fmtDur, tooltip: 'Time reported by the game client'},
+        {id: 'time-active', defaultEn: false, label: 'Active Time', headerLabel: 'Active',
+         get: x => x.stats.activeTime, fmt: fmtDur,
+         tooltip: 'Locally observed active time\n\nNOTE: may differ from game value'},
+        {id: 'time-lap', defaultEn: false, label: 'Lap Time', headerLabel: 'Lap',
+         get: x => (x.lap || x.stats)?.activeTime || 0, fmt: fmtDur,
+         tooltip: 'Locally observed current lap time\n\nNOTE: may differ from game value'},
+        {id: 'time-elapsed', defaultEn: false, label: 'Elapsed Time', headerLabel: 'Elapsed',
+         get: x => x.stats.elapsedTime, fmt: fmtDur,
+         tooltip: 'Locally observed elapsed time\n\nNOTE: may differ from game value'},
+        {id: 'time-coffee', defaultEn: false, label: 'Coffee Time', headerLabel: 'Coffee',
+         get: x => x.stats.coffeeTime, fmt: fmtDur, tooltip: 'Time observed taking coffee breaks'},
     ],
 }];
 
