@@ -281,6 +281,8 @@ export function processPlayerStateMessage(msg) {
             Math.round(msg._cadenceUHz / 1e6 * 60) : 0,  // rpm
         eventDistance: msg._eventDistance / 100,  // meters
         roadCompletion: flags1.reverse ? 1e6 - adjRoadLoc : adjRoadLoc,
+        // XXX Migrate to just 'COFFEE_STOP' when we roll out that change..
+        coffeeStop: flags2.activePowerUp === 'POWERUP_CNT' || msg.activePowerUp === 'COFFEE_STOP',
     };
 }
 
