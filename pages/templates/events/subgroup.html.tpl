@@ -16,7 +16,7 @@
             <th>Power</th>
             <th>HR</th>
             <th>Weight</th>
-            <th title="Trainer difficulty setting">{{=inlineURL /pages/images/smart_trainer.svg=}}<th>
+            <th title="Trainer difficulty setting">{{=inlineURL /pages/images/smart_trainer.svg=}}</th>
         </tr>
     </thead>
     <tbody>
