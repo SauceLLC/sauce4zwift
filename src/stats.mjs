@@ -160,18 +160,21 @@ class DataCollector {
     }
 
     resize() {
-        this.roll.resize();
-        const value = this.roll.valueAt(-1);
-        if (value > this._maxValue) {
-            this._maxValue = value;
+        const added = this.roll.resize();
+        if (added) {
+            const value = this.roll.valueAt(-1);
+            if (value > this._maxValue) {
+                this._maxValue = value;
+            }
+            this._resizePeriodized();
         }
-        this._resizePeriodized();
+        return added;
     }
 
     _resizePeriodized() {
         for (const x of this.periodized.values()) {
-            x.roll.resize();
-            if (x.roll.full()) {
+            const added = x.roll.resize();
+            if (added && x.roll.full()) {
                 const avg = x.roll.avg();
                 if (x.peak === null || avg >= x.peak.avg()) {
                     x.peak = x.roll.clone();
@@ -1121,7 +1124,7 @@ export class StatsProcessor extends events.EventEmitter {
         return this._formatAthleteData(ad);
     }
 
-    getAthleteLaps(id, {startTime, active}={}) {
+    getAthleteLaps(id, {startTime, endTime, active}={}) {
         const ad = this._athleteData.get(this._realAthleteId(id));
         if (!ad) {
             return null;
@@ -1130,14 +1133,18 @@ export class StatsProcessor extends events.EventEmitter {
         if (startTime !== undefined) {
             laps = laps.filter(x => x.power.roll._times[x.power.roll._offt] >= startTime);
         }
-        if (laps.length && !active && laps[laps.length - 1].end == null) {
+        if (endTime !== undefined) {
+            laps = laps.filter(x =>
+                x.power.roll._times[Math.max(x.power.roll._offt, x.power.roll._length - 1)] > endTime);
+        }
+        if (!active && laps.length && laps[laps.length - 1].end == null) {
             laps = laps.slice(0, -1);
         }
         const athlete = this.loadAthlete(ad.athleteId);
         return laps.map(x => this._formatLapish(x, ad, athlete));
     }
 
-    getAthleteSegments(id, {startTime, active}={}) {
+    getAthleteSegments(id, {startTime, endTime, active}={}) {
         const ad = this._athleteData.get(this._realAthleteId(id));
         if (!ad) {
             return null;
@@ -1146,8 +1153,12 @@ export class StatsProcessor extends events.EventEmitter {
         if (startTime !== undefined) {
             segments = segments.filter(x => x.power.roll._times[x.power.roll._offt] >= startTime);
         }
-        if (segments.length && !active && segments[segments.length - 1].end == null) {
-            segments = segments.slice(0, -1);
+        if (endTime !== undefined) {
+            segments = segments.filter(x =>
+                x.power.roll._times[Math.max(x.power.roll._offt, x.power.roll._length - 1)] > endTime);
+        }
+        if (!active) {
+            segments = segments.filter(x => !ad.activeSegments.has(x.id));
         }
         const athlete = this.loadAthlete(ad.athleteId);
         return segments.map(x => this._formatLapish(x, ad, athlete, {
@@ -1161,6 +1172,7 @@ export class StatsProcessor extends events.EventEmitter {
         const endIndex = Math.max(startIndex, lapish.power.roll._length - 1);
         return {
             stats: this._getCollectorStats(lapish, ad, athlete),
+            active: lapish.end == null,
             startIndex,
             endIndex,
             start: lapish.power.roll._times[startIndex],
@@ -1269,7 +1281,6 @@ export class StatsProcessor extends events.EventEmitter {
         const now = monotonic();
         const lastLap = ad.laps[ad.laps.length - 1];
         lastLap.end = now;
-        Object.assign(lastLap, this._cloneDataCollectors(lastLap));
         ad.laps.push(this._createNewLapish(ad));
     }
 
@@ -1789,7 +1800,6 @@ export class StatsProcessor extends events.EventEmitter {
             } else if (x.from === payload.from && x.mesage === payload.message &&
                        payload.ts - x.ts < 5000) {
                 console.warn("Deduping chat message (content based):", ts, payload.from, payload.message);
-                debugger;
                 return;
             }
         }
@@ -1853,6 +1863,7 @@ export class StatsProcessor extends events.EventEmitter {
         return {
             elapsedTime,
             activeTime,
+            coffeeTime: cs.coffeeTime,
             wBal, // DEPRECATED
             timeInPowerZones, // DEPRECATED
             power: cs.power.getStats(ad.wtOffset, {
@@ -1876,6 +1887,7 @@ export class StatsProcessor extends events.EventEmitter {
         const longPeriods = periods.filter(x => x >= 60);
         return {
             start: monotonic(),
+            coffeeTime: 0,
             power: new DataCollector(sauce.power.RollingPower, periods, {inlineNP: true, round: true}),
             speed: new DataCollector(sauce.data.RollingAverage, longPeriods, {ignoreZeros: true}),
             hr: new DataCollector(sauce.data.RollingAverage, longPeriods, {ignoreZeros: true, round: true}),
@@ -1884,20 +1896,19 @@ export class StatsProcessor extends events.EventEmitter {
         };
     }
 
-    _cloneDataCollectors(collectors, options={}) {
-        const types = ['power', 'speed', 'hr', 'cadence', 'draft'];
-        const bucket = {start: options.reset ? monotonic() : collectors.start};
-        for (const x of types) {
-            bucket[x] = collectors[x].clone(options);
-        }
-        return bucket;
-    }
-
     _createNewLapish(ad) {
-        const lapish = this._cloneDataCollectors(ad.collectors, {reset: true});
-        lapish.courseId = ad.courseId;
-        lapish.sport = ad.sport;
-        return lapish;
+        const cloneOpts = {reset: true};
+        return {
+            start: monotonic(),
+            coffeeTime: 0,
+            courseId: ad.courseId,
+            sport: ad.sport,
+            power: ad.collectors.power.clone(cloneOpts),
+            speed: ad.collectors.speed.clone(cloneOpts),
+            hr: ad.collectors.hr.clone(cloneOpts),
+            cadence: ad.collectors.cadence.clone(cloneOpts),
+            draft: ad.collectors.draft.clone(cloneOpts),
+        };
     }
 
     maybeUpdateAthleteFromServer(athleteId) {
@@ -2009,13 +2020,12 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _resetAthleteData(ad, wtOffset) {
-        const collectors = this._makeDataCollectors();
         Object.assign(ad, {
             created: worldTimer.toLocalTime(wtOffset),
             wtOffset,
-            collectors,
-            laps: [this._createNewLapish(ad)],
+            collectors: this._makeDataCollectors(),
         });
+        ad.laps = [this._createNewLapish(ad)];
         // NOTE: Don't reset w'bal; it is a biometric
         ad.timeInPowerZones.reset();
         ad.activeSegments.clear();
@@ -2211,21 +2221,26 @@ export class StatsProcessor extends events.EventEmitter {
         // Never auto pause wBal as it is a biometric. We use true worldTime to
         // survive resets as well.
         const wbal = ad.wBal.accumulate(state.worldTime / 1000, state.power);
+        const curLap = ad.laps[ad.laps.length - 1];
         let addCount;
-        if (!state.power && !state.speed) {
+        if (!state.power && (!state.speed || state.coffeeStop)) {
             // Emulate auto pause...
+            if (state.coffeeStop && ad.mostRecentState) {
+                const stopTime = Math.max(0, state.worldTime - ad.mostRecentState.worldTime) / 1000;
+                if (stopTime) {
+                    ad.collectors.coffeeTime += stopTime;
+                    curLap.coffeeTime += stopTime;
+                    for (const s of ad.activeSegments.values()) {
+                        s.coffeeTime += stopTime;
+                    }
+                }
+            }
             addCount = ad.collectors.power.flushBuffered();
             if (addCount) {
                 ad.collectors.speed.flushBuffered();
                 ad.collectors.hr.flushBuffered();
                 ad.collectors.draft.flushBuffered();
                 ad.collectors.cadence.flushBuffered();
-                for (let i = 0; i < addCount; i++) {
-                    ad.streams.distance.push(ad.distanceOffset + state.distance);
-                    ad.streams.altitude.push(state.altitude);
-                    ad.streams.latlng.push(state.latlng);
-                    ad.streams.wbal.push(wbal);
-                }
             }
         } else {
             const time = (state.worldTime - ad.wtOffset) / 1000;
@@ -2235,24 +2250,25 @@ export class StatsProcessor extends events.EventEmitter {
             ad.collectors.hr.add(time, state.heartrate);
             ad.collectors.draft.add(time, state.draft);
             ad.collectors.cadence.add(time, state.cadence);
+        }
+        if (addCount) {
             for (let i = 0; i < addCount; i++) {
                 ad.streams.distance.push(ad.distanceOffset + state.distance);
                 ad.streams.altitude.push(state.altitude);
                 ad.streams.latlng.push(state.latlng);
                 ad.streams.wbal.push(wbal);
             }
-            const curLap = ad.laps[ad.laps.length - 1];
-            curLap.power.resize(time);
-            curLap.speed.resize(time);
-            curLap.hr.resize(time);
-            curLap.draft.resize(time);
-            curLap.cadence.resize(time);
+            curLap.power.resize();
+            curLap.speed.resize();
+            curLap.hr.resize();
+            curLap.draft.resize();
+            curLap.cadence.resize();
             for (const s of ad.activeSegments.values()) {
-                s.power.resize(time);
-                s.speed.resize(time);
-                s.hr.resize(time);
-                s.draft.resize(time);
-                s.cadence.resize(time);
+                s.power.resize();
+                s.speed.resize();
+                s.hr.resize();
+                s.draft.resize();
+                s.cadence.resize();
             }
         }
         ad.mostRecentState = state;
