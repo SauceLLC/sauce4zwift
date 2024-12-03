@@ -250,7 +250,14 @@ export const eventEmitter = new EventEmitter();
 
 
 function isInternalScheme(url) {
-    return ['file:'].includes(new URL(url).protocol);
+    try {
+        return ['file:'].includes(new URL(url).protocol);
+    } catch(e) {
+        // XXX Root cause this...
+        console.warn('Invalid URL:', url); // XXX saw this one time during debug session, very rare though
+        debugger;
+        return false;
+    }
 }
 
 
