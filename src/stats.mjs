@@ -979,22 +979,9 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     async getEventSubgroupResults(id) {
-        const missingProfiles = new Set();
         const results = await this.zwiftAPI.getEventSubgroupResults(id);
         const updates = new Map();
-        for (const x of results) {
-            const athlete = this._getAthlete(x.profileId);
-            if (!athlete) {
-                missingProfiles.add(x.profileId);
-            } else {
-                if (x.scoreHistory) {
-                    updates.set(x.profileId, this._updateAthlete(x.profileId, {
-                        racingScore: x.scoreHistory.newScore,
-                        racingScoreTS: new Date(x.activityData.endDate).getTime(),
-                    }));
-                }
-            }
-        }
+        const missingProfiles = new Set(results.map(x => x.profileId).filter(id => !this._getAthlete(id)));
         if (missingProfiles.size) {
             for (const p of await this.zwiftAPI.getProfiles(missingProfiles)) {
                 if (p) {
@@ -1002,11 +989,26 @@ export class StatsProcessor extends events.EventEmitter {
                 }
             }
         }
+        for (const x of results) {
+            if (x.scoreHistory) {
+                const endTime = new Date(x.activityData.endDate).getTime();
+                if (x.scoreHistory.previousScore) {
+                    updates.set(x.profileId, this._updateAthlete(x.profileId, {
+                        racingScore: x.scoreHistory.previousScore,
+                        racingScoreTS: endTime - x.activityData.durationInMilliseconds,
+                    }));
+                }
+                if (x.scoreHistory.newScore) {
+                    updates.set(x.profileId, this._updateAthlete(x.profileId, {
+                        racingScore: x.scoreHistory.newScore,
+                        racingScoreTS: endTime,
+                    }));
+                }
+            }
+            x.athlete = this._getAthlete(x.profileId) || {};
+        }
         if (updates.size) {
             this.saveAthletes(Array.from(updates.entries()));
-        }
-        for (const x of results) {
-            x.athlete = this._getAthlete(x.profileId) || {};
         }
         return results;
     }
@@ -1458,7 +1460,12 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _updateAthlete(id, updates) {
-        const athlete = this.loadAthlete(id) || {};
+        let athlete = this.loadAthlete(id);
+        if (!athlete) {
+            // Make sure we are working on the shared/cached object...
+            athlete = {};
+            this._athletesCache.set(id, athlete);
+        }
         athlete.id = id;
         athlete.updated = Date.now();
         athlete.name = (updates.firstName || updates.lastName) ?
@@ -1530,7 +1537,6 @@ export class StatsProcessor extends events.EventEmitter {
                 };
             } else {
                 updates = {...updates, racingScoreTS: undefined};
-                console.warn("new racing score!!!", hist, updates.racingScore);
             }
         }
         if (updates.racingScore && updates.racingCategory == null && athlete.racingCategory == null) {
