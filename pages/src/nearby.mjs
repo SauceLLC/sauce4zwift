@@ -444,7 +444,7 @@ const fieldGroups = [{
         {id: 'time-elapsed', defaultEn: false, label: 'Elapsed Time', headerLabel: 'Elapsed',
          get: x => x.stats.elapsedTime, fmt: fmtDur,
          tooltip: 'Locally observed elapsed time\n\nNOTE: may differ from game value'},
-        {id: 'time-coffee', defaultEn: false, label: 'Coffee Time', headerLabel: 'Coffee',
+        {id: 'time-coffee', defaultEn: false, label: 'Coffee Time', headerLabel: '<ms>coffee</ms>',
          get: x => x.stats.coffeeTime, fmt: fmtDur, tooltip: 'Time observed taking coffee breaks'},
     ],
 }];

@@ -132,7 +132,7 @@ export async function render(el, tpl, tplData) {
         await rerender();
     });
     let sl;
-    el.addEventListener('pointerover', async ev => {
+    el.addEventListener('pointerover', ev => {
         const badgeEl = ev.target.closest('.racing-score-avatar-badge');
         if (!badgeEl) {
             return;

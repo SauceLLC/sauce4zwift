@@ -321,7 +321,7 @@ async function render() {
                 common.initExpanderTable(table, async (el, entrantSummaryEl) => {
                     const athleteId = Number(entrantSummaryEl.dataset.id);
                     const athlete = await common.rpc.getAthlete(athleteId, {allowFetch: true});
-                    console.debug("Athlete:", athlete);
+                    console.info("Athlete:", athlete);
                     cleanup = await profileRender(el, templates.profile, {
                         embedded: true,
                         athleteId,
