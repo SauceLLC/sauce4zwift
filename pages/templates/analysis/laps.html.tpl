@@ -8,6 +8,7 @@
             <th>Power</th>
             <th>Pace</th>
             <th>HR</th>
+            <th>Coffee</th>
         </tr>
     </thead>
     <tbody>
@@ -26,6 +27,7 @@
                     <% } %>
                     <td>{-humanPace(x.stats.speed.avg, {suffix: true, html: true, sport: x.sport})-}</td>
                     <td>{-humanNumber(x.stats.hr.avg, {suffix: 'bpm', html: true})-}</td>
+                    <td>{-humanTimer(x.stats.coffeeTime, {long: true, html: true})-}</td>
                 </tr>
             <% } %>
         <% } else { %>

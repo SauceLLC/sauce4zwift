@@ -869,11 +869,11 @@ async function updateData() {
     if (!common.isVisible()) {
         return;
     }
-    const [ad, streams, segments, laps] = await Promise.all([
+    const [ad, streams, upSegments, upLaps] = await Promise.all([
         common.rpc.getAthleteData(athleteIdent),
         common.rpc.getAthleteStreams(athleteIdent, {startTime: state.timeOfft}),
-        common.rpc.getAthleteSegments(athleteIdent, {startTime: state.segmentOfft}),
-        common.rpc.getAthleteLaps(athleteIdent, {startTime: state.lapOfft}),
+        common.rpc.getAthleteSegments(athleteIdent, {endTime: state.segmentOfft, active: false}),
+        common.rpc.getAthleteLaps(athleteIdent, {endTime: state.lapOfft, active: true}),
     ]);
     athleteData = ad;
     if (!streams || !streams.time.length) {
@@ -886,17 +886,31 @@ async function updateData() {
         }
         state.streams[k].push(...stream);
     }
-    if (segments.length) {
-        state.segments.push(...segments);
-        state.segmentOfft = segments.at(-1).start + 1e-6;
+    if (upSegments.length) {
+        for (const x of upSegments) {
+            const existingIdx = state.segments.findIndex(xx => xx.segmentId === x.segmentId);
+            if (existingIdx !== -1) {
+                state.segments.splice(existingIdx, 1, x);
+            } else {
+                state.segments.push(x);
+            }
+        }
+        state.segmentOfft = Math.max(...state.segments.map(x => x.end).filter(x => x));
         if (await updateTemplate('table.segments', templates.segments, {athleteData, settings, ...state})) {
             common.initExpanderTable(document.querySelector('table.segments.expandable'),
                                      onSegmentExpand, onSegmentCollapse);
         }
     }
-    if (laps.length) {
-        state.laps.push(...laps);
-        state.lapOfft = laps.at(-1).start + 1e-6;
+    if (upLaps.length) {
+        for (const x of upLaps) {
+            const existingIdx = state.laps.findIndex(xx => xx.startIndex === x.startIndex);
+            if (existingIdx !== -1) {
+                state.laps.splice(existingIdx, 1, x);
+            } else {
+                state.laps.push(x);
+            }
+        }
+        state.lapOfft = state.laps.at(-1).end;
         await updateTemplate('table.laps', templates.laps, {athleteData, settings, ...state});
     }
     if (ad.courseId !== state.courseId) {
