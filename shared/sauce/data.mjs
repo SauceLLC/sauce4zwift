@@ -447,15 +447,18 @@ export class RollingAverage {
         if (length > this._values.length) {
             throw new Error('resize underflow');
         }
+        let added = 0;
         for (let i = this._length; i < length; i++) {
             this.processAdd(i);
             this._length++;
+            added++;
             if (this.period) {
                 while (this.full({offt: 1})) {
                     this.shift();
                 }
             }
         }
+        return added;
     }
 
     firstTime(options) {
