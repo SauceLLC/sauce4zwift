@@ -286,6 +286,7 @@ async function render() {
                         fieldSize = results.length;
                         el.classList.add('results');
                         table.classList.add('results');
+                        console.info("Results:", sg.id, maybeResults);
                     }
                 }
                 if (!results) {
