@@ -1503,6 +1503,16 @@ export class GameMonitor extends events.EventEmitter {
         console.error("XXX", await resp.text());
     }
 
+    async getTCPConfig() {
+        const resp = await this.api.fetch('/relay/tcp-config');
+        debugger;
+        if (!resp.ok) {
+            throw new Error("Game client logout failed:" + await resp.text());
+        }
+        console.error("XXX", await resp.text());
+        return await resp.json(); // XXX pb ? not sure?
+    }
+
     async getRandomAthleteId(courseId) {
         const worlds = (await this.api.getDropInWorldList()).filter(x =>
             typeof courseId !== 'number' || x.courseId === courseId);
@@ -1633,6 +1643,7 @@ export class GameMonitor extends events.EventEmitter {
         }
         console.info("Refreshing Zwift relay session...");
         const relaySessionId = this._session.relayId;
+        // XXX I've seen the real client trying /relay/sessin/renew as well
         const resp = await this.api.fetchPB('/relay/session/refresh', {
             method: 'POST',
             pb: protos.RelaySessionRefreshRequest.encode({relaySessionId}),
