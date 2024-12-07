@@ -50,6 +50,10 @@ export class Sparkline {
     _adjustSize() {
         const {width, height} = this._rootSvgEl.getBoundingClientRect();
         if (!width || !height) {
+            this._boxWidth = null;
+            this._boxHeight = null;
+            this._plotWidth = null;
+            this._plotHeight = null;
             return;
         }
         const pixelScale = 1; //devicePixelRatio || 1;
@@ -158,13 +162,17 @@ export class Sparkline {
     }
 
     _onPointeroverForTooltips(ev) {
-        const point = ev.target.closest('circle.data-point');
-        if (!point) {
+        const circle = ev.target.closest('circle.sl-data-point');
+        if (!circle) {
             return;
         }
-        const title = createSVGElement('title');
-        title.textContent = point._tooltipFormat();
-        point.replaceChildren(title);
+        const point = circle.pointWRef.deref();
+        let title = circle.querySelector('title');
+        if (!title) {
+            title = createSVGElement('title');
+            circle.append(title);
+        }
+        title.textContent = point.tooltipFormat();
     }
 
     reset() {
@@ -184,6 +192,9 @@ export class Sparkline {
     }
 
     render() {
+        if (!this.el || !this._boxWidth || !this._boxHeight) {
+            return;
+        }
         if (!this.data || !this.data.length) {
             this._reset();
             return;
@@ -241,6 +252,7 @@ export class Sparkline {
                     const circle = createSVGElement('circle');
                     circle.classList.add('sl-data-point');
                     point.circle = circle;
+                    circle.pointWRef = new WeakRef(point);
                     newPointEls.push(circle);
                 }
                 this._pointsMap.set(ref, point);

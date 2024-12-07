@@ -29,6 +29,7 @@ export async function main() {
     const athlete = await gettingAthlete;
     if (athlete) {
         document.title = `${athlete.sanitizedFullname} - Sauce for Zwift™`;
+        console.info("Athlete:", athlete);
     }
     const tpl = await gettingTemplate;
     const gcs = await gettingGameConnectionStatus;
@@ -133,21 +134,35 @@ export async function render(el, tpl, tplData) {
     });
     let sl;
     el.addEventListener('pointerover', ev => {
-        const badgeEl = ev.target.closest('.racing-score-avatar-badge');
-        if (!badgeEl) {
+        const holderEl = ev.target.closest('.racing-score-holder');
+        if (!holderEl) {
             return;
         }
+        if (sl) {
+            return;
+        }
+        holderEl.classList.add('active');
+        holderEl.addEventListener('blur', ev => { debugger; holderEl.classList.remove('active'); }, {once: true});
+        document.addEventListener('blur', ev => { debugger; holderEl.classList.remove('active'); }, {once: true});
         const history = tplData.athlete?.racingScoreIncompleteHistory?.map(x => [x.ts, x.score]);
         if (!history?.length) {
             return;
         }
         if (history.length === 1) {
-            history.unshift(history[0]);
-            history[0].ts -= 1;
+            const now = Date.now();
+            const last = history[history.length - 1];
+            history.unshift([now, last[1]]);
         }
-        if (!sl) {
-            sl = new Sparkline({el: badgeEl.querySelector('.sparkline')});
-        }
+        const max = Math.max(...history.map(x => x[1]));
+        const min = Math.min(...history.map(x => x[1]));
+        const range = (max - min) || 1;
+        sl = new Sparkline({
+            el: holderEl.querySelector('.sparkline'),
+            yMin: min - (range * 0.1),
+            yMax: max + (range * 0.1),
+            onTooltip: o => `${H.date(o.x)}: ${o.y.toFixed(1)}`,
+        });
+        console.log({history});
         sl.setData(history);
     });
     let inGame;

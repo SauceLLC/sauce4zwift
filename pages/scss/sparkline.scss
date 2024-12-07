@@ -29,31 +29,6 @@
 
         svg.sl-plot-region {
             overflow: visible; // positional only..
-
-            &:nth-of-type(1) {
-                --color: red;
-            }
-            &:nth-of-type(2) {
-                --color: gold;
-            }
-            &:nth-of-type(3) {
-                --color: #2c2; // green
-            }
-            &:nth-of-type(4) {
-                --color: #22b; // blue
-            }
-            &:nth-of-type(5) {
-                --color: cyan;
-            }
-            &:nth-of-type(6) {
-                --color: magenta;
-            }
-            &:nth-of-type(7) {
-                --color: chartreuse;
-            }
-            &:nth-of-type(7) {
-                --color: coral;
-            }
         }
 
         .sl-visual-data-line {
@@ -71,7 +46,6 @@
         .sl-visual-data-area {
             width: 100%;
             height: 100%;
-            background-image: linear-gradient(to top, #000a, #f00a);
             background-image: linear-gradient(to top,
                 color-mix(in srgb, var(--color), color-mix(in srgb, #777, transparent 50%) 80%),
                 color-mix(in srgb, var(--color), color-mix(in srgb, #111, transparent 20%) 20%));
@@ -93,5 +67,33 @@
                 }
             }
         }
+    }
+}
+
+// Low specificity...
+.sl-plot-region {
+    &:nth-of-type(1) {
+        --color: red;
+    }
+    &:nth-of-type(2) {
+        --color: gold;
+    }
+    &:nth-of-type(3) {
+        --color: #2c2; // green
+    }
+    &:nth-of-type(4) {
+        --color: #22b; // blue
+    }
+    &:nth-of-type(5) {
+        --color: cyan;
+    }
+    &:nth-of-type(6) {
+        --color: magenta;
+    }
+    &:nth-of-type(7) {
+        --color: chartreuse;
+    }
+    &:nth-of-type(7) {
+        --color: coral;
     }
 }
