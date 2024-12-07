@@ -63,12 +63,11 @@
                 <% if (athlete.racingCategory && athlete.racingScore) { %>
                     <div class="racing-score-holder">
                         <div class="sparkline"></div>
-                        <a class="racing-score-avatar-badge" external
-                           title="Zwift Racing Score is a results based ranking system"
-                           href="https://support.zwift.com/en_us/racing-score-faq-BkG9_Rqrh">
+                        <div class="racing-score-avatar-badge" 
+                             title="Zwift Racing Score is a results based ranking system">
                             {-common.eventBadge(athlete.racingCategory)-}
                             <div class="number">{{humanNumber(athlete.racingScore || null)}}</div>
-                        </a>
+                        </div>
                     </div>
                 <% } %>
             </div>

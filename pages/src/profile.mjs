@@ -132,38 +132,40 @@ export async function render(el, tpl, tplData) {
         }
         await rerender();
     });
-    let sl;
-    el.addEventListener('pointerover', ev => {
-        const holderEl = ev.target.closest('.racing-score-holder');
-        if (!holderEl) {
+    let rsSparkline;
+    let rsEl;
+    el.addEventListener('click', ev => {
+        const badgeEl = ev.target.closest('.racing-score-avatar-badge');
+        if (!badgeEl || !tplData.athlete?.racingScoreIncompleteHistory?.length) {
             return;
         }
-        if (sl) {
+        ev.stopPropagation();
+        rsEl = badgeEl.closest('.racing-score-holder');
+        rsEl.classList.toggle('active');
+        if (rsSparkline) {
             return;
         }
-        holderEl.classList.add('active');
-        holderEl.addEventListener('blur', ev => { debugger; holderEl.classList.remove('active'); }, {once: true});
-        document.addEventListener('blur', ev => { debugger; holderEl.classList.remove('active'); }, {once: true});
-        const history = tplData.athlete?.racingScoreIncompleteHistory?.map(x => [x.ts, x.score]);
-        if (!history?.length) {
-            return;
-        }
+        const history = tplData.athlete.racingScoreIncompleteHistory.map(o => ({
+            y: o.score,
+            ts: o.ts
+        }));
         if (history.length === 1) {
-            const now = Date.now();
-            const last = history[history.length - 1];
-            history.unshift([now, last[1]]);
+            history.unshift({ts: Date.now(), y: history.at(-1).y});
         }
-        const max = Math.max(...history.map(x => x[1]));
-        const min = Math.min(...history.map(x => x[1]));
-        const range = (max - min) || 1;
-        sl = new Sparkline({
-            el: holderEl.querySelector('.sparkline'),
-            yMin: min - (range * 0.1),
-            yMax: max + (range * 0.1),
-            onTooltip: o => `${H.date(o.x)}: ${o.y.toFixed(1)}`,
+        for (const [i, o] of history.entries()) {
+            o.x = i ? history[i - 1].x + Math.min(5, Math.max(1, (o.ts - history[i - 1].ts) / 86400000)) : 0;
+        }
+        rsSparkline = new Sparkline({
+            padding: [10, 10, 10, 10],
+            el: rsEl.querySelector('.sparkline'),
+            onTooltip: o => `${H.date(o.ts)}: ${o.y.toFixed(1)}`,
         });
-        console.log({history});
-        sl.setData(history);
+        rsSparkline.setData(history);
+    });
+    document.addEventListener('click', ev => {
+        if (rsEl && !ev.target.closest('.sparkline')) {
+            rsEl.classList.remove('active');
+        }
     });
     let inGame;
     function setInGame(en) {
