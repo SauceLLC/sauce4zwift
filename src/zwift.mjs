@@ -1504,13 +1504,7 @@ export class GameMonitor extends events.EventEmitter {
     }
 
     async getTCPConfig() {
-        const resp = await this.api.fetch('/relay/tcp-config');
-        debugger;
-        if (!resp.ok) {
-            throw new Error("Game client logout failed:" + await resp.text());
-        }
-        console.error("XXX", await resp.text());
-        return await resp.json(); // XXX pb ? not sure?
+        return await this.api.fetchPB('/relay/tcp-config', {protobuf: 'TCPConfig'});
     }
 
     async getRandomAthleteId(courseId) {
