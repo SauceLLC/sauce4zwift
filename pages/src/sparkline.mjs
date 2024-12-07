@@ -216,11 +216,21 @@ export class Sparkline {
             Math.min(...(yND = normalized.map(o => o.y)));
         this._yMaxCalculated = this._yMax != null ? this._yMax :
             Math.max(...(yND || normalized.map(o => o.y)));
-        this._yRange = (this._yMaxCalculated - this._yMinCalculated) || 1;
+        this._yRange = this._yMaxCalculated - this._yMinCalculated;
+        if (!this._yRange) {
+            this._yRange = 1;
+            this._yMinCalculated -= 0.5;
+            this._yMaxCalculated += 0.5;
+        }
         this._yScale = this._plotHeight / this._yRange;
         this._xMinCalculated = this._xMin != null ? this._xMin : normalized[0].x;
         this._xMaxCalculated = this._xMax != null ? this._xMax : normalized[normalized.length - 1].x;
-        this._xRange = (this._xMaxCalculated - this._xMinCalculated) || 1;
+        this._xRange = this._xMaxCalculated - this._xMinCalculated;
+        if (!this._xRange) {
+            this._xRange = 1;
+            this._xMinCalculated -= 0.5;
+            this._xMaxCalculated += 0.5;
+        }
         this._xScale = this._plotWidth / this._xRange;
         const coords = normalized.map(o => [
             (o.x - (this._xMinCalculated)) * this._xScale,
