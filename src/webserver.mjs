@@ -321,7 +321,8 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
     });
     api.post('/rpc/v1/:name', async (req, res) => {
         try {
-            if (req.headers['content-type'] !== 'application/json') {
+            const ct = req.headers['content-type'];
+            if (!ct || ct.split(';')[0] !== 'application/json') {
                 res.status(400);
                 res.send(rpc.errorReply(new TypeError('Expected content-type header of application/json')));
                 return;
