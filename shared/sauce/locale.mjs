@@ -342,7 +342,7 @@ function humanWkg(wkg, options={}) {
     if (options.suffix === true || options.suffixOnly) {
         options.suffix = 'w/kg';
     }
-    return humanNumber(wkg, {precision: 1, ...options});
+    return humanNumber(wkg, {precision: 1, fixed: true, ...options});
 }
 
 

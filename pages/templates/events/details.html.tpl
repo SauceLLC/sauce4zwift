@@ -41,6 +41,14 @@
     </div>
     <% if (event.eventSubgroups && event.eventSubgroups.length) { %>
         <div class="subgroups">
+            <style>
+                .event-subgroup.wkg .not-wkg {
+                    display: none;
+                }
+                .event-subgroup:not(.wkg) .wkg-only {
+                    display: none;
+                }
+            </style>
             <% for (const sg of event.eventSubgroups) { %>
                 <div class="event-subgroup loading" data-event-subgroup-id="{{sg.id}}">
                     <header>
@@ -53,6 +61,11 @@
                             <div class="std button primary signup-action only-can-signup"
                                  data-action="signup"><ms>add_box</ms>Sign up</div>
                         </div>
+                        <label class="only-results" style="user-select: none; font-size:0.9em;">
+                            <input oninput="this.closest('.event-subgroup').classList.toggle('wkg')"
+                                   type="checkbox" name="wkg"/>
+                            W/kg
+                        </label>
                         <div class="optional-1"></div>
                         <% if (sg.durationInSeconds) { %>
                             <div>Duration: {-humanTimer(sg.durationInSeconds)-}</div>

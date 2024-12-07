@@ -52,7 +52,7 @@ const rolls = {
 function formatPreferredPower(x, options) {
     if (settings.preferWkg && athleteData?.athlete?.weight) {
         return H.wkg(x ? x / athleteData.athlete.weight : null,
-                     {suffix: true, fixed: true, html: true, ...options});
+                     {suffix: true, html: true, ...options});
     } else {
         return H.power(x, {suffix: true, html: true, ...options});
     }

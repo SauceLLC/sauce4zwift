@@ -698,7 +698,7 @@ function humanWkg(v, athlete) {
         return '-';
     }
     const {wkgPrecision=1} = common.settingsStore.get();
-    return H.number(v / (athlete && athlete.weight), {precision: wkgPrecision, fixed: 1});
+    return H.number(v / (athlete && athlete.weight), {precision: wkgPrecision, fixed: true});
 }
 
 

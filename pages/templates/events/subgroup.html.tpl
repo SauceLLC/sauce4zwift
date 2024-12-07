@@ -1,6 +1,7 @@
 <% if (obj.loading) { %>
     <tr><td><h2><i>Loading...</i></h2></td></tr>
 <% } else if (results && results.length) { %>
+    <% const critPowers = Object.keys(results[0].criticalP).map(k => [k, k.match(/criticalP([0-9]+)([A-Z][a-zA-Z]+)/)]).map(([k, m]) => [k, parseInt(m[1]) * (m[2].startsWith('Hour') ? 3600 : m[2].startsWith('Min') ? 60 : 1)]).sort((a, b) => a[1] - b[1]); %>
     <thead>
         <tr>
             <th><!--place--></th>
@@ -14,6 +15,9 @@
                 <th class="time">Time</th>
             <% } %>
             <th>Power</th>
+            <% for (const x of critPowers) { %>
+                <th>{- humanDuration(x[1], {short: true, html: true}) -}</th>
+            <% } %>
             <th>HR</th>
             <th>Weight</th>
             <th title="Trainer difficulty setting">{{=inlineURL /pages/images/smart_trainer.svg=}}</th>
@@ -25,6 +29,7 @@
         <% for (const [i, x] of results.entries()) { %>
             <% const noPower = event.sport !== 'running' && x.sensorData.powerType === 'VIRTUAL_POWER'; %>
             <% const validResult = !noPower && !x.flaggedCheating && !x.flaggedSandbagging; %>
+            <% const weight = x.profileData.weightInGrams / 1000; %>
             <tr data-id="{{x.profileId}}"
                 class="summary
                        {{x.profileId === selfAthlete?.id ? 'self' : ''}}
@@ -93,14 +98,19 @@
                         <% groupStart = t; %>
                     <% }  %>
                 <% } %>
-                <td class="power">{-humanPower(x.sensorData.avgWatts, {suffix: true, html: true})-}</td>
+                <td class="power not-wkg">{-humanPower(x.sensorData.avgWatts, {suffix: true, html: true})-}</td>
+                <td class="power wkg-only">{-humanWkg(x.sensorData.avgWatts / weight, {suffix: true, html: true})-}</td>
+                <% for (const xx of critPowers) { %>
+                    <td class="not-wkg">{- humanPower(x.criticalP[xx[0]], {suffix: true, html: true}) -}</td>
+                    <td class="wkg-only">{- humanWkg(x.criticalP[xx[0]] / weight, {suffix: true, html: true}) -}</td>
+                <% } %>
                 <td class="hr">{-humanNumber(x.sensorData.heartRateData?.avgHeartRate || null, {suffix: 'bpm', html: true})-}</td>
-                <td class="weight">{-humanWeightClass(x.profileData.weightInGrams / 1000, {suffix: true, html: true})-}</td>
+                <td class="weight">{-humanWeightClass(weight, {suffix: true, html: true})-}</td>
                 <td class="trainer-difficulty" title="Trainer difficulty setting">
                     {-humanNumber(x.sensorData?.trainerDifficulty * 100 || null, {suffix: '%', html: true})-}
                 </td>
             </tr>
-            <tr class="details"><td colspan="10"></td></tr>
+            <tr class="details"><td colspan="{{10 + critPowers.length}}"></td></tr>
         <% } %>
     </tbody>
 <% } else { %>

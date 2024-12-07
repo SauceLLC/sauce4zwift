@@ -238,6 +238,7 @@ table {
             padding: 1em;
             background: #0300001f;
             border-radius: 0.3em;
+            font-variant-numeric: tabular-nums;
 
             &:not(.results) .only-results,
             &:not(.signups) .only-signups,
@@ -400,7 +401,6 @@ table {
                     > td.time,
                     > td.distance {
                         text-align: right;
-                        font-variant-numeric: tabular-nums;
 
                         &.relative {
                             font-size: 0.8em;
