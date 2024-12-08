@@ -41,14 +41,6 @@
     </div>
     <% if (event.eventSubgroups && event.eventSubgroups.length) { %>
         <div class="subgroups">
-            <style>
-                .event-subgroup.wkg .not-wkg {
-                    display: none;
-                }
-                .event-subgroup:not(.wkg) .wkg-only {
-                    display: none;
-                }
-            </style>
             <% for (const sg of event.eventSubgroups) { %>
                 <div class="event-subgroup loading" data-event-subgroup-id="{{sg.id}}">
                     <header>
@@ -83,11 +75,19 @@
                         <% } %>
                         <div>Athletes: <span class="field-size">{{humanNumber(sg.totalEntrantCount)}}<!--rough estimate--></span></div>
                         <div class="name">{{sg.name}}</div>
+                        <div class="expand-collapse">
+                            <div class="button not-collapsed" data-action="collapse-subgroup"
+                                 title="Collapse subgroup"><ms large>compress</ms></div>
+                            <div class="button only-collapsed" data-action="expand-subgroup"
+                                 title="Expand subgroup"><ms large>expand</ms></div>
+                        </div>
                     </header>
                     <% if (!event.sameRoute) { %>
                         <div class="elevation-chart" data-sg-id="{{sg.id}}"></div>
                     <% } %>
-                    <table class="entrants expandable"></table>
+                    <div class="entrants-wrap">
+                        <table class="entrants expandable"></table>
+                    </div>
                 </div>
             <% } %>
         </div>

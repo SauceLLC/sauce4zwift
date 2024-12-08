@@ -66,6 +66,8 @@ async function fillInEvents() {
         const durations = [event.durationInSeconds];
         const distances = [event.distanceInMeters || event.routeDistance];
         if (event.eventSubgroups) {
+            event.eventSubgroups.sort((a, b) =>
+                a.subgroupLabel === b.subgroupLabel ? 0 : a.subgroupLabel < b.subgroupLabel ? -1 : 1);
             event.sameRoute = (new Set(event.eventSubgroups.map(sg =>
                 JSON.stringify([
                     sg.laps,
@@ -199,6 +201,9 @@ export async function main() {
                     el.classList.remove('signedup');
                     el.closest('tr.details').previousElementSibling.classList.remove('signedup');
                 }
+            } else if (action === 'collapse-subgroup' || action === 'expand-subgroup') {
+                const el = ev.target.closest('.event-subgroup');
+                el.classList.toggle('collapsed');
             }
         } catch(e) {
             // XXX

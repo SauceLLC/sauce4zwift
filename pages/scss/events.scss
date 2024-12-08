@@ -44,7 +44,7 @@ table {
     border-collapse: collapse;
 
     thead:not(.loader) th {
-        font-variant: all-small-caps;
+        font-variant-caps: all-small-caps;
         font-weight: 500;
     }
 
@@ -55,7 +55,7 @@ table {
         transition: opacity 200ms;
         opacity: 0.7;
         cursor: pointer;
-        font-variant: all-small-caps;
+        font-variant-caps: all-small-caps;
 
         &.loading {
             pointer-events: none;
@@ -149,10 +149,9 @@ table {
     }
 
     abbr.unit {
-        font-size: 0.9em;
+        font-size: 0.8em;
         opacity: 0.9;
         margin-left: 0.1em;
-        font-variant: all-small-caps;
     }
 
     > thead > tr > th,
@@ -199,6 +198,16 @@ table {
                 background-color: color.shade(primary, 3%, 0.8);
                 color: color.shade(primary, 100%, $saturate: -100%);
             }
+
+            @media only screen and (max-width: 768px)  {
+                &.details > td {
+                    padding: 0;
+
+                    > .container {
+                        max-width: 100vw;
+                    }
+                }
+            }
         }
     }
 
@@ -234,27 +243,62 @@ table {
         padding-top: 1em;
 
         .event-subgroup {
+            --collapse-duration: 400ms;
+            display: flex;
+            flex-direction: column;
             margin: 1em 0 2em;
             padding: 1em;
             background: #0300001f;
             border-radius: 0.3em;
             font-variant-numeric: tabular-nums;
+            transition: padding var(--collapse-duration);
+
+            > header {
+                transition: font-size var(--collapse-duration), margin var(--collapse-duration);
+            }
+
+            > .entrants-wrap {
+                transition: max-height var(--collapse-duration);
+                max-height: 60vh;
+                overflow: auto;
+            }
+
+            &.collapsed {
+                padding: 0;
+                margin-top: 0;
+                margin-bottom: 0;
+
+                > header {
+                    font-size: 0.7em;
+                }
+
+                > .entrants-wrap {
+                    overflow: hidden;
+                    max-height: 0;
+                }
+            }
 
             &:not(.results) .only-results,
             &:not(.signups) .only-signups,
             &:not(.loading) .only-loading,
             &:not(.can-signup) .only-can-signup,
-            &:not(.signedup) .only-signedup {
+            &:not(.signedup) .only-signedup,
+            &:not(.wkg) .only-wkg,
+            &:not(.collapsed) .only-collapsed {
+                display: none;
+            }
+            &.wkg .not-wkg,
+            &.collapsed .not-collapsed {
                 display: none;
             }
 
             &:not(.signups) {
-                header .button.signup-action {
+                > header .button.signup-action {
                     display: none;
                 }
             }
 
-            header {
+            > header {
                 display: flex;
                 flex-wrap: wrap;
                 justify-content: space-between;
@@ -320,7 +364,7 @@ table {
             background-image: linear-gradient(to top, color.get(intrinsic-inverted, 0.5), transparent);
         }
 
-        .elevation-chart + table.entrants {
+        .elevation-chart + .entrants-wrap > table.entrants {
             margin-top: 0;
         }
 
@@ -655,7 +699,7 @@ table {
                     width: calc(100% - (2 * $side-pad) - $start-width);
                 }
                 > td.route {
-                    visibility: none;
+                    visibility: hidden;
                     position: absolute;
                     margin: 0 !important;
                     padding: 0 !important;

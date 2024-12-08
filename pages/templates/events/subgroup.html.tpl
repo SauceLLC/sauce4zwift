@@ -99,10 +99,10 @@
                     <% }  %>
                 <% } %>
                 <td class="power not-wkg">{-humanPower(x.sensorData.avgWatts, {suffix: true, html: true})-}</td>
-                <td class="power wkg-only">{-humanWkg(x.sensorData.avgWatts / weight, {suffix: true, html: true})-}</td>
+                <td class="power only-wkg">{-humanWkg(x.sensorData.avgWatts / weight, {suffix: true, html: true})-}</td>
                 <% for (const xx of critPowers) { %>
                     <td class="not-wkg">{- humanPower(x.criticalP[xx[0]], {suffix: true, html: true}) -}</td>
-                    <td class="wkg-only">{- humanWkg(x.criticalP[xx[0]] / weight, {suffix: true, html: true}) -}</td>
+                    <td class="only-wkg">{- humanWkg(x.criticalP[xx[0]] / weight, {suffix: true, html: true}) -}</td>
                 <% } %>
                 <td class="hr">{-humanNumber(x.sensorData.heartRateData?.avgHeartRate || null, {suffix: 'bpm', html: true})-}</td>
                 <td class="weight">{-humanWeightClass(weight, {suffix: true, html: true})-}</td>
