@@ -17,10 +17,10 @@
         <script type="module" src="./src/browser-source.mjs?main"></script>
     </head>
     <body class="transparent-bg">
-        <div id="titlebar">
+        <div id="titlebar" tabindex="0">
             <header>
                 <div class="logo"><img src="images/icon128.png"/></div>
-                <div class="double-row">
+                <div class="double-row underflow">
                     <div class="title">Browser Source</div>
                     <div class="buttons nav">
                         <div title="Back" class="button back disabled"><ms>arrow_back</ms></div>
@@ -30,11 +30,10 @@
                         <div title="Open Dev Tools" class="button debug"><ms>developer_mode</ms></div>
                     </div>
                 </div>
-                <div class="url-holder">
+                <div class="url-holder overflow">
                     <input type="text" name="url"/>
                     <div class="button pin pinned"><ms>star</ms></div>
                 </div>
-                <div class="filler"></div>
                 <div class="buttons">
                     <a class="button open-settings" href="browser-source-settings.html?width=400&height=400&child-window"
                        title="Open settings window" target="browser-source-settings"><ms>settings</ms></a>

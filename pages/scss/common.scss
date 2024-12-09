@@ -27,22 +27,31 @@
         U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
-
-html {box-sizing: border-box;}
-*, *::before, *::after {
-    box-sizing: inherit;
+@property --bg-from-color {
+    syntax: "<color>";
+    inherits: false;
+    initial-value: #0000;
 }
 
-:focus-visible {
-    outline-style: solid;
-    outline-width: 2px;
-    outline-offset: 1px;
-    outline-color: color.shade(primary, 10%, 0.92);
+@property --bg-to-color {
+    syntax: "<color>";
+    inherits: false;
+    initial-value: #0000;
+}
+
+html {
+    box-sizing: border-box;
+}
+
+*, *::before, *::after {
+    box-sizing: inherit;
 }
 
 html {
     --aspect-ratio: 9 / 16;
     --bg-transition-duration: 0;
+    --titlebar-font-size: 5.1mm;
+    --titlebar-height: 13mm;
     font-family: 'Saira', sans-serif;
     -webkit-font-smoothing: antialiased; // Fix heavy fonts on macOS
     width: 100%;
@@ -53,6 +62,12 @@ html {
     -webkit-user-select: none;
     user-select: none;
     overflow: hidden;
+
+    // Infer from dppx (i.e. devicePixelRatio) if this is a hand held device...
+    @media (min-resolution: 2dppx) and (any-pointer: coarse) and (max-width: 600px) {
+        --titlebar-height: 18mm;
+        --titlebar-font-size: 6mm;
+    }
 
     &:not(.electron-mode) {
         background-color: black;
@@ -181,8 +196,17 @@ html {
     }
 }
 
+:focus-visible {
+    outline-style: solid;
+    outline-width: 2px;
+    outline-offset: 1px;
+    outline-color: color.shade(primary, 10%, 0.92);
+}
+
 img {
     display: block;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 a {
@@ -548,7 +572,6 @@ form {
 }
 
 #titlebar {
-    --header-height: 13mm;
     --extra-height: 0mm;
     flex: 0 0 auto;
     display: flex;
@@ -559,9 +582,70 @@ form {
     width: 100%;
     color: white;
     overflow: hidden;
-    max-height: calc(var(--header-height) + var(--extra-height));
+    max-height: calc(var(--titlebar-height) + var(--extra-height));
     transition: max-height 300ms, padding 300ms;
     box-shadow: 0 1px 5px #0009;
+
+    @media (max-width: 600px) {
+        &:has(header .overflow) {
+            header {
+                .logo,
+                .title {
+                    transition: all 200ms;
+                }
+
+                .logo {
+                    max-width: calc(2 * var(--titlebar-height));
+                }
+
+                .title {
+                    max-width: calc(100% - var(--titlebar-height));
+                }
+            }
+
+            &:focus-within {
+                header {
+                    .logo,
+                    .title,
+                    .underflow {
+                        overflow: hidden;
+                        visibility: hidden;
+                        opacity: 0.5; // intentional
+                        max-width: 0;
+                        padding-left: 0;
+                        padding-right: 0;
+                        margin-left: 0;
+                        margin-right: 0;
+                    }
+                }
+
+                @media (max-width: 400px) {
+                    & {
+                        max-height: 33vh;
+                    }
+                }
+            }
+            &:not(:focus-within) {
+                header .overflow {
+                    background: none !important;
+                    border: none !important;
+                    outline: none !important;
+                    box-shadow: none !important;
+                    justify-content: center;
+
+                    > * {
+                        display: none;
+                    }
+
+                    &::before {
+                        content: '...';
+                        cursor: pointer;
+                        align-self: center;
+                    }
+                }
+            }
+        }
+    }
 
     .button {
         border-radius: 0.22em;
@@ -590,13 +674,11 @@ form {
     }
 
     header {
-        font-size: 5.1mm;
+        font-size: var(--titlebar-font-size);
         flex: 0 0 auto;
         max-width: 100%;
         display: flex;
         align-items: center;
-        justify-content: space-between;
-        height: var(--header-height);
         background-image: linear-gradient(to top, color.shade(bookend, 0%), color.shade(bookend, 12%));
         color: color.shade(bookend, 100%);
         padding-right: 0.3em;
@@ -604,11 +686,23 @@ form {
         .logo,
         .title,
         .filler {
-            height: 100%;
+            height: min(100%, var(--titlebar-height));
+            height: var(--titlebar-height);
         }
 
-        .filler {
+        .filler,
+        .overflow {
             flex: 1 1 0;
+        }
+
+        .overflow {
+            display: flex;
+            align-items: center;
+
+            > * {
+                margin-top: 0.2em;
+                margin-bottom: 0.2em;
+            }
         }
 
         .logo {
@@ -631,8 +725,6 @@ form {
             align-items: center;
             font-size: 0.8em;
             white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
             padding: 0 0.3em;
 
             &:first-child {
@@ -667,18 +759,6 @@ form {
             border-color: #3333;
         }
     }
-}
-
-@property --bg-from-color {
-    syntax: "<color>";
-    inherits: false;
-    initial-value: #0000;
-}
-
-@property --bg-to-color {
-    syntax: "<color>";
-    inherits: false;
-    initial-value: #0000;
 }
 
 .button-group {
@@ -831,6 +911,7 @@ a.std.button {
         transition: opacity 200ms;
     }
 }
+
 span.button.std {
     display: inline-flex;
 }
@@ -886,7 +967,7 @@ span.button.std {
     }
 }
 
-@media (hover: none) {
+@media (any-hover: none) {
     #hintbar .hint::after {
         content: 'Long press for controls';
     }
@@ -1043,66 +1124,6 @@ footer.legal {
     }
 }
 
-html:not(.passive-overlay-scrollbars) {
-    ::-webkit-scrollbar {
-        width: 2.5mm;
-        height: 2.5mm;
-    }
-
-    ::-webkit-scrollbar-track {
-        background-color: #1114;
-    }
-
-    ::-webkit-scrollbar-thumb {
-        border-radius: 1mm;
-        background-color: #eeec;
-    }
-
-    ::-webkit-scrollbar-thumb:hover {
-        background-color: #eee;
-    }
-
-    ::-webkit-scrollbar-corner {
-        background-color: #1114;
-    }
-}
-
-html.passive-overlay-scrollbars {
-    --scrollbar-size: 2mm;
-    $min-hack-size: 1px; // must not be zero or chromium disables custom scrollbars
-
-    *:not(:hover) {
-        --scrollbar-border-color-override: transparent;
-        --scrollbar-size: 0;
-    }
-
-    ::-webkit-scrollbar {
-        width: $min-hack-size;
-        height: $min-hack-size;
-    }
-    ::-webkit-scrollbar-track {
-        outline: var(--scrollbar-size) solid #1114;
-    }
-    ::-webkit-scrollbar-thumb {
-        outline: var(--scrollbar-size) solid #eeec;
-        outline-offset: calc(-1 * var(--scrollbar-size)); // compensate on ends to prevent overflow
-        border: $min-hack-size solid var(--scrollbar-border-color-override, #eeec); // Fill void required by min-width
-    }
-
-    ::-webkit-scrollbar,
-    ::-webkit-scrollbar-track,
-    ::-webkit-scrollbar-thumb,
-    ::-webkit-scrollbar-corner {
-        background-color: transparent;
-    }
-}
-
-
-img {
-    -webkit-user-select: none;
-    user-select: none;
-}
-
 ms {
     font-family: 'Material Symbols Rounded';
     font-weight: normal;
@@ -1182,5 +1203,64 @@ ms {
 
     &.good {
         color: #16ad18;
+    }
+}
+
+// Try to infer if the device has overlay scrollbars (good) and only use our hack when needed...
+@media (hover: hover) and (pointer: fine) {
+    html {
+        &:not(.passive-overlay-scrollbars) {
+            --scrollbar-size: 2.5mm;
+            ::-webkit-scrollbar {
+                width: var(--scrollbar-size);
+                height: var(--scrollbar-size);
+            }
+
+            ::-webkit-scrollbar-track {
+                background-color: #1114;
+            }
+
+            ::-webkit-scrollbar-thumb {
+                border-radius: 1mm;
+                background-color: #eeec;
+            }
+
+            ::-webkit-scrollbar-thumb:hover {
+                background-color: #eee;
+            }
+
+            ::-webkit-scrollbar-corner {
+                background-color: #1114;
+            }
+        }
+        &.passive-overlay-scrollbars {
+            --scrollbar-size: 2mm;
+            $min-hack-size: 1px; // must not be zero or chromium disables custom scrollbars
+
+            *:not(:hover) {
+                --scrollbar-border-color-override: transparent;
+                --scrollbar-size: 0;
+            }
+
+            ::-webkit-scrollbar {
+                width: $min-hack-size;
+                height: $min-hack-size;
+            }
+            ::-webkit-scrollbar-track {
+                outline: var(--scrollbar-size) solid #1114;
+            }
+            ::-webkit-scrollbar-thumb {
+                outline: var(--scrollbar-size) solid #eeec;
+                outline-offset: calc(-1 * var(--scrollbar-size)); // compensate on ends to prevent overflow
+                border: $min-hack-size solid var(--scrollbar-border-color-override, #eeec); // Fill void required by min-width
+            }
+
+            ::-webkit-scrollbar,
+            ::-webkit-scrollbar-track,
+            ::-webkit-scrollbar-thumb,
+            ::-webkit-scrollbar-corner {
+                background-color: transparent;
+            }
+        }
     }
 }

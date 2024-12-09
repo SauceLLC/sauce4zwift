@@ -44,18 +44,21 @@ html {
 }
 
 #titlebar {
-    --header-height: 17mm;
     position: relative !important;
+    --extra-height: 1.4em;
 
     header {
         // XXX probably won't work on windows
         app-region: drag;
+
         > * {
             app-region: no-drag;
         }
     }
 
     header .double-row {
+        padding-top: 0.15em;
+        padding-bottom: 0.15em;
         display: flex;
         overflow: hidden;
         flex-direction: column;
@@ -64,10 +67,14 @@ html {
 
         .title {
             display: initial;  // fixes text-overflow
+            padding-top: 0.15em;
             padding-left: 0.3em;
             // Let buttons exclusively control width
             width: 0;
             min-width: 100%;
+            height: auto;
+            text-overflow: ellipsis;
+            overflow: hidden;
         }
 
         .buttons { }

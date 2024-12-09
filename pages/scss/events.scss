@@ -6,6 +6,33 @@ html {
     font-size: 4.1mm;
 }
 
+#titlebar {
+    header {
+        @media (max-width: 375px) {
+            .overflow {
+                flex-wrap: wrap
+            }
+        }
+
+        .type,
+        .filter {
+            display: flex;
+            align-items: center;
+        }
+
+        .filter input {
+            width: 12ch;
+        }
+    }
+}
+
+#content {
+    scroll-behavior: smooth;
+    padding: 0;
+    overflow: auto;
+}
+
+
 #content > table {
     user-select: text;
 
@@ -200,6 +227,7 @@ table {
             }
 
             @media only screen and (max-width: 768px)  {
+                // XXX revisit after we try flex table overhaul
                 &.details > td {
                     padding: 0;
 
@@ -568,16 +596,6 @@ table {
     }
 }
 
-#titlebar {
-    position: initial !important;
-}
-
-#content {
-    scroll-behavior: smooth;
-    padding: 0;
-    overflow: auto;
-}
-
 .details .container .profile {
     .avatar {
         flex-basis: 190px;
@@ -616,137 +634,43 @@ table {
         }
     }
 }
-
 @media only screen and (max-width: 768px)  {
-    html, body {
-        font-size: 3.7mm;
+    html {
     }
 
-    table {
-        width: 100%;
-
-        > thead > tr > th,
-        > tbody > tr > td {
-            &:first-child {
-                padding-left: 0.5em;
-            }
-
-            &:last-child {
-                padding-right: 0.5em;
-            }
+    table.events {
+        > thead:not(.loader) {
+            display: none;
         }
 
-        td[colspan] {
-            padding-top: 0 !important;
-            padding-left: 0;
-            padding-right: 0;
+        > tbody > tr {
+            --row-padding: 0.3rem;
+            --safe-width: calc(100vw - var(--scrollbar-size) - 1px); // 1px cause i'm paranoid of overflow-x bars
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            width: var(--safe-width);
+            padding: var(--row-padding);
 
-            > .container {
-                padding: 0.4em !important;
-
-                .event-subgroup {
-                    padding: 0.4em !important;
-                }
-            }
-        }
-
-        &.events {
-            > thead > tr > {
-                th.start,
-                th.name,
-                th.route {
-                    visibility: hidden !important;
-                    position: absolute !important;
-                    width: 0 !important;
-                    padding: 0 !important;
-                    margin: 0 !important;
-                }
+            &:nth-child(4n-1) {
+                background-color: color.get(intrinsic-inverted, 0.2);
             }
 
-            > tbody > tr.event-row {
-                $start-width: 10rem;
-                $side-pad: 0.3rem;
-                position: relative;
+            > td {
+                --cell-padding: 0.2rem;
+                padding: var(--cell-padding) !important;
 
-                &.expanded > td.name {
-                    padding-top: 0.2em;
+                &.name {
+                    max-width: none;
+                    width: calc(var(--safe-width) - (var(--cell-padding) * 2 + var(--row-padding) * 2));
                 }
-
-                > td.type {
-                    padding-left: $side-pad;
-                    max-width: max(10vw, 12ch);
+                &.route {
+                    max-width: none;
+                    width: calc(0.5 * var(--safe-width) - (var(--cell-padding) * 2 + var(--row-padding) * 2));
                 }
-
-                > td.start,
-                > td.name {
-                    max-width: initial;
-                    position: absolute;
-                    top: 0.4rem;
-                    font-weight: 500;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    white-space: nowrap;
-                    padding: 0;
-                }
-
-                > td.start {
-                    right: $side-pad;
-                    width: $start-width;
-                    text-align: right;
-                }
-                > td.name {
-                    left: $side-pad;
-                    width: calc(100% - (2 * $side-pad) - $start-width);
-                }
-                > td.route {
-                    visibility: hidden;
-                    position: absolute;
-                    margin: 0 !important;
-                    padding: 0 !important;
-                    width: 0 !important;
-                }
-
-                > td:not(.name):not(.route):not(.start) {
-                    padding-top: 2.4rem;
-                    padding-bottom: 0.4rem;
-                }
-
-                > td.count {
-                    text-align: right;
-                }
-            }
-        }
-
-        .subgroups .event-subgroup header .name {
-            padding: 0.7em 0.2em 0;
-        }
-
-        &.entrants {
-            > thead > tr {
-                display: none;
-            }
-
-            > tbody > tr.summary {
-                position: relative;
-
-                > td.icon {
-                    width: 1.8ch !important;
-                }
-
-                > td.weight {
-                    width: 10ch;
-                }
-
-                > td.name {
-                    position: absolute;
-                    top: 0;
-                    left: 0;
-                    width: 100%;
-                    padding-left: 0.3em;
-                }
-
-                > td:not(.name) {
-                    padding-top: 2em !important;
+                &.groups {
+                    width: calc(0.5 * var(--safe-width) - (var(--cell-padding) * 2 + var(--row-padding) * 2));
                 }
             }
         }
