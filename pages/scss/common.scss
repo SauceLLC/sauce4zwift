@@ -69,6 +69,11 @@ html {
     @media (min-resolution: 2dppx) and (any-pointer: coarse) and (max-width: 600px) {
         --titlebar-height: 18mm;
         --titlebar-font-size: 6mm;
+
+        #titlebar header .logo {
+            height: calc(var(--titlebar-height) * 0.8);
+            padding-right: 0.2em;
+        }
     }
 
     &:not(.electron-mode) {
@@ -725,6 +730,7 @@ form {
             font-size: 0.8em;
             white-space: nowrap;
             padding: 0 0.3em;
+            overflow: hidden;
 
             &:first-child {
                 padding-left: 0.8em;

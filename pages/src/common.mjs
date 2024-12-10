@@ -683,22 +683,37 @@ export function initInteractionListeners() {
             }
         }
     }
-    const close = document.querySelector('#titlebar .button.close');
-    if (close) {
-        close.addEventListener('click', ev => rpcCall('closeWindow'));
-    }
-    const minimize = document.querySelector('#titlebar .button.minimize');
-    if (minimize) {
-        minimize.addEventListener('click', ev => rpcCall('minimizeWindow'));
-    }
-    const maximize = document.querySelector('#titlebar .button.maximize');
-    if (maximize) {
-        maximize.addEventListener('click', ev => rpcCall('toggleMaximizeWindow'));
+    const titleBar = document.querySelector('#titlebar');
+    if (titleBar) {
+        titleBar.addEventListener('pointerdown', ev => {
+            if (ev.target.closest('a,[href],.button,.btn,button')) {
+                // Prevent focus state..
+                // On small windows focus is used for overflow/underflow layout.
+                // Don't trigger it if we detect an action (i.e. button or link clicked).
+                ev.preventDefault();
+            }
+        });
+        titleBar.addEventListener('click', ev => {
+            const btn = ev.target.closest('.button');
+            if (btn) {
+                if (btn.classList.contains('close')) {
+                    rpcCall('closeWindow');
+                } else if (btn.classList.contains('minimize')) {
+                    rpcCall('minimizeWindow');
+                }
+            }
+        });
     }
     for (const el of document.querySelectorAll('.button[data-url]')) {
+        // XXX I think I can remove these, but just check first...
+        console.error("DEPRECATED");
+        debugger;
         el.addEventListener('click', ev => location.assign(el.dataset.url));
     }
     for (const el of document.querySelectorAll('.button[data-ext-url]')) {
+        // XXX I think I can remove these, but just check first...
+        console.error("DEPRECATED");
+        debugger;
         el.addEventListener('click', ev =>
             window.open(el.dataset.extUrl, '_blank', 'popup,width=999,height=333'));
     }
