@@ -53,6 +53,7 @@ html {
     --bg-transition-duration: 0;
     --titlebar-font-size: 5.1mm;
     --titlebar-height: 13mm;
+    container: root-html / size;
     font-family: 'Saira', sans-serif;
     -webkit-font-smoothing: antialiased; // Fix heavy fonts on macOS
     width: 100%;
@@ -340,7 +341,6 @@ dialog.sauce-attr {
 #settings {
     padding: 0.5em 0.8em;
     overflow: auto;
-    container: settings / inline-size;
 
     &.tabbed {
         margin-top: 0.2em;
@@ -394,7 +394,7 @@ dialog.sauce-attr {
     }
 }
 
-@container settings (max-width: 400px) {
+@container root-html (width < 400px) {
     #settings {
         &:not(.tabbed) > .section {
             padding-left: 0;
@@ -587,7 +587,7 @@ form {
     transition: max-height 300ms, padding 300ms;
     box-shadow: 0 1px 5px #0009;
 
-    @media (max-width: 600px) {
+    @container root-html (width < 600px) {
         &:has(header .overflow) {
             header {
                 .logo,
@@ -620,10 +620,8 @@ form {
                     }
                 }
 
-                @media (max-width: 400px) {
-                    & {
-                        max-height: 33vh;
-                    }
+                @container (width < 400px) {
+                    max-height: 33vh;
                 }
             }
             &:not(:focus-within) {
