@@ -20,7 +20,6 @@
             <% } %>
             <th>HR</th>
             <th>Weight</th>
-            <th title="Trainer difficulty setting">{{=inlineURL /pages/images/smart_trainer.svg=}}</th>
         </tr>
     </thead>
     <tbody>
@@ -106,11 +105,8 @@
                 <% } %>
                 <td class="hr">{-humanNumber(x.sensorData.heartRateData?.avgHeartRate || null, {suffix: 'bpm', html: true})-}</td>
                 <td class="weight">{-humanWeightClass(weight, {suffix: true, html: true})-}</td>
-                <td class="trainer-difficulty" title="Trainer difficulty setting">
-                    {-humanNumber(x.sensorData?.trainerDifficulty * 100 || null, {suffix: '%', html: true})-}
-                </td>
             </tr>
-            <tr class="details"><td colspan="{{10 + critPowers.length}}"></td></tr>
+            <tr class="details"><td colspan="{{9 + critPowers.length}}"></td></tr>
         <% } %>
     </tbody>
 <% } else { %>
