@@ -5,6 +5,8 @@ html {
 }
 
 #titlebar {
+    overflow: visible;
+
     .search-box {
         position: absolute;
         margin-top: 0.8em;
@@ -17,6 +19,7 @@ html {
         display: flex;
         flex-direction: column;
         align-items: flex-end;
+        z-index: 100000;
 
         &:not(.visible) {
             display: none;
@@ -43,9 +46,11 @@ html {
 #content {
     overflow: auto;
 
-    section {
+    section.card-group {
         margin: 0.5em 1em;
         padding-bottom: 0.5em;
+        background-color: color.shade(fg, 100%, 0.1);
+        border-radius: 0.28em;
 
         &:not(:last-child) {
             border-bottom: 0.02em solid color.shade(fg, 0%, 10%);
@@ -61,19 +66,13 @@ html {
             cursor: pointer;
             display: flex;
             align-items: center;
-            border-radius: 0.28em;
             justify-content: space-between;
-            background-color: color.shade(fg, 100%, 0.1);
 
             ms {
                 margin-top: 0.3em;
                 margin-left: 0.1em;
                 font-size: 0.8em;
                 margin-right: 0.2em;
-            }
-
-            &:hover {
-                background-color: color.shade(fg, 100%, 0.2);
             }
         }
 

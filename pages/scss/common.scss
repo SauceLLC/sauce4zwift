@@ -154,6 +154,10 @@ html {
 
     &:not(.settings-page) #titlebar:not(.always-visible) {
         position: absolute;
+        top: 0;
+        left: 0;
+        z-index: 10000000;
+        overflow: hidden;
     }
 
     &.settings-page {
@@ -583,15 +587,11 @@ form {
     flex: 0 0 auto;
     display: flex;
     flex-direction: column;
-    top: 0;
-    left: 0;
-    z-index: 10000000;
     width: 100%;
-    color: white;
-    overflow: hidden;
     max-height: calc(var(--titlebar-height) + var(--extra-height));
     transition: max-height 300ms, padding 300ms;
     box-shadow: 0 1px 5px #0009;
+    outline: none;
 
     @container root-html (width < 600px) {
         &:has(header .overflow) {
