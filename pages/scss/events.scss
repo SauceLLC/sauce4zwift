@@ -5,14 +5,14 @@
 html {
     font-size: 4.1mm;
 
-    @media (width < 600px)  {
+    @media (max-width: 768px)  {
         font-size: 4.8mm;
     }
 }
 
 #titlebar {
     header {
-        @container root-html (width < 375px) {
+        @container root-html (max-width: 375px) {
             .overflow {
                 flex-wrap: wrap
             }
@@ -33,7 +33,7 @@ html {
 #content {
     scroll-behavior: smooth;
     padding: 0;
-    overflow: auto;
+    overflow: hidden auto;
 }
 
 
@@ -164,11 +164,13 @@ table {
             }
 
             > td.name {
-                max-width: 28vw;
+                max-width: 0; // hack to enable container % width
+                width: 25%; // must be coupled with max-width:0
             }
 
             > td.route {
-                max-width: 11vw;
+                max-width: 0; // hack to enable container % width
+                width: 11%; // must be coupled with max-width:0
                 font-weight: 310;
                 font-style: italic;
                 font-size: 0.92em;
@@ -238,7 +240,7 @@ table {
                 color: color.shade(primary, 100%, $saturate: -100%);
             }
 
-            @container root-html (width < 768px)  {
+            @container root-html (max-width: 768px)  {
                 &.details > td {
                     padding: 0;
 
@@ -336,7 +338,7 @@ table {
                 padding: 1em;
                 color: color.get(intrinsic);
 
-                @container root-html (width > 768px)  {
+                @container root-html (min-width: 768px)  {
                     // Make it overlay band style
                     margin: 0 -1.5em;
                     padding: 1em 1.25em;
@@ -378,10 +380,6 @@ table {
 
                 .name {
                     font-weight: 600;
-
-                    @container root-html (width < 600px)  {
-                        max-width: 40vw;
-                    }
                 }
             }
         }
@@ -635,7 +633,7 @@ table {
     }
 }
 
-@container root-html (width < 768px)  {
+@container root-html (max-width: 768px)  {
     table.events {
         > thead:not(.loader) {
             display: none;

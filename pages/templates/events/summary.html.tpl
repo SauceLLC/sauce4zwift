@@ -31,7 +31,7 @@
     <% } %>
     <% if (event.durations.length) { %>
         <% if (event.durations.length > 1) { %>
-            <td>{-humanDuration(event.durations[0], {html: true, short: true})-} - {-humanDuration(event.durations.at(-1), {html: true, short: false})-}</td>
+            <td>{-humanDuration(event.durations[0], {html: true, short: true})-} - {-humanDuration(event.durations.at(-1), {html: true, short: true})-}</td>
         <% } else { %>
             <td>{-humanDuration(event.durations[0], {html: true})-}</td>
         <% } %>
