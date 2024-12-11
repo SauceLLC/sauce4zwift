@@ -1217,6 +1217,10 @@ ms {
     }
 }
 
+:root {
+    --scrollbar-size: 0mm;
+}
+
 // Try to infer if the device has overlay scrollbars (good) and only use our hack when needed...
 @media (hover: hover) and (pointer: fine) {
     html {
@@ -1250,7 +1254,6 @@ ms {
 
             *:not(:hover) {
                 --scrollbar-border-color-override: transparent;
-                --scrollbar-size: 0;
             }
 
             ::-webkit-scrollbar {

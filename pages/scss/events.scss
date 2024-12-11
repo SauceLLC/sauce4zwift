@@ -4,11 +4,15 @@
 
 html {
     font-size: 4.1mm;
+
+    @media (width < 600px)  {
+        font-size: 4.8mm;
+    }
 }
 
 #titlebar {
     header {
-        @media (max-width: 375px) {
+        @container root-html (width < 375px) {
             .overflow {
                 flex-wrap: wrap
             }
@@ -103,6 +107,12 @@ table {
         > tbody > tr {
             scroll-margin-top: 2.38em;  // roughly header height
 
+            &.expanded {
+                position: sticky;
+                z-index: 2;
+                top: -0.1em; // ~ -border-top
+            }
+
             &.started {
                 > td {
                     opacity: 0.6;
@@ -196,6 +206,10 @@ table {
 
     &.expandable {
         > tbody > tr {
+            &:nth-child(4n-1) {
+                background-color: color.shade(intrinsic-inverted, 0%, 0.1);
+            }
+
             &.summary > td {
                 white-space: nowrap;
                 text-overflow: ellipsis;
@@ -207,8 +221,6 @@ table {
                 padding: 1.5em;
                 border-radius: 0.28em;
                 box-shadow: 1px 1px 5px #0003;
-                max-height: 80vh;
-                overflow: auto;
 
                 &:empty {
                     min-height: 5em;
@@ -222,17 +234,16 @@ table {
 
             &.expanded,
             &.expanded + tr.details {
-                background-color: color.shade(primary, 3%, 0.8);
+                background-color: color.shade(primary, 3%);
                 color: color.shade(primary, 100%, $saturate: -100%);
             }
 
-            @media only screen and (max-width: 768px)  {
-                // XXX revisit after we try flex table overhaul
+            @container root-html (width < 768px)  {
                 &.details > td {
                     padding: 0;
 
-                    > .container {
-                        max-width: 100vw;
+                    .container {
+                        padding: 0.6em 0.5em;
                     }
                 }
             }
@@ -268,28 +279,16 @@ table {
     }
 
     .subgroups {
-        padding-top: 1em;
+        padding-top: 0.5em;
 
         .event-subgroup {
-            --collapse-duration: 400ms;
             display: flex;
             flex-direction: column;
-            margin: 1em 0 2em;
+            margin: 0.5em 0 2em;
             padding: 1em;
             background: #0300001f;
             border-radius: 0.3em;
             font-variant-numeric: tabular-nums;
-            transition: padding var(--collapse-duration);
-
-            > header {
-                transition: font-size var(--collapse-duration), margin var(--collapse-duration);
-            }
-
-            > .entrants-wrap {
-                transition: max-height var(--collapse-duration);
-                max-height: 60vh;
-                overflow: auto;
-            }
 
             &.collapsed {
                 padding: 0;
@@ -297,12 +296,11 @@ table {
                 margin-bottom: 0;
 
                 > header {
-                    font-size: 0.7em;
+                    font-size: 0.8em;
                 }
 
                 > .entrants-wrap {
-                    overflow: hidden;
-                    max-height: 0;
+                    display: none;
                 }
             }
 
@@ -338,7 +336,7 @@ table {
                 padding: 1em;
                 color: color.get(intrinsic);
 
-                @media (min-width: 768px)  {
+                @container root-html (width > 768px)  {
                     // Make it overlay band style
                     margin: 0 -1.5em;
                     padding: 1em 1.25em;
@@ -381,7 +379,7 @@ table {
                 .name {
                     font-weight: 600;
 
-                    @media (min-width: 600px)  {
+                    @container root-html (width < 600px)  {
                         max-width: 40vw;
                     }
                 }
@@ -441,7 +439,7 @@ table {
                     text-align: right;
                 }
 
-                td, th { 
+                td, th {
                     svg {
                         width: 1.1em;
                         opacity: 0.88;
@@ -636,32 +634,26 @@ table {
         }
     }
 }
-@media only screen and (max-width: 768px)  {
-    html {
-    }
 
+@container root-html (width < 768px)  {
     table.events {
         > thead:not(.loader) {
             display: none;
         }
 
         > tbody > tr {
-            --row-padding: 0.3rem;
+            --row-padding: 0.4rem;
+            --cell-padding: 0.2rem;
             --safe-width: calc(100vw - var(--scrollbar-size) - 1px); // 1px cause i'm paranoid of overflow-x bars
             display: flex;
             flex-wrap: wrap;
             align-items: center;
             justify-content: space-between;
             width: var(--safe-width);
-            padding: var(--row-padding);
-
-            &:nth-child(4n-1) {
-                background-color: color.get(intrinsic-inverted, 0.2);
-            }
 
             > td {
-                --cell-padding: 0.2rem;
-                padding: var(--cell-padding) !important;
+                display: block; // Better than flex since we have a lot of raw text nodes
+                max-width: 100%;
 
                 &.name {
                     max-width: none;
@@ -673,6 +665,100 @@ table {
                 }
                 &.groups {
                     width: calc(0.5 * var(--safe-width) - (var(--cell-padding) * 2 + var(--row-padding) * 2));
+                }
+            }
+
+            &.summary {
+                padding: var(--row-padding) var(--cell-padding);
+                > td {
+                    padding: 0 var(--cell-padding) !important;
+                }
+            }
+        }
+
+        .subgroups {
+            .event-subgroup {
+                padding: 0;
+
+                > header {
+                    padding-left: 0.5em;
+                    padding-right: 0.5em;
+                    padding-bottom: 0.5em;
+                    position: relative;
+
+                    .label {
+                        width: 100%;
+                        padding-bottom: 0.3em;
+                    }
+
+                    .name {
+                        padding-top: 0.1em;
+                        width: 100%;
+                        max-width: 100%;
+                    }
+
+                    .expand-collapse {
+                        position: absolute;
+                        top: 0;
+                        right: 0;
+                        font-size: 1.1em;
+                        padding: 0.4em;
+
+                        ms {
+                            // hand crafted to center outline...
+                            //padding: 0.09em 0.08em 0.03em 0.055em;
+                            //outline: 4px solid color-mix(in srgb, currentColor, transparent 70%);
+                            //border-radius: 2em;
+                        }
+                    }
+                }
+
+                table.entrants {
+                    margin-top: 0;
+
+                    > thead {
+                        display: none;
+                    }
+
+                    > tbody > tr {
+                        display: flex;
+                        flex-wrap: wrap;
+                        align-items: center;
+                        justify-content: space-between;
+                        padding: 0 0.4em;
+
+                        &.summary > td {
+                            --name-width: 70%;
+                            &.name,
+                            &.team {
+                                padding-top: 0.5em;
+                                padding-bottom: 0;
+                            }
+
+                            &.name {
+                                order: -2;
+                                width: var(--name-width);
+                            }
+
+                            &.team {
+                                order: -1;
+                                width: calc(100% - var(--name-width));
+                            }
+
+                            &.icon {
+                                width: auto;
+                                order: 10;
+                            }
+
+                            &.power {
+                                width: 6ch;
+                            }
+
+                            &.weight {
+                                flex: 1 0 auto;
+                            }
+                        }
+                    }
                 }
             }
         }
