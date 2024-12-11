@@ -460,13 +460,15 @@ table {
                         .negative {
                             font-weight: 550;
                             font-size: 0.76em;
+                            // surprisingly this prefix is supported on all browsers
+                            -webkit-text-stroke-width: 0.02em;
                         }
 
                         .positive {
-                            color: color-mix(in srgb, color.get(positive), currentColor 10%);
+                            -webkit-text-stroke-color: color.get(positive);
                         }
                         .negative {
-                            color: color-mix(in srgb, color.get(negative), currentColor 10%);
+                            -webkit-text-stroke-color: color.get(negative);
                         }
                     }
 
