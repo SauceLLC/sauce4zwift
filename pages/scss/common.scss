@@ -145,7 +145,8 @@ html {
     &:not(.settings-mode):not(.settings-page) #titlebar:not(.always-visible) header {
         .logo,
         .title,
-        .filler {
+        .filler,
+        .overflow {
             app-region: initial !important;
             cursor: unset !important;
         }
@@ -642,9 +643,11 @@ form {
                     }
 
                     &::before {
+                        app-region: no-drag;
                         content: '...';
                         cursor: pointer;
                         align-self: center;
+                        padding: 0 0.7em;
                     }
                 }
             }
@@ -702,8 +705,11 @@ form {
         .overflow {
             display: flex;
             align-items: center;
+            app-region: drag;
+            cursor: move;
 
             > * {
+                app-region: no-drag;
                 margin-top: 0.2em;
                 margin-bottom: 0.2em;
             }

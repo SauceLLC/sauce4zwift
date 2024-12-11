@@ -23,21 +23,33 @@ html {
     }
 }
 
-header {
-    flex-wrap: wrap;
+#titlebar {
+    max-height: 10em;
 
-    .count {
-        font-variant: tabular-nums;
-        font-weight: 600;
-        font-size: 0.7em;
-        margin: 0 0.6em;
-        color: #fffd;
-    }
+    header {
+        .overflow {
+            flex-wrap: wrap;
+        }
 
-    .buttons {
-        .std.button {
-            font-size: 0.65em;
-            padding: 0.2em 0.8em !important;
+        .filter,
+        .level,
+        .count {
+            display: flex;
+        }
+
+        .count {
+            font-variant: tabular-nums;
+            font-weight: 600;
+            font-size: 0.7em;
+            margin: 0 0.6em;
+            color: #fffd;
+        }
+
+        .buttons {
+            .std.button {
+                font-size: 0.65em;
+                padding: 0.2em 0.8em !important;
+            }
         }
     }
 }
