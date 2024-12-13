@@ -2,7 +2,7 @@ import process from 'node:process';
 import os from 'node:os';
 import path from 'node:path';
 import childProcess from 'node:child_process';
-import {EventEmitter} from 'node:events';
+import events from 'node:events';
 import fs from './fs-safe.js';
 import * as storage from './storage.mjs';
 import * as rpc from './rpc.mjs';
@@ -13,6 +13,7 @@ import * as app from './app.mjs';
 import * as logging from './logging.js';
 
 Error.stackTraceLimit = 25;
+events.defaultMaxListeners = 100;
 
 const isDEV = true;
 
@@ -133,7 +134,7 @@ async function main() {
     const sauceApp = new NodeSauceApp({appPath});
     sauceApp.rpcEventEmitters.set('logs', logEmitter);
     sauceApp.rpcEventEmitters.set('mods', mods.eventEmitter);
-    sauceApp.rpcEventEmitters.set('windows', new EventEmitter());
+    sauceApp.rpcEventEmitters.set('windows', new events.EventEmitter());
     rpc.register(() => logQueue, {name: 'getLogs'});
     rpc.register(() => logQueue.length = 0, {name: 'clearLogs'});
     rpc.register(() => () => console.warn("File logging disabled for headless mode"),

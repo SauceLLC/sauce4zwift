@@ -1,4 +1,5 @@
 import path from 'node:path';
+import events from 'node:events';
 import * as report from '../shared/report.mjs';
 import * as storage from './storage.mjs';
 import * as menu from './menu.mjs';
@@ -10,6 +11,8 @@ import * as windows from './windows.mjs';
 import * as mods from './mods.mjs';
 import {parseArgs} from './argparse.mjs';
 import * as app from './app.mjs';
+
+events.defaultMaxListeners = 100;
 
 const sauceScheme = 'sauce4zwift';
 const require = createRequire(import.meta.url);
