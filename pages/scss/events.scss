@@ -112,9 +112,10 @@ table {
             scroll-margin-top: 2.38em;  // roughly header height
 
             &.expanded {
+                --intersection-offset: 0px;
                 position: sticky;
                 z-index: 2;
-                top: -0.1em; // ~ -border-top
+                top: calc(-0.1em - var(--intersection-offset));
             }
 
             &.started {

@@ -20,6 +20,9 @@ const chartRefs = new Set();
 const allEvents = new Map();
 const allSubgroups = new Map();
 const contentEl = document.querySelector('#content');
+const ioTHack = Array.from(new Array(1000)).map((_, i) => i / 999);
+const headingsIntersectionObserver = new IntersectionObserver(onHeadingsIntersecting,
+                                                              {root: contentEl, threshold: ioTHack});
 
 
 const _fetchingRoutes = new Map();
@@ -116,6 +119,25 @@ function applyEventFilters(el) {
     }
     for (const x of el.querySelectorAll('table.events > tbody > tr.summary[data-event-id]')) {
         x.classList.toggle('hidden', hide.has(x.dataset.eventId));
+    }
+}
+
+
+function onHeadingsIntersecting(entries) {
+    // Only operate on latest (last) entry if we queued..
+    const it = entries[entries.length - 1];
+    if (it.intersectionRect.top > it.rootBounds.top) {
+        return;
+    }
+    const stickyEl = it.target.previousElementSibling;
+    const stickyHeight = stickyEl.getBoundingClientRect().height;
+    const offset = Math.max(0, stickyHeight - it.intersectionRect.height);
+    if (stickyEl._intersectionOffset !== offset) {
+        stickyEl._intersectionOffset = offset;
+        stickyEl.style.setProperty('--intersection-offset', `${offset}px`);
+        requestAnimationFrame(() => {
+            stickyEl.style.setProperty('--intersection-offset', `${offset}px`);
+        });
     }
 }
 
@@ -257,12 +279,14 @@ async function render() {
         eventBadge: common.eventBadge,
     });
     const cleanupCallbacks = new Set();
+    headingsIntersectionObserver.disconnect();
     common.initExpanderTable(frag.querySelector('table'), async (eventDetailsEl, eventSummaryEl) => {
         eventDetailsEl.innerHTML = '<h2><i>Loading...</i></h2>';
         const event = allEvents.get(Number(eventSummaryEl.dataset.eventId));
         const world = worldList.find(x =>
             event.mapId ? x.worldId === event.mapId : x.stringId === event.route.world);
         console.debug('Opening event:', event);
+        headingsIntersectionObserver.observe(eventDetailsEl.closest('tr'));
         eventDetailsEl.replaceChildren(await templates.eventsDetails({
             world: world ? world.name : '',
             event,
@@ -350,7 +374,8 @@ async function render() {
         }
         resizeCharts();
         eventSummaryEl.scrollIntoView({block: 'start'});
-    }, () => {
+    }, (el) => {
+        headingsIntersectionObserver.unobserve(el);
         const cleanups = Array.from(cleanupCallbacks);
         cleanupCallbacks.clear();
         for (const cb of cleanups) {
