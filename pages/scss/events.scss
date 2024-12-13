@@ -5,7 +5,7 @@
 html {
     font-size: 4.1mm;
 
-    @media (max-width: 768px)  {
+    @media (max-width: 768px) and (min-width: 375px) {
         font-size: 4.8mm;
     }
 }
@@ -33,7 +33,7 @@ html {
 #content {
     scroll-behavior: smooth;
     padding: 0;
-    overflow: hidden auto;
+    overflow: auto;
 }
 
 
@@ -46,6 +46,10 @@ html {
         top: 0;
         background-image: linear-gradient(to bottom, color.shade(bg, -10%), color.shade(bg, 0%));
     }
+}
+
+contents {
+    display: contents;
 }
 
 .trophy {
@@ -147,6 +151,7 @@ table {
 
             &.hidden {
                 display: none;
+
                 + tr {
                     display: none;
                 }
@@ -163,14 +168,19 @@ table {
                 font-stretch: 94%;
             }
 
+            // NOTE: the hacks below use pct which seems to be a pct of remaining available width
+            // It should be carefully balanced with the size of other non max-width-hacked cols.
             > td.name {
                 max-width: 0; // hack to enable container % width
                 width: 25%; // must be coupled with max-width:0
             }
-
             > td.route {
                 max-width: 0; // hack to enable container % width
                 width: 11%; // must be coupled with max-width:0
+            }
+            // end hack
+
+            > td.route {
                 font-weight: 310;
                 font-style: italic;
                 font-size: 0.92em;
@@ -199,23 +209,35 @@ table {
         text-align: left;
 
         &:first-child {
-            padding-left: 1.4em;
+            padding-left: 0.4em;
         }
         &:last-child {
-            padding-right: 1.4em;
+            padding-right: 0.4em;
         }
     }
 
     &.expandable {
+        > thead > tr > th,
+        > tbody > tr > td {
+            &:first-child {
+                padding-left: 0.88em;
+            }
+            &:last-child {
+                padding-right: 0.88em;
+            }
+        }
+
         > tbody > tr {
             &:nth-child(4n-1) {
                 background-color: color.shade(intrinsic-inverted, 0%, 0.1);
             }
 
-            &.summary > td {
-                white-space: nowrap;
-                text-overflow: ellipsis;
-                overflow: hidden;
+            &.summary {
+                > td {
+                    white-space: nowrap;
+                    text-overflow: ellipsis;
+                    overflow: hidden;
+                }
             }
 
             &.details .container {
@@ -262,6 +284,7 @@ table {
         .desc {
             white-space: pre-line;
             line-height: 1.4; // condense a bit
+            overflow-wrap: anywhere;
         }
 
         .tags {
@@ -276,7 +299,7 @@ table {
 
     .elevation-chart {
         font-size: 2.5em;
-        height: 2em;
+        height: 4rem;
         mix-blend-mode: luminosity;
     }
 
@@ -328,7 +351,6 @@ table {
 
             > header {
                 display: flex;
-                flex-wrap: wrap;
                 justify-content: space-between;
                 align-items: center;
                 background-image: linear-gradient(to bottom,
@@ -337,6 +359,14 @@ table {
                 border-radius: 0.28em;
                 padding: 1em;
                 color: color.get(intrinsic);
+
+                > *:not(:last-child) {
+                    margin-right: 0.5rem;
+                }
+
+                @container root-html (max-width: 768px)  {
+                    flex-wrap: wrap;
+                }
 
                 @container root-html (min-width: 768px)  {
                     // Make it overlay band style
@@ -370,6 +400,10 @@ table {
                             margin-right: 0.15em;
                         }
                     }
+                }
+
+                > :empty {
+                    display: none;
                 }
 
                 .badge {
@@ -431,27 +465,35 @@ table {
                 }
             }
 
-            &.results {
-                > thead th.time,
-                > thead th.distance {
-                    text-align: right;
+            > tbody > tr > td,
+            > thead > tr > th {
+                svg {
+                    width: 1.1em;
+                    opacity: 0.88;
+                    vertical-align: middle;
+                }
+            }
+
+            > tbody > tr.summary {
+                &.invalid {
+                    opacity: 0.7;
+                    font-weight: 200 !important;
                 }
 
-                td, th {
-                    svg {
-                        width: 1.1em;
-                        opacity: 0.88;
-                        vertical-align: middle;
+                > td {
+                    // NOTE: the hacks below use pct which seems to be a pct of remaining available width
+                    // It should be carefully balanced with the size of other non max-width-hacked cols.
+                    &.name {
+                        max-width: 0; // hack to enable container % width
+                        width: 40%; // must be coupled with max-width:0
                     }
-                }
-
-                > tbody > tr.summary {
-                    &.invalid {
-                        opacity: 0.7;
-                        font-weight: 200 !important;
+                    &.team {
+                        max-width: 0; // hack to enable container % width
+                        width: 20%; // must be coupled with max-width:0
                     }
+                    // end hack
 
-                    > td.racing-score {
+                    &.racing-score {
                         .positive,
                         .negative {
                             font-weight: 550;
@@ -468,20 +510,7 @@ table {
                         }
                     }
 
-                    > td.time,
-                    > td.distance {
-                        text-align: right;
-
-                        &.relative {
-                            font-size: 0.8em;
-                        }
-                    }
-
-                    > td.place {
-                        text-align: center;
-                    }
-
-                    > td.icons {
+                    &.icons {
                         color: inherit;
 
                         ms {
@@ -500,10 +529,45 @@ table {
                         }
                     }
 
-                    > td.power {
+                    &.power {
                         &[data-power-type="VIRTUAL_POWER"] {
                             text-decoration: line-through;
                             text-decoration-color: darkred;
+                        }
+                    }
+                }
+            }
+
+
+            &.signups {
+                > tbody > tr.summary {
+                    > td {
+                        &.name {
+                            text-align: left;
+                        }
+                    }
+                }
+            }
+
+            &.results {
+                > thead > tr > th.time,
+                > tbody > tr > td.time,
+                > thead > tr > th.distance,
+                > tbody > tr > td.distance {
+                    text-align: right;
+                }
+
+                > tbody > tr.summary {
+                    > td {
+                        &.time,
+                        &.distance {
+                            &.relative {
+                                font-size: 0.8em;
+                            }
+                        }
+
+                        &.place {
+                            text-align: center;
                         }
                     }
                 }
@@ -527,6 +591,12 @@ table {
                         color: color.get(danger);
                     }
                 }
+            }
+
+            td.team .badge {
+                max-width: 100%;
+                overflow: hidden;
+                text-overflow: ellipsis;
             }
 
             ms.in-game { }
@@ -640,8 +710,8 @@ table {
         }
 
         > tbody > tr {
-            --row-padding: 0.4rem;
-            --cell-padding: 0.2rem;
+            --row-padding: 0.5rem;
+            --cell-padding: 0.3rem;
             --safe-width: calc(100vw - var(--scrollbar-size) - 1px); // 1px cause i'm paranoid of overflow-x bars
             display: flex;
             flex-wrap: wrap;
@@ -668,6 +738,7 @@ table {
 
             &.summary {
                 padding: var(--row-padding) var(--cell-padding);
+
                 > td {
                     padding: 0 var(--cell-padding) !important;
                 }
@@ -701,13 +772,6 @@ table {
                         right: 0;
                         font-size: 1.1em;
                         padding: 0.4em;
-
-                        ms {
-                            // hand crafted to center outline...
-                            //padding: 0.09em 0.08em 0.03em 0.055em;
-                            //outline: 4px solid color-mix(in srgb, currentColor, transparent 70%);
-                            //border-radius: 2em;
-                        }
                     }
                 }
 
@@ -727,10 +791,50 @@ table {
 
                         &.summary > td {
                             --name-width: 70%;
+                            --row-padding: 0.7em;
+                            padding: var(--row-padding) var(--cell-padding);
+
+                            &:empty {
+                                padding: 0;
+                            }
+
+                            &.relative {
+                                font-size: 1em;
+                            }
+
+                            &[data-small-header] {
+                                position: relative;
+
+                                &::before {
+                                    position: absolute;
+                                    margin-top: -0.88em;
+                                    font-size: 0.6em;
+                                    font-weight: 600;
+                                    opacity: 0.7;
+                                    content: attr(data-small-header);
+                                }
+                            }
+
                             &.name,
                             &.team {
                                 padding-top: 0.5em;
                                 padding-bottom: 0;
+                                max-width: none;
+                            }
+
+                            &.place {
+                                order: -3;
+                                font-weight: 700;
+                                font-size: 1.2em;
+                                width: var(--place-width);
+                                margin-bottom: -0.4em;
+                                overflow: visible;
+                            }
+
+                            &.crit-power,
+                            &.hr,
+                            &.weight {
+                                font-size: 0.88em;
                             }
 
                             &.name {
@@ -740,20 +844,34 @@ table {
 
                             &.team {
                                 order: -1;
-                                width: calc(100% - var(--name-width));
+                                width: calc(100% - var(--name-width) - var(--place-width));
+                                text-align: right;
                             }
 
                             &.icon {
                                 width: auto;
-                                order: 10;
+                                order: 100;
+                            }
+                        }
+                    }
+
+                    &.signups {
+                        --place-width: 0rem;
+                    }
+
+                    &.results {
+                        --place-width: 3rem;
+
+                        > tbody > tr.summary > td {
+                            &.racing-score,
+                            &.time, // or distance
+                            &.distance, // or time
+                            &.power {
+                                width: 33.3%;
                             }
 
                             &.power {
-                                width: 6ch;
-                            }
-
-                            &.weight {
-                                flex: 1 0 auto;
+                                text-align: right;
                             }
                         }
                     }
