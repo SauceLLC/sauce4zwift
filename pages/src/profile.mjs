@@ -96,10 +96,13 @@ function handleInlineEdit(el, {athleteId, athlete}, rerender) {
 
 export async function render(el, tpl, tplData) {
     const athleteId = tplData.athleteId;
-    const rerender = async () => {
-        el.replaceChildren(...(await tpl(tplData)).children);
-    };
-    el.addEventListener('click', async ev => {
+    if (el._profileCleanup) {
+        el._profileCleanup();
+    }
+    el._profileCleanup = null;
+    el._profileListeners = [];
+    const rerender = async () => el.replaceChildren(...(await tpl(tplData)).children);
+    el._profileListeners.push([el, 'click', async ev => {
         const a = ev.target.closest('header a[data-action]');
         if (!a) {
             const editable = ev.target.closest('.inline-edit');
@@ -131,10 +134,10 @@ export async function render(el, tpl, tplData) {
             alert("Invalid command: " + a.dataset.action);
         }
         await rerender();
-    });
+    }]);
     let rsSparkline;
     let rsEl;
-    el.addEventListener('click', ev => {
+    el._profileListeners.push([el, 'click', ev => {
         const badgeEl = ev.target.closest('.racing-score-avatar-badge');
         if (!badgeEl || !tplData.athlete?.racingScoreIncompleteHistory?.length) {
             return;
@@ -161,12 +164,12 @@ export async function render(el, tpl, tplData) {
             onTooltip: o => `${H.date(o.ts)}: ${o.y.toFixed(1)}`,
         });
         rsSparkline.setData(history);
-    });
-    document.addEventListener('click', ev => {
+    }]);
+    el._profileListeners.push([document, 'click', ev => {
         if (rsEl && !ev.target.closest('.sparkline')) {
             rsEl.classList.remove('active');
         }
-    });
+    }]);
     let inGame;
     function setInGame(en) {
         if (en === inGame) {
@@ -192,9 +195,6 @@ export async function render(el, tpl, tplData) {
         liveEls.hr.innerHTML = H.number(state.heartrate, {suffix: 'bpm', html: true});
         liveEls.rideons.textContent = H.number(state.rideons);
         liveEls.kj.innerHTML = H.number(state.kj, {suffix: 'kJ', html: true});
-        if (tplData.debug) {
-            document.querySelector('.debug').textContent = JSON.stringify([state, tplData.athlete], null, 4);
-        }
     }
     async function getPlayerState() {
         if (!common.isVisible()) {
@@ -207,6 +207,14 @@ export async function render(el, tpl, tplData) {
             updatePlayerState(state);
         }
     }
+    for (const [node, event, handler] of el._profileListeners) {
+        node.addEventListener(event, handler);
+    }
+    const onAthleteData = data => {
+        setInGame(true);
+        updatePlayerState(data.state);
+    };
+    let cleaning = false;
     // Backup for not nearby or in game.
     const pollInterval = setInterval(async () => {
         const now = Date.now();
@@ -215,15 +223,24 @@ export async function render(el, tpl, tplData) {
         }
         await getPlayerState();
     }, 10000);
-    await rerender();
-    await getPlayerState();
-    const onAthleteData = data => {
-        setInGame(true);
-        updatePlayerState(data.state);
-    };
-    await common.subscribe(`athlete/${athleteId}`, onAthleteData);
-    return function cleanup() {
+    function cleanup() {
+        if (cleaning) {
+            return;
+        }
+        cleaning = true;
         clearInterval(pollInterval);
         common.unsubscribe(`athlete/${athleteId}`, onAthleteData);
-    };
+        for (const [node, event, handler] of el._profileListeners) {
+            node.removeEventListener(event, handler);
+        }
+        el._profileListeners.length = 0;
+        el._profileCleanup = null;
+    }
+    el._profileCleanup = cleanup;
+    await rerender();
+    if (!cleaning) {
+        await common.subscribe(`athlete/${athleteId}`, onAthleteData);
+        await getPlayerState();
+    }
+    return cleanup;
 }
