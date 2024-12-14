@@ -94,7 +94,7 @@ async function fillInEvents() {
 }
 
 
-function applyEventFilters(el) {
+async function applyEventFilters(el) {
     const hide = new Set();
     if (settings.filterType) {
         for (const x of allEvents.values()) {
@@ -104,16 +104,35 @@ function applyEventFilters(el) {
         }
     }
     if (filterText) {
-        let re;
-        try {
-            re = new RegExp(filterText, 'i');
-        } catch(e) {/*no-pragma*/}
-        for (const x of allEvents.values()) {
-            const text = `name:${x.name}\n` +
-                         `type:${x.eventType.replace(/_/g, ' ')}\n` +
-                         `description:${x.description}`;
-            if (re ? !text.match(re) : !text.toLowerCase().includes(filterText)) {
-                hide.add('' + x.id);
+        if (filterText.match(/^[0-9]{6,10}$/)) {
+            const id = parseInt(filterText);
+            for (const x of allEvents.keys()) {
+                hide.add('' + x);
+            }
+            if (!allEvents.has(id)) {
+                contentEl.classList.add('loading');
+                try {
+                    const event = await common.rpc.getEvent(id);
+                    allEvents.set(id, event);
+                    await fillInEvents();
+                    await render();
+                } finally {
+                    contentEl.classList.remove('loading');
+                }
+            }
+            hide.delete('' + id);
+        } else {
+            let re;
+            try {
+                re = new RegExp(filterText, 'i');
+            } catch(e) {/*no-pragma*/}
+            for (const x of allEvents.values()) {
+                const text = `name:${x.name}\n` +
+                             `type:${x.eventType.replace(/_/g, ' ')}\n` +
+                             `description:${x.description}`;
+                if (re ? !text.match(re) : !text.toLowerCase().includes(filterText)) {
+                    hide.add('' + x.id);
+                }
             }
         }
     }
@@ -350,7 +369,7 @@ async function render() {
                 let cleanup;
                 common.initExpanderTable(table, async (el, entrantSummaryEl) => {
                     const athleteId = Number(entrantSummaryEl.dataset.id);
-                    const athlete = await common.rpc.getAthlete(athleteId, {allowFetch: true});
+                    const athlete = await common.rpc.getAthlete(athleteId, {refresh: true});
                     console.info("Athlete:", athlete);
                     cleanup = await profileRender(el, templates.profile, {
                         embedded: true,

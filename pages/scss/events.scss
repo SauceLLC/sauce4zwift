@@ -34,6 +34,30 @@ html {
     scroll-behavior: smooth;
     padding: 0;
     overflow: auto;
+    transition: background 200ms;
+    position: relative;
+
+    &::after {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transition: opacity 200ms, visibility 200ms;
+        content: '';
+        position: absolute;
+        inset: 0;
+        background-color: color.shade(intrinsic, 0%, 0.8);
+        color: color.shade(intrinsic-inverted, 0%);
+        z-index: -1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    &.loading::after {
+        opacity: 1;
+        visibility: visible;
+        z-index: 100;
+    }
 }
 
 
@@ -206,7 +230,7 @@ table {
 
     > thead > tr > th,
     > tbody > tr > td {
-        padding: 0.4em 0.2em;;
+        padding: 0.4em 0.3em;;
         text-align: left;
 
         &:first-child {
@@ -217,7 +241,7 @@ table {
         }
     }
 
-    &.expandable {
+    &.events {
         > thead > tr > th,
         > tbody > tr > td {
             &:first-child {
@@ -227,7 +251,9 @@ table {
                 padding-right: 0.88em;
             }
         }
+    }
 
+    &.expandable {
         > tbody > tr {
             &:nth-child(4n-1) {
                 background-color: color.shade(intrinsic-inverted, 0%, 0.1);
@@ -394,6 +420,7 @@ table {
                         text-transform: uppercase;
                         font-weight: 600;
                         font-size: 0.74em;
+                        white-space: nowrap;
 
                         ms {
                             font-size: 1.2em;
@@ -640,7 +667,7 @@ table {
         }
 
         .meta {
-            padding: 1em;
+            padding: 0.4em;
             display: flex;
             flex-wrap: wrap;
             align-items: center;
@@ -705,7 +732,13 @@ table {
 }
 
 @container root-html (max-width: 768px)  {
+    .elevation-chart {
+        pointer-events: none;
+    }
+
     table.events {
+        table-layout: fixed;
+
         > thead:not(.loader) {
             display: none;
         }
@@ -777,6 +810,7 @@ table {
                 }
 
                 table.entrants {
+                    table-layout: fixed;
                     margin-top: 0;
 
                     > thead {
@@ -791,7 +825,7 @@ table {
                         padding: 0 0.4em;
 
                         &.summary > td {
-                            --name-width: 70%;
+                            --name-width: 55%;
                             --row-padding: 0.7em;
                             padding: var(--row-padding) var(--cell-padding);
 
@@ -832,12 +866,6 @@ table {
                                 overflow: visible;
                             }
 
-                            &.crit-power,
-                            &.hr,
-                            &.weight {
-                                font-size: 0.88em;
-                            }
-
                             &.name {
                                 order: -2;
                                 width: var(--name-width);
@@ -852,12 +880,30 @@ table {
                             &.icon {
                                 width: auto;
                                 order: 100;
+
+                                &:empty {
+                                    display: none;
+                                }
+                            }
+
+                            &.icons {
+                                order: 200;
                             }
                         }
                     }
 
                     &.signups {
                         --place-width: 0rem;
+
+                        > tbody > tr.summary > td {
+                            &.power {
+                                min-width: 6ch;
+                            }
+
+                            &.weight {
+                                flex: 1;
+                            }
+                        }
                     }
 
                     &.results {
@@ -874,6 +920,13 @@ table {
                             &.power {
                                 text-align: right;
                             }
+
+                            &.crit-power,
+                            &.hr,
+                            &.weight {
+                                font-size: 0.88em;
+                            }
+
                         }
                     }
                 }
