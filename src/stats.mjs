@@ -526,7 +526,6 @@ class ActivityReplay extends events.EventEmitter {
 export class StatsProcessor extends events.EventEmitter {
     constructor(options={}) {
         super();
-        this.setMaxListeners(100);
         this.zwiftAPI = options.zwiftAPI;
         this.gameMonitor = options.gameMonitor;
         this.exclusions = options.exclusions || new Set();
@@ -2443,7 +2442,7 @@ export class StatsProcessor extends events.EventEmitter {
             event.routeDistance = this._getRouteDistance(route, event.laps);
             event.routeClimbing = this._getRouteClimbing(route, event.laps);
         }
-        event.tags = event._tags.split(';');
+        event.tags = event._tags ? event._tags.split(';') : [];
         event.allTags = this._parseEventTags(event);
         event.ts = +new Date(event.eventStart);
         event.courseId = env.getCourseId(event.mapId);
