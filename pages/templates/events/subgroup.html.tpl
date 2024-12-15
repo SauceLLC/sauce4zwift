@@ -1,7 +1,7 @@
 <% if (obj.loading) { %>
     <tr><td><h2><i>Loading...</i></h2></td></tr>
 <% } else if (results && results.length) { %>
-    <% const critPowers = Object.keys(results[0].criticalP).map(k => [k, k.match(/criticalP([0-9]+)([A-Z][a-zA-Z]+)/)]).map(([k, m]) => [k, parseInt(m[1]) * (m[2].startsWith('Hour') ? 3600 : m[2].startsWith('Min') ? 60 : 1)]).sort((a, b) => a[1] - b[1]); %>
+    <% const critPowers = results[0].criticalP ? Object.keys(results[0].criticalP).map(k => [k, k.match(/criticalP([0-9]+)([A-Z][a-zA-Z]+)/)]).map(([k, m]) => [k, parseInt(m[1]) * (m[2].startsWith('Hour') ? 3600 : m[2].startsWith('Min') ? 60 : 1)]).sort((a, b) => a[1] - b[1]) : []; %>
     <thead>
         <tr>
             <th><!--place--></th>
