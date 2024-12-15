@@ -15,26 +15,10 @@
         "quotes": "off",
         "no-console": "off",
         "no-debugger": "off",
-        "linebreak-style": [
-            "error",
-            "unix"
-        ],
-        "semi": [
-            "warn",
-            "always"
-        ],
-        "no-unused-vars": [
-            "warn",
-            {
-                "args": "none"
-            }
-        ],
-        "no-constant-condition": [
-            "error",
-            {
-                "checkLoops": false
-            }
-        ],
+        "linebreak-style": ["error", "unix"],
+        "semi": ["warn", "always"],
+        "no-unused-vars": ["warn", {"args": "none"}],
+        "no-constant-condition": ["error", {"checkLoops": false }],
         "no-constant-binary-expression": "warn",
         "no-constructor-return": "error",
         "no-new-native-nonconstructor": "error",
