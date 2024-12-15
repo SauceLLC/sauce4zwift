@@ -6,7 +6,7 @@ html {
     font-size: 4.1mm;
 
     @media (max-width: 768px) and (min-width: 375px) {
-        font-size: 4.8mm;
+        font-size: 4.7mm;
     }
 }
 
@@ -844,6 +844,7 @@ table {
                         &.summary > td {
                             --name-width: 55%;
                             --row-padding: 0.7em;
+                            font-variant-numeric: normal;
                             padding: var(--row-padding) var(--cell-padding);
 
                             &:empty {
@@ -872,15 +873,6 @@ table {
                                 padding-top: 0.5em;
                                 padding-bottom: 0;
                                 max-width: none;
-                            }
-
-                            &.place {
-                                order: -3;
-                                font-weight: 700;
-                                font-size: 1.2em;
-                                width: var(--place-width);
-                                margin-bottom: -0.4em;
-                                overflow: visible;
                             }
 
                             &.name {
@@ -924,9 +916,19 @@ table {
                     }
 
                     &.results {
-                        --place-width: 3rem;
+                        --place-width: 2.6rem;
 
                         > tbody > tr.summary > td {
+                            &.place {
+                                order: -3;
+                                text-align: left;
+                                font-weight: 600;
+                                font-size: 1em;
+                                width: var(--place-width);
+                                margin-bottom: -0.4em;
+                                overflow: visible;
+                            }
+
                             &.racing-score,
                             &.time, // or distance
                             &.distance, // or time
@@ -941,9 +943,14 @@ table {
                             &.crit-power,
                             &.hr,
                             &.weight {
+                                min-width: 3ch;
                                 font-size: 0.88em;
                             }
 
+                            abbr.unit {
+                                font-stretch: 90%;
+                                font-size: 0.7em;
+                            }
                         }
                     }
                 }
