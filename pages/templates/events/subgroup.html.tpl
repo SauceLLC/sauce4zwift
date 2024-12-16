@@ -2,6 +2,7 @@
     <tr><td><h2><i>Loading...</i></h2></td></tr>
 <% } else if (results && results.length) { %>
     <% const critPowers = results[0].criticalP ? Object.keys(results[0].criticalP).map(k => [k, k.match(/criticalP([0-9]+)([A-Z][a-zA-Z]+)/)]).map(([k, m]) => [k, parseInt(m[1]) * (m[2].startsWith('Hour') ? 3600 : m[2].startsWith('Min') ? 60 : 1)]).sort((a, b) => a[1] - b[1]) : []; %>
+    <% const hasZRS = results.length > 1 && results.some(x => ['INCREASED', 'DECREASED', 'AT_FLOOR'].includes(x.scoreHistory?.scoreChangeType)); %>
     <thead>
         <tr>
             <th><!--place--></th>
@@ -70,17 +71,23 @@
                     {{x.athlete.sanitizedFullname}}
                 </td>
                 <td class="team"><% if (x.athlete.team) { %>{-teamBadge(x.athlete.team)-}<% } %></td>
-                <td class="racing-score" data-small-header="ZRS">
-                    <% if (x.scoreHistory) { %>
-                        {{humanNumber(x.scoreHistory.newScore)}}
-                        <% const delta = x.scoreHistory.newScore - x.scoreHistory.previousScore; %>
-                        <% if (delta > 0.5) { %>
-                            <sup class="delta {{delta > 0 ? 'positive' : 'negative'}}">+{{humanNumber(delta)}}</sup>
-                        <% } else if (delta < -0.5) { %>
-                            <sub class="delta {{delta > 0 ? 'positive' : 'negative'}}">{{humanNumber(delta)}}</sub>
+                <% if (hasZRS) { %>
+                    <td class="racing-score" data-small-header="ZRS">
+                        <% if (x.scoreHistory) { %>
+                            {{humanNumber(x.scoreHistory.newScore)}}
+                            <% const delta = x.scoreHistory.newScore - x.scoreHistory.previousScore; %>
+                            <% if (delta > 0.5) { %>
+                                <sup class="delta {{delta > 0 ? 'positive' : 'negative'}}">+{{humanNumber(delta)}}</sup>
+                            <% } else if (delta < -0.5) { %>
+                                <sub class="delta {{delta > 0 ? 'positive' : 'negative'}}">{{humanNumber(delta)}}</sub>
+                            <% } %>
+                        <% } else { %>
+                            -
                         <% } %>
-                    <% } %>
-                </td>
+                    </td>
+                <% } else { %>
+                    <td class="racing-score">-</td>
+                <% } %>
                 <% if (sg.durationInSeconds) { %>
                     <td class="distance" data-small-header="DIST">{-humanDistance(x.activityData.segmentDistanceInCentimeters / 100, {html: true, suffix: true})-}</td>
                 <% } else {  %>
