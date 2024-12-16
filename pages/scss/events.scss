@@ -683,6 +683,13 @@ table {
             width: 100%;
         }
 
+        .meta,
+        .elevation-chart {
+            // Fix for .desc flow breaking pointer events..
+            position: relative;
+            z-index: 1;
+        }
+
         .meta {
             padding: 0.4em;
             display: flex;
