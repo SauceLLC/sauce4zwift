@@ -404,7 +404,7 @@ export class ZwiftAPI {
             uri = `${scheme}://${host}/${urn.replace(/^\//, '')}`;
         }
         if (!options.silent) {
-            console.debug(`Fetch: ${options.method || 'GET'} ${uri}`);
+            console.debug(`Fetch: ${options.method || 'GET'} ${uri}${q}`);
         }
         const timeout = options.timeout !== undefined ? options.timeout : 30000;
         const r = await fetch(`${uri}${q}`, {
@@ -772,6 +772,10 @@ export class ZwiftAPI {
     }
 
     async getEventSubgroupEntrants(id, options={}) {
+        // WARNING: Yet another buggy event endpoint.
+        // When using participation=signed_up:
+        //   Many duplicates are returned during recent large events.
+        //   Paging is completely broken.
         const entrants = [];
         const limit = options.limit || 100;
         let start = (options.page != null) ? options.page * limit : 0;
@@ -781,7 +785,8 @@ export class ZwiftAPI {
         //   The companion app shows a value of 'entered' but this doesn't work.
         //   So this API will allow asking for {joined: true} as a yet-another-variant
         //   as a means of abstracting from the ambiguous other names.
-        do {
+        const ids = new Set();
+        const mergeFetchPageFrom = async start => {
             const data = await this.fetchJSON(`/api/events/subgroups/entrants/${id}`, {
                 query: {
                     type: options.type || 'all', // or 'leader', 'sweeper', 'favorite', 'following', 'other'
@@ -790,12 +795,30 @@ export class ZwiftAPI {
                     start,
                 }
             });
-            entrants.push(...data);
-            if (data.length < limit) {
+            for (const x of data) {
+                if (!ids.has(x.id)) {
+                    ids.add(x.id);
+                    entrants.push(x);
+                }
+            }
+            return data;
+        };
+        const overlappingHackGets = [];
+        do {
+            const page = await mergeFetchPageFrom(start);
+            if (!options.joined && (start || page.length === limit)) {
+                // XXX Hack: To get even close to the true signed_up list redundant pages must be fetched..
+                const step = 20;
+                for (let i = step; i < limit; i += step) {
+                    overlappingHackGets.push(mergeFetchPageFrom(start + i));
+                }
+            }
+            if (page.length < limit) {
                 break;
             }
-            start += data.length;
+            start += page.length;
         } while (options.page == null);
+        await Promise.all(overlappingHackGets);
         return entrants;
     }
 
