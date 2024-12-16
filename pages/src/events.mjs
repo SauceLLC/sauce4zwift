@@ -344,7 +344,8 @@ async function render() {
                     }
                     el.classList.toggle('signedup', !!sg.signedUp);
                     el.classList.toggle('can-signup', !event.signedUp);
-                    entrants = await common.rpc.getEventSubgroupEntrants(sg.id);
+                    const hasDupsEntrants = await common.rpc.getEventSubgroupEntrants(sg.id);
+                    entrants = Array.from((new Map(hasDupsEntrants.map(x => [x.id, x]))).values());
                     entrants.sort((a, b) =>
                         a.athlete?.lastName.toLowerCase() < b.athlete?.lastName.toLowerCase() ? -1 : 1);
                     entrants.sort((a, b) =>
