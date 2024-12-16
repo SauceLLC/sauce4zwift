@@ -530,11 +530,11 @@ table {
                     // It should be carefully balanced with the size of other non max-width-hacked cols.
                     &.name {
                         max-width: 0; // hack to enable container % width
-                        width: 40%; // must be coupled with max-width:0
+                        width: 30%; // must be coupled with max-width:0
                     }
                     &.team {
                         max-width: 0; // hack to enable container % width
-                        width: 20%; // must be coupled with max-width:0
+                        width: 10%; // must be coupled with max-width:0
                     }
                     // end hack
 
