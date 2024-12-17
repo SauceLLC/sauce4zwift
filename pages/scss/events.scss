@@ -403,6 +403,7 @@ table {
                 border-radius: 0.28em;
                 padding: 1em;
                 color: color.get(intrinsic);
+                font-size: 0.95em;
 
                 > *:not(:last-child) {
                     margin-right: 0.5rem;
@@ -458,7 +459,7 @@ table {
                 }
 
                 .name {
-                    font-weight: 600;
+                    font-weight: 500;
                 }
             }
         }

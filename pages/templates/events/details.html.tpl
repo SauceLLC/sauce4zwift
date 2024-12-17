@@ -47,12 +47,15 @@
                         <div class="label">
                             <div class="group">Group</div>
                             {-eventBadge(sg.subgroupLabel)-}
-                            <b class="only-results">Results</b>
                             <div class="std button danger signup-action only-signedup"
                                  data-action="unsignup"><ms>delete</ms>Leave</div>
                             <div class="std button primary signup-action only-can-signup"
                                  data-action="signup"><ms>add_box</ms>Sign up</div>
+                            <b class="only-results">Results</b>
                         </div>
+                        <% if (sg.rangeAccessLabel) { %>
+                            <div title="Zwift Racing Score range"><ms>sports_score</ms> {{sg.rangeAccessLabel}}</div>
+                        <% } %>
                         <label class="only-results" style="user-select: none; font-size:0.9em;">
                             <input oninput="this.closest('.event-subgroup').classList.toggle('wkg')"
                                    type="checkbox" name="wkg"/>
@@ -60,20 +63,21 @@
                         </label>
                         <div class="optional-1"></div>
                         <% if (sg.durationInSeconds) { %>
-                            <div>Duration: {-humanTimer(sg.durationInSeconds)-}</div>
+                            <div title="Duration"><ms>timer</ms> {-humanTimer(sg.durationInSeconds)-}</div>
                         <% } else { %>
-                            <div>Distance: {-humanDistance(sg.distanceInMeters || sg.routeDistance, {suffix: true, html: true})-}</div>
+                            <div title="Distance"><ms>distance</ms> {-humanDistance(sg.distanceInMeters || sg.routeDistance, {suffix: true, html: true})-}</div>
                         <% } %>
                         <% if (!event.sameRoute) { %>
                             <a href="/pages/geo.html?course={{event.courseId}}&route={{sg.routeId}}"
-                               target="event-route-preview">
+                               title="Route" target="event-route-preview">
+                                <ms>route</ms>
                                 <% if (sg.laps && sg.laps > 1) { %>
                                     {{sg.laps}} x
                                 <% } %>
-                                {{sg.route?.name}} <ms>route</ms>
+                                {{sg.route?.name}}
                             </a>
                         <% } %>
-                        <div>Athletes: <span class="field-size">{{humanNumber(sg.totalEntrantCount)}}<!--rough estimate--></span></div>
+                        <div title="Entrants"><ms>groups</ms> <span class="field-size">{{humanNumber(sg.totalEntrantCount)}}<!--rough estimate--></span></div>
                         <div class="name">{{sg.name}}</div>
                         <div class="expand-collapse">
                             <div class="button not-collapsed" data-action="collapse-subgroup"

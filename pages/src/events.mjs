@@ -334,23 +334,25 @@ async function render() {
                         fieldSize = results.length;
                         el.classList.add('results');
                         table.classList.add('results');
-                        console.info("Results:", sg.id, maybeResults);
+                        console.debug("Subgroup results:", sg.id, maybeResults);
                     }
                 }
                 if (!results) {
                     if (sg.startOffset) {
-                        el.querySelector('header .optional-1').innerHTML =
-                            `Starts: +${sauce.locale.human.duration(sg.startOffset / 1000)}`;
+                        const optEl = el.querySelector('header .optional-1');
+                        optEl.title = 'Start offset';
+                        optEl.innerHTML =
+                            `<ms>timelapse</ms> +${sauce.locale.human.duration(sg.startOffset / 1000)}`;
                     }
                     el.classList.toggle('signedup', !!sg.signedUp);
                     el.classList.toggle('can-signup', !event.signedUp);
-                    const hasDupsEntrants = await common.rpc.getEventSubgroupEntrants(sg.id);
-                    entrants = Array.from((new Map(hasDupsEntrants.map(x => [x.id, x]))).values());
+                    entrants = await common.rpc.getEventSubgroupEntrants(sg.id);
                     entrants.sort((a, b) =>
                         a.athlete?.lastName.toLowerCase() < b.athlete?.lastName.toLowerCase() ? -1 : 1);
                     entrants.sort((a, b) =>
                         !!b.athlete?.following - !!a.athlete?.following ||
                         !!b.athlete?.follower - !!a.athlete?.follower);
+                    console.debug("Subgroup entrants:", sg.id, entrants);
                     fieldSize = entrants.length;
                     el.classList.add('signups');
                     table.classList.add('signups');
@@ -371,7 +373,7 @@ async function render() {
                 common.initExpanderTable(table, async (el, entrantSummaryEl) => {
                     const athleteId = Number(entrantSummaryEl.dataset.id);
                     const athlete = await common.rpc.getAthlete(athleteId, {refresh: true});
-                    console.info("Athlete:", athlete);
+                    console.debug("Athlete:", athlete);
                     cleanup = await profileRender(el, templates.profile, {
                         embedded: true,
                         athleteId,
