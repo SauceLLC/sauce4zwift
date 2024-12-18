@@ -9,7 +9,7 @@
             <th><!--flags--></th>
             <th>Name</th>
             <th>Team</th>
-            <th>ZRS</th>
+            <th>{{hasZRS ? 'ZRS' : ''}}</th>
             <% if (sg.durationInSeconds) { %>
                 <th class="distance">Distance</th>
             <% } else { %>
@@ -86,7 +86,7 @@
                         <% } %>
                     </td>
                 <% } else { %>
-                    <td class="racing-score">-</td>
+                    <td class="racing-score"></td>
                 <% } %>
                 <% if (sg.durationInSeconds) { %>
                     <td class="distance" data-small-header="DIST">{-humanDistance(x.activityData.segmentDistanceInCentimeters / 100, {html: true, suffix: true})-}</td>
