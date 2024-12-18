@@ -115,6 +115,7 @@ realclean: clean
 	
 clean:
 	rm -f $(BUILD)
+	rm -rf pages/css
 	$(MAKE) -C shared/deps clean
 	$(MAKE) -C pages/deps clean
 
