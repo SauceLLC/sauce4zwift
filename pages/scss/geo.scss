@@ -18,7 +18,8 @@ html {
     }
 
     &.explore {
-        .map-controls {
+        .map-controls,
+        #content > .fields {
             display: none !important;
         }
     }
