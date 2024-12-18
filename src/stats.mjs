@@ -988,8 +988,14 @@ export class StatsProcessor extends events.EventEmitter {
                 }
             }
         }
+        // Unranked events or single result events will contain scoreHistory that represents
+        // non current values (probably floor values).  Look for scoreChangeType
+        // that are only found when scoreHistory represents actual values.
+        const validScoreChangeTypes = new Set(['INCREASED', 'DECREASED', 'AT_FLOOR']);
+        const zrsIsTrustWorthy = results.length > 1 &&
+            results.some(x => validScoreChangeTypes.has(x.scoreHistory?.scoreChangeType));
         for (const x of results) {
-            if (x.scoreHistory) {
+            if (zrsIsTrustWorthy) {
                 const endTime = new Date(x.activityData.endDate).getTime();
                 if (x.scoreHistory.previousScore) {
                     updates.set(x.profileId, this._updateAthlete(x.profileId, {
@@ -1514,6 +1520,10 @@ export class StatsProcessor extends events.EventEmitter {
                 ts: updates.racingScoreTS || athlete.updated,
             };
             const hist = athlete.racingScoreIncompleteHistory;
+            const replaceIdx = hist.findIndex(x => x.ts === entry.ts);
+            if (replaceIdx !== -1) {
+                hist.splice(replaceIdx, 1);
+            }
             hist.push(entry);
             hist.sort((a, b) => a.ts - b.ts);
             const idx = hist.indexOf(entry);
@@ -2010,6 +2020,7 @@ export class StatsProcessor extends events.EventEmitter {
                 timeline: [],
                 prevTimeline: null,
             },
+            recentEventSubgroupIds: [],
             collectors,
             laps: [],
             segments: [],
