@@ -2020,7 +2020,6 @@ export class StatsProcessor extends events.EventEmitter {
                 timeline: [],
                 prevTimeline: null,
             },
-            recentEventSubgroupIds: [],
             collectors,
             laps: [],
             segments: [],
