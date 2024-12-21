@@ -1388,6 +1388,7 @@ message EventTimeTrialOptions {
 
 // Match JSON...
 enum EventType {
+    FONDO = 0;
     RACE = 1;
     GROUP_RIDE = 2;
     GROUP_WORKOUT = 3;

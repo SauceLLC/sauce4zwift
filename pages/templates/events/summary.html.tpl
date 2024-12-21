@@ -14,7 +14,7 @@
             <ms title="Allows joining late">acute</ms>
         <% } %>
     </td>
-    <% const prettyType = event.eventType.replace(/_/g, ' ').replace(/GROUP WORKOUT/, 'WORKOUT') %>
+    <% const prettyType = (typeof event.eventType === 'string') ? event.eventType.replace(/_/g, ' ').replace(/GROUP WORKOUT/, 'WORKOUT') : event.eventType; %>
     <td class="type">
         <% if (event.sport === 'running') { %>
             {{prettyType.replace(/RIDE/, 'RUN')}}
