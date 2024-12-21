@@ -14,13 +14,10 @@
             <ms title="Allows joining late">acute</ms>
         <% } %>
     </td>
-    <% const prettyType = (typeof event.eventType === 'string') ? event.eventType.replace(/_/g, ' ').replace(/GROUP WORKOUT/, 'WORKOUT') : event.eventType; %>
     <td class="type">
+        {{event.prettyTypeShort}}
         <% if (event.sport === 'running') { %>
-            {{prettyType.replace(/RIDE/, 'RUN')}}
             <ms title="Run">directions_run</ms>
-        <% } else { %>
-            {{prettyType}}
         <% } %>
     </td>
     <td class="name" title="{{event.name}}">{{event.name}}</td>

@@ -2456,6 +2456,18 @@ export class StatsProcessor extends events.EventEmitter {
         event.allTags = this._parseEventTags(event);
         event.ts = +new Date(event.eventStart);
         event.courseId = env.getCourseId(event.mapId);
+        event.prettyType = {
+            EFONDO: 'Fondo',
+            RACE: 'Race',
+            GROUP_RIDE: 'Group',
+            GROUP_WORKOUT: 'Workout',
+            TIME_TRIAL: 'Time Trial',
+            TEAM_TIME_TRIAL: 'Team Time Trial',
+        }[event.eventType] || event.eventType;
+        event.prettyTypeShort = {
+            TIME_TRIAL: 'TT',
+            TEAM_TIME_TRIAL: 'TTT',
+        }[event.eventType] || event.prettyType;
         if (!this._recentEvents.has(event.id)) {
             const start = new Date(event.ts).toLocaleString();
             console.debug(`Event added [${event.id}] - ${start}:`, event.name);

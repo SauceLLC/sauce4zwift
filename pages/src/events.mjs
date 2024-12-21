@@ -127,9 +127,12 @@ async function applyEventFilters(el) {
                 re = new RegExp(filterText, 'i');
             } catch(e) {/*no-pragma*/}
             for (const x of allEvents.values()) {
-                const text = `name:${x.name}\n` +
-                             `type:${x.eventType.replace(/_/g, ' ')}\n` +
-                             `description:${x.description}`;
+                let text = `name:${x.name}\n` +
+                           `type:${x.prettyType}\n` +
+                           `description:${x.description}\n`;
+                if (x.route?.name) {
+                    text += `route:${x.route.name}\n`;
+                }
                 if (re ? !text.match(re) : !text.toLowerCase().includes(filterText)) {
                     hide.add('' + x.id);
                 }
