@@ -129,6 +129,7 @@
             <th class="icon"></th>
             <th class="name">Name</th>
             <th class="team">Team</th>
+            <th class="racing-score">ZRS</th>
             <th class="ftp">FTP</th>
             <th class="weight">Weight</th>
         </tr>
@@ -157,6 +158,13 @@
                 <% } %></td>
                 <td class="name">{-fmtFlag(athlete.countryCode, {empty: ''})-} {{athlete.sanitizedFullname}}</td>
                 <td class="team"><% if (athlete.team) { %>{-teamBadge(athlete.team)-}<% } %></td>
+                <td class="racing-score" data-small-header="ZRS">
+                    <% if (athlete.racingScore) { %>
+                        {{humanNumber(athlete.racingScore)}}
+                    <% } else { %>
+                        <a class="button" data-action="zrs-lookup"><ms>search</ms></a>
+                    <% } %>
+                </td>
                 <td class="power" data-small-header="FTP">{-humanPower(athlete.ftp || null, {suffix: true, html: true})-}</td>
                 <td class="weight" data-small-header="WEIGHT">{-humanWeightClass(athlete.weight, {suffix: true, html: true})-}</td>
             </tr>

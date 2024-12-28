@@ -248,6 +248,10 @@ export async function main() {
             } else if (action === 'collapse-subgroup' || action === 'expand-subgroup') {
                 const el = ev.target.closest('.event-subgroup');
                 el.classList.toggle('collapsed');
+            } else if (action === 'zrs-lookup') {
+                const athleteId = Number(button.closest('tr[data-id]').dataset.id);
+                const athlete = await common.rpc.getAthlete(athleteId, {refresh: true});
+                button.outerHTML = sauce.locale.human.number(athlete.racingScore);
             }
         } catch(e) {
             // XXX
