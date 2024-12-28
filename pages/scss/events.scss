@@ -131,7 +131,78 @@ table {
         }
     }
 
+    > thead > tr > th,
+    > tbody > tr > td {
+        padding: 0.4em 0.3em;;
+        text-align: left;
+
+        &:first-child {
+            padding-left: 0.4em;
+        }
+        &:last-child {
+            padding-right: 0.4em;
+        }
+    }
+
+    &.expandable {
+        > tbody > tr {
+            &:nth-child(4n-1) {
+                background-color: color.shade(intrinsic-inverted, 0%, 0.1);
+            }
+
+            &.summary {
+                > td {
+                    white-space: nowrap;
+                    text-overflow: ellipsis;
+                    overflow: hidden;
+                }
+            }
+
+            &.details .container {
+                background-color: color.shade(intrinsic-inverted, 0%, 0.1);
+                padding: 1.5em;
+                border-radius: 0.28em;
+                box-shadow: 1px 1px 5px #0003;
+
+                &:empty {
+                    min-height: 5em;
+
+                    &::after {
+                        font-size: 2em;
+                        content: 'Loading...'
+                    }
+                }
+            }
+
+            &.expanded,
+            &.expanded + tr.details {
+                background-color: color.shade(primary, 3%) !important;
+                color: color.shade(primary, 100%, $saturate: -100%) !important;
+            }
+
+            @container root-html (max-width: 768px)  {
+                &.details > td {
+                    padding: 0;
+
+                    .container {
+                        padding: 0.6em 0.5em;
+                    }
+                }
+            }
+        }
+    }
+
     &.events {
+        > thead > tr > th,
+        > tbody > tr > td {
+            &:first-child {
+                padding-left: 0.88rem;
+            }
+            &:last-child {
+                padding-right: 0.88rem;
+            }
+        }
+
         > tbody > tr {
             scroll-margin-top: 2.38em;  // roughly header height
 
@@ -241,79 +312,6 @@ table {
         font-size: 0.8em;
         opacity: 0.9;
         margin-left: 0.1em;
-    }
-
-    > thead > tr > th,
-    > tbody > tr > td {
-        padding: 0.4em 0.3em;;
-        text-align: left;
-
-        &:first-child {
-            padding-left: 0.4em;
-        }
-        &:last-child {
-            padding-right: 0.4em;
-        }
-    }
-
-    &.events {
-        > thead > tr > th,
-        > tbody > tr > td {
-            &:first-child {
-                padding-left: 0.88rem;
-            }
-            &:last-child {
-                padding-right: 0.88rem;
-            }
-        }
-    }
-
-    &.expandable {
-        > tbody > tr {
-            &:nth-child(4n-1) {
-                background-color: color.shade(intrinsic-inverted, 0%, 0.1);
-            }
-
-            &.summary {
-                > td {
-                    white-space: nowrap;
-                    text-overflow: ellipsis;
-                    overflow: hidden;
-                }
-            }
-
-            &.details .container {
-                background-color: color.shade(intrinsic-inverted, 0%, 0.1);
-                padding: 1.5em;
-                border-radius: 0.28em;
-                box-shadow: 1px 1px 5px #0003;
-
-                &:empty {
-                    min-height: 5em;
-
-                    &::after {
-                        font-size: 2em;
-                        content: 'Loading...'
-                    }
-                }
-            }
-
-            &.expanded,
-            &.expanded + tr.details {
-                background-color: color.shade(primary, 3%);
-                color: color.shade(primary, 100%, $saturate: -100%);
-            }
-
-            @container root-html (max-width: 768px)  {
-                &.details > td {
-                    padding: 0;
-
-                    .container {
-                        padding: 0.6em 0.5em;
-                    }
-                }
-            }
-        }
     }
 
     .event-info {
