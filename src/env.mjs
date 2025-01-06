@@ -11,6 +11,7 @@ export const worldMetas = {
     [realWorldCourseId]: {
         worldId: realWorldCourseId,
         courseId: realWorldCourseId,
+        name: 'Earth',
         lonOffset: 0,
         latOffset: 0,
         lonDegDist: 0.01,

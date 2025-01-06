@@ -622,7 +622,7 @@ export async function main() {
             'laps'
         ]),
         common.initNationFlags(),
-        common.getWorldList(),
+        common.getWorldList({all: true}),
         common.rpc.getPowerZones(1),
     ]);
     athleteData = _ad;

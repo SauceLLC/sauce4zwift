@@ -210,8 +210,7 @@ export function calcMagicPowerZonesGraphics(chart, zones, seriesId, ftp, options
             startPx = chart.convertToPixel({xAxisIndex}, data[x.start][0]);
         }
         const widthPx = chart.convertToPixel({xAxisIndex}, data[x.end][0]) - startPx;
-        if (widthPx < 0) {
-            debugger;
+        if (widthPx < 1) {
             continue;
         }
         const top = x.zone.to ? chart.convertToPixel({yAxisIndex}, x.zone.to * ftp * 0.95) : 0;
