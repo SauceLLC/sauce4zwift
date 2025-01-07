@@ -169,27 +169,20 @@ function setMagicZonesOptions({chart, graphic, hackId}) {
     chart.setOption({graphic}, {replaceMerge: 'graphic', silent: true});
     const chartEl = chart.getDom();
     const pathEl = chartEl.querySelector('path[fill="magic-zones"]');
-    if (!pathEl) {debugger;}
     if (!pathEl.id) {
-        console.warn("path el");
         pathEl.id = `path-hack-${hackId}`;
         pathEl.style.setProperty('fill', 'transparent');
     }
-
-    let clipEl = chartEl.querySelector(`clipPath#clip-hack-${hackId}`);
-    if (!clipEl) {
-        clipEl = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+    if (!chartEl.querySelector(`clipPath#clip-hack-${hackId}`)) {
+        const clipEl = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
         clipEl.id = `clip-hack-${hackId}`;
         const useEl = document.createElementNS('http://www.w3.org/2000/svg', 'use');
         useEl.setAttribute('href', `#${pathEl.id}`);
         clipEl.appendChild(useEl);
         chartEl.querySelector('defs').appendChild(clipEl);
-        console.warn("clip el", clipEl);
     }
-
     const groupClipEl = chartEl.querySelector('g:not(.hacked):has(> path[stroke="magic-zones-graphics"]');
     if (groupClipEl) {
-        console.warn("group clip el");
         groupClipEl.setAttribute('clip-path', `url(#clip-hack-${hackId})`);
         groupClipEl.classList.add('hacked');
     }
