@@ -42,7 +42,10 @@
         "no-var": "error",
         "no-unreachable": "warn",
         "no-warning-comments": "off",
-        "prefer-const": ["warn", {"destructuring": "all"}],
+        "prefer-const": ["warn", {
+            "destructuring": "all",
+            "ignoreReadBeforeAssign": true
+        }],
         "require-await": "warn",
         "func-call-spacing": "warn",
         "indent": ["warn", 4, {
