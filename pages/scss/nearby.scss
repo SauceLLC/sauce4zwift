@@ -113,14 +113,15 @@ table {
             pointer-events: none;
         }
 
-        &.marked {
-            background-image: linear-gradient(135deg, color.get(marked, 75%), color.shade(marked, -10%, 80%));
-            color: color.shade(marked, 100%);
-        }
 
         &.following {
             background-image: linear-gradient(135deg, color.get(following, 80%), color.shade(following, -10%, 80%));
             color: color.shade(following, 100%);
+        }
+
+        &.marked {
+            background-image: linear-gradient(135deg, color.get(marked, 75%), color.shade(marked, -10%, 80%));
+            color: color.shade(marked, 100%);
         }
 
         &.watching {
