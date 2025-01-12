@@ -448,6 +448,7 @@ enum ActivityPrivacyType {
     FRIENDS = 2;
 }
 
+// NOTE: JSON endpoints are uppercase..
 enum Sport {
     cycling = 0;
     running = 1;
@@ -930,7 +931,7 @@ enum POWERUP_TYPE {
     NINJA          = 6;
     STEAMROLLER    = 7;
     ANVIL          = 8;
-    POWERUP_CNT    = 9;
+    POWERUP_CNT    = 9; // XXX rename to COFFEE_STOP when mod devs are ready..
     POWERUP_NONE   = 15;
 }
 
@@ -1388,6 +1389,7 @@ message EventTimeTrialOptions {
 
 // Match JSON...
 enum EventType {
+    EFONDO = 0;
     RACE = 1;
     GROUP_RIDE = 2;
     GROUP_WORKOUT = 3;

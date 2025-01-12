@@ -17,7 +17,7 @@
             <key class="header"><ms>bolt</ms> Power:</key>
             <% if (settings.preferWkg && athlete?.weight) { %>
                 <value title="{{humanPower(power.avg, {suffix: true})}}"
-                    >{-humanWkg(power.avg / athlete?.weight, {suffix: true, fixed: true, html: true})-}</value>
+                    >{-humanWkg(power.avg / athlete?.weight, {suffix: true, html: true})-}</value>
             <% } else { %>
                 <value title="{{humanWkg(power.avg / athlete?.weight, {suffix: true, fixed: true})}}"
                     >{-humanPower(power.avg, {suffix: true, html: true})-}</value>
@@ -26,18 +26,18 @@
             <key><attr for="tp">NP®</attr>:</key>
             <% if (settings.preferWkg && athlete?.weight) { %>
                 <value title="{{humanPower(power.np, {suffix: true})}}"
-                    >{-humanWkg(power.np / athlete?.weight, {suffix: true, fixed: true, html: true})-}</value>
+                    >{-humanWkg(power.np / athlete?.weight, {suffix: true, html: true})-}</value>
             <% } else { %>
-                <value title="{{humanWkg(power.np / athlete?.weight, {suffix: true, fixed: true})}}"
+                <value title="{{humanWkg(power.np / athlete?.weight, {suffix: true})}}"
                     >{-humanPower(power.np, {suffix: true, html: true})-}</value>
             <% } %>
 
             <key>Max:</key>
             <% if (settings.preferWkg && athlete?.weight) { %>
                 <value title="{{humanPower(power.max, {suffix: true})}}"
-                    >{-humanWkg(power.max / athlete?.weight, {suffix: true, fixed: true, html: true})-}</value>
+                    >{-humanWkg(power.max / athlete?.weight, {suffix: true, html: true})-}</value>
             <% } else { %>
-                <value title="{{humanWkg(power.max / athlete?.weight, {suffix: true, fixed: true})}}"
+                <value title="{{humanWkg(power.max / athlete?.weight, {suffix: true})}}"
                     >{-humanPower(power.max, {suffix: true, html: true})-}</value>
             <% } %>
         </div>

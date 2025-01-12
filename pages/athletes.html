@@ -21,12 +21,11 @@
         </script>
     </head>
     <body>
-        <div id="titlebar" class="always-visible">
+        <div id="titlebar" tabindex="0" class="always-visible">
             <header>
                 <div class="logo"><img src="images/icon128.png"/></div>
                 <div class="title">Athletes</div>
-                <div class="filter"><input type="text" name="filter" placeholder="filter"></input></div>
-                <div class="filler"></div>
+                <div class="filter overflow"><input type="text" name="filter" placeholder="filter"></input></div>
                 <div class="buttons">
                     <div title="Search" class="button search">
                         <ms>search</ms>
@@ -43,16 +42,16 @@
             </header>
         </div>
         <div id="content">
-            <section class="following">
-                <header title="Click to collapse/expand">Following <ms class="expanded-only">expand_less</ms><ms class="compressed-only">expand_more</ms></header>
+            <section class="card-group following">
+                <header title="Click to collapse/expand">Following <ms class="expanded-only">compress</ms><ms class="compressed-only">expand</ms></header>
                 <div class="cards"></div>
             </section>
-            <section class="marked">
-                <header title="click to collapse/expand">Marked <ms class="expanded-only">expand_less</ms><ms class="compressed-only">expand_more</ms></header>
+            <section class="card-group marked">
+                <header title="click to collapse/expand">Marked <ms class="expanded-only">compress</ms><ms class="compressed-only">expand</ms></header>
                 <div class="cards"></div>
             </section>
-            <section class="followers">
-                <header title="click to collapse/expand">Followers <ms class="expanded-only">expand_less</ms><ms class="compressed-only">expand_more</ms></header>
+            <section class="card-group followers">
+                <header title="click to collapse/expand">Followers <ms class="expanded-only">compress</ms><ms class="compressed-only">expand</ms></header>
                 <div class="cards"></div>
             </section>
         </div>

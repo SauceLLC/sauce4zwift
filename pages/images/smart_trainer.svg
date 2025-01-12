@@ -1,0 +1,24 @@
+<svg
+   viewBox="0 0 500 500"
+   version="1.1"
+   xmlns="http://www.w3.org/2000/svg"
+   nostyle="width: 1000px; height: 1000px; border: 1px solid red; color:white; background: black;"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <g>
+    <path
+       style="stroke: color-mix(in srgb, currentColor, grey 10%);"
+       fill="none"
+       stroke-width="48"
+       stroke-linecap="round"
+       stroke-linejoin="round"
+       d="m 250,230 200,245 -380,0"/>
+    <circle
+       style="stroke: color-mix(in srgb, currentColor, grey 30%); fill: #fff5;"
+       stroke-width="30"
+       cx="250" cy="230" r="200"/>
+    <circle
+       style="fill: color-mix(in srgb, currentColor, grey 90%); stroke: color-mix(in srgb, currentColor, grey 10%);"
+       stroke-width="50"
+       cx="250" cy="230" r="80"/>
+  </g>
+</svg>

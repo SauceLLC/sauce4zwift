@@ -1,10 +1,65 @@
 @use 'color';
-@import 'profile_tpl';
-@import 'expandable-table';
+@import url(profile_tpl.css);
+@import url(expandable-table.css);
 
 html {
     font-size: 4.1mm;
+
+    @media (max-width: 768px) and (min-width: 375px) {
+        font-size: 4.7mm;
+    }
 }
+
+#titlebar {
+    header {
+        @container root-html (max-width: 375px) {
+            .overflow {
+                flex-wrap: wrap
+            }
+        }
+
+        .type,
+        .filter {
+            display: flex;
+            align-items: center;
+        }
+
+        .filter input {
+            width: 12ch;
+        }
+    }
+}
+
+#content {
+    scroll-behavior: smooth;
+    padding: 0;
+    overflow: auto;
+    transition: background 200ms;
+    position: relative;
+
+    &::after {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transition: opacity 200ms, visibility 200ms;
+        content: '';
+        position: absolute;
+        inset: 0;
+        background-color: color.shade(intrinsic, 0%, 0.8);
+        color: color.shade(intrinsic-inverted, 0%);
+        z-index: -1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    &.loading::after {
+        opacity: 1;
+        visibility: visible;
+        z-index: 100;
+    }
+}
+
 
 #content > table {
     user-select: text;
@@ -15,6 +70,10 @@ html {
         top: 0;
         background-image: linear-gradient(to bottom, color.shade(bg, -10%), color.shade(bg, 0%));
     }
+}
+
+contents {
+    display: contents;
 }
 
 .trophy {
@@ -44,7 +103,7 @@ table {
     border-collapse: collapse;
 
     thead:not(.loader) th {
-        font-variant: all-small-caps;
+        font-variant-caps: all-small-caps;
         font-weight: 500;
     }
 
@@ -55,7 +114,7 @@ table {
         transition: opacity 200ms;
         opacity: 0.7;
         cursor: pointer;
-        font-variant: all-small-caps;
+        font-variant-caps: all-small-caps;
 
         &.loading {
             pointer-events: none;
@@ -72,23 +131,117 @@ table {
         }
     }
 
+    > thead > tr > th,
+    > tbody > tr > td {
+        padding: 0.4em 0.3em;;
+        text-align: left;
+
+        &:first-child {
+            padding-left: 0.4em;
+        }
+        &:last-child {
+            padding-right: 0.4em;
+        }
+    }
+
+    &.expandable {
+        > tbody > tr {
+            &:nth-child(4n-1) {
+                background-color: color.shade(intrinsic-inverted, 0%, 0.1);
+            }
+
+            &.summary {
+                > td {
+                    white-space: nowrap;
+                    text-overflow: ellipsis;
+                    overflow: hidden;
+                }
+            }
+
+            &.details .container {
+                background-color: color.shade(intrinsic-inverted, 0%, 0.1);
+                padding: 1.5em;
+                border-radius: 0.28em;
+                box-shadow: 1px 1px 5px #0003;
+
+                &:empty {
+                    min-height: 5em;
+
+                    &::after {
+                        font-size: 2em;
+                        content: 'Loading...'
+                    }
+                }
+            }
+
+            &.expanded,
+            &.expanded + tr.details {
+                background-color: color.shade(primary, 3%) !important;
+                color: color.shade(primary, 100%, $saturate: -100%) !important;
+            }
+
+            @container root-html (max-width: 768px)  {
+                &.details > td {
+                    padding: 0;
+
+                    .container {
+                        padding: 0.6em 0.5em;
+                    }
+                }
+            }
+        }
+    }
+
     &.events {
+        > thead > tr > th,
+        > tbody > tr > td {
+            &:first-child {
+                padding-left: 0.88rem;
+            }
+            &:last-child {
+                padding-right: 0.88rem;
+            }
+        }
+
         > tbody > tr {
             scroll-margin-top: 2.38em;  // roughly header height
 
+            &.expanded {
+                --intersection-offset: 0px;
+                position: sticky;
+                z-index: 2;
+                top: calc(-0.1em - var(--intersection-offset));
+            }
+
             &.started {
-                > td {
-                    opacity: 0.6;
-                }
+                color: color.shade(fg, 20%, 0.9, $saturate: -50%);
 
                 &.joinable > td.start {
-                    opacity: 1;
                     color: #ffc500;
                 }
 
                 &:not(.joinable) {
                     > td.start {
-                        text-decoration: line-through;
+                        font-size: 0.92em;
+
+                        localized {
+                            position: relative;
+                            display: inline-block !important;
+
+                            &::before {
+                                color: #d338;
+                                --slash-size: 2px;
+                                content: '';
+                                position: absolute;
+                                inset: 0.4em -0.2em;
+                                background-image: linear-gradient(to top right,
+                                    transparent calc(50% - (var(--slash-size) / 2)),
+                                    currentColor calc(50% - (var(--slash-size) / 2)),
+                                    currentColor calc(50% + (var(--slash-size) / 2)),
+                                    transparent calc(50% + (var(--slash-size) / 2)));
+                                pointer-events: none;
+                            }
+                        }
                     }
 
                     + tr.details header .button.signup-action {
@@ -110,29 +263,36 @@ table {
 
             &.hidden {
                 display: none;
+
                 + tr {
                     display: none;
                 }
             }
 
             > td.start {
-                font-size: 0.92em;
                 font-stretch: 94%;
             }
 
             > td.type {
-                font-size: 0.86em;
-                font-weight: 500;
-                font-stretch: 94%;
+                font-size: 0.82em;
+                font-weight: 550;
+                font-stretch: 92%;
             }
 
+            // NOTE: the hacks below use pct which seems to be a pct of remaining available width
+            // It should be carefully balanced with the size of other non max-width-hacked cols.
             > td.name {
-                max-width: 28vw;
+                max-width: 0; // hack to enable container % width
+                width: 25%; // must be coupled with max-width:0
             }
+            > td.route {
+                max-width: 0; // hack to enable container % width
+                width: 11%; // must be coupled with max-width:0
+            }
+            // end hack
 
             > td.route {
-                max-width: 11vw;
-                font-weight: 310;
+                font-weight: 350;
                 font-style: italic;
                 font-size: 0.92em;
                 font-stretch: 91%;
@@ -149,57 +309,9 @@ table {
     }
 
     abbr.unit {
-        font-size: 0.9em;
+        font-size: 0.8em;
         opacity: 0.9;
         margin-left: 0.1em;
-        font-variant: all-small-caps;
-    }
-
-    > thead > tr > th,
-    > tbody > tr > td {
-        padding: 0.4em 0.2em;;
-        text-align: left;
-
-        &:first-child {
-            padding-left: 1.4em;
-        }
-        &:last-child {
-            padding-right: 1.4em;
-        }
-    }
-
-    &.expandable {
-        > tbody > tr {
-            &.summary > td {
-                white-space: nowrap;
-                text-overflow: ellipsis;
-                overflow: hidden;
-            }
-
-            &.details .container {
-                background-color: color.shade(intrinsic-inverted, 0%, 0.1);
-                padding: 1.5em;
-                border-radius: 0.28em;
-                box-shadow: 1px 1px 5px #0003;
-                max-height: 80vh;
-                overflow: auto;
-
-                &:empty {
-                    min-height: 5em;
-
-                    &::after {
-                        font-size: 2em;
-                        content: 'Loading...'
-                    }
-                }
-            }
-
-            &.expanded,
-            &.expanded + tr.details {
-                background-color: color.shade(primary, 3%, 0.8);
-                color: color.shade(primary, 100%);
-            }
-        }
     }
 
     .event-info {
@@ -210,8 +322,11 @@ table {
         }
 
         .desc {
+            font-size: 0.9em;
+            opacity: 0.9;
             white-space: pre-line;
             line-height: 1.4; // condense a bit
+            overflow-wrap: anywhere;
         }
 
         .tags {
@@ -226,36 +341,58 @@ table {
 
     .elevation-chart {
         font-size: 2.5em;
-        height: 2em;
+        height: 4rem;
         mix-blend-mode: luminosity;
     }
 
     .subgroups {
-        padding-top: 1em;
+        padding-top: 0.5em;
 
         .event-subgroup {
-            margin: 1em 0 2em;
+            display: flex;
+            flex-direction: column;
+            margin: 0.5em 0 2em;
             padding: 1em;
             background: #0300001f;
             border-radius: 0.3em;
+            font-variant-numeric: tabular-nums;
+
+            &.collapsed {
+                padding: 0;
+                margin-top: 0;
+                margin-bottom: 0;
+
+                > header {
+                    font-size: 0.8em;
+                }
+
+                > .entrants-wrap {
+                    display: none;
+                }
+            }
 
             &:not(.results) .only-results,
             &:not(.signups) .only-signups,
             &:not(.loading) .only-loading,
             &:not(.can-signup) .only-can-signup,
-            &:not(.signedup) .only-signedup {
+            &:not(.signedup) .only-signedup,
+            &:not(.wkg) .only-wkg,
+            &:not(.collapsed) .only-collapsed {
+                display: none;
+            }
+            &.wkg .not-wkg,
+            &.collapsed .not-collapsed {
                 display: none;
             }
 
             &:not(.signups) {
-                header .button.signup-action {
+                > header .button.signup-action {
                     display: none;
                 }
             }
 
-            header {
+            > header {
                 display: flex;
-                flex-wrap: wrap;
                 justify-content: space-between;
                 align-items: center;
                 background-image: linear-gradient(to bottom,
@@ -264,8 +401,17 @@ table {
                 border-radius: 0.28em;
                 padding: 1em;
                 color: color.get(intrinsic);
+                font-size: 0.95em;
 
-                @media (min-width: 768px)  {
+                > *:not(:last-child) {
+                    margin-right: 0.5rem;
+                }
+
+                @container root-html (max-width: 768px)  {
+                    flex-wrap: wrap;
+                }
+
+                @container root-html (min-width: 768px)  {
                     // Make it overlay band style
                     margin: 0 -1.5em;
                     padding: 1em 1.25em;
@@ -290,6 +436,7 @@ table {
                         text-transform: uppercase;
                         font-weight: 600;
                         font-size: 0.74em;
+                        white-space: nowrap;
 
                         ms {
                             font-size: 1.2em;
@@ -299,6 +446,10 @@ table {
                     }
                 }
 
+                > :empty {
+                    display: none;
+                }
+
                 .badge {
                     font-size: 1.065em;
                     margin-right: 0.35em;
@@ -306,11 +457,7 @@ table {
                 }
 
                 .name {
-                    font-weight: 600;
-
-                    @media (min-width: 600px)  {
-                        max-width: 40vw;
-                    }
+                    font-weight: 500;
                 }
             }
         }
@@ -319,7 +466,7 @@ table {
             background-image: linear-gradient(to top, color.get(intrinsic-inverted, 0.5), transparent);
         }
 
-        .elevation-chart + table.entrants {
+        .elevation-chart + .entrants-wrap > table.entrants {
             margin-top: 0;
         }
 
@@ -362,33 +509,54 @@ table {
                 }
             }
 
-            &.results {
-                > thead th.time,
-                > thead th.distance {
-                    text-align: right;
+            > tbody > tr > td,
+            > thead > tr > th {
+                svg {
+                    width: 1.1em;
+                    opacity: 0.88;
+                    vertical-align: middle;
+                }
+            }
+
+            > tbody > tr.summary {
+                &.invalid {
+                    opacity: 0.7;
+                    font-weight: 200 !important;
                 }
 
-                > tbody > tr.summary {
-                    &.invalid {
-                        opacity: 0.7;
-                        font-weight: 200 !important;
+                > td {
+                    // NOTE: the hacks below use pct which seems to be a pct of remaining available width
+                    // It should be carefully balanced with the size of other non max-width-hacked cols.
+                    &.name {
+                        max-width: 0; // hack to enable container % width
+                        width: 30%; // must be coupled with max-width:0
                     }
+                    &.team {
+                        max-width: 0; // hack to enable container % width
+                        width: 10%; // must be coupled with max-width:0
+                    }
+                    // end hack
 
-                    > td.time,
-                    > td.distance {
-                        text-align: right;
-                        font-variant-numeric: tabular-nums;
+                    &.racing-score {
+                        .positive,
+                        .negative {
+                            font-weight: 550;
+                            font-size: 0.76em;
+                            // surprisingly this prefix is supported on all browsers
+                            -webkit-text-stroke-width: 0.02em;
+                        }
 
-                        &.relative {
-                            font-size: 0.8em;
+                        .positive {
+                            -webkit-text-stroke-color: color.get(positive);
+                        }
+                        .negative {
+                            -webkit-text-stroke-color: color.get(negative);
                         }
                     }
 
-                    > td.place {
-                        text-align: center;
-                    }
+                    &.icons {
+                        color: inherit;
 
-                    > td.icons {
                         ms {
                             font-size: 1.3em;
                             font-weight: 600;
@@ -405,10 +573,45 @@ table {
                         }
                     }
 
-                    > td.power {
+                    &.power {
                         &[data-power-type="VIRTUAL_POWER"] {
                             text-decoration: line-through;
                             text-decoration-color: darkred;
+                        }
+                    }
+                }
+            }
+
+
+            &.signups {
+                > tbody > tr.summary {
+                    > td {
+                        &.name {
+                            text-align: left;
+                        }
+                    }
+                }
+            }
+
+            &.results {
+                > thead > tr > th.time,
+                > tbody > tr > td.time,
+                > thead > tr > th.distance,
+                > tbody > tr > td.distance {
+                    text-align: right;
+                }
+
+                > tbody > tr.summary {
+                    > td {
+                        &.time,
+                        &.distance {
+                            &.relative {
+                                font-size: 0.8em;
+                            }
+                        }
+
+                        &.place {
+                            text-align: center;
                         }
                     }
                 }
@@ -434,11 +637,21 @@ table {
                 }
             }
 
+            td.team .badge {
+                max-width: 100%;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
             ms.in-game { }
             ms.power { color: gold; }
             ms.female { color: #eb09eb; }
             ms.following { color: color.get(following); }
             ms.marked { color: color.get(marked); }
+
+            ms svg {
+                height: 1em;
+            }
 
             .details {
                 > td {
@@ -469,8 +682,15 @@ table {
             width: 100%;
         }
 
+        .meta,
+        .elevation-chart {
+            // Fix for .desc flow breaking pointer events..
+            position: relative;
+            z-index: 1;
+        }
+
         .meta {
-            padding: 1em;
+            padding: 0.4em;
             display: flex;
             flex-wrap: wrap;
             align-items: center;
@@ -495,20 +715,9 @@ table {
     }
 }
 
-#titlebar {
-    position: initial !important;
-}
-
-#content {
-    scroll-behavior: smooth;
-    padding: 0;
-    overflow: auto;
-}
-
 .details .container .profile {
     .avatar {
-        font-size: 0.6em;
-        flex-basis: 240px;
+        flex-basis: 190px;
     }
 
     header.title {
@@ -522,6 +731,7 @@ table {
             border-radius: 0.28em;
             overflow: hidden;
             background-color: color.shade(intrinsic-inverted, 5%, 0.7);
+            color: color.get(intrinsic);
 
             > a {
                 height: 1.65em;
@@ -544,136 +754,211 @@ table {
     }
 }
 
-@media only screen and (max-width: 768px)  {
-    html, body {
-        font-size: 3.7mm;
+@container root-html (max-width: 768px)  {
+    .elevation-chart {
+        pointer-events: none;
     }
 
-    table {
-        width: 100%;
+    table.events {
+        table-layout: fixed;
 
-        > thead > tr > th,
-        > tbody > tr > td {
-            &:first-child {
-                padding-left: 0.5em;
-            }
-
-            &:last-child {
-                padding-right: 0.5em;
-            }
+        > thead:not(.loader) {
+            display: none;
         }
 
-        td[colspan] {
-            padding-top: 0 !important;
-            padding-left: 0;
-            padding-right: 0;
+        > tbody > tr {
+            --row-padding: 0.5rem;
+            --cell-padding: 0.3rem;
+            --safe-width: calc(100vw - var(--scrollbar-size) - 1px); // 1px cause i'm paranoid of overflow-x bars
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            width: var(--safe-width);
 
-            > .container {
-                padding: 0.4em !important;
+            > td {
+                display: block; // Better than flex since we have a lot of raw text nodes
+                max-width: 100%;
 
-                .event-subgroup {
-                    padding: 0.4em !important;
+                &.name {
+                    max-width: none;
+                    width: calc(var(--safe-width) - (var(--cell-padding) * 2 + var(--row-padding) * 2));
+                }
+                &.route {
+                    max-width: none;
+                    width: calc(0.5 * var(--safe-width) - (var(--cell-padding) * 2 + var(--row-padding) * 2));
+                }
+                &.groups {
+                    width: calc(0.5 * var(--safe-width) - (var(--cell-padding) * 2 + var(--row-padding) * 2));
                 }
             }
-        }
 
-        &.events {
-            > thead > tr > {
-                th.start,
-                th.name,
-                th.route {
-                    visibility: hidden !important;
-                    position: absolute !important;
-                    width: 0 !important;
-                    padding: 0 !important;
-                    margin: 0 !important;
-                }
-            }
+            &.summary {
+                padding: var(--row-padding) var(--cell-padding);
 
-            > tbody > tr.event-row {
-                $start-width: 10rem;
-                $side-pad: 0.3rem;
-                position: relative;
-
-                &.expanded > td.name {
-                    padding-top: 0.2em;
-                }
-
-                > td.type {
-                    padding-left: $side-pad;
-                    max-width: max(10vw, 12ch);
-                }
-
-                > td.start,
-                > td.name {
-                    max-width: initial;
-                    position: absolute;
-                    top: 0.4rem;
-                    font-weight: 500;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    white-space: nowrap;
-                    padding: 0;
-                }
-
-                > td.start {
-                    right: $side-pad;
-                    width: $start-width;
-                    text-align: right;
-                }
-                > td.name {
-                    left: $side-pad;
-                    width: calc(100% - (2 * $side-pad) - $start-width);
-                }
-                > td.route {
-                    visibility: none;
-                    position: absolute;
-                    margin: 0 !important;
-                    padding: 0 !important;
-                    width: 0 !important;
-                }
-
-                > td:not(.name):not(.route):not(.start) {
-                    padding-top: 2.4rem;
-                    padding-bottom: 0.4rem;
-                }
-
-                > td.count {
-                    text-align: right;
+                > td {
+                    padding: 0 var(--cell-padding) !important;
                 }
             }
         }
 
-        .subgroups .event-subgroup header .name {
-            padding: 0.7em 0.2em 0;
-        }
+        .subgroups {
+            .event-subgroup {
+                padding: 0;
 
-        &.entrants {
-            > thead > tr {
-                display: none;
-            }
+                > header {
+                    padding-left: 0.5em;
+                    padding-right: 0.5em;
+                    padding-bottom: 0.5em;
+                    position: relative;
 
-            > tbody > tr.summary {
-                position: relative;
+                    .label {
+                        width: 100%;
+                        padding-bottom: 0.3em;
+                    }
 
-                > td.icon {
-                    width: 1.8ch !important;
+                    .name {
+                        padding-top: 0.1em;
+                        width: 100%;
+                        max-width: 100%;
+                    }
+
+                    .expand-collapse {
+                        position: absolute;
+                        top: 0;
+                        right: 0;
+                        font-size: 1.1em;
+                        padding: 0.4em;
+                    }
                 }
 
-                > td.weight {
-                    width: 10ch;
-                }
+                table.entrants {
+                    table-layout: fixed;
+                    margin-top: 0;
 
-                > td.name {
-                    position: absolute;
-                    top: 0;
-                    left: 0;
-                    width: 100%;
-                    padding-left: 0.3em;
-                }
+                    > thead {
+                        display: none;
+                    }
 
-                > td:not(.name) {
-                    padding-top: 2em !important;
+                    > tbody > tr {
+                        display: flex;
+                        flex-wrap: wrap;
+                        align-items: center;
+                        justify-content: space-between;
+                        padding: 0 0.4em;
+
+                        &.summary > td {
+                            --name-width: 55%;
+                            --row-padding: 0.7em;
+                            font-variant-numeric: normal;
+                            padding: var(--row-padding) var(--cell-padding);
+
+                            &:empty {
+                                padding: 0;
+                            }
+
+                            &.relative {
+                                font-size: 1em;
+                            }
+
+                            &[data-small-header] {
+                                position: relative;
+
+                                &::before {
+                                    position: absolute;
+                                    margin-top: -0.88em;
+                                    font-size: 0.6em;
+                                    font-weight: 600;
+                                    opacity: 0.7;
+                                    content: attr(data-small-header);
+                                }
+                            }
+
+                            &.name,
+                            &.team {
+                                padding-top: 0.5em;
+                                padding-bottom: 0;
+                                max-width: none;
+                            }
+
+                            &.name {
+                                order: -2;
+                                width: var(--name-width);
+                            }
+
+                            &.team {
+                                order: -1;
+                                width: calc(100% - var(--name-width) - var(--place-width));
+                                text-align: right;
+                            }
+
+                            &.icon {
+                                width: auto;
+                                order: 100;
+
+                                &:empty {
+                                    display: none;
+                                }
+                            }
+
+                            &.icons {
+                                order: 200;
+                            }
+                        }
+                    }
+
+                    &.signups {
+                        --place-width: 0rem;
+
+                        > tbody > tr.summary > td {
+                            &.power {
+                                min-width: 6ch;
+                            }
+
+                            &.weight {
+                                flex: 1;
+                            }
+                        }
+                    }
+
+                    &.results {
+                        --place-width: 2.6rem;
+
+                        > tbody > tr.summary > td {
+                            &.place {
+                                order: -3;
+                                text-align: left;
+                                font-weight: 600;
+                                font-size: 1em;
+                                width: var(--place-width);
+                                margin-bottom: -0.4em;
+                                overflow: visible;
+                            }
+
+                            &.racing-score,
+                            &.time, // or distance
+                            &.distance, // or time
+                            &.power {
+                                width: 33.3%;
+                            }
+
+                            &.power {
+                                text-align: right;
+                            }
+
+                            &.crit-power,
+                            &.hr,
+                            &.weight {
+                                min-width: 3ch;
+                                font-size: 0.88em;
+                            }
+
+                            abbr.unit {
+                                font-stretch: 90%;
+                                font-size: 0.7em;
+                            }
+                        }
+                    }
                 }
             }
         }

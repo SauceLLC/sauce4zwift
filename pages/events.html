@@ -21,23 +21,24 @@
         </script>
     </head>
     <body>
-        <div id="titlebar" class="always-visible">
+        <div id="titlebar" tabindex="0" class="always-visible">
             <header>
                 <div class="logo"><img src="images/icon128.png"/></div>
                 <div class="title">Events</div>
-                <div class="type">
-                    <select name="type">
-                        <option value="">All</option>
-                        <option value="GROUP_RIDE">Group Ride</option>
-                        <option value="GROUP_WORKOUT">Workout</option>
-                        <option value="RACE">Race</option>
-                        <option value="FONDO">Fondo</option>
-                        <option value="TIME_TRIAL">Time Trial</option>
-                        <option value="TEAM_TIME_TRIAL">Team Time Trial</option>
-                    </select>
+                <div class="overflow">
+                    <div class="type">
+                        <select name="type">
+                            <option value="">All</option>
+                            <option value="GROUP_RIDE">Group</option>
+                            <option value="GROUP_WORKOUT">Workout</option>
+                            <option value="RACE">Race</option>
+                            <option value="EFONDO">Fondo</option>
+                            <option value="TIME_TRIAL">Time Trial</option>
+                            <option value="TEAM_TIME_TRIAL">Team Time Trial</option>
+                        </select>
+                    </div>
+                    <div class="filter"><input type="text" name="filter" placeholder="Filter or ID" /></div>
                 </div>
-                <div class="filter"><input type="text" name="filter" placeholder="filter" /></div>
-                <div class="filler"></div>
                 <div class="buttons">
                     <a class="button open-settings" href="events-settings.html?width=400&height=400&child-window"
                        title="Open settings window" target="events-settings"><ms>settings</ms></a>

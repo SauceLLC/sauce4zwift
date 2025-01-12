@@ -43,7 +43,11 @@
                     <key data-added="2023-03-31">Horizontal mode:</key>
                     <input type="checkbox" name="horizMode"/>
                 </label>
-                <label>
+                <label class="indent">
+                    <key data-added="2024-12-04">Left-to-Right:</key>
+                    <input data-depends-on="horizMode" type="checkbox" name="horizLTR"/>
+                </label>
+                <label class="indent">
                     <key data-added="2023-03-31">Label angle:</key>
                     <input type="range" name="labelAngle" min="0" max="90" value="50" step="1"
                            data-depends-on="horizMode"/>

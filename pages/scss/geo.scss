@@ -1,6 +1,6 @@
 @use 'color';
-@import 'map';
-@import 'elevation';
+@import url(map.css);
+@import url(elevation.css);
 
 html {
     font-size: 18px;
@@ -18,7 +18,8 @@ html {
     }
 
     &.explore {
-        .map-controls {
+        .map-controls,
+        #content > .fields {
             display: none !important;
         }
     }

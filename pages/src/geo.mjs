@@ -370,6 +370,8 @@ export async function main() {
             settingsSaveTimeout = setTimeout(() => common.settingsStore.set(null, settings), 100);
         });
         await initialize();
+        fieldRenderer.setData({});
+        fieldRenderer.render();
         common.subscribe('watching-athlete-change', async athleteId => {
             if (!inGame) {
                 await initialize();

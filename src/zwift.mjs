@@ -281,6 +281,8 @@ export function processPlayerStateMessage(msg) {
             Math.round(msg._cadenceUHz / 1e6 * 60) : 0,  // rpm
         eventDistance: msg._eventDistance / 100,  // meters
         roadCompletion: flags1.reverse ? 1e6 - adjRoadLoc : adjRoadLoc,
+        // XXX Migrate to just 'COFFEE_STOP' when we roll out that change..
+        coffeeStop: flags2.activePowerUp === 'POWERUP_CNT' || msg.activePowerUp === 'COFFEE_STOP',
     };
 }
 
@@ -402,7 +404,7 @@ export class ZwiftAPI {
             uri = `${scheme}://${host}/${urn.replace(/^\//, '')}`;
         }
         if (!options.silent) {
-            console.debug(`Fetch: ${options.method || 'GET'} ${uri}`);
+            console.debug(`Fetch: ${options.method || 'GET'} ${uri}${q}`);
         }
         const timeout = options.timeout !== undefined ? options.timeout : 30000;
         const r = await fetch(`${uri}${q}`, {
@@ -530,9 +532,6 @@ export class ZwiftAPI {
                 POWER_METER: 'Power Meter',
                 SMART_TRAINER: 'Smart Trainer',
             }[x.powerType];
-            x.socialFacts = x.socialFacts || {
-                followerStatusOfLoggedInPlayer: x.followerStatusOfLoggedInPlayer,
-            };
             delete x.followerStatusOfLoggedInPlayer;
             return x;
         });
@@ -773,6 +772,10 @@ export class ZwiftAPI {
     }
 
     async getEventSubgroupEntrants(id, options={}) {
+        // WARNING: Yet another buggy event endpoint.
+        // When using participation=signed_up:
+        //   Many duplicates are returned during recent large events.
+        //   Paging is completely broken.
         const entrants = [];
         const limit = options.limit || 100;
         let start = (options.page != null) ? options.page * limit : 0;
@@ -782,7 +785,8 @@ export class ZwiftAPI {
         //   The companion app shows a value of 'entered' but this doesn't work.
         //   So this API will allow asking for {joined: true} as a yet-another-variant
         //   as a means of abstracting from the ambiguous other names.
-        do {
+        const ids = new Set();
+        const mergeFetchPageFrom = async start => {
             const data = await this.fetchJSON(`/api/events/subgroups/entrants/${id}`, {
                 query: {
                     type: options.type || 'all', // or 'leader', 'sweeper', 'favorite', 'following', 'other'
@@ -791,12 +795,30 @@ export class ZwiftAPI {
                     start,
                 }
             });
-            entrants.push(...data);
-            if (data.length < limit) {
+            for (const x of data) {
+                if (!ids.has(x.id)) {
+                    ids.add(x.id);
+                    entrants.push(x);
+                }
+            }
+            return data;
+        };
+        const overlappingHackGets = [];
+        do {
+            const page = await mergeFetchPageFrom(start);
+            if (!options.joined && (start || page.length === limit)) {
+                // XXX Hack: To get even close to the true signed_up list redundant pages must be fetched..
+                const step = 20;
+                for (let i = step; i < limit; i += step) {
+                    overlappingHackGets.push(mergeFetchPageFrom(start + i));
+                }
+            }
+            if (page.length < limit) {
                 break;
             }
-            start += data.length;
+            start += page.length;
         } while (options.page == null);
+        await Promise.all(overlappingHackGets);
         return entrants;
     }
 
@@ -1504,6 +1526,10 @@ export class GameMonitor extends events.EventEmitter {
         console.error("XXX", await resp.text());
     }
 
+    async getTCPConfig() {
+        return await this.api.fetchPB('/relay/tcp-config', {protobuf: 'TCPConfig'});
+    }
+
     async getRandomAthleteId(courseId) {
         const worlds = (await this.api.getDropInWorldList()).filter(x =>
             typeof courseId !== 'number' || x.courseId === courseId);
@@ -1634,6 +1660,7 @@ export class GameMonitor extends events.EventEmitter {
         }
         console.info("Refreshing Zwift relay session...");
         const relaySessionId = this._session.relayId;
+        // XXX I've seen the real client trying /relay/sessin/renew as well
         const resp = await this.api.fetchPB('/relay/session/refresh', {
             method: 'POST',
             pb: protos.RelaySessionRefreshRequest.encode({relaySessionId}),
@@ -1872,13 +1899,20 @@ export class GameMonitor extends events.EventEmitter {
         }
         const id = this._refreshStatesTimeout;
         try {
-            await this._refreshGameState();
+            const age = await this._refreshGameState();
             if (this.gameAthleteId !== this.watchingAthleteId) {
                 await this._refreshWatchingState();
             }
-            this._stateRefreshDelay = Math.max(this._stateRefreshDelayMin, this._stateRefreshDelay * 0.999);
+            if (age > 15000) {
+                // Stop harassing relay servers and relax state fetch...
+                this.suspend();
+                this._stateRefreshDelay = Math.min(this._stateRefreshDelay * 1.02, 30000);
+            } else {
+                this._stateRefreshDelay = Math.max(this._stateRefreshDelay * 0.99,
+                                                   this._stateRefreshDelayMin);
+            }
         } catch(e) {
-            this._stateRefreshDelay *= 1.15;
+            this._stateRefreshDelay = Math.min(this._stateRefreshDelay * 1.15, 300000);
             if (e.status !== 429) {
                 if (e.name === 'FetchError') {
                     console.warn("Refresh states network problem:", e.message);
@@ -1898,7 +1932,7 @@ export class GameMonitor extends events.EventEmitter {
         const age = Date.now() - this._lastGameStateUpdated;
         if (age < this._stateRefreshDelay * 0.95) {
             // Optimized out by data stream
-            return;
+            return age;
         }
         const state = this.gameAthleteId != null ? await this.api.getPlayerState(this.gameAthleteId) : null;
         if (!state) {
@@ -1910,9 +1944,6 @@ export class GameMonitor extends events.EventEmitter {
                 } else {
                     console.info("Switching to new random athlete:", this.gameAthleteId);
                 }
-            } else if (age > 15 * 1000) {
-                // Stop harassing the UDP channel..
-                this.suspend();
             }
         } else {
             // The stats proc works better with these being recently available.
@@ -1922,6 +1953,7 @@ export class GameMonitor extends events.EventEmitter {
                 this._updateWatchingState(state);
             }
         }
+        return Date.now() - this._lastGameStateUpdated;
     }
 
     async _refreshWatchingState() {

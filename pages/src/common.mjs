@@ -160,6 +160,9 @@ function b64urlEncode(data) {
 
 
 if (window.isElectron) {
+    // Probably already set by src/preload/common.js but not always for non widget pages..
+    doc.classList.add('electron-mode');
+    doc.classList.toggle('frame', !!electron.context.frame);
     windowID = electron.context.id;
     const subs = [];
     const pendingPorts = new Map();
@@ -229,13 +232,6 @@ if (window.isElectron) {
             throw makeRPCError(env.error);
         }
     };
-    doc.addEventListener('click', async ev => {
-        const link = ev.target.closest('a[external][href]');
-        if (link) {
-            ev.preventDefault();
-            await rpcCall('openExternalLink', link.href);
-        }
-    });
     let storageFlushTimeout;
     schedStorageFlush = () => {
         clearTimeout(storageFlushTimeout);
@@ -435,11 +431,12 @@ export function longPressListener(el, timeout, callback) {
 
 
 let _worldList;
-export async function getWorldList() {
+export async function getWorldList({all}={}) {
     if (!_worldList) {
         _worldList = rpcCall('getWorldMetas');
     }
-    return await _worldList;
+    const data = await _worldList;
+    return all ? data : data.filter(x => x.courseId > 0);
 }
 
 
@@ -686,22 +683,37 @@ export function initInteractionListeners() {
             }
         }
     }
-    const close = document.querySelector('#titlebar .button.close');
-    if (close) {
-        close.addEventListener('click', ev => rpcCall('closeWindow'));
-    }
-    const minimize = document.querySelector('#titlebar .button.minimize');
-    if (minimize) {
-        minimize.addEventListener('click', ev => rpcCall('minimizeWindow'));
-    }
-    const maximize = document.querySelector('#titlebar .button.maximize');
-    if (maximize) {
-        maximize.addEventListener('click', ev => rpcCall('toggleMaximizeWindow'));
+    const titleBar = document.querySelector('#titlebar');
+    if (titleBar) {
+        titleBar.addEventListener('pointerdown', ev => {
+            if (ev.target.closest('a,[href],.button,.btn,button')) {
+                // Prevent focus state..
+                // On small windows focus is used for overflow/underflow layout.
+                // Don't trigger it if we detect an action (i.e. button or link clicked).
+                ev.preventDefault();
+            }
+        });
+        titleBar.addEventListener('click', ev => {
+            const btn = ev.target.closest('.button');
+            if (btn) {
+                if (btn.classList.contains('close')) {
+                    rpcCall('closeWindow');
+                } else if (btn.classList.contains('minimize')) {
+                    rpcCall('minimizeWindow');
+                }
+            }
+        });
     }
     for (const el of document.querySelectorAll('.button[data-url]')) {
+        // XXX I think I can remove these, but just check first...
+        console.error("DEPRECATED");
+        debugger;
         el.addEventListener('click', ev => location.assign(el.dataset.url));
     }
     for (const el of document.querySelectorAll('.button[data-ext-url]')) {
+        // XXX I think I can remove these, but just check first...
+        console.error("DEPRECATED");
+        debugger;
         el.addEventListener('click', ev =>
             window.open(el.dataset.extUrl, '_blank', 'popup,width=999,height=333'));
     }
@@ -1427,7 +1439,7 @@ let _nations, _flags;
 export function fmtFlag(code, {empty='-'}={}) {
     if (code && _flags && _flags[code]) {
         const nation = sanitizeAttr(_nations[code]);
-        return `<img class="nation-flag" src="${_flags[code]}" title="${nation}"/>`;
+        return `<img class="nation-flag" src="${_flags[code]}" title="${nation || ''}"/>`;
     } else {
         return empty;
     }

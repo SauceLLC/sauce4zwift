@@ -6,7 +6,7 @@ import * as mime from './mime.mjs';
 import expressWebSocketPatch from 'express-ws';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import fs from 'node:fs';
+import fs from './fs-safe.js';
 import http from 'node:http';
 import https from 'node:https';
 
@@ -224,7 +224,7 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
     }
     function getAthleteLapsHandler(res, id) {
         id = id === 'self' ? sp.athleteId : id === 'watching' ? sp.watching : Number(id);
-        const data = sp.getAthleteLaps(id);
+        const data = sp.getAthleteLaps(id, {active: true});
         data ? res.json(data) : res.status(404).json(null);
     }
     function getAthleteSegmentsHandler(res, id) {
@@ -321,7 +321,8 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
     });
     api.post('/rpc/v1/:name', async (req, res) => {
         try {
-            if (req.headers['content-type'] !== 'application/json') {
+            const ct = req.headers['content-type'];
+            if (!ct || ct.split(';')[0] !== 'application/json') {
                 res.status(400);
                 res.send(rpc.errorReply(new TypeError('Expected content-type header of application/json')));
                 return;

@@ -26,8 +26,19 @@ html {
         --label-angle: 50;
         font-size: clamp(2.2mm, 8vh, var(--aspect-ratio) * 8vw);
 
+        &.horizontal-ltr {
+            #container {
+                flex-direction: row;
+            }
+        }
+
+        &:not(.horizontal-ltr) {
+            #container {
+                flex-direction: row-reverse;
+            }
+        }
+
         #container {
-            flex-direction: row-reverse;
             padding-left: calc((90 - var(--label-angle)) / 90 * 5em);
         }
     }
@@ -286,19 +297,20 @@ html.horizontal #meta {
     }
 
     &.watching {
+        --bubble-size: 0.22rem;
+
         .bubble {
             background: radial-gradient(#0af, #09ea, #333a);
             color: white;
         }
 
         &.pack-position .bubble::before {
-            $size: 0.22rem;
             transition: top 200ms linear;
-            top: calc(var(--pack-position) * (100% - $size));
+            top: calc(var(--pack-position) * (100% - var(--bubble-size)));
             content: "";
             position: absolute;
             width: 100%;
-            height: $size;
+            height: var(--bubble-size);
             background-color: #9999;
             mix-blend-mode: color-burn;
         }
@@ -396,6 +408,25 @@ html.horizontal #meta {
     }
 }
 
+html.horizontal {
+    .position.watching.pack-position .bubble::before {
+        height: 100%;
+        width: var(--bubble-size);
+        top: unset;
+    }
+
+    &:not(.horizontal-ltr) {
+        .position.watching.pack-position .bubble::before {
+            right: calc(var(--pack-position) * (100% - var(--bubble-size)));
+        }
+    }
+    &.horizontal-ltr {
+        .position.watching.pack-position .bubble::before {
+            left: calc(var(--pack-position) * (100% - var(--bubble-size)));
+        }
+    }
+}
+
 html:not(.horizontal) .position {
     width: 100%;
 }
@@ -449,6 +480,10 @@ html.horizontal .zoom-out {
 
         .bubble {
             background: radial-gradient(#025, #027);
+
+            &::before {
+                content: none !important; // Disable pack position indicator
+            }
         }
     }
 }
@@ -533,33 +568,66 @@ html {
             }
         }
     }
-    &.horizontal .position .desc {
-        max-width: 40vh;
+    &.horizontal {
+        .position .desc {
+            max-width: 40vh;
+        }
 
-        &.left {
-            right: 75%;
-            bottom: 95%;
-            transform: rotate(calc(var(--label-angle) * 1deg)) translateY(50%);
-            transform-origin: right bottom;
+        &:not(.horizontal-ltr) {
+            .position .desc.left {
+                right: 75%;
+                bottom: 95%;
+                transform: rotate(calc(var(--label-angle) * 1deg)) translateY(50%);
+                transform-origin: right bottom;
 
-            .lines {
-                align-items: flex-end;
-                flex-direction: column-reverse;
+                .lines {
+                    align-items: flex-end;
+                    flex-direction: column-reverse;
 
-                .badge {
-                    margin-top: 0;
-                    margin-bottom: 0.2em;
+                    .badge {
+                        margin-top: 0;
+                        margin-bottom: 0.2em;
+                    }
+                }
+            }
+            .position .desc.right {
+                right: 75%;
+                top: 95%;
+                transform: rotate(calc(var(--label-angle) * -1deg)) translateY(-50%);
+                transform-origin: right top;
+
+                .lines {
+                    align-items: flex-end;
                 }
             }
         }
-        &.right {
-            right: 75%;
-            top: 95%;
-            transform: rotate(calc(var(--label-angle) * -1deg)) translateY(-50%);
-            transform-origin: right top;
 
-            .lines {
-                align-items: flex-end;
+        &.horizontal-ltr {
+            .position .desc.left {
+                left: 75%;
+                bottom: 95%;
+                transform: rotate(calc(var(--label-angle) * -1deg)) translateY(50%);
+                transform-origin: left bottom;
+
+                .lines {
+                    align-items: flex-end;
+                    flex-direction: column-reverse;
+
+                    .badge {
+                        margin-top: 0;
+                        margin-bottom: 0.2em;
+                    }
+                }
+            }
+            .position .desc.right {
+                left: 75%;
+                top: 95%;
+                transform: rotate(calc(var(--label-angle) * 1deg)) translateY(-50%);
+                transform-origin: left top;
+
+                .lines {
+                    align-items: flex-end;
+                }
             }
         }
     }
@@ -573,9 +641,18 @@ html:not(.horizontal) {
     }
 }
 html.horizontal {
-    .position .desc.right:not(.empty)::after,
-    .position .desc.left:not(.empty)::after {
-        content: '⋯';
+    &:not(.horizontal-ltr) {
+        .position .desc.right:not(.empty)::after,
+        .position .desc.left:not(.empty)::after {
+            content: '⋯';
+        }
+    }
+
+    &.horizontal-ltr {
+        .position .desc.right:not(.empty)::before,
+        .position .desc.left:not(.empty)::before {
+            content: '⋯';
+        }
     }
 }
 
@@ -625,6 +702,44 @@ html {
         }
     }
     &.horizontal {
+        &:not(.horizontal-ltr) {
+            #content:not(.zoomed) .gap {
+                .desc {
+                    bottom: 0.6em;
+                    right: calc(50% - 0.5em);
+                    transform: rotate(calc(var(--label-angle) * 1deg)) translateY(50%);
+                    transform-origin: right bottom;
+
+                    &:not(.empty)::after {
+                        content: '⋯';
+                    }
+
+                    .lines {
+                        flex-direction: column-reverse;
+                    }
+                }
+            }
+        }
+
+        &.horizontal-ltr {
+            #content:not(.zoomed) .gap {
+                .desc {
+                    bottom: 0.6em;
+                    left: 50%;
+                    transform: rotate(calc(var(--label-angle) * -1deg)) translateY(50%);
+                    transform-origin: left bottom;
+
+                    &:not(.empty)::before {
+                        content: '⋯';
+                    }
+
+                    .lines {
+                        flex-direction: column;
+                    }
+                }
+            }
+        }
+
         .gap {
             border-top-style: solid;
             border-top-width: $border-width;
@@ -635,7 +750,6 @@ html {
 
                 .lines {
                     align-items: center;
-                    flex-direction: column-reverse;
 
                     .line {
                         text-overflow: clip;
@@ -658,17 +772,6 @@ html {
         }
         #content:not(.zoomed) .gap {
             container: horiz-group-gap / inline-size;
-
-            .desc {
-                bottom: 0.6em;
-                right: calc(50% - 0.5em);
-                transform: rotate(calc(var(--label-angle) * 1deg)) translateY(50%);
-                transform-origin: right bottom;
-
-                &:not(.empty)::after {
-                    content: '⋯';
-                }
-            }
         }
     }
 }

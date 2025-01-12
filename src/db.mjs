@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+import fs from './fs-safe.js';
 import process from 'node:process';
 import Database from 'better-sqlite3';
 
@@ -31,7 +31,7 @@ export function deleteDatabase(name) {
         databases.delete(name);
     }
     console.warn(`Deleting DB:`, name);
-    fs.rmSync(name, {force: true, maxRetries: 5});
+    fs.rmSync(name, {force: true});
 }
 
 

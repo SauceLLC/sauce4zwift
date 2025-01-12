@@ -20,6 +20,9 @@ const chartRefs = new Set();
 const allEvents = new Map();
 const allSubgroups = new Map();
 const contentEl = document.querySelector('#content');
+const ioTHack = Array.from(new Array(1000)).map((_, i) => i / 999);
+const headingsIntersectionObserver = new IntersectionObserver(onHeadingsIntersecting,
+                                                              {root: contentEl, threshold: ioTHack});
 
 
 const _fetchingRoutes = new Map();
@@ -66,6 +69,8 @@ async function fillInEvents() {
         const durations = [event.durationInSeconds];
         const distances = [event.distanceInMeters || event.routeDistance];
         if (event.eventSubgroups) {
+            event.eventSubgroups.sort((a, b) =>
+                a.subgroupLabel === b.subgroupLabel ? 0 : a.subgroupLabel < b.subgroupLabel ? -1 : 1);
             event.sameRoute = (new Set(event.eventSubgroups.map(sg =>
                 JSON.stringify([
                     sg.laps,
@@ -89,7 +94,7 @@ async function fillInEvents() {
 }
 
 
-function applyEventFilters(el) {
+async function applyEventFilters(el) {
     const hide = new Set();
     if (settings.filterType) {
         for (const x of allEvents.values()) {
@@ -99,21 +104,62 @@ function applyEventFilters(el) {
         }
     }
     if (filterText) {
-        let re;
-        try {
-            re = new RegExp(filterText, 'i');
-        } catch(e) {/*no-pragma*/}
-        for (const x of allEvents.values()) {
-            const text = `name:${x.name}\n` +
-                         `type:${x.eventType.replace(/_/g, ' ')}\n` +
-                         `description:${x.description}`;
-            if (re ? !text.match(re) : !text.toLowerCase().includes(filterText)) {
-                hide.add('' + x.id);
+        if (filterText.match(/^[0-9]{6,10}$/)) {
+            const id = parseInt(filterText);
+            for (const x of allEvents.keys()) {
+                hide.add('' + x);
+            }
+            if (!allEvents.has(id)) {
+                contentEl.classList.add('loading');
+                try {
+                    const event = await common.rpc.getEvent(id);
+                    allEvents.set(id, event);
+                    await fillInEvents();
+                    await render();
+                } finally {
+                    contentEl.classList.remove('loading');
+                }
+            }
+            hide.delete('' + id);
+        } else {
+            let re;
+            try {
+                re = new RegExp(filterText, 'i');
+            } catch(e) {/*no-pragma*/}
+            for (const x of allEvents.values()) {
+                let text = `name:${x.name}\n` +
+                           `type:${x.prettyType}\n` +
+                           `description:${x.description}\n`;
+                if (x.route?.name) {
+                    text += `route:${x.route.name}\n`;
+                }
+                if (re ? !text.match(re) : !text.toLowerCase().includes(filterText)) {
+                    hide.add('' + x.id);
+                }
             }
         }
     }
     for (const x of el.querySelectorAll('table.events > tbody > tr.summary[data-event-id]')) {
         x.classList.toggle('hidden', hide.has(x.dataset.eventId));
+    }
+}
+
+
+function onHeadingsIntersecting(entries) {
+    // Only operate on latest (last) entry if we queued..
+    const it = entries[entries.length - 1];
+    if (it.intersectionRect.top > it.rootBounds.top) {
+        return;
+    }
+    const stickyEl = it.target.previousElementSibling;
+    const stickyHeight = stickyEl.getBoundingClientRect().height;
+    const offset = Math.max(0, stickyHeight - it.intersectionRect.height);
+    if (stickyEl._intersectionOffset !== offset) {
+        stickyEl._intersectionOffset = offset;
+        stickyEl.style.setProperty('--intersection-offset', `${offset}px`);
+        requestAnimationFrame(() => {
+            stickyEl.style.setProperty('--intersection-offset', `${offset}px`);
+        });
     }
 }
 
@@ -199,6 +245,13 @@ export async function main() {
                     el.classList.remove('signedup');
                     el.closest('tr.details').previousElementSibling.classList.remove('signedup');
                 }
+            } else if (action === 'collapse-subgroup' || action === 'expand-subgroup') {
+                const el = ev.target.closest('.event-subgroup');
+                el.classList.toggle('collapsed');
+            } else if (action === 'zrs-lookup') {
+                const athleteId = Number(button.closest('tr[data-id]').dataset.id);
+                const athlete = await common.rpc.getAthlete(athleteId, {refresh: true});
+                button.outerHTML = sauce.locale.human.number(athlete.racingScore);
             }
         } catch(e) {
             // XXX
@@ -252,12 +305,14 @@ async function render() {
         eventBadge: common.eventBadge,
     });
     const cleanupCallbacks = new Set();
+    headingsIntersectionObserver.disconnect();
     common.initExpanderTable(frag.querySelector('table'), async (eventDetailsEl, eventSummaryEl) => {
         eventDetailsEl.innerHTML = '<h2><i>Loading...</i></h2>';
         const event = allEvents.get(Number(eventSummaryEl.dataset.eventId));
         const world = worldList.find(x =>
             event.mapId ? x.worldId === event.mapId : x.stringId === event.route.world);
         console.debug('Opening event:', event);
+        headingsIntersectionObserver.observe(eventDetailsEl.closest('tr'));
         eventDetailsEl.replaceChildren(await templates.eventsDetails({
             world: world ? world.name : '',
             event,
@@ -286,16 +341,25 @@ async function render() {
                         fieldSize = results.length;
                         el.classList.add('results');
                         table.classList.add('results');
+                        console.debug("Subgroup results:", sg.id, maybeResults);
                     }
                 }
                 if (!results) {
                     if (sg.startOffset) {
-                        el.querySelector('header .optional-1').innerHTML =
-                            `Starts: +${sauce.locale.human.duration(sg.startOffset / 1000)}`;
+                        const optEl = el.querySelector('header .optional-1');
+                        optEl.title = 'Start offset';
+                        optEl.innerHTML =
+                            `<ms>timelapse</ms> +${sauce.locale.human.duration(sg.startOffset / 1000)}`;
                     }
                     el.classList.toggle('signedup', !!sg.signedUp);
                     el.classList.toggle('can-signup', !event.signedUp);
                     entrants = await common.rpc.getEventSubgroupEntrants(sg.id);
+                    entrants.sort((a, b) =>
+                        a.athlete?.lastName.toLowerCase() < b.athlete?.lastName.toLowerCase() ? -1 : 1);
+                    entrants.sort((a, b) =>
+                        !!b.athlete?.following - !!a.athlete?.following ||
+                        !!b.athlete?.follower - !!a.athlete?.follower);
+                    console.debug("Subgroup entrants:", sg.id, entrants);
                     fieldSize = entrants.length;
                     el.classList.add('signups');
                     table.classList.add('signups');
@@ -315,7 +379,7 @@ async function render() {
                 let cleanup;
                 common.initExpanderTable(table, async (el, entrantSummaryEl) => {
                     const athleteId = Number(entrantSummaryEl.dataset.id);
-                    const athlete = await common.rpc.getAthlete(athleteId, {allowFetch: true});
+                    const athlete = await common.rpc.getAthlete(athleteId, {refresh: true});
                     console.debug("Athlete:", athlete);
                     cleanup = await profileRender(el, templates.profile, {
                         embedded: true,
@@ -339,7 +403,8 @@ async function render() {
         }
         resizeCharts();
         eventSummaryEl.scrollIntoView({block: 'start'});
-    }, () => {
+    }, (el) => {
+        headingsIntersectionObserver.unobserve(el);
         const cleanups = Array.from(cleanupCallbacks);
         cleanupCallbacks.clear();
         for (const cb of cleanups) {

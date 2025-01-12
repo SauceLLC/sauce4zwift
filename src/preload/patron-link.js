@@ -27,6 +27,15 @@ document.addEventListener('patreon-auth-code', ev =>
 document.addEventListener('patreon-reset-session', ev =>
     void ipcRenderer.send('patreon-reset-session'));
 
+document.addEventListener('click', ev => {
+    const link = ev.target.closest('a[external][href]');
+    if (link) {
+        ev.preventDefault();
+        ipcRenderer.invoke('rpc', 'openExternalLink', link.href).catch(e =>
+            console.error('Error opening external page:', e));
+    }
+});
+
 document.addEventListener('DOMContentLoaded', () => {
     const patronLink = document.querySelector('.button.patron-link');
     if (patronLink) {

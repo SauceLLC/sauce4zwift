@@ -4,11 +4,11 @@ Error.stackTraceLimit = 25;
 
 const os = require('node:os');
 const path = require('node:path');
-const fs = require('node:fs');
+const fs = require('./fs-safe.js');
 const process = require('node:process');
 const pkg = require('../package.json');
 const logging = require('./logging.js');
-const {app, dialog, nativeTheme} = require('electron');
+const {app, dialog, nativeTheme, protocol} = require('electron');
 
 let settings = {};
 let buildEnv = {};
@@ -195,6 +195,12 @@ async function startNormal() {
         app.commandLine.appendSwitch('disable-gpu-compositing');
     }
     app.commandLine.appendSwitch('force-gpu-mem-available-mb', '1024');
+    // Fix audio playback of all things...
+    // By calling protocol.handle on file: we reset it's privs.
+    protocol.registerSchemesAsPrivileged([{
+        scheme: 'file',
+        privileges: {stream: true}
+    }]);
     const sentryAnonId = await initSentry(logMeta.logEmitter);
     await app.whenReady();
     if (await ensureSingleInstance() === false) {

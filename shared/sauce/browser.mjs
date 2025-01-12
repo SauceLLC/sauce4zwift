@@ -46,6 +46,7 @@ export async function cachedFetch(url, options={}) {
             _fetching.set(url, fetch(url).then(async resp => {
                 if (!resp.ok) {
                     if (resp.status === 404) {
+                        console.warn("Not found:", url);
                         _fetchCache.set(url, undefined);
                         return;
                     }

@@ -160,18 +160,21 @@ class DataCollector {
     }
 
     resize() {
-        this.roll.resize();
-        const value = this.roll.valueAt(-1);
-        if (value > this._maxValue) {
-            this._maxValue = value;
+        const added = this.roll.resize();
+        if (added) {
+            const value = this.roll.valueAt(-1);
+            if (value > this._maxValue) {
+                this._maxValue = value;
+            }
+            this._resizePeriodized();
         }
-        this._resizePeriodized();
+        return added;
     }
 
     _resizePeriodized() {
         for (const x of this.periodized.values()) {
-            x.roll.resize();
-            if (x.roll.full()) {
+            const added = x.roll.resize();
+            if (added && x.roll.full()) {
                 const avg = x.roll.avg();
                 if (x.peak === null || avg >= x.peak.avg()) {
                     x.peak = x.roll.clone();
@@ -523,7 +526,6 @@ class ActivityReplay extends events.EventEmitter {
 export class StatsProcessor extends events.EventEmitter {
     constructor(options={}) {
         super();
-        this.setMaxListeners(100);
         this.zwiftAPI = options.zwiftAPI;
         this.gameMonitor = options.gameMonitor;
         this.exclusions = options.exclusions || new Set();
@@ -976,27 +978,42 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     async getEventSubgroupResults(id) {
-        const missingProfiles = new Set();
         const results = await this.zwiftAPI.getEventSubgroupResults(id);
-        for (const x of results) {
-            const athlete = this._getAthlete(x.profileId);
-            if (!athlete) {
-                missingProfiles.add(x.profileId);
-            }
-        }
+        const updates = new Map();
+        const missingProfiles = new Set(results.map(x => x.profileId).filter(id => !this._getAthlete(id)));
         if (missingProfiles.size) {
-            const updates = [];
             for (const p of await this.zwiftAPI.getProfiles(missingProfiles)) {
                 if (p) {
-                    updates.push([p.id, this._updateAthlete(p.id, this._profileToAthlete(p))]);
+                    updates.set(p.id, this._updateAthlete(p.id, this._profileToAthlete(p)));
                 }
             }
-            if (updates.length) {
-                this.saveAthletes(updates);
-            }
         }
+        // Unranked events or single result events will contain scoreHistory that represents
+        // non current values (probably floor values).  Look for scoreChangeType
+        // that are only found when scoreHistory represents actual values.
+        const validScoreChangeTypes = new Set(['INCREASED', 'DECREASED', 'AT_FLOOR']);
+        const zrsIsTrustWorthy = results.length > 1 &&
+            results.some(x => validScoreChangeTypes.has(x.scoreHistory?.scoreChangeType));
         for (const x of results) {
+            if (zrsIsTrustWorthy) {
+                const endTime = new Date(x.activityData.endDate).getTime();
+                if (x.scoreHistory.previousScore) {
+                    updates.set(x.profileId, this._updateAthlete(x.profileId, {
+                        racingScore: x.scoreHistory.previousScore,
+                        racingScoreTS: endTime - x.activityData.durationInMilliseconds,
+                    }));
+                }
+                if (x.scoreHistory.newScore) {
+                    updates.set(x.profileId, this._updateAthlete(x.profileId, {
+                        racingScore: x.scoreHistory.newScore,
+                        racingScoreTS: endTime,
+                    }));
+                }
+            }
             x.athlete = this._getAthlete(x.profileId) || {};
+        }
+        if (updates.size) {
+            this.saveAthletes(Array.from(updates.entries()));
         }
         return results;
     }
@@ -1114,7 +1131,7 @@ export class StatsProcessor extends events.EventEmitter {
         return this._formatAthleteData(ad);
     }
 
-    getAthleteLaps(id, {startTime, active}={}) {
+    getAthleteLaps(id, {startTime, endTime, active}={}) {
         const ad = this._athleteData.get(this._realAthleteId(id));
         if (!ad) {
             return null;
@@ -1123,14 +1140,18 @@ export class StatsProcessor extends events.EventEmitter {
         if (startTime !== undefined) {
             laps = laps.filter(x => x.power.roll._times[x.power.roll._offt] >= startTime);
         }
-        if (laps.length && !active && laps[laps.length - 1].end == null) {
+        if (endTime !== undefined) {
+            laps = laps.filter(x =>
+                x.power.roll._times[Math.max(x.power.roll._offt, x.power.roll._length - 1)] > endTime);
+        }
+        if (!active && laps.length && laps[laps.length - 1].end == null) {
             laps = laps.slice(0, -1);
         }
         const athlete = this.loadAthlete(ad.athleteId);
         return laps.map(x => this._formatLapish(x, ad, athlete));
     }
 
-    getAthleteSegments(id, {startTime, active}={}) {
+    getAthleteSegments(id, {startTime, endTime, active}={}) {
         const ad = this._athleteData.get(this._realAthleteId(id));
         if (!ad) {
             return null;
@@ -1139,8 +1160,12 @@ export class StatsProcessor extends events.EventEmitter {
         if (startTime !== undefined) {
             segments = segments.filter(x => x.power.roll._times[x.power.roll._offt] >= startTime);
         }
-        if (segments.length && !active && segments[segments.length - 1].end == null) {
-            segments = segments.slice(0, -1);
+        if (endTime !== undefined) {
+            segments = segments.filter(x =>
+                x.power.roll._times[Math.max(x.power.roll._offt, x.power.roll._length - 1)] > endTime);
+        }
+        if (!active) {
+            segments = segments.filter(x => !ad.activeSegments.has(x.id));
         }
         const athlete = this.loadAthlete(ad.athleteId);
         return segments.map(x => this._formatLapish(x, ad, athlete, {
@@ -1154,6 +1179,7 @@ export class StatsProcessor extends events.EventEmitter {
         const endIndex = Math.max(startIndex, lapish.power.roll._length - 1);
         return {
             stats: this._getCollectorStats(lapish, ad, athlete),
+            active: lapish.end == null,
             startIndex,
             endIndex,
             start: lapish.power.roll._times[startIndex],
@@ -1262,7 +1288,6 @@ export class StatsProcessor extends events.EventEmitter {
         const now = monotonic();
         const lastLap = ad.laps[ad.laps.length - 1];
         lastLap.end = now;
-        Object.assign(lastLap, this._cloneDataCollectors(lastLap));
         ad.laps.push(this._createNewLapish(ad));
     }
 
@@ -1402,59 +1427,33 @@ export class StatsProcessor extends events.EventEmitter {
 
     _profileToAthlete(p) {
         const powerMeterSources = ['Power Meter', 'Smart Trainer'];
-        const powerMeter = p.powerSourceModel ? powerMeterSources.includes(p.powerSourceModel) : undefined;
         const minor = p.privacy && p.privacy.minor;
-        /*
-        if (p.competitionMetrics) {
-            this.zwiftAPI.getProfiles([p.id]).then(pp => {
-                pp = pp[0];
-                const json = Object.fromEntries(Object.entries(p).sort((a, b) => a[0] < b[0] ? -1 : 1));
-                const pb = Object.fromEntries(Object.entries(pp).sort((a, b) => a[0] < b[0] ? -1 : 1));
-                console.log(pb, json);
-                const diff = new Map(Object.entries(json));
-                for (const [k, v] of Array.from(diff.entries())) {
-                    if (!pb.hasOwnProperty(k)) {
-                        diff.set('JSONONLY: ' + k, v);
-                        diff.delete(k);
-                    }
-                }
-                for (const [k, v] of Object.entries(pb)) {
-                    if (!diff.has(k)) {
-                        diff.set('PBONLY: ' + k, v);
-                    } else if (JSON.stringify(diff.get(k)) === JSON.stringify(v)) {
-                        diff.delete(k);
-                    } else {
-                        diff.set(k, {json: diff.get(k), pb: v});
-                    }
-                }
-                console.log(Object.fromEntries(diff.entries()));
-            });
-        }
-        */
         const o = {
             firstName: p.firstName,
             lastName: p.lastName,
             ftp: p.ftp,
             type: p.playerType,
             countryCode: p.countryCode, // iso 3166
-            powerSourceModel: p.powerSourceModel,
             avatar: !minor ? p.imageSrcLarge || p.imageSrc : undefined,
             weight: !minor && p.weight ? p.weight / 1000 : undefined,
             height: !minor && p.height ? p.height / 10 : undefined,
             gender: !minor && p.male === false ? 'female' : 'male',
             age: !minor && p.privacy && p.privacy.displayAge ? p.age : null,
             level: p.achievementLevel ? Math.floor(p.achievementLevel / 100) : undefined,
-            powerMeter,
-            racingScore: p.competitionMetrics?.racingScore,
-            racingCategory: minor || p.male !== false ?
-                p.competitionMetrics?.category :
-                p.competitionMetrics?.categoryWomen,
+            powerSourceModel: p.powerSourceModel,
+            powerMeter: p.powerSourceModel ? powerMeterSources.includes(p.powerSourceModel) : undefined,
         };
+        if (p.competitionMetrics) {
+            o.racingScore = p.competitionMetrics.racingScore;
+            o.racingCategory = minor || p.male !== false ?
+                p.competitionMetrics.category :
+                p.competitionMetrics.categoryWomen;
+        }
         if (p.socialFacts) {
             o.follower = p.socialFacts.followeeStatusOfLoggedInPlayer === 'IS_FOLLOWING';
             o.following = p.socialFacts.followerStatusOfLoggedInPlayer === 'IS_FOLLOWING';
             o.followRequest = p.socialFacts.followerStatusOfLoggedInPlayer === 'REQUESTS_TO_FOLLOW';
-            o.favorite = p.socialFacts.isFavoriteOfLoggedInPlayer;
+            o.favorite = !!p.socialFacts.isFavoriteOfLoggedInPlayer;
         }
         return o;
     }
@@ -1465,60 +1464,115 @@ export class StatsProcessor extends events.EventEmitter {
         return fullData;
     }
 
-    _updateAthlete(id, data) {
-        const d = this.loadAthlete(id) || {};
-        d.id = id;
-        d.updated = Date.now();
-        d.name = (data.firstName || data.lastName) ? [data.firstName, data.lastName].map(x =>
-            (x && x.trim) ? x.trim() : null).filter(x => x) : d.name;
-        d.fullname = d.name && d.name.join(' ');
+    _updateAthlete(id, updates) {
+        let athlete = this.loadAthlete(id);
+        if (!athlete) {
+            // Make sure we are working on the shared/cached object...
+            athlete = {};
+            this._athletesCache.set(id, athlete);
+        }
+        athlete.id = id;
+        athlete.updated = Date.now();
+        athlete.name = (updates.firstName || updates.lastName) ?
+            [updates.firstName, updates.lastName]
+                .map(x => (x && x.trim) ? x.trim() : null)
+                .filter(x => x) :
+            athlete.name;
+        athlete.fullname = athlete.name && athlete.name.join(' ');
         let saniFirst;
         let saniLast;
-        if (d.name && d.name.length) {
+        if (athlete.name && athlete.name.length) {
             const edgeJunk = /^[.*_#\-\s]+|[.*_#\-\s]+$/g;
-            saniFirst = d.name[0].replace(edgeJunk, '');
-            const idx = d.name.length - 1;
-            const [name, team] = splitNameAndTeam(d.name[idx]);
+            saniFirst = athlete.name[0].replace(edgeJunk, '');
+            const idx = athlete.name.length - 1;
+            const [name, team] = splitNameAndTeam(athlete.name[idx]);
             if (idx > 0) {
                 saniLast = name && name.replace(edgeJunk, '');
             } else {
                 // User only set a last name, sometimes because this looks better in game.
                 saniFirst = name;
             }
-            d.team = team;
+            athlete.team = team;
         }
-        d.sanitizedName = (saniFirst || saniLast) ? [saniFirst, saniLast].filter(x => x) : null;
-        d.sanitizedFullname = d.sanitizedName && d.sanitizedName.join(' ');
-        if (d.sanitizedName) {
-            const n = d.sanitizedName;
-            d.initials = n
+        athlete.sanitizedName = (saniFirst || saniLast) ? [saniFirst, saniLast].filter(x => x) : null;
+        athlete.sanitizedFullname = athlete.sanitizedName && athlete.sanitizedName.join(' ');
+        if (athlete.sanitizedName) {
+            const n = athlete.sanitizedName;
+            athlete.initials = n
                 .map(x => String.fromCodePoint(x.codePointAt(0)))
                 .join('')
                 .toUpperCase();
-            d.fLast = n.length > 1 ? `${String.fromCodePoint(n[0].codePointAt(0))}.${n[1]}` : n[0];
+            athlete.fLast = n.length > 1 ? `${String.fromCodePoint(n[0].codePointAt(0))}.${n[1]}` : n[0];
         } else {
-            d.fLast = d.initials = null;
+            athlete.fLast = athlete.initials = null;
         }
-        if (d.wPrime === undefined && data.wPrime === undefined) {
-            data.wPrime = wPrimeDefault; // Po-boy migration
+        if (athlete.wPrime === undefined && updates.wPrime === undefined) {
+            updates = {...updates, wPrime: wPrimeDefault}; // Po-boy migration
         }
-        for (const [k, v] of Object.entries(data)) {
+        if (updates.racingScore != null) {
+            // Fill in history of racing scores and update cur value when most
+            // recent value is updated.
+            if (!athlete.racingScoreIncompleteHistory) {
+                athlete.racingScoreIncompleteHistory = [];
+            }
+            const entry = {
+                score: updates.racingScore,
+                ts: updates.racingScoreTS || athlete.updated,
+            };
+            const hist = athlete.racingScoreIncompleteHistory;
+            const replaceIdx = hist.findIndex(x => x.ts === entry.ts);
+            if (replaceIdx !== -1) {
+                hist.splice(replaceIdx, 1);
+            }
+            hist.push(entry);
+            hist.sort((a, b) => a.ts - b.ts);
+            const idx = hist.indexOf(entry);
+            const before = hist[idx - 1];
+            const after = hist[idx + 1];
+            if (before && before.score === entry.score) {
+                // Dedup ourselves, we didn't learn anything new..
+                hist.splice(idx, 1);
+            } else if (after && after.score === entry.score) {
+                // We learned the score was older than previously known..
+                hist.splice(idx + 1, 1);
+            }
+            if (hist.indexOf(entry) !== hist.length - 1) {
+                // Don't clobber more up to date value..
+                updates = {
+                    ...updates,
+                    racingScore: undefined,
+                    racingScoreTS: undefined,
+                    racingCategory: undefined,
+                };
+            } else {
+                updates = {...updates, racingScoreTS: undefined};
+            }
+        }
+        if (updates.racingScore && updates.racingCategory == null && athlete.racingCategory == null) {
+            // Fallback to setting estimated racing category..
+            // https://support.zwift.com/en_us/racing-score-faq-BkG9_Rqrh
+            const offt = [690, 520, 350, 180, 1].findIndex(x => updates.racingScore >= x);
+            if (offt !== -1) {
+                updates = {...updates, racingCategory: String.fromCharCode(65 + offt)};
+            }
+        }
+        for (const [k, v] of Object.entries(updates)) {
             if (v !== undefined) {
-                d[k] = v;
+                athlete[k] = v;
             }
         }
         const ad = this._athleteData.get(id);
         if (ad) {
-            this._updateAthleteDataFromDatabase(ad, d);
+            this._updateAthleteDataFromDatabase(ad, athlete);
         }
-        if (data.marked !== undefined) {
-            if (data.marked) {
+        if (updates.marked !== undefined) {
+            if (updates.marked) {
                 this._markedIds.add(id);
             } else {
                 this._markedIds.delete(id);
             }
         }
-        return d;
+        return athlete;
     }
 
     loadAthlete(id) {
@@ -1761,7 +1815,6 @@ export class StatsProcessor extends events.EventEmitter {
             } else if (x.from === payload.from && x.mesage === payload.message &&
                        payload.ts - x.ts < 5000) {
                 console.warn("Deduping chat message (content based):", ts, payload.from, payload.message);
-                debugger;
                 return;
             }
         }
@@ -1825,6 +1878,7 @@ export class StatsProcessor extends events.EventEmitter {
         return {
             elapsedTime,
             activeTime,
+            coffeeTime: cs.coffeeTime,
             wBal, // DEPRECATED
             timeInPowerZones, // DEPRECATED
             power: cs.power.getStats(ad.wtOffset, {
@@ -1848,6 +1902,7 @@ export class StatsProcessor extends events.EventEmitter {
         const longPeriods = periods.filter(x => x >= 60);
         return {
             start: monotonic(),
+            coffeeTime: 0,
             power: new DataCollector(sauce.power.RollingPower, periods, {inlineNP: true, round: true}),
             speed: new DataCollector(sauce.data.RollingAverage, longPeriods, {ignoreZeros: true}),
             hr: new DataCollector(sauce.data.RollingAverage, longPeriods, {ignoreZeros: true, round: true}),
@@ -1856,20 +1911,19 @@ export class StatsProcessor extends events.EventEmitter {
         };
     }
 
-    _cloneDataCollectors(collectors, options={}) {
-        const types = ['power', 'speed', 'hr', 'cadence', 'draft'];
-        const bucket = {start: options.reset ? monotonic() : collectors.start};
-        for (const x of types) {
-            bucket[x] = collectors[x].clone(options);
-        }
-        return bucket;
-    }
-
     _createNewLapish(ad) {
-        const lapish = this._cloneDataCollectors(ad.collectors, {reset: true});
-        lapish.courseId = ad.courseId;
-        lapish.sport = ad.sport;
-        return lapish;
+        const cloneOpts = {reset: true};
+        return {
+            start: monotonic(),
+            coffeeTime: 0,
+            courseId: ad.courseId,
+            sport: ad.sport,
+            power: ad.collectors.power.clone(cloneOpts),
+            speed: ad.collectors.speed.clone(cloneOpts),
+            hr: ad.collectors.hr.clone(cloneOpts),
+            cadence: ad.collectors.cadence.clone(cloneOpts),
+            draft: ad.collectors.draft.clone(cloneOpts),
+        };
     }
 
     maybeUpdateAthleteFromServer(athleteId) {
@@ -1981,13 +2035,12 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _resetAthleteData(ad, wtOffset) {
-        const collectors = this._makeDataCollectors();
         Object.assign(ad, {
             created: worldTimer.toLocalTime(wtOffset),
             wtOffset,
-            collectors,
-            laps: [this._createNewLapish(ad)],
+            collectors: this._makeDataCollectors(),
         });
+        ad.laps = [this._createNewLapish(ad)];
         // NOTE: Don't reset w'bal; it is a biometric
         ad.timeInPowerZones.reset();
         ad.activeSegments.clear();
@@ -2183,21 +2236,26 @@ export class StatsProcessor extends events.EventEmitter {
         // Never auto pause wBal as it is a biometric. We use true worldTime to
         // survive resets as well.
         const wbal = ad.wBal.accumulate(state.worldTime / 1000, state.power);
+        const curLap = ad.laps[ad.laps.length - 1];
         let addCount;
-        if (!state.power && !state.speed) {
+        if (!state.power && (!state.speed || state.coffeeStop)) {
             // Emulate auto pause...
+            if (state.coffeeStop && ad.mostRecentState) {
+                const stopTime = Math.max(0, state.worldTime - ad.mostRecentState.worldTime) / 1000;
+                if (stopTime) {
+                    ad.collectors.coffeeTime += stopTime;
+                    curLap.coffeeTime += stopTime;
+                    for (const s of ad.activeSegments.values()) {
+                        s.coffeeTime += stopTime;
+                    }
+                }
+            }
             addCount = ad.collectors.power.flushBuffered();
             if (addCount) {
                 ad.collectors.speed.flushBuffered();
                 ad.collectors.hr.flushBuffered();
                 ad.collectors.draft.flushBuffered();
                 ad.collectors.cadence.flushBuffered();
-                for (let i = 0; i < addCount; i++) {
-                    ad.streams.distance.push(ad.distanceOffset + state.distance);
-                    ad.streams.altitude.push(state.altitude);
-                    ad.streams.latlng.push(state.latlng);
-                    ad.streams.wbal.push(wbal);
-                }
             }
         } else {
             const time = (state.worldTime - ad.wtOffset) / 1000;
@@ -2207,24 +2265,25 @@ export class StatsProcessor extends events.EventEmitter {
             ad.collectors.hr.add(time, state.heartrate);
             ad.collectors.draft.add(time, state.draft);
             ad.collectors.cadence.add(time, state.cadence);
+        }
+        if (addCount) {
             for (let i = 0; i < addCount; i++) {
                 ad.streams.distance.push(ad.distanceOffset + state.distance);
                 ad.streams.altitude.push(state.altitude);
                 ad.streams.latlng.push(state.latlng);
                 ad.streams.wbal.push(wbal);
             }
-            const curLap = ad.laps[ad.laps.length - 1];
-            curLap.power.resize(time);
-            curLap.speed.resize(time);
-            curLap.hr.resize(time);
-            curLap.draft.resize(time);
-            curLap.cadence.resize(time);
+            curLap.power.resize();
+            curLap.speed.resize();
+            curLap.hr.resize();
+            curLap.draft.resize();
+            curLap.cadence.resize();
             for (const s of ad.activeSegments.values()) {
-                s.power.resize(time);
-                s.speed.resize(time);
-                s.hr.resize(time);
-                s.draft.resize(time);
-                s.cadence.resize(time);
+                s.power.resize();
+                s.speed.resize();
+                s.hr.resize();
+                s.draft.resize();
+                s.cadence.resize();
             }
         }
         ad.mostRecentState = state;
@@ -2393,10 +2452,22 @@ export class StatsProcessor extends events.EventEmitter {
             event.routeDistance = this._getRouteDistance(route, event.laps);
             event.routeClimbing = this._getRouteClimbing(route, event.laps);
         }
-        event.tags = event._tags.split(';');
+        event.tags = event._tags ? event._tags.split(';') : [];
         event.allTags = this._parseEventTags(event);
         event.ts = +new Date(event.eventStart);
         event.courseId = env.getCourseId(event.mapId);
+        event.prettyType = {
+            EFONDO: 'Fondo',
+            RACE: 'Race',
+            GROUP_RIDE: 'Group',
+            GROUP_WORKOUT: 'Workout',
+            TIME_TRIAL: 'Time Trial',
+            TEAM_TIME_TRIAL: 'Team Time Trial',
+        }[event.eventType] || event.eventType;
+        event.prettyTypeShort = {
+            TIME_TRIAL: 'TT',
+            TEAM_TIME_TRIAL: 'TTT',
+        }[event.eventType] || event.prettyType;
         if (!this._recentEvents.has(event.id)) {
             const start = new Date(event.ts).toLocaleString();
             console.debug(`Event added [${event.id}] - ${start}:`, event.name);

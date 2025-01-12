@@ -31,6 +31,7 @@ common.settingsStore.setDefault({
     refreshInterval: 2,
     hideHeader: false,
     labelAngle: 50,
+    horizLTR: true,
 });
 
 // XXX Need a migration system.
@@ -511,6 +512,9 @@ function setStyles() {
     common.setBackground(settings);
     if (settings.horizMode != null) {
         doc.classList.toggle('horizontal', settings.horizMode);
+        if (settings.horizLTR != null) {
+            doc.classList.toggle('horizontal-ltr', settings.horizLTR);
+        }
     }
     if (settings.hideHeader != null) {
         doc.classList.toggle('hide-header', settings.hideHeader);

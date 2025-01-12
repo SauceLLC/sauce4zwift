@@ -199,33 +199,46 @@ function makeRender(name, text, options, helperVars, attrVars) {
 function compile(name, text, options={}) {
     const boundHelpers = Object.fromEntries(Object.entries(helpers)
         .map(([k, fn]) => [k, fn.bind({options})]));
-    let renderFuncVars;
     let recompiles = 0;
-    let render;
-    let statics;
-    let localeMessages;
+    let recentCompile;
+    let rendering;
     const wrap = async (obj, ...args) => {
         // To avoid using the deprecated `with` statement we need to memoize the obj vars.
         const vars = obj && !Array.isArray(obj) ? Object.keys(obj) : [];
-        if (!render || vars.join() !== renderFuncVars.join()) {
-            renderFuncVars = vars;
-            if (recompiles++ > 10) {
-                console.warn("Highly variadic template function detected");
+        const sig = JSON.stringify(vars);
+        let compile;
+        while (!(compile = recentCompile) || sig !== compile._sig) {
+            if (rendering) {
+                await rendering;
+                continue;
             }
-            let localeKeys, staticCalls;
-            [render, localeKeys, staticCalls] = makeRender(name, text, options, Object.keys(helpers), vars);
-            localeMessages = localeKeys.length ?
-                await localeMod.fastGetMessagesObject(localeKeys) : undefined;
-            statics = staticCalls.length ?
-                await Promise.all(staticCalls.map(([name, args]) => staticHelpers[name](args))) : undefined;
+            if (recompiles++ > 10) {
+                console.warn("Highly variadic template function detected", name, recompiles);
+            }
+            rendering = (async () => {
+                const [fn, localeKeys, staticCalls] =
+                    makeRender(name, text, options, Object.keys(helpers), vars);
+                const localeMessages = localeKeys.length ?
+                    await localeMod.fastGetMessagesObject(localeKeys) : undefined;
+                const statics = staticCalls.length ?
+                    await Promise.all(staticCalls.map(([name, args]) => staticHelpers[name](args))) :
+                    undefined;
+                compile = fn.bind(undefined, {
+                    localeMod,
+                    htmlEscape,
+                    helpers: boundHelpers,
+                    localeMessages,
+                    statics
+                });
+                compile._sig = sig;
+                recentCompile = compile;
+            })();
+            // Importantly do cleanup after closure assignment for non-async compiles..
+            rendering.finally(() => rendering = undefined);
+            await rendering;
+            break;
         }
-        return render.call(this, {
-            localeMod,
-            htmlEscape,
-            helpers: boundHelpers,
-            localeMessages,
-            statics
-        }, obj, ...args);
+        return compile(obj, ...args);
     };
     return wrap;
 }

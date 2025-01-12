@@ -1,10 +1,13 @@
 /* global Buffer */
+
+import process from 'node:process';
 import path from 'node:path';
-import fs from 'node:fs';
+import fs from './fs-safe.js';
 import crypto from 'node:crypto';
 import StreamZip from 'node-stream-zip';
 import * as rpc from './rpc.mjs';
 import * as storage from './storage.mjs';
+import * as core from './mods-core.mjs';
 import fetch from 'node-fetch';
 import {createRequire} from 'node:module';
 import {EventEmitter} from 'node:events';
@@ -26,14 +29,9 @@ export const eventEmitter = new EventEmitter();
 export const contentScripts = [];
 export const contentCSS = [];
 
-
-export class ValidationError extends TypeError {
-    constructor(path, key, message) {
-        super(message);
-        this.path = path;
-        this.key = key;
-    }
-}
+core.extraSafePathValidators.push((x, _, modPath) => {
+    return !modPath || fs.realpathSync(path.join(modPath, x)).startsWith(modPath);
+});
 
 
 // Stable output for safe integration with mods.sauce.llc
@@ -54,12 +52,6 @@ rpc.register(getAvailableModsV1, {name: 'getAvailableMods'});
 export const getAvailableMods = getAvailableModsV1;
 export const getEnabledMods = () => getAvailableMods().filter(x => x.enabled);
 export const getMod = modsById.get.bind(modsById);
-
-
-function fsRemoveFile(path) {
-    // retries requried for windows.
-    return fs.rmSync(path, {maxRetries: 5});
-}
 
 
 function getOrInitModSettings(id) {
@@ -97,87 +89,50 @@ export function setEnabled(id, enabled) {
 rpc.register(setEnabled, {name: 'setModEnabled'});
 
 
-function isSafePath(x, _, modPath) {
-    return !!x.match(/^[a-z0-9]+[a-z0-9_\-./]*$/i) && !x.match(/\.\./) &&
-        (!modPath || fs.realpathSync(path.join(modPath, x)).startsWith(modPath));
-}
-
-
-function isSafeID(x) {
-    return !!x.match(/^[a-z0-9-_]+$/i);
-}
-
-
-function sanitizeID(x) {
-    return x.replace(/[^a-z0-9\-_]/ig, '-');
-}
-
-
-const manifestSchema = {
-    manifest_version: {type: 'number', required: true, desc: 'Manifest version', valid: x => x === 1},
-    id: {type: 'string', desc: 'Optional ID for this mod, defaults to the directory name', valid: isSafeID},
-    name: {type: 'string', required: true, desc: 'Pretty name of the mod'},
-    description: {type: 'string', required: true, desc: 'Description of the mod'},
-    version: {type: 'string', required: true, desc: 'Mod version, i.e. 1.2.3'},
-    author: {type: 'string', desc: 'Author name or company'},
-    website_url: {type: 'string', desc: 'External URL related to the mod'},
-    web_root: {type: 'string', desc: 'Sub directory containing web assets.', valid: isSafePath},
-    content_js: {type: 'string', isArray: true, desc: 'Scripts to execute in all windows', valid: isSafePath},
-    content_css: {type: 'string', isArray: true, desc: 'CSS to load in all windows', valid: isSafePath},
-    windows: {
-        type: 'object',
-        isArray: true,
-        schema: {
-            file: {type: 'string', required: true, unique: true, desc: 'Path to web page html file',
-                   valid: isSafePath},
-            query: {
-                type: 'object',
-                desc: 'Query argument key/value pairs, i.e. {"foo": "bar"} => ?foo=bar',
-                schema: {
-                    "*": {type: 'string', desc: "Value of query argument"},
-                }
-            },
-            id: {type: 'string', required: true, unique: true, desc: 'Unique identifier for this window'},
-            name: {type: 'string', required: true, unique: true, desc: 'Name to show in listings'},
-            description: {type: 'string', desc: 'Extra optional info about the window'},
-            always_visible: {type: 'boolean', desc: 'DEPRECATED', deprecated: true},
-            overlay: {type: 'boolean', desc: 'Set to make window stay on top of normal windows'},
-            frame: {type: 'boolean', desc: 'Includes OS frame borders and title bar'},
-            default_bounds: {
-                type: 'object',
-                desc: 'Default placement and size of the mod window',
-                schema: {
-                    width: {type: 'number', desc: '0.0 -> 1.0 represent relative size based on screen, ' +
-                        'otherwise value is pixels', valid: x => x >= 0},
-                    height: {type: 'number', desc: '0.0 -> 1.0 represent relative size based on screen, ' +
-                        'otherwise value is pixels', valid: x => x >= 0},
-                    x: {type: 'number', desc: '0.0 -> 1.0 represent relative offset based on screen, ' +
-                        'negative values represent offset from the right edge of the screen'},
-                    y: {type: 'number', desc: '0.0 -> 1.0 represent relative offset based on screen, ' +
-                        'negative values represent offset from the bottom edge of the screen'},
-                    aspect_ratio: {type: 'boolean', desc: 'Used when only width xor height are set',
-                                   valid: x => x > 0}
-                },
-            },
-        },
-    },
-};
-
-
 export async function init(unpackedDir, packedDir) {
     modsSettings = new Map(Object.entries(storage.get(settingsKey) || {}));
     modsInstalled = new Map(Object.entries(storage.get(installedKey) || {}));
     availableMods.length = 0;
     modsById.clear();
+    let candidateMods;
     try {
-        availableMods.push(..._initUnpacked(unpackedDir));
-        availableMods.push(...await _initPacked(packedDir));
+        candidateMods = [].concat(_initUnpacked(unpackedDir), await _initPacked(packedDir));
     } catch(e) {
         console.error("Mods init error:", e);
+        return [];
     }
-    for (const mod of availableMods) {
+    for (const mod of candidateMods) {
+        const settings = getOrInitModSettings(mod.id);
+        const label = `${mod.manifest.name} (${mod.id})`;
+        const tags = [];
+        if (!settings.enabled) {
+            tags.push('DISABLED');
+        }
+        if (!mod.packed) {
+            tags.push('UNPACKED');
+        }
+        console.info(`Detected Mod: ${label} ${tags.length ? `[${tags.join(', ')}]` : ''}`);
+        if (mod.isNew || settings.enabled) {
+            let warnings;
+            try {
+                ({warnings} = core.validateMod(mod));
+            } catch(e) {
+                if (e instanceof core.ValidationError) {
+                    const path = e.key ? e.path.concat(e.key) : e.path;
+                    console.error(`Mod validation error [${label}]: path: "${path.join('.')}", ` +
+                        `error: ${e.message}`);
+                } else {
+                    console.error(`Mod error [${label}]:`, e);
+                }
+                continue;
+            }
+            for (const x of warnings) {
+                console.warn(`Mod issue [${label}]:`, x);
+            }
+        }
+        availableMods.push(mod);
         modsById.set(mod.id, mod);
-        if (!modsSettings.get(mod.id)?.enabled) {
+        if (!settings.enabled) {
             continue;
         }
         mod.status = 'active';
@@ -199,7 +154,6 @@ export async function init(unpackedDir, packedDir) {
                 }
             }
         }
-
     }
     return availableMods;
 }
@@ -207,7 +161,7 @@ export async function init(unpackedDir, packedDir) {
 
 async function getModFile(mod, file, encoding) {
     if (mod.zip) {
-        const data = await mod.zip.entryData(path.join(mod.zipRootDir, file));
+        const data = await mod.zip.entryData(path.posix.join(mod.zipRootDir, file));
         return encoding ? data.toString(encoding) : data;
     } else {
         return fs.readFileSync(path.join(mod.modPath, file), encoding);
@@ -226,7 +180,7 @@ function _initUnpacked(root) {
     if (!unpackedModRoot || !fs.existsSync(unpackedModRoot) || !fs.statSync(unpackedModRoot).isDirectory()) {
         return [];
     }
-    const validMods = [];
+    const mods = [];
     for (const x of fs.readdirSync(unpackedModRoot)) {
         const modPath = fs.realpathSync(path.join(unpackedModRoot, x));
         const f = fs.statSync(modPath);
@@ -238,39 +192,28 @@ function _initUnpacked(root) {
             }
             try {
                 const manifest = JSON.parse(fs.readFileSync(manifestPath));
-                const id = manifest?.id || sanitizeID(x);
+                const id = manifest.id || core.sanitizeID(x);
                 const isNew = !modsSettings.has(id);
-                const legacyId = (isNew && !manifest?.id && modsSettings.has(x)) ? x : undefined;
+                const legacyId = (isNew && !manifest.id && modsSettings.has(x)) ? x : undefined;
                 if (legacyId) {
-                    console.warn(`Mod may have a settings from legacy ID: ${legacyId} vs ${id}`);
+                    console.warn(`Mod may have lost settings from legacy ID: ${legacyId} vs ${id}`);
                 }
-                const settings = getOrInitModSettings(id);
-                const enabled = !isNew && !!settings.enabled;
-                const label = `${manifest.name} (${id})`;
-                console.info(`Detected unpacked Mod: ${label} ${!enabled ? '[DISABLED]' : ''}`);
-                if (isNew || enabled) {
-                    validateManifest(manifest, modPath, label);
-                }
-                validMods.push({manifest, isNew, id, legacyId, modPath, packed: false});
+                mods.push({manifest, isNew, id, legacyId, modPath, packed: false});
             } catch(e) {
-                if (e instanceof ValidationError) {
-                    const path = e.key ? e.path.concat(e.key) : e.path;
-                    console.error(`Mod validation error [${x}] (${path.join('.')}): ${e.message}`);
-                } else {
-                    console.error('Invalid manifest.json for:', x, e);
-                }
+                console.error('Invalid manifest.json for:', x, e);
             }
         } else if (!['.DS_Store'].includes(x)) {
             console.warn("Ignoring non-directory in mod path:", x);
         }
     }
-    return validMods;
+    return mods;
 }
 
 
 async function getUpstreamDirectory() {
     if (!upstreamDirectory) {
-        upstreamDirectory = await (await fetch('https://mods.sauce.llc/directory.json')).json();
+        const url = process.env.MOD_DIRECTORY_URL || 'https://mods.sauce.llc/directory.json';
+        upstreamDirectory = await (await fetch(url)).json();
     }
     return upstreamDirectory;
 }
@@ -287,21 +230,15 @@ async function _initPacked(root) {
     if (!packedModRoot) {
         return [];
     }
-    const validMods = [];
+    const mods = [];
     for (const [id, entry] of modsInstalled.entries()) {
         let mod;
         let zipFile;
         try {
             zipFile = path.join(packedModRoot, entry.file);
-            mod = await openPackedMod(zipFile, id);
-            console.info(`Detected packed Mod: ${mod.manifest.name} - v${mod.manifest.version}`);
+            mod = await _openPackedMod(zipFile, id);
         } catch(e) {
-            if (e instanceof ValidationError) {
-                const path = e.key ? e.path.concat(e.key) : e.path;
-                console.error(`Mod validation error [${id}] (${path.join('.')}): ${e.message}`);
-            } else {
-                console.error('Invalid Mod:', id, entry.file, e);
-            }
+            console.error('Invalid Mod:', id, entry.file, e);
             continue;
         }
         if (getOrInitModSettings(id).enabled) {
@@ -312,15 +249,15 @@ async function _initPacked(root) {
                     const oldZip = mod.zip;
                     mod = await installPackedModRelease(id, latestRelease);
                     oldZip.close();
-                    fsRemoveFile(zipFile);
+                    fs.rmSync(zipFile);
                 }
             } catch(e) {
                 console.error("Failed to check/update Mod:", e);
             }
         }
-        validMods.push(mod);
+        mods.push(mod);
     }
-    return validMods;
+    return mods;
 }
 
 
@@ -333,7 +270,7 @@ function packedModHash({file, data}) {
 }
 
 
-async function openPackedMod(file, id) {
+async function _openPackedMod(file, id) {
     const zip = new StreamZip.async({file});
     let zipRootDir;
     for (const zEntry of Object.values(await zip.entries())) {
@@ -354,66 +291,11 @@ async function openPackedMod(file, id) {
     }
     const manifest = JSON.parse(await zip.entryData(`${zipRootDir}/manifest.json`));
     if (id && manifest.id && manifest.id !== id) {
-        console.warn("Packed extention ID is diffrent from directory ID", id, manifest.id);
+        console.debug(`Ignoring manifest based ID for packed Mod ${id}:`, manifest.id);
     }
-    const label = `${manifest.name} (${id || 'missing-id'})`;
-    validateManifest(manifest, null, label);
+    delete manifest.id;
     const hash = packedModHash({file});
     return {id, manifest, zipRootDir, zip, hash, packed: true};
-}
-
-
-function validateManifest(manifest, modPath, label) {
-    validateSchema(manifest, modPath, manifestSchema, label, []);
-}
-
-
-function validateSchema(obj, modPath, schema, label, path, unique) {
-    if (typeof obj !== 'object') {
-        throw new ValidationError(path, undefined, "Invalid manifest root type: expected object");
-    }
-    const required = new Set(Object.entries(schema)
-        .filter(([_, x]) => x.required)
-        .map(([k]) => k));
-    for (const [k, v] of Object.entries(obj)) {
-        if (!schema['*'] && !Object.prototype.hasOwnProperty.call(schema, k)) {
-            throw new ValidationError(path, k, 'Unexpected key');
-        }
-        const info = schema[k] || schema['*'];
-        if (info.isArray && !Array.isArray(v)) {
-            throw new ValidationError(path, k, 'Invalid type, expected "array"');
-        }
-        const vUnique = info.schema && new Map(Object.entries(info.schema)
-            .filter(([_, x]) => x.unique)
-            .map(([k]) => [k, new Set()]));
-        const vArr = info.isArray ? v : [v];
-        for (const [i, xv] of vArr.entries()) {
-            const pathKey = info.isArray ? `${k}[${i}]` : k;
-            if (info.deprecated) {
-                console.warn(`Deprecated Mod manifest field "${pathKey}": ${label}`);
-            }
-            if (typeof xv !== info.type) {
-                throw new ValidationError(path, pathKey, `Invalid type, expected "${info.type}"`);
-            }
-            if (info.valid && !info.valid(xv, schema, modPath)) {
-                throw new ValidationError(path, pathKey, `Invalid value: "${xv}"`);
-            }
-            if (info.schema) {
-                validateSchema(xv, modPath, info.schema, label, [...path, pathKey], vUnique);
-            }
-            if (unique && unique.has(k)) {
-                const used = unique.get(k);
-                if (used.has(xv)) {
-                    throw new ValidationError(path, pathKey, `Duplicate value for unique field: "${xv}"`);
-                }
-                used.add(xv);
-            }
-        }
-        required.delete(k);
-    }
-    if (required.size) {
-        throw new ValidationError(path, undefined, `Missing required key(s): ${[...required]}`);
-    }
 }
 
 
@@ -470,6 +352,7 @@ export function getWindowManifests() {
 }
 
 
+// Used by release tool on mods.sauce.llc (probably deprecate if we move this code there)
 export async function validatePackedMod(zipUrl) {
     const resp = await fetch(zipUrl);
     if (!resp.ok) {
@@ -479,11 +362,12 @@ export async function validatePackedMod(zipUrl) {
     const tmpFile = path.join(packedModRoot, `tmp-${crypto.randomUUID()}.zip`);
     fs.writeFileSync(tmpFile, data);
     try {
-        const {manifest, zip, hash} = await openPackedMod(tmpFile);
-        zip.close();
-        return {manifest, hash, size: data.byteLength};
+        const mod = await _openPackedMod(tmpFile, null);
+        mod.zip.close();
+        const {warnings} = core.validateMod(mod);
+        return {manifest: mod.manifest, hash: mod.has, warnings, size: data.byteLength};
     } finally {
-        fsRemoveFile(tmpFile);
+        fs.rmSync(tmpFile);
     }
 }
 rpc.register(validatePackedMod);
@@ -493,7 +377,8 @@ async function installPackedModRelease(id, release) {
     const data = await fetchPackedModRelease(release);
     const file = `${crypto.randomUUID()}.zip`;
     fs.writeFileSync(path.join(packedModRoot, file), data);
-    const mod = await openPackedMod(path.join(packedModRoot, file), id);
+    const mod = await _openPackedMod(path.join(packedModRoot, file), id);
+    core.validateMod(mod);
     if (!modsInstalled.has(id)) {
         modsInstalled.set(id, {});
     }
@@ -550,7 +435,7 @@ export function removePackedMod(id) {
     const mod = modsById.get(id);
     mod.restartRequired = true;
     mod.status = 'removing';
-    fsRemoveFile(path.join(packedModRoot, installed.file));
+    fs.rmSync(path.join(packedModRoot, installed.file));
     eventEmitter.emit('removed-mod', mod);
     eventEmitter.emit('available-mods-changed', mod, availableMods);
 }
@@ -587,35 +472,8 @@ async function getLatestPackedModRelease(id) {
 }
 
 
-function semverOrder(a, b) {
-    if (a === b || (!a && !b)) {
-        return 0;
-    }
-    const A = a != null ? a.toString().split('.').map(x => x.split('-')[0]) : [];
-    if (A.includes('x')) {
-        A.splice(A.indexOf('x'), A.length);
-    }
-    const B = b != null ? b.toString().split('.').map(x => x.split('-')[0]) : [];
-    if (B.includes('x')) {
-        B.splice(B.indexOf('x'), B.length);
-    }
-    for (let i = 0; i < Math.max(A.length, B.length); i++) {
-        if (A[i] && B[i]) {
-            if (+A[i] > +B[i]) {
-                return 1;
-            } else if (+A[i] < +B[i]) {
-                return -1;
-            }
-        } else {
-            return A[i] ? 1 : -1;
-        }
-    }
-    return 0;
-}
-
-
 function packedModBestRelease(releases) {
     return releases
-        .sort((a, b) => semverOrder(b.version, a.version))
-        .filter(x => semverOrder(pkg.version, x.minVersion) >= 0)[0];
+        .sort((a, b) => core.semverOrder(b.version, a.version))
+        .filter(x => core.semverOrder(pkg.version, x.minVersion) >= 0)[0];
 }

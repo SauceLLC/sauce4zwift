@@ -2,7 +2,7 @@
   "name": "sauce4zwift",
   "productName": "Sauce for Zwift™",
   "private": true,
-  "version": "1.2.4-alpha",
+  "version": "1.2.9",
   "description": "Overlay widgets and advanced instrumentation for the serious Zwifter.",
   "homepage": "https://www.sauce.llc",
   "author": "Sauce, LLC",
@@ -21,29 +21,30 @@
   },
   "dependencies": {
     "@sentry/node": "6.19.6",
-    "better-sqlite3": "9.4.5",
-    "electron-updater": "6.1.9",
-    "express": "4.19.2",
+    "better-sqlite3": "11.7.0",
+    "electron-updater": "6.3.9",
+    "express": "4.21.2",
     "express-ws": "5.0.2",
     "jsfit": "https://github.com/SauceLLC/jsfit.git#c55550a6ad28bff30942eafca3be18cc48f5e304",
     "keytar": "7.9.0",
-    "lossless-json": "4.0.1",
+    "lossless-json": "4.0.2",
     "node-fetch": "3.3.2",
     "node-stream-zip": "1.15.0",
-    "protobufjs": "7.2.6",
+    "protobufjs": "7.4.0",
     "xxhash-addon": "2.0.3"
   },
   "optionalDependencies": {
-    "zwift-utils": "https://github.com/SauceLLC/zwift-utils.git#2638cffb2bc9570a3d399f192326e10b1f0a975d"
+    "zwift-utils": "https://github.com/SauceLLC/zwift-utils.git#2d8bb6207464137e2dd3744f2f935993f0f0de45"
   },
   "devDependencies": {
     "@electron/notarize": "2.3.2",
     "@sentry/browser": "6.19.6",
-    "echarts": "5.5.0",
-    "electron": "29.2.0",
-    "electron-builder": "24.13.3",
-    "eslint": "8.57.0",
-    "sass": "1.74.1",
+    "echarts": "5.5.1",
+    "electron": "33.2.0",
+    "electron-builder": "25.1.8",
+    "eslint": "8.57.1",
+    "eslint-plugin-html": "8.1.2",
+    "sass": "1.82.0",
     "world_countries_lists": "2.9.0"
   },
   "build": {

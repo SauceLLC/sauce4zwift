@@ -102,15 +102,17 @@ export function getStreamFieldVisualMaps(fields) {
 }
 
 
+let _powerZoneColors;
 export function getPowerFieldPieces(data, powerZones, ftp) {
     const pieces = [];
     let curZone;
     let start = 0;
-    const colors = common.getPowerZoneColors(powerZones);
+    const colors = _powerZoneColors = (_powerZoneColors || common.getPowerZoneColors(powerZones));
     for (let i = 0; i < data.length; i++) {
         const xPct = data[i][1] / ftp;
         let zone;
-        for (const z of powerZones) {
+        for (let j = 0; j < powerZones.length; j++) {
+            const z = powerZones[j];
             if (xPct >= z.from && (!z.to || xPct < z.to)) {
                 zone = z;
                 break;
@@ -142,40 +144,20 @@ export function getPowerFieldPieces(data, powerZones, ftp) {
 
 
 export function magicZonesAfterRender({hackId, chart, ftp, zones, seriesId, zLevel}) {
-    const chartEl = chart.getDom();
-    const pathEl = chartEl.querySelector('path[fill="magic-zones"]');
-    if (pathEl) {
-        if (!pathEl.id) {
-            pathEl.id = `path-hack-${hackId}`;
-            pathEl.style.setProperty('fill', 'transparent');
-        }
-        let clipEl = chartEl.querySelector(`clipPath#clip-hack-${hackId}`);
-        if (!clipEl) {
-            clipEl = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
-            clipEl.id = `clip-hack-${hackId}`;
-            const useEl = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-            useEl.setAttribute('href', `#${pathEl.id}`);
-            clipEl.appendChild(useEl);
-            chartEl.querySelector('defs').appendChild(clipEl);
-        }
-        for (const x of chartEl.querySelectorAll('path[stroke="magic-zones-graphics"]')) {
-            x.setAttribute('clip-path', `url(#${clipEl.id})`);
-            x.removeAttribute('stroke');
-        }
-    }
     if (chart._magicZonesActive) {
         return;
     }
-    const graphic = calcMagicPowerZonesGraphics(chart, zones, seriesId, ftp, {zLevel});
-    const sig = JSON.stringify(graphic);
-    if (sig === chart._magicZonesLastSig) {
+    const graphic = calcMagicPowerZonesGraphics(chart, zones, seriesId, ftp,
+                                                {zLevel, sig: chart._magicZonesLastSig});
+    if (!graphic) {
         return;
     }
     chart._magicZonesActive = true;
-    chart._magicZonesLastSig = sig;
-    requestAnimationFrame(() => {
+    chart._magicZonesLastSig = graphic.sig;
+    // Echarts gets mad if we call setOption from setOption
+    queueMicrotask(() => {
         try {
-            chart.setOption({graphic}, {replaceMerge: 'graphic', silent: true});
+            setMagicZonesOptions({chart, graphic, hackId});
         } finally {
             chart._magicZonesActive = false;
         }
@@ -183,9 +165,40 @@ export function magicZonesAfterRender({hackId, chart, ftp, zones, seriesId, zLev
 }
 
 
+function setMagicZonesOptions({chart, graphic, hackId}) {
+    chart.setOption({graphic}, {replaceMerge: 'graphic', silent: true});
+    const chartEl = chart.getDom();
+    const pathEl = chartEl.querySelector('path[fill="magic-zones"]');
+    if (!pathEl.id) {
+        pathEl.id = `path-hack-${hackId}`;
+        pathEl.style.setProperty('fill', 'transparent');
+    }
+    if (!chartEl.querySelector(`clipPath#clip-hack-${hackId}`)) {
+        const clipEl = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+        clipEl.id = `clip-hack-${hackId}`;
+        const useEl = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+        useEl.setAttribute('href', `#${pathEl.id}`);
+        clipEl.appendChild(useEl);
+        chartEl.querySelector('defs').appendChild(clipEl);
+    }
+    const groupClipEl = chartEl.querySelector('g:not(.hacked):has(> path[stroke="magic-zones-graphics"]');
+    if (groupClipEl) {
+        groupClipEl.setAttribute('clip-path', `url(#clip-hack-${hackId})`);
+        groupClipEl.classList.add('hacked');
+    }
+}
+
+
 export function calcMagicPowerZonesGraphics(chart, zones, seriesId, ftp, options={}) {
     const children = [];
-    const graphic = [{type: 'group', silent: true, id: 'magic-zones', children}];
+    const graphic = [{
+        type: 'group',
+        silent: true,
+        // clipPath is hack to force zRender to give us a <g> tag..
+        clipPath: {type: 'polygon'},
+        id: 'magic-zones',
+        children
+    }];
     const series = chart.getModel().getSeries().find(x => x.id === seriesId);
     const visible = !chart._sauceLegend?.hidden.has(seriesId);
     if (!series || !zones || !ftp || !visible) {
@@ -197,23 +210,47 @@ export function calcMagicPowerZonesGraphics(chart, zones, seriesId, ftp, options
     const data = [];
     const seriesData = series.getData();
     const len = seriesData.count();
-    const step = 1; //Math.max(1, (len / (devicePixelRatio * innerWidth)) | 0);
-    for (let i = 0; i < len; i += step) {
-        data.push([seriesData.get('x', i), seriesData.get('y', i)]);
+    const step = Math.max(1, (len / (devicePixelRatio * innerWidth)) | 0);
+    if (step > 1) {
+        for (let i = 0; i < len; i += step) {
+            let ySum = 0;
+            for (let j = 0; j < step; j++) {
+                ySum += seriesData.get('y', i + j);
+            }
+            data.push([seriesData.get('x', i), ySum / step]);
+        }
+    } else {
+        for (let i = 0; i < len; i += 1) {
+            data.push([seriesData.get('x', i), seriesData.get('y', i)]);
+        }
     }
     const pieces = getPowerFieldPieces(data, zones, ftp);
     const [bottomY, topY]= yAxis.axis.getGlobalExtent();
     const height = bottomY - topY;
+    const minWidth = 1 / devicePixelRatio;
     let startPx;
-    for (const x of pieces) {
-        if (startPx == null) {
+    let sig = '';
+    const stage1 = [];
+    for (let i = 0; i < pieces.length; i++) {
+        const x = pieces[i];
+        if (startPx === undefined) {
             startPx = chart.convertToPixel({xAxisIndex}, data[x.start][0]);
         }
         const widthPx = chart.convertToPixel({xAxisIndex}, data[x.end][0]) - startPx;
-        if (widthPx < 0) {
-            debugger;
+        if (widthPx < minWidth) {
             continue;
         }
+        sig += `${startPx} ${widthPx} ${x.zone.zone}`;
+        stage1.push({startPx, widthPx, x});
+        startPx = undefined;
+    }
+    if (sig === options.sig) {
+        // Likely when scrubbing
+        return;
+    }
+    graphic.sig = sig;
+    for (let i = 0; i < stage1.length; i++) {
+        const {startPx, widthPx, x} = stage1[i];
         const top = x.zone.to ? chart.convertToPixel({yAxisIndex}, x.zone.to * ftp * 0.95) : 0;
         children.push({
             type: 'rect',
@@ -234,7 +271,6 @@ export function calcMagicPowerZonesGraphics(chart, zones, seriesId, ftp, options
                 },
             }
         });
-        startPx = null;
     }
     return graphic;
 }

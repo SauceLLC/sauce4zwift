@@ -9,18 +9,15 @@
         <% if (event.lateJoinInMinutes && joinable > 0) { %>
             title="Can late join until {{humanTime(event.ts + ((event.lateJoinInMinutes || 0) * 60 * 1000))}}"
         <% } %>>
-        {{humanTime(event.eventStart, {style: 'date'})}}
+        {-humanDateTime(event.eventStart, {html: true, concise: true, style: 'short', today_style: 'short'})-}
         <% if (event.lateJoinInMinutes) { %>
             <ms title="Allows joining late">acute</ms>
         <% } %>
     </td>
-    <% const prettyType = event.eventType.replace(/_/g, ' ').replace(/GROUP WORKOUT/, 'WORKOUT') %>
     <td class="type">
+        {{event.prettyTypeShort}}
         <% if (event.sport === 'running') { %>
-            {{prettyType.replace(/RIDE/, 'RUN')}}
             <ms title="Run">directions_run</ms>
-        <% } else { %>
-            {{prettyType}}
         <% } %>
     </td>
     <td class="name" title="{{event.name}}">{{event.name}}</td>
@@ -31,13 +28,15 @@
     <% } %>
     <% if (event.durations.length) { %>
         <% if (event.durations.length > 1) { %>
-            <td>{-humanDuration(event.durations[0], {html: true, short: true})-} - {-humanDuration(event.durations.at(-1), {html: true, short: false})-}</td>
+            <td>{-humanDuration(event.durations[0], {html: true, short: true})-} -
+                {-humanDuration(event.durations.at(-1), {html: true, short: true})-}</td>
         <% } else { %>
             <td>{-humanDuration(event.durations[0], {html: true})-}</td>
         <% } %>
     <% } else if (event.distances.length) { %>
         <% if (event.distances.length > 1) { %>
-            <td>{-humanDistance(event.distances[0])-} - {-humanDistance(event.distances.at(-1), {suffix: true, html: true})-}</td>
+            <td>{-humanDistance(event.distances[0])-} -
+                {-humanDistance(event.distances.at(-1), {suffix: true, html: true})-}</td>
         <% } else { %>
             <td>{-humanDistance(event.distances[0], {suffix: true, html: true})-}</td>
         <% } %>

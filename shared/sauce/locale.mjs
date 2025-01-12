@@ -36,6 +36,37 @@ const hdUnits = {
 
 const humanEmpty = '-';
 
+export const humanDateTimeFormats = {
+    date: {
+        long: {year: 'numeric', month: 'long', day: 'numeric'},
+        default: {year: 'numeric', month: 'short', day: 'numeric'},
+        day: {month: 'short', day: 'numeric'},
+        short: {year: 'numeric', month: 'numeric', day: 'numeric'},
+        shortDay: {month: 'numeric', day: 'numeric'},
+        monthYear: {year: 'numeric', month: 'short'},
+        month: {month: 'short'},
+        monthDay: {month: 'short', day: 'numeric'},
+        weekday: {weekday: 'short', month: 'short', day: 'numeric'},
+        weekdayYear: {weekday: 'short', year: 'numeric', month: 'short', day: 'numeric'},
+    },
+    time: {
+        short: {hour: 'numeric', minute: 'numeric'},
+        default: {hour: 'numeric', minute: 'numeric', second: 'numeric'},
+        ms: {hour: 'numeric', minute: 'numeric', second: 'numeric', fractionalSecondDigits: 3},
+        date: {weekday: 'short', hour: 'numeric', minute: 'numeric', timeZoneName: 'short'},
+    },
+    datetime: {
+        long: {year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric'},
+        default: {year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: 'numeric'},
+        day: {month: 'short', day: 'numeric', hour: 'numeric', minute: 'numeric'},
+        short: {year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric'},
+        shortDay: {month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric'},
+        weekday: {year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: 'numeric',
+                  weekday: 'short'},
+        weekdayDay: {month: 'short', day: 'numeric', hour: 'numeric', minute: 'numeric', weekday: 'short'},
+    }
+};
+
 
 function _realNumber(n) {
     return n != null && n < Infinity && n > -Infinity && !isNaN(n) && n !== '';
@@ -128,51 +159,67 @@ function humanRelTime(date, options={}) {
 }
 
 
-const _intlDateFormats = {
-    'long': new Intl.DateTimeFormat([], {year: 'numeric', month: 'long', day: 'numeric'}),
-    'default': new Intl.DateTimeFormat([], {year: 'numeric', month: 'short', day: 'numeric'}),
-    'short': new Intl.DateTimeFormat([], {year: 'numeric', month: 'numeric', day: 'numeric'}),
-    'shortDay': new Intl.DateTimeFormat([], {month: 'numeric', day: 'numeric'}),
-    'monthYear': new Intl.DateTimeFormat([], {year: 'numeric', month: 'short'}),
-    'month': new Intl.DateTimeFormat([], {month: 'short'}),
-    'monthDay': new Intl.DateTimeFormat([], {month: 'short', day: 'numeric'}),
-    'weekday': new Intl.DateTimeFormat([], {weekday: 'short', month: 'short', day: 'numeric'}),
-    'weekdayYear': new Intl.DateTimeFormat([], {weekday: 'short', year: 'numeric', month: 'short',
-                                                day: 'numeric'}),
-};
 function humanDate(date, options={}) {
-    if (!(date instanceof Date)) {
-        date = new Date(date);
-    }
-    if (isNaN(date)) {
-        return humanEmpty;
-    }
-    const style = options.style || 'default';
-    return _intlDateFormats[style].format(date);
+    const format = humanDateTimeFormats.date[options.style || 'default'];
+    return _humanDateTimeFormat(date, format, options);
 }
 
 
-const _intlTimeFormats = {
-    'default': new Intl.DateTimeFormat([], {hour: 'numeric', minute: 'numeric', second: 'numeric'}),
-    'ms': new Intl.DateTimeFormat([], {hour: 'numeric', minute: 'numeric', second: 'numeric',
-                                       fractionalSecondDigits: 3}),
-    'date': new Intl.DateTimeFormat([], {weekday: 'short', hour: 'numeric', minute: 'numeric',
-                                         timeZoneName: 'short'}),
-};
 function humanTime(date, options={}) {
+    const format = humanDateTimeFormats.time[options.style || 'default'];
+    return _humanDateTimeFormat(date, format, options);
+}
+
+
+function humanDateTime(date, options={}) {
+    if (!(date instanceof Date)) {
+        date = new Date(date);
+    }
+    const now = new Date();
+    if (now.getYear() === date.getYear() &&
+        now.getMonth() === date.getMonth() &&
+        now.getDate() === date.getDate()) {
+        const time = humanTime(date, {...options, style: options.today_style});
+        if (options.concise) {
+            return time;
+        }
+        const today = hdUnits.today;
+        const Today = today.substr(0, 1).toLocaleUpperCase() + today.substr(1);
+        return `${Today}, ${time}`;
+    }
+    let style = options.style;
+    if (options.concise && now.getYear() === date.getYear()) {
+        if (style) {
+            humanDateTimeFormats.datetime[style + 'Day'];
+            style += 'Day';
+        } else {
+            style = 'day';
+        }
+    }
+    const format = humanDateTimeFormats.datetime[style || 'default'];
+    return _humanDateTimeFormat(date, format, options);
+}
+
+
+const _dtFormatters = new Map();
+function _humanDateTimeFormat(date, format, options) {
     if (!(date instanceof Date)) {
         date = new Date(date);
     }
     if (isNaN(date)) {
         return humanEmpty;
     }
-    const style = options.style || 'default';
+    let formatter = _dtFormatters.get(format);
+    if (!formatter) {
+        formatter = new Intl.DateTimeFormat([], format);
+        _dtFormatters.set(format, formatter);
+    }
     if (options.parts) {
-        return _intlTimeFormats[style].formatToParts(date);
+        return formatter.formatToParts(date);
     } else if (!options.html) {
-        return _intlTimeFormats[style].format(date);
+        return formatter.format(date);
     } else {
-        return partsToHTML(_intlTimeFormats[style].formatToParts(date).map(x => ({
+        return partsToHTML(formatter.formatToParts(date).map(x => ({
             ...x,
             type: {literal: 'seperator', dayPeriod: 'unit'}[x.type] || 'value',
             name: x.type,
@@ -243,45 +290,6 @@ function partsToHTML(parts) {
 }
 
 
-const _intlDateTimeFormats = {
-    'long': new Intl.DateTimeFormat([], {
-        year: 'numeric', month: 'long', day: 'numeric',
-        hour: 'numeric', minute: 'numeric'
-    }),
-    'default': new Intl.DateTimeFormat([], {
-        year: 'numeric', month: 'short', day: 'numeric',
-        hour: 'numeric', minute: 'numeric'
-    }),
-    'short': new Intl.DateTimeFormat([], {
-        year: 'numeric', month: 'numeric', day: 'numeric',
-        hour: 'numeric', minute: 'numeric'
-    }),
-    'weekday': new Intl.DateTimeFormat([], {
-        weekday: 'short',
-        year: 'numeric', month: 'short', day: 'numeric',
-        hour: 'numeric', minute: 'numeric'
-    }),
-};
-function humanDateTime(date, options={}) {
-    if (!(date instanceof Date)) {
-        date = new Date(date);
-    }
-    const now = new Date();
-    if (now.getDate() === date.getDate() &&
-        now.getMonth() === date.getMonth() &&
-        now.getFullYear() === date.getFullYear()) {
-        const time = humanTime(date, {...options, style: 'default'});
-        if (options.concise) {
-            return time;
-        }
-        const today = hdUnits.today;
-        const Today = today.substr(0, 1).toLocaleUpperCase() + today.substr(1);
-        return [Today, time].join(', ');
-    }
-    const style = options.style || 'default';
-    return _intlDateTimeFormats[style].format(date);
-}
-
 
 const _utcSundayRef = new Date(1638700000000);
 function humanDayOfWeek(sunOfft, options={}) {
@@ -342,7 +350,7 @@ function humanWkg(wkg, options={}) {
     if (options.suffix === true || options.suffixOnly) {
         options.suffix = 'w/kg';
     }
-    return humanNumber(wkg, {precision: 1, ...options});
+    return humanNumber(wkg, {precision: 1, fixed: true, ...options});
 }
 
 

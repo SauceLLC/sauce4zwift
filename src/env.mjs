@@ -1,5 +1,5 @@
 import path from 'node:path';
-import fs from 'node:fs';
+import fs from './fs-safe.js';
 import * as rpc from './rpc.mjs';
 import {fileURLToPath} from 'node:url';
 
@@ -11,6 +11,7 @@ export const worldMetas = {
     [realWorldCourseId]: {
         worldId: realWorldCourseId,
         courseId: realWorldCourseId,
+        name: 'Earth',
         lonOffset: 0,
         latOffset: 0,
         lonDegDist: 0.01,
