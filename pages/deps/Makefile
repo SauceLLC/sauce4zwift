@@ -1,23 +1,25 @@
 
-FLAGS_SRCS = $(wildcard ../../node_modules/world_countries_lists/data/flags/64x64/*.png)
-FLAGS_OBJS = $(patsubst ../../node_modules/world_countries_lists/data/flags/64x64/%,flags/%,$(FLAGS_SRCS))
+NODE := ../../node_modules
 
-#EC_SRC := ../../node_modules/echarts/dist/echarts.esm.min.js
-EC_SRC := ../../node_modules/echarts/dist/echarts.esm.js
-EC_OBJ := src/echarts.mjs
-
-default: $(FLAGS_OBJS) $(EC_OBJ)
+default: flags echarts saucecharts
 
 
-$(FLAGS_OBJS): $(FLAGS_SRCS) Makefile
-	mkdir -p $(@D)
-	cp $(patsubst flags/%,../../node_modules/world_countries_lists/data/flags/64x64/%,$@) $@
+flags:
+	mkdir -p flags
+	cp $(NODE)/world_countries_lists/data/flags/64x64/*.png flags/
 
+echarts:
+	mkdir -p src
+	cp $(NODE)/echarts/dist/echarts.esm.min.js src/echarts.mjs
 
-$(EC_OBJ): $(EC_SRC) Makefile
-	mkdir -p $(@D)
-	cp $< $@
+saucecharts:
+	mkdir -p css/saucecharts src/saucecharts
+	cp -r $(NODE)/saucecharts/src/* src/saucecharts/
+	cp -r $(NODE)/saucecharts/css/* css/saucecharts/
 
 
 clean:
-	rm -rf src flags
+	rm -rf flags src css
+
+
+.PHONY: flags echarts saucecharts
