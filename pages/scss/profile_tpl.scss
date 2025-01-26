@@ -1,5 +1,5 @@
 @use 'color';
-@import url(sparkline.css);
+@import '../deps/css/saucecharts/line.css';
 
 .profile {
     display: flex;

@@ -1,6 +1,6 @@
 import * as common from './common.mjs';
 import {locale, template} from '../../shared/sauce/index.mjs';
-import {Sparkline} from './sparkline.mjs';
+import * as sc from '../deps/src/saucecharts/index.mjs';
 
 common.enableSentry();
 
@@ -158,10 +158,13 @@ export async function render(el, tpl, tplData) {
         for (const [i, o] of history.entries()) {
             o.x = i ? history[i - 1].x + Math.min(5, Math.max(1, (o.ts - history[i - 1].ts) / 86400000)) : 0;
         }
-        rsSparkline = new Sparkline({
+        rsSparkline = new sc.LineChart({
             padding: [10, 10, 10, 10],
+            tooltipPosition: 'below middle',
+            xAxis: {disabled: true},
+            yAxis: {disabled: true},
             el: rsEl.querySelector('.sparkline'),
-            onTooltip: o => `${H.date(o.ts)}: ${o.y.toFixed(1)}`,
+            onTooltip: ({entry}) => `${H.date(entry.ts)}: ${entry.y.toFixed(1)}`,
         });
         rsSparkline.setData(history);
     }]);
