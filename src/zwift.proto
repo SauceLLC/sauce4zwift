@@ -679,6 +679,7 @@ message PlayerProfile {
 
     int32 _f153 = 153; // Added 2024/06/06 Seen 0
     string publicId = 154;
+    float _f155 = 155; // Added 2025/01/30 (1.82+)
 }
 
 message PlayerProfiles {

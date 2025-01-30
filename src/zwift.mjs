@@ -533,6 +533,11 @@ export class ZwiftAPI {
                 SMART_TRAINER: 'Smart Trainer',
             }[x.powerType];
             delete x.followerStatusOfLoggedInPlayer;
+            // XXX
+            if (x._f155 || x._f153) {
+                console.warn("Found something interesting with f153 or f155", x);
+                debugger;
+            }
             return x;
         });
     }
