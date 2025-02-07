@@ -34,7 +34,7 @@
     "xxhash-addon": "2.0.3"
   },
   "optionalDependencies": {
-    "zwift-utils": "https://github.com/SauceLLC/zwift-utils.git#2d8bb6207464137e2dd3744f2f935993f0f0de45"
+    "zwift-utils": "https://github.com/SauceLLC/zwift-utils.git#2740c5c4a90ece58e7d60442e1c062a5c2d1973c"
   },
   "devDependencies": {
     "@electron/notarize": "2.3.2",
