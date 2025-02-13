@@ -16,8 +16,8 @@
     "build": "electron-builder build -p never",
     "publish": "electron-builder build -p always",
     "postinstall": "electron-builder install-app-deps",
-    "test": "node --test test",
-    "test-debug": "node --inspect-brk --test test"
+    "test": "node --test",
+    "test-debug": "node --inspect-brk --test"
   },
   "dependencies": {
     "@sentry/node": "6.19.6",
