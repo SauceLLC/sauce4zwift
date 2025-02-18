@@ -862,7 +862,7 @@ export class ZwiftAPI {
             results = allWorkouts;
         } else {
             const workout = await this.fetchJSON(`/api/workout/workouts/${workoutId}`);
-            const detailsResp = await this.fetch({uri: workout.workoutAssetUrl});
+            const detailsResp = await this.fetch(null, {uri: workout.workoutAssetUrl});
             const details = await detailsResp.text();
             return details; // XXX should probably return workout with property containing parsed xml
         }
