@@ -34,7 +34,7 @@
     "xxhash-addon": "2.0.3"
   },
   "optionalDependencies": {
-    "zwift-utils": "https://github.com/SauceLLC/zwift-utils.git#2740c5c4a90ece58e7d60442e1c062a5c2d1973c",
+    "zwift-utils": "https://github.com/SauceLLC/zwift-utils.git#e0c414fdb12ae4b0ce256451ee5c57d34ea3098d",
     "macos-window-control": "https://github.com/mayfield/macos-window-control.git#e9f236a05d73976df6289a84b65b86abc4793e73"
   },
   "devDependencies": {
