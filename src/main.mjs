@@ -379,10 +379,8 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     sauceApp.rpcEventEmitters.set('windows', windows.eventEmitter);
     sauceApp.rpcEventEmitters.set('updater', autoUpdater);
     sauceApp.rpcEventEmitters.set('mods', mods.eventEmitter);
-    if (!args.headless) {
-        menu.installTrayIcon();
-        menu.setAppMenu();
-    }
+    menu.installTrayIcon();
+    menu.setAppMenu();
     let maybeUpdateAndRestart = () => undefined;
     const lastVersion = sauceApp.getSetting('lastVersion');
     if (lastVersion !== pkg.version) {
@@ -391,18 +389,16 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
             sauceApp.setSetting('updateChannel', defaultUpdateChannel);
             console.info("Update channel set to:", defaultUpdateChannel);
         }
-        if (!args.headless) {
-            if (lastVersion) {
-                console.info(`Sauce was updated: ${lastVersion} -> ${pkg.version}`);
-                await electron.session.defaultSession.clearCache();
-                for (const {id} of windows.getProfiles()) {
-                    await windows.loadSession(id).clearCache();
-                }
-                await windows.showReleaseNotes();
-            } else {
-                console.info("First time invocation: Welcome to Sauce for Zwift");
-                await windows.welcomeSplash();
+        if (lastVersion) {
+            console.info(`Sauce was updated: ${lastVersion} -> ${pkg.version}`);
+            await electron.session.defaultSession.clearCache();
+            for (const {id} of windows.getProfiles()) {
+                await windows.loadSession(id).clearCache();
             }
+            await windows.showReleaseNotes();
+        } else {
+            console.info("First time invocation: Welcome to Sauce for Zwift");
+            await windows.welcomeSplash();
         }
         sauceApp.setSetting('lastVersion', pkg.version);
     } else if (!isDEV) {
