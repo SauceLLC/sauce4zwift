@@ -560,6 +560,12 @@ export async function settingsMain() {
         if (ev.data.key === 'autoLapMetric') {
             extraData.autoLapIntervalUnits = ev.data.value === 'time' ? 'mins' : 'km';
             appSettingsUpdate(extraData);
+        } else if (ev.data.key === 'emulateFullscreenZwift') {
+            if (ev.data.value) {
+                common.rpc.activateFullscreenZwiftEmulation();
+            } else {
+                common.rpc.deactivateFullscreenZwiftEmulation();
+            }
         }
     });
     extraData.autoLapIntervalUnits = await common.rpc.getSetting('autoLapMetric') === 'time' ?

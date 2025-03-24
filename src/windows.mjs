@@ -1,4 +1,5 @@
 import path from 'node:path';
+import process from 'node:process';
 import os from 'node:os';
 import urlMod from 'node:url';
 import * as storageMod from './storage.mjs';
@@ -480,6 +481,88 @@ rpc.register(pid => {
         };
     }
 }, {name: 'getWindowInfoForPID'});
+
+
+let _fszEmulationAbort;
+let _fszUsedOnce;
+async function activateFullscreenZwiftEmulation() {
+    if (_fszEmulationAbort) {
+        _fszEmulationAbort.abort();
+    }
+    const abortCtrl = _fszEmulationAbort = new AbortController();
+    const aborted = new Promise((_, reject) => {
+        abortCtrl.signal.addEventListener('abort', () => {
+            if (abortCtrl === _fszEmulationAbort) {
+                _fszEmulationAbort = null;
+            }
+            reject(abortCtrl.signal.reason);
+        }, {once: true});
+    });
+    const mwc = await import('macos-window-control');
+    global.mwc = mwc;  // XXX DEBUG
+    const {fork} = await import('node:child_process');
+    if (!_fszUsedOnce) {
+        _fszUsedOnce = true;
+        fork('./src/unzoom.mjs', [process.pid], {detached: true}).unref();
+    }
+    (async () => {
+        let pid;
+        const sSize = await mwc.getMainScreenSize();
+        const menuHeight = mwc.getMenuBarHeight();
+        for (let i = 0; !abortCtrl.signal.aborted; i++) {
+            if (i) {
+                console.log('sleep', Math.min(30000, 200 * (1.05 ** i)));
+                await Promise.race([sleep(Math.min(30000, 200 * (1.05 ** i))), aborted]);
+            }
+            if (!mwc.hasAccessibilityPermission()) {
+                console.warn("Lacking Accessibility permissions required for fullscreen emulation");
+                continue;
+            }
+            const zwiftApp = (await mwc.getApps()).find(x => x.name.match(/^ZwiftApp(Silicon)?$/));
+            if (!zwiftApp) {
+                console.debug("Zwift not running...");
+                if (pid != null) {
+                    mwc.setZoom({scale: 1});
+                    pid = null;
+                }
+                continue;
+            }
+            if (pid !== zwiftApp.pid) {
+                i = 1;
+                pid = zwiftApp.pid;
+                const win = (await mwc.getWindows({app: {pid}}))[0];
+                const scale = (sSize[1] - menuHeight - win.titlebarHeightEstimate) / sSize[1];
+                const size = [sSize[0] * scale, sSize[1] - menuHeight];
+                const position = [0, menuHeight];
+                mwc.setWindowSize({app: {pid}, size, position});
+                for (let f = 0; f <= 120; f++) {
+                    const lerp = ((1 / scale) - 1) * (f / 120);
+                    await sleep(1 / 60);
+                    mwc.setZoom({scale: 1 + lerp, center: [0, sSize[1]]});
+                }
+            }
+        }
+    })().catch(e => {
+        if (e.name !== 'AbortError') {
+            throw e;
+        }
+    });
+}
+
+
+async function deactivateFullscreenZwiftEmulation() {
+    if (_fszEmulationAbort) {
+        _fszEmulationAbort.abort();
+    }
+    const mwc = await import('macos-window-control');
+    mwc.setZoom({scale: 1});
+}
+
+
+if (os.platform() === 'darwin') {
+    rpc.register(activateFullscreenZwiftEmulation);
+    rpc.register(deactivateFullscreenZwiftEmulation);
+}
 
 
 export function getWidgetWindow(id) {
