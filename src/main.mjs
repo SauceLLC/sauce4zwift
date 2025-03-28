@@ -27,8 +27,7 @@ const updateChannelLevels = {stable: 10, beta: 20, alpha: 30};
 const serialCache = new WeakMap();
 const windowEventSubs = new WeakMap();
 
-let sauceApp;
-
+export let sauceApp;
 export let started;
 export let quiting;
 

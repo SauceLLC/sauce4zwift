@@ -411,6 +411,9 @@ rpc.register(() => {
             }
         }
     }
+    if (isMac && main.sauceApp.getSetting('emulateFullscreenZwift')) {
+        deactivateFullscreenZwiftEmulation();
+    }
 }, {name: 'hideAllWindows'});
 
 rpc.register(() => {
@@ -418,6 +421,9 @@ rpc.register(() => {
         if (canToggleVisibility(win)) {
             win.showInactive();
         }
+    }
+    if (isMac && main.sauceApp.getSetting('emulateFullscreenZwift')) {
+        activateFullscreenZwiftEmulation();
     }
 }, {name: 'showAllWindows'});
 
@@ -483,6 +489,28 @@ rpc.register(pid => {
 }, {name: 'getWindowInfoForPID'});
 
 
+function lerp(v0, v1, t) {
+    return (1 - t) * v0 + t * v1;
+}
+
+
+async function macSetZoomAnimated(mwc, {scale, center, duration=300, fps=60}) {
+    const start = performance.now();
+    const origin = mwc.getZoom();
+    let t = 1 / fps * 1000 / duration;
+    center = center || origin.center;
+    do {
+        const s = lerp(origin.scale, scale, t);
+        const x = lerp(origin.center[0], center[0], t);
+        const y = lerp(origin.center[1], center[1], t);
+        mwc.setZoom({scale: s, center: [x, y]});
+        await sleep(1000 / fps - 2);
+        t = (performance.now() - start) / duration;
+    } while (t < 1);
+    mwc.setZoom({scale, center});
+}
+
+
 let _fszEmulationAbort;
 let _fszUsedOnce;
 export async function activateFullscreenZwiftEmulation() {
@@ -518,11 +546,14 @@ export async function activateFullscreenZwiftEmulation() {
                 console.warn("Lacking Accessibility permissions required for fullscreen emulation");
                 continue;
             }
-            const zwiftApp = (await mwc.getApps()).find(x => x.name.match(/^ZwiftApp(Silicon)?$/));
+            //const zwiftApp = (await mwc.getApps()).find(x => x.name.match(/^ZwiftApp(Silicon)?$/));
+            const zwiftApp = (await mwc.getApps()).find(x => x.name.match(/^Maps?$/));
             if (!zwiftApp) {
-                console.debug("Zwift not running...");
-                if (pid != null) {
-                    mwc.setZoom({scale: 1});
+                if (pid === undefined) {
+                    console.debug("Zwift not running...");
+                    pid = null;
+                } else if (pid != null) {
+                    macSetZoomAnimated(mwc, {scale: 1});
                     i = 1;
                     pid = null;
                 }
@@ -545,20 +576,15 @@ export async function activateFullscreenZwiftEmulation() {
                 }
                 pid = zwiftApp.pid;
                 i = 1;
-                const scale = (sSize[1] - menuHeight - win.titlebarHeightEstimate) / sSize[1];
-                const size = [sSize[0] * scale, sSize[1] - menuHeight];
+                const scale = sSize[1] / (sSize[1] - menuHeight - win.titlebarHeightEstimate);
+                const size = [sSize[0] / scale, sSize[1] - menuHeight];
                 const position = [0, menuHeight];
                 mwc.setWindowSize({app: {pid}, size, position});
-                for (let f = 0; f <= 120; f++) {
-                    const lerp = ((1 / scale) - 1) * (f / 120);
-                    await sleep(1 / 60);
-                    mwc.setZoom({scale: 1 + lerp, center: [0, sSize[1]]});
-                }
+                macSetZoomAnimated(mwc, {scale, center: [0, sSize[1]]});
             }
         }
     })().catch(e => {
         if (e.name !== 'AbortError') {
-            debugger;
             throw e;
         }
     });
@@ -570,11 +596,11 @@ export async function deactivateFullscreenZwiftEmulation() {
         _fszEmulationAbort.abort();
     }
     const mwc = await import('macos-window-control');
-    mwc.setZoom({scale: 1});
+    macSetZoomAnimated(mwc, {scale: 1});
 }
 
 
-if (os.platform() === 'darwin') {
+if (isMac) {
     rpc.register(activateFullscreenZwiftEmulation);
     rpc.register(deactivateFullscreenZwiftEmulation);
 }
