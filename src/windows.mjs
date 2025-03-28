@@ -546,8 +546,7 @@ export async function activateFullscreenZwiftEmulation() {
                 console.warn("Lacking Accessibility permissions required for fullscreen emulation");
                 continue;
             }
-            //const zwiftApp = (await mwc.getApps()).find(x => x.name.match(/^ZwiftApp(Silicon)?$/));
-            const zwiftApp = (await mwc.getApps()).find(x => x.name.match(/^Maps?$/));
+            const zwiftApp = (await mwc.getApps()).find(x => x.name.match(/^ZwiftApp(Silicon)?$/));
             if (!zwiftApp) {
                 if (pid === undefined) {
                     console.debug("Zwift not running...");
