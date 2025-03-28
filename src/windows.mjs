@@ -73,7 +73,7 @@ export const widgetWindowManifests = [{
     prettyName: 'Overview',
     prettyDesc: 'Main top window for overall control and stats',
     private: true,
-    options: {width: 0.6, height: 40, x: 0.2, y: 28},
+    options: {width: 0.6, height: 40, x: 0.2, y: 28, minHeight: 10, minWidth: 100},
     webPreferences: {backgroundThrottling: false}, // XXX Doesn't appear to work
     alwaysVisible: true,
 }, {
@@ -523,6 +523,7 @@ async function activateFullscreenZwiftEmulation() {
                 console.debug("Zwift not running...");
                 if (pid != null) {
                     mwc.setZoom({scale: 1});
+                    i = 1;
                     pid = null;
                 }
                 continue;
