@@ -1,5 +1,6 @@
 import path from 'node:path';
 import events from 'node:events';
+import os from 'node:os';
 import * as report from '../shared/report.mjs';
 import * as storage from './storage.mjs';
 import * as menu from './menu.mjs';
@@ -507,6 +508,9 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     // TBD: Probably want to invalidate connections and reauth stuff when a resume happens
     electron.powerMonitor.on('suspend', limit => console.warn("System is being suspended"));
     electron.powerMonitor.on('resume', limit => console.warn("System is waking from suspend"));
+    if (os.platform() === 'darwin' && sauceApp.getSetting('emulateFullscreenZwift')) {
+        windows.activateFullscreenZwiftEmulation();
+    }
     console.debug(`Startup took ${Date.now() - s}ms`);
     started = true;
 }

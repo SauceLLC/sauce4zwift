@@ -485,10 +485,11 @@ rpc.register(pid => {
 
 let _fszEmulationAbort;
 let _fszUsedOnce;
-async function activateFullscreenZwiftEmulation() {
+export async function activateFullscreenZwiftEmulation() {
     if (_fszEmulationAbort) {
         _fszEmulationAbort.abort();
     }
+    console.info("Fullscreen zwift emulation activated.");
     const abortCtrl = _fszEmulationAbort = new AbortController();
     const aborted = new Promise((_, reject) => {
         abortCtrl.signal.addEventListener('abort', () => {
@@ -498,8 +499,8 @@ async function activateFullscreenZwiftEmulation() {
             reject(abortCtrl.signal.reason);
         }, {once: true});
     });
+    aborted.catch(e => void 0);  // silence unhandled warn
     const mwc = await import('macos-window-control');
-    global.mwc = mwc;  // XXX DEBUG
     const {fork} = await import('node:child_process');
     if (!_fszUsedOnce) {
         _fszUsedOnce = true;
@@ -511,7 +512,6 @@ async function activateFullscreenZwiftEmulation() {
         const menuHeight = mwc.getMenuBarHeight();
         for (let i = 0; !abortCtrl.signal.aborted; i++) {
             if (i) {
-                console.log('sleep', Math.min(30000, 200 * (1.05 ** i)));
                 await Promise.race([sleep(Math.min(30000, 200 * (1.05 ** i))), aborted]);
             }
             if (!mwc.hasAccessibilityPermission()) {
@@ -529,9 +529,22 @@ async function activateFullscreenZwiftEmulation() {
                 continue;
             }
             if (pid !== zwiftApp.pid) {
-                i = 1;
+                let win;
+                try {
+                    const wins = await mwc.getWindows({app: {pid: zwiftApp.pid}});
+                    if (!wins.length) {
+                        continue;  // common on startup
+                    }
+                    win = wins[0];
+                } catch(e) {
+                    if (e instanceof mwc.NotFoundError) {
+                        continue;  // unlikely race, but possible
+                    } else {
+                        throw e;
+                    }
+                }
                 pid = zwiftApp.pid;
-                const win = (await mwc.getWindows({app: {pid}}))[0];
+                i = 1;
                 const scale = (sSize[1] - menuHeight - win.titlebarHeightEstimate) / sSize[1];
                 const size = [sSize[0] * scale, sSize[1] - menuHeight];
                 const position = [0, menuHeight];
@@ -545,13 +558,14 @@ async function activateFullscreenZwiftEmulation() {
         }
     })().catch(e => {
         if (e.name !== 'AbortError') {
+            debugger;
             throw e;
         }
     });
 }
 
 
-async function deactivateFullscreenZwiftEmulation() {
+export async function deactivateFullscreenZwiftEmulation() {
     if (_fszEmulationAbort) {
         _fszEmulationAbort.abort();
     }
