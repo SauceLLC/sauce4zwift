@@ -20,6 +20,7 @@ const settings = common.settingsStore.get();
 
 const modSafeIds = new Map();
 
+
 function updateButtonVis() {
     for (const x of ['Analysis', 'Athletes', 'Events']) {
         const btn = document.querySelector(`.controls .button[data-settings-key="${x}"]`);

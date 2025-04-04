@@ -16,9 +16,10 @@ import * as mime from './mime.mjs';
 const require = createRequire(import.meta.url);
 const electron = require('electron');
 
-const isWindows = os.platform() === 'win32';
-const isMac = !isWindows && os.platform() === 'darwin';
-const isLinux = !isWindows && !isMac && os.platform() === 'linux';
+const platform = os.platform();
+const isWindows = platform === 'win32';
+const isMac = !isWindows && platform === 'darwin';
+const isLinux = !isWindows && !isMac && platform === 'linux';
 const sessions = new Map();
 const magicLegacySessionId = '___LEGACY-SESSION___';
 const profilesKey = 'window-profiles';
@@ -367,6 +368,7 @@ electron.ipcMain.on('getWindowMetaSync', ev => {
         context: {
             id: null,
             type: null,
+            platform,
         },
     };
     try {
