@@ -24,7 +24,10 @@ async function main() {
         await new Promise(r => setTimeout(r, 400));
         if (!pidAlive(saucePid)) {
             console.info("Sauce not running, unzooming...");
-            mwc.setZoom({scale: 1});
+            const displays = mwc.getDisplays();
+            for (const x of displays) {
+                mwc.setZoom({scale: 1, displayId: x.id});
+            }
             process.exit(0);
         }
     }

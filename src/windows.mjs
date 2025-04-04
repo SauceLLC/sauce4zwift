@@ -494,28 +494,39 @@ function lerp(v0, v1, t) {
 }
 
 
-async function macSetZoomAnimated(mwc, {scale, center, duration=300, fps=60}) {
+async function macSetZoomAnimated(mwc, {scale, center, displayId, duration=300, fps=60}) {
     const start = performance.now();
-    const origin = mwc.getZoom();
+    const origin = mwc.getZoom({point: center, displayId});
     let t = 1 / fps * 1000 / duration;
     center = center || origin.center;
     do {
         const s = lerp(origin.scale, scale, t);
         const x = lerp(origin.center[0], center[0], t);
         const y = lerp(origin.center[1], center[1], t);
-        mwc.setZoom({scale: s, center: [x, y]});
+        mwc.setZoom({scale: s, center: [x, y], displayId});
         await sleep(1000 / fps - 2);
         t = (performance.now() - start) / duration;
     } while (t < 1);
-    mwc.setZoom({scale, center});
+    mwc.setZoom({scale, center, displayId});
+}
+
+
+function displayOverlap(a, b) {
+    const hOverlap = Math.max(0, Math.min(a.position[0] + a.size[0], b.position[0] + b.size[0]) -
+                                 Math.max(a.position[0], b.position[0]));
+    const vOverlap = Math.max(0, Math.min(a.position[1] + a.size[1], b.position[1] + b.size[1]) -
+                                 Math.max(a.position[1], b.position[1]));
+    return hOverlap * vOverlap;
 }
 
 
 let _fszEmulationAbort;
+let _fszEmulationTask;
 let _fszUsedOnce;
 export async function activateFullscreenZwiftEmulation() {
     if (_fszEmulationAbort) {
         _fszEmulationAbort.abort();
+        await _fszEmulationTask;
     }
     console.info("Fullscreen zwift emulation activated.");
     const abortCtrl = _fszEmulationAbort = new AbortController();
@@ -534,31 +545,33 @@ export async function activateFullscreenZwiftEmulation() {
         _fszUsedOnce = true;
         fork('./src/unzoom.mjs', [process.pid], {detached: true}).unref();
     }
-    (async () => {
-        let pid;
-        const sSize = await mwc.getMainScreenSize();
-        const menuHeight = mwc.getMenuBarHeight();
+    _fszEmulationTask = (async () => {
+        let curPid, curDisplaySig;
         for (let i = 0; !abortCtrl.signal.aborted; i++) {
             if (i) {
-                await Promise.race([sleep(Math.min(30000, 200 * (1.05 ** i))), aborted]);
+                await Promise.race([sleep(Math.min(5000, 500 * (1.05 ** i))), aborted]);
             }
             if (!mwc.hasAccessibilityPermission()) {
                 console.warn("Lacking Accessibility permissions required for fullscreen emulation");
                 continue;
             }
             const zwiftApp = (await mwc.getApps()).find(x => x.name.match(/^ZwiftApp(Silicon)?$/));
+            //const zwiftApp = (await mwc.getApps()).find(x => x.name.match(/^Maps?$/));
             if (!zwiftApp) {
-                if (pid === undefined) {
+                if (curPid === undefined) {
                     console.debug("Zwift not running...");
-                    pid = null;
-                } else if (pid != null) {
-                    macSetZoomAnimated(mwc, {scale: 1});
+                    curPid = null;
+                } else if (curPid != null) {
                     i = 1;
-                    pid = null;
+                    curPid = null;
+                    await Promise.all(mwc.getDisplays().map(x =>
+                        macSetZoomAnimated(mwc, {scale: 1, displayId: x.id})));
                 }
                 continue;
             }
-            if (pid !== zwiftApp.pid) {
+            const displays = mwc.getDisplays();
+            const dSig = JSON.stringify(displays);
+            if (curPid !== zwiftApp.pid || curDisplaySig !== dSig) {
                 let win;
                 try {
                     const wins = await mwc.getWindows({app: {pid: zwiftApp.pid}});
@@ -573,17 +586,27 @@ export async function activateFullscreenZwiftEmulation() {
                         throw e;
                     }
                 }
-                pid = zwiftApp.pid;
+                curPid = zwiftApp.pid;
+                curDisplaySig = dSig;
                 i = 1;
+                displays.sort((a, b) => displayOverlap(b, win) - displayOverlap(a, win));
+                const sSize = displays[0].size;
+                const menuHeight = sSize[1] - displays[0].visibleSize[1];
                 const scale = sSize[1] / (sSize[1] - menuHeight - win.titlebarHeightEstimate);
                 const size = [sSize[0] / scale, sSize[1] - menuHeight];
-                const position = [0, menuHeight];
-                mwc.setWindowSize({app: {pid}, size, position});
-                macSetZoomAnimated(mwc, {scale, center: [0, sSize[1]]});
+                const position = displays[0].visiblePosition;
+                mwc.setWindowSize({app: {pid: zwiftApp.pid}, size, position});
+                const center = [position[0], position[1] + displays[0].visibleSize[1] - 1];
+                await macSetZoomAnimated(mwc, {scale, center, displayId: displays[0].id});
             }
         }
     })().catch(e => {
         if (e.name !== 'AbortError') {
+            console.error("Unexpected error in emulate fullscreen zwift loop: Disabling feature...");
+            main.sauceApp.setSetting('emulateFullscreenZwift', false);
+            for (const x of mwc.getDisplays()) {
+                mwc.setZoom({scale: 1, displayId: x.id});
+            }
             throw e;
         }
     });
@@ -593,9 +616,11 @@ export async function activateFullscreenZwiftEmulation() {
 export async function deactivateFullscreenZwiftEmulation() {
     if (_fszEmulationAbort) {
         _fszEmulationAbort.abort();
+        await _fszEmulationTask;
     }
     const mwc = await import('macos-window-control');
-    macSetZoomAnimated(mwc, {scale: 1});
+    await Promise.all(mwc.getDisplays().map(x =>
+        macSetZoomAnimated(mwc, {scale: 1, displayId: x.id})));
 }
 
 
