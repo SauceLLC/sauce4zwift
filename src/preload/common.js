@@ -44,6 +44,7 @@ if (meta.internal) {
             const doc = document.documentElement;
             doc.classList.add('electron-mode');
             doc.classList.toggle('frame', !!meta.context.frame);
+            doc.dataset.platform = meta.context.platform;
             const theme = localStorage.getItem('/theme');
             if (theme) {
                 doc.dataset.theme = JSON.parse(theme);

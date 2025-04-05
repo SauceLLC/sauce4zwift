@@ -1,4 +1,5 @@
 const {ipcRenderer, contextBridge} = require('electron');
+;
 
 const authUrl = 'https://www.patreon.com/oauth2/authorize';
 const authArgs = {
@@ -7,13 +8,13 @@ const authArgs = {
     scope: 'identity campaigns.members',
 };
 
+const meta = ipcRenderer.sendSync('getWindowMetaSync');
 contextBridge.exposeInMainWorld('isElectron', true);
 contextBridge.exposeInMainWorld('electron', {
     context: {
+        ...meta.context,
         id: 'patron-link',
-        type: null,
         spec: {},
-        frame: true
     },
     ipcInvoke: (...args) => ipcRenderer.invoke(...args),
     closeWindow: () => window.close(),
@@ -37,27 +38,25 @@ document.addEventListener('click', ev => {
 });
 
 document.addEventListener('DOMContentLoaded', () => {
-    const patronLink = document.querySelector('.button.patron-link');
-    if (patronLink) {
+    for (const x of  document.querySelectorAll('.button.patron-link')) {
         const q = new URLSearchParams({
             ...authArgs,
             redirect_uri: 'https://www.sauce.llc/sauce4zwift-patron-link-v2',
         });
-        patronLink.href = `${authUrl}?${q}`;
-        patronLink.addEventListener('click', () => {
+        x.href = `${authUrl}?${q}`;
+        x.addEventListener('click', () => {
             // Slight delay to avoid flashing new content while an external window is opening
             setTimeout(() => location.assign('patron-waiting.html'), 1000);
         });
     }
-    const patronLinkLegacy = document.querySelector('.button.patron-link-legacy');
-    if (patronLinkLegacy) {
-        patronLinkLegacy.addEventListener('click', () => {
+    for (const x of document.querySelectorAll('.button.patron-link-legacy')) {
+        x.addEventListener('click', () => {
             const q = new URLSearchParams({
                 ...authArgs,
                 redirect_uri: 'https://saucellc.io/sauce4zwift-patron-link',
             });
             location.assign(`${authUrl}?${q}`);
-        });
+        }, {capture: true});
     }
     const special = document.querySelector('#specialtoken');
     if (special) {
@@ -68,5 +67,3 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
-
-
