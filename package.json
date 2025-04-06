@@ -35,7 +35,7 @@
   },
   "optionalDependencies": {
     "zwift-utils": "https://github.com/SauceLLC/zwift-utils.git#c09dd4d0c59a11e65b3f78a9955a7a41d18e58c7",
-    "macos-window-control": "https://github.com/mayfield/macos-window-control.git#06e2305ee1c96b866ce7c4b1736ac55f63d1ca5c"
+    "macos-window-control": "https://github.com/mayfield/macos-window-control.git#73cdd4e02af6db5056962cc63f3898274824bd97"
   },
   "devDependencies": {
     "@electron/notarize": "2.3.2",
@@ -108,7 +108,8 @@
       "!node_modules/zwift-utils",
       "!node_modules/typed-emitter",
       "!node_modules/rxjs",
-      "!node_modules/lossless-json/{dist,lib/types,lib/umd}"
+      "!node_modules/lossless-json/{dist,lib/types,lib/umd}",
+      "!node_modules/macos-window-control/{src,obj,test,Makefile,macos-window-control}"
     ],
     "asar": false,
     "publish": [
