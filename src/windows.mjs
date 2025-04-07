@@ -553,12 +553,15 @@ export async function activateFullscreenZwiftEmulation() {
             if (i) {
                 await Promise.race([sleep(Math.min(5000, 500 * (1.05 ** i))), aborted]);
             }
-            if (!mwc.hasAccessibilityPermission()) {
-                console.warn("Lacking Accessibility permissions required for fullscreen emulation");
-                continue;
+            if (!mwc.hasAccessibilityPermission({prompt: true})) {
+                console.warn("Accessibility permissions required for fullscreen emulation: waiting...");
+                while (!mwc.hasAccessibilityPermission()) {
+                    await Promise.race([sleep(200), aborted]);
+                }
+                console.info("Accessibility permissions granted");
             }
             const zwiftApp = (await mwc.getApps()).find(x => x.name.match(/^ZwiftApp(Silicon)?$/));
-            //const zwiftApp = (await mwc.getApps()).find(x => x.name.match(/^Maps?$/));
+            //const zwiftApp = (await mwc.getApps()).find(x => x.name.match(/^Maps?$/));  // TESTING
             if (!zwiftApp) {
                 if (curPid === undefined) {
                     console.debug("Zwift not running...");
