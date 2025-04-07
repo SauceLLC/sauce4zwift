@@ -584,6 +584,10 @@ export async function activateFullscreenZwiftEmulation() {
                         continue;  // common on startup
                     }
                     win = wins[0];
+                    if (!win.titlebarHeightEstimate) {
+                        // window loading still, retry...
+                        continue;
+                    }
                 } catch(e) {
                     if (e instanceof mwc.NotFoundError) {
                         continue;  // unlikely race, but possible
