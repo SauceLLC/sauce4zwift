@@ -533,14 +533,6 @@ export class ZwiftAPI {
                 SMART_TRAINER: 'Smart Trainer',
             }[x.powerType];
             delete x.followerStatusOfLoggedInPlayer;
-            // XXX
-            if (x._f155 && x.id === this.profile?.id) {
-                console.debug("Seeing use of player profile field 155 (probably bike upgrade related):", x._f155);
-            }
-            if (x._f153) {
-                console.warn("Found something interesting with f155", x);
-                debugger;
-            }
             return x;
         });
     }
