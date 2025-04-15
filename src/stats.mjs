@@ -2084,6 +2084,7 @@ export class StatsProcessor extends events.EventEmitter {
             this._athleteData.set(state.athleteId, this._createAthleteData(state));
         }
         const worldMeta = env.worldMetas[state.courseId];
+        const elOffset = worldMeta.eleOffset || 0;
         if (worldMeta) {
             state.latlng = worldMeta.flippedHack ?
                 [(state.x / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
@@ -2095,8 +2096,7 @@ export class StatsProcessor extends events.EventEmitter {
                 const road = env.getRoad(state.courseId, state.roadId);
                 slopeScale = road?.physicsSlopeScaleOverride;
             }
-            state.altitude = (state.z + worldMeta.waterPlaneLevel) / 100 * slopeScale +
-                worldMeta.altitudeOffsetHack;
+            state.altitude = (state.z - worldMeta.seaLevel + elOffset) / 100 * slopeScale;
         }
         const ad = this._athleteData.get(state.athleteId);
         if (this._preprocessState(state, ad) === false) {

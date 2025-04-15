@@ -451,8 +451,11 @@ export async function getSegments(worldId) {
 
 
 function zToAltitude(worldMeta, z, {physicsSlopeScale}={}) {
-    return worldMeta ? (z + worldMeta.waterPlaneLevel) / 100 *
-        (physicsSlopeScale || worldMeta.physicsSlopeScale) + worldMeta.altitudeOffsetHack : null;
+    if (!worldMeta) {
+        return null;
+    }
+    const scale = physicsSlopeScale || worldMeta.physicsSlopeScale;
+    return (z - worldMeta.seaLevel + (worldMeta.eleOffset || 0)) / 100 * scale;
 }
 
 

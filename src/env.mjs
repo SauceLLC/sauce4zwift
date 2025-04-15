@@ -16,9 +16,9 @@ export const worldMetas = {
         latOffset: 0,
         lonDegDist: 0.01,
         latDegDist: -0.01,
-        altitudeOffsetHack: 0,
         physicsSlopeScale: 100,
         waterPlaneLevel: 0,
+        seaLevel: 0,
         anchorX: 500, // XXX
         anchorY: 500, // XXX
         minX: -1000, // XXX
