@@ -450,7 +450,7 @@ export async function getSegments(worldId) {
 }
 
 
-function zToAltitude(worldMeta, z, {physicsSlopeScale}={}) {
+export function zToAltitude(worldMeta, z, {physicsSlopeScale}={}) {
     if (!worldMeta) {
         return null;
     }
@@ -459,7 +459,7 @@ function zToAltitude(worldMeta, z, {physicsSlopeScale}={}) {
 }
 
 
-function supplimentPath(worldMeta, curvePath, {physicsSlopeScale}={}) {
+export function supplimentPath(worldMeta, curvePath, {physicsSlopeScale}={}) {
     const balancedT = 1 / 125; // tests to within 0.27 meters (worst case)
     const distEpsilon = 1e-6;
     const elevations = [];
@@ -538,7 +538,7 @@ export function getSegment(id) {
 }
 
 
-async function computeRoutePath(route) {
+export async function computeRoutePath(route) {
     const curvePath = new curves.CurvePath();
     const roadSegments = [];
     const worldList = await getWorldList();
