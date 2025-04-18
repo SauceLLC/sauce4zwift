@@ -576,7 +576,7 @@ export class SauceElevationProfile {
                 this.marks.set(state.athleteId, {
                     athleteId: state.athleteId,
                     state,
-                    smoothGrade: common.expWeightedAvg(10, state.grade),
+                    smoothGrade: common.expWeightedAvg(10),
                 });
             }
             const mark = this.marks.get(state.athleteId);
@@ -597,6 +597,9 @@ export class SauceElevationProfile {
             return;
         }
         this._lastRender = now;
+        if (!this._distances || this._distances.length < 2) {
+            return;
+        }
         const x1 = this.chart.convertToPixel({xAxisIndex: 0}, 0);
         const x2 = this.chart.convertToPixel({xAxisIndex: 0}, 1);
         const y1 = this.chart.convertToPixel({yAxisIndex: 0}, 0);
@@ -606,35 +609,37 @@ export class SauceElevationProfile {
         marks.sort((a, b) => a.athleteId === this.watchingId ? 1 : b.athleteId === this.watchingId ? -1 : 0);
         const data = marks.map(mark => {
             let state = mark.state;
-            let xIdx = this.findMarkPosition(state);
+            let xIdxReal = this.findMarkPosition(state);
             let ghost;
-            if (xIdx === undefined && mark.lastVisualState && now - mark.lastVisualTS < 5000) {
-                xIdx = this.findMarkPosition(mark.lastVisualState);
+            if (xIdxReal === undefined && mark.lastVisualState && now - mark.lastVisualTS < 5000) {
+                xIdxReal = this.findMarkPosition(mark.lastVisualState);
                 state = mark.lastVisualState;
                 ghost = true;
             }
-            if (xIdx === undefined) {
+            if (xIdxReal == null || isNaN(xIdxReal)) {
                 return;
             }
+            const xIdx = xIdxReal | 0;
+            const xRem = xIdxReal % 1;
             let xCoord;
             let yCoord;
-            if (xIdx % 1) {
-                // TBD: Use closest node instead of always next (which might be unavailable too)
-                const i = xIdx | 0;
-                if (i === this._distances.length - 1) {
-                    debugger; // FIXME
-                }
-                const dDelta = this._distances[i + 1] - this._distances[i];
-                const eDelta = this._elevations[i + 1] - this._elevations[i];
-                xCoord = this._distances[i] + dDelta * (xIdx % 1);
-                yCoord = this._elevations[i] + eDelta * (xIdx % 1);
+            let grade;
+            if (xRem) {
+                const dDelta = this._distances[xIdx + 1] - this._distances[xIdx];
+                const eDelta = this._elevations[xIdx + 1] - this._elevations[xIdx];
+                xCoord = this._distances[xIdx] + dDelta * xRem;
+                yCoord = this._elevations[xIdx] + eDelta * xRem;
+                grade = eDelta / dDelta;
             } else {
                 xCoord = this._distances[xIdx];
                 yCoord = this._elevations[xIdx];
+                const lowerIdx = (xIdx < this._elevations.length - 1) ? xIdx : this._elevations.length - 2;
+                grade = (this._elevations[lowerIdx + 1] - this._elevations[lowerIdx]) /
+                        (this._distances[lowerIdx + 1] - this._distances[lowerIdx]);
             }
             const maxExaggeration = 30;
-            const visualGrade = Math.min(chartAspectRatio, maxExaggeration) *
-                mark.smoothGrade(state.grade) * 0.5;
+            const smoothGrade = mark.smoothGrade(grade != null ? grade : state.grade);
+            const visualGrade = Math.min(chartAspectRatio, maxExaggeration) * smoothGrade * 0.5;
             const isWatching = state.athleteId === this.watchingId;
             const deemphasize = this.routeId != null && (
                 state.routeId !== this.routeId ||
