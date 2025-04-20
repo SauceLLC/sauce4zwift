@@ -1,5 +1,4 @@
 const {ipcRenderer, contextBridge} = require('electron');
-;
 
 const authUrl = 'https://www.patreon.com/oauth2/authorize';
 const authArgs = {
