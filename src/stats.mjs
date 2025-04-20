@@ -2094,9 +2094,14 @@ export class StatsProcessor extends events.EventEmitter {
             let slopeScale = worldMeta.physicsSlopeScale;
             if (state.portal) {
                 const road = env.getRoad(state.courseId, state.roadId);
-                slopeScale = road?.physicsSlopeScaleOverride;
+                slopeScale = road?.physicsSlopeScaleOverride || 1;
+                // Portals are an anomaly.  The original road data has a large z offset that seems to
+                // be completely arbitrary but then playerState.z comes in as basically 0 offset.  So
+                // in env.mjs we normalize the z values so they match the player state z (roughly).
+                state.altitude = state.z / 100 * slopeScale;
+            } else {
+                state.altitude = (state.z - worldMeta.seaLevel + elOffset) / 100 * slopeScale;
             }
-            state.altitude = (state.z - worldMeta.seaLevel + elOffset) / 100 * slopeScale;
         }
         const ad = this._athleteData.get(state.athleteId);
         if (this._preprocessState(state, ad) === false) {
@@ -2223,6 +2228,10 @@ export class StatsProcessor extends events.EventEmitter {
                 state.grade = ad.smoothGrade(distanceChange ?
                     (elevationChange / distanceChange) :
                     prevState.grade);
+                if (state.portal && (typeof state.portalElevationScale) === 'number' &&
+                    state.portalElevationScale !== 100) {
+                    state.grade *= state.portalElevationScale / 100;
+                }
                 // Leaving around because it's pretty darn useful for debugging...
                 //state.mapurl = `https://maps.google.com/maps?` +
                 //    `q=${state.latlng[0]},${state.latlng[1]}&z=17`;

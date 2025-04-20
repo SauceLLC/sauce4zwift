@@ -129,7 +129,21 @@ export function getRoads(courseId) {
             fname = path.join(__dirname, `../shared/deps/data/worlds/${worldId}/roads.json`);
         }
         try {
-            _roadsByCourse.set(courseId, JSON.parse(fs.readFileSync(fname)));
+            const roads = JSON.parse(fs.readFileSync(fname));
+            if (courseId === 'portal') {
+                for (const x of roads) {
+                    let minZ = Infinity;
+                    for (const coord of x.path) {
+                        if (coord[2] < minZ) {
+                            minZ = coord[2];
+                        }
+                    }
+                    for (const coord of x.path) {
+                        coord[2] -= minZ;
+                    }
+                }
+            }
+            _roadsByCourse.set(courseId, roads);
         } catch(e) {
             _roadsByCourse.set(courseId, []);
         }

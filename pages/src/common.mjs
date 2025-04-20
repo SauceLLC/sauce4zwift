@@ -451,11 +451,10 @@ export async function getSegments(worldId) {
 
 
 export function zToAltitude(worldMeta, z, {physicsSlopeScale}={}) {
-    if (!worldMeta) {
-        return null;
-    }
-    const scale = physicsSlopeScale || worldMeta.physicsSlopeScale;
-    return (z - worldMeta.seaLevel + (worldMeta.eleOffset || 0)) / 100 * scale;
+    const scale = physicsSlopeScale || worldMeta?.physicsSlopeScale || 1;
+    const seaLevel = worldMeta?.seaLevel || 0;
+    const elOffset = worldMeta?.eleOffset || 0;
+    return (z - seaLevel + elOffset) / 100 * scale;
 }
 
 
@@ -473,9 +472,7 @@ export function supplimentPath(worldMeta, curvePath, {physicsSlopeScale}={}) {
     curvePath.trace(x => {
         distance += prevNode ? curves.vecDist(prevNode, x.stepNode) / 100 : 0;
         if (x.index !== prevIndex) {
-            const elevation = worldMeta ?
-                zToAltitude(worldMeta, x.stepNode[2], {physicsSlopeScale}) :
-                x.stepNode[2] / 100 * (physicsSlopeScale || 1);
+            const elevation = zToAltitude(worldMeta, x.stepNode[2], {physicsSlopeScale});
             if (elevations.length) {
                 if (distance - prevDist > distEpsilon) {
                     const grade = (elevation - prevEl) / (distance - prevDist);
