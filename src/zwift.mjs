@@ -876,6 +876,10 @@ export class ZwiftAPI {
         return results;
     }
 
+    async getWorkoutSchedule() {
+        return await this.fetchJSON(`/api/workout/schedule/list`);
+    }
+
     async deleteEventSignup(eventId) {
         return await this.fetchJSON(`/api/events/signup/${eventId}`, {method: 'DELETE'});
     }

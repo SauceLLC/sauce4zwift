@@ -625,6 +625,7 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.getWorkout, {scope: this});
         rpc.register(this.getWorkoutCollection, {scope: this});
         rpc.register(this.getWorkoutCollections, {scope: this});
+        rpc.register(this.getWorkoutSchedule, {scope: this});
         rpc.register(this.getQueue, {scope: this}); // XXX ambiguous name
         this._athleteSubs = new Map();
         if (options.gameConnection) {
@@ -872,6 +873,10 @@ export class StatsProcessor extends events.EventEmitter {
         }
         workout.totalDuration = totalDuration;
         return workout;
+    }
+
+    async getWorkoutSchedule() {
+        return await this.zwiftAPI.getWorkoutSchedule(); // gets a list of scheduled workouts from 3rd party partners (intervals.icu, trainingpeaks, etc.)
     }
 
     // XXX ambiguous name
