@@ -155,6 +155,7 @@
         justify-content: flex-end;
         overflow: hidden;
         cursor: pointer;
+        height: 3.9rem; // tuned to badge font height + score
 
         &.active {
             .sparkline {
@@ -188,7 +189,6 @@
         text-decoration: none;
         transition: filter 100ms, opacity 100ms;
         aspect-ratio: 1 / 1;
-        height: 1.3em; // tuned to badge font height + score
 
         &:hover {
             filter: drop-shadow(1px 1px 5px #0003);
