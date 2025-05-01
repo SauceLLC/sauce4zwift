@@ -182,6 +182,12 @@ common.localeInit(settingsStore);
 doc.classList.remove('hidden-during-load');
 config.color = settings.colorOverride ? settings.color : config.defaultColor;
 
+// Fix dataSmoothing bug fixed 01-05-2025
+if (typeof settings.dataSmoothing === 'string') {
+    console.warn('Fixing dataSmoothing bug');
+    settings.dataSmoothing = Number(settings.dataSmoothing);
+}
+
 
 function colorAlpha(color, alpha) {
     if (color.length <= 5) {
