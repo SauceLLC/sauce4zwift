@@ -1262,7 +1262,7 @@ function bindFormData(selector, storageIface, options={}) {
         if (!updateCalled) {
             console.error("You forgot to call the update() callback returned by bindFormData");
         }
-        const baseType = {
+        const baseType = el.dataset.type || {
             range: 'number',
         }[el.type] || el.type;
         const val = (({
