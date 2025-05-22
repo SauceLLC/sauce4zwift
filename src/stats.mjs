@@ -625,6 +625,7 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.getWorkout, {scope: this});
         rpc.register(this.getWorkoutCollection, {scope: this});
         rpc.register(this.getWorkoutCollections, {scope: this});
+        rpc.register(this.getWorkoutSchedule, {scope: this});
         rpc.register(this.getQueue, {scope: this}); // XXX ambiguous name
         this._athleteSubs = new Map();
         if (options.gameConnection) {
@@ -872,6 +873,10 @@ export class StatsProcessor extends events.EventEmitter {
         }
         workout.totalDuration = totalDuration;
         return workout;
+    }
+
+    async getWorkoutSchedule() {
+        return await this.zwiftAPI.getWorkoutSchedule(); // gets a list of scheduled workouts from 3rd party partners (intervals.icu, trainingpeaks, etc.)
     }
 
     // XXX ambiguous name
@@ -2084,6 +2089,7 @@ export class StatsProcessor extends events.EventEmitter {
             this._athleteData.set(state.athleteId, this._createAthleteData(state));
         }
         const worldMeta = env.worldMetas[state.courseId];
+        const elOffset = worldMeta.eleOffset || 0;
         if (worldMeta) {
             state.latlng = worldMeta.flippedHack ?
                 [(state.x / (worldMeta.latDegDist * 100)) + worldMeta.latOffset,
@@ -2093,10 +2099,14 @@ export class StatsProcessor extends events.EventEmitter {
             let slopeScale = worldMeta.physicsSlopeScale;
             if (state.portal) {
                 const road = env.getRoad(state.courseId, state.roadId);
-                slopeScale = road?.physicsSlopeScaleOverride;
+                slopeScale = road?.physicsSlopeScaleOverride || 1;
+                // Portals are an anomaly.  The original road data has a large z offset that seems to
+                // be completely arbitrary but then playerState.z comes in as basically 0 offset.  So
+                // in env.mjs we normalize the z values so they match the player state z (roughly).
+                state.altitude = state.z / 100 * slopeScale;
+            } else {
+                state.altitude = (state.z - worldMeta.seaLevel + elOffset) / 100 * slopeScale;
             }
-            state.altitude = (state.z + worldMeta.waterPlaneLevel) / 100 * slopeScale +
-                worldMeta.altitudeOffsetHack;
         }
         const ad = this._athleteData.get(state.athleteId);
         if (this._preprocessState(state, ad) === false) {
@@ -2223,6 +2233,10 @@ export class StatsProcessor extends events.EventEmitter {
                 state.grade = ad.smoothGrade(distanceChange ?
                     (elevationChange / distanceChange) :
                     prevState.grade);
+                if (state.portal && (typeof state.portalElevationScale) === 'number' &&
+                    state.portalElevationScale !== 100) {
+                    state.grade *= state.portalElevationScale / 100;
+                }
                 // Leaving around because it's pretty darn useful for debugging...
                 //state.mapurl = `https://maps.google.com/maps?` +
                 //    `q=${state.latlng[0]},${state.latlng[1]}&z=17`;

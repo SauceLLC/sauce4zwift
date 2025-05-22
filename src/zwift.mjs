@@ -857,7 +857,7 @@ export class ZwiftAPI {
             results = allWorkouts;
         } else {
             const workout = await this.fetchJSON(`/api/workout/workouts/${workoutId}`);
-            const detailsResp = await this.fetch({uri: workout.workoutAssetUrl});
+            const detailsResp = await this.fetch(null, {uri: workout.workoutAssetUrl});
             const details = await detailsResp.text();
             return details; // XXX should probably return workout with property containing parsed xml
         }
@@ -874,6 +874,10 @@ export class ZwiftAPI {
             results = await this.fetchJSON(`/api/workout/collections/${collectionID}/workouts?pageSize=100`);
         }
         return results;
+    }
+
+    async getWorkoutSchedule() {
+        return await this.fetchJSON(`/api/workout/schedule/list`);
     }
 
     async deleteEventSignup(eventId) {

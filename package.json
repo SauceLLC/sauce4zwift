@@ -2,7 +2,7 @@
   "name": "sauce4zwift",
   "productName": "Sauce for Zwift™",
   "private": true,
-  "version": "1.2.9",
+  "version": "1.2.10-alpha.3",
   "description": "Overlay widgets and advanced instrumentation for the serious Zwifter.",
   "homepage": "https://www.sauce.llc",
   "author": "Sauce, LLC",
@@ -16,8 +16,8 @@
     "build": "electron-builder build -p never",
     "publish": "electron-builder build -p always",
     "postinstall": "electron-builder install-app-deps",
-    "test": "node --test test",
-    "test-debug": "node --inspect-brk --test test"
+    "test": "node --test",
+    "test-debug": "node --inspect-brk --test"
   },
   "dependencies": {
     "@sentry/node": "6.19.6",
@@ -34,7 +34,8 @@
     "xxhash-addon": "2.0.3"
   },
   "optionalDependencies": {
-    "zwift-utils": "https://github.com/SauceLLC/zwift-utils.git#2d8bb6207464137e2dd3744f2f935993f0f0de45"
+    "zwift-utils": "https://github.com/SauceLLC/zwift-utils.git#529ec578884a5753c39d291cac5a90618fc93a61",
+    "macos-window-control": "https://github.com/mayfield/macos-window-control.git#4882bd7bf06597779a1d2f1e17fcf4ece5815fe3"
   },
   "devDependencies": {
     "@electron/notarize": "2.3.2",
@@ -45,7 +46,7 @@
     "eslint": "8.57.1",
     "eslint-plugin-html": "8.1.2",
     "sass": "1.82.0",
-    "saucecharts": "https://github.com/SauceLLC/saucecharts.git#7ef05d37af89634831b4e76f264a558fdd605174",
+    "saucecharts": "https://github.com/SauceLLC/saucecharts.git#a9cd4b4ef88403c749fb5b6dd3996896cf08d980",
     "world_countries_lists": "2.9.0"
   },
   "build": {
@@ -107,7 +108,8 @@
       "!node_modules/zwift-utils",
       "!node_modules/typed-emitter",
       "!node_modules/rxjs",
-      "!node_modules/lossless-json/{dist,lib/types,lib/umd}"
+      "!node_modules/lossless-json/{dist,lib/types,lib/umd}",
+      "!node_modules/macos-window-control/{src,obj,test,Makefile,macos-window-control}"
     ],
     "asar": false,
     "publish": [

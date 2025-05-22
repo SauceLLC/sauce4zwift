@@ -85,6 +85,31 @@ html {
         }
     }
 
+
+    &:not([data-platform="darwin"]) .darwin-only {
+        display: none;
+    }
+
+    &:not([data-platform="linux"]) .linux-only {
+        display: none;
+    }
+
+    &:not([data-platform="win32"]) .win32-only {
+        display: none;
+    }
+
+    &[data-platform="darwin"] .not-darwin-only {
+        display: none;
+    }
+
+    &[data-platform="linux"] .not-linux-only {
+        display: none;
+    }
+
+    &[data-platform="win32"] .not-win32-only {
+        display: none;
+    }
+
     &.hidden-during-load {
         display: none;
     }

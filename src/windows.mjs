@@ -1,4 +1,5 @@
 import path from 'node:path';
+import process from 'node:process';
 import os from 'node:os';
 import urlMod from 'node:url';
 import * as storageMod from './storage.mjs';
@@ -15,9 +16,10 @@ import * as mime from './mime.mjs';
 const require = createRequire(import.meta.url);
 const electron = require('electron');
 
-const isWindows = os.platform() === 'win32';
-const isMac = !isWindows && os.platform() === 'darwin';
-const isLinux = !isWindows && !isMac && os.platform() === 'linux';
+const platform = os.platform();
+const isWindows = platform === 'win32';
+const isMac = !isWindows && platform === 'darwin';
+const isLinux = !isWindows && !isMac && platform === 'linux';
 const sessions = new Map();
 const magicLegacySessionId = '___LEGACY-SESSION___';
 const profilesKey = 'window-profiles';
@@ -72,7 +74,7 @@ export const widgetWindowManifests = [{
     prettyName: 'Overview',
     prettyDesc: 'Main top window for overall control and stats',
     private: true,
-    options: {width: 0.6, height: 40, x: 0.2, y: 28},
+    options: {width: 0.6, height: 40, x: 0.2, y: 28, minHeight: 10, minWidth: 100},
     webPreferences: {backgroundThrottling: false}, // XXX Doesn't appear to work
     alwaysVisible: true,
 }, {
@@ -366,6 +368,7 @@ electron.ipcMain.on('getWindowMetaSync', ev => {
         context: {
             id: null,
             type: null,
+            platform,
         },
     };
     try {
@@ -410,6 +413,9 @@ rpc.register(() => {
             }
         }
     }
+    if (isMac && main.sauceApp.getSetting('emulateFullscreenZwift')) {
+        deactivateFullscreenZwiftEmulation();
+    }
 }, {name: 'hideAllWindows'});
 
 rpc.register(() => {
@@ -417,6 +423,9 @@ rpc.register(() => {
         if (canToggleVisibility(win)) {
             win.showInactive();
         }
+    }
+    if (isMac && main.sauceApp.getSetting('emulateFullscreenZwift')) {
+        activateFullscreenZwiftEmulation();
     }
 }, {name: 'showAllWindows'});
 
@@ -480,6 +489,154 @@ rpc.register(pid => {
         };
     }
 }, {name: 'getWindowInfoForPID'});
+
+
+function lerp(v0, v1, t) {
+    return (1 - t) * v0 + t * v1;
+}
+
+
+async function macSetZoomAnimated(mwc, {scale, center, displayId, duration=300, fps=60}) {
+    const start = performance.now();
+    const origin = mwc.getZoom({point: center, displayId});
+    let t = 1 / fps * 1000 / duration;
+    center = center || origin.center;
+    do {
+        const s = lerp(origin.scale, scale, t);
+        const x = lerp(origin.center[0], center[0], t);
+        const y = lerp(origin.center[1], center[1], t);
+        mwc.setZoom({scale: s, center: [x, y], displayId});
+        await sleep(1000 / fps - 2);
+        t = (performance.now() - start) / duration;
+    } while (t < 1);
+    mwc.setZoom({scale, center, displayId});
+}
+
+
+function displayOverlap(a, b) {
+    const hOverlap = Math.max(0, Math.min(a.position[0] + a.size[0], b.position[0] + b.size[0]) -
+                                 Math.max(a.position[0], b.position[0]));
+    const vOverlap = Math.max(0, Math.min(a.position[1] + a.size[1], b.position[1] + b.size[1]) -
+                                 Math.max(a.position[1], b.position[1]));
+    return hOverlap * vOverlap;
+}
+
+
+let _fszEmulationAbort;
+let _fszEmulationTask;
+let _fszUsedOnce;
+export async function activateFullscreenZwiftEmulation() {
+    if (_fszEmulationAbort) {
+        _fszEmulationAbort.abort();
+        await _fszEmulationTask;
+    }
+    console.info("Fullscreen zwift emulation activated.");
+    const abortCtrl = _fszEmulationAbort = new AbortController();
+    const aborted = new Promise((_, reject) => {
+        abortCtrl.signal.addEventListener('abort', () => {
+            if (abortCtrl === _fszEmulationAbort) {
+                _fszEmulationAbort = null;
+            }
+            reject(abortCtrl.signal.reason);
+        }, {once: true});
+    });
+    aborted.catch(e => void 0);  // silence unhandled warn
+    const mwc = await import('macos-window-control');
+    const {fork} = await import('node:child_process');
+    if (!_fszUsedOnce) {
+        _fszUsedOnce = true;
+        fork('./src/unzoom.mjs', [process.pid], {detached: true}).unref();
+    }
+    _fszEmulationTask = (async () => {
+        let curPid, curDisplaySig;
+        for (let i = 0; !abortCtrl.signal.aborted; i++) {
+            if (i) {
+                await Promise.race([sleep(Math.min(5000, 500 * (1.05 ** i))), aborted]);
+            }
+            if (!mwc.hasAccessibilityPermission({prompt: true})) {
+                console.warn("Accessibility permissions required for fullscreen emulation: waiting...");
+                while (!mwc.hasAccessibilityPermission()) {
+                    await Promise.race([sleep(200), aborted]);
+                }
+                console.info("Accessibility permissions granted");
+            }
+            const zwiftApp = (await mwc.getApps()).find(x => x.name.match(/^ZwiftApp(Silicon)?$/));
+            //const zwiftApp = (await mwc.getApps()).find(x => x.name.match(/^Maps?$/));  // TESTING
+            if (!zwiftApp) {
+                if (curPid === undefined) {
+                    console.debug("Zwift not running...");
+                    curPid = null;
+                } else if (curPid != null) {
+                    i = 1;
+                    curPid = null;
+                    await Promise.all(mwc.getDisplays().map(x =>
+                        macSetZoomAnimated(mwc, {scale: 1, displayId: x.id})));
+                }
+                continue;
+            }
+            const displays = mwc.getDisplays();
+            const dSig = JSON.stringify(displays);
+            if (curPid !== zwiftApp.pid || curDisplaySig !== dSig) {
+                let win;
+                try {
+                    const wins = await mwc.getWindows({app: {pid: zwiftApp.pid}});
+                    if (!wins.length) {
+                        continue;  // common on startup
+                    }
+                    win = wins[0];
+                    if (!win.titlebarHeightEstimate) {
+                        // window loading still, retry...
+                        continue;
+                    }
+                } catch(e) {
+                    if (e instanceof mwc.NotFoundError) {
+                        continue;  // unlikely race, but possible
+                    } else {
+                        throw e;
+                    }
+                }
+                curPid = zwiftApp.pid;
+                curDisplaySig = dSig;
+                i = 1;
+                displays.sort((a, b) => displayOverlap(b, win) - displayOverlap(a, win));
+                const sSize = displays[0].size;
+                const menuHeight = sSize[1] - displays[0].visibleSize[1];
+                const scale = sSize[1] / (sSize[1] - menuHeight - win.titlebarHeightEstimate);
+                const size = [sSize[0] / scale, sSize[1] - menuHeight];
+                const position = displays[0].visiblePosition;
+                mwc.setWindowSize({app: {pid: zwiftApp.pid}, size, position});
+                const center = [position[0], position[1] + displays[0].visibleSize[1] - 1];
+                await macSetZoomAnimated(mwc, {scale, center, displayId: displays[0].id});
+            }
+        }
+    })().catch(e => {
+        if (e.name !== 'AbortError') {
+            console.error("Unexpected error in emulate fullscreen zwift loop: Disabling feature...");
+            main.sauceApp.setSetting('emulateFullscreenZwift', false);
+            for (const x of mwc.getDisplays()) {
+                mwc.setZoom({scale: 1, displayId: x.id});
+            }
+            throw e;
+        }
+    });
+}
+
+
+export async function deactivateFullscreenZwiftEmulation() {
+    if (_fszEmulationAbort) {
+        _fszEmulationAbort.abort();
+        await _fszEmulationTask;
+    }
+    const mwc = await import('macos-window-control');
+    await Promise.all(mwc.getDisplays().map(x =>
+        macSetZoomAnimated(mwc, {scale: 1, displayId: x.id})));
+}
+
+
+if (isMac) {
+    rpc.register(activateFullscreenZwiftEmulation);
+    rpc.register(deactivateFullscreenZwiftEmulation);
+}
 
 
 export function getWidgetWindow(id) {

@@ -1,5 +1,6 @@
 import path from 'node:path';
 import events from 'node:events';
+import os from 'node:os';
 import * as report from '../shared/report.mjs';
 import * as storage from './storage.mjs';
 import * as menu from './menu.mjs';
@@ -26,8 +27,7 @@ const updateChannelLevels = {stable: 10, beta: 20, alpha: 30};
 const serialCache = new WeakMap();
 const windowEventSubs = new WeakMap();
 
-let sauceApp;
-
+export let sauceApp;
 export let started;
 export let quiting;
 
@@ -379,10 +379,8 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     sauceApp.rpcEventEmitters.set('windows', windows.eventEmitter);
     sauceApp.rpcEventEmitters.set('updater', autoUpdater);
     sauceApp.rpcEventEmitters.set('mods', mods.eventEmitter);
-    if (!args.headless) {
-        menu.installTrayIcon();
-        menu.setAppMenu();
-    }
+    menu.installTrayIcon();
+    menu.setAppMenu();
     let maybeUpdateAndRestart = () => undefined;
     const lastVersion = sauceApp.getSetting('lastVersion');
     if (lastVersion !== pkg.version) {
@@ -391,18 +389,16 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
             sauceApp.setSetting('updateChannel', defaultUpdateChannel);
             console.info("Update channel set to:", defaultUpdateChannel);
         }
-        if (!args.headless) {
-            if (lastVersion) {
-                console.info(`Sauce was updated: ${lastVersion} -> ${pkg.version}`);
-                await electron.session.defaultSession.clearCache();
-                for (const {id} of windows.getProfiles()) {
-                    await windows.loadSession(id).clearCache();
-                }
-                await windows.showReleaseNotes();
-            } else {
-                console.info("First time invocation: Welcome to Sauce for Zwift");
-                await windows.welcomeSplash();
+        if (lastVersion) {
+            console.info(`Sauce was updated: ${lastVersion} -> ${pkg.version}`);
+            await electron.session.defaultSession.clearCache();
+            for (const {id} of windows.getProfiles()) {
+                await windows.loadSession(id).clearCache();
             }
+            await windows.showReleaseNotes();
+        } else {
+            console.info("First time invocation: Welcome to Sauce for Zwift");
+            await windows.welcomeSplash();
         }
         sauceApp.setSetting('lastVersion', pkg.version);
     } else if (!isDEV) {
@@ -511,6 +507,9 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     // TBD: Probably want to invalidate connections and reauth stuff when a resume happens
     electron.powerMonitor.on('suspend', limit => console.warn("System is being suspended"));
     electron.powerMonitor.on('resume', limit => console.warn("System is waking from suspend"));
+    if (os.platform() === 'darwin' && sauceApp.getSetting('emulateFullscreenZwift')) {
+        windows.activateFullscreenZwiftEmulation();
+    }
     console.debug(`Startup took ${Date.now() - s}ms`);
     started = true;
 }

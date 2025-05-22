@@ -163,6 +163,8 @@ if (window.isElectron) {
     // Probably already set by src/preload/common.js but not always for non widget pages..
     doc.classList.add('electron-mode');
     doc.classList.toggle('frame', !!electron.context.frame);
+    doc.dataset.platform = electron.context.platform;
+
     windowID = electron.context.id;
     const subs = [];
     const pendingPorts = new Map();
@@ -448,13 +450,15 @@ export async function getSegments(worldId) {
 }
 
 
-function zToAltitude(worldMeta, z, {physicsSlopeScale}={}) {
-    return worldMeta ? (z + worldMeta.waterPlaneLevel) / 100 *
-        (physicsSlopeScale || worldMeta.physicsSlopeScale) + worldMeta.altitudeOffsetHack : null;
+export function zToAltitude(worldMeta, z, {physicsSlopeScale}={}) {
+    const scale = physicsSlopeScale || worldMeta?.physicsSlopeScale || 1;
+    const seaLevel = worldMeta?.seaLevel || 0;
+    const elOffset = worldMeta?.eleOffset || 0;
+    return (z - seaLevel + elOffset) / 100 * scale;
 }
 
 
-function supplimentPath(worldMeta, curvePath, {physicsSlopeScale}={}) {
+export function supplimentPath(worldMeta, curvePath, {physicsSlopeScale}={}) {
     const balancedT = 1 / 125; // tests to within 0.27 meters (worst case)
     const distEpsilon = 1e-6;
     const elevations = [];
@@ -468,9 +472,7 @@ function supplimentPath(worldMeta, curvePath, {physicsSlopeScale}={}) {
     curvePath.trace(x => {
         distance += prevNode ? curves.vecDist(prevNode, x.stepNode) / 100 : 0;
         if (x.index !== prevIndex) {
-            const elevation = worldMeta ?
-                zToAltitude(worldMeta, x.stepNode[2], {physicsSlopeScale}) :
-                x.stepNode[2] / 100 * (physicsSlopeScale || 1);
+            const elevation = zToAltitude(worldMeta, x.stepNode[2], {physicsSlopeScale});
             if (elevations.length) {
                 if (distance - prevDist > distEpsilon) {
                     const grade = (elevation - prevEl) / (distance - prevDist);
@@ -533,7 +535,7 @@ export function getSegment(id) {
 }
 
 
-async function computeRoutePath(route) {
+export async function computeRoutePath(route) {
     const curvePath = new curves.CurvePath();
     const roadSegments = [];
     const worldList = await getWorldList();
@@ -1260,7 +1262,7 @@ function bindFormData(selector, storageIface, options={}) {
         if (!updateCalled) {
             console.error("You forgot to call the update() callback returned by bindFormData");
         }
-        const baseType = {
+        const baseType = el.dataset.type || {
             range: 'number',
         }[el.type] || el.type;
         const val = (({
