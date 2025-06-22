@@ -133,23 +133,21 @@ export class CurvePath {
     }
 
     toSVGPath({includeEdges}={}) {
-        const svg = [];
-        const xy = point => `${point[0]},${point[1]}`;
         const start = includeEdges ? 0 : 1;
         const end = includeEdges ? this.nodes.length : this.nodes.length - 1;
-        for (let i = start; i < end; i++) {
-            const x = this.nodes[i];
-            if (i === start) {
-                svg.push(`M ${xy(x.end)}`);
+        if (start >= end) {
+            return '';
+        }
+        let svg = `M ${this.nodes[start].end[0]},${this.nodes[start].end[1]}`;
+        for (let i = start + 1; i < end; i++) {
+            const {cp1, cp2, end} = this.nodes[i];
+            if (cp1 && cp2) {
+                svg += `\nC ${cp1[0]},${cp1[1]} ${cp2[0]},${cp2[1]} ${end[0]},${end[1]}`;
             } else {
-                if (x.cp1 && x.cp2) {
-                    svg.push(`C ${xy(x.cp1)} ${xy(x.cp2)} ${xy(x.end)}`);
-                } else {
-                    svg.push(`L ${xy(x.end)}`);
-                }
+                svg += `\nL ${end[0]},${end[1]}`;
             }
         }
-        return svg.join('\n');
+        return svg;
     }
 
     flatten(t) {
