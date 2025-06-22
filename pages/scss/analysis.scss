@@ -300,11 +300,14 @@ main {
     }
 
     .elevation .chart {
-        height: 6em;
+        height: 8em;
     }
 
+    .elevation .chart,
     .zoomable .chart {
-        height: 22em;
+        --fg-color: #{color.get(intrinsic-inverted)};
+        --bg-color: #{color.get(intrinsic)};
+        --line-stroke-width: 1px;
     }
 
 }

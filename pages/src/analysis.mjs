@@ -5,6 +5,7 @@ import * as theme from './echarts-sauce-theme.mjs';
 import * as charts from './charts.mjs';
 import * as map from './map.mjs';
 import * as color from './color.mjs';
+import * as sc from '../deps/src/saucecharts/index.mjs';
 
 
 common.enableSentry();
@@ -16,7 +17,7 @@ common.settingsStore.setDefault({
 
 let zwiftMap;
 let elevationChart;
-let zoomableChart;
+let zoomableCharts;
 let powerZonesChart;
 let templates;
 let athleteData;
@@ -34,9 +35,9 @@ const state = {
     sport: undefined,
     zoomStart: undefined,
     zoomEnd: undefined,
-    paused: false,
     voidAutoCenter: false,
 };
+window.state = state; // XXX
 
 
 const settings = common.settingsStore.get();
@@ -49,6 +50,7 @@ const rolls = {
     power: new sauce.power.RollingPower(null, {idealGap: 1, maxGap: 15}),
 };
 
+
 function formatPreferredPower(x, options) {
     if (settings.preferWkg && athleteData?.athlete?.weight) {
         return H.wkg(x ? x / athleteData.athlete.weight : null,
@@ -57,6 +59,7 @@ function formatPreferredPower(x, options) {
         return H.power(x, {suffix: true, html: true, ...options});
     }
 }
+
 
 const peakFormatters = {
     power: formatPreferredPower,
@@ -96,7 +99,7 @@ function getSelectionStats() {
         return;
     }
     let powerRoll = rolls.power;
-    if (state.zoomStart !== undefined) {
+    if (state.zoomStart != null) {
         const start = state.streams.time[state.zoomStart];
         const end = state.streams.time[state.zoomEnd];
         powerRoll = powerRoll.slice(start, end);
@@ -171,350 +174,140 @@ async function exportFITActivity(name) {
 
 
 function createElevationLineChart(el) {
-    const series = [{
-        id: 'altitude',
-        stream: 'altitude',
-        name: 'Elevation',
-        color: '#666',
-        domain: [null, 30],
-        rangeAlpha: [0.4, 1],
-        fmt: x => H.elevation(x, {separator: ' ', suffix: true}),
-    }];
-    const xAxes = [0];
-    const chart = echarts.init(el, 'sauce', {renderer: 'svg'});
-    const topPad = 10;
-    const seriesPad = 1;
-    const bottomPad = 30;
-    const leftPad = 20;
-    const rightPad = 20;
-    let updateDeferred;
-
-    const options = {
-        animation: false, // slow and we want a responsive interface not a pretty static one
-        color: series.map(f => f.color),
-        legend: {show: false},  // required for sauceLegned to toggle series
-        grid: series.map((x, i) => {
-            const count = series.length;
-            return {
-                top: `${topPad + i / count * (100 - topPad - bottomPad)}%`,
-                height: `${(100 - topPad - bottomPad) / count - seriesPad}%`,
-                left: leftPad,
-                right: rightPad,
-            };
-        }),
-        brush: {
-            seriesIndex: xAxes,
-            xAxisIndex: xAxes,
-            brushType: 'lineX',
-            brushMode: 'single',
-            brushStyle: {
-                color: 'var(--selection-color)',
-                borderWidth: 'var(--selection-border-width)',
-                borderColor: 'var(--selection-border-color)',
-            },
+    const chart = new sc.LineChart({
+        el,
+        padding: [15, 20, 30, 20],
+        color: '#ddd7',
+        hidePoints: true,
+        disableAnimation: true,
+        tooltip: {
+            linger: 0,
+            format: ({entry}) => H.elevation(entry.y, {separator: ' ', suffix: true})
         },
-        xAxis: series.map((f, i) => ({
-            show: true,
-            type: 'value',
-            min: 'dataMin',
-            max: 'dataMax',
-            gridIndex: i,
-            splitLine: {show: false},
-            axisLine: {show: false},
-            axisLabel: {
-                showMinLabel: false,
-                showMaxLabel: false,
-                formatter: x => H.distance(x, {suffix: true}),
-                padding: [-4, 0, 0, 0],
-            },
-            axisPointer: {
-                show: true,
-                label: {show: false},
-            },
-        })),
-        yAxis: series.map((f, i) => ({
-            show: false,
-            type: 'value',
-            gridIndex: i,
-            min: x => f.domain[0] != null ? Math.min(f.domain[0], x.min) : x.min,
-            max: x => f.domain[1] != null ? Math.max(f.domain[1], x.max) : x.max,
-            splitNumber: undefined,
-            interval: Infinity, // disable except for min/max
-            splitLine: {show: false},
-        })),
-        series: series.map((f, i) => ({
-            type: 'line',
-            animation: false,
-            showSymbol: false,
-            emphasis: {disabled: true},
-            id: f.id,
-            name: typeof f.name === 'function' ? f.name() : f.name,
-            z: series.length - i + 1,
-            xAxisIndex: i,
-            yAxisIndex: i,
-            tooltip: {valueFormatter: f.fmt},
-            areaStyle: {
-                origin: 'start',
-                color: new echarts.graphic.LinearGradient(0, 1, 0, 0, [{
-                    offset: 0,
-                    color: theme.cssColor('intrinsic', 0.3, 0.5)
-                }, {
-                    offset: 0.9,
-                    color: theme.cssColor('intrinsic', 0.1, 0.1)
-                }]),
-            },
-            lineStyle: {
-                color: theme.cssColor('intrinsic', 0.3),
-                width: 1,
-            },
-        })),
-        toolbox: {show: false},
-    };
-    chart.setOption(options);
-    // This is the only way to enable brush selection by default. :/
-    chart.dispatchAction({
-        type: 'takeGlobalCursor',
-        key: 'brush',
-        brushOption: {
-            brushType: 'lineX',
-            brushMode: 'single',
-        }
+        xAxis: {
+            format: ({value}) => {
+                return H.distance(value, {suffix: true});
+            }
+        },
+        yAxis: {disabled: true},
+        brush: {
+            disableZoom: true,
+        },
     });
-
     chart.updateData = () => {
-        if (state.paused) {
-            updateDeferred = true;
-            return;
-        }
-        updateDeferred = false;
-        chart.setOption({
-            series: series.map(f => ({
-                data: state.streams[f.id].map((x, i) =>
-                    i >= state.startOffset ? [state.streams.distance[i], x] : [null, null]),
-            }))
-        });
+        const data = state.streams.altitude.map((x, i) =>
+            i >= state.startOffset ? [state.streams.distance[i], x] : [null, null]);
+        chart.yMax = Math.max(100, sauce.data.max(data.map(x => x[1])));
+        chart.setData(data);
     };
-
-    chart.on('brush', ev => {
-        if (ev.fromSauce) {
-            return;
-        }
-        state.paused = !!ev.areas.length;
-        if (!ev.areas.length) {
-            state.zoomStart = undefined;
-            state.zoomEnd = undefined;
-            return;
-        }
-        const range = ev.areas[0].coordRange;
-        state.zoomStart = common.binarySearchClosest(state.streams.distance, range[0]);
-        state.zoomEnd = common.binarySearchClosest(state.streams.distance, range[1]);
-    });
-    chart.on('brushEnd', ev => {
-        state.paused = false;
-        if (updateDeferred) {
-            // Must queue callback to prevent conflict with other mouseup actions.
-            requestAnimationFrame(chart.updateData);
+    chart.addEventListener('brush', ev => {
+        if (ev.detail.internal) {
+            let {x1, x2} = ev.detail;
+            if (x1 == null || x2 == null) {
+                state.zoomStart = null;
+                state.zoomEnd = null;
+            } else if (x1 !== x2) {
+                if (x2 < x1) {
+                    [x1, x2] = [x2, x1];
+                }
+                state.zoomStart = common.binarySearchClosest(state.streams.distance, x1);
+                state.zoomEnd = common.binarySearchClosest(state.streams.distance, x2);
+            }
         }
     });
-    chartRefs.add(new WeakRef(chart));
     return chart;
 }
 
 
-function createZoomableLineChart(el) {
-    const series = zoomableChartSeries;
-    const xAxes = series.map((x, i) => i);
-    const chart = echarts.init(el, 'sauce', {renderer: 'svg'});
-    const topPad = 3;
-    const seriesPad = 1;
-    const bottomPad = 12;
+// TODO: Rename with better name !zoomable
+function createZoomableLineCharts(el) {
+    const topPad = 30;
+    const seriesPad = 10;
+    const bottomPad = 20;
     const leftPad = 50;
     const rightPad = 20;
-    let updateDeferred;
-    const clippyHackId = charts.getMagicZonesClippyHackId();
+    const height = 50;
 
-    const options = {
-        animation: false, // slow and we want a responsive interface not a pretty static one
-        color: series.map(f => f.color),
-        legend: {show: false},  // required for sauceLegned to toggle series
-        visualMap: charts.getStreamFieldVisualMaps(series),
-        grid: series.map((x, i) => {
-            const count = series.length;
-            return {
-                top: `${topPad + i / count * (100 - topPad - bottomPad)}%`,
-                height: `${(100 - topPad - bottomPad) / count - seriesPad}%`,
-                left: leftPad,
-                right: rightPad,
-            };
-        }),
-        dataZoom: [{
-            type: 'inside',
-            xAxisIndex: xAxes,
-            zoomOnMouseWheel: false,
-            moveOnMouseMove: false,
-            moveOnMouseWheel: false,
-            preventDefaultMouseMove: true,
-            zoomLock: true, // workaround for https://github.com/apache/echarts/issues/10079
-        }],
-        brush: {
-            seriesIndex: xAxes,
-            xAxisIndex: xAxes,
-            brushType: 'lineX',
-            brushMode: 'single',
-            brushStyle: {
-                color: 'var(--selection-color)',
-                borderWidth: 'var(--selection-border-width)',
-                borderColor: 'var(--selection-border-color)',
+    const charts = [];
+    for (const [i, series] of zoomableChartSeries.entries()) {
+        const first = i === 0;
+        const last = i === zoomableChartSeries.length - 1;
+        const title = typeof series.name === 'function' ? series.name() : series.name;
+        const ttFrag = document.createDocumentFragment();
+        const ttEl = document.createElement('div');
+        const chart = new sc.LineChart({
+            el,
+            merge: !first,
+            title,
+            color: series.color,
+            height,
+            padding: [
+                topPad + (seriesPad + height) * i,
+                rightPad,
+                last ? bottomPad : 0,
+                leftPad
+            ],
+            disableAnimation: true,
+            hidePoints: true,
+            tooltip: {
+                linger: 0,
+                format: ({value}) => {
+                    ttEl.innerHTML = series.fmt(value, {html: true});
+                    ttFrag.replaceChildren(...ttEl.childNodes);
+                    return ttFrag;
+                }
             },
-        },
-        axisPointer: {
-            link: [{xAxisIndex: 'all'}],
-        },
-        xAxis: series.map((f, i) => ({
-            gridIndex: i,
-            type: 'time',
-            splitLine: {show: false},
-            axisTick: {show: i === series.length - 1},
-            axisLabel: {
-                padding: [-4, 0, 0, 0],
-                show: i === series.length - 1,
-                formatter: t => H.timer(t / 1000),
+            xAxis: {
+                ticks: !last ? 0 : undefined,
+                format: ({value}) => H.timer(value / 1000)
             },
-            axisPointer: {
-                snap: true,
-                show: true,
-                label: {
-                    show: true,
-                    formatter: x => f.fmt(x.seriesData[0]?.value?.[1]),
-                    padding: [5, 5],
-                    margin: -20,
-                    fontSize: 12, // must use px to get proper bg alignment
-                },
+            yAxis: {
+                ticks: 1,
+                format: ({value}) => series.fmt(value, {suffix: false})
             },
-        })),
-        yAxis: series.map((f, i) => ({
-            type: 'value',
-            name: typeof f.name === 'function' ? f.name() : f.name,
-            nameLocation: 'end',
-            nameRotate: 0,
-            nameGap: -12,
-            nameTextStyle: {
-                fontSize: '0.65em',
-                fontWeight: 600,
-                fontFamily: 'inherit',
-                align: 'left',
-                padding: [0, 0, 0, 4],
+            brush: {
+                shared: true,
             },
-            z: 5, // sit above area fill
-            gridIndex: i,
-            min: x => f.domain[0] != null ? Math.min(f.domain[0], x.min) : x.min,
-            max: x => f.domain[1] != null ? Math.max(f.domain[1], x.max) : x.max,
-            splitNumber: undefined,
-            interval: Infinity, // disable except for min/max
-            axisLine: {show: true},
-            splitLine: {show: false},
-            axisLabel: {
-                rotate: 45,
-                showMinLabel: false,
-                formatter: x => f.fmt(x, {suffix: false}),
-            },
-        })),
-        series: series.map((f, i) => ({
-            type: 'line',
-            animation: false,
-            showSymbol: false,
-            emphasis: {disabled: true},
-            id: f.id,
-            name: typeof f.name === 'function' ? f.name() : f.name,
-            z: series.length - i + 1,
-            xAxisIndex: i,
-            yAxisIndex: i,
-            tooltip: {valueFormatter: f.fmt},
-            areaStyle: f.id === 'power' && powerZones && ftp ? {color: 'magic-zones'} : {},
-            lineStyle: {
-                color: f.color,
-                width: 1
-            },
-        })),
-        toolbox: {show: false},
-    };
-    chart.setOption(options);
-    // This is the only way to enable brush selection by default. :/
-    chart.dispatchAction({
-        type: 'takeGlobalCursor',
-        key: 'brush',
-        brushOption: {
-            brushType: 'lineX',
-            brushMode: 'single',
-        }
-    });
-
-    chart.updateData = () => {
-        if (state.paused) {
-            updateDeferred = true;
-            return;
-        }
-        updateDeferred = false;
-        chart.setOption({
-            dataZoom: state.zoomStart !== undefined ? [{
-                startValue: state.streams.time[state.zoomStart] * 1000,
-                endValue: state.streams.time[state.zoomEnd] * 1000,
-            }] : [],
-            series: series.map(f => ({
-                data: state.streams[f.id].map((x, i) =>
-                    [state.streams.time[i] * 1000, x]),
-            }))
         });
-    };
 
-    chart.on('brush', ev => {
-        state.paused = !!ev.areas.length;
-        if (ev.fromSauce) {
-            return;
-        }
-        const range = ev.areas[0].coordRange;
-        state.zoomStart = common.binarySearchClosest(state.streams.time, range[0] / 1000);
-        state.zoomEnd = common.binarySearchClosest(state.streams.time, range[1] / 1000);
-    });
-    chart.on('brushEnd', ev => {
-        state.paused = false;
-        const range = ev.areas[0].coordRange;
-        // Convert the brush to a zoom...
-        chart.dispatchAction({type: 'brush', fromSauce: true, areas: []});  // clear selection
-        chart.setOption({dataZoom: [{startValue: range[0], endValue: range[1]}]});
-        if (updateDeferred) {
-            // Must queue callback to prevent conflict with other mouseup actions.
-            requestAnimationFrame(chart.updateData);
-        }
-    });
-    chart.on('rendered', () => charts.magicZonesAfterRender({
-        chart,
-        hackId: clippyHackId,
-        seriesId: 'power',
-        zones: powerZones,
-        ftp,
-    }));
-    el.addEventListener('click', () => {
-        // Only triggered when brush never selects data, i.e. naked click, so clear...
-        state.paused = false;
-        state.zoomStart = undefined;
-        state.zoomEnd = undefined;
-        chart.dispatchAction({type: 'dataZoom', start: 0, end: 100});
-    });
-    chartRefs.add(new WeakRef(chart));
-    return chart;
-}
+        chart.updateData = () => {
+            const data = state.streams[series.id].map((x, i) => [state.streams.time[i] * 1000, x]);
+            if (series.domain[0] != null) {
+                chart.yMin = Math.min(series.domain[0], sauce.data.min(data.map(x => x[0])));
+            }
+            if (series.domain[1] != null) {
+                chart.yMax = Math.max(series.domain[1], sauce.data.max(data.map(x => x[1])));
+            }
+            chart.setData(data);
+        };
 
-
-function resizeCharts() {
-    for (const r of chartRefs) {
-        const c = r.deref();
-        if (!c) {
-            chartRefs.delete(r);
-        } else {
-            c.resize();
+        if (!charts.length) {
+            chart.addEventListener('brush', ev => {
+                if (ev.detail.internal) {
+                    let {x1, x2} = ev.detail;
+                    if (x1 == null || x2 == null) {
+                        state.zoomStart = null;
+                        state.zoomEnd = null;
+                    } else if (x1 !== x2) {
+                        if (x2 < x1) {
+                            [x1, x2] = [x2, x1];
+                        }
+                        state.zoomStart = common.binarySearchClosest(state.streams.time, x1 / 1000);
+                        state.zoomEnd = common.binarySearchClosest(state.streams.time, x2 / 1000);
+                    }
+                }
+            });
         }
+        charts.push(chart);
     }
+
+    //const options = {
+        //visualMap: charts.getStreamFieldVisualMaps(zoomableChartSeries),
+        //series: zoomableChartSeries.map((f, i) => ({
+         //   areaStyle: f.id === 'power' && powerZones && ftp ? {color: 'magic-zones'} : {},
+        //})),
+    //};
+    return charts;
 }
 
 
@@ -609,7 +402,6 @@ function centerMap(positions) {
 
 export async function main() {
     common.initInteractionListeners();
-    addEventListener('resize', resizeCharts);
     const [_ad, _templates, nationFlags, worldList, _powerZones] = await Promise.all([
         common.rpc.getAthleteData(athleteIdent),
         getTemplates([
@@ -648,14 +440,14 @@ export async function main() {
     const exportBtn = document.querySelector('.button.export-file');
     exportBtn.removeAttribute('disabled');
     exportBtn.addEventListener('click', () => {
-        // XXX nope.  athletedata becomses stale over time...
+        // XXX nope.  athletedata becomes stale over time...
         const started = new Date(Date.now() - athleteData.stats.elapsedTime * 1000);
         const athlete = athleteData.athlete;
         const name = `${athlete ? athlete.fLast : athleteIdent} - ${started.toLocaleString()}`;
         exportFITActivity(name);
     });
     elevationChart = createElevationLineChart(contentEl.querySelector('.chart-holder.elevation .chart'));
-    zoomableChart = createZoomableLineChart(contentEl.querySelector('.chart-holder.zoomable .chart'));
+    zoomableCharts = createZoomableLineCharts(contentEl.querySelector('.chart-holder.zoomable .chart'));
     powerZonesChart = createTimeInPowerZonesPie(contentEl.querySelector('.time-in-power-zones'));
     zwiftMap = new map.SauceZwiftMap({
         el: document.querySelector('#map'),
@@ -716,88 +508,57 @@ export async function main() {
         await updatePeaksTemplate();
     });
 
-    zoomableChart.on('brush', ev => elevationChart.dispatchAction({
-        type: 'brush',
-        fromSauce: true,
-        areas: [{
-            brushType: 'lineX',
-            xAxisIndex: 0,
-            coordRange: [
-                state.streams.distance[state.zoomStart],
-                state.streams.distance[state.zoomEnd]
-            ],
-        }],
+    zoomableCharts[0].addEventListener('brush', ev => elevationChart.setBrush({
+        x1: state.zoomStart != null ? state.streams.distance[state.zoomStart] : null,
+        x2: state.zoomEnd != null ? state.streams.distance[state.zoomEnd] : null
     }));
-    zoomableChart.on('dataZoom', ev => elevationChart.dispatchAction({
-        type: 'brush',
-        fromSauce: true,
-        areas: state.zoomStart !== undefined ? [{
-            brushType: 'lineX',
-            xAxisIndex: 0,
-            coordRange: [
-                state.streams.distance[state.zoomStart],
-                state.streams.distance[state.zoomEnd]
-            ],
-        }] : [],
-    }));
-    elevationChart.on('brush', async ev => {
+    elevationChart.addEventListener('brush', async ev => {
         if (state.brushPath) {
             state.brushPath.elements.forEach(x => x.remove());
             state.brushPath = undefined;
         }
-        if (state.zoomStart !== undefined && state.zoomStart < state.zoomEnd) {
+        if (state.zoomStart != null && state.zoomStart < state.zoomEnd) {
             const selection = state.positions.slice(state.zoomStart, state.zoomEnd);
             state.brushPath = zwiftMap.addHighlightLine(selection, 'selection', {color: '#4885ff'});
         }
-        if (!ev.fromSauce) {
-            zoomableChart.setOption({
-                dataZoom: [{
-                    startValue: state.streams.time[state.zoomStart] * 1000,
-                    endValue: state.streams.time[state.zoomEnd] * 1000,
-                }],
-            }, {lazyUpdate: true});
+        if (ev.detail.internal) {
+            for (const chart of zoomableCharts) {
+                if (state.zoomStart != null && state.zoomStart < state.zoomEnd) {
+                    chart.setZoom({
+                        xRange: [
+                            state.streams.time[state.zoomStart] * 1000,
+                            state.streams.time[state.zoomEnd] * 1000
+                        ]
+                    });
+                } else {
+                    chart.setZoom();
+                }
+            }
         }
         await updateSelectionStats();
     });
-    elevationChart.on('brushEnd', ev => {
-        // Only needed for handling a naked click that clears the brush selection
-        if (!ev.areas.length) {
-            zoomableChart.setOption({
-                dataZoom: [{
-                    startValue: undefined,
-                    endValue: undefined,
-                }],
-            });
-        }
-    });
 
-    let axisPointerMutex;
-    function proxyAxisPointerEvent(target, ev) {
-        if (axisPointerMutex) {
+    function onTooltip(ev) {
+        const {x, chart, internal} = ev.detail;
+        if (!internal) {
             return;
         }
-        axisPointerMutex = true;
-        try {
-            target.dispatchAction({
-                type: 'updateAxisPointer',
-                seriesIndex: 0,
-                dataIndex: ev.dataIndex,
-                currTrigger: ev.dataIndex === undefined  ? 'leave' : undefined,
-            });
-        } finally {
-            axisPointerMutex = false;
+        const otherChart = chart === elevationChart ? zoomableCharts[0] : elevationChart;
+        if (x !== undefined) {
+            const index = chart.findNearestIndexFromXCoord(x);
+            const pos = state.positions[index];
+            state.cursorEntity.toggleHidden(!pos);
+            if (pos) {
+                state.cursorEntity.setPosition(pos);
+            }
+            otherChart.setTooltipPosition({index});
+            otherChart.showTooltip();
+        } else if (!otherChart.isTooltipPointing()) {
+            otherChart.hideTooltip();
         }
     }
-    elevationChart.on('updateAxisPointer', ev => {
-        proxyAxisPointerEvent(zoomableChart, ev);
-        const pos = state.positions[ev.dataIndex];
-        state.cursorEntity.toggleHidden(!pos);
-        if (pos) {
-            state.cursorEntity.setPosition(pos);
-            //zwiftMap.setCenter(pos); // fun but pretty spastic
-        }
-    });
-    zoomableChart.on('updateAxisPointer', ev => proxyAxisPointerEvent(elevationChart, ev));
+    elevationChart.addEventListener('tooltip', onTooltip);
+    zoomableCharts[0].addEventListener('tooltip', onTooltip);
     updateLoop();
 }
 
@@ -806,16 +567,18 @@ function setSelection(startIndex, endIndex, scrollTo) {
     state.zoomStart = startIndex;
     state.zoomEnd = endIndex;
     if (startIndex != null && endIndex != null) {
-        zoomableChart.dispatchAction({
-            type: 'dataZoom',
-            startValue: state.streams.time[startIndex] * 1000,
-            endValue: state.streams.time[endIndex] * 1000,
-        });
+        for (const x of zoomableCharts) {
+            x.setZoom({
+                xRange: [state.streams.time[startIndex] * 1000, state.streams.time[endIndex] * 1000]
+            });
+        }
         if (scrollTo) {
             document.querySelector('#map').scrollIntoView({behavior: 'smooth'});
         }
     } else {
-        zoomableChart.dispatchAction({type: 'dataZoom', start: 0, end: 100});
+        for (const x of zoomableCharts) {
+            x.setZoom();
+        }
     }
 }
 
@@ -951,7 +714,7 @@ async function updateData() {
         }
     }
 
-    zoomableChart.updateData();
+    zoomableCharts.map(x => x.updateData());
     elevationChart.updateData();
     powerZonesChart.updateData();
     await updateSelectionStats();

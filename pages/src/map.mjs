@@ -421,7 +421,7 @@ export class SauceZwiftMap extends EventTarget {
         this._elements.pathLayersGroup.append(...Object.values(this._elements.roadLayers));
         this._elements.pathLayersGroup.append(...Object.values(this._elements.userLayers));
         this._elements.map.append(this._elements.mapCanvas, this._elements.paths, this._elements.ents);
-        this.el.addEventListener('wheel', this._onWheelZoom.bind(this));
+        this.el.addEventListener('wheel', this._onWheelZoom.bind(this), {passive: false /*mute warn*/});
         this.el.addEventListener('pointerdown', this._onPointerDown.bind(this));
         this._elements.ents.addEventListener('click', this._onEntsClick.bind(this));
         this.setZoom(zoom);
