@@ -72,7 +72,7 @@ const zoomableChartSeries = ['power', 'hr', 'speed', 'cadence', 'wbal', 'draft']
 
 async function getTemplates(basenames) {
     return Object.fromEntries(await Promise.all(basenames.map(k =>
-        sauce.template.getTemplate(`templates/analysis/${k}.html.tpl`, {html: true}).then(v =>
+        sauce.template.getTemplate(`templates/analysis-legacy/${k}.html.tpl`, {html: true}).then(v =>
             // camelCase conv keys-with_snakecase--chars
             [k.replace(/[-_]+(.)/g, (_, x) => x.toUpperCase()), v]))));
 }

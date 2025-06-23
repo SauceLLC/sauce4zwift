@@ -45,7 +45,7 @@
                     <div id="map"></div>
                     {-embed(templates.selectionStats, obj)-}
                     <div class="chart-holder elevation"><div class="chart"></div></div>
-                    <div class="chart-holder zoomable"><div class="chart"></div></div>
+                    <div class="chart-holder stream-stack"><div class="chart"></div></div>
                 </section>
 
                 <section class="segments">

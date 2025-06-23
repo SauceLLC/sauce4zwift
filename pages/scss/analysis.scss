@@ -304,12 +304,17 @@ main {
     }
 
     .elevation .chart,
-    .zoomable .chart {
+    .stream-stack .chart {
         --fg-color: #{color.get(intrinsic-inverted)};
         --bg-color: #{color.get(intrinsic)};
         --line-stroke-width: 1px;
     }
 
+    .stream-stack {
+        .sc-y-axis {
+            --rotate: 40deg;
+        }
+    }
 }
 
 section.selection {

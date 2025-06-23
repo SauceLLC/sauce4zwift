@@ -8,6 +8,9 @@ import * as color from './color.mjs';
 import * as sc from '../deps/src/saucecharts/index.mjs';
 
 
+const chartLeftPad = 50;
+const chartRightPad = 20;
+
 common.enableSentry();
 echarts.registerTheme('sauce', theme.getTheme('dynamic', {fg: 'intrinsic-inverted', bg: 'intrinsic'}));
 common.settingsStore.setDefault({
@@ -17,7 +20,7 @@ common.settingsStore.setDefault({
 
 let zwiftMap;
 let elevationChart;
-let zoomableCharts;
+let streamStackCharts;
 let powerZonesChart;
 let templates;
 let athleteData;
@@ -69,8 +72,7 @@ const peakFormatters = {
     draft: x => H.power(x, {suffix: true, html: true}),
 };
 
-const zoomableChartSeries = ['power', 'hr', 'speed', 'cadence', 'wbal', 'draft']
-    .map(x => charts.streamFields[x]);
+const streamSeries = ['power', 'hr', 'speed', 'cadence', 'wbal', 'draft'].map(x => charts.streamFields[x]);
 
 
 async function getTemplates(basenames) {
@@ -173,11 +175,11 @@ async function exportFITActivity(name) {
 }
 
 
-function createElevationLineChart(el) {
+function createElevationChart(el) {
     const chart = new sc.LineChart({
         el,
-        padding: [15, 20, 30, 20],
-        color: '#ddd7',
+        padding: [2, chartRightPad, 30, chartLeftPad],
+        color: '#986a',
         hidePoints: true,
         disableAnimation: true,
         tooltip: {
@@ -189,7 +191,9 @@ function createElevationLineChart(el) {
                 return H.distance(value, {suffix: true});
             }
         },
-        yAxis: {disabled: true},
+        yAxis: {
+            ticks: 1,
+        },
         brush: {
             disableZoom: true,
         },
@@ -197,7 +201,7 @@ function createElevationLineChart(el) {
     chart.updateData = () => {
         const data = state.streams.altitude.map((x, i) =>
             i >= state.startOffset ? [state.streams.distance[i], x] : [null, null]);
-        chart.yMax = Math.max(100, sauce.data.max(data.map(x => x[1])));
+        chart.yMax = Math.max(30, sauce.data.max(data.map(x => x[1])));
         chart.setData(data);
     };
     chart.addEventListener('brush', ev => {
@@ -219,19 +223,16 @@ function createElevationLineChart(el) {
 }
 
 
-// TODO: Rename with better name !zoomable
-function createZoomableLineCharts(el) {
+function createStreamStackCharts(el) {
     const topPad = 30;
     const seriesPad = 10;
     const bottomPad = 20;
-    const leftPad = 50;
-    const rightPad = 20;
     const height = 50;
 
     const charts = [];
-    for (const [i, series] of zoomableChartSeries.entries()) {
+    for (const [i, series] of streamSeries.entries()) {
         const first = i === 0;
-        const last = i === zoomableChartSeries.length - 1;
+        const last = i === streamSeries.length - 1;
         const title = typeof series.name === 'function' ? series.name() : series.name;
         const ttFrag = document.createDocumentFragment();
         const ttEl = document.createElement('div');
@@ -243,9 +244,9 @@ function createZoomableLineCharts(el) {
             height,
             padding: [
                 topPad + (seriesPad + height) * i,
-                rightPad,
+                chartRightPad,
                 last ? bottomPad : 0,
-                leftPad
+                chartLeftPad
             ],
             disableAnimation: true,
             hidePoints: true,
@@ -258,7 +259,9 @@ function createZoomableLineCharts(el) {
                 }
             },
             xAxis: {
-                ticks: !last ? 0 : undefined,
+                disabled: !first,
+                align: 'top',
+                ticks: !first ? 0 : undefined,
                 format: ({value}) => H.timer(value / 1000)
             },
             yAxis: {
@@ -302,8 +305,8 @@ function createZoomableLineCharts(el) {
     }
 
     //const options = {
-        //visualMap: charts.getStreamFieldVisualMaps(zoomableChartSeries),
-        //series: zoomableChartSeries.map((f, i) => ({
+        //visualMap: charts.getStreamFieldVisualMaps(streamSeries),
+        //series: streamSeries.map((f, i) => ({
          //   areaStyle: f.id === 'power' && powerZones && ftp ? {color: 'magic-zones'} : {},
         //})),
     //};
@@ -446,8 +449,8 @@ export async function main() {
         const name = `${athlete ? athlete.fLast : athleteIdent} - ${started.toLocaleString()}`;
         exportFITActivity(name);
     });
-    elevationChart = createElevationLineChart(contentEl.querySelector('.chart-holder.elevation .chart'));
-    zoomableCharts = createZoomableLineCharts(contentEl.querySelector('.chart-holder.zoomable .chart'));
+    elevationChart = createElevationChart(contentEl.querySelector('.chart-holder.elevation .chart'));
+    streamStackCharts = createStreamStackCharts(contentEl.querySelector('.chart-holder.stream-stack .chart'));
     powerZonesChart = createTimeInPowerZonesPie(contentEl.querySelector('.time-in-power-zones'));
     zwiftMap = new map.SauceZwiftMap({
         el: document.querySelector('#map'),
@@ -508,7 +511,7 @@ export async function main() {
         await updatePeaksTemplate();
     });
 
-    zoomableCharts[0].addEventListener('brush', ev => elevationChart.setBrush({
+    streamStackCharts[0].addEventListener('brush', ev => elevationChart.setBrush({
         x1: state.zoomStart != null ? state.streams.distance[state.zoomStart] : null,
         x2: state.zoomEnd != null ? state.streams.distance[state.zoomEnd] : null
     }));
@@ -522,7 +525,7 @@ export async function main() {
             state.brushPath = zwiftMap.addHighlightLine(selection, 'selection', {color: '#4885ff'});
         }
         if (ev.detail.internal) {
-            for (const chart of zoomableCharts) {
+            for (const chart of streamStackCharts) {
                 if (state.zoomStart != null && state.zoomStart < state.zoomEnd) {
                     chart.setZoom({
                         xRange: [
@@ -543,7 +546,7 @@ export async function main() {
         if (!internal) {
             return;
         }
-        const otherChart = chart === elevationChart ? zoomableCharts[0] : elevationChart;
+        const otherChart = chart === elevationChart ? streamStackCharts[0] : elevationChart;
         if (x !== undefined) {
             const index = chart.findNearestIndexFromXCoord(x);
             const pos = state.positions[index];
@@ -558,7 +561,7 @@ export async function main() {
         }
     }
     elevationChart.addEventListener('tooltip', onTooltip);
-    zoomableCharts[0].addEventListener('tooltip', onTooltip);
+    streamStackCharts[0].addEventListener('tooltip', onTooltip);
     updateLoop();
 }
 
@@ -567,7 +570,7 @@ function setSelection(startIndex, endIndex, scrollTo) {
     state.zoomStart = startIndex;
     state.zoomEnd = endIndex;
     if (startIndex != null && endIndex != null) {
-        for (const x of zoomableCharts) {
+        for (const x of streamStackCharts) {
             x.setZoom({
                 xRange: [state.streams.time[startIndex] * 1000, state.streams.time[endIndex] * 1000]
             });
@@ -576,7 +579,7 @@ function setSelection(startIndex, endIndex, scrollTo) {
             document.querySelector('#map').scrollIntoView({behavior: 'smooth'});
         }
     } else {
-        for (const x of zoomableCharts) {
+        for (const x of streamStackCharts) {
             x.setZoom();
         }
     }
@@ -714,7 +717,9 @@ async function updateData() {
         }
     }
 
-    zoomableCharts.map(x => x.updateData());
+    for (const x of streamStackCharts) {
+        x.updateData();
+    }
     elevationChart.updateData();
     powerZonesChart.updateData();
     await updateSelectionStats();
