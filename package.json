@@ -46,7 +46,7 @@
     "eslint": "8.57.1",
     "eslint-plugin-html": "8.1.2",
     "sass": "1.82.0",
-    "saucecharts": "https://github.com/SauceLLC/saucecharts.git#e0b31846bcbce588197d9fe563bda5a66ac74b10",
+    "saucecharts": "https://github.com/SauceLLC/saucecharts.git#b10b53b80d1c5db7b25fe5773f1755496f3136fe",
     "world_countries_lists": "2.9.0"
   },
   "build": {
