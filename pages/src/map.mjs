@@ -1012,56 +1012,93 @@ export class SauceZwiftMap extends EventTarget {
         });
     }
 
-    addHighlightPath(path, id, {debug, includeEdges=true, extraClass='', width, color, layer='mid'}={}) {
+    _createDebugPathElements(nodes, layer) {
         const elements = [];
-        if (debug) {
-            const nodes = path.nodes;
-            for (let i = 0; i < nodes.length; i++) {
-                elements.push(this.drawCircle(nodes[i].end, {
-                    color: '#40ba',
-                    borderColor: 'black',
-                    size: 4,
-                    title: i
-                }));
-                if (nodes[i].cp1) {
-                    if (i) {
-                        const title = `cp1-${i}`;
-                        elements.push(this.drawLine(nodes[i].cp1, nodes[i - 1].end, {layer, title}));
-                        elements.push(this.drawCircle(nodes[i].cp1, {color: '#000b', size: 3, title}));
-                    }
-                    const title = `cp2-${i}`;
-                    elements.push(this.drawLine(nodes[i].cp2, nodes[i].end, {layer, title}));
-                    elements.push(this.drawCircle(nodes[i].cp2, {color: '#fffb', size: 3, title}));
+        for (let i = 0; i < nodes.length; i++) {
+            elements.push(this.drawCircle(nodes[i].end, {
+                color: '#40ba',
+                borderColor: 'black',
+                size: 4,
+                title: i
+            }));
+            if (nodes[i].cp1) {
+                if (i) {
+                    const title = `cp1-${i}`;
+                    elements.push(this.drawLine(nodes[i].cp1, nodes[i - 1].end, {layer, title}));
+                    elements.push(this.drawCircle(nodes[i].cp1, {color: '#000b', size: 3, title}));
                 }
-            }
-            if (nodes.length) {
-                elements.push(this.drawCircle(nodes[0].end, {color: '#0f09', size: 8, title: 'start'}));
-                elements.push(this.drawCircle(nodes.at(-1).end, {color: '#f009', size: 8, title: 'end'}));
+                const title = `cp2-${i}`;
+                elements.push(this.drawLine(nodes[i].cp2, nodes[i].end, {layer, title}));
+                elements.push(this.drawCircle(nodes[i].cp2, {color: '#fffb', size: 3, title}));
             }
         }
-        const node = createElementSVG('path', {
-            class: `highlight ${extraClass}`,
+        if (nodes.length) {
+            elements.push(this.drawCircle(nodes[0].end, {color: '#0f09', size: 8, title: 'start'}));
+            elements.push(this.drawCircle(nodes.at(-1).end, {color: '#f009', size: 8, title: 'end'}));
+        }
+        return elements;
+    }
+
+    addHighlightPath(path, id, {debug, includeEdges=true, extraClass, width, color, layer='mid'}={}) {
+        const elements = debug ? this._createDebugPathElements(path.nodes, layer) : [];
+        const svgPath = createElementSVG('path', {
+            class: `highlight ${extraClass || ''}`,
             "data-id": id,
             d: path.toSVGPath({includeEdges}),
         });
-        if (width) {
-            node.style.setProperty('--width', width);
+        if (width != null) {
+            svgPath.style.setProperty('--width', width);
         }
-        if (color) {
-            node.style.setProperty('stroke', color);
+        if (color != null) {
+            svgPath.style.setProperty('stroke', color);
         }
         const surfaceEl = this._elements.userLayers[{
             high: 'surfacesHigh',
             mid: 'surfacesMid',
             low: 'surfacesLow',
         }[layer]];
-        surfaceEl.append(node);
-        elements.push(node);
-        return {id, path, elements};
+        surfaceEl.append(svgPath);
+        elements.push(svgPath);
+        return {id, path, elements, svgPath, debug, includeEdges, layer};
+    }
+
+    updateHighlightPath(pathObj, path, {debug, includeEdges=true, width, color}={}) {
+        const svgPath = pathObj.svgPath;
+        if (pathObj.debug || debug) {
+            for (const x of pathObj.elements) {
+                if (x !== svgPath) {
+                    x.remove();
+                }
+            }
+            const elements = debug ? this._createDebugPathElements(path.nodes, pathObj.layer) : [];
+            elements.push(svgPath);
+            pathObj.elements = elements;
+            pathObj.debug = debug;
+        }
+        svgPath.setAttribute('d', path.toSVGPath({includeEdges}));
+        if (width !== undefined) {
+            if (width === null) {
+                svgPath.style.removeProperty('--width');
+            } else {
+                svgPath.style.setProperty('--width', width);
+            }
+        }
+        if (color !== undefined) {
+            if (color === null) {
+                svgPath.style.removeProperty('stroke');
+            } else {
+                svgPath.style.setProperty('stroke', color);
+            }
+        }
+        return pathObj;
     }
 
     addHighlightLine(points, id, options={}) {
         return this.addHighlightPath(this._createCurvePath(points, options.loop), id, options);
+    }
+
+    updateHighlightLine(pathObj, points, options={}) {
+        return this.updateHighlightPath(pathObj, this._createCurvePath(points, options.loop), options);
     }
 
     addPoint(point, extraClass) {
