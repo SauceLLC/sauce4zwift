@@ -84,6 +84,7 @@ abbr.unit {
     height: clamp(150px, 25vh, 500px);
     border-radius: 0.28em;
     background-color: color.shade(intrinsic, 5%);
+    resize: vertical;
 
     .map-background {
         filter: contrast(0.4) brightness(1.5);
@@ -310,6 +311,7 @@ main {
         --line-stroke-width: 1px;
     }
 
+    .elevation,
     .stream-stack {
         .sc-y-axis {
             --rotate: 40deg;

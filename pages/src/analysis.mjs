@@ -237,8 +237,8 @@ function createStreamStackCharts(el) {
         const ttFrag = document.createDocumentFragment();
         const ttEl = document.createElement('div');
         const chart = new sc.LineChart({
-            el,
-            merge: !first,
+            el: first ? el : undefined,
+            parent: charts[0],
             title,
             color: series.color,
             height,
@@ -260,7 +260,7 @@ function createStreamStackCharts(el) {
             },
             xAxis: {
                 disabled: !first,
-                align: 'top',
+                position: 'top',
                 ticks: !first ? 0 : undefined,
                 format: ({value}) => H.timer(value / 1000)
             },
@@ -516,13 +516,23 @@ export async function main() {
         x2: state.zoomEnd != null ? state.streams.distance[state.zoomEnd] : null
     }));
     elevationChart.addEventListener('brush', async ev => {
-        if (state.brushPath) {
+        if (state.zoomStart != null && state.zoomStart < state.zoomEnd) {
+            state.selection = state.positions.slice(state.zoomStart, state.zoomEnd);
+            if (!state.brushPath) {
+                state.brushPath = zwiftMap.addHighlightLine(state.selection, 'selection',
+                                                            {color: '#2885ffcc'});
+            } else if (!state.mapHiUpdateTO) {
+                // Expensive call with large datasets. throttle a bit...
+                state.mapHiUpdateTO = setTimeout(() => {
+                    state.mapHiUpdateTO = null;
+                    zwiftMap.updateHighlightLine(state.brushPath, state.selection);
+                }, state.selection.length / 100);
+            }
+        } else if (state.brushPath) {
+            clearTimeout(state.mapHiUpdateTO);
+            state.mapHiUpdateTO = null;
             state.brushPath.elements.forEach(x => x.remove());
             state.brushPath = undefined;
-        }
-        if (state.zoomStart != null && state.zoomStart < state.zoomEnd) {
-            const selection = state.positions.slice(state.zoomStart, state.zoomEnd);
-            state.brushPath = zwiftMap.addHighlightLine(selection, 'selection', {color: '#4885ff'});
         }
         if (ev.detail.internal) {
             for (const chart of streamStackCharts) {
@@ -569,19 +579,24 @@ export async function main() {
 function setSelection(startIndex, endIndex, scrollTo) {
     state.zoomStart = startIndex;
     state.zoomEnd = endIndex;
-    if (startIndex != null && endIndex != null) {
-        for (const x of streamStackCharts) {
+    elevationChart.setBrush({
+        x1: state.zoomStart != null ? state.streams.distance[state.zoomStart] : null,
+        x2: state.zoomEnd != null ? state.streams.distance[state.zoomEnd] : null
+    });
+    for (const x of streamStackCharts) {
+        if (state.zoomStart != null && state.zoomStart < state.zoomEnd) {
             x.setZoom({
-                xRange: [state.streams.time[startIndex] * 1000, state.streams.time[endIndex] * 1000]
+                xRange: [
+                    state.streams.time[state.zoomStart] * 1000,
+                    state.streams.time[state.zoomEnd] * 1000
+                ]
             });
-        }
-        if (scrollTo) {
-            document.querySelector('#map').scrollIntoView({behavior: 'smooth'});
-        }
-    } else {
-        for (const x of streamStackCharts) {
+        } else {
             x.setZoom();
         }
+    }
+    if (scrollTo) {
+        document.querySelector('#map').scrollIntoView({behavior: 'smooth'});
     }
 }
 
@@ -650,7 +665,9 @@ async function updateData() {
         if (!state.streams[k]) {
             state.streams[k] = [];
         }
-        state.streams[k].push(...stream);
+        for (const x of stream) {
+            state.streams[k].push(x);
+        }
     }
     if (upSegments.length) {
         for (const x of upSegments) {
@@ -700,10 +717,11 @@ async function updateData() {
         const coursePositions = state.positions.slice(state.startOffset);
         state.startEnt.setPosition(coursePositions[0]);
         state.endEntity.setPosition(coursePositions.at(-1));
-        if (state.histPath) {
-            state.histPath.elements.forEach(x => x.remove());
+        if (!state.histPath) {
+            state.histPath = zwiftMap.addHighlightLine(coursePositions, 'history', {layer: 'low'});
+        } else {
+            zwiftMap.updateHighlightLine(state.histPath, coursePositions);
         }
-        state.histPath = zwiftMap.addHighlightLine(coursePositions, 'history', {layer: 'low'});
         if (!state.voidAutoCenter) {
             centerMap(coursePositions);
         }

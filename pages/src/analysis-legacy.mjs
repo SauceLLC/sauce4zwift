@@ -884,7 +884,9 @@ async function updateData() {
         if (!state.streams[k]) {
             state.streams[k] = [];
         }
-        state.streams[k].push(...stream);
+        for (const x of stream) {
+            state.streams[k].push(x);
+        }
     }
     if (upSegments.length) {
         for (const x of upSegments) {
