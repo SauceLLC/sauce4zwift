@@ -138,13 +138,13 @@ export class CurvePath {
         if (start >= end) {
             return '';
         }
-        let svg = `M ${this.nodes[start].end[0]},${this.nodes[start].end[1]}`;
+        let svg = `M${this.nodes[start].end[0]},${this.nodes[start].end[1]}`;
         for (let i = start + 1; i < end; i++) {
             const {cp1, cp2, end} = this.nodes[i];
             if (cp1 && cp2) {
-                svg += `\nC ${cp1[0]},${cp1[1]} ${cp2[0]},${cp2[1]} ${end[0]},${end[1]}`;
+                svg += `C${cp1[0]},${cp1[1]} ${cp2[0]},${cp2[1]} ${end[0]},${end[1]}`;
             } else {
-                svg += `\nL ${end[0]},${end[1]}`;
+                svg += `L${end[0]},${end[1]}`;
             }
         }
         return svg;
