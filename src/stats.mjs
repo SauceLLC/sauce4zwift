@@ -2145,7 +2145,7 @@ export class StatsProcessor extends events.EventEmitter {
             this.triggerEventEnd(ad, state);
         }
         if (ad.disabled) {
-            return;
+            return false;
         }
         const roadSig = this._roadSig(state);
         if (this._autoLap) {
@@ -2760,7 +2760,6 @@ export class StatsProcessor extends events.EventEmitter {
         // rounding issues in stats code or UX code.
         let target = (monotonic() / 1000 | 0) * 1000 + interval;
         let errBackoff = 1;
-        let sli = 0;
         while (this._active) {
             let skipped = 0;
             const now = monotonic();
@@ -2769,10 +2768,6 @@ export class StatsProcessor extends events.EventEmitter {
             }
             if (skipped) {
                 console.warn("States processor skipped:", skipped);
-                sli += skipped;
-            }
-            if (sli % 1 === 0) {
-                //console.log("sleep", target - now);
             }
             await highResSleepTill(target);
             if (this.watching == null) {
@@ -2889,14 +2884,14 @@ export class StatsProcessor extends events.EventEmitter {
             watching: ad.athleteId === this.watching ? true : undefined,
             self: ad.athleteId === this.athleteId ? true : undefined,
             courseId: ad.courseId,
-            athleteId: state.athleteId,
+            athleteId: ad.athleteId,
             athlete,
             stats: this._getCollectorStats(ad.collectors, ad, athlete, {includeDeprecated: true}),
             lap: this._getCollectorStats(ad.laps[ad.laps.length - 1], ad, athlete),
             lastLap: lapCount > 1 ?
                 this._getCollectorStats(ad.laps[ad.laps.length - 2], ad, athlete) : null,
             lapCount,
-            state: this._cleanState(state),
+            state: state && this._cleanState(state),
             eventPosition: ad.eventPosition,
             eventParticipants: ad.eventParticipants,
             gameState: ad.gameState,
@@ -2905,14 +2900,14 @@ export class StatsProcessor extends events.EventEmitter {
             isGapEst: ad.isGapEst ? true : undefined,
             wBal: ad.privacy.hideWBal ? undefined : ad.wBal.get(),
             timeInPowerZones: ad.privacy.hideFTP ? undefined : ad.timeInPowerZones.get(),
-            ...this._getEventOrRouteInfo(state),
+            ...(state && this._getEventOrRouteInfo(state)),
             ...ad.extra,
         };
     }
 
     _computeNearby() {
         const watching = this._athleteData.get(this.watching);
-        if (!watching || !watching.mostRecentState) {
+        if (!watching || !watching.mostRecentState || watching.disabled) {
             for (const ad of this._athleteData.values()) {
                 ad.gap = undefined;
                 ad.gapDistance = undefined;
@@ -2935,27 +2930,26 @@ export class StatsProcessor extends events.EventEmitter {
         const filterStopped = !!watchingSpeed;
         const ahead = [];
         const behind = [];
+        const now = monotonic();
         for (const ad of this._athleteData.values()) {
-            if (ad.athleteId !== this.watching) {
-                const age = monotonic() - ad.updated;
-                if ((filterStopped && !ad.mostRecentState.speed) || age > 10000) {
-                    continue;
-                }
-                const rp = this.compareRoadPositions(ad, watching);
-                if (rp === null) {
-                    ad.gap = undefined;
-                    ad.gapDistance = undefined;
-                    ad.isGapEst = true;
-                    continue;
-                }
-                ad.gap = this._realGap(rp, ad, watching);
-                ad.gapDistance = rp.gapDistance;
-                ad.isGapEst = ad.gap == null;
-                if (rp.reversed) {
-                    behind.push(ad);
-                } else {
-                    ahead.push(ad);
-                }
+            if (ad.athleteId === this.watching || ad.disabled || !ad.mostRecentState ||
+                now - ad.updated > 10000 || (filterStopped && !ad.mostRecentState.speed)) {
+                continue;
+            }
+            const rp = this.compareRoadPositions(ad, watching);
+            if (rp === null) {
+                ad.gap = undefined;
+                ad.gapDistance = undefined;
+                ad.isGapEst = true;
+                continue;
+            }
+            ad.gap = this._realGap(rp, ad, watching);
+            ad.gapDistance = rp.gapDistance;
+            ad.isGapEst = ad.gap == null;
+            if (rp.reversed) {
+                behind.push(ad);
+            } else {
+                ahead.push(ad);
             }
         }
 
