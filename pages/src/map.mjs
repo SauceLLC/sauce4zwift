@@ -533,7 +533,7 @@ export class SauceZwiftMap extends EventTarget {
         this._applyZoom(options);
     }
 
-    setBounds(tl, br, {padding=0.20}={}) {
+    setBounds(tl, br, {padding=0.12}={}) {
         let width = br[0] - tl[0];
         let height = tl[1] - br[1];
         const center = [tl[0] + width / 2, br[1] + height / 2];
@@ -541,12 +541,14 @@ export class SauceZwiftMap extends EventTarget {
         // correction factors are applied, so width and height are swapped for
         // purposes of finding our ideal bounding box sizes.
         [width, height] = [height, width];
+        const rectWidth = this._elRect.width * (1 - padding * 2);
+        const rectHeight = this._elRect.height * (1 - padding * 2);
         const boundsRatio = width / height;
-        const viewRatio = this._elRect.width / this._elRect.height;
-        const zoom = viewRatio > boundsRatio ? this._elRect.height / height : this._elRect.width / width;
+        const viewRatio = rectWidth / rectHeight;
+        const zoom = viewRatio > boundsRatio ? rectHeight / height : rectWidth / width;
         const zoomFactor = 1 / (this.worldMeta.mapScale / this.worldMeta.tileScale);
         this._setCenter(center);
-        this.setZoom(zoom * zoomFactor * (1 - padding), {disableEvent: true});
+        this.setZoom(zoom * zoomFactor, {disableEvent: true});
     }
 
     _adjustZoom(adj) {
