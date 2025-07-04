@@ -42,7 +42,10 @@
             <main>
                 <section class="analysis selection">
                     <div class="world">{{worldList.find(x => x.courseId === athleteData.state.courseId).name}}</div>
-                    <div id="map"></div>
+                    <div id="map-wrap">
+                        <div id="map"></div>
+                        <div id="map-resizer"><ms>drag_handle</ms></div>
+                    </div>
                     {-embed(templates.selectionStats, obj)-}
                     <div class="chart-holder elevation"><div class="chart"></div></div>
                     <div class="chart-holder stream-stack"><div class="chart"></div></div>

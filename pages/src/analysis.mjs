@@ -33,7 +33,7 @@ const state = {
     segments: [],
     streams: {},
     positions: [],
-    startOffset: 0,
+    geoOffset: 0,
     startTime: undefined,
     sport: undefined,
     zoomStart: undefined,
@@ -85,6 +85,7 @@ async function getTemplates(basenames) {
 
 const _tplSigs = new Map();
 async function updateTemplate(selector, tpl, attrs) {
+    await sauce.sleep(1);
     const html = await tpl(attrs);
     const sig = common.hash(html);
     if (_tplSigs.get(selector) !== sig) {
@@ -152,9 +153,41 @@ function getSelectionStats() {
 }
 
 
-async function updateSelectionStats() {
-    const selectionStats = getSelectionStats();
-    return await updateTemplate('.selection-stats', templates.selectionStats, {selectionStats, settings});
+let selStatsActive;
+let selStatsPendingRelease;
+let mapCenterTimeout;
+function schedUpdateSelectionStats() {
+    const run = () => {
+        const selectionStats = getSelectionStats();
+        selStatsActive = updateTemplate('.selection-stats', templates.selectionStats,
+                                        {selectionStats, settings}).finally(() => {
+            selStatsActive = null;
+            if (selStatsPendingRelease) {
+                selStatsPendingRelease();
+                selStatsPendingRelease = null;
+            }
+        });
+    };
+    if (selStatsPendingRelease) {
+        selStatsPendingRelease(true);
+        selStatsPendingRelease = null;
+    }
+    if (selStatsActive) {
+        const promise = new Promise(r => selStatsPendingRelease = r);
+        promise.then(cancelled => !cancelled && run());
+    } else {
+        run();
+    }
+    if (!state.voidAutoCenter) {
+        if (!mapCenterTimeout) {
+            mapCenterTimeout = setTimeout(() => {
+                mapCenterTimeout = null;
+                if (!state.voidAutoCenter) {
+                    centerMap(state.geoSelection || state.positions.slice(state.geoOffset));
+                }
+            }, 500);
+        }
+    }
 }
 
 
@@ -200,7 +233,7 @@ function createElevationChart(el) {
     });
     chart.updateData = () => {
         const data = state.streams.altitude.map((x, i) =>
-            i >= state.startOffset ? [state.streams.distance[i], x] : [null, null]);
+            i >= state.geoOffset ? [state.streams.distance[i], x] : [null, null]);
         chart.yMax = Math.max(30, sauce.data.max(data.map(x => x[1])));
         chart.setData(data);
     };
@@ -470,6 +503,18 @@ export async function main() {
     state.cursorEntity.transition.setDuration(0);
     zwiftMap.addEntity(state.cursorEntity);
 
+    document.querySelector('#map-resizer').addEventListener('pointerdown', ev => {
+        const abrt = new AbortController();
+        const wrap = document.querySelector('#map-wrap');
+        const rect = wrap.getBoundingClientRect();
+        const initY = ev.y;
+        addEventListener('pointermove', ev => {
+            wrap.style.setProperty('height', `${rect.height + (ev.y - initY)}px`);
+        }, {signal: abrt.signal});
+        addEventListener('pointercancel', () => abrt.abort(), {signal: abrt.signal});
+        addEventListener('pointerup', () => abrt.abort(), {signal: abrt.signal});
+    });
+
     contentEl.addEventListener('click', ev => {
         const row = ev.target.closest('table.selectable > tbody > tr');
         if (!row) {
@@ -515,24 +560,31 @@ export async function main() {
         x1: state.zoomStart != null ? state.streams.distance[state.zoomStart] : null,
         x2: state.zoomEnd != null ? state.streams.distance[state.zoomEnd] : null
     }));
-    elevationChart.addEventListener('brush', async ev => {
-        if (state.zoomStart != null && state.zoomStart < state.zoomEnd) {
-            state.selection = state.positions.slice(state.zoomStart, state.zoomEnd);
-            if (!state.brushPath) {
-                state.brushPath = zwiftMap.addHighlightLine(state.selection, 'selection',
-                                                            {color: '#2885ffcc'});
-            } else if (!state.mapHiUpdateTO) {
-                // Expensive call with large datasets. throttle a bit...
-                state.mapHiUpdateTO = setTimeout(() => {
-                    state.mapHiUpdateTO = null;
-                    zwiftMap.updateHighlightLine(state.brushPath, state.selection);
-                }, state.selection.length / 100);
+    elevationChart.addEventListener('brush', ev => {
+        const hasZoom = state.zoomStart != null && state.zoomStart < state.zoomEnd;
+        if (hasZoom) {
+            state.geoSelection = state.geoOffset < state.zoomEnd ?
+                state.positions.slice(Math.max(state.geoOffset, state.zoomStart), state.zoomEnd) :
+                null;
+            if (state.geoSelection) {
+                if (!state.brushPath) {
+                    state.brushPath = zwiftMap.addHighlightLine(state.geoSelection, 'selection',
+                                                                {color: '#2885ffcc'});
+                } else if (!state.mapHiUpdateTO) {
+                    // Expensive call with large datasets. throttle a bit...
+                    state.mapHiUpdateTO = setTimeout(() => {
+                        state.mapHiUpdateTO = null;
+                        zwiftMap.updateHighlightLine(state.brushPath, state.geoSelection);
+                    }, state.geoSelection.length / 100);
+                }
             }
-        } else if (state.brushPath) {
+        }
+        if ((!hasZoom || !state.geoSelection) && state.brushPath) {
             clearTimeout(state.mapHiUpdateTO);
             state.mapHiUpdateTO = null;
             state.brushPath.elements.forEach(x => x.remove());
-            state.brushPath = undefined;
+            state.brushPath = null;
+            state.geoSelection = null;
         }
         if (ev.detail.internal) {
             for (const chart of streamStackCharts) {
@@ -548,7 +600,7 @@ export async function main() {
                 }
             }
         }
-        await updateSelectionStats();
+        schedUpdateSelectionStats();
     });
 
     function onTooltip(ev) {
@@ -700,7 +752,7 @@ async function updateData() {
         state.courseId = ad.courseId;
         for (let i = state.laps.length - 1; i >= 0; i--) {
             if (state.laps[i].courseId !== ad.courseId) {
-                state.startOffset = state.laps[i].endIndex + 1;
+                state.geoOffset = state.laps[i].endIndex + 1;
                 break;
             }
         }
@@ -714,16 +766,13 @@ async function updateData() {
             const p = streams.power[i];
             rolls.power.add(streams.time[i], (p || streams.active[i]) ? p : new sauce.data.Pad(p));
         }
-        const coursePositions = state.positions.slice(state.startOffset);
+        const coursePositions = state.positions.slice(state.geoOffset);
         state.startEnt.setPosition(coursePositions[0]);
         state.endEntity.setPosition(coursePositions.at(-1));
         if (!state.histPath) {
             state.histPath = zwiftMap.addHighlightLine(coursePositions, 'history', {layer: 'low'});
         } else {
             zwiftMap.updateHighlightLine(state.histPath, coursePositions);
-        }
-        if (!state.voidAutoCenter) {
-            centerMap(coursePositions);
         }
     }
 
@@ -740,7 +789,7 @@ async function updateData() {
     }
     elevationChart.updateData();
     powerZonesChart.updateData();
-    await updateSelectionStats();
+    schedUpdateSelectionStats();
     await updateTemplate('.activity-summary', templates.activitySummary, {athleteData});
 }
 

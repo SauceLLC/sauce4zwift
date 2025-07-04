@@ -80,11 +80,31 @@ abbr.unit {
     }
 }
 
-#map {
+#map-wrap {
     height: clamp(150px, 25vh, 500px);
+    display: flex;
+    flex-direction: column;
     border-radius: 0.28em;
+    overflow: hidden;
+
+    #map-resizer {
+        flex: 0 0 auto;
+        cursor: ns-resize;
+        background-color: color.shade(intrinsic, 20%);
+        display: flex;
+        justify-content: center;
+        font-size: 0.7em;
+        opacity: 0.8;
+
+        &:hover {
+            opacity: 1;
+        }
+    }
+}
+
+#map {
+    flex: 1 1 100%;
     background-color: color.shade(intrinsic, 5%);
-    resize: vertical;
 
     .map-background {
         filter: contrast(0.4) brightness(1.5);
