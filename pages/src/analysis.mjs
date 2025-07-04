@@ -314,6 +314,40 @@ function createStreamStackCharts(el) {
             if (series.domain[1] != null) {
                 chart.yMax = Math.max(series.domain[1], sauce.data.max(data.map(x => x[1])));
             }
+            if (series.id === 'power' && powerZones && ftp) {
+                const colors = common.getPowerZoneColors(powerZones);
+                const normZones = powerZones.filter(x => !x.overlap);
+                const segments = [];
+                let zone;
+                for (let i = 0; i < data.length; i++) {
+                    const intensity = data[i][1] / ftp;
+                    for (let j = 0; j < normZones.length; j++) {
+                        const z = powerZones[j];
+                        if (intensity <= z.to || z.to == null) {
+                            if (zone !== z) {
+                                if (zone) {
+                                    segments.at(-1).end = i;
+                                }
+                                segments.push({color: colors[z.zone], start: i});
+                                zone = z;
+                            }
+                            break;
+                        }
+                    }
+                }
+                segments.at(-1).end = data.length - 1;
+                chart.setSegments(segments.map(x => {
+                    const color = sc.color.parse(x.color);
+                    return {
+                        color: {
+                            type: 'linear',
+                            colors: [color.adjustLight(0.2), color]
+                        },
+                        x: data[x.start][0],
+                        width: data[x.end][0] - data[x.start][0]
+                    };
+                }), {render: false});
+            }
             chart.setData(data);
         };
 
@@ -336,13 +370,6 @@ function createStreamStackCharts(el) {
         }
         charts.push(chart);
     }
-
-    //const options = {
-        //visualMap: charts.getStreamFieldVisualMaps(streamSeries),
-        //series: streamSeries.map((f, i) => ({
-         //   areaStyle: f.id === 'power' && powerZones && ftp ? {color: 'magic-zones'} : {},
-        //})),
-    //};
     return charts;
 }
 
@@ -432,7 +459,7 @@ function centerMap(positions) {
     const yMin = sauce.data.min(positions.map(x => x[1]));
     const xMax = sauce.data.max(positions.map(x => x[0]));
     const yMax = sauce.data.max(positions.map(x => x[1]));
-    zwiftMap.setBounds([xMin, yMax], [xMax, yMin]);
+    zwiftMap.setBounds([xMin, yMax], [xMax, yMin], {padding: 0.20});
 }
 
 

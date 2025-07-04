@@ -90,14 +90,16 @@ abbr.unit {
     #map-resizer {
         flex: 0 0 auto;
         cursor: ns-resize;
-        background-color: color.shade(intrinsic, 20%);
+        background-color: color.shade(intrinsic, 15%);
         display: flex;
         justify-content: center;
-        font-size: 0.7em;
-        opacity: 0.8;
+        font-size: 0.8em;
+        margin: -0.1em;
+        transition: background-color 150ms;
 
         &:hover {
-            opacity: 1;
+            background-color: color-mix(in lch, color.get(intrinsic), color.get(bg));
+            color: color.get(intrinsic-inverted);
         }
     }
 }
