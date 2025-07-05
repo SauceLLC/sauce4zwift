@@ -39,44 +39,50 @@ abbr.unit {
     overflow: auto;
     color: color.get(intrinsic-inverted);
     background-color: color.get(intrinsic);
+    display: grid;
+    grid-template-columns: 190px 1fr 200px;
+    align-items: start;
+    padding: 1rem 1rem;
 
-    .columns {
+    > header.avatar,
+    > header.overview {
+        align-self: stretch;
+        padding: 1rem 2rem;
+    }
+
+    > header.avatar {
+        grid-column: 1 / 2;
         display: flex;
-
-        > main {
-            flex: 1 1 auto;
-            margin-left: 1rem;
-            overflow: hidden;
-        }
-
-        > nav {
-            display: flex;
-            flex-direction: column;
-            flex: 0 0 170px;
-            padding-bottom: 2em;
-            font-size: 0.9em;
-            padding-right: 1rem;
-            border-right: $light-border;
-
-            > section:not(:last-child) {
-                display: flex;
-                justify-content: center;
-                border-bottom: $medium-border;
-                margin-bottom: 1rem;
-                padding-bottom: 1rem;
-            }
-        }
+        align-items: center;
+        justify-content: center;
     }
 
-    > header,
-    > .columns {
-        margin: 0 2rem;
+    > header.overview {
+        grid-column: 2 / 4;
+    }
+
+    > nav {
         padding: 0.8rem 0.8rem;
+        position: sticky;
+        top: 0;
+        grid-column: 1 / 2;
+        display: flex;
+        flex-direction: column;
+        font-size: 0.9em;
+
+        > section:not(:last-child) {
+            display: flex;
+            justify-content: center;
+            border-bottom: $medium-border;
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+        }
     }
 
-    > header {
-        grid-column: 1 / 3;
-        padding-bottom: 0;
+    > main {
+        grid-column: 2 / 4;
+        padding-left: 1rem;
+        border-left: $light-border;
     }
 }
 
@@ -179,9 +185,8 @@ section.selection {
 .selection-stats {
     font-size: 0.9em;
     margin: 1.2em 0.5em 0.8em;
-    border-radius: 0.3em;
-    border: $medium-border;
-    box-shadow: 1px 1px 5px -3px #000;
+    border-radius: 0.2em;
+    border: 1px solid color.shade(bg, 10%, 0.7);
     min-height: 5em;
 
     display: flex;
@@ -241,36 +246,38 @@ section.selection {
     max-width: 180px;
 }
 
-#content > header.about {
+header.avatar {
+
+    a.avatar {
+        position: relative;
+        flex: 1;
+    }
+
+    img {
+        object-fit: cover;
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        border-radius: 50%;
+        background-color: white;
+        border: 5px solid color.get(intrinsic-inverted, 0.8);
+        box-shadow: 1px 1px 5px 0 #0007;
+    }
+
+    .special.badge {
+        background: none #000a;
+        font-size: 0.5em;
+        color: gold;
+        position: absolute;
+        top: -0.5em;
+        left: -0.5em;
+    }
+}
+
+header.overview {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     font-size: 1.2em;
-    margin-top: 0.6rem;
-    margin-bottom: 0.6rem;
-
-    .avatar {
-        position: relative;
-
-        img {
-            object-fit: cover;
-            width: 8em;
-            height: 8em;
-            border-radius: 50%;
-            background-color: white;
-            border: 5px solid color.get(intrinsic-inverted, 0.8);
-            box-shadow: 1px 1px 5px 0 #0007;
-        }
-
-        .special.badge {
-            background: none #000a;
-            font-size: 0.5em;
-            color: gold;
-            position: absolute;
-            top: -0.5em;
-            left: -0.5em;
-        }
-    }
 
     .activity-intro,
     .activity-summary {
@@ -350,7 +357,7 @@ main {
     }
 
     .elevation .chart {
-        height: 8em;
+        height: 7em;
     }
 
     .elevation .chart,
@@ -362,6 +369,14 @@ main {
 
     .elevation,
     .stream-stack {
+        .sc-axis {
+            stroke-width: 1px;
+        }
+
+        .sc-title {
+            font-size: 0.6em;
+        }
+
         .sc-y-axis {
             --rotate: 40deg;
         }
@@ -416,7 +431,8 @@ section.selection {
         &:not(.header)::before {
             content: "•";
             font-weight: bold;
-            margin: 0 0.3em;
+            opacity: 0.4;
+            margin: 0 0.66em 0 0.3em;
         }
     }
 
@@ -581,34 +597,4 @@ table.segments {
 }
 
 @media only screen and (max-width: 600px)  {
-    #content {
-        > header,
-        > .columns {
-            margin: 0 0.2rem;
-            padding: 0.1rem 0.3rem;
-            flex-wrap: wrap;
-            justify-content: center;
-
-            > nav {
-                border: none;
-                padding: 0;
-                margin-bottom: 1rem;
-                flex-grow: 1;
-
-                > section {
-                    display: flex;
-                    justify-content: center;
-                }
-            }
-
-            > main {
-                padding-left: unset;
-                margin-left: unset;
-            }
-        }
-    }
-
-    .time-in-power-zones {
-        flex: 1 1 100%;
-    }
 }

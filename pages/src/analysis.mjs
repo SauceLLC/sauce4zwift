@@ -47,6 +47,7 @@ const settings = common.settingsStore.get();
 const H = sauce.locale.human;
 const q = new URLSearchParams(location.search);
 const athleteIdent = q.get('id') || 'self';
+const refreshInterval = Number(q.get('refresh') || 2) * 1000;
 const chartRefs = new Set();
 const minVAMTime = 60;
 const rolls = {
@@ -782,7 +783,11 @@ async function updatePeaksTemplate() {
 
 
 function updateLoop() {
-    updateData().finally(() => setTimeout(updateLoop, 2000));
+    if (refreshInterval) {
+        updateData().finally(() => setTimeout(updateLoop, refreshInterval));
+    } else {
+        updateData();
+    }
 }
 
 
