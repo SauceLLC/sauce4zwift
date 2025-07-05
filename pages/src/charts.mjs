@@ -168,7 +168,10 @@ export function magicZonesAfterRender({hackId, chart, ftp, zones, seriesId, zLev
 function setMagicZonesOptions({chart, graphic, hackId}) {
     chart.setOption({graphic}, {replaceMerge: 'graphic', silent: true});
     const chartEl = chart.getDom();
-    const pathEl = chartEl.querySelector('path[fill="magic-zones"]');
+    const pathEl = chartEl && chartEl.querySelector('path[fill="magic-zones"]');
+    if (!pathEl) {
+        return;
+    }
     if (!pathEl.id) {
         pathEl.id = `path-hack-${hackId}`;
         pathEl.style.setProperty('fill', 'transparent');
