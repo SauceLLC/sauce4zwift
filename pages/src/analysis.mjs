@@ -258,10 +258,17 @@ function createElevationChart(el) {
 
 function createStreamStackCharts(el) {
     const topPad = 30;
-    const seriesPad = 10;
+    const seriesPad = 6;
     const bottomPad = 20;
-    const height = 50;
+    const height = 60;
 
+    const powerZoneColors = new Map(Object.entries(common.getPowerZoneColors(powerZones)).map(([k, v]) => {
+        const color = sc.color.parse(v);
+        return [k, {
+            type: 'linear',
+            colors: [color.adjustLight(0.2), color]
+        }];
+    }));
     const charts = [];
     for (const [i, series] of streamSeries.entries()) {
         const first = i === 0;
@@ -306,6 +313,7 @@ function createStreamStackCharts(el) {
             },
         });
 
+        const powerSegments = [];
         chart.updateData = () => {
             const data = state.streams[series.id].map((x, i) => [state.streams.time[i] * 1000, x]);
             if (series.domain[0] != null) {
@@ -315,9 +323,10 @@ function createStreamStackCharts(el) {
                 chart.yMax = Math.max(series.domain[1], sauce.data.max(data.map(x => x[1])));
             }
             if (series.id === 'power' && powerZones && ftp) {
-                const colors = common.getPowerZoneColors(powerZones);
                 const normZones = powerZones.filter(x => !x.overlap);
-                const segments = [];
+                // NOTE: A little extra work goes into reusing the powerSegments objects which
+                // allows sauce charts to reuse elements and improve performance.
+                let segCount = 0;
                 let zone;
                 for (let i = 0; i < data.length; i++) {
                     const intensity = data[i][1] / ftp;
@@ -326,27 +335,27 @@ function createStreamStackCharts(el) {
                         if (intensity <= z.to || z.to == null) {
                             if (zone !== z) {
                                 if (zone) {
-                                    segments.at(-1).end = i;
+                                    const s = powerSegments[segCount - 1];
+                                    s.width = data[i][0] - s.x;
                                 }
-                                segments.push({color: colors[z.zone], start: i});
+                                if (powerSegments.length <= segCount) {
+                                    powerSegments.push({});
+                                }
+                                Object.assign(powerSegments[segCount], {
+                                    color: powerZoneColors.get(z.zone),
+                                    x: data[i][0]
+                                });
                                 zone = z;
+                                segCount++;
                             }
                             break;
                         }
                     }
                 }
-                segments.at(-1).end = data.length - 1;
-                chart.setSegments(segments.map(x => {
-                    const color = sc.color.parse(x.color);
-                    return {
-                        color: {
-                            type: 'linear',
-                            colors: [color.adjustLight(0.2), color]
-                        },
-                        x: data[x.start][0],
-                        width: data[x.end][0] - data[x.start][0]
-                    };
-                }), {render: false});
+                const s = powerSegments[segCount - 1];
+                s.width = data[data.length - 1][0] - s.x;
+                powerSegments.length = segCount;
+                chart.setSegments(powerSegments, {render: false});
             }
             chart.setData(data);
         };
