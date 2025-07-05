@@ -120,6 +120,10 @@ function getSelectionStats() {
     const distStream = state.streams.distance.slice(start, end);
     const altStream = state.streams.altitude.slice(start, end);
     const hrStream = state.streams.hr.slice(start, end).filter(x => x);
+    const cadenceStream = state.streams.cadence.slice(start, end).filter(x => x);
+    const wbalStream = state.streams.wbal.slice(start, end);
+    const draftStream = state.streams.draft.slice(start, end);
+    const speedStream = state.streams.speed.slice(start, end);
     const distance = distStream[distStream.length - 1] - distStream[0];
     const {gain, loss} = sauce.geo.altitudeChanges(altStream);
     return {
@@ -148,7 +152,23 @@ function getSelectionStats() {
         hr: hrStream.length ? {
             avg: sauce.data.avg(hrStream),
             max: sauce.data.max(hrStream),
-        } : null
+        } : null,
+        speed: hrStream.length ? {
+            avg: (distance / activeTime) * 3.6,
+            max: sauce.data.max(speedStream),
+        } : null,
+        cadence: cadenceStream.length ? {
+            avg: sauce.data.avg(cadenceStream),
+            max: sauce.data.max(cadenceStream),
+        } : null,
+        wbal: wbalStream.length ? {
+            avg: sauce.data.avg(wbalStream),
+            min: sauce.data.min(wbalStream),
+        } : null,
+        draft: draftStream.length ? {
+            avg: sauce.data.avg(draftStream),
+            max: sauce.data.max(draftStream),
+        } : null,
     };
 }
 
@@ -156,17 +176,47 @@ function getSelectionStats() {
 let selStatsActive;
 let selStatsPendingRelease;
 let mapCenterTimeout;
+let streamStatsEls;
 function schedUpdateSelectionStats() {
     const run = () => {
-        const selectionStats = getSelectionStats();
+        const stats = getSelectionStats();
         selStatsActive = updateTemplate('.selection-stats', templates.selectionStats,
-                                        {selectionStats, settings}).finally(() => {
+                                        {selectionStats: stats, settings}).finally(() => {
             selStatsActive = null;
             if (selStatsPendingRelease) {
                 selStatsPendingRelease();
                 selStatsPendingRelease = null;
             }
         });
+        if (!streamStatsEls) {
+            streamStatsEls = new Map(Array.from(document.querySelectorAll(`.stream-stats .stat[data-id]`))
+                .map(x => [x.dataset.id, x]));
+        }
+
+        streamStatsEls.get('power').innerHTML = `
+            Avg: ${H.power(stats.power.avg)}<br/>
+            Max: ${H.power(stats.power.max)}<br/>
+            <small>watts</small>`;
+        streamStatsEls.get('hr').innerHTML = stats.hr ? `
+            Avg: ${H.number(stats.hr.avg)}<br/>
+            Max: ${H.number(stats.hr.max)}<br/>
+            <small>bpm</small>` : '';
+        streamStatsEls.get('speed').innerHTML = stats.speed ? `
+            Avg: ${H.pace(stats.speed.avg, {fixed: true, precision: 1})}<br/>
+            Max: ${H.pace(stats.speed.max, {fixed: true, precision: 1})}<br/>
+            <small>${H.pace(1, {suffixOnly: true})}</small>` : '';
+        streamStatsEls.get('cadence').innerHTML = stats.cadence ? `
+            Avg: ${H.number(stats.cadence.avg)}<br/>
+            Max: ${H.number(stats.cadence.max)}<br/>
+            <small>rpm</small>` : '';
+        streamStatsEls.get('wbal').innerHTML = stats.wbal ? `
+            Avg: ${H.number(stats.wbal.avg / 1000, {fixed: true, precision: 1})}<br/>
+            Min: ${H.number(stats.wbal.min / 1000, {fixed: true, precision: 1})}<br/>
+            <small>kj</small>` : '';
+        streamStatsEls.get('draft').innerHTML = stats.draft ? `
+            Avg: ${H.power(stats.draft.avg)}<br/>
+            Max: ${H.power(stats.draft.max)}<br/>
+            <small>w</small>` : '';
     };
     if (selStatsPendingRelease) {
         selStatsPendingRelease(true);
@@ -259,7 +309,7 @@ function createElevationChart(el) {
 function createStreamStackCharts(el) {
     const topPad = 30;
     const seriesPad = 6;
-    const bottomPad = 20;
+    const bottomPad = 2;
     const height = 60;
 
     const powerZoneColors = new Map(Object.entries(common.getPowerZoneColors(powerZones)).map(([k, v]) => {
@@ -284,7 +334,7 @@ function createStreamStackCharts(el) {
             height,
             padding: [
                 topPad + (seriesPad + height) * i,
-                chartRightPad,
+                0,
                 last ? bottomPad : 0,
                 chartLeftPad
             ],
@@ -292,8 +342,10 @@ function createStreamStackCharts(el) {
             hidePoints: true,
             tooltip: {
                 linger: 0,
+                formatKey: ({value}) => title,
                 format: ({value}) => {
-                    ttEl.innerHTML = series.fmt(value, {html: true});
+                    const html = series.fmt(value, {html: true});
+                    ttEl.innerHTML = html;
                     ttFrag.replaceChildren(...ttEl.childNodes);
                     return ttFrag;
                 }

@@ -202,11 +202,38 @@ section.selection {
 }
 
 .chart-holder {
-    @include charts.legend(".legend");
+    display: flex;
+    margin-bottom: 1em;
 
-    --selection-color: #{color.get(intrinsic-inverted, 0.2)};
-    --selection-border-color: #{color.shade(intrinsic-inverted, 10%, 0.4)};
-    --selection-border-width: 1;
+    .chart {
+        flex: 1 1 100%;
+    }
+
+    .stream-stats {
+        display: flex;
+        flex-direction: column;
+        flex: 0 0 100px;
+        justify-content: end;
+        margin-bottom: 2px;
+        font-size: 0.72em;
+
+        .stat {
+            background-image: linear-gradient(135deg, color.get(intrinsic), color.shade(intrinsic, 3%), color.get(intrinsic));
+            height: 61px;
+            margin-top: 6px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: 450;
+            font-variant-numeric: tabular-nums;
+
+            small {
+                font-weight: 300;
+                line-height: 1.2;
+            }
+        }
+    }
 }
 
 .time-in-power-zones {

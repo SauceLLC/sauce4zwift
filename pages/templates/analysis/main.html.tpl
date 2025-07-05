@@ -48,7 +48,17 @@
                     </div>
                     {-embed(templates.selectionStats, obj)-}
                     <div class="chart-holder elevation"><div class="chart"></div></div>
-                    <div class="chart-holder stream-stack"><div class="chart"></div></div>
+                    <div class="chart-holder stream-stack">
+                        <div class="chart"></div>
+                        <div class="stream-stats">
+                            <div class="stat" data-id="power"></div>
+                            <div class="stat" data-id="hr"></div>
+                            <div class="stat" data-id="speed"></div>
+                            <div class="stat" data-id="cadence"></div>
+                            <div class="stat" data-id="wbal"></div>
+                            <div class="stat" data-id="draft"></div>
+                        </div>
+                    </div>
                 </section>
 
                 <section class="segments">
