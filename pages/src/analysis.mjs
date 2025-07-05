@@ -103,10 +103,15 @@ function getSelectionStats() {
         return;
     }
     let powerRoll = rolls.power;
+    let leadInKj = 0;
     if (state.zoomStart != null) {
         const start = state.streams.time[state.zoomStart];
         const end = state.streams.time[state.zoomEnd];
         powerRoll = powerRoll.slice(start, end);
+        if (start) {
+            const prePowerRoll = rolls.power.slice(0, start);
+            leadInKj = prePowerRoll.joules() / 1000;
+        }
     }
     const activeTime = powerRoll.active();
     const elapsedTime = powerRoll.elapsed();
@@ -138,10 +143,13 @@ function getSelectionStats() {
         },
         power: {
             avg: powerAvg,
+            avgElapsed: powerRoll.avg({active: false}),
             max: sauce.data.max(powerRoll.values()),
             np,
             kj: powerRoll.joules() / 1000,
-            tss: sauce.power.calcTSS(np > powerAvg ? np : powerAvg, activeTime, ftp),
+            leadInKj,
+            tss: ftp ? sauce.power.calcTSS(np > powerAvg ? np : powerAvg, activeTime, ftp) : null,
+            intensity: ftp ? (np || powerAvg) / ftp : null,
             rank,
         },
         el: {
@@ -424,6 +432,7 @@ function createStreamStackCharts(el) {
                         if (x2 < x1) {
                             [x1, x2] = [x2, x1];
                         }
+                        console.log("by time", x1);
                         state.zoomStart = common.binarySearchClosest(state.streams.time, x1 / 1000);
                         state.zoomEnd = common.binarySearchClosest(state.streams.time, x2 / 1000);
                     }
@@ -560,7 +569,7 @@ export async function main() {
         return;
     }
     sport = athleteData.state.sport;
-    ftp = athleteData.athlete?.ftp || 250; // XXX
+    ftp = athleteData.athlete?.ftp;
     charts.setSport(sport);
     const exportBtn = document.querySelector('.button.export-file');
     exportBtn.removeAttribute('disabled');

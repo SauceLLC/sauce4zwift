@@ -32,7 +32,7 @@ abbr.unit {
     font-weight: 400;
     opacity: 0.8;
     font-size: 0.82em;
-    padding: 0 0.1em;
+    padding: 0 0.16em;
 }
 
 #content {
@@ -413,7 +413,6 @@ section.selection {
         margin-right: 0.33em;
         font-weight: 450;
         font-size: 0.9em;
-        font-stretch: 96%;
 
         &.header {
             font-weight: 650;
@@ -440,12 +439,10 @@ section.selection {
         grid-column: 2;
         min-width: 6ch;
         font-variant-numeric: tabular-nums;
-        font-stretch: 94%;
     }
 
     abbr.unit {
-        font-stretch: 88%;
-        opacity: 0.92;
+        font-size: 0.76em;
     }
 
     img.rank {

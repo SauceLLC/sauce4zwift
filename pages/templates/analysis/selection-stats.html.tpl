@@ -15,12 +15,12 @@
 
         <div class="stats key-value-grid">
             <key class="header"><ms>bolt</ms> Power:</key>
-            <% if (settings.preferWkg && athlete?.weight) { %>
-                <value title="{{humanPower(power.avg, {suffix: true})}}"
-                    >{-humanWkg(power.avg / athlete?.weight, {suffix: true, html: true})-}</value>
-            <% } else { %>
-                <value title="{{humanWkg(power.avg / athlete?.weight, {suffix: true, fixed: true})}}"
-                    >{-humanPower(power.avg, {suffix: true, html: true})-}</value>
+            <value title="Active average power">{-humanPower(power.avg, {suffix: true, html: true})-}</value>
+            <% if (athlete?.weight) { %>
+                <key>Watts/kg:</key>
+                <value title="Active average power / weight (kg)">
+                    {-humanWkg(power.avg / athlete.weight)-}
+                </value>
             <% } %>
 
             <key><attr for="tp">NP®</attr>:</key>
@@ -32,13 +32,13 @@
                     >{-humanPower(power.np, {suffix: true, html: true})-}</value>
             <% } %>
 
-            <key>Max:</key>
+            <key title="Elapsed average power">Elapsed:</key>
             <% if (settings.preferWkg && athlete?.weight) { %>
-                <value title="{{humanPower(power.max, {suffix: true})}}"
-                    >{-humanWkg(power.max / athlete?.weight, {suffix: true, html: true})-}</value>
+                <value title="{{humanPower(power.avgElapsed, {suffix: true})}}"
+                    >{-humanWkg(power.avgElapsed / athlete?.weight, {suffix: true, html: true})-}</value>
             <% } else { %>
-                <value title="{{humanWkg(power.max / athlete?.weight, {suffix: true})}}"
-                    >{-humanPower(power.max, {suffix: true, html: true})-}</value>
+                <value title="{{humanWkg(power.avgElapsed / athlete?.weight, {suffix: true})}}"
+                    >{-humanPower(power.avgElapsed, {suffix: true, html: true})-}</value>
             <% } %>
         </div>
 
@@ -47,7 +47,22 @@
         <div class="stats key-value-grid">
             <key class="header"><ms>readiness_score</ms> Energy:</key>
             <value>{-humanNumber(power.kj, {suffix: 'kJ', html: true})-}</value>
-            <key><attr for="tp">TSS®</attr>:</key><value>{-humanNumber(power.tss)-}</value>
+
+            <key title="Training Stress Score® represents the FTP adjusted stress level of an effort.
+Click for more details."><attr for="tp">TSS®</attr>:</key>
+            <value>{-humanNumber(power.tss)-}</value>
+
+            <key><attr title="Power / FTP
+Click for more details." for="tp">IF®</attr>:</key>
+            <value>{-humanNumber(power.intensity * 100, {suffix: '%', html: true})-}</value>
+
+            <key title="Energy expended per hour.  The rate of energy expendeture">Rate:</key>
+            <value>{-humanNumber(power.kj / selectionStats.activeTime * 3600, {suffix: 'kJ/h', html: true})-}</value>
+
+            <% if (power.leadInKj) { %>
+                <key title="Energy expended before this effort in kilojoules">Lead-in:</key>
+                <value>{-humanNumber(power.leadInKj, {suffix: 'kJ', html: true})-}</value>
+            <% } %>
         </div>
 
         <div class="seperator"></div>
