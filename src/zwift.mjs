@@ -1537,23 +1537,24 @@ export class GameMonitor extends events.EventEmitter {
     async getRandomAthleteId(courseId) {
         const worlds = (await this.api.getDropInWorldList()).filter(x =>
             typeof courseId !== 'number' || x.courseId === courseId);
-        for (let i = 0, start = Math.random() * worlds.length | 0; i < worlds.length; i++) {
-            const w = worlds[(i + start) % worlds.length];
-            const athletes = []
-                .concat(w.others || [], w.followees || [], w.pacerBots || [], w.proPlayers || [])
-                .filter(x => x);
+        while (worlds.length) {
+            const index = Math.random() * worlds.length | 0;
+            const world = worlds[index];
+            worlds.splice(index, 1);
+            const athletes = [].concat(world.others || [],
+                                       world.followees || [],
+                                       world.pacerBots || [],
+                                       world.proPlayers || []).filter(x => x);
             athletes.sort((a, b) => (b.power || 0) - (a.power || 0));
-            let athlete;
             // Avoid pacer bots if possible
-            for (athlete of athletes) {
-                if (athlete.playerType !== 'PACER_BOT') {
-                    break;
-                }
-            }
+            const athlete = athletes.find(x => x.playerType !== 'PACER_BOT') || athletes[0];
             if (athlete) {
                 return athlete.athleteId;
+            } else {
+                console.debug("Nobody public in", world.courseId, world);
             }
         }
+        console.warn("Nobody public in any world");
     }
 
     async initPlayerState() {
@@ -1943,10 +1944,10 @@ export class GameMonitor extends events.EventEmitter {
             if (this.randomWatch != null) {
                 this.gameAthleteId = await this.getRandomAthleteId(this.randomWatch);
                 this.emit("game-athlete", this.gameAthleteId);
-                if (this.gameAthleteId == null) {
-                    console.warn("No athletes found in world.");
-                } else {
+                if (this.gameAthleteId != null) {
                     console.info("Switching to new random athlete:", this.gameAthleteId);
+                } else {
+                    console.info("No random athlete available for now");
                 }
             }
         } else {

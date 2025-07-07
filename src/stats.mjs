@@ -2420,8 +2420,10 @@ export class StatsProcessor extends events.EventEmitter {
             this.gameMonitor.on('watching-athlete', this.setWatching.bind(this));
             this.gameMonitor.on('game-athlete', id => {
                 // Probably using --random-watch option
-                console.warn('Game athlete changed to:', id);
-                this.athleteId = id;
+                if (id != null) {
+                    console.warn('Game athlete changed to:', id);
+                    this.athleteId = id;
+                }
             });
             this.gameMonitor.start();
             this._zwiftMetaRefresh = 10000;
