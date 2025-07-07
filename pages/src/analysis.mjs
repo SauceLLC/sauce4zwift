@@ -432,7 +432,6 @@ function createStreamStackCharts(el) {
                         if (x2 < x1) {
                             [x1, x2] = [x2, x1];
                         }
-                        console.log("by time", x1);
                         state.zoomStart = common.binarySearchClosest(state.streams.time, x1 / 1000);
                         state.zoomEnd = common.binarySearchClosest(state.streams.time, x2 / 1000);
                     }
@@ -758,7 +757,7 @@ async function onSegmentExpand(targetEl, srcEl) {
     //    {athleteId: athleteData.athleteId});
     const results = await common.rpc.getSegmentResults(segment.segmentId);
     //const results2 = await common.rpc.getSegmentResults(segment.segmentId, {live: true});
-    console.warn({results});
+    console.debug({results});
     targetEl.innerHTML = await templates.segmentResults({results});
 }
 
