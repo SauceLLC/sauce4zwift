@@ -11,6 +11,7 @@ export function isImperial() {
 }
 
 
+export const narrowNoBreakSpace = '\u202f';
 export const milesPerKm = 1000 / 1609.344;
 export const feetPerMeter = 1 / 0.3048;
 export const poundsPerKg = 2.20462;
@@ -419,15 +420,34 @@ function humanWeightClass(kg, options={}) {
         const range = imperial ? 20 : 10;
         const v = imperial ? kg * poundsPerKg : kg;
         const vOfRange = v / range;
-        const lower = Math.floor(vOfRange) * range;
-        const upper = (vOfRange % 1) ? Math.ceil(vOfRange) * range : (vOfRange + 1) * range;
-        const span = options.html ?
-            '<abbr class="unit" style="padding: 0; margin: 0 0.12em;">↔</abbr>' :
-            '↔';
-        return `${humanNumber(lower)}${span}${humanNumber(upper, options)}`;
+        const lower = humanNumber(Math.floor(vOfRange) * range);
+        const upper = humanNumber((vOfRange % 1) ? Math.ceil(vOfRange) * range : (vOfRange + 1) * range,
+                                  options);
+        return `${lower}${narrowNoBreakSpace}-${narrowNoBreakSpace}${upper}`;
     } else {
         return humanNumber(NaN, options);
     }
+}
+
+
+function humanAgeClass(age, options={}) {
+    if (!_realNumber(age)) {
+        return humanEmpty;
+    }
+    if (age < 23) {
+        return 'U23';
+    }
+    let lower, upper;
+    if (age < 30) {
+        lower = 23;
+        upper = 29;
+    } else if (age < 70) {
+        lower = (age / 10 | 0) * 10;
+        upper = lower + 9;
+    } else {
+        return '70+';
+    }
+    return `${lower}${narrowNoBreakSpace}-${narrowNoBreakSpace}${upper}`;
 }
 
 
@@ -476,6 +496,7 @@ export const human = {
     relDuration: humanRelDuration,
     weight: humanWeight,
     weightClass: humanWeightClass,
+    ageClass: humanAgeClass,
     height: humanHeight,
     elevation: humanElevation,
     number: humanNumber,
