@@ -1103,6 +1103,16 @@ export class SauceZwiftMap extends EventTarget {
         return this.updateHighlightPath(pathObj, this._createCurvePath(points, options.loop), options);
     }
 
+    removeHighlightPath(pathObj) {
+        for (const x of pathObj.elements) {
+            x.remove();
+        }
+    }
+
+    removeHighlightLine(pathObj) {
+        return this.removeHighlightPath(pathObj);
+    }
+
     addPoint(point, extraClass) {
         if (!this._pointIdSeq) {
             this._pointIdSeq = 1;
