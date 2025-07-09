@@ -636,7 +636,7 @@ export class StatsProcessor extends events.EventEmitter {
             gc.on('custom-action-button', this.onCustomActionButton.bind(this));
         }
         if (options.debugGameFields) {
-            this._cleanState = obj => obj;
+            this._formatState = this._formatStateDebug;
         }
     }
 
@@ -1787,7 +1787,7 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _flushPendingEgressStates() {
-        const states = Array.from(this._pendingEgressStates.values()).map(x => this._cleanState(x));
+        const states = Array.from(this._pendingEgressStates.values()).map(x => this._formatState(x));
         this._pendingEgressStates.clear();
         this._lastEgressStates = monotonic();
         this._timeoutEgressStates = null;
@@ -2301,7 +2301,8 @@ export class StatsProcessor extends events.EventEmitter {
             }
         }
         ad.mostRecentState = state;
-        ad.updated = monotonic();
+        ad.updated = worldTimer.toLocalTime(state.worldTime);
+        ad.internalUpdated = monotonic();
         this._stateProcessCount++;
         let emitData;
         let streamsData;
@@ -2649,7 +2650,7 @@ export class StatsProcessor extends events.EventEmitter {
             state = await this.zwiftAPI.getPlayerState(athleteId);
         }
         if (state) {
-            return this._cleanState(state);
+            return this._formatState(state);
         }
     }
 
@@ -2748,8 +2749,8 @@ export class StatsProcessor extends events.EventEmitter {
     gcAthleteData() {
         const now = monotonic();
         const expiration = now - 1800 * 1000;
-        for (const [k, {updated}] of this._athleteData.entries()) {
-            if (updated < expiration) {
+        for (const [k, {internalUpdated}] of this._athleteData.entries()) {
+            if (internalUpdated < expiration) {
                 this._athleteData.delete(k);
                 this._athletesCache.delete(k);
             }
@@ -2787,7 +2788,7 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
-    _cleanState(raw) {
+    _formatState(raw, wt) {
         const o = {};
         const keys = Object.keys(raw);
         for (let i = 0; i < keys.length; i++) {
@@ -2796,6 +2797,21 @@ export class StatsProcessor extends events.EventEmitter {
                 o[k] = raw[k];
             }
         }
+        o.ts = worldTimer.toLocalTime(raw.worldTime);
+        return o;
+    }
+
+    _formatStateDebug(raw) {
+        // Use same method as non-debug method so benchmarking is the same..
+        const o = {};
+        const keys = Object.keys(raw);
+        for (let i = 0; i < keys.length; i++) {
+            const k = keys[i];
+            if (k[0] !== ' ') {
+                o[k] = raw[k];
+            }
+        }
+        o.ts = worldTimer.toLocalTime(raw.worldTime);
         return o;
     }
 
@@ -2882,7 +2898,8 @@ export class StatsProcessor extends events.EventEmitter {
         const lapCount = ad.laps.length;
         return {
             created: ad.created,
-            age: monotonic() - ad.updated,
+            updated: ad.updated,
+            age: monotonic() - ad.internalUpdated,
             watching: ad.athleteId === this.watching ? true : undefined,
             self: ad.athleteId === this.athleteId ? true : undefined,
             courseId: ad.courseId,
@@ -2893,7 +2910,7 @@ export class StatsProcessor extends events.EventEmitter {
             lastLap: lapCount > 1 ?
                 this._getCollectorStats(ad.laps[ad.laps.length - 2], ad, athlete) : null,
             lapCount,
-            state: state && this._cleanState(state),
+            state: state && this._formatState(state),
             eventPosition: ad.eventPosition,
             eventParticipants: ad.eventParticipants,
             gameState: ad.gameState,
@@ -2935,7 +2952,7 @@ export class StatsProcessor extends events.EventEmitter {
         const now = monotonic();
         for (const ad of this._athleteData.values()) {
             if (ad.athleteId === this.watching || ad.disabled || !ad.mostRecentState ||
-                now - ad.updated > 10000 || (filterStopped && !ad.mostRecentState.speed)) {
+                now - ad.internalUpdated > 10000 || (filterStopped && !ad.mostRecentState.speed)) {
                 continue;
             }
             const rp = this.compareRoadPositions(ad, watching);
