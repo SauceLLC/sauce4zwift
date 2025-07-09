@@ -196,7 +196,6 @@ function getSelectionStats() {
         if (athlete.maxHeartRate != null && athlete.maxHeartRate > 100) {
             const ltHR = athlete.maxHeartRate * 0.85;
             const restingHR = athlete.ftp ? sauce.perf.estimateRestingHR(athlete.ftp) : 60;
-            console.log({ltHR, restingHR}, athlete.gender);
             r.hr.tTss = sauce.perf.tTSS(
                 hrStream,
                 streams.time.slice(start, end),
@@ -890,8 +889,7 @@ async function updateData() {
         lapOfft = laps.at(-1).end;
     }
     if (changed.athleteData) {
-        console.debug("Athlete-data updated:", new Date(athleteData.created).toISOString());
-        //setSelection();
+        console.debug("Athlete-data updated:", new Date(athleteData?.created).toISOString());
     }
     if (athleteData) {
         changed.athlete = JSON.stringify(athlete) !== JSON.stringify(athleteData.athlete);
