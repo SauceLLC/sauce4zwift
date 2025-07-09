@@ -47,16 +47,16 @@
                 <key class="header"><ms>cardiology</ms> HR:</key>
                 <value title="Average Heart Rate">{-humanNumber(hr.avg, {suffix: 'bpm', html: true})-}</value>
 
+                <% if (hr.tTss !== null && !isNaN(hr.tTss)) { %>
+                    <key>tTSS</key>
+                    <value>{-humanNumber(hr.tTss)-}</value>
+                <% } %>
+
                 <% if (hr.pwhr !== null && !isNaN(hr.pwhr)) { %>
                     <key>Pw:Hr</key>
                     <value class="{{hr.pwhr < 0 ? 'sauce-positive' : 'sauce-negative'}}">
                         {-humanNumber(hr.pwhr * 100, {suffix: '%', html: true})-}
                     </value>
-                <% } %>
-
-                <% if (hr.tTss !== null && !isNaN(hr.tTss)) { %>
-                    <key>tTSS</key>
-                    <value>{-humanNumber(hr.tTss)-}</value>
                 <% } %>
             </div>
 
