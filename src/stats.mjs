@@ -1447,6 +1447,7 @@ export class StatsProcessor extends events.EventEmitter {
             level: p.achievementLevel ? Math.floor(p.achievementLevel / 100) : undefined,
             powerSourceModel: p.powerSourceModel,
             powerMeter: p.powerSourceModel ? powerMeterSources.includes(p.powerSourceModel) : undefined,
+            maxHeartRate: p.maxHeartRate,
         };
         if (p.competitionMetrics) {
             o.racingScore = p.competitionMetrics.racingScore;

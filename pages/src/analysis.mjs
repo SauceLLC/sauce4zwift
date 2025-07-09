@@ -193,7 +193,20 @@ function getSelectionStats() {
     };
     if (r.hr && r.hr.avg > 20) {
         r.hr.pwhr = sauce.power.calcPwHrDecouplingFromRoll(powerRoll, hrStream);
-        console.log(r.hr.pwhr);
+        if (athlete.maxHeartRate != null && athlete.maxHeartRate > 100) {
+            const ltHR = athlete.maxHeartRate * 0.85;
+            const restingHR = athlete.ftp ? sauce.perf.estimateRestingHR(athlete.ftp) : 60;
+            console.log({ltHR, restingHR}, athlete.gender);
+            r.hr.tTss = sauce.perf.tTSS(
+                hrStream,
+                streams.time.slice(start, end),
+                streams.active.slice(start, end),
+                ltHR,
+                restingHR,
+                athlete.maxHeartRate,
+                athlete.gender
+            );
+        }
     }
     return r;
 }
