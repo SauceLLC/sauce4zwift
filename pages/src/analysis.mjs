@@ -2,14 +2,10 @@ import * as sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
 import * as echarts from '../deps/src/echarts.mjs';
 import * as theme from './echarts-sauce-theme.mjs';
-import * as charts from './charts.mjs';
+import * as chartsMod from './charts.mjs';
 import * as map from './map.mjs';
 import * as color from './color.mjs';
 import * as sc from '../deps/src/saucecharts/index.mjs';
-
-
-const chartLeftPad = 50;
-const chartRightPad = 20;
 
 common.enableSentry();
 echarts.registerTheme('sauce', theme.getTheme('dynamic', {fg: 'intrinsic-inverted', bg: 'intrinsic'}));
@@ -18,41 +14,56 @@ common.settingsStore.setDefault({
     peakEffortSource: 'power',
 });
 
+const H = sauce.locale.human;
+const settings = common.settingsStore.get();
+const q = new URLSearchParams(location.search);
+const athleteIdent = q.get('id') || 'self';
+const refreshInterval = Number(q.get('refresh') || 2) * 1000;
+
+const minVAMTime = 60;
+const chartLeftPad = 50;
+const chartRightPad = 20;
+
+const laps = [];
+const segments = [];
+const streams = {};
+const positions = [];
+const rolls = {power: new sauce.power.RollingPower(null, {idealGap: 1, maxGap: 15})};
+let courseId;
 let zwiftMap;
 let elevationChart;
 let streamStackCharts;
 let powerZonesChart;
 let templates;
 let athleteData;
-let ftp;
+let athlete;
 let sport;
 let powerZones;
-
-const state = {
-    laps: [],
-    segments: [],
-    streams: {},
-    positions: [],
-    geoOffset: 0,
-    startTime: undefined,
-    sport: undefined,
-    zoomStart: undefined,
-    zoomEnd: undefined,
-    voidAutoCenter: false,
-};
-window.state = state; // XXX
+let worldList;
+let nationFlags;
+let geoOffset = 0;
+let timeOfft;
+let segmentOfft;
+let lapOfft;
+let curPeaksSig;
+let zoomStart;
+let zoomEnd;
+let voidAutoCenter = false;
+let geoSelection;
 
 
-const settings = common.settingsStore.get();
-const H = sauce.locale.human;
-const q = new URLSearchParams(location.search);
-const athleteIdent = q.get('id') || 'self';
-const refreshInterval = Number(q.get('refresh') || 2) * 1000;
-const chartRefs = new Set();
-const minVAMTime = 60;
-const rolls = {
-    power: new sauce.power.RollingPower(null, {idealGap: 1, maxGap: 15}),
-};
+function resetData() {
+    laps.length = 0;
+    segments.length = 0;
+    positions.length = 0;
+    for (const x of Object.values(streams)) {
+        x.length = 0;
+    }
+    rolls.power = new sauce.power.RollingPower(null, {idealGap: 1, maxGap: 15});
+    geoOffset = 0;
+    voidAutoCenter = false;
+    sport = timeOfft = segmentOfft = lapOfft = curPeaksSig = zoomStart = zoomEnd = geoSelection = undefined;
+}
 
 
 function formatPreferredPower(x, options) {
@@ -73,7 +84,7 @@ const peakFormatters = {
     draft: x => H.power(x, {suffix: true, html: true}),
 };
 
-const streamSeries = ['power', 'hr', 'speed', 'cadence', 'wbal', 'draft'].map(x => charts.streamFields[x]);
+const streamSeries = ['power', 'hr', 'speed', 'cadence', 'wbal', 'draft'].map(x => chartsMod.streamFields[x]);
 
 
 async function getTemplates(basenames) {
@@ -104,9 +115,9 @@ function getSelectionStats() {
     }
     let powerRoll = rolls.power;
     let leadInKj = 0;
-    if (state.zoomStart != null) {
-        const start = state.streams.time[state.zoomStart];
-        const end = state.streams.time[state.zoomEnd];
+    if (zoomStart != null) {
+        const start = streams.time[zoomStart];
+        const end = streams.time[zoomEnd];
         powerRoll = powerRoll.slice(start, end);
         if (start) {
             const prePowerRoll = rolls.power.slice(0, start);
@@ -117,19 +128,18 @@ function getSelectionStats() {
     const elapsedTime = powerRoll.elapsed();
     const powerAvg = powerRoll.avg({active: true});
     const np = powerRoll.np();
-    const athlete = athleteData.athlete;
     const rank = athlete?.weight ?
         sauce.power.rank(activeTime, powerAvg, np, athlete.weight, athlete.gender) :
         null;
-    const start = state.streams.time.indexOf(powerRoll.firstTime({noPad: true}));
-    const end = state.streams.time.indexOf(powerRoll.lastTime({noPad: true})) + 1;
-    const distStream = state.streams.distance.slice(start, end);
-    const altStream = state.streams.altitude.slice(start, end);
-    const hrStream = state.streams.hr.slice(start, end).filter(x => x);
-    const cadenceStream = state.streams.cadence.slice(start, end).filter(x => x);
-    const wbalStream = state.streams.wbal.slice(start, end);
-    const draftStream = state.streams.draft.slice(start, end);
-    const speedStream = state.streams.speed.slice(start, end);
+    const start = streams.time.indexOf(powerRoll.firstTime({noPad: true}));
+    const end = streams.time.indexOf(powerRoll.lastTime({noPad: true})) + 1;
+    const distStream = streams.distance.slice(start, end);
+    const altStream = streams.altitude.slice(start, end);
+    const hrStream = streams.hr.slice(start, end).filter(x => x);
+    const cadenceStream = streams.cadence.slice(start, end).filter(x => x);
+    const wbalStream = streams.wbal.slice(start, end);
+    const draftStream = streams.draft.slice(start, end);
+    const speedStream = streams.speed.slice(start, end);
     const distance = distStream[distStream.length - 1] - distStream[0];
     const {gain, loss} = sauce.geo.altitudeChanges(altStream);
     return {
@@ -148,8 +158,10 @@ function getSelectionStats() {
             np,
             kj: powerRoll.joules() / 1000,
             leadInKj,
-            tss: ftp ? sauce.power.calcTSS(np > powerAvg ? np : powerAvg, activeTime, ftp) : null,
-            intensity: ftp ? (np || powerAvg) / ftp : null,
+            tss: athlete.ftp ?
+                sauce.power.calcTSS(np > powerAvg ? np : powerAvg, activeTime, athlete.ftp) :
+                null,
+            intensity: athlete.ftp ? (np || powerAvg) / athlete.ftp : null,
             rank,
         },
         el: {
@@ -237,12 +249,12 @@ function schedUpdateSelectionStats() {
     } else {
         run();
     }
-    if (!state.voidAutoCenter) {
+    if (!voidAutoCenter) {
         if (!mapCenterTimeout) {
             mapCenterTimeout = setTimeout(() => {
                 mapCenterTimeout = null;
-                if (!state.voidAutoCenter) {
-                    centerMap(state.geoSelection || state.positions.slice(state.geoOffset));
+                if (!voidAutoCenter) {
+                    centerMap(geoSelection || positions.slice(geoOffset));
                 }
             }, 500);
         }
@@ -279,35 +291,50 @@ function createElevationChart(el) {
             format: ({entry}) => H.elevation(entry.y, {separator: ' ', suffix: true})
         },
         xAxis: {
-            format: ({value}) => {
-                return H.distance(value, {suffix: true});
-            }
+            format: ({value}) => H.distance(value, {suffix: true}),
         },
         yAxis: {
-            ticks: 1,
+            format: ({value}) => H.elevation(value, {suffix: true}),
         },
         brush: {
             disableZoom: true,
         },
     });
+    const geoMaskSegment = {
+        x: 0,
+        color: {
+            type: 'linear',
+            colors: ['#6554']
+        }
+    };
     chart.updateData = () => {
-        const data = state.streams.altitude.map((x, i) =>
-            i >= state.geoOffset ? [state.streams.distance[i], x] : [null, null]);
+        //const data = streams.altitude.map((x, i) =>
+        //   i >= geoOffset ? [streams.distance[i], x] : [null, null]);
+        let segments;
+        if (geoOffset) {
+            geoMaskSegment.width = streams.distance[geoOffset + 1];
+            segments = [geoMaskSegment];
+        } else {
+            segments = [];
+        }
+        const data = streams.altitude.map((x, i) => [streams.distance[i], x]);
         chart.yMax = Math.max(30, sauce.data.max(data.map(x => x[1])));
+        chart.yMin = Math.min(0, sauce.data.min(data.map(x => x[1])));
+        chart.setSegments(segments, {render: false});
         chart.setData(data);
     };
     chart.addEventListener('brush', ev => {
         if (ev.detail.internal) {
             let {x1, x2} = ev.detail;
             if (x1 == null || x2 == null) {
-                state.zoomStart = null;
-                state.zoomEnd = null;
+                zoomStart = null;
+                zoomEnd = null;
             } else if (x1 !== x2) {
                 if (x2 < x1) {
                     [x1, x2] = [x2, x1];
                 }
-                state.zoomStart = common.binarySearchClosest(state.streams.distance, x1);
-                state.zoomEnd = common.binarySearchClosest(state.streams.distance, x2);
+                zoomStart = common.binarySearchClosest(streams.distance, x1);
+                zoomEnd = common.binarySearchClosest(streams.distance, x2);
             }
         }
     });
@@ -361,6 +388,7 @@ function createStreamStackCharts(el) {
             },
             xAxis: {
                 disabled: !first,
+                showFirst: true,
                 position: 'top',
                 ticks: !first ? 0 : undefined,
                 format: ({value}) => H.timer(value / 1000)
@@ -375,22 +403,37 @@ function createStreamStackCharts(el) {
         });
 
         const powerSegments = [];
+        const geoMaskSegment = {
+            x: 0,
+            color: '#fff',
+        };
+        const wbalSegment = {x: 0, y: 0, color: '#f00e'};
         chart.updateData = () => {
-            const data = state.streams[series.id].map((x, i) => [state.streams.time[i] * 1000, x]);
+            const data = streams[series.id].map((x, i) => [streams.time[i] * 1000, x]);
             if (series.domain[0] != null) {
-                chart.yMin = Math.min(series.domain[0], sauce.data.min(data.map(x => x[0])));
+                chart.yMin = Math.min(series.domain[0], sauce.data.min(data.map(x => x[1])));
             }
             if (series.domain[1] != null) {
                 chart.yMax = Math.max(series.domain[1], sauce.data.max(data.map(x => x[1])));
             }
-            if (series.id === 'power' && powerZones && ftp) {
+            let baseSegments;
+            if (geoOffset) {
+                geoMaskSegment.width = streams.time[geoOffset + 1] * 1000;
+                baseSegments = [geoMaskSegment];
+            } else {
+                baseSegments = [];
+            }
+            if (series.id === 'wbal') {
+                baseSegments.push(wbalSegment);
+            }
+            if (series.id === 'power' && powerZones && athlete.ftp) {
                 const normZones = powerZones.filter(x => !x.overlap);
                 // NOTE: A little extra work goes into reusing the powerSegments objects which
                 // allows sauce charts to reuse elements and improve performance.
                 let segCount = 0;
                 let zone;
                 for (let i = 0; i < data.length; i++) {
-                    const intensity = data[i][1] / ftp;
+                    const intensity = data[i][1] / athlete.ftp;
                     for (let j = 0; j < normZones.length; j++) {
                         const z = powerZones[j];
                         if (intensity <= z.to || z.to == null) {
@@ -416,7 +459,9 @@ function createStreamStackCharts(el) {
                 const s = powerSegments[segCount - 1];
                 s.width = data[data.length - 1][0] - s.x;
                 powerSegments.length = segCount;
-                chart.setSegments(powerSegments, {render: false});
+                chart.setSegments(powerSegments.concat(baseSegments), {render: false});
+            } else {
+                chart.setSegments(baseSegments, {render: false});
             }
             chart.setData(data);
         };
@@ -426,14 +471,14 @@ function createStreamStackCharts(el) {
                 if (ev.detail.internal) {
                     let {x1, x2} = ev.detail;
                     if (x1 == null || x2 == null) {
-                        state.zoomStart = null;
-                        state.zoomEnd = null;
+                        zoomStart = null;
+                        zoomEnd = null;
                     } else if (x1 !== x2) {
                         if (x2 < x1) {
                             [x1, x2] = [x2, x1];
                         }
-                        state.zoomStart = common.binarySearchClosest(state.streams.time, x1 / 1000);
-                        state.zoomEnd = common.binarySearchClosest(state.streams.time, x2 / 1000);
+                        zoomStart = common.binarySearchClosest(streams.time, x1 / 1000);
+                        zoomEnd = common.binarySearchClosest(streams.time, x2 / 1000);
                     }
                 }
             });
@@ -490,12 +535,11 @@ function createTimeInPowerZonesPie(el) {
             }
         }],
     });
-    chartRefs.add(new WeakRef(chart));
     let colors;
     let aid;
     let normZones;
     chart.updateData = () => {
-        if (!powerZones || !ftp || !athleteData.timeInPowerZones) {
+        if (!powerZones || !athlete.ftp || !athleteData.timeInPowerZones) {
             return;
         }
         if (athleteData.athleteId !== aid) {
@@ -535,8 +579,8 @@ function centerMap(positions) {
 
 export async function main() {
     common.initInteractionListeners();
-    const [_ad, _templates, nationFlags, worldList, _powerZones] = await Promise.all([
-        common.rpc.getAthleteData(athleteIdent),
+    [athlete, templates, nationFlags, worldList, powerZones] = await Promise.all([
+        common.rpc.getAthlete(athleteIdent),
         getTemplates([
             'main',
             'activity-summary',
@@ -550,13 +594,9 @@ export async function main() {
         common.getWorldList({all: true}),
         common.rpc.getPowerZones(1),
     ]);
-    athleteData = _ad;
-    templates = _templates;
-    powerZones = _powerZones;
     const contentEl = document.querySelector('#content');
     contentEl.innerHTML = await templates.main({
-        ...state,
-        athleteData,
+        athlete,
         templates,
         nationFlags,
         worldList,
@@ -564,21 +604,10 @@ export async function main() {
         common,
         peakFormatters,
     });
-    if (!athleteData) {
+    if (!athlete) {
+        console.warn("Unrecoverable state: page reload required if this is transient");
         return;
     }
-    sport = athleteData.state.sport;
-    ftp = athleteData.athlete?.ftp;
-    charts.setSport(sport);
-    const exportBtn = document.querySelector('.button.export-file');
-    exportBtn.removeAttribute('disabled');
-    exportBtn.addEventListener('click', () => {
-        // XXX nope.  athletedata becomes stale over time...
-        const started = new Date(Date.now() - athleteData.stats.elapsedTime * 1000);
-        const athlete = athleteData.athlete;
-        const name = `${athlete ? athlete.fLast : athleteIdent} - ${started.toLocaleString()}`;
-        exportFITActivity(name);
-    });
     elevationChart = createElevationChart(contentEl.querySelector('.chart-holder.elevation .chart'));
     streamStackCharts = createStreamStackCharts(contentEl.querySelector('.chart-holder.stream-stack .chart'));
     powerZonesChart = createTimeInPowerZonesPie(contentEl.querySelector('.time-in-power-zones'));
@@ -589,16 +618,16 @@ export async function main() {
         fpsLimit: 60,
     });
     window.zwiftMap = zwiftMap; // debug
-    zwiftMap.addEventListener('drag', () => state.voidAutoCenter = true);
-    zwiftMap.addEventListener('zoom', () => state.voidAutoCenter = true);
-    state.startEnt = new map.MapEntity('start');
-    zwiftMap.addEntity(state.startEnt);
-    state.endEntity = new map.MapEntity('end');
-    state.endEntity.transition.setDuration(0);
-    zwiftMap.addEntity(state.endEntity);
-    state.cursorEntity = new map.MapEntity('cursor');
-    state.cursorEntity.transition.setDuration(0);
-    zwiftMap.addEntity(state.cursorEntity);
+    zwiftMap.addEventListener('drag', () => voidAutoCenter = true);
+    zwiftMap.addEventListener('zoom', () => voidAutoCenter = true);
+    zwiftMap.startEnt = new map.MapEntity('start');
+    zwiftMap.addEntity(zwiftMap.startEnt);
+    zwiftMap.endEntity = new map.MapEntity('end');
+    zwiftMap.endEntity.transition.setDuration(0);
+    zwiftMap.addEntity(zwiftMap.endEntity);
+    zwiftMap.cursorEntity = new map.MapEntity('cursor');
+    zwiftMap.cursorEntity.transition.setDuration(0);
+    zwiftMap.addEntity(zwiftMap.cursorEntity);
 
     document.querySelector('#map-resizer').addEventListener('pointerdown', ev => {
         const abrt = new AbortController();
@@ -610,6 +639,12 @@ export async function main() {
         }, {signal: abrt.signal});
         addEventListener('pointercancel', () => abrt.abort(), {signal: abrt.signal});
         addEventListener('pointerup', () => abrt.abort(), {signal: abrt.signal});
+    });
+
+    document.querySelector('.button.export-file').addEventListener('click', () => {
+        const started = new Date(athleteData.created);
+        const name = `${athlete ? athlete.fLast : athleteIdent} - ${started.toLocaleString()}`;
+        exportFITActivity(name);
     });
 
     contentEl.addEventListener('click', ev => {
@@ -626,15 +661,15 @@ export async function main() {
             let sel;
             let scrollTo;
             if (row.dataset.segmentIndex) {
-                sel = state.segments[Number(row.dataset.segmentIndex)];
+                sel = segments[Number(row.dataset.segmentIndex)];
             } else if (row.dataset.lapIndex) {
-                sel = state.laps[Number(row.dataset.lapIndex)];
+                sel = laps[Number(row.dataset.lapIndex)];
                 scrollTo = true;
             } else if (row.dataset.peakSource) {
                 const period = Number(row.dataset.peakPeriod);
                 const peak = athleteData.stats[row.dataset.peakSource].peaks[period];
-                const endIndex = state.streams.time.indexOf(peak.time);
-                const startIndex = common.binarySearchClosest(state.streams.time, peak.time - period);
+                const endIndex = streams.time.indexOf(peak.time);
+                const startIndex = common.binarySearchClosest(streams.time, peak.time - period);
                 sel = {startIndex, endIndex};
                 scrollTo = true;
             }
@@ -654,42 +689,43 @@ export async function main() {
     });
 
     streamStackCharts[0].addEventListener('brush', ev => elevationChart.setBrush({
-        x1: state.zoomStart != null ? state.streams.distance[state.zoomStart] : null,
-        x2: state.zoomEnd != null ? state.streams.distance[state.zoomEnd] : null
+        x1: zoomStart != null ? streams.distance[zoomStart] : null,
+        x2: zoomEnd != null ? streams.distance[zoomEnd] : null
     }));
+    let brushPath;
+    let mapHiUpdateTO;
     elevationChart.addEventListener('brush', ev => {
-        const hasZoom = state.zoomStart != null && state.zoomStart < state.zoomEnd;
+        const hasZoom = zoomStart != null && zoomStart < zoomEnd;
         if (hasZoom) {
-            state.geoSelection = state.geoOffset < state.zoomEnd ?
-                state.positions.slice(Math.max(state.geoOffset, state.zoomStart), state.zoomEnd) :
+            geoSelection = geoOffset < zoomEnd ?
+                positions.slice(Math.max(geoOffset, zoomStart), zoomEnd) :
                 null;
-            if (state.geoSelection) {
-                if (!state.brushPath) {
-                    state.brushPath = zwiftMap.addHighlightLine(state.geoSelection, 'selection',
-                                                                {color: '#2885ffcc'});
-                } else if (!state.mapHiUpdateTO) {
+            if (geoSelection) {
+                if (!brushPath) {
+                    brushPath = zwiftMap.addHighlightLine(geoSelection, 'selection', {color: '#2885ffcc'});
+                } else if (!mapHiUpdateTO) {
                     // Expensive call with large datasets. throttle a bit...
-                    state.mapHiUpdateTO = setTimeout(() => {
-                        state.mapHiUpdateTO = null;
-                        zwiftMap.updateHighlightLine(state.brushPath, state.geoSelection);
-                    }, state.geoSelection.length / 100);
+                    mapHiUpdateTO = setTimeout(() => {
+                        mapHiUpdateTO = null;
+                        zwiftMap.updateHighlightLine(brushPath, geoSelection);
+                    }, geoSelection.length / 100);
                 }
             }
         }
-        if ((!hasZoom || !state.geoSelection) && state.brushPath) {
-            clearTimeout(state.mapHiUpdateTO);
-            state.mapHiUpdateTO = null;
-            state.brushPath.elements.forEach(x => x.remove());
-            state.brushPath = null;
-            state.geoSelection = null;
+        if ((!hasZoom || !geoSelection) && brushPath) {
+            clearTimeout(mapHiUpdateTO);
+            mapHiUpdateTO = null;
+            zwiftMap.removeHighlightLine(brushPath);
+            brushPath = null;
+            geoSelection = null;
         }
         if (ev.detail.internal) {
             for (const chart of streamStackCharts) {
-                if (state.zoomStart != null && state.zoomStart < state.zoomEnd) {
+                if (zoomStart != null && zoomStart < zoomEnd) {
                     chart.setZoom({
                         xRange: [
-                            state.streams.time[state.zoomStart] * 1000,
-                            state.streams.time[state.zoomEnd] * 1000
+                            streams.time[zoomStart] * 1000,
+                            streams.time[zoomEnd] * 1000
                         ]
                     });
                 } else {
@@ -708,10 +744,10 @@ export async function main() {
         const otherChart = chart === elevationChart ? streamStackCharts[0] : elevationChart;
         if (x !== undefined) {
             const index = chart.findNearestIndexFromXCoord(x);
-            const pos = state.positions[index];
-            state.cursorEntity.toggleHidden(!pos);
+            const pos = positions[index];
+            zwiftMap.cursorEntity.toggleHidden(!pos);
             if (pos) {
-                state.cursorEntity.setPosition(pos);
+                zwiftMap.cursorEntity.setPosition(pos);
             }
             otherChart.setTooltipPosition({index});
             otherChart.showTooltip();
@@ -721,23 +757,24 @@ export async function main() {
     }
     elevationChart.addEventListener('tooltip', onTooltip);
     streamStackCharts[0].addEventListener('tooltip', onTooltip);
+
     updateLoop();
 }
 
 
 function setSelection(startIndex, endIndex, scrollTo) {
-    state.zoomStart = startIndex;
-    state.zoomEnd = endIndex;
+    zoomStart = startIndex;
+    zoomEnd = endIndex;
     elevationChart.setBrush({
-        x1: state.zoomStart != null ? state.streams.distance[state.zoomStart] : null,
-        x2: state.zoomEnd != null ? state.streams.distance[state.zoomEnd] : null
+        x1: zoomStart != null ? streams.distance[zoomStart] : null,
+        x2: zoomEnd != null ? streams.distance[zoomEnd] : null
     });
     for (const x of streamStackCharts) {
-        if (state.zoomStart != null && state.zoomStart < state.zoomEnd) {
+        if (zoomStart != null && zoomStart < zoomEnd) {
             x.setZoom({
                 xRange: [
-                    state.streams.time[state.zoomStart] * 1000,
-                    state.streams.time[state.zoomEnd] * 1000
+                    streams.time[zoomStart] * 1000,
+                    streams.time[zoomEnd] * 1000
                 ]
             });
         } else {
@@ -752,9 +789,7 @@ function setSelection(startIndex, endIndex, scrollTo) {
 
 async function onSegmentExpand(targetEl, srcEl) {
     const idx = Number(srcEl.dataset.segmentIndex);
-    const segment = state.segments[idx];
-    //const results = await common.rpc.getSegmentResults(segment.segmentId,
-    //    {athleteId: athleteData.athleteId});
+    const segment = segments[idx];
     const results = await common.rpc.getSegmentResults(segment.segmentId);
     //const results2 = await common.rpc.getSegmentResults(segment.segmentId, {live: true});
     console.debug({results});
@@ -770,128 +805,215 @@ function onSegmentCollapse() {
 async function updatePeaksTemplate() {
     const source = settings.peakEffortSource || 'power';
     const formatter = peakFormatters[source];
-    const peaks = athleteData.stats?.[source]?.peaks;
+    const peaks = athleteData?.stats?.[source]?.peaks;
     if (peaks) {
         for (const [_period, x] of Object.entries(peaks)) {
             const period = Number(_period);
-            const start = state.streams.time[common.binarySearchClosest(state.streams.time, x.time - period)];
+            const start = streams.time[common.binarySearchClosest(streams.time, x.time - period)];
             const powerRoll = rolls.power.slice(start, x.time);
             const elapsedTime = powerRoll.elapsed();
             const powerAvg = powerRoll.avg();
             const np = powerRoll.np();
-            const athlete = athleteData.athlete;
             x.rank = athlete?.weight ?
                 sauce.power.rank(elapsedTime, powerAvg, np, athlete.weight, athlete.gender) :
                 null;
         }
     }
-    await updateTemplate('.peak-efforts', templates.peakEfforts,
-                         {source, peaks, formatter, athleteData, settings, peakFormatters});
+    await updateTemplate('.peak-efforts', templates.peakEfforts, {
+        source,
+        peaks,
+        formatter,
+        sport,
+    });
 }
 
 
 function updateLoop() {
     if (refreshInterval) {
-        updateData().finally(() => setTimeout(updateLoop, refreshInterval));
+        updateAll().finally(() => setTimeout(updateLoop, refreshInterval));
     } else {
-        updateData();
+        updateAll();
     }
 }
 
 
 async function updateData() {
+    const [newAthleteData, newStreams, newSegments, newLaps] = await Promise.all([
+        common.rpc.getAthleteData(athleteIdent),
+        common.rpc.getAthleteStreams(athleteIdent, {startTime: timeOfft}),
+        common.rpc.getAthleteSegments(athleteIdent, {endTime: segmentOfft, active: false}),
+        common.rpc.getAthleteLaps(athleteIdent, {endTime: lapOfft, active: true}),
+    ]);
+    const changed = {
+        athleteData: athleteData?.created !== newAthleteData?.created,
+        sport: sport !== newAthleteData?.state?.sport,
+    };
+    if (changed.athleteData && timeOfft) {
+        console.debug("Data reset detected");
+        setSelection();
+        resetData();
+        return await updateData();
+    }
+    athleteData = newAthleteData;
+    sport = newAthleteData?.state?.sport;
+    if (changed.sport) {
+        console.debug("Setting sport to:", sport);
+    }
+    if (newLaps?.length) {
+        changed.laps = true;
+        for (const x of newLaps) {
+            const existingIdx = laps.findIndex(xx => xx.startIndex === x.startIndex);
+            if (existingIdx !== -1) {
+                laps.splice(existingIdx, 1, x);
+            } else {
+                laps.push(x);
+                console.debug("New lap found:", laps.length);
+            }
+        }
+        lapOfft = laps.at(-1).end;
+    }
+    if (changed.athleteData) {
+        console.debug("Athlete-data updated:", new Date(athleteData.created).toISOString());
+        //setSelection();
+    }
+    if (athleteData) {
+        changed.athlete = JSON.stringify(athlete) !== JSON.stringify(athleteData.athlete);
+        if (changed.athlete) {
+            console.debug("Athlete updated");
+            athlete = athleteData.athlete;
+        }
+        if (athleteData.courseId !== courseId) {
+            changed.course = true;
+            courseId = athleteData.courseId;
+            geoOffset = 0;
+            for (let i = laps.length - 2; i >= 0; i--) {
+                if (laps[i].courseId !== courseId) {
+                    geoOffset = laps[i + 1].startIndex;
+                    break;
+                }
+            }
+            console.debug("Setting course to:", courseId);
+            console.debug("Course geo offset:", geoOffset);
+        }
+    } else if (courseId != null) {
+        console.debug("Athlete data is no longer available");
+        changed.course = true;
+        courseId = undefined;
+        geoOffset = 0;
+    }
+    if (newStreams?.time?.length) {
+        //console.debug("Streams data found:", newStreams.time.length);
+        changed.streams = true;
+        for (const [k, stream] of Object.entries(newStreams)) {
+            if (!streams[k]) {
+                streams[k] = [];
+            }
+            for (const x of stream) {
+                streams[k].push(x);
+            }
+        }
+        timeOfft = newStreams.time.at(-1) + 1e-6;
+    }
+    if (newSegments?.length) {
+        console.debug("Segments found:", newSegments.length);
+        changed.segments = true;
+        for (const x of newSegments) {
+            const existingIdx = segments.findIndex(xx => xx.segmentId === x.segmentId);
+            if (existingIdx !== -1) {
+                segments.splice(existingIdx, 1, x);
+            } else {
+                segments.push(x);
+            }
+        }
+        segmentOfft = Math.max(...segments.map(x => x.end).filter(x => x));
+    }
+    return changed;
+}
+
+
+async function updateAll() {
     if (!common.isVisible()) {
         return;
     }
-    const [ad, streams, upSegments, upLaps] = await Promise.all([
-        common.rpc.getAthleteData(athleteIdent),
-        common.rpc.getAthleteStreams(athleteIdent, {startTime: state.timeOfft}),
-        common.rpc.getAthleteSegments(athleteIdent, {endTime: state.segmentOfft, active: false}),
-        common.rpc.getAthleteLaps(athleteIdent, {endTime: state.lapOfft, active: true}),
-    ]);
-    athleteData = ad;
-    if (!streams || !streams.time.length) {
-        return;
+    const changed = await updateData();
+    if (changed.sport) {
+        chartsMod.setSport(sport);
     }
-    state.timeOfft = streams.time.at(-1) + 1e-6;
-    for (const [k, stream] of Object.entries(streams)) {
-        if (!state.streams[k]) {
-            state.streams[k] = [];
-        }
-        for (const x of stream) {
-            state.streams[k].push(x);
-        }
-    }
-    if (upSegments.length) {
-        for (const x of upSegments) {
-            const existingIdx = state.segments.findIndex(xx => xx.segmentId === x.segmentId);
-            if (existingIdx !== -1) {
-                state.segments.splice(existingIdx, 1, x);
-            } else {
-                state.segments.push(x);
-            }
-        }
-        state.segmentOfft = Math.max(...state.segments.map(x => x.end).filter(x => x));
-        if (await updateTemplate('table.segments', templates.segments, {athleteData, settings, ...state})) {
-            common.initExpanderTable(document.querySelector('table.segments.expandable'),
-                                     onSegmentExpand, onSegmentCollapse);
-        }
-    }
-    if (upLaps.length) {
-        for (const x of upLaps) {
-            const existingIdx = state.laps.findIndex(xx => xx.startIndex === x.startIndex);
-            if (existingIdx !== -1) {
-                state.laps.splice(existingIdx, 1, x);
-            } else {
-                state.laps.push(x);
-            }
-        }
-        state.lapOfft = state.laps.at(-1).end;
-        await updateTemplate('table.laps', templates.laps, {athleteData, settings, ...state});
-    }
-    if (ad.courseId !== state.courseId) {
-        state.courseId = ad.courseId;
-        for (let i = state.laps.length - 1; i >= 0; i--) {
-            if (state.laps[i].courseId !== ad.courseId) {
-                state.geoOffset = state.laps[i].endIndex + 1;
-                break;
-            }
-        }
+    if (changed.course) {
+        const title = worldList.find(x => x.courseId === courseId)?.name;
+        document.querySelector('#world-map-title').textContent = title || '';
         zwiftMap.setDragOffset(0, 0);
-        state.voidAutoCenter = false; // must follow set-drag-offset
-        await zwiftMap.setCourse(ad.courseId);
+        voidAutoCenter = false; // must follow set-drag-offset
+        if (zwiftMap.histPath) {
+            zwiftMap.removeHighlightLine(zwiftMap.histPath);
+            zwiftMap.histPath = null;
+        }
+        if (courseId != null) {
+            await zwiftMap.setCourse(courseId);
+        }
     }
-    if (streams.time.length) {
-        for (let i = 0; i < streams.time.length; i++) {
-            state.positions.push(zwiftMap.latlngToPosition(streams.latlng[i]));
+    if (changed.athleteData) {
+        document.querySelector('#content').classList.toggle('no-data', !athleteData);
+        const exportBtn = document.querySelector('.button.export-file');
+        if (athleteData) {
+            exportBtn.removeAttribute('disabled');
+        } else {
+            exportBtn.setAttribute('disabled', 'disabled');
+        }
+    }
+
+    if (changed.streams) {
+        for (let i = positions.length; i < streams.time.length; i++) {
+            positions.push(zwiftMap.latlngToPosition(streams.latlng[i]));
             const p = streams.power[i];
             rolls.power.add(streams.time[i], (p || streams.active[i]) ? p : new sauce.data.Pad(p));
         }
-        const coursePositions = state.positions.slice(state.geoOffset);
-        state.startEnt.setPosition(coursePositions[0]);
-        state.endEntity.setPosition(coursePositions.at(-1));
-        if (!state.histPath) {
-            state.histPath = zwiftMap.addHighlightLine(coursePositions, 'history', {layer: 'low'});
+        const coursePositions = positions.slice(geoOffset);
+        zwiftMap.startEnt.setPosition(coursePositions[0]);
+        zwiftMap.endEntity.setPosition(coursePositions.at(-1));
+        if (!zwiftMap.histPath) {
+            zwiftMap.histPath = zwiftMap.addHighlightLine(coursePositions, 'history', {layer: 'low'});
         } else {
-            zwiftMap.updateHighlightLine(state.histPath, coursePositions);
+            zwiftMap.updateHighlightLine(zwiftMap.histPath, coursePositions);
+        }
+
+        for (const x of streamStackCharts) {
+            x.updateData();
+        }
+        elevationChart.updateData();
+        powerZonesChart.updateData();
+        schedUpdateSelectionStats();
+
+        // Only update peaks widget if we're not interacting with it...
+        if (!document.activeElement || !document.activeElement.closest('.peak-efforts')) {
+            const sig = JSON.stringify(athleteData.stats[settings.peakEffortSource || 'power']?.peaks);
+            if (!sig || sig !== curPeaksSig) {
+                curPeaksSig = sig;
+                updatePeaksTemplate(); // bg okay
+            }
         }
     }
-
-    if (!document.activeElement || !document.activeElement.closest('.peak-efforts')) {
-        const sig = JSON.stringify(athleteData.stats[settings.peakEffortSource || 'power']?.peaks);
-        if (!sig || sig !== state.lastPeaksSig) {
-            state.lastPeaksSig = sig;
-            await updatePeaksTemplate();
-        }
+    if (changed.segments) {
+        updateTemplate('table.segments', templates.segments, {
+            settings,
+            athlete,
+            segments
+        }).then(updated => {
+            if (updated) {
+                common.initExpanderTable(document.querySelector('table.segments.expandable'),
+                                         onSegmentExpand, onSegmentCollapse);
+            }
+        }); // bg okay
     }
-
-    for (const x of streamStackCharts) {
-        x.updateData();
+    if (changed.laps) {
+        updateTemplate('table.laps', templates.laps, {
+            settings,
+            athlete,
+            streams,
+            laps
+        }); // bg okay
     }
-    elevationChart.updateData();
-    powerZonesChart.updateData();
-    schedUpdateSelectionStats();
-    await updateTemplate('.activity-summary', templates.activitySummary, {athleteData});
+    updateTemplate('.activity-summary', templates.activitySummary, {athleteData}); // bg okay
 }
 
 

@@ -1,10 +1,9 @@
-<% if (!athleteData || !streams || !athleteData.athlete) { %>
-    <header>
-        <h2>No data available</h2>
+<% if (!athlete) { %>
+    <% console.warn("Unexpected state", obj); %>
+    <header class="not-found">
+        <h2>Athlete not found</h2>
     </header>
 <% } else { %>
-    <% const athlete = athleteData.athlete; %>
-
     <header class="avatar">
         <% if (athlete.avatar) { %>
             <a class="avatar" href="profile-avatar.html?id={{athlete.id}}" target="profile-avatar">
@@ -19,66 +18,110 @@
     </header>
 
     <header class="overview">
+        <div class="overview-name">
+            <span>{{athlete.sanitizedFullname}}</span>
+            <% if (athlete.countryCode) { %>
+                <img class="flag" src="{{nationFlags.flags[athlete.countryCode]}}"
+                     title="{{nationFlags.nations[athlete.countryCode]}}"/>
+            <% } %>
+            <% if (athlete.gender === 'female') { %><ms class="gender female" title="Female">female</ms><% } %>
+            <% if (athlete.team) { %>
+                <small>-</small> {-common.teamBadge(athlete.team)-}
+            <% } %>
+        </div>
+
         <div class="activity-intro">
-            <div class="name">{{athlete.sanitizedFullname}}
-                <% if (athlete.countryCode) { %>
-                    <img class="flag" src="{{nationFlags.flags[athlete.countryCode]}}"
-                         title="{{nationFlags.nations[athlete.countryCode]}}"/>
-                <% } %>
-                <% if (athlete.gender === 'female') { %><ms class="gender female" title="Female">female</ms><% } %>
+            <div class="overview-stat">
+                <key>Level:</key><value>{{humanNumber(athlete.level)}}</value>
             </div>
-            <% if (athlete.team) { %><div class="team">{-common.teamBadge(athlete.team)-}</div><% } %>
-            <div class="athlete-stat">Zwift Level: {{humanNumber(athleteData?.athlete?.level)}}</div>
-            <div class="athlete-stat">FTP:
-                {{humanPower(athleteData?.athlete?.ftp)}}
-                ({-humanNumber(athleteData?.athlete?.ftp / athleteData?.athlete?.weight, {precision: 1, fixed: true, suffix: 'w/kg', html: true})-})
+
+            <% if (athlete.age) { %>
+                <div class="overview-stat">
+                    <key>Age:</key>
+                    <value>{-humanAgeClass(athlete.age)-}</value>
+                </div>
+            <% } %>
+
+            <% if (athlete.weight && athlete.height) { %>
+                <div class="overview-stat">
+                    <key>Body:</key>
+                    <value>
+                        {-humanWeightClass(athlete.weight, {suffix: true, html: true})-},
+                        {-humanHeight(athlete.height, {suffix: true, html: true})-}
+                    </value>
+                </div>
+            <% } else if (athlete.weight) { %>
+                <div class="overview-stat">
+                    <key>Weight:</key>
+                    <value>{-humanWeightClass(athlete.weight, {suffix: true, html: true})-}</value>
+                </div>
+            <% } else if (athlete.weight) { %>
+                <div class="overview-stat">
+                    <key>Height:</key>
+                    <value>{-humanHeight(athlete.height, {suffix: true, html: true})-}</value>
+                </div>
+            <% } %>
+
+            <div class="overview-stat" title="Zwift Racing Score">
+                <key>ZRS:</key>
+                <value>{-humanNumber(athlete.racingScore || null)-}</value>
             </div>
+
+            <% if (athlete.ftp) { %>
+                <div class="overview-stat">
+                    <key>FTP:</key>
+                    <value>{-humanPower(athlete.ftp, {suffix: true, html: true})-}
+                        <% if (athlete.weight) { %>
+                            <small>({-humanNumber(athlete.ftp / athlete.weight, {precision: 1, fixed: true, suffix: 'w/kg', html: true})-})</small>
+                        <% } %>
+                    </value>
+                </div>
+            <% } %>
         </div>
         {-embed(templates.activitySummary, obj)-}
     </header>
 
-    <% if (streams) { %>
-        <nav>
-            <section>{-embed(templates.peakEfforts, obj)-}</section>
-            <section><div class="stats time-in-power-zones"></div></section>
-        </nav>
-        <main>
-            <section class="analysis selection">
-                <div class="world">{{worldList.find(x => x.courseId === athleteData.state.courseId).name}}</div>
-                <div id="map-wrap">
-                    <div id="map"></div>
-                    <div id="map-resizer"><ms>drag_handle</ms></div>
-                </div>
-                {-embed(templates.selectionStats, obj)-}
-                <div class="chart-holder elevation"><div class="chart"></div></div>
-                <div class="chart-holder stream-stack">
-                    <div class="chart"></div>
-                    <div class="stream-stats">
-                        <div class="stat" data-id="power"></div>
-                        <div class="stat" data-id="hr"></div>
-                        <div class="stat" data-id="speed"></div>
-                        <div class="stat" data-id="cadence"></div>
-                        <div class="stat" data-id="wbal"></div>
-                        <div class="stat" data-id="draft"></div>
-                    </div>
-                </div>
-            </section>
+    <nav>
+        <section>{-embed(templates.peakEfforts, obj)-}</section>
+        <section><div class="stats time-in-power-zones"></div></section>
+    </nav>
 
-            <section class="segments">
-                <header>
-                    <ms>conversion_path</ms>
-                    <div class="title">Segments</div>
-                </header>
-                {-embed(templates.segments, obj)-}
-            </section>
+    <main>
+        <section class="analysis selection">
+            <div class="world" id="world-map-title"></div>
+            <div id="map-wrap">
+                <div id="map"></div>
+                <div id="map-resizer"><ms>drag_handle</ms></div>
+            </div>
+            {-embed(templates.selectionStats, obj)-}
+            <div class="chart-holder elevation"><div class="chart"></div></div>
+            <div class="chart-holder stream-stack">
+                <div class="chart"></div>
+                <div class="stream-stats">
+                    <div class="stat" data-id="power"></div>
+                    <div class="stat" data-id="hr"></div>
+                    <div class="stat" data-id="speed"></div>
+                    <div class="stat" data-id="cadence"></div>
+                    <div class="stat" data-id="wbal"></div>
+                    <div class="stat" data-id="draft"></div>
+                </div>
+            </div>
+        </section>
 
-            <section class="laps">
-                <header>
-                    <ms>timer</ms>
-                    <div class="title">Laps</div>
-                </header>
-                {-embed(templates.laps, obj)-}
-            </section>
-        </main>
-    <% } %>
+        <section class="segments">
+            <header>
+                <ms>conversion_path</ms>
+                <div class="title">Segments</div>
+            </header>
+            {-embed(templates.segments, obj)-}
+        </section>
+
+        <section class="laps">
+            <header>
+                <ms>timer</ms>
+                <div class="title">Laps</div>
+            </header>
+            {-embed(templates.laps, obj)-}
+        </section>
+    </main>
 <% } %>

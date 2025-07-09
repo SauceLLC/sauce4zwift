@@ -1,4 +1,4 @@
-<% const hasSegments = !!(segments && segments.length); %>
+<% const hasSegments = !!(obj.segments && segments.length); %>
 <table class="segments expandable {{hasSegments ? 'selectable' : ''}}">
     <thead>
         <tr>
@@ -17,11 +17,11 @@
                     <td class="name">{{x.segment.friendlyName || x.segment.name}}</td>
                     <td>{-humanTimer(x.stats.elapsedTime, {long: true, ms: true, html: true})-}</td>
                     <td>{-humanDistance(x.segment.distance, {suffix: true, html: true})-}</td>
-                    <% if (settings.preferWkg && athleteData.athlete?.weight) { %>
+                    <% if (settings.preferWkg && athlete.weight) { %>
                         <td title="{{humanPower(x.stats.power.avg, {suffix: true})}}"
-                            >{-humanWkg(x.stats.power.avg / athleteData.athlete?.weight, {suffix: true, html: true})-}</td>
+                            >{-humanWkg(x.stats.power.avg / athlete.weight, {suffix: true, html: true})-}</td>
                     <% } else { %>
-                        <td title="{{athleteData.athlete?.weight ? humanWkg(x.stats.power.avg / athleteData.athlete?.weight, {suffix: true}) : ''}}"
+                        <td title="{{athlete.weight ? humanWkg(x.stats.power.avg / athlete.weight, {suffix: true}) : ''}}"
                             >{-humanPower(x.stats.power.avg, {suffix: true, html: true})-}</td>
                     <% } %>
                     <td>{-humanPace(x.stats.speed.avg, {suffix: true, html: true, sport: x.sport})-}</td>

@@ -1,7 +1,5 @@
-<div class="selection-stats">
-    <% if (!obj.selectionStats) { %>
-        Loading
-    <% } else { %>
+<div class="selection-stats {{!obj.selectionStats ? 'loading' : ''}}">
+    <% if (obj.selectionStats) { %>
         <% const {athlete, power, env, el, hr, sport} = selectionStats; %>
         <div class="stats key-value-grid">
             <key class="header"><ms>timer</ms> Active:</key>

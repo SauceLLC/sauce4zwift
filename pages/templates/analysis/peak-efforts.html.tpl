@@ -1,9 +1,8 @@
 <div class="peak-efforts">
     <select name="peak-effort-source">
         <option value="power" {{obj.source === 'power' ? 'selected' : ''}}>Peak Power</option>
-        <!--<option value="np" {{obj.source === 'np' ? 'selected' : ''}}>Peak <attr for="tp">NP®</attr></option>-->
         <option value="speed" {{obj.source === 'speed' ? 'selected' : ''}}
-            >Peak {{athleteData.state.sport === 'running' ? 'Pace' : 'Speed'}}</option>
+            >Peak {{obj.sport === 'running' ? 'Pace' : 'Speed'}}</option>
         <option value="hr" {{obj.source === 'hr' ? 'selected' : ''}}>Peak HR</option>
         <option value="draft" {{obj.source === 'draft' ? 'selected' : ''}}>Peak Draft</option>
     </select>
