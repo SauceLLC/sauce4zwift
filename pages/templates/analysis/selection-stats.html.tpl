@@ -42,6 +42,23 @@
 
         <div class="seperator"></div>
 
+        <% if (hr && hr.avg && hr.avg > 20) { %>
+            <div class="stats key-value-grid">
+                <key class="header"><ms>cardiology</ms> HR:</key>
+                <value title="Average Heart Rate">{-humanNumber(hr.avg, {suffix: 'bpm', html: true})-}</value>
+
+                <% if (hr.pwhr != null) { %>
+                    <key>Pw:Hr</key>
+                    <value class="{{hr.pwhr < 0 ? 'sauce-positive' : 'sauce-negative'}}">
+                        {-humanNumber(hr.pwhr * 100, {suffix: '%', html: true})-}
+                    </value>
+                <% } %>
+
+            </div>
+
+            <div class="seperator"></div>
+        <% } %>
+
         <div class="stats key-value-grid">
             <key class="header"><ms>readiness_score</ms> Energy:</key>
             <value>{-humanNumber(power.kj, {suffix: 'kJ', html: true})-}</value>
@@ -57,7 +74,7 @@ Click for more details." for="tp">IF®</attr>:</key>
             <key title="Energy expended per hour.  The rate of energy expendeture">Rate:</key>
             <value>{-humanNumber(power.kj / selectionStats.activeTime * 3600, {suffix: 'kJ/h', html: true})-}</value>
 
-            <% if (power.leadInKj) { %>
+            <% if (power.leadInKj && power.leadInKj >= 1) { %>
                 <key title="Energy expended before this effort in kilojoules">Lead-in:</key>
                 <value>{-humanNumber(power.leadInKj, {suffix: 'kJ', html: true})-}</value>
             <% } %>

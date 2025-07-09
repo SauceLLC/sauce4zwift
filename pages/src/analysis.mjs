@@ -142,7 +142,7 @@ function getSelectionStats() {
     const speedStream = streams.speed.slice(start, end);
     const distance = distStream[distStream.length - 1] - distStream[0];
     const {gain, loss} = sauce.geo.altitudeChanges(altStream);
-    return {
+    const r = {
         activeTime,
         elapsedTime,
         athlete,
@@ -191,6 +191,11 @@ function getSelectionStats() {
             max: sauce.data.max(draftStream),
         } : null,
     };
+    if (r.hr && r.hr.avg > 20) {
+        r.hr.pwhr = sauce.power.calcPwHrDecouplingFromRoll(powerRoll, hrStream);
+        console.log(r.hr.pwhr);
+    }
+    return r;
 }
 
 
@@ -308,11 +313,9 @@ function createElevationChart(el) {
         }
     };
     chart.updateData = () => {
-        //const data = streams.altitude.map((x, i) =>
-        //   i >= geoOffset ? [streams.distance[i], x] : [null, null]);
         let segments;
         if (geoOffset) {
-            geoMaskSegment.width = streams.distance[geoOffset + 1];
+            geoMaskSegment.width = streams.distance[geoOffset - 1];
             segments = [geoMaskSegment];
         } else {
             segments = [];
@@ -418,6 +421,7 @@ function createStreamStackCharts(el) {
             }
             let baseSegments;
             if (geoOffset) {
+                // + 1 geooffset shades the likely y value transition to 0/null
                 geoMaskSegment.width = streams.time[geoOffset + 1] * 1000;
                 baseSegments = [geoMaskSegment];
             } else {
