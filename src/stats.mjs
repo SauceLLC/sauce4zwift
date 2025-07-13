@@ -2670,121 +2670,99 @@ export class StatsProcessor extends events.EventEmitter {
 
     compareRoadPositions(p1, p2) {
         // NOTE: This code uses a few micro optimizations given that it's heavily used..
-
-        // Stage 1 look for reversed conditions where p2 is leading p1...
+        //
+        // Stage 1: Find a path between p1 and p2.
+        //  * If p1 is not leading, indicate the positions are reversed.
+        //     * Looping conditions will indicate reversed positions when the path is shorter.
+        //       I.e. If you are lapping riders in a circuit race, the gaps will flip to
+        //       negative as you close in on the lapped riders.
+        //  * If p1 and p2 do not have a connected history, ignore them.
+        //
+        //  XXX TODO rewrite .at() as subscript syntax
         let reversed = false;
-        let tier = 0;
-        const shared = new Set([p1.aRoad.sig, p1.bRoad?.sig, p1.cRoad?.sig].filter(x => x)).intersection(new Set([p2.aRoad.sig, p2.bRoad?.sig, p2.cRoad?.sig].filter(x => x)));
-        console.debug("compare road positions:", p1._xxxName, p1.aRoad.roadId, p1.a.at(-1).rpct, p2._xxxName, p2.aRoad.roadId, p2.a.at(-1).rpct, shared, p1, p2);
+        let tiers;
+        console.debug(`Road positions: ${p1._xxxName} road:${p1.aRoad.roadId} (${p1.a.at(-1).rpct}) <-> ` +
+                                      `${p2._xxxName} road:${p2.aRoad.roadId} (${p2.a.at(-1).rpct})`);
         if (p1.aRoad.sig === p2.aRoad.sig) {
-            tier = 1;
+            tiers = 1;
             const d = p1.a.at(-1).rpct - p2.a.at(-1).rpct;
+            if (Math.abs(d) > 0.5) {
+                console.warn("Might be lapping, handle this...", d); // This might be the only situation where we do loop detection, but we'll need to scan the b and c timelines...
+                return;
+            }
             if (d < 0) {
-                // p2 leads p1
-                if (d < -0.5) {
-                    console.warn("Might be lapping, give up", d);
-                    return null;
-                }
                 reversed = true;
             }
         } else {
             // Looking for cases where p2 is leading by virtue of having a B or C timeline history that is
             // close to the current p1 position.  Note that some slop may exist in the recorded timeline,
             // we just need to be close to determine that p2 is leading p1.
-            const boundaryErrorTerm = 0.06;
-            if (p1.aRoad.sig === p2.bRoad?.sig) {
-                tier = 2;
-                const d = p1.a.at(-1).rpct - p2.b.at(-1).rpct;
-                if (Math.abs(d) > 0.5) {
-                    console.warn("maybe loop, maybe toss it");
-                    debugger;
-                    return null;
-                }
-                if (d < boundaryErrorTerm) {
-                    reversed = true;
-                } else {
-                    debugger; // valid data to use?
-                    console.warn("odd", p1, p2);
-                    return null;
-                }
-            } else if (p1.bRoad?.sig === p2.aRoad.sig) {
-                tier = 2;
-                const d = p1.b.at(-1).rpct - p2.a.at(-1).rpct;
-                if (Math.abs(d) > 0.5) {
-                    console.warn("maybe loop, maybe toss it");
-                    debugger;
-                    return null;
-                }
-                if (d > boundaryErrorTerm) {
-                    debugger; //  valid data to use?
-                }
-            } else if (p1.aRoad.sig === p2.cRoad?.sig) {
-                tier = 3;
-                const d = p1.a.at(-1).rpct - p2.c.at(-1).rpct;
-                if (Math.abs(d) > 0.5) {
-                    console.warn("maybe loop, maybe toss it");
-                    debugger;
-                    return null;
-                }
-                if (d < boundaryErrorTerm) {
-                    reversed = true;
-                } else {
-                    debugger; // valid data to use?
-                    console.warn("odd", p1, p2);
-                    return null;
-                }
+            if (p1.bRoad?.sig === p2.aRoad.sig) {
+                tiers = 2;
             } else if (p1.cRoad?.sig === p2.aRoad.sig) {
-                tier = 3;
-                const d = p1.c.at(-1).rpct - p2.a.at(-1).rpct;
-                if (Math.abs(d) > 0.5) {
-                    console.warn("maybe loop, maybe toss it");
-                    debugger;
-                    return null;
-                }
-                if (d > boundaryErrorTerm) {
-                    debugger; //  valid data to use?
-                }
+                tiers = 3;
+            } else if (p2.bRoad?.sig === p1.aRoad.sig) {
+                tiers = 2;
+                reversed = true;
+            } else if (p2.cRoad?.sig === p1.aRoad.sig) {
+                tiers = 3;
+                reversed = true;
             } else {
-                if (shared.size) {
-                    console.warn("something else", p1, p2);
-                    debugger;
-                }
+                return;
             }
         }
-
-        if (!tier) {
-            return;
-        }
-
         if (reversed) {
             [p1, p2] = [p2, p1];
         }
 
         // Stage 2 compute differences using road segment(s)...
-        const roadSeperations = new Array(tier);
+        //  * Because road history timelines are incomplete we may see connected road history
+        //    but not have sufficient data for a real time gap.  We'll still return the road
+        //    segments connecting the positions so time estimates can be made.
+        const boundaryErrorTerm = 0.06;
+        const roadSeperations = new Array(tiers);
         let sharedTimeline;
         let distance = 0;
-        const p2Cur = p2.a.at(-1);
-        if (tier === 1) {
+        if (tiers === 1) {
+            const d = p1.a.at(-1).rpct - p2.a.at(-1).rpct;
+            if (d < 0) throw 'error';
+            roadSeperations[0] = this._getRoadSeperation(p1.aRoad, p2.a.at(-1), p1.a.at(-1));
+            distance = roadSeperations[0].distance;
             sharedTimeline = p1.a;
-            roadSeperations[0] = this._getRoadSeperation(p1.aRoad, p2Cur, p1.a.at(-1));
-            distance += roadSeperations[0].distance;
         } else {
-            roadSeperations[0] = this._getRoadSeperation(p1.aRoad, p1.a.at(0), p1.a.at(-1));
+            roadSeperations[0] = this._getRoadSeperation(p1.aRoad, p1.a[0], p1.a.at(-1));
             distance += roadSeperations[0].distance;
-            if (tier === 2) {
-                roadSeperations[1] = this._getRoadSeperation(p1.bRoad, p2Cur, p1.b.at(-1));
+            if (tiers === 2) {
+                const d = p1.b.at(-1).rpct - p2.a.at(-1).rpct;
+                if (d < -boundaryErrorTerm) {
+                    // turned off early or data is too sparse...
+                    console.count("tier 2 turned off early or too sparse");
+                    return;
+                }
+                roadSeperations[1] = this._getRoadSeperation(p1.bRoad, p2.a.at(-1), p1.b.at(-1));
                 sharedTimeline = p1.b;
                 distance += roadSeperations[1].distance;
             } else {
-                roadSeperations[1] = this._getRoadSeperation(p1.bRoad, p1.b.at(0), p1.b.at(-1));
-                roadSeperations[2] = this._getRoadSeperation(p1.cRoad, p2Cur, p1.c.at(-1));
+                const d = p1.c.at(-1).rpct - p2.a.at(-1).rpct;
+                if (d < -boundaryErrorTerm) {
+                    // turned off early or data is too sparse...
+                    console.count("tier 3 turned off early or too sparse");
+                    return;
+                }
+                roadSeperations[1] = this._getRoadSeperation(p1.bRoad, p1.b[0], p1.b.at(-1));
+                roadSeperations[2] = this._getRoadSeperation(p1.cRoad, p2.a.at(-1), p1.c.at(-1));
                 sharedTimeline = p1.c;
                 distance += roadSeperations[1].distance + roadSeperations[2].distance;
             }
         }
-        const index = this._findNearestTimelineCheckpoint(sharedTimeline, p2Cur.rpct);
+        const index = this._findNearestTimelineCheckpoint(sharedTimeline, p2.a.at(-1).rpct);
         if (index == null) {
+            // TODO: Consider handling 1 or 2 of these conditions.
+            //  1. index is not found because p2's position is outside the bounds of the a timeline.
+            //  2. index was not found because the a timeline is too sparse and we lack resolution to
+            //     make a good choice.
+            //      * In this case it could be argued we should do as the old gap method did, and 
+            //      take the two nearest checkpoints and lerp them to infer the worldtime.
             console.warn("TOO FAR APART", p1._xxxName, p2._xxxName);
         }
         return {
@@ -2813,49 +2791,11 @@ export class StatsProcessor extends events.EventEmitter {
             roadPath,
             start,
             end,
-            distance: roadPath.distance(0.00001) / 100, // XXX benchmark with various values, starting super expensive to validate viabliity
+            distance: roadPath.distance(0.001) / 100, // XXX benchmark with various values, starting super expensive to validate viabliity
         };
     }
 
-    realGapOld(p1, p2) {
-        const rp = this.compareRoadPositions(p1, p2);
-        return rp && this._realGap(rp);
-    }
-
-    _realGapOld({reversed, p1Timeline, p2Timeline}, p1, p2) {
-        if (reversed) {
-            [p1, p2] = [p2, p1];
-        }
-        p1Timeline ??= p1.a;
-        p2Timeline ??= p2.a;
-        const p2Tail = p2Timeline[p2Timeline.length - 1];
-        let prev;
-        // TODO: Check if binary search is a win despite end of array locality
-        let j = 0;
-        if (!this._j) {this._j = 0; this._jj = 0; }
-        for (let i = p1Timeline.length - 1; i >= 0; i--) {
-            j++;
-            const x = p1Timeline[i];
-            if (x.rpct <= p2Tail.rpct) {
-                let offt = 0;
-                if (prev) {
-                    const dist = prev.rpct - x.rpct;
-                    const time = prev.wt - x.wt;
-                    offt = (p2Tail.rpct - x.rpct) / dist * time;
-                }
-                this._j += j;
-                this._jj++;
-                if (this._jj % 10 === 0) {
-                    console.log('took this many searchs', j, this._j, this._j / this._jj);
-                }
-                return Math.abs((p2Tail.wt - x.wt - offt) / 1000);
-            }
-            prev = x;
-        }
-        return null;
-    }
-
-    _findNearestTimelineCheckpoint(timeline, value, threshold=0.01) {
+    _findNearestTimelineCheckpoint(timeline, value, threshold=0.0001) {
         let left = 0;
         let right = timeline.length - 1;
         let i;
@@ -2888,7 +2828,7 @@ export class StatsProcessor extends events.EventEmitter {
             if (rDist < threshold) {
                 return right;
             } else console.warn("outside threshold", rDist, threshold, timeline);
-        } else if (rDist < threshold) {
+        } else if (lDist < threshold) {
             return left;
         } else console.warn("outside threshold", lDist, threshold, timeline);
     }
@@ -3085,16 +3025,8 @@ export class StatsProcessor extends events.EventEmitter {
         watching.gapDistance = 0;
         watching.isGapEst = undefined;
         const watchingWorldTime = watching.mostRecentState.worldTime;
-        // We need to use a speed value for estimates and just using one value is
-        // dangerous, so we use a weighted function that's seeded (skewed) to the
-        // the watching rider.
-        const refSpeedForEstimates = expWeightedAvg(10); // maybe mv up and reuse? XXX
-        const watchingSpeed = watching.mostRecentState.speed;
-        if (watchingSpeed > 1) {
-            refSpeedForEstimates(watchingSpeed);
-        }
         // Only filter stopped riders if we are moving.
-        const filterStopped = !!watchingSpeed;
+        const filterStopped = !!watching.mostRecentState.speed;
         const ahead = [];
         const behind = [];
         const now = monotonic();
@@ -3104,8 +3036,6 @@ export class StatsProcessor extends events.EventEmitter {
                 now - ad.internalUpdated > 10000 || (filterStopped && !ad.mostRecentState.speed)) {
                 continue;
             }
-            // compute ref speed regardless for cleaner fallback estimates
-            refSpeedForEstimates(ad.mostRecentState.speed);
             const rp = this.compareRoadPositions(watching.roadHistory, ad.roadHistory);
             if (rp == null) {
                 ad.gap = undefined;
@@ -3123,55 +3053,74 @@ export class StatsProcessor extends events.EventEmitter {
                 ad.gap = undefined;
                 ad.isGapEst = true;
             }
-            ad.gapDistance = rp.distance; // XXX is this supposed to go negative?
             if (rp.reversed) {
+                ad.gapDistance = -rp.distance;
+                ahead.push(ad);
                 if (ad.gap > 0) console.warn("behind pos gap", ad.gap);
                 //if (ad.gap < 0) console.warn("behind neg gap", ad.gap);
-                behind.push(ad);
             } else {
+                ad.gapDistance = rp.distance;
                 //if (ad.gap > 0) console.warn("ahead pos gap", ad.gap);
                 if (ad.gap < 0) console.warn("ahead neg gap", ad.gap);
-                ahead.push(ad);
+                behind.push(ad);
             }
         }
 
-        ahead.sort((a, b) => b.gapDistance - a.gapDistance);
+        ahead.sort((a, b) => a.gapDistance - b.gapDistance);
         behind.sort((a, b) => a.gapDistance - b.gapDistance);
 
         // Now fill in gap estimates by seeing if we can incrementally account for the gaps
         // between each rider.  Failing this, just fallback to speed and distance...
-        const speedRef = refSpeedForEstimates.get();
+        let refSpeedForEstimates = expWeightedAvg(10, Math.max(10, watching.mostRecentState.speed));
         for (let i = ahead.length - 1; i >= 0; i--) {
             const x = ahead[i];
+            if (x.mostRecentState.speed > 2) {
+                refSpeedForEstimates(x.mostRecentState.speed);
+            }
             if (x.gap == null) {
                 const adjacent = ahead[i + 1] || watching;
-                const incRP = this.compareRoadPositions(adjacent.roadHistory, x.roadHistory);
-                if (!incRP || incRP.reverse) debugger;
-                if (incRP == null) {
-                    debugger;
-                    const incGapDist = x.gapDistance - adjacent.gapDistance; // XXX need this?  I think we always have gapDistance now?
-                    if (!speedRef) debugger; // impossible i think
-                    if (!incGapDist < 0) debugger;
-                    const incGap = incGapDist / (speedRef * 1000 / 3600);
-                    if (!incGap < 0) debugger;
+                const incRP = this.compareRoadPositions(x.roadHistory, adjacent.roadHistory);
+                if (!incRP || incRP.worldTime == null || incRP.reversed) {
+                    // `reversed` indicates that the adjacent athlete branched before the test subject making
+                    // it irrelevant as a time based checkpoint to the watching athlete.
+                    console.count("ahead incmethod failed");
+                    const incGapDist = adjacent.gapDistance - x.gapDistance;
+                    const velocity = refSpeedForEstimates.get() / 3.6;
+                    if (!velocity) debugger; // impossible i think
+                    if (incGapDist < 0) debugger;
+                    const incGap = incGapDist / velocity;
+                    if (incGap < 0) debugger;
                     x.gap = adjacent.gap - incGap;
                 } else {
-                    x.gap = adjacent.gap - (watchingWorldTime - incRP.worldTime) / 1000;
+                    console.count("ahead incmethod success");
+                    x.gap = adjacent.gap - (x.mostRecentState.worldTime - incRP.worldTime) / 1000;
                 }
             }
-            //x.gapDistance = -x.gapDistance;
         }
+        refSpeedForEstimates = expWeightedAvg(10, Math.max(10, watching.mostRecentState.speed));
         for (let i = 0; i < behind.length; i++) {
             const x = behind[i];
+            if (x.mostRecentState.speed > 2) {
+                refSpeedForEstimates(x.mostRecentState.speed);
+            }
             if (x.gap == null) {
                 const adjacent = behind[i - 1] || watching;
-                console.warn("TBD");
-                /*let [incGap] = this.realGap(adjacent.roadHistory, x.roadHistory);
-                if (incGap == null) {
+                const incRP = this.compareRoadPositions(adjacent.roadHistory, x.roadHistory);
+                if (!incRP || incRP.worldTime == null || incRP.reversed) {
+                    // `reversed` indicates that the adjacent athlete branched before the test subject making
+                    // it irrelevant as a time based checkpoint to the watching athlete.
+                    console.count("behind incmethod failed");
                     const incGapDist = x.gapDistance - adjacent.gapDistance;
-                    incGap = speedRef ? incGapDist / (speedRef * 1000 / 3600) : 0;
+                    const velocity = refSpeedForEstimates.get() / 3.6;
+                    if (!velocity) debugger; // impossible i think
+                    if (incGapDist < 0) debugger;
+                    const incGap = incGapDist / velocity;
+                    if (incGap < 0) debugger;
+                    x.gap = adjacent.gap + incGap;
+                } else {
+                    console.count("behind incmethod success");
+                    x.gap = adjacent.gap + (x.mostRecentState.worldTime - incRP.worldTime) / 1000;
                 }
-                x.gap = adjacent.gap + incGap;*/
             }
         }
 
