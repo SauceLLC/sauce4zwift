@@ -550,7 +550,7 @@ export async function computeRoutePath(route) {
             xx.index = i;
         }
         roadSegments.push(seg);
-        curvePath.extend(x.reverse ? seg.toReversed() : seg);
+        curvePath.extend(x.reverse ? seg.toCurvePath().toReversed() : seg);
     }
     // NOTE: No support for physicsSlopeScaleOverride of portal roads.
     // But I've not seen portal roads used in a route either.

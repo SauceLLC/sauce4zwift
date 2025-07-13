@@ -168,7 +168,7 @@ export class CurvePath {
                 nodes.push({...p0, cp1: undefined, cp2: undefined});
             }
         }
-        return new CurvePath({...this, nodes});
+        return new this.constructor({...this, nodes});
     }
 
     extend(path) {
@@ -185,7 +185,7 @@ export class CurvePath {
     }
 
     slice(...args) {
-        return new CurvePath({...this, nodes: this.nodes.slice(...args)});
+        return new this.constructor({...this, nodes: this.nodes.slice(...args)});
     }
 
     distance(t) {
@@ -327,7 +327,13 @@ export class RoadPath extends CurvePath {
 
     subpathAtRoadPercents(startRoadPercent=-1e6, endRoadPercent=1e6) {
         if (startRoadPercent > endRoadPercent) {
-            return new RoadPath({...this, offsetIndex: 0, offsetPercent: 0, cropPercent: 0, nodes: []});
+            return new this.constructor({
+                ...this,
+                offsetIndex: 0,
+                offsetPercent: 0,
+                cropPercent: 0,
+                nodes: []
+            });
         }
         const start = this.boundsAtRoadPercent(startRoadPercent);
         const end = this.boundsAtRoadPercent(endRoadPercent);
@@ -368,7 +374,7 @@ export class RoadPath extends CurvePath {
         }
         const absStartPercent = start.index === 0 ?
             start.percent * (1 - this.offsetPercent) + this.offsetPercent : start.percent;
-        return new RoadPath({
+        return new this.constructor({
             ...this,
             nodes,
             offsetIndex: start.index + this.offsetIndex,
@@ -389,6 +395,14 @@ export class RoadPath extends CurvePath {
         return new CurvePath({...this, immutable: false});
     }
 
+    toReversed() {
+        if (this.offsetIndex || this.offsetPercent) {
+            // TBD
+            throw new Error("toReversed only works with unsliced RoadPath");
+        }
+        return super.toReversed();
+    }
+
     slice(start, end) {
         if (start < 0) {
             start += this.nodes.length;
@@ -396,7 +410,7 @@ export class RoadPath extends CurvePath {
         const offsetIndex = this.offsetIndex + start;
         const offsetPercent = start ? 0 : this.offsetPercent;
         const cropPercent = (end === undefined || end >= this.nodes.length) ? this.cropPercent : 0;
-        return new RoadPath({
+        return new this.constructor({
             ...this,
             nodes: this.nodes.slice(start, end),
             offsetIndex,
