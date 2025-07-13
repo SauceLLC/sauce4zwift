@@ -2795,7 +2795,7 @@ export class StatsProcessor extends events.EventEmitter {
         };
     }
 
-    _findNearestTimelineCheckpoint(timeline, value, threshold=0.0001) {
+    _findNearestTimelineCheckpoint(timeline, value, threshold=0.01) {
         let left = 0;
         let right = timeline.length - 1;
         let i;
