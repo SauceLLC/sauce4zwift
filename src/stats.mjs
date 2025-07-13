@@ -8,7 +8,6 @@ import * as sauce from '../shared/sauce/index.mjs';
 import * as report from '../shared/report.mjs';
 import * as zwift from './zwift.mjs';
 import * as env from './env.mjs';
-import * as curves from '../shared/curves.mjs';
 import {expWeightedAvg} from '../shared/sauce/data.mjs';
 import {createRequire} from 'node:module';
 
@@ -17,6 +16,7 @@ const pkg = require('../package.json');
 
 const roadDistances = new Map();
 const wPrimeDefault = 20000;
+let groupIdCounter = 1;
 
 
 function monotonic() {
@@ -55,14 +55,9 @@ async function highResSleepTill(deadline, options={}) {
 
 function updateRoadDistance(courseId, roadId) {
     let distance;
-    const road = env.getRoad(courseId, roadId);
-    if (road) {
-        const curveFunc = {
-            CatmullRom: curves.catmullRomPath,
-            Bezier: curves.cubicBezierPath,
-        }[road.splineType];
-        const curvePath = curveFunc(road.path, {loop: road.looped, road: true});
-        distance = curvePath.distance() / 100;
+    const roadCurvePath = env.getRoadCurvePath(courseId, roadId);
+    if (roadCurvePath) {
+        distance = roadCurvePath.distance() / 100;
     } else {
         distance = null;
     }
@@ -547,6 +542,7 @@ export class StatsProcessor extends events.EventEmitter {
         this._recentEventSubgroups = new Map();
         this._mostRecentNearby = [];
         this._mostRecentGroups = [];
+        this._groupMetas = new Map();
         this._markedIds = new Set();
         this._followingIds = new Set();
         this._followerIds = new Set();
@@ -876,7 +872,8 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     async getWorkoutSchedule() {
-        return await this.zwiftAPI.getWorkoutSchedule(); // gets a list of scheduled workouts from 3rd party partners (intervals.icu, trainingpeaks, etc.)
+        // List of scheduled workouts from 3rd party partners (intervals.icu, trainingpeaks, etc.)
+        return await this.zwiftAPI.getWorkoutSchedule();
     }
 
     // XXX ambiguous name
@@ -2021,11 +2018,14 @@ export class StatsProcessor extends events.EventEmitter {
                 wbal: [],
             },
             roadHistory: {
-                sig: null,
-                prevSig: null,
-                timeline: [],
-                prevTimeline: null,
+                aRoad: null,
+                bRoad: null,
+                cRoad: null,
+                a: [],
+                b: null,
+                c: null,
             },
+            events: new Map(),
             collectors,
             laps: [],
             segments: [],
@@ -2174,37 +2174,50 @@ export class StatsProcessor extends events.EventEmitter {
 
     _recordAthleteRoadHistory(state, ad, roadSig) {
         const prevState = ad.mostRecentState;
-        if (prevState) {
-            let shiftHistory;
-            if (roadSig !== ad.roadHistory.sig) {
-                shiftHistory = prevState.courseId === state.courseId;
-            } else {
-                const last = ad.roadHistory.timeline[ad.roadHistory.timeline.length - 1];
-                const delta = state.roadCompletion - last.roadCompletion;
-                if (delta < 0) { // unlikely
-                    if (delta < -10000) {
-                        shiftHistory = true;
-                    } else {
-                        // Stopped and wiggling backwards. For safety we just nuke hist.
-                        ad.roadHistory.timeline.length = 0;
-                    }
-                }
-            }
-            if (shiftHistory) {
-                ad.roadHistory.prevSig = ad.roadHistory.sig;
-                ad.roadHistory.prevTimeline = ad.roadHistory.timeline;
-                ad.roadHistory.timeline = [];
-            } else if (shiftHistory === false) {
-                ad.roadHistory.prevSig = null;
-                ad.roadHistory.prevTimeline = null;
+        const hist = ad.roadHistory;
+        // XXX
+        if (!hist._xxxName) {
+            const athlete = this.loadAthlete(ad.athleteId);
+            if (athlete) {
+                hist._xxxName = athlete.fLast;
             }
         }
-        ad.roadHistory.sig = roadSig;
-        ad.roadHistory.timeline.push({
-            wt: state.worldTime,
-            roadCompletion: state.roadCompletion,
-            distance: state.distance,
-        });
+        // /XXX
+        const rpct = state.roadCompletion / 1e6;
+        if (prevState) {
+            if (prevState.courseId === state.courseId) {
+                let shiftTimelines;
+                if (roadSig !== hist.aRoad.sig) {
+                    shiftTimelines = true;
+                } else {
+                    // Some same-road conditions still justify timeline shifting...
+                    const last = hist.a[hist.a.length - 1];
+                    const delta = rpct - last.rpct;
+                    if (delta < 0) { // direction change
+                        if (delta < -0.01) {
+                            shiftTimelines = true;
+                        } else {
+                            // Stopped and wiggling backwards.
+                            // For simplicity and safety just nuke current timeline.
+                            hist.a.length = 0;
+                        }
+                    }
+                }
+                if (shiftTimelines) {
+                    hist.cRoad = hist.bRoad;
+                    hist.c = hist.b;
+                    hist.bRoad = hist.aRoad;
+                    hist.b = hist.a;
+                    hist.a = [];
+                }
+            } else {
+                // reset all history...
+                hist.bRoad = hist.cRoad = hist.b = hist.c = null;
+                hist.a = [];
+            }
+        }
+        hist.aRoad = {...env.fromRoadSig(roadSig), sig: roadSig};
+        hist.a.push({rpct, rt: state.roadTime, wt: state.worldTime});
     }
 
     _preprocessState(state, ad) {
@@ -2655,96 +2668,229 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
-    compareRoadPositions(aData, bData) {
-        const a = aData.roadHistory;
-        const b = bData.roadHistory;
-        const aTail = a.timeline[a.timeline.length - 1];
-        const bTail = b.timeline[b.timeline.length - 1];
-        if (aTail === undefined || bTail === undefined) {
-            return null;
-        }
-        const aComp = aTail.roadCompletion;
-        const bComp = bTail.roadCompletion;
-        // Is A currently leading B or vice versa...
-        if (a.sig === b.sig) {
-            const d = aComp - bComp;
-            // Test for lapping cases where inverted is closer
-            const roadDist = roadDistances.get(a.sig) || 0;
-            if (d < -500000 && a.prevSig === b.sig) {
-                const gapDistance = (1e6 + d) / 1e6 * roadDist;
-                return {reversed: false, previous: true, gapDistance};
-            } else if (d > 500000 && b.prevSig === a.sig) {
-                const gapDistance = (1e6 - d) / 1e6 * roadDist;
-                return {reversed: true, previous: true, gapDistance};
-            } else if (d > 0) {
-                const gapDistance = d / 1e6 * roadDist;
-                return {reversed: false, previous: false, gapDistance};
-            } else if (d < 0) {
-                const gapDistance = -d / 1e6 * roadDist;
-                return {reversed: true, previous: false, gapDistance};
-            } else if (aTail.wt < bTail.wt) {
-                return {reversed: false, previous: false, gapDistance: 0};
-            } else {
-                return {reversed: true, previous: false, gapDistance: 0};
+    compareRoadPositions(p1, p2) {
+        // NOTE: This code uses a few micro optimizations given that it's heavily used..
+
+        // Stage 1 look for reversed conditions where p2 is leading p1...
+        let reversed = false;
+        let tier = 0;
+        const shared = new Set([p1.aRoad.sig, p1.bRoad?.sig, p1.cRoad?.sig].filter(x => x)).intersection(new Set([p2.aRoad.sig, p2.bRoad?.sig, p2.cRoad?.sig].filter(x => x)));
+        console.debug("compare road positions:", p1._xxxName, p1.aRoad.roadId, p1.a.at(-1).rpct, p2._xxxName, p2.aRoad.roadId, p2.a.at(-1).rpct, shared, p1, p2);
+        if (p1.aRoad.sig === p2.aRoad.sig) {
+            tier = 1;
+            const d = p1.a.at(-1).rpct - p2.a.at(-1).rpct;
+            if (d < 0) {
+                // p2 leads p1
+                if (d < -0.5) {
+                    console.warn("Might be lapping, give up", d);
+                    return null;
+                }
+                reversed = true;
             }
         } else {
-            let d2;
-            // Is B trailing A on a prev road...
-            if (a.prevSig === b.sig) {
-                const d = a.prevTimeline[a.prevTimeline.length - 1].roadCompletion - bComp;
-                if (d >= 0) {
-                    d2 = d;
+            // Looking for cases where p2 is leading by virtue of having a B or C timeline history that is
+            // close to the current p1 position.  Note that some slop may exist in the recorded timeline,
+            // we just need to be close to determine that p2 is leading p1.
+            const boundaryErrorTerm = 0.06;
+            if (p1.aRoad.sig === p2.bRoad?.sig) {
+                tier = 2;
+                const d = p1.a.at(-1).rpct - p2.b.at(-1).rpct;
+                if (Math.abs(d) > 0.5) {
+                    console.warn("maybe loop, maybe toss it");
+                    debugger;
+                    return null;
                 }
-            }
-            // Is A trailing B on a prev road...
-            if (b.prevSig === a.sig) {
-                const bPrevTail = b.prevTimeline[b.prevTimeline.length - 1];
-                const d = bPrevTail.roadCompletion - aComp;
-                if (d >= 0 && (d2 === undefined || d < d2)) {
-                    const roadDist = roadDistances.get(b.prevSig) || 0;
-                    const gapDistance = (d / 1e6 * roadDist) + (bTail.distance - bPrevTail.distance);
-                    return {reversed: true, previous: true, gapDistance};
+                if (d < boundaryErrorTerm) {
+                    reversed = true;
+                } else {
+                    debugger; // valid data to use?
+                    console.warn("odd", p1, p2);
+                    return null;
                 }
-            }
-            if (d2 !== undefined) {
-                // We can probably move this up to the first d2 block once we validate the above condition
-                // is not relevant.  Probably need to check on something funky like crit city or japan.
-                const aPrevTail = a.prevTimeline[a.prevTimeline.length - 1];
-                const roadDist = roadDistances.get(a.prevSig) || 0;
-                const gapDistance = (d2 / 1e6 * roadDist) + (aTail.distance - aPrevTail.distance);
-                return {reversed: false, previous: true, gapDistance};
+            } else if (p1.bRoad?.sig === p2.aRoad.sig) {
+                tier = 2;
+                const d = p1.b.at(-1).rpct - p2.a.at(-1).rpct;
+                if (Math.abs(d) > 0.5) {
+                    console.warn("maybe loop, maybe toss it");
+                    debugger;
+                    return null;
+                }
+                if (d > boundaryErrorTerm) {
+                    debugger; //  valid data to use?
+                }
+            } else if (p1.aRoad.sig === p2.cRoad?.sig) {
+                tier = 3;
+                const d = p1.a.at(-1).rpct - p2.c.at(-1).rpct;
+                if (Math.abs(d) > 0.5) {
+                    console.warn("maybe loop, maybe toss it");
+                    debugger;
+                    return null;
+                }
+                if (d < boundaryErrorTerm) {
+                    reversed = true;
+                } else {
+                    debugger; // valid data to use?
+                    console.warn("odd", p1, p2);
+                    return null;
+                }
+            } else if (p1.cRoad?.sig === p2.aRoad.sig) {
+                tier = 3;
+                const d = p1.c.at(-1).rpct - p2.a.at(-1).rpct;
+                if (Math.abs(d) > 0.5) {
+                    console.warn("maybe loop, maybe toss it");
+                    debugger;
+                    return null;
+                }
+                if (d > boundaryErrorTerm) {
+                    debugger; //  valid data to use?
+                }
+            } else {
+                if (shared.size) {
+                    console.warn("something else", p1, p2);
+                    debugger;
+                }
             }
         }
-        return null;
-    }
 
-    realGap(a, b) {
-        const rp = this.compareRoadPositions(a, b);
-        return rp && this._realGap(rp, a, b);
-    }
+        if (!tier) {
+            return;
+        }
 
-    _realGap({reversed, previous}, a, b) {
         if (reversed) {
-            [a, b] = [b, a];
+            [p1, p2] = [p2, p1];
         }
-        const aTimeline = previous ? a.roadHistory.prevTimeline : a.roadHistory.timeline;
-        const bTail = b.roadHistory.timeline[b.roadHistory.timeline.length - 1];
+
+        // Stage 2 compute differences using road segment(s)...
+        const roadSeperations = new Array(tier);
+        let sharedTimeline;
+        let distance = 0;
+        const p2Cur = p2.a.at(-1);
+        if (tier === 1) {
+            sharedTimeline = p1.a;
+            roadSeperations[0] = this._getRoadSeperation(p1.aRoad, p2Cur, p1.a.at(-1));
+            distance += roadSeperations[0].distance;
+        } else {
+            roadSeperations[0] = this._getRoadSeperation(p1.aRoad, p1.a.at(0), p1.a.at(-1));
+            distance += roadSeperations[0].distance;
+            if (tier === 2) {
+                roadSeperations[1] = this._getRoadSeperation(p1.bRoad, p2Cur, p1.b.at(-1));
+                sharedTimeline = p1.b;
+                distance += roadSeperations[1].distance;
+            } else {
+                roadSeperations[1] = this._getRoadSeperation(p1.bRoad, p1.b.at(0), p1.b.at(-1));
+                roadSeperations[2] = this._getRoadSeperation(p1.cRoad, p2Cur, p1.c.at(-1));
+                sharedTimeline = p1.c;
+                distance += roadSeperations[1].distance + roadSeperations[2].distance;
+            }
+        }
+        const index = this._findNearestTimelineCheckpoint(sharedTimeline, p2Cur.rpct);
+        if (index == null) {
+            console.warn("TOO FAR APART", p1._xxxName, p2._xxxName);
+        }
+        return {
+            roadSeperations,
+            worldTime: index != null ? sharedTimeline[index].wt : undefined,
+            distance,
+            reversed,
+        };
+    }
+
+    _getRoadSeperation({courseId, roadId, reversed}, start, end) {
+        if (start == null || end == null || isNaN(start.rpct) || isNaN(end.rpct) || end.rpct < start.rpct) {
+            const boundaryErrorTerm = 0.06; // XXX testing... hopefully this is all the cases..
+            if (start.rpct - end.rpct > boundaryErrorTerm) {
+                // XXX make this less paranoid after testing
+                console.error(start, end);
+                throw new Error('start end error');
+            } else {
+                console.warn("negative range: return 0 distance sep", start, end);
+                return {roadPath: null, start: end, end: start, distance: 0};
+            }
+        }
+        const roadPath = env.getRoadCurvePath(courseId, roadId, reversed)
+            .subpathAtRoadPercents(start.rpct, end.rpct);
+        return {
+            roadPath,
+            start,
+            end,
+            distance: roadPath.distance(0.00001) / 100, // XXX benchmark with various values, starting super expensive to validate viabliity
+        };
+    }
+
+    realGapOld(p1, p2) {
+        const rp = this.compareRoadPositions(p1, p2);
+        return rp && this._realGap(rp);
+    }
+
+    _realGapOld({reversed, p1Timeline, p2Timeline}, p1, p2) {
+        if (reversed) {
+            [p1, p2] = [p2, p1];
+        }
+        p1Timeline ??= p1.a;
+        p2Timeline ??= p2.a;
+        const p2Tail = p2Timeline[p2Timeline.length - 1];
         let prev;
         // TODO: Check if binary search is a win despite end of array locality
-        for (let i = aTimeline.length - 1; i >= 0; i--) {
-            const x = aTimeline[i];
-            if (x.roadCompletion <= bTail.roadCompletion) {
+        let j = 0;
+        if (!this._j) {this._j = 0; this._jj = 0; }
+        for (let i = p1Timeline.length - 1; i >= 0; i--) {
+            j++;
+            const x = p1Timeline[i];
+            if (x.rpct <= p2Tail.rpct) {
                 let offt = 0;
                 if (prev) {
-                    const dist = prev.roadCompletion - x.roadCompletion;
+                    const dist = prev.rpct - x.rpct;
                     const time = prev.wt - x.wt;
-                    offt = (bTail.roadCompletion - x.roadCompletion) / dist * time;
+                    offt = (p2Tail.rpct - x.rpct) / dist * time;
                 }
-                return Math.abs((bTail.wt - x.wt - offt) / 1000);
+                this._j += j;
+                this._jj++;
+                if (this._jj % 10 === 0) {
+                    console.log('took this many searchs', j, this._j, this._j / this._jj);
+                }
+                return Math.abs((p2Tail.wt - x.wt - offt) / 1000);
             }
             prev = x;
         }
         return null;
+    }
+
+    _findNearestTimelineCheckpoint(timeline, value, threshold=0.01) {
+        let left = 0;
+        let right = timeline.length - 1;
+        let i;
+        const low = timeline[0].rpct;
+        const high = timeline[right].rpct;
+        if (value > low && value < high) {
+            while (right >= left) {
+                i = left + ((right - left) * 0.5 | 0);
+                const test = timeline[i].rpct;
+                if (test > value) {
+                    right = i - 1;
+                } else if (test < value) {
+                    left = i + 1;
+                } else {
+                    return i;
+                }
+            }
+        } else if (value <= low) {
+            right = 0;
+        } else if (value >= high) {
+            left = right;
+        }
+        if (Math.abs(right - left) > 1) {
+            debugger;
+            throw new 'XXX';
+        }
+        const lDist = Math.abs(timeline[left].rpct - value);
+        const rDist = Math.abs(timeline[right].rpct - value);
+        if (rDist <= lDist) {
+            if (rDist < threshold) {
+                return right;
+            } else console.warn("outside threshold", rDist, threshold, timeline);
+        } else if (rDist < threshold) {
+            return left;
+        } else console.warn("outside threshold", lDist, threshold, timeline);
     }
 
     gcAthleteData() {
@@ -2938,6 +3084,7 @@ export class StatsProcessor extends events.EventEmitter {
         watching.gap = 0;
         watching.gapDistance = 0;
         watching.isGapEst = undefined;
+        const watchingWorldTime = watching.mostRecentState.worldTime;
         // We need to use a speed value for estimates and just using one value is
         // dangerous, so we use a weighted function that's seeded (skewed) to the
         // the watching rider.
@@ -2952,23 +3099,38 @@ export class StatsProcessor extends events.EventEmitter {
         const behind = [];
         const now = monotonic();
         for (const ad of this._athleteData.values()) {
+            //if (ad !== watching && !this._markedIds.has(ad.athleteId)) continue;
             if (ad.athleteId === this.watching || ad.disabled || !ad.mostRecentState ||
                 now - ad.internalUpdated > 10000 || (filterStopped && !ad.mostRecentState.speed)) {
                 continue;
             }
-            const rp = this.compareRoadPositions(ad, watching);
-            if (rp === null) {
+            // compute ref speed regardless for cleaner fallback estimates
+            refSpeedForEstimates(ad.mostRecentState.speed);
+            const rp = this.compareRoadPositions(watching.roadHistory, ad.roadHistory);
+            if (rp == null) {
                 ad.gap = undefined;
                 ad.gapDistance = undefined;
                 ad.isGapEst = true;
                 continue;
             }
-            ad.gap = this._realGap(rp, ad, watching);
-            ad.gapDistance = rp.gapDistance;
-            ad.isGapEst = ad.gap == null;
+            if (rp.worldTime != null)  {
+                ad.gap = (watchingWorldTime - rp.worldTime) / 1000;
+                if (rp.reversed) {
+                    ad.gap = -ad.gap;
+                }
+                ad.isGapEst = false;
+            } else {
+                ad.gap = undefined;
+                ad.isGapEst = true;
+            }
+            ad.gapDistance = rp.distance; // XXX is this supposed to go negative?
             if (rp.reversed) {
+                if (ad.gap > 0) console.warn("behind pos gap", ad.gap);
+                //if (ad.gap < 0) console.warn("behind neg gap", ad.gap);
                 behind.push(ad);
             } else {
+                //if (ad.gap > 0) console.warn("ahead pos gap", ad.gap);
+                if (ad.gap < 0) console.warn("ahead neg gap", ad.gap);
                 ahead.push(ad);
             }
         }
@@ -2976,33 +3138,40 @@ export class StatsProcessor extends events.EventEmitter {
         ahead.sort((a, b) => b.gapDistance - a.gapDistance);
         behind.sort((a, b) => a.gapDistance - b.gapDistance);
 
+        // Now fill in gap estimates by seeing if we can incrementally account for the gaps
+        // between each rider.  Failing this, just fallback to speed and distance...
+        const speedRef = refSpeedForEstimates.get();
         for (let i = ahead.length - 1; i >= 0; i--) {
             const x = ahead[i];
-            const adjacent = ahead[i + 1] || watching;
-            const speedRef = refSpeedForEstimates(x.mostRecentState.speed);
             if (x.gap == null) {
-                let incGap = this.realGap(x, adjacent);
-                if (incGap == null) {
-                    const incGapDist = x.gapDistance - adjacent.gapDistance;
-                    incGap = speedRef ? incGapDist / (speedRef * 1000 / 3600) : 0;
+                const adjacent = ahead[i + 1] || watching;
+                const incRP = this.compareRoadPositions(adjacent.roadHistory, x.roadHistory);
+                if (!incRP || incRP.reverse) debugger;
+                if (incRP == null) {
+                    debugger;
+                    const incGapDist = x.gapDistance - adjacent.gapDistance; // XXX need this?  I think we always have gapDistance now?
+                    if (!speedRef) debugger; // impossible i think
+                    if (!incGapDist < 0) debugger;
+                    const incGap = incGapDist / (speedRef * 1000 / 3600);
+                    if (!incGap < 0) debugger;
+                    x.gap = adjacent.gap - incGap;
+                } else {
+                    x.gap = adjacent.gap - (watchingWorldTime - incRP.worldTime) / 1000;
                 }
-                x.gap = adjacent.gap - incGap;
-            } else {
-                x.gap = -x.gap;
             }
-            x.gapDistance = -x.gapDistance;
+            //x.gapDistance = -x.gapDistance;
         }
         for (let i = 0; i < behind.length; i++) {
             const x = behind[i];
-            const adjacent = behind[i - 1] || watching;
-            const speedRef = refSpeedForEstimates(x.mostRecentState.speed);
             if (x.gap == null) {
-                let incGap = this.realGap(adjacent, x);
+                const adjacent = behind[i - 1] || watching;
+                console.warn("TBD");
+                /*let [incGap] = this.realGap(adjacent.roadHistory, x.roadHistory);
                 if (incGap == null) {
                     const incGapDist = x.gapDistance - adjacent.gapDistance;
                     incGap = speedRef ? incGapDist / (speedRef * 1000 / 3600) : 0;
                 }
-                x.gap = adjacent.gap + incGap;
+                x.gap = adjacent.gap + incGap;*/
             }
         }
 
@@ -3028,6 +3197,7 @@ export class StatsProcessor extends events.EventEmitter {
         if (!nearby.length) {
             return groups;
         }
+        const now = monotonic();
         let watchingIdx;
         let curGroup = {
             athletes: [],
@@ -3038,6 +3208,10 @@ export class StatsProcessor extends events.EventEmitter {
             heartrate: 0,
             heartrateCount: 0,
         };
+        const groupIdentities = new Map();
+        let groupIdentity;
+
+        // First clumping all riders into their respective groups...
         for (let i = 0, prevGap; i < nearby.length; i++) {
             const x = nearby[i];
             const innerGap = prevGap !== undefined ? x.gap - prevGap : 0;
@@ -3053,6 +3227,7 @@ export class StatsProcessor extends events.EventEmitter {
                     heartrate: 0,
                     heartrateCount: 0,
                 };
+                groupIdentity = null;
             }
             curGroup.athletes.push(x);
             const weight = x.athlete && x.athlete.weight || 0;
@@ -3069,6 +3244,10 @@ export class StatsProcessor extends events.EventEmitter {
             prevGap = x.gap;
         }
         groups.push(curGroup);
+
+        // With completed groups and athletes compute aggregate stats...
+        const newGroupMetas = [];
+        const usedGroupIds = new Set();
         for (let i = 0; i < groups.length; i++) {
             const grp = groups[i];
             grp.weight /= grp.weightCount;
@@ -3084,6 +3263,62 @@ export class StatsProcessor extends events.EventEmitter {
                 grp.gap = 0;
                 grp.isGapEst = false;
             }
+            // For groups with > 1 athlete, try to match with prior group for group stats...
+            // This is Greedy Jaccard Similarity algo (fast but imperfect)...
+            if (grp.athletes.length > 1) {
+                const identitySet = new Set(grp.athletes.map(x => x.athleteId));
+                //identitySet.created = now;
+                let bestScore = 0;
+                let bestGroupMeta;
+                for (const xMeta of this._groupMetas.values()) {
+                    if (usedGroupIds.has(xMeta.id)) {
+                        continue;
+                    }
+                    if (now - xMeta.accessed > 60000) {
+                        console.warn("remove old", now - xMeta.accessed, xMeta.id);
+                        this._groupMetas.delete(xMeta.id);
+                        continue;
+                    }
+                    const jaccardScore = identitySet.intersection(xMeta.identitySet).size /
+                        identitySet.union(xMeta.identitySet).size;
+                    if (jaccardScore > bestScore) {
+                        bestScore = jaccardScore;
+                        bestGroupMeta = xMeta;
+                    }
+                }
+                if (bestScore > 0.5) {
+                    //console.info("Matching group", bestScore, identitySet);
+                    grp.id = bestGroupMeta.id;
+                    if (!grp.id) debugger;
+                    const leftAthletes = bestGroupMeta.identitySet.difference(identitySet);
+                    const existingAthletes = identitySet.union(bestGroupMeta.identitySet);
+                    const newAthletes = identitySet.difference(bestGroupMeta.identitySet);
+                    for (const x of newAthletes) {
+                        console.warn(grp.id, "Athlete joined the group!", this.loadAthlete(x)?.fullname);
+                    }
+                    for (const x of leftAthletes) {
+                        console.warn(grp.id, "Athlete LEFT the group!", this.loadAthlete(x)?.fullname);
+                    }
+                    bestGroupMeta.identitySet = identitySet;
+                    bestGroupMeta.accessed = now;
+                    usedGroupIds.add(bestGroupMeta.id);
+                } else if (grp.id == null) {
+                    grp.id = groupIdCounter++;
+                    for (const x of identitySet) {
+                        console.warn(grp.id, "Athlete formed a new group!", this.loadAthlete(x)?.fullname);
+                    }
+                    grp.created = Date.now();
+                    newGroupMetas.push({id: grp.id, accessed: now, identitySet});
+                } else {
+                    debugger;
+                }
+                if (!grp.id) debugger;
+            } else {
+                grp.id = null;
+            }
+        }
+        for (const x of newGroupMetas) {
+            this._groupMetas.set(x.id, x);
         }
         return groups;
     }

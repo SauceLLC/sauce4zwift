@@ -371,8 +371,8 @@ const fieldGroups = [{
          get: x => x.lap.draft.avg, fmt: pwr},
         {id: 'draft-last-lap', defaultEn: false, label: 'Last Lap Average',
          headerLabel: '<ms>air</ms> (last)', get: x => x.lastLap ? x.lastLap.draft.avg : null, fmt: pwr},
-        {id: 'draft-energy', defaultEn: false, label: '<ms>air</ms> (kJ)', get: x => x.stats.draft.kj,
-         fmt: kj, tooltip: 'Energy saved by drafting'},
+        {id: 'draft-energy', defaultEn: false, label: 'Energy Saved', headerLabel: '<ms>air</ms> (kJ)',
+         get: x => x.stats.draft.kj, fmt: kj, tooltip: 'Energy saved by drafting'},
     ],
 
 }, {

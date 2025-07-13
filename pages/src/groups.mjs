@@ -451,8 +451,11 @@ function renderGroups(groups) {
             }
         } else if (minorField === 'speed') {
             if (group.speed != null) {
+                //rightLines.push(fmtLine(
+                //    H.pace(group.speed, {precision: 0, suffix: true, html: true}),
+                //    'minor'));
                 rightLines.push(fmtLine(
-                    H.pace(group.speed, {precision: 0, suffix: true, html: true}),
+                    group.id || '-',
                     'minor'));
             }
         } else if (group.athletes.length > 1 || settings.groupsPrimaryField !== 'power') {

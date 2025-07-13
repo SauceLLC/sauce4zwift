@@ -1,6 +1,7 @@
 import path from 'node:path';
 import fs from './fs-safe.js';
 import * as rpc from './rpc.mjs';
+import * as curves from '../shared/curves.mjs';
 import {fileURLToPath} from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -51,6 +52,15 @@ rpc.register(getCourseId);
 
 export function getRoadSig(courseId, roadId, reverse) {
     return courseId << 18 | roadId << 1 | reverse;
+}
+
+
+export function fromRoadSig(roadSig) {
+    return {
+        courseId: roadSig >>> 18,
+        roadId: (roadSig >>> 1) & 0x3fff,
+        reverse: !!(roadSig & 0x1),
+    };
 }
 
 
@@ -170,6 +180,25 @@ export function getRoad(courseId, roadId) {
     return _roads.get(sig);
 }
 rpc.register(getRoad);
+
+
+const _roadCurvePaths = new Map();
+export function getRoadCurvePath(courseId, roadId, reverse) {
+    const sig = `${courseId}-${roadId}-${!!reverse}`;
+    if (!_roadCurvePaths.has(sig)) {
+        const road = getRoad(courseId, roadId);
+        if (!road) {
+            return;
+        }
+        const curveFunc = {
+            CatmullRom: curves.catmullRomPath,
+            Bezier: curves.cubicBezierPath,
+        }[road.splineType];
+        const rcp = curveFunc(road.path, {loop: road.looped, road: true});
+        _roadCurvePaths.set(sig, reverse ? rcp.toReversed() : rcp);
+    }
+    return _roadCurvePaths.get(sig);
+}
 
 
 let _routes;

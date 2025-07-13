@@ -889,13 +889,13 @@ async function updateData() {
         lapOfft = laps.at(-1).end;
     }
     if (changed.athleteData) {
-        console.debug("Athlete-data updated:", new Date(athleteData?.created).toISOString());
+        console.debug("Athlete-data creation:", H.datetime(athleteData.created));
     }
     if (athleteData) {
         changed.athlete = JSON.stringify(athlete) !== JSON.stringify(athleteData.athlete);
         if (changed.athlete) {
-            console.debug("Athlete updated");
             athlete = athleteData.athlete;
+            console.debug("Athlete updated:", athlete.fullname);
         }
         if (athleteData.courseId !== courseId) {
             changed.course = true;
