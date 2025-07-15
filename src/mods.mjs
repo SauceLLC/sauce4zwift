@@ -8,7 +8,6 @@ import StreamZip from 'node-stream-zip';
 import * as rpc from './rpc.mjs';
 import * as storage from './storage.mjs';
 import * as core from './mods-core.mjs';
-import fetch from 'node-fetch';
 import {createRequire} from 'node:module';
 import {EventEmitter} from 'node:events';
 

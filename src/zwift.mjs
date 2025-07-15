@@ -4,7 +4,6 @@ import net from 'node:net';
 import dgram from 'node:dgram';
 import events from 'node:events';
 import crypto from 'node:crypto';
-import fetch from 'node-fetch';
 import protobuf from 'protobufjs';
 import * as env from './env.mjs';
 import {fileURLToPath} from 'node:url';

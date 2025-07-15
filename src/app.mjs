@@ -13,7 +13,6 @@ import {StatsProcessor} from './stats.mjs';
 import {createRequire} from 'node:module';
 import * as zwift from './zwift.mjs';
 import protobuf from 'protobufjs';
-import fetch from 'node-fetch';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
