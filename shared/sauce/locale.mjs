@@ -253,10 +253,12 @@ function humanTimer(elapsed, options={}) {
             parts.push({type: 'value', name: 'hours', value: hours.toString()},
                        {type: 'seperator', name: 'hours', value: ':'});
             // falls through
-        case !!(mins || options.long || options.full):
-            parts.push({type: 'value', name: 'minutes', value: mins.toString().padStart(2, '0')},
+        case !!(mins || options.long || options.full): {
+            const value = (options.short && !hours) ? mins.toString() : mins.toString().padStart(2, '0');
+            parts.push({type: 'value', name: 'minutes', value},
                        {type: 'seperator', name: 'minutes', value: ':'});
             // falls through
+        }
         default: {
             const s = (elapsed % 60 | 0).toString();
             parts.push({type: 'value', name: 'seconds', value: parts.length > 1 ? s.padStart(2, '0') : s});
@@ -358,6 +360,7 @@ function humanWkg(wkg, options={}) {
 function humanPace(kph, options={}) {
     const sport = options.sport || 'cycling';
     let fixed;
+    let short;
     let value;
     let humanFunc = humanNumber;
     if (_realNumber(kph)) {
@@ -366,6 +369,7 @@ function humanPace(kph, options={}) {
                 options.suffix = imperial ? '/mi' : '/km';
             }
             value = 3600 / (imperial ? kph * milesPerKm : kph);
+            short = true;
             humanFunc = humanTimer;
         } else {
             if (options.suffix === true || options.suffixOnly) {
@@ -375,7 +379,7 @@ function humanPace(kph, options={}) {
             value = imperial ? kph * milesPerKm : kph;
         }
     }
-    return humanFunc(value, {fixed, ...options});
+    return humanFunc(value, {fixed, short, ...options});
 }
 
 
