@@ -128,6 +128,27 @@ function fmtEvent(sgid) {
 }
 
 
+function fmtStackedSparkline(data) {
+    // Reduce redraw by normalizing data a bit..
+    const tooltips = new Array(data.length);
+    let total = 0;
+    for (let i = 0; i < data.length; i++) {
+        const value = data[i].value;
+        total += value;
+        tooltips[i] = `${data[i].label}: ${data[i].fmt(value)}`;
+    }
+    return [
+        `<div style="display: flex; height: 0.8em; border-radius: 0.22em; overflow: hidden; min-width: 4em;"
+              title="${tooltips.join('\n')}">`,
+        data.map(x => {
+            const size = Math.round((x.value / total) * 100);
+            return `<div style="flex: ${size} 0 0em; background-color: ${x.color};"></div>`;
+        }).join(''),
+        `</div>`
+    ].join('');
+}
+
+
 function getRoute({state, routeId}) {
     let route;
     let laps;
@@ -264,7 +285,6 @@ const fieldGroups = [{
         {id: 'road', defaultEn: false, label: 'Road ID', headerLabel: 'Rd ID', get: x => x.state.roadId},
         {id: 'roadcom', defaultEn: false, label: 'Road Completion', headerLabel: 'Rd %',
          get: x => x.state.roadCompletion / 1e6, fmt: pct},
-
     ],
 }, {
     group: 'power',
@@ -374,7 +394,6 @@ const fieldGroups = [{
         {id: 'draft-energy', defaultEn: false, label: 'Energy Saved', headerLabel: '<ms>air</ms> (kJ)',
          get: x => x.stats.draft.kj, fmt: kj, tooltip: 'Energy saved by drafting'},
     ],
-
 }, {
     group: 'peaks',
     label: 'Peak Performances',
@@ -415,10 +434,59 @@ const fieldGroups = [{
          headerLabel: '<ms>ecg_heart</ms> (<ms>trophy</ms> 1m)', get: x => x.stats.hr.peaks[60].avg, fmt: hr},
     ],
 }, {
+    group: 'misc',
+    label: 'Misc',
+    fields: [
+        {id: 'time-coffee', defaultEn: false, label: 'Coffee Time', headerLabel: '<ms>coffee</ms>',
+         get: x => x.stats.coffeeTime, fmt: fmtDur, tooltip: 'Time observed taking coffee breaks'},
+        {id: 'time-work', defaultEn: false, label: 'Work Time', headerLabel: 'Work',
+         get: x => x.stats.workTime, fmt: fmtDur, tooltip: 'Time observed working/pulling in a group'},
+        {id: 'time-sit', defaultEn: false, label: 'Sit Time', headerLabel: 'Sitting',
+         get: x => x.stats.sitTime, fmt: fmtDur, tooltip: 'Time observed sitting/following in a group'},
+        {id: 'time-solo', defaultEn: false, label: 'Solo Time', headerLabel: 'Solo',
+         get: x => x.stats.soloTime, fmt: fmtDur, tooltip: 'Time observed riding alone'},
+        {id: 'time-distribution-graph', defaultEn: false, label: 'Time Distribution Graph',
+         headerLabel: 'TDG', fmt: fmtStackedSparkline,
+         tooltip: 'Graph of how time has been spent, i.e. working vs sitting-in vs solo',
+         get: x => [
+             {color: '#d1c209', label: 'Solo', value: x.stats.soloTime, fmt: H.timer},
+             {color: '#65a354', label: 'Sitting', value: x.stats.sitTime, fmt: H.timer},
+             {color: '#ca3805', label: 'Working', value: x.stats.workTime, fmt: H.timer}
+         ]},
+
+        {id: 'lap-time-coffee', defaultEn: false, label: 'Coffee Time (lap)', headerLabel: '<ms>coffee</ms> <ms>timer</ms>',
+         get: x => x.lap.coffeeTime, fmt: fmtDur, tooltip: 'Time observed taking coffee breaks'},
+        {id: 'lap-time-work', defaultEn: false, label: 'Work Time (lap)', headerLabel: 'Working <ms>timer</ms>',
+         get: x => x.lap.workTime, fmt: fmtDur, tooltip: 'Time observed working/pulling in a group'},
+        {id: 'lap-time-sit', defaultEn: false, label: 'Sit Time (lap)', headerLabel: 'Sitting <ms>timer</ms>',
+         get: x => x.lap.sitTime, fmt: fmtDur, tooltip: 'Time observed sitting/following in a group'},
+        {id: 'lap-time-solo', defaultEn: false, label: 'Solo Time (lap)', headerLabel: 'Solo <ms>timer</ms>',
+         get: x => x.lap.soloTime, fmt: fmtDur, tooltip: 'Time observed riding alone'},
+        {id: 'lap-time-distribution-graph', defaultEn: false, label: 'Time Distribution Graph (lap)',
+         headerLabel: 'TDG <ms>timer</ms>', fmt: fmtStackedSparkline,
+         tooltip: 'Graph of how time has been spent, i.e. Soloe vssitting-in vs working',
+         get: x => [
+             {color: '#d1c209', label: 'Solo', value: x.lap.soloTime, fmt: H.timer},
+             {color: '#65a354', label: 'Sitting', value: x.lap.sitTime, fmt: H.timer},
+             {color: '#ca3805', label: 'Working', value: x.lap.workTime, fmt: H.timer}
+         ]},
+
+        {id: 'time-session', defaultEn: false, label: 'Session Time', headerLabel: 'Time',
+         get: x => x.state.time, fmt: fmtDur, tooltip: 'Time reported by the game client'},
+        {id: 'time-active', defaultEn: false, label: 'Active Time', headerLabel: 'Active',
+         get: x => x.stats.activeTime, fmt: fmtDur,
+         tooltip: 'Locally observed active time\n\nNOTE: may differ from game value'},
+        {id: 'time-lap', defaultEn: false, label: 'Lap Time', headerLabel: 'Lap',
+         get: x => (x.lap || x.stats)?.activeTime || 0, fmt: fmtDur,
+         tooltip: 'Locally observed current lap time\n\nNOTE: may differ from game value'},
+        {id: 'time-elapsed', defaultEn: false, label: 'Elapsed Time', headerLabel: 'Elapsed',
+         get: x => x.stats.elapsedTime, fmt: fmtDur,
+         tooltip: 'Locally observed elapsed time\n\nNOTE: may differ from game value'},
+    ],
+}, {
     group: 'debug',
     label: 'Debug',
     fields: [
-        //{id: 'index', defaultEn: false, label: 'Data Index', headerLabel: 'Idx', get: x => x.index},
         {id: 'id', defaultEn: false, label: 'Athlete ID', headerLabel: 'ID', get: x => x.athleteId},
         {id: 'course', defaultEn: false, label: 'Course (aka world)', headerLabel: '<ms>map</ms>',
          get: x => x.state.courseId},
@@ -438,20 +506,6 @@ const fieldGroups = [{
          get: x => x.state.routeRoadIndex},
         {id: 'road-time', defaultEn: false, label: 'Road Time', headerLabel: 'Rd Time',
          get: x => (x.state.roadTime - 5000) / 1e6, fmt: x => x.toFixed(5)},
-
-        {id: 'time-session', defaultEn: false, label: 'Session Time', headerLabel: 'Time',
-         get: x => x.state.time, fmt: fmtDur, tooltip: 'Time reported by the game client'},
-        {id: 'time-active', defaultEn: false, label: 'Active Time', headerLabel: 'Active',
-         get: x => x.stats.activeTime, fmt: fmtDur,
-         tooltip: 'Locally observed active time\n\nNOTE: may differ from game value'},
-        {id: 'time-lap', defaultEn: false, label: 'Lap Time', headerLabel: 'Lap',
-         get: x => (x.lap || x.stats)?.activeTime || 0, fmt: fmtDur,
-         tooltip: 'Locally observed current lap time\n\nNOTE: may differ from game value'},
-        {id: 'time-elapsed', defaultEn: false, label: 'Elapsed Time', headerLabel: 'Elapsed',
-         get: x => x.stats.elapsedTime, fmt: fmtDur,
-         tooltip: 'Locally observed elapsed time\n\nNOTE: may differ from game value'},
-        {id: 'time-coffee', defaultEn: false, label: 'Coffee Time', headerLabel: '<ms>coffee</ms>',
-         get: x => x.stats.coffeeTime, fmt: fmtDur, tooltip: 'Time observed taking coffee breaks'},
     ],
 }];
 

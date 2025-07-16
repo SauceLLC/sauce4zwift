@@ -3184,8 +3184,8 @@ export class StatsProcessor extends events.EventEmitter {
                 const adjacent = ahead[i + 1] || watching;
                 const incRP = this.compareRoadPositions(x.roadHistory, adjacent.roadHistory);
                 if (!incRP || incRP.worldTime == null || incRP.reversed) {
-                    // `reversed` indicates that the adjacent athlete branched before the test subject making
-                    // it irrelevant as a time based checkpoint to the watching athlete.
+                    // `reversed` indicates that the adjacent athlete branched before the test subject,
+                    // making it irrelevant as a time based checkpoint to the watching athlete.
                     const incGapDist = adjacent.gapDistance - x.gapDistance;
                     const velocity = refSpeedForEstimates.get() / 3.6;
                     if (!velocity) debugger; // impossible i think
