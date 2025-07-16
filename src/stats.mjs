@@ -1171,7 +1171,7 @@ export class StatsProcessor extends events.EventEmitter {
         const startIndex = lapish.power.roll._offt;
         const endIndex = Math.max(startIndex, lapish.power.roll._length - 1);
         return {
-            stats: this._getCollectorStats(lapish, ad, athlete, {now}),
+            stats: this._getBucketStats(lapish, ad, athlete, {now}),
             active: lapish.end == null,
             startIndex,
             endIndex,
@@ -1190,7 +1190,7 @@ export class StatsProcessor extends events.EventEmitter {
         }
         let offt;
         if (startTime !== undefined) {
-            const timeStream = ad.collectors.power.roll.times();
+            const timeStream = ad.bucket.power.roll.times();
             offt = timeStream.findIndex(x => x >= startTime);
             if (offt === -1) {
                 offt = Infinity;
@@ -1200,15 +1200,14 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _getAthleteStreams(ad, offt) {
-        const cs = ad.collectors;
-        const power = cs.power.roll.values(offt);
+        const power = ad.bucket.power.roll.values(offt);
         const streams = {
-            time: cs.power.roll.times(offt),
+            time: ad.bucket.power.roll.times(offt),
             power,
-            speed: cs.speed.roll.values(offt),
-            hr: cs.hr.roll.values(offt),
-            cadence: cs.cadence.roll.values(offt),
-            draft: cs.draft.roll.values(offt),
+            speed: ad.bucket.speed.roll.values(offt),
+            hr: ad.bucket.hr.roll.values(offt),
+            cadence: ad.bucket.cadence.roll.values(offt),
+            draft: ad.bucket.draft.roll.values(offt),
             active: power.map(x => !!+x || !(x instanceof sauce.data.Pad)),
         };
         for (const [k, arr] of Object.entries(ad.streams)) {
@@ -1857,45 +1856,45 @@ export class StatsProcessor extends events.EventEmitter {
         return env.getRoadSig(state.courseId, state.roadId, state.reverse);
     }
 
-    _getCollectorStats(cs, ad, athlete, {now, includeDeprecated}={}) {
-        const end = cs.end ?? now ?? monotonic();
-        const elapsedTime = (end - cs.start) / 1000;
-        const np = cs.power.roll.np({force: true});
+    _getBucketStats(bucket, ad, athlete, {now, includeDeprecated}={}) {
+        const end = bucket.end ?? now ?? monotonic();
+        const elapsedTime = (end - bucket.start) / 1000;
+        const np = bucket.power.roll.np({force: true});
         let wBal, timeInPowerZones; // DEPRECATED
         if (includeDeprecated) {
             wBal = ad.privacy.hideWBal ? undefined : ad.wBal.get();
             timeInPowerZones = ad.privacy.hideFTP ? undefined : ad.timeInPowerZones.get();
         }
-        const activeTime = cs.power.roll.active();
+        const activeTime = bucket.power.roll.active();
         const tss = (!ad.privacy.hideFTP && np && athlete && athlete.ftp) ?
             sauce.power.calcTSS(np, activeTime, athlete.ftp) :
             undefined;
         return {
             elapsedTime,
             activeTime,
-            coffeeTime: Math.round(cs.coffeeTime / 1000),
-            workTime: Math.round(cs.workTime / 1000),
-            sitTime: Math.round(cs.sitTime / 1000),
-            soloTime: Math.round(cs.soloTime / 1000),
+            coffeeTime: Math.round(bucket.coffeeTime / 1000),
+            workTime: Math.round(bucket.workTime / 1000),
+            sitTime: Math.round(bucket.sitTime / 1000),
+            soloTime: Math.round(bucket.soloTime / 1000),
             wBal, // DEPRECATED
             timeInPowerZones, // DEPRECATED
-            power: cs.power.getStats(ad.wtOffset, {
+            power: bucket.power.getStats(ad.wtOffset, {
                 np,
                 tss,
-                kj: cs.power.roll.joules() / 1000,
+                kj: bucket.power.roll.joules() / 1000,
                 wBal, // DEPRECATED
                 timeInZones: timeInPowerZones, // DEPRECATED
             }),
-            speed: cs.speed.getStats(ad.wtOffset),
-            hr: cs.hr.getStats(ad.wtOffset),
-            cadence: cs.cadence.getStats(ad.wtOffset),
-            draft: cs.draft.getStats(ad.wtOffset, {
-                kj: cs.draft.roll.joules() / 1000,
+            speed: bucket.speed.getStats(ad.wtOffset),
+            hr: bucket.hr.getStats(ad.wtOffset),
+            cadence: bucket.cadence.getStats(ad.wtOffset),
+            draft: bucket.draft.getStats(ad.wtOffset, {
+                kj: bucket.draft.roll.joules() / 1000,
             }),
         };
     }
 
-    _makeDataCollectors(start) {
+    _makeDataBucket(start) {
         const periods = [5, 15, 60, 300, 1200];
         const longPeriods = periods.filter(x => x >= 60);
         return {
@@ -1922,11 +1921,11 @@ export class StatsProcessor extends events.EventEmitter {
             soloTime: 0,
             courseId: ad.courseId,
             sport: ad.sport,
-            power: ad.collectors.power.clone(cloneOpts),
-            speed: ad.collectors.speed.clone(cloneOpts),
-            hr: ad.collectors.hr.clone(cloneOpts),
-            cadence: ad.collectors.cadence.clone(cloneOpts),
-            draft: ad.collectors.draft.clone(cloneOpts),
+            power: ad.bucket.power.clone(cloneOpts),
+            speed: ad.bucket.speed.clone(cloneOpts),
+            hr: ad.bucket.hr.clone(cloneOpts),
+            cadence: ad.bucket.cadence.clone(cloneOpts),
+            draft: ad.bucket.draft.clone(cloneOpts),
         };
     }
 
@@ -2007,7 +2006,7 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _createAthleteData(state, now) {
-        const collectors = this._makeDataCollectors(now);
+        const bucket = this._makeDataBucket(now);
         const ad = {
             created: worldTimer.toLocalTime(state.worldTime),
             wtOffset: state.worldTime,
@@ -2034,14 +2033,11 @@ export class StatsProcessor extends events.EventEmitter {
                 c: null,
             },
             events: new Map(),
-            collectors,
+            bucket,
             laps: [],
             segments: [],
             activeSegments: new Map(),
             smoothGrade: expWeightedAvg(8),
-            workTime: 0,
-            sitTime: 0,
-            soloTime: 0,
         };
         ad.laps.push(this._createNewLapish(ad, now));
         const athlete = this.loadAthlete(state.athleteId);
@@ -2055,10 +2051,7 @@ export class StatsProcessor extends events.EventEmitter {
         Object.assign(ad, {
             created: worldTimer.toLocalTime(wtOffset),
             wtOffset,
-            collectors: this._makeDataCollectors(now),
-            workTime: 0,
-            sitTime: 0,
-            soloTime: 0,
+            bucket: this._makeDataBucket(now),
         });
         ad.laps = [this._createNewLapish(ad, now)];
         // NOTE: Don't reset w'bal; it is a biometric
@@ -2279,33 +2272,55 @@ export class StatsProcessor extends events.EventEmitter {
         const wbal = ad.wBal.accumulate(state.worldTime / 1000, state.power);
         const curLap = ad.laps[ad.laps.length - 1];
         let addCount;
+        const elapsedTime = ad.mostRecentState ? state.worldTime - ad.mostRecentState.worldTime : null;
         if (!state.power && (!state.speed || state.coffeeStop)) {
             // Emulate auto pause...
-            if (state.coffeeStop && ad.mostRecentState) {
-                const stopTime = state.worldTime - ad.mostRecentState.worldTime;
-                if (stopTime && stopTime > 0) {
-                    ad.collectors.coffeeTime += stopTime;
-                    curLap.coffeeTime += stopTime;
-                    for (const s of ad.activeSegments.values()) {
-                        s.coffeeTime += stopTime;
-                    }
+            if (state.coffeeStop && elapsedTime) {
+                ad.bucket.coffeeTime += elapsedTime;
+                curLap.coffeeTime += elapsedTime;
+                for (const s of ad.activeSegments.values()) {
+                    s.coffeeTime += elapsedTime;
                 }
             }
-            addCount = ad.collectors.power.flushBuffered();
+            addCount = ad.bucket.power.flushBuffered();
             if (addCount) {
-                ad.collectors.speed.flushBuffered();
-                ad.collectors.hr.flushBuffered();
-                ad.collectors.draft.flushBuffered();
-                ad.collectors.cadence.flushBuffered();
+                ad.bucket.speed.flushBuffered();
+                ad.bucket.hr.flushBuffered();
+                ad.bucket.draft.flushBuffered();
+                ad.bucket.cadence.flushBuffered();
             }
         } else {
             const time = (state.worldTime - ad.wtOffset) / 1000;
             ad.timeInPowerZones.accumulate(time, state.power);
-            addCount = ad.collectors.power.add(time, state.power);
-            ad.collectors.speed.add(time, state.speed);
-            ad.collectors.hr.add(time, state.heartrate);
-            ad.collectors.draft.add(time, state.draft);
-            ad.collectors.cadence.add(time, state.cadence);
+            addCount = ad.bucket.power.add(time, state.power);
+            ad.bucket.speed.add(time, state.speed);
+            ad.bucket.hr.add(time, state.heartrate);
+            ad.bucket.draft.add(time, state.draft);
+            ad.bucket.cadence.add(time, state.cadence);
+        }
+        if (elapsedTime != null) {
+            if (isNaN(elapsedTime) || elapsedTime <= 0) debugger;
+            if (ad.group) {
+                if (ad.mostRecentState.draft) {
+                    ad.bucket.sitTime += elapsedTime;
+                    curLap.sitTime += elapsedTime;
+                    for (const s of ad.activeSegments.values()) {
+                        s.sitTime += elapsedTime;
+                    }
+                } else {
+                    ad.bucket.workTime += elapsedTime;
+                    curLap.workTime += elapsedTime;
+                    for (const s of ad.activeSegments.values()) {
+                        s.workTime += elapsedTime;
+                    }
+                }
+            } else {
+                ad.bucket.soloTime += elapsedTime;
+                curLap.soloTime += elapsedTime;
+                for (const s of ad.activeSegments.values()) {
+                    s.soloTime += elapsedTime;
+                }
+            }
         }
         if (addCount) {
             for (let i = 0; i < addCount; i++) {
@@ -3080,10 +3095,10 @@ export class StatsProcessor extends events.EventEmitter {
             courseId: ad.courseId,
             athleteId: ad.athleteId,
             athlete,
-            stats: this._getCollectorStats(ad.collectors, ad, athlete, {now, includeDeprecated: true}),
-            lap: this._getCollectorStats(ad.laps[ad.laps.length - 1], ad, athlete, {now}),
+            stats: this._getBucketStats(ad.bucket, ad, athlete, {now, includeDeprecated: true}),
+            lap: this._getBucketStats(ad.laps[ad.laps.length - 1], ad, athlete, {now}),
             lastLap: lapCount > 1 ?
-                this._getCollectorStats(ad.laps[ad.laps.length - 2], ad, athlete) :
+                this._getBucketStats(ad.laps[ad.laps.length - 2], ad, athlete) :
                 null,
             lapCount,
             state: state && this._formatState(state),
@@ -3368,11 +3383,11 @@ export class StatsProcessor extends events.EventEmitter {
             activeAthletesSize: this._athleteData.size,
             activeAthleteDataPoints: Array.from(this._athleteData.values())
                 .map(x =>
-                    x.collectors.power.roll.size() +
-                    x.collectors.speed.roll.size() +
-                    x.collectors.hr.roll.size() +
-                    x.collectors.draft.roll.size() +
-                    x.collectors.cadence.roll.size() +
+                    x.bucket.power.roll.size() +
+                    x.bucket.speed.roll.size() +
+                    x.bucket.hr.roll.size() +
+                    x.bucket.draft.roll.size() +
+                    x.bucket.cadence.roll.size() +
                     Object.values(x.streams).reduce((agg, xx) => agg + xx.length, 0))
                 .reduce((agg, c) => agg + c, 0),
             athletesCacheSize: this._athletesCache.size,
