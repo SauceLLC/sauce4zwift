@@ -3252,7 +3252,7 @@ export class StatsProcessor extends events.EventEmitter {
         for (let i = 0; i < nearby.length; i++) {
             const ad = nearby[i];
             const athlete = this._athletesCache.get(ad.athleteId);
-            if (!curGroup || (ad.gap - prevGap > 0.5 && !ad.mostRecentState.draft)) {
+            if (!curGroup || (!ad.mostRecentState.draft && ad.gap - prevGap > 1)) {
                 if (curGroup) {
                     curGroup.innerGap = ad.gap - prevGap;
                     const head = curGroup._athleteDatas[0];
