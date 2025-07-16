@@ -1636,10 +1636,10 @@ export class GameMonitor extends events.EventEmitter {
         try {
             await this._connect();
         } catch(e) {
-            if (e.name === 'FetchError') {
-                console.warn('Connection attempt network problem:', e.message);
+            if (e.message === 'fetch failed' || e.name === 'TimeoutError') {
+                console.warn('GameMonitor connect network problem:', e.cause?.message || e);
             } else {
-                console.error('Connection attempt failed:', e);
+                console.error('GameMonitor connect failed:', e);
             }
             this._schedConnectRetry();
         }
@@ -1918,10 +1918,8 @@ export class GameMonitor extends events.EventEmitter {
         } catch(e) {
             this._stateRefreshDelay = Math.min(this._stateRefreshDelay * 1.15, 300000);
             if (e.status !== 429) {
-                if (e.name === 'FetchError') {
-                    console.warn("Refresh states network problem:", e.message);
-                } else if (e.name === 'TimeoutError' || e.name === 'AbortError') { // API is influx
-                    console.warn("Refresh states network timeout");
+                if (e.message === 'fetch failed' || e.name === 'TimeoutError') {
+                    console.warn("Refresh states network problem:", e.cause?.message || e);
                 } else {
                     console.error("Refresh states error:", e);
                 }

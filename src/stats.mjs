@@ -1982,8 +1982,8 @@ export class StatsProcessor extends events.EventEmitter {
                 await this._updateAthleteProfilesFromServer(batch);
                 this._profileFetchBackoff = this._profileFetchReset;
             } catch(e) {
-                if (e.name === 'FetchError') {
-                    console.warn("Network problem while collecting profiles:", e.message);
+                if (e.message === 'fetch failed' || e.name === 'TimeoutError') {
+                    console.warn("Network problem while collecting profiles:", e.cause?.message || e);
                 } else {
                     console.error("Error while collecting profiles:", e);
                 }
@@ -2571,10 +2571,10 @@ export class StatsProcessor extends events.EventEmitter {
             return;
         }
         this.__zwiftMetaSync().catch(e => {
-            if (e.name !== 'FetchError') {
-                report.errorThrottled(e);
+            if (e.message === 'fetch failed' || e.name === 'TimeoutError') {
+                console.warn('Zwift Meta Sync network problem:', e.cause?.message || e);
             } else {
-                console.warn('Zwift Meta Sync network problem:', e.message);
+                report.errorThrottled(e);
             }
         }).finally(() => {
             // The event feed APIs are horribly broken so we need to refresh more often
