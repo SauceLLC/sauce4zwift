@@ -280,7 +280,7 @@ export function processPlayerStateMessage(msg) {
             Math.round(msg._cadenceUHz / 1e6 * 60) : 0,  // rpm
         eventDistance: msg._eventDistance / 100,  // meters
         roadCompletion: flags1.reverse ? 1e6 - adjRoadLoc : adjRoadLoc,
-        coffeeStop: msg.activePowerUp === 'COFFEE_STOP',
+        coffeeStop: flags2.activePowerUp === 'COFFEE_STOP',
     };
 }
 
