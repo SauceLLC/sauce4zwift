@@ -2272,16 +2272,8 @@ export class StatsProcessor extends events.EventEmitter {
         const wbal = ad.wBal.accumulate(state.worldTime / 1000, state.power);
         const curLap = ad.laps[ad.laps.length - 1];
         let addCount;
-        const elapsedTime = ad.mostRecentState ? state.worldTime - ad.mostRecentState.worldTime : null;
-        if (!state.power && (!state.speed || state.coffeeStop)) {
+        if (!state.power && !state.speed) {
             // Emulate auto pause...
-            if (state.coffeeStop && elapsedTime) {
-                ad.bucket.coffeeTime += elapsedTime;
-                curLap.coffeeTime += elapsedTime;
-                for (const s of ad.activeSegments.values()) {
-                    s.coffeeTime += elapsedTime;
-                }
-            }
             addCount = ad.bucket.power.flushBuffered();
             if (addCount) {
                 ad.bucket.speed.flushBuffered();
@@ -2298,27 +2290,37 @@ export class StatsProcessor extends events.EventEmitter {
             ad.bucket.draft.add(time, state.draft);
             ad.bucket.cadence.add(time, state.cadence);
         }
-        if (elapsedTime != null) {
-            if (isNaN(elapsedTime) || elapsedTime <= 0) debugger;
-            if (ad.group) {
-                if (ad.mostRecentState.draft) {
-                    ad.bucket.sitTime += elapsedTime;
-                    curLap.sitTime += elapsedTime;
+        if (ad.mostRecentState) {
+            const elapsedTime = state.worldTime - ad.mostRecentState.worldTime;
+            if (elapsedTime < 10000) { // Ignore erroneously large gaps
+                if (state.coffeeStop) {
+                    ad.bucket.coffeeTime += elapsedTime;
+                    curLap.coffeeTime += elapsedTime;
                     for (const s of ad.activeSegments.values()) {
-                        s.sitTime += elapsedTime;
+                        s.coffeeTime += elapsedTime;
                     }
-                } else {
-                    ad.bucket.workTime += elapsedTime;
-                    curLap.workTime += elapsedTime;
-                    for (const s of ad.activeSegments.values()) {
-                        s.workTime += elapsedTime;
+                } else if (state.speed) {
+                    if (ad.group) {
+                        if (state.draft) {
+                            ad.bucket.sitTime += elapsedTime;
+                            curLap.sitTime += elapsedTime;
+                            for (const s of ad.activeSegments.values()) {
+                                s.sitTime += elapsedTime;
+                            }
+                        } else {
+                            ad.bucket.workTime += elapsedTime;
+                            curLap.workTime += elapsedTime;
+                            for (const s of ad.activeSegments.values()) {
+                                s.workTime += elapsedTime;
+                            }
+                        }
+                    } else {
+                        ad.bucket.soloTime += elapsedTime;
+                        curLap.soloTime += elapsedTime;
+                        for (const s of ad.activeSegments.values()) {
+                            s.soloTime += elapsedTime;
+                        }
                     }
-                }
-            } else {
-                ad.bucket.soloTime += elapsedTime;
-                curLap.soloTime += elapsedTime;
-                for (const s of ad.activeSegments.values()) {
-                    s.soloTime += elapsedTime;
                 }
             }
         }
