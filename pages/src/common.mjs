@@ -887,6 +887,20 @@ export class Renderer {
     }
 
     addRotatingFields(spec) {
+        for (const x of spec.fields) {
+            if (!x.shortName && x.key) {
+                console.warn("Migrating deprecated field property key -> shortName", x.id);
+                x.shortName = x.key;
+            }
+            if (!x.suffix && x.unit) {
+                console.warn("Migrating deprecated field property unit -> suffix", x.id);
+                x.suffix = x.unit;
+            }
+            if (!x.format && x.value) {
+                console.warn("Migrating deprecated field property value -> format", x.id);
+                x.format = x.value;
+            }
+        }
         for (const mapping of spec.mapping) {
             const el = (spec.el || this._contentEl).querySelector(`[data-field="${mapping.id}"]`);
             const storageKey = `${this.id}-${mapping.id}`;
@@ -946,7 +960,7 @@ export class Renderer {
                                 option.selected = true;
                             }
                             option.value = x.id;
-                            option.textContent = stripHTML(x.longName ? fGet(x.longName) : fGet(x.key));
+                            option.textContent = stripHTML(x.longName ? fGet(x.longName) : fGet(x.shortName));
                             container.append(option);
                         }
                     }
@@ -1022,8 +1036,13 @@ export class Renderer {
                     }
                     for (const field of this.fields.values()) {
                         let value = '';
+                        const options = {};
+                        if (field.unitEl) {
+                            options.suffix = false;
+                        }
                         try {
-                            value = fGet(field.active.value, this._data);
+                            const arg = field.active.get ? field.active.get(this._data) : this._data;
+                            value = fGet(field.active.format, arg, options);
                         } catch(e) {
                             report.errorThrottled(e);
                         }
@@ -1059,7 +1078,7 @@ export class Renderer {
                         if (field.keyEl) {
                             let key = '';
                             try {
-                                key = field.active.key ? fGet(field.active.key, this._data) : '';
+                                key = field.active.shortName ? fGet(field.active.shortName, this._data) : '';
                             } catch(e) {
                                 report.errorThrottled(e);
                             }
@@ -1067,11 +1086,11 @@ export class Renderer {
                         }
                         if (field.unitEl) {
                             let unit = '';
-                            // Hide unit if there is no value but only if there is no key field too.
-                            const showUnit = field.active.unit &&
+                            // Hide unit if there is no value but only if there is no key element too.
+                            const showUnit = field.active.suffix &&
                                 ((value != null && value !== '-') || !field.keyEl);
                             try {
-                                unit = showUnit ? fGet(field.active.unit, this._data) : '';
+                                unit = showUnit ? fGet(field.active.suffix, this._data) : '';
                             } catch(e) {
                                 report.errorThrottled(e);
                             }

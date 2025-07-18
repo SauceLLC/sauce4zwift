@@ -1,5 +1,6 @@
 import * as sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
+import * as fieldsMod from './fields.mjs';
 
 common.enableSentry();
 
@@ -47,6 +48,32 @@ const hr = v => H.number(v || null, {suffix: 'bpm', html: true});
 const kj = (v, options) => H.number(v, {suffix: 'kJ', html: true, ...options});
 const pct = (v, options) => H.number(v * 100, {suffix: '%', html: true, ...options});
 const gapTime = (v, entry) => H.timer(v) + (entry.isGapEst ? '<small> (est)</small>' : '');
+
+
+function fGet(fnOrValue, ...args) {
+    return (typeof fnOrValue === 'function') ? fnOrValue(...args) : fnOrValue;
+}
+
+
+// Convert a field spec from the fields.mjs module to one compatible with the table..
+function convertGenericField(id, {defaultEn=false}={}) {
+    const field = fieldsMod.fields.find(x => x.id === id);
+    if (!field) {
+        console.error('Field id not found:', id);
+        return;
+    }
+    return {
+        id: field.id,
+        defaultEn,
+        label: field.longName ?? field.shortName,
+        headerLabel: field.label ?? field.shortName ?? field.longName,
+        get: field.get,
+        fmt: field.suffix != null ?
+            x => fGet(field.format, x) + `<abbr class="unit">${fGet(field.suffix, x)}</abbr>` :
+            x => fGet(field.format, x), // clip args for compat with generic field's suffix 2nd arg
+        tooltip: field.tooltip,
+    };
+}
 
 
 function makeLazyGetter(cb) {
@@ -125,27 +152,6 @@ function fmtEvent(sgid) {
         return `<a href="${eventUrl(sg.eventId)}" target="_blank" external>${sg.name}</a>`;
     }
     return '...';
-}
-
-
-function fmtStackedSparkline(data) {
-    // Reduce redraw by normalizing data a bit..
-    const tooltips = new Array(data.length);
-    let total = 0;
-    for (let i = 0; i < data.length; i++) {
-        const value = data[i].value;
-        total += value;
-        tooltips[i] = `${data[i].label}: ${data[i].fmt(value)}`;
-    }
-    return [
-        `<div style="display: flex; height: 0.8em; border-radius: 0.22em; overflow: hidden; min-width: 4em;"
-              title="${tooltips.join('\n')}">`,
-        data.map(x => {
-            const size = Math.round((x.value / total) * 100);
-            return `<div style="flex: ${size} 0 0em; background-color: ${x.color};"></div>`;
-        }).join(''),
-        `</div>`
-    ].join('');
 }
 
 
@@ -437,39 +443,15 @@ const fieldGroups = [{
     group: 'misc',
     label: 'Misc',
     fields: [
-        {id: 'time-coffee', defaultEn: false, label: 'Coffee Time', headerLabel: '<ms>coffee</ms>',
-         get: x => x.stats.coffeeTime, fmt: fmtDur, tooltip: 'Time observed taking coffee breaks'},
-        {id: 'time-work', defaultEn: false, label: 'Work Time', headerLabel: 'Work',
-         get: x => x.stats.workTime, fmt: fmtDur, tooltip: 'Time observed working/pulling in a group'},
-        {id: 'time-sit', defaultEn: false, label: 'Sit Time', headerLabel: 'Sitting',
-         get: x => x.stats.sitTime, fmt: fmtDur, tooltip: 'Time observed sitting/following in a group'},
-        {id: 'time-solo', defaultEn: false, label: 'Solo Time', headerLabel: 'Solo',
-         get: x => x.stats.soloTime, fmt: fmtDur, tooltip: 'Time observed riding alone'},
-        {id: 'time-distribution-graph', defaultEn: false, label: 'Time Distribution Graph',
-         headerLabel: 'TDG', fmt: fmtStackedSparkline,
-         tooltip: 'Graph of how time has been spent, i.e. working vs sitting-in vs solo',
-         get: x => [
-             {color: '#d1c209', label: 'Solo', value: x.stats.soloTime, fmt: H.timer},
-             {color: '#65a354', label: 'Sitting', value: x.stats.sitTime, fmt: H.timer},
-             {color: '#ca3805', label: 'Working', value: x.stats.workTime, fmt: H.timer}
-         ]},
-
-        {id: 'lap-time-coffee', defaultEn: false, label: 'Coffee Time (lap)', headerLabel: '<ms>coffee</ms> <ms>timer</ms>',
-         get: x => x.lap.coffeeTime, fmt: fmtDur, tooltip: 'Time observed taking coffee breaks'},
-        {id: 'lap-time-work', defaultEn: false, label: 'Work Time (lap)', headerLabel: 'Working <ms>timer</ms>',
-         get: x => x.lap.workTime, fmt: fmtDur, tooltip: 'Time observed working/pulling in a group'},
-        {id: 'lap-time-sit', defaultEn: false, label: 'Sit Time (lap)', headerLabel: 'Sitting <ms>timer</ms>',
-         get: x => x.lap.sitTime, fmt: fmtDur, tooltip: 'Time observed sitting/following in a group'},
-        {id: 'lap-time-solo', defaultEn: false, label: 'Solo Time (lap)', headerLabel: 'Solo <ms>timer</ms>',
-         get: x => x.lap.soloTime, fmt: fmtDur, tooltip: 'Time observed riding alone'},
-        {id: 'lap-time-distribution-graph', defaultEn: false, label: 'Time Distribution Graph (lap)',
-         headerLabel: 'TDG <ms>timer</ms>', fmt: fmtStackedSparkline,
-         tooltip: 'Graph of how time has been spent, i.e. Soloe vssitting-in vs working',
-         get: x => [
-             {color: '#d1c209', label: 'Solo', value: x.lap.soloTime, fmt: H.timer},
-             {color: '#65a354', label: 'Sitting', value: x.lap.sitTime, fmt: H.timer},
-             {color: '#ca3805', label: 'Working', value: x.lap.workTime, fmt: H.timer}
-         ]},
+        convertGenericField('time-coffee'),
+        convertGenericField('time-solo'),
+        convertGenericField('time-work'),
+        convertGenericField('time-sit'),
+        convertGenericField('time-coffee-lap'),
+        convertGenericField('time-solo-lap'),
+        convertGenericField('time-work-lap'),
+        convertGenericField('time-dist-sparkline'),
+        convertGenericField('time-dist-sparkline-lap'),
 
         {id: 'time-session', defaultEn: false, label: 'Session Time', headerLabel: 'Time',
          get: x => x.state.time, fmt: fmtDur, tooltip: 'Time reported by the game client'},
@@ -482,7 +464,7 @@ const fieldGroups = [{
         {id: 'time-elapsed', defaultEn: false, label: 'Elapsed Time', headerLabel: 'Elapsed',
          get: x => x.stats.elapsedTime, fmt: fmtDur,
          tooltip: 'Locally observed elapsed time\n\nNOTE: may differ from game value'},
-    ],
+    ].filter(x => x),
 }, {
     group: 'debug',
     label: 'Debug',
@@ -675,9 +657,9 @@ function render() {
     theadRow = table.querySelector('thead tr');
     theadRow.innerHTML = enFields.map(x =>
         `<td data-id="${x.id}"
-             title="${common.sanitizeAttr(x.tooltip || x.label || '')}"
+             title="${common.sanitizeAttr(fGet(x.tooltip) ?? fGet(x.label) ?? '')}"
              class="${sortBy === x.id ? 'sorted ' + sortDirClass : ''}"
-             >${x.headerLabel || x.label}` +
+             >${fGet(x.headerLabel) ?? fGet(x.label)}` +
                 `<ms class="sort-asc">arrow_drop_up</ms>` +
                 `<ms class="sort-desc">arrow_drop_down</ms></td>`).join('');
 }
@@ -700,28 +682,29 @@ function gentleClassToggle(el, cls, force) {
 }
 
 
-function updateTableRow(row, info) {
+function updateTableRow(row, ad) {
     if (row.title && !gameConnection) {
         row.title = '';
     } else if (!row.title && gameConnection) {
         row.title = 'Double click row to watch this athlete';
     }
-    gentleClassToggle(row, 'watching', info.watching);
-    gentleClassToggle(row, 'marked', info.athlete && info.athlete.marked);
-    gentleClassToggle(row, 'following', info.athlete && info.athlete.following);
-    if (row.dataset.id !== '' + info.athleteId) {
-        row.dataset.id = info.athleteId;
+    gentleClassToggle(row, 'watching', ad.watching);
+    gentleClassToggle(row, 'marked', ad.athlete && ad.athlete.marked);
+    gentleClassToggle(row, 'following', ad.athlete && ad.athlete.following);
+    if (row.dataset.id !== '' + ad.athleteId) {
+        row.dataset.id = ad.athleteId;
     }
     const tds = row.querySelectorAll('td');
     let unfiltered = !filters.length;
     for (const [i, {id, get, fmt}] of enFields.entries()) {
         let value;
         try {
-            value = get ? get(info) : info;
+            value = get ? get(ad) : ad;
         } catch(e) {
+            console.warn("Field get error:", e);
             value = null;
         }
-        const html = '' + (fmt ? fmt(value, info) : value != null ? value : '-');
+        const html = '' + (fmt ? fGet(fmt, value, ad) : value != null ? value : '-');
         const td = tds[i];
         if (td._html !== html) {
             td.innerHTML = (td._html = html);
@@ -861,8 +844,8 @@ export async function settingsMain() {
             `<div class="title">${label}:</div>`,
             ...fields.map(x => `
                 <div class="field ${fieldStates[x.id] ? '' : 'disabled'}" data-id="${x.id}">
-                    <label title="${common.sanitizeAttr(x.tooltip || '')}">
-                        <key>${x.label}</key>
+                    <label title="${common.sanitizeAttr(fGet(x.tooltip) ?? '')}">
+                        <key>${fGet(x.label)}</key>
                         <input type="checkbox" name="${x.id}" ${fieldStates[x.id] ? 'checked' : ''}/>
                     </label>
                     <div class="col-adj" title="Move field left or right">
