@@ -19,6 +19,7 @@ export class SauceElevationProfile {
         this.refresh = refresh;
         this._lastRender = 0;
         this._refreshTimeout = null;
+        this._noSubgroupCount = 0;
         el.classList.add('sauce-elevation-profile-container');
         this.chart = ec.init(el, 'sauce', {renderer: 'svg'});
         this.chart.setOption({
@@ -545,8 +546,12 @@ export class SauceElevationProfile {
                     if (this.routeId !== watching.routeId ||
                         (this._eventSubgroupId || null) !== (watching.eventSubgroupId || null)) {
                         let sg;
-                        if (watching.eventSubgroupId) {
+                        if (watching.eventSubgroupId && Date.now() > (this._delaySubgroup || 0)) {
                             sg = await common.rpc.getEventSubgroup(watching.eventSubgroupId);
+                            if (!sg) {
+                                this._noSubgroupCount++;
+                                this._delaySubgroup = Date.now() + 100 * 1.1 ** this._noSubgroupCount;
+                            }
                         }
                         // Note sg.routeId is sometimes out of sync with state.routeId; avoid thrash
                         if (sg && sg.routeId === watching.routeId) {
