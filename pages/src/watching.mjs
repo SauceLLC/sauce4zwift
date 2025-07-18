@@ -3,6 +3,7 @@ import * as common from './common.mjs';
 import * as color from './color.mjs';
 import * as elevationMod from './elevation.mjs';
 import * as charts from './charts.mjs';
+import * as fieldsMods from './fields.mjs';
 
 common.enableSentry();
 
@@ -230,7 +231,8 @@ export const groupSpecs = {
             shortName: 'Gap',
             label: 'gap',
             suffix: x => fmtDistUnit(x.gapDistance),
-        }]
+        },
+        ...fieldsMods.fields.filter(x => x.group === 'time')],
     },
     power: {
         title: 'Power',

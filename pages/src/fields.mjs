@@ -236,6 +236,16 @@ export function makeSmoothPowerFields(period, extra) {
 }
 
 
+function courseDurationFormat(t, options) {
+    let roundTo;
+    if (t < 60) {
+        roundTo = 5;
+    } else {
+        roundTo = 60;
+    }
+    return H.duration(Math.round(t / roundTo) * roundTo, options);
+}
+
 
 export const fields = [{
     group: 'time',
@@ -275,7 +285,7 @@ export const fields = [{
 }, {
     group: 'time',
     id: 'time-solo-lap',
-    longName: 'Solo Time',
+    longName: 'Solo Time (lap)',
     get: x => x.lap?.soloTime || 0,
     format: fmtDur,
     shortName: 'Solo <ms>timer</ms>',
@@ -334,9 +344,9 @@ export const fields = [{
     longName: 'Time Distribution Graph',
     shortName: 'TDG',
     format: x => x.stats ? fmtStackedSparkline([
-        {color: '#d1c209', label: 'Solo', value: x.stats.soloTime, fmt: H.timer},
-        {color: '#65a354', label: 'Sitting', value: x.stats.sitTime, fmt: H.timer},
-        {color: '#ca3805', label: 'Working', value: x.stats.workTime, fmt: H.timer}
+        {color: '#65a354', label: 'Sitting', value: x.stats.sitTime, fmt: courseDurationFormat},
+        {color: '#d1c209', label: 'Solo', value: x.stats.soloTime, fmt: courseDurationFormat},
+        {color: '#ca3805', label: 'Working', value: x.stats.workTime, fmt: courseDurationFormat},
     ]) : '-',
     tooltip: 'Graph of how time has been spent, i.e. working vs sitting-in vs solo',
 }, {
@@ -345,9 +355,9 @@ export const fields = [{
     longName: 'Time Distribution Graph (lap)',
     shortName: 'TDG <ms>timer</ms>',
     format: x => x.stats ? fmtStackedSparkline([
-        {color: '#d1c209', label: 'Solo', value: x.stats.soloTime, fmt: H.timer},
-        {color: '#65a354', label: 'Sitting', value: x.stats.sitTime, fmt: H.timer},
-        {color: '#ca3805', label: 'Working', value: x.stats.workTime, fmt: H.timer}
+        {color: '#65a354', label: 'Sitting', value: x.lap.sitTime, fmt: courseDurationFormat},
+        {color: '#d1c209', label: 'Solo', value: x.lap.soloTime, fmt: courseDurationFormat},
+        {color: '#ca3805', label: 'Working', value: x.lap.workTime, fmt: courseDurationFormat}
     ]) : '-',
     tooltip: 'Graph of how time has been spent, i.e. working vs sitting-in vs solo (lap)',
 }, {
