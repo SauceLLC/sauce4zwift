@@ -2720,59 +2720,47 @@ export class StatsProcessor extends events.EventEmitter {
             const d = p1CurPct - p2CurPct;
             // Check for lapping...
             if (d > 0.5) {
-                if (p1.aRoad.sig === p2.bRoad?.sig) {
-                    if (p2.b[p2.b.length - 1].rpct - p1CurPct >= -boundaryErrorTerm) {
-                        tiers = 2;
-                        reversed = true;
-                    }
-                } else if (p1.aRoad.sig === p2.cRoad?.sig) {
-                    if (d - (p2.b[p2.b.length - 1].rpct - p2.b[0].rpct) > 0.5 &&
-                        p2.c[p2.c.length - 1].rpct - p1CurPct >= -boundaryErrorTerm) {
-                        debugger; // validate logic for minus b section and validate final results..
-                        console.warn("COND B lapping possible - TBD");
-                        tiers = 3;
-                        reversed = true;
-                    }
+                if (p1.aRoad.sig === p2.bRoad?.sig &&
+                    p2.b[p2.b.length - 1].rpct >= p1CurPct - boundaryErrorTerm) {
+                    tiers = 2;
+                    reversed = true;
+                } else if (p1.aRoad.sig === p2.cRoad?.sig &&
+                           d - (p2.b[p2.b.length - 1].rpct - p2.b[0].rpct) > 0.5 &&
+                           p2.c[p2.c.length - 1].rpct >= p1CurPct - boundaryErrorTerm) {
+                    debugger; // validate logic for minus b section and validate final results..
+                    console.warn("COND B lapping possible - TBD");
+                    tiers = 3;
+                    reversed = true;
                 }
             } else if (d < 0) {
                 reversed = true;
                 if (d < -0.5) {
-                    if (p2.aRoad.sig === p1.bRoad?.sig) {
-                        if (p1.b[p1.b.length - 1].rpct - p2CurPct >= -boundaryErrorTerm) {
-                            tiers = 2;
-                            reversed = false;
-                        }
-                    } else if (p2.aRoad.sig === p1.cRoad?.sig) {
-                        if (d + (p1.b[p1.b.length - 1].rpct - p1.b[0].rpct) < -0.5 &&
-                            p1.c[p1.c.length - 1].rpct - p2CurPct >= -boundaryErrorTerm) {
-                            console.warn("COND B lapping possible - TBD");
-                            debugger; // validate logic for minus b section and validate final results..
-                            tiers = 3;
-                            reversed = false;
-                        }
+                    if (p2.aRoad.sig === p1.bRoad?.sig &&
+                        p1.b[p1.b.length - 1].rpct >= p2CurPct - boundaryErrorTerm) {
+                        tiers = 2;
+                        reversed = false;
+                    } else if (p2.aRoad.sig === p1.cRoad?.sig &&
+                               d + (p1.b[p1.b.length - 1].rpct - p1.b[0].rpct) < -0.5 &&
+                               p1.c[p1.c.length - 1].rpct >= p2CurPct - boundaryErrorTerm) {
+                        console.warn("COND B lapping possible - TBD");
+                        debugger; // validate logic for minus b section and validate final results..
+                        tiers = 3;
+                        reversed = false;
                     }
                 }
             }
-        } else if (p2.aRoad.sig === p1.bRoad?.sig) {
-            if (p1.b[p1.b.length - 1].rpct - p2CurPct < -boundaryErrorTerm) {
-                return;
-            }
+        } else if (p2.aRoad.sig === p1.bRoad?.sig &&
+                   p1.b[p1.b.length - 1].rpct >= p2CurPct - boundaryErrorTerm) {
             tiers = 2;
-        } else if (p2.aRoad.sig === p1.cRoad?.sig) {
-            if (p1.c[p1.c.length - 1].rpct - p2CurPct < -boundaryErrorTerm) {
-                return;
-            }
-            tiers = 3;
-        } else if (p1.aRoad.sig === p2.bRoad?.sig) {
-            if (p2.b[p2.b.length - 1].rpct - p1CurPct < -boundaryErrorTerm) {
-                return;
-            }
+        } else if (p1.aRoad.sig === p2.bRoad?.sig &&
+                   p2.b[p2.b.length - 1].rpct >= p1CurPct - boundaryErrorTerm) {
             tiers = 2;
             reversed = true;
-        } else if (p1.aRoad.sig === p2.cRoad?.sig) {
-            if (p2.c[p2.c.length - 1].rpct - p1CurPct < -boundaryErrorTerm) {
-                return;
-            }
+        } else if (p2.aRoad.sig === p1.cRoad?.sig &&
+                   p1.c[p1.c.length - 1].rpct >= p2CurPct - boundaryErrorTerm) {
+            tiers = 3;
+        } else if (p1.aRoad.sig === p2.cRoad?.sig &&
+                   p2.c[p2.c.length - 1].rpct >= p1CurPct - boundaryErrorTerm) {
             tiers = 3;
             reversed = true;
         } else {
@@ -2797,17 +2785,7 @@ export class StatsProcessor extends events.EventEmitter {
             const p1BLastPct = p1.b[p1.b.length - 1].rpct;
             if (tiers === 2) {
                 const d = p1BLastPct - p2CurPct;
-                if (d < 0) {
-                    if (!this._foo) {
-                        this._foo = new Map();
-                    }
-                    const err = Math.round(d * 100) / 100;
-                    this._foo.set(err, (this._foo.get(err) || 0) + 1);
-                }
                 if (d < -boundaryErrorTerm) {
-                    // turned off early or data is too sparse...
-                    console.error("tier 2 turned off early or too sparse", d);
-                    console.debug(this._foo);
                     debugger; // XXX should have filtered this out above
                     return;
                 }
@@ -2816,18 +2794,7 @@ export class StatsProcessor extends events.EventEmitter {
             } else {
                 const p1CLastPct = p1.c[p1.c.length - 1].rpct;
                 const d = p1CLastPct - p2CurPct;
-                if (d < 0) {
-                    if (!this._bar) {
-                        this._bar = new Map();
-                    }
-                    const err = Math.round(d * 100) / 100;
-                    this._bar.set(err, (this._bar.get(err) || 0) + 1);
-                }
-
                 if (d < -boundaryErrorTerm) {
-                    // turned off early or data is too sparse...
-                    console.error("tier 3 turned off early or too sparse", d);
-                    console.debug(this._bar);
                     debugger; // XXX should have filtered this out above
                     return;
                 }
@@ -2874,16 +2841,11 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _getRoadDistance({courseId, roadId, reversed}, start, end) {
-        if (start == null || end == null || isNaN(start) || isNaN(end) || end < start) {
-            const boundaryErrorTerm = 0.06; // XXX testing... hopefully this is all the cases..
-            if (start - end > boundaryErrorTerm) {
-                // XXX make this less paranoid after testing
-                console.error(start, end);
-                debugger;
-                throw new Error('start end error');
-            } else {
-                return 0;
-            }
+        if (start == null || end == null || isNaN(start) || isNaN(end)) {
+            throw new Error("NOPE");
+        }
+        if (end < start) {
+            return 0;
         }
         const roadPath = env.getRoadCurvePath(courseId, roadId, reversed);
         if (!roadPath) {
