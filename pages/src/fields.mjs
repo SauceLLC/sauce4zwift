@@ -82,19 +82,25 @@ export function fmtLap(v) {
 
 
 export function fmtStackedSparkline(data) {
-    const tooltips = new Array(data.length);
+    const tooltips = [];
     let total = 0;
     for (let i = 0; i < data.length; i++) {
         const value = data[i].value;
-        total += value;
-        tooltips[i] = `${data[i].label}: ${data[i].fmt(value)}`;
+        if (value != null && !isNaN(value)) {
+            total += value;
+            if (data[i].format) {
+                tooltips.push(`${data[i].label}: ${data[i].format(value)}`);
+            }
+        }
     }
     return [
-        `<div style="display: flex; height: 0.8em; border-radius: 0.22em; overflow: hidden; min-width: 4em;"
+        `<div class="field-sparkline"
+              style="display: flex; height: 0.7em; border-radius: 0.18rem; overflow: hidden; width: 4em; margin: 0.2rem;"
               title="${tooltips.join('\n')}">`,
         data.map(x => {
             const size = Math.round((x.value / total) * 100);
-            return `<div style="flex: ${size} 0 0em; background-color: ${x.color};"></div>`;
+            return `<div class="sparkline-bar"
+                         style="flex: ${size} 0 0; background-color: ${x.color};"></div>`;
         }).join(''),
         `</div>`
     ].join('');
@@ -237,12 +243,7 @@ export function makeSmoothPowerFields(period, extra) {
 
 
 function courseDurationFormat(t, options) {
-    let roundTo;
-    if (t < 60) {
-        roundTo = 5;
-    } else {
-        roundTo = 60;
-    }
+    const roundTo = t < 60 ? 5 : 60;
     return H.duration(Math.round(t / roundTo) * roundTo, options);
 }
 
@@ -344,22 +345,23 @@ export const fields = [{
     longName: 'Time Distribution Graph',
     shortName: 'TDG',
     format: x => x.stats ? fmtStackedSparkline([
-        {color: '#65a354', label: 'Sitting', value: x.stats.sitTime, fmt: courseDurationFormat},
-        {color: '#d1c209', label: 'Solo', value: x.stats.soloTime, fmt: courseDurationFormat},
-        {color: '#ca3805', label: 'Working', value: x.stats.workTime, fmt: courseDurationFormat},
-    ]) : '-',
-    tooltip: 'Graph of how time has been spent, i.e. working vs sitting-in vs solo',
+        {color: '#65a354', label: 'Sitting', value: x.stats.sitTime, format: courseDurationFormat},
+        {color: '#d1c209', label: 'Solo', value: x.stats.soloTime, format: courseDurationFormat},
+        {color: '#ca3805', label: 'Working', value: x.stats.workTime, format: courseDurationFormat},
+    ]) : fmtStackedSparkline([{color: '#777', label: 'Inactive', value: 1}]),
+    tooltip: 'Time Distribution Graph\n\nHow much time has been spent sitting-in vs solo vs working',
+    label: 'TGD',
 }, {
     group: 'time',
     id: 'time-dist-sparkline-lap',
     longName: 'Time Distribution Graph (lap)',
     shortName: 'TDG <ms>timer</ms>',
     format: x => x.stats ? fmtStackedSparkline([
-        {color: '#65a354', label: 'Sitting', value: x.lap.sitTime, fmt: courseDurationFormat},
-        {color: '#d1c209', label: 'Solo', value: x.lap.soloTime, fmt: courseDurationFormat},
-        {color: '#ca3805', label: 'Working', value: x.lap.workTime, fmt: courseDurationFormat}
-    ]) : '-',
-    tooltip: 'Graph of how time has been spent, i.e. working vs sitting-in vs solo (lap)',
+        {color: '#65a354', label: 'Sitting', value: x.lap.sitTime, format: courseDurationFormat},
+        {color: '#d1c209', label: 'Solo', value: x.lap.soloTime, format: courseDurationFormat},
+        {color: '#ca3805', label: 'Working', value: x.lap.workTime, format: courseDurationFormat}
+    ]) : fmtStackedSparkline([{color: '#777', label: 'Inactive', value: 1}]),
+    tooltip: 'Time Distribution Graph\n\nHow much time has been spent sitting-in vs solo vs working (lap)',
 }, {
     group: 'time',
     id: 'clock',
