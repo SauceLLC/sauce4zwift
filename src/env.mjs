@@ -219,11 +219,13 @@ function loadRoutes() {
                 for (const x of allSegments) {
                     if (x.roadId === m.roadId && !!x.reverse === !!m.reverse) {
                         if (!x.reverse) {
-                            if (x.roadStart >= m.start && x.roadFinish <= m.end) {
+                            if (x.roadStart >= m.start && x.roadFinish <= m.end &&
+                                (!x.requiresAllCheckpoints || m.end - m.start > 0.90)) {
                                 segments.push(x);
                             }
                         } else {
-                            if (x.roadStart <= m.end && x.roadFinish >= m.start) {
+                            if (x.roadStart <= m.end && x.roadFinish >= m.start &&
+                                (!x.requiresAllCheckpoints || m.end - m.start > 0.90)) {
                                 segments.push(x);
                             }
                         }
