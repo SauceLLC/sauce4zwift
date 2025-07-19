@@ -2851,7 +2851,7 @@ export class StatsProcessor extends events.EventEmitter {
         if (!roadPath) {
             return 0;
         }
-        return roadPath.subpathAtRoadPercents(start, end).distance(0.01) / 100;
+        return roadPath.subpathAtRoadPercents(start, end).distance(0.05) / 100;
     }
 
     _findNearestTimelineCheckpoint(timeline, value) {
