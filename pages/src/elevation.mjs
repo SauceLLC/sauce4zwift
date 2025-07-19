@@ -221,7 +221,7 @@ export class SauceElevationProfile {
         this._eventSubgroupId = eventSubgroupId;
         this.curvePath = null;
         this.route = await common.getRoute(id);
-        const segments = [];
+        const routeSegments = [];
         for (const [i, m] of this.route.manifest.entries()) {
             if (!m.segments) {
                 continue;
@@ -239,7 +239,7 @@ export class SauceElevationProfile {
                     start = offt + i1;
                     end = offt + i2;
                 }
-                segments.push({start, end, segment});
+                routeSegments.push({start, end, segment});
             }
         }
         this.curvePath = this.route.curvePath.slice();
@@ -261,8 +261,20 @@ export class SauceElevationProfile {
         if (distance) {
             laps = this.route.supportedLaps ? Infinity : 1;
         }
+        let lapSlice;
+        const lapSegments = [];
         for (let lap = 1; lap < laps; lap++) {
-            this.curvePath.extend(this.route.curvePath.slice(lapStartIdx));
+            if (!lapSlice) {
+                lapSlice = this.route.curvePath.slice(lapStartIdx);
+            }
+            for (const x of routeSegments) {
+                lapSegments.push({
+                    start: x.start + this.curvePath.nodes.length - lapStartIdx,
+                    end: x.end + this.curvePath.nodes.length - lapStartIdx,
+                    segment: x.segment
+                });
+            }
+            this.curvePath.extend(lapSlice);
             for (let i = lapStartIdx; i < this.route.distances.length; i++) {
                 distances.push(distances.at(-1) +
                     (this.route.distances[i] - (this.route.distances[i - 1] || 0)));
@@ -276,11 +288,15 @@ export class SauceElevationProfile {
                 break;
             }
         }
+        const segments = routeSegments.concat(lapSegments); // need to trim these??
         if (distance) {
             while (distances[distances.length - 1] > distance) {
                 distances.pop();
                 elevations.pop();
                 grades.pop();
+            }
+            while (segments.at(-1).end >= distances.length) {
+                segments.pop();
             }
         }
         this.setData(distances, elevations, grades, {lapOffsets, segments});
