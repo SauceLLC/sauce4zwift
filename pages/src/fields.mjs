@@ -95,12 +95,17 @@ export function fmtStackedSparkline(data) {
     }
     return [
         `<div class="field-sparkline"
-              style="display: flex; height: 0.7em; border-radius: 0.18rem; overflow: hidden; width: 4em; margin: 0.2rem;"
+              style="display: flex;
+                     height: 0.7em;
+                     border-radius: 0.18rem;
+                     overflow: hidden;
+                     width: 4em;
+                     margin: 0.2rem;"
               title="${tooltips.join('\n')}">`,
         data.map(x => {
             const size = Math.round((x.value / total) * 100);
-            return `<div class="sparkline-bar"
-                         style="flex: ${size} 0 0; background-color: ${x.color};"></div>`;
+            return `<div class="sparkline-bar" style="flex: ${size} 0 0;
+                                background-color: ${x.color};"></div>`;
         }).join(''),
         `</div>`
     ].join('');
@@ -163,11 +168,11 @@ export const fieldGroupNames = {
 
 export function makePeakPowerFields(period, lap, extra) {
     const duration = shortDuration(period);
+    const longDuration = H.duration(period);
     const lapLabel = {
         '-1': '(lap)',
         '-2': '(last lap)',
     }[lap];
-    const shortName = lap ? `Peak ${duration}<small> ${lapLabel}</small>` : `Peak ${duration}`;
 
     function getValue(data) {
         const stats = data.stats && (lap === -1 ? data?.lap : lap === -2 ? data?.lastLap : data.stats);
@@ -195,22 +200,26 @@ export function makePeakPowerFields(period, lap, extra) {
         return l;
     }
 
+    const idExtra = lap ? `-lap${lap}` : '';
+    const shortName = lap ?
+        `Peak ${duration} ${lap === -1 ? '<ms>timer</ms>' : lapLabel}` :
+        `Peak ${duration}`;
     return [{
-        id: `pwr-peak-${period}`,
+        id: `pwr-peak-${period}${idExtra}`,
         group: 'power',
-        longName: `Peak Power (${duration})`,
+        shortName,
+        longName: `Peak Power - ${longDuration}` + (lap ? ` ${lapLabel}` : ''),
         format: x => H.number(getValue(x)),
         label,
-        shortName,
         suffix: 'w',
         ...extra,
     }, {
-        id: `pwr-peak-${period}-wkg`,
+        id: `pwr-peak-${period}${idExtra}-wkg`,
         group: 'power',
-        longName: `Peak W/kg (${duration})`,
+        shortName,
+        longName: `Peak W/kg - ${longDuration}` + (lap ? ` ${lapLabel}` : ''),
         format: x => fmtWkg(getValue(x), x.athlete),
         label,
-        shortName,
         suffix: 'w/kg',
         ...extra,
     }];
@@ -219,11 +228,12 @@ export function makePeakPowerFields(period, lap, extra) {
 
 export function makeSmoothPowerFields(period, extra) {
     const duration = shortDuration(period);
+    const longDuration = H.duration(period);
     const label = duration;
     return [{
         id: `pwr-smooth-${period}`,
         group: 'power',
-        longName: `Smoothed Power (${duration})`,
+        longName: `Smoothed Power - ${longDuration}`,
         format: x => H.number(x.stats && x.stats.power.smooth[period]),
         label,
         shortName: `Power<small> (${duration})</small>`,
@@ -232,7 +242,7 @@ export function makeSmoothPowerFields(period, extra) {
     }, {
         id: `pwr-smooth-${period}-wkg`,
         group: 'power',
-        longName: `Smoothed W/kg (${duration})`,
+        longName: `Smoothed W/kg - ${longDuration}`,
         format: x => fmtWkg(x.stats && x.stats.power.smooth[period], x.athlete),
         label,
         shortName: `W/kg<small> (${duration})</small>`,
@@ -248,83 +258,30 @@ function courseDurationFormat(t, options) {
 }
 
 
-export const fields = [{
-    group: 'time',
+export const timeFields = [{
     id: 'time-active',
     longName: 'Active Time',
     format: x => fmtDur(x.stats && x.stats.activeTime || 0),
     shortName: 'Active',
     tooltip: 'Sauce based active time',
 }, {
-    group: 'time',
     id: 'time-elapsed',
     longName: 'Elapsed Time',
     format: x => fmtDur(x.stats && x.stats.elapsedTime || 0),
     shortName: 'Elapsed',
     tooltip: 'Sauce based elapsed time',
 }, {
-    group: 'time',
     id: 'time-session',
     longName: 'Session Time',
     format: x => fmtDur(x.state && x.state.time || 0),
     shortName: 'Time',
     tooltip: 'Time as reported by the current Zwift session',
 }, {
-    group: 'time',
-    id: 'time-lap',
-    format: x => fmtDur((x.lap || x.stats) && (x.lap || x.stats).activeTime || 0),
-    shortName: 'Time<small> (lap)</small>',
-
+    id: 'clock',
+    longName: 'Clock',
+    format: x => new Date().toLocaleTimeString(),
+    shortName: '',
 }, {
-    group: 'time',
-    id: 'time-solo',
-    longName: 'Solo Time',
-    get: x => x.stats?.soloTime || 0,
-    format: fmtDur,
-    shortName: 'Solo',
-    tooltip: 'Time observed riding alone',
-}, {
-    group: 'time',
-    id: 'time-solo-lap',
-    longName: 'Solo Time (lap)',
-    get: x => x.lap?.soloTime || 0,
-    format: fmtDur,
-    shortName: 'Solo <ms>timer</ms>',
-    tooltip: 'Time observed riding alone (lap)',
-}, {
-    group: 'time',
-    id: 'time-sit',
-    longName: 'Sitting Time',
-    get: x => x.stats?.sitTime || 0,
-    format: fmtDur,
-    shortName: 'Sitting',
-    tooltip: 'Time observed sitting/following in a group',
-}, {
-    group: 'time',
-    id: 'time-sit-lap',
-    longName: 'Sitting Time (lap)',
-    get: x => x.lap?.sitTime || 0,
-    format: fmtDur,
-    shortName: 'Sitting <ms>timer</ms>',
-    tooltip: 'Time observed sitting/following in a group (lap)',
-}, {
-    group: 'time',
-    id: 'time-work',
-    longName: 'Working Time',
-    get: x => x.stats?.workTime || 0,
-    format: fmtDur,
-    shortName: 'Working',
-    tooltip: 'Time observed working/pulling in a group',
-}, {
-    group: 'time',
-    id: 'time-work-lap',
-    longName: 'Working Time (lap)',
-    get: x => x.lap?.workTime || 0,
-    format: fmtDur,
-    shortName: 'Working <ms>timer</ms>',
-    tooltip: 'Time observed working/pulling in a group (lap)',
-}, {
-    group: 'time',
     id: 'time-coffee',
     longName: 'Coffee Time',
     get: x => x.stats?.coffeeTime || 0,
@@ -332,15 +289,27 @@ export const fields = [{
     shortName: 'Coffee',
     tooltip: 'Time observed taking a Coffee break',
 }, {
-    group: 'time',
-    id: 'time-coffee-lap',
-    longName: 'Coffee Time (lap)',
-    get: x => x.lap?.coffeeTime || 0,
+    id: 'time-solo',
+    longName: 'Solo Time',
+    get: x => x.stats?.soloTime || 0,
     format: fmtDur,
-    shortName: 'Coffee <ms>timer</ms>',
-    tooltip: 'Time observed taking a Coffee break (lap)',
+    shortName: 'Solo',
+    tooltip: 'Time observed riding alone',
 }, {
-    group: 'time',
+    id: 'time-sit',
+    longName: 'Sitting Time',
+    get: x => x.stats?.sitTime || 0,
+    format: fmtDur,
+    shortName: 'Sitting',
+    tooltip: 'Time observed sitting/following in a group',
+}, {
+    id: 'time-work',
+    longName: 'Working Time',
+    get: x => x.stats?.workTime || 0,
+    format: fmtDur,
+    shortName: 'Working',
+    tooltip: 'Time observed working/pulling in a group',
+}, {
     id: 'time-dist-sparkline',
     longName: 'Time Distribution Graph',
     shortName: 'TDG',
@@ -352,55 +321,217 @@ export const fields = [{
     tooltip: 'Time Distribution Graph\n\nHow much time has been spent sitting-in vs solo vs working',
     label: 'TGD',
 }, {
-    group: 'time',
+    id: 'time-lap',
+    format: x => fmtDur((x.lap || x.stats) && (x.lap || x.stats).activeTime || 0),
+    shortName: 'Time<small> (lap)</small>',
+}, {
+    id: 'time-coffee-lap',
+    longName: 'Coffee Time (lap)',
+    get: x => x.lap?.coffeeTime || 0,
+    format: fmtDur,
+    shortName: 'Coffee <ms>timer</ms>',
+    tooltip: 'Time observed taking a Coffee break (lap)',
+}, {
+    id: 'time-solo-lap',
+    longName: 'Solo Time (lap)',
+    get: x => x.lap?.soloTime || 0,
+    format: fmtDur,
+    shortName: 'Solo <ms>timer</ms>',
+    tooltip: 'Time observed riding alone (lap)',
+}, {
+    id: 'time-sit-lap',
+    longName: 'Sitting Time (lap)',
+    get: x => x.lap?.sitTime || 0,
+    format: fmtDur,
+    shortName: 'Sitting <ms>timer</ms>',
+    tooltip: 'Time observed sitting/following in a group (lap)',
+}, {
+    id: 'time-work-lap',
+    longName: 'Working Time (lap)',
+    get: x => x.lap?.workTime || 0,
+    format: fmtDur,
+    shortName: 'Working <ms>timer</ms>',
+    tooltip: 'Time observed working/pulling in a group (lap)',
+}, {
     id: 'time-dist-sparkline-lap',
     longName: 'Time Distribution Graph (lap)',
     shortName: 'TDG <ms>timer</ms>',
-    format: x => x.stats ? fmtStackedSparkline([
+    format: x => x.lap ? fmtStackedSparkline([
         {color: '#65a354', label: 'Sitting', value: x.lap.sitTime, format: courseDurationFormat},
         {color: '#d1c209', label: 'Solo', value: x.lap.soloTime, format: courseDurationFormat},
         {color: '#ca3805', label: 'Working', value: x.lap.workTime, format: courseDurationFormat}
     ]) : fmtStackedSparkline([{color: '#777', label: 'Inactive', value: 1}]),
     tooltip: 'Time Distribution Graph\n\nHow much time has been spent sitting-in vs solo vs working (lap)',
-}, {
-    group: 'time',
-    id: 'clock',
-    longName: 'Clock',
-    format: x => new Date().toLocaleTimeString(),
-    shortName: '',
-}, {
-    group: 'athlete',
+}];
+timeFields.forEach(x => x.group = 'time');
+
+
+export const athleteFields = [{
     id: 'fullname',
     format: x => x.athlete && x.athlete.sanitizedFullname || '-',
     shortName: x => (x && x.athlete) ? '' : 'Athlete Name',
 }, {
-    group: 'athlete',
     id: 'flastname',
     format: x => x.athlete && x.athlete.fLast || '-',
     shortName: x => (x && x.athlete) ? '' : 'Athlete F.Last',
 }, {
-    group: 'athlete',
     id: 'team',
     format: x => x.athlete && common.teamBadge(x.athlete.team) || '-',
     shortName: x => (x && x.athlete && x.athlete.team) ? '' : 'Team',
 }, {
-    group: 'athlete',
     id: 'level',
     format: x => H.number(x.athlete && x.athlete.level),
     shortName: 'Level',
 }, {
-    group: 'athlete',
     id: 'rideons',
     format: x => H.number(x.state && x.state.rideons),
     shortName: 'Ride Ons',
 }, {
-    group: 'power',
+    id: 'weight',
+    format: x => H.weightClass(x.athlete && x.athlete.weight, {html: true}),
+    shortName: 'Weight',
+    suffix: () => locale.isImperial() ? 'lbs' : 'kg',
+}, {
+    id: 'ftp',
+    format: x => H.number(x.athlete && x.athlete.ftp),
+    shortName: 'FTP',
+    suffix: 'w'
+}];
+athleteFields.forEach(x => x.group = 'athlete');
+
+
+export const speedFields = [{
+    id: 'spd-cur',
+    format: x => fmtPace(x.state && x.state.speed, x),
+    shortName: speedLabel,
+    suffix: speedUnit,
+}, {
+    id: 'spd-smooth-60',
+    longName: `Smoothed ${speedLabel()} (${shortDuration(60)})`,
+    format: x => fmtPace(x.stats && x.stats.speed.smooth[60], x),
+    shortName: x => `${speedLabel(x)}<small> (${shortDuration(60)})</small>`,
+    suffix: speedUnit,
+}, {
+    id: 'spd-avg',
+    format: x => fmtPace(x.stats && x.stats.speed.avg, x),
+    shortName: x => `${speedLabel(x)}<small> (avg)</small>`,
+    suffix: speedUnit,
+}, {
+    id: 'spd-lap',
+    format: x => fmtPace(x.lap && x.lap.speed.avg, x),
+    shortName: x => `${speedLabel(x)}<small> (lap)</small>`,
+    suffix: speedUnit,
+}];
+speedFields.forEach(x => x.group = 'speed');
+
+
+export const hrFields = [{
+    id: 'hr-cur',
+    format: x => H.number(x.state && x.state.heartrate),
+    shortName: 'HR',
+    suffix: 'bpm',
+}, {
+    id: 'hr-smooth-60',
+    longName: `Smoothed HR (${shortDuration(60)})`,
+    format: x => H.number(x.stats && x.stats.hr.smooth[60]),
+    shortName: `HR<small> (${shortDuration(60)})</small>`,
+    suffix: 'bpm',
+}, {
+    id: 'hr-avg',
+    format: x => H.number(x.stats && x.stats.hr.avg),
+    shortName: 'HR<small> (avg)</small>',
+    suffix: 'bpm',
+}, {
+    id: 'hr-lap',
+    format: x => H.number(x.lap && x.lap.hr.avg),
+    shortName: 'HR<small> (lap)</small>',
+    suffix: 'bpm',
+}];
+hrFields.forEach(x => x.group = 'hr');
+
+
+export const powerFields = [{
+    id: 'pwr-cur',
+    format: x => H.number(x.state && x.state.power),
+    shortName: `Power`,
+    longName: `Current Power`,
+    suffix: 'w',
+}, {
+    id: 'pwr-cur-wkg',
+    format: x => fmtWkg(x.state && x.state.power, x.athlete),
+    shortName: `W/kg`,
+    longName: `Current W/kg`,
+}, {
+    id: 'pwr-avg',
+    format: x => H.number(x.stats && x.stats.power.avg),
+    shortName: 'Power<small> (avg)</small>',
+    longName: 'Average Power',
+    suffix: 'w',
+}, {
+    id: 'pwr-avg-wkg',
+    format: x => fmtWkg(x.stats && x.stats.power.avg, x.athlete),
+    shortName: 'W/kg<small> (avg)</small>',
+    longName: 'Average W/kg',
+},
+...makeSmoothPowerFields(5),
+...makeSmoothPowerFields(15),
+...makeSmoothPowerFields(60),
+...makeSmoothPowerFields(300),
+...makeSmoothPowerFields(1200),
+{
     id: 'energy',
     format: x => H.number(x.state && x.state.kj),
     shortName: 'Energy',
     suffix: 'kJ',
 }, {
-    group: 'power',
+    id: 'energy-solo',
+    longName: 'Solo Energy',
+    get: x => x.stats?.soloKj,
+    format: H.number,
+    suffix: 'kJ',
+    shortName: 'Solo',
+    tooltip: 'Energy total while riding alone',
+}, {
+    id: 'energy-sit',
+    longName: 'Sitting Energy',
+    get: x => x.stats?.sitKj,
+    format: H.number,
+    suffix: 'kJ',
+    shortName: 'Sitting',
+    tooltip: 'Energy total while sitting/following in a group',
+}, {
+    id: 'energy-work',
+    longName: 'Working Energy',
+    get: x => x.stats?.workKj,
+    format: H.number,
+    suffix: 'kJ',
+    shortName: 'Working',
+    tooltip: 'Energy total while working/pulling in a group',
+}, {
+    id: 'power-avg-solo',
+    longName: 'Solo Average Power',
+    get: x => x.stats?.soloKj / x.stats?.soloTime * 1000,
+    format: H.power,
+    suffix: 'w',
+    shortName: 'Solo Pwr',
+    tooltip: 'Average power while riding alone',
+}, {
+    id: 'power-avg-sit',
+    longName: 'Sitting Average Power',
+    get: x => x.stats?.sitKj / x.stats?.sitTime * 1000,
+    format: H.power,
+    suffix: 'w',
+    shortName: 'Sit Pwr',
+    tooltip: 'Average power while sitting/following in a group',
+}, {
+    id: 'power-avg-work',
+    longName: 'Working Average Power',
+    get: x => x.stats?.workKj / x.stats?.workTime * 1000,
+    format: H.power,
+    suffix: 'w',
+    shortName: 'Work Pwr',
+    tooltip: 'Average power while working/pulling in a group',
+}, {
     id: 'wbal',
     format: x => (x.wBal != null && x.athlete && x.athlete.wPrime) ?
         common.fmtBattery(x.wBal / x.athlete.wPrime) +
@@ -408,191 +539,154 @@ export const fields = [{
     shortName: 'W\'bal',
     suffix: 'kJ',
 }, {
-    group: 'power',
     id: 'tss',
     format: x => H.number(x.stats && x.stats.power.tss),
     shortName: 'TSS<abbr>®</abbr>',
     tooltip: tpAttr,
 }, {
-    group: 'athlete',
-    id: 'weight',
-    format: x => H.weightClass(x.athlete && x.athlete.weight, {html: true}),
-    shortName: 'Weight',
-    suffix: () => locale.isImperial() ? 'lbs' : 'kg',
+    id: 'pwr-np',
+    format: x => H.number(x.stats && x.stats.power.np),
+    shortName: 'NP<abbr>®</abbr>',
+    tooltip: tpAttr,
 }, {
-    group: 'athlete',
-    id: 'ftp',
-    format: x => H.number(x.athlete && x.athlete.ftp),
-    shortName: 'FTP',
-    suffix: 'w'
+    id: 'pwr-if',
+    format: x => fmtPct((x.stats && x.stats.power.np || 0) / (x.athlete && x.athlete.ftp)),
+    shortName: 'IF<abbr>®</abbr>',
+    tooltip: tpAttr,
 }, {
-    group: 'speed',
-    id: 'spd-cur',
-    format: x => fmtPace(x.state && x.state.speed, x),
-    shortName: speedLabel,
-    suffix: speedUnit,
+    id: 'pwr-vi',
+    format: x => H.number(x.stats && x.stats.power.np / x.stats.power.avg, {precision: 2, fixed: true}),
+    shortName: 'VI',
 }, {
-    group: 'speed',
-    id: 'spd-smooth-60',
-    longName: `Smoothed ${speedLabel()} (${shortDuration(60)})`,
-    format: x => fmtPace(x.stats && x.stats.speed.smooth[60], x),
-    shortName: x => `${speedLabel(x)}<small> (${shortDuration(60)})</small>`,
-    suffix: speedUnit,
-}, {
-    group: 'speed',
-    id: 'spd-avg',
-    format: x => fmtPace(x.stats && x.stats.speed.avg, x),
-    shortName: x => `${speedLabel(x)}<small> (avg)</small>`,
-    suffix: speedUnit,
-}, {
-    group: 'speed',
-    id: 'spd-lap',
-    format: x => fmtPace(x.lap && x.lap.speed.avg, x),
-    shortName: x => `${speedLabel(x)}<small> (lap)</small>`,
-    suffix: speedUnit,
-}, {
-    group: 'hr',
-    id: 'hr-cur',
-    format: x => H.number(x.state && x.state.heartrate),
-    shortName: 'HR',
-    suffix: 'bpm',
-}, {
-    group: 'hr',
-    id: 'hr-smooth-60',
-    longName: `Smoothed HR (${shortDuration(60)})`,
-    format: x => H.number(x.stats && x.stats.hr.smooth[60]),
-    shortName: `HR<small> (${shortDuration(60)})</small>`,
-    suffix: 'bpm',
-}, {
-    group: 'hr',
-    id: 'hr-avg',
-    format: x => H.number(x.stats && x.stats.hr.avg),
-    shortName: 'HR<small> (avg)</small>',
-    suffix: 'bpm',
-}, {
-    group: 'hr',
-    id: 'hr-lap',
-    format: x => H.number(x.lap && x.lap.hr.avg),
-    shortName: 'HR<small> (lap)</small>',
-    suffix: 'bpm',
-}, {
-    group: 'power',
-    id: 'pwr-cur',
-    format: x => H.number(x.state && x.state.power),
-    shortName: `Power`,
+    id: 'pwr-max',
+    format: x => H.number(x.stats && x.stats.power.max),
+    shortName: 'Power<small> (max)</small>',
     suffix: 'w',
-}, {
-    group: 'power',
-    id: 'pwr-cur-wkg',
-    format: x => fmtWkg(x.state && x.state.power, x.athlete),
-    shortName: `W/kg`,
 },
-...makeSmoothPowerFields(5),
-...makeSmoothPowerFields(15),
-...makeSmoothPowerFields(60),
-...makeSmoothPowerFields(300),
-...makeSmoothPowerFields(1200),
 ...makePeakPowerFields(5),
 ...makePeakPowerFields(15),
 ...makePeakPowerFields(60),
 ...makePeakPowerFields(300),
 ...makePeakPowerFields(1200),
 {
-    group: 'power',
-    id: 'pwr-avg',
-    format: x => H.number(x.stats && x.stats.power.avg),
-    shortName: 'Power<small> (avg)</small>',
-    suffix: 'w',
-}, {
-    group: 'power',
-    id: 'pwr-avg-wkg',
-    format: x => fmtWkg(x.stats && x.stats.power.avg, x.athlete),
-    shortName: 'W/kg<small> (avg)</small>',
-}, {
-    group: 'power',
     id: 'pwr-lap',
     format: x => H.number(x.lap && x.lap.power.avg),
-    shortName: 'Power<small> (lap)</small>',
+    shortName: 'Power <ms>timer</ms>',
+    longName: 'Average Power (lap)',
     suffix: 'w',
 }, {
-    group: 'power',
     id: 'pwr-lap-wkg',
     format: x => fmtWkg(x.lap && x.lap.power.avg, x.athlete),
-    shortName: 'W/kg<small> (lap)</small>',
+    shortName: 'W/kg <ms>timer</ms>',
+    longName: 'Average W/kg (lap)',
 }, {
-    group: 'power',
-    id: 'pwr-np',
-    format: x => H.number(x.stats && x.stats.power.np),
-    shortName: 'NP<abbr>®</abbr>',
-    tooltip: tpAttr,
+    id: 'energy-solo-lap',
+    longName: 'Solo Energy (lap)',
+    get: x => x.lap?.soloKj,
+    format: H.number,
+    suffix: 'kJ',
+    shortName: 'Solo <ms>timer</ms>',
+    tooltip: 'Energy total while riding alone (lap)',
 }, {
-    group: 'power',
-    id: 'pwr-if',
-    format: x => fmtPct((x.stats && x.stats.power.np || 0) / (x.athlete && x.athlete.ftp)),
-    shortName: 'IF<abbr>®</abbr>',
-    tooltip: tpAttr,
+    id: 'energy-sit-lap',
+    longName: 'Sitting Energy (lap)',
+    get: x => x.lap?.sitKj,
+    format: H.number,
+    suffix: 'kJ',
+    shortName: 'Sitting <ms>timer</ms>',
+    tooltip: 'Energy total while sitting/following in a group (lap)',
 }, {
-    group: 'power',
-    id: 'pwr-vi',
-    format: x => H.number(x.stats && x.stats.power.np / x.stats.power.avg, {precision: 2, fixed: true}),
-    shortName: 'VI',
+    id: 'energy-work-lap',
+    longName: 'Working Energy (lap)',
+    get: x => x.lap?.workKj,
+    format: H.number,
+    suffix: 'kJ',
+    shortName: 'Working <ms>timer</ms>',
+    tooltip: 'Energy total while working/pulling in a group (lap)',
 }, {
-    group: 'power',
-    id: 'pwr-max',
-    format: x => H.number(x.stats && x.stats.power.max),
-    shortName: 'Power<small> (max)</small>',
+    id: 'power-avg-solo-lap',
+    longName: 'Solo Average Power (lap)',
+    get: x => x.lap?.soloKj / x.lap?.soloTime * 1000,
+    format: H.power,
     suffix: 'w',
+    shortName: 'Solo Pwr <ms>timer</ms>',
+    tooltip: 'Average power while riding alone (lap)',
 }, {
-    group: 'draft',
+    id: 'power-avg-sit-lap',
+    longName: 'Sitting Average Power (lap)',
+    get: x => x.lap?.sitKj / x.lap?.sitTime * 1000,
+    format: H.power,
+    suffix: 'w',
+    shortName: 'Sit Pwr <ms>timer</ms>',
+    tooltip: 'Average power while sitting/following in a group (lap)',
+}, {
+    id: 'power-avg-work-lap',
+    longName: 'Working Average Power (lap)',
+    get: x => x.lap?.workKj / x.lap?.workTime * 1000,
+    format: H.power,
+    suffix: 'w',
+    shortName: 'Work Pwr <ms>timer</ms>',
+    tooltip: 'Average power while working/pulling in a group (lap)',
+},
+...makePeakPowerFields(5, -1),
+...makePeakPowerFields(15, -1),
+...makePeakPowerFields(60, -1),
+...makePeakPowerFields(300, -1),
+...makePeakPowerFields(1200, -1)
+];
+powerFields.forEach(x => x.group = 'power');
+
+
+export const draftFields = [{
     id: 'draft-cur',
     format: x => H.power(x.state && x.state.draft),
     shortName: 'Draft',
     suffix: x => H.power(x && x.state && x.state.draft, {suffixOnly: true}),
 }, {
-    group: 'draft',
     id: 'draft-avg',
     format: x => H.power(x.stats && x.stats.draft.avg),
     shortName: 'Draft<small> (avg)</small>',
     suffix: x => H.power(x && x.stats && x.stats.draft.avg, {suffixOnly: true}),
 }, {
-    group: 'draft',
     id: 'draft-lap',
     format: x => H.power(x.lap && x.lap.draft.avg),
-    shortName: 'Draft<small> (lap)</small>',
+    shortName: 'Draft <ms>timer</ms>',
     suffix: x => H.power(x && x.lap && x.lap.draft.avg, {suffixOnly: true}),
 }, {
-    group: 'draft',
     id: 'draft-energy',
     format: x => H.number(x.state && x.stats?.draft?.kj),
     shortName: 'Draft<small> (energy)</small>',
     suffix: 'kJ',
-}, {
-    group: 'cadence',
+}];
+draftFields.forEach(x => x.group = 'draft');
+
+
+export const cadenceFields = [{
     id: 'cad-cur',
     format: x => H.number(x.state && x.state.cadence),
     shortName: 'Cadence',
     suffix: x => getSport(x) === 'running' ? 'spm' : 'rpm',
 }, {
-    group: 'cadence',
     id: 'cad-avg',
     format: x => H.number(x.stats && x.stats.cadence.avg),
     shortName: 'Cadence<small> (avg)</small>',
     suffix: x => getSport(x) === 'running' ? 'spm' : 'rpm',
 }, {
-    group: 'cadence',
     id: 'cad-lap',
     format: x => H.number(x.lap && x.lap.cadence.avg),
-    shortName: 'Cadence<small> (lap)</small>',
+    shortName: 'Cadence <ms>timer</ms>',
     suffix: x => getSport(x) === 'running' ? 'spm' : 'rpm',
-}, {
-    group: 'course',
+}];
+cadenceFields.forEach(x => x.group = 'cadence');
+
+
+export const courseFields = [{
     id: 'ev-place',
     format: x => x.eventPosition ?
         `${H.place(x.eventPosition, {suffix: true, html: true})}<small> / ${x.eventParticipants}</small>` :
         '-',
     shortName: 'Place',
 }, {
-    group: 'course',
     id: 'ev-fin',
     format: x => x.remainingMetric ? x.remainingMetric === 'distance' ?
         H.distance(x.remaining) : fmtDur(x.remaining) : '-',
@@ -600,7 +694,6 @@ export const fields = [{
     suffix: x => (x && x.remainingMetric) === 'distance' ?
         H.distance(x.remaining, {suffixOnly: true}) : '',
 }, {
-    group: 'course',
     id: 'ev-dst',
     format: x => x.state ? (x.remainingMetric === 'distance' ?
         `${H.distance(x.state.eventDistance, {suffix: true, html: true})}<small> / ` +
@@ -609,30 +702,25 @@ export const fields = [{
     shortName: x => (x && x.remainingMetric === 'distance') ?
         'Dist<small> (event)</small>' : 'Dist<small> (session)</small>',
 }, {
-    group: 'course',
     id: 'dst',
     format: x => H.distance(x.state && x.state.distance),
     shortName: 'Dist',
     suffix: x => H.distance(x && x.state && x.state.distance, {suffixOnly: true}),
 }, {
-    group: 'course',
     id: 'game-laps',
     format: x => fmtLap(x.state && x.state.laps + 1),
     tooltip: 'Zwift route lap number',
     shortName: 'Lap<small> (zwift)</small>',
 }, {
-    group: 'course',
     id: 'sauce-laps',
     format: x => fmtLap(x.lapCount),
     tooltip: 'Sauce stats lap number',
     shortName: 'Lap<small> (sauce)</small>',
 }, {
-    group: 'course',
     id: 'progress',
     format: x => fmtPct(x.state && x.state.progress || 0),
     shortName: 'Progress',
 },{
-    group: 'course',
     id: 'ev-name',
     format: x => {
         const name = getEventSubgroupProperty(x.state?.eventSubgroupId, 'name');
@@ -641,7 +729,6 @@ export const fields = [{
     shortName: x => (x?.state?.eventSubgroupId) ? '' : 'Event',
     tooltip: 'Event',
 }, {
-    group: 'course',
     id: 'rt-name',
     format: x => {
         const sg = getEventSubgroup(x.state?.eventSubgroupId);
@@ -660,20 +747,30 @@ export const fields = [{
     shortName: x => (x?.state?.eventSubgroupId || x?.state?.routeId) ? '' : 'Route',
     tooltip: 'Route',
 }, {
-    group: 'course',
     id: 'el-gain',
     format: x => H.elevation(x.state && x.state.climbing),
     shortName: 'Climbed',
     suffix: x => H.elevation(x && x.state && x.state.climbing, {suffixOnly: true}),
 }, {
-    group: 'course',
     id: 'el-altitude',
     format: x => H.elevation(x.state && x.state.altitude),
     shortName: 'Altitude',
     suffix: x => H.elevation(x && x.state && x.state.altitude, {suffixOnly: true}),
 }, {
-    group: 'course',
     id: 'grade',
     format: x => fmtPct(x.state && x.state.grade, {precision: 1, fixed: true}),
     shortName: 'Grade',
 }];
+courseFields.forEach(x => x.group = 'course');
+
+
+export const fields = [].concat(
+    timeFields,
+    powerFields,
+    athleteFields,
+    speedFields,
+    draftFields,
+    cadenceFields,
+    hrFields,
+    courseFields,
+);

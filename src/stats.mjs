@@ -1876,6 +1876,9 @@ export class StatsProcessor extends events.EventEmitter {
             workTime: Math.round(bucket.workTime / 1000),
             sitTime: Math.round(bucket.sitTime / 1000),
             soloTime: Math.round(bucket.soloTime / 1000),
+            workKj: bucket.workKj,
+            sitKj: bucket.sitKj,
+            soloKj: bucket.soloKj,
             wBal, // DEPRECATED
             timeInPowerZones, // DEPRECATED
             power: bucket.power.getStats(ad.wtOffset, {
@@ -1903,6 +1906,9 @@ export class StatsProcessor extends events.EventEmitter {
             workTime: 0,
             sitTime: 0,
             soloTime: 0,
+            workKj: 0,
+            sitKj: 0,
+            soloKj: 0,
             power: new DataCollector(sauce.power.RollingPower, periods, {inlineNP: true, round: true}),
             speed: new DataCollector(sauce.data.RollingAverage, longPeriods, {ignoreZeros: true}),
             hr: new DataCollector(sauce.data.RollingAverage, longPeriods, {ignoreZeros: true, round: true}),
@@ -1919,6 +1925,9 @@ export class StatsProcessor extends events.EventEmitter {
             workTime: 0,
             sitTime: 0,
             soloTime: 0,
+            workKj: 0,
+            sitKj: 0,
+            soloKj: 0,
             courseId: ad.courseId,
             sport: ad.sport,
             power: ad.bucket.power.clone(cloneOpts),
@@ -2300,25 +2309,35 @@ export class StatsProcessor extends events.EventEmitter {
                         s.coffeeTime += elapsedTime;
                     }
                 } else if (state.speed) {
+                    const kj = state.power * elapsedTime / 1e6;
                     if (ad.group) {
                         if (state.draft) {
                             ad.bucket.sitTime += elapsedTime;
+                            ad.bucket.sitKj += kj;
                             curLap.sitTime += elapsedTime;
+                            curLap.sitKj += kj;
                             for (const s of ad.activeSegments.values()) {
                                 s.sitTime += elapsedTime;
+                                s.sitKj += kj;
                             }
                         } else {
                             ad.bucket.workTime += elapsedTime;
+                            ad.bucket.workKj += kj;
                             curLap.workTime += elapsedTime;
+                            curLap.workKj += kj;
                             for (const s of ad.activeSegments.values()) {
                                 s.workTime += elapsedTime;
+                                s.workKj += kj;
                             }
                         }
                     } else {
                         ad.bucket.soloTime += elapsedTime;
+                        ad.bucket.soloKj += kj;
                         curLap.soloTime += elapsedTime;
+                        curLap.soloKj += kj;
                         for (const s of ad.activeSegments.values()) {
                             s.soloTime += elapsedTime;
+                            s.soloKj += kj;
                         }
                     }
                 }
@@ -3114,8 +3133,11 @@ export class StatsProcessor extends events.EventEmitter {
             }
             if (rp.worldTime != null)  {
                 ad.gap = (watchingWorldTime - rp.worldTime) / 1000;
-                if (rp.reversed) {
+                if (rp.reversed && ad.gap > 0) { //need to check sign of ad.gap for stopped athletes
                     ad.gap = -ad.gap;
+                } else if (ad.gap < 0) {
+                    console.warn("check this condition, they stopped behind us? in the past?");
+                    debugger;
                 }
                 ad.isGapEst = false;
             } else {
@@ -3124,11 +3146,11 @@ export class StatsProcessor extends events.EventEmitter {
             }
             if (rp.reversed) {
                 ad.gapDistance = -rp.distance;
-                if (ad.gap > 1) console.error("ahead pos gap", ad.gap);
+                if (ad.gap > 0) console.warn("ahead pos gap", ad.gap);
                 ahead.push(ad);
             } else {
                 ad.gapDistance = rp.distance;
-                if (ad.gap < -1) console.error("behind neg gap", ad.gap);
+                if (ad.gap < 0) console.warn("behind neg gap", ad.gap);
                 behind.push(ad);
             }
         }
@@ -3152,7 +3174,6 @@ export class StatsProcessor extends events.EventEmitter {
                     // making it irrelevant as a time based checkpoint to the watching athlete.
                     const incGapDist = adjacent.gapDistance - x.gapDistance;
                     const velocity = refSpeedForEstimates.get() / 3.6;
-                    if (!velocity) debugger; // impossible i think
                     if (incGapDist < 0) debugger;
                     const incGap = incGapDist / velocity;
                     if (incGap < 0) debugger;
@@ -3176,7 +3197,6 @@ export class StatsProcessor extends events.EventEmitter {
                     // it irrelevant as a time based checkpoint to the watching athlete.
                     const incGapDist = x.gapDistance - adjacent.gapDistance;
                     const velocity = refSpeedForEstimates.get() / 3.6;
-                    if (!velocity) debugger; // impossible i think
                     if (incGapDist < 0) debugger;
                     const incGap = incGapDist / velocity;
                     if (incGap < 0) debugger;
