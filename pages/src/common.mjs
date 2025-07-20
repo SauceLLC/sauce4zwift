@@ -1072,7 +1072,9 @@ export class Renderer {
                                 }
                             } else {
                                 softInnerHTML(field.labelEl, labels);
-                                softInnerHTML(field.subLabelEl, '');
+                                if (field.subLabelEl) {
+                                    softInnerHTML(field.subLabelEl, '');
+                                }
                             }
                         }
                         if (field.keyEl) {

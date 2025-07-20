@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html tabindex="0" class="" data-settings-key="fields-explorer-settings-v1">
+    <head>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+        <meta name="apple-mobile-web-app-capable" content="yes"/>
+        <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval';"/>
+
+        <title>Fields Explorer - Sauce for Zwift™</title>
+
+        <script src="./src/preloads.js"></script>
+
+        <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
+        <link rel="stylesheet" href="css/common.css"/>
+        <style>
+            html {
+                font-size: 16px;
+            }
+
+            #content {
+                overflow: auto;
+
+                .group {
+                    padding: 1em;
+                    border-bottom: 4px solid #7777;
+
+                    .fields-wrap {
+                        display: flex;
+                        flex-wrap: wrap;
+
+                        .field {
+                            display: flex;
+                            flex-direction: column;
+                            align-items: flex-start;
+                            padding: 0.5em;
+                            border: 1px solid #777;
+                            border-radius: 0.28em;
+                            margin-bottom: 0.5em;
+                            flex: 1 1 0;
+
+                            &:not(:last-child) {
+                                margin-right: 0.5em;
+                            }
+
+                            .def {
+                                font-family: monospace;
+                                font-size: 0.76em;
+                                white-space: nowrap;
+
+                                &.d-tooltip {
+                                    max-width: 26ch;
+                                    overflow: hidden;
+                                    text-overflow: ellipsis;
+                                }
+                            }
+
+                            .rendered {
+                                margin-top: 0.4em;
+                                border: 1px solid white;
+                                border-radius: 0.28em;
+                                background: black;
+                                color: white;
+                                display: flex;
+                                align-items: baseline;
+                                padding: 0.2em 0.5em;
+
+                                .key {
+                                    display: inline-flex;
+                                    align-items: baseline;
+                                    white-space: nowrap;
+
+                                    &:not(:empty)::after {
+                                        content: ":";
+                                    }
+
+                                    ms {
+                                        margin: 0;
+                                        font-weight: 250;
+                                        align-self: center;
+                                    }
+                                }
+
+                                .value {
+                                    font-variant: tabular-nums;
+                                    margin-left: 0.2em;
+                                    white-space: nowrap;
+                                }
+
+                                .unit {
+                                    margin-left: 0.12em;
+                                    font-size: 0.75em;
+                                    opacity: 0.82;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        </style>
+
+        <script type="module">
+            import {main} from './src/fields-explorer.mjs';
+            main();
+        </script>
+    </head>
+    <body>
+        <div id="titlebar">
+            <header>
+                <div class="logo"><img src="images/icon128.png"/></div>
+                <div class="title">Fields Explorer</div>
+                <div class="filler"></div>
+                <div class="buttons">
+                    <a class="button open-settings" href="fields-explorer-settings.html?width=450&height=630&child-window"
+                       title="Open settings window" target="fields-explorer-settings"><ms>settings</ms></a>
+                    <div title="Minimize" class="button minimize electron-only"><ms>minimize</ms></div>
+                    <div title="Close this window" class="button close electron-only"><ms>close</ms></div>
+                </div>
+            </header>
+        </div>
+        <div id="content">
+            <div class="fields"></div>
+        </div>
+        <div id="hintbar">
+            <div class="hint"></div>
+        </div>
+    </body>
+</html>
