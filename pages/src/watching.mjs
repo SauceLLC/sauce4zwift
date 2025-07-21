@@ -195,44 +195,7 @@ const sectionSpecs = {
 export const groupSpecs = {
     time: {
         title: 'Time',
-        fields: [{
-            id: 'time-active',
-            longName: 'Time (active)',
-            format: x => fmtDur(x.stats && x.stats.activeTime),
-            shortName: 'Active',
-        }, {
-            id: 'time-elapsed',
-            longName: 'Time (elapsed)',
-            format: x => fmtDur(x.stats && x.stats.elapsedTime),
-            shortName: 'Elapsed',
-            label: 'elapsed',
-        }, {
-            id: 'time-lap',
-            longName: 'Time (lap)',
-            format: x => fmtDur(curLap(x) && curLap(x).activeTime),
-            shortName: 'Lap',
-            label: 'lap',
-        }, {
-            id: 'time-session',
-            longName: 'Time (zwift session)',
-            format: x => fmtDur(x.state && x.state.time),
-            shortName: 'Session',
-            label: 'session',
-        }, {
-            id: 'time-gap',
-            longName: 'Gap (time)',
-            format: x => fmtDur(x.gap),
-            shortName: 'Gap',
-            label: 'gap',
-        }, {
-            id: 'time-gap-distance',
-            longName: 'Gap (distance)',
-            format: x => fmtDistValue(x.gapDistance),
-            shortName: 'Gap',
-            label: 'gap',
-            suffix: x => fmtDistUnit(x.gapDistance),
-        },
-        ...fieldsMods.fields.filter(x => x.group === 'time')],
+        fields: fieldsMods.fields.filter(x => x.group === 'time'),
     },
     power: {
         title: 'Power',

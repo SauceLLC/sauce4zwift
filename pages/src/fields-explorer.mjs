@@ -8,22 +8,24 @@ const settings = common.settingsStore.get();
 
 
 function fGet(obj, ...args) {
-    return typeof obj === 'function' ? obj(...args) : obj;
+    return typeof obj === 'function' ? `() => ${obj(...args)}` : obj;
 }
 
 
-export function main() {
+export async function main() {
     common.initInteractionListeners();
     common.setBackground(settings);
     const fieldsEl = document.querySelector('#content .fields');
     const fieldRenderer = new common.Renderer(fieldsEl, {fps: Infinity});
     const mapping = [];
     let group;
+    await new Promise(r => setTimeout(r, 100));
     for (const x of fields.fields) {
         if (x.group !== group) {
             fieldsEl.insertAdjacentHTML('beforeend', `
                 <div class="group">
-                    <h4>${x.group}</h4>
+                    <h4>${fields.fieldGroupNames[x.group] ?? x.group} -
+                        <code><small>\`${x.group}\`</small></code></h4>
                     <div class="fields-wrap">
                     </div>
                 </div>
@@ -33,6 +35,8 @@ export function main() {
         fieldsEl.querySelector('.group:last-child .fields-wrap').insertAdjacentHTML('beforeend', `
             <div class="field" data-field="f-${x.id}">
                 <div class="def d-id">id: ${x.id}</div>
+                <div class="def d-longname">longName: ${fGet(x.longName)}</div>
+                <div class="def d-shortname">shortName: ${fGet(x.shortName)}</div>
                 <div class="def d-label">label: ${fGet(x.label)}</div>
                 <div class="def d-tooltip"
                      title="${common.sanitizeAttr(fGet(x.tooltip))}">tooltip: ${fGet(x.tooltip)}</div>

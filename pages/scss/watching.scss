@@ -662,7 +662,7 @@ html.settings-page .screen:not(.horizontal) {
     margin-bottom: 0.33em;
     min-width: 8ex;
 
-    &::after {
+    &:not(:empty)::after {
         content: ':';
         opacity: 0.86;
     }

@@ -261,21 +261,34 @@ function courseDurationFormat(t, options) {
 export const timeFields = [{
     id: 'time-active',
     longName: 'Active Time',
-    format: x => fmtDur(x.stats && x.stats.activeTime || 0),
     shortName: 'Active',
+    format: x => fmtDur(x.stats && x.stats.activeTime || 0),
     tooltip: 'Sauce based active time',
 }, {
     id: 'time-elapsed',
     longName: 'Elapsed Time',
-    format: x => fmtDur(x.stats && x.stats.elapsedTime || 0),
     shortName: 'Elapsed',
+    format: x => fmtDur(x.stats && x.stats.elapsedTime || 0),
     tooltip: 'Sauce based elapsed time',
 }, {
     id: 'time-session',
     longName: 'Session Time',
-    format: x => fmtDur(x.state && x.state.time || 0),
     shortName: 'Time',
+    format: x => fmtDur(x.state && x.state.time || 0),
     tooltip: 'Time as reported by the current Zwift session',
+}, {
+    id: 'time-gap',
+    longName: 'Gap Time',
+    shortName: 'Gap',
+    format: x => fmtDur(x.gap),
+    label: 'gap',
+}, {
+    id: 'time-gap-distance',
+    longName: 'Gap Distance',
+    shortName: 'Gap',
+    format: x => H.distance(x.gapDistance),
+    label: 'gap',
+    suffix: x => H.distance(0, {suffixOnly: true})
 }, {
     id: 'clock',
     longName: 'Clock',
@@ -322,8 +335,9 @@ export const timeFields = [{
     label: 'TGD',
 }, {
     id: 'time-lap',
-    format: x => fmtDur((x.lap || x.stats) && (x.lap || x.stats).activeTime || 0),
-    shortName: 'Time<small> (lap)</small>',
+    format: x => fmtDur(x.lap?.activeTime || 0),
+    longName: 'Time (lap)',
+    shortName: 'Lap',
 }, {
     id: 'time-coffee-lap',
     longName: 'Coffee Time (lap)',
@@ -419,7 +433,8 @@ export const speedFields = [{
 }, {
     id: 'spd-lap',
     format: x => fmtPace(x.lap && x.lap.speed.avg, x),
-    shortName: x => `${speedLabel(x)}<small> (lap)</small>`,
+    longName: x => `${speedLabel(x)} (lap)`,
+    shortName: x => `${speedLabel(x)} <ms>timer</ms>`,
     suffix: speedUnit,
 }];
 speedFields.forEach(x => x.group = 'speed');
@@ -444,7 +459,8 @@ export const hrFields = [{
 }, {
     id: 'hr-lap',
     format: x => H.number(x.lap && x.lap.hr.avg),
-    shortName: 'HR<small> (lap)</small>',
+    longtName: 'HR (lap)',
+    shortName: 'HR <ms>timer</ms>',
     suffix: 'bpm',
 }];
 hrFields.forEach(x => x.group = 'hr');
@@ -513,7 +529,7 @@ export const powerFields = [{
     get: x => x.stats?.soloKj / x.stats?.soloTime * 1000,
     format: H.power,
     suffix: 'w',
-    shortName: 'Solo Pwr',
+    shortName: 'Solo',
     tooltip: 'Average power while riding alone',
 }, {
     id: 'power-avg-sit',
@@ -521,7 +537,7 @@ export const powerFields = [{
     get: x => x.stats?.sitKj / x.stats?.sitTime * 1000,
     format: H.power,
     suffix: 'w',
-    shortName: 'Sit Pwr',
+    shortName: 'Sitting',
     tooltip: 'Average power while sitting/following in a group',
 }, {
     id: 'power-avg-work',
@@ -529,7 +545,7 @@ export const powerFields = [{
     get: x => x.stats?.workKj / x.stats?.workTime * 1000,
     format: H.power,
     suffix: 'w',
-    shortName: 'Work Pwr',
+    shortName: 'Working',
     tooltip: 'Average power while working/pulling in a group',
 }, {
     id: 'wbal',
@@ -609,7 +625,7 @@ export const powerFields = [{
     get: x => x.lap?.soloKj / x.lap?.soloTime * 1000,
     format: H.power,
     suffix: 'w',
-    shortName: 'Solo Pwr <ms>timer</ms>',
+    shortName: 'Solo <ms>timer</ms>',
     tooltip: 'Average power while riding alone (lap)',
 }, {
     id: 'power-avg-sit-lap',
@@ -617,7 +633,7 @@ export const powerFields = [{
     get: x => x.lap?.sitKj / x.lap?.sitTime * 1000,
     format: H.power,
     suffix: 'w',
-    shortName: 'Sit Pwr <ms>timer</ms>',
+    shortName: 'Sitting <ms>timer</ms>',
     tooltip: 'Average power while sitting/following in a group (lap)',
 }, {
     id: 'power-avg-work-lap',
@@ -625,7 +641,7 @@ export const powerFields = [{
     get: x => x.lap?.workKj / x.lap?.workTime * 1000,
     format: H.power,
     suffix: 'w',
-    shortName: 'Work Pwr <ms>timer</ms>',
+    shortName: 'Working <ms>timer</ms>',
     tooltip: 'Average power while working/pulling in a group (lap)',
 },
 ...makePeakPowerFields(5, -1),
@@ -754,12 +770,17 @@ export const courseFields = [{
 }, {
     id: 'el-altitude',
     format: x => H.elevation(x.state && x.state.altitude),
-    shortName: 'Altitude',
+    longName: 'Altitude',
+    shortName: 'Alt',
     suffix: x => H.elevation(x && x.state && x.state.altitude, {suffixOnly: true}),
 }, {
     id: 'grade',
-    format: x => fmtPct(x.state && x.state.grade, {precision: 1, fixed: true}),
-    shortName: 'Grade',
+    get: x => x.state?.grade,
+    format: x => fmtPct(x, {precision: 1, fixed: true, html: true}),
+    longName: 'Grade',
+    shortName: '',
+    suffix: x => x.state?.grade < 0 ? '<ms>downhill_skiing</ms>' : '<ms>altitude</ms>',
+    tooltip: 'Grade of terrain in percent of rise'
 }];
 courseFields.forEach(x => x.group = 'course');
 
