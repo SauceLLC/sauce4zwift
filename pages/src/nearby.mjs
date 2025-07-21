@@ -447,12 +447,11 @@ const fieldGroups = [{
         convertGenericField('time-solo'),
         convertGenericField('time-work'),
         convertGenericField('time-sit'),
+        convertGenericField('time-dist-sparkline'),
         convertGenericField('time-coffee-lap'),
         convertGenericField('time-solo-lap'),
         convertGenericField('time-work-lap'),
-        convertGenericField('time-dist-sparkline'),
         convertGenericField('time-dist-sparkline-lap'),
-
         {id: 'time-session', defaultEn: false, label: 'Session Time', headerLabel: 'Time',
          get: x => x.state.time, fmt: fmtDur, tooltip: 'Time reported by the game client'},
         {id: 'time-active', defaultEn: false, label: 'Active Time', headerLabel: 'Active',
