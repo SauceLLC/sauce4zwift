@@ -63,11 +63,11 @@ abbr.unit {
     }
 
     > header.avatar {
-        padding: 1rem 0.5rem;
         grid-column: 1 / 2;
         display: flex;
         align-items: center;
         justify-content: center;
+        padding: 1rem 0.5rem;
 
         a.avatar {
             position: relative;
@@ -95,11 +95,11 @@ abbr.unit {
     }
 
     > header.overview {
-        padding: 1rem 0.12rem 1rem 1.3rem;
         grid-column: 2 / 4;
         display: flex;
         flex-wrap: wrap;
         font-size: 1.2em;
+        padding: 1rem 0.12rem 1rem 1.3rem;
 
         .activity-intro,
         .activity-summary {
@@ -150,6 +150,7 @@ abbr.unit {
         }
 
         .activity-intro {
+            padding-right: 1.2em;
             margin-right: 1.2em;
             border-right: $medium-border;
             position: relative;
@@ -180,20 +181,33 @@ abbr.unit {
     }
 
     > nav {
-        padding: 0.8rem 0.8rem;
+        grid-column: 1 / 2;
         position: sticky;
         top: 0;
-        grid-column: 1 / 2;
         display: flex;
         flex-direction: column;
         font-size: 0.9em;
+        padding: 0.8rem 0.8rem;
 
-        > section:not(:last-child) {
+        > section {
             display: flex;
-            justify-content: center;
-            border-bottom: $medium-border;
-            margin-bottom: 1rem;
-            padding-bottom: 1rem;
+            flex-direction: column;
+            align-items: center;
+
+            &:not(:last-child) {
+                border-bottom: $medium-border;
+                margin-bottom: 1rem;
+                padding-bottom: 1rem;
+            }
+
+            > header {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                font-size: 0.9em;
+                font-weight: 500;
+                text-align: center;
+            }
         }
     }
 
@@ -471,12 +485,21 @@ table {
     }
 }
 
+nav > section .echarts-chart {
+    width: 100%;
+}
+
 .time-in-power-zones {
     aspect-ratio: 1 / 1;
-    max-width: 180px;
+    max-width: 200px;
+}
+
+.pack-time {
+    aspect-ratio: 3 / 1;
 }
 
 .peak-efforts {
+    display: none;
     border-radius: 0.28em;
     border: $light-border;
     white-space: nowrap;
@@ -589,10 +612,6 @@ table.segments {
         border-radius: 0.3em;
         //color: color.shade(primary, 100%);
 
-        > thead > tr {
-            
-        }
-
         .trophy {
             font-size: 1.4em;
             border-radius: 50%;
@@ -618,4 +637,51 @@ table.segments {
 }
 
 @media only screen and (max-width: 600px)  {
+    #content {
+        position: relative;
+        grid-template-columns: 1fr 1fr 1fr;
+        padding: 0.2rem;
+
+        > header.avatar {
+            position: absolute;
+            width: 60px;
+            left: 0;
+            top: 0;
+        }
+
+        > header.overview {
+            grid-column: 1 / 4;
+
+            .overview-name {
+                padding-left: 40px;
+                font-size: 1.8em;
+            }
+
+            .activity-intro {
+                padding-right: 0;
+                padding-bottom: 1.2em;
+                margin-right: 0;
+                border-right: none;
+                border-bottom: $medium-border;
+                min-width: 301px;
+            }
+
+            .activity-summary {
+                min-width: 301px;
+            }
+        }
+
+        > nav {
+            position: static;
+            grid-column: 1 / 4;
+            order: 2;
+            padding: 0;
+        }
+
+        > main {
+            border-left: none;
+            grid-column: 1 / 4;
+            padding: 0;
+        }
+    }
 }

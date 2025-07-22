@@ -34,6 +34,7 @@ let zwiftMap;
 let elevationChart;
 let streamStackCharts;
 let powerZonesChart;
+let packTimeChart;
 let templates;
 let athleteData;
 let athlete;
@@ -50,6 +51,9 @@ let zoomStart;
 let zoomEnd;
 let voidAutoCenter = false;
 let geoSelection;
+let activeLapOrSegment;
+let selectedLap;
+let selectedSegment;
 
 
 function resetData() {
@@ -62,7 +66,8 @@ function resetData() {
     rolls.power = new sauce.power.RollingPower(null, {idealGap: 1, maxGap: 15});
     geoOffset = 0;
     voidAutoCenter = false;
-    sport = timeOfft = segmentOfft = lapOfft = curPeaksSig = zoomStart = zoomEnd = geoSelection = undefined;
+    sport = timeOfft = segmentOfft = lapOfft = curPeaksSig = zoomStart = zoomEnd =
+        geoSelection = activeLapOrSegment = undefined;
 }
 
 
@@ -85,6 +90,12 @@ const peakFormatters = {
 };
 
 const streamSeries = ['power', 'hr', 'speed', 'cadence', 'wbal', 'draft'].map(x => chartsMod.streamFields[x]);
+
+
+function resizeCharts() {
+    powerZonesChart.resize();
+    packTimeChart.resize();
+}
 
 
 async function getTemplates(basenames) {
@@ -351,6 +362,10 @@ function createElevationChart(el) {
                 zoomStart = common.binarySearchClosest(streams.distance, x1);
                 zoomEnd = common.binarySearchClosest(streams.distance, x2);
             }
+            if (activeLapOrSegment) {
+                activeLapOrSegment = null;
+                packTimeChart.updateData();
+            }
         }
     });
     return chart;
@@ -425,6 +440,10 @@ function createStreamStackCharts(el) {
         const wbalSegment = {x: 0, y: 0, color: '#f00e'};
         chart.updateData = () => {
             const data = streams[series.id].map((x, i) => [streams.time[i] * 1000, x]);
+            if (!data.length) {
+                chart.reset();
+                return;
+            }
             if (series.domain[0] != null) {
                 chart.yMin = Math.min(series.domain[0], sauce.data.min(data.map(x => x[1])));
             }
@@ -496,6 +515,10 @@ function createStreamStackCharts(el) {
                         zoomStart = common.binarySearchClosest(streams.time, x1 / 1000);
                         zoomEnd = common.binarySearchClosest(streams.time, x2 / 1000);
                     }
+                    if (activeLapOrSegment) {
+                        activeLapOrSegment = null;
+                        packTimeChart.updateData();
+                    }
                 }
             });
         }
@@ -518,22 +541,12 @@ function powerZoneColors(zones, fn) {
 function createTimeInPowerZonesPie(el) {
     const chart = echarts.init(el, 'sauce', {renderer: 'svg'});
     chart.setOption({
-        title: {
-            text: 'TIME IN ZONES',
-            left: 'center',
-            textStyle: {
-                fontWeight: 450,
-                fontFamily: 'inherit',
-                fontSize: '0.76em',
-            }
-        },
         tooltip: {
             className: 'ec-tooltip'
         },
         series: [{
             type: 'pie',
-            radius: ['30%', '80%'],
-            top: 10,
+            radius: ['30%', '90%'],
             minShowLabelAngle: 20,
             label: {
                 show: true,
@@ -584,6 +597,124 @@ function createTimeInPowerZonesPie(el) {
 }
 
 
+function valueGradient(color, value) {
+    const shadeColor = sc.color.parse(color).adjustLight(0.2).adjustSaturation(-0.2).toString({rgb:true});
+    return {
+        type: 'linear',
+        x: 1,
+        y: 1,
+        x2: 1,
+        y2: 0,
+        colorStops: [
+            {offset: 0, color},
+            {offset: value, color},
+            {offset: value, color: shadeColor},
+            {offset: 1, color: shadeColor},
+        ]
+    };
+}
+
+
+function createPackTimeChart(el) {
+    const headerEl = el.closest('section').querySelector('header');
+    const chart = echarts.init(el, 'sauce', {renderer: 'svg'});
+    let totalTime = 0;
+    let powers;
+    const barSeries = {
+        type: 'bar',
+        barCategoryGap: 10,
+        stack: 'total',
+    };
+    chart.setOption({
+        grid: {top: 1, left: 1, right: 1, bottom: 1},
+        tooltip: {
+            className: 'ec-tooltip',
+            formatter: ({value, data, name, seriesIndex, dataIndex}) => {
+                return `
+                    <b>${name}:</b><br/>
+                    Time: <b>${H.timer(value * totalTime, {long: true, html: true})}</b><br/>
+                    Power: <b>${H.power(powers[seriesIndex], {suffix: true, html: true})}</b>
+                `;
+            }
+        },
+        xAxis: {
+            show: false,
+            type: 'value',
+            min: 0,
+            max: 1,
+        },
+        yAxis: {
+            show: false,
+            type: 'category'
+        },
+        series: [barSeries, barSeries, barSeries],
+    });
+    chart.updateData = () => {
+        const data = activeLapOrSegment?.stats || athleteData?.stats;
+        if (!data) {
+            return;
+        }
+        totalTime = data.sitTime + data.soloTime + data.workTime;
+        let subTitle = '';
+        if (activeLapOrSegment) {
+            if (activeLapOrSegment.segmentId != null) {
+                let name = activeLapOrSegment.segment?.name || 'Segment';
+                const max = 28;
+                if (name.length > max) {
+                    name = name.substr(0, max - 1) + '…';
+                }
+                subTitle = `<br/>${name}`;
+            } else {
+                subTitle = `<br/>Lap ${selectedLap + 1}`;
+            }
+        }
+        headerEl.innerHTML = `Pack Time${subTitle}`;
+        powers = [
+            data.sitTime ? data.sitKj / data.sitTime * 1000 : 0,
+            data.soloTime ? data.soloKj / data.soloTime * 1000 : 0,
+            data.workTime ? data.workKj / data.workTime * 1000 : 0,
+        ];
+        const maxPower = Math.max(...powers);
+        chart.setOption({
+            label: {
+                show: true,
+                position: 'inside',
+                color: '#fff',
+                formatter: ({value}) => {
+                    if (value > 0.25) {
+                        return `${H.number(value * 100, {suffix: '%'})}`;
+                    } else {
+                        return '';
+                    }
+                },
+            },
+            series: [{
+                itemStyle: {borderRadius: [2, 0, 0, 2]},
+                data: [{
+                    name: 'Sitting',
+                    value: data.sitTime / totalTime,
+                    itemStyle: {color: valueGradient('#65a354', powers[0] / maxPower)},
+                }],
+            }, {
+                data: [{
+                    name: 'Solo',
+                    value: data.soloTime / totalTime,
+                    itemStyle: {color: valueGradient('#d1c209', powers[1] / maxPower)},
+                }],
+            }, {
+                itemStyle: {borderRadius: [0, 2, 2, 0]},
+                data: [{
+                    name: 'Working',
+                    value: data.workTime / totalTime,
+                    itemStyle: {color: valueGradient('#ca3805', powers[2] / maxPower)},
+                }],
+            }],
+        });
+    };
+    return chart;
+}
+
+
 function centerMap(positions) {
     const xMin = sauce.data.min(positions.map(x => x[0]));
     const yMin = sauce.data.min(positions.map(x => x[1]));
@@ -626,7 +757,8 @@ export async function main() {
     }
     elevationChart = createElevationChart(contentEl.querySelector('.chart-holder.elevation .chart'));
     streamStackCharts = createStreamStackCharts(contentEl.querySelector('.chart-holder.stream-stack .chart'));
-    powerZonesChart = createTimeInPowerZonesPie(contentEl.querySelector('.time-in-power-zones'));
+    powerZonesChart = createTimeInPowerZonesPie(contentEl.querySelector('nav .time-in-power-zones'));
+    packTimeChart = createPackTimeChart(contentEl.querySelector('nav .pack-time'));
     zwiftMap = new map.SauceZwiftMap({
         el: document.querySelector('#map'),
         worldList,
@@ -656,6 +788,7 @@ export async function main() {
         addEventListener('pointercancel', () => abrt.abort(), {signal: abrt.signal});
         addEventListener('pointerup', () => abrt.abort(), {signal: abrt.signal});
     });
+    addEventListener('resize', resizeCharts);
 
     document.querySelector('.button.export-file').addEventListener('click', () => {
         const started = new Date(athleteData.created);
@@ -672,14 +805,20 @@ export async function main() {
         contentEl.querySelectorAll('table.selectable tr.selected').forEach(x =>
             x.classList.remove('selected'));
         if (deselecting) {
+            selectedSegment = selectedLap = null;
             setSelection();
         } else {
             let sel;
             let scrollTo;
+            let lapish;
             if (row.dataset.segmentIndex) {
-                sel = segments[Number(row.dataset.segmentIndex)];
+                selectedSegment = Number(row.dataset.segmentIndex);
+                selectedLap = null;
+                lapish = sel = segments[selectedSegment];
             } else if (row.dataset.lapIndex) {
-                sel = laps[Number(row.dataset.lapIndex)];
+                selectedLap = Number(row.dataset.lapIndex);
+                selectedSegment = null;
+                lapish = sel = laps[selectedLap];
                 scrollTo = true;
             } else if (row.dataset.peakSource) {
                 const period = Number(row.dataset.peakPeriod);
@@ -688,10 +827,11 @@ export async function main() {
                 const startIndex = common.binarySearchClosest(streams.time, peak.time - period);
                 sel = {startIndex, endIndex};
                 scrollTo = true;
+                selectedSegment = selectedLap = null;
             }
             if (sel) {
                 row.classList.add('selected');
-                setSelection(sel.startIndex, sel.endIndex, scrollTo);
+                setSelection(sel.startIndex, sel.endIndex, {scrollTo, lapish});
             }
         }
     });
@@ -778,7 +918,7 @@ export async function main() {
 }
 
 
-function setSelection(startIndex, endIndex, scrollTo) {
+function setSelection(startIndex, endIndex, {scrollTo, lapish}={}) {
     zoomStart = startIndex;
     zoomEnd = endIndex;
     elevationChart.setBrush({
@@ -797,6 +937,8 @@ function setSelection(startIndex, endIndex, scrollTo) {
             x.setZoom();
         }
     }
+    activeLapOrSegment = lapish;
+    packTimeChart.updateData();
     if (scrollTo) {
         document.querySelector('#map').scrollIntoView({behavior: 'smooth'});
     }
@@ -853,7 +995,7 @@ function updateLoop() {
 }
 
 
-async function updateData() {
+async function updateData({reset}={}) {
     const [newAthleteData, newStreams, newSegments, newLaps] = await Promise.all([
         common.rpc.getAthleteData(athleteIdent),
         common.rpc.getAthleteStreams(athleteIdent, {startTime: timeOfft}),
@@ -861,6 +1003,7 @@ async function updateData() {
         common.rpc.getAthleteLaps(athleteIdent, {endTime: lapOfft, active: true}),
     ]);
     const changed = {
+        reset,
         athleteData: athleteData?.created !== newAthleteData?.created,
         sport: sport !== newAthleteData?.state?.sport,
     };
@@ -868,7 +1011,7 @@ async function updateData() {
         console.debug("Data reset detected");
         setSelection();
         resetData();
-        return await updateData();
+        return await updateData({reset: true});
     }
     athleteData = newAthleteData;
     sport = newAthleteData?.state?.sport;
@@ -951,10 +1094,10 @@ async function updateAll() {
         return;
     }
     const changed = await updateData();
-    if (changed.sport) {
+    if (changed.sport || changed.reset) {
         chartsMod.setSport(sport);
     }
-    if (changed.course) {
+    if (changed.course || changed.reset) {
         const title = worldList.find(x => x.courseId === courseId)?.name;
         document.querySelector('#world-map-title').textContent = title || '';
         zwiftMap.setDragOffset(0, 0);
@@ -967,7 +1110,7 @@ async function updateAll() {
             await zwiftMap.setCourse(courseId);
         }
     }
-    if (changed.athleteData) {
+    if (changed.athleteData || changed.reset) {
         document.querySelector('#content').classList.toggle('no-data', !athleteData);
         const exportBtn = document.querySelector('.button.export-file');
         if (athleteData) {
@@ -976,27 +1119,28 @@ async function updateAll() {
             exportBtn.setAttribute('disabled', 'disabled');
         }
     }
-
-    if (changed.streams) {
-        for (let i = positions.length; i < streams.time.length; i++) {
-            positions.push(zwiftMap.latlngToPosition(streams.latlng[i]));
-            const p = streams.power[i];
-            rolls.power.add(streams.time[i], (p || streams.active[i]) ? p : new sauce.data.Pad(p));
+    if (changed.streams || changed.reset) {
+        if (streams.time?.length) {
+            for (let i = positions.length; i < streams.time.length; i++) {
+                positions.push(zwiftMap.latlngToPosition(streams.latlng[i]));
+                const p = streams.power[i];
+                rolls.power.add(streams.time[i], (p || streams.active[i]) ? p : new sauce.data.Pad(p));
+            }
+            const coursePositions = positions.slice(geoOffset);
+            zwiftMap.startEnt.setPosition(coursePositions[0]);
+            zwiftMap.endEntity.setPosition(coursePositions.at(-1));
+            if (!zwiftMap.histPath) {
+                zwiftMap.histPath = zwiftMap.addHighlightLine(coursePositions, 'history', {layer: 'low'});
+            } else {
+                zwiftMap.updateHighlightLine(zwiftMap.histPath, coursePositions);
+            }
         }
-        const coursePositions = positions.slice(geoOffset);
-        zwiftMap.startEnt.setPosition(coursePositions[0]);
-        zwiftMap.endEntity.setPosition(coursePositions.at(-1));
-        if (!zwiftMap.histPath) {
-            zwiftMap.histPath = zwiftMap.addHighlightLine(coursePositions, 'history', {layer: 'low'});
-        } else {
-            zwiftMap.updateHighlightLine(zwiftMap.histPath, coursePositions);
-        }
-
         for (const x of streamStackCharts) {
             x.updateData();
         }
         elevationChart.updateData();
         powerZonesChart.updateData();
+        packTimeChart.updateData();
         schedUpdateSelectionStats();
 
         // Only update peaks widget if we're not interacting with it...
@@ -1008,11 +1152,12 @@ async function updateAll() {
             }
         }
     }
-    if (changed.segments) {
+    if (changed.segments || changed.reset) {
         updateTemplate('table.segments', templates.segments, {
             settings,
             athlete,
-            segments
+            segments,
+            selected: selectedSegment,
         }).then(updated => {
             if (updated) {
                 common.initExpanderTable(document.querySelector('table.segments.expandable'),
@@ -1020,13 +1165,25 @@ async function updateAll() {
             }
         }); // bg okay
     }
-    if (changed.laps) {
+    if (changed.laps || changed.reset) {
         updateTemplate('table.laps', templates.laps, {
             settings,
             athlete,
             streams,
-            laps
+            laps,
+            selected: selectedLap,
         }); // bg okay
+        if (activeLapOrSegment && selectedLap != null) {
+            if (selectedLap >= laps.length) { // possible data reset
+                activeLapOrSegment = null;
+                selectedLap = null;
+                setSelection();
+            } else {
+                activeLapOrSegment = laps[selectedLap];
+                const l = activeLapOrSegment;
+                setSelection(l.startIndex, l.endIndex, {lapish: l});
+            }
+        }
     }
     updateTemplate('.activity-summary', templates.activitySummary, {athleteData}); // bg okay
 }

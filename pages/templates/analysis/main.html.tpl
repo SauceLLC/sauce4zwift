@@ -64,7 +64,12 @@
 
             <div class="overview-stat" title="Zwift Racing Score">
                 <key>ZRS:</key>
-                <value>{-humanNumber(athlete.racingScore || null)-}</value>
+                <value>
+                    {-humanNumber(athlete.racingScore || null)-}
+                    <% if (athlete.racingCategory) { %>
+                        {-common.eventBadge(athlete.racingCategory)-}
+                    <% } %>
+                </value>
             </div>
 
             <% if (athlete.ftp) { %>
@@ -83,7 +88,14 @@
 
     <nav>
         <section>{-embed(templates.peakEfforts, obj)-}</section>
-        <section><div class="stats time-in-power-zones"></div></section>
+        <section>
+            <header>Time in Zones</header>
+            <div class="echarts-chart time-in-power-zones"></div>
+        </section>
+        <section>
+            <header>Pack Time</header>
+            <div class="echarts-chart pack-time"></div>
+        </section>
     </nav>
 
     <main>

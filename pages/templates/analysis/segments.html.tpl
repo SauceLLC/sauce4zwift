@@ -12,8 +12,10 @@
     </thead>
     <tbody>
         <% if (hasSegments) { %>
-            <% for (const [i, x] of segments.entries()) { %>
-                <tr class="summary" data-segment-index="{{i}}">
+            <% const orderedSegments = settings.reverseLapsAndSegments ? segments.toReversed() : segments; %>
+            <% for (const x of orderedSegments) { %>
+                <% const index = segments.indexOf(x); %>
+                <tr class="summary {{index === selected ? 'selected' : ''}}" data-segment-index="{{index}}">
                     <td class="name">{{x.segment.friendlyName || x.segment.name}}</td>
                     <td>{-humanTimer(x.stats.elapsedTime, {long: true, ms: true, html: true})-}</td>
                     <td>{-humanDistance(x.segment.distance, {suffix: true, html: true})-}</td>

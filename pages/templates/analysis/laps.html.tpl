@@ -13,10 +13,12 @@
     </thead>
     <tbody>
         <% if (hasLaps) { %>
-            <% for (const [i, x] of laps.entries()) { %>
+            <% const orderedLaps = settings.reverseLapsAndSegments ? laps.toReversed() : laps; %>
+            <% for (const x of orderedLaps) { %>
                 <% if (!x.endIndex) continue; /* reset data, not moving */ %>
-                <tr class="summary" data-lap-index="{{i}}">
-                    <td class="num">{{i+1}}</td>
+                <% const index = laps.indexOf(x); %>
+                <tr class="summary {{index === selected ? 'selected' : ''}}" data-lap-index="{{index}}">
+                    <td class="num">{{index + 1}}</td>
                     <td>{-humanTimer(x.stats.activeTime, {long: true, ms: true, html: true})-}</td>
                     <td>{-humanDistance(streams.distance[x.endIndex] - streams.distance[Math.max(0, x.startIndex - 1)], {suffix: true, html: true})-}</td>
                     <% if (settings.preferWkg && athlete.weight) { %>
