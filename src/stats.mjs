@@ -2189,13 +2189,12 @@ export class StatsProcessor extends events.EventEmitter {
         const prevState = ad.mostRecentState;
         const hist = ad.roadHistory;
         // XXX
-        if (!hist._xxxName) {
+        /*if (!hist._xxxName) {
             const athlete = this.loadAthlete(ad.athleteId);
             if (athlete) {
                 hist._xxxName = athlete.fLast;
             }
-        }
-        // /XXX
+        }*/
         const rpct = state.roadCompletion / 1e6;
         if (prevState) {
             if (prevState.courseId === state.courseId) {
@@ -2803,20 +2802,10 @@ export class StatsProcessor extends events.EventEmitter {
             distance = this._getRoadDistance(p1.aRoad, p1.a[0].rpct, p1CurPct);
             const p1BLastPct = p1.b[p1.b.length - 1].rpct;
             if (tiers === 2) {
-                const d = p1BLastPct - p2CurPct;
-                if (d < -boundaryErrorTerm) {
-                    debugger; // XXX should have filtered this out above
-                    return;
-                }
                 distance += this._getRoadDistance(p1.bRoad, p2CurPct, p1BLastPct);
                 sharedTimeline = p1.b;
             } else {
                 const p1CLastPct = p1.c[p1.c.length - 1].rpct;
-                const d = p1CLastPct - p2CurPct;
-                if (d < -boundaryErrorTerm) {
-                    debugger; // XXX should have filtered this out above
-                    return;
-                }
                 distance += this._getRoadDistance(p1.bRoad, p1.b[0].rpct, p1BLastPct);
                 distance += this._getRoadDistance(p1.cRoad, p2CurPct, p1CLastPct);
                 sharedTimeline = p1.c;
@@ -2895,10 +2884,6 @@ export class StatsProcessor extends events.EventEmitter {
             right = 0;
         } else if (value >= high) {
             left = right;
-        }
-        if (Math.abs(right - left) > 1) {
-            debugger;
-            throw new 'XXX';
         }
         const lDist = Math.abs(timeline[left].rpct - value);
         const rDist = Math.abs(timeline[right].rpct - value);
@@ -3135,9 +3120,6 @@ export class StatsProcessor extends events.EventEmitter {
                 ad.gap = (watchingWorldTime - rp.worldTime) / 1000;
                 if (rp.reversed && ad.gap > 0) { //need to check sign of ad.gap for stopped athletes
                     ad.gap = -ad.gap;
-                } else if (!rp.reversed && ad.gap < 0) {
-                    console.warn("check this condition, they stopped behind us? in the past?");
-                    debugger;
                 }
                 ad.isGapEst = false;
             } else {
@@ -3146,11 +3128,9 @@ export class StatsProcessor extends events.EventEmitter {
             }
             if (rp.reversed) {
                 ad.gapDistance = -rp.distance;
-                if (ad.gap > 0) console.warn("ahead pos gap", ad.gap);
                 ahead.push(ad);
             } else {
                 ad.gapDistance = rp.distance;
-                if (ad.gap < 0) console.warn("behind neg gap", ad.gap);
                 behind.push(ad);
             }
         }
@@ -3174,9 +3154,7 @@ export class StatsProcessor extends events.EventEmitter {
                     // making it irrelevant as a time based checkpoint to the watching athlete.
                     const incGapDist = adjacent.gapDistance - x.gapDistance;
                     const velocity = refSpeedForEstimates.get() / 3.6;
-                    if (incGapDist < 0) debugger;
                     const incGap = incGapDist / velocity;
-                    if (incGap < 0) debugger;
                     x.gap = adjacent.gap - incGap;
                 } else {
                     x.gap = adjacent.gap - (x.mostRecentState.worldTime - incRP.worldTime) / 1000;
@@ -3197,9 +3175,7 @@ export class StatsProcessor extends events.EventEmitter {
                     // it irrelevant as a time based checkpoint to the watching athlete.
                     const incGapDist = x.gapDistance - adjacent.gapDistance;
                     const velocity = refSpeedForEstimates.get() / 3.6;
-                    if (incGapDist < 0) debugger;
                     const incGap = incGapDist / velocity;
-                    if (incGap < 0) debugger;
                     x.gap = adjacent.gap + incGap;
                 } else {
                     x.gap = adjacent.gap + (x.mostRecentState.worldTime - incRP.worldTime) / 1000;
@@ -3321,7 +3297,6 @@ export class StatsProcessor extends events.EventEmitter {
                 if (bestScore > 0.5) {
                     //console.info("Matching group", bestScore, identitySet);
                     grp.id = bestGroupMeta.id;
-                    if (!grp.id) debugger;
                     const leftAthletes = bestGroupMeta.identitySet.difference(identitySet);
                     //const existingAthletes = identitySet.union(bestGroupMeta.identitySet);
                     const newAthletes = identitySet.difference(bestGroupMeta.identitySet);
@@ -3342,10 +3317,7 @@ export class StatsProcessor extends events.EventEmitter {
                     }
                     grp.created = Date.now();
                     newGroupMetas.push({id: grp.id, accessed: monotonic(), identitySet});
-                } else {
-                    debugger;
                 }
-                if (!grp.id) debugger;
             } else {
                 grp.id = null;
                 grp._athleteDatas[0].group = null;
