@@ -3135,7 +3135,7 @@ export class StatsProcessor extends events.EventEmitter {
                 ad.gap = (watchingWorldTime - rp.worldTime) / 1000;
                 if (rp.reversed && ad.gap > 0) { //need to check sign of ad.gap for stopped athletes
                     ad.gap = -ad.gap;
-                } else if (ad.gap < 0) {
+                } else if (!rp.reversed && ad.gap < 0) {
                     console.warn("check this condition, they stopped behind us? in the past?");
                     debugger;
                 }
