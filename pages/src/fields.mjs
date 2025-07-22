@@ -323,16 +323,16 @@ export const timeFields = [{
     shortName: 'Working',
     tooltip: 'Time observed working/pulling in a group',
 }, {
-    id: 'time-dist-sparkline',
-    longName: 'Time Distribution Graph',
-    shortName: 'TDG',
+    id: 'time-pack-graph',
+    longName: 'Pack Time Graph',
+    shortName: 'Pack',
     format: x => x.stats ? fmtStackedSparkline([
         {color: '#65a354', label: 'Sitting', value: x.stats.sitTime, format: courseDurationFormat},
         {color: '#d1c209', label: 'Solo', value: x.stats.soloTime, format: courseDurationFormat},
         {color: '#ca3805', label: 'Working', value: x.stats.workTime, format: courseDurationFormat},
     ]) : fmtStackedSparkline([{color: '#777', label: 'Inactive', value: 1}]),
-    tooltip: 'Time Distribution Graph\n\nHow much time has been spent sitting-in vs solo vs working',
-    label: 'TGD',
+    tooltip: 'Pack Time Graph\n\nHow much time has been spent sitting-in vs solo vs working',
+    label: 'pack time',
 }, {
     id: 'time-lap',
     format: x => fmtDur(x.lap?.activeTime || 0),
@@ -367,15 +367,16 @@ export const timeFields = [{
     shortName: 'Working <ms>timer</ms>',
     tooltip: 'Time observed working/pulling in a group (lap)',
 }, {
-    id: 'time-dist-sparkline-lap',
-    longName: 'Time Distribution Graph (lap)',
-    shortName: 'TDG <ms>timer</ms>',
+    id: 'time-pack-graph-lap',
+    longName: 'Pack Time Graph (lap)',
+    shortName: 'Pack <ms>timer</ms>',
     format: x => x.lap ? fmtStackedSparkline([
         {color: '#65a354', label: 'Sitting', value: x.lap.sitTime, format: courseDurationFormat},
         {color: '#d1c209', label: 'Solo', value: x.lap.soloTime, format: courseDurationFormat},
         {color: '#ca3805', label: 'Working', value: x.lap.workTime, format: courseDurationFormat}
     ]) : fmtStackedSparkline([{color: '#777', label: 'Inactive', value: 1}]),
-    tooltip: 'Time Distribution Graph\n\nHow much time has been spent sitting-in vs solo vs working (lap)',
+    tooltip: 'Pack Time Graph\n\nHow much time has been spent sitting-in vs solo vs working (lap)',
+    label: ['pack time', '(lap)']
 }];
 timeFields.forEach(x => x.group = 'time');
 

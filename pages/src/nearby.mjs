@@ -66,7 +66,7 @@ function convertGenericField(id, {defaultEn=false}={}) {
         id: field.id,
         defaultEn,
         label: field.longName ?? field.shortName,
-        headerLabel: field.label ?? field.shortName ?? field.longName,
+        headerLabel: field.shortName ?? field.longName ?? field.label,
         get: field.get,
         fmt: field.suffix != null ?
             x => fGet(field.format, x) + `<abbr class="unit">${fGet(field.suffix, x)}</abbr>` :
@@ -447,11 +447,11 @@ const fieldGroups = [{
         convertGenericField('time-solo'),
         convertGenericField('time-work'),
         convertGenericField('time-sit'),
-        convertGenericField('time-dist-sparkline'),
+        convertGenericField('time-pack-graph'),
         convertGenericField('time-coffee-lap'),
         convertGenericField('time-solo-lap'),
         convertGenericField('time-work-lap'),
-        convertGenericField('time-dist-sparkline-lap'),
+        convertGenericField('time-pack-graph-lap'),
         {id: 'time-session', defaultEn: false, label: 'Session Time', headerLabel: 'Time',
          get: x => x.state.time, fmt: fmtDur, tooltip: 'Time reported by the game client'},
         {id: 'time-active', defaultEn: false, label: 'Active Time', headerLabel: 'Active',
