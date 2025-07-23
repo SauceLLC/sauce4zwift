@@ -937,6 +937,7 @@ export class StatsProcessor extends events.EventEmitter {
 
     async getEvent(id) {
         if (!this._recentEvents.has(id)) {
+            this._recentEvents.set(id, null);
             const event = await this.zwiftAPI.getEvent(id);
             if (event) {
                 this._addEvent(event);
@@ -946,11 +947,40 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     getCachedEvents() {
-        return Array.from(this._recentEvents.values()).sort((a, b) => a.ts - b.ts);
+        return Array.from(this._recentEvents.values().filter(x => x)).sort((a, b) => a.ts - b.ts);
     }
 
-    getEventSubgroup(id) {
+    async getEventSubgroup(id) {
+        if (!this._recentEventSubgroups.has(id)) {
+            this._recentEventSubgroups.set(id, null);
+            const r = this._getEventSubgroupStmt.get(id);
+            const eventId = r && r.eventId;
+            if (eventId != null) {
+                if (this._recentEvents.has(eventId)) {
+                    console.warn("Unexpected inconsistency between events and missing subgroup info");
+                    debugger;
+                }
+                const event = await this.getEvent(eventId); // load it and its subgroups info
+                if (!this._recentEventSubgroups.get(id) || !event) {
+                    console.warn("Subgroup mapping is wrong or we are unable to get event", !!event);
+                    debugger;
+                } else {
+                    await this.refreshEventSignups();
+                }
+            }
+        }
         return this._recentEventSubgroups.get(id);
+    }
+
+    _rememberEventSubgroup(sgId, eventId) {
+        if (sgId == null || eventId == null) {
+            console.error("Unexpected null value for event or subgroup", sgId, eventId);
+            debugger;
+            return;
+        }
+        this._eventSubgroupsDB
+            .prepare('INSERT OR REPLACE INTO subgroups (id, eventId) VALUES(?, ?)')
+            .run(sgId, eventId);
     }
 
     async getEventSubgroupEntrants(id, options={}) {
@@ -1029,7 +1059,7 @@ export class StatsProcessor extends events.EventEmitter {
         const ourSignups = new Set(upcoming.filter(x => x.profileId === this.zwiftAPI.profile.id)
             .map(x => x.eventSubgroupId));
         for (const x of this._recentEventSubgroups.values()) {
-            if (ourSignups.has(x.id)) {
+            if (x && ourSignups.has(x.id)) {
                 x.signedUp = true;
             }
         }
@@ -1066,15 +1096,8 @@ export class StatsProcessor extends events.EventEmitter {
     getChatHistory() {
         return this._chatHistory.map(x => {
             const athlete = this._athletesCache.get(x.from);
-            x.muted = (athlete && athlete.muted != null) ? athlete.muted : x.muted;
-            if (x.eventSubgroup) {
-                const sg = this._recentEventSubgroups.get(x.eventSubgroup);
-                if (sg.invitedLeaders && sg.invitedLeaders.includes(x.from)) {
-                    x.eventLeader = true;
-                }
-                if (sg.invitedSweepers && sg.invitedSweepers.includes(x.from)) {
-                    x.eventSweeper = true;
-                }
+            if (athlete) {
+                x.muted = athlete.muted;  // may have changed mid-history
             }
             return x;
         });
@@ -1575,7 +1598,7 @@ export class StatsProcessor extends events.EventEmitter {
             return a;
         }
         if (!this.exclusions.has(zwift.getIDHash(id))) {
-            const r = this.getAthleteStmt.get(id);
+            const r = this._getAthleteStmt.get(id);
             if (r) {
                 const data = JSON.parse(r.data);
                 this._athletesCache.set(id, data);
@@ -1633,7 +1656,7 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _loadMarkedAthletes() {
-        const stmt = this.athletesDB.prepare(
+        const stmt = this._athletesDB.prepare(
             `SELECT athletes.id ` +
             `FROM athletes, json_each(athletes.data, '$.marked') ` +
             `WHERE json_each.value`);
@@ -1645,8 +1668,8 @@ export class StatsProcessor extends events.EventEmitter {
 
 
     saveAthletes(records) {
-        const stmt = this.athletesDB.prepare('INSERT OR REPLACE INTO athletes (id, data) VALUES(?, ?)');
-        this.athletesDB.transaction(() => {
+        const stmt = this._athletesDB.prepare('INSERT OR REPLACE INTO athletes (id, data) VALUES(?, ?)');
+        this._athletesDB.transaction(() => {
             for (const [id, data] of records) {
                 this._athletesCache.set(id, data);
                 stmt.run(id, JSON.stringify(data));
@@ -1710,20 +1733,21 @@ export class StatsProcessor extends events.EventEmitter {
                         updatedEvents.push(eventId);
                     }
                 } else if (x.payloadType === 'groupEventUserRegistered') {
-                    const sg = this._recentEventSubgroups.get(x.payload.subgroupId);
-                    if (sg) {
-                        const event = this._recentEvents.get(sg.eventId);
-                        if (this._followingIds.has(x.payload.athleteId)) {
-                            sg.followeeEntrantCount++;
+                    this.getEventSubgroup(x.payload.subgroupId).then(sg => {
+                        if (sg) {
+                            const event = this._recentEvents.get(sg.eventId);
+                            if (this._followingIds.has(x.payload.athleteId)) {
+                                sg.followeeEntrantCount++;
+                                if (event) {
+                                    event.followeeEntrantCount++;
+                                }
+                            }
+                            sg.totalEntrantCount++;
                             if (event) {
-                                event.followeeEntrantCount++;
+                                event.totalEntrantCount++;
                             }
                         }
-                        sg.totalEntrantCount++;
-                        if (event) {
-                            event.totalEntrantCount++;
-                        }
-                    }
+                    });
                 } else if (!ignore.includes(x.payloadType)) {
                     console.debug("Unhandled WorldUpdate:", x);
                 }
@@ -2129,31 +2153,33 @@ export class StatsProcessor extends events.EventEmitter {
         if (this._preprocessState(state, ad, now) === false) {
             return false;
         }
-        const noSubgroup = null;
-        const sg = state.eventSubgroupId &&
-            this._recentEventSubgroups.get(state.eventSubgroupId) ||
-            noSubgroup;
-        if (sg && sg.courseId === state.courseId) {
-            if (!ad.eventSubgroup || sg.id !== ad.eventSubgroup.id) {
-                ad.eventSubgroup = sg;
-                ad.privacy = {};
-                ad.eventPosition = undefined;
-                ad.eventParticipants = undefined;
-                if (state.athleteId !== this.athleteId) {
-                    ad.privacy.hideWBal = sg.allTags.includes('hidewbal');
-                    ad.privacy.hideFTP = sg.allTags.includes('hideftp');
-                }
-                ad.disabled = sg.allTags.includes('hidethehud') || sg.allTags.includes('nooverlays');
-                if (state.time) {
+        if (state.eventSubgroupId) {
+            const sg = this._recentEventSubgroups.get(state.eventSubgroupId);
+            if (sg === undefined) {
+                // Queue up load of this event info and defer state change till.
+                this.getEventSubgroup(state.eventSubgroupId);  // bg okay
+            } else if (sg !== null && sg.courseId === state.courseId) { // state.eventSubgroupId races
+                if (!ad.eventSubgroup || sg.id !== ad.eventSubgroup.id) {
+                    ad.eventSubgroup = sg;
+                    ad.privacy = {};
+                    ad.eventPosition = undefined;
+                    ad.eventParticipants = undefined;
+                    if (state.athleteId !== this.athleteId) {
+                        ad.privacy.hideWBal = sg.allTags.includes('hidewbal');
+                        ad.privacy.hideFTP = sg.allTags.includes('hideftp');
+                    }
+                    ad.disabled = sg.allTags.includes('hidethehud') || sg.allTags.includes('nooverlays');
+                    if (state.time) {
+                        this.triggerEventStart(ad, state, now);
+                    } else {
+                        ad.eventStartPending = true;
+                    }
+                } else if (ad.eventStartPending && state.time) {
                     this.triggerEventStart(ad, state, now);
-                } else {
-                    ad.eventStartPending = true;
                 }
-            } else if (ad.eventStartPending && state.time) {
-                this.triggerEventStart(ad, state, now);
             }
         } else if (ad.eventSubgroup) {
-            ad.eventSubgroup = noSubgroup;
+            ad.eventSubgroup = null;
             ad.privacy = {};
             ad.disabled = false;
             ad.eventStartPending = false;
@@ -2447,17 +2473,17 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     resetAthletesDB() {
-        deleteDatabase(this.athletesDB.name);
-        this.athletesDB = null;
+        deleteDatabase(this._athletesDB.name);
+        this._athletesDB = null;
         this._athletesCache.clear();
         this.initAthletesDB();
     }
 
     initAthletesDB() {
-        if (this.athletesDB) {
+        if (this._athletesDB) {
             throw new TypeError("Already initialized");
         }
-        this.athletesDB = new SqliteDatabase(path.join(this._userDataPath, 'athletes.sqlite'), {
+        this._athletesDB = new SqliteDatabase(path.join(this._userDataPath, 'athletes.sqlite'), {
             tables: {
                 athletes: {
                     id: 'INTEGER PRIMARY KEY',
@@ -2465,14 +2491,31 @@ export class StatsProcessor extends events.EventEmitter {
                 }
             }
         });
-        this.getAthleteStmt = this.athletesDB.prepare('SELECT data FROM athletes WHERE id = ?');
+        this._getAthleteStmt = this._athletesDB.prepare('SELECT data FROM athletes WHERE id = ?');
         queueMicrotask(() => this._loadMarkedAthletes());
+    }
+
+    initEventSubgroupsDB() {
+        if (this.eventSubgroupsDB) {
+            throw new TypeError("Already initialized");
+        }
+        this._eventSubgroupsDB = new SqliteDatabase(path.join(this._userDataPath, 'event_subgroups.sqlite'), {
+            tables: {
+                subgroups: {
+                    id: 'INTEGER PRIMARY KEY',
+                    eventId: 'INTEGER',
+                }
+            }
+        });
+        this._getEventSubgroupStmt = this._eventSubgroupsDB
+            .prepare('SELECT eventId FROM subgroups WHERE id = ?');
     }
 
     start() {
         this._active = true;
         try {
             this.initAthletesDB();
+            this.initEventSubgroupsDB();
         } catch(e) {
             report.errorOnce(e);
             this.resetAthletesDB();
@@ -2548,7 +2591,7 @@ export class StatsProcessor extends events.EventEmitter {
             TIME_TRIAL: 'TT',
             TEAM_TIME_TRIAL: 'TTT',
         }[event.eventType] || event.prettyType;
-        if (!this._recentEvents.has(event.id)) {
+        if (!this._recentEvents.get(event.id)) {
             const start = new Date(event.ts).toLocaleString();
             console.debug(`Event added [${event.id}] - ${start}:`, event.name);
         }
@@ -2564,6 +2607,7 @@ export class StatsProcessor extends events.EventEmitter {
                     sg.routeClimbing = this._getRouteClimbing(rt, sg.laps);
                 }
                 this._recentEventSubgroups.set(sg.id, sg);
+                this._rememberEventSubgroup(sg.id, event.id);
             }
         }
         this._recentEvents.set(event.id, event);
@@ -2582,6 +2626,7 @@ export class StatsProcessor extends events.EventEmitter {
         // Meetups are basicaly a hybrid event/subgroup
         meetup.eventSubgroups = [{...meetup, id: meetup.eventSubgroupId, eventId: meetup.id}];
         this._recentEventSubgroups.set(meetup.eventSubgroupId, meetup);
+        this._rememberEventSubgroup(meetup.eventSubgroupId, meetup.id);
         this._recentEvents.set(meetup.id, meetup);
     }
 
@@ -2614,12 +2659,12 @@ export class StatsProcessor extends events.EventEmitter {
                                                    zEvents.at(-1).eventStart);
         }
         for (const x of zEvents) {
-            addedEventsCount += !this._recentEvents.has(x.id);
+            addedEventsCount += !this._recentEvents.get(x.id);
             this._addEvent(x);
         }
         const meetups = await this.zwiftAPI.getPrivateEventFeed();
         for (const x of meetups) {
-            addedEventsCount += !this._recentEvents.has(x.id);
+            addedEventsCount += !this._recentEvents.get(x.id);
             this._addMeetup(x);
         }
         await this.refreshEventSignups();
