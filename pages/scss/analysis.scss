@@ -270,12 +270,12 @@ section.selection {
     padding: 0 !important;
 }
 
-.positive {
-    color: color.shade(positive, -10%);
+.sauce-positive {
+    color: color.shade(positive, -20%);
 }
 
-.negative {
-    color: color.shade(negative, -10%);
+.sauce-negative {
+    color: color.shade(negative, -20%);
 }
 
 .key-value-grid {
@@ -495,7 +495,7 @@ nav > section .echarts-chart {
 }
 
 .pack-time {
-    aspect-ratio: 3 / 1;
+    height: 50px;
 }
 
 .peak-efforts {

@@ -48,14 +48,15 @@
                 <value title="Average Heart Rate">{-humanNumber(hr.avg, {suffix: 'bpm', html: true})-}</value>
 
                 <% if (hr.tTss !== null && !isNaN(hr.tTss)) { %>
-                    <key>tTSS</key>
+                    <key title="TRIMP (TRaining IMPulse) based Training Stress Score®: A heart rate reserve based stress load indicator">tTSS:</key>
                     <value>{-humanNumber(hr.tTss)-}</value>
                 <% } %>
 
                 <% if (hr.pwhr !== null && !isNaN(hr.pwhr)) { %>
-                    <key>Pw:Hr</key>
-                    <value class="{{hr.pwhr < 0 ? 'sauce-positive' : 'sauce-negative'}}">
-                        {-humanNumber(hr.pwhr * 100, {suffix: '%', html: true})-}
+                    <% const pwhr = Math.round(hr.pwhr * 100); %>
+                    <key title="Pw:Hr is a measurement of aerobic decoupling.  It compares the power to heart rate ratio in the first half of an activity to the second half.  A positive value indicates the heart rate at a given power drifted higher as the activity progressed.  Often this happens on long endurance rides and represents fatigue.">Pw:Hr:</key>
+                    <value class="{{pwhr < 0 ? 'sauce-positive' : pwhr > 0 ? 'sauce-negative' : ''}}">
+                        {-humanNumber(pwhr, {suffix: '%', html: true, signDisplay: pwhr > 0 ? 'always' : undefined})-}
                     </value>
                 <% } %>
             </div>
@@ -98,7 +99,7 @@ Click for more details." for="tp">IF®</attr>:</key>
             <div class="seperator"></div>
 
             <div class="stats key-value-grid">
-                <key class="header"><ms>social_leaderboard</ms> Rank:</key>
+                <key class="header" title="World Ranking on the basis of W/kg for the given time period"><ms>social_leaderboard</ms> Rank:</key>
                 <% if (power.rank.level > 0) { %>
                     <value>{-humanNumber(power.rank.level * 100, {suffix: '%', html: true})-}</value>
                 <% } else { %>
