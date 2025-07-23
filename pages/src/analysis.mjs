@@ -311,7 +311,7 @@ function createElevationChart(el) {
     const chart = new sc.LineChart({
         el,
         padding: [2, chartRightPad, 30, chartLeftPad],
-        color: '#986a',
+        color: '#a86',
         hidePoints: true,
         disableAnimation: true,
         tooltip: {
@@ -331,9 +331,9 @@ function createElevationChart(el) {
     const geoMaskSegment = {
         x: 0,
         color: {
-            type: 'linear',
-            colors: ['#6554']
-        }
+            type: 'linear', // Prevent auto-gradient behavior..
+            colors: ['#eaf0ede0']
+        },
     };
     chart.updateData = () => {
         let segments;
