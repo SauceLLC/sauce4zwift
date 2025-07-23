@@ -313,6 +313,7 @@ function _humanNumber(value, options) {
         useGrouping: n >= 10000 || n <= -10000,
         maximumFractionDigits: p,
         minimumFractionDigits: options.fixed ? p : undefined,
+        signDisplay: options.signDisplay || 'negative',
     });
     const sep = options.suffix && options.separator || '';
     const suffix = options.suffix ?
