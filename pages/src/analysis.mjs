@@ -1031,9 +1031,6 @@ async function updateData({reset}={}) {
         }
         lapOfft = laps.at(-1).end;
     }
-    if (changed.athleteData) {
-        console.debug("Athlete-data creation:", H.datetime(athleteData.created));
-    }
     if (athleteData) {
         changed.athlete = JSON.stringify(athlete) !== JSON.stringify(athleteData.athlete);
         if (changed.athlete) {
@@ -1115,8 +1112,10 @@ async function updateAll() {
         const exportBtn = document.querySelector('.button.export-file');
         if (athleteData) {
             exportBtn.removeAttribute('disabled');
+            console.debug("Athlete-data creation:", H.datetime(athleteData.created));
         } else {
             exportBtn.setAttribute('disabled', 'disabled');
+            console.debug("Athlete-data not available");
         }
     }
     if (changed.streams || changed.reset) {
