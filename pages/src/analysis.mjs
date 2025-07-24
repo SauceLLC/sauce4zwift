@@ -568,7 +568,7 @@ function createTimeInPowerZonesPie(el) {
     let aid;
     let normZones;
     chart.updateData = () => {
-        if (!powerZones || !athlete.ftp || !athleteData.timeInPowerZones) {
+        if (!powerZones || !athlete?.ftp || !athleteData?.timeInPowerZones) {
             return;
         }
         if (athleteData.athleteId !== aid) {
