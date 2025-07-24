@@ -654,7 +654,7 @@ function createPackTimeChart(el) {
         if (!data) {
             return;
         }
-        totalTime = data.sitTime + data.soloTime + data.workTime;
+        totalTime = data.followTime + data.soloTime + data.workTime;
         let subTitle = '';
         if (activeLapOrSegment) {
             if (activeLapOrSegment.segmentId != null) {
@@ -670,7 +670,7 @@ function createPackTimeChart(el) {
         }
         headerEl.innerHTML = `Pack Time${subTitle}`;
         powers = [
-            data.sitTime ? data.sitKj / data.sitTime * 1000 : 0,
+            data.followTime ? data.followKj / data.followTime * 1000 : 0,
             data.soloTime ? data.soloKj / data.soloTime * 1000 : 0,
             data.workTime ? data.workKj / data.workTime * 1000 : 0,
         ];
@@ -691,8 +691,8 @@ function createPackTimeChart(el) {
             series: [{
                 itemStyle: {borderRadius: [2, 0, 0, 2]},
                 data: [{
-                    name: 'Sitting',
-                    value: data.sitTime / totalTime,
+                    name: 'Following',
+                    value: data.followTime / totalTime,
                     itemStyle: {color: valueGradient('#65a354', powers[0] / maxPower)},
                 }],
             }, {

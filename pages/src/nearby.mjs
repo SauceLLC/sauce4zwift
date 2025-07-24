@@ -446,7 +446,7 @@ const fieldGroups = [{
         convertGenericField('time-coffee'),
         convertGenericField('time-solo'),
         convertGenericField('time-work'),
-        convertGenericField('time-sit'),
+        convertGenericField('time-follow'),
         convertGenericField('time-pack-graph'),
         convertGenericField('time-coffee-lap'),
         convertGenericField('time-solo-lap'),

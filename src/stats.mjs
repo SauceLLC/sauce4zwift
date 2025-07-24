@@ -1898,10 +1898,10 @@ export class StatsProcessor extends events.EventEmitter {
             activeTime,
             coffeeTime: Math.round(bucket.coffeeTime / 1000),
             workTime: Math.round(bucket.workTime / 1000),
-            sitTime: Math.round(bucket.sitTime / 1000),
+            followTime: Math.round(bucket.followTime / 1000),
             soloTime: Math.round(bucket.soloTime / 1000),
             workKj: bucket.workKj,
-            sitKj: bucket.sitKj,
+            followKj: bucket.followKj,
             soloKj: bucket.soloKj,
             wBal, // DEPRECATED
             timeInPowerZones, // DEPRECATED
@@ -1928,10 +1928,10 @@ export class StatsProcessor extends events.EventEmitter {
             start,
             coffeeTime: 0,
             workTime: 0,
-            sitTime: 0,
+            followTime: 0,
             soloTime: 0,
             workKj: 0,
-            sitKj: 0,
+            followKj: 0,
             soloKj: 0,
             power: new DataCollector(sauce.power.RollingPower, periods, {inlineNP: true, round: true}),
             speed: new DataCollector(sauce.data.RollingAverage, longPeriods, {ignoreZeros: true}),
@@ -1947,10 +1947,10 @@ export class StatsProcessor extends events.EventEmitter {
             start,
             coffeeTime: 0,
             workTime: 0,
-            sitTime: 0,
+            followTime: 0,
             soloTime: 0,
             workKj: 0,
-            sitKj: 0,
+            followKj: 0,
             soloKj: 0,
             courseId: ad.courseId,
             sport: ad.sport,
@@ -2337,13 +2337,13 @@ export class StatsProcessor extends events.EventEmitter {
                     const kj = state.power * elapsedTime / 1e6;
                     if (ad.group) {
                         if (state.draft) {
-                            ad.bucket.sitTime += elapsedTime;
-                            ad.bucket.sitKj += kj;
-                            curLap.sitTime += elapsedTime;
-                            curLap.sitKj += kj;
+                            ad.bucket.followTime += elapsedTime;
+                            ad.bucket.followKj += kj;
+                            curLap.followTime += elapsedTime;
+                            curLap.followKj += kj;
                             for (const s of ad.activeSegments.values()) {
-                                s.sitTime += elapsedTime;
-                                s.sitKj += kj;
+                                s.followTime += elapsedTime;
+                                s.followKj += kj;
                             }
                         } else {
                             ad.bucket.workTime += elapsedTime;
