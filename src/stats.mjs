@@ -2776,23 +2776,16 @@ export class StatsProcessor extends events.EventEmitter {
         let tiers;
         let p1CurPct = p1.a[p1.a.length - 1].rpct;
         let p2CurPct = p2.a[p2.a.length - 1].rpct;
-        //console.debug(`Road positions: ${p1._xxxName} road:${p1.aRoad.roadId} (${p1.a.at(-1).rpct}) <-> ` +
-        //                              `${p2._xxxName} road:${p2.aRoad.roadId} (${p2.a.at(-1).rpct})`);
         if (p1.aRoad.sig === p2.aRoad.sig) {
             tiers = 1;
             const d = p1CurPct - p2CurPct;
-            // Check for lapping...
+            // Check for simple lapping.  Theoretically we could check for c tier lapping too but in test
+            // the only match I found was a false positive with sparse data where two athletes were lapping
+            // the same loop road multiple times.
             if (d > 0.5) {
                 if (p1.aRoad.sig === p2.bRoad?.sig &&
                     p2.b[p2.b.length - 1].rpct >= p1CurPct - boundaryErrorTerm) {
                     tiers = 2;
-                    reversed = true;
-                } else if (p1.aRoad.sig === p2.cRoad?.sig &&
-                           d - (p2.b[p2.b.length - 1].rpct - p2.b[0].rpct) > 0.5 &&
-                           p2.c[p2.c.length - 1].rpct >= p1CurPct - boundaryErrorTerm) {
-                    debugger; // validate logic for minus b section and validate final results..
-                    console.warn("COND B lapping possible - TBD");
-                    tiers = 3;
                     reversed = true;
                 }
             } else if (d < 0) {
@@ -2801,13 +2794,6 @@ export class StatsProcessor extends events.EventEmitter {
                     if (p2.aRoad.sig === p1.bRoad?.sig &&
                         p1.b[p1.b.length - 1].rpct >= p2CurPct - boundaryErrorTerm) {
                         tiers = 2;
-                        reversed = false;
-                    } else if (p2.aRoad.sig === p1.cRoad?.sig &&
-                               d + (p1.b[p1.b.length - 1].rpct - p1.b[0].rpct) < -0.5 &&
-                               p1.c[p1.c.length - 1].rpct >= p2CurPct - boundaryErrorTerm) {
-                        console.warn("COND B lapping possible - TBD");
-                        debugger; // validate logic for minus b section and validate final results..
-                        tiers = 3;
                         reversed = false;
                     }
                 }
