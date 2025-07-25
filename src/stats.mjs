@@ -18,6 +18,44 @@ const wPrimeDefault = 20000;
 let groupIdCounter = 1;
 
 
+rpc.register(env.getWorldMetas);
+rpc.register(env.getCourseId);
+rpc.register(env.getRoad);
+rpc.register(env.getCourseRoads);
+rpc.register(env.getRoute);
+rpc.register(env.getCourseRoutes);
+rpc.register(env.getSegment);
+rpc.register(env.getCourseSegments);
+
+rpc.register(courseId => {
+    console.warn("DEPRECATED: use `getCourseRoads`");
+    return env.getCourseRoads(courseId);
+}, {name: 'getRoads'});
+
+rpc.register(ids => {
+    if (typeof ids === 'number') {
+        console.warn("DEPRECATED: use `getCourseRoutes`");
+        return env.getCourseRoutes(ids);
+    }
+    return env.getRoutes(ids);
+}, {name: 'getRoutes'});
+
+rpc.register(ids => {
+    if (typeof ids === 'number') {
+        console.warn("DEPRECATED: use `getCourseSegments`");
+        return env.getCourseSegments(ids);
+    }
+    return env.getSegments(ids);
+}, {name: 'getSegments'});
+
+rpc.register((courseId, roadId, reverse=false) => {
+    if (courseId == null || roadId == null) {
+        throw new TypeError('courseId and roadId required');
+    }
+    return env.getCourseSegments(courseId).filter(x => x.roadId === roadId && !!x.reverse === !!reverse);
+}, {name: 'getSegmentsForRoad'});
+
+
 function monotonic() {
     return performance.timeOrigin + performance.now();
 }
@@ -591,9 +629,6 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.getAthleteLaps, {scope: this});
         rpc.register(this.getAthleteSegments, {scope: this});
         rpc.register(this.getAthleteStreams, {scope: this});
-        rpc.register(this.getSegment, {scope: this});
-        rpc.register(this.getSegments, {scope: this});
-        rpc.register(this.getSegmentsForRoad, {scope: this});
         rpc.register(this.getSegmentResults, {scope: this});
         rpc.register(this.putState, {scope: this});
         rpc.register(this.fileReplayLoad, {scope: this});
@@ -958,12 +993,12 @@ export class StatsProcessor extends events.EventEmitter {
             if (eventId != null) {
                 if (this._recentEvents.has(eventId)) {
                     console.warn("Unexpected inconsistency between events and missing subgroup info");
-                    debugger;
+                    debugger; // XXX more test
                 }
                 const event = await this.getEvent(eventId); // load it and its subgroups info
                 if (!this._recentEventSubgroups.get(id) || !event) {
                     console.warn("Subgroup mapping is wrong or we are unable to get event", !!event);
-                    debugger;
+                    debugger; // XXX more test
                 } else {
                     await this.refreshEventSignups();
                 }
@@ -975,7 +1010,6 @@ export class StatsProcessor extends events.EventEmitter {
     _rememberEventSubgroup(sgId, eventId) {
         if (sgId == null || eventId == null) {
             console.error("Unexpected null value for event or subgroup", sgId, eventId);
-            debugger;
             return;
         }
         this._eventSubgroupsDB
@@ -1186,7 +1220,7 @@ export class StatsProcessor extends events.EventEmitter {
         const now = monotonic();
         return segments.map(x => this._formatLapish(x, ad, athlete, now, {
             segmentId: x.id,
-            segment: env.cachedSegments.get(x.id),
+            segment: env.getSegment(x.id),
         }));
     }
 
@@ -1237,27 +1271,6 @@ export class StatsProcessor extends events.EventEmitter {
             streams[k] = arr.slice(offt);
         }
         return streams;
-    }
-
-    getSegment(id) {
-        if (id == null) {
-            throw new TypeError('id required');
-        }
-        return env.cachedSegments.get(id);
-    }
-
-    getSegments(courseId) {
-        if (courseId == null) {
-            throw new TypeError('courseId required');
-        }
-        return env.getCourseSegments(courseId);
-    }
-
-    getSegmentsForRoad(courseId, roadId, reverse=false) {
-        if (courseId == null || roadId == null) {
-            throw new TypeError('courseId and roadId required');
-        }
-        return env.getCourseSegments(courseId).filter(x => x.roadId === roadId && !!x.reverse === !!reverse);
     }
 
     async getSegmentResults(id, options={}) {

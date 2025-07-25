@@ -76,32 +76,20 @@ function convertGenericField(id, overrides) {
 }
 
 
-function makeLazyGetter(cb) {
-    const getting = {};
-    const cache = new Map();
-
-    return function getter(key) {
-        if (!cache.has(key)) {
-            if (!getting[key]) {
-                getting[key] = cb(key).then(value => {
-                    cache.set(key, value || null);
-                    if (!value) {
-                        // Allow retry, especially for event data which is wonky
-                        setTimeout(() => cache.delete(key), 10000);
-                    }
-                    delete getting[key];
-                });
-            }
-            return;
-        } else {
-            return cache.get(key);
-        }
-    };
+function getSubgroupLazy(id) {
+    const sg = common.getEventSubgroup(id);
+    if (sg && !(sg instanceof Promise)) {
+        return sg;
+    }
 }
 
 
-const lazyGetSubgroup = makeLazyGetter(id => common.rpc.getEventSubgroup(id));
-const lazyGetRoute = makeLazyGetter(id => common.rpc.getRoute(id));
+function getRouteLazy(id) {
+    const route = common.getRoute(id);
+    if (route && !(route instanceof Promise)) {
+        return route;
+    }
+}
 
 
 function fmtDist(v) {
@@ -134,7 +122,7 @@ function fmtName(name, entry) {
     let badge;
     const sgid = entry.state.eventSubgroupId;
     if (sgid) {
-        const sg = lazyGetSubgroup(sgid);
+        const sg = getSubgroupLazy(sgid);
         if (sg) {
             badge = common.eventBadge(sg.subgroupLabel);
         }
@@ -147,7 +135,7 @@ function fmtEvent(sgid) {
     if (!sgid) {
         return '-';
     }
-    const sg = lazyGetSubgroup(sgid);
+    const sg = getSubgroupLazy(sgid);
     if (sg) {
         return `<a href="${eventUrl(sg.eventId)}" target="_blank" external>${sg.name}</a>`;
     }
@@ -159,13 +147,13 @@ function getRoute({state, routeId}) {
     let route;
     let laps;
     if (state.eventSubgroupId) {
-        const sg = lazyGetSubgroup(state.eventSubgroupId);
+        const sg = getSubgroupLazy(state.eventSubgroupId);
         if (sg) {
-            route = lazyGetRoute(sg.routeId);
+            route = getRouteLazy(sg.routeId);
             laps = sg.laps;
         }
     } else if (state.routeId) {
-        route = lazyGetRoute(state.routeId);
+        route = getRouteLazy(state.routeId);
         laps = 0;
     }
     return !route ? undefined : laps ? `${laps} x ${route.name}` : route.name;

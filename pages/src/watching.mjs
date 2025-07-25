@@ -536,7 +536,7 @@ export const groupSpecs = {
         }],
     },
     event: {
-        title: x => eventSubgroup && eventSubgroup.name || 'Event',
+        title: x => eventSubgroup?.name || 'Event',
         backgroundImage: 'url(../images/fa/flag-checkered-duotone.svg)',
         fields: [{
             id: 'ev-place',
@@ -788,23 +788,6 @@ function makeSmoothHRField(period, extra) {
         suffix: 'bpm',
         ...extra,
     };
-}
-
-
-const _events = new Map();
-function getEventSubgroup(id) {
-    if (!_events.has(id)) {
-        _events.set(id, null);
-        common.rpc.getEventSubgroup(id).then(x => {
-            if (x) {
-                _events.set(id, x);
-            } else {
-                // leave it null but allow retry later
-                setTimeout(() => _events.delete(id), 30000);
-            }
-        });
-    }
-    return _events.get(id);
 }
 
 
@@ -1389,7 +1372,7 @@ export async function main() {
     powerZones = await common.rpc.getPowerZones(1);
     const layoutTpl = await getTpl('watching-screen-layout');
     const ad = await common.rpc.getAthleteData(athleteIdent);
-    assignAthleteGlobals(ad);
+    await assignAthleteGlobals(ad);
     const persistentData = settings.screens.some(x =>
         x.sections.some(xx => sectionSpecs[xx.type].alwaysRender));
     for (const [sIndex, screen] of settings.screens.entries()) {
@@ -1558,7 +1541,14 @@ export async function main() {
 function assignAthleteGlobals(ad) {
     sport = ad?.state.sport || 'cycling';
     eventMetric = ad?.remainingMetric;
-    eventSubgroup = getEventSubgroup(ad?.state.eventSubgroupId);
+    const sg = common.getEventSubgroup(ad?.state.eventSubgroupId);
+    if (sg) {
+        if (sg instanceof Promise) {
+            sg.then(x => eventSubgroup = x);
+        }
+    } else {
+        eventSubgroup = null;
+    }
     athleteFTP = ad?.athlete?.ftp;
 }
 

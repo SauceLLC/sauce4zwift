@@ -28,7 +28,7 @@ if (settings.bgTransparency !== undefined) {
 
 
 async function setCourse(id) {
-    segments = await common.rpc.getSegments(id);
+    segments = await common.rpc.getCourseSegments(id);
     segmentId = (segments && segments.length) ? segments[0].id : null;
     const segmentSelect = document.querySelector('select[name="segment"]');
     segmentSelect.replaceChildren();

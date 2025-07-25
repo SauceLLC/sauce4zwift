@@ -5,7 +5,6 @@ import {expWeightedAvg as _expWeightedAvg} from '/shared/sauce/data.mjs';
 import * as report from '../../shared/report.mjs';
 import * as elements from './custom-elements.mjs';
 import * as curves from '/shared/curves.mjs';
-import * as fields from './fields.mjs';
 import * as color from './color.mjs';
 
 export const sleep = _sleep; // Come on ES6 modules, really!?
@@ -25,6 +24,7 @@ if (!Array.prototype.at) {
 }
 
 const doc = document.documentElement;
+const _segments = new Map();
 
 // XXX DEPRECATED...
 export const worldCourseDescs = [
@@ -442,11 +442,35 @@ export async function getWorldList({all}={}) {
 }
 
 
-export async function getSegments(worldId) {
-    console.warn("DEPRECATED: use rpc.getSegments instead");
-    const worldList = await getWorldList();
-    const worldMeta = worldList.find(x => x.worldId === worldId);
-    return await rpcCall('getSegments', worldMeta.courseId);
+export async function getSegments(ids) {
+    if (typeof ids === 'number') {
+        console.warn("DEPRECATED: use rpc.getCourseSegments instead");
+        const worldId = ids;
+        const worldList = await getWorldList();
+        const worldMeta = worldList.find(x => x.worldId === worldId);
+        if (worldMeta?.courseId == null) {
+            console.error("World info not found for:", worldId);
+            return [];
+        }
+        return await rpcCall('getCourseSegments', worldMeta.courseId);
+    }
+    const missing = new Set();
+    for (const x of ids) {
+        if (!_segments.has(x)) {
+            missing.add(x);
+        }
+    }
+    if (missing.size) {
+        const missingArr = Array.from(missing);
+        const p = rpcCall('getSegments', missingArr);
+        for (const [i, x] of missingArr.entries()) {
+            _segments.set(x, p.then(segments => {
+                _segments.set(x, segments[i]);
+                return segments[i];
+            }));
+        }
+    }
+    return Promise.all(ids.map(x => _segments.get(x)));
 }
 
 
@@ -501,7 +525,7 @@ export function supplimentPath(worldMeta, curvePath, {physicsSlopeScale}={}) {
 const _roads = new Map();
 export function getRoads(courseId) {
     if (!_roads.has(courseId)) {
-        _roads.set(courseId, rpcCall('getRoads', courseId).then(async roads => {
+        _roads.set(courseId, rpcCall('getCourseRoads', courseId).then(async roads => {
             const worldList = await getWorldList();
             const worldMeta = worldList.find(x => x.courseId === courseId);
             for (const x of roads) {
@@ -526,12 +550,8 @@ export async function getRoad(courseId, id) {
 }
 
 
-const _segments = new Map();
 export function getSegment(id) {
-    if (!_segments.has(id)) {
-        _segments.set(id, rpcCall('getSegment', id));
-    }
-    return _segments.get(id);
+    return getSegments([id]);
 }
 
 
@@ -563,20 +583,26 @@ export async function computeRoutePath(route) {
 
 
 async function addRouteSegments(route) {
-    const allSegmentIds = [].concat(...route.manifest.map(x => x.segmentIds || []));
-    const segments = await Promise.all(allSegmentIds.map(x => getSegment(x)));
-    for (const m of route.manifest.filter(x => x.segmentIds)) {
-        m.segments = m.segmentIds.map(id => segments.find(x => x.id === id));
+    const ids = new Set([].concat(...route.manifest.map(x => x.segmentIds || [])));
+    if (!ids.size) {
+        return;
+    }
+    const segments = new Map((await getSegments(Array.from(ids))).map(x => [x.id, x]));
+    for (const m of route.manifest) {
+        if (m.segmentIds) {
+            m.segments = m.segmentIds.map(x => segments.get(x));
+        }
     }
 }
 
 
 let _routeListPromise;
-const _routePromises = new Map();
+const _routes = new Map();
 export function getRoute(id) {
-    if (!_routePromises.has(id)) {
+    if (!_routes.has(id)) {
         if (_routeListPromise) {
-            _routePromises.set(id, _routeListPromise.then(async routes => {
+            // getRouteList was used, pull data from full set instead of using rpc.getRoute...
+            _routes.set(id, _routeListPromise.then(async routes => {
                 const route = routes && routes.find(x => x.id === id);
                 if (route) {
                     await Promise.all([
@@ -584,21 +610,23 @@ export function getRoute(id) {
                         computeRoutePath(route).then(x => Object.assign(route, x)),
                     ]);
                 }
+                _routes.set(id, route); // replace promise for non-async users
                 return route;
             }));
         } else {
-            _routePromises.set(id, rpcCall('getRoute', id).then(async route => {
+            _routes.set(id, rpcCall('getRoute', id).then(async route => {
                 if (route) {
                     await Promise.all([
                         addRouteSegments(route),
                         computeRoutePath(route).then(x => Object.assign(route, x)),
                     ]);
                 }
+                _routes.set(id, route); // replace promise for non-async users
                 return route;
             }));
         }
     }
-    return _routePromises.get(id);
+    return _routes.get(id);
 }
 
 
@@ -609,6 +637,31 @@ export function getRouteList(courseId) {
     return courseId == null ?
         _routeListPromise :
         _routeListPromise.then(routes => routes.filter(x => x.courseId === courseId));
+}
+
+
+const _eventSubgroups = new Map();
+export function getEventSubgroup(id) {
+    if (!id) {
+        return null;
+    }
+    if (!_eventSubgroups.has(id)) {
+        _eventSubgroups.set(id, rpcCall('getEventSubgroup', id).then(sg => {
+            if (sg) {
+                _eventSubgroups.set(id, sg);
+            } else {
+                // set it to null but allow retry later..
+                _eventSubgroups.set(id, null);
+                setTimeout(() => {
+                    if (_eventSubgroups.get(id) == null) {
+                        _eventSubgroups.delete(id);
+                    }
+                }, 30000);
+            }
+            return sg;
+        }));
+    }
+    return _eventSubgroups.get(id);
 }
 
 
@@ -816,6 +869,8 @@ export class Renderer {
         this.id = options.id || location.pathname.split('/').at(-1);
         this.fields = new Map();
         this.onKeyDownBound = this.onKeyDown.bind(this);
+        // Avoid circular refs so fields.mjs has immediate access..
+        this._fieldsModPromise = import('./fields.mjs');
         if (!this.locked) {
             document.addEventListener('keydown', this.onKeyDownBound);
         }
@@ -938,7 +993,8 @@ export class Renderer {
                 anchorEl = el;
                 el.classList.add('editing-anchor');
             }
-            const handler = longPressListener(el, 1500, ev => {
+            const handler = longPressListener(el, 1500, async ev => {
+                const {fieldGroupNames} = (await this._fieldsModPromise);
                 handler.setPaused(true);
                 const field = this.fields.get(mapping.id);
                 const groups = new Set(field.available.map(x => x.group));
@@ -949,7 +1005,7 @@ export class Renderer {
                     let container;
                     if (group) {
                         container = document.createElement('optgroup');
-                        container.label = fields.fieldGroupNames[group] || group;
+                        container.label = fieldGroupNames[group] || group;
                     } else {
                         container = select;
                     }

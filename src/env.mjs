@@ -1,13 +1,20 @@
 import path from 'node:path';
 import fs from './fs-safe.js';
-import * as rpc from './rpc.mjs';
 import * as curves from '../shared/curves.mjs';
 import {fileURLToPath} from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+const _segments = new Map();
+const _segmentsByCourse = new Map();
+const _segmentsByRoadSig = new Map();
+const _routes = new Map();
+const _routesByCourse = new Map();
+const _roads = new Map();
+const _roadsByCourse = new Map();
+const _roadCurvePaths = new Map();
+
 export const realWorldCourseId = -2;
-export const cachedSegments = new Map();
 export const worldMetas = {
     [realWorldCourseId]: {
         worldId: realWorldCourseId,
@@ -34,6 +41,18 @@ try {
     const worldListFile = path.join(__dirname, `../shared/deps/data/worldlist.json`);
     for (const x of JSON.parse(fs.readFileSync(worldListFile))) {
         worldMetas[x.courseId] = x;
+        const segments = readSegmentsForWorld(x.worldId);
+        _segmentsByCourse.set(x.courseId, segments);
+        for (const x of segments) {
+            _segments.set(x.id, x);
+        }
+    }
+    for (const x of readRoutes()) {
+        if (!_routesByCourse.has(x.courseId)) {
+            _routesByCourse.set(x.courseId, []);
+        }
+        _routes.set(x.id, x);
+        _routesByCourse.get(x.courseId).push(x);
     }
 } catch {/*no-pragma*/}
 
@@ -41,13 +60,11 @@ try {
 export function getWorldMetas() {
     return Object.values(worldMetas);
 }
-rpc.register(getWorldMetas);
 
 
 export function getCourseId(worldId) {
     return Object.values(worldMetas).find(x => x.worldId === worldId)?.courseId;
 }
-rpc.register(getCourseId);
 
 
 export function getRoadSig(courseId, roadId, reverse) {
@@ -64,55 +81,66 @@ export function fromRoadSig(roadSig) {
 }
 
 
-const _segmentsByCourse = new Map();
-export function getCourseSegments(courseId) {
-    if (!_segmentsByCourse.has(courseId)) {
-        const worldId = worldMetas[courseId]?.worldId;
-        const fname = path.join(__dirname, `../shared/deps/data/worlds/${worldId}/segments.json`);
-        const segments = [];
-        _segmentsByCourse.set(courseId, segments);
-        let data;
-        try {
-            data = JSON.parse(fs.readFileSync(fname));
-        } catch(e) {
-            console.error('No segments loaded for:', courseId);
-            data = [];
-        }
-        for (const x of data) {
-            for (const dir of ['Forward', 'Reverse']) {
-                if (!x['id' + dir]) {
-                    continue;
-                }
-                const reverse = dir === 'Reverse';
-                const segment = {
-                    ...x,
-                    reverse,
-                    id: x['id' + dir],
-                    distance: x['distance' + dir],
-                    name: reverse ? x.nameReverse || x.nameForward + ' Reverse' : x.nameForward,
-                    roadStart: x['roadStart' + dir],
-                };
-                delete segment.nameForward;
-                delete segment.nameReverse;
-                delete segment.idForward;
-                delete segment.idReverse;
-                delete segment.distanceForward;
-                delete segment.distanceReverse;
-                delete segment.roadStartForward;
-                delete segment.roadStartReverse;
-                if (!segment.distance) {
-                    continue;  // exclude single direction segments
-                }
-                segments.push(segment);
-                cachedSegments.set(segment.id, segment);
+function readSegmentsForWorld(worldId) {
+    const fname = path.join(__dirname, `../shared/deps/data/worlds/${worldId}/segments.json`);
+    let data;
+    try {
+        data = JSON.parse(fs.readFileSync(fname));
+    } catch(e) {
+        console.error('No segments loaded for world:', worldId);
+        return [];
+    }
+    const segments = [];
+    for (const x of data) {
+        for (const dir of ['Forward', 'Reverse']) {
+            if (!x['id' + dir]) {
+                continue;
             }
+            const reverse = dir === 'Reverse';
+            const segment = {
+                ...x,
+                reverse,
+                id: x['id' + dir],
+                distance: x['distance' + dir],
+                name: reverse ? x.nameReverse || x.nameForward + ' Reverse' : x.nameForward,
+                roadStart: x['roadStart' + dir],
+            };
+            delete segment.nameForward;
+            delete segment.nameReverse;
+            delete segment.idForward;
+            delete segment.idReverse;
+            delete segment.distanceForward;
+            delete segment.distanceReverse;
+            delete segment.roadStartForward;
+            delete segment.roadStartReverse;
+            if (!segment.distance) {
+                continue;  // exclude single direction segments
+            }
+            segments.push(segment);
         }
     }
-    return _segmentsByCourse.get(courseId);
+    return segments;
 }
 
 
-const _segmentsByRoadSig = new Map();
+export function getSegment(id) {
+    return _segments.get(id);
+}
+
+
+export function getSegments(ids) {
+    if (ids == null) {
+        return Array.from(_segments.values());
+    }
+    return ids.map(x => _segments.get(x));
+}
+
+
+export function getCourseSegments(courseId) {
+    return _segmentsByCourse.get(courseId) || [];
+}
+
+
 export function getRoadSegments(courseId, roadSig) {
     if (!_segmentsByRoadSig.has(roadSig)) {
         const segments = [];
@@ -128,8 +156,7 @@ export function getRoadSegments(courseId, roadSig) {
 }
 
 
-const _roadsByCourse = new Map();
-export function getRoads(courseId) {
+export function getCourseRoads(courseId) {
     if (!_roadsByCourse.has(courseId)) {
         let fname;
         if (courseId === 'portal') {
@@ -160,17 +187,15 @@ export function getRoads(courseId) {
     }
     return _roadsByCourse.get(courseId);
 }
-rpc.register(getRoads);
 
 
-const _roads = new Map();
 export function getRoad(courseId, roadId) {
     if (roadId >= 10000) {
         courseId = 'portal';
     }
     const sig = `${courseId}-${roadId}`;
     if (!_roads.has(sig)) {
-        const road = getRoads(courseId).find(x => x.id === roadId);
+        const road = getCourseRoads(courseId).find(x => x.id === roadId);
         if (road) {
             _roads.set(sig, road);
         } else {
@@ -179,10 +204,8 @@ export function getRoad(courseId, roadId) {
     }
     return _roads.get(sig);
 }
-rpc.register(getRoad);
 
 
-const _roadCurvePaths = new Map();
 export function getRoadCurvePath(courseId, roadId, reverse) {
     const sig = `${courseId}-${roadId}-${!!reverse}`;
     if (!_roadCurvePaths.has(sig)) {
@@ -201,64 +224,61 @@ export function getRoadCurvePath(courseId, roadId, reverse) {
 }
 
 
-let _routes;
-function loadRoutes() {
-    if (!_routes) {
-        const fname = path.join(__dirname, `../shared/deps/data/routes.json`);
-        let routes;
-        try {
-            routes = JSON.parse(fs.readFileSync(fname));
-        } catch(e) {
-            routes = [];
-        }
-        _routes = new Map(routes.map(route => {
-            route.courseId = getCourseId(route.worldId);
-            const allSegments = getCourseSegments(route.courseId);
-            for (const m of route.manifest) {
-                const segments = [];
-                for (const x of allSegments) {
-                    if (x.roadId === m.roadId && !!x.reverse === !!m.reverse) {
-                        if (!x.reverse) {
-                            if (x.roadStart >= m.start && x.roadFinish <= m.end &&
-                                (!x.requiresAllCheckpoints || m.end - m.start > 0.90)) {
-                                segments.push(x);
-                            }
-                        } else {
-                            if (x.roadStart <= m.end && x.roadFinish >= m.start &&
-                                (!x.requiresAllCheckpoints || m.end - m.start > 0.90)) {
-                                segments.push(x);
-                            }
+function readRoutes() {
+    const fname = path.join(__dirname, `../shared/deps/data/routes.json`);
+    let routes;
+    try {
+        routes = JSON.parse(fs.readFileSync(fname));
+    } catch(e) {
+        console.error("Failed to read route data");
+        return [];
+    }
+    for (const route of routes) {
+        route.courseId = getCourseId(route.worldId);
+        for (const m of route.manifest) {
+            const segments = [];
+            for (const x of _segmentsByCourse.get(route.courseId)) {
+                if (x.roadId === m.roadId && !!x.reverse === !!m.reverse) {
+                    if (!x.reverse) {
+                        if (x.roadStart >= m.start && x.roadFinish <= m.end &&
+                            (!x.requiresAllCheckpoints || m.end - m.start > 0.90)) {
+                            segments.push(x);
+                        }
+                    } else {
+                        if (x.roadStart <= m.end && x.roadFinish >= m.start &&
+                            (!x.requiresAllCheckpoints || m.end - m.start > 0.90)) {
+                            segments.push(x);
                         }
                     }
                 }
-                if (segments.length) {
-                    segments.sort((a, b) =>
-                        m.reverse ? b.roadStart - a.roadStart : a.roadStart - b.roadStart);
-                    m.segmentIds = segments.map(x => x.id);
-                }
             }
-            return [route.id, route];
-        }));
+            if (segments.length) {
+                segments.sort((a, b) =>
+                    m.reverse ? b.roadStart - a.roadStart : a.roadStart - b.roadStart);
+                m.segmentIds = segments.map(x => x.id);
+            }
+        }
     }
+    return routes;
 }
 
 
 export function getRoute(routeId) {
-    loadRoutes();
     return _routes.get(routeId);
 }
-rpc.register(getRoute);
 
 
-export function getRoutes(courseId) {
-    loadRoutes();
-    let routes = Array.from(_routes.values());
-    if (courseId != null) {
-        routes = routes.filter(x => x.courseId === courseId);
+export function getRoutes(ids) {
+    if (ids == null) {
+        return Array.from(_routes.values());
     }
-    return routes;
+    return ids.map(x => _routes.get(x));
 }
-rpc.register(getRoutes);
+
+
+export function getCourseRoutes(courseId) {
+    return _routesByCourse.get(courseId) || [];
+}
 
 
 export function webMercatorProjection([lat, lng]) {

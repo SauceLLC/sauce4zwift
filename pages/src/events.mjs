@@ -25,15 +25,6 @@ const headingsIntersectionObserver = new IntersectionObserver(onHeadingsIntersec
                                                               {root: contentEl, threshold: ioTHack});
 
 
-const _fetchingRoutes = new Map();
-async function getRoute(id) {
-    if (!_fetchingRoutes.has(id)) {
-        _fetchingRoutes.set(id, common.rpc.getRoute(id));
-    }
-    return await _fetchingRoutes.get(id);
-}
-
-
 async function getTemplates(basenames) {
     return Object.fromEntries(await Promise.all(basenames.map(k =>
         sauce.template.getTemplate(`templates/${k}.html.tpl`).then(v =>
@@ -62,7 +53,7 @@ async function loadEventsWithRetry() {
 
 async function fillInEvents() {
     await Promise.all(Array.from(allEvents.values()).map(async event => {
-        event.route = await getRoute(event.routeId);
+        event.route = await common.getRoute(event.routeId);
         event.sameRoute = true;
         event.sameRouteName = true;
         event.signedUp = false;
@@ -81,7 +72,7 @@ async function fillInEvents() {
             event.sameRouteName = (new Set(event.eventSubgroups.map(sg => sg.routeId))).size === 1;
             event.signedUp = event.eventSubgroups.some(x => x.signedUp);
             for (const sg of event.eventSubgroups) {
-                sg.route = await getRoute(sg.routeId);
+                sg.route = await common.getRoute(sg.routeId);
                 durations.push(sg.durationInSeconds);
                 distances.push(sg.distanceInMeters || sg.routeDistance);
                 allSubgroups.set(sg.id, {sg, event});

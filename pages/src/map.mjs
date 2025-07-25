@@ -1213,7 +1213,7 @@ export class SauceZwiftMap extends EventTarget {
                     if (this.routeId !== watching.routeId) {
                         let sg;
                         if (watching.eventSubgroupId) {
-                            sg = await common.rpc.getEventSubgroup(watching.eventSubgroupId);
+                            sg = await common.getEventSubgroup(watching.eventSubgroupId);
                         }
                         // Note sg.routeId is sometimes out of sync with state.routeId; avoid thrash
                         if (sg && sg.routeId === watching.routeId) {

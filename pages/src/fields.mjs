@@ -23,6 +23,20 @@ const H = locale.human;
  */
 
 
+const tpAttr = common.stripHTML(common.attributions.tp);
+
+export const fieldGroupNames = {
+    time: 'Time',
+    athlete: 'Athlete',
+    power: 'Power',
+    speed: 'Speed',
+    draft: 'Draft',
+    cadence: 'Cadence',
+    hr: 'Heart Rate',
+    course: 'Course',
+};
+
+
 function getSport(ad) {
     return (ad && ad.state && ad.state.sport) || 'cycling';
 }
@@ -111,60 +125,6 @@ export function fmtStackedSparkline(data) {
         `</div>`
     ].join('');
 }
-
-
-const _events = new Map();
-function getEventSubgroup(id) {
-    if (!id) {
-        return null;
-    }
-    if (!_events.has(id)) {
-        _events.set(id, null);
-        common.rpc.getEventSubgroup(id).then(x => {
-            if (x) {
-                _events.set(id, x);
-            } else {
-                // leave it null but allow retry later
-                setTimeout(() => _events.delete(id), 30000);
-            }
-        });
-    }
-    return _events.get(id);
-}
-
-
-const _routes = new Map();
-function getRoute(id) {
-    if (!id) {
-        return null;
-    }
-    if (!_routes.has(id)) {
-        _routes.set(id, null);
-        common.rpc.getRoute(id).then(x => _routes.set(id, x || null));
-    }
-    return _routes.get(id);
-}
-
-
-function getEventSubgroupProperty(id, prop) {
-    const sg = getEventSubgroup(id);
-    return sg && sg[prop];
-}
-
-
-const tpAttr = () => common.stripHTML(common.attributions.tp);
-
-
-export const fieldGroupNames = {
-    time: 'Time',
-    athlete: 'Athlete',
-    power: 'Power',
-    speed: 'Speed',
-    draft: 'Draft',
-    cadence: 'Cadence',
-    hr: 'Heart Rate',
-    course: 'Course',
-};
 
 
 export function makePeakPowerFields(period, lap, extra) {
@@ -783,18 +743,21 @@ export const courseFields = [{
 },{
     id: 'ev-name',
     format: x => {
-        const name = getEventSubgroupProperty(x.state?.eventSubgroupId, 'name');
-        return name ? `${name} <ms>event</ms>` : '-';
+        const sg = common.getEventSubgroup(x.state?.eventSubgroupId);
+        return (sg && !(sg instanceof Promise) && sg.name) ? `${name} <ms>event</ms>` : '-';
     },
     shortName: x => (x?.state?.eventSubgroupId) ? '' : 'Event',
     tooltip: 'Event',
 }, {
     id: 'rt-name',
     format: x => {
-        const sg = getEventSubgroup(x.state?.eventSubgroupId);
-        const icon = ' <ms>route</ms>';
-        const route = getRoute(sg ? sg.routeId : x.state?.routeId);
-        if (route) {
+        const sg = common.getEventSubgroup(x.state?.eventSubgroupId);
+        if (!sg || sg instanceof Promise) {
+            return '-';
+        }
+        const route = common.getRoute(sg ? sg.routeId : x.state?.routeId);
+        if (route && !(route instanceof Promise)) {
+            const icon = ' <ms>route</ms>';
             if (sg) {
                 return ((sg.laps && sg.laps > 1) ? `${sg.laps} x ` : '') + route.name + icon;
             } else {
