@@ -56,7 +56,7 @@ function fGet(fnOrValue, ...args) {
 
 
 // Convert a field spec from the fields.mjs module to one compatible with the table..
-function convertGenericField(id, {defaultEn=false}={}) {
+function convertGenericField(id, overrides) {
     const field = fieldsMod.fields.find(x => x.id === id);
     if (!field) {
         console.error('Field id not found:', id);
@@ -64,14 +64,14 @@ function convertGenericField(id, {defaultEn=false}={}) {
     }
     return {
         id: field.id,
-        defaultEn,
         label: field.longName ?? field.shortName,
-        headerLabel: field.shortName ?? field.longName ?? field.label,
+        headerLabel: field.miniName ?? field.shortName ?? field.label ?? field.longName,
         get: field.get,
         fmt: field.suffix != null ?
             x => fGet(field.format, x) + `<abbr class="unit">${fGet(field.suffix, x)}</abbr>` :
             x => fGet(field.format, x), // clip args for compat with generic field's suffix 2nd arg
         tooltip: field.tooltip,
+        ...overrides,
     };
 }
 
@@ -332,6 +332,8 @@ const fieldGroups = [{
          get: x => x.stats.power.np / x.stats.power.avg, fmt: x => H.number(x, {precision: 2, fixed: true}),
          tooltip: 'NP® / Average-power.  A value of 1.0 means the effort is very smooth, higher ' +
                   'values indicate the effort was more volatile.\n\n' + tpAttr},
+        ...['power-avg-solo', 'power-avg-follow', 'power-avg-work',
+            'energy-solo', 'energy-follow', 'energy-work'].map(x => convertGenericField(x)),
         {id: 'power-lap', defaultEn: false, label: 'Lap Average', headerLabel: '<ms>bolt</ms> (lap)',
          get: x => x.lap.power.avg, fmt: pwr},
         {id: 'wkg-lap', defaultEn: false, label: 'Lap W/kg Average', headerLabel: 'W/kg (lap)',
@@ -340,7 +342,9 @@ const fieldGroups = [{
          headerLabel: '<ms>bolt</ms> (last)', get: x => x.lastLap ? x.lastLap.power.avg : null, fmt: pwr},
         {id: 'wkg-last-lap', defaultEn: false, label: 'Last Lap W/kg Average', headerLabel: 'W/kg (last)',
          get: x => x.lastLap?.power.avg / x.athlete?.weight, fmt: fmtWkg},
-    ],
+        ...['power-avg-solo-lap', 'power-avg-follow-lap', 'power-avg-work-lap',
+            'energy-solo-lap', 'energy-follow-lap', 'energy-work-lap'].map(x => convertGenericField(x)),
+    ]
 }, {
     group: 'speed',
     label: 'Speed',
@@ -451,6 +455,7 @@ const fieldGroups = [{
         convertGenericField('time-coffee-lap'),
         convertGenericField('time-solo-lap'),
         convertGenericField('time-work-lap'),
+        convertGenericField('time-follow-lap'),
         convertGenericField('time-pack-graph-lap'),
         {id: 'time-session', defaultEn: false, label: 'Session Time', headerLabel: 'Time',
          get: x => x.state.time, fmt: fmtDur, tooltip: 'Time reported by the game client'},
@@ -460,7 +465,7 @@ const fieldGroups = [{
         {id: 'time-lap', defaultEn: false, label: 'Lap Time', headerLabel: 'Lap',
          get: x => (x.lap || x.stats)?.activeTime || 0, fmt: fmtDur,
          tooltip: 'Locally observed current lap time\n\nNOTE: may differ from game value'},
-        {id: 'time-elapsed', defaultEn: false, label: 'Elapsed Time', headerLabel: 'Elapsed',
+        {id: 'time-elapsed', defaultEn: false, label: 'Elapsed Time', headerLabel: 'Elpsd',
          get: x => x.stats.elapsedTime, fmt: fmtDur,
          tooltip: 'Locally observed elapsed time\n\nNOTE: may differ from game value'},
     ].filter(x => x),

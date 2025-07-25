@@ -3,7 +3,7 @@ import * as common from './common.mjs';
 import * as color from './color.mjs';
 import * as elevationMod from './elevation.mjs';
 import * as charts from './charts.mjs';
-import * as fieldsMods from './fields.mjs';
+import * as fieldsMod from './fields.mjs';
 
 common.enableSentry();
 
@@ -195,7 +195,7 @@ const sectionSpecs = {
 export const groupSpecs = {
     time: {
         title: 'Time',
-        fields: fieldsMods.fields.filter(x => x.group === 'time'),
+        fields: fieldsMod.fields.filter(x => x.group === 'time'),
     },
     power: {
         title: 'Power',
@@ -227,6 +227,12 @@ export const groupSpecs = {
             shortName: 'Avg',
             suffix: 'w/kg',
         }, {
+            id: 'pwr-np',
+            format: x => H.number(x.stats && x.stats.power.np),
+            label: 'np',
+            shortName: 'NP®',
+            tooltip: common.stripHTML(common.attributions.tp),
+        }, {
             id: 'pwr-max',
             longName: 'Max Power',
             format: x => H.number(x.stats && x.stats.power.max),
@@ -241,18 +247,33 @@ export const groupSpecs = {
             shortName: 'Max',
             suffix: 'w/kg',
         }, {
-            id: 'pwr-np',
-            format: x => H.number(x.stats && x.stats.power.np),
-            label: 'np',
-            shortName: 'NP®',
-            tooltip: common.stripHTML(common.attributions.tp),
-        }, {
             id: 'pwr-tss',
             format: x => H.number(x.stats && x.stats.power.tss),
             label: 'tss',
             shortName: 'TSS®',
             tooltip: common.stripHTML(common.attributions.tp),
+        }, {
+            id: 'pwr-vi',
+            format: x => H.number(x.stats && x.stats.power.np && x.stats.power.np / x.stats.power.avg,
+                                  {precision: 2, fixed: true}),
+            label: 'vi',
+            shortName: 'VI',
+        }, {
+            id: 'pwr-wbal',
+            format: x => H.number(x.wBal / 1000, {precision: 1, fixed: true}),
+            label: 'w\'bal',
+            shortName: 'W\'bal',
+            suffix: 'kJ',
+        }, {
+            id: 'pwr-energy',
+            format: x => H.number(x.state?.kj),
+            shortName: 'Energy',
+            suffix: 'kJ',
         },
+        ...fieldsMod.fields.filter(x => [
+            'power-avg-solo', 'power-avg-follow', 'power-avg-work',
+            'energy-solo', 'energy-follow', 'energy-work'
+        ].includes(x.id)).map(x => ({...x, group: 'Pack Dynamics'})),
         ...makeSmoothPowerFields(5),
         ...makeSmoothPowerFields(15),
         ...makeSmoothPowerFields(60),
@@ -263,6 +284,9 @@ export const groupSpecs = {
         ...makePeakPowerFields(60),
         ...makePeakPowerFields(300),
         ...makePeakPowerFields(1200),
+        //
+        // Current lap...
+        //
         {
             id: 'pwr-lap-avg',
             group: 'Lap',
@@ -280,6 +304,14 @@ export const groupSpecs = {
             shortName: 'Lap',
             suffix: 'w/kg',
         }, {
+            id: 'pwr-lap-np',
+            group: 'Lap',
+            longName: 'NP®',
+            format: x => H.number(curLap(x) && curLap(x).power.np),
+            label: ['np', '(lap)'],
+            shortName: 'NP®<tiny>(lap)</tiny>',
+            tooltip: common.stripHTML(common.attributions.tp),
+        }, {
             id: 'pwr-lap-max',
             group: 'Lap',
             longName: 'Max Power',
@@ -295,20 +327,19 @@ export const groupSpecs = {
             label: ['max', '(lap)'],
             shortName: 'Max<tiny>(lap)</tiny>',
             suffix: 'w/kg',
-        }, {
-            id: 'pwr-lap-np',
-            group: 'Lap',
-            longName: 'NP®',
-            format: x => H.number(curLap(x) && curLap(x).power.np),
-            label: ['np', '(lap)'],
-            shortName: 'NP®<tiny>(lap)</tiny>',
-            tooltip: common.stripHTML(common.attributions.tp),
         },
+        ...fieldsMod.fields.filter(x => [
+            'power-avg-solo-lap', 'power-avg-follow-lap', 'power-avg-work-lap',
+            'energy-solo-lap', 'energy-follow-lap', 'energy-work-lap'
+        ].includes(x.id)).map(x => ({...x, group: 'Pack Dynamics (lap)'})),
         ...makePeakPowerFields(5, -1, {group: 'Lap'}),
         ...makePeakPowerFields(15, -1, {group: 'Lap'}),
         ...makePeakPowerFields(60, -1, {group: 'Lap'}),
         ...makePeakPowerFields(300, -1, {group: 'Lap'}),
         ...makePeakPowerFields(1200, -1, {group: 'Lap'}),
+        //
+        // Last lap...
+        //
         {
             id: 'pwr-last-avg',
             group: 'Last Lap',
@@ -326,6 +357,14 @@ export const groupSpecs = {
             shortName: 'Last Lap',
             suffix: 'w/kg',
         }, {
+            id: 'pwr-last-np',
+            group: 'Last Lap',
+            longName: 'NP®',
+            format: x => H.number(lastLap(x) && lastLap(x).power.np || null),
+            label: ['np', '(last lap)'],
+            shortName: 'NP®<tiny>(last lap)</tiny>',
+            tooltip: common.stripHTML(common.attributions.tp),
+        }, {
             id: 'pwr-last-max',
             group: 'Last Lap',
             longName: 'Max Power',
@@ -341,38 +380,13 @@ export const groupSpecs = {
             label: ['max', '(last lap)'],
             shortName: 'Max<tiny>(last lap)</tiny>',
             suffix: 'w/kg',
-        }, {
-            id: 'pwr-last-np',
-            group: 'Last Lap',
-            longName: 'NP®',
-            format: x => H.number(lastLap(x) && lastLap(x).power.np || null),
-            label: ['np', '(last lap)'],
-            shortName: 'NP®<tiny>(last lap)</tiny>',
-            tooltip: common.stripHTML(common.attributions.tp),
         },
         ...makePeakPowerFields(5, -2, {group: 'Last Lap'}),
         ...makePeakPowerFields(15, -2, {group: 'Last Lap'}),
         ...makePeakPowerFields(60, -2, {group: 'Last Lap'}),
         ...makePeakPowerFields(300, -2, {group: 'Last Lap'}),
         ...makePeakPowerFields(1200, -2, {group: 'Last Lap'}),
-        {
-            id: 'pwr-vi',
-            format: x => H.number(x.stats && x.stats.power.np && x.stats.power.np / x.stats.power.avg,
-                                  {precision: 2, fixed: true}),
-            label: 'vi',
-            shortName: 'VI',
-        }, {
-            id: 'pwr-wbal',
-            format: x => H.number(x.wBal / 1000, {precision: 1, fixed: true}),
-            label: 'w\'bal',
-            shortName: 'W\'bal',
-            suffix: 'kJ',
-        }, {
-            id: 'pwr-energy',
-            format: x => H.number(x.state?.kj),
-            shortName: 'Energy',
-            suffix: 'kJ',
-        }],
+        ],
     },
     hr: {
         title: 'Heart Rate',

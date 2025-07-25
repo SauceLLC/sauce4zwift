@@ -10,6 +10,7 @@ const H = locale.human;
  * group: 'grouping-ident'         // Fields sharing a group are shown together
  * longName: <string|function>     // Used when horizontal compliance is relaxed
  * shortName: <string|function>    // Used when horizontal compliance is strict
+ * miniName: <string|function>     // Used when horizontal space is the smallest (i.e. table headers)
  * tooltip: <string|function>      // Tooltip for field
  * label: <string|function>        // Optional contextual label (used in some large data fields)
  * get: athleteData => <any>       // Override the argument for `format`
@@ -103,7 +104,7 @@ export function fmtStackedSparkline(data) {
                      margin: 0.2rem;"
               title="${tooltips.join('\n')}">`,
         data.map(x => {
-            const size = Math.round((x.value / total) * 100);
+            const size = total ? Math.round((x.value / total) * 100) : 1;
             return `<div class="sparkline-bar" style="flex: ${size} 0 0;
                                 background-color: ${x.color};"></div>`;
         }).join(''),
@@ -202,7 +203,7 @@ export function makePeakPowerFields(period, lap, extra) {
 
     const idExtra = lap ? `-lap${lap}` : '';
     const shortName = lap ?
-        `Peak ${duration} ${lap === -1 ? '<ms>timer</ms>' : lapLabel}` :
+        `Peak ${duration} ${lap === -1 ? '<ms small>timer</ms>' : lapLabel}` :
         `Peak ${duration}`;
     return [{
         id: `pwr-peak-${period}${idExtra}`,
@@ -268,6 +269,7 @@ export const timeFields = [{
     id: 'time-elapsed',
     longName: 'Elapsed Time',
     shortName: 'Elapsed',
+    miniName: 'Elpsd',
     format: x => fmtDur(x.stats && x.stats.elapsedTime || 0),
     tooltip: 'Sauce based elapsed time',
 }, {
@@ -300,6 +302,8 @@ export const timeFields = [{
     get: x => x.stats?.coffeeTime || 0,
     format: fmtDur,
     shortName: 'Coffee',
+    miniName: '<ms>coffee</ms>',
+    label: 'coffee',
     tooltip: 'Time observed taking a Coffee break',
 }, {
     id: 'time-solo',
@@ -307,6 +311,8 @@ export const timeFields = [{
     get: x => x.stats?.soloTime || 0,
     format: fmtDur,
     shortName: 'Solo',
+    miniName: '<ms>self_improvement</ms>',
+    label: 'solo',
     tooltip: 'Time observed riding alone',
 }, {
     id: 'time-follow',
@@ -314,6 +320,8 @@ export const timeFields = [{
     get: x => x.stats?.followTime || 0,
     format: fmtDur,
     shortName: 'Following',
+    label: 'following',
+    miniName: '<ms>group_remove</ms>',
     tooltip: 'Time observed sitting-in/following in a group',
 }, {
     id: 'time-work',
@@ -321,62 +329,73 @@ export const timeFields = [{
     get: x => x.stats?.workTime || 0,
     format: fmtDur,
     shortName: 'Working',
+    miniName: '<ms>group_add</ms>',
+    label: 'working',
     tooltip: 'Time observed working/pulling in a group',
 }, {
     id: 'time-pack-graph',
     longName: 'Pack Time Graph',
     shortName: 'Pack',
+    label: 'pack time',
     format: x => x.stats ? fmtStackedSparkline([
-        {color: '#65a354', label: 'Following', value: x.stats.followTime, format: courseDurationFormat},
-        {color: '#d1c209', label: 'Solo', value: x.stats.soloTime, format: courseDurationFormat},
-        {color: '#ca3805', label: 'Working', value: x.stats.workTime, format: courseDurationFormat},
+        {color: '#65a354', label: 'Following', value: x.stats.followTime || 0, format: courseDurationFormat},
+        {color: '#d1c209', label: 'Solo', value: x.stats.soloTime || 0, format: courseDurationFormat},
+        {color: '#ca3805', label: 'Working', value: x.stats.workTime || 0, format: courseDurationFormat},
     ]) : fmtStackedSparkline([{color: '#777', label: 'Inactive', value: 1}]),
     tooltip: 'Pack Time Graph\n\nHow much time has been spent sitting-in vs solo vs working',
-    label: 'pack time',
 }, {
     id: 'time-lap',
     format: x => fmtDur(x.lap?.activeTime || 0),
     longName: 'Time (lap)',
     shortName: 'Lap',
+    label: 'lap',
 }, {
     id: 'time-coffee-lap',
     longName: 'Coffee Time (lap)',
     get: x => x.lap?.coffeeTime || 0,
     format: fmtDur,
-    shortName: 'Coffee <ms>timer</ms>',
+    shortName: 'Coffee <ms small>timer</ms>',
+    miniName: '<ms>coffee</ms> <ms>timer</ms>',
+    label: ['coffee', '(lap)'],
     tooltip: 'Time observed taking a Coffee break (lap)',
 }, {
     id: 'time-solo-lap',
     longName: 'Solo Time (lap)',
     get: x => x.lap?.soloTime || 0,
     format: fmtDur,
-    shortName: 'Solo <ms>timer</ms>',
+    shortName: 'Solo <ms small>timer</ms>',
+    miniName: '<ms>self_improvement</ms> <ms small>timer</ms>',
+    label: ['solo', '(lap)'],
     tooltip: 'Time observed riding alone (lap)',
 }, {
     id: 'time-follow-lap',
     longName: 'Following Time (lap)',
     get: x => x.lap?.followTime || 0,
     format: fmtDur,
-    shortName: 'Following <ms>timer</ms>',
+    shortName: 'Following <ms small>timer</ms>',
+    miniName: '<ms>group_remove</ms> <ms small>timer</ms>',
+    label: ['following', '(lap)'],
     tooltip: 'Time observed sitting-in/following in a group (lap)',
 }, {
     id: 'time-work-lap',
     longName: 'Working Time (lap)',
     get: x => x.lap?.workTime || 0,
     format: fmtDur,
-    shortName: 'Working <ms>timer</ms>',
+    shortName: 'Working <ms small>timer</ms>',
+    miniName: '<ms>group_add</ms> <ms small>timer</ms>',
+    label: ['working', '(lap)'],
     tooltip: 'Time observed working/pulling in a group (lap)',
 }, {
     id: 'time-pack-graph-lap',
     longName: 'Pack Time Graph (lap)',
-    shortName: 'Pack <ms>timer</ms>',
+    shortName: 'Pack <ms small>timer</ms>',
     format: x => x.lap ? fmtStackedSparkline([
-        {color: '#65a354', label: 'Following', value: x.lap.followTime, format: courseDurationFormat},
-        {color: '#d1c209', label: 'Solo', value: x.lap.soloTime, format: courseDurationFormat},
-        {color: '#ca3805', label: 'Working', value: x.lap.workTime, format: courseDurationFormat}
+        {color: '#65a354', label: 'Following', value: x.lap.followTime || 0, format: courseDurationFormat},
+        {color: '#d1c209', label: 'Solo', value: x.lap.soloTime || 0, format: courseDurationFormat},
+        {color: '#ca3805', label: 'Working', value: x.lap.workTime || 0, format: courseDurationFormat}
     ]) : fmtStackedSparkline([{color: '#777', label: 'Inactive', value: 1}]),
+    label: ['pack time', '(lap)'],
     tooltip: 'Pack Time Graph\n\nHow much time has been spent sitting-in vs solo vs working (lap)',
-    label: ['pack time', '(lap)']
 }];
 timeFields.forEach(x => x.group = 'time');
 
@@ -435,7 +454,7 @@ export const speedFields = [{
     id: 'spd-lap',
     format: x => fmtPace(x.lap && x.lap.speed.avg, x),
     longName: x => `${speedLabel(x)} (lap)`,
-    shortName: x => `${speedLabel(x)} <ms>timer</ms>`,
+    shortName: x => `${speedLabel(x)} <ms small>timer</ms>`,
     suffix: speedUnit,
 }];
 speedFields.forEach(x => x.group = 'speed');
@@ -460,8 +479,8 @@ export const hrFields = [{
 }, {
     id: 'hr-lap',
     format: x => H.number(x.lap && x.lap.hr.avg),
-    longtName: 'HR (lap)',
-    shortName: 'HR <ms>timer</ms>',
+    longName: 'HR (lap)',
+    shortName: 'HR <ms small>timer</ms>',
     suffix: 'bpm',
 }];
 hrFields.forEach(x => x.group = 'hr');
@@ -503,50 +522,62 @@ export const powerFields = [{
 }, {
     id: 'energy-solo',
     longName: 'Solo Energy',
-    get: x => x.stats?.soloKj,
+    get: x => x.stats?.soloKj || 0,
     format: H.number,
     suffix: 'kJ',
     shortName: 'Solo',
+    miniName: '<ms>self_improvement</ms>',
+    label: 'solo',
     tooltip: 'Energy total while riding alone',
 }, {
     id: 'energy-follow',
     longName: 'Following Energy',
-    get: x => x.stats?.followKj,
+    get: x => x.stats?.followKj || 0,
     format: H.number,
     suffix: 'kJ',
     shortName: 'Following',
+    miniName: '<ms>group_remove</ms>',
+    label: 'following',
     tooltip: 'Energy total while sitting-in/following in a group',
 }, {
     id: 'energy-work',
     longName: 'Working Energy',
-    get: x => x.stats?.workKj,
+    get: x => x.stats?.workKj || 0,
     format: H.number,
     suffix: 'kJ',
     shortName: 'Working',
+    miniName: '<ms>group_add</ms>',
+    label: 'working',
     tooltip: 'Energy total while working/pulling in a group',
 }, {
     id: 'power-avg-solo',
     longName: 'Solo Average Power',
-    get: x => x.stats?.soloKj / x.stats?.soloTime * 1000,
+    get: x => (x.stats?.soloKj / x.stats?.soloTime * 1000) || 0,
     format: H.power,
     suffix: 'w',
     shortName: 'Solo',
+    miniName: '<ms>self_improvement</ms>',
+    label: 'solo',
     tooltip: 'Average power while riding alone',
 }, {
     id: 'power-avg-follow',
     longName: 'Following Average Power',
-    get: x => x.stats?.followKj / x.stats?.followTime * 1000,
+    get: x => (x.stats?.followKj / x.stats?.followTime * 1000) || 0,
     format: H.power,
     suffix: 'w',
     shortName: 'Following',
+    miniName: '<ms>group_remove</ms>',
+    label: 'following',
     tooltip: 'Average power while sitting-in/following in a group',
 }, {
     id: 'power-avg-work',
     longName: 'Working Average Power',
-    get: x => x.stats?.workKj / x.stats?.workTime * 1000,
+    get: x => (x.stats?.workKj / x.stats?.workTime * 1000) || 0,
     format: H.power,
     suffix: 'w',
     shortName: 'Working',
+    miniName: '<ms>group_add</ms>',
+    label: 'working',
     tooltip: 'Average power while working/pulling in a group',
 }, {
     id: 'wbal',
@@ -588,61 +619,73 @@ export const powerFields = [{
 {
     id: 'pwr-lap',
     format: x => H.number(x.lap && x.lap.power.avg),
-    shortName: 'Power <ms>timer</ms>',
+    shortName: 'Power <ms small>timer</ms>',
     longName: 'Average Power (lap)',
     suffix: 'w',
 }, {
     id: 'pwr-lap-wkg',
     format: x => fmtWkg(x.lap && x.lap.power.avg, x.athlete),
-    shortName: 'W/kg <ms>timer</ms>',
+    shortName: 'W/kg <ms small>timer</ms>',
     longName: 'Average W/kg (lap)',
 }, {
     id: 'energy-solo-lap',
     longName: 'Solo Energy (lap)',
-    get: x => x.lap?.soloKj,
+    get: x => x.lap?.soloKj || 0,
     format: H.number,
     suffix: 'kJ',
-    shortName: 'Solo <ms>timer</ms>',
+    shortName: 'Solo <ms small>timer</ms>',
+    miniName: '<ms>self_improvement</ms> <ms small>timer</ms>',
+    label: ['solo', '(lap)'],
     tooltip: 'Energy total while riding alone (lap)',
 }, {
     id: 'energy-follow-lap',
     longName: 'Following Energy (lap)',
-    get: x => x.lap?.followKj,
+    get: x => x.lap?.followKj || 0,
     format: H.number,
     suffix: 'kJ',
-    shortName: 'Following <ms>timer</ms>',
+    shortName: 'Following <ms small>timer</ms>',
+    miniName: '<ms>group_remove</ms> <ms small>timer</ms>',
+    label: ['following', '(lap)'],
     tooltip: 'Energy total while sitting-in/following in a group (lap)',
 }, {
     id: 'energy-work-lap',
     longName: 'Working Energy (lap)',
-    get: x => x.lap?.workKj,
+    get: x => x.lap?.workKj || 0,
     format: H.number,
     suffix: 'kJ',
-    shortName: 'Working <ms>timer</ms>',
+    shortName: 'Working <ms small>timer</ms>',
+    miniName: '<ms>group_add</ms> <ms small>timer</ms>',
+    label: ['working', '(lap)'],
     tooltip: 'Energy total while working/pulling in a group (lap)',
 }, {
     id: 'power-avg-solo-lap',
     longName: 'Solo Average Power (lap)',
-    get: x => x.lap?.soloKj / x.lap?.soloTime * 1000,
+    get: x => (x.lap?.soloKj / x.lap?.soloTime * 1000) || 0,
     format: H.power,
     suffix: 'w',
-    shortName: 'Solo <ms>timer</ms>',
+    shortName: 'Solo <ms small>timer</ms>',
+    miniName: '<ms>self_improvement</ms> <ms small>timer</ms>',
+    label: ['solo', '(lap)'],
     tooltip: 'Average power while riding alone (lap)',
 }, {
     id: 'power-avg-follow-lap',
     longName: 'Following Average Power (lap)',
-    get: x => x.lap?.followKj / x.lap?.followTime * 1000,
+    get: x => (x.lap?.followKj / x.lap?.followTime * 1000) || 0,
     format: H.power,
     suffix: 'w',
-    shortName: 'Following <ms>timer</ms>',
+    shortName: 'Following <ms small>timer</ms>',
+    miniName: '<ms>group_remove</ms> <ms small>timer</ms>',
+    label: ['following', '(lap)'],
     tooltip: 'Average power while sitting-in/following in a group (lap)',
 }, {
     id: 'power-avg-work-lap',
     longName: 'Working Average Power (lap)',
-    get: x => x.lap?.workKj / x.lap?.workTime * 1000,
+    get: x => (x.lap?.workKj / x.lap?.workTime * 1000) || 0,
     format: H.power,
     suffix: 'w',
-    shortName: 'Working <ms>timer</ms>',
+    shortName: 'Working <ms small>timer</ms>',
+    miniName: '<ms>group_add</ms> <ms small>timer</ms>',
+    label: ['working', '(lap)'],
     tooltip: 'Average power while working/pulling in a group (lap)',
 },
 ...makePeakPowerFields(5, -1),
@@ -667,7 +710,7 @@ export const draftFields = [{
 }, {
     id: 'draft-lap',
     format: x => H.power(x.lap && x.lap.draft.avg),
-    shortName: 'Draft <ms>timer</ms>',
+    shortName: 'Draft <ms small>timer</ms>',
     suffix: x => H.power(x && x.lap && x.lap.draft.avg, {suffixOnly: true}),
 }, {
     id: 'draft-energy',
@@ -691,7 +734,7 @@ export const cadenceFields = [{
 }, {
     id: 'cad-lap',
     format: x => H.number(x.lap && x.lap.cadence.avg),
-    shortName: 'Cadence <ms>timer</ms>',
+    shortName: 'Cadence <ms small>timer</ms>',
     suffix: x => getSport(x) === 'running' ? 'spm' : 'rpm',
 }];
 cadenceFields.forEach(x => x.group = 'cadence');
