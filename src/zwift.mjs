@@ -686,18 +686,21 @@ export class ZwiftAPI {
     }
 
     async getEventFeed(options={}) {
-        // WARNING: Does not work for full ranges well outside the present.
         const urn = '/api/events/search';
         const HOUR = 3600000;
-        const from = new Date(options.from || (worldTimer.serverNow() - 1 * HOUR));
-        const to = new Date(options.to || (worldTimer.serverNow() + 3 * HOUR));
+        const aboutMaxBack = worldTimer.serverNow() - 1 * HOUR;
+        const from = new Date(options.from || aboutMaxBack);
+        if (from < aboutMaxBack) {
+            console.warn("Event feed query is probably out of range:", from);
+        }
+        const to = new Date(options.to || (worldTimer.serverNow() + 4 * HOUR));
         const query = {limit: options.limit};
         const json = {
             dateRangeStartISOString: from.toISOString(),
             dateRangeEndISOString: to.toISOString(),
         };
         const obj = pbToObject(await this.fetchPB(urn, {method: 'POST', protobuf: 'Events', json, query}));
-        return obj.events;
+        return obj.events || [];
     }
 
     async getEventFeedFullRangeBuggy(options={}) {
