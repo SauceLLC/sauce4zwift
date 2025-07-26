@@ -15,6 +15,7 @@ let flags;
 let worldList;
 let gcs;
 let selfAthlete;
+let allRoutes;
 
 const chartRefs = new Set();
 const allEvents = new Map();
@@ -51,9 +52,20 @@ async function loadEventsWithRetry() {
 }
 
 
+let _routeListPromise;
 async function fillInEvents() {
-    await Promise.all(Array.from(allEvents.values()).map(async event => {
-        event.route = await common.getRoute(event.routeId);
+    if (!_routeListPromise) {
+        _routeListPromise = common.getRouteList();
+    }
+    const routeList = await _routeListPromise;
+    if (!allRoutes) {
+        allRoutes = new Map();
+        for (const x of routeList) {
+            allRoutes.set(x.id, x);
+        }
+    }
+    for (const event of allEvents.values()) {
+        event.route = allRoutes.get(event.routeId);
         event.sameRoute = true;
         event.sameRouteName = true;
         event.signedUp = false;
@@ -72,7 +84,7 @@ async function fillInEvents() {
             event.sameRouteName = (new Set(event.eventSubgroups.map(sg => sg.routeId))).size === 1;
             event.signedUp = event.eventSubgroups.some(x => x.signedUp);
             for (const sg of event.eventSubgroups) {
-                sg.route = await common.getRoute(sg.routeId);
+                sg.route = allRoutes.get(sg.routeId);
                 durations.push(sg.durationInSeconds);
                 distances.push(sg.distanceInMeters || sg.routeDistance);
                 allSubgroups.set(sg.id, {sg, event});
@@ -81,7 +93,7 @@ async function fillInEvents() {
         const desc = (a, b) => a - b;
         event.durations = Array.from(new Set(durations.filter(x => x))).sort(desc);
         event.distances = Array.from(new Set(distances.filter(x => x))).sort(desc);
-    }));
+    }
 }
 
 
