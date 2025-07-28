@@ -160,7 +160,6 @@ function shallowCompareNodes(n1, n2) {
 
 const _surgicalTemplateRoots = new Map();
 async function renderSurgicalTemplate(selector, tpl, attrs) {
-    const s = performance.now();
     const key = `${selector}-${tpl.id}`;
     const frag = await tpl(attrs);
     const beforeRoots = _surgicalTemplateRoots.get(key);
@@ -172,17 +171,14 @@ async function renderSurgicalTemplate(selector, tpl, attrs) {
     // BFS for differences...
     const q = [[frag, {childNodes: beforeRoots, pseudoRoot: true}]];
     const replacements = [];
-    let benchi = 0;
     while (q.length) {
         const [now, before] = q.shift();
         if (now.childNodes.length !== before.childNodes.length) {
             replacements.push([now, before]);
-            benchi++;
         } else {
             for (let i = 0; i < now.childNodes.length; i++) {
                 const xNow = now.childNodes[i];
                 const xBefore = before.childNodes[i];
-                benchi++;
                 if (shallowCompareNodes(xNow, xBefore)) {
                     q.push([xNow, xBefore]);
                 } else {
@@ -210,7 +206,6 @@ async function renderSurgicalTemplate(selector, tpl, attrs) {
             before.replaceWith(now);
         }
     }
-    console.info(benchi, {replacements}, performance.now() - s);
     return replacements.length > 0;
 }
 
