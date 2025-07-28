@@ -124,6 +124,8 @@
             <header>
                 <ms>conversion_path</ms>
                 <div class="title">Segments</div>
+                <div class="expander" data-id="compress" title="Collapse section"><ms>compress</ms></div>
+                <div class="expander" data-id="expand" title="Expand section"><ms>expand</ms></div>
             </header>
             {-embed(templates.segments, obj)-}
         </section>
@@ -132,6 +134,8 @@
             <header>
                 <ms>timer</ms>
                 <div class="title">Laps</div>
+                <div class="expander" data-id="compress" title="Collapse section"><ms>compress</ms></div>
+                <div class="expander" data-id="expand" title="Expand section"><ms>expand</ms></div>
             </header>
             {-embed(templates.laps, obj)-}
         </section>

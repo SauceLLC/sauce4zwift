@@ -15,7 +15,7 @@
             <% const orderedSegments = settings.reverseLapsAndSegments ? segments.toReversed() : segments; %>
             <% for (const x of orderedSegments) { %>
                 <% const index = segments.indexOf(x); %>
-                <tr class="summary {{index === selected ? 'selected' : ''}}" data-segment-index="{{index}}">
+                <tr class="summary {{index === selected ? 'selected expanded' : ''}}" data-segment-index="{{index}}">
                     <td class="name">{{x.segment.friendlyName || x.segment.name}}</td>
                     <td>{-humanTimer(x.stats.elapsedTime, {long: true, ms: true, html: true})-}</td>
                     <td>{-humanDistance(x.segment.distance, {suffix: true, html: true})-}</td>
@@ -29,7 +29,13 @@
                     <td>{-humanPace(x.stats.speed.avg, {suffix: true, html: true, sport: x.sport})-}</td>
                     <td>{-humanNumber(x.stats.hr.avg, {suffix: 'bpm', html: true})-}</td>
                 </tr>
-                <tr class="details"><td colspan="6"></td></tr>
+                <tr class="details">
+                    <td colspan="6">
+                        <% if (index === selected && obj.results) { %>
+                            {-embed(templates.segmentResults, obj)-}
+                        <% } %>
+                    </td>
+                </tr>
             <% } %>
         <% } else { %>
             <tr>

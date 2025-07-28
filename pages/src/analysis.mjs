@@ -36,6 +36,7 @@ let streamStackCharts;
 let powerZonesChart;
 let packTimeChart;
 let templates;
+let surgicalTemplates;
 let athleteData;
 let athlete;
 let sport;
@@ -47,13 +48,13 @@ let timeOfft;
 let segmentOfft;
 let lapOfft;
 let curPeaksSig;
-let zoomStart;
-let zoomEnd;
+let selStart;
+let selEnd;
 let voidAutoCenter = false;
 let geoSelection;
-let activeLapOrSegment;
-let selectedLap;
-let selectedSegment;
+let selectionSource;
+let selectionEntry;
+let segmentResults;
 
 
 function resetData() {
@@ -66,8 +67,8 @@ function resetData() {
     rolls.power = new sauce.power.RollingPower(null, {idealGap: 1, maxGap: 15});
     geoOffset = 0;
     voidAutoCenter = false;
-    sport = timeOfft = segmentOfft = lapOfft = curPeaksSig = zoomStart = zoomEnd =
-        geoSelection = activeLapOrSegment = undefined;
+    sport = timeOfft = segmentOfft = lapOfft = curPeaksSig = selStart = selEnd =
+        geoSelection = selectionSource = selectionEntry = undefined;
 }
 
 
@@ -98,25 +99,119 @@ function resizeCharts() {
 }
 
 
+let templateIds = 0;
 async function getTemplates(basenames) {
-    return Object.fromEntries(await Promise.all(basenames.map(k =>
-        sauce.template.getTemplate(`templates/analysis/${k}.html.tpl`, {html: true}).then(v =>
-            // camelCase conv keys-with_snakecase--chars
-            [k.replace(/[-_]+(.)/g, (_, x) => x.toUpperCase()), v]))));
+    return Object.fromEntries(await Promise.all(basenames.map(async k => {
+        const tpl = await sauce.template.getTemplate(`templates/analysis/${k}.html.tpl`, {html: true});
+        tpl.id = templateIds++;
+        // camelCase conv keys-with_snakecase--chars
+        return [k.replace(/[-_]+(.)/g, (_, x) => x.toUpperCase()), tpl];
+    })));
+}
+
+
+async function getSurgicalTemplates(basenames) {
+    return Object.fromEntries(await Promise.all(basenames.map(async k => {
+        const tpl = await sauce.template.getTemplate(`templates/analysis/${k}.html.tpl`);
+        tpl.id = templateIds++;
+        // camelCase conv keys-with_snakecase--chars
+        return [k.replace(/[-_]+(.)/g, (_, x) => x.toUpperCase()), tpl];
+    })));
 }
 
 
 const _tplSigs = new Map();
-async function updateTemplate(selector, tpl, attrs) {
-    await sauce.sleep(1);
+async function renderTemplate(selector, tpl, attrs) {
     const html = await tpl(attrs);
     const sig = common.hash(html);
     if (_tplSigs.get(selector) !== sig) {
         _tplSigs.set(selector, sig);
-        document.querySelector(selector).outerHTML = html;
+        document.querySelector(selector).outerHTML = html; // XXX leaks nodes
         return true;
     }
     return false;
+}
+
+
+function shallowCompareNodes(n1, n2) {
+    if (n1.nodeType !== n2.nodeType) {
+        return false;
+    }
+    if (n1.nodeType === Node.TEXT_NODE || n1.nodeType === Node.COMMENT_NODE) {
+        return n1.nodeValue === n2.nodeValue;
+    } else if (n1.nodeType !== Node.ELEMENT_NODE) {
+        console.warn("Unsupported node type:", n1.nodeType, n1.nodeName);
+        return false;
+    }
+    if (n1.nodeName !== n2.nodeName ||
+        n1.attributes.length !== n2.attributes.length) {
+        return false;
+    }
+    for (let i = 0; i < n1.attributes.length; i++) {
+        const a1 = n1.attributes[i];
+        const a2 = n2.attributes[i];
+        if (a1.name !== a2.name || a1.value !== a2.value) {
+            return false;
+        }
+    }
+    return true;
+}
+
+
+const _surgicalTemplateRoots = new Map();
+async function renderSurgicalTemplate(selector, tpl, attrs) {
+    const s = performance.now();
+    const key = `${selector}-${tpl.id}`;
+    const frag = await tpl(attrs);
+    const beforeRoots = _surgicalTemplateRoots.get(key);
+    if (!beforeRoots) {
+        _surgicalTemplateRoots.set(key, Array.from(frag.childNodes));
+        document.querySelector(selector).replaceWith(frag);
+        return true;
+    }
+    // BFS for differences...
+    const q = [[frag, {childNodes: beforeRoots, pseudoRoot: true}]];
+    const replacements = [];
+    let benchi = 0;
+    while (q.length) {
+        const [now, before] = q.shift();
+        if (now.childNodes.length !== before.childNodes.length) {
+            replacements.push([now, before]);
+            benchi++;
+        } else {
+            for (let i = 0; i < now.childNodes.length; i++) {
+                const xNow = now.childNodes[i];
+                const xBefore = before.childNodes[i];
+                benchi++;
+                if (shallowCompareNodes(xNow, xBefore)) {
+                    q.push([xNow, xBefore]);
+                } else {
+                    replacements.push([xNow, xBefore]);
+                }
+            }
+        }
+    }
+    for (let i = 0; i < replacements.length; i++) {
+        const [now, before] = replacements[i];
+        if (before.pseudoRoot) {
+            // Special care is required for the roots to prevent leakage.
+            const anchor = document.querySelector(selector);
+            for (const x of before.childNodes) {
+                if (x !== anchor) {
+                    x.remove();
+                }
+            }
+            _surgicalTemplateRoots.set(key, Array.from(now.childNodes));
+            anchor.replaceWith(now);
+        } else {
+            if (beforeRoots.includes(before)) {
+                beforeRoots[beforeRoots.indexOf(before)] = now;
+            }
+            before.replaceWith(now);
+        }
+    }
+    console.info(benchi, {replacements}, performance.now() - s);
+    return replacements.length > 0;
 }
 
 
@@ -126,9 +221,9 @@ function getSelectionStats() {
     }
     let powerRoll = rolls.power;
     let leadInKj = 0;
-    if (zoomStart != null) {
-        const start = streams.time[zoomStart];
-        const end = streams.time[zoomEnd];
+    if (selStart != null) {
+        const start = streams.time[selStart];
+        const end = streams.time[selEnd];
         powerRoll = powerRoll.slice(start, end);
         if (start) {
             const prePowerRoll = rolls.power.slice(0, start);
@@ -229,7 +324,7 @@ let streamStatsEls;
 function schedUpdateSelectionStats() {
     const run = () => {
         const stats = getSelectionStats();
-        selStatsActive = updateTemplate('.selection-stats', templates.selectionStats,
+        selStatsActive = renderTemplate('.selection-stats', templates.selectionStats,
                                         {selectionStats: stats, settings}).finally(() => {
             selStatsActive = null;
             if (selStatsPendingRelease) {
@@ -241,31 +336,30 @@ function schedUpdateSelectionStats() {
             streamStatsEls = new Map(Array.from(document.querySelectorAll(`.stream-stats .stat[data-id]`))
                 .map(x => [x.dataset.id, x]));
         }
-
         streamStatsEls.get('power').innerHTML = `
-            Avg: ${H.power(stats.power.avg)}<br/>
-            Max: ${H.power(stats.power.max)}<br/>
-            <small>watts</small>`;
-        streamStatsEls.get('hr').innerHTML = stats.hr ? `
-            Avg: ${H.number(stats.hr.avg)}<br/>
-            Max: ${H.number(stats.hr.max)}<br/>
-            <small>bpm</small>` : '';
-        streamStatsEls.get('speed').innerHTML = stats.speed ? `
-            Avg: ${H.pace(stats.speed.avg, {fixed: true, precision: 1})}<br/>
-            Max: ${H.pace(stats.speed.max, {fixed: true, precision: 1})}<br/>
-            <small>${H.pace(1, {suffixOnly: true})}</small>` : '';
-        streamStatsEls.get('cadence').innerHTML = stats.cadence ? `
-            Avg: ${H.number(stats.cadence.avg)}<br/>
-            Max: ${H.number(stats.cadence.max)}<br/>
-            <small>rpm</small>` : '';
-        streamStatsEls.get('wbal').innerHTML = stats.wbal ? `
-            Avg: ${H.number(stats.wbal.avg / 1000, {fixed: true, precision: 1})}<br/>
-            Min: ${H.number(stats.wbal.min / 1000, {fixed: true, precision: 1})}<br/>
-            <small>kj</small>` : '';
-        streamStatsEls.get('draft').innerHTML = stats.draft ? `
-            Avg: ${H.power(stats.draft.avg)}<br/>
-            Max: ${H.power(stats.draft.max)}<br/>
-            <small>w</small>` : '';
+            Avg: ${H.power(stats?.power.avg)}<br/>
+            Max: ${H.power(stats?.power.max)}<br/>
+            <abbr class="unit">watts</abbr>`;
+        streamStatsEls.get('hr').innerHTML = `
+            Avg: ${H.number(stats?.hr.avg)}<br/>
+            Max: ${H.number(stats?.hr.max)}<br/>
+            <abbr class="unit">bpm</abbr>`;
+        streamStatsEls.get('speed').innerHTML = `
+            Avg: ${H.pace(stats?.speed.avg, {fixed: true, precision: 1})}<br/>
+            Max: ${H.pace(stats?.speed.max, {fixed: true, precision: 1})}<br/>
+            <abbr class="unit">${H.pace(1, {suffixOnly: true})}</abbr>`;
+        streamStatsEls.get('cadence').innerHTML = `
+            Avg: ${H.number(stats?.cadence.avg)}<br/>
+            Max: ${H.number(stats?.cadence.max)}<br/>
+            <abbr class="unit">rpm</abbr>`;
+        streamStatsEls.get('wbal').innerHTML = `
+            Avg: ${H.number(stats?.wbal.avg / 1000, {fixed: true, precision: 1})}<br/>
+            Min: ${H.number(stats?.wbal.min / 1000, {fixed: true, precision: 1})}<br/>
+            <abbr class="unit">kj</abbr>`;
+        streamStatsEls.get('draft').innerHTML = `
+            Avg: ${H.power(stats?.draft.avg)}<br/>
+            Max: ${H.power(stats?.draft.max)}<br/>
+            <abbr class="unit">watt savings</abbr>`;
     };
     if (selStatsPendingRelease) {
         selStatsPendingRelease(true);
@@ -353,19 +447,16 @@ function createElevationChart(el) {
         if (ev.detail.internal) {
             let {x1, x2} = ev.detail;
             if (x1 == null || x2 == null) {
-                zoomStart = null;
-                zoomEnd = null;
+                selStart = null;
+                selEnd = null;
             } else if (x1 !== x2) {
                 if (x2 < x1) {
                     [x1, x2] = [x2, x1];
                 }
-                zoomStart = common.binarySearchClosest(streams.distance, x1);
-                zoomEnd = common.binarySearchClosest(streams.distance, x2);
+                selStart = common.binarySearchClosest(streams.distance, x1);
+                selEnd = common.binarySearchClosest(streams.distance, x2);
             }
-            if (activeLapOrSegment) {
-                activeLapOrSegment = null;
-                packTimeChart.updateData();
-            }
+            document.dispatchEvent(new Event('brush'));
         }
     });
     return chart;
@@ -506,19 +597,16 @@ function createStreamStackCharts(el) {
                 if (ev.detail.internal) {
                     let {x1, x2} = ev.detail;
                     if (x1 == null || x2 == null) {
-                        zoomStart = null;
-                        zoomEnd = null;
+                        selStart = null;
+                        selEnd = null;
                     } else if (x1 !== x2) {
                         if (x2 < x1) {
                             [x1, x2] = [x2, x1];
                         }
-                        zoomStart = common.binarySearchClosest(streams.time, x1 / 1000);
-                        zoomEnd = common.binarySearchClosest(streams.time, x2 / 1000);
+                        selStart = common.binarySearchClosest(streams.time, x1 / 1000);
+                        selEnd = common.binarySearchClosest(streams.time, x2 / 1000);
                     }
-                    if (activeLapOrSegment) {
-                        activeLapOrSegment = null;
-                        packTimeChart.updateData();
-                    }
+                    document.dispatchEvent(new Event('brush'));
                 }
             });
         }
@@ -650,23 +738,21 @@ function createPackTimeChart(el) {
         series: [barSeries, barSeries, barSeries],
     });
     chart.updateData = () => {
-        const data = activeLapOrSegment?.stats || athleteData?.stats;
+        const data = selectionEntry?.stats || athleteData?.stats;
         if (!data) {
             return;
         }
         totalTime = data.followTime + data.soloTime + data.workTime;
         let subTitle = '';
-        if (activeLapOrSegment) {
-            if (activeLapOrSegment.segmentId != null) {
-                let name = activeLapOrSegment.segment?.name || 'Segment';
-                const max = 28;
-                if (name.length > max) {
-                    name = name.substr(0, max - 1) + '…';
-                }
-                subTitle = `<br/>${name}`;
-            } else {
-                subTitle = `<br/>Lap ${selectedLap + 1}`;
+        if (selectionSource === 'segments') {
+            let name = selectionEntry.segment?.name || 'Segment';
+            const max = 28;
+            if (name.length > max) {
+                name = name.substr(0, max - 1) + '…';
             }
+            subTitle = `<br/>${name}`;
+        } else if (selectionSource === 'laps') {
+            subTitle = `<br/>Lap ${laps.indexOf(selectionEntry) + 1}`;
         }
         headerEl.innerHTML = `Pack Time${subTitle}`;
         powers = [
@@ -720,13 +806,13 @@ function centerMap(positions) {
     const yMin = sauce.data.min(positions.map(x => x[1]));
     const xMax = sauce.data.max(positions.map(x => x[0]));
     const yMax = sauce.data.max(positions.map(x => x[1]));
-    zwiftMap.setBounds([xMin, yMax], [xMax, yMin], {padding: 0.20});
+    zwiftMap.setBounds([xMin, yMax], [xMax, yMin], {padding: 0.18});
 }
 
 
 export async function main() {
     common.initInteractionListeners();
-    [athlete, templates, nationFlags, worldList, powerZones] = await Promise.all([
+    [athlete, templates, surgicalTemplates, nationFlags, worldList, powerZones] = await Promise.all([
         common.rpc.getAthlete(athleteIdent),
         getTemplates([
             'main',
@@ -736,6 +822,10 @@ export async function main() {
             'segments',
             'segment-results',
             'laps'
+        ]),
+        getSurgicalTemplates([
+            'segments',
+            'laps',
         ]),
         common.initNationFlags(),
         common.getWorldList({all: true}),
@@ -763,7 +853,7 @@ export async function main() {
         el: document.querySelector('#map'),
         worldList,
         zoomMin: 0.05,
-        fpsLimit: 60,
+        fpsLimit: 30,
     });
     window.zwiftMap = zwiftMap; // debug
     zwiftMap.addEventListener('drag', () => voidAutoCenter = true);
@@ -797,44 +887,45 @@ export async function main() {
     });
 
     contentEl.addEventListener('click', ev => {
-        const row = ev.target.closest('table.selectable > tbody > tr');
+        const btn = ev.target.closest('header > .expander');
+        if (btn) {
+            ev.target.closest('section').classList.toggle('compressed');
+            return;
+        }
+        const row = ev.target.closest('table.selectable > tbody > tr:not(.details)');
         if (!row) {
             return;
         }
         const deselecting = row.classList.contains('selected');
-        contentEl.querySelectorAll('table.selectable tr.selected').forEach(x =>
-            x.classList.remove('selected'));
+        deselectAllSources();
         if (deselecting) {
-            selectedSegment = selectedLap = null;
+            selectionSource = selectionEntry = null;
             setSelection();
         } else {
-            let sel;
-            let scrollTo;
-            let lapish;
             if (row.dataset.segmentIndex) {
-                selectedSegment = Number(row.dataset.segmentIndex);
-                selectedLap = null;
-                lapish = sel = segments[selectedSegment];
+                selectionSource = 'segments';
+                selectionEntry = segments[Number(row.dataset.segmentIndex)];
+                row.parentElement.querySelectorAll(':scope > .expanded')
+                    .forEach(x => x.classList.remove('expanded'));
+                row.classList.add('expanded');
+                updateSegmentResults(selectionEntry); // bg okay
             } else if (row.dataset.lapIndex) {
-                selectedLap = Number(row.dataset.lapIndex);
-                selectedSegment = null;
-                lapish = sel = laps[selectedLap];
-                scrollTo = true;
+                selectionSource = 'laps';
+                selectionEntry = laps[Number(row.dataset.lapIndex)];
             } else if (row.dataset.peakSource) {
+                selectionSource = 'peaks';
                 const period = Number(row.dataset.peakPeriod);
                 const peak = athleteData.stats[row.dataset.peakSource].peaks[period];
                 const endIndex = streams.time.indexOf(peak.time);
                 const startIndex = common.binarySearchClosest(streams.time, peak.time - period);
-                sel = {startIndex, endIndex};
-                scrollTo = true;
-                selectedSegment = selectedLap = null;
+                selectionEntry = {startIndex, endIndex};
             }
-            if (sel) {
+            if (selectionEntry) {
                 row.classList.add('selected');
-                setSelection(sel.startIndex, sel.endIndex, {scrollTo, lapish});
+                setSelection(selectionEntry.startIndex, selectionEntry.endIndex);
             }
         }
-    });
+    }, {capture: true});  // capture because we want to beat expander table click handler
     contentEl.addEventListener('input', async ev => {
         const peakSource = ev.target.closest('select[name="peak-effort-source"]');
         if (!peakSource) {
@@ -845,16 +936,16 @@ export async function main() {
     });
 
     streamStackCharts[0].addEventListener('brush', ev => elevationChart.setBrush({
-        x1: zoomStart != null ? streams.distance[zoomStart] : null,
-        x2: zoomEnd != null ? streams.distance[zoomEnd] : null
+        x1: selStart != null ? streams.distance[selStart] : null,
+        x2: selEnd != null ? streams.distance[selEnd] : null
     }));
     let brushPath;
     let mapHiUpdateTO;
     elevationChart.addEventListener('brush', ev => {
-        const hasZoom = zoomStart != null && zoomStart < zoomEnd;
+        const hasZoom = selStart != null && selStart < selEnd;
         if (hasZoom) {
-            geoSelection = geoOffset < zoomEnd ?
-                positions.slice(Math.max(geoOffset, zoomStart), zoomEnd) :
+            geoSelection = geoOffset < selEnd ?
+                positions.slice(Math.max(geoOffset, selStart), selEnd) :
                 null;
             if (geoSelection) {
                 if (!brushPath) {
@@ -877,11 +968,11 @@ export async function main() {
         }
         if (ev.detail.internal) {
             for (const chart of streamStackCharts) {
-                if (zoomStart != null && zoomStart < zoomEnd) {
+                if (selStart != null && selStart < selEnd) {
                     chart.setZoom({
                         xRange: [
-                            streams.time[zoomStart] * 1000,
-                            streams.time[zoomEnd] * 1000
+                            streams.time[selStart] * 1000,
+                            streams.time[selEnd] * 1000
                         ]
                     });
                 } else {
@@ -911,52 +1002,76 @@ export async function main() {
             otherChart.hideTooltip();
         }
     }
+
     elevationChart.addEventListener('tooltip', onTooltip);
     streamStackCharts[0].addEventListener('tooltip', onTooltip);
+    document.addEventListener('brush', () => {
+        if (selectionSource) {
+            selectionSource = selectionEntry = null;
+            deselectAllSources();
+            packTimeChart.updateData();
+        }
+    });
 
     updateLoop();
 }
 
 
-function setSelection(startIndex, endIndex, {scrollTo, lapish}={}) {
-    zoomStart = startIndex;
-    zoomEnd = endIndex;
+function deselectAllSources() {
+    document.querySelectorAll('table.selectable tr.selected').forEach(x => x.classList.remove('selected'));
+    document.querySelectorAll('table.selectable tr.expanded').forEach(x => x.classList.remove('expanded'));
+}
+
+
+function setSelection(startIndex, endIndex) {
+    selStart = startIndex;
+    selEnd = endIndex;
     elevationChart.setBrush({
-        x1: zoomStart != null ? streams.distance[zoomStart] : null,
-        x2: zoomEnd != null ? streams.distance[zoomEnd] : null
+        x1: selStart != null ? streams.distance[selStart] : null,
+        x2: selEnd != null ? streams.distance[selEnd] : null
     });
     for (const x of streamStackCharts) {
-        if (zoomStart != null && zoomStart < zoomEnd) {
+        if (selStart != null && selStart < selEnd) {
             x.setZoom({
                 xRange: [
-                    streams.time[zoomStart] * 1000,
-                    streams.time[zoomEnd] * 1000
+                    streams.time[selStart] * 1000,
+                    streams.time[selEnd] * 1000
                 ]
             });
         } else {
             x.setZoom();
         }
     }
-    activeLapOrSegment = lapish;
     packTimeChart.updateData();
-    if (scrollTo) {
-        document.querySelector('#map').scrollIntoView({behavior: 'smooth'});
+}
+
+
+let _lastExpandedSegment;
+async function updateSegmentResults(segment) {
+    if (segment !== _lastExpandedSegment) {
+        _lastExpandedSegment = segment;
+        segmentResults = null;
+        const results = await common.rpc.getSegmentResults(segment.segmentId);
+        // Recheck state, things may have changed during fetch/render..
+        if (segment !== _lastExpandedSegment) {
+            return;
+        }
+        segmentResults = results;
+        renderSegments();
     }
 }
 
 
-async function onSegmentExpand(targetEl, srcEl) {
-    const idx = Number(srcEl.dataset.segmentIndex);
-    const segment = segments[idx];
-    const results = await common.rpc.getSegmentResults(segment.segmentId);
-    //const results2 = await common.rpc.getSegmentResults(segment.segmentId, {live: true});
-    console.debug({results});
-    targetEl.innerHTML = await templates.segmentResults({results});
-}
-
-
-function onSegmentCollapse() {
-    console.debug("XXX unused", arguments);
+function renderSegments() {
+    const selected = selectionSource === 'segments' ? segments.indexOf(selectionEntry) : undefined;
+    return renderSurgicalTemplate('table.segments', surgicalTemplates.segments, {
+        settings,
+        athlete,
+        templates,
+        segments,
+        selected,
+        results: segmentResults,
+    });
 }
 
 
@@ -977,7 +1092,7 @@ async function updatePeaksTemplate() {
                 null;
         }
     }
-    await updateTemplate('.peak-efforts', templates.peakEfforts, {
+    await renderTemplate('.peak-efforts', templates.peakEfforts, {
         source,
         peaks,
         formatter,
@@ -999,7 +1114,7 @@ async function updateData({reset}={}) {
     const [newAthleteData, newStreams, newSegments, newLaps] = await Promise.all([
         common.rpc.getAthleteData(athleteIdent),
         common.rpc.getAthleteStreams(athleteIdent, {startTime: timeOfft}),
-        common.rpc.getAthleteSegments(athleteIdent, {endTime: segmentOfft, active: false}),
+        common.rpc.getAthleteSegments(athleteIdent, {endTime: segmentOfft, active: true}),
         common.rpc.getAthleteLaps(athleteIdent, {endTime: lapOfft, active: true}),
     ]);
     const changed = {
@@ -1009,8 +1124,9 @@ async function updateData({reset}={}) {
     };
     if (changed.athleteData && timeOfft) {
         console.debug("Data reset detected");
-        setSelection();
         resetData();
+        deselectAllSources();
+        setSelection();
         return await updateData({reset: true});
     }
     athleteData = newAthleteData;
@@ -1023,10 +1139,15 @@ async function updateData({reset}={}) {
         for (const x of newLaps) {
             const existingIdx = laps.findIndex(xx => xx.startIndex === x.startIndex);
             if (existingIdx !== -1) {
-                laps.splice(existingIdx, 1, x);
+                // Maintain identity for selectionEntry
+                const lap = laps[existingIdx];
+                for (const x of Object.keys(lap)) {
+                    delete lap[x];
+                }
+                Object.assign(lap, x);
             } else {
-                laps.push(x);
                 console.debug("New lap found:", laps.length);
+                laps.push(x);
             }
         }
         lapOfft = laps.at(-1).end;
@@ -1070,13 +1191,19 @@ async function updateData({reset}={}) {
         timeOfft = newStreams.time.at(-1) + 1e-6;
     }
     if (newSegments?.length) {
-        console.debug("Segments found:", newSegments.length);
         changed.segments = true;
         for (const x of newSegments) {
-            const existingIdx = segments.findIndex(xx => xx.segmentId === x.segmentId);
+            const existingIdx = segments.findIndex(xx =>
+                xx.segmentId === x.segmentId && xx.start === x.start);
             if (existingIdx !== -1) {
-                segments.splice(existingIdx, 1, x);
+                // Maintain identity for selectionEntry
+                const segment = segments[existingIdx];
+                for (const x of Object.keys(segment)) {
+                    delete segment[x];
+                }
+                Object.assign(segment, x);
             } else {
+                console.debug("New segment found:", x.segment.name);
                 segments.push(x);
             }
         }
@@ -1152,39 +1279,45 @@ async function updateAll() {
         }
     }
     if (changed.segments || changed.reset) {
-        updateTemplate('table.segments', templates.segments, {
-            settings,
-            athlete,
-            segments,
-            selected: selectedSegment,
-        }).then(updated => {
-            if (updated) {
-                common.initExpanderTable(document.querySelector('table.segments.expandable'),
-                                         onSegmentExpand, onSegmentCollapse);
+        let selected;
+        if (selectionSource === 'segments') {
+            selected = segments.indexOf(selectionEntry);
+            if (selected >= segments.length || selected < 0) { // possible data reset
+                debugger;
+                selectionSource = selectionEntry = selected = null;
+                deselectAllSources();
+                setSelection();
+            } else {
+                setSelection(selectionEntry.startIndex, selectionEntry.endIndex);
             }
-        }); // bg okay
+        }
+        if (selectionSource === 'segments') {
+            updateSegmentResults(selectionEntry);  // bg okay
+        }
+        renderSegments();  // bg okay
     }
     if (changed.laps || changed.reset) {
-        updateTemplate('table.laps', templates.laps, {
+        let selected;
+        if (selectionSource === 'laps') {
+            selected = laps.indexOf(selectionEntry);
+            if (selected >= laps.length || selected < 0) { // possible data reset
+                debugger;
+                selectionSource = selectionEntry = selected = null;
+                deselectAllSources();
+                setSelection();
+            } else {
+                setSelection(selectionEntry.startIndex, selectionEntry.endIndex);
+            }
+        }
+        renderSurgicalTemplate('table.laps', surgicalTemplates.laps, {
             settings,
             athlete,
             streams,
             laps,
-            selected: selectedLap,
+            selected,
         }); // bg okay
-        if (activeLapOrSegment && selectedLap != null) {
-            if (selectedLap >= laps.length) { // possible data reset
-                activeLapOrSegment = null;
-                selectedLap = null;
-                setSelection();
-            } else {
-                activeLapOrSegment = laps[selectedLap];
-                const l = activeLapOrSegment;
-                setSelection(l.startIndex, l.endIndex, {lapish: l});
-            }
-        }
     }
-    updateTemplate('.activity-summary', templates.activitySummary, {athleteData}); // bg okay
+    renderTemplate('.activity-summary', templates.activitySummary, {athleteData}); // bg okay
 }
 
 
