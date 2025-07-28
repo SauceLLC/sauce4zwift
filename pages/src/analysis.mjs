@@ -337,28 +337,28 @@ function schedUpdateSelectionStats() {
                 .map(x => [x.dataset.id, x]));
         }
         streamStatsEls.get('power').innerHTML = `
-            Avg: ${H.power(stats?.power.avg)}<br/>
-            Max: ${H.power(stats?.power.max)}<br/>
+            Avg: ${H.power(stats?.power?.avg)}<br/>
+            Max: ${H.power(stats?.power?.max)}<br/>
             <abbr class="unit">watts</abbr>`;
         streamStatsEls.get('hr').innerHTML = `
-            Avg: ${H.number(stats?.hr.avg)}<br/>
-            Max: ${H.number(stats?.hr.max)}<br/>
+            Avg: ${H.number(stats?.hr?.avg)}<br/>
+            Max: ${H.number(stats?.hr?.max)}<br/>
             <abbr class="unit">bpm</abbr>`;
         streamStatsEls.get('speed').innerHTML = `
-            Avg: ${H.pace(stats?.speed.avg, {fixed: true, precision: 1})}<br/>
-            Max: ${H.pace(stats?.speed.max, {fixed: true, precision: 1})}<br/>
+            Avg: ${H.pace(stats?.speed?.avg, {fixed: true, precision: 1})}<br/>
+            Max: ${H.pace(stats?.speed?.max, {fixed: true, precision: 1})}<br/>
             <abbr class="unit">${H.pace(1, {suffixOnly: true})}</abbr>`;
         streamStatsEls.get('cadence').innerHTML = `
-            Avg: ${H.number(stats?.cadence.avg)}<br/>
-            Max: ${H.number(stats?.cadence.max)}<br/>
+            Avg: ${H.number(stats?.cadence?.avg)}<br/>
+            Max: ${H.number(stats?.cadence?.max)}<br/>
             <abbr class="unit">rpm</abbr>`;
         streamStatsEls.get('wbal').innerHTML = `
-            Avg: ${H.number(stats?.wbal.avg / 1000, {fixed: true, precision: 1})}<br/>
-            Min: ${H.number(stats?.wbal.min / 1000, {fixed: true, precision: 1})}<br/>
+            Avg: ${H.number(stats?.wbal?.avg / 1000, {fixed: true, precision: 1})}<br/>
+            Min: ${H.number(stats?.wbal?.min / 1000, {fixed: true, precision: 1})}<br/>
             <abbr class="unit">kj</abbr>`;
         streamStatsEls.get('draft').innerHTML = `
-            Avg: ${H.power(stats?.draft.avg)}<br/>
-            Max: ${H.power(stats?.draft.max)}<br/>
+            Avg: ${H.power(stats?.draft?.avg)}<br/>
+            Max: ${H.power(stats?.draft?.max)}<br/>
             <abbr class="unit">watt savings</abbr>`;
     };
     if (selStatsPendingRelease) {
