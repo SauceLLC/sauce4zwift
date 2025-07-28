@@ -83,11 +83,11 @@
                 </div>
             <% } %>
         </div>
-        {-embed(templates.activitySummary, obj)-}
+        <div class="activity-summary">{-embed(templates.activitySummary, obj)-}</div>
     </header>
 
     <nav>
-        <section>{-embed(templates.peakEfforts, obj)-}</section>
+        <section class="peak-efforts"></section>
         <section>
             <header>Time in Zones</header>
             <div class="echarts-chart time-in-power-zones"></div>
@@ -105,7 +105,7 @@
                 <div id="map"></div>
                 <div id="map-resizer"><ms>drag_handle</ms></div>
             </div>
-            {-embed(templates.selectionStats, obj)-}
+            <div class="selection-stats"></div>
             <div class="chart-holder elevation"><div class="chart"></div></div>
             <div class="chart-holder stream-stack">
                 <div class="chart"></div>
@@ -120,24 +120,8 @@
             </div>
         </section>
 
-        <section class="segments">
-            <header>
-                <ms>conversion_path</ms>
-                <div class="title">Segments</div>
-                <div class="expander" data-id="compress" title="Collapse section"><ms>compress</ms></div>
-                <div class="expander" data-id="expand" title="Expand section"><ms>expand</ms></div>
-            </header>
-            {-embed(templates.segments, obj)-}
-        </section>
+        <section class="segments">{-embed(templates.segments, obj)-}</section>
 
-        <section class="laps">
-            <header>
-                <ms>timer</ms>
-                <div class="title">Laps</div>
-                <div class="expander" data-id="compress" title="Collapse section"><ms>compress</ms></div>
-                <div class="expander" data-id="expand" title="Expand section"><ms>expand</ms></div>
-            </header>
-            {-embed(templates.laps, obj)-}
-        </section>
+        <section class="laps">{-embed(templates.laps, obj)-}</section>
     </main>
 <% } %>

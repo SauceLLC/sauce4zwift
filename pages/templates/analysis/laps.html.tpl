@@ -1,3 +1,10 @@
+<header>
+    <ms>timer</ms>
+    <div class="title">Laps</div>
+    <div class="expander" data-id="compress" title="Collapse section"><ms>compress</ms></div>
+    <div class="expander" data-id="expand" title="Expand section"><ms>expand</ms></div>
+</header>
+
 <% const hasLaps = !!(obj.laps && laps.length); %>
 <table class="laps basic {{hasLaps ? 'selectable' : ''}}">
     <thead>
@@ -8,7 +15,7 @@
             <th>Power</th>
             <th>Pace</th>
             <th>HR</th>
-            <th>Coffee</th>
+            <th title="Time spent in a Coffee break"><ms>coffee</ms></th>
         </tr>
     </thead>
     <tbody>

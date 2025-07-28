@@ -1,3 +1,9 @@
+<header>
+    <ms>conversion_path</ms>
+    <div class="title">Segments</div>
+    <div class="expander" data-id="compress" title="Collapse section"><ms>compress</ms></div>
+    <div class="expander" data-id="expand" title="Expand section"><ms>expand</ms></div>
+</header>
 <% const hasSegments = !!(obj.segments && segments.length); %>
 <table class="segments expandable {{hasSegments ? 'selectable' : ''}}">
     <thead>

@@ -36,7 +36,6 @@ let streamStackCharts;
 let powerZonesChart;
 let packTimeChart;
 let templates;
-let surgicalTemplates;
 let athleteData;
 let athlete;
 let sport;
@@ -47,7 +46,6 @@ let geoOffset = 0;
 let timeOfft;
 let segmentOfft;
 let lapOfft;
-let curPeaksSig;
 let selStart;
 let selEnd;
 let voidAutoCenter = false;
@@ -67,7 +65,7 @@ function resetData() {
     rolls.power = new sauce.power.RollingPower(null, {idealGap: 1, maxGap: 15});
     geoOffset = 0;
     voidAutoCenter = false;
-    sport = timeOfft = segmentOfft = lapOfft = curPeaksSig = selStart = selEnd =
+    sport = timeOfft = segmentOfft = lapOfft = selStart = selEnd =
         geoSelection = selectionSource = selectionEntry = undefined;
 }
 
@@ -102,16 +100,6 @@ function resizeCharts() {
 let templateIds = 0;
 async function getTemplates(basenames) {
     return Object.fromEntries(await Promise.all(basenames.map(async k => {
-        const tpl = await sauce.template.getTemplate(`templates/analysis/${k}.html.tpl`, {html: true});
-        tpl.id = templateIds++;
-        // camelCase conv keys-with_snakecase--chars
-        return [k.replace(/[-_]+(.)/g, (_, x) => x.toUpperCase()), tpl];
-    })));
-}
-
-
-async function getSurgicalTemplates(basenames) {
-    return Object.fromEntries(await Promise.all(basenames.map(async k => {
         const tpl = await sauce.template.getTemplate(`templates/analysis/${k}.html.tpl`);
         tpl.id = templateIds++;
         // camelCase conv keys-with_snakecase--chars
@@ -122,11 +110,11 @@ async function getSurgicalTemplates(basenames) {
 
 const _tplSigs = new Map();
 async function renderTemplate(selector, tpl, attrs) {
-    const html = await tpl(attrs);
+    const html = await tpl(attrs, {html: true});
     const sig = common.hash(html);
     if (_tplSigs.get(selector) !== sig) {
         _tplSigs.set(selector, sig);
-        document.querySelector(selector).outerHTML = html; // XXX leaks nodes
+        document.querySelector(selector).innerHTML = html;
         return true;
     }
     return false;
@@ -162,14 +150,15 @@ const _surgicalTemplateRoots = new Map();
 async function renderSurgicalTemplate(selector, tpl, attrs) {
     const key = `${selector}-${tpl.id}`;
     const frag = await tpl(attrs);
-    const beforeRoots = _surgicalTemplateRoots.get(key);
-    if (!beforeRoots) {
-        _surgicalTemplateRoots.set(key, Array.from(frag.childNodes));
-        document.querySelector(selector).replaceWith(frag);
+    const beforeRoot = _surgicalTemplateRoots.get(key);
+    if (!beforeRoot) {
+        const root = document.querySelector(selector);
+        root.replaceChildren(frag);
+        _surgicalTemplateRoots.set(key, root);
         return true;
     }
     // BFS for differences...
-    const q = [[frag, {childNodes: beforeRoots, pseudoRoot: true}]];
+    const q = [[frag, beforeRoot]];
     const replacements = [];
     while (q.length) {
         const [now, before] = q.shift();
@@ -189,20 +178,10 @@ async function renderSurgicalTemplate(selector, tpl, attrs) {
     }
     for (let i = 0; i < replacements.length; i++) {
         const [now, before] = replacements[i];
-        if (before.pseudoRoot) {
-            // Special care is required for the roots to prevent leakage.
-            const anchor = document.querySelector(selector);
-            for (const x of before.childNodes) {
-                if (x !== anchor) {
-                    x.remove();
-                }
-            }
-            _surgicalTemplateRoots.set(key, Array.from(now.childNodes));
-            anchor.replaceWith(now);
+        if (before === beforeRoot) {
+            // Special care is required for the root to preserve attributes
+            before.replaceChildren(now);
         } else {
-            if (beforeRoots.includes(before)) {
-                beforeRoots[beforeRoots.indexOf(before)] = now;
-            }
             before.replaceWith(now);
         }
     }
@@ -319,8 +298,8 @@ let streamStatsEls;
 function schedUpdateSelectionStats() {
     const run = () => {
         const stats = getSelectionStats();
-        selStatsActive = renderTemplate('.selection-stats', templates.selectionStats,
-                                        {selectionStats: stats, settings}).finally(() => {
+        selStatsActive = renderSurgicalTemplate('.selection-stats', templates.selectionStats,
+                                                {selectionStats: stats, settings}).finally(() => {
             selStatsActive = null;
             if (selStatsPendingRelease) {
                 selStatsPendingRelease();
@@ -331,30 +310,30 @@ function schedUpdateSelectionStats() {
             streamStatsEls = new Map(Array.from(document.querySelectorAll(`.stream-stats .stat[data-id]`))
                 .map(x => [x.dataset.id, x]));
         }
-        streamStatsEls.get('power').innerHTML = `
+        common.softInnerHTML(streamStatsEls.get('power'), `
             Avg: ${H.power(stats?.power?.avg)}<br/>
             Max: ${H.power(stats?.power?.max)}<br/>
-            <abbr class="unit">watts</abbr>`;
-        streamStatsEls.get('hr').innerHTML = `
+            <abbr class="unit">watts</abbr>`);
+        common.softInnerHTML(streamStatsEls.get('hr'), `
             Avg: ${H.number(stats?.hr?.avg)}<br/>
             Max: ${H.number(stats?.hr?.max)}<br/>
-            <abbr class="unit">bpm</abbr>`;
-        streamStatsEls.get('speed').innerHTML = `
+            <abbr class="unit">bpm</abbr>`);
+        common.softInnerHTML(streamStatsEls.get('speed'), `
             Avg: ${H.pace(stats?.speed?.avg, {fixed: true, precision: 1})}<br/>
             Max: ${H.pace(stats?.speed?.max, {fixed: true, precision: 1})}<br/>
-            <abbr class="unit">${H.pace(1, {suffixOnly: true})}</abbr>`;
-        streamStatsEls.get('cadence').innerHTML = `
+            <abbr class="unit">${H.pace(1, {suffixOnly: true})}</abbr>`);
+        common.softInnerHTML(streamStatsEls.get('cadence'), `
             Avg: ${H.number(stats?.cadence?.avg)}<br/>
             Max: ${H.number(stats?.cadence?.max)}<br/>
-            <abbr class="unit">rpm</abbr>`;
-        streamStatsEls.get('wbal').innerHTML = `
+            <abbr class="unit">rpm</abbr>`);
+        common.softInnerHTML(streamStatsEls.get('wbal'), `
             Avg: ${H.number(stats?.wbal?.avg / 1000, {fixed: true, precision: 1})}<br/>
             Min: ${H.number(stats?.wbal?.min / 1000, {fixed: true, precision: 1})}<br/>
-            <abbr class="unit">kj</abbr>`;
-        streamStatsEls.get('draft').innerHTML = `
+            <abbr class="unit">kj</abbr>`);
+        common.softInnerHTML(streamStatsEls.get('draft'), `
             Avg: ${H.power(stats?.draft?.avg)}<br/>
             Max: ${H.power(stats?.draft?.max)}<br/>
-            <abbr class="unit">watt savings</abbr>`;
+            <abbr class="unit">watt savings</abbr>`);
     };
     if (selStatsPendingRelease) {
         selStatsPendingRelease(true);
@@ -749,7 +728,7 @@ function createPackTimeChart(el) {
         } else if (selectionSource === 'laps') {
             subTitle = `<br/>Lap ${laps.indexOf(selectionEntry) + 1}`;
         }
-        headerEl.innerHTML = `Pack Time${subTitle}`;
+        common.softInnerHTML(headerEl, `Pack Time${subTitle}`);
         powers = [
             data.followTime ? data.followKj / data.followTime * 1000 : 0,
             data.soloTime ? data.soloKj / data.soloTime * 1000 : 0,
@@ -807,18 +786,14 @@ function centerMap(positions) {
 
 export async function main() {
     common.initInteractionListeners();
-    [athlete, templates, surgicalTemplates, nationFlags, worldList, powerZones] = await Promise.all([
+    [athlete, templates, nationFlags, worldList, powerZones] = await Promise.all([
         common.rpc.getAthlete(athleteIdent),
         getTemplates([
             'main',
             'activity-summary',
             'selection-stats',
             'peak-efforts',
-            'segments',
             'segment-results',
-            'laps'
-        ]),
-        getSurgicalTemplates([
             'segments',
             'laps',
         ]),
@@ -826,8 +801,7 @@ export async function main() {
         common.getWorldList({all: true}),
         common.rpc.getPowerZones(1),
     ]);
-    const contentEl = document.querySelector('#content');
-    contentEl.innerHTML = await templates.main({
+    await renderSurgicalTemplate('#content', templates.main, {
         athlete,
         templates,
         nationFlags,
@@ -840,6 +814,7 @@ export async function main() {
         console.warn("Unrecoverable state: page reload required if this is transient");
         return;
     }
+    const contentEl = document.querySelector('#content');
     elevationChart = createElevationChart(contentEl.querySelector('.chart-holder.elevation .chart'));
     streamStackCharts = createStreamStackCharts(contentEl.querySelector('.chart-holder.stream-stack .chart'));
     powerZonesChart = createTimeInPowerZonesPie(contentEl.querySelector('nav .time-in-power-zones'));
@@ -1064,7 +1039,7 @@ async function updateSegmentResults(segment) {
 
 function renderSegments() {
     const selected = selectionSource === 'segments' ? segments.indexOf(selectionEntry) : undefined;
-    return renderSurgicalTemplate('table.segments', surgicalTemplates.segments, {
+    return renderSurgicalTemplate('section.segments', templates.segments, {
         settings,
         athlete,
         templates,
@@ -1092,7 +1067,7 @@ async function updatePeaksTemplate() {
                 null;
         }
     }
-    await renderTemplate('.peak-efforts', templates.peakEfforts, {
+    await renderSurgicalTemplate('.peak-efforts', templates.peakEfforts, {
         source,
         peaks,
         formatter,
@@ -1268,15 +1243,7 @@ async function updateAll() {
         powerZonesChart.updateData();
         packTimeChart.updateData();
         schedUpdateSelectionStats();
-
-        // Only update peaks widget if we're not interacting with it...
-        if (!document.activeElement || !document.activeElement.closest('.peak-efforts')) {
-            const sig = JSON.stringify(athleteData.stats[settings.peakEffortSource || 'power']?.peaks);
-            if (!sig || sig !== curPeaksSig) {
-                curPeaksSig = sig;
-                updatePeaksTemplate(); // bg okay
-            }
-        }
+        updatePeaksTemplate(); // bg okay
     }
     if (changed.segments || changed.reset) {
         let selected;
@@ -1309,7 +1276,7 @@ async function updateAll() {
                 setSelection(selectionEntry.startIndex, selectionEntry.endIndex);
             }
         }
-        renderSurgicalTemplate('table.laps', surgicalTemplates.laps, {
+        renderSurgicalTemplate('section.laps', templates.laps, {
             settings,
             athlete,
             streams,
@@ -1317,7 +1284,7 @@ async function updateAll() {
             selected,
         }); // bg okay
     }
-    renderTemplate('.activity-summary', templates.activitySummary, {athleteData}); // bg okay
+    renderSurgicalTemplate('.activity-summary', templates.activitySummary, {athleteData}); // bg okay
 }
 
 
