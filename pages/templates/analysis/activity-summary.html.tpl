@@ -3,11 +3,6 @@
         <% const {state, stats} = athleteData; %>
         <% const observedTime = athleteData.updated - athleteData.created; %>
         <% if (state && athleteData.age < 120000) { %>
-            <div class="overview-stat" title="When the Zwift world was joined">
-                <key>Joined:</key>
-                <value>{-humanTime(Date.now() - (state.time * 1000), {html: true})-}</value>
-            </div>
-
             <div class="overview-stat" title="How long since joining the Zwift network">
                 <key>Session:</key>
                 <value>{-humanTimer(state.time, {full: true, html: true})-}</value>
