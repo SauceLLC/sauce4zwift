@@ -320,7 +320,6 @@ section.selection {
 
     value {
         grid-column: 2;
-        min-width: 6ch;
         font-variant-numeric: tabular-nums;
     }
 
@@ -405,6 +404,17 @@ main > section {
         border-bottom: $light-border;
     }
 
+    &.compressed .expander[data-id="compress"],
+    &:not(.compressed) .expander[data-id="expand"] {
+        display: none;
+    }
+
+    &.compressed {
+        > :not(header:first-child) {
+            display: none;
+        }
+    }
+
     > header {
         display: flex;
         flex-wrap: wrap;
@@ -412,12 +422,23 @@ main > section {
         padding: 0.2rem;
         font-size: 1.2em;
 
-        ms {
+        > ms {
             padding-right: 0.2em;
         }
 
         .title {
             font-variant: all-small-caps;
+            flex: 1;
+        }
+
+        .expander {
+            font-size: 1.1em;
+            cursor: pointer;
+            opacity: 0.8;
+
+            &:hover {
+                opacity: 1;
+            }
         }
     }
 }
@@ -440,7 +461,7 @@ table {
 
     > .seperator {
         flex: 0 0 0;
-        border-right: 1px solid color.shade(intrinsic-inverted, 10%, 0.1);
+        border-right: 1px solid color.shade(intrinsic-inverted, 10%, 0.2);
         margin: 0.5em;
     }
 
@@ -461,7 +482,7 @@ table {
     .stream-stats {
         display: flex;
         flex-direction: column;
-        flex: 0 0 100px;
+        flex: 0 0 86px;
         justify-content: end;
         margin-bottom: 2px;
         font-size: 0.72em;
@@ -477,9 +498,13 @@ table {
             font-weight: 450;
             font-variant-numeric: tabular-nums;
 
-            small {
-                font-weight: 300;
-                line-height: 1.2;
+            abbr.unit {
+                padding: 0;
+                font-size: 0.82em;
+                font-weight: 380;
+                /* bias the center alignment away from the units... */
+                margin-top: 0.3em;
+                line-height: 0.5;
             }
         }
     }
@@ -499,11 +524,12 @@ nav > section .echarts-chart {
 }
 
 .peak-efforts {
-    display: none;
     border-radius: 0.28em;
+    overflow: hidden;
     border: $light-border;
     white-space: nowrap;
     width: 100%;
+    margin-bottom: 0.5rem;
 
     select {
         padding: 0.5em;
@@ -636,7 +662,39 @@ table.segments {
     }
 }
 
-@media only screen and (max-width: 600px)  {
+@media only screen and (max-width: 1100px) {
+    .selection-stats {
+        display: grid;
+        justify-items: center;
+        row-gap: 0.3em;
+
+        .seperator {
+            margin-top: 0.1em;
+            margin-bottom: 0.1em;
+        }
+    }
+}
+@media only screen and (min-width: 720px) and (max-width: 1100px) {
+    .selection-stats {
+        grid-template-columns: 1fr 0.2fr 1fr 0.2fr 1fr;
+
+        .seperator:nth-child(6) {
+            display: none;
+        }
+    }
+}
+@media only screen and (max-width: 720px) {
+    .selection-stats {
+        grid-template-columns: 1fr 0.2fr 1fr;
+
+        .seperator:nth-child(4),
+        .seperator:nth-child(8) {
+            display: none;
+        }
+    }
+}
+
+@media only screen and (max-width: 600px) {
     #content {
         position: relative;
         grid-template-columns: 1fr 1fr 1fr;
