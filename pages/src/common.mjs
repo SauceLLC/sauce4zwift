@@ -1633,27 +1633,25 @@ export function initExpanderTable(table, expandCallback, cleanupCallback) {
         if (ev.target.closest('a')) {
             return;
         }
-        const row = ev.target.closest('tr');
+        const row = ev.target.closest('tr.summary');
         if (!row || row.closest('table') !== table) {
             return;
         }
-        if (row.classList.contains('summary')) {
-            if (active) {
-                if (cleanupCallback) {
-                    cleanupCallback(...active);
-                }
-                active = null;
+        if (active) {
+            if (cleanupCallback) {
+                cleanupCallback(...active);
             }
-            const shouldCollapse = row.classList.contains('expanded');
-            table.querySelectorAll(':scope > tbody > tr.expanded')
-                .forEach(x => x.classList.remove('expanded'));
-            const el = row.nextElementSibling.querySelector(':scope > td');
-            el.innerHTML = '';
-            if (!shouldCollapse) {
-                row.classList.add('expanded');
-                expandCallback(el, row);
-                active = [el, row];
-            }
+            active = null;
+        }
+        const shouldCollapse = row.classList.contains('expanded');
+        table.querySelectorAll(':scope > tbody > tr.expanded')
+            .forEach(x => x.classList.remove('expanded'));
+        const el = row.nextElementSibling.querySelector(':scope > td');
+        el.innerHTML = '';
+        if (!shouldCollapse) {
+            row.classList.add('expanded');
+            expandCallback(el, row);
+            active = [el, row];
         }
     });
 }
