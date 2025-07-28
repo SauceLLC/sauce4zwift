@@ -168,7 +168,7 @@
                 <td class="power" data-small-header="FTP">{-humanPower(athlete.ftp || null, {suffix: true, html: true})-}</td>
                 <td class="weight" data-small-header="WEIGHT">{-humanWeightClass(athlete.weight, {suffix: true, html: true})-}</td>
             </tr>
-            <tr class="details"><td colspan="9"></td></tr>
+            <tr class="details"><td colspan="10"></td></tr>
         <% } %>
     </tbody>
 <% } %>
