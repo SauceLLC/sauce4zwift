@@ -1670,18 +1670,12 @@ export class GameMonitor extends events.EventEmitter {
         }
         console.info("Refreshing Zwift relay session...");
         const relaySessionId = this._session.relayId;
-        // XXX I've seen the real client trying /relay/sessin/renew as well
+        // XXX I've seen the real client trying /relay/session/renew as well
         const resp = await this.api.fetchPB('/relay/session/refresh', {
             method: 'POST',
             pb: protos.RelaySessionRefreshRequest.encode({relaySessionId}),
             protobuf: 'RelaySessionRefreshResponse',
         });
-        if (resp.relaySessionId !== relaySessionId) {
-            // TBD: Remove after long session verification tests...
-            console.error("Different Relay Session ID encountered during session refresh:", relaySessionId,
-                          resp.relaySessionId);
-            throw new Error('Unhandled session refresh state');
-        }
         this._session.expires = Date.now() + (resp.expiration * 60 * 1000);
         this._schedSessionRefresh(this._session.expires);
     }
@@ -2053,9 +2047,6 @@ export class GameMonitor extends events.EventEmitter {
     onInPacket(pb, ch) {
         if (pb.multipleLogins) {
             console.warn("Multiple logins detected!");
-            //this.emit('multiple-logins');
-            //this.stop();
-            //return;
         }
         if (pb.udpConfigVOD) {
             for (const x of pb.udpConfigVOD.pools) {
@@ -2211,6 +2202,75 @@ export class GameMonitor extends events.EventEmitter {
             }
             return closestServer;
         }
+    }
+}
+
+
+export class GameMonitorSatellite extends GameMonitor {
+    constructor(monitor, options) {
+        super({
+            zwiftMonitorAPI: monitor.api,
+            exclusions: monitor.exclusions,
+            ...options,
+        });
+        this._monitor = monitor;
+    }
+
+    get _session() {
+        return this._monitor._session;
+    }
+
+    set _session(_) {}
+
+    get _udpServerPools() {
+        return this._monitor._udpServerPools;
+    }
+
+    set _udpServerPools(_) {}
+
+    get _hashSeeds() {
+        return this._monitor._hashSeeds;
+    }
+
+    set _hashSeeds(_) {}
+
+    async start() {
+        await this.initPlayerState();
+        this._playerStateInterval = setInterval(this.broadcastPlayerState.bind(this), 1000);
+        this._refreshStatesTimeout = setTimeout(() => this._refreshStates(), this._stateRefreshDelay);
+        this.logStatus();
+    }
+
+    stop() {
+        throw new TypeError('improper usage');
+    }
+
+    _setConnecting() {
+        throw new TypeError('improper usage');
+    }
+
+    connect() {
+        throw new TypeError('improper usage');
+    }
+
+    _connect() {
+        throw new TypeError('improper usage');
+    }
+
+    disconnect() {
+        throw new TypeError('improper usage');
+    }
+
+    refreshSession() {
+        throw new TypeError('improper usage');
+    }
+
+    activateSession() {
+        throw new TypeError('improper usage');
+    }
+
+    establishTCPChannel() {
+        throw new TypeError('improper usage');
     }
 }
 
