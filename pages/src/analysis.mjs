@@ -913,12 +913,17 @@ export async function main() {
                 selectionSource = 'laps';
                 selectionEntry = laps[Number(row.dataset.lapIndex)];
             } else if (row.dataset.peakSource) {
-                selectionSource = 'peaks';
                 const period = Number(row.dataset.peakPeriod);
                 const peak = athleteData.stats[row.dataset.peakSource].peaks[period];
-                const endIndex = streams.time.indexOf(peak.time);
-                const startIndex = common.binarySearchClosest(streams.time, peak.time - period);
-                selectionEntry = {startIndex, endIndex};
+                if (peak.ts != null) {
+                    selectionSource = 'peaks';
+                    const endIndex = streams.time.indexOf(peak.time);
+                    const startIndex = common.binarySearchClosest(streams.time, peak.time - period);
+                    selectionEntry = {startIndex, endIndex};
+                } else {
+                    selectionSource = selectionEntry = null;
+                    setSelection();
+                }
             }
             if (selectionEntry) {
                 row.classList.add('selected');
