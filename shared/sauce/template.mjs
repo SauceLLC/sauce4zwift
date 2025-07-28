@@ -86,7 +86,7 @@ const staticHelpers = {
 };
 
 
-function makeRender(name, text, options, helperVars, attrVars) {
+function makeRender(text, options, helperVars, attrVars) {
     const localePrefix = options.localeKey ? options.localeKey + '_' : '';
     const regexps = {
         localeLookup: /\{\{\{\[(.+?)\]\}\}\}/g,         // {{{[ <locale expression> ]}}}
@@ -191,7 +191,6 @@ function makeRender(name, text, options, helperVars, attrVars) {
         e.source = source;
         throw e;
     }
-    Object.defineProperty(render, 'name', {value: name});
     return [render, localeKeys, staticCalls];
 }
 
@@ -200,14 +199,14 @@ function compile(name, text, options={}) {
     const boundHelpers = Object.fromEntries(Object.entries(helpers)
         .map(([k, fn]) => [k, fn.bind({options})]));
     let recompiles = 0;
-    let recentCompile;
+    let recentRenderCompile;
     let rendering;
     const wrap = async (obj, ...args) => {
         // To avoid using the deprecated `with` statement we need to memoize the obj vars.
         const vars = obj && !Array.isArray(obj) ? Object.keys(obj) : [];
         const sig = JSON.stringify(vars);
-        let compile;
-        while (!(compile = recentCompile) || sig !== compile._sig) {
+        let render;
+        while (!(render = recentRenderCompile) || sig !== render._sig) {
             if (rendering) {
                 await rendering;
                 continue;
@@ -217,28 +216,30 @@ function compile(name, text, options={}) {
             }
             rendering = (async () => {
                 const [fn, localeKeys, staticCalls] =
-                    makeRender(name, text, options, Object.keys(helpers), vars);
+                    makeRender(text, options, Object.keys(helpers), vars);
                 const localeMessages = localeKeys.length ?
                     await localeMod.fastGetMessagesObject(localeKeys) : undefined;
                 const statics = staticCalls.length ?
                     await Promise.all(staticCalls.map(([name, args]) => staticHelpers[name](args))) :
                     undefined;
-                compile = fn.bind(undefined, {
+                Object.defineProperty(fn, 'name', {value: name});
+                render = fn.bind(undefined, {
                     localeMod,
                     htmlEscape,
                     helpers: boundHelpers,
                     localeMessages,
                     statics
                 });
-                compile._sig = sig;
-                recentCompile = compile;
+                render._sig = sig;
+                recentRenderCompile = render;
             })();
             // Importantly do cleanup after closure assignment for non-async compiles..
             rendering.finally(() => rendering = undefined);
             await rendering;
             break;
         }
-        return compile(obj, ...args);
+        return render(obj, ...args);
     };
+    Object.defineProperty(wrap, 'name', {value: `JIT:${name}`});
     return wrap;
 }
