@@ -17,12 +17,14 @@ saucecharts:
 	cp -r $(NODE)/saucecharts/src/* src/saucecharts/
 	cp -r $(NODE)/saucecharts/css/* css/saucecharts/
 
-dev: default
-	rm -f src/saucecharts/*
+dev:
+	rm -rf src/saucecharts
+	mkdir src/saucecharts
 	for x in ~/project/saucecharts/src/*; do \
 		ln $$x src/saucecharts/ ; \
 	done
-	rm -f css/saucecharts/*
+	rm -rf css/saucecharts
+	mkdir css/saucecharts
 	for x in ~/project/saucecharts/css/*; do \
 		ln $$x css/saucecharts/ ; \
 	done
