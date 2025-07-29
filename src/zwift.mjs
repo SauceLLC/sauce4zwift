@@ -266,6 +266,9 @@ export function processPlayerStateMessage(msg) {
     //if (msg.eventSubgroupId === 0) {
     //    msg.eventSubgroupId = null;
     //}
+    if (Object.hasOwn(msg, '_f51')) {
+        console.debug(`ps _f51 [athlete:${msg.athleteId}]:`, msg._f51);
+    }
     return {
         ...msg,
         ...flags1,
