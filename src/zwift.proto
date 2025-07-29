@@ -45,7 +45,7 @@ message PlayerState {
     int32 hazardPad = 47;
     int32 timeBonus = 48;
     int32 rideonBomb = 49; // always seems to be x5 with value of 9
-    int32 _f51 = 51;  // Seen July 28 2025, uint: 5147315, sint: -2573658
+    int32 botId = 51;
 }
 
 enum WorldUpdatePayloadType {
