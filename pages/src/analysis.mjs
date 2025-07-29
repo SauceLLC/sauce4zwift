@@ -967,10 +967,11 @@ export async function main() {
         if (x !== undefined) {
             const index = chart.findNearestIndexFromXCoord(x);
             const pos = positions[index];
-            zwiftMap.cursorEntity.toggleHidden(!pos);
-            if (pos) {
+            const showOnMap = pos != null && index >= geoOffset;
+            if (showOnMap) {
                 zwiftMap.cursorEntity.setPosition(pos);
             }
+            zwiftMap.cursorEntity.toggleHidden(!showOnMap);
             otherChart.setTooltipPosition({index});
             otherChart.showTooltip();
         } else if (!otherChart.isTooltipPointing()) {
