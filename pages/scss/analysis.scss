@@ -238,6 +238,8 @@ main {
     }
 
     .elevation {
+        padding: 0.1rem 0.4rem;
+
         .chart {
             height: 7em;
         }
@@ -258,10 +260,6 @@ main {
 
         .sc-title {
             font-size: 0.6em;
-        }
-
-        .sc-y-axis {
-            --rotate: 40deg;
         }
     }
 }

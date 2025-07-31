@@ -378,7 +378,6 @@ async function exportFITActivity(name) {
 function createElevationChart(el) {
     const chart = new sc.LineChart({
         el,
-        padding: [2, chartRightPad, 30, chartLeftPad],
         color: '#a86',
         hidePoints: true,
         disableAnimation: true,
@@ -390,7 +389,7 @@ function createElevationChart(el) {
             format: ({value}) => H.distance(value, {suffix: true}),
         },
         yAxis: {
-            format: ({value}) => H.elevation(value, {suffix: true}),
+            disabled: true,
         },
         brush: {
             disableZoom: true,
@@ -457,6 +456,16 @@ function createStreamStackCharts(el) {
         const title = typeof series.name === 'function' ? series.name() : series.name;
         const ttFrag = document.createDocumentFragment();
         const ttEl = document.createElement('div');
+        const axisLabelValue = sc.createSVG({name: 'tspan'});
+        const axisLabelUnits = sc.createSVG({
+            name: 'tspan',
+            attrs: {x: 62, dy: 20},
+            style: {
+                "font-size": '0.7em',
+                opacity: 0.8
+            }
+        });
+        const axisLabelFrag = document.createDocumentFragment();
         const chart = new sc.LineChart({
             el: first ? el : undefined,
             parent: charts[0],
@@ -490,7 +499,13 @@ function createStreamStackCharts(el) {
             },
             yAxis: {
                 ticks: 1,
-                format: ({value}) => series.fmt(value, {suffix: false})
+                rotate: -30,
+                format: ({value}) => {
+                    axisLabelValue.textContent = series.fmt(value, {precision: 0, suffix: false});
+                    axisLabelUnits.textContent = series.fmt(value, {suffixOnly: true});
+                    axisLabelFrag.replaceChildren(axisLabelValue, axisLabelUnits);
+                    return axisLabelFrag;
+                }
             },
             brush: {
                 shared: true,
