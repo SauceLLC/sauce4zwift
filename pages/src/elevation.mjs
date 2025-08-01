@@ -287,14 +287,14 @@ export class SauceElevationProfile {
                 break;
             }
         }
-        const segments = routeSegments.concat(lapSegments); // need to trim these??
+        const segments = routeSegments.concat(lapSegments);
         if (distance) {
             while (distances[distances.length - 1] > distance) {
                 distances.pop();
                 elevations.pop();
                 grades.pop();
             }
-            while (segments.at(-1).end >= distances.length) {
+            while (segments.length && segments.at(-1).end >= distances.length) {
                 segments.pop();
             }
         }
