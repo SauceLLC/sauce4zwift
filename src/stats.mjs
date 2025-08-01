@@ -3114,7 +3114,9 @@ export class StatsProcessor extends events.EventEmitter {
                 null,
             lapCount,
             state: state && this._formatState(state),
-            events,
+            events: ad.events.size ?
+                Array.from(ad.events).map(x => ({id: x[0], subgroupId: x[1]})) :
+                [],
             eventPosition: ad.eventPosition,
             eventParticipants: ad.eventParticipants,
             gameState: ad.gameState,
