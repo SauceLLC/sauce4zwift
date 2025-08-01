@@ -940,6 +940,7 @@ enum POWERUP_TYPE {
     STEAMROLLER    = 7;
     ANVIL          = 8;
     COFFEE_STOP    = 9;
+    BOOST          = 10;
     POWERUP_NONE   = 15;
 }
 
