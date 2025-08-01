@@ -136,8 +136,8 @@ const pbProfilePrivacyFlags = {
 const pbProfilePrivacyFlagsInverted = {
     displayAge: 0x40,
 };
-const sportsEnum = Object.fromEntries(Object.entries(protos.Sport).map(([k, v]) => [v, k]));
-const powerUpsEnum = Object.fromEntries(Object.entries(protos.POWERUP_TYPE)
+export const sportsEnum = Object.fromEntries(Object.entries(protos.Sport).map(([k, v]) => [v, k]));
+export const powerUpsEnum = Object.fromEntries(Object.entries(protos.POWERUP_TYPE)
     .map(([label, id]) => [id, label]));
 powerUpsEnum[0xf] = null;  // masked
 const turningEnum = {
