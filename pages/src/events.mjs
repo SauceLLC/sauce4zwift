@@ -93,6 +93,8 @@ async function fillInEvents() {
         const desc = (a, b) => a - b;
         event.durations = Array.from(new Set(durations.filter(x => x))).sort(desc);
         event.distances = Array.from(new Set(distances.filter(x => x))).sort(desc);
+        event.displayTags = event.allTags.filter(x =>
+            !x.match(/(^timestamp=|^created_|^after_party_duration=|^powerup_percent=)/));
     }
 }
 

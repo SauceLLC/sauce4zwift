@@ -31,10 +31,25 @@
             <% } %>
         </div>
         <div class="desc">{{event.description}}</div>
-        <% if (event.allTags.length) { %>
-            <div class="tags">
-                <% for (const x of event.allTags.filter(x => !x.match(/(^timestamp=|^created_)/))) { %>
+        <% if (event.allTagsObject.after_party_duration) { %>
+            <div class="subsection">
+                <b>Cool Down:</b> {{humanDuration(event.allTagsObject.after_party_duration)}}
+            </div>
+        <% } %>
+        <% if (event.displayTags.length) { %>
+            <div class="subsection tags">
+                <b>Tags:</b>
+                <% for (const x of event.displayTags) { %>
                     <div class="badge">{{x}}</div>
+                <% } %>
+            </div>
+        <% } %>
+        <% if (event.powerUps) { %>
+            <div class="subsection powerups">
+                <b>PowerUps:</b>
+                <% for (const [x, pct] of Object.entries(event.powerUps)) { %>
+                    <% const name = {LIGHTNESS: 'Feather', DRAFTBOOST: 'Draft', BONUS_XP_LIGHT: 'XP', BONUS_XP: 'Large XP', UNDRAFTABLE: 'Burrito', NINJA: 'Ghost'}[x] || x[0] + x.substr(1).toLowerCase(); %>
+                    <div><key>{{name}}:</key><value>{-humanNumber(pct * 100, {suffix: '%', html: true})-}</value></div>
                 <% } %>
             </div>
         <% } %>
