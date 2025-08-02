@@ -60,12 +60,16 @@
                 <div class="event-subgroup loading" data-event-subgroup-id="{{sg.id}}">
                     <header>
                         <div class="label">
-                            <div class="group">Group</div>
-                            {-eventBadge(sg.subgroupLabel)-}
-                            <div class="std button danger signup-action only-signedup"
-                                 data-action="unsignup"><ms>delete</ms>Leave</div>
-                            <div class="std button primary signup-action only-can-signup"
-                                 data-action="signup"><ms>add_box</ms>Sign up</div>
+                            <% if (sg.eventType !== 'MEETUP') { %>
+                                <div class="group">Group</div>
+                                {-eventBadge(sg.subgroupLabel)-}
+                                <div class="std button danger signup-action only-signedup"
+                                     data-action="unsignup"><ms>delete</ms>Leave</div>
+                                <div class="std button primary signup-action only-can-signup"
+                                     data-action="signup"><ms>add_box</ms>Sign up</div>
+                            <% } else { %>
+                                <div class="group"></div>
+                            <% } %>
                             <b class="only-results">Results</b>
                         </div>
                         <% if (sg.rangeAccessLabel) { %>
