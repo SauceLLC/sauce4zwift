@@ -563,7 +563,10 @@ export class StatsProcessor extends events.EventEmitter {
         this._profileFetchReset = this._profileFetchBackoff = 1000;
         this._chatHistory = [];
         this._recentEvents = new Map();
+        this._recentEventsPending = new Map();
         this._recentEventSubgroups = new Map();
+        this._recentEventSubgroupsPending = new Map();
+        this._ourSignups = new Set();
         this._mostRecentNearby = [];
         this._mostRecentGroups = [];
         this._groupMetas = new Map();
@@ -970,19 +973,32 @@ export class StatsProcessor extends events.EventEmitter {
         return this._recentEvents.get(id);
     }
 
-    async getEvent(id) {
-        if (!this._recentEvents.has(id)) {
-            this._recentEvents.set(id, null);
-            const event = await this.zwiftAPI.getEvent(id);
-            if (event) {
-                this._addEvent(event);
-            }
-        }
-        return this._recentEvents.get(id);
-    }
-
     getCachedEvents() {
         return Array.from(this._recentEvents.values().filter(x => x)).sort((a, b) => a.ts - b.ts);
+    }
+
+    async getEvent(id, {meetup}={}) {
+        if (!this._recentEvents.has(id)) {
+            this._recentEvents.set(id, null);
+            let p;
+            if (meetup) {
+                p = this.zwiftAPI.getPrivateEvent(id).then(x => x && this._addMeetup(x));
+            } else {
+                p = this.zwiftAPI.getEvent(id).then(x => x && this._addEvent(x));
+            }
+            this._recentEventsPending.set(id, p);
+            p.then(() => this._recentEventsPending.delete(id));
+            p.catch(() => {
+                setTimeout(() => {
+                    if (this._recentEvents.get(id) === null) {
+                        this._recentEvents.delete(id);
+                        this._recentEventsPending.delete(id);
+                    }
+                }, 30000);  // allow retry later
+            });
+            return await p;
+        }
+        return this._recentEvents.get(id) || await this._recentEventsPending.get(id);
     }
 
     async getEventSubgroup(id) {
@@ -991,30 +1007,32 @@ export class StatsProcessor extends events.EventEmitter {
             const r = this._getEventSubgroupStmt.get(id);
             const eventId = r && r.eventId;
             if (eventId != null) {
-                if (this._recentEvents.has(eventId)) {
-                    console.warn("Unexpected inconsistency between events and missing subgroup info");
-                    debugger; // XXX more test
-                }
-                const event = await this.getEvent(eventId); // load it and its subgroups info
-                if (!this._recentEventSubgroups.get(id) || !event) {
-                    console.warn("Subgroup mapping is wrong or we are unable to get event", !!event);
-                    debugger; // XXX more test
-                } else {
-                    await this.refreshEventSignups();
-                }
+                const meetup = r.eventType === 'MEETUP';
+                const p = this.getEvent(eventId, {meetup}).then(() => this._recentEventSubgroups.get(id));
+                this._recentEventSubgroupsPending.set(id, p);
+                p.then(() => this._recentEventSubgroupsPending.delete(id));
+                p.catch(() => {
+                    setTimeout(() => {
+                        if (this._recentEventSubgroups.get(id) === null) {
+                            this._recentEventSubgroups.delete(id);
+                            this._recentEventSubgroupsPending.delete(id);
+                        }
+                    }, 30000);  // allow retry later
+                });
+                return await p;
             }
         }
-        return this._recentEventSubgroups.get(id);
+        return this._recentEventSubgroups.get(id) || await this._recentEventSubgroupsPending.get(id);
     }
 
-    _rememberEventSubgroup(sgId, eventId) {
-        if (sgId == null || eventId == null) {
-            console.error("Unexpected null value for event or subgroup", sgId, eventId);
+    _rememberEventSubgroup(sg, event) {
+        if (sg.id == null || sg.eventId == null || !event) {
+            console.error("Unexpected null event or subgroup", sg);
             return;
         }
         this._eventSubgroupsDB
-            .prepare('INSERT OR REPLACE INTO subgroups (id, eventId) VALUES(?, ?)')
-            .run(sgId, eventId);
+            .prepare('INSERT OR REPLACE INTO subgroups (id, eventId, eventType) VALUES(?, ?, ?)')
+            .run(sg.id, sg.eventId, event.eventType);
     }
 
     async getEventSubgroupEntrants(id, options={}) {
@@ -1071,30 +1089,28 @@ export class StatsProcessor extends events.EventEmitter {
         return results;
     }
 
-    async addEventSubgroupSignup(id) {
-        await this.zwiftAPI.addEventSubgroupSignup(id);
+    async addEventSubgroupSignup(subgroupId) {
+        await this.zwiftAPI.addEventSubgroupSignup(subgroupId);
         await this.refreshEventSignups();
     }
 
-    async deleteEventSignup(id) {
-        await this.zwiftAPI.deleteEventSignup(id);
-        // Patch local cache of events until server updates (it's only eventually consistent)
-        const event = this._recentEvents.get(id);
-        if (event && event.eventSubgroups) {
-            for (const sg of event.eventSubgroups) {
-                sg.signedUp = false;
-            }
-        }
+    async deleteEventSignup(eventId) {
+        await this.zwiftAPI.deleteEventSignup(eventId);
         await this.refreshEventSignups();
     }
 
     async refreshEventSignups() {
         const upcoming = await this.zwiftAPI.getUpcomingEvents();
-        const ourSignups = new Set(upcoming.filter(x => x.profileId === this.zwiftAPI.profile.id)
-            .map(x => x.eventSubgroupId));
+        this._ourSignups.clear();
+        for (const x of upcoming.filter(x => x.profileId === this.zwiftAPI.profile.id)) {
+            this._ourSignups.add(x.eventSubgroupId);
+        }
         for (const x of this._recentEventSubgroups.values()) {
-            if (x && ourSignups.has(x.id)) {
-                x.signedUp = true;
+            if (x && x.eventType !== 'MEETUP') {
+                if (!!x.signedUp !== this._ourSignups.has(x.id)) {
+                    x.signedUp = this._ourSignups.has(x.id);
+                    console.info(x.signedUp ? 'Joined' : 'Left', `event [${x.id}]:`, x.name);
+                }
             }
         }
     }
@@ -1316,7 +1332,9 @@ export class StatsProcessor extends events.EventEmitter {
     startAthleteLap(ad, now=monotonic()) {
         const lastLap = ad.laps[ad.laps.length - 1];
         lastLap.end = now;
-        ad.laps.push(this._createNewLapish(ad, now));
+        const lap = this._createNewLapish(ad, now);
+        ad.laps.push(lap);
+        return lap;
     }
 
     startSegment(ad, id, start=monotonic()) {
@@ -2129,6 +2147,7 @@ export class StatsProcessor extends events.EventEmitter {
             console.debug("Event start triggering lap for:", ad.athleteId, ad.eventSubgroup?.id);
             this.startAthleteLap(ad, now);
         }
+        ad.laps[ad.laps.length - 1].eventSubgroupId = sgId;
     }
 
     triggerEventEnd(ad, state, now=monotonic()) {
@@ -2187,8 +2206,16 @@ export class StatsProcessor extends events.EventEmitter {
                     } else {
                         ad.eventStartPending = true;
                     }
-                } else if (ad.eventStartPending && state.time) {
-                    this.triggerEventStart(ad, state, now);
+                } else if (ad.eventStartPending) {
+                    if (state.time) {
+                        this.triggerEventStart(ad, state, now);
+                    }
+                } else if (sg.allTagsObject.after_party_duration &&
+                           ad.laps[ad.laps.length - 1].eventSubgroupId === sg.id &&
+                           (sg.endDistance ?
+                               state.eventDistance > sg.endDistance :
+                               sg.endTS && worldTimer.serverNow() > sg.endTS)) {
+                    this.triggerEventEnd(ad, state, now);
                 }
             }
         } else if (ad.eventSubgroup) {
@@ -2517,11 +2544,12 @@ export class StatsProcessor extends events.EventEmitter {
                 subgroups: {
                     id: 'INTEGER PRIMARY KEY',
                     eventId: 'INTEGER',
+                    eventType: 'TEXT',
                 }
             }
         });
         this._getEventSubgroupStmt = this._eventSubgroupsDB
-            .prepare('SELECT eventId FROM subgroups WHERE id = ?');
+            .prepare('SELECT eventId,eventType FROM subgroups WHERE id = ?');
     }
 
     start() {
@@ -2572,14 +2600,47 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _parseEventTags(eventOrSubgroup) {
-        const tags = new Set(eventOrSubgroup.tags || []);
+        const raw = eventOrSubgroup.tags ? Array.from(eventOrSubgroup.tags) : [];
         const desc = eventOrSubgroup.description;
         if (desc) {
             for (const x of desc.matchAll(/\B#([a-z]+[a-z0-9]*)\b/gi)) {
-                tags.add(x[1].toLowerCase());
+                raw.push(x[1]);
             }
         }
-        return Array.from(tags);
+        const tags = {};
+        for (const x of raw) {
+            const kvIdx = x.indexOf('=');
+            if (kvIdx !== -1) {
+                let value = x.substr(kvIdx + 1);
+                const num = +value;
+                if (!isNaN(num) && num.toString() === value) {
+                    value = num;
+                }
+                tags[x.substr(0, kvIdx).toLowerCase()] = value;
+            } else {
+                tags[x.toLowerCase()] = undefined;
+            }
+        }
+        return tags;
+    }
+
+    _flattenEventTags(tagsObject) {
+        return Object.entries(tagsObject).map(([k, v]) => v !== undefined ? `${k}=${v}` : k);
+    }
+
+    _parsePowerupPercents(powerupPercents) {
+        const o = {};
+        const pp = powerupPercents.slice(1, -1).split(',').map(Number);
+        for (let i = 0; i < pp.length; i += 2) {
+            const pu = zwift.powerUpsEnum[pp[i]];
+            if (!pu) {
+                console.warn("Unknown PowerUp:", pp[i]);
+                o[pp[i]] = pp[i + 1] / 100;
+            } else {
+                o[pu] = pp[i + 1] / 100;
+            }
+        }
+        return o;
     }
 
     _addEvent(event) {
@@ -2589,7 +2650,11 @@ export class StatsProcessor extends events.EventEmitter {
             event.routeClimbing = this._getRouteClimbing(route, event.laps);
         }
         event.tags = event._tags ? event._tags.split(';') : [];
-        event.allTags = this._parseEventTags(event);
+        event.allTagsObject = this._parseEventTags(event);
+        event.allTags = this._flattenEventTags(event.allTagsObject);
+        if (event.allTagsObject.powerup_percent) {
+            event.powerUps = this._parsePowerupPercents(event.allTagsObject.powerup_percent);
+        }
         event.ts = +new Date(event.eventStart);
         event.courseId = env.getCourseId(event.mapId);
         event.prettyType = {
@@ -2611,16 +2676,27 @@ export class StatsProcessor extends events.EventEmitter {
         if (event.eventSubgroups) {
             for (const sg of event.eventSubgroups) {
                 sg.eventId = event.id;
-                sg.startOffset = +(new Date(sg.eventSubgroupStart)) - +(new Date(event.eventStart));
-                sg.allTags = Array.from(new Set([...this._parseEventTags(sg), ...event.allTags]));
+                sg.ts = +new Date(sg.eventSubgroupStart);
+                sg.startOffset = sg.ts - event.ts;
+                sg.allTagsObject = {...event.allTagsObject, ...this._parseEventTags(sg)};
+                sg.allTags = this._flattenEventTags(sg.allTagsObject);
+                if (sg.allTagsObject.powerup_percent) {
+                    sg.powerUps = this._parsePowerupPercents(sg.allTagsObject.powerup_percent);
+                }
                 sg.courseId = env.getCourseId(sg.mapId);
+                sg.signedUp = this._ourSignups.has(sg.id);
                 const rt = env.getRoute(sg.routeId);
                 if (rt) {
                     sg.routeDistance = this._getRouteDistance(rt, sg.laps);
                     sg.routeClimbing = this._getRouteClimbing(rt, sg.laps);
                 }
+                if (sg.durationInSeconds) {
+                    sg.endTS = sg.ts + sg.durationInSeconds * 1000;
+                } else {
+                    sg.endDistance = sg.distanceInMeters || sg.routeDistance;
+                }
                 this._recentEventSubgroups.set(sg.id, sg);
-                this._rememberEventSubgroup(sg.id, event.id);
+                this._rememberEventSubgroup(sg, event);
             }
         }
         this._recentEvents.set(event.id, event);
@@ -2631,16 +2707,40 @@ export class StatsProcessor extends events.EventEmitter {
         meetup.routeDistance = this.getRouteDistance(meetup.routeId, meetup.laps, 'meetup');
         meetup.routeClimbing = this.getRouteClimbing(meetup.routeId, meetup.laps, 'meetup');
         meetup.eventType = 'MEETUP';
+        meetup.prettyType = meetup.prettyTypeShort = 'Meetup';
         meetup.totalEntrantCount = meetup.acceptedTotalCount;
         meetup.followeeEntrantCount = meetup.acceptedFolloweeCount;
-        meetup.allTags = this._parseEventTags(meetup);
+        meetup.allTagsObject = this._parseEventTags(meetup);
+        meetup.allTags = this._flattenEventTags(meetup.allTagsObject);
         meetup.ts = +new Date(meetup.eventStart);
-        meetup.courseId = env.getCourseId(meetup.mapId);
-        // Meetups are basicaly a hybrid event/subgroup
-        meetup.eventSubgroups = [{...meetup, id: meetup.eventSubgroupId, eventId: meetup.id}];
-        this._recentEventSubgroups.set(meetup.eventSubgroupId, meetup);
-        this._rememberEventSubgroup(meetup.eventSubgroupId, meetup.id);
+        if (meetup.mapId) {
+            // XXX might be dead...
+            meetup.courseId = env.getCourseId(meetup.mapId);
+            console.warn("I'm not dead yet!", meetup);
+        } else if (meetup.routeId) {
+            const rt = env.getRoute(meetup.routeId);
+            meetup.courseId = rt.courseId;
+            meetup.mapId = rt.worldId;
+        } else {
+            console.warn("Meetup has no decernable course/world", meetup);
+        }
+        // Meetups are basically a hybrid event/subgroup
+        const sg = {
+            ...meetup,
+            id: meetup.eventSubgroupId,
+            eventSubgroupStart: meetup.eventStart,
+            eventId: meetup.id,
+            signedUp: meetup.inviteStatus !== 'REJECTED',
+        };
+        if (sg.durationInSeconds) {
+            sg.endTS = meetup.ts + meetup.durationInSeconds * 1000;
+        } else {
+            sg.endDistance = meetup.distanceInMeters || meetup.routeDistance;
+        }
+        meetup.eventSubgroups = [sg];
+        this._recentEventSubgroups.set(meetup.eventSubgroupId, sg);
         this._recentEvents.set(meetup.id, meetup);
+        this._rememberEventSubgroup(sg, meetup);
     }
 
     _zwiftMetaSync() {
@@ -2671,6 +2771,7 @@ export class StatsProcessor extends events.EventEmitter {
             this._lastLoadNewerEventsTS = Math.max(this._lastLoadNewerEventsTS || -Infinity,
                                                    zEvents.at(-1).eventStart);
         }
+        await this.refreshEventSignups();
         for (const x of zEvents) {
             addedEventsCount += !this._recentEvents.get(x.id);
             this._addEvent(x);
@@ -2680,7 +2781,6 @@ export class StatsProcessor extends events.EventEmitter {
             addedEventsCount += !this._recentEvents.get(x.id);
             this._addMeetup(x);
         }
-        await this.refreshEventSignups();
         let backoff = 10;
         let absent = new Set(this._followingIds);
         await this.zwiftAPI.getFollowing(this.athleteId, {
@@ -3058,22 +3158,19 @@ export class StatsProcessor extends events.EventEmitter {
         if (sg) {
             const eventLeader = sg.invitedLeaders && sg.invitedLeaders.includes(state.athleteId);
             const eventSweeper = sg.invitedSweepers && sg.invitedSweepers.includes(state.athleteId);
-            if (sg.durationInSeconds) {
-                const eventEnd = +(new Date(sg.eventSubgroupStart || sg.eventStart)) +
-                    (sg.durationInSeconds * 1000);
+            if (sg.endTS) {
                 return {
                     eventLeader,
                     eventSweeper,
-                    remaining: (eventEnd - worldTimer.serverNow()) / 1000,
+                    remaining: (sg.endTS - worldTimer.serverNow()) / 1000,
                     remainingMetric: 'time',
                     remainingType: 'event',
                 };
             } else {
-                const distance = sg.distanceInMeters || this.getRouteDistance(sg.routeId, sg.laps);
                 return {
                     eventLeader,
                     eventSweeper,
-                    remaining: distance - state.eventDistance,
+                    remaining: sg.endDistance - state.eventDistance,
                     remainingMetric: 'distance',
                     remainingType: 'event',
                 };
