@@ -22,7 +22,6 @@ const refreshInterval = Number(q.get('refresh') || 2) * 1000;
 
 const minVAMTime = 60;
 const chartLeftPad = 50;
-const chartRightPad = 20;
 
 const laps = [];
 const segments = [];
@@ -806,6 +805,7 @@ export async function main() {
         getTemplates([
             'main',
             'activity-summary',
+            'events-summary',
             'selection-stats',
             'peak-efforts',
             'segment-results',
@@ -1072,6 +1072,9 @@ async function updatePeaksTemplate() {
     const peaks = athleteData?.stats?.[source]?.peaks;
     if (peaks) {
         for (const [_period, x] of Object.entries(peaks)) {
+            if (x.time == null) {
+                continue;
+            }
             const period = Number(_period);
             const start = streams.time[common.binarySearchClosest(streams.time, x.time - period)];
             const powerRoll = rolls.power.slice(start, x.time);
@@ -1235,6 +1238,7 @@ async function updateAll() {
             exportBtn.setAttribute('disabled', 'disabled');
             console.debug("Athlete-data not available");
         }
+        renderSurgicalTemplate('nav section.events', templates.eventsSummary, {athleteData, getEventSubgroup: common.getEventSubgroup}); // bg okay
     }
     if (changed.streams || changed.reset) {
         if (streams.time?.length) {

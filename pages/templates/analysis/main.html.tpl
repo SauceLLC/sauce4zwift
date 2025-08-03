@@ -88,14 +88,18 @@
 
     <nav>
         <section class="peak-efforts"></section>
+
         <section>
             <header>Time in Zones</header>
             <div class="echarts-chart time-in-power-zones"></div>
         </section>
+
         <section>
             <header>Pack Time</header>
             <div class="echarts-chart pack-time"></div>
         </section>
+
+        <section class="events"></section>
     </nav>
 
     <main>
