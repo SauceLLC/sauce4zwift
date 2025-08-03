@@ -737,10 +737,9 @@ export class ZwiftAPI {
         return results;
     }
 
-    async getPrivateEventFeed(options={}) {
-        const start_date = options.from; // always see this used
-        const end_date = options.to; // never see this used
-        const query = {organizer_only_past_events: false, start_date, end_date};
+    async getPrivateEventFeed() {
+        // There is a start_date and end_data param but they are buggy and should be avoided.
+        const query = {organizer_only_past_events: false};
         return await this.fetchJSON('/api/private_event/feed', {query});
     }
 
