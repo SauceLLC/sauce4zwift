@@ -623,6 +623,10 @@ table.laps {
             padding-right: 1.5em;
         }
     }
+
+    tr[data-event-subgroup-id] {
+        border-left: 4px solid #3399cc;
+    }
 }
 
 table.segments {

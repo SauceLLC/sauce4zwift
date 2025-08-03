@@ -21,7 +21,9 @@
             <% const orderedSegments = settings.reverseLapsAndSegments ? segments.toReversed() : segments; %>
             <% for (const x of orderedSegments) { %>
                 <% const index = segments.indexOf(x); %>
-                <tr class="summary {{index === selected ? 'selected expanded' : ''}}" data-segment-index="{{index}}">
+                <tr class="summary {{index === selected ? 'selected expanded' : ''}}"
+                    <% if (x.eventSubgroupId) { %>data-event-subgroup-id="{{x.eventSubgroupId}}"<% } %>
+                    data-segment-index="{{index}}">
                     <td class="name">{{x.segment.friendlyName || x.segment.name}}</td>
                     <td>{-humanTimer(x.stats.elapsedTime, {long: true, ms: true, html: true})-}</td>
                     <td>{-humanDistance(x.segment.distance, {suffix: true, html: true})-}</td>

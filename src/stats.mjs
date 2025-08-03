@@ -1252,6 +1252,7 @@ export class StatsProcessor extends events.EventEmitter {
             end: lapish.power.roll._times[endIndex],
             sport: lapish.sport,
             courseId: lapish.courseId,
+            eventSubgroupId: lapish.eventSubgroupId,
             ...extra,
         };
     }
@@ -1340,6 +1341,8 @@ export class StatsProcessor extends events.EventEmitter {
     startSegment(ad, id, start=monotonic()) {
         const segment = this._createNewLapish(ad, start);
         segment.id = id;
+        // Indirectly lookup sgId via cur-lap to avoid after_party_duration window..
+        segment.eventSubgroupId = ad.laps[ad.laps.length - 1].eventSubgroupId;
         ad.segments.push(segment);
         ad.activeSegments.set(id, segment);
         return segment;

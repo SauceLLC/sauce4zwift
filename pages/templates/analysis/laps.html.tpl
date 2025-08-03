@@ -24,7 +24,12 @@
             <% for (const x of orderedLaps) { %>
                 <% if (!x.endIndex) continue; /* reset data, not moving */ %>
                 <% const index = laps.indexOf(x); %>
-                <tr class="summary {{index === selected ? 'selected' : ''}}" data-lap-index="{{index}}">
+                <tr class="summary {{index === selected ? 'selected' : ''}}"
+                    <% if (x.eventSubgroupId) { %>
+                        data-event-subgroup-id="{{x.eventSubgroupId}}"
+                        title="Event Lap"
+                    <% } %>
+                    data-lap-index="{{index}}">
                     <td class="num">{{index + 1}}</td>
                     <td>{-humanTimer(x.stats.activeTime, {long: true, ms: true, html: true})-}</td>
                     <td>{-humanDistance(streams.distance[x.endIndex] - streams.distance[Math.max(0, x.startIndex - 1)], {suffix: true, html: true})-}</td>
