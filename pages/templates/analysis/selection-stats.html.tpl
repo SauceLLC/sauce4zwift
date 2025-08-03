@@ -75,13 +75,8 @@ Click for more details."><attr for="tp">TSS®</attr>:</key>
 Click for more details." for="tp">IF®</attr>:</key>
         <value>{-humanNumber(power.intensity * 100, {suffix: '%', html: true})-}</value>
 
-        <key title="Energy expended per hour.  The rate of energy expendeture">Rate:</key>
-        <value>{-humanNumber(power.kj / selectionStats.activeTime * 3600, {suffix: 'kJ/h', html: true})-}</value>
-
-        <% if (power.leadInKj && power.leadInKj >= 1) { %>
-            <key title="Energy expended before this effort in kilojoules">Lead-in:</key>
-            <value>{-humanNumber(power.leadInKj, {suffix: 'kJ', html: true})-}</value>
-        <% } %>
+        <key title="Energy expended before this effort in kilojoules">Lead-in:</key>
+        <value>{-humanNumber(power.leadInKj || null, {suffix: 'kJ', html: true})-}</value>
     </div>
 
     <div class="seperator"></div>
