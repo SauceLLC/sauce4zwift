@@ -107,19 +107,6 @@ async function getTemplates(basenames) {
 }
 
 
-const _tplSigs = new Map();
-async function renderTemplate(selector, tpl, attrs) {
-    const html = await tpl(attrs, {html: true});
-    const sig = common.hash(html);
-    if (_tplSigs.get(selector) !== sig) {
-        _tplSigs.set(selector, sig);
-        document.querySelector(selector).innerHTML = html;
-        return true;
-    }
-    return false;
-}
-
-
 function shallowCompareNodes(n1, n2) {
     if (n1.nodeType !== n2.nodeType) {
         return false;
@@ -147,8 +134,13 @@ function shallowCompareNodes(n1, n2) {
 
 const _surgicalTemplateRoots = new Map();
 async function renderSurgicalTemplate(selector, tpl, attrs) {
+    const frag = await tpl({
+        settings,
+        templates,
+        common,
+        ...attrs,
+    });
     const key = `${selector}-${tpl.id}`;
-    const frag = await tpl(attrs);
     const beforeRoot = _surgicalTemplateRoots.get(key);
     if (!beforeRoot) {
         const root = document.querySelector(selector);
@@ -298,7 +290,7 @@ function schedUpdateSelectionStats() {
     const run = () => {
         const stats = getSelectionStats();
         selStatsActive = renderSurgicalTemplate('.selection-stats', templates.selectionStats,
-                                                {selectionStats: stats, settings}).finally(() => {
+                                                {selectionStats: stats}).finally(() => {
             selStatsActive = null;
             if (selStatsPendingRelease) {
                 selStatsPendingRelease();
@@ -818,11 +810,8 @@ export async function main() {
     ]);
     await renderSurgicalTemplate('#content', templates.main, {
         athlete,
-        templates,
         nationFlags,
         worldList,
-        settings,
-        common,
         peakFormatters,
     });
     if (!athlete) {
@@ -1056,9 +1045,7 @@ async function updateSegmentResults(segment) {
 function renderSegments() {
     const selected = selectionSource === 'segments' ? segments.indexOf(selectionEntry) : undefined;
     return renderSurgicalTemplate('section.segments', templates.segments, {
-        settings,
         athlete,
-        templates,
         segments,
         selected,
         results: segmentResults,
@@ -1095,16 +1082,32 @@ async function updatePeaksTemplate() {
 }
 
 
-function updateLoop() {
-    if (refreshInterval) {
-        updateAll().finally(() => setTimeout(updateLoop, refreshInterval));
-    } else {
-        updateAll();
+async function updateLoop() {
+    let offline;
+    do {
+        try {
+            await updateAll();
+            if (offline) {
+                console.info("Connection to Sauce restored");
+                offline = false;
+            }
+        } catch(e) {
+            if (e instanceof TypeError && e.message.match(/fetch/)) {
+                if (!offline) {
+                    console.warn("Connection to Sauce unavailable");
+                    offline = true;
+                }
+            } else {
+                console.error("Update problem:", e);
+            }
+        }
+        await common.sleep(refreshInterval);
     }
+    while (refreshInterval);
 }
 
 
-async function updateData({reset}={}) {
+async function updateAllData({reset}={}) {
     const [newAthleteData, newStreams, newSegments, newLaps] = await Promise.all([
         common.rpc.getAthleteData(athleteIdent),
         common.rpc.getAthleteStreams(athleteIdent, {startTime: timeOfft}),
@@ -1121,7 +1124,7 @@ async function updateData({reset}={}) {
         resetData();
         deselectAllSources();
         setSelection();
-        return await updateData({reset: true});
+        return await updateAllData({reset: true});
     }
     athleteData = newAthleteData;
     sport = newAthleteData?.state?.sport;
@@ -1211,7 +1214,7 @@ async function updateAll() {
     if (!common.isVisible()) {
         return;
     }
-    const changed = await updateData();
+    const changed = await updateAllData();
     if (changed.sport || changed.reset) {
         chartsMod.setSport(sport);
     }
@@ -1238,7 +1241,7 @@ async function updateAll() {
             exportBtn.setAttribute('disabled', 'disabled');
             console.debug("Athlete-data not available");
         }
-        renderSurgicalTemplate('nav section.events', templates.eventsSummary, {athleteData, getEventSubgroup: common.getEventSubgroup}); // bg okay
+        renderSurgicalTemplate('nav section.events', templates.eventsSummary, {athleteData}); // bg okay
     }
     if (changed.streams || changed.reset) {
         if (streams.time?.length) {
@@ -1297,7 +1300,6 @@ async function updateAll() {
             }
         }
         renderSurgicalTemplate('section.laps', templates.laps, {
-            settings,
             athlete,
             streams,
             laps,
