@@ -566,7 +566,6 @@ export class StatsProcessor extends events.EventEmitter {
         this._recentEventsPending = new Map();
         this._recentEventSubgroups = new Map();
         this._recentEventSubgroupsPending = new Map();
-        this._ourSignups = new Set();
         this._mostRecentNearby = [];
         this._mostRecentGroups = [];
         this._groupMetas = new Map();
@@ -1090,27 +1089,32 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     async addEventSubgroupSignup(subgroupId) {
-        await this.zwiftAPI.addEventSubgroupSignup(subgroupId);
-        await this.refreshEventSignups();
+        const accepted = await this.zwiftAPI.addEventSubgroupSignup(subgroupId);
+        if (!accepted) {
+            console.warn("Failed to signup for subgroup:", subgroupId);
+            return false;
+        }
+        const sg = await this.getEventSubgroup(subgroupId);
+        sg.signedUp = true;
+        return true;
     }
 
     async deleteEventSignup(eventId) {
         await this.zwiftAPI.deleteEventSignup(eventId);
-        await this.refreshEventSignups();
+        const event = await this.getEvent(eventId);
+        if (event && event.eventSubgroups) {
+            for (const x of event.eventSubgroups) {
+                x.signedUp = false;
+            }
+        }
     }
 
     async refreshEventSignups() {
         const upcoming = await this.zwiftAPI.getUpcomingEvents();
-        this._ourSignups.clear();
         for (const x of upcoming.filter(x => x.profileId === this.zwiftAPI.profile.id)) {
-            this._ourSignups.add(x.eventSubgroupId);
-        }
-        for (const x of this._recentEventSubgroups.values()) {
-            if (x && x.eventType !== 'MEETUP') {
-                if (!!x.signedUp !== this._ourSignups.has(x.id)) {
-                    x.signedUp = this._ourSignups.has(x.id);
-                    console.info(x.signedUp ? 'Joined' : 'Left', `event [${x.id}]:`, x.name);
-                }
+            const sg = this._recentEventSubgroups.get(x.eventSubgroupId);
+            if (sg && !sg.signedUp) {
+                console.info(`Joined event subgroup[${sg.id}]:`, sg.name);
             }
         }
     }
@@ -1301,17 +1305,7 @@ export class StatsProcessor extends events.EventEmitter {
                 segments = await this.zwiftAPI.getSegmentResults(id, options);
             }
         }
-        if (segments) {
-            return segments.map(x => ({
-                ...x,
-                ts: worldTimer.toLocalTime(x.worldTime),
-                weight: x.weight / 1000,
-                elapsed: x.elapsed / 1000,
-                gender: x.male === false ? 'female' : 'male',
-                _unsignedSegmentId: undefined,
-                male: undefined,
-            }));
-        }
+        return segments || [];
     }
 
     getNearbyData() {
@@ -1726,7 +1720,6 @@ export class StatsProcessor extends events.EventEmitter {
                 console.warn('Failed to load event:', x, e.status, e.message);
             }
         }
-        await this.refreshEventSignups();
     }
 
     onIncoming(...args) {
@@ -2687,7 +2680,6 @@ export class StatsProcessor extends events.EventEmitter {
                     sg.powerUps = this._parsePowerupPercents(sg.allTagsObject.powerup_percent);
                 }
                 sg.courseId = env.getCourseId(sg.mapId);
-                sg.signedUp = this._ourSignups.has(sg.id);
                 const rt = env.getRoute(sg.routeId);
                 if (rt) {
                     sg.routeDistance = this._getRouteDistance(rt, sg.laps);
@@ -2774,7 +2766,6 @@ export class StatsProcessor extends events.EventEmitter {
             this._lastLoadNewerEventsTS = Math.max(this._lastLoadNewerEventsTS || -Infinity,
                                                    zEvents.at(-1).eventStart);
         }
-        await this.refreshEventSignups();
         for (const x of zEvents) {
             addedEventsCount += !this._recentEvents.get(x.id);
             this._addEvent(x);
@@ -2784,6 +2775,7 @@ export class StatsProcessor extends events.EventEmitter {
             addedEventsCount += !this._recentEvents.get(x.id);
             this._addMeetup(x);
         }
+        await this.refreshEventSignups();
         let backoff = 10;
         let absent = new Set(this._followingIds);
         await this.zwiftAPI.getFollowing(this.athleteId, {

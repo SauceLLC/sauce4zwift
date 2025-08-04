@@ -18,6 +18,8 @@ export const protos = protobuf.loadSync([path.join(__dirname, 'zwift.proto')]).r
 protobuf.parse.defaults.keepCase = _case;
 
 
+const HOUR = 3600 * 1000;
+
 // NOTE: this options object does not contain callback functions (as it might appear).
 // A static type comparision is used by protobufjs's toObject function instead. :(
 const _pbJSONOptions = {
@@ -576,10 +578,16 @@ export class ZwiftAPI {
     convSegmentResult(x) {
         const ret = pbToObject(x);
         Object.assign(ret, {
-            finishTime: x.finishTime && new Date(x.finishTime),
-            segmentId: x._unsignedSegmentId.toSigned().toString()
+            id: x.id.toString(), // fix overflow
+            segmentId: x._unsignedSegmentId.toSigned().toString(),
+            ts: worldTimer.toLocalTime(x.worldTime),
+            weight: x.weight / 1000,
+            elapsed: x.elapsed / 1000,
+            gender: x.male === false ? 'female' : 'male',
         });
+        delete ret.finishTime; // worldTime and ts are better and always available
         delete ret._unsignedSegmentId;
+        delete ret.male;
         return ret;
     }
 
@@ -599,6 +607,7 @@ export class ZwiftAPI {
         const query = {
             world_id: 1,  // mislabeled realm
             segment_id: segmentId,
+            event_subgroup_id: options.eventSubgroupId,
         };
         if (options.athleteId) {
             query.player_id = options.athleteId;
@@ -612,9 +621,9 @@ export class ZwiftAPI {
         if (options.best) {
             query['only-best'] = 'true';
         }
-        const resp = await this.fetchPB('/api/segment-results', {query, protobuf: 'SegmentResults'});
-        resp.results.sort((a, b) => a.elapsed - b.elapsed);
-        return resp.results.map(pbToObject);
+        const data = await this.fetchPB('/api/segment-results', {query, protobuf: 'SegmentResults'});
+        data.results.sort((a, b) => a.elapsed - b.elapsed);
+        return data.results.map(this.convSegmentResult);
     }
 
     async getGameInfo() {
@@ -687,7 +696,6 @@ export class ZwiftAPI {
 
     async getEventFeed(options={}) {
         const urn = '/api/events/search';
-        const HOUR = 3600000;
         const aboutMaxBack = worldTimer.serverNow() - 1 * HOUR;
         const from = new Date(options.from || aboutMaxBack);
         if (from < aboutMaxBack) {
@@ -737,9 +745,10 @@ export class ZwiftAPI {
         return results;
     }
 
-    async getPrivateEventFeed() {
+    async getPrivateEventFeed(from) {
         // There is a start_date and end_data param but they are buggy and should be avoided.
-        const query = {organizer_only_past_events: false};
+        const start_date = from ? +new Date(from) : worldTimer.serverNow() - 2 * HOUR;
+        const query = {organizer_only_past_events: false, start_date};
         return await this.fetchJSON('/api/private_event/feed', {query});
     }
 
@@ -885,11 +894,19 @@ export class ZwiftAPI {
     }
 
     async deleteEventSignup(eventId) {
-        return await this.fetchJSON(`/api/events/signup/${eventId}`, {method: 'DELETE'});
+        await this.fetchJSON(`/api/events/signup/${eventId}`, {method: 'DELETE'});
     }
 
     async addEventSubgroupSignup(subgroupId) {
-        return await this.fetchJSON(`/api/events/subgroups/signup/${subgroupId}`, {method: 'POST'});
+        try {
+            const resp = await this.fetchJSON(`/api/events/subgroups/signup/${subgroupId}`, {method: 'POST'});
+            return resp.signedUp;
+        } catch(e) {
+            if (!e.message.match(/event\.access\.validation/)) {
+                console.error('Unexpected event signup error:', e);
+            }
+            return false;
+        }
     }
 
     async getUpcomingEvents() {
@@ -2180,12 +2197,7 @@ export class GameMonitor extends events.EventEmitter {
             return;
         }
         if (pool.useFirstInBounds) {
-            const best = pool.servers.find(server => x <= server.xBound && y <= server.yBound);
-            if (best.xBound2 && x <= best.xBound2 || best.yBound2 && y <= best.yBound2) {
-                console.error("XXX probably need to use these lower bounds");
-                debugger;
-            }
-            return best;
+            return pool.servers.find(server => x <= server.xBound && y <= server.yBound);
         } else {
             let closestServer;
             let closestDelta = Infinity;
