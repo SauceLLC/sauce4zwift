@@ -21,7 +21,7 @@ message PlayerState {
     uint32 _flags1 = 19; // Packed with info parsed in user code
     uint32 _flags2 = 20; // Packed with info parsed in user code
     uint32 _progress = 21; // 16-32 are some sort of inverse mask when set, 8-16 is pct progress, 0 is workout
-    int64 _joinTime = 22;
+    int64 _joinTime = 22; // profile_updated_at ???
     bool justWatching = 23;
     int32 _mwHours = 24; // milliwatt/hours of energy
     float x = 25;
@@ -32,8 +32,8 @@ message PlayerState {
     Sport sport = 31;
     float _eventDistance = 34; // cm
     int32 courseId = 35;
-    int32 routeProgress = 36; // Increments with route progress, but the scale is unclear
-    int32 routeRoadIndex = 37; // Offset into the road segment of a route (very close to our route's road manifest indexes)
+    int32 routeProgress = 36; // Increments with route progress, but the scale is unclear (route_checkpoint_index?)
+    int32 routeRoadIndex = 37; // Offset into the road segment of a route (route_decision_index?)
     bool canSteer = 38;
     uint32 routeId = 39;
     int32 pacerBotGroupSize = 40;
@@ -45,6 +45,8 @@ message PlayerState {
     int32 hazardPad = 47;
     int32 timeBonus = 48;
     int32 rideonBomb = 49; // always seems to be x5 with value of 9
+    // player_vfx? (player_vfx_speedboost, player_vfx_speedslow, player_vfx_timepickup)
+    // player_bighead_active?
     int32 botId = 51;
 }
 
@@ -124,10 +126,9 @@ message PayloadSegmentResult {
     int32 avgHR = 19;
     Sport sport = 20;
     int64 activityId = 21;
-    string _f23 = 23; // "P"?
+    string firstInitial = 23;
 }
 
-// for /api/segment-results
 message SegmentResults {
     int32 realm = 1;
     uint64 _unsignedSegmentId = 2;
