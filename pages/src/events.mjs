@@ -236,12 +236,22 @@ export async function main() {
                 const sgId = Number(el.dataset.eventSubgroupId);
                 const {sg, event} = allSubgroups.get(sgId);
                 if (action === 'signup') {
-                    await common.rpc.addEventSubgroupSignup(sgId);
-                    sg.signedUp = event.signedUp = true;
-                    el.parentElement.querySelectorAll(':scope > [data-event-subgroup-id]').forEach(x =>
-                        x.classList.remove('can-signup'));
-                    el.classList.add('signedup');
-                    el.closest('tr.details').previousElementSibling.classList.add('signedup');
+                    let accepted;
+                    try {
+                        accepted = await common.rpc.addEventSubgroupSignup(sgId);
+                    } catch(e) {
+                        console.warn('Signup error:', e.message);
+                    }
+                    if (!accepted) {
+                        el.classList.remove('can-signup');
+                        alert("Event subgroup rejected");
+                    } else {
+                        sg.signedUp = event.signedUp = true;
+                        el.parentElement.querySelectorAll(':scope > [data-event-subgroup-id]').forEach(x =>
+                            x.classList.remove('can-signup'));
+                        el.classList.add('signedup');
+                        el.closest('tr.details').previousElementSibling.classList.add('signedup');
+                    }
                 } else {
                     await common.rpc.deleteEventSignup(event.id);
                     sg.signedUp = event.signedUp = false;
