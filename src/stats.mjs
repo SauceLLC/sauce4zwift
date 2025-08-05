@@ -1713,11 +1713,12 @@ export class StatsProcessor extends events.EventEmitter {
                     this._addEvent(event);
                 }
             } catch(e) {
-                /* no-pragma */
                 // Club rides we don't have rights to show up in our list
                 // I can't see a way to test for permissions before attempting
                 // access so we just catch the error
-                console.warn('Failed to load event:', x, e.status, e.message);
+                if (e.status !== 403 || !e.message.match(/event\.is\.forbidden/)) {
+                    console.error('Failed to load event:', x, e.status, e.message);
+                }
             }
         }
     }

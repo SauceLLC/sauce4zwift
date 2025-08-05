@@ -608,10 +608,8 @@ export class ZwiftAPI {
             world_id: 1,  // mislabeled realm
             segment_id: segmentId,
             event_subgroup_id: options.eventSubgroupId,
+            player_id: options.athleteId,
         };
-        if (options.athleteId) {
-            query.player_id = options.athleteId;
-        }
         if (options.from) {
             query.from = zwiftCompatDate(new Date(options.from));
         }
