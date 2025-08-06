@@ -30,17 +30,18 @@
     "lossless-json": "4.1.1",
     "node-stream-zip": "1.15.0",
     "protobufjs": "7.4.0",
+    "sleep": "6.3.0",
     "xxhash-addon": "2.0.3"
   },
   "optionalDependencies": {
-    "zwift-utils": "https://github.com/SauceLLC/zwift-utils.git#83d21fc6c6d5fe6acf2460888ca94e1a16173a63",
-    "macos-window-control": "https://github.com/mayfield/macos-window-control.git#4882bd7bf06597779a1d2f1e17fcf4ece5815fe3"
+    "macos-window-control": "https://github.com/mayfield/macos-window-control.git#4882bd7bf06597779a1d2f1e17fcf4ece5815fe3",
+    "zwift-utils": "https://github.com/SauceLLC/zwift-utils.git#83d21fc6c6d5fe6acf2460888ca94e1a16173a63"
   },
   "devDependencies": {
     "@electron/notarize": "3.0.1",
     "@sentry/browser": "6.19.6",
     "echarts": "5.6.0",
-    "electron": "37.2.0",
+    "electron": "37.2.5",
     "electron-builder": "26.0.12",
     "eslint": "8.57.1",
     "eslint-plugin-html": "8.1.2",
