@@ -1241,6 +1241,8 @@ export class StatsProcessor extends events.EventEmitter {
         return segments.map(x => this._formatLapish(x, ad, athlete, now, {
             segmentId: x.id,
             segment: env.getSegment(x.id),
+            startEventDistance: x.startEventDistance,
+            endEventDistance: x.endEventDistance,
         }));
     }
 
@@ -1337,6 +1339,10 @@ export class StatsProcessor extends events.EventEmitter {
         segment.id = id;
         // Indirectly lookup sgId via cur-lap to avoid after_party_duration window..
         segment.eventSubgroupId = ad.laps[ad.laps.length - 1].eventSubgroupId;
+        if (segment.eventSubgroupId) {
+            segment.startEventDistance = ad.mostRecentState.eventDistance;
+            segment.endEventDistance = null;
+        }
         ad.segments.push(segment);
         ad.activeSegments.set(id, segment);
         return segment;
@@ -1345,6 +1351,9 @@ export class StatsProcessor extends events.EventEmitter {
     stopSegment(ad, id, end=monotonic()) {
         const segment = ad.activeSegments.get(id);
         segment.end = end;
+        if (segment.eventSubgroupId) {
+            segment.endEventDistance = ad.mostRecentState.eventDistance;
+        }
         ad.activeSegments.delete(id);
     }
 
@@ -2070,6 +2079,7 @@ export class StatsProcessor extends events.EventEmitter {
         const bucket = this._makeDataBucket(now);
         const ad = {
             created: worldTimer.toLocalTime(state.worldTime),
+            stOffset: worldTimer.toServerTime(state.worldTime),
             wtOffset: state.worldTime,
             athleteId: state.athleteId,
             courseId: state.courseId,
@@ -2112,6 +2122,7 @@ export class StatsProcessor extends events.EventEmitter {
         Object.assign(ad, {
             created: worldTimer.toLocalTime(wtOffset),
             wtOffset,
+            stOffset: worldTimer.toServerTime(wtOffset),
             bucket: this._makeDataBucket(now),
         });
         ad.laps = [this._createNewLapish(ad, now)];
@@ -2372,7 +2383,8 @@ export class StatsProcessor extends events.EventEmitter {
                     }
                 } else if (state.speed) {
                     const kj = state.power * elapsedTime / 1e6;
-                    if (ad.group) {
+                    if (ad.groupId != null) {
+                        if (!this._groupMetas.has(ad.groupId)) debugger;
                         if (state.draft) {
                             ad.bucket.followTime += elapsedTime;
                             ad.bucket.followKj += kj;
@@ -3192,8 +3204,9 @@ export class StatsProcessor extends events.EventEmitter {
         const state = ad.mostRecentState;
         const lapCount = ad.laps.length;
         return {
-            created: ad.created,
-            updated: ad.updated,
+            createdServerTime: ad.stOffset,
+            created: ad.created, // local clock
+            updated: ad.updated, // local clock
             age: now - ad.internalUpdated,
             watching: ad.athleteId === this.watching ? true : undefined,
             self: ad.athleteId === this.athleteId ? true : undefined,
@@ -3416,9 +3429,7 @@ export class StatsProcessor extends events.EventEmitter {
             if (grp._athleteDatas.length > 1) {
                 const identitySet = new Set();
                 for (let j = 0; j < grp._athleteDatas.length; j++) {
-                    const ad = grp._athleteDatas[j];
-                    identitySet.add(ad.athleteId);
-                    ad.group = grp;
+                    identitySet.add(grp._athleteDatas[j].athleteId);
                 }
                 let bestScore = 0;
                 let bestGroupMeta;
@@ -3434,32 +3445,39 @@ export class StatsProcessor extends events.EventEmitter {
                     }
                 }
                 if (bestScore > 0.5) {
-                    //console.info("Matching group", bestScore, identitySet);
                     grp.id = bestGroupMeta.id;
                     const leftAthletes = bestGroupMeta.identitySet.difference(identitySet);
                     //const existingAthletes = identitySet.union(bestGroupMeta.identitySet);
                     const newAthletes = identitySet.difference(bestGroupMeta.identitySet);
                     for (const x of newAthletes) {
-                        this._athleteData.get(x).groupId = grp.id;
                         console.debug(grp.id, "Athlete joined the group!", this.loadAthlete(x)?.fullname);
                     }
                     for (const x of leftAthletes) {
-                        console.debug(grp.id, "Athlete LEFT the group!", this.loadAthlete(x)?.fullname);
+                        const ad = this._athleteData.get(x);
+                        if (ad.groupId === grp.id) {
+                            ad.groupId = null;
+                            console.debug(grp.id, "Athlete LEFT the group!", this.loadAthlete(x)?.fullname);
+                        }
                     }
                     bestGroupMeta.identitySet = identitySet;
                     bestGroupMeta.accessed = monotonic();
                     usedGroupIds.add(bestGroupMeta.id);
-                } else if (grp.id == null) {
+                } else {
                     grp.id = groupIdCounter++;
+                    grp.created = Date.now();
                     for (const x of identitySet) {
                         console.debug(grp.id, "Athlete formed a new group!", this.loadAthlete(x)?.fullname);
                     }
-                    grp.created = Date.now();
                     newGroupMetas.push({id: grp.id, accessed: monotonic(), identitySet});
                 }
-            } else {
-                grp.id = null;
-                grp._athleteDatas[0].group = null;
+                for (let j = 0; j < grp._athleteDatas.length; j++) {
+                    grp._athleteDatas[j].groupId = grp.id;
+                }
+            } else if (grp._athleteDatas[0].groupId != null) {
+                const ad = grp._athleteDatas[0];
+                console.debug(ad.groupId, "Athlete LEFT the group!",
+                              this.loadAthlete(ad.athleteId)?.fullname);
+                ad.groupId = null;
             }
         }
         for (const x of newGroupMetas) {
