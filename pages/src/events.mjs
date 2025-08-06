@@ -17,6 +17,7 @@ let gcs;
 let selfAthlete;
 let allRoutes;
 
+const q = new URLSearchParams(location.search);
 const chartRefs = new Set();
 const allEvents = new Map();
 const allSubgroups = new Map();
@@ -24,6 +25,10 @@ const contentEl = document.querySelector('#content');
 const ioTHack = Array.from(new Array(1000)).map((_, i) => i / 999);
 const headingsIntersectionObserver = new IntersectionObserver(onHeadingsIntersecting,
                                                               {root: contentEl, threshold: ioTHack});
+const eventId = q.get('id') ? Number(q.get('id')) : null;
+if (eventId != null) {
+    document.documentElement.classList.add('single-event');
+}
 
 
 async function getTemplates(basenames) {
@@ -50,6 +55,14 @@ async function loadEventsWithRetry() {
     }
     await fillInEvents();
 }
+
+
+async function loadEvent(id) {
+    const data = await common.rpc.getEvent(id);
+    allEvents.set(id, data);
+    await fillInEvents();
+}
+
 
 
 let _routeListPromise;
@@ -176,7 +189,7 @@ export async function main() {
         document.querySelector('#titlebar select[name="type"]').value = settings.filterType;
     }
     [,templates, {nations, flags}, worldList, gcs, selfAthlete] = await Promise.all([
-        loadEventsWithRetry(),
+        eventId != null ? loadEvent(eventId) : loadEventsWithRetry(),
         getTemplates([
             'events/list',
             'events/summary',
@@ -230,53 +243,51 @@ export async function main() {
             return;
         }
         const action = button.dataset.action;
-        try {
-            if (action === 'signup' || action === 'unsignup') {
-                const el = button.closest('[data-event-subgroup-id]');
-                const sgId = Number(el.dataset.eventSubgroupId);
-                const {sg, event} = allSubgroups.get(sgId);
-                if (action === 'signup') {
-                    let accepted;
-                    try {
-                        accepted = await common.rpc.addEventSubgroupSignup(sgId);
-                    } catch(e) {
-                        console.warn('Signup error:', e.message);
-                    }
-                    if (!accepted) {
-                        el.classList.remove('can-signup');
-                        alert("Event subgroup rejected");
-                    } else {
-                        sg.signedUp = event.signedUp = true;
-                        el.parentElement.querySelectorAll(':scope > [data-event-subgroup-id]').forEach(x =>
-                            x.classList.remove('can-signup'));
-                        el.classList.add('signedup');
-                        el.closest('tr.details').previousElementSibling.classList.add('signedup');
-                    }
-                } else {
-                    await common.rpc.deleteEventSignup(event.id);
-                    sg.signedUp = event.signedUp = false;
-                    el.parentElement.querySelectorAll(':scope > [data-event-subgroup-id]').forEach(x =>
-                        x.classList.add('can-signup'));
-                    el.classList.remove('signedup');
-                    el.closest('tr.details').previousElementSibling.classList.remove('signedup');
+        if (action === 'signup' || action === 'unsignup') {
+            const el = button.closest('[data-event-subgroup-id]');
+            const sgId = Number(el.dataset.eventSubgroupId);
+            const {sg, event} = allSubgroups.get(sgId);
+            if (action === 'signup') {
+                let accepted;
+                try {
+                    accepted = await common.rpc.addEventSubgroupSignup(sgId);
+                } catch(e) {
+                    console.warn('Signup error:', e.message);
                 }
-            } else if (action === 'collapse-subgroup' || action === 'expand-subgroup') {
-                const el = ev.target.closest('.event-subgroup');
-                el.classList.toggle('collapsed');
-            } else if (action === 'zrs-lookup') {
-                const athleteId = Number(button.closest('tr[data-id]').dataset.id);
-                const athlete = await common.rpc.getAthlete(athleteId, {refresh: true});
-                button.outerHTML = sauce.locale.human.number(athlete.racingScore);
+                if (!accepted) {
+                    el.classList.remove('can-signup');
+                    alert("Event subgroup rejected");
+                } else {
+                    sg.signedUp = event.signedUp = true;
+                    el.parentElement.querySelectorAll(':scope > [data-event-subgroup-id]').forEach(x =>
+                        x.classList.remove('can-signup'));
+                    el.classList.add('signedup');
+                    el.closest('tr.details').previousElementSibling.classList.add('signedup');
+                }
+            } else {
+                await common.rpc.deleteEventSignup(event.id);
+                sg.signedUp = event.signedUp = false;
+                el.parentElement.querySelectorAll(':scope > [data-event-subgroup-id]').forEach(x =>
+                    x.classList.add('can-signup'));
+                el.classList.remove('signedup');
+                el.closest('tr.details').previousElementSibling.classList.remove('signedup');
             }
-        } catch(e) {
-            // XXX
-            alert(e.message);
+        } else if (action === 'collapse-subgroup' || action === 'expand-subgroup') {
+            const el = ev.target.closest('.event-subgroup');
+            el.classList.toggle('collapsed');
+        } else if (action === 'zrs-lookup') {
+            const athleteId = Number(button.closest('tr[data-id]').dataset.id);
+            const athlete = await common.rpc.getAthlete(athleteId, {refresh: true});
+            button.outerHTML = sauce.locale.human.number(athlete.racingScore);
         }
     });
     await render();
     const nearest = contentEl.querySelector('table.events > tbody > tr.summary[data-event-id]:not(.started)');
     if (nearest) {
         nearest.scrollIntoView({block: 'center'});
+    }
+    if (eventId != null) {
+        contentEl.querySelector('table.events > tbody > tr.summary').click();
     }
 }
 
