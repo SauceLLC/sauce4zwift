@@ -1,6 +1,8 @@
 /* global setImmediate, Buffer */
 import events from 'node:events';
 import path from 'node:path';
+import {createRequire} from 'node:module';
+import sleep from 'sleep';
 import {worldTimer} from './zwift.mjs';
 import {SqliteDatabase, deleteDatabase} from './db.mjs';
 import * as rpc from './rpc.mjs';
@@ -9,7 +11,6 @@ import * as report from '../shared/report.mjs';
 import * as zwift from './zwift.mjs';
 import * as env from './env.mjs';
 import {expWeightedAvg} from '../shared/sauce/data.mjs';
-import {createRequire} from 'node:module';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
@@ -61,31 +62,36 @@ function monotonic() {
 }
 
 
-function nextMacrotask() {
-    return new Promise(setImmediate);
-}
-
-
-let _hrSleepLatency = 1;
-const _hrSleepLatencyRoll = expWeightedAvg(10, _hrSleepLatency);
+let _hrSTOLatency = 1;
+const _hrSTOLatencyRoll = expWeightedAvg(10, _hrSTOLatency);
+let _hrUSleepLatency = 100;
+const _hrUSleepLatencyRoll = expWeightedAvg(10, _hrUSleepLatency);
+const _hrMaxMacroCompensation = 4; // ms
+const _hrMaxMicroCompensation = 200; // us
+const _hrMaxMicroSleep = 100; // us
 async function highResSleepTill(deadline, options={}) {
     // NOTE: V8 can and does wake up early.
     // NOTE: GC pauses can and will cause delays.
     let t = monotonic();
-    const macroDelay = Math.trunc((deadline - t) - _hrSleepLatency);
+    const macroDelay = Math.round((deadline - t) - _hrSTOLatency);
     if (macroDelay > 1) {
         await new Promise(r => setTimeout(r, macroDelay));
-        const t2 = monotonic();
-        const stoLatency = (t2 - t) - macroDelay;
-        t = t2;
+        const stoLatency = Math.min(_hrMaxMacroCompensation, (monotonic() - t) - macroDelay);
         if (stoLatency > 0) {
-            _hrSleepLatency = Math.sqrt(_hrSleepLatencyRoll((stoLatency + 1) ** 2));
+            _hrSTOLatency = _hrSTOLatencyRoll(stoLatency);
         }
-    }
-    while (t < deadline) {
-        await nextMacrotask();
         t = monotonic();
     }
+    while (t < deadline) {
+        const microDelay = Math.max(0, Math.min(_hrMaxMicroSleep,
+                                                Math.round((deadline - t) * 1000 - _hrUSleepLatency)));
+        sleep.usleep(microDelay);
+        const uSleepLatency = Math.min(_hrMaxMicroCompensation, (monotonic() - t) * 1000 - microDelay);
+        _hrUSleepLatency = _hrUSleepLatencyRoll(uSleepLatency);
+        //console.debug("slept", microDelay, uSleepLatency, _hrUSleepLatency);
+        t = monotonic();
+    }
+    //console.debug('final', t - deadline, {_hrSTOLatency, _hrUSleepLatency});
     return t;
 }
 
@@ -2262,13 +2268,6 @@ export class StatsProcessor extends events.EventEmitter {
     _recordAthleteRoadHistory(state, ad, roadSig) {
         const prevState = ad.mostRecentState;
         const hist = ad.roadHistory;
-        // XXX
-        /*if (!hist._xxxName) {
-            const athlete = this.loadAthlete(ad.athleteId);
-            if (athlete) {
-                hist._xxxName = athlete.fLast;
-            }
-        }*/
         const rpct = state.roadCompletion / 1e6;
         if (prevState) {
             if (prevState.courseId === state.courseId) {
@@ -2384,7 +2383,6 @@ export class StatsProcessor extends events.EventEmitter {
                 } else if (state.speed) {
                     const kj = state.power * elapsedTime / 1e6;
                     if (ad.groupId != null) {
-                        if (!this._groupMetas.has(ad.groupId)) debugger;
                         if (state.draft) {
                             ad.bucket.followTime += elapsedTime;
                             ad.bucket.followKj += kj;
@@ -2721,11 +2719,7 @@ export class StatsProcessor extends events.EventEmitter {
         meetup.allTagsObject = this._parseEventTags(meetup);
         meetup.allTags = this._flattenEventTags(meetup.allTagsObject);
         meetup.ts = +new Date(meetup.eventStart);
-        if (meetup.mapId) {
-            // XXX might be dead...
-            meetup.courseId = env.getCourseId(meetup.mapId);
-            console.warn("I'm not dead yet!", meetup);
-        } else if (meetup.routeId) {
+        if (meetup.routeId) {
             const rt = env.getRoute(meetup.routeId);
             meetup.courseId = rt.courseId;
             meetup.mapId = rt.worldId;
@@ -3052,9 +3046,15 @@ export class StatsProcessor extends events.EventEmitter {
                 this._profileFetchDeferrals.delete(id);
             }
         }
-        for (const x of this._groupMetas.values()) {
-            if (now - x.accessed > 90 * 1000) {
-                this._groupMetas.delete(x.id);
+        for (const gm of this._groupMetas.values()) {
+            if (now - gm.accessed > 90 * 1000) {
+                for (const aId of gm.identitySet) {
+                    const ad = this._athleteData.get(aId);
+                    if (ad && ad.groupId === gm.id) {
+                        ad.groupId = null;
+                    }
+                }
+                this._groupMetas.delete(gm.id);
             }
         }
     }
@@ -3446,17 +3446,17 @@ export class StatsProcessor extends events.EventEmitter {
                 }
                 if (bestScore > 0.5) {
                     grp.id = bestGroupMeta.id;
-                    const leftAthletes = bestGroupMeta.identitySet.difference(identitySet);
                     //const existingAthletes = identitySet.union(bestGroupMeta.identitySet);
-                    const newAthletes = identitySet.difference(bestGroupMeta.identitySet);
+                    /*const newAthletes = identitySet.difference(bestGroupMeta.identitySet);
                     for (const x of newAthletes) {
                         console.debug(grp.id, "Athlete joined the group!", this.loadAthlete(x)?.fullname);
-                    }
+                    }*/
+                    const leftAthletes = bestGroupMeta.identitySet.difference(identitySet);
                     for (const x of leftAthletes) {
                         const ad = this._athleteData.get(x);
                         if (ad.groupId === grp.id) {
                             ad.groupId = null;
-                            console.debug(grp.id, "Athlete LEFT the group!", this.loadAthlete(x)?.fullname);
+                            //console.debug(grp.id, "Athlete LEFT the group!", this.loadAthlete(x)?.fullname);
                         }
                     }
                     bestGroupMeta.identitySet = identitySet;
@@ -3465,9 +3465,9 @@ export class StatsProcessor extends events.EventEmitter {
                 } else {
                     grp.id = groupIdCounter++;
                     grp.created = Date.now();
-                    for (const x of identitySet) {
+                    /*for (const x of identitySet) {
                         console.debug(grp.id, "Athlete formed a new group!", this.loadAthlete(x)?.fullname);
-                    }
+                    }*/
                     newGroupMetas.push({id: grp.id, accessed: monotonic(), identitySet});
                 }
                 for (let j = 0; j < grp._athleteDatas.length; j++) {
@@ -3475,8 +3475,8 @@ export class StatsProcessor extends events.EventEmitter {
                 }
             } else if (grp._athleteDatas[0].groupId != null) {
                 const ad = grp._athleteDatas[0];
-                console.debug(ad.groupId, "Athlete LEFT the group!",
-                              this.loadAthlete(ad.athleteId)?.fullname);
+                //console.debug(ad.groupId, "Athlete LEFT the group!",
+                //              this.loadAthlete(ad.athleteId)?.fullname);
                 ad.groupId = null;
             }
         }
