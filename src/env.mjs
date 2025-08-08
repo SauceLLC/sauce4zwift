@@ -9,10 +9,11 @@ const _segments = new Map();
 const _segmentsByCourse = new Map();
 const _segmentsByRoadSig = new Map();
 const _routes = new Map();
-const _routesByCourse = new Map();
 const _roads = new Map();
 const _roadsByCourse = new Map();
 const _roadCurvePaths = new Map();
+const routeDistEpsilon = 1 / 200;
+const _routeSegmentCache = new Map();
 
 export const realWorldCourseId = -2;
 export const worldMetas = {
@@ -48,13 +49,12 @@ try {
         }
     }
     for (const x of readRoutes()) {
-        if (!_routesByCourse.has(x.courseId)) {
-            _routesByCourse.set(x.courseId, []);
-        }
         _routes.set(x.id, x);
-        _routesByCourse.get(x.courseId).push(x);
     }
-} catch {/*no-pragma*/}
+} catch(e) {
+    console.error('World data load error:', e);
+    debugger;
+}
 
 
 export function getWorldMetas() {
@@ -235,8 +235,13 @@ function readRoutes() {
     }
     for (const route of routes) {
         route.courseId = getCourseId(route.worldId);
+        let leadinCenti = 0;
         for (const m of route.manifest) {
             const segments = [];
+            if (m.leadin) {
+                leadinCenti += getRoadCurvePath(route.courseId, m.roadId)
+                    .subpathAtRoadPercents(m.start, m.end).distance(routeDistEpsilon);
+            }
             for (const x of _segmentsByCourse.get(route.courseId)) {
                 if (x.roadId === m.roadId && !!x.reverse === !!m.reverse) {
                     if (!x.reverse) {
@@ -258,26 +263,94 @@ function readRoutes() {
                 m.segmentIds = segments.map(x => x.id);
             }
         }
+        route.segmentLeadinDistance = leadinCenti / 100;
     }
     return routes;
 }
 
 
+export function projectRouteSegments(route, {laps=1, distance, epsilon=routeDistEpsilon}={}) {
+    let state = _routeSegmentCache.get(route.id);
+    if (!state) {
+        _routeSegmentCache.set(route.id, (state = {}));
+        const roadSlices = route.manifest.map(x =>
+            getRoadCurvePath(route.courseId, x.roadId).subpathAtRoadPercents(x.start, x.end));
+        state.routeSegments = [];
+        state.leadinDist = 0;
+        let distAccum = 0;
+        for (const [i, m] of route.manifest.entries()) {
+            const road = roadSlices[i];
+            const roadDist = road.distance(epsilon) / 100;
+            if (m.leadin) {
+                state.leadinDist += roadDist;
+            }
+            if (m.segmentIds) {
+                for (const id of m.segmentIds) {
+                    const segment = getSegment(id);
+                    const start = road.distanceAtRoadPercent(segment.roadStart, epsilon) / 100;
+                    const end = road.distanceAtRoadPercent(segment.roadFinish, epsilon) / 100;
+                    let startDistance, endDistance;
+                    if (!segment.reverse) {
+                        startDistance = distAccum + start;
+                        endDistance = distAccum + end;
+                    } else {
+                        startDistance = distAccum + (roadDist - start);
+                        endDistance = distAccum + (roadDist - end);
+                    }
+                    state.routeSegments.push({id, startDistance, endDistance, leadin: !!m.leadin});
+                }
+            }
+            distAccum += roadDist;
+        }
+        state.lapDist = distAccum - state.leadinDist;
+        console.warn("cache miss segments proj");
+    } else {
+        console.count("cache HIT segments proj");
+    }
+    if (distance) {
+        laps = route.supportedLaps ? Infinity : 1;
+    }
+    const lapSegments = [];
+    for (let lap = 1; lap < laps; lap++) {
+        const lapOfft = state.lapDist * lap;
+        if (distance && state.leadinDist + lapOfft >= distance) {
+            break;
+        }
+        for (const x of state.routeSegments) {
+            if (!x.leadin) {
+                lapSegments.push({
+                    id: x.id,
+                    startDistance: x.startDistance + lapOfft,
+                    endDistance: x.endDistance + lapOfft,
+                    leadin: false,
+                });
+            }
+        }
+    }
+    const allSegments = state.routeSegments.concat(lapSegments);
+    return distance ? allSegments.filter(x => x.endDistance <= distance) : allSegments;
+}
+
+
 export function getRoute(routeId) {
-    return _routes.get(routeId);
+    const route = _routes.get(routeId);
+    if (route && !route.segmentProjections) {
+        route.segmentProjections = projectRouteSegments(route, {laps: 1});
+    }
+    return route;
 }
 
 
 export function getRoutes(ids) {
     if (ids == null) {
-        return Array.from(_routes.values());
+        return Array.from(_routes.keys()).map(getRoute);
     }
-    return ids.map(x => _routes.get(x));
+    return ids.map(getRoute);
 }
 
 
 export function getCourseRoutes(courseId) {
-    return _routesByCourse.get(courseId) || [];
+    return Array.from(_routes.values().filter(x => x.courseId === courseId)).map(x => getRoute(x.id));
 }
 
 
