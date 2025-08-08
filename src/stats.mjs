@@ -130,12 +130,13 @@ class DataCollector {
         this._bufferedLen = 0;
         this.roll = new Klass(null, {...defOptions, ...options});
         this.periodized = new Map(periods.map(period => [period, {
-            roll: this.roll.clone({period}),
+            roll: this.roll.clone({period, ...options.periodizedOptions}),
             peak: null,
         }]));
     }
 
     clone({reset}={}) {
+        if (!reset) debugger;
         const instance = new this.constructor(null, null, {_cloning: true});
         if (!reset) {
             instance._maxValue = this._maxValue;
@@ -1253,6 +1254,8 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _formatLapish(lapish, ad, athlete, now, extra) {
+        // TODO: Let's introduce the concept of freezing a lapish so it's data arrays can be drained and
+        // we just retain a snapshot used for stats calls.
         const startIndex = lapish.power.roll._offt;
         const endIndex = Math.max(startIndex, lapish.power.roll._length - 1);
         return {
@@ -1341,6 +1344,8 @@ export class StatsProcessor extends events.EventEmitter {
     startAthleteLap(ad, now=monotonic()) {
         const lastLap = ad.laps[ad.laps.length - 1];
         lastLap.end = now;
+        // TODO: Let's introduce the concept of freezing a lapish so it's data arrays can be drained and
+        // we just retain a snapshot used for stats calls.
         const lap = this._createNewLapish(ad, now);
         ad.laps.push(lap);
         return lap;
@@ -1367,6 +1372,8 @@ export class StatsProcessor extends events.EventEmitter {
             segment.endEventDistance = ad.mostRecentState.eventDistance;
         }
         ad.activeSegments.delete(id);
+        // TODO: Let's introduce the concept of freezing a lapish so it's data arrays can be drained and
+        // we just retain a snapshot used for stats calls.
     }
 
     resetStats() {
@@ -1930,6 +1937,8 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _getBucketStats(bucket, ad, athlete, {now, includeDeprecated}={}) {
+        // TODO: Let's introduce the concept of freezing a lapish so it's data arrays can be drained and
+        // we just retain a snapshot used for stats calls.
         const end = bucket.end ?? now ?? monotonic();
         const elapsedTime = (end - bucket.start) / 1000;
         const np = bucket.power.roll.np({force: true});
@@ -1982,7 +1991,11 @@ export class StatsProcessor extends events.EventEmitter {
             workKj: 0,
             followKj: 0,
             soloKj: 0,
-            power: new DataCollector(sauce.power.RollingPower, periods, {inlineNP: true, round: true}),
+            power: new DataCollector(sauce.power.RollingPower, periods, {
+                inlineNP: true,
+                round: true,
+                periodizedOptions: {inlineNP: false}
+            }),
             speed: new DataCollector(sauce.data.RollingAverage, longPeriods, {ignoreZeros: true}),
             hr: new DataCollector(sauce.data.RollingAverage, longPeriods, {ignoreZeros: true, round: true}),
             cadence: new DataCollector(sauce.data.RollingAverage, [], {ignoreZeros: true, round: true}),
@@ -2088,7 +2101,6 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _createAthleteData(state, now) {
-        const bucket = this._makeDataBucket(now);
         const ad = {
             created: worldTimer.toLocalTime(state.worldTime),
             stOffset: worldTimer.toServerTime(state.worldTime),
@@ -2116,7 +2128,7 @@ export class StatsProcessor extends events.EventEmitter {
                 c: null,
             },
             events: new Map(),
-            bucket,
+            bucket: this._makeDataBucket(now),
             laps: [],
             segments: [],
             activeSegments: new Map(),
