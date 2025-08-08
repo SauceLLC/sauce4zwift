@@ -303,9 +303,6 @@ export function projectRouteSegments(route, {laps=1, distance, epsilon=routeDist
             distAccum += roadDist;
         }
         state.lapDist = distAccum - state.leadinDist;
-        console.warn("cache miss segments proj");
-    } else {
-        console.count("cache HIT segments proj");
     }
     if (distance) {
         laps = route.supportedLaps ? Infinity : 1;
