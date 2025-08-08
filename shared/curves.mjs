@@ -188,19 +188,33 @@ export class CurvePath {
         return new this.constructor({...this, nodes: this.nodes.slice(...args)});
     }
 
-    distance(t) {
+    distance(t=this.epsilon) {
+        if (!this.nodes.length) {
+            return 0;
+        }
+        const steps = Math.round(1 / t);
+        t = 1 / steps;
         let dist = 0;
-        let prevStep;
-        this.trace(x => {
-            dist += prevStep ? vecDist(prevStep, x.stepNode) : 0;
-            prevStep = x.stepNode;
-        }, t);
+        let prevPoint = this.nodes[0].end;
+        for (let i = 0; i < this.nodes.length - 1; i++) {
+            const x = this.nodes[i];
+            const next = this.nodes[i + 1];
+            if (next.cp1 && next.cp2) {
+                for (let j = steps - 1; j >= 0; j--) {
+                    const point = computeBezier(1 - j * t, x.end, next.cp1, next.cp2, next.end);
+                    dist += vecDist(prevPoint, point);
+                    prevPoint = point;
+                }
+            } else {
+                dist += vecDist(prevPoint, next.end);
+                prevPoint = next.end;
+            }
+        }
         return dist;
     }
 
-    trace(callback, t) {
+    trace(callback, t=this.epsilon) {
         // This would be better looking as a generator but it needs it to be fast.
-        t = t || this.epsilon;
         for (let index = 0; index < this.nodes.length; index++) {
             const origin = this.nodes[index];
             const next = this.nodes[index + 1];
@@ -246,6 +260,9 @@ export class RoadPath extends CurvePath {
     constructor(options={}) {
         super({...options, immutable: true});
         this.roadLength = options.roadLength != null ? options.roadLength : this.nodes.length;
+        if (this.roadLength < 3) {
+            throw new TypeError("roadLength must be >= 3");
+        }
         this.offsetIndex = options.offsetIndex || 0;
         this.offsetPercent = options.offsetPercent || 0;
         this.cropPercent = options.cropPercent || 0;
@@ -258,20 +275,19 @@ export class RoadPath extends CurvePath {
 
     roadPercentToOffsetTuple(rp) {
         const offt = roadPercentToOffset(rp, this.roadLength);
-        let index = offt | 0;
-        let percent = offt % 1;
+        // Handle +/-Infinity..
+        let index = Math.trunc(offt);
+        let percent = (offt % 1) || 0;
         index -= this.offsetIndex;
         if (index < 0) {
-            index = 0;
-            percent = 0;
+            return [0, 0];
         } else if (index >= this.nodes.length - 1) {
-            index = this.nodes.length - 1;
-            percent = 0;
+            return [this.nodes.length - 1, 0];
         } else if (index === 0) { // and only if length > 1
             percent = Math.max(0, (percent - this.offsetPercent) / (1 - this.offsetPercent));
         }
         if (index === this.nodes.length - 2 && percent && this.cropPercent) {
-            percent = percent / this.cropPercent;
+            percent /= this.cropPercent;
             if (percent >= 1) {
                 index++;
                 percent = 0;
@@ -417,6 +433,53 @@ export class RoadPath extends CurvePath {
             offsetPercent,
             cropPercent,
         });
+    }
+
+    distanceAtRoadPercent(rp, t=this.epsilon) {
+        const [endIndex, endPercent] = this.roadPercentToOffsetTuple(rp);
+        if (endIndex < 0 || endIndex === 0 && endPercent <= 0) {
+            return 0;
+        }
+        if (endIndex >= this.nodes.length - 1) {
+            return this.distance(t);
+        }
+        const steps = Math.round(1 / t);
+        t = 1 / steps;
+        let dist = 0;
+        let prevPoint = this.nodes[0].end;
+        // Avoid a few branches with core loops, followed later by end loop..
+        for (let i = 0; i < endIndex; i++) {
+            const x = this.nodes[i];
+            const next = this.nodes[i + 1];
+            if (next.cp1 && next.cp2) {
+                for (let j = steps - 1; j >= 0; j--) {
+                    const point = computeBezier(1 - j * t, x.end, next.cp1, next.cp2, next.end);
+                    dist += vecDist(prevPoint, point);
+                    prevPoint = point;
+                }
+            } else {
+                dist += vecDist(prevPoint, next.end);
+                prevPoint = next.end;
+            }
+        }
+        if (endPercent > 0) {
+            const endNode = this.nodes[endIndex];
+            const next = this.nodes[endIndex + 1];
+            if (next.cp1 && next.cp2) {
+                for (let j = steps - 1; j >= 0; j--) {
+                    const s = Math.min(endPercent, 1 - j * t);
+                    const point = computeBezier(s, endNode.end, next.cp1, next.cp2, next.end);
+                    dist += vecDist(prevPoint, point);
+                    prevPoint = point;
+                    if (s === endPercent) {
+                        break;
+                    }
+                }
+            } else {
+                dist += vecDist(prevPoint, next.end) * endPercent;
+            }
+        }
+        return dist;
     }
 }
 
