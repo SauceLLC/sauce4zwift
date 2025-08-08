@@ -610,9 +610,9 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.getFollowerAthletes, {scope: this});
         rpc.register(this.getMarkedAthletes, {scope: this});
         rpc.register(this.searchAthletes, {scope: this});
-        rpc.register(this.getEvent, {scope: this});
         rpc.register(this.getCachedEvent, {scope: this});
         rpc.register(this.getCachedEvents, {scope: this});
+        rpc.register(this.getEvent, {scope: this});
         rpc.register(this.getEventSubgroup, {scope: this});
         rpc.register(this.getEventSubgroupEntrants, {scope: this});
         rpc.register(this.getEventSubgroupResults, {scope: this});
@@ -1308,8 +1308,14 @@ export class StatsProcessor extends events.EventEmitter {
             segments = await this.zwiftAPI.getLiveSegmentLeaders();
         } else {
             if (options.live) {
+                // Includes eventSubgroupId.
+                // Only best result for each athlete in recent times (possibly only if in-world).
+                // Only returns first name initial.
                 segments = await this.zwiftAPI.getLiveSegmentLeaderboard(id, options);
             } else {
+                // Never includes eventSubgroupId.
+                // Can use data range.
+                // Full name.
                 segments = await this.zwiftAPI.getSegmentResults(id, options);
             }
         }
@@ -2695,6 +2701,12 @@ export class StatsProcessor extends events.EventEmitter {
                 if (rt) {
                     sg.routeDistance = this._getRouteDistance(rt, sg.laps);
                     sg.routeClimbing = this._getRouteClimbing(rt, sg.laps);
+                    sg.segmentLeadinDistance = Math.min(rt.segmentLeadinDistance,
+                                                        sg.distanceInMeters || Infinity);
+                    sg.segmentProjections = env.projectRouteSegments(rt, {
+                        distance: sg.distanceInMeters,
+                        laps: sg.laps,
+                    });
                 }
                 if (sg.durationInSeconds) {
                     sg.endTS = sg.ts + sg.durationInSeconds * 1000;
@@ -2719,12 +2731,18 @@ export class StatsProcessor extends events.EventEmitter {
         meetup.allTagsObject = this._parseEventTags(meetup);
         meetup.allTags = this._flattenEventTags(meetup.allTagsObject);
         meetup.ts = +new Date(meetup.eventStart);
-        if (meetup.routeId) {
-            const rt = env.getRoute(meetup.routeId);
+        const rt = meetup.routeId && env.getRoute(meetup.routeId);
+        if (rt) {
             meetup.courseId = rt.courseId;
             meetup.mapId = rt.worldId;
+            meetup.segmentLeadinDistance = Math.min(rt.segmentLeadinDistance,
+                                                    meetup.distanceInMeters || Infinity);
+            meetup.segmentProjections = env.projectRouteSegments(rt, {
+                distance: meetup.distanceInMeters,
+                laps: meetup.laps,
+            });
         } else {
-            console.warn("Meetup has no decernable course/world", meetup);
+            console.warn("Meetup has no decernable route", meetup);
         }
         // Meetups are basically a hybrid event/subgroup
         const sg = {
@@ -2995,9 +3013,6 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _getRoadDistance({courseId, roadId, reversed}, start, end) {
-        if (start == null || end == null || isNaN(start) || isNaN(end)) {
-            throw new Error("NOPE");
-        }
         if (end < start) {
             return 0;
         }
@@ -3005,7 +3020,7 @@ export class StatsProcessor extends events.EventEmitter {
         if (!roadPath) {
             return 0;
         }
-        return roadPath.subpathAtRoadPercents(start, end).distance(0.05) / 100;
+        return roadPath.subpathAtRoadPercents(start, end).distance(1/32) / 100;
     }
 
     _findNearestTimelineCheckpoint(timeline, value) {
