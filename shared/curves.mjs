@@ -13,6 +13,70 @@
 const curvePathSchemaVersion = 1;
 
 
+class LRUCache extends Map {
+    constructor(capacity) {
+        super();
+        this._capacity = capacity;
+        this._head = null;
+    }
+
+    get(key) {
+        const entry = super.get(key);
+        if (entry === undefined) {
+            return;
+        }
+        this._moveToHead(entry);
+        return entry.value;
+    }
+
+    set(key, value) {
+        let entry = super.get(key);
+        if (entry === undefined) {
+            if (this.size === this._capacity) {
+                // Fast path: just replace tail and rotate.
+                entry = this._head.prev;
+                this._head = entry;
+                this.delete(entry.key);
+            } else {
+                entry = {};
+                if (!this.size) {
+                    entry.next = entry.prev = entry;
+                    this._head = entry;
+                } else {
+                    this._moveToHead(entry);
+                }
+            }
+            entry.key = key;
+            entry.value = value;
+            super.set(key, entry);
+        } else {
+            entry.value = value;
+            this._moveToHead(entry);
+        }
+    }
+
+    _moveToHead(entry) {
+        if (entry === this._head) {
+            return;
+        }
+        if (entry.next) {
+            entry.next.prev = entry.prev;
+            entry.prev.next = entry.next;
+        }
+        entry.next = this._head;
+        entry.prev = this._head.prev;
+        this._head.prev.next = entry;
+        this._head.prev = entry;
+        this._head = entry;
+    }
+
+    clear() {
+        this._head = null;
+        super.clear();
+    }
+}
+
+
 export function vecDist(a, b) {
     const dx = b[0] - a[0];
     const dy = b[1] - a[1];
@@ -119,6 +183,9 @@ export function roadOffsetToTime(i, length) {
 
 
 export class CurvePath {
+
+    static _distCache = new LRUCache(65536);
+
     constructor({nodes=[], epsilon=0.001, immutable=false}={}) {
         this.nodes = nodes;
         this.epsilon = epsilon;
@@ -200,11 +267,26 @@ export class CurvePath {
             const x = this.nodes[i];
             const next = this.nodes[i + 1];
             if (next.cp1 && next.cp2) {
-                for (let j = steps - 1; j >= 0; j--) {
-                    const point = computeBezier(1 - j * t, x.end, next.cp1, next.cp2, next.end);
-                    dist += vecDist(prevPoint, point);
-                    prevPoint = point;
+                const cKey = JSON.stringify([
+                    steps,
+                    x.end[0],    x.end[1],    x.end[2],
+                    next.cp1[0], next.cp1[1], next.cp1[2],
+                    next.cp2[0], next.cp2[1], next.cp2[2],
+                    next.end[0], next.end[1], next.end[2]
+                ]); // Incredibly fast with V8 13.4+
+                let d = this.constructor._distCache.get(cKey);
+                if (d !== undefined) {
+                    prevPoint = next.end;
+                } else {
+                    d = 0;
+                    for (let j = steps - 1; j >= 0; j--) {
+                        const point = computeBezier(1 - j * t, x.end, next.cp1, next.cp2, next.end);
+                        d += vecDist(prevPoint, point);
+                        prevPoint = point;
+                    }
+                    this.constructor._distCache.set(cKey, d);
                 }
+                dist += d;
             } else {
                 dist += vecDist(prevPoint, next.end);
                 prevPoint = next.end;
@@ -452,11 +534,26 @@ export class RoadPath extends CurvePath {
             const x = this.nodes[i];
             const next = this.nodes[i + 1];
             if (next.cp1 && next.cp2) {
-                for (let j = steps - 1; j >= 0; j--) {
-                    const point = computeBezier(1 - j * t, x.end, next.cp1, next.cp2, next.end);
-                    dist += vecDist(prevPoint, point);
-                    prevPoint = point;
+                const cKey = JSON.stringify([
+                    steps,
+                    x.end[0],    x.end[1],    x.end[2],
+                    next.cp1[0], next.cp1[1], next.cp1[2],
+                    next.cp2[0], next.cp2[1], next.cp2[2],
+                    next.end[0], next.end[1], next.end[2]
+                ]); // Incredibly fast with V8 13.4+
+                let d = this.constructor._distCache.get(cKey);
+                if (d !== undefined) {
+                    prevPoint = next.end;
+                } else {
+                    d = 0;
+                    for (let j = steps - 1; j >= 0; j--) {
+                        const point = computeBezier(1 - j * t, x.end, next.cp1, next.cp2, next.end);
+                        d += vecDist(prevPoint, point);
+                        prevPoint = point;
+                    }
+                    this.constructor._distCache.set(cKey, d);
                 }
+                dist += d;
             } else {
                 dist += vecDist(prevPoint, next.end);
                 prevPoint = next.end;

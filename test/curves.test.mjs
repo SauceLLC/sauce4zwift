@@ -293,7 +293,7 @@ test('subpath roadTime integrity - end clipped', () => {
         const points = [[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5]];
         const path = curves.catmullRomPath(points, {road: true});
         const start = 0;
-        const end = Math.random();
+        const end = Math.max(ep * 2, Math.random());
         const subpath = path.subpathAtRoadPercents(start, end);
         assert(subpath.includesRoadPercent((end - start) / 2 + start));
         assert(subpath.includesRoadPercent((end - start) / 2 + start));
@@ -301,7 +301,6 @@ test('subpath roadTime integrity - end clipped', () => {
         assert(subpath.includesRoadPercent(end - ep));
         assert(!subpath.includesRoadPercent(end + ep));
         assert(!subpath.includesRoadPercent(start - ep));
-
     }
 });
 
@@ -471,8 +470,19 @@ test('distance bench', () => {
         points.push([i, 0, 0, {straight: Math.random() > 0.9}]);
     }
     const path = curves.catmullRomPath(points, {road: true});
-    for (let i = 0; i < 100; i++) {
-        const d = path.distance();
+    for (let i = 0; i < 20000; i++) {
+        const d = path.subpathAtRoadPercents(0.2, 0.2 + Math.random()).distance(0.05);
+        assert.ok(d > 0);
+    }
+});
+test('distance bench nocache', () => {
+    const points = [];
+    for (let i = 0; i < 200; i++) {
+        points.push([i, 0, 0, {straight: Math.random() > 0.9}]);
+    }
+    const path = curves.catmullRomPath(points, {road: true});
+    for (let i = 0; i < 20000; i++) {
+        const d = path.subpathAtRoadPercents(0.2, 0.2 + Math.random()).distanceNoCache(0.05);
         assert.ok(d > 0);
     }
 });
