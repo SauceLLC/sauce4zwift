@@ -466,23 +466,12 @@ test('distanceAtRoadPercent with straights', () => {
 
 test('distance bench', () => {
     const points = [];
-    for (let i = 0; i < 200; i++) {
+    for (let i = 0; i < 400; i++) {
         points.push([i, 0, 0, {straight: Math.random() > 0.9}]);
     }
     const path = curves.catmullRomPath(points, {road: true});
-    for (let i = 0; i < 20000; i++) {
-        const d = path.subpathAtRoadPercents(0.2, 0.2 + Math.random()).distance(0.05);
-        assert.ok(d > 0);
-    }
-});
-test('distance bench nocache', () => {
-    const points = [];
-    for (let i = 0; i < 200; i++) {
-        points.push([i, 0, 0, {straight: Math.random() > 0.9}]);
-    }
-    const path = curves.catmullRomPath(points, {road: true});
-    for (let i = 0; i < 20000; i++) {
-        const d = path.subpathAtRoadPercents(0.2, 0.2 + Math.random()).distanceNoCache(0.05);
+    for (let i = 0; i < 2000; i++) {
+        const d = path.subpathAtRoadPercents(0.2, 0.2 + Math.random()).distance();
         assert.ok(d > 0);
     }
 });
