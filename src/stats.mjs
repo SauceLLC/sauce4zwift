@@ -129,10 +129,11 @@ class DataCollector {
         this._bufferedSum = 0;
         this._bufferedLen = 0;
         this.roll = new Klass(null, {...defOptions, ...options});
-        this.periodized = new Map(periods.map(period => [period, {
+        this.periodized = periods.map(period => ({
+            period,
             roll: this.roll.clone({period, ...options.periodizedOptions}),
             peak: null,
-        }]));
+        }));
     }
 
     clone({reset}={}) {
@@ -141,13 +142,11 @@ class DataCollector {
             instance._maxValue = this._maxValue;
         }
         instance.roll = this.roll.clone({reset});
-        instance.periodized = new Map();
-        for (const [period, {roll, peak}] of this.periodized) {
-            instance.periodized.set(period, {
-                roll: roll.clone({reset}),
-                peak: reset ? null : peak,
-            });
-        }
+        instance.periodized = this.periodized.map(x => ({
+            period: x.period,
+            roll: x.roll.clone({reset}),
+            peak: reset ? null : x.peak,
+        }));
         return instance;
     }
 
@@ -197,11 +196,12 @@ class DataCollector {
     }
 
     _resizePeriodized() {
-        for (const x of this.periodized.values()) {
+        for (let i = 0; i < this.periodized.length; i++) {
+            const x = this.periodized[i];
             const added = x.roll.resize();
             if (added && x.roll.full()) {
                 const avg = x.roll.avg();
-                // XXX this is a little heavy, save x.peak.avg() somewhere
+                // XXX this is a little heavy, save x.peak.avg()
                 if (x.peak === null || avg >= x.peak.avg()) {
                     x.peak = x.roll.clone();
                 }
@@ -209,21 +209,56 @@ class DataCollector {
         }
     }
 
-    getStats(wtOffset, extra) {
-        const peaks = {};
-        const smooth = {};
-        for (const [p, {roll, peak}] of this.periodized) {
+    getStatsFuture(wtOffset, extra) {
+        // TBD
+        // Convert to this when we eval Mod breakage...
+        const peaks = new Array(this.periodized.length);
+        const smooth = new Array(this.periodized.length);
+        for (let i = 0; i < this.periodized.length; i++) {
+            const {period, roll, peak} = this.periodized[i];
             if (peak) {
                 const time = peak.lastTime();
-                peaks[p] = {
+                peaks[i] = {
+                    period,
                     avg: peak.avg(),
                     time,
                     ts: worldTimer.toLocalTime(wtOffset + (time * 1000)),
                 };
             } else {
-                peaks[p] = {avg: null, time: null, ts: null};
+                peaks[i] = {period, avg: null, time: null, ts: null};
             }
-            smooth[p] = roll.avg();
+            smooth[i] = {period, avg: roll.avg()};
+        }
+        return {
+            avg: this.roll.avg(),
+            max: this._maxValue,
+            peaks,
+            smooth,
+            ...extra,
+        };
+    }
+
+    getStatsSlow(wtOffset, extra) {
+        const peaks = {};
+        const smooth = {};
+        // XXX So with https://v8.dev/blog/json-stringify it turns out we are giving up a lot of perf
+        // by using numeric keys (does NOT matter that they are converted to strings).  See getStatsFuture
+        // for the better impl we want to go to.
+        for (let i = 0; i < this.periodized.length; i++) {
+            const {period, roll, peak} = this.periodized[i];
+            const key = period.toString();
+            if (peak) {
+                const time = peak.lastTime();
+                peaks[key] = {
+                    period,
+                    avg: peak.avg(),
+                    time,
+                    ts: worldTimer.toLocalTime(wtOffset + (time * 1000)),
+                };
+            } else {
+                peaks[key] = {period, avg: null, time: null, ts: null};
+            }
+            smooth[key] = roll.avg();
         }
         return {
             avg: this.roll.avg(),
@@ -1963,17 +1998,17 @@ export class StatsProcessor extends events.EventEmitter {
             soloKj: bucket.soloKj,
             wBal, // DEPRECATED
             timeInPowerZones, // DEPRECATED
-            power: bucket.power.getStats(ad.wtOffset, {
+            power: bucket.power.getStatsSlow(ad.wtOffset, {
                 np,
                 tss,
                 kj: bucket.power.roll.joules() / 1000,
                 wBal, // DEPRECATED
                 timeInZones: timeInPowerZones, // DEPRECATED
             }),
-            speed: bucket.speed.getStats(ad.wtOffset),
-            hr: bucket.hr.getStats(ad.wtOffset),
-            cadence: bucket.cadence.getStats(ad.wtOffset),
-            draft: bucket.draft.getStats(ad.wtOffset, {
+            speed: bucket.speed.getStatsSlow(ad.wtOffset),
+            hr: bucket.hr.getStatsSlow(ad.wtOffset),
+            cadence: bucket.cadence.getStatsSlow(ad.wtOffset),
+            draft: bucket.draft.getStatsSlow(ad.wtOffset, {
                 kj: bucket.draft.roll.joules() / 1000,
             }),
         };
@@ -2102,8 +2137,12 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _createAthleteData(state, now) {
+        const created = worldTimer.toLocalTime(state.worldTime);
         const ad = {
-            created: worldTimer.toLocalTime(state.worldTime),
+            created,
+            updated: created,
+            internalUpdated: now,
+            internalAccessed: now,
             stOffset: worldTimer.toServerTime(state.worldTime),
             wtOffset: state.worldTime,
             athleteId: state.athleteId,
@@ -2456,7 +2495,7 @@ export class StatsProcessor extends events.EventEmitter {
         }
         ad.mostRecentState = state;
         ad.updated = worldTimer.toLocalTime(state.worldTime);
-        ad.internalUpdated = now;
+        ad.internalUpdated = ad.internalAccessed = now;
         this._stateProcessCount++;
         let emitData;
         let streamsData;
@@ -3067,8 +3106,8 @@ export class StatsProcessor extends events.EventEmitter {
     gcAthleteData() {
         const now = monotonic();
         const expiration = now - 3600 * 1000;
-        for (const [id, {internalUpdated}] of this._athleteData) {
-            if (internalUpdated < expiration) {
+        for (const [id, {internalAccessed}] of this._athleteData) {
+            if (internalAccessed < expiration) {
                 this._athleteData.delete(id);
                 this._athletesCache.delete(id);
                 this._profileFetchDeferrals.delete(id);
@@ -3229,6 +3268,7 @@ export class StatsProcessor extends events.EventEmitter {
         if (athlete && ad.privacy.hideFTP) {
             athlete = {...athlete, ftp: null};
         }
+        ad.internalAccessed = now;
         const state = ad.mostRecentState;
         const lapCount = ad.laps.length;
         return {
@@ -3435,6 +3475,7 @@ export class StatsProcessor extends events.EventEmitter {
         // With completed groups and athletes compute aggregate stats...
         const newGroupMetas = [];
         const usedGroupIds = new Set();
+        const now = monotonic();
         for (let i = 0; i < groups.length; i++) {
             const grp = groups[i];
             grp.weight /= grp.weightCount;
@@ -3488,7 +3529,7 @@ export class StatsProcessor extends events.EventEmitter {
                         }
                     }
                     bestGroupMeta.identitySet = identitySet;
-                    bestGroupMeta.accessed = monotonic();
+                    bestGroupMeta.accessed = now;
                     usedGroupIds.add(bestGroupMeta.id);
                 } else {
                     grp.id = groupIdCounter++;
@@ -3496,7 +3537,7 @@ export class StatsProcessor extends events.EventEmitter {
                     /*for (const x of identitySet) {
                         console.debug(grp.id, "Athlete formed a new group!", this.loadAthlete(x)?.fullname);
                     }*/
-                    newGroupMetas.push({id: grp.id, accessed: monotonic(), identitySet});
+                    newGroupMetas.push({id: grp.id, accessed: now, identitySet});
                 }
                 for (let j = 0; j < grp._athleteDatas.length; j++) {
                     grp._athleteDatas[j].groupId = grp.id;
