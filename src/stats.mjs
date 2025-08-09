@@ -136,7 +136,6 @@ class DataCollector {
     }
 
     clone({reset}={}) {
-        if (!reset) debugger;
         const instance = new this.constructor(null, null, {_cloning: true});
         if (!reset) {
             instance._maxValue = this._maxValue;
@@ -202,6 +201,7 @@ class DataCollector {
             const added = x.roll.resize();
             if (added && x.roll.full()) {
                 const avg = x.roll.avg();
+                // XXX this is a little heavy, save x.peak.avg() somewhere
                 if (x.peak === null || avg >= x.peak.avg()) {
                     x.peak = x.roll.clone();
                 }
@@ -1993,6 +1993,7 @@ export class StatsProcessor extends events.EventEmitter {
             soloKj: 0,
             power: new DataCollector(sauce.power.RollingPower, periods, {
                 inlineNP: true,
+                disableInlineNPResize: true,
                 round: true,
                 periodizedOptions: {inlineNP: false}
             }),
