@@ -48,8 +48,7 @@ abbr.unit {
     &.no-data {
         > nav,
         > main {
-            opacity: 0.2;
-            pointer-events: none;
+            display: none;
         }
     }
 
@@ -262,9 +261,42 @@ main {
             font-size: 0.6em;
         }
     }
+
+    .events {
+        border-top: 1px solid #333;
+        .event-summary {
+            display: flex;
+            align-items: center;
+
+            .rank {
+                font-size: 1.5em;
+                font-weight: 700;
+                color: color.shade(intrinsic-inverted, 20%, 0.8);
+                margin-right: 0.3em;
+                margin-left: 0.3em;
+
+                .trophy {
+                    width: 1.5em;
+                    height: 1.5em;
+                    border-radius: 50%;
+                    overflow: hidden;
+
+                    &.gold {
+                        background-color: gold;
+                    }
+                    &.silver {
+                        background-color: silver;
+                    }
+                    &.bronze {
+                        background-color: bronze;
+                    }
+                }
+            }
+        }
+    }
 }
 
-section.selection {
+section.analysis {
     padding: 0 !important;
 }
 
@@ -560,6 +592,12 @@ nav > section .echarts-chart {
                 margin: -0.4em -0.8em -0.4em 0;
             }
         }
+
+        tr.selected {
+            img.rank {
+                filter: drop-shadow(0 0 4px #fff);
+            }
+        }
     }
 }
 
@@ -596,7 +634,7 @@ table.basic {
 table.selectable {
     > tbody > tr {
         &.selected {
-            background-color: color.shade(intrinsic-inverted, 30%) !important;
+            background-color: color.shade(intrinsic-inverted, 40%) !important;
             color: color.get(intrinsic) !important;
         }
 
@@ -650,6 +688,7 @@ table.segments {
             text-align: center;
             box-shadow: 1px 1px 3px 0 #0002;
             margin-bottom: 0;
+            margin-left: -0.18em;
 
             &.gold {
                 background-color: gold;
