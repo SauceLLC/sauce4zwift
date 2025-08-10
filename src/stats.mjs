@@ -2753,8 +2753,6 @@ export class StatsProcessor extends events.EventEmitter {
                 if (rt) {
                     sg.routeDistance = this._getRouteDistance(rt, sg.laps);
                     sg.routeClimbing = this._getRouteClimbing(rt, sg.laps);
-                    sg.segmentLeadinDistance = Math.min(rt.segmentLeadinDistance,
-                                                        sg.distanceInMeters || Infinity);
                     sg.segmentProjections = env.projectRouteSegments(rt, {
                         distance: sg.distanceInMeters,
                         laps: sg.laps,
@@ -2787,8 +2785,6 @@ export class StatsProcessor extends events.EventEmitter {
         if (rt) {
             meetup.courseId = rt.courseId;
             meetup.mapId = rt.worldId;
-            meetup.segmentLeadinDistance = Math.min(rt.segmentLeadinDistance,
-                                                    meetup.distanceInMeters || Infinity);
             meetup.segmentProjections = env.projectRouteSegments(rt, {
                 distance: meetup.distanceInMeters,
                 laps: meetup.laps,

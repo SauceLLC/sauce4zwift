@@ -235,13 +235,8 @@ function readRoutes() {
     }
     for (const route of routes) {
         route.courseId = getCourseId(route.worldId);
-        let leadinCenti = 0;
         for (const m of route.manifest) {
             const segments = [];
-            if (m.leadin) {
-                leadinCenti += getRoadCurvePath(route.courseId, m.roadId)
-                    .subpathAtRoadPercents(m.start, m.end).distance(routeDistEpsilon);
-            }
             for (const x of _segmentsByCourse.get(route.courseId)) {
                 if (x.roadId === m.roadId && !!x.reverse === !!m.reverse) {
                     if (!x.reverse) {
@@ -263,49 +258,63 @@ function readRoutes() {
                 m.segmentIds = segments.map(x => x.id);
             }
         }
-        route.segmentLeadinDistance = leadinCenti / 100;
     }
     return routes;
 }
 
 
 export function projectRouteSegments(route, {laps=1, distance, epsilon=routeDistEpsilon}={}) {
+    //if (route.id === 2592027600) debugger;
     let state = _routeSegmentCache.get(route.id);
     if (!state) {
         _routeSegmentCache.set(route.id, (state = {}));
         const roadSlices = route.manifest.map(x =>
             getRoadCurvePath(route.courseId, x.roadId).subpathAtRoadPercents(x.start, x.end));
+        const fullPath = new curves.CurvePath();
         state.routeSegments = [];
         state.leadinDist = 0;
-        let distAccum = 0;
+        const hasLeadin = route.manifest[0].leadin;
         for (const [i, m] of route.manifest.entries()) {
             const road = roadSlices[i];
-            const roadDist = road.distance(epsilon) / 100;
-            if (m.leadin) {
-                state.leadinDist += roadDist;
+            if (i) {
+                fullPath.extend(m.reverse ? road.slice(-1) : road.slice(0, 1));
             }
+            const distBefore = fullPath.distance(epsilon) / 100;
+            if (!state.leadinDist && hasLeadin && !m.leadin) {
+                state.leadinDist = distBefore;
+            }
+            fullPath.extend(m.reverse ? road.toCurvePath().toReversed() : road);
             if (m.segmentIds) {
+                let distAfter;
                 for (const id of m.segmentIds) {
                     const segment = getSegment(id);
                     const start = road.distanceAtRoadPercent(segment.roadStart, epsilon) / 100;
                     const end = road.distanceAtRoadPercent(segment.roadFinish, epsilon) / 100;
                     let startDistance, endDistance;
                     if (!segment.reverse) {
-                        startDistance = distAccum + start;
-                        endDistance = distAccum + end;
+                        startDistance = distBefore + start;
+                        endDistance = distBefore + end;
                     } else {
-                        startDistance = distAccum + (roadDist - start);
-                        endDistance = distAccum + (roadDist - end);
+                        distAfter = distAfter || fullPath.distance(epsilon) / 100;
+                        startDistance = distAfter - start;
+                        endDistance = distAfter - end;
                     }
                     state.routeSegments.push({id, startDistance, endDistance, leadin: !!m.leadin});
                 }
             }
-            distAccum += roadDist;
         }
-        state.lapDist = distAccum - state.leadinDist;
+        if (route.supportedLaps) {
+            const idx = route.manifest.findIndex(x => !x.leadin);
+            const startRoad = roadSlices[idx];
+            fullPath.extend(route.manifest[idx].reverse ? startRoad.slice(-1) : startRoad.slice(0, 1));
+            state.lapDist = (fullPath.distance(epsilon) / 100) - state.leadinDist;
+        }
     }
     if (distance) {
         laps = route.supportedLaps ? Infinity : 1;
+    } else if (laps > 1 && !route.supportedLaps) {
+        console.error("Route does not support laps:", route.id);
+        laps = 1;
     }
     const lapSegments = [];
     for (let lap = 1; lap < laps; lap++) {
@@ -325,7 +334,11 @@ export function projectRouteSegments(route, {laps=1, distance, epsilon=routeDist
         }
     }
     const allSegments = state.routeSegments.concat(lapSegments);
-    return distance ? allSegments.filter(x => x.endDistance <= distance) : allSegments;
+    return {
+        leadinDistance: state.leadinDist,
+        lapDistance: state.lapDist,
+        segments: distance ? allSegments.filter(x => x.endDistance <= distance) : allSegments,
+    };
 }
 
 
