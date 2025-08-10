@@ -98,12 +98,12 @@
             <header>Pack Time</header>
             <div class="echarts-chart pack-time"></div>
         </section>
-
-        <section class="events"></section>
     </nav>
 
     <main>
-        <section class="analysis selection">
+        <section class="events"></section>
+
+        <section class="analysis">
             <div class="world" id="world-map-title"></div>
             <div id="map-wrap">
                 <div id="map"></div>

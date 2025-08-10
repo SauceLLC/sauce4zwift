@@ -39,4 +39,6 @@
             <value>{-humanDuration(stats.coffeeTime, {suffix: true, html: true})-}</value>
         </div>
     <% } %>
+<% } else { %>
+    <div class="badge" style="--hue: 0deg;">No Data Available</div>
 <% } %>
