@@ -27,6 +27,7 @@ const laps = [];
 const segments = [];
 const streams = {};
 const positions = [];
+const eventSubgroups = new Map();
 const rolls = {power: new sauce.power.RollingPower(null, {idealGap: 1, maxGap: 15})};
 let courseId;
 let zwiftMap;
@@ -90,19 +91,20 @@ const peakFormatters = {
 const streamSeries = ['power', 'hr', 'speed', 'cadence', 'wbal', 'draft'].map(x => chartsMod.streamFields[x]);
 
 
-function resizeCharts() {
-    powerZonesChart.resize();
-    packTimeChart.resize();
-}
-
-
 let templateIds = 0;
 async function getTemplates(basenames) {
     return Object.fromEntries(await Promise.all(basenames.map(async k => {
-        const tpl = await sauce.template.getTemplate(`templates/analysis/${k}.html.tpl`);
+        let file;
+        if (k.startsWith('/')) {
+            k = k.substr(1);
+            file = `${k}.html.tpl`;
+        } else {
+            file = `analysis/${k}.html.tpl`;
+        }
+        const tpl = await sauce.template.getTemplate(`templates/${file}`);
         tpl.id = templateIds++;
         // camelCase conv keys-with_snakecase--chars
-        return [k.replace(/[-_]+(.)/g, (_, x) => x.toUpperCase()), tpl];
+        return [k.replace(/[-_/]+(.)/g, (_, x) => x.toUpperCase()), tpl];
     })));
 }
 
@@ -138,6 +140,8 @@ async function renderSurgicalTemplate(selector, tpl, attrs) {
         settings,
         templates,
         common,
+        athlete,
+        athleteData,
         ...attrs,
     });
     const key = `${selector}-${tpl.id}`;
@@ -661,6 +665,7 @@ function createTimeInPowerZonesPie(el) {
             }],
         });
     };
+    new ResizeObserver(() => chart.resize()).observe(el);
     return chart;
 }
 
@@ -777,6 +782,7 @@ function createPackTimeChart(el) {
             }],
         });
     };
+    new ResizeObserver(() => chart.resize()).observe(el);
     return chart;
 }
 
@@ -809,7 +815,6 @@ export async function main() {
         common.rpc.getPowerZones(1),
     ]);
     await renderSurgicalTemplate('#content', templates.main, {
-        athlete,
         nationFlags,
         worldList,
         peakFormatters,
@@ -852,7 +857,6 @@ export async function main() {
         addEventListener('pointercancel', () => abrt.abort(), {signal: abrt.signal});
         addEventListener('pointerup', () => abrt.abort(), {signal: abrt.signal});
     });
-    addEventListener('resize', resizeCharts);
 
     document.querySelector('.button.export-file').addEventListener('click', () => {
         const started = new Date(athleteData.created);
@@ -893,7 +897,7 @@ export async function main() {
                     selectionSource = 'peaks';
                     const endIndex = streams.time.indexOf(peak.time);
                     const startIndex = common.binarySearchClosest(streams.time, peak.time - period);
-                    selectionEntry = {startIndex, endIndex};
+                    selectionEntry = {startIndex, endIndex, period};
                 } else {
                     selectionSource = selectionEntry = null;
                     setSelection();
@@ -1032,6 +1036,8 @@ async function updateSegmentResults(segment) {
         _lastExpandedSegment = segment;
         segmentResults = null;
         const results = await common.rpc.getSegmentResults(segment.segmentId);
+        const resultsLive = await common.rpc.getSegmentResults(segment.segmentId, {live: true});
+        console.log(results, resultsLive);
         // Recheck state, things may have changed during fetch/render..
         if (segment !== _lastExpandedSegment) {
             return;
@@ -1045,7 +1051,6 @@ async function updateSegmentResults(segment) {
 function renderSegments() {
     const selected = selectionSource === 'segments' ? segments.indexOf(selectionEntry) : undefined;
     return renderSurgicalTemplate('section.segments', templates.segments, {
-        athlete,
         segments,
         selected,
         results: segmentResults,
@@ -1078,6 +1083,7 @@ async function updatePeaksTemplate() {
         peaks,
         formatter,
         sport,
+        selected: selectionSource === 'peaks' ? selectionEntry.period : null,
     });
 }
 
@@ -1168,6 +1174,35 @@ async function updateAllData({reset}={}) {
             console.debug("Setting course to:", courseId);
             console.debug("Course geo offset:", geoOffset);
         }
+        for (const x of athleteData.events) {
+            let sg = eventSubgroups.get(x.subgroupId);
+            if (!sg) {
+                console.debug("Event found:", x.id);
+                changed.events = true;
+                sg = await common.getEventSubgroup(x.subgroupId);
+                sg.entrants = await common.rpc.getEventSubgroupEntrants(x.subgroupId);
+                eventSubgroups.set(sg.id, sg);
+            }
+            if (laps.at(-1).eventSubgroupId !== sg.id) {
+                const evLap = laps.find(x => x.eventSubgroupId === sg.id);
+                const now = Date.now();
+                const age = evLap ? now - (athleteData.created + evLap.end * 1000) : 0;
+                console.warn({age});
+                if (!sg.results || now - sg.resultsTS > Math.min(15_000, age / 10)) {
+                    console.warn('do it');
+                    sg.resultsTS = now;
+                    sg.results = await common.rpc.getEventSubgroupResults(x.subgroupId);
+                    changed.events = true;
+                }
+            }
+        }
+        for (const id of eventSubgroups.keys()) {
+            if (!athleteData.events.some(x => x.subgroupId === id)) {
+                console.debug("Event removed:", id);
+                eventSubgroups.delete(id);
+                changed.events = true;
+            }
+        }
     } else if (courseId != null) {
         console.debug("Athlete data is no longer available");
         changed.course = true;
@@ -1241,7 +1276,11 @@ async function updateAll() {
             exportBtn.setAttribute('disabled', 'disabled');
             console.debug("Athlete-data not available");
         }
-        renderSurgicalTemplate('nav section.events', templates.eventsSummary, {athleteData}); // bg okay
+    }
+    if (changed.events) {
+        renderSurgicalTemplate('main > section.events', templates.eventsSummary, {
+            eventSubgroups,
+        }); // bg okay
     }
     if (changed.streams || changed.reset) {
         if (streams.time?.length) {
@@ -1300,13 +1339,12 @@ async function updateAll() {
             }
         }
         renderSurgicalTemplate('section.laps', templates.laps, {
-            athlete,
             streams,
             laps,
             selected,
         }); // bg okay
     }
-    renderSurgicalTemplate('.activity-summary', templates.activitySummary, {athleteData}); // bg okay
+    renderSurgicalTemplate('.activity-summary', templates.activitySummary); // bg okay
 }
 
 

@@ -8,7 +8,8 @@
 <table class="peak-effort basic selectable">
     <% if (obj.peaks) { %>
         <% for (const [k, x] of Object.entries(peaks)) { %>
-            <tr data-peak-source="{{source}}" data-peak-period="{{k}}">
+            <tr data-peak-source="{{source}}" data-peak-period="{{k}}"
+                class="{{+k === selected ? 'selected' : ''}}">
                 <td>{-humanDuration(k, {html: true})-}</td>
                 <td>
                     <span class="peak-value">{-formatter(x.avg)-}</span>
