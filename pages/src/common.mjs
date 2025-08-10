@@ -483,7 +483,7 @@ export function zToAltitude(worldMeta, z, {physicsSlopeScale}={}) {
 
 
 export function supplimentPath(worldMeta, curvePath, {physicsSlopeScale}={}) {
-    const balancedT = 1 / 125; // tests to within 0.27 meters (worst case)
+    const balancedT = 1 / 200; // very fast but still accurate to ~20cm and matches src/env.mjs
     const distEpsilon = 1e-6;
     const elevations = [];
     const grades = [];
@@ -550,8 +550,8 @@ export async function getRoad(courseId, id) {
 }
 
 
-export function getSegment(id) {
-    return getSegments([id]);
+export async function getSegment(id) {
+    return (await getSegments([id]))[0];
 }
 
 
