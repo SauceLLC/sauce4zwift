@@ -557,7 +557,7 @@ export async function getSegment(id) {
 
 export async function computeRoutePath(route) {
     const curvePath = new curves.CurvePath();
-    const roadSegments = [];
+    const roadSlices = [];
     const worldList = await getWorldList();
     const worldMeta = worldList.find(x => x.courseId === route.courseId);
     for (const [i, x] of route.manifest.entries()) {
@@ -569,14 +569,56 @@ export async function computeRoutePath(route) {
         for (const xx of seg.nodes) {
             xx.index = i;
         }
-        roadSegments.push(seg);
+        roadSlices.push(seg);
         curvePath.extend(x.reverse ? seg.toCurvePath().toReversed() : seg);
+    }
+    let lapWeldPath;
+    let lapWeldData;
+    if (route.supportedLaps) {
+        // Handle cases where route data does not properly weld the lap together.
+        // Zwift calls this `distanceBetweenFirstLastLrCPsInMeters`
+        const lapStart = route.manifest.find(x => !x.leadin);
+        const lapEnd = route.manifest.at(-1);
+        if (lapStart.roadId !== lapEnd.roadId || lapStart.reverse !== lapEnd.reverse) {
+            // Sadly there are few cases of this, such as: 986252325, 5745690
+            console.warn("Unable to properly weld lap together for:", route.id);
+            const startNode = roadSlices[route.manifest.indexOf(lapStart)].nodes[0];
+            const endNode = roadSlices.at(-1).nodes.at(-1);
+            lapWeldPath = new curves.CurvePath();
+            lapWeldPath.extend([endNode, startNode]);
+        } else {
+            let weld = (await getRoad(route.courseId, lapStart.roadId)).curvePath;
+            let start, end;
+            if (!lapStart.reverse) {
+                start = lapEnd.end;
+                end = lapStart.start;
+            } else {
+                start = lapEnd.start;
+                end = lapStart.end;
+            }
+            if (Math.abs(start - end) > 1e-4) {
+                if (start > end) {
+                    const joiner = new curves.CurvePath();
+                    joiner.extend(weld.subpathAtRoadPercents(start, 1));
+                    joiner.extend(weld.subpathAtRoadPercents(0, end));
+                    weld = joiner;
+                } else {
+                    weld = weld.subpathAtRoadPercents(start, end);
+                }
+                lapWeldPath = lapStart.reverse ? weld.toCurvePath().toReversed() : weld;
+            }
+        }
+        if (lapWeldPath) {
+            lapWeldData = supplimentPath(worldMeta, lapWeldPath);
+        }
     }
     // NOTE: No support for physicsSlopeScaleOverride of portal roads.
     // But I've not seen portal roads used in a route either.
     return {
+        roadSegments: roadSlices, // unfortunate public name
         curvePath,
-        roadSegments,
+        lapWeldPath,
+        lapWeldData,
         ...supplimentPath(worldMeta, curvePath),
     };
 }

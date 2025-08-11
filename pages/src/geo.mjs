@@ -254,6 +254,7 @@ async function applyRoute() {
     }
     if (routeId != null) {
         const route = await common.getRoute(routeId);
+        console.debug({route});
         const path = route.curvePath;
         _routeHighlights.push(
             zwiftMap.addHighlightPath(path, `route-1-${route.id}`, {width: 5, color: '#0004'}),

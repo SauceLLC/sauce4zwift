@@ -49,6 +49,7 @@ try {
         }
     }
     for (const x of readRoutes()) {
+        x.segmentProjections = projectRouteSegments(x);
         _routes.set(x.id, x);
     }
 } catch(e) {
@@ -264,7 +265,6 @@ function readRoutes() {
 
 
 export function projectRouteSegments(route, {laps=1, distance, epsilon=routeDistEpsilon}={}) {
-    //if (route.id === 2592027600) debugger;
     let state = _routeSegmentCache.get(route.id);
     if (!state) {
         _routeSegmentCache.set(route.id, (state = {}));
@@ -304,10 +304,48 @@ export function projectRouteSegments(route, {laps=1, distance, epsilon=routeDist
             }
         }
         if (route.supportedLaps) {
-            const idx = route.manifest.findIndex(x => !x.leadin);
-            const startRoad = roadSlices[idx];
-            fullPath.extend(route.manifest[idx].reverse ? startRoad.slice(-1) : startRoad.slice(0, 1));
             state.lapDist = (fullPath.distance(epsilon) / 100) - state.leadinDist;
+            /*
+             * Handle cases where route data does not properly weld the lap together
+             *
+             * Case info:
+             *   routeId: 2627606248
+             *   courseId: 6
+             *   name: Three Little Sisters
+             *   problem: Lap finish is several hundred meters away from the leadin offset.
+             */
+            const lapStart = route.manifest.find(x => !x.leadin);
+            const lapEnd = route.manifest.at(-1);
+            if (lapStart.roadId !== lapEnd.roadId || lapStart.reverse !== lapEnd.reverse) {
+                console.warn("Unable to properly weld lap together for:", route.id);
+                const startNode = roadSlices[route.manifest.indexOf(lapStart)].nodes[0];
+                const endNode = roadSlices.at(-1).nodes.at(-1);
+                state.lapWeldDistance = curves.vecDist(endNode, startNode);
+            } else {
+                let start, end;
+                if (!lapStart.reverse) {
+                    start = lapEnd.end;
+                    end = lapStart.start;
+                } else {
+                    start = lapEnd.start;
+                    end = lapStart.end;
+                }
+                if (Math.abs(start - end) > 1e-4) {
+                    const road = getRoadCurvePath(route.courseId, lapStart.roadId);
+                    let connection;
+                    if (start > end) {
+                        const joiner = new curves.CurvePath();
+                        joiner.extend(road.subpathAtRoadPercents(start, 1));
+                        joiner.extend(road.subpathAtRoadPercents(0, end));
+                        connection = joiner;
+                    } else {
+                        connection = road.subpathAtRoadPercents(start, end);
+                    }
+                    state.lapWeldDistance = connection.distance(epsilon) / 100;
+                } else {
+                    state.lapWeldDistance = 0;
+                }
+            }
         }
     }
     if (distance) {
@@ -317,19 +355,22 @@ export function projectRouteSegments(route, {laps=1, distance, epsilon=routeDist
         laps = 1;
     }
     const lapSegments = [];
-    for (let lap = 1; lap < laps; lap++) {
-        const lapOfft = state.lapDist * lap;
-        if (distance && state.leadinDist + lapOfft >= distance) {
-            break;
-        }
-        for (const x of state.routeSegments) {
-            if (!x.leadin) {
-                lapSegments.push({
-                    id: x.id,
-                    startDistance: x.startDistance + lapOfft,
-                    endDistance: x.endDistance + lapOfft,
-                    leadin: false,
-                });
+    if (route.supportedLaps) {
+        for (let lap = 1; lap < laps; lap++) {
+            const lapOfft = (state.lapDist + state.lapWeldDistance) * lap - state.leadinDist;
+            if (isNaN(lapOfft)) debugger;
+            if (distance && state.leadinDist + lapOfft >= distance) {
+                break;
+            }
+            for (const x of state.routeSegments) {
+                if (!x.leadin) {
+                    lapSegments.push({
+                        id: x.id,
+                        startDistance: x.startDistance + lapOfft,
+                        endDistance: x.endDistance + lapOfft,
+                        leadin: false,
+                    });
+                }
             }
         }
     }
@@ -337,6 +378,7 @@ export function projectRouteSegments(route, {laps=1, distance, epsilon=routeDist
     return {
         leadinDistance: state.leadinDist,
         lapDistance: state.lapDist,
+        lapWeldDistance: state.lapWeldDistance,
         segments: distance ? allSegments.filter(x => x.endDistance <= distance) : allSegments,
     };
 }
@@ -345,7 +387,7 @@ export function projectRouteSegments(route, {laps=1, distance, epsilon=routeDist
 export function getRoute(routeId) {
     const route = _routes.get(routeId);
     if (route && !route.segmentProjections) {
-        route.segmentProjections = projectRouteSegments(route, {laps: 1});
+        route.segmentProjections = projectRouteSegments(route);
     }
     return route;
 }
