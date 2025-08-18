@@ -273,6 +273,7 @@ export function projectRouteSegments(route, {laps=1, distance, epsilon=routeDist
         const fullPath = new curves.CurvePath();
         state.routeSegments = [];
         state.leadinDist = 0;
+        state.lapWeldDistance = 0;
         const hasLeadin = route.manifest[0].leadin;
         for (const [i, m] of route.manifest.entries()) {
             const road = roadSlices[i];
@@ -318,9 +319,9 @@ export function projectRouteSegments(route, {laps=1, distance, epsilon=routeDist
             const lapEnd = route.manifest.at(-1);
             if (lapStart.roadId !== lapEnd.roadId || lapStart.reverse !== lapEnd.reverse) {
                 console.warn("Unable to properly weld lap together for:", route.id);
-                const startNode = roadSlices[route.manifest.indexOf(lapStart)].nodes[0];
-                const endNode = roadSlices.at(-1).nodes.at(-1);
-                state.lapWeldDistance = curves.vecDist(endNode, startNode);
+                const startNode = roadSlices[route.manifest.indexOf(lapStart)].nodes[0].end;
+                const endNode = roadSlices.at(-1).nodes.at(-1).end;
+                state.lapWeldDistance = curves.vecDist(endNode, startNode) / 100;
             } else {
                 let start, end;
                 if (!lapStart.reverse) {
@@ -342,12 +343,11 @@ export function projectRouteSegments(route, {laps=1, distance, epsilon=routeDist
                         connection = road.subpathAtRoadPercents(start, end);
                     }
                     state.lapWeldDistance = connection.distance(epsilon) / 100;
-                } else {
-                    state.lapWeldDistance = 0;
                 }
             }
         }
     }
+    const maxLaps = 1000;
     if (distance) {
         laps = route.supportedLaps ? Infinity : 1;
     } else if (laps > 1 && !route.supportedLaps) {
@@ -358,7 +358,6 @@ export function projectRouteSegments(route, {laps=1, distance, epsilon=routeDist
     if (route.supportedLaps) {
         for (let lap = 1; lap < laps; lap++) {
             const lapOfft = (state.lapDist + state.lapWeldDistance) * lap - state.leadinDist;
-            if (isNaN(lapOfft)) debugger;
             if (distance && state.leadinDist + lapOfft >= distance) {
                 break;
             }
@@ -371,6 +370,10 @@ export function projectRouteSegments(route, {laps=1, distance, epsilon=routeDist
                         leadin: false,
                     });
                 }
+            }
+            if (lap === maxLaps) {
+                console.error(`Reached maximum laps (${maxLaps}) for route:`, route.id);
+                break;
             }
         }
     }
