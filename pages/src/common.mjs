@@ -570,7 +570,7 @@ export async function computeRoutePath(route) {
             xx.index = i;
         }
         roadSlices.push(seg);
-        curvePath.extend(x.reverse ? seg.toCurvePath().toReversed() : seg);
+        curvePath.extend(x.reverse ? seg.toReversed() : seg);
     }
     let lapWeldPath;
     let lapWeldData;
@@ -582,10 +582,9 @@ export async function computeRoutePath(route) {
         if (lapStart.roadId !== lapEnd.roadId || lapStart.reverse !== lapEnd.reverse) {
             // Sadly there are few cases of this, such as: 986252325, 5745690
             console.warn("Unable to properly weld lap together for:", route.id);
-            const startNode = roadSlices[route.manifest.indexOf(lapStart)].nodes[0];
-            const endNode = roadSlices.at(-1).nodes.at(-1);
-            lapWeldPath = new curves.CurvePath();
-            lapWeldPath.extend([endNode, startNode]);
+            const startPoint = roadSlices[route.manifest.indexOf(lapStart)].nodes[0].end;
+            const endPoint = roadSlices.at(-1).nodes.at(-1).end;
+            lapWeldPath = curves.catmullRomPath([endPoint, startPoint]);
         } else {
             let weld = (await getRoad(route.courseId, lapStart.roadId)).curvePath;
             let start, end;
@@ -605,7 +604,7 @@ export async function computeRoutePath(route) {
                 } else {
                     weld = weld.subpathAtRoadPercents(start, end);
                 }
-                lapWeldPath = lapStart.reverse ? weld.toCurvePath().toReversed() : weld;
+                lapWeldPath = lapStart.reverse ? weld.toReversed() : weld;
             }
         }
         if (lapWeldPath) {
