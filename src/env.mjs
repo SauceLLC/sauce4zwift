@@ -207,19 +207,21 @@ export function getRoad(courseId, roadId) {
 }
 
 
-export function getRoadCurvePath(courseId, roadId, reverse) {
-    const sig = `${courseId}-${roadId}-${!!reverse}`;
+export function getRoadCurvePath(courseId, roadId) {
+    const sig = `${courseId}-${roadId}`;
     if (!_roadCurvePaths.has(sig)) {
         const road = getRoad(courseId, roadId);
+        let rcp;
         if (!road) {
-            return;
+            rcp = null;
+        } else {
+            const curveFunc = {
+                CatmullRom: curves.catmullRomPath,
+                Bezier: curves.cubicBezierPath,
+            }[road.splineType];
+            rcp = curveFunc(road.path, {loop: road.looped, road: true});
         }
-        const curveFunc = {
-            CatmullRom: curves.catmullRomPath,
-            Bezier: curves.cubicBezierPath,
-        }[road.splineType];
-        const rcp = curveFunc(road.path, {loop: road.looped, road: true});
-        _roadCurvePaths.set(sig, reverse ? rcp.toReversed() : rcp);
+        _roadCurvePaths.set(sig, rcp);
     }
     return _roadCurvePaths.get(sig);
 }
@@ -284,7 +286,7 @@ export function projectRouteSegments(route, {laps=1, distance, epsilon=routeDist
             if (!state.leadinDist && hasLeadin && !m.leadin) {
                 state.leadinDist = distBefore;
             }
-            fullPath.extend(m.reverse ? road.toCurvePath().toReversed() : road);
+            fullPath.extend(m.reverse ? road.toReversed() : road);
             if (m.segmentIds) {
                 let distAfter;
                 for (const id of m.segmentIds) {

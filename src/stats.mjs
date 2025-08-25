@@ -3062,11 +3062,12 @@ export class StatsProcessor extends events.EventEmitter {
         };
     }
 
-    _getRoadDistance({courseId, roadId, reversed}, start, end) {
+    _getRoadDistance({courseId, roadId}, start, end) {
         if (end < start) {
+            if (start - end > 0.02) debugger;
             return 0;
         }
-        const roadPath = env.getRoadCurvePath(courseId, roadId, reversed);
+        const roadPath = env.getRoadCurvePath(courseId, roadId);
         if (!roadPath) {
             return 0;
         }
