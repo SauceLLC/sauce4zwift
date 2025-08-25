@@ -1061,6 +1061,8 @@ export class StatsProcessor extends events.EventEmitter {
                     }, 30000);  // allow retry later
                 });
                 return await p;
+            } else {
+                console.warn("Could not find subgroup eventId required for lookup:", id);
             }
         }
         return this._recentEventSubgroups.get(id) || await this._recentEventSubgroupsPending.get(id);
