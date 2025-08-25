@@ -494,11 +494,7 @@ export class RoadPath extends CurvePath {
     }
 
     toReversed() {
-        if (this.offsetIndex || this.offsetPercent) {
-            // TBD
-            throw new Error("toReversed only works with unsliced RoadPath");
-        }
-        return super.toReversed();
+        return this.toCurvePath().toReversed();
     }
 
     slice(start, end) {
