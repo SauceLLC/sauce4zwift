@@ -77,6 +77,13 @@ class LRUCache extends Map {
 }
 
 
+export function vecDist2d(a, b) {
+    const dx = b[0] - a[0];
+    const dy = b[1] - a[1];
+    return Math.sqrt(dx * dx + dy * dy);
+}
+
+
 export function vecDist(a, b) {
     const dx = b[0] - a[0];
     const dy = b[1] - a[1];
@@ -127,33 +134,22 @@ export function splitBezier(t, start, cp1, cp2, end) {
 }
 
 
-export function bezierControl(a, b, c, smoothing, invert=false) {
-    const dx = c[0] - a[0];
-    const dy = c[1] - a[1];
-    const dz = c[2] - a[2];
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    const angle = Math.atan2(dy, dx) + (invert ? Math.PI : 0);
-    const length = distance * smoothing;
+export function bezierControl(a, b, c, t, invertDeprecated) {
+    if (invertDeprecated === true) {
+        console.warn('invert arg deprecated: swap a and c args for same effect');
+        [a, c] = [c, a];
+    }
+    const s = 1 - t;
     return [
-        b[0] + Math.cos(angle) * length,
-        b[1] + Math.sin(angle) * length,
-        b[2] + dz * (invert ? 1 : -1) * smoothing
+        b[0] + (a[0] * s + c[0] * t) - a[0],
+        b[1] + (a[1] * s + c[1] * t) - a[1],
+        b[2] + (a[2] * s + c[2] * t) - a[2],
     ];
 }
 
 
 export function pointOnLine(t, a, b) {
-    // t is from 0 -> 1 where 0 = a and 1 = b
-    const dx = b[0] - a[0];
-    const dy = b[1] - a[1];
-    const dz = b[2] - a[2];
-    const angle = Math.atan2(dy, dx);
-    const l = Math.sqrt(dx * dx + dy * dy) * t;
-    return [
-        a[0] + Math.cos(angle) * l,
-        a[1] + Math.sin(angle) * l,
-        a[2] + dz * t
-    ];
+    return lerp(t, a, b);
 }
 
 
@@ -217,9 +213,9 @@ export class CurvePath {
         return svg;
     }
 
-    flatten(t) {
+    flatten(t, options) {
         const values = [];
-        this.trace(x => values.push(x.stepNode), t);
+        this.trace(x => values.push(x.stepNode), t, options);
         return values;
     }
 
@@ -295,7 +291,7 @@ export class CurvePath {
         return dist;
     }
 
-    trace(callback, t=this.epsilon) {
+    trace(callback, t=this.epsilon, {expandStraights}={}) {
         // This would be better looking as a generator but it needs it to be fast.
         for (let index = 0; index < this.nodes.length; index++) {
             const origin = this.nodes[index];
@@ -310,8 +306,22 @@ export class CurvePath {
                         break;
                     }
                 }
-            } else if (callback({origin, next, index, stepNode: origin.end, step: 0}) === false) {
-                return;
+            } else {
+                if (!expandStraights || !next) {
+                    if (callback({origin, next, index, stepNode: origin.end, step: 0}) === false) {
+                        return;
+                    }
+                } else {
+                    for (let step = 0; step < 1; step += t) {
+                        const stepNode = lerp(step, origin.end, next.end);
+                        const op = callback({origin, next, index, stepNode, step});
+                        if (op === false) {
+                            return;
+                        } else if (op === null) {
+                            break;
+                        }
+                    }
+                }
             }
         }
     }
@@ -324,8 +334,8 @@ export class CurvePath {
             const stepDist = prevStep ? vecDist(prevStep, x.stepNode) : 0;
             dist += stepDist;
             if (dist > targetDistance) {
-                const diff = (dist - targetDistance) / stepDist;
-                point = pointOnLine(diff, x.stepNode, prevStep);
+                const t = (dist - targetDistance) / stepDist;
+                point = lerp(t, x.stepNode, prevStep);
                 return false;
             } else if (dist === targetDistance) {
                 point = x.stepNode;
@@ -409,7 +419,7 @@ export class RoadPath extends CurvePath {
             if (next.cp1) {
                 point = computeBezier(percent, origin.end, next.cp1, next.cp2, next.end);
             } else {
-                point = pointOnLine(percent, origin.end, next.end);
+                point = lerp(percent, origin.end, next.end);
             }
         } else {
             point = origin ? origin.end : undefined;
@@ -650,7 +660,7 @@ export function cubicBezierPath(points, {loop, smoothing=0.2, epsilon, road}={})
             p_1 ? bezierControl(p_1, p0, p1, smoothing) : p0;
         const cp2 = tanIn ?
             [p1[0] + tanIn[0], p1[1] + tanIn[1], p1[2] + tanIn[2]] :
-            p2 ? bezierControl(p0, p1, p2, smoothing, true) : p1;
+            p2 ? bezierControl(p2, p1, p0, smoothing) : p1;
         nodes.push({cp1, cp2, end: p1});
     }
     const Klass = road ? RoadPath : CurvePath;
