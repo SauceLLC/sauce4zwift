@@ -125,11 +125,7 @@ export function main() {
         }
         lastData = watching;
         renderer.setData(watching);
-        const ts = Date.now();
-        if (ts - lastUpdate > 500) {
-            lastUpdate = ts;
-            renderer.render();
-        }
+        renderer.render();
     }, {persistent: true});  // Prevent autohide when offscreen
     renderer.setData({});
     renderer.render();
