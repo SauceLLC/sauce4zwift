@@ -360,6 +360,10 @@ export class RoadPath extends CurvePath {
         this.cropPercent = options.cropPercent || 0;
     }
 
+    roadTimeToOffset(rt) {
+        return this.roadPercentToOffset(roadTimeToPercent(rt));
+    }
+
     roadPercentToOffset(rp) {
         const [i, p] = this.roadPercentToOffsetTuple(rp);
         return i + p;
