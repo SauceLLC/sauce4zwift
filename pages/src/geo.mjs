@@ -48,6 +48,7 @@ let zwiftMap;
 let elProfile;
 let courseId = Number(url.searchParams.get('course')) || undefined;
 let routeId = Number(url.searchParams.get('route')) || undefined;
+let laps = Number(url.searchParams.get('laps')) || undefined;
 
 
 function qualityScale(raw) {
@@ -228,7 +229,6 @@ function centerMap(positions, options) {
 }
 
 
-const _routeHighlights = [];
 async function applyRoute() {
     if (routeId != null) {
         url.searchParams.set('route', routeId);
@@ -236,9 +236,6 @@ async function applyRoute() {
         url.searchParams.delete('route');
     }
     history.replaceState({}, '', url);
-    while (_routeHighlights.length) {
-        _routeHighlights.pop().elements.forEach(x => x.remove());
-    }
     routeSelect.replaceChildren();
     routeSelect.insertAdjacentHTML('beforeend', `<option value disabled selected>Route</option>`);
     if (!routesList) {
@@ -253,17 +250,10 @@ async function applyRoute() {
                     value="${x.id}">${common.stripHTML(x.name)}</option>`);
     }
     if (routeId != null) {
-        const route = await common.getRoute(routeId);
-        console.debug({route});
-        const path = route.curvePath;
-        _routeHighlights.push(
-            zwiftMap.addHighlightPath(path, `route-1-${route.id}`, {width: 5, color: '#0004'}),
-            zwiftMap.addHighlightPath(path, `route-2-${route.id}`, {width: 1.2, color: 'black'}),
-            zwiftMap.addHighlightPath(path, `route-3-${route.id}`, {width: 0.5, color: 'gold'}),
-        );
-        centerMap(route.curvePath.flatten(1/3));
+        await zwiftMap.setActiveRoute(routeId, {showWeld: laps > 1});
+        centerMap(zwiftMap.route.curvePath.flatten(1/3));
         if (elProfile) {
-            await elProfile.setRoute(routeId);
+            await elProfile.setRoute(routeId, {laps});
         }
     } else {
         zwiftMap.setVerticalOffset(0);
@@ -302,7 +292,7 @@ export async function main() {
     common.initInteractionListeners();
     common.setBackground(settings);
     const fieldsEl = document.querySelector('#content .fields');
-    const fieldRenderer = new common.Renderer(fieldsEl, {fps: 1});
+    const fieldRenderer = new common.Renderer(fieldsEl);
     const mapping = [];
     const defaults = {
         f1: 'grade',

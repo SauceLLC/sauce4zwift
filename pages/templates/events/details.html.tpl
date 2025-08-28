@@ -6,7 +6,7 @@
                 <div title="Event World"><ms>map</ms> {{world}}</div>
                 <div title="Route">
                     <ms>route</ms>
-                    <a href="/pages/geo.html?course={{event.courseId}}&route={{event.routeId}}"
+                    <a href="/pages/geo.html?course={{event.courseId}}&route={{event.routeId}}&laps={{event.laps}}"
                        target="event-route-preview">
                         <% if (event.sameRoute) { %>
                             {{(event.laps && event.laps > 1) ? event.laps + ' x ' : ''}}{{event.route?.name}}
