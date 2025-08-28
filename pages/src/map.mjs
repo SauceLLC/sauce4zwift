@@ -357,6 +357,7 @@ export class SauceZwiftMap extends EventTarget {
         this.roadId = null;
         this.routeId = null;
         this.route = null;
+        this._routeHighlights = [];
         this.worldMeta = null;
         this.rotateCoordinates = null;
         this._adjHeading = 0;
@@ -839,10 +840,7 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     _resetElements(viewBox) {
-        if (this._routeHighlight) {
-            this._routeHighlight.elements.forEach(x => x.remove());
-            this._routeHighlight = null;
-        }
+        this._removeRouteHighlights();
         Object.values(this._elements.roadLayers).forEach(x => x.replaceChildren());
         Object.values(this._elements.userLayers).forEach(x => x.replaceChildren());
         for (const ent of Array.from(this._ents.values()).filter(x => x.gc)) {
@@ -941,14 +939,16 @@ export class SauceZwiftMap extends EventTarget {
         return this.setActiveRoad(id);
     }
 
+    _removeRouteHighlights() {
+        this._routeHighlights.forEach(x => this.removeHighlightPath(x));
+        this._routeHighlights.length = 0;
+    }
+
     setActiveRoad(id) {
         this.roadId = id;
         this.routeId = null;
         this.route = null;
-        if (this._routeHighlight) {
-            this._routeHighlight.elements.forEach(x => x.remove());
-            this._routeHighlight = null;
-        }
+        this._removeRouteHighlights();
         const surface = this._elements.roadLayers.surfacesMid;
         let r = surface.querySelector('.road.active');
         if (!r) {
@@ -958,23 +958,41 @@ export class SauceZwiftMap extends EventTarget {
         r.setAttribute('href', `#road-path-${id}`);
     }
 
-    setActiveRoute = common.asyncSerialize(async function(id, laps=1) {
+    setActiveRoute = common.asyncSerialize(async function(id, options={}) {
+        if (typeof options === 'number') {
+            console.warn("DEPRECATED use of laps argument");
+            options = {showWeld: options > 1};
+        }
         this.roadId = null;
         this.routeId = id;
+        const route = await common.getRoute(id);
         const activeRoad = this._elements.roadLayers.surfacesMid.querySelector('.road.active');
         if (activeRoad) {
             activeRoad.remove();
         }
-        const route = await common.getRoute(id);
-        if (this._routeHighlight) {
-            this._routeHighlight.elements.forEach(x => x.remove());
-            this._routeHighlight = null;
+        this._removeRouteHighlights();
+        let fullPath, lapPath;
+        const path = fullPath = lapPath = route.curvePath;
+        const lapRoadIdx = route.manifest.findIndex(x => !x.leadin);
+        const lapIdx = lapRoadIdx ? path.nodes.findIndex(x => x.index === lapRoadIdx) : 0;
+        if (lapIdx) {
+            lapPath = path.slice(lapIdx);
+            this._routeHighlights.push(this.addHighlightPath(path.slice(0, lapIdx), `rt-leadin-${id}`,
+                                                             {extraClass: 'route-leadin'}));
         }
-        if (route) {
-            this._routeHighlight = this.addHighlightPath(route.curvePath, 'route-' + id, {layer: 'mid'});
-        } else {
-            console.warn("Route not found:", id);
+        if (options.showWeld && route.lapWeldPath) {
+            const weld = route.lapWeldPath;
+            fullPath = path.slice();
+            fullPath.extend(weld);
+            this._routeHighlights.push(this.addHighlightPath(weld, `route-weld-${id}`,
+                                                             {extraClass: 'route-weld'}));
         }
+        this._routeHighlights.push(
+            this.addHighlightPath(lapPath, `rt-lap-${id}`, {extraClass: 'route-lap'}),
+            this.addHighlightPath(fullPath, `rt-shadow-${id}`, {layer: 'low', extraClass: 'active-shadow'}),
+            this.addHighlightPath(fullPath, `rt-gutters-${id}`, {layer: 'low', extraClass: 'active-gutter'})
+        );
+
         this.route = route;
         return route;
     });
@@ -1217,7 +1235,7 @@ export class SauceZwiftMap extends EventTarget {
                         }
                         // Note sg.routeId is sometimes out of sync with state.routeId; avoid thrash
                         if (sg && sg.routeId === watching.routeId) {
-                            await this.setActiveRoute(sg.routeId, sg.laps);
+                            await this.setActiveRoute(sg.routeId, {showWeld: sg.laps > 1});
                         } else {
                             await this.setActiveRoute(watching.routeId);
                         }
