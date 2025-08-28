@@ -64,7 +64,7 @@
         }
 
         > div.entities {
-            font-size: calc((3px * var(--layer-scale)) + (1 / var(--zoom) * var(--layer-scale) * 8px));
+            font-size: calc(var(--layer-scale) * (3 + 8 / var(--zoom)) * 1px);
             position: absolute;
             top: 0;
             left: 0;
@@ -245,12 +245,45 @@
             .highlight {
                 fill: none;
                 stroke-linecap: round;
+                stroke-linejoin: round;
             }
 
             .highlight {
                 --width: 1;
-                stroke-width: calc(((var(--width) * 8) + (1 / var(--zoom) * (var(--width) * 7))) * 1em);
+                stroke-width: calc(var(--width) * (8 + 7 / var(--zoom)) * 1em);
                 stroke: #cf0606b0;
+
+                &.active-shadow {
+                    stroke: #6666;
+                    --width: 5;
+                }
+
+                &.active-gutter {
+                    stroke: #222;
+                    --width: 1.4;
+                }
+
+                &.route {
+                    --width: 0.9;
+                }
+
+                &.route-leadin {
+                    stroke: #27f;
+                }
+
+                &.route-lap {
+                    stroke: #d33524;
+                    mix-blend-mode: lighten; /* allow leadin to bleed through */
+                }
+
+                &.route-leadin,
+                &.route-weld {
+                    stroke-dasharray: 10em 16em;
+                }
+
+                &.route-weld {
+                    stroke: #ffdf21;
+                }
             }
 
             .gutters .road {
@@ -263,8 +296,7 @@
                 stroke: #e9e9e9;
 
                 &.active {
-                    stroke: #ff3939bf;
-                    filter: drop-shadow(0 0 4em #000d);
+                    stroke: #d02903cc;
                 }
 
                 &.sport-running:not(.sport-cycling) {
