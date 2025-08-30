@@ -251,6 +251,7 @@ async function applyRoute() {
     }
     if (routeId != null) {
         await zwiftMap.setActiveRoute(routeId, {showWeld: laps > 1});
+        console.debug('Route:', zwiftMap.route);
         centerMap(zwiftMap.route.curvePath.flatten(1/3));
         if (elProfile) {
             await elProfile.setRoute(routeId, {laps});
