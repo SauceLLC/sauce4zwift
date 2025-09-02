@@ -10,6 +10,20 @@ html {
     }
 }
 
+html.single-event {
+    #titlebar {
+        .type,
+        .filter {
+            display: none;
+        }
+    }
+
+    thead.loader,
+    tfoot.loader {
+        display: none;
+    }
+}
+
 #titlebar {
     header {
         @container root-html (max-width: 375px) {
@@ -329,12 +343,34 @@ table {
             overflow-wrap: anywhere;
         }
 
-        .tags {
-            margin-top: 1em;
+        .subsection {
+            font-size: 0.9em;
+            margin: 1rem 0.4rem;
+            padding: 0.5rem 0.68rem;
+            border-left: 3px solid color.shade(intrinsic, 0%, 0.2);
 
+            b {
+                font-weight: 500;
+            }
+        }
+
+        .tags {
             .badge {
-                --sat: 0;
-                padding: 0.45em 0.5em 0.2em;
+                --sat: 0.2;
+                --hue: 15deg;
+            }
+        }
+
+        .powerups {
+            key,
+            value {
+                display: inline-block;
+            }
+
+            key {
+                min-width: 9ch;
+                font-weight: 500;
+                margin-left: 1em;
             }
         }
     }
@@ -353,7 +389,6 @@ table {
             flex-direction: column;
             margin: 0.5em 0 2em;
             padding: 1em;
-            background: #0300001f;
             border-radius: 0.3em;
             font-variant-numeric: tabular-nums;
 
@@ -511,7 +546,7 @@ table {
 
             > tbody > tr > td,
             > thead > tr > th {
-                svg {
+                ms svg {
                     width: 1.1em;
                     opacity: 0.88;
                     vertical-align: middle;

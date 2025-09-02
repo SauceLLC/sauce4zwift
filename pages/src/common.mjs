@@ -5,7 +5,6 @@ import {expWeightedAvg as _expWeightedAvg} from '/shared/sauce/data.mjs';
 import * as report from '../../shared/report.mjs';
 import * as elements from './custom-elements.mjs';
 import * as curves from '/shared/curves.mjs';
-import * as fields from './fields.mjs';
 import * as color from './color.mjs';
 
 export const sleep = _sleep; // Come on ES6 modules, really!?
@@ -25,6 +24,7 @@ if (!Array.prototype.at) {
 }
 
 const doc = document.documentElement;
+const _segments = new Map();
 
 // XXX DEPRECATED...
 export const worldCourseDescs = [
@@ -442,11 +442,35 @@ export async function getWorldList({all}={}) {
 }
 
 
-export async function getSegments(worldId) {
-    console.warn("DEPRECATED: use rpc.getSegments instead");
-    const worldList = await getWorldList();
-    const worldMeta = worldList.find(x => x.worldId === worldId);
-    return await rpcCall('getSegments', worldMeta.courseId);
+export async function getSegments(ids) {
+    if (typeof ids === 'number') {
+        console.warn("DEPRECATED: use rpc.getCourseSegments instead");
+        const worldId = ids;
+        const worldList = await getWorldList();
+        const worldMeta = worldList.find(x => x.worldId === worldId);
+        if (worldMeta?.courseId == null) {
+            console.error("World info not found for:", worldId);
+            return [];
+        }
+        return await rpcCall('getCourseSegments', worldMeta.courseId);
+    }
+    const missing = new Set();
+    for (const x of ids) {
+        if (!_segments.has(x)) {
+            missing.add(x);
+        }
+    }
+    if (missing.size) {
+        const missingArr = Array.from(missing);
+        const p = rpcCall('getSegments', missingArr);
+        for (const [i, x] of missingArr.entries()) {
+            _segments.set(x, p.then(segments => {
+                _segments.set(x, segments[i]);
+                return segments[i];
+            }));
+        }
+    }
+    return Promise.all(ids.map(x => _segments.get(x)));
 }
 
 
@@ -459,7 +483,7 @@ export function zToAltitude(worldMeta, z, {physicsSlopeScale}={}) {
 
 
 export function supplimentPath(worldMeta, curvePath, {physicsSlopeScale}={}) {
-    const balancedT = 1 / 125; // tests to within 0.27 meters (worst case)
+    const balancedT = 1 / 200; // very fast but still accurate to ~20cm and matches src/env.mjs
     const distEpsilon = 1e-6;
     const elevations = [];
     const grades = [];
@@ -501,7 +525,7 @@ export function supplimentPath(worldMeta, curvePath, {physicsSlopeScale}={}) {
 const _roads = new Map();
 export function getRoads(courseId) {
     if (!_roads.has(courseId)) {
-        _roads.set(courseId, rpcCall('getRoads', courseId).then(async roads => {
+        _roads.set(courseId, rpcCall('getCourseRoads', courseId).then(async roads => {
             const worldList = await getWorldList();
             const worldMeta = worldList.find(x => x.courseId === courseId);
             for (const x of roads) {
@@ -526,18 +550,14 @@ export async function getRoad(courseId, id) {
 }
 
 
-const _segments = new Map();
-export function getSegment(id) {
-    if (!_segments.has(id)) {
-        _segments.set(id, rpcCall('getSegment', id));
-    }
-    return _segments.get(id);
+export async function getSegment(id) {
+    return (await getSegments([id]))[0];
 }
 
 
 export async function computeRoutePath(route) {
     const curvePath = new curves.CurvePath();
-    const roadSegments = [];
+    const roadSlices = [];
     const worldList = await getWorldList();
     const worldMeta = worldList.find(x => x.courseId === route.courseId);
     for (const [i, x] of route.manifest.entries()) {
@@ -549,34 +569,81 @@ export async function computeRoutePath(route) {
         for (const xx of seg.nodes) {
             xx.index = i;
         }
-        roadSegments.push(seg);
+        roadSlices.push(seg);
         curvePath.extend(x.reverse ? seg.toReversed() : seg);
+    }
+    let lapWeldPath;
+    let lapWeldData;
+    if (route.supportedLaps) {
+        // Handle cases where route data does not properly weld the lap together.
+        // Zwift calls this `distanceBetweenFirstLastLrCPsInMeters`
+        const lapStart = route.manifest.find(x => !x.leadin);
+        const lapEnd = route.manifest.at(-1);
+        if (lapStart.roadId !== lapEnd.roadId || lapStart.reverse !== lapEnd.reverse) {
+            // Sadly there are few cases of this, such as: 986252325, 5745690
+            console.warn("Unable to properly weld lap together for:", route.id);
+            const startPoint = roadSlices[route.manifest.indexOf(lapStart)].nodes[0].end;
+            const endPoint = roadSlices.at(-1).nodes.at(-1).end;
+            lapWeldPath = curves.catmullRomPath([endPoint, startPoint]);
+        } else {
+            let weld = (await getRoad(route.courseId, lapStart.roadId)).curvePath;
+            let start, end;
+            if (!lapStart.reverse) {
+                start = lapEnd.end;
+                end = lapStart.start;
+            } else {
+                start = lapEnd.start;
+                end = lapStart.end;
+            }
+            if (Math.abs(start - end) > 1e-4) {
+                if (start > end) {
+                    const joiner = new curves.CurvePath();
+                    joiner.extend(weld.subpathAtRoadPercents(start, 1));
+                    joiner.extend(weld.subpathAtRoadPercents(0, end));
+                    weld = joiner;
+                } else {
+                    weld = weld.subpathAtRoadPercents(start, end);
+                }
+                lapWeldPath = lapStart.reverse ? weld.toReversed() : weld;
+            }
+        }
+        if (lapWeldPath) {
+            lapWeldData = supplimentPath(worldMeta, lapWeldPath);
+        }
     }
     // NOTE: No support for physicsSlopeScaleOverride of portal roads.
     // But I've not seen portal roads used in a route either.
     return {
+        roadSegments: roadSlices, // unfortunate public name
         curvePath,
-        roadSegments,
+        lapWeldPath,
+        lapWeldData,
         ...supplimentPath(worldMeta, curvePath),
     };
 }
 
 
 async function addRouteSegments(route) {
-    const allSegmentIds = [].concat(...route.manifest.map(x => x.segmentIds || []));
-    const segments = await Promise.all(allSegmentIds.map(x => getSegment(x)));
-    for (const m of route.manifest.filter(x => x.segmentIds)) {
-        m.segments = m.segmentIds.map(id => segments.find(x => x.id === id));
+    const ids = new Set([].concat(...route.manifest.map(x => x.segmentIds || [])));
+    if (!ids.size) {
+        return;
+    }
+    const segments = new Map((await getSegments(Array.from(ids))).map(x => [x.id, x]));
+    for (const m of route.manifest) {
+        if (m.segmentIds) {
+            m.segments = m.segmentIds.map(x => segments.get(x));
+        }
     }
 }
 
 
 let _routeListPromise;
-const _routePromises = new Map();
+const _routes = new Map();
 export function getRoute(id) {
-    if (!_routePromises.has(id)) {
+    if (!_routes.has(id)) {
         if (_routeListPromise) {
-            _routePromises.set(id, _routeListPromise.then(async routes => {
+            // getRouteList was used, pull data from full set instead of using rpc.getRoute...
+            _routes.set(id, _routeListPromise.then(async routes => {
                 const route = routes && routes.find(x => x.id === id);
                 if (route) {
                     await Promise.all([
@@ -584,21 +651,23 @@ export function getRoute(id) {
                         computeRoutePath(route).then(x => Object.assign(route, x)),
                     ]);
                 }
+                _routes.set(id, route); // replace promise for non-async users
                 return route;
             }));
         } else {
-            _routePromises.set(id, rpcCall('getRoute', id).then(async route => {
+            _routes.set(id, rpcCall('getRoute', id).then(async route => {
                 if (route) {
                     await Promise.all([
                         addRouteSegments(route),
                         computeRoutePath(route).then(x => Object.assign(route, x)),
                     ]);
                 }
+                _routes.set(id, route); // replace promise for non-async users
                 return route;
             }));
         }
     }
-    return _routePromises.get(id);
+    return _routes.get(id);
 }
 
 
@@ -609,6 +678,31 @@ export function getRouteList(courseId) {
     return courseId == null ?
         _routeListPromise :
         _routeListPromise.then(routes => routes.filter(x => x.courseId === courseId));
+}
+
+
+const _eventSubgroups = new Map();
+export function getEventSubgroup(id) {
+    if (!id) {
+        return null;
+    }
+    if (!_eventSubgroups.has(id)) {
+        _eventSubgroups.set(id, rpcCall('getEventSubgroup', id).then(sg => {
+            if (sg) {
+                _eventSubgroups.set(id, sg);
+            } else {
+                // set it to null but allow retry later..
+                _eventSubgroups.set(id, null);
+                setTimeout(() => {
+                    if (_eventSubgroups.get(id) == null) {
+                        _eventSubgroups.delete(id);
+                    }
+                }, 30000);
+            }
+            return sg;
+        }));
+    }
+    return _eventSubgroups.get(id);
 }
 
 
@@ -812,10 +906,12 @@ export class Renderer {
         this.backgroundRender = options.backgroundRender;
         contentEl.classList.toggle('unlocked', !this.locked);
         this.stopping = false;
-        this.fps = options.fps === undefined ? 1 : options.fps;
+        this.fps = options.fps || null,
         this.id = options.id || location.pathname.split('/').at(-1);
         this.fields = new Map();
         this.onKeyDownBound = this.onKeyDown.bind(this);
+        // Avoid circular refs so fields.mjs has immediate access..
+        this._fieldsModPromise = import('./fields.mjs');
         if (!this.locked) {
             document.addEventListener('keydown', this.onKeyDownBound);
         }
@@ -887,6 +983,20 @@ export class Renderer {
     }
 
     addRotatingFields(spec) {
+        for (const x of spec.fields) {
+            if (!x.shortName && x.key) {
+                console.warn("Migrating deprecated field property key -> shortName", x.id);
+                x.shortName = x.key;
+            }
+            if (!x.suffix && x.unit) {
+                console.warn("Migrating deprecated field property unit -> suffix", x.id);
+                x.suffix = x.unit;
+            }
+            if (!x.format && x.value) {
+                console.warn("Migrating deprecated field property value -> format", x.id);
+                x.format = x.value;
+            }
+        }
         for (const mapping of spec.mapping) {
             const el = (spec.el || this._contentEl).querySelector(`[data-field="${mapping.id}"]`);
             const storageKey = `${this.id}-${mapping.id}`;
@@ -924,7 +1034,8 @@ export class Renderer {
                 anchorEl = el;
                 el.classList.add('editing-anchor');
             }
-            const handler = longPressListener(el, 1500, ev => {
+            const handler = longPressListener(el, 1500, async ev => {
+                const {fieldGroupNames} = (await this._fieldsModPromise);
                 handler.setPaused(true);
                 const field = this.fields.get(mapping.id);
                 const groups = new Set(field.available.map(x => x.group));
@@ -935,7 +1046,7 @@ export class Renderer {
                     let container;
                     if (group) {
                         container = document.createElement('optgroup');
-                        container.label = fields.fieldGroupNames[group] || group;
+                        container.label = fieldGroupNames[group] || group;
                     } else {
                         container = select;
                     }
@@ -946,7 +1057,7 @@ export class Renderer {
                                 option.selected = true;
                             }
                             option.value = x.id;
-                            option.textContent = stripHTML(x.longName ? fGet(x.longName) : fGet(x.key));
+                            option.textContent = stripHTML(x.longName ? fGet(x.longName) : fGet(x.shortName));
                             container.append(option);
                         }
                     }
@@ -1022,8 +1133,13 @@ export class Renderer {
                     }
                     for (const field of this.fields.values()) {
                         let value = '';
+                        const options = {};
+                        if (field.unitEl) {
+                            options.suffix = false;
+                        }
                         try {
-                            value = fGet(field.active.value, this._data);
+                            const arg = field.active.get ? field.active.get(this._data) : this._data;
+                            value = fGet(field.active.format, arg, options);
                         } catch(e) {
                             report.errorThrottled(e);
                         }
@@ -1053,13 +1169,15 @@ export class Renderer {
                                 }
                             } else {
                                 softInnerHTML(field.labelEl, labels);
-                                softInnerHTML(field.subLabelEl, '');
+                                if (field.subLabelEl) {
+                                    softInnerHTML(field.subLabelEl, '');
+                                }
                             }
                         }
                         if (field.keyEl) {
                             let key = '';
                             try {
-                                key = field.active.key ? fGet(field.active.key, this._data) : '';
+                                key = field.active.shortName ? fGet(field.active.shortName, this._data) : '';
                             } catch(e) {
                                 report.errorThrottled(e);
                             }
@@ -1067,11 +1185,11 @@ export class Renderer {
                         }
                         if (field.unitEl) {
                             let unit = '';
-                            // Hide unit if there is no value but only if there is no key field too.
-                            const showUnit = field.active.unit &&
+                            // Hide unit if there is no value but only if there is no key element too.
+                            const showUnit = field.active.suffix &&
                                 ((value != null && value !== '-') || !field.keyEl);
                             try {
-                                unit = showUnit ? fGet(field.active.unit, this._data) : '';
+                                unit = showUnit ? fGet(field.active.suffix, this._data) : '';
                             } catch(e) {
                                 report.errorThrottled(e);
                             }
@@ -1556,27 +1674,25 @@ export function initExpanderTable(table, expandCallback, cleanupCallback) {
         if (ev.target.closest('a')) {
             return;
         }
-        const row = ev.target.closest('tr');
+        const row = ev.target.closest('tr.summary');
         if (!row || row.closest('table') !== table) {
             return;
         }
-        if (row.classList.contains('summary')) {
-            if (active) {
-                if (cleanupCallback) {
-                    cleanupCallback(...active);
-                }
-                active = null;
+        if (active) {
+            if (cleanupCallback) {
+                cleanupCallback(...active);
             }
-            const shouldCollapse = row.classList.contains('expanded');
-            table.querySelectorAll(':scope > tbody > tr.expanded')
-                .forEach(x => x.classList.remove('expanded'));
-            const el = row.nextElementSibling.querySelector(':scope > td');
-            el.innerHTML = '';
-            if (!shouldCollapse) {
-                row.classList.add('expanded');
-                expandCallback(el, row);
-                active = [el, row];
-            }
+            active = null;
+        }
+        const shouldCollapse = row.classList.contains('expanded');
+        table.querySelectorAll(':scope > tbody > tr.expanded')
+            .forEach(x => x.classList.remove('expanded'));
+        const el = row.nextElementSibling.querySelector(':scope > td');
+        el.innerHTML = '';
+        if (!shouldCollapse) {
+            row.classList.add('expanded');
+            expandCallback(el, row);
+            active = [el, row];
         }
     });
 }

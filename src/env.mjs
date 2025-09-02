@@ -1,12 +1,21 @@
 import path from 'node:path';
 import fs from './fs-safe.js';
-import * as rpc from './rpc.mjs';
+import * as curves from '../shared/curves.mjs';
 import {fileURLToPath} from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+const _segments = new Map();
+const _segmentsByCourse = new Map();
+const _segmentsByRoadSig = new Map();
+const _routes = new Map();
+const _roads = new Map();
+const _roadsByCourse = new Map();
+const _roadCurvePaths = new Map();
+const routeDistEpsilon = 1 / 200;
+const _routeSegmentCache = new Map();
+
 export const realWorldCourseId = -2;
-export const cachedSegments = new Map();
 export const worldMetas = {
     [realWorldCourseId]: {
         worldId: realWorldCourseId,
@@ -33,20 +42,30 @@ try {
     const worldListFile = path.join(__dirname, `../shared/deps/data/worldlist.json`);
     for (const x of JSON.parse(fs.readFileSync(worldListFile))) {
         worldMetas[x.courseId] = x;
+        const segments = readSegmentsForWorld(x.worldId);
+        _segmentsByCourse.set(x.courseId, segments);
+        for (const x of segments) {
+            _segments.set(x.id, x);
+        }
     }
-} catch {/*no-pragma*/}
+    for (const x of readRoutes()) {
+        x.segmentProjections = projectRouteSegments(x);
+        _routes.set(x.id, x);
+    }
+} catch(e) {
+    console.error('World data load error:', e);
+    debugger;
+}
 
 
 export function getWorldMetas() {
     return Object.values(worldMetas);
 }
-rpc.register(getWorldMetas);
 
 
 export function getCourseId(worldId) {
     return Object.values(worldMetas).find(x => x.worldId === worldId)?.courseId;
 }
-rpc.register(getCourseId);
 
 
 export function getRoadSig(courseId, roadId, reverse) {
@@ -54,55 +73,75 @@ export function getRoadSig(courseId, roadId, reverse) {
 }
 
 
-const _segmentsByCourse = new Map();
-export function getCourseSegments(courseId) {
-    if (!_segmentsByCourse.has(courseId)) {
-        const worldId = worldMetas[courseId]?.worldId;
-        const fname = path.join(__dirname, `../shared/deps/data/worlds/${worldId}/segments.json`);
-        const segments = [];
-        _segmentsByCourse.set(courseId, segments);
-        let data;
-        try {
-            data = JSON.parse(fs.readFileSync(fname));
-        } catch(e) {
-            console.error('No segments loaded for:', courseId);
-            data = [];
-        }
-        for (const x of data) {
-            for (const dir of ['Forward', 'Reverse']) {
-                if (!x['id' + dir]) {
-                    continue;
-                }
-                const reverse = dir === 'Reverse';
-                const segment = {
-                    ...x,
-                    reverse,
-                    id: x['id' + dir],
-                    distance: x['distance' + dir],
-                    name: reverse ? x.nameReverse || x.nameForward + ' Reverse' : x.nameForward,
-                    roadStart: x['roadStart' + dir],
-                };
-                delete segment.nameForward;
-                delete segment.nameReverse;
-                delete segment.idForward;
-                delete segment.idReverse;
-                delete segment.distanceForward;
-                delete segment.distanceReverse;
-                delete segment.roadStartForward;
-                delete segment.roadStartReverse;
-                if (!segment.distance) {
-                    continue;  // exclude single direction segments
-                }
-                segments.push(segment);
-                cachedSegments.set(segment.id, segment);
-            }
-        }
-    }
-    return _segmentsByCourse.get(courseId);
+export function fromRoadSig(roadSig) {
+    return {
+        courseId: roadSig >>> 18,
+        roadId: (roadSig >>> 1) & 0x3fff,
+        reverse: !!(roadSig & 0x1),
+    };
 }
 
 
-const _segmentsByRoadSig = new Map();
+function readSegmentsForWorld(worldId) {
+    const fname = path.join(__dirname, `../shared/deps/data/worlds/${worldId}/segments.json`);
+    let data;
+    try {
+        data = JSON.parse(fs.readFileSync(fname));
+    } catch(e) {
+        console.error('No segments loaded for world:', worldId);
+        return [];
+    }
+    const segments = [];
+    for (const x of data) {
+        for (const dir of ['Forward', 'Reverse']) {
+            if (!x['id' + dir]) {
+                continue;
+            }
+            const reverse = dir === 'Reverse';
+            const segment = {
+                ...x,
+                reverse,
+                id: x['id' + dir],
+                distance: x['distance' + dir],
+                name: reverse ? x.nameReverse || x.nameForward + ' Reverse' : x.nameForward,
+                roadStart: x['roadStart' + dir],
+            };
+            delete segment.nameForward;
+            delete segment.nameReverse;
+            delete segment.idForward;
+            delete segment.idReverse;
+            delete segment.distanceForward;
+            delete segment.distanceReverse;
+            delete segment.roadStartForward;
+            delete segment.roadStartReverse;
+            if (!segment.distance) {
+                continue;  // exclude single direction segments
+            }
+            segments.push(segment);
+        }
+    }
+    return segments;
+}
+
+
+export function getSegment(id) {
+    return _segments.get(id);
+}
+
+
+export function getSegments(ids) {
+    if (ids == null) {
+        return Array.from(_segments.values());
+    }
+    return ids.map(x => _segments.get(x));
+}
+
+
+export function getCourseSegments(courseId) {
+    return _segmentsByCourse.get(courseId) || [];
+}
+
+
 export function getRoadSegments(courseId, roadSig) {
     if (!_segmentsByRoadSig.has(roadSig)) {
         const segments = [];
@@ -118,8 +157,7 @@ export function getRoadSegments(courseId, roadSig) {
 }
 
 
-const _roadsByCourse = new Map();
-export function getRoads(courseId) {
+export function getCourseRoads(courseId) {
     if (!_roadsByCourse.has(courseId)) {
         let fname;
         if (courseId === 'portal') {
@@ -150,17 +188,15 @@ export function getRoads(courseId) {
     }
     return _roadsByCourse.get(courseId);
 }
-rpc.register(getRoads);
 
 
-const _roads = new Map();
 export function getRoad(courseId, roadId) {
     if (roadId >= 10000) {
         courseId = 'portal';
     }
     const sig = `${courseId}-${roadId}`;
     if (!_roads.has(sig)) {
-        const road = getRoads(courseId).find(x => x.id === roadId);
+        const road = getCourseRoads(courseId).find(x => x.id === roadId);
         if (road) {
             _roads.set(sig, road);
         } else {
@@ -169,65 +205,210 @@ export function getRoad(courseId, roadId) {
     }
     return _roads.get(sig);
 }
-rpc.register(getRoad);
 
 
-let _routes;
-function loadRoutes() {
-    if (!_routes) {
-        const fname = path.join(__dirname, `../shared/deps/data/routes.json`);
-        let routes;
-        try {
-            routes = JSON.parse(fs.readFileSync(fname));
-        } catch(e) {
-            routes = [];
+export function getRoadCurvePath(courseId, roadId) {
+    const sig = `${courseId}-${roadId}`;
+    if (!_roadCurvePaths.has(sig)) {
+        const road = getRoad(courseId, roadId);
+        let rcp;
+        if (!road) {
+            rcp = null;
+        } else {
+            const curveFunc = {
+                CatmullRom: curves.catmullRomPath,
+                Bezier: curves.cubicBezierPath,
+            }[road.splineType];
+            rcp = curveFunc(road.path, {loop: road.looped, road: true});
         }
-        _routes = new Map(routes.map(route => {
-            route.courseId = getCourseId(route.worldId);
-            const allSegments = getCourseSegments(route.courseId);
-            for (const m of route.manifest) {
-                const segments = [];
-                for (const x of allSegments) {
-                    if (x.roadId === m.roadId && !!x.reverse === !!m.reverse) {
-                        if (!x.reverse) {
-                            if (x.roadStart >= m.start && x.roadFinish <= m.end) {
-                                segments.push(x);
-                            }
-                        } else {
-                            if (x.roadStart <= m.end && x.roadFinish >= m.start) {
-                                segments.push(x);
-                            }
+        _roadCurvePaths.set(sig, rcp);
+    }
+    return _roadCurvePaths.get(sig);
+}
+
+
+function readRoutes() {
+    const fname = path.join(__dirname, `../shared/deps/data/routes.json`);
+    let routes;
+    try {
+        routes = JSON.parse(fs.readFileSync(fname));
+    } catch(e) {
+        console.error("Failed to read route data");
+        return [];
+    }
+    for (const route of routes) {
+        route.courseId = getCourseId(route.worldId);
+        for (const m of route.manifest) {
+            const segments = [];
+            for (const x of _segmentsByCourse.get(route.courseId)) {
+                if (x.roadId === m.roadId && !!x.reverse === !!m.reverse) {
+                    if (!x.reverse) {
+                        if (x.roadStart >= m.start && x.roadFinish <= m.end &&
+                            (!x.requiresAllCheckpoints || m.end - m.start > 0.90)) {
+                            segments.push(x);
+                        }
+                    } else {
+                        if (x.roadStart <= m.end && x.roadFinish >= m.start &&
+                            (!x.requiresAllCheckpoints || m.end - m.start > 0.90)) {
+                            segments.push(x);
                         }
                     }
                 }
-                if (segments.length) {
-                    segments.sort((a, b) =>
-                        m.reverse ? b.roadStart - a.roadStart : a.roadStart - b.roadStart);
-                    m.segmentIds = segments.map(x => x.id);
+            }
+            if (segments.length) {
+                segments.sort((a, b) =>
+                    m.reverse ? b.roadStart - a.roadStart : a.roadStart - b.roadStart);
+                m.segmentIds = segments.map(x => x.id);
+            }
+        }
+    }
+    return routes;
+}
+
+
+export function projectRouteSegments(route, {laps=1, distance, epsilon=routeDistEpsilon}={}) {
+    let state = _routeSegmentCache.get(route.id);
+    if (!state) {
+        _routeSegmentCache.set(route.id, (state = {}));
+        const roadSlices = route.manifest.map(x =>
+            getRoadCurvePath(route.courseId, x.roadId).subpathAtRoadPercents(x.start, x.end));
+        const fullPath = new curves.CurvePath();
+        state.routeSegments = [];
+        state.leadinDist = 0;
+        state.lapWeldDistance = 0;
+        const hasLeadin = route.manifest[0].leadin;
+        for (const [i, m] of route.manifest.entries()) {
+            const road = roadSlices[i];
+            if (i) {
+                fullPath.extend(m.reverse ? road.slice(-1) : road.slice(0, 1));
+            }
+            const distBefore = fullPath.distance(epsilon) / 100;
+            if (!state.leadinDist && hasLeadin && !m.leadin) {
+                state.leadinDist = distBefore;
+            }
+            fullPath.extend(m.reverse ? road.toReversed() : road);
+            if (m.segmentIds) {
+                let distAfter;
+                for (const id of m.segmentIds) {
+                    const segment = getSegment(id);
+                    const start = road.distanceAtRoadPercent(segment.roadStart, epsilon) / 100;
+                    const end = road.distanceAtRoadPercent(segment.roadFinish, epsilon) / 100;
+                    let startDistance, endDistance;
+                    if (!segment.reverse) {
+                        startDistance = distBefore + start;
+                        endDistance = distBefore + end;
+                    } else {
+                        distAfter = distAfter || fullPath.distance(epsilon) / 100;
+                        startDistance = distAfter - start;
+                        endDistance = distAfter - end;
+                    }
+                    state.routeSegments.push({id, startDistance, endDistance, leadin: !!m.leadin});
                 }
             }
-            return [route.id, route];
-        }));
+        }
+        if (route.supportedLaps) {
+            state.lapDist = (fullPath.distance(epsilon) / 100) - state.leadinDist;
+            /*
+             * Handle cases where route data does not properly weld the lap together
+             *
+             * Case info:
+             *   routeId: 2627606248
+             *   courseId: 6
+             *   name: Three Little Sisters
+             *   problem: Lap finish is several hundred meters away from the leadin offset.
+             */
+            const lapStart = route.manifest.find(x => !x.leadin);
+            const lapEnd = route.manifest.at(-1);
+            if (lapStart.roadId !== lapEnd.roadId || lapStart.reverse !== lapEnd.reverse) {
+                console.warn("Unable to properly weld lap together for:", route.id);
+                const startNode = roadSlices[route.manifest.indexOf(lapStart)].nodes[0].end;
+                const endNode = roadSlices.at(-1).nodes.at(-1).end;
+                state.lapWeldDistance = curves.vecDist(endNode, startNode) / 100;
+            } else {
+                let start, end;
+                if (!lapStart.reverse) {
+                    start = lapEnd.end;
+                    end = lapStart.start;
+                } else {
+                    start = lapEnd.start;
+                    end = lapStart.end;
+                }
+                if (Math.abs(start - end) > 1e-4) {
+                    const road = getRoadCurvePath(route.courseId, lapStart.roadId);
+                    let connection;
+                    if (start > end) {
+                        const joiner = new curves.CurvePath();
+                        joiner.extend(road.subpathAtRoadPercents(start, 1));
+                        joiner.extend(road.subpathAtRoadPercents(0, end));
+                        connection = joiner;
+                    } else {
+                        connection = road.subpathAtRoadPercents(start, end);
+                    }
+                    state.lapWeldDistance = connection.distance(epsilon) / 100;
+                }
+            }
+        }
     }
+    const maxLaps = 1000;
+    if (distance) {
+        laps = route.supportedLaps ? Infinity : 1;
+    } else if (laps > 1 && !route.supportedLaps) {
+        console.error("Route does not support laps:", route.id);
+        laps = 1;
+    }
+    const lapSegments = [];
+    if (route.supportedLaps) {
+        for (let lap = 1; lap < laps; lap++) {
+            const lapOfft = (state.lapDist + state.lapWeldDistance) * lap - state.leadinDist;
+            if (distance && state.leadinDist + lapOfft >= distance) {
+                break;
+            }
+            for (const x of state.routeSegments) {
+                if (!x.leadin) {
+                    lapSegments.push({
+                        id: x.id,
+                        startDistance: x.startDistance + lapOfft,
+                        endDistance: x.endDistance + lapOfft,
+                        leadin: false,
+                    });
+                }
+            }
+            if (lap === maxLaps) {
+                console.error(`Reached maximum laps (${maxLaps}) for route:`, route.id);
+                break;
+            }
+        }
+    }
+    const allSegments = state.routeSegments.concat(lapSegments);
+    return {
+        leadinDistance: state.leadinDist,
+        lapDistance: state.lapDist,
+        lapWeldDistance: state.lapWeldDistance,
+        segments: distance ? allSegments.filter(x => x.endDistance <= distance) : allSegments,
+    };
 }
 
 
 export function getRoute(routeId) {
-    loadRoutes();
-    return _routes.get(routeId);
-}
-rpc.register(getRoute);
-
-
-export function getRoutes(courseId) {
-    loadRoutes();
-    let routes = Array.from(_routes.values());
-    if (courseId != null) {
-        routes = routes.filter(x => x.courseId === courseId);
+    const route = _routes.get(routeId);
+    if (route && !route.segmentProjections) {
+        route.segmentProjections = projectRouteSegments(route);
     }
-    return routes;
+    return route;
 }
-rpc.register(getRoutes);
+
+
+export function getRoutes(ids) {
+    if (ids == null) {
+        return Array.from(_routes.keys()).map(getRoute);
+    }
+    return ids.map(getRoute);
+}
+
+
+export function getCourseRoutes(courseId) {
+    return Array.from(_routes.values().filter(x => x.courseId === courseId)).map(x => getRoute(x.id));
+}
 
 
 export function webMercatorProjection([lat, lng]) {

@@ -345,10 +345,24 @@ html.settings-page .screen:not(.horizontal) {
             mix-blend-mode: soft-light;
             opacity: 0.6;
         }
+
+        .sub .value:has(.field-sparkline) {
+            padding-top: 0.4em;
+        }
     }
 
     &.large-data-fields {
         font-size: 1.7em;
+
+        .full-height .value:has(.field-sparkline) {
+            font-size: 0.4em;
+        }
+    }
+
+    &.data-fields {
+        .full-height .value:has(.field-sparkline) {
+            font-size: 0.48em;
+        }
     }
 
     &.data-fields,
@@ -523,6 +537,10 @@ html.settings-page .screen:not(.horizontal) {
             .value {
                 min-width: initial;
                 line-height: 0.8;
+
+                &:has(.field-sparkline) {
+                    font-size: 0.5em;
+                }
             }
         }
     }
@@ -644,7 +662,7 @@ html.settings-page .screen:not(.horizontal) {
     margin-bottom: 0.33em;
     min-width: 8ex;
 
-    &::after {
+    &:not(:empty)::after {
         content: ':';
         opacity: 0.86;
     }

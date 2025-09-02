@@ -3,6 +3,7 @@ import * as common from './common.mjs';
 import * as color from './color.mjs';
 import * as elevationMod from './elevation.mjs';
 import * as charts from './charts.mjs';
+import * as fieldsMod from './fields.mjs';
 
 common.enableSentry();
 
@@ -194,43 +195,7 @@ const sectionSpecs = {
 export const groupSpecs = {
     time: {
         title: 'Time',
-        fields: [{
-            id: 'time-active',
-            longName: 'Time (active)',
-            value: x => fmtDur(x.stats && x.stats.activeTime),
-            key: 'Active',
-        }, {
-            id: 'time-elapsed',
-            longName: 'Time (elapsed)',
-            value: x => fmtDur(x.stats && x.stats.elapsedTime),
-            key: 'Elapsed',
-            label: 'elapsed',
-        }, {
-            id: 'time-lap',
-            longName: 'Time (lap)',
-            value: x => fmtDur(curLap(x) && curLap(x).activeTime),
-            key: 'Lap',
-            label: 'lap',
-        }, {
-            id: 'time-session',
-            longName: 'Time (zwift session)',
-            value: x => fmtDur(x.state && x.state.time),
-            key: 'Session',
-            label: 'session',
-        }, {
-            id: 'time-gap',
-            longName: 'Gap (time)',
-            value: x => fmtDur(x.gap),
-            key: 'Gap',
-            label: 'gap',
-        }, {
-            id: 'time-gap-distance',
-            longName: 'Gap (distance)',
-            value: x => fmtDistValue(x.gapDistance),
-            key: 'Gap',
-            label: 'gap',
-            unit: x => fmtDistUnit(x.gapDistance),
-        }]
+        fields: fieldsMod.fields.filter(x => x.group === 'time'),
     },
     power: {
         title: 'Power',
@@ -238,56 +203,77 @@ export const groupSpecs = {
         fields: [{
             id: 'pwr-cur',
             longName: 'Current Power',
-            value: x => H.number(x.state && x.state.power),
-            key: 'Current',
-            unit: 'w',
+            format: x => H.number(x.state && x.state.power),
+            shortName: 'Current',
+            suffix: 'w',
         }, {
             id: 'pwr-cur-wkg',
             longName: 'Current W/kg',
-            value: x => humanWkg(x.state && x.state.power, x.athlete),
-            key: 'Current',
-            unit: 'w/kg',
+            format: x => humanWkg(x.state && x.state.power, x.athlete),
+            shortName: 'Current',
+            suffix: 'w/kg',
         }, {
             id: 'pwr-avg',
             longName: 'Avg Power',
-            value: x => H.number(x.stats && x.stats.power.avg),
+            format: x => H.number(x.stats && x.stats.power.avg),
             label: 'avg',
-            key: 'Avg',
-            unit: 'w',
+            shortName: 'Avg',
+            suffix: 'w',
         }, {
             id: 'pwr-avg-wkg',
             longName: 'Avg W/kg',
-            value: x => humanWkg(x.state && x.stats.power.avg, x.athlete),
+            format: x => humanWkg(x.state && x.stats.power.avg, x.athlete),
             label: 'avg',
-            key: 'Avg',
-            unit: 'w/kg',
+            shortName: 'Avg',
+            suffix: 'w/kg',
+        }, {
+            id: 'pwr-np',
+            format: x => H.number(x.stats && x.stats.power.np),
+            label: 'np',
+            shortName: 'NP®',
+            tooltip: common.stripHTML(common.attributions.tp),
         }, {
             id: 'pwr-max',
             longName: 'Max Power',
-            value: x => H.number(x.stats && x.stats.power.max),
+            format: x => H.number(x.stats && x.stats.power.max),
             label: 'max',
-            key: 'Max',
-            unit: 'w',
+            shortName: 'Max',
+            suffix: 'w',
         }, {
             id: 'pwr-max-wkg',
             longName: 'Max W/kg',
-            value: x => humanWkg(x.state && x.stats.power.max, x.athlete),
+            format: x => humanWkg(x.state && x.stats.power.max, x.athlete),
             label: 'max',
-            key: 'Max',
-            unit: 'w/kg',
-        }, {
-            id: 'pwr-np',
-            value: x => H.number(x.stats && x.stats.power.np),
-            label: 'np',
-            key: 'NP®',
-            tooltip: common.stripHTML(common.attributions.tp),
+            shortName: 'Max',
+            suffix: 'w/kg',
         }, {
             id: 'pwr-tss',
-            value: x => H.number(x.stats && x.stats.power.tss),
+            format: x => H.number(x.stats && x.stats.power.tss),
             label: 'tss',
-            key: 'TSS®',
+            shortName: 'TSS®',
             tooltip: common.stripHTML(common.attributions.tp),
+        }, {
+            id: 'pwr-vi',
+            format: x => H.number(x.stats && x.stats.power.np && x.stats.power.np / x.stats.power.avg,
+                                  {precision: 2, fixed: true}),
+            label: 'vi',
+            shortName: 'VI',
+        }, {
+            id: 'pwr-wbal',
+            format: x => H.number(x.wBal / 1000, {precision: 1, fixed: true}),
+            label: 'w\'bal',
+            shortName: 'W\'bal',
+            suffix: 'kJ',
+        }, {
+            id: 'pwr-energy',
+            format: x => H.number(x.state?.kj),
+            shortName: 'Energy',
+            suffix: 'kJ',
         },
+        ...fieldsMod.fields.filter(x => [
+            'power-avg-solo', 'power-avg-follow', 'power-avg-work',
+            'energy-solo', 'energy-follow', 'energy-work'
+        ].includes(x.id)).map(x => ({...x, group: 'Pack Dynamics'})),
         ...makeSmoothPowerFields(5),
         ...makeSmoothPowerFields(15),
         ...makeSmoothPowerFields(60),
@@ -298,165 +284,158 @@ export const groupSpecs = {
         ...makePeakPowerFields(60),
         ...makePeakPowerFields(300),
         ...makePeakPowerFields(1200),
+        //
+        // Current lap...
+        //
         {
             id: 'pwr-lap-avg',
             group: 'Lap',
             longName: 'Avg Power',
-            value: x => H.number(curLap(x) && curLap(x).power.avg),
+            format: x => H.number(curLap(x) && curLap(x).power.avg),
             label: 'lap',
-            key: 'Lap',
-            unit: 'w',
+            shortName: 'Lap',
+            suffix: 'w',
         }, {
             id: 'pwr-lap-wkg',
             group: 'Lap',
             longName: 'Avg W/kg',
-            value: x => humanWkg(curLap(x) && curLap(x).power.avg, x.athlete),
+            format: x => humanWkg(curLap(x) && curLap(x).power.avg, x.athlete),
             label: 'lap',
-            key: 'Lap',
-            unit: 'w/kg',
-        }, {
-            id: 'pwr-lap-max',
-            group: 'Lap',
-            longName: 'Max Power',
-            value: x => H.number(curLap(x) && curLap(x).power.max),
-            label: ['max', '(lap)'],
-            key: 'Max<tiny>(lap)</tiny>',
-            unit: 'w',
-        }, {
-            id: 'pwr-lap-max-wkg',
-            group: 'Lap',
-            longName: 'Max W/kg',
-            value: x => humanWkg(curLap(x) && curLap(x).power.max, x.athlete),
-            label: ['max', '(lap)'],
-            key: 'Max<tiny>(lap)</tiny>',
-            unit: 'w/kg',
+            shortName: 'Lap',
+            suffix: 'w/kg',
         }, {
             id: 'pwr-lap-np',
             group: 'Lap',
             longName: 'NP®',
-            value: x => H.number(curLap(x) && curLap(x).power.np),
+            format: x => H.number(curLap(x) && curLap(x).power.np),
             label: ['np', '(lap)'],
-            key: 'NP®<tiny>(lap)</tiny>',
+            shortName: 'NP®<tiny>(lap)</tiny>',
             tooltip: common.stripHTML(common.attributions.tp),
+        }, {
+            id: 'pwr-lap-max',
+            group: 'Lap',
+            longName: 'Max Power',
+            format: x => H.number(curLap(x) && curLap(x).power.max),
+            label: ['max', '(lap)'],
+            shortName: 'Max<tiny>(lap)</tiny>',
+            suffix: 'w',
+        }, {
+            id: 'pwr-lap-max-wkg',
+            group: 'Lap',
+            longName: 'Max W/kg',
+            format: x => humanWkg(curLap(x) && curLap(x).power.max, x.athlete),
+            label: ['max', '(lap)'],
+            shortName: 'Max<tiny>(lap)</tiny>',
+            suffix: 'w/kg',
         },
+        ...fieldsMod.fields.filter(x => [
+            'power-avg-solo-lap', 'power-avg-follow-lap', 'power-avg-work-lap',
+            'energy-solo-lap', 'energy-follow-lap', 'energy-work-lap'
+        ].includes(x.id)).map(x => ({...x, group: 'Pack Dynamics (lap)'})),
         ...makePeakPowerFields(5, -1, {group: 'Lap'}),
         ...makePeakPowerFields(15, -1, {group: 'Lap'}),
         ...makePeakPowerFields(60, -1, {group: 'Lap'}),
         ...makePeakPowerFields(300, -1, {group: 'Lap'}),
         ...makePeakPowerFields(1200, -1, {group: 'Lap'}),
+        //
+        // Last lap...
+        //
         {
             id: 'pwr-last-avg',
             group: 'Last Lap',
             longName: 'Avg Power',
-            value: x => H.number(lastLap(x) && lastLap(x).power.avg || null),
+            format: x => H.number(lastLap(x) && lastLap(x).power.avg || null),
             label: 'last lap',
-            key: 'Last Lap',
-            unit: 'w',
+            shortName: 'Last Lap',
+            suffix: 'w',
         }, {
             id: 'pwr-last-avg-wkg',
             group: 'Last Lap',
             longName: 'Avg W/kg',
-            value: x => humanWkg(lastLap(x) && lastLap(x).power.avg, x.athlete),
+            format: x => humanWkg(lastLap(x) && lastLap(x).power.avg, x.athlete),
             label: 'last lap',
-            key: 'Last Lap',
-            unit: 'w/kg',
-        }, {
-            id: 'pwr-last-max',
-            group: 'Last Lap',
-            longName: 'Max Power',
-            value: x => H.number(lastLap(x) && lastLap(x).power.max || null),
-            label: ['max', '(last lap)'],
-            key: 'Max<tiny>(last lap)</tiny>',
-            unit: 'w',
-        }, {
-            id: 'pwr-last-max-wkg',
-            group: 'Last Lap',
-            longName: 'Max W/kg',
-            value: x => humanWkg(lastLap(x) && lastLap(x).power.max, x.athlete),
-            label: ['max', '(last lap)'],
-            key: 'Max<tiny>(last lap)</tiny>',
-            unit: 'w/kg',
+            shortName: 'Last Lap',
+            suffix: 'w/kg',
         }, {
             id: 'pwr-last-np',
             group: 'Last Lap',
             longName: 'NP®',
-            value: x => H.number(lastLap(x) && lastLap(x).power.np || null),
+            format: x => H.number(lastLap(x) && lastLap(x).power.np || null),
             label: ['np', '(last lap)'],
-            key: 'NP®<tiny>(last lap)</tiny>',
+            shortName: 'NP®<tiny>(last lap)</tiny>',
             tooltip: common.stripHTML(common.attributions.tp),
+        }, {
+            id: 'pwr-last-max',
+            group: 'Last Lap',
+            longName: 'Max Power',
+            format: x => H.number(lastLap(x) && lastLap(x).power.max || null),
+            label: ['max', '(last lap)'],
+            shortName: 'Max<tiny>(last lap)</tiny>',
+            suffix: 'w',
+        }, {
+            id: 'pwr-last-max-wkg',
+            group: 'Last Lap',
+            longName: 'Max W/kg',
+            format: x => humanWkg(lastLap(x) && lastLap(x).power.max, x.athlete),
+            label: ['max', '(last lap)'],
+            shortName: 'Max<tiny>(last lap)</tiny>',
+            suffix: 'w/kg',
         },
         ...makePeakPowerFields(5, -2, {group: 'Last Lap'}),
         ...makePeakPowerFields(15, -2, {group: 'Last Lap'}),
         ...makePeakPowerFields(60, -2, {group: 'Last Lap'}),
         ...makePeakPowerFields(300, -2, {group: 'Last Lap'}),
         ...makePeakPowerFields(1200, -2, {group: 'Last Lap'}),
-        {
-            id: 'pwr-vi',
-            value: x => H.number(x.stats && x.stats.power.np && x.stats.power.np / x.stats.power.avg,
-                                 {precision: 2, fixed: true}),
-            label: 'vi',
-            key: 'VI',
-        }, {
-            id: 'pwr-wbal',
-            value: x => H.number(x.wBal / 1000, {precision: 1, fixed: true}),
-            label: 'w\'bal',
-            key: 'W\'bal',
-            unit: 'kJ',
-        }, {
-            id: 'pwr-energy',
-            value: x => H.number(x.state?.kj),
-            key: 'Energy',
-            unit: 'kJ',
-        }],
+        ],
     },
     hr: {
         title: 'Heart Rate',
         backgroundImage: 'url(../images/fa/heartbeat-duotone.svg)',
         fields: [{
             id: 'hr-cur',
-            value: x => H.number(x.state && x.state.heartrate || null),
-            key: 'Current',
-            unit: 'bpm',
+            format: x => H.number(x.state && x.state.heartrate || null),
+            shortName: 'Current',
+            suffix: 'bpm',
         }, {
             id: 'hr-avg',
-            value: x => H.number(x.stats && x.stats.hr.avg || null),
+            format: x => H.number(x.stats && x.stats.hr.avg || null),
             label: 'avg',
-            key: 'Avg',
-            unit: 'bpm',
+            shortName: 'Avg',
+            suffix: 'bpm',
         }, {
             id: 'hr-max',
-            value: x => H.number(x.stats && x.stats.hr.max || null),
+            format: x => H.number(x.stats && x.stats.hr.max || null),
             label: 'max',
-            key: 'Max',
-            unit: 'bpm',
+            shortName: 'Max',
+            suffix: 'bpm',
         },
         makeSmoothHRField(60),
         makeSmoothHRField(300),
         makeSmoothHRField(1200),
         {
             id: 'hr-lap-avg',
-            value: x => H.number(curLap(x) && curLap(x).hr.avg || null),
+            format: x => H.number(curLap(x) && curLap(x).hr.avg || null),
             label: 'lap',
-            key: 'Lap',
-            unit: 'bpm',
+            shortName: 'Lap',
+            suffix: 'bpm',
         }, {
             id: 'hr-lap-max',
-            value: x => H.number(curLap(x) && curLap(x).hr.max || null),
+            format: x => H.number(curLap(x) && curLap(x).hr.max || null),
             label: ['max', '(lap)'],
-            key: 'Max<tiny>(lap)</tiny>',
-            unit: 'bpm',
+            shortName: 'Max<tiny>(lap)</tiny>',
+            suffix: 'bpm',
         }, {
             id: 'hr-last-avg',
-            value: x => H.number(lastLap(x) && lastLap(x).hr.avg || null),
+            format: x => H.number(lastLap(x) && lastLap(x).hr.avg || null),
             label: 'last lap',
-            key: 'Last Lap',
-            unit: 'bpm',
+            shortName: 'Last Lap',
+            suffix: 'bpm',
         }, {
             id: 'hr-last-max',
-            value: x => H.number(lastLap(x) && lastLap(x).hr.max || null),
+            format: x => H.number(lastLap(x) && lastLap(x).hr.max || null),
             label: ['max', '(last lap)'],
-            key: 'Max<tiny>(last lap)</tiny>',
-            unit: 'bpm',
+            shortName: 'Max<tiny>(last lap)</tiny>',
+            suffix: 'bpm',
         }],
     },
     cadence: {
@@ -464,45 +443,45 @@ export const groupSpecs = {
         backgroundImage: 'url(../images/fa/solar-system-duotone.svg)',
         fields: [{
             id: 'cad-cur',
-            value: x => H.number(x.state && x.state.cadence),
-            key: 'Current',
-            unit: cadenceUnit,
+            format: x => H.number(x.state && x.state.cadence),
+            shortName: 'Current',
+            suffix: cadenceUnit,
         }, {
             id: 'cad-avg',
-            value: x => H.number(x.stats && x.stats.cadence.avg || null),
+            format: x => H.number(x.stats && x.stats.cadence.avg || null),
             label: 'avg',
-            key: 'Avg',
-            unit: cadenceUnit,
+            shortName: 'Avg',
+            suffix: cadenceUnit,
         }, {
             id: 'cad-max',
-            value: x => H.number(x.stats && x.stats.cadence.max || null),
+            format: x => H.number(x.stats && x.stats.cadence.max || null),
             label: 'max',
-            key: 'Max',
-            unit: cadenceUnit,
+            shortName: 'Max',
+            suffix: cadenceUnit,
         }, {
             id: 'cad-lap-avg',
-            value: x => H.number(curLap(x) && curLap(x).cadence.avg || null),
+            format: x => H.number(curLap(x) && curLap(x).cadence.avg || null),
             label: 'lap',
-            key: 'Lap',
-            unit: cadenceUnit,
+            shortName: 'Lap',
+            suffix: cadenceUnit,
         }, {
             id: 'cad-lap-max',
-            value: x => H.number(curLap(x) && curLap(x).cadence.max || null),
+            format: x => H.number(curLap(x) && curLap(x).cadence.max || null),
             label: ['max', '(lap)'],
-            key: 'Max<tiny>(lap)</tiny>',
-            unit: cadenceUnit,
+            shortName: 'Max<tiny>(lap)</tiny>',
+            suffix: cadenceUnit,
         }, {
             id: 'cad-last-avg',
-            value: x => H.number(lastLap(x) && lastLap(x).cadence.avg || null),
+            format: x => H.number(lastLap(x) && lastLap(x).cadence.avg || null),
             label: 'last lap',
-            key: 'Last Lap',
-            unit: cadenceUnit,
+            shortName: 'Last Lap',
+            suffix: cadenceUnit,
         }, {
             id: 'cad-last-max',
-            value: x => H.number(lastLap(x) && lastLap(x).cadence.max || null),
+            format: x => H.number(lastLap(x) && lastLap(x).cadence.max || null),
             label: ['max', '(last lap)'],
-            key: 'Max<tiny>(last lap)</tiny>',
-            unit: cadenceUnit,
+            shortName: 'Max<tiny>(last lap)</tiny>',
+            suffix: cadenceUnit,
         }],
     },
     draft: {
@@ -510,80 +489,80 @@ export const groupSpecs = {
         backgroundImage: 'url(../images/fa/wind-duotone.svg)',
         fields: [{
             id: 'draft-cur',
-            value: x => H.number(x.state && x.state.draft),
-            key: 'Current',
-            unit: 'w',
+            format: x => H.number(x.state && x.state.draft),
+            shortName: 'Current',
+            suffix: 'w',
         }, {
             id: 'draft-avg',
-            value: x => H.number(x.stats && x.stats.draft.avg),
+            format: x => H.number(x.stats && x.stats.draft.avg),
             label: 'avg',
-            key: 'Avg',
-            unit: 'w',
+            shortName: 'Avg',
+            suffix: 'w',
         }, {
             id: 'draft-max',
-            value: x => H.number(x.stats && x.stats.draft.max),
+            format: x => H.number(x.stats && x.stats.draft.max),
             label: 'max',
-            key: 'Max',
-            unit: 'w',
+            shortName: 'Max',
+            suffix: 'w',
         }, {
             id: 'draft-lap-avg',
-            value: x => H.number(curLap(x) && curLap(x).draft.avg),
+            format: x => H.number(curLap(x) && curLap(x).draft.avg),
             label: 'lap',
-            key: 'Lap',
-            unit: 'w',
+            shortName: 'Lap',
+            suffix: 'w',
         }, {
             id: 'draft-lap-max',
-            value: x => H.number(curLap(x) && curLap(x).draft.max),
+            format: x => H.number(curLap(x) && curLap(x).draft.max),
             label: ['max', '(lap)'],
-            key: 'Max<tiny>(lap)</tiny>',
-            unit: 'w',
+            shortName: 'Max<tiny>(lap)</tiny>',
+            suffix: 'w',
         }, {
             id: 'draft-last-avg',
-            value: x => H.number(lastLap(x) && lastLap(x).draft.avg || null),
+            format: x => H.number(lastLap(x) && lastLap(x).draft.avg || null),
             label: 'last lap',
-            key: 'Last Lap',
-            unit: 'w',
+            shortName: 'Last Lap',
+            suffix: 'w',
         }, {
             id: 'draft-last-max',
-            value: x => H.number(lastLap(x) && lastLap(x).draft.max || null),
+            format: x => H.number(lastLap(x) && lastLap(x).draft.max || null),
             label: ['max', '(last lap)'],
-            key: 'Max<tiny>(last lap)</tiny>',
-            unit: 'w',
+            shortName: 'Max<tiny>(last lap)</tiny>',
+            suffix: 'w',
         }, {
             id: 'draft-energy',
-            value: x => H.number(x.stats?.draft?.kj),
-            key: 'Energy',
-            unit: 'kJ',
+            format: x => H.number(x.stats?.draft?.kj),
+            shortName: 'Energy',
+            suffix: 'kJ',
         }],
     },
     event: {
-        title: x => eventSubgroup && eventSubgroup.name || 'Event',
+        title: x => eventSubgroup?.name || 'Event',
         backgroundImage: 'url(../images/fa/flag-checkered-duotone.svg)',
         fields: [{
             id: 'ev-place',
-            value: x => H.number(x.eventPosition),
-            key: 'Place',
-            unit: x => H.place(x.eventPosition, {suffixOnly: true})
+            format: x => H.number(x.eventPosition),
+            shortName: 'Place',
+            suffix: x => H.place(x.eventPosition, {suffixOnly: true})
         }, {
             id: 'ev-finish',
-            value: x => eventMetric ?
+            format: x => eventMetric ?
                 eventMetric === 'distance' ?
                     fmtDistValue(x.remaining) : fmtDur(x.remaining) :
                 '-',
             label: 'finish',
-            key: 'Finish',
-            unit: x => eventMetric === 'distance' ? fmtDistUnit(x && x.remaining) : '',
+            shortName: 'Finish',
+            suffix: x => eventMetric === 'distance' ? fmtDistUnit(x && x.remaining) : '',
         }, {
             id: 'ev-dst',
-            value: x => fmtDistValue(x.state && x.state.eventDistance),
+            format: x => fmtDistValue(x.state && x.state.eventDistance),
             label: 'dist',
-            key: 'Dist',
-            unit: x => fmtDistUnit(x && x.state && x.state.eventDistance),
+            shortName: 'Dist',
+            suffix: x => fmtDistUnit(x && x.state && x.state.eventDistance),
         }, {
             id: 'ev-time',
-            value: x => fmtDur(x.state && x.state.time),
+            format: x => fmtDur(x.state && x.state.time),
             label: 'time',
-            key: 'Time',
+            shortName: 'Time',
         }]
     },
     pace: {
@@ -591,59 +570,59 @@ export const groupSpecs = {
         backgroundImage: 'url(../images/fa/tachometer-duotone.svg)',
         fields: [{
             id: 'pace-cur',
-            value: x => fmtPace(x.state && x.state.speed),
-            key: 'Current',
-            unit: speedUnit,
+            format: x => fmtPace(x.state && x.state.speed),
+            shortName: 'Current',
+            suffix: speedUnit,
         }, {
             id: 'pace-avg',
-            value: x => fmtPace(x.stats && x.stats.speed.avg),
+            format: x => fmtPace(x.stats && x.stats.speed.avg),
             label: 'avg',
-            key: 'Avg',
-            unit: speedUnit,
+            shortName: 'Avg',
+            suffix: speedUnit,
         }, {
             id: 'pace-max',
-            value: x => fmtPace(x.stats && x.stats.speed.max),
+            format: x => fmtPace(x.stats && x.stats.speed.max),
             label: 'max',
-            key: 'Max',
-            unit: speedUnit,
+            shortName: 'Max',
+            suffix: speedUnit,
         }, {
             id: 'pace-lap-avg',
-            value: x => fmtPace(curLap(x) && curLap(x).speed.avg),
+            format: x => fmtPace(curLap(x) && curLap(x).speed.avg),
             label: 'lap',
-            key: 'Lap',
-            unit: speedUnit,
+            shortName: 'Lap',
+            suffix: speedUnit,
         }, {
             id: 'pace-lap-max',
-            value: x => fmtPace(curLap(x) && curLap(x).speed.max),
+            format: x => fmtPace(curLap(x) && curLap(x).speed.max),
             label: ['max', '(lap)'],
-            key: 'Max<tiny>(lap)</tiny>',
-            unit: speedUnit,
+            shortName: 'Max<tiny>(lap)</tiny>',
+            suffix: speedUnit,
         }, {
             id: 'pace-last-avg',
-            value: x => fmtPace(lastLap(x) && lastLap(x).speed.avg),
+            format: x => fmtPace(lastLap(x) && lastLap(x).speed.avg),
             label: 'last lap',
-            key: 'Last Lap',
-            unit: speedUnit,
+            shortName: 'Last Lap',
+            suffix: speedUnit,
         }, {
             id: 'pace-last-max',
-            value: x => fmtPace(lastLap(x) && lastLap(x).speed.max),
+            format: x => fmtPace(lastLap(x) && lastLap(x).speed.max),
             label: ['max', '(last lap)'],
-            key: 'Max<tiny>(last lap)</tiny>',
-            unit: speedUnit,
+            shortName: 'Max<tiny>(last lap)</tiny>',
+            suffix: speedUnit,
         }],
     },
     other: {
         title: 'Other',
         fields: [{
             id: 'other-distance',
-            value: x => fmtDistValue(x.state && x.state.distance),
-            key: 'Distance',
-            unit: x => fmtDistUnit(x.state && x.state.distance),
+            format: x => fmtDistValue(x.state && x.state.distance),
+            shortName: 'Distance',
+            suffix: x => fmtDistUnit(x.state && x.state.distance),
         }, {
             id: 'other-grade',
-            value: x => H.number(x.state && x.state.grade * 100, {precision: 1, fixed: true}),
-            key: 'Grade',
-            unit: '%',
+            format: x => H.number(x.state && x.state.grade * 100, {precision: 1, fixed: true}),
+            shortName: 'Grade',
+            suffix: '%',
         }]
     },
 
@@ -726,7 +705,7 @@ function makePeakPowerFields(period, lap, extra) {
         '-1': '(lap)',
         '-2': '(last lap)',
     }[lap];
-    const key = lap ? `Peak ${duration}<tiny>${lapLabel}</tiny>` : `Peak ${duration}`;
+    const shortName = lap ? `Peak ${duration}<tiny>${lapLabel}</tiny>` : `Peak ${duration}`;
 
     function getValue(data) {
         const stats = data.stats && (lap === -1 ? curLap(data) : lap === -2 ? lastLap(data) : data.stats);
@@ -757,18 +736,18 @@ function makePeakPowerFields(period, lap, extra) {
     return [{
         id: `power-peak-${period}`,
         longName: `Peak Power (${duration})`,
-        value: x => H.number(getValue(x)),
+        format: x => H.number(getValue(x)),
         label,
-        key,
-        unit: 'w',
+        shortName,
+        suffix: 'w',
         ...extra,
     }, {
         id: `power-peak-${period}-wkg`,
         longName: `Peak W/kg (${duration})`,
-        value: x => humanWkg(getValue(x), x.athlete),
+        format: x => humanWkg(getValue(x), x.athlete),
         label,
-        key,
-        unit: 'w/kg',
+        shortName,
+        suffix: 'w/kg',
         ...extra,
     }];
 }
@@ -777,22 +756,22 @@ function makePeakPowerFields(period, lap, extra) {
 function makeSmoothPowerFields(period, extra) {
     const duration = shortDuration(period);
     const label = duration;
-    const key = duration;
+    const shortName = duration;
     return [{
         id: `power-smooth-${period}`,
         longName: `Smoothed Power (${duration})`,
-        value: x => H.number(x.stats && x.stats.power.smooth[period]),
+        format: x => H.number(x.stats && x.stats.power.smooth[period]),
         label,
-        key,
-        unit: 'w',
+        shortName,
+        suffix: 'w',
         ...extra,
     }, {
         id: `power-smooth-${period}-wkg`,
         longName: `Smoothed W/kg (${duration})`,
-        value: x => humanWkg(x.stats && x.stats.power.smooth[period], x.athlete),
+        format: x => humanWkg(x.stats && x.stats.power.smooth[period], x.athlete),
         label,
-        key,
-        unit: 'w/kg',
+        shortName,
+        suffix: 'w/kg',
         ...extra,
     }];
 }
@@ -803,29 +782,12 @@ function makeSmoothHRField(period, extra) {
     return {
         id: `hr-smooth-${period}`,
         longName: `Smoothed (${duration})`,
-        value: x => H.number(x.stats && x.stats.hr.smooth[period]),
+        format: x => H.number(x.stats && x.stats.hr.smooth[period]),
         label: duration,
-        key: duration,
-        unit: 'bpm',
+        shortName: duration,
+        suffix: 'bpm',
         ...extra,
     };
-}
-
-
-const _events = new Map();
-function getEventSubgroup(id) {
-    if (!_events.has(id)) {
-        _events.set(id, null);
-        common.rpc.getEventSubgroup(id).then(x => {
-            if (x) {
-                _events.set(id, x);
-            } else {
-                // leave it null but allow retry later
-                setTimeout(() => _events.delete(id), 30000);
-            }
-        });
-    }
-    return _events.get(id);
 }
 
 
@@ -1410,7 +1372,7 @@ export async function main() {
     powerZones = await common.rpc.getPowerZones(1);
     const layoutTpl = await getTpl('watching-screen-layout');
     const ad = await common.rpc.getAthleteData(athleteIdent);
-    assignAthleteGlobals(ad);
+    await assignAthleteGlobals(ad);
     const persistentData = settings.screens.some(x =>
         x.sections.some(xx => sectionSpecs[xx.type].alwaysRender));
     for (const [sIndex, screen] of settings.screens.entries()) {
@@ -1579,7 +1541,14 @@ export async function main() {
 function assignAthleteGlobals(ad) {
     sport = ad?.state.sport || 'cycling';
     eventMetric = ad?.remainingMetric;
-    eventSubgroup = getEventSubgroup(ad?.state.eventSubgroupId);
+    const sg = common.getEventSubgroup(ad?.state.eventSubgroupId);
+    if (sg) {
+        if (sg instanceof Promise) {
+            sg.then(x => eventSubgroup = x);
+        }
+    } else {
+        eventSubgroup = null;
+    }
     athleteFTP = ad?.athlete?.ftp;
 }
 

@@ -4,7 +4,7 @@ import * as curves from '../shared/curves.mjs';
 
 
 function assertCloseTo(a, b, t=0.001) {
-    assert(Math.abs(a - b) < t);
+    assert.ok(Math.abs(a - b) < t, `${a} !~= ${b}`);
 }
 
 
@@ -197,7 +197,7 @@ test('subpath start > end', () => {
 });
 
 test('subpath small data/selection - perfect boundary', () => {
-    const points = [[0, 0, 0], [1,1,1]];
+    const points = [[0, 0, 0], [1, 1, 1]];
     for (let i = 2; i < 6; i++) {
         points.push([i, i, i]);
         // Make deep copy just in case the internal design changes in the future
@@ -293,7 +293,7 @@ test('subpath roadTime integrity - end clipped', () => {
         const points = [[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5]];
         const path = curves.catmullRomPath(points, {road: true});
         const start = 0;
-        const end = Math.random();
+        const end = Math.max(ep * 2, Math.random());
         const subpath = path.subpathAtRoadPercents(start, end);
         assert(subpath.includesRoadPercent((end - start) / 2 + start));
         assert(subpath.includesRoadPercent((end - start) / 2 + start));
@@ -301,7 +301,6 @@ test('subpath roadTime integrity - end clipped', () => {
         assert(subpath.includesRoadPercent(end - ep));
         assert(!subpath.includesRoadPercent(end + ep));
         assert(!subpath.includesRoadPercent(start - ep));
-
     }
 });
 
@@ -362,4 +361,161 @@ test('roadOffsetToTime', () => {
     assert.strictEqual(curves.roadOffsetToTime(2, 4), 1005000);
     assert.strictEqual(curves.roadOffsetToTime(1, 100), 5000);
     assert.strictEqual(curves.roadOffsetToTime(98, 100), 1005000);
+});
+
+test('distance with finish straight', () => {
+    const points = [
+        [0, 0, 0, {straight: false}],
+        [10, 0, 0, {straight: false}],
+        [30, 0, 0, {straight: true}],
+        [60, 0, 0, {straight: true}],
+    ];
+    const path = curves.catmullRomPath(points);
+    assert.strictEqual(path.distance(0.1), 60);
+});
+
+test('distance with len - 1 straight', () => {
+    const points = [
+        [0, 0, 0, {straight: false}],
+        [0, 10, 0, {straight: true}],
+        [0, 30, 0, {straight: false}],
+        [0, 60, 0, {straight: false}],
+    ];
+    const path = curves.catmullRomPath(points);
+    assert.strictEqual(path.distance(0.1), 60);
+});
+
+test('distanceAtRoadPercent', () => {
+    const points = [
+        [0, 0, 0, {straight: false}],
+        [0, 10, 0, {straight: false}],
+        [0, 30, 0, {straight: false}],
+        [0, 40, 0, {straight: false}],
+        [0, 50, 0, {straight: false}],
+    ];
+    const path = curves.catmullRomPath(points, {road: true});
+    for (const x of [0, 1/3, 0.5, 2/3, .9, 1, 1.1, 2, -0.1, -1.1]) {
+        const subpath = path.subpathAtRoadPercents(-1, x);
+        const subpathDist = subpath.distance();
+        const dist = path.distanceAtRoadPercent(x);
+        assertCloseTo(dist, subpathDist, 1e-6);
+    }
+});
+
+test('distanceAtRoadPercent boundaries', () => {
+    const points = [
+        [0, 0, 0, {straight: false}],
+        [0, 10, 0, {straight: false}],
+        [0, 30, 0, {straight: false}],
+        [0, 40, 0, {straight: false}],
+        [0, 50, 0, {straight: false}],
+    ];
+    const path = curves.catmullRomPath(points, {road: true});
+    assertCloseTo(path.distanceAtRoadPercent(-Infinity), 0, 1e-6);
+    assertCloseTo(path.distanceAtRoadPercent(-1), 0, 1e-6);
+    assertCloseTo(path.distanceAtRoadPercent(0), 10, 1e-6);
+    assertCloseTo(path.distanceAtRoadPercent(1), 40, 1e-6);
+    assertCloseTo(path.distanceAtRoadPercent(2), 50, 1e-6);
+    assertCloseTo(path.distanceAtRoadPercent(Infinity), 50, 1e-6);
+});
+
+test('distanceAtRoadPercent with straights', () => {
+    const arrangements = [
+        [
+            [0, 0, 0, {straight: true}],
+            [0, 10, 0, {straight: false}],
+            [0, 30, 0, {straight: true}],
+            [0, 40, 0, {straight: false}],
+            [0, 50, 0, {straight: true}],
+        ], [
+            [0, 0, 0, {straight: false}],
+            [0, 10, 0, {straight: true}],
+            [0, 30, 0, {straight: false}],
+            [0, 40, 0, {straight: true}],
+            [0, 50, 0, {straight: false}],
+        ], [
+            [0, 0, 0, {straight: true}],
+            [0, 10, 0, {straight: true}],
+            [0, 30, 0, {straight: true}],
+            [0, 40, 0, {straight: true}],
+            [0, 50, 0, {straight: true}],
+        ], [
+            [0, 0, 0, {straight: true}],
+            [0, 10, 0, {straight: false}],
+            [0, 30, 0, {straight: false}],
+            [0, 40, 0, {straight: false}],
+            [0, 50, 0, {straight: true}],
+        ], [
+            [0, 0, 0, {straight: false}],
+            [0, 10, 0, {straight: true}],
+            [0, 30, 0, {straight: true}],
+            [0, 40, 0, {straight: true}],
+            [0, 50, 0, {straight: false}],
+        ]
+    ];
+    for (const points of arrangements) {
+        const path = curves.catmullRomPath(points, {road: true});
+        for (const x of [0, 1/3, 0.5, 2/3, .9, 1, 1.1, 2, -0.1, -1.1]) {
+            const subpath = path.subpathAtRoadPercents(-1, x);
+            const subpathDist = subpath.distance();
+            const dist = path.distanceAtRoadPercent(x);
+            assertCloseTo(dist, subpathDist);
+        }
+    }
+});
+
+test('distance bench', () => {
+    const points = [];
+    for (let i = 0; i < 400; i++) {
+        points.push([i, 0, 0, {straight: Math.random() > 0.9}]);
+    }
+    const path = curves.catmullRomPath(points, {road: true});
+    for (let i = 0; i < 2000; i++) {
+        const d = path.subpathAtRoadPercents(0.2, 0.2 + Math.random()).distance();
+        assert.ok(d > 0);
+    }
+});
+
+test('distanceAtRoadPercent bench', () => {
+    const points = [];
+    for (let i = 0; i < 200; i++) {
+        points.push([i, 0, 0, {straight: Math.random() > 0.9}]);
+    }
+    const path = curves.catmullRomPath(points, {road: true});
+    for (let i = 0; i < 100; i++) {
+        const d = path.distanceAtRoadPercent(0.9999);
+        assert.ok(d > 0);
+    }
+});
+
+test('roadPercentToOffsetTuple boundaries', () => {
+    let points = [
+        [0, 0, 0],
+        [0, 10, 0],
+        [0, 20, 0],
+        [0, 30, 0],
+        [0, 40, 0],
+    ];
+    let path = curves.catmullRomPath(points, {road: true});
+    assert.deepEqual(path.roadPercentToOffsetTuple(0), [1, 0]);
+    assert.deepEqual(path.roadPercentToOffsetTuple(-1), [0, 0]);
+    assert.deepEqual(path.roadPercentToOffsetTuple(-2), [0, 0]);
+    assert.deepEqual(path.roadPercentToOffsetTuple(1), [3, 0]);
+    assert.deepEqual(path.roadPercentToOffsetTuple(2), [4, 0]);
+    assert.deepEqual(path.roadPercentToOffsetTuple(-Infinity), [0, 0]);
+    assert.deepEqual(path.roadPercentToOffsetTuple(Infinity), [4, 0]);
+    points = [
+        [0, 0, 0],
+        [0, 10, 0],
+        [0, 20, 0],
+        [0, 30, 0],
+    ];
+    path = curves.catmullRomPath(points, {road: true});
+    assert.deepEqual(path.roadPercentToOffsetTuple(0), [1, 0]);
+    assert.deepEqual(path.roadPercentToOffsetTuple(-1), [0, 0]);
+    assert.deepEqual(path.roadPercentToOffsetTuple(-2), [0, 0]);
+    assert.deepEqual(path.roadPercentToOffsetTuple(1), [2, 0]);
+    assert.deepEqual(path.roadPercentToOffsetTuple(2), [3, 0]);
+    assert.deepEqual(path.roadPercentToOffsetTuple(-Infinity), [0, 0]);
+    assert.deepEqual(path.roadPercentToOffsetTuple(Infinity), [3, 0]);
 });

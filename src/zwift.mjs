@@ -4,7 +4,6 @@ import net from 'node:net';
 import dgram from 'node:dgram';
 import events from 'node:events';
 import crypto from 'node:crypto';
-import fetch from 'node-fetch';
 import protobuf from 'protobufjs';
 import * as env from './env.mjs';
 import {fileURLToPath} from 'node:url';
@@ -18,6 +17,8 @@ protobuf.parse.defaults.keepCase = true;
 export const protos = protobuf.loadSync([path.join(__dirname, 'zwift.proto')]).root;
 protobuf.parse.defaults.keepCase = _case;
 
+
+const HOUR = 3600 * 1000;
 
 // NOTE: this options object does not contain callback functions (as it might appear).
 // A static type comparision is used by protobufjs's toObject function instead. :(
@@ -137,8 +138,8 @@ const pbProfilePrivacyFlags = {
 const pbProfilePrivacyFlagsInverted = {
     displayAge: 0x40,
 };
-const sportsEnum = Object.fromEntries(Object.entries(protos.Sport).map(([k, v]) => [v, k]));
-const powerUpsEnum = Object.fromEntries(Object.entries(protos.POWERUP_TYPE)
+export const sportsEnum = Object.fromEntries(Object.entries(protos.Sport).map(([k, v]) => [v, k]));
+export const powerUpsEnum = Object.fromEntries(Object.entries(protos.POWERUP_TYPE)
     .map(([label, id]) => [id, label]));
 powerUpsEnum[0xf] = null;  // masked
 const turningEnum = {
@@ -263,6 +264,10 @@ export function processPlayerStateMessage(msg) {
     // Route ID can be stale in a few situations.  This may change but so far it looks like when
     // progress hits 100% and routeProgess rollsover to 0 the route is no longer correct.
     const routeId = msg.portal || (progress === 1 && msg.routeProgress === 0) ? undefined : msg.routeId;
+    // Uncomment when Arrend gets back from vacation. :)
+    //if (msg.eventSubgroupId === 0) {
+    //    msg.eventSubgroupId = null;
+    //}
     return {
         ...msg,
         ...flags1,
@@ -281,8 +286,7 @@ export function processPlayerStateMessage(msg) {
             Math.round(msg._cadenceUHz / 1e6 * 60) : 0,  // rpm
         eventDistance: msg._eventDistance / 100,  // meters
         roadCompletion: flags1.reverse ? 1e6 - adjRoadLoc : adjRoadLoc,
-        // XXX Migrate to just 'COFFEE_STOP' when we roll out that change..
-        coffeeStop: flags2.activePowerUp === 'POWERUP_CNT' || msg.activePowerUp === 'COFFEE_STOP',
+        coffeeStop: flags2.activePowerUp === 'COFFEE_STOP',
     };
 }
 
@@ -574,10 +578,16 @@ export class ZwiftAPI {
     convSegmentResult(x) {
         const ret = pbToObject(x);
         Object.assign(ret, {
-            finishTime: x.finishTime && new Date(x.finishTime),
-            segmentId: x._unsignedSegmentId.toSigned().toString()
+            id: x.id.toString(), // fix overflow
+            segmentId: x._unsignedSegmentId.toSigned().toString(),
+            ts: worldTimer.toLocalTime(x.worldTime),
+            weight: x.weight / 1000,
+            elapsed: x.elapsed / 1000,
+            gender: x.male === false ? 'female' : 'male',
         });
+        delete ret.finishTime; // worldTime and ts are better and always available
         delete ret._unsignedSegmentId;
+        delete ret.male;
         return ret;
     }
 
@@ -597,22 +607,29 @@ export class ZwiftAPI {
         const query = {
             world_id: 1,  // mislabeled realm
             segment_id: segmentId,
+            event_subgroup_id: options.eventSubgroupId,
+            player_id: options.athleteId,
         };
-        if (options.athleteId) {
-            query.player_id = options.athleteId;
-        }
         if (options.from) {
             query.from = zwiftCompatDate(new Date(options.from));
         }
         if (options.to) {
             query.to = zwiftCompatDate(new Date(options.to));
         }
+        // be nice...
+        if (options.from || options.to) {
+            const now = Date.now();
+            const range = new Date(options.to || now) - new Date(options.from || now);
+            if (range > 86400 * 1000) {
+                throw new TypeError("Excessively large range");
+            }
+        }
         if (options.best) {
             query['only-best'] = 'true';
         }
-        const resp = await this.fetchPB('/api/segment-results', {query, protobuf: 'SegmentResults'});
-        resp.results.sort((a, b) => a.elapsed - b.elapsed);
-        return resp.results.map(pbToObject);
+        const data = await this.fetchPB('/api/segment-results', {query, protobuf: 'SegmentResults'});
+        data.results.sort((a, b) => a.elapsed - b.elapsed);
+        return data.results.map(this.convSegmentResult);
     }
 
     async getGameInfo() {
@@ -684,18 +701,20 @@ export class ZwiftAPI {
     }
 
     async getEventFeed(options={}) {
-        // WARNING: Does not work for full ranges well outside the present.
         const urn = '/api/events/search';
-        const HOUR = 3600000;
-        const from = new Date(options.from || (worldTimer.serverNow() - 1 * HOUR));
-        const to = new Date(options.to || (worldTimer.serverNow() + 3 * HOUR));
+        const aboutMaxBack = worldTimer.serverNow() - 1 * HOUR;
+        const from = new Date(options.from || aboutMaxBack);
+        if (from < aboutMaxBack) {
+            console.warn("Event feed query is probably out of range:", from);
+        }
+        const to = new Date(options.to || (worldTimer.serverNow() + 4 * HOUR));
         const query = {limit: options.limit};
         const json = {
             dateRangeStartISOString: from.toISOString(),
             dateRangeEndISOString: to.toISOString(),
         };
         const obj = pbToObject(await this.fetchPB(urn, {method: 'POST', protobuf: 'Events', json, query}));
-        return obj.events;
+        return obj.events || [];
     }
 
     async getEventFeedFullRangeBuggy(options={}) {
@@ -732,10 +751,10 @@ export class ZwiftAPI {
         return results;
     }
 
-    async getPrivateEventFeed(options={}) {
-        const start_date = options.from; // always see this used
-        const end_date = options.to; // never see this used
-        const query = {organizer_only_past_events: false, start_date, end_date};
+    async getPrivateEventFeed(from) {
+        // There is a start_date and end_data param but they are buggy and should be avoided.
+        const start_date = from ? +new Date(from) : worldTimer.serverNow() - 2 * HOUR;
+        const query = {organizer_only_past_events: false, start_date};
         return await this.fetchJSON('/api/private_event/feed', {query});
     }
 
@@ -881,11 +900,19 @@ export class ZwiftAPI {
     }
 
     async deleteEventSignup(eventId) {
-        return await this.fetchJSON(`/api/events/signup/${eventId}`, {method: 'DELETE'});
+        await this.fetchJSON(`/api/events/signup/${eventId}`, {method: 'DELETE'});
     }
 
     async addEventSubgroupSignup(subgroupId) {
-        return await this.fetchJSON(`/api/events/subgroups/signup/${subgroupId}`, {method: 'POST'});
+        try {
+            const resp = await this.fetchJSON(`/api/events/subgroups/signup/${subgroupId}`, {method: 'POST'});
+            return resp.signedUp;
+        } catch(e) {
+            if (!e.message.match(/event\.access\.validation/)) {
+                console.error('Unexpected event signup error:', e);
+            }
+            return false;
+        }
     }
 
     async getUpcomingEvents() {
@@ -1537,23 +1564,24 @@ export class GameMonitor extends events.EventEmitter {
     async getRandomAthleteId(courseId) {
         const worlds = (await this.api.getDropInWorldList()).filter(x =>
             typeof courseId !== 'number' || x.courseId === courseId);
-        for (let i = 0, start = Math.random() * worlds.length | 0; i < worlds.length; i++) {
-            const w = worlds[(i + start) % worlds.length];
-            const athletes = []
-                .concat(w.others || [], w.followees || [], w.pacerBots || [], w.proPlayers || [])
-                .filter(x => x);
+        while (worlds.length) {
+            const index = Math.random() * worlds.length | 0;
+            const world = worlds[index];
+            worlds.splice(index, 1);
+            const athletes = [].concat(world.others || [],
+                                       world.followees || [],
+                                       world.pacerBots || [],
+                                       world.proPlayers || []).filter(x => x);
             athletes.sort((a, b) => (b.power || 0) - (a.power || 0));
-            let athlete;
             // Avoid pacer bots if possible
-            for (athlete of athletes) {
-                if (athlete.playerType !== 'PACER_BOT') {
-                    break;
-                }
-            }
+            const athlete = athletes.find(x => x.playerType !== 'PACER_BOT') || athletes[0];
             if (athlete) {
                 return athlete.athleteId;
+            } else {
+                console.debug("Nobody public in", world.courseId, world);
             }
         }
+        console.warn("Nobody public in any world");
     }
 
     async initPlayerState() {
@@ -1636,10 +1664,10 @@ export class GameMonitor extends events.EventEmitter {
         try {
             await this._connect();
         } catch(e) {
-            if (e.name === 'FetchError') {
-                console.warn('Connection attempt network problem:', e.message);
+            if (e.message === 'fetch failed' || e.name === 'TimeoutError') {
+                console.warn('GameMonitor connect network problem:', e.cause?.message || e);
             } else {
-                console.error('Connection attempt failed:', e);
+                console.error('GameMonitor connect failed:', e);
             }
             this._schedConnectRetry();
         }
@@ -1664,18 +1692,12 @@ export class GameMonitor extends events.EventEmitter {
         }
         console.info("Refreshing Zwift relay session...");
         const relaySessionId = this._session.relayId;
-        // XXX I've seen the real client trying /relay/sessin/renew as well
+        // XXX I've seen the real client trying /relay/session/renew as well
         const resp = await this.api.fetchPB('/relay/session/refresh', {
             method: 'POST',
             pb: protos.RelaySessionRefreshRequest.encode({relaySessionId}),
             protobuf: 'RelaySessionRefreshResponse',
         });
-        if (resp.relaySessionId !== relaySessionId) {
-            // TBD: Remove after long session verification tests...
-            console.error("Different Relay Session ID encountered during session refresh:", relaySessionId,
-                          resp.relaySessionId);
-            throw new Error('Unhandled session refresh state');
-        }
         this._session.expires = Date.now() + (resp.expiration * 60 * 1000);
         this._schedSessionRefresh(this._session.expires);
     }
@@ -1855,7 +1877,7 @@ export class GameMonitor extends events.EventEmitter {
                         watchingAthleteId: this.watchingAthleteId,
                         _flags2: portal ? encodePlayerStateFlags2({roadId: lws.roadId}) : undefined,
                         portal,
-                        eventSubgroupId: lws?.eventSubgroupId,
+                        eventSubgroupId: lws?.eventSubgroupId || 0,
                         ...this.watchingStateExtra});
                     break;
                 } catch(e) {
@@ -1918,10 +1940,8 @@ export class GameMonitor extends events.EventEmitter {
         } catch(e) {
             this._stateRefreshDelay = Math.min(this._stateRefreshDelay * 1.15, 300000);
             if (e.status !== 429) {
-                if (e.name === 'FetchError') {
-                    console.warn("Refresh states network problem:", e.message);
-                } else if (e.name === 'TimeoutError' || e.name === 'AbortError') { // API is influx
-                    console.warn("Refresh states network timeout");
+                if (e.message === 'fetch failed' || e.name === 'TimeoutError') {
+                    console.warn("Refresh states network problem:", e.cause?.message || e);
                 } else {
                     console.error("Refresh states error:", e);
                 }
@@ -1943,10 +1963,10 @@ export class GameMonitor extends events.EventEmitter {
             if (this.randomWatch != null) {
                 this.gameAthleteId = await this.getRandomAthleteId(this.randomWatch);
                 this.emit("game-athlete", this.gameAthleteId);
-                if (this.gameAthleteId == null) {
-                    console.warn("No athletes found in world.");
-                } else {
+                if (this.gameAthleteId != null) {
                     console.info("Switching to new random athlete:", this.gameAthleteId);
+                } else {
+                    console.info("No random athlete available for now");
                 }
             }
         } else {
@@ -2049,9 +2069,6 @@ export class GameMonitor extends events.EventEmitter {
     onInPacket(pb, ch) {
         if (pb.multipleLogins) {
             console.warn("Multiple logins detected!");
-            //this.emit('multiple-logins');
-            //this.stop();
-            //return;
         }
         if (pb.udpConfigVOD) {
             for (const x of pb.udpConfigVOD.pools) {
@@ -2186,12 +2203,7 @@ export class GameMonitor extends events.EventEmitter {
             return;
         }
         if (pool.useFirstInBounds) {
-            const best = pool.servers.find(server => x <= server.xBound && y <= server.yBound);
-            if (best.xBound2 && x <= best.xBound2 || best.yBound2 && y <= best.yBound2) {
-                console.error("XXX probably need to use these lower bounds");
-                debugger;
-            }
-            return best;
+            return pool.servers.find(server => x <= server.xBound && y <= server.yBound);
         } else {
             let closestServer;
             let closestDelta = Infinity;
@@ -2207,6 +2219,75 @@ export class GameMonitor extends events.EventEmitter {
             }
             return closestServer;
         }
+    }
+}
+
+
+export class GameMonitorSatellite extends GameMonitor {
+    constructor(monitor, options) {
+        super({
+            zwiftMonitorAPI: monitor.api,
+            exclusions: monitor.exclusions,
+            ...options,
+        });
+        this._monitor = monitor;
+    }
+
+    get _session() {
+        return this._monitor._session;
+    }
+
+    set _session(_) {}
+
+    get _udpServerPools() {
+        return this._monitor._udpServerPools;
+    }
+
+    set _udpServerPools(_) {}
+
+    get _hashSeeds() {
+        return this._monitor._hashSeeds;
+    }
+
+    set _hashSeeds(_) {}
+
+    async start() {
+        await this.initPlayerState();
+        this._playerStateInterval = setInterval(this.broadcastPlayerState.bind(this), 1000);
+        this._refreshStatesTimeout = setTimeout(() => this._refreshStates(), this._stateRefreshDelay);
+        this.logStatus();
+    }
+
+    stop() {
+        throw new TypeError('improper usage');
+    }
+
+    _setConnecting() {
+        throw new TypeError('improper usage');
+    }
+
+    connect() {
+        throw new TypeError('improper usage');
+    }
+
+    _connect() {
+        throw new TypeError('improper usage');
+    }
+
+    disconnect() {
+        throw new TypeError('improper usage');
+    }
+
+    refreshSession() {
+        throw new TypeError('improper usage');
+    }
+
+    activateSession() {
+        throw new TypeError('improper usage');
+    }
+
+    establishTCPChannel() {
+        throw new TypeError('improper usage');
     }
 }
 

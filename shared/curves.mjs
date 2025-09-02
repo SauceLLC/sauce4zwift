@@ -13,6 +13,77 @@
 const curvePathSchemaVersion = 1;
 
 
+class LRUCache extends Map {
+    constructor(capacity) {
+        super();
+        this._capacity = capacity;
+        this._head = null;
+    }
+
+    get(key) {
+        const entry = super.get(key);
+        if (entry === undefined) {
+            return;
+        }
+        this._moveToHead(entry);
+        return entry.value;
+    }
+
+    set(key, value) {
+        let entry = super.get(key);
+        if (entry === undefined) {
+            if (this.size === this._capacity) {
+                // Fast path: just replace tail and rotate.
+                entry = this._head.prev;
+                this._head = entry;
+                this.delete(entry.key);
+            } else {
+                entry = {};
+                if (!this.size) {
+                    entry.next = entry.prev = entry;
+                    this._head = entry;
+                } else {
+                    this._moveToHead(entry);
+                }
+            }
+            entry.key = key;
+            entry.value = value;
+            super.set(key, entry);
+        } else {
+            entry.value = value;
+            this._moveToHead(entry);
+        }
+    }
+
+    _moveToHead(entry) {
+        if (entry === this._head) {
+            return;
+        }
+        if (entry.next) {
+            entry.next.prev = entry.prev;
+            entry.prev.next = entry.next;
+        }
+        entry.next = this._head;
+        entry.prev = this._head.prev;
+        this._head.prev.next = entry;
+        this._head.prev = entry;
+        this._head = entry;
+    }
+
+    clear() {
+        this._head = null;
+        super.clear();
+    }
+}
+
+
+export function vecDist2d(a, b) {
+    const dx = b[0] - a[0];
+    const dy = b[1] - a[1];
+    return Math.sqrt(dx * dx + dy * dy);
+}
+
+
 export function vecDist(a, b) {
     const dx = b[0] - a[0];
     const dy = b[1] - a[1];
@@ -63,33 +134,22 @@ export function splitBezier(t, start, cp1, cp2, end) {
 }
 
 
-export function bezierControl(a, b, c, smoothing, invert=false) {
-    const dx = c[0] - a[0];
-    const dy = c[1] - a[1];
-    const dz = c[2] - a[2];
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    const angle = Math.atan2(dy, dx) + (invert ? Math.PI : 0);
-    const length = distance * smoothing;
+export function bezierControl(a, b, c, t, invertDeprecated) {
+    if (invertDeprecated === true) {
+        console.warn('invert arg deprecated: swap a and c args for same effect');
+        [a, c] = [c, a];
+    }
+    const s = 1 - t;
     return [
-        b[0] + Math.cos(angle) * length,
-        b[1] + Math.sin(angle) * length,
-        b[2] + dz * (invert ? 1 : -1) * smoothing
+        b[0] + (a[0] * s + c[0] * t) - a[0],
+        b[1] + (a[1] * s + c[1] * t) - a[1],
+        b[2] + (a[2] * s + c[2] * t) - a[2],
     ];
 }
 
 
 export function pointOnLine(t, a, b) {
-    // t is from 0 -> 1 where 0 = a and 1 = b
-    const dx = b[0] - a[0];
-    const dy = b[1] - a[1];
-    const dz = b[2] - a[2];
-    const angle = Math.atan2(dy, dx);
-    const l = Math.sqrt(dx * dx + dy * dy) * t;
-    return [
-        a[0] + Math.cos(angle) * l,
-        a[1] + Math.sin(angle) * l,
-        a[2] + dz * t
-    ];
+    return lerp(t, a, b);
 }
 
 
@@ -119,6 +179,9 @@ export function roadOffsetToTime(i, length) {
 
 
 export class CurvePath {
+
+    static _distCache = new LRUCache(65536);
+
     constructor({nodes=[], epsilon=0.001, immutable=false}={}) {
         this.nodes = nodes;
         this.epsilon = epsilon;
@@ -133,28 +196,26 @@ export class CurvePath {
     }
 
     toSVGPath({includeEdges}={}) {
-        const svg = [];
-        const xy = point => `${point[0]},${point[1]}`;
         const start = includeEdges ? 0 : 1;
         const end = includeEdges ? this.nodes.length : this.nodes.length - 1;
-        for (let i = start; i < end; i++) {
-            const x = this.nodes[i];
-            if (i === start) {
-                svg.push(`M ${xy(x.end)}`);
+        if (start >= end) {
+            return '';
+        }
+        let svg = `M${this.nodes[start].end[0]},${this.nodes[start].end[1]}`;
+        for (let i = start + 1; i < end; i++) {
+            const {cp1, cp2, end} = this.nodes[i];
+            if (cp1 && cp2) {
+                svg += `C${cp1[0]},${cp1[1]} ${cp2[0]},${cp2[1]} ${end[0]},${end[1]}`;
             } else {
-                if (x.cp1 && x.cp2) {
-                    svg.push(`C ${xy(x.cp1)} ${xy(x.cp2)} ${xy(x.end)}`);
-                } else {
-                    svg.push(`L ${xy(x.end)}`);
-                }
+                svg += `L${end[0]},${end[1]}`;
             }
         }
-        return svg.join('\n');
+        return svg;
     }
 
-    flatten(t) {
+    flatten(t, options) {
         const values = [];
-        this.trace(x => values.push(x.stepNode), t);
+        this.trace(x => values.push(x.stepNode), t, options);
         return values;
     }
 
@@ -170,7 +231,7 @@ export class CurvePath {
                 nodes.push({...p0, cp1: undefined, cp2: undefined});
             }
         }
-        return new CurvePath({...this, nodes});
+        return new this.constructor({...this, nodes});
     }
 
     extend(path) {
@@ -187,22 +248,51 @@ export class CurvePath {
     }
 
     slice(...args) {
-        return new CurvePath({...this, nodes: this.nodes.slice(...args)});
+        return new this.constructor({...this, nodes: this.nodes.slice(...args)});
     }
 
-    distance(t) {
+    distance(t=this.epsilon) {
+        if (!this.nodes.length) {
+            return 0;
+        }
+        const steps = Math.round(1 / t);
+        t = 1 / steps;
         let dist = 0;
-        let prevStep;
-        this.trace(x => {
-            dist += prevStep ? vecDist(prevStep, x.stepNode) : 0;
-            prevStep = x.stepNode;
-        }, t);
+        let prevPoint = this.nodes[0].end;
+        for (let i = 0; i < this.nodes.length - 1; i++) {
+            const x = this.nodes[i];
+            const next = this.nodes[i + 1];
+            if (next.cp1 && next.cp2) {
+                const cKey = JSON.stringify([
+                    steps,
+                    x.end[0],    x.end[1],    x.end[2],
+                    next.cp1[0], next.cp1[1], next.cp1[2],
+                    next.cp2[0], next.cp2[1], next.cp2[2],
+                    next.end[0], next.end[1], next.end[2]
+                ]); // Incredibly fast with V8 13.4+
+                let d = this.constructor._distCache.get(cKey);
+                if (d !== undefined) {
+                    prevPoint = next.end;
+                } else {
+                    d = 0;
+                    for (let j = steps - 1; j >= 0; j--) {
+                        const point = computeBezier(1 - j * t, x.end, next.cp1, next.cp2, next.end);
+                        d += vecDist(prevPoint, point);
+                        prevPoint = point;
+                    }
+                    this.constructor._distCache.set(cKey, d);
+                }
+                dist += d;
+            } else {
+                dist += vecDist(prevPoint, next.end);
+                prevPoint = next.end;
+            }
+        }
         return dist;
     }
 
-    trace(callback, t) {
+    trace(callback, t=this.epsilon, {expandStraights}={}) {
         // This would be better looking as a generator but it needs it to be fast.
-        t = t || this.epsilon;
         for (let index = 0; index < this.nodes.length; index++) {
             const origin = this.nodes[index];
             const next = this.nodes[index + 1];
@@ -216,8 +306,22 @@ export class CurvePath {
                         break;
                     }
                 }
-            } else if (callback({origin, next, index, stepNode: origin.end, step: 0}) === false) {
-                return;
+            } else {
+                if (!expandStraights || !next) {
+                    if (callback({origin, next, index, stepNode: origin.end, step: 0}) === false) {
+                        return;
+                    }
+                } else {
+                    for (let step = 0; step < 1; step += t) {
+                        const stepNode = lerp(step, origin.end, next.end);
+                        const op = callback({origin, next, index, stepNode, step});
+                        if (op === false) {
+                            return;
+                        } else if (op === null) {
+                            break;
+                        }
+                    }
+                }
             }
         }
     }
@@ -230,8 +334,8 @@ export class CurvePath {
             const stepDist = prevStep ? vecDist(prevStep, x.stepNode) : 0;
             dist += stepDist;
             if (dist > targetDistance) {
-                const diff = (dist - targetDistance) / stepDist;
-                point = pointOnLine(diff, x.stepNode, prevStep);
+                const t = (dist - targetDistance) / stepDist;
+                point = lerp(t, x.stepNode, prevStep);
                 return false;
             } else if (dist === targetDistance) {
                 point = x.stepNode;
@@ -248,9 +352,16 @@ export class RoadPath extends CurvePath {
     constructor(options={}) {
         super({...options, immutable: true});
         this.roadLength = options.roadLength != null ? options.roadLength : this.nodes.length;
+        if (this.roadLength < 3) {
+            throw new TypeError("roadLength must be >= 3");
+        }
         this.offsetIndex = options.offsetIndex || 0;
         this.offsetPercent = options.offsetPercent || 0;
         this.cropPercent = options.cropPercent || 0;
+    }
+
+    roadTimeToOffset(rt) {
+        return this.roadPercentToOffset(roadTimeToPercent(rt));
     }
 
     roadPercentToOffset(rp) {
@@ -260,20 +371,19 @@ export class RoadPath extends CurvePath {
 
     roadPercentToOffsetTuple(rp) {
         const offt = roadPercentToOffset(rp, this.roadLength);
-        let index = offt | 0;
-        let percent = offt % 1;
+        // Handle +/-Infinity..
+        let index = Math.trunc(offt);
+        let percent = (offt % 1) || 0;
         index -= this.offsetIndex;
         if (index < 0) {
-            index = 0;
-            percent = 0;
+            return [0, 0];
         } else if (index >= this.nodes.length - 1) {
-            index = this.nodes.length - 1;
-            percent = 0;
+            return [this.nodes.length - 1, 0];
         } else if (index === 0) { // and only if length > 1
             percent = Math.max(0, (percent - this.offsetPercent) / (1 - this.offsetPercent));
         }
         if (index === this.nodes.length - 2 && percent && this.cropPercent) {
-            percent = percent / this.cropPercent;
+            percent /= this.cropPercent;
             if (percent >= 1) {
                 index++;
                 percent = 0;
@@ -313,7 +423,7 @@ export class RoadPath extends CurvePath {
             if (next.cp1) {
                 point = computeBezier(percent, origin.end, next.cp1, next.cp2, next.end);
             } else {
-                point = pointOnLine(percent, origin.end, next.end);
+                point = lerp(percent, origin.end, next.end);
             }
         } else {
             point = origin ? origin.end : undefined;
@@ -329,7 +439,13 @@ export class RoadPath extends CurvePath {
 
     subpathAtRoadPercents(startRoadPercent=-1e6, endRoadPercent=1e6) {
         if (startRoadPercent > endRoadPercent) {
-            return new RoadPath({...this, offsetIndex: 0, offsetPercent: 0, cropPercent: 0, nodes: []});
+            return new this.constructor({
+                ...this,
+                offsetIndex: 0,
+                offsetPercent: 0,
+                cropPercent: 0,
+                nodes: []
+            });
         }
         const start = this.boundsAtRoadPercent(startRoadPercent);
         const end = this.boundsAtRoadPercent(endRoadPercent);
@@ -370,7 +486,7 @@ export class RoadPath extends CurvePath {
         }
         const absStartPercent = start.index === 0 ?
             start.percent * (1 - this.offsetPercent) + this.offsetPercent : start.percent;
-        return new RoadPath({
+        return new this.constructor({
             ...this,
             nodes,
             offsetIndex: start.index + this.offsetIndex,
@@ -391,6 +507,10 @@ export class RoadPath extends CurvePath {
         return new CurvePath({...this, immutable: false});
     }
 
+    toReversed() {
+        return this.toCurvePath().toReversed();
+    }
+
     slice(start, end) {
         if (start < 0) {
             start += this.nodes.length;
@@ -398,13 +518,75 @@ export class RoadPath extends CurvePath {
         const offsetIndex = this.offsetIndex + start;
         const offsetPercent = start ? 0 : this.offsetPercent;
         const cropPercent = (end === undefined || end >= this.nodes.length) ? this.cropPercent : 0;
-        return new RoadPath({
+        return new this.constructor({
             ...this,
             nodes: this.nodes.slice(start, end),
             offsetIndex,
             offsetPercent,
             cropPercent,
         });
+    }
+
+    distanceAtRoadPercent(rp, t=this.epsilon) {
+        const [endIndex, endPercent] = this.roadPercentToOffsetTuple(rp);
+        if (endIndex < 0 || endIndex === 0 && endPercent <= 0) {
+            return 0;
+        }
+        if (endIndex >= this.nodes.length - 1) {
+            return this.distance(t);
+        }
+        const steps = Math.round(1 / t);
+        t = 1 / steps;
+        let dist = 0;
+        let prevPoint = this.nodes[0].end;
+        // Avoid a few branches with core loops, followed later by end loop..
+        for (let i = 0; i < endIndex; i++) {
+            const x = this.nodes[i];
+            const next = this.nodes[i + 1];
+            if (next.cp1 && next.cp2) {
+                const cKey = JSON.stringify([
+                    steps,
+                    x.end[0],    x.end[1],    x.end[2],
+                    next.cp1[0], next.cp1[1], next.cp1[2],
+                    next.cp2[0], next.cp2[1], next.cp2[2],
+                    next.end[0], next.end[1], next.end[2]
+                ]); // Incredibly fast with V8 13.4+
+                let d = this.constructor._distCache.get(cKey);
+                if (d !== undefined) {
+                    prevPoint = next.end;
+                } else {
+                    d = 0;
+                    for (let j = steps - 1; j >= 0; j--) {
+                        const point = computeBezier(1 - j * t, x.end, next.cp1, next.cp2, next.end);
+                        d += vecDist(prevPoint, point);
+                        prevPoint = point;
+                    }
+                    this.constructor._distCache.set(cKey, d);
+                }
+                dist += d;
+            } else {
+                dist += vecDist(prevPoint, next.end);
+                prevPoint = next.end;
+            }
+        }
+        if (endPercent > 0) {
+            const endNode = this.nodes[endIndex];
+            const next = this.nodes[endIndex + 1];
+            if (next.cp1 && next.cp2) {
+                for (let j = steps - 1; j >= 0; j--) {
+                    const s = Math.min(endPercent, 1 - j * t);
+                    const point = computeBezier(s, endNode.end, next.cp1, next.cp2, next.end);
+                    dist += vecDist(prevPoint, point);
+                    prevPoint = point;
+                    if (s === endPercent) {
+                        break;
+                    }
+                }
+            } else {
+                dist += vecDist(prevPoint, next.end) * endPercent;
+            }
+        }
+        return dist;
     }
 }
 
@@ -482,7 +664,7 @@ export function cubicBezierPath(points, {loop, smoothing=0.2, epsilon, road}={})
             p_1 ? bezierControl(p_1, p0, p1, smoothing) : p0;
         const cp2 = tanIn ?
             [p1[0] + tanIn[0], p1[1] + tanIn[1], p1[2] + tanIn[2]] :
-            p2 ? bezierControl(p0, p1, p2, smoothing, true) : p1;
+            p2 ? bezierControl(p2, p1, p0, smoothing) : p1;
         nodes.push({cp1, cp2, end: p1});
     }
     const Klass = road ? RoadPath : CurvePath;

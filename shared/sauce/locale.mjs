@@ -11,6 +11,7 @@ export function isImperial() {
 }
 
 
+export const narrowNoBreakSpace = '\u202f';
 export const milesPerKm = 1000 / 1609.344;
 export const feetPerMeter = 1 / 0.3048;
 export const poundsPerKg = 2.20462;
@@ -252,10 +253,12 @@ function humanTimer(elapsed, options={}) {
             parts.push({type: 'value', name: 'hours', value: hours.toString()},
                        {type: 'seperator', name: 'hours', value: ':'});
             // falls through
-        case !!(mins || options.long || options.full):
-            parts.push({type: 'value', name: 'minutes', value: mins.toString().padStart(2, '0')},
+        case !!(mins || options.long || options.full): {
+            const value = (options.short && !hours) ? mins.toString() : mins.toString().padStart(2, '0');
+            parts.push({type: 'value', name: 'minutes', value},
                        {type: 'seperator', name: 'minutes', value: ':'});
             // falls through
+        }
         default: {
             const s = (elapsed % 60 | 0).toString();
             parts.push({type: 'value', name: 'seconds', value: parts.length > 1 ? s.padStart(2, '0') : s});
@@ -310,6 +313,7 @@ function _humanNumber(value, options) {
         useGrouping: n >= 10000 || n <= -10000,
         maximumFractionDigits: p,
         minimumFractionDigits: options.fixed ? p : undefined,
+        signDisplay: options.signDisplay || 'negative',
     });
     const sep = options.suffix && options.separator || '';
     const suffix = options.suffix ?
@@ -357,6 +361,7 @@ function humanWkg(wkg, options={}) {
 function humanPace(kph, options={}) {
     const sport = options.sport || 'cycling';
     let fixed;
+    let short;
     let value;
     let humanFunc = humanNumber;
     if (_realNumber(kph)) {
@@ -365,6 +370,7 @@ function humanPace(kph, options={}) {
                 options.suffix = imperial ? '/mi' : '/km';
             }
             value = 3600 / (imperial ? kph * milesPerKm : kph);
+            short = true;
             humanFunc = humanTimer;
         } else {
             if (options.suffix === true || options.suffixOnly) {
@@ -374,7 +380,7 @@ function humanPace(kph, options={}) {
             value = imperial ? kph * milesPerKm : kph;
         }
     }
-    return humanFunc(value, {fixed, ...options});
+    return humanFunc(value, {fixed, short, ...options});
 }
 
 
@@ -419,15 +425,34 @@ function humanWeightClass(kg, options={}) {
         const range = imperial ? 20 : 10;
         const v = imperial ? kg * poundsPerKg : kg;
         const vOfRange = v / range;
-        const lower = Math.floor(vOfRange) * range;
-        const upper = (vOfRange % 1) ? Math.ceil(vOfRange) * range : (vOfRange + 1) * range;
-        const span = options.html ?
-            '<abbr class="unit" style="padding: 0; margin: 0 0.12em;">↔</abbr>' :
-            '↔';
-        return `${humanNumber(lower)}${span}${humanNumber(upper, options)}`;
+        const lower = humanNumber(Math.floor(vOfRange) * range);
+        const upper = humanNumber((vOfRange % 1) ? Math.ceil(vOfRange) * range : (vOfRange + 1) * range,
+                                  options);
+        return `${lower}${narrowNoBreakSpace}-${narrowNoBreakSpace}${upper}`;
     } else {
         return humanNumber(NaN, options);
     }
+}
+
+
+function humanAgeClass(age, options={}) {
+    if (!_realNumber(age)) {
+        return humanEmpty;
+    }
+    if (age < 23) {
+        return 'U23';
+    }
+    let lower, upper;
+    if (age < 30) {
+        lower = 23;
+        upper = 29;
+    } else if (age < 70) {
+        lower = (age / 10 | 0) * 10;
+        upper = lower + 9;
+    } else {
+        return '70+';
+    }
+    return `${lower}${narrowNoBreakSpace}-${narrowNoBreakSpace}${upper}`;
 }
 
 
@@ -476,6 +501,7 @@ export const human = {
     relDuration: humanRelDuration,
     weight: humanWeight,
     weightClass: humanWeightClass,
+    ageClass: humanAgeClass,
     height: humanHeight,
     elevation: humanElevation,
     number: humanNumber,

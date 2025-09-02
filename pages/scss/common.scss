@@ -615,8 +615,12 @@ form {
     width: 100%;
     max-height: calc(var(--titlebar-height) + var(--extra-height));
     transition: max-height 300ms, padding 300ms;
-    box-shadow: 0 1px 5px #0009;
+    box-shadow: 0 0 5px #0009;
     outline: none;
+
+    &.always-visible {
+        z-index: 1; /* make box-shadow visible */
+    }
 
     @container root-html (width < 600px) {
         &:has(header .overflow) {
@@ -717,8 +721,8 @@ form {
 
         .logo,
         .title,
-        .filler {
-            height: min(100%, var(--titlebar-height));
+        .filler,
+        .overflow {
             height: var(--titlebar-height);
         }
 

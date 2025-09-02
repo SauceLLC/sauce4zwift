@@ -189,8 +189,7 @@ export class SauceElevationProfile {
     clear() {
         this.route = null;
         this.routeId = null;
-        this._eventSubgroupId = null;
-        this._routeLeadinDistance = 0;
+        this.eventSubgroupId = null;
         this.road = undefined;
         this.reverse = undefined;
         this.curvePath = undefined;
@@ -200,8 +199,7 @@ export class SauceElevationProfile {
     setRoad(id, reverse=false) {
         this.route = null;
         this.routeId = null;
-        this._eventSubgroupId = null;
-        this._routeLeadinDistance = 0;
+        this.eventSubgroupId = null;
         this.road = this.roads ? this.roads.find(x => x.id === id) : undefined;
         if (this.road) {
             this.reverse = reverse;
@@ -216,31 +214,18 @@ export class SauceElevationProfile {
     setRoute = common.asyncSerialize(async function(id, {laps=1, distance, eventSubgroupId, hideLaps}={}) {
         this.road = null;
         this.reverse = null;
-        this.routeId = id;
-        this._eventSubgroupId = eventSubgroupId;
+        this.eventSubgroupId = eventSubgroupId;
         this.curvePath = null;
-        this.route = await common.getRoute(id);
-        const segments = [];
-        for (const [i, m] of this.route.manifest.entries()) {
-            if (!m.segments) {
-                continue;
-            }
-            for (const segment of m.segments) {
-                const road = this.route.roadSegments[i];
-                const i1 = Math.round(road.roadPercentToOffset(segment.roadStart));
-                const i2 = Math.round(road.roadPercentToOffset(segment.roadFinish));
-                const offt = this.route.curvePath.nodes.findIndex(x => x.index === i);
-                let start, end;
-                if (segment.reverse) {
-                    start = offt + (road.nodes.length - 1 - i1);
-                    end = offt + (road.nodes.length - 1 - i2);
-                } else {
-                    start = offt + i1;
-                    end = offt + i2;
-                }
-                segments.push({start, end, segment});
-            }
+        let eventSubgroup;
+        if (eventSubgroupId) {
+            eventSubgroup = await common.getEventSubgroup(eventSubgroupId);
+            this.routeId = eventSubgroup.routeId;
+            laps = eventSubgroup.laps;
+            distance = eventSubgroup.distanceInMeters;
+        } else {
+            this.routeId = id;
         }
+        this.route = await common.getRoute(this.routeId);
         this.curvePath = this.route.curvePath.slice();
         const distances = Array.from(this.route.distances);
         const elevations = Array.from(this.route.elevations);
@@ -252,27 +237,39 @@ export class SauceElevationProfile {
             if (!hideLaps) {
                 lapOffsets.push(distances[lapStartIdx]);
             }
-            this._routeLeadinDistance = distances[lapStartIdx];
-        } else {
-            this._routeLeadinDistance = 0;
         }
-        const lapDistance = distances.at(-1) - distances[lapStartIdx];
         if (distance) {
             laps = this.route.supportedLaps ? Infinity : 1;
         }
-        for (let lap = 1; lap < laps; lap++) {
-            this.curvePath.extend(this.route.curvePath.slice(lapStartIdx));
-            for (let i = lapStartIdx; i < this.route.distances.length; i++) {
-                distances.push(distances.at(-1) +
-                    (this.route.distances[i] - (this.route.distances[i - 1] || 0)));
-                elevations.push(this.route.elevations[i]);
-                grades.push(this.route.grades[i]);
+        if (laps > 1) {
+            const lapSlice = this.route.curvePath.slice(lapStartIdx);
+            const lapDistances = Array.from(this.route.distances);
+            const lapElevations = Array.from(this.route.elevations);
+            const lapGrades = Array.from(this.route.grades);
+            if (this.route.lapWeldPath) {
+                const distOfft = lapDistances.at(-1);
+                for (let i = 1; i < this.route.lapWeldData.distances.length; i++) {
+                    lapDistances.push(distOfft + this.route.lapWeldData.distances[i]);
+                    lapElevations.push(this.route.lapWeldData.elevations[i]);
+                    lapGrades.push(this.route.lapWeldData.grades[i]);
+                }
+                lapSlice.extend(this.route.lapWeldPath);
             }
-            if (!hideLaps) {
-                lapOffsets.push(this._routeLeadinDistance + lapDistance * lap);
-            }
-            if (distance && distances[distances.length - 1] >= distance) {
-                break;
+            for (let lap = 1; lap < laps; lap++) {
+                this.curvePath.extend(lapSlice); // So dubious, please kill this..
+                const distOfft = distances.at(-1) - distances[lapStartIdx];
+                for (let i = lapStartIdx + 1; i < lapDistances.length; i++) {
+                    distances.push(distOfft + lapDistances[i]);
+                    elevations.push(lapElevations[i]);
+                    grades.push(lapGrades[i]);
+                }
+                if (!hideLaps) {
+                    lapOffsets.push(this.route.segmentProjections.leadinDistance +
+                                    this.route.segmentProjections.lapDistance * lap);
+                }
+                if (distance && distances[distances.length - 1] >= distance) {
+                    break;
+                }
             }
         }
         if (distance) {
@@ -281,6 +278,15 @@ export class SauceElevationProfile {
                 elevations.pop();
                 grades.pop();
             }
+        }
+        const segProjs = eventSubgroup ? eventSubgroup.segmentProjections : this.route.segmentProjections;
+        const segments = [];
+        for (const x of segProjs.segments) {
+            segments.push({
+                start: common.binarySearchClosest(distances, x.startDistance),
+                end: common.binarySearchClosest(distances, x.endDistance),
+                segment: await common.getSegment(x.id),
+            });
         }
         this.setData(distances, elevations, grades, {lapOffsets, segments});
         return this.route;
@@ -541,23 +547,13 @@ export class SauceElevationProfile {
                 await this.setCourse(watching.courseId);
             }
             if (this.preferRoute) {
-                if (watching.routeId) {
-                    if (this.routeId !== watching.routeId ||
-                        (this._eventSubgroupId || null) !== (watching.eventSubgroupId || null)) {
-                        let sg;
-                        if (watching.eventSubgroupId) {
-                            sg = await common.rpc.getEventSubgroup(watching.eventSubgroupId);
-                        }
-                        // Note sg.routeId is sometimes out of sync with state.routeId; avoid thrash
-                        if (sg && sg.routeId === watching.routeId) {
-                            await this.setRoute(sg.routeId, {
-                                laps: sg.laps,
-                                distance: sg.distanceInMeters,
-                                eventSubgroupId: sg.id
-                            });
-                        } else if (this.routeId !== watching.routeId) {
-                            await this.setRoute(watching.routeId);
-                        }
+                if (watching.eventSubgroupId) {
+                    if (this.eventSubgroupId !== watching.eventSubgroupId) {
+                        await this.setRoute(null, {eventSubgroupId: watching.eventSubgroupId});
+                    }
+                } else if (watching.routeId) {
+                    if (this.routeId !== watching.routeId) {
+                        await this.setRoute(watching.routeId);
                     }
                 } else {
                     this.route = null;
@@ -643,7 +639,7 @@ export class SauceElevationProfile {
             const isWatching = state.athleteId === this.watchingId;
             const deemphasize = this.routeId != null && (
                 state.routeId !== this.routeId ||
-                (this._eventSubgroupId != null && state.eventSubgroupId !== this._eventSubgroupId));
+                (this.eventSubgroupId != null && state.eventSubgroupId !== this.eventSubgroupId));
             if (state !== mark.lastVisualState) {
                 mark.lastVisualState = state;
                 mark.lastVisualTS = now;
@@ -670,13 +666,13 @@ export class SauceElevationProfile {
         if (this.routeId != null) {
             if (state.routeId === this.routeId) {
                 let distance;
-                if (this._eventSubgroupId != null) {
+                if (this.eventSubgroupId != null) {
                     distance = state.eventDistance;
                 } else {
                     // Outside of events state.progress represents the progress of single lap.
                     // However, if the lap counter is > 0 then the progress % does not include
                     // leadin.
-                    const floor = state.laps ? this._routeLeadinDistance : 0;
+                    const floor = state.laps ? this.route.segmentProjections.leadinDistance : 0;
                     const totDist = this._distances[this._distances.length - 1];
                     distance = state.progress * (totDist - floor) + floor;
                 }

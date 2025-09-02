@@ -41,13 +41,12 @@ common.settingsStore.get('zoomedPrimaryField', 'power');
 const settings = common.settingsStore.get();
 
 
-const _subgroups = new Map();
 function getSubgroupLazy(id) {
-    if (!_subgroups.has(id)) {
-        _subgroups.set(id, null);
-        common.rpc.getEventSubgroup(id).then(x => _subgroups.set(id, x));
+    const sg = common.getEventSubgroup(id);
+    if (!sg || sg instanceof Promise) {
+        return null;
     }
-    return _subgroups.get(id);
+    return sg;
 }
 
 

@@ -444,7 +444,7 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
                 continue startup;
             } catch(e) {
                 if (e.code === 'EADDRINUSE') {
-                    console.warn('Web server port not available, will retry...');
+                    console.warn(`Web server port (${serverPort}) not available, will retry...`);
                     server.close();
                     await sleep(1000 * ++retries);
                 } else {

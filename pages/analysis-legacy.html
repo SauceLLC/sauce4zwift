@@ -7,17 +7,17 @@
         <meta http-equiv="Content-Security-Policy"
               content="script-src 'self' 'unsafe-inline' 'unsafe-eval';"/>
 
-        <title>Analysis - Sauce for Zwift™</title>
+        <title>Analysis (Legacy) - Sauce for Zwift™</title>
 
         <script src="./src/preloads.js"></script>
 
         <link rel="manifest" href="analysis-manifest.json"/>
         <link id="favicon" rel="shortcut icon" href="images/favicon.png"/>
         <link rel="stylesheet" href="css/common.css"/>
-        <link rel="stylesheet" href="css/analysis.css"/>
+        <link rel="stylesheet" href="css/analysis-legacy.css"/>
 
         <script type="module">
-            import {main} from './src/analysis.mjs';
+            import {main} from './src/analysis-legacy.mjs';
             main();
         </script>
     </head>
@@ -36,6 +36,6 @@
                 </div>
             </header>
         </div>
-        <div id="content" class="no-data"></div>
+        <div id="content"></div>
     </body>
 </html>

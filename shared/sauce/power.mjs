@@ -158,7 +158,7 @@ export class RollingPower extends sauce.data.RollingAverage {
             const sampleRate = 1 / this.idealGap;
             const rollSize = Math.round(30 * sampleRate);
             this._inlineNP = {
-                saved: [],
+                saved: options.disableInlineNPResize ? null : [],
                 rollSize,
                 slot: 0,
                 roll: new Array(rollSize),
@@ -170,7 +170,7 @@ export class RollingPower extends sauce.data.RollingAverage {
         if (options.inlineXP) {
             const samplesPerWindow = 25 / this.idealGap;
             this._inlineXP = {
-                saved: [],
+                saved: options.disableInlineXPResize ? null : [],
                 samplesPerWindow,
                 attenuation: samplesPerWindow / (samplesPerWindow + this.idealGap),
                 sampleWeight: this.idealGap / (samplesPerWindow + this.idealGap),
@@ -196,7 +196,9 @@ export class RollingPower extends sauce.data.RollingAverage {
                 const qnpa = npa * npa * npa * npa;  // unrolled for perf
                 state.total += qnpa;
                 state.count++;
-                state.saved.push(qnpa);
+                if (state.saved) {
+                    state.saved.push(qnpa);
+                }
             }
         }
         if (this._inlineXP) {
@@ -221,10 +223,12 @@ export class RollingPower extends sauce.data.RollingAverage {
             state.total += qw;
             count++;
             state.count += count;
-            state.saved.push({
-                value: qw,
-                count: count,
-            });
+            if (state.saved) {
+                state.saved.push({
+                    value: qw,
+                    count: count,
+                });
+            }
         }
         super.processAdd(i);
     }
@@ -233,13 +237,13 @@ export class RollingPower extends sauce.data.RollingAverage {
         super.processShift(i);
         if (this._inlineNP) {
             const state = this._inlineNP;
-            const save = state.saved[i];
+            const save = state.saved[i]; // TypeError if disableInlineNPResize=true
             state.total -= save || 0;
             state.count -= save !== undefined ? 1 : 0;
         }
         if (this._inlineXP) {
             const state = this._inlineXP;
-            const save = state.saved[i];
+            const save = state.saved[i]; // TypeError if disableInlineXPResize=true
             state.total -= save.value || 0;
             state.count -= save.count || 0;
         }
@@ -301,7 +305,7 @@ export class RollingPower extends sauce.data.RollingAverage {
         const src = this[key];
         target[key] = {
             ...src,
-            saved: Array.from(src.saved),
+            saved: src.saved && Array.from(src.saved),
             roll: src.roll && Array.from(src.roll),
         };
     }

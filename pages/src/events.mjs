@@ -15,7 +15,9 @@ let flags;
 let worldList;
 let gcs;
 let selfAthlete;
+let allRoutes;
 
+const q = new URLSearchParams(location.search);
 const chartRefs = new Set();
 const allEvents = new Map();
 const allSubgroups = new Map();
@@ -23,14 +25,9 @@ const contentEl = document.querySelector('#content');
 const ioTHack = Array.from(new Array(1000)).map((_, i) => i / 999);
 const headingsIntersectionObserver = new IntersectionObserver(onHeadingsIntersecting,
                                                               {root: contentEl, threshold: ioTHack});
-
-
-const _fetchingRoutes = new Map();
-async function getRoute(id) {
-    if (!_fetchingRoutes.has(id)) {
-        _fetchingRoutes.set(id, common.rpc.getRoute(id));
-    }
-    return await _fetchingRoutes.get(id);
+const eventId = q.get('id') ? Number(q.get('id')) : null;
+if (eventId != null) {
+    document.documentElement.classList.add('single-event');
 }
 
 
@@ -60,9 +57,28 @@ async function loadEventsWithRetry() {
 }
 
 
+async function loadEvent(id) {
+    const data = await common.rpc.getEvent(id);
+    allEvents.set(id, data);
+    await fillInEvents();
+}
+
+
+
+let _routeListPromise;
 async function fillInEvents() {
-    await Promise.all(Array.from(allEvents.values()).map(async event => {
-        event.route = await getRoute(event.routeId);
+    if (!_routeListPromise) {
+        _routeListPromise = common.getRouteList();
+    }
+    const routeList = await _routeListPromise;
+    if (!allRoutes) {
+        allRoutes = new Map();
+        for (const x of routeList) {
+            allRoutes.set(x.id, x);
+        }
+    }
+    for (const event of allEvents.values()) {
+        event.route = allRoutes.get(event.routeId);
         event.sameRoute = true;
         event.sameRouteName = true;
         event.signedUp = false;
@@ -81,7 +97,7 @@ async function fillInEvents() {
             event.sameRouteName = (new Set(event.eventSubgroups.map(sg => sg.routeId))).size === 1;
             event.signedUp = event.eventSubgroups.some(x => x.signedUp);
             for (const sg of event.eventSubgroups) {
-                sg.route = await getRoute(sg.routeId);
+                sg.route = allRoutes.get(sg.routeId);
                 durations.push(sg.durationInSeconds);
                 distances.push(sg.distanceInMeters || sg.routeDistance);
                 allSubgroups.set(sg.id, {sg, event});
@@ -90,7 +106,9 @@ async function fillInEvents() {
         const desc = (a, b) => a - b;
         event.durations = Array.from(new Set(durations.filter(x => x))).sort(desc);
         event.distances = Array.from(new Set(distances.filter(x => x))).sort(desc);
-    }));
+        event.displayTags = event.allTags.filter(x =>
+            !x.match(/(^timestamp=|^created_|^after_party_duration=|^powerup_percent=)/));
+    }
 }
 
 
@@ -171,7 +189,7 @@ export async function main() {
         document.querySelector('#titlebar select[name="type"]').value = settings.filterType;
     }
     [,templates, {nations, flags}, worldList, gcs, selfAthlete] = await Promise.all([
-        loadEventsWithRetry(),
+        eventId != null ? loadEvent(eventId) : loadEventsWithRetry(),
         getTemplates([
             'events/list',
             'events/summary',
@@ -225,43 +243,51 @@ export async function main() {
             return;
         }
         const action = button.dataset.action;
-        try {
-            if (action === 'signup' || action === 'unsignup') {
-                const el = button.closest('[data-event-subgroup-id]');
-                const sgId = Number(el.dataset.eventSubgroupId);
-                const {sg, event} = allSubgroups.get(sgId);
-                if (action === 'signup') {
-                    await common.rpc.addEventSubgroupSignup(sgId);
+        if (action === 'signup' || action === 'unsignup') {
+            const el = button.closest('[data-event-subgroup-id]');
+            const sgId = Number(el.dataset.eventSubgroupId);
+            const {sg, event} = allSubgroups.get(sgId);
+            if (action === 'signup') {
+                let accepted;
+                try {
+                    accepted = await common.rpc.addEventSubgroupSignup(sgId);
+                } catch(e) {
+                    console.warn('Signup error:', e.message);
+                }
+                if (!accepted) {
+                    el.classList.remove('can-signup');
+                    alert("Event subgroup rejected");
+                } else {
                     sg.signedUp = event.signedUp = true;
                     el.parentElement.querySelectorAll(':scope > [data-event-subgroup-id]').forEach(x =>
                         x.classList.remove('can-signup'));
                     el.classList.add('signedup');
                     el.closest('tr.details').previousElementSibling.classList.add('signedup');
-                } else {
-                    await common.rpc.deleteEventSignup(event.id);
-                    sg.signedUp = event.signedUp = false;
-                    el.parentElement.querySelectorAll(':scope > [data-event-subgroup-id]').forEach(x =>
-                        x.classList.add('can-signup'));
-                    el.classList.remove('signedup');
-                    el.closest('tr.details').previousElementSibling.classList.remove('signedup');
                 }
-            } else if (action === 'collapse-subgroup' || action === 'expand-subgroup') {
-                const el = ev.target.closest('.event-subgroup');
-                el.classList.toggle('collapsed');
-            } else if (action === 'zrs-lookup') {
-                const athleteId = Number(button.closest('tr[data-id]').dataset.id);
-                const athlete = await common.rpc.getAthlete(athleteId, {refresh: true});
-                button.outerHTML = sauce.locale.human.number(athlete.racingScore);
+            } else {
+                await common.rpc.deleteEventSignup(event.id);
+                sg.signedUp = event.signedUp = false;
+                el.parentElement.querySelectorAll(':scope > [data-event-subgroup-id]').forEach(x =>
+                    x.classList.add('can-signup'));
+                el.classList.remove('signedup');
+                el.closest('tr.details').previousElementSibling.classList.remove('signedup');
             }
-        } catch(e) {
-            // XXX
-            alert(e.message);
+        } else if (action === 'collapse-subgroup' || action === 'expand-subgroup') {
+            const el = ev.target.closest('.event-subgroup');
+            el.classList.toggle('collapsed');
+        } else if (action === 'zrs-lookup') {
+            const athleteId = Number(button.closest('tr[data-id]').dataset.id);
+            const athlete = await common.rpc.getAthlete(athleteId, {refresh: true});
+            button.outerHTML = sauce.locale.human.number(athlete.racingScore);
         }
     });
     await render();
     const nearest = contentEl.querySelector('table.events > tbody > tr.summary[data-event-id]:not(.started)');
     if (nearest) {
         nearest.scrollIntoView({block: 'center'});
+    }
+    if (eventId != null) {
+        contentEl.querySelector('table.events > tbody > tr.summary').click();
     }
 }
 

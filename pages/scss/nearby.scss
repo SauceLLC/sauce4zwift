@@ -63,8 +63,16 @@ table {
             }
 
             ms {
-                font-size: 1.38em;
+                font-size: 1.42em;
                 font-weight: 450;
+
+                &[small] {
+                    font-size: 1.18em;
+                }
+
+                &[large] {
+                    font-size: 1.6em;
+                }
             }
 
             &[data-id="avatar"] {

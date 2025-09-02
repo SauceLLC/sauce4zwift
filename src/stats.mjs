@@ -1,6 +1,8 @@
 /* global setImmediate, Buffer */
 import events from 'node:events';
 import path from 'node:path';
+import {createRequire} from 'node:module';
+import sleep from 'sleep';
 import {worldTimer} from './zwift.mjs';
 import {SqliteDatabase, deleteDatabase} from './db.mjs';
 import * as rpc from './rpc.mjs';
@@ -8,15 +10,51 @@ import * as sauce from '../shared/sauce/index.mjs';
 import * as report from '../shared/report.mjs';
 import * as zwift from './zwift.mjs';
 import * as env from './env.mjs';
-import * as curves from '../shared/curves.mjs';
 import {expWeightedAvg} from '../shared/sauce/data.mjs';
-import {createRequire} from 'node:module';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 
-const roadDistances = new Map();
 const wPrimeDefault = 20000;
+let groupIdCounter = 1;
+
+
+rpc.register(env.getWorldMetas);
+rpc.register(env.getCourseId);
+rpc.register(env.getRoad);
+rpc.register(env.getCourseRoads);
+rpc.register(env.getRoute);
+rpc.register(env.getCourseRoutes);
+rpc.register(env.getSegment);
+rpc.register(env.getCourseSegments);
+
+rpc.register(courseId => {
+    console.warn("DEPRECATED: use `getCourseRoads`");
+    return env.getCourseRoads(courseId);
+}, {name: 'getRoads'});
+
+rpc.register(ids => {
+    if (typeof ids === 'number') {
+        console.warn("DEPRECATED: use `getCourseRoutes`");
+        return env.getCourseRoutes(ids);
+    }
+    return env.getRoutes(ids);
+}, {name: 'getRoutes'});
+
+rpc.register(ids => {
+    if (typeof ids === 'number') {
+        console.warn("DEPRECATED: use `getCourseSegments`");
+        return env.getCourseSegments(ids);
+    }
+    return env.getSegments(ids);
+}, {name: 'getSegments'});
+
+rpc.register((courseId, roadId, reverse=false) => {
+    if (courseId == null || roadId == null) {
+        throw new TypeError('courseId and roadId required');
+    }
+    return env.getCourseSegments(courseId).filter(x => x.roadId === roadId && !!x.reverse === !!reverse);
+}, {name: 'getSegmentsForRoad'});
 
 
 function monotonic() {
@@ -24,50 +62,37 @@ function monotonic() {
 }
 
 
-function nextMacrotask() {
-    return new Promise(setImmediate);
-}
-
-
-let _hrSleepLatency = 1;
-const _hrSleepLatencyRoll = expWeightedAvg(10, _hrSleepLatency);
+let _hrSTOLatency = 1;
+const _hrSTOLatencyRoll = expWeightedAvg(10, _hrSTOLatency);
+let _hrUSleepLatency = 100;
+const _hrUSleepLatencyRoll = expWeightedAvg(10, _hrUSleepLatency);
+const _hrMaxMacroCompensation = 4; // ms
+const _hrMaxMicroCompensation = 200; // us
+const _hrMaxMicroSleep = 100; // us
 async function highResSleepTill(deadline, options={}) {
     // NOTE: V8 can and does wake up early.
     // NOTE: GC pauses can and will cause delays.
     let t = monotonic();
-    const macroDelay = Math.trunc((deadline - t) - _hrSleepLatency);
+    const macroDelay = Math.round((deadline - t) - _hrSTOLatency);
     if (macroDelay > 1) {
         await new Promise(r => setTimeout(r, macroDelay));
-        const t2 = monotonic();
-        const stoLatency = (t2 - t) - macroDelay;
-        t = t2;
+        const stoLatency = Math.min(_hrMaxMacroCompensation, (monotonic() - t) - macroDelay);
         if (stoLatency > 0) {
-            _hrSleepLatency = Math.sqrt(_hrSleepLatencyRoll((stoLatency + 1) ** 2));
+            _hrSTOLatency = _hrSTOLatencyRoll(stoLatency);
         }
-    }
-    while (t < deadline) {
-        await nextMacrotask();
         t = monotonic();
     }
-    return t;
-}
-
-
-function updateRoadDistance(courseId, roadId) {
-    let distance;
-    const road = env.getRoad(courseId, roadId);
-    if (road) {
-        const curveFunc = {
-            CatmullRom: curves.catmullRomPath,
-            Bezier: curves.cubicBezierPath,
-        }[road.splineType];
-        const curvePath = curveFunc(road.path, {loop: road.looped, road: true});
-        distance = curvePath.distance() / 100;
-    } else {
-        distance = null;
+    while (t < deadline) {
+        const microDelay = Math.max(0, Math.min(_hrMaxMicroSleep,
+                                                Math.round((deadline - t) * 1000 - _hrUSleepLatency)));
+        sleep.usleep(microDelay);
+        const uSleepLatency = Math.min(_hrMaxMicroCompensation, (monotonic() - t) * 1000 - microDelay);
+        _hrUSleepLatency = _hrUSleepLatencyRoll(uSleepLatency);
+        //console.debug("slept", microDelay, uSleepLatency, _hrUSleepLatency);
+        t = monotonic();
     }
-    roadDistances.set(env.getRoadSig(courseId, roadId, /*reverse*/ false), distance);
-    roadDistances.set(env.getRoadSig(courseId, roadId, /*reverse*/ true), distance);
+    //console.debug('final', t - deadline, {_hrSTOLatency, _hrUSleepLatency});
+    return t;
 }
 
 
@@ -104,10 +129,11 @@ class DataCollector {
         this._bufferedSum = 0;
         this._bufferedLen = 0;
         this.roll = new Klass(null, {...defOptions, ...options});
-        this.periodized = new Map(periods.map(period => [period, {
-            roll: this.roll.clone({period}),
+        this.periodized = periods.map(period => ({
+            period,
+            roll: this.roll.clone({period, ...options.periodizedOptions}),
             peak: null,
-        }]));
+        }));
     }
 
     clone({reset}={}) {
@@ -116,13 +142,11 @@ class DataCollector {
             instance._maxValue = this._maxValue;
         }
         instance.roll = this.roll.clone({reset});
-        instance.periodized = new Map();
-        for (const [period, {roll, peak}] of this.periodized.entries()) {
-            instance.periodized.set(period, {
-                roll: roll.clone({reset}),
-                peak: reset ? null : peak,
-            });
-        }
+        instance.periodized = this.periodized.map(x => ({
+            period: x.period,
+            roll: x.roll.clone({reset}),
+            peak: reset ? null : x.peak,
+        }));
         return instance;
     }
 
@@ -172,10 +196,12 @@ class DataCollector {
     }
 
     _resizePeriodized() {
-        for (const x of this.periodized.values()) {
+        for (let i = 0; i < this.periodized.length; i++) {
+            const x = this.periodized[i];
             const added = x.roll.resize();
             if (added && x.roll.full()) {
                 const avg = x.roll.avg();
+                // XXX this is a little heavy, save x.peak.avg()
                 if (x.peak === null || avg >= x.peak.avg()) {
                     x.peak = x.roll.clone();
                 }
@@ -183,21 +209,56 @@ class DataCollector {
         }
     }
 
-    getStats(wtOffset, extra) {
-        const peaks = {};
-        const smooth = {};
-        for (const [p, {roll, peak}] of this.periodized.entries()) {
+    getStatsFuture(wtOffset, extra) {
+        // TBD
+        // Convert to this when we eval Mod breakage...
+        const peaks = new Array(this.periodized.length);
+        const smooth = new Array(this.periodized.length);
+        for (let i = 0; i < this.periodized.length; i++) {
+            const {period, roll, peak} = this.periodized[i];
             if (peak) {
                 const time = peak.lastTime();
-                peaks[p] = {
+                peaks[i] = {
+                    period,
                     avg: peak.avg(),
                     time,
                     ts: worldTimer.toLocalTime(wtOffset + (time * 1000)),
                 };
             } else {
-                peaks[p] = {avg: null, time: null, ts: null};
+                peaks[i] = {period, avg: null, time: null, ts: null};
             }
-            smooth[p] = roll.avg();
+            smooth[i] = {period, avg: roll.avg()};
+        }
+        return {
+            avg: this.roll.avg(),
+            max: this._maxValue,
+            peaks,
+            smooth,
+            ...extra,
+        };
+    }
+
+    getStatsSlow(wtOffset, extra) {
+        const peaks = {};
+        const smooth = {};
+        // XXX So with https://v8.dev/blog/json-stringify it turns out we are giving up a lot of perf
+        // by using numeric keys (does NOT matter that they are converted to strings).  See getStatsFuture
+        // for the better impl we want to go to.
+        for (let i = 0; i < this.periodized.length; i++) {
+            const {period, roll, peak} = this.periodized[i];
+            const key = period.toString();
+            if (peak) {
+                const time = peak.lastTime();
+                peaks[key] = {
+                    period,
+                    avg: peak.avg(),
+                    time,
+                    ts: worldTimer.toLocalTime(wtOffset + (time * 1000)),
+                };
+            } else {
+                peaks[key] = {period, avg: null, time: null, ts: null};
+            }
+            smooth[key] = roll.avg();
         }
         return {
             avg: this.roll.avg(),
@@ -538,15 +599,18 @@ export class StatsProcessor extends events.EventEmitter {
         this._stateProcessCount = 0;
         this._stateDupCount = 0;
         this._stateStaleCount = 0;
-        this._profileFetchIds = new Set();
-        this._pendingProfileFetches = [];
+        this._profileFetchDeferrals = new Map();
+        this._pendingProfileFetches = new Set();
         this._profileFetchCount = 0;
-        this._profileFetchBackoff = 100;
+        this._profileFetchReset = this._profileFetchBackoff = 1000;
         this._chatHistory = [];
         this._recentEvents = new Map();
+        this._recentEventsPending = new Map();
         this._recentEventSubgroups = new Map();
+        this._recentEventSubgroupsPending = new Map();
         this._mostRecentNearby = [];
         this._mostRecentGroups = [];
+        this._groupMetas = new Map();
         this._markedIds = new Set();
         this._followingIds = new Set();
         this._followerIds = new Set();
@@ -582,9 +646,9 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.getFollowerAthletes, {scope: this});
         rpc.register(this.getMarkedAthletes, {scope: this});
         rpc.register(this.searchAthletes, {scope: this});
-        rpc.register(this.getEvent, {scope: this});
         rpc.register(this.getCachedEvent, {scope: this});
         rpc.register(this.getCachedEvents, {scope: this});
+        rpc.register(this.getEvent, {scope: this});
         rpc.register(this.getEventSubgroup, {scope: this});
         rpc.register(this.getEventSubgroupEntrants, {scope: this});
         rpc.register(this.getEventSubgroupResults, {scope: this});
@@ -609,9 +673,6 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.getAthleteLaps, {scope: this});
         rpc.register(this.getAthleteSegments, {scope: this});
         rpc.register(this.getAthleteStreams, {scope: this});
-        rpc.register(this.getSegment, {scope: this});
-        rpc.register(this.getSegments, {scope: this});
-        rpc.register(this.getSegmentsForRoad, {scope: this});
         rpc.register(this.getSegmentResults, {scope: this});
         rpc.register(this.putState, {scope: this});
         rpc.register(this.fileReplayLoad, {scope: this});
@@ -636,7 +697,7 @@ export class StatsProcessor extends events.EventEmitter {
             gc.on('custom-action-button', this.onCustomActionButton.bind(this));
         }
         if (options.debugGameFields) {
-            this._cleanState = obj => obj;
+            this._formatState = this._formatStateDebug;
         }
     }
 
@@ -663,16 +724,17 @@ export class StatsProcessor extends events.EventEmitter {
             lastName: names.slice(2).join(''),
         });
         this._activityReplay.on('record', record => {
+            const now = monotonic();
             const fakeState = this.emulatePlayerStateFromRecord(record, {
                 athleteId,
                 sport: this._activityReplay.activity.sport
             });
             if (!this._athleteData.has(athleteId)) {
-                this._athleteData.set(athleteId, this._createAthleteData(fakeState));
+                this._athleteData.set(athleteId, this._createAthleteData(fakeState, now));
             }
             const ad = this._athleteData.get(athleteId);
-            if (this._preprocessState(fakeState, ad) !== false) {
-                this._recordAthleteStats(fakeState, ad);
+            if (this._preprocessState(fakeState, ad, now) !== false) {
+                this._recordAthleteStats(fakeState, ad, now);
                 if (this.listenerCount('states')) {
                     this._pendingEgressStates.set(fakeState.athleteId, fakeState);
                     this._schedStatesEmit();
@@ -876,7 +938,8 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     async getWorkoutSchedule() {
-        return await this.zwiftAPI.getWorkoutSchedule(); // gets a list of scheduled workouts from 3rd party partners (intervals.icu, trainingpeaks, etc.)
+        // List of scheduled workouts from 3rd party partners (intervals.icu, trainingpeaks, etc.)
+        return await this.zwiftAPI.getWorkoutSchedule();
     }
 
     // XXX ambiguous name
@@ -951,22 +1014,68 @@ export class StatsProcessor extends events.EventEmitter {
         return this._recentEvents.get(id);
     }
 
-    async getEvent(id) {
+    getCachedEvents() {
+        return Array.from(this._recentEvents.values().filter(x => x)).sort((a, b) => a.ts - b.ts);
+    }
+
+    async getEvent(id, {meetup}={}) {
         if (!this._recentEvents.has(id)) {
-            const event = await this.zwiftAPI.getEvent(id);
-            if (event) {
-                this._addEvent(event);
+            this._recentEvents.set(id, null);
+            let p;
+            if (meetup) {
+                p = this.zwiftAPI.getPrivateEvent(id).then(x => x && this._addMeetup(x));
+            } else {
+                p = this.zwiftAPI.getEvent(id).then(x => x && this._addEvent(x));
+            }
+            this._recentEventsPending.set(id, p);
+            p.then(() => this._recentEventsPending.delete(id));
+            p.catch(() => {
+                setTimeout(() => {
+                    if (this._recentEvents.get(id) === null) {
+                        this._recentEvents.delete(id);
+                        this._recentEventsPending.delete(id);
+                    }
+                }, 30000);  // allow retry later
+            });
+            return await p;
+        }
+        return this._recentEvents.get(id) || await this._recentEventsPending.get(id);
+    }
+
+    async getEventSubgroup(id) {
+        if (!this._recentEventSubgroups.has(id)) {
+            this._recentEventSubgroups.set(id, null);
+            const r = this._getEventSubgroupStmt.get(id);
+            const eventId = r && r.eventId;
+            if (eventId != null) {
+                const meetup = r.eventType === 'MEETUP';
+                const p = this.getEvent(eventId, {meetup}).then(() => this._recentEventSubgroups.get(id));
+                this._recentEventSubgroupsPending.set(id, p);
+                p.then(() => this._recentEventSubgroupsPending.delete(id));
+                p.catch(() => {
+                    setTimeout(() => {
+                        if (this._recentEventSubgroups.get(id) === null) {
+                            this._recentEventSubgroups.delete(id);
+                            this._recentEventSubgroupsPending.delete(id);
+                        }
+                    }, 30000);  // allow retry later
+                });
+                return await p;
+            } else {
+                console.warn("Could not find subgroup eventId required for lookup:", id);
             }
         }
-        return this._recentEvents.get(id);
+        return this._recentEventSubgroups.get(id) || await this._recentEventSubgroupsPending.get(id);
     }
 
-    getCachedEvents() {
-        return Array.from(this._recentEvents.values()).sort((a, b) => a.ts - b.ts);
-    }
-
-    getEventSubgroup(id) {
-        return this._recentEventSubgroups.get(id);
+    _rememberEventSubgroup(sg, event) {
+        if (sg.id == null || sg.eventId == null || !event) {
+            console.error("Unexpected null event or subgroup", sg);
+            return;
+        }
+        this._eventSubgroupsDB
+            .prepare('INSERT OR REPLACE INTO subgroups (id, eventId, eventType) VALUES(?, ?, ?)')
+            .run(sg.id, sg.eventId, event.eventType);
     }
 
     async getEventSubgroupEntrants(id, options={}) {
@@ -1018,35 +1127,38 @@ export class StatsProcessor extends events.EventEmitter {
             x.athlete = this._getAthlete(x.profileId) || {};
         }
         if (updates.size) {
-            this.saveAthletes(Array.from(updates.entries()));
+            this.saveAthletes(Array.from(updates));
         }
         return results;
     }
 
-    async addEventSubgroupSignup(id) {
-        await this.zwiftAPI.addEventSubgroupSignup(id);
-        await this.refreshEventSignups();
+    async addEventSubgroupSignup(subgroupId) {
+        const accepted = await this.zwiftAPI.addEventSubgroupSignup(subgroupId);
+        if (!accepted) {
+            console.warn("Failed to signup for subgroup:", subgroupId);
+            return false;
+        }
+        const sg = await this.getEventSubgroup(subgroupId);
+        sg.signedUp = true;
+        return true;
     }
 
-    async deleteEventSignup(id) {
-        await this.zwiftAPI.deleteEventSignup(id);
-        // Patch local cache of events until server updates (it's only eventually consistent)
-        const event = this._recentEvents.get(id);
+    async deleteEventSignup(eventId) {
+        await this.zwiftAPI.deleteEventSignup(eventId);
+        const event = await this.getEvent(eventId);
         if (event && event.eventSubgroups) {
-            for (const sg of event.eventSubgroups) {
-                sg.signedUp = false;
+            for (const x of event.eventSubgroups) {
+                x.signedUp = false;
             }
         }
-        await this.refreshEventSignups();
     }
 
     async refreshEventSignups() {
         const upcoming = await this.zwiftAPI.getUpcomingEvents();
-        const ourSignups = new Set(upcoming.filter(x => x.profileId === this.zwiftAPI.profile.id)
-            .map(x => x.eventSubgroupId));
-        for (const x of this._recentEventSubgroups.values()) {
-            if (ourSignups.has(x.id)) {
-                x.signedUp = true;
+        for (const x of upcoming.filter(x => x.profileId === this.zwiftAPI.profile.id)) {
+            const sg = this._recentEventSubgroups.get(x.eventSubgroupId);
+            if (sg && !sg.signedUp) {
+                console.info(`Joined event subgroup[${sg.id}]:`, sg.name);
             }
         }
     }
@@ -1082,15 +1194,8 @@ export class StatsProcessor extends events.EventEmitter {
     getChatHistory() {
         return this._chatHistory.map(x => {
             const athlete = this._athletesCache.get(x.from);
-            x.muted = (athlete && athlete.muted != null) ? athlete.muted : x.muted;
-            if (x.eventSubgroup) {
-                const sg = this._recentEventSubgroups.get(x.eventSubgroup);
-                if (sg.invitedLeaders && sg.invitedLeaders.includes(x.from)) {
-                    x.eventLeader = true;
-                }
-                if (sg.invitedSweepers && sg.invitedSweepers.includes(x.from)) {
-                    x.eventSweeper = true;
-                }
+            if (athlete) {
+                x.muted = athlete.muted;  // may have changed mid-history
             }
             return x;
         });
@@ -1109,9 +1214,11 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     getAthletesData(ids) {
-        return ids ?
-            ids.map(x => this.getAthleteData(x)) :
-            Array.from(this._athleteData.values()).map(x => this._formatAthleteData(x));
+        const athletes = ids ?
+            ids.map(x => this._athleteData.get(this._realAthleteId(x))) :
+            Array.from(this._athleteData.values());
+        const now = monotonic();
+        return athletes.map(x => x ? this._formatAthleteData(x, now) : null);
     }
 
     getAthleteData(id) {
@@ -1153,7 +1260,8 @@ export class StatsProcessor extends events.EventEmitter {
             laps = laps.slice(0, -1);
         }
         const athlete = this.loadAthlete(ad.athleteId);
-        return laps.map(x => this._formatLapish(x, ad, athlete));
+        const now = monotonic();
+        return laps.map(x => this._formatLapish(x, ad, athlete, now));
     }
 
     getAthleteSegments(id, {startTime, endTime, active}={}) {
@@ -1173,17 +1281,22 @@ export class StatsProcessor extends events.EventEmitter {
             segments = segments.filter(x => !ad.activeSegments.has(x.id));
         }
         const athlete = this.loadAthlete(ad.athleteId);
-        return segments.map(x => this._formatLapish(x, ad, athlete, {
+        const now = monotonic();
+        return segments.map(x => this._formatLapish(x, ad, athlete, now, {
             segmentId: x.id,
-            segment: env.cachedSegments.get(x.id),
+            segment: env.getSegment(x.id),
+            startEventDistance: x.startEventDistance,
+            endEventDistance: x.endEventDistance,
         }));
     }
 
-    _formatLapish(lapish, ad, athlete, extra) {
+    _formatLapish(lapish, ad, athlete, now, extra) {
+        // TODO: Let's introduce the concept of freezing a lapish so it's data arrays can be drained and
+        // we just retain a snapshot used for stats calls.
         const startIndex = lapish.power.roll._offt;
         const endIndex = Math.max(startIndex, lapish.power.roll._length - 1);
         return {
-            stats: this._getCollectorStats(lapish, ad, athlete),
+            stats: this._getBucketStats(lapish, ad, athlete, {now}),
             active: lapish.end == null,
             startIndex,
             endIndex,
@@ -1191,6 +1304,7 @@ export class StatsProcessor extends events.EventEmitter {
             end: lapish.power.roll._times[endIndex],
             sport: lapish.sport,
             courseId: lapish.courseId,
+            eventSubgroupId: lapish.eventSubgroupId,
             ...extra,
         };
     }
@@ -1202,7 +1316,7 @@ export class StatsProcessor extends events.EventEmitter {
         }
         let offt;
         if (startTime !== undefined) {
-            const timeStream = ad.collectors.power.roll.times();
+            const timeStream = ad.bucket.power.roll.times();
             offt = timeStream.findIndex(x => x >= startTime);
             if (offt === -1) {
                 offt = Infinity;
@@ -1212,15 +1326,14 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _getAthleteStreams(ad, offt) {
-        const cs = ad.collectors;
-        const power = cs.power.roll.values(offt);
+        const power = ad.bucket.power.roll.values(offt);
         const streams = {
-            time: cs.power.roll.times(offt),
+            time: ad.bucket.power.roll.times(offt),
             power,
-            speed: cs.speed.roll.values(offt),
-            hr: cs.hr.roll.values(offt),
-            cadence: cs.cadence.roll.values(offt),
-            draft: cs.draft.roll.values(offt),
+            speed: ad.bucket.speed.roll.values(offt),
+            hr: ad.bucket.hr.roll.values(offt),
+            cadence: ad.bucket.cadence.roll.values(offt),
+            draft: ad.bucket.draft.roll.values(offt),
             active: power.map(x => !!+x || !(x instanceof sauce.data.Pad)),
         };
         for (const [k, arr] of Object.entries(ad.streams)) {
@@ -1229,92 +1342,83 @@ export class StatsProcessor extends events.EventEmitter {
         return streams;
     }
 
-    getSegment(id) {
-        if (id == null) {
-            throw new TypeError('id required');
-        }
-        return env.cachedSegments.get(id);
-    }
-
-    getSegments(courseId) {
-        if (courseId == null) {
-            throw new TypeError('courseId required');
-        }
-        return env.getCourseSegments(courseId);
-    }
-
-    getSegmentsForRoad(courseId, roadId, reverse=false) {
-        if (courseId == null || roadId == null) {
-            throw new TypeError('courseId and roadId required');
-        }
-        return env.getCourseSegments(courseId).filter(x => x.roadId === roadId && !!x.reverse === !!reverse);
-    }
-
     async getSegmentResults(id, options={}) {
         let segments;
         if (id == null) {
             segments = await this.zwiftAPI.getLiveSegmentLeaders();
         } else {
             if (options.live) {
+                // Includes eventSubgroupId.
+                // Only best result for each athlete in recent times (possibly only if in-world).
+                // Only returns first name initial.
                 segments = await this.zwiftAPI.getLiveSegmentLeaderboard(id, options);
             } else {
+                // Never includes eventSubgroupId.
+                // Can use data range.
+                // Full name.
                 segments = await this.zwiftAPI.getSegmentResults(id, options);
             }
         }
-        if (segments) {
-            return segments.map(x => ({
-                ...x,
-                ts: worldTimer.toLocalTime(x.worldTime),
-                weight: x.weight / 1000,
-                elapsed: x.elapsed / 1000,
-                gender: x.male === false ? 'female' : 'male',
-                _unsignedSegmentId: undefined,
-                male: undefined,
-            }));
-        }
+        return segments || [];
     }
 
     getNearbyData() {
-        return Array.from(this._mostRecentNearby);
+        return this._mostRecentNearby;
     }
 
     getGroupsData() {
-        return Array.from(this._mostRecentGroups);
+        return this._mostRecentGroups;
     }
 
     startLap() {
         console.debug("Starting new lap...");
+        const now = monotonic();
         for (const x of this._athleteData.values()) {
-            this.startAthleteLap(x);
+            this.startAthleteLap(x, now);
         }
     }
 
-    startAthleteLap(ad) {
-        const now = monotonic();
+    startAthleteLap(ad, now=monotonic()) {
         const lastLap = ad.laps[ad.laps.length - 1];
         lastLap.end = now;
-        ad.laps.push(this._createNewLapish(ad));
+        // TODO: Let's introduce the concept of freezing a lapish so it's data arrays can be drained and
+        // we just retain a snapshot used for stats calls.
+        const lap = this._createNewLapish(ad, now);
+        ad.laps.push(lap);
+        return lap;
     }
 
-    startSegment(ad, id) {
-        const segment = this._createNewLapish(ad);
+    startSegment(ad, id, start=monotonic()) {
+        const segment = this._createNewLapish(ad, start);
         segment.id = id;
+        // Indirectly lookup sgId via cur-lap to avoid after_party_duration window..
+        segment.eventSubgroupId = ad.laps[ad.laps.length - 1].eventSubgroupId;
+        if (segment.eventSubgroupId) {
+            segment.startEventDistance = ad.mostRecentState.eventDistance;
+            segment.endEventDistance = null;
+        }
         ad.segments.push(segment);
         ad.activeSegments.set(id, segment);
         return segment;
     }
 
-    stopSegment(ad, id) {
+    stopSegment(ad, id, end=monotonic()) {
         const segment = ad.activeSegments.get(id);
-        segment.end = monotonic();
+        segment.end = end;
+        if (segment.eventSubgroupId) {
+            segment.endEventDistance = ad.mostRecentState.eventDistance;
+        }
         ad.activeSegments.delete(id);
+        // TODO: Let's introduce the concept of freezing a lapish so it's data arrays can be drained and
+        // we just retain a snapshot used for stats calls.
     }
 
     resetStats() {
         console.debug("Reseting stats...");
         const wt = worldTimer.now();
+        const now = monotonic();
         for (const ad of this._athleteData.values()) {
-            this._resetAthleteData(ad, wt);
+            this._resetAthleteData(ad, wt, now);
         }
     }
 
@@ -1447,6 +1551,7 @@ export class StatsProcessor extends events.EventEmitter {
             level: p.achievementLevel ? Math.floor(p.achievementLevel / 100) : undefined,
             powerSourceModel: p.powerSourceModel,
             powerMeter: p.powerSourceModel ? powerMeterSources.includes(p.powerSourceModel) : undefined,
+            maxHeartRate: p.maxHeartRate,
         };
         if (p.competitionMetrics) {
             o.racingScore = p.competitionMetrics.racingScore;
@@ -1586,7 +1691,7 @@ export class StatsProcessor extends events.EventEmitter {
             return a;
         }
         if (!this.exclusions.has(zwift.getIDHash(id))) {
-            const r = this.getAthleteStmt.get(id);
+            const r = this._getAthleteStmt.get(id);
             if (r) {
                 const data = JSON.parse(r.data);
                 this._athletesCache.set(id, data);
@@ -1644,7 +1749,7 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _loadMarkedAthletes() {
-        const stmt = this.athletesDB.prepare(
+        const stmt = this._athletesDB.prepare(
             `SELECT athletes.id ` +
             `FROM athletes, json_each(athletes.data, '$.marked') ` +
             `WHERE json_each.value`);
@@ -1656,8 +1761,8 @@ export class StatsProcessor extends events.EventEmitter {
 
 
     saveAthletes(records) {
-        const stmt = this.athletesDB.prepare('INSERT OR REPLACE INTO athletes (id, data) VALUES(?, ?)');
-        this.athletesDB.transaction(() => {
+        const stmt = this._athletesDB.prepare('INSERT OR REPLACE INTO athletes (id, data) VALUES(?, ?)');
+        this._athletesDB.transaction(() => {
             for (const [id, data] of records) {
                 this._athletesCache.set(id, data);
                 stmt.run(id, JSON.stringify(data));
@@ -1673,14 +1778,14 @@ export class StatsProcessor extends events.EventEmitter {
                     this._addEvent(event);
                 }
             } catch(e) {
-                /* no-pragma */
                 // Club rides we don't have rights to show up in our list
                 // I can't see a way to test for permissions before attempting
                 // access so we just catch the error
-                console.warn('Failed to load event:', x, e.status, e.message);
+                if (e.status !== 403 || !e.message.match(/event\.is\.forbidden/)) {
+                    console.error('Failed to load event:', x, e.status, e.message);
+                }
             }
         }
-        await this.refreshEventSignups();
     }
 
     onIncoming(...args) {
@@ -1692,6 +1797,7 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _onIncoming(packet) {
+        const now = monotonic();
         const updatedEvents = [];
         const ignore = [
             'PayloadSegmentResult',
@@ -1720,20 +1826,21 @@ export class StatsProcessor extends events.EventEmitter {
                         updatedEvents.push(eventId);
                     }
                 } else if (x.payloadType === 'groupEventUserRegistered') {
-                    const sg = this._recentEventSubgroups.get(x.payload.subgroupId);
-                    if (sg) {
-                        const event = this._recentEvents.get(sg.eventId);
-                        if (this._followingIds.has(x.payload.athleteId)) {
-                            sg.followeeEntrantCount++;
+                    this.getEventSubgroup(x.payload.subgroupId).then(sg => {
+                        if (sg) {
+                            const event = this._recentEvents.get(sg.eventId);
+                            if (this._followingIds.has(x.payload.athleteId)) {
+                                sg.followeeEntrantCount++;
+                                if (event) {
+                                    event.followeeEntrantCount++;
+                                }
+                            }
+                            sg.totalEntrantCount++;
                             if (event) {
-                                event.followeeEntrantCount++;
+                                event.totalEntrantCount++;
                             }
                         }
-                        sg.totalEntrantCount++;
-                        if (event) {
-                            event.totalEntrantCount++;
-                        }
-                    }
+                    });
                 } else if (!ignore.includes(x.payloadType)) {
                     console.debug("Unhandled WorldUpdate:", x);
                 }
@@ -1767,7 +1874,7 @@ export class StatsProcessor extends events.EventEmitter {
         const hasStatesListeners = !!this.listenerCount('states');
         for (let i = 0; i < packet.playerStates.length; i++) {
             const x = packet.playerStates[i];
-            if (this.processState(x) === false) {
+            if (this.processState(x, now) === false) {
                 continue;
             }
             if (hasStatesListeners) {
@@ -1787,7 +1894,7 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _flushPendingEgressStates() {
-        const states = Array.from(this._pendingEgressStates.values()).map(x => this._cleanState(x));
+        const states = Array.from(this._pendingEgressStates.values()).map(x => this._formatState(x));
         this._pendingEgressStates.clear();
         this._lastEgressStates = monotonic();
         this._timeoutEgressStates = null;
@@ -1859,7 +1966,6 @@ export class StatsProcessor extends events.EventEmitter {
         }
         console.info("Now watching:", athleteId);
         this.watching = athleteId;
-        this._pendingProfileFetches.length = 0;
         this.emit('watching-athlete-change', athleteId);
     }
 
@@ -1867,48 +1973,67 @@ export class StatsProcessor extends events.EventEmitter {
         return env.getRoadSig(state.courseId, state.roadId, state.reverse);
     }
 
-    _getCollectorStats(cs, ad, athlete, {includeDeprecated}={}) {
-        const end = cs.end || monotonic();
-        const elapsedTime = (end - cs.start) / 1000;
-        const np = cs.power.roll.np({force: true});
+    _getBucketStats(bucket, ad, athlete, {now, includeDeprecated}={}) {
+        // TODO: Let's introduce the concept of freezing a lapish so it's data arrays can be drained and
+        // we just retain a snapshot used for stats calls.
+        const end = bucket.end ?? now ?? monotonic();
+        const elapsedTime = (end - bucket.start) / 1000;
+        const np = bucket.power.roll.np({force: true});
         let wBal, timeInPowerZones; // DEPRECATED
         if (includeDeprecated) {
             wBal = ad.privacy.hideWBal ? undefined : ad.wBal.get();
             timeInPowerZones = ad.privacy.hideFTP ? undefined : ad.timeInPowerZones.get();
         }
-        const activeTime = cs.power.roll.active();
+        const activeTime = bucket.power.roll.active();
         const tss = (!ad.privacy.hideFTP && np && athlete && athlete.ftp) ?
             sauce.power.calcTSS(np, activeTime, athlete.ftp) :
             undefined;
         return {
             elapsedTime,
             activeTime,
-            coffeeTime: cs.coffeeTime,
+            coffeeTime: Math.round(bucket.coffeeTime / 1000),
+            workTime: Math.round(bucket.workTime / 1000),
+            followTime: Math.round(bucket.followTime / 1000),
+            soloTime: Math.round(bucket.soloTime / 1000),
+            workKj: bucket.workKj,
+            followKj: bucket.followKj,
+            soloKj: bucket.soloKj,
             wBal, // DEPRECATED
             timeInPowerZones, // DEPRECATED
-            power: cs.power.getStats(ad.wtOffset, {
+            power: bucket.power.getStatsSlow(ad.wtOffset, {
                 np,
                 tss,
-                kj: cs.power.roll.joules() / 1000,
+                kj: bucket.power.roll.joules() / 1000,
                 wBal, // DEPRECATED
                 timeInZones: timeInPowerZones, // DEPRECATED
             }),
-            speed: cs.speed.getStats(ad.wtOffset),
-            hr: cs.hr.getStats(ad.wtOffset),
-            cadence: cs.cadence.getStats(ad.wtOffset),
-            draft: cs.draft.getStats(ad.wtOffset, {
-                kj: cs.draft.roll.joules() / 1000,
+            speed: bucket.speed.getStatsSlow(ad.wtOffset),
+            hr: bucket.hr.getStatsSlow(ad.wtOffset),
+            cadence: bucket.cadence.getStatsSlow(ad.wtOffset),
+            draft: bucket.draft.getStatsSlow(ad.wtOffset, {
+                kj: bucket.draft.roll.joules() / 1000,
             }),
         };
     }
 
-    _makeDataCollectors() {
+    _makeDataBucket(start) {
         const periods = [5, 15, 60, 300, 1200];
         const longPeriods = periods.filter(x => x >= 60);
         return {
-            start: monotonic(),
+            start,
             coffeeTime: 0,
-            power: new DataCollector(sauce.power.RollingPower, periods, {inlineNP: true, round: true}),
+            workTime: 0,
+            followTime: 0,
+            soloTime: 0,
+            workKj: 0,
+            followKj: 0,
+            soloKj: 0,
+            power: new DataCollector(sauce.power.RollingPower, periods, {
+                inlineNP: true,
+                disableInlineNPResize: true,
+                round: true,
+                periodizedOptions: {inlineNP: false}
+            }),
             speed: new DataCollector(sauce.data.RollingAverage, longPeriods, {ignoreZeros: true}),
             hr: new DataCollector(sauce.data.RollingAverage, longPeriods, {ignoreZeros: true, round: true}),
             cadence: new DataCollector(sauce.data.RollingAverage, [], {ignoreZeros: true, round: true}),
@@ -1916,27 +2041,33 @@ export class StatsProcessor extends events.EventEmitter {
         };
     }
 
-    _createNewLapish(ad) {
+    _createNewLapish(ad, start=monotonic()) {
         const cloneOpts = {reset: true};
         return {
-            start: monotonic(),
+            start,
             coffeeTime: 0,
+            workTime: 0,
+            followTime: 0,
+            soloTime: 0,
+            workKj: 0,
+            followKj: 0,
+            soloKj: 0,
             courseId: ad.courseId,
             sport: ad.sport,
-            power: ad.collectors.power.clone(cloneOpts),
-            speed: ad.collectors.speed.clone(cloneOpts),
-            hr: ad.collectors.hr.clone(cloneOpts),
-            cadence: ad.collectors.cadence.clone(cloneOpts),
-            draft: ad.collectors.draft.clone(cloneOpts),
+            power: ad.bucket.power.clone(cloneOpts),
+            speed: ad.bucket.speed.clone(cloneOpts),
+            hr: ad.bucket.hr.clone(cloneOpts),
+            cadence: ad.bucket.cadence.clone(cloneOpts),
+            draft: ad.bucket.draft.clone(cloneOpts),
         };
     }
 
-    maybeUpdateAthleteFromServer(athleteId) {
-        if (this._profileFetchIds.has(athleteId)) {
+    _maybeUpdateAthleteFromServer(athleteId, now) {
+        if (this._pendingProfileFetches.has(athleteId) ||
+            (this._profileFetchDeferrals.get(athleteId) ?? 0) > now) {
             return;
         }
-        this._profileFetchIds.add(athleteId);
-        this._pendingProfileFetches.push(athleteId);
+        this._pendingProfileFetches.add(athleteId);
         if (!this._athleteProfileUpdaterActive) {
             this._athleteProfileUpdaterActive = true;
             // wait for next task so looped calls will fill the batch first...
@@ -1947,38 +2078,45 @@ export class StatsProcessor extends events.EventEmitter {
 
     async _updateAthleteProfilesFromServer(batch) {
         const updates = [];
-        let allowRefetchAfter = 1000; // err
+        const now = monotonic();
+        const goodDefer = now + 300 * 1000;
+        const badDefer = now + 1000;
         try {
-            for (const p of await this.zwiftAPI.getProfiles(batch, {silent: true})) {
+            const profiles = await this.zwiftAPI.getProfiles(batch, {silent: true});
+            for (const [i, p] of profiles.entries()) {
                 if (p) {
+                    this._profileFetchDeferrals.set(batch[i], goodDefer);
                     updates.push([p.id, this._updateAthlete(p.id, this._profileToAthlete(p))]);
+                } else {
+                    this._profileFetchDeferrals.set(batch[i], badDefer);
+                    console.warn("Profile not found:", batch[i]);
                 }
             }
-            // Could probably extend this if we integrated player update handling effectively.
-            allowRefetchAfter = 300 * 1000;
-        } finally {
-            setTimeout(() => {
-                for (const x of batch) {
-                    this._profileFetchIds.delete(x);
+        } catch(e) {
+            for (const x of batch) {
+                if (!updates.find(([id]) => id === x)) {
+                    this._profileFetchDeferrals.set(x, badDefer);
                 }
-            }, allowRefetchAfter);
-        }
-        if (updates.length) {
-            this.saveAthletes(updates);
+            }
+            throw e;
+        } finally {
+            if (updates.length) {
+                this.saveAthletes(updates);
+            }
         }
     }
 
     async runAthleteProfileUpdater() {
-        while (this._pendingProfileFetches.length) {
+        while (this._pendingProfileFetches.size) {
             const batch = Array.from(this._pendingProfileFetches);
-            this._pendingProfileFetches.length = 0;
+            this._pendingProfileFetches.clear();
             this._profileFetchCount += batch.length;
             try {
                 await this._updateAthleteProfilesFromServer(batch);
-                this._profileFetchBackoff = 1000;
+                this._profileFetchBackoff = this._profileFetchReset;
             } catch(e) {
-                if (e.name === 'FetchError') {
-                    console.warn("Network problem while collecting profiles:", e.message);
+                if (e.message === 'fetch failed' || e.name === 'TimeoutError') {
+                    console.warn("Network problem while collecting profiles:", e.cause?.message || e);
                 } else {
                     console.error("Error while collecting profiles:", e);
                 }
@@ -2000,10 +2138,14 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
-    _createAthleteData(state) {
-        const collectors = this._makeDataCollectors();
+    _createAthleteData(state, now) {
+        const created = worldTimer.toLocalTime(state.worldTime);
         const ad = {
-            created: worldTimer.toLocalTime(state.worldTime),
+            created,
+            updated: created,
+            internalUpdated: now,
+            internalAccessed: now,
+            stOffset: worldTimer.toServerTime(state.worldTime),
             wtOffset: state.worldTime,
             athleteId: state.athleteId,
             courseId: state.courseId,
@@ -2020,18 +2162,21 @@ export class StatsProcessor extends events.EventEmitter {
                 wbal: [],
             },
             roadHistory: {
-                sig: null,
-                prevSig: null,
-                timeline: [],
-                prevTimeline: null,
+                aRoad: null,
+                bRoad: null,
+                cRoad: null,
+                a: [],
+                b: null,
+                c: null,
             },
-            collectors,
+            events: new Map(),
+            bucket: this._makeDataBucket(now),
             laps: [],
             segments: [],
             activeSegments: new Map(),
             smoothGrade: expWeightedAvg(8),
         };
-        ad.laps.push(this._createNewLapish(ad));
+        ad.laps.push(this._createNewLapish(ad, now));
         const athlete = this.loadAthlete(state.athleteId);
         if (athlete) {
             this._updateAthleteDataFromDatabase(ad, athlete);
@@ -2039,13 +2184,14 @@ export class StatsProcessor extends events.EventEmitter {
         return ad;
     }
 
-    _resetAthleteData(ad, wtOffset) {
+    _resetAthleteData(ad, wtOffset, now) {
         Object.assign(ad, {
             created: worldTimer.toLocalTime(wtOffset),
             wtOffset,
-            collectors: this._makeDataCollectors(),
+            stOffset: worldTimer.toServerTime(wtOffset),
+            bucket: this._makeDataBucket(now),
         });
-        ad.laps = [this._createNewLapish(ad)];
+        ad.laps = [this._createNewLapish(ad, now)];
         // NOTE: Don't reset w'bal; it is a biometric
         ad.timeInPowerZones.reset();
         ad.activeSegments.clear();
@@ -2059,34 +2205,35 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
-    _resetAthleteDataById(id, wtOffset) {
-        const ad = this._athleteData.get(id);
-        if (ad) {
-            this._resetAthleteData(ad, wtOffset);
-        }
-    }
-
-    triggerEventStart(ad, state) {
+    triggerEventStart(ad, state, now=monotonic()) {
         ad.eventStartPending = false;
+        const sgId = ad.eventSubgroup?.id;
+        if (sgId) {
+            const sg = this._recentEventSubgroups.get(sgId);
+            if (sg && sg.eventId != null) {
+                ad.events.set(sg.eventId, sgId);
+            }
+        }
         if (this._autoResetEvents) {
             console.debug("Event start triggering reset for:", ad.athleteId, ad.eventSubgroup?.id);
-            this._resetAthleteData(ad, state.worldTime);
+            this._resetAthleteData(ad, state.worldTime, now);
         } else if (this._autoLapEvents) {
             console.debug("Event start triggering lap for:", ad.athleteId, ad.eventSubgroup?.id);
-            this.startAthleteLap(ad);
+            this.startAthleteLap(ad, now);
         }
+        ad.laps[ad.laps.length - 1].eventSubgroupId = sgId;
     }
 
-    triggerEventEnd(ad, state) {
+    triggerEventEnd(ad, state, now=monotonic()) {
         if (this._autoResetEvents || this._autoLapEvents) {
             console.debug("Event end triggering lap for:", ad.athleteId, ad.eventSubgroup?.id);
-            this.startAthleteLap(ad);
+            this.startAthleteLap(ad, now);
         }
     }
 
-    processState(state) {
+    processState(state, now=monotonic()) {
         if (!this._athleteData.has(state.athleteId)) {
-            this._athleteData.set(state.athleteId, this._createAthleteData(state));
+            this._athleteData.set(state.athleteId, this._createAthleteData(state, now));
         }
         const worldMeta = env.worldMetas[state.courseId];
         const elOffset = worldMeta.eleOffset || 0;
@@ -2109,104 +2256,118 @@ export class StatsProcessor extends events.EventEmitter {
             }
         }
         const ad = this._athleteData.get(state.athleteId);
-        if (this._preprocessState(state, ad) === false) {
+        if (this._preprocessState(state, ad, now) === false) {
             return false;
         }
-        const noSubgroup = null;
-        const sg = state.eventSubgroupId &&
-            this._recentEventSubgroups.get(state.eventSubgroupId) ||
-            noSubgroup;
-        if (sg && sg.courseId === state.courseId) {
-            if (!ad.eventSubgroup || sg.id !== ad.eventSubgroup.id) {
-                ad.eventSubgroup = sg;
-                ad.privacy = {};
-                ad.eventPosition = undefined;
-                ad.eventParticipants = undefined;
-                if (state.athleteId !== this.athleteId) {
-                    ad.privacy.hideWBal = sg.allTags.includes('hidewbal');
-                    ad.privacy.hideFTP = sg.allTags.includes('hideftp');
+        if (state.eventSubgroupId) {
+            const sg = this._recentEventSubgroups.get(state.eventSubgroupId);
+            if (sg === undefined) {
+                // Queue up load of this event info and defer state change till.
+                this.getEventSubgroup(state.eventSubgroupId);  // bg okay
+            } else if (sg !== null && sg.courseId === state.courseId) { // state.eventSubgroupId races
+                if (!ad.eventSubgroup || sg.id !== ad.eventSubgroup.id) {
+                    ad.eventSubgroup = sg;
+                    ad.privacy = {};
+                    ad.eventPosition = undefined;
+                    ad.eventParticipants = undefined;
+                    if (state.athleteId !== this.athleteId) {
+                        ad.privacy.hideWBal = sg.allTags.includes('hidewbal');
+                        ad.privacy.hideFTP = sg.allTags.includes('hideftp');
+                    }
+                    ad.disabled = sg.allTags.includes('hidethehud') || sg.allTags.includes('nooverlays');
+                    if (state.time) {
+                        this.triggerEventStart(ad, state, now);
+                    } else {
+                        ad.eventStartPending = true;
+                    }
+                } else if (ad.eventStartPending) {
+                    if (state.time) {
+                        this.triggerEventStart(ad, state, now);
+                    }
+                } else if (sg.allTagsObject.after_party_duration &&
+                           ad.laps[ad.laps.length - 1].eventSubgroupId === sg.id &&
+                           (sg.endDistance ?
+                               state.eventDistance > sg.endDistance :
+                               sg.endTS && worldTimer.serverNow() > sg.endTS)) {
+                    this.triggerEventEnd(ad, state, now);
                 }
-                ad.disabled = sg.allTags.includes('hidethehud') || sg.allTags.includes('nooverlays');
-                if (state.time) {
-                    this.triggerEventStart(ad, state);
-                } else {
-                    ad.eventStartPending = true;
-                }
-            } else if (ad.eventStartPending && state.time) {
-                this.triggerEventStart(ad, state);
             }
         } else if (ad.eventSubgroup) {
-            ad.eventSubgroup = noSubgroup;
+            ad.eventSubgroup = null;
             ad.privacy = {};
             ad.disabled = false;
             ad.eventStartPending = false;
             ad.eventPosition = undefined;
             ad.eventParticipants = undefined;
-            this.triggerEventEnd(ad, state);
+            this.triggerEventEnd(ad, state, now);
         }
         if (ad.disabled) {
-            return;
+            return false;
         }
         const roadSig = this._roadSig(state);
         if (this._autoLap) {
-            this._autoLapCheck(state, ad);
+            this._autoLapCheck(state, ad, now);
         }
-        if (!roadDistances.has(roadSig)) {
-            updateRoadDistance(state.courseId, state.roadId);
-        }
-        this._activeSegmentCheck(state, ad, roadSig);
+        this._activeSegmentCheck(state, ad, roadSig, now);
         this._recordAthleteRoadHistory(state, ad, roadSig);
-        this._recordAthleteStats(state, ad);
-        this.maybeUpdateAthleteFromServer(state.athleteId);
+        this._recordAthleteStats(state, ad, now);
+        this._maybeUpdateAthleteFromServer(state.athleteId, now);
     }
 
-    _autoLapCheck(state, ad) {
+    _autoLapCheck(state, ad, now) {
         const mark = this._autoLapMetric === 'distance' ? state.distance : state.time;
         if (ad.autoLapMark === undefined) {
             ad.autoLapMark = mark;
         } else if (mark - ad.autoLapMark >= this._autoLapInterval) {
             console.debug("Auto lap triggered for:", ad.athleteId);
             ad.autoLapMark = mark;
-            this.startAthleteLap(ad);
+            this.startAthleteLap(ad, now);
         }
     }
 
     _recordAthleteRoadHistory(state, ad, roadSig) {
         const prevState = ad.mostRecentState;
+        const hist = ad.roadHistory;
+        const rpct = state.roadCompletion / 1e6;
         if (prevState) {
-            let shiftHistory;
-            if (roadSig !== ad.roadHistory.sig) {
-                shiftHistory = prevState.courseId === state.courseId;
-            } else {
-                const last = ad.roadHistory.timeline[ad.roadHistory.timeline.length - 1];
-                const delta = state.roadCompletion - last.roadCompletion;
-                if (delta < 0) { // unlikely
-                    if (delta < -10000) {
-                        shiftHistory = true;
-                    } else {
-                        // Stopped and wiggling backwards. For safety we just nuke hist.
-                        ad.roadHistory.timeline.length = 0;
+            if (prevState.courseId === state.courseId) {
+                let shiftTimelines;
+                if (roadSig !== hist.aRoad.sig) {
+                    shiftTimelines = true;
+                } else {
+                    // Some same-road conditions still justify timeline shifting...
+                    const last = hist.a[hist.a.length - 1];
+                    const delta = rpct - last.rpct;
+                    if (delta < 0) { // direction change
+                        if (delta < -0.01) {
+                            shiftTimelines = true;
+                        } else {
+                            // Stopped and wiggling backwards.
+                            // For simplicity and safety just nuke current timeline.
+                            hist.a.length = 0;
+                        }
                     }
                 }
-            }
-            if (shiftHistory) {
-                ad.roadHistory.prevSig = ad.roadHistory.sig;
-                ad.roadHistory.prevTimeline = ad.roadHistory.timeline;
-                ad.roadHistory.timeline = [];
-            } else if (shiftHistory === false) {
-                ad.roadHistory.prevSig = null;
-                ad.roadHistory.prevTimeline = null;
+                if (shiftTimelines) {
+                    hist.cRoad = hist.bRoad;
+                    hist.c = hist.b;
+                    hist.bRoad = hist.aRoad;
+                    hist.b = hist.a;
+                    hist.a = [];
+                }
+            } else {
+                // reset all history...
+                hist.bRoad = hist.cRoad = hist.b = hist.c = null;
+                hist.a = [];
             }
         }
-        ad.roadHistory.sig = roadSig;
-        ad.roadHistory.timeline.push({
-            wt: state.worldTime,
-            roadCompletion: state.roadCompletion,
-            distance: state.distance,
-        });
+        if (roadSig !== hist.aRoad?.sig) {
+            hist.aRoad = {...env.fromRoadSig(roadSig), sig: roadSig};
+        }
+        hist.a.push({rpct, wt: state.worldTime});
     }
 
-    _preprocessState(state, ad) {
+    _preprocessState(state, ad, now) {
         const prevState = ad.mostRecentState;
         if (prevState) {
             const elapsed = state.worldTime - prevState.worldTime;
@@ -2224,7 +2385,7 @@ export class StatsProcessor extends events.EventEmitter {
                 ad.distanceOffset += prevState.distance;
                 ad.autoLapMark = undefined;
                 state.grade = 0;
-                this.startAthleteLap(ad);
+                this.startAthleteLap(ad, now);
             } else {
                 const elevationChange = state.altitude - prevState.altitude;
                 const distanceChange = state.eventDistance ?
@@ -2246,39 +2407,73 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
-    _recordAthleteStats(state, ad) {
+    _recordAthleteStats(state, ad, now) {
         // Never auto pause wBal as it is a biometric. We use true worldTime to
         // survive resets as well.
         const wbal = ad.wBal.accumulate(state.worldTime / 1000, state.power);
         const curLap = ad.laps[ad.laps.length - 1];
         let addCount;
-        if (!state.power && (!state.speed || state.coffeeStop)) {
+        if (!state.power && !state.speed) {
             // Emulate auto pause...
-            if (state.coffeeStop && ad.mostRecentState) {
-                const stopTime = Math.max(0, state.worldTime - ad.mostRecentState.worldTime) / 1000;
-                if (stopTime) {
-                    ad.collectors.coffeeTime += stopTime;
-                    curLap.coffeeTime += stopTime;
-                    for (const s of ad.activeSegments.values()) {
-                        s.coffeeTime += stopTime;
-                    }
-                }
-            }
-            addCount = ad.collectors.power.flushBuffered();
+            addCount = ad.bucket.power.flushBuffered();
             if (addCount) {
-                ad.collectors.speed.flushBuffered();
-                ad.collectors.hr.flushBuffered();
-                ad.collectors.draft.flushBuffered();
-                ad.collectors.cadence.flushBuffered();
+                ad.bucket.speed.flushBuffered();
+                ad.bucket.hr.flushBuffered();
+                ad.bucket.draft.flushBuffered();
+                ad.bucket.cadence.flushBuffered();
             }
         } else {
             const time = (state.worldTime - ad.wtOffset) / 1000;
             ad.timeInPowerZones.accumulate(time, state.power);
-            addCount = ad.collectors.power.add(time, state.power);
-            ad.collectors.speed.add(time, state.speed);
-            ad.collectors.hr.add(time, state.heartrate);
-            ad.collectors.draft.add(time, state.draft);
-            ad.collectors.cadence.add(time, state.cadence);
+            addCount = ad.bucket.power.add(time, state.power);
+            ad.bucket.speed.add(time, state.speed);
+            ad.bucket.hr.add(time, state.heartrate);
+            ad.bucket.draft.add(time, state.draft);
+            ad.bucket.cadence.add(time, state.cadence);
+        }
+        if (ad.mostRecentState) {
+            const elapsedTime = state.worldTime - ad.mostRecentState.worldTime;
+            if (elapsedTime < 10000) { // Ignore erroneously large gaps
+                if (state.coffeeStop) {
+                    ad.bucket.coffeeTime += elapsedTime;
+                    curLap.coffeeTime += elapsedTime;
+                    for (const s of ad.activeSegments.values()) {
+                        s.coffeeTime += elapsedTime;
+                    }
+                } else if (state.speed) {
+                    const kj = state.power * elapsedTime / 1e6;
+                    if (ad.groupId != null) {
+                        if (state.draft) {
+                            ad.bucket.followTime += elapsedTime;
+                            ad.bucket.followKj += kj;
+                            curLap.followTime += elapsedTime;
+                            curLap.followKj += kj;
+                            for (const s of ad.activeSegments.values()) {
+                                s.followTime += elapsedTime;
+                                s.followKj += kj;
+                            }
+                        } else {
+                            ad.bucket.workTime += elapsedTime;
+                            ad.bucket.workKj += kj;
+                            curLap.workTime += elapsedTime;
+                            curLap.workKj += kj;
+                            for (const s of ad.activeSegments.values()) {
+                                s.workTime += elapsedTime;
+                                s.workKj += kj;
+                            }
+                        }
+                    } else {
+                        ad.bucket.soloTime += elapsedTime;
+                        ad.bucket.soloKj += kj;
+                        curLap.soloTime += elapsedTime;
+                        curLap.soloKj += kj;
+                        for (const s of ad.activeSegments.values()) {
+                            s.soloTime += elapsedTime;
+                            s.soloKj += kj;
+                        }
+                    }
+                }
+            }
         }
         if (addCount) {
             for (let i = 0; i < addCount; i++) {
@@ -2301,30 +2496,32 @@ export class StatsProcessor extends events.EventEmitter {
             }
         }
         ad.mostRecentState = state;
-        ad.updated = monotonic();
+        ad.updated = worldTimer.toLocalTime(state.worldTime);
+        ad.internalUpdated = ad.internalAccessed = now;
         this._stateProcessCount++;
         let emitData;
         let streamsData;
         if (this.watching === state.athleteId) {
             if (this.listenerCount('athlete/watching')) {
-                this.emit('athlete/watching', emitData || (emitData = this._formatAthleteData(ad)));
+                this.emit('athlete/watching', emitData || (emitData = this._formatAthleteData(ad, now)));
             }
             if (addCount && this.listenerCount('streams/watching')) {
-                this.emit('streams/watching', streamsData ||
-                          (streamsData = this._getAthleteStreams(ad, -addCount)));
+                this.emit('streams/watching',
+                          streamsData || (streamsData = this._getAthleteStreams(ad, -addCount)));
             }
         }
         if (this.athleteId === state.athleteId) {
             if (this.listenerCount('athlete/self')) {
-                this.emit('athlete/self', emitData || (emitData = this._formatAthleteData(ad)));
+                this.emit('athlete/self', emitData || (emitData = this._formatAthleteData(ad, now)));
             }
             if (addCount && this.listenerCount('streams/self')) {
-                this.emit('streams/self', streamsData ||
-                          (streamsData = this._getAthleteStreams(ad, -addCount)));
+                this.emit('streams/self',
+                          streamsData || (streamsData = this._getAthleteStreams(ad, -addCount)));
             }
         }
         if (this.listenerCount(`athlete/${state.athleteId}`)) {
-            this.emit(`athlete/${state.athleteId}`, emitData || (emitData = this._formatAthleteData(ad)));
+            this.emit(`athlete/${state.athleteId}`,
+                      emitData || (emitData = this._formatAthleteData(ad, now)));
         }
         if (addCount && this.listenerCount(`streams/${state.athleteId}`)) {
             this.emit(`streams/${state.athleteId}`, streamsData ||
@@ -2332,7 +2529,7 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
-    _activeSegmentCheck(state, ad, roadSig) {
+    _activeSegmentCheck(state, ad, roadSig, now) {
         const segments = env.getRoadSegments(state.courseId, roadSig);
         if (!segments || !segments.length) {
             return;
@@ -2350,10 +2547,10 @@ export class StatsProcessor extends events.EventEmitter {
             }
             if (ad.activeSegments.has(x.id)) {
                 if (progress == null) {
-                    this.stopSegment(ad, x.id);
+                    this.stopSegment(ad, x.id, now);
                 }
             } else if (progress != null && progress < 0.05) {
-                this.startSegment(ad, x.id);
+                this.startSegment(ad, x.id, now);
             }
         }
     }
@@ -2383,17 +2580,17 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     resetAthletesDB() {
-        deleteDatabase(this.athletesDB.name);
-        this.athletesDB = null;
+        deleteDatabase(this._athletesDB.name);
+        this._athletesDB = null;
         this._athletesCache.clear();
         this.initAthletesDB();
     }
 
     initAthletesDB() {
-        if (this.athletesDB) {
+        if (this._athletesDB) {
             throw new TypeError("Already initialized");
         }
-        this.athletesDB = new SqliteDatabase(path.join(this._userDataPath, 'athletes.sqlite'), {
+        this._athletesDB = new SqliteDatabase(path.join(this._userDataPath, 'athletes.sqlite'), {
             tables: {
                 athletes: {
                     id: 'INTEGER PRIMARY KEY',
@@ -2401,14 +2598,32 @@ export class StatsProcessor extends events.EventEmitter {
                 }
             }
         });
-        this.getAthleteStmt = this.athletesDB.prepare('SELECT data FROM athletes WHERE id = ?');
+        this._getAthleteStmt = this._athletesDB.prepare('SELECT data FROM athletes WHERE id = ?');
         queueMicrotask(() => this._loadMarkedAthletes());
+    }
+
+    initEventSubgroupsDB() {
+        if (this.eventSubgroupsDB) {
+            throw new TypeError("Already initialized");
+        }
+        this._eventSubgroupsDB = new SqliteDatabase(path.join(this._userDataPath, 'event_subgroups.sqlite'), {
+            tables: {
+                subgroups: {
+                    id: 'INTEGER PRIMARY KEY',
+                    eventId: 'INTEGER',
+                    eventType: 'TEXT',
+                }
+            }
+        });
+        this._getEventSubgroupStmt = this._eventSubgroupsDB
+            .prepare('SELECT eventId,eventType FROM subgroups WHERE id = ?');
     }
 
     start() {
         this._active = true;
         try {
             this.initAthletesDB();
+            this.initEventSubgroupsDB();
         } catch(e) {
             report.errorOnce(e);
             this.resetAthletesDB();
@@ -2420,8 +2635,10 @@ export class StatsProcessor extends events.EventEmitter {
             this.gameMonitor.on('watching-athlete', this.setWatching.bind(this));
             this.gameMonitor.on('game-athlete', id => {
                 // Probably using --random-watch option
-                console.warn('Game athlete changed to:', id);
-                this.athleteId = id;
+                if (id != null) {
+                    console.warn('Game athlete changed to:', id);
+                    this.athleteId = id;
+                }
             });
             this.gameMonitor.start();
             this._zwiftMetaRefresh = 10000;
@@ -2450,14 +2667,47 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _parseEventTags(eventOrSubgroup) {
-        const tags = new Set(eventOrSubgroup.tags || []);
+        const raw = eventOrSubgroup.tags ? Array.from(eventOrSubgroup.tags) : [];
         const desc = eventOrSubgroup.description;
         if (desc) {
             for (const x of desc.matchAll(/\B#([a-z]+[a-z0-9]*)\b/gi)) {
-                tags.add(x[1].toLowerCase());
+                raw.push(x[1]);
             }
         }
-        return Array.from(tags);
+        const tags = {};
+        for (const x of raw) {
+            const kvIdx = x.indexOf('=');
+            if (kvIdx !== -1) {
+                let value = x.substr(kvIdx + 1);
+                const num = +value;
+                if (!isNaN(num) && num.toString() === value) {
+                    value = num;
+                }
+                tags[x.substr(0, kvIdx).toLowerCase()] = value;
+            } else {
+                tags[x.toLowerCase()] = undefined;
+            }
+        }
+        return tags;
+    }
+
+    _flattenEventTags(tagsObject) {
+        return Object.entries(tagsObject).map(([k, v]) => v !== undefined ? `${k}=${v}` : k);
+    }
+
+    _parsePowerupPercents(powerupPercents) {
+        const o = {};
+        const pp = powerupPercents.slice(1, -1).split(',').map(Number);
+        for (let i = 0; i < pp.length; i += 2) {
+            const pu = zwift.powerUpsEnum[pp[i]];
+            if (!pu) {
+                console.warn("Unknown PowerUp:", pp[i]);
+                o[pp[i]] = pp[i + 1] / 100;
+            } else {
+                o[pu] = pp[i + 1] / 100;
+            }
+        }
+        return o;
     }
 
     _addEvent(event) {
@@ -2467,7 +2717,11 @@ export class StatsProcessor extends events.EventEmitter {
             event.routeClimbing = this._getRouteClimbing(route, event.laps);
         }
         event.tags = event._tags ? event._tags.split(';') : [];
-        event.allTags = this._parseEventTags(event);
+        event.allTagsObject = this._parseEventTags(event);
+        event.allTags = this._flattenEventTags(event.allTagsObject);
+        if (event.allTagsObject.powerup_percent) {
+            event.powerUps = this._parsePowerupPercents(event.allTagsObject.powerup_percent);
+        }
         event.ts = +new Date(event.eventStart);
         event.courseId = env.getCourseId(event.mapId);
         event.prettyType = {
@@ -2482,22 +2736,37 @@ export class StatsProcessor extends events.EventEmitter {
             TIME_TRIAL: 'TT',
             TEAM_TIME_TRIAL: 'TTT',
         }[event.eventType] || event.prettyType;
-        if (!this._recentEvents.has(event.id)) {
+        if (!this._recentEvents.get(event.id)) {
             const start = new Date(event.ts).toLocaleString();
             console.debug(`Event added [${event.id}] - ${start}:`, event.name);
         }
         if (event.eventSubgroups) {
             for (const sg of event.eventSubgroups) {
                 sg.eventId = event.id;
-                sg.startOffset = +(new Date(sg.eventSubgroupStart)) - +(new Date(event.eventStart));
-                sg.allTags = Array.from(new Set([...this._parseEventTags(sg), ...event.allTags]));
+                sg.ts = +new Date(sg.eventSubgroupStart);
+                sg.startOffset = sg.ts - event.ts;
+                sg.allTagsObject = {...event.allTagsObject, ...this._parseEventTags(sg)};
+                sg.allTags = this._flattenEventTags(sg.allTagsObject);
+                if (sg.allTagsObject.powerup_percent) {
+                    sg.powerUps = this._parsePowerupPercents(sg.allTagsObject.powerup_percent);
+                }
                 sg.courseId = env.getCourseId(sg.mapId);
                 const rt = env.getRoute(sg.routeId);
                 if (rt) {
                     sg.routeDistance = this._getRouteDistance(rt, sg.laps);
                     sg.routeClimbing = this._getRouteClimbing(rt, sg.laps);
+                    sg.segmentProjections = env.projectRouteSegments(rt, {
+                        distance: sg.distanceInMeters,
+                        laps: sg.laps,
+                    });
+                }
+                if (sg.durationInSeconds) {
+                    sg.endTS = sg.ts + sg.durationInSeconds * 1000;
+                } else {
+                    sg.endDistance = sg.distanceInMeters || sg.routeDistance;
                 }
                 this._recentEventSubgroups.set(sg.id, sg);
+                this._rememberEventSubgroup(sg, event);
             }
         }
         this._recentEvents.set(event.id, event);
@@ -2508,15 +2777,40 @@ export class StatsProcessor extends events.EventEmitter {
         meetup.routeDistance = this.getRouteDistance(meetup.routeId, meetup.laps, 'meetup');
         meetup.routeClimbing = this.getRouteClimbing(meetup.routeId, meetup.laps, 'meetup');
         meetup.eventType = 'MEETUP';
+        meetup.prettyType = meetup.prettyTypeShort = 'Meetup';
         meetup.totalEntrantCount = meetup.acceptedTotalCount;
         meetup.followeeEntrantCount = meetup.acceptedFolloweeCount;
-        meetup.allTags = this._parseEventTags(meetup);
+        meetup.allTagsObject = this._parseEventTags(meetup);
+        meetup.allTags = this._flattenEventTags(meetup.allTagsObject);
         meetup.ts = +new Date(meetup.eventStart);
-        meetup.courseId = env.getCourseId(meetup.mapId);
-        // Meetups are basicaly a hybrid event/subgroup
-        meetup.eventSubgroups = [{...meetup, id: meetup.eventSubgroupId, eventId: meetup.id}];
-        this._recentEventSubgroups.set(meetup.eventSubgroupId, meetup);
+        const rt = meetup.routeId && env.getRoute(meetup.routeId);
+        if (rt) {
+            meetup.courseId = rt.courseId;
+            meetup.mapId = rt.worldId;
+            meetup.segmentProjections = env.projectRouteSegments(rt, {
+                distance: meetup.distanceInMeters,
+                laps: meetup.laps,
+            });
+        } else {
+            console.warn("Meetup has no decernable route", meetup);
+        }
+        // Meetups are basically a hybrid event/subgroup
+        const sg = {
+            ...meetup,
+            id: meetup.eventSubgroupId,
+            eventSubgroupStart: meetup.eventStart,
+            eventId: meetup.id,
+            signedUp: meetup.inviteStatus !== 'REJECTED',
+        };
+        if (sg.durationInSeconds) {
+            sg.endTS = meetup.ts + meetup.durationInSeconds * 1000;
+        } else {
+            sg.endDistance = meetup.distanceInMeters || meetup.routeDistance;
+        }
+        meetup.eventSubgroups = [sg];
+        this._recentEventSubgroups.set(meetup.eventSubgroupId, sg);
         this._recentEvents.set(meetup.id, meetup);
+        this._rememberEventSubgroup(sg, meetup);
     }
 
     _zwiftMetaSync() {
@@ -2525,10 +2819,10 @@ export class StatsProcessor extends events.EventEmitter {
             return;
         }
         this.__zwiftMetaSync().catch(e => {
-            if (e.name !== 'FetchError') {
-                report.errorThrottled(e);
+            if (e.message === 'fetch failed' || e.name === 'TimeoutError') {
+                console.warn('Zwift Meta Sync network problem:', e.cause?.message || e);
             } else {
-                console.warn('Zwift Meta Sync network problem:', e.message);
+                report.errorThrottled(e);
             }
         }).finally(() => {
             // The event feed APIs are horribly broken so we need to refresh more often
@@ -2548,12 +2842,12 @@ export class StatsProcessor extends events.EventEmitter {
                                                    zEvents.at(-1).eventStart);
         }
         for (const x of zEvents) {
-            addedEventsCount += !this._recentEvents.has(x.id);
+            addedEventsCount += !this._recentEvents.get(x.id);
             this._addEvent(x);
         }
         const meetups = await this.zwiftAPI.getPrivateEventFeed();
         for (const x of meetups) {
-            addedEventsCount += !this._recentEvents.has(x.id);
+            addedEventsCount += !this._recentEvents.get(x.id);
             this._addMeetup(x);
         }
         await this.refreshEventSignups();
@@ -2647,109 +2941,186 @@ export class StatsProcessor extends events.EventEmitter {
             state = await this.zwiftAPI.getPlayerState(athleteId);
         }
         if (state) {
-            return this._cleanState(state);
+            return this._formatState(state);
         }
     }
 
-    compareRoadPositions(aData, bData) {
-        const a = aData.roadHistory;
-        const b = bData.roadHistory;
-        const aTail = a.timeline[a.timeline.length - 1];
-        const bTail = b.timeline[b.timeline.length - 1];
-        if (aTail === undefined || bTail === undefined) {
-            return null;
-        }
-        const aComp = aTail.roadCompletion;
-        const bComp = bTail.roadCompletion;
-        // Is A currently leading B or vice versa...
-        if (a.sig === b.sig) {
-            const d = aComp - bComp;
-            // Test for lapping cases where inverted is closer
-            const roadDist = roadDistances.get(a.sig) || 0;
-            if (d < -500000 && a.prevSig === b.sig) {
-                const gapDistance = (1e6 + d) / 1e6 * roadDist;
-                return {reversed: false, previous: true, gapDistance};
-            } else if (d > 500000 && b.prevSig === a.sig) {
-                const gapDistance = (1e6 - d) / 1e6 * roadDist;
-                return {reversed: true, previous: true, gapDistance};
-            } else if (d > 0) {
-                const gapDistance = d / 1e6 * roadDist;
-                return {reversed: false, previous: false, gapDistance};
+    compareRoadPositions(p1, p2) {
+        // NOTE: This code uses a few micro optimizations given that it's heavily used..
+        //
+        // Stage 1: Find a path between p1 and p2.
+        //  * If p1 is not leading, indicate the positions are reversed.
+        //     * Looping conditions will indicate reversed positions when the path is shorter.
+        //       I.e. If you are lapping riders in a circuit race, the gaps will flip to
+        //       negative as you close in on the lapped riders.
+        //  * If p1 and p2 do not have a connected history, ignore them.
+        const boundaryErrorTerm = 0.01;  // amount of slop permitted around road edges
+        let reversed = false;
+        let tiers;
+        let p1CurPct = p1.a[p1.a.length - 1].rpct;
+        let p2CurPct = p2.a[p2.a.length - 1].rpct;
+        if (p1.aRoad.sig === p2.aRoad.sig) {
+            tiers = 1;
+            const d = p1CurPct - p2CurPct;
+            // Check for simple lapping.  Theoretically we could check for c tier lapping too but in test
+            // the only match I found was a false positive with sparse data where two athletes were lapping
+            // the same loop road multiple times.
+            if (d > 0.5) {
+                if (p1.aRoad.sig === p2.bRoad?.sig &&
+                    p2.b[p2.b.length - 1].rpct >= p1CurPct - boundaryErrorTerm) {
+                    tiers = 2;
+                    reversed = true;
+                }
             } else if (d < 0) {
-                const gapDistance = -d / 1e6 * roadDist;
-                return {reversed: true, previous: false, gapDistance};
-            } else if (aTail.wt < bTail.wt) {
-                return {reversed: false, previous: false, gapDistance: 0};
-            } else {
-                return {reversed: true, previous: false, gapDistance: 0};
+                reversed = true;
+                if (d < -0.5) {
+                    if (p2.aRoad.sig === p1.bRoad?.sig &&
+                        p1.b[p1.b.length - 1].rpct >= p2CurPct - boundaryErrorTerm) {
+                        tiers = 2;
+                        reversed = false;
+                    }
+                }
             }
+        } else if (p2.aRoad.sig === p1.bRoad?.sig &&
+                   p1.b[p1.b.length - 1].rpct >= p2CurPct - boundaryErrorTerm) {
+            tiers = 2;
+        } else if (p1.aRoad.sig === p2.bRoad?.sig &&
+                   p2.b[p2.b.length - 1].rpct >= p1CurPct - boundaryErrorTerm) {
+            tiers = 2;
+            reversed = true;
+        } else if (p2.aRoad.sig === p1.cRoad?.sig &&
+                   p1.c[p1.c.length - 1].rpct >= p2CurPct - boundaryErrorTerm) {
+            tiers = 3;
+        } else if (p1.aRoad.sig === p2.cRoad?.sig &&
+                   p2.c[p2.c.length - 1].rpct >= p1CurPct - boundaryErrorTerm) {
+            tiers = 3;
+            reversed = true;
         } else {
-            let d2;
-            // Is B trailing A on a prev road...
-            if (a.prevSig === b.sig) {
-                const d = a.prevTimeline[a.prevTimeline.length - 1].roadCompletion - bComp;
-                if (d >= 0) {
-                    d2 = d;
-                }
-            }
-            // Is A trailing B on a prev road...
-            if (b.prevSig === a.sig) {
-                const bPrevTail = b.prevTimeline[b.prevTimeline.length - 1];
-                const d = bPrevTail.roadCompletion - aComp;
-                if (d >= 0 && (d2 === undefined || d < d2)) {
-                    const roadDist = roadDistances.get(b.prevSig) || 0;
-                    const gapDistance = (d / 1e6 * roadDist) + (bTail.distance - bPrevTail.distance);
-                    return {reversed: true, previous: true, gapDistance};
-                }
-            }
-            if (d2 !== undefined) {
-                // We can probably move this up to the first d2 block once we validate the above condition
-                // is not relevant.  Probably need to check on something funky like crit city or japan.
-                const aPrevTail = a.prevTimeline[a.prevTimeline.length - 1];
-                const roadDist = roadDistances.get(a.prevSig) || 0;
-                const gapDistance = (d2 / 1e6 * roadDist) + (aTail.distance - aPrevTail.distance);
-                return {reversed: false, previous: true, gapDistance};
-            }
+            return;
         }
-        return null;
-    }
 
-    realGap(a, b) {
-        const rp = this.compareRoadPositions(a, b);
-        return rp && this._realGap(rp, a, b);
-    }
-
-    _realGap({reversed, previous}, a, b) {
         if (reversed) {
-            [a, b] = [b, a];
+            [p1, p2] = [p2, p1];
+            [p1CurPct, p2CurPct] = [p2CurPct, p1CurPct];
         }
-        const aTimeline = previous ? a.roadHistory.prevTimeline : a.roadHistory.timeline;
-        const bTail = b.roadHistory.timeline[b.roadHistory.timeline.length - 1];
-        let prev;
-        // TODO: Check if binary search is a win despite end of array locality
-        for (let i = aTimeline.length - 1; i >= 0; i--) {
-            const x = aTimeline[i];
-            if (x.roadCompletion <= bTail.roadCompletion) {
-                let offt = 0;
-                if (prev) {
-                    const dist = prev.roadCompletion - x.roadCompletion;
-                    const time = prev.wt - x.wt;
-                    offt = (bTail.roadCompletion - x.roadCompletion) / dist * time;
-                }
-                return Math.abs((bTail.wt - x.wt - offt) / 1000);
+
+        // Stage 2: Compute actual road slices between the positions...
+        //  * Because road history timelines are incomplete we may see connected road history but not have
+        //    sufficient data for a real time gap.  We'll still return the road segments for time estimates.
+        let sharedTimeline;
+        let distance;
+        if (tiers === 1) {
+            distance = this._getRoadDistance(p1.aRoad, p2CurPct, p1CurPct);
+            sharedTimeline = p1.a;
+        } else {
+            distance = this._getRoadDistance(p1.aRoad, p1.a[0].rpct, p1CurPct);
+            const p1BLastPct = p1.b[p1.b.length - 1].rpct;
+            if (tiers === 2) {
+                distance += this._getRoadDistance(p1.bRoad, p2CurPct, p1BLastPct);
+                sharedTimeline = p1.b;
+            } else {
+                const p1CLastPct = p1.c[p1.c.length - 1].rpct;
+                distance += this._getRoadDistance(p1.bRoad, p1.b[0].rpct, p1BLastPct);
+                distance += this._getRoadDistance(p1.cRoad, p2CurPct, p1CLastPct);
+                sharedTimeline = p1.c;
             }
-            prev = x;
         }
-        return null;
+
+        // Stage 3: Find the check point where p1 was at p2's current position.
+        //  * This is the actual time when p1 was there.
+        //  * If we satisfy the requirements below we have a "Real" gap.
+        let worldTime;
+        if (sharedTimeline.length > 1) {
+            const index = this._findNearestTimelineCheckpoint(sharedTimeline, p2CurPct);
+            const nearestPct = sharedTimeline[index].rpct;
+            const d = p2CurPct - nearestPct;
+            let left, right;
+            if (d > 0) {
+                if (index !== sharedTimeline.length - 1) {
+                    left = index;
+                    right = index + 1;
+                }
+            } else if (d < 0) {
+                if (index > 0) {
+                    left = index - 1;
+                    right = index;
+                }
+            } else {
+                worldTime = sharedTimeline[index].wt;  // exact match (unlikely)
+            }
+            if (left !== right) {
+                // Lerp the difference between edges...
+                const t = (p2CurPct - sharedTimeline[left].rpct) /
+                          (sharedTimeline[right].rpct - sharedTimeline[left].rpct);
+                worldTime = Math.round(sharedTimeline[left].wt * (1 - t) + sharedTimeline[right].wt * t);
+            }
+        }
+        return {
+            worldTime,
+            distance,
+            reversed,
+        };
+    }
+
+    _getRoadDistance({courseId, roadId}, start, end) {
+        if (end < start) {
+            if (start - end > 0.02) debugger;
+            return 0;
+        }
+        const roadPath = env.getRoadCurvePath(courseId, roadId);
+        if (!roadPath) {
+            return 0;
+        }
+        return roadPath.subpathAtRoadPercents(start, end).distance(1/32) / 100;
+    }
+
+    _findNearestTimelineCheckpoint(timeline, value) {
+        let left = 0;
+        let right = timeline.length - 1;
+        let i;
+        const low = timeline[0].rpct;
+        const high = timeline[right].rpct;
+        if (value > low && value < high) {
+            while (right >= left) {
+                i = left + ((right - left) * 0.5 | 0);
+                const test = timeline[i].rpct;
+                if (test > value) {
+                    right = i - 1;
+                } else if (test < value) {
+                    left = i + 1;
+                } else {
+                    return i;
+                }
+            }
+        } else if (value <= low) {
+            right = 0;
+        } else if (value >= high) {
+            left = right;
+        }
+        const lDist = Math.abs(timeline[left].rpct - value);
+        const rDist = Math.abs(timeline[right].rpct - value);
+        return rDist <= lDist ? right : left;
     }
 
     gcAthleteData() {
         const now = monotonic();
-        const expiration = now - 1800 * 1000;
-        for (const [k, {updated}] of this._athleteData.entries()) {
-            if (updated < expiration) {
-                this._athleteData.delete(k);
-                this._athletesCache.delete(k);
+        const expiration = now - 3600 * 1000;
+        for (const [id, {internalAccessed}] of this._athleteData) {
+            if (internalAccessed < expiration) {
+                this._athleteData.delete(id);
+                this._athletesCache.delete(id);
+                this._profileFetchDeferrals.delete(id);
+            }
+        }
+        for (const gm of this._groupMetas.values()) {
+            if (now - gm.accessed > 90 * 1000) {
+                for (const aId of gm.identitySet) {
+                    const ad = this._athleteData.get(aId);
+                    if (ad && ad.groupId === gm.id) {
+                        ad.groupId = null;
+                    }
+                }
+                this._groupMetas.delete(gm.id);
             }
         }
     }
@@ -2760,29 +3131,32 @@ export class StatsProcessor extends events.EventEmitter {
         // rounding issues in stats code or UX code.
         let target = (monotonic() / 1000 | 0) * 1000 + interval;
         let errBackoff = 1;
-        let sli = 0;
         while (this._active) {
             let skipped = 0;
-            const now = monotonic();
+            let now = monotonic();
             while (now > (target += interval)) {
                 skipped++;
             }
             if (skipped) {
                 console.warn("States processor skipped:", skipped);
-                sli += skipped;
-            }
-            if (sli % 1 === 0) {
-                //console.log("sleep", target - now);
             }
             await highResSleepTill(target);
             if (this.watching == null) {
                 continue;
             }
+            now = monotonic();
             try {
-                const nearby = this._mostRecentNearby = this._computeNearby();
-                const groups = this._mostRecentGroups = this._computeGroups(nearby);
-                this.emit('nearby', nearby);
-                this.emit('groups', groups);
+                const nearby = this._computeNearby();
+                const groups = this._computeGroups(nearby);
+                this._mostRecentNearby = nearby.map(x => this._formatAthleteData(x, now));
+                this._mostRecentGroups = groups.map(x => ({
+                    ...x,
+                    _athleteDatas: undefined,
+                    _nearbyIndexes: undefined,
+                    athletes: x._nearbyIndexes.map(i => this._mostRecentNearby[i]),
+                }));
+                this.emit('nearby', this._mostRecentNearby);
+                this.emit('groups', this._mostRecentGroups);
             } catch(e) {
                 report.errorThrottled(e);
                 target += errBackoff++ * interval;
@@ -2790,7 +3164,7 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
-    _cleanState(raw) {
+    _formatState(raw, wt) {
         const o = {};
         const keys = Object.keys(raw);
         for (let i = 0; i < keys.length; i++) {
@@ -2799,6 +3173,21 @@ export class StatsProcessor extends events.EventEmitter {
                 o[k] = raw[k];
             }
         }
+        o.ts = worldTimer.toLocalTime(raw.worldTime);
+        return o;
+    }
+
+    _formatStateDebug(raw) {
+        // Use same method as non-debug method so benchmarking is the same..
+        const o = {};
+        const keys = Object.keys(raw);
+        for (let i = 0; i < keys.length; i++) {
+            const k = keys[i];
+            if (k[0] !== ' ') {
+                o[k] = raw[k];
+            }
+        }
+        o.ts = worldTimer.toLocalTime(raw.worldTime);
         return o;
     }
 
@@ -2843,22 +3232,19 @@ export class StatsProcessor extends events.EventEmitter {
         if (sg) {
             const eventLeader = sg.invitedLeaders && sg.invitedLeaders.includes(state.athleteId);
             const eventSweeper = sg.invitedSweepers && sg.invitedSweepers.includes(state.athleteId);
-            if (sg.durationInSeconds) {
-                const eventEnd = +(new Date(sg.eventSubgroupStart || sg.eventStart)) +
-                    (sg.durationInSeconds * 1000);
+            if (sg.endTS) {
                 return {
                     eventLeader,
                     eventSweeper,
-                    remaining: (eventEnd - worldTimer.serverNow()) / 1000,
+                    remaining: (sg.endTS - worldTimer.serverNow()) / 1000,
                     remainingMetric: 'time',
                     remainingType: 'event',
                 };
             } else {
-                const distance = sg.distanceInMeters || this.getRouteDistance(sg.routeId, sg.laps);
                 return {
                     eventLeader,
                     eventSweeper,
-                    remaining: distance - state.eventDistance,
+                    remaining: sg.endDistance - state.eventDistance,
                     remainingMetric: 'distance',
                     remainingType: 'event',
                 };
@@ -2876,27 +3262,34 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
-    _formatAthleteData(ad) {
+    _formatAthleteData(ad, now=monotonic()) {
         let athlete = this.loadAthlete(ad.athleteId);
         if (athlete && ad.privacy.hideFTP) {
             athlete = {...athlete, ftp: null};
         }
+        ad.internalAccessed = now;
         const state = ad.mostRecentState;
         const lapCount = ad.laps.length;
         return {
-            created: ad.created,
-            age: monotonic() - ad.updated,
+            createdServerTime: ad.stOffset,
+            created: ad.created, // local clock
+            updated: ad.updated, // local clock
+            age: now - ad.internalUpdated,
             watching: ad.athleteId === this.watching ? true : undefined,
             self: ad.athleteId === this.athleteId ? true : undefined,
             courseId: ad.courseId,
-            athleteId: state.athleteId,
+            athleteId: ad.athleteId,
             athlete,
-            stats: this._getCollectorStats(ad.collectors, ad, athlete, {includeDeprecated: true}),
-            lap: this._getCollectorStats(ad.laps[ad.laps.length - 1], ad, athlete),
+            stats: this._getBucketStats(ad.bucket, ad, athlete, {now, includeDeprecated: true}),
+            lap: this._getBucketStats(ad.laps[ad.laps.length - 1], ad, athlete, {now}),
             lastLap: lapCount > 1 ?
-                this._getCollectorStats(ad.laps[ad.laps.length - 2], ad, athlete) : null,
+                this._getBucketStats(ad.laps[ad.laps.length - 2], ad, athlete) :
+                null,
             lapCount,
-            state: this._cleanState(state),
+            state: state && this._formatState(state),
+            events: ad.events.size ?
+                Array.from(ad.events).map(x => ({id: x[0], subgroupId: x[1]})) :
+                [],
             eventPosition: ad.eventPosition,
             eventParticipants: ad.eventParticipants,
             gameState: ad.gameState,
@@ -2905,14 +3298,14 @@ export class StatsProcessor extends events.EventEmitter {
             isGapEst: ad.isGapEst ? true : undefined,
             wBal: ad.privacy.hideWBal ? undefined : ad.wBal.get(),
             timeInPowerZones: ad.privacy.hideFTP ? undefined : ad.timeInPowerZones.get(),
-            ...this._getEventOrRouteInfo(state),
+            ...(state && this._getEventOrRouteInfo(state)),
             ...ad.extra,
         };
     }
 
     _computeNearby() {
         const watching = this._athleteData.get(this.watching);
-        if (!watching || !watching.mostRecentState) {
+        if (!watching || !watching.mostRecentState || watching.disabled) {
             for (const ad of this._athleteData.values()) {
                 ad.gap = undefined;
                 ad.gapDistance = undefined;
@@ -2923,72 +3316,89 @@ export class StatsProcessor extends events.EventEmitter {
         watching.gap = 0;
         watching.gapDistance = 0;
         watching.isGapEst = undefined;
-        // We need to use a speed value for estimates and just using one value is
-        // dangerous, so we use a weighted function that's seeded (skewed) to the
-        // the watching rider.
-        const refSpeedForEstimates = expWeightedAvg(10); // maybe mv up and reuse? XXX
-        const watchingSpeed = watching.mostRecentState.speed;
-        if (watchingSpeed > 1) {
-            refSpeedForEstimates(watchingSpeed);
-        }
+        const watchingWorldTime = watching.mostRecentState.worldTime;
         // Only filter stopped riders if we are moving.
-        const filterStopped = !!watchingSpeed;
+        const filterStopped = !!watching.mostRecentState.speed;
         const ahead = [];
         const behind = [];
+        const now = monotonic();
         for (const ad of this._athleteData.values()) {
-            if (ad.athleteId !== this.watching) {
-                const age = monotonic() - ad.updated;
-                if ((filterStopped && !ad.mostRecentState.speed) || age > 10000) {
-                    continue;
+            //if (ad !== watching && !this._markedIds.has(ad.athleteId)) continue;
+            if (ad.athleteId === this.watching || ad.disabled || !ad.mostRecentState ||
+                now - ad.internalUpdated > 15000 || (filterStopped && !ad.mostRecentState.speed)) {
+                continue;
+            }
+            const rp = this.compareRoadPositions(watching.roadHistory, ad.roadHistory);
+            if (rp == null) {
+                ad.gap = undefined;
+                ad.gapDistance = undefined;
+                ad.isGapEst = true;
+                continue;
+            }
+            if (rp.worldTime != null)  {
+                ad.gap = (watchingWorldTime - rp.worldTime) / 1000;
+                if (rp.reversed && ad.gap > 0) { //need to check sign of ad.gap for stopped athletes
+                    ad.gap = -ad.gap;
                 }
-                const rp = this.compareRoadPositions(ad, watching);
-                if (rp === null) {
-                    ad.gap = undefined;
-                    ad.gapDistance = undefined;
-                    ad.isGapEst = true;
-                    continue;
-                }
-                ad.gap = this._realGap(rp, ad, watching);
-                ad.gapDistance = rp.gapDistance;
-                ad.isGapEst = ad.gap == null;
-                if (rp.reversed) {
-                    behind.push(ad);
-                } else {
-                    ahead.push(ad);
-                }
+                ad.isGapEst = false;
+            } else {
+                ad.gap = undefined;
+                ad.isGapEst = true;
+            }
+            if (rp.reversed) {
+                ad.gapDistance = -rp.distance;
+                ahead.push(ad);
+            } else {
+                ad.gapDistance = rp.distance;
+                behind.push(ad);
             }
         }
 
-        ahead.sort((a, b) => b.gapDistance - a.gapDistance);
+        ahead.sort((a, b) => a.gapDistance - b.gapDistance);
         behind.sort((a, b) => a.gapDistance - b.gapDistance);
 
+        // Now fill in gap estimates by seeing if we can incrementally account for the gaps
+        // between each rider.  Failing this, just fallback to speed and distance...
+        let refSpeedForEstimates = expWeightedAvg(10, Math.max(10, watching.mostRecentState.speed));
         for (let i = ahead.length - 1; i >= 0; i--) {
             const x = ahead[i];
-            const adjacent = ahead[i + 1] || watching;
-            const speedRef = refSpeedForEstimates(x.mostRecentState.speed);
-            if (x.gap == null) {
-                let incGap = this.realGap(x, adjacent);
-                if (incGap == null) {
-                    const incGapDist = x.gapDistance - adjacent.gapDistance;
-                    incGap = speedRef ? incGapDist / (speedRef * 1000 / 3600) : 0;
-                }
-                x.gap = adjacent.gap - incGap;
-            } else {
-                x.gap = -x.gap;
+            if (x.mostRecentState.speed > 2) {
+                refSpeedForEstimates(x.mostRecentState.speed);
             }
-            x.gapDistance = -x.gapDistance;
+            if (x.gap == null) {
+                const adjacent = ahead[i + 1] || watching;
+                const incRP = this.compareRoadPositions(x.roadHistory, adjacent.roadHistory);
+                if (!incRP || incRP.worldTime == null || incRP.reversed) {
+                    // `reversed` indicates that the adjacent athlete branched before the test subject,
+                    // making it irrelevant as a time based checkpoint to the watching athlete.
+                    const incGapDist = adjacent.gapDistance - x.gapDistance;
+                    const velocity = refSpeedForEstimates.get() / 3.6;
+                    const incGap = incGapDist / velocity;
+                    x.gap = adjacent.gap - incGap;
+                } else {
+                    x.gap = adjacent.gap - (x.mostRecentState.worldTime - incRP.worldTime) / 1000;
+                }
+            }
         }
+        refSpeedForEstimates = expWeightedAvg(10, Math.max(10, watching.mostRecentState.speed));
         for (let i = 0; i < behind.length; i++) {
             const x = behind[i];
-            const adjacent = behind[i - 1] || watching;
-            const speedRef = refSpeedForEstimates(x.mostRecentState.speed);
+            if (x.mostRecentState.speed > 2) {
+                refSpeedForEstimates(x.mostRecentState.speed);
+            }
             if (x.gap == null) {
-                let incGap = this.realGap(adjacent, x);
-                if (incGap == null) {
+                const adjacent = behind[i - 1] || watching;
+                const incRP = this.compareRoadPositions(adjacent.roadHistory, x.roadHistory);
+                if (!incRP || incRP.worldTime == null || incRP.reversed) {
+                    // `reversed` indicates that the adjacent athlete branched before the test subject making
+                    // it irrelevant as a time based checkpoint to the watching athlete.
                     const incGapDist = x.gapDistance - adjacent.gapDistance;
-                    incGap = speedRef ? incGapDist / (speedRef * 1000 / 3600) : 0;
+                    const velocity = refSpeedForEstimates.get() / 3.6;
+                    const incGap = incGapDist / velocity;
+                    x.gap = adjacent.gap + incGap;
+                } else {
+                    x.gap = adjacent.gap + (x.mostRecentState.worldTime - incRP.worldTime) / 1000;
                 }
-                x.gap = adjacent.gap + incGap;
             }
         }
 
@@ -2996,13 +3406,13 @@ export class StatsProcessor extends events.EventEmitter {
         const maxGap = 15 * 60;
         for (let i = 0; i < ahead.length; i++) {
             if (ahead[i].gap > -maxGap) {
-                nearby.push(this._formatAthleteData(ahead[i]));
+                nearby.push(ahead[i]);
             }
         }
-        nearby.push(this._formatAthleteData(watching));
+        nearby.push(watching);
         for (let i = 0; i < behind.length; i++) {
             if (behind[i].gap < maxGap) {
-                nearby.push(this._formatAthleteData(behind[i]));
+                nearby.push(behind[i]);
             }
         }
         nearby.sort((a, b) => a.gap - b.gap);
@@ -3014,24 +3424,25 @@ export class StatsProcessor extends events.EventEmitter {
         if (!nearby.length) {
             return groups;
         }
+        // Clump all riders into their respective groups...
         let watchingIdx;
-        let curGroup = {
-            athletes: [],
-            weight: 0,
-            weightCount: 0,
-            power: 0,
-            draft: 0,
-            heartrate: 0,
-            heartrateCount: 0,
-        };
-        for (let i = 0, prevGap; i < nearby.length; i++) {
-            const x = nearby[i];
-            const innerGap = prevGap !== undefined ? x.gap - prevGap : 0;
-            if (innerGap > 2) {
-                curGroup.innerGap = innerGap;
-                groups.push(curGroup);
+        let curGroup;
+        let prevGap;
+        for (let i = 0; i < nearby.length; i++) {
+            const ad = nearby[i];
+            const athlete = this._athletesCache.get(ad.athleteId);
+            if (!curGroup || (!ad.mostRecentState.draft && ad.gap - prevGap > 1)) {
+                if (curGroup) {
+                    curGroup.innerGap = ad.gap - prevGap;
+                    const head = curGroup._athleteDatas[0];
+                    const tail = curGroup._athleteDatas[curGroup._athleteDatas.length - 1];
+                    curGroup.lengthTime = tail.gap - head.gap;
+                    curGroup.lengthDistance = tail.gapDistance - head.gapDistance;
+                    groups.push(curGroup);
+                }
                 curGroup = {
-                    athletes: [],
+                    _athleteDatas: [],
+                    _nearbyIndexes: [],
                     weight: 0,
                     weightCount: 0,
                     power: 0,
@@ -3040,43 +3451,112 @@ export class StatsProcessor extends events.EventEmitter {
                     heartrateCount: 0,
                 };
             }
-            curGroup.athletes.push(x);
-            const weight = x.athlete && x.athlete.weight || 0;
-            curGroup.weight += weight;
-            curGroup.weightCount += !!weight;
-            curGroup.power += x.state.power || 0;
-            curGroup.draft += x.state.draft || 0;
-            curGroup.heartrate += x.state.heartrate || 0;
-            curGroup.heartrateCount += !!x.state.heartrate;
-            if (x.athleteId === this.watching) {
+            curGroup._athleteDatas.push(ad);
+            curGroup._nearbyIndexes.push(i);
+            curGroup.weight += athlete?.weight || 0;
+            curGroup.weightCount += athlete?.weight ? 1 : 0;
+            curGroup.power += ad.mostRecentState.power || 0;
+            curGroup.draft += ad.mostRecentState.draft || 0;
+            curGroup.heartrate += ad.mostRecentState.heartrate || 0;
+            curGroup.heartrateCount += ad.mostRecentState.heartrate ? 1 : 0;
+            if (ad.athleteId === this.watching) {
                 curGroup.watching = true;
                 watchingIdx = groups.length;
             }
-            prevGap = x.gap;
+            prevGap = ad.gap;
         }
+        const head = curGroup._athleteDatas[curGroup._athleteDatas.length - 1];
+        const tail = curGroup._athleteDatas[curGroup._athleteDatas.length - 1];
+        curGroup.lengthTime = head.gap - tail.gap;
+        curGroup.lengthDistance = head.gapDistance - tail.gapDistance;
         groups.push(curGroup);
+
+        // With completed groups and athletes compute aggregate stats...
+        const newGroupMetas = [];
+        const usedGroupIds = new Set();
+        const now = monotonic();
         for (let i = 0; i < groups.length; i++) {
             const grp = groups[i];
             grp.weight /= grp.weightCount;
-            grp.power /= grp.athletes.length;
-            grp.draft /= grp.athletes.length;
-            grp.speed = sauce.data.median(grp.athletes.map(x => x.state.speed));
+            grp.power /= grp._athleteDatas.length;
+            grp.draft /= grp._athleteDatas.length;
+            grp.speed = sauce.data.median(grp._athleteDatas.map(x => x.mostRecentState.speed));
             grp.heartrate /= grp.heartrateCount;
             if (watchingIdx !== i) {
-                const edge = watchingIdx < i ? grp.athletes[0] : grp.athletes[grp.athletes.length - 1];
+                const edge = watchingIdx < i ?
+                    grp._athleteDatas[0] :
+                    grp._athleteDatas[grp._athleteDatas.length - 1];
                 grp.isGapEst = edge.isGapEst;
                 grp.gap = edge.gap;
             } else {
                 grp.gap = 0;
                 grp.isGapEst = false;
             }
+            // For groups with > 1 athlete, try to match with prior group for group stats...
+            // This is Greedy Jaccard Similarity algo (fast but imperfect)...
+            if (grp._athleteDatas.length > 1) {
+                const identitySet = new Set();
+                for (let j = 0; j < grp._athleteDatas.length; j++) {
+                    identitySet.add(grp._athleteDatas[j].athleteId);
+                }
+                let bestScore = 0;
+                let bestGroupMeta;
+                for (const xMeta of this._groupMetas.values()) {
+                    if (usedGroupIds.has(xMeta.id)) {
+                        continue;
+                    }
+                    const jaccardScore = identitySet.intersection(xMeta.identitySet).size /
+                        identitySet.union(xMeta.identitySet).size;
+                    if (jaccardScore > bestScore) {
+                        bestScore = jaccardScore;
+                        bestGroupMeta = xMeta;
+                    }
+                }
+                if (bestScore > 0.5) {
+                    grp.id = bestGroupMeta.id;
+                    //const existingAthletes = identitySet.union(bestGroupMeta.identitySet);
+                    /*const newAthletes = identitySet.difference(bestGroupMeta.identitySet);
+                    for (const x of newAthletes) {
+                        console.debug(grp.id, "Athlete joined the group!", this.loadAthlete(x)?.fullname);
+                    }*/
+                    const leftAthletes = bestGroupMeta.identitySet.difference(identitySet);
+                    for (const x of leftAthletes) {
+                        const ad = this._athleteData.get(x);
+                        if (ad.groupId === grp.id) {
+                            ad.groupId = null;
+                            //console.debug(grp.id, "Athlete LEFT the group!", this.loadAthlete(x)?.fullname);
+                        }
+                    }
+                    bestGroupMeta.identitySet = identitySet;
+                    bestGroupMeta.accessed = now;
+                    usedGroupIds.add(bestGroupMeta.id);
+                } else {
+                    grp.id = groupIdCounter++;
+                    grp.created = Date.now();
+                    /*for (const x of identitySet) {
+                        console.debug(grp.id, "Athlete formed a new group!", this.loadAthlete(x)?.fullname);
+                    }*/
+                    newGroupMetas.push({id: grp.id, accessed: now, identitySet});
+                }
+                for (let j = 0; j < grp._athleteDatas.length; j++) {
+                    grp._athleteDatas[j].groupId = grp.id;
+                }
+            } else if (grp._athleteDatas[0].groupId != null) {
+                const ad = grp._athleteDatas[0];
+                //console.debug(ad.groupId, "Athlete LEFT the group!",
+                //              this.loadAthlete(ad.athleteId)?.fullname);
+                ad.groupId = null;
+            }
+        }
+        for (const x of newGroupMetas) {
+            this._groupMetas.set(x.id, x);
         }
         return groups;
     }
 
     getDebugInfo() {
         return {
-            pendingZwiftProfileFetches: this._pendingProfileFetches.length,
+            pendingZwiftProfileFetches: this._pendingProfileFetches.size,
             zwiftProfileFetchCount: this._profileFetchCount,
             stateProcessCount: this._stateProcessCount,
             stateDupCount: this._stateDupCount,
@@ -3084,11 +3564,11 @@ export class StatsProcessor extends events.EventEmitter {
             activeAthletesSize: this._athleteData.size,
             activeAthleteDataPoints: Array.from(this._athleteData.values())
                 .map(x =>
-                    x.collectors.power.roll.size() +
-                    x.collectors.speed.roll.size() +
-                    x.collectors.hr.roll.size() +
-                    x.collectors.draft.roll.size() +
-                    x.collectors.cadence.roll.size() +
+                    x.bucket.power.roll.size() +
+                    x.bucket.speed.roll.size() +
+                    x.bucket.hr.roll.size() +
+                    x.bucket.draft.roll.size() +
+                    x.bucket.cadence.roll.size() +
                     Object.values(x.streams).reduce((agg, xx) => agg + xx.length, 0))
                 .reduce((agg, c) => agg + c, 0),
             athletesCacheSize: this._athletesCache.size,

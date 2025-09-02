@@ -357,6 +357,7 @@ export class SauceZwiftMap extends EventTarget {
         this.roadId = null;
         this.routeId = null;
         this.route = null;
+        this._routeHighlights = [];
         this.worldMeta = null;
         this.rotateCoordinates = null;
         this._adjHeading = 0;
@@ -421,7 +422,7 @@ export class SauceZwiftMap extends EventTarget {
         this._elements.pathLayersGroup.append(...Object.values(this._elements.roadLayers));
         this._elements.pathLayersGroup.append(...Object.values(this._elements.userLayers));
         this._elements.map.append(this._elements.mapCanvas, this._elements.paths, this._elements.ents);
-        this.el.addEventListener('wheel', this._onWheelZoom.bind(this));
+        this.el.addEventListener('wheel', this._onWheelZoom.bind(this), {passive: false /*mute warn*/});
         this.el.addEventListener('pointerdown', this._onPointerDown.bind(this));
         this._elements.ents.addEventListener('click', this._onEntsClick.bind(this));
         this.setZoom(zoom);
@@ -533,7 +534,7 @@ export class SauceZwiftMap extends EventTarget {
         this._applyZoom(options);
     }
 
-    setBounds(tl, br, {padding=0.20}={}) {
+    setBounds(tl, br, {padding=0.12}={}) {
         let width = br[0] - tl[0];
         let height = tl[1] - br[1];
         const center = [tl[0] + width / 2, br[1] + height / 2];
@@ -541,12 +542,14 @@ export class SauceZwiftMap extends EventTarget {
         // correction factors are applied, so width and height are swapped for
         // purposes of finding our ideal bounding box sizes.
         [width, height] = [height, width];
+        const rectWidth = this._elRect.width * (1 - padding * 2);
+        const rectHeight = this._elRect.height * (1 - padding * 2);
         const boundsRatio = width / height;
-        const viewRatio = this._elRect.width / this._elRect.height;
-        const zoom = viewRatio > boundsRatio ? this._elRect.height / height : this._elRect.width / width;
+        const viewRatio = rectWidth / rectHeight;
+        const zoom = viewRatio > boundsRatio ? rectHeight / height : rectWidth / width;
         const zoomFactor = 1 / (this.worldMeta.mapScale / this.worldMeta.tileScale);
         this._setCenter(center);
-        this.setZoom(zoom * zoomFactor * (1 - padding), {disableEvent: true});
+        this.setZoom(zoom * zoomFactor, {disableEvent: true});
     }
 
     _adjustZoom(adj) {
@@ -837,10 +840,7 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     _resetElements(viewBox) {
-        if (this._routeHighlight) {
-            this._routeHighlight.elements.forEach(x => x.remove());
-            this._routeHighlight = null;
-        }
+        this._removeRouteHighlights();
         Object.values(this._elements.roadLayers).forEach(x => x.replaceChildren());
         Object.values(this._elements.userLayers).forEach(x => x.replaceChildren());
         for (const ent of Array.from(this._ents.values()).filter(x => x.gc)) {
@@ -939,14 +939,16 @@ export class SauceZwiftMap extends EventTarget {
         return this.setActiveRoad(id);
     }
 
+    _removeRouteHighlights() {
+        this._routeHighlights.forEach(x => this.removeHighlightPath(x));
+        this._routeHighlights.length = 0;
+    }
+
     setActiveRoad(id) {
         this.roadId = id;
         this.routeId = null;
         this.route = null;
-        if (this._routeHighlight) {
-            this._routeHighlight.elements.forEach(x => x.remove());
-            this._routeHighlight = null;
-        }
+        this._removeRouteHighlights();
         const surface = this._elements.roadLayers.surfacesMid;
         let r = surface.querySelector('.road.active');
         if (!r) {
@@ -956,23 +958,41 @@ export class SauceZwiftMap extends EventTarget {
         r.setAttribute('href', `#road-path-${id}`);
     }
 
-    setActiveRoute = common.asyncSerialize(async function(id, laps=1) {
+    setActiveRoute = common.asyncSerialize(async function(id, options={}) {
+        if (typeof options === 'number') {
+            console.warn("DEPRECATED use of laps argument");
+            options = {showWeld: options > 1};
+        }
         this.roadId = null;
         this.routeId = id;
+        const route = await common.getRoute(id);
         const activeRoad = this._elements.roadLayers.surfacesMid.querySelector('.road.active');
         if (activeRoad) {
             activeRoad.remove();
         }
-        const route = await common.getRoute(id);
-        if (this._routeHighlight) {
-            this._routeHighlight.elements.forEach(x => x.remove());
-            this._routeHighlight = null;
+        this._removeRouteHighlights();
+        let fullPath, lapPath;
+        const path = fullPath = lapPath = route.curvePath;
+        const lapRoadIdx = route.manifest.findIndex(x => !x.leadin);
+        const lapIdx = lapRoadIdx ? path.nodes.findIndex(x => x.index === lapRoadIdx) : 0;
+        if (lapIdx) {
+            lapPath = path.slice(lapIdx);
+            this._routeHighlights.push(this.addHighlightPath(path.slice(0, lapIdx), `rt-leadin-${id}`,
+                                                             {extraClass: 'route-leadin'}));
         }
-        if (route) {
-            this._routeHighlight = this.addHighlightPath(route.curvePath, 'route-' + id, {layer: 'mid'});
-        } else {
-            console.warn("Route not found:", id);
+        if (options.showWeld && route.lapWeldPath) {
+            const weld = route.lapWeldPath;
+            fullPath = path.slice();
+            fullPath.extend(weld);
+            this._routeHighlights.push(this.addHighlightPath(weld, `route-weld-${id}`,
+                                                             {extraClass: 'route-weld'}));
         }
+        this._routeHighlights.push(
+            this.addHighlightPath(lapPath, `rt-lap-${id}`, {extraClass: 'route-lap'}),
+            this.addHighlightPath(fullPath, `rt-shadow-${id}`, {layer: 'low', extraClass: 'active-shadow'}),
+            this.addHighlightPath(fullPath, `rt-gutters-${id}`, {layer: 'low', extraClass: 'active-gutter'})
+        );
+
         this.route = route;
         return route;
     });
@@ -1012,56 +1032,103 @@ export class SauceZwiftMap extends EventTarget {
         });
     }
 
-    addHighlightPath(path, id, {debug, includeEdges=true, extraClass='', width, color, layer='mid'}={}) {
+    _createDebugPathElements(nodes, layer) {
         const elements = [];
-        if (debug) {
-            const nodes = path.nodes;
-            for (let i = 0; i < nodes.length; i++) {
-                elements.push(this.drawCircle(nodes[i].end, {
-                    color: '#40ba',
-                    borderColor: 'black',
-                    size: 4,
-                    title: i
-                }));
-                if (nodes[i].cp1) {
-                    if (i) {
-                        const title = `cp1-${i}`;
-                        elements.push(this.drawLine(nodes[i].cp1, nodes[i - 1].end, {layer, title}));
-                        elements.push(this.drawCircle(nodes[i].cp1, {color: '#000b', size: 3, title}));
-                    }
-                    const title = `cp2-${i}`;
-                    elements.push(this.drawLine(nodes[i].cp2, nodes[i].end, {layer, title}));
-                    elements.push(this.drawCircle(nodes[i].cp2, {color: '#fffb', size: 3, title}));
+        for (let i = 0; i < nodes.length; i++) {
+            elements.push(this.drawCircle(nodes[i].end, {
+                color: '#40ba',
+                borderColor: 'black',
+                size: 4,
+                title: i
+            }));
+            if (nodes[i].cp1) {
+                if (i) {
+                    const title = `cp1-${i}`;
+                    elements.push(this.drawLine(nodes[i].cp1, nodes[i - 1].end, {layer, title}));
+                    elements.push(this.drawCircle(nodes[i].cp1, {color: '#000b', size: 3, title}));
                 }
-            }
-            if (nodes.length) {
-                elements.push(this.drawCircle(nodes[0].end, {color: '#0f09', size: 8, title: 'start'}));
-                elements.push(this.drawCircle(nodes.at(-1).end, {color: '#f009', size: 8, title: 'end'}));
+                const title = `cp2-${i}`;
+                elements.push(this.drawLine(nodes[i].cp2, nodes[i].end, {layer, title}));
+                elements.push(this.drawCircle(nodes[i].cp2, {color: '#fffb', size: 3, title}));
             }
         }
-        const node = createElementSVG('path', {
-            class: `highlight ${extraClass}`,
+        if (nodes.length) {
+            elements.push(this.drawCircle(nodes[0].end, {color: '#0f09', size: 8, title: 'start'}));
+            elements.push(this.drawCircle(nodes.at(-1).end, {color: '#f009', size: 8, title: 'end'}));
+        }
+        return elements;
+    }
+
+    addHighlightPath(path, id, {debug, includeEdges=true, extraClass, width, color, layer='mid'}={}) {
+        const elements = debug ? this._createDebugPathElements(path.nodes, layer) : [];
+        const svgPath = createElementSVG('path', {
+            class: `highlight ${extraClass || ''}`,
             "data-id": id,
             d: path.toSVGPath({includeEdges}),
         });
-        if (width) {
-            node.style.setProperty('--width', width);
+        if (width != null) {
+            svgPath.style.setProperty('--width', width);
         }
-        if (color) {
-            node.style.setProperty('stroke', color);
+        if (color != null) {
+            svgPath.style.setProperty('stroke', color);
         }
         const surfaceEl = this._elements.userLayers[{
             high: 'surfacesHigh',
             mid: 'surfacesMid',
             low: 'surfacesLow',
         }[layer]];
-        surfaceEl.append(node);
-        elements.push(node);
-        return {id, path, elements};
+        surfaceEl.append(svgPath);
+        elements.push(svgPath);
+        return {id, path, elements, svgPath, debug, includeEdges, layer};
+    }
+
+    updateHighlightPath(pathObj, path, {debug, includeEdges=true, width, color}={}) {
+        const svgPath = pathObj.svgPath;
+        if (pathObj.debug || debug) {
+            for (const x of pathObj.elements) {
+                if (x !== svgPath) {
+                    x.remove();
+                }
+            }
+            const elements = debug ? this._createDebugPathElements(path.nodes, pathObj.layer) : [];
+            elements.push(svgPath);
+            pathObj.elements = elements;
+            pathObj.debug = debug;
+        }
+        svgPath.setAttribute('d', path.toSVGPath({includeEdges}));
+        if (width !== undefined) {
+            if (width === null) {
+                svgPath.style.removeProperty('--width');
+            } else {
+                svgPath.style.setProperty('--width', width);
+            }
+        }
+        if (color !== undefined) {
+            if (color === null) {
+                svgPath.style.removeProperty('stroke');
+            } else {
+                svgPath.style.setProperty('stroke', color);
+            }
+        }
+        return pathObj;
     }
 
     addHighlightLine(points, id, options={}) {
         return this.addHighlightPath(this._createCurvePath(points, options.loop), id, options);
+    }
+
+    updateHighlightLine(pathObj, points, options={}) {
+        return this.updateHighlightPath(pathObj, this._createCurvePath(points, options.loop), options);
+    }
+
+    removeHighlightPath(pathObj) {
+        for (const x of pathObj.elements) {
+            x.remove();
+        }
+    }
+
+    removeHighlightLine(pathObj) {
+        return this.removeHighlightPath(pathObj);
     }
 
     addPoint(point, extraClass) {
@@ -1164,11 +1231,11 @@ export class SauceZwiftMap extends EventTarget {
                     if (this.routeId !== watching.routeId) {
                         let sg;
                         if (watching.eventSubgroupId) {
-                            sg = await common.rpc.getEventSubgroup(watching.eventSubgroupId);
+                            sg = await common.getEventSubgroup(watching.eventSubgroupId);
                         }
                         // Note sg.routeId is sometimes out of sync with state.routeId; avoid thrash
                         if (sg && sg.routeId === watching.routeId) {
-                            await this.setActiveRoute(sg.routeId, sg.laps);
+                            await this.setActiveRoute(sg.routeId, {showWeld: sg.laps > 1});
                         } else {
                             await this.setActiveRoute(watching.routeId);
                         }

@@ -79,7 +79,7 @@
                     <div class="row p2"><key>Level</key><value>{{athlete.level}}</value></div>
                 <% } %>
                 <% if (athlete.age) { %>
-                    <div class="row p2"><key>Age</key><value>{{athlete.age}}</value></div>
+                    <div class="row p2"><key>Age</key><value>{{humanAgeClass(athlete.age)}}</value></div>
                 <% } %>
                 <% if (athlete.weight || athlete.height) { %>
                     <div class="row p2">

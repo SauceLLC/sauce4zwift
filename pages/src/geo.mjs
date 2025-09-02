@@ -241,6 +241,9 @@ async function applyRoute() {
     }
     routeSelect.replaceChildren();
     routeSelect.insertAdjacentHTML('beforeend', `<option value disabled selected>Route</option>`);
+    if (!routesList) {
+        routesList = Array.from(await common.getRouteList()).sort((a, b) => a.name < b.name ? -1 : 1);
+    }
     for (const x of routesList) {
         if (x.courseId !== courseId) {
             continue;
@@ -251,6 +254,7 @@ async function applyRoute() {
     }
     if (routeId != null) {
         const route = await common.getRoute(routeId);
+        console.debug({route});
         const path = route.curvePath;
         _routeHighlights.push(
             zwiftMap.addHighlightPath(path, `route-1-${route.id}`, {width: 5, color: '#0004'}),
@@ -336,8 +340,7 @@ export async function main() {
         await applyCourse();
         await applyRoute();
     });
-    [worldList, routesList] = await Promise.all([common.getWorldList(), common.getRouteList()]);
-    routesList = Array.from(routesList).sort((a, b) => a.name < b.name ? -1 : 1);
+    worldList = await common.getWorldList();
     zwiftMap = createZwiftMap();
     window.zwiftMap = zwiftMap;  // DEBUG
     window.MapEntity = map.MapEntity;

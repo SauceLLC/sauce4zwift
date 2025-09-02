@@ -1,5 +1,6 @@
 import * as sauce from '../../shared/sauce/index.mjs';
 import * as common from './common.mjs';
+import * as fieldsMod from './fields.mjs';
 
 common.enableSentry();
 
@@ -49,32 +50,46 @@ const pct = (v, options) => H.number(v * 100, {suffix: '%', html: true, ...optio
 const gapTime = (v, entry) => H.timer(v) + (entry.isGapEst ? '<small> (est)</small>' : '');
 
 
-function makeLazyGetter(cb) {
-    const getting = {};
-    const cache = new Map();
+function fGet(fnOrValue, ...args) {
+    return (typeof fnOrValue === 'function') ? fnOrValue(...args) : fnOrValue;
+}
 
-    return function getter(key) {
-        if (!cache.has(key)) {
-            if (!getting[key]) {
-                getting[key] = cb(key).then(value => {
-                    cache.set(key, value || null);
-                    if (!value) {
-                        // Allow retry, especially for event data which is wonky
-                        setTimeout(() => cache.delete(key), 10000);
-                    }
-                    delete getting[key];
-                });
-            }
-            return;
-        } else {
-            return cache.get(key);
-        }
+
+// Convert a field spec from the fields.mjs module to one compatible with the table..
+function convertGenericField(id, overrides) {
+    const field = fieldsMod.fields.find(x => x.id === id);
+    if (!field) {
+        console.error('Field id not found:', id);
+        return;
+    }
+    return {
+        id: field.id,
+        label: field.longName ?? field.shortName,
+        headerLabel: field.miniName ?? field.shortName ?? field.label ?? field.longName,
+        get: field.get,
+        fmt: field.suffix != null ?
+            x => fGet(field.format, x) + `<abbr class="unit">${fGet(field.suffix, x)}</abbr>` :
+            x => fGet(field.format, x), // clip args for compat with generic field's suffix 2nd arg
+        tooltip: field.tooltip,
+        ...overrides,
     };
 }
 
 
-const lazyGetSubgroup = makeLazyGetter(id => common.rpc.getEventSubgroup(id));
-const lazyGetRoute = makeLazyGetter(id => common.rpc.getRoute(id));
+function getSubgroupLazy(id) {
+    const sg = common.getEventSubgroup(id);
+    if (sg && !(sg instanceof Promise)) {
+        return sg;
+    }
+}
+
+
+function getRouteLazy(id) {
+    const route = common.getRoute(id);
+    if (route && !(route instanceof Promise)) {
+        return route;
+    }
+}
 
 
 function fmtDist(v) {
@@ -107,7 +122,7 @@ function fmtName(name, entry) {
     let badge;
     const sgid = entry.state.eventSubgroupId;
     if (sgid) {
-        const sg = lazyGetSubgroup(sgid);
+        const sg = getSubgroupLazy(sgid);
         if (sg) {
             badge = common.eventBadge(sg.subgroupLabel);
         }
@@ -120,7 +135,7 @@ function fmtEvent(sgid) {
     if (!sgid) {
         return '-';
     }
-    const sg = lazyGetSubgroup(sgid);
+    const sg = getSubgroupLazy(sgid);
     if (sg) {
         return `<a href="${eventUrl(sg.eventId)}" target="_blank" external>${sg.name}</a>`;
     }
@@ -132,13 +147,13 @@ function getRoute({state, routeId}) {
     let route;
     let laps;
     if (state.eventSubgroupId) {
-        const sg = lazyGetSubgroup(state.eventSubgroupId);
+        const sg = getSubgroupLazy(state.eventSubgroupId);
         if (sg) {
-            route = lazyGetRoute(sg.routeId);
+            route = getRouteLazy(sg.routeId);
             laps = sg.laps;
         }
     } else if (state.routeId) {
-        route = lazyGetRoute(state.routeId);
+        route = getRouteLazy(state.routeId);
         laps = 0;
     }
     return !route ? undefined : laps ? `${laps} x ${route.name}` : route.name;
@@ -264,7 +279,6 @@ const fieldGroups = [{
         {id: 'road', defaultEn: false, label: 'Road ID', headerLabel: 'Rd ID', get: x => x.state.roadId},
         {id: 'roadcom', defaultEn: false, label: 'Road Completion', headerLabel: 'Rd %',
          get: x => x.state.roadCompletion / 1e6, fmt: pct},
-
     ],
 }, {
     group: 'power',
@@ -306,6 +320,8 @@ const fieldGroups = [{
          get: x => x.stats.power.np / x.stats.power.avg, fmt: x => H.number(x, {precision: 2, fixed: true}),
          tooltip: 'NP® / Average-power.  A value of 1.0 means the effort is very smooth, higher ' +
                   'values indicate the effort was more volatile.\n\n' + tpAttr},
+        ...['power-avg-solo', 'power-avg-follow', 'power-avg-work',
+            'energy-solo', 'energy-follow', 'energy-work'].map(x => convertGenericField(x)),
         {id: 'power-lap', defaultEn: false, label: 'Lap Average', headerLabel: '<ms>bolt</ms> (lap)',
          get: x => x.lap.power.avg, fmt: pwr},
         {id: 'wkg-lap', defaultEn: false, label: 'Lap W/kg Average', headerLabel: 'W/kg (lap)',
@@ -314,7 +330,9 @@ const fieldGroups = [{
          headerLabel: '<ms>bolt</ms> (last)', get: x => x.lastLap ? x.lastLap.power.avg : null, fmt: pwr},
         {id: 'wkg-last-lap', defaultEn: false, label: 'Last Lap W/kg Average', headerLabel: 'W/kg (last)',
          get: x => x.lastLap?.power.avg / x.athlete?.weight, fmt: fmtWkg},
-    ],
+        ...['power-avg-solo-lap', 'power-avg-follow-lap', 'power-avg-work-lap',
+            'energy-solo-lap', 'energy-follow-lap', 'energy-work-lap'].map(x => convertGenericField(x)),
+    ]
 }, {
     group: 'speed',
     label: 'Speed',
@@ -371,10 +389,9 @@ const fieldGroups = [{
          get: x => x.lap.draft.avg, fmt: pwr},
         {id: 'draft-last-lap', defaultEn: false, label: 'Last Lap Average',
          headerLabel: '<ms>air</ms> (last)', get: x => x.lastLap ? x.lastLap.draft.avg : null, fmt: pwr},
-        {id: 'draft-energy', defaultEn: false, label: '<ms>air</ms> (kJ)', get: x => x.stats.draft.kj,
-         fmt: kj, tooltip: 'Energy saved by drafting'},
+        {id: 'draft-energy', defaultEn: false, label: 'Energy Saved', headerLabel: '<ms>air</ms> (kJ)',
+         get: x => x.stats.draft.kj, fmt: kj, tooltip: 'Energy saved by drafting'},
     ],
-
 }, {
     group: 'peaks',
     label: 'Peak Performances',
@@ -415,10 +432,35 @@ const fieldGroups = [{
          headerLabel: '<ms>ecg_heart</ms> (<ms>trophy</ms> 1m)', get: x => x.stats.hr.peaks[60].avg, fmt: hr},
     ],
 }, {
+    group: 'misc',
+    label: 'Misc',
+    fields: [
+        convertGenericField('time-coffee'),
+        convertGenericField('time-solo'),
+        convertGenericField('time-work'),
+        convertGenericField('time-follow'),
+        convertGenericField('time-pack-graph'),
+        convertGenericField('time-coffee-lap'),
+        convertGenericField('time-solo-lap'),
+        convertGenericField('time-work-lap'),
+        convertGenericField('time-follow-lap'),
+        convertGenericField('time-pack-graph-lap'),
+        {id: 'time-session', defaultEn: false, label: 'Session Time', headerLabel: 'Time',
+         get: x => x.state.time, fmt: fmtDur, tooltip: 'Time reported by the game client'},
+        {id: 'time-active', defaultEn: false, label: 'Active Time', headerLabel: 'Active',
+         get: x => x.stats.activeTime, fmt: fmtDur,
+         tooltip: 'Locally observed active time\n\nNOTE: may differ from game value'},
+        {id: 'time-lap', defaultEn: false, label: 'Lap Time', headerLabel: 'Lap',
+         get: x => (x.lap || x.stats)?.activeTime || 0, fmt: fmtDur,
+         tooltip: 'Locally observed current lap time\n\nNOTE: may differ from game value'},
+        {id: 'time-elapsed', defaultEn: false, label: 'Elapsed Time', headerLabel: 'Elpsd',
+         get: x => x.stats.elapsedTime, fmt: fmtDur,
+         tooltip: 'Locally observed elapsed time\n\nNOTE: may differ from game value'},
+    ].filter(x => x),
+}, {
     group: 'debug',
     label: 'Debug',
     fields: [
-        //{id: 'index', defaultEn: false, label: 'Data Index', headerLabel: 'Idx', get: x => x.index},
         {id: 'id', defaultEn: false, label: 'Athlete ID', headerLabel: 'ID', get: x => x.athleteId},
         {id: 'course', defaultEn: false, label: 'Course (aka world)', headerLabel: '<ms>map</ms>',
          get: x => x.state.courseId},
@@ -438,20 +480,6 @@ const fieldGroups = [{
          get: x => x.state.routeRoadIndex},
         {id: 'road-time', defaultEn: false, label: 'Road Time', headerLabel: 'Rd Time',
          get: x => (x.state.roadTime - 5000) / 1e6, fmt: x => x.toFixed(5)},
-
-        {id: 'time-session', defaultEn: false, label: 'Session Time', headerLabel: 'Time',
-         get: x => x.state.time, fmt: fmtDur, tooltip: 'Time reported by the game client'},
-        {id: 'time-active', defaultEn: false, label: 'Active Time', headerLabel: 'Active',
-         get: x => x.stats.activeTime, fmt: fmtDur,
-         tooltip: 'Locally observed active time\n\nNOTE: may differ from game value'},
-        {id: 'time-lap', defaultEn: false, label: 'Lap Time', headerLabel: 'Lap',
-         get: x => (x.lap || x.stats)?.activeTime || 0, fmt: fmtDur,
-         tooltip: 'Locally observed current lap time\n\nNOTE: may differ from game value'},
-        {id: 'time-elapsed', defaultEn: false, label: 'Elapsed Time', headerLabel: 'Elapsed',
-         get: x => x.stats.elapsedTime, fmt: fmtDur,
-         tooltip: 'Locally observed elapsed time\n\nNOTE: may differ from game value'},
-        {id: 'time-coffee', defaultEn: false, label: 'Coffee Time', headerLabel: '<ms>coffee</ms>',
-         get: x => x.stats.coffeeTime, fmt: fmtDur, tooltip: 'Time observed taking coffee breaks'},
     ],
 }];
 
@@ -621,9 +649,9 @@ function render() {
     theadRow = table.querySelector('thead tr');
     theadRow.innerHTML = enFields.map(x =>
         `<td data-id="${x.id}"
-             title="${common.sanitizeAttr(x.tooltip || x.label || '')}"
+             title="${common.sanitizeAttr(fGet(x.tooltip) ?? fGet(x.label) ?? '')}"
              class="${sortBy === x.id ? 'sorted ' + sortDirClass : ''}"
-             >${x.headerLabel || x.label}` +
+             >${fGet(x.headerLabel) ?? fGet(x.label)}` +
                 `<ms class="sort-asc">arrow_drop_up</ms>` +
                 `<ms class="sort-desc">arrow_drop_down</ms></td>`).join('');
 }
@@ -646,28 +674,29 @@ function gentleClassToggle(el, cls, force) {
 }
 
 
-function updateTableRow(row, info) {
+function updateTableRow(row, ad) {
     if (row.title && !gameConnection) {
         row.title = '';
     } else if (!row.title && gameConnection) {
         row.title = 'Double click row to watch this athlete';
     }
-    gentleClassToggle(row, 'watching', info.watching);
-    gentleClassToggle(row, 'marked', info.athlete && info.athlete.marked);
-    gentleClassToggle(row, 'following', info.athlete && info.athlete.following);
-    if (row.dataset.id !== '' + info.athleteId) {
-        row.dataset.id = info.athleteId;
+    gentleClassToggle(row, 'watching', ad.watching);
+    gentleClassToggle(row, 'marked', ad.athlete && ad.athlete.marked);
+    gentleClassToggle(row, 'following', ad.athlete && ad.athlete.following);
+    if (row.dataset.id !== '' + ad.athleteId) {
+        row.dataset.id = ad.athleteId;
     }
     const tds = row.querySelectorAll('td');
     let unfiltered = !filters.length;
     for (const [i, {id, get, fmt}] of enFields.entries()) {
         let value;
         try {
-            value = get ? get(info) : info;
+            value = get ? get(ad) : ad;
         } catch(e) {
+            console.warn("Field get error:", e);
             value = null;
         }
-        const html = '' + (fmt ? fmt(value, info) : value != null ? value : '-');
+        const html = '' + (fmt ? fGet(fmt, value, ad) : value != null ? value : '-');
         const td = tds[i];
         if (td._html !== html) {
             td.innerHTML = (td._html = html);
@@ -807,8 +836,8 @@ export async function settingsMain() {
             `<div class="title">${label}:</div>`,
             ...fields.map(x => `
                 <div class="field ${fieldStates[x.id] ? '' : 'disabled'}" data-id="${x.id}">
-                    <label title="${common.sanitizeAttr(x.tooltip || '')}">
-                        <key>${x.label}</key>
+                    <label title="${common.sanitizeAttr(fGet(x.tooltip) ?? '')}">
+                        <key>${fGet(x.label)}</key>
                         <input type="checkbox" name="${x.id}" ${fieldStates[x.id] ? 'checked' : ''}/>
                     </label>
                     <div class="col-adj" title="Move field left or right">

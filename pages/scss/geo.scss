@@ -95,6 +95,11 @@ select[name="route"] {
             white-space: nowrap;
             overflow: hidden;
 
+            ms {
+                align-self: center;
+                font-weight: 300;
+            }
+
             .key {
                 font-weight: 600;
                 margin-right: 0.2em;
@@ -106,6 +111,7 @@ select[name="route"] {
 
                 &:not(:empty)::after {
                     content: ':';
+                    opacity: 0.7;
                 }
 
                 small {
@@ -126,6 +132,12 @@ select[name="route"] {
                 text-overflow: ellipsis;
                 min-width: 4ch;
                 text-align: right;
+            }
+
+            abbr {
+                ms {
+                    vertical-align: baseline;
+                }
             }
         }
     }

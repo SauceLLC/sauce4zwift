@@ -241,6 +241,19 @@
             align-items: center;
         }
 
+        key {
+            display: inline-block;
+            min-width: 10ch;
+            font-variant: small-caps;
+            font-weight: bold;
+            font-size: 0.82em;
+        }
+
+        key::after {
+            content: ':';
+            margin-right: 0.2em;
+        }
+
         .row:nth-child(odd) {
             background-color: #0003;
         }
@@ -254,19 +267,6 @@
     .p1 {
         font-size: 1em;
         font-weight: bold;
-    }
-
-    key {
-        display: inline-block;
-        min-width: 10ch;
-        font-variant: small-caps;
-        font-weight: bold;
-        font-size: 0.82em;
-    }
-
-    key::after {
-        content: ':';
-        margin-right: 0.2em;
     }
 
     img.inline-size {

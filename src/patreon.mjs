@@ -1,6 +1,5 @@
 import * as storage from './storage.mjs';
 import Sentry from '@sentry/node';
-import fetch from 'node-fetch';
 
 export class NonMember extends Error {}
 

@@ -165,7 +165,8 @@ export async function render(el, tpl, tplData) {
             yAxis: {disabled: true},
             el: rsEl.querySelector('.sparkline'),
             tooltip: {
-                format: ({entry}) => `${H.date(entry.ts)}: ${H.number(entry.y, {precision: 1})}`
+                formatKey: ({entry}) => H.date(entry.ts),
+                format: ({entry}) => `${H.number(entry.y, {precision: 1})}`
             }
         });
         rsSparkline.setData(history);

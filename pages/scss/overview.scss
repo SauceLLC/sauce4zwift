@@ -140,12 +140,13 @@ html:not(:focus-within) {
 
             ms {
                 margin: 0;
-                font-weight: 250;
+                font-weight: 300;
                 align-self: center;
             }
 
             &:not(:empty)::after {
                 content: ':';
+                opacity: 0.8;
             }
 
             small {

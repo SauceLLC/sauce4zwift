@@ -26,24 +26,26 @@
     <% } else { %>
         <td class="route">-</td>
     <% } %>
-    <% if (event.durations.length) { %>
-        <% if (event.durations.length > 1) { %>
-            <td>{-humanDuration(event.durations[0], {html: true, short: true})-} -
-                {-humanDuration(event.durations.at(-1), {html: true, short: true})-}</td>
-        <% } else { %>
-            <td>{-humanDuration(event.durations[0], {html: true})-}</td>
+    <td>
+        <% if (event.durations.length) { %>
+            <% const fmt = (x, opts) => humanDuration(x, {html: true, separator: ' ', short: true, ...opts}); %>
+            <% if (event.durations.length > 1) { %>
+                {-fmt(event.durations[0])-}-{-fmt(event.durations.at(-1))-}{{event.durations.length ? ',' : ''}}
+            <% } else { %>
+                {-fmt(event.durations[0], {short: !!event.distances.length})-}{{event.durations.length ? ',' : ''}}
+            <% } %>
         <% } %>
-    <% } else if (event.distances.length) { %>
-        <% if (event.distances.length > 1) { %>
-            <td>{-humanDistance(event.distances[0])-} -
-                {-humanDistance(event.distances.at(-1), {suffix: true, html: true})-}</td>
+        <% if (event.distances.length) { %>
+            <% const fmt = (x, opts) => humanDistance(x, {html: true, precision: 0, suffix: true, ...opts}); %>
+            <% if (event.distances.length > 1) { %>
+                {-fmt(event.distances[0], {suffix: false})-}-{-fmt(event.distances.at(-1))-}
+            <% } else { %>
+                {-fmt(event.distances[0])-}
+            <% } %>
         <% } else { %>
-            <td>{-humanDistance(event.distances[0], {suffix: true, html: true})-}</td>
+            <b>?</b>{{console.warn("Event duration/distance bug:", event)}}
         <% } %>
-    <% } else { %>
-        {{console.warn("Event duration/distance bug:", event)}}
-        <td>-</td>
-    <% } %>
+    </td>
     <td title="Climbing elevation gain">{-humanElevation(event.routeClimbing, {suffix: true, html: true})-}</td>
     <td class="groups">
         <% if (event.eventSubgroups) { %>

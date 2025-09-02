@@ -1,7 +1,44 @@
-<div class="activity-summary key-value-grid">
-    <% if (athleteData?.stats) { %>
-        <key>Start:</key><value>{-humanTime(Date.now() - (athleteData.stats.elapsedTime * 1000), {html: true})-}</value>
-        <key>Time:</key><value>{-humanTimer(athleteData.stats.activeTime, {full: true, html: true})-}</value>
-        <key>Distance:</key><value>{-humanDistance(athleteData.state.distance, {suffix: true, html: true})-}</value>
+<% if (obj.athleteData) { %>
+    <% const {state, stats} = athleteData; %>
+    <% const observedTime = athleteData.updated - athleteData.created; %>
+    <% if (state && athleteData.age < 120000) { %>
+        <div class="overview-stat" title="How long since joining the Zwift network">
+            <key>Session:</key>
+            <value>{-humanTimer(state.time, {full: true, html: true})-}</value>
+        </div>
+
+        <div class="overview-stat" title="How long Sauce has observed this athlete">
+            <key>Observed:</key>
+            <value>{-humanDuration(observedTime / 1000, {html: true})-}</value>
+        </div>
+
+        <div class="overview-stat" title="Total in-game distance (may differ from available Sauce Data below)">
+            <key>Distance:</key>
+            <value>{-humanDistance(state.distance, {suffix: true, html: true})-}</value>
+        </div>
+
+        <div class="overview-stat" title="Total in-game climbing (may differ from available Sauce Data below)">
+            <key>Climbed:</key>
+            <value>{-humanElevation(state.climbing, {suffix: true, html: true})-}</value>
+        </div>
+    <% } else if (stats) { %>
+        <div class="overview-stat" title="When Sauce last received data for this athlete">
+            <key>Last seen:</key>
+            <value>{-humanTime(athleteData.updated, {html: true})-}</value>
+        </div>
+
+        <div class="overview-stat" title="How long Sauce has observed this athlete">
+            <key>Observed:</key>
+            <value>{-humanDuration(observedTime / 1000, {html: true})-}</value>
+        </div>
     <% } %>
-</div>
+
+    <% if (stats.coffeeTime) { %>
+        <div class="overview-stat" title="Amount of time Sauce detected a coffee break being used (actual could be higher)">
+            <key>Coffee:</key>
+            <value>{-humanDuration(stats.coffeeTime, {suffix: true, html: true})-}</value>
+        </div>
+    <% } %>
+<% } else { %>
+    <div class="badge" style="--hue: 0deg;">No Data Available</div>
+<% } %>

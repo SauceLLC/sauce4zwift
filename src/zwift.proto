@@ -21,7 +21,7 @@ message PlayerState {
     uint32 _flags1 = 19; // Packed with info parsed in user code
     uint32 _flags2 = 20; // Packed with info parsed in user code
     uint32 _progress = 21; // 16-32 are some sort of inverse mask when set, 8-16 is pct progress, 0 is workout
-    int64 _joinTime = 22;
+    int64 _joinTime = 22; // profile_updated_at ???
     bool justWatching = 23;
     int32 _mwHours = 24; // milliwatt/hours of energy
     float x = 25;
@@ -32,8 +32,8 @@ message PlayerState {
     Sport sport = 31;
     float _eventDistance = 34; // cm
     int32 courseId = 35;
-    int32 routeProgress = 36; // Increments with route progress, but the scale is unclear
-    int32 routeRoadIndex = 37; // Offset into the road segment of a route (very close to our route's road manifest indexes)
+    int32 routeProgress = 36; // Increments with route progress, but the scale is unclear (route_checkpoint_index?)
+    int32 routeRoadIndex = 37; // Offset into the road segment of a route (route_decision_index?)
     bool canSteer = 38;
     uint32 routeId = 39;
     int32 pacerBotGroupSize = 40;
@@ -45,6 +45,9 @@ message PlayerState {
     int32 hazardPad = 47;
     int32 timeBonus = 48;
     int32 rideonBomb = 49; // always seems to be x5 with value of 9
+    // player_vfx? (player_vfx_speedboost, player_vfx_speedslow, player_vfx_timepickup)
+    // player_bighead_active?
+    int32 botId = 51;
 }
 
 enum WorldUpdatePayloadType {
@@ -123,10 +126,9 @@ message PayloadSegmentResult {
     int32 avgHR = 19;
     Sport sport = 20;
     int64 activityId = 21;
-    string _f23 = 23; // "P"?
+    string firstInitial = 23;
 }
 
-// for /api/segment-results
 message SegmentResults {
     int32 realm = 1;
     uint64 _unsignedSegmentId = 2;
@@ -348,12 +350,12 @@ enum FitnessPrivacy {
 
 message ActivityFull {  //where is primaryImageUrl, feedImageThumbnailUrl, activityRideOnCount, activityCommentCount, eventId, rideOnGiven
     uint64 id = 1;
-    required uint64 athleteId = 2;
-    required int32 courseId = 3; // XXX double check that is is the same as the relay server courseId concept ie 6=watopia
-    required string name = 4;
+    uint64 athleteId = 2;
+    int32 courseId = 3; // XXX double check that is is the same as the relay server courseId concept ie 6=watopia
+    string name = 4;
     string _f5 = 5;
     bool privateActivity = 6;
-    required string startDate = 7;
+    string startDate = 7;
     string endDate = 8;
     float distanceInMeters = 9;
     float avgHeartRate = 10;
@@ -392,12 +394,12 @@ message ActivityFull {  //where is primaryImageUrl, feedImageThumbnailUrl, activ
 
 message Activity { //field names pinned to db
     uint64 id = 1;
-    required uint64 athleteId = 2;
-    required int32 courseId = 3; // XXX double check this is relay server course
-    required string name = 4;
+    uint64 athleteId = 2;
+    int32 courseId = 3; // XXX double check this is relay server course
+    string name = 4;
     string _f5 = 5;
     bool _f6 = 6;
-    required string startDate = 7;
+    string startDate = 7;
     string endDate = 8;
     float distance = 9; // in meters
     float avgHeartRate = 10;
@@ -782,7 +784,7 @@ message PropertyChange {
         GENDER = 2;
     }
 
-    required Id propertyName = 1;
+    Id propertyName = 1;
     int32 changeCount = 2;
     int32 maxChanges = 3;
 }
@@ -792,14 +794,14 @@ message PropertyChange {
  *       e.g. -1575272099="TODAYS_SPORT_SELECT_TYPE"
 */
 message Attribute {
-    required int32 id = 1;
+    int32 id = 1;
     int64 numberValue = 2;
     float floatValue = 3;
     string stringValue = 5;
 }
 
 message AchievementEntry {
-    required int32 id = 1;
+    int32 id = 1;
 }
 
 message Achievements {
@@ -807,7 +809,7 @@ message Achievements {
 }
 
 message DropInWorld {
-    required int32 realm = 1;
+    int32 realm = 1;
     string name = 2;
     int32 courseId = 3;
     bool _f4 = 4;
@@ -826,9 +828,9 @@ message DropInWorldList {
 }
 
 message DropInPlayer {
-    required uint32 athleteId = 1;
-    required string firstName = 2;
-    required string lastName = 3;
+    uint32 athleteId = 1;
+    string firstName = 2;
+    string lastName = 3;
     uint32 distance = 4;
     uint32 time = 5;
     uint32 countryCode = 6;
@@ -873,9 +875,9 @@ message Goals {
 }
 
 message HashSeed {
-    required uint32 nonce = 1;
-    required uint32 seed = 2;
-    required uint64 expiryDate = 3;
+    uint32 nonce = 1;
+    uint32 seed = 2;
+    uint64 expiryDate = 3;
 }
 
 message HashSeeds {
@@ -883,8 +885,8 @@ message HashSeeds {
 }
 
 message LoginResponse {
-    required string sessionState = 1;
-    required SessionInfo session = 2;
+    string sessionState = 1;
+    SessionInfo session = 2;
     uint32 relaySessionId = 3;
     uint32 expiration = 4; // minutes
     bytes entitlesments = 5; // Very complex pb, just silence warnings for now.
@@ -892,14 +894,14 @@ message LoginResponse {
 
 message LoginRequest {
     AnalyticsEventProperties properties = 1;
-    required bytes aesKey = 2;
+    bytes aesKey = 2;
     uint32 _f3 = 3; // Seen mac desktop client send as 1
     uint32 _f4 = 4; // Seen mac desktop client send as 0
 }
 
 message AnalyticsEventProperty {
-    required string key = 1;
-    required string value = 2;
+    string key = 1;
+    string value = 2;
 }
 
 message AnalyticsEventProperties {
@@ -938,7 +940,8 @@ enum POWERUP_TYPE {
     NINJA          = 6;
     STEAMROLLER    = 7;
     ANVIL          = 8;
-    POWERUP_CNT    = 9; // XXX rename to COFFEE_STOP when mod devs are ready..
+    COFFEE_STOP    = 9;
+    BOOST          = 10;
     POWERUP_NONE   = 15;
 }
 
@@ -1020,8 +1023,8 @@ enum CompanionToGameCommandType {
 }
 
 message CompanionToGameCommand {
-    required int32 seqno = 1;
-    required CompanionToGameCommandType type = 2;
+    int32 seqno = 1;
+    CompanionToGameCommandType type = 2;
     int64 subject = 3;
     string _f4 = 4;
     int64 profileRequestAthleteId = 5;
@@ -1029,7 +1032,7 @@ message CompanionToGameCommand {
     int64 _f7 = 7;
     int32 _f8 = 8;
     uint32 _f9 = 9;
-    required uint32 subCommand = 10;
+    uint32 subCommand = 10;
     SocialPlayerAction socialAction = 11;
     // no 12
     //MobileAlertResponse _f13 = 13;
@@ -1042,7 +1045,7 @@ message CompanionToGameCommand {
 }
 
 message CompanionToGame {
-    required uint64 athleteId = 1;
+    uint64 athleteId = 1;
     repeated CompanionToGameCommand commands = 2;
     float _a3 = 3; // 0 zero not moving, look to see if delta coords
     float _a4 = 4; // 0
@@ -1213,7 +1216,7 @@ message PartnersUrls {
 }
 
 message SessionInfo {
-    required string relayUrl = 1;
+    string relayUrl = 1;
     PartnersUrls apis = 2;
     uint64 time = 3;
     TCPConfig tcpConfig = 4;
@@ -1221,10 +1224,10 @@ message SessionInfo {
 }
 
 message ClientToServer {
-    required int32 realm = 1;
-    required int64 athleteId = 2;
+    int32 realm = 1;
+    int64 athleteId = 2;
     uint64 worldTime = 3;
-    required uint32 seqno = 4;
+    uint32 seqno = 4;
     uint32 _f5 = 5;
     int64 _f6 = 6;
     PlayerState state = 7;
@@ -1241,7 +1244,7 @@ message ClientToServer {
 }
 
 message InvitedProfile {
-    required uint64 athleteId = 1;
+    uint64 athleteId = 1;
     string firstName = 2;
     string lastName = 3;
     string imageSrc = 4;
@@ -1258,11 +1261,11 @@ enum EventInviteStatus {
 
 message EventInvite {
     InvitedProfile profile = 1;
-    required EventInviteStatus status = 2;
+    EventInviteStatus status = 2;
 }
 
 message PrivateEventFeed {
-    required uint64 eventId = 1; //read in PrivateEventsManagerV2::RegisterPrivateEvent
+    uint64 eventId = 1; //read in PrivateEventsManagerV2::RegisterPrivateEvent
     Sport sport = 2;
     uint64 eventSubgroupStart = 3; //IsPrivateEventExpired: return ZNETWORK_GetNetworkSyncedTimeGMT() > a1->m_eventSubgroupStart / 1000uLL + 1800
     uint32 routeId = 4;
@@ -1287,13 +1290,13 @@ message PrivateEventFeedList {
 }
 
 message PlayerJoinedEvent {
-    required uint64 relId = 1; //subgroup id
+    uint64 relId = 1; //subgroup id
     uint64 athleteId = 2;
     uint64 _f3 = 3;
 }
 
 message PlayerLeftEvent {
-    required uint64 relId = 1; //event id
+    uint64 relId = 1; //event id
     uint64 athleteId = 2;
     uint64 _f3 = 3;
 }
@@ -1464,7 +1467,7 @@ message Events {
 }
 
 message PrivateEvent {
-    required uint64 id = 1;
+    uint64 id = 1;
     Sport sport = 2;
     uint64 eventStart = 3;
     uint32 routeId = 4;

@@ -31,10 +31,25 @@
             <% } %>
         </div>
         <div class="desc">{{event.description}}</div>
-        <% if (event.allTags.length) { %>
-            <div class="tags">
-                <% for (const x of event.allTags.filter(x => !x.match(/(^timestamp=|^created_)/))) { %>
+        <% if (event.allTagsObject.after_party_duration) { %>
+            <div class="subsection">
+                <b>Cool Down:</b> {{humanDuration(event.allTagsObject.after_party_duration)}}
+            </div>
+        <% } %>
+        <% if (event.displayTags.length) { %>
+            <div class="subsection tags">
+                <b>Tags:</b>
+                <% for (const x of event.displayTags) { %>
                     <div class="badge">{{x}}</div>
+                <% } %>
+            </div>
+        <% } %>
+        <% if (event.powerUps) { %>
+            <div class="subsection powerups">
+                <b>PowerUps:</b>
+                <% for (const [x, pct] of Object.entries(event.powerUps)) { %>
+                    <% const name = {LIGHTNESS: 'Feather', DRAFTBOOST: 'Draft', BONUS_XP_LIGHT: 'XP', BONUS_XP: 'Large XP', UNDRAFTABLE: 'Burrito', NINJA: 'Ghost'}[x] || x[0] + x.substr(1).toLowerCase(); %>
+                    <div><key>{{name}}:</key><value>{-humanNumber(pct * 100, {suffix: '%', html: true})-}</value></div>
                 <% } %>
             </div>
         <% } %>
@@ -45,12 +60,16 @@
                 <div class="event-subgroup loading" data-event-subgroup-id="{{sg.id}}">
                     <header>
                         <div class="label">
-                            <div class="group">Group</div>
-                            {-eventBadge(sg.subgroupLabel)-}
-                            <div class="std button danger signup-action only-signedup"
-                                 data-action="unsignup"><ms>delete</ms>Leave</div>
-                            <div class="std button primary signup-action only-can-signup"
-                                 data-action="signup"><ms>add_box</ms>Sign up</div>
+                            <% if (sg.eventType !== 'MEETUP') { %>
+                                <div class="group">Group</div>
+                                {-eventBadge(sg.subgroupLabel)-}
+                                <div class="std button danger signup-action only-signedup"
+                                     data-action="unsignup"><ms>delete</ms>Leave</div>
+                                <div class="std button primary signup-action only-can-signup"
+                                     data-action="signup"><ms>add_box</ms>Sign up</div>
+                            <% } else { %>
+                                <div class="group"></div>
+                            <% } %>
                             <b class="only-results">Results</b>
                         </div>
                         <% if (sg.rangeAccessLabel) { %>
