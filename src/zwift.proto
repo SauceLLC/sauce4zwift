@@ -10,7 +10,7 @@ message PlayerState {
     int32 _speed = 6; // mm / hour
     int32 roadPosition = 8;  // Horiz, i.e. lane.
     int32 _cadenceUHz = 9;
-    int32 draft = 10; // seems to be in percentage / algo factor
+    int32 draft = 10;
     int32 heartrate = 11;
     int32 power = 12;
     int32 _heading = 13;  // microrads from -pi -> 3pi
@@ -32,8 +32,8 @@ message PlayerState {
     Sport sport = 31;
     float _eventDistance = 34; // cm
     int32 courseId = 35;
-    int32 routeProgress = 36; // Increments with route progress, but the scale is unclear (route_checkpoint_index?)
-    int32 routeRoadIndex = 37; // Offset into the road segment of a route (route_decision_index?)
+    int32 routeCheckpointIndex = 36;
+    int32 routeDecisionIndex = 37;
     bool canSteer = 38;
     uint32 routeId = 39;
     int32 pacerBotGroupSize = 40;
