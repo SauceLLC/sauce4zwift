@@ -263,11 +263,7 @@ export function processPlayerStateMessage(msg) {
     const progress = (msg._progress >> 8 & 0xff) / 0xff;
     // Route ID can be stale in a few situations.  This may change but so far it looks like when
     // progress hits 100% and routeProgess rollsover to 0 the route is no longer correct.
-    const routeId = msg.portal || (progress === 1 && msg.routeProgress === 0) ? undefined : msg.routeId;
-    // Uncomment when Arrend gets back from vacation. :)
-    //if (msg.eventSubgroupId === 0) {
-    //    msg.eventSubgroupId = null;
-    //}
+    const routeId = msg.portal ? undefined : msg.routeId || undefined;
     return {
         ...msg,
         ...flags1,
