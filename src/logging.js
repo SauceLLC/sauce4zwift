@@ -72,7 +72,6 @@ function getCurStackFrameFile() {
 }
 
 
-
 function ansiColorize(text, color, options={}) {
     const esc = '\x1b[';
     const params = [];
@@ -192,7 +191,7 @@ function initFileLogging(logsPath, isDev) {
 }
 
 
-function initTTYLogging(logsPath, isDev) {
+function initTTYLogging(isDev) {
     const logEmitter = monkeyPatchConsoleWithEmitter();
     const logQueue = [];
     logEmitter.on('message', o => {
