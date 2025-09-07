@@ -708,19 +708,41 @@ export const courseFields = [{
     shortName: 'Place',
 }, {
     id: 'ev-fin',
-    format: x => x.remainingMetric ? x.remainingMetric === 'distance' ?
-        H.distance(x.remaining) : fmtDur(x.remaining) : '-',
+    format: x => x.remainingMetric === 'distance' ?
+        H.distance(x.remaining) :
+        x.remainingMetric === 'time' ?
+            fmtDur(x.remaining) :
+            '-',
+    tooltip: 'Remaining Event or Route time/distance',
+    longName: 'Event/Route Finish',
     shortName: 'Finish',
     suffix: x => (x && x.remainingMetric) === 'distance' ?
         H.distance(x.remaining, {suffixOnly: true}) : '',
 }, {
-    id: 'ev-dst',
-    format: x => x.state ? (x.remainingMetric === 'distance' ?
-        `${H.distance(x.state.eventDistance, {suffix: true, html: true})}<small> / ` +
-        `${H.distance(x.state.eventDistance + x.remaining, {suffix: true, html: true})}</small>` :
-        H.distance(x.state.eventDistance, {suffix: true, html: true})) : '-',
-    shortName: x => (x && x.remainingMetric === 'distance') ?
-        'Dist<small> (event)</small>' : 'Dist<small> (session)</small>',
+    id: 'ev-dst', // legacy id, is essentially ev-progress now
+    format: x => x.state ?
+        x.remainingMetric === 'distance' ?
+            `${H.distance(x.remainingEnd - x.remaining, {suffix: true, html: true})}<small> / ` +
+                `${H.distance(x.remainingEnd, {suffix: true, html: true})}</small>` :
+            x.remainingMetric === 'time' ?
+                `${fmtDur(x.remainingEnd - x.remaining)}<small> / ${fmtDur(x.remainingEnd)}</small>` :
+                H.distance(x.state.eventDistance, {suffix: true, html: true}) :
+        '-',
+    tooltip: 'Event, Route or Session progress',
+    longName: x => x?.remainingType === 'event' ?
+        'Event Progress' :
+        x?.remainingType === 'route' ?
+            'Route Progress' :
+            x ?
+                'Progress' :
+                'Event/Route Progress',
+    shortName: x => x?.remainingType === 'event' ?
+        'Event <ms>sports_score</ms>' :
+        x?.remainingType === 'route' ?
+            'Route <ms>sports_score</ms>' :
+            x ?
+                'Dist' :
+                '<ms>sports_score</ms>'
 }, {
     id: 'dst',
     format: x => H.distance(x.state && x.state.distance),
@@ -752,10 +774,8 @@ export const courseFields = [{
     id: 'rt-name',
     format: x => {
         const sg = common.getEventSubgroup(x.state?.eventSubgroupId);
-        if (!sg || sg instanceof Promise) {
-            return '-';
-        }
-        const route = common.getRoute(sg ? sg.routeId : x.state?.routeId);
+        const routeId = sg?.routeId || x.state?.routeId;
+        const route = routeId && common.getRoute(routeId);
         if (route && !(route instanceof Promise)) {
             const icon = ' <ms>route</ms>';
             if (sg) {
