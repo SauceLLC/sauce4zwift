@@ -554,13 +554,21 @@ export const groupSpecs = {
             suffix: x => eventMetric === 'distance' ? fmtDistUnit(x && x.remaining) : '',
         }, {
             id: 'ev-dst',
-            format: x => fmtDistValue(x.state && x.state.eventDistance),
-            label: 'dist',
-            shortName: 'Dist',
-            suffix: x => fmtDistUnit(x && x.state && x.state.eventDistance),
+            format: x => fmtDistValue(x.remainingMetric === 'distance' ?
+                x.remainingEnd - x.remaining :
+                x.state?.eventDistance),
+            label: x => x?.state?.eventSubgroupId ? 'ev dist' :
+                x?.state?.routeId ?
+                    'rt dist' :
+                    'dist',
+            shortName: x => x?.state?.eventSubgroupId ? 'Ev Dist' :
+                x?.state?.routeId ?
+                    'RT Dist' :
+                    'Dist',
+            suffix: x => fmtDistUnit(x?.state?.eventDistance),
         }, {
             id: 'ev-time',
-            format: x => fmtDur(x.state && x.state.time),
+            format: x => fmtDur(x?.state?.time),
             label: 'time',
             shortName: 'Time',
         }]
