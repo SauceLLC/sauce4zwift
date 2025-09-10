@@ -1057,7 +1057,12 @@ export class Renderer {
                                 option.selected = true;
                             }
                             option.value = x.id;
-                            option.textContent = stripHTML(x.longName ? fGet(x.longName) : fGet(x.shortName));
+                            try {
+                                option.textContent = stripHTML(fGet(x.longName) || fGet(x.shortName));
+                            } catch(e) {
+                                option.textContent = stripHTML(x.id);
+                                report.errorThrottled(e);
+                            }
                             container.append(option);
                         }
                     }
@@ -1088,13 +1093,16 @@ export class Renderer {
 
     setFieldTooltip(mappingId) {
         const field = this.fields.get(mappingId);
-        const tooltip = field.active?.tooltip ? fGet(field.active.tooltip) + '\n\n' : '';
+        let tooltip;
         try {
-            field.el.title = `${tooltip}Long click/press to change this field or use ` +
-                `the Left/Right keys when focused.`;
+            tooltip = fGet(field.active?.tooltip) ||
+                fGet(field.active?.longName) ||
+                fGet(field.active?.shortName);
         } catch(e) {
             console.error("Failed to get tooltip name for next field:", mappingId, e);
         }
+        field.el.title = (tooltip ? tooltip + '\n\n' : '') +
+            `Long click/press to change this field or use the Left/Right keys when focused.`;
     }
 
     schedAnimationFrame(cb) {
