@@ -565,7 +565,9 @@ export const groupSpecs = {
                 x?.state?.routeId ?
                     'RT Dist' :
                     'Dist',
-            suffix: x => fmtDistUnit(x?.state?.eventDistance),
+            suffix: x => fmtDistUnit(x?.remainingMetric === 'distance' ?
+                x.remainingEnd - x.remaining :
+                x?.state?.eventDistance),
         }, {
             id: 'ev-time',
             format: x => fmtDur(x?.state?.time),
