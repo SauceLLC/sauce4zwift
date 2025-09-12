@@ -1,4 +1,4 @@
-/* global setImmediate, Buffer */
+/* global Buffer */
 import events from 'node:events';
 import path from 'node:path';
 import {createRequire} from 'node:module';
@@ -636,6 +636,8 @@ export class StatsProcessor extends events.EventEmitter {
             this._customPowerZones = null;
         }
         this._gmapTileCache = new Map();
+        this._athleteSubs = new Map();
+        this._routeInternalMeta = new Map();
         rpc.register(this.getPowerZones, {scope: this});
         rpc.register(this.updateAthlete, {scope: this});
         rpc.register(this.startLap, {scope: this});
@@ -688,7 +690,6 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.getWorkoutCollections, {scope: this});
         rpc.register(this.getWorkoutSchedule, {scope: this});
         rpc.register(this.getQueue, {scope: this}); // XXX ambiguous name
-        this._athleteSubs = new Map();
         if (options.gameConnection) {
             const gc = options.gameConnection;
             gc.on('status', ({connected}) => this.onGameConnectionStatusChange(connected));
@@ -699,6 +700,46 @@ export class StatsProcessor extends events.EventEmitter {
         if (options.debugGameFields) {
             this._formatState = this._formatStateDebug;
         }
+    }
+
+    _getRouteMeta(routeId) {
+        if (!this._routeInternalMeta.has(routeId)) {
+            const route = env.getRoute(routeId);
+            if (!route) {
+                console.warn("Route not found:", routeId);
+                return;
+            }
+            const meta = {};
+            meta.sections = env.getRouteRoadSections(route);
+            meta.checkpointSectionMap = new Map();
+            const lastLeadin = meta.sections[meta.sections.findIndex(x => !x.leadin && !x.weld) - 1];
+            if (lastLeadin) {
+                meta.leadinDistance = lastLeadin.blockOffsetDistance + lastLeadin.distance +
+                    lastLeadin.marginEndDistance;
+            } else {
+                meta.leadinDistance = 0;
+            }
+            const lastNormal = meta.sections.findLast(x => !x.weld && !x.leadin);
+            meta.lapDistance = lastNormal.blockOffsetDistance + lastNormal.distance;
+            const lastEntry = meta.sections.at(-1);
+            if (lastEntry.weld) {
+                meta.weldDistance = lastNormal.marginEndDistance +
+                    lastEntry.blockOffsetDistance +
+                    lastEntry.distance +
+                    lastEntry.marginEndDistance;
+            } else {
+                meta.weldDistance = 0;
+            }
+            for (const [i, m] of route.manifest.entries()) {
+                if (m.checkpoints) {
+                    for (let idx = m.checkpoints[0]; idx <= m.checkpoints[1]; idx++) {
+                        meta.checkpointSectionMap.set(idx, meta.sections[i]);
+                    }
+                }
+            }
+            this._routeInternalMeta.set(routeId, meta);
+        }
+        return this._routeInternalMeta.get(routeId);
     }
 
     async fileReplayLoad(info) {
@@ -3064,7 +3105,6 @@ export class StatsProcessor extends events.EventEmitter {
 
     _getRoadDistance({courseId, roadId}, start, end) {
         if (end < start) {
-            if (start - end > 0.02) debugger;
             return 0;
         }
         const roadPath = env.getRoadCurvePath(courseId, roadId);
@@ -3203,10 +3243,10 @@ export class StatsProcessor extends events.EventEmitter {
             event: route.leadinDistanceInMeters,
             meetup: route.meetupLeadinDistanceInMeters,
             freeride: route.freeRideLeadinDistanceInMeters,
-        }[leadinType];
-        return (leadin || 0) +
-            (route.distanceInMeters * (laps || 1)) -
-            (route.distanceBetweenFirstLastLrCPsInMeters || 0);
+        }[leadinType] ?? route.defaultLeadinDistanceInMeters;
+        return (leadin || 0) -
+            (route.distanceBetweenFirstLastLrCPsInMeters || 0) +
+            (route.distanceInMeters * (laps || 1));
     }
 
     getRouteClimbing(routeId, laps=1, leadinType) {
@@ -3221,10 +3261,10 @@ export class StatsProcessor extends events.EventEmitter {
             event: route.leadinAscentInMeters,
             meetup: route.meetupLeadinAscentInMeters,
             freeride: route.freeRideLeadinAscentInMeters,
-        }[leadinType];
-        return (leadin || 0) +
-            (route.ascentInMeters * (laps || 1)) -
-            (route.ascentBetweenFirstLastLrCPsInMeters || 0);
+        }[leadinType] ?? route.defaultLeadinAscentInMeters;
+        return (leadin || 0) -
+            (route.ascentBetweenFirstLastLrCPsInMeters || 0) +
+            (route.ascentInMeters * (laps || 1));
     }
 
     _getEventOrRouteInfo(state) {
@@ -3239,6 +3279,7 @@ export class StatsProcessor extends events.EventEmitter {
                     remaining: (sg.endTS - worldTimer.serverNow()) / 1000,
                     remainingMetric: 'time',
                     remainingType: 'event',
+                    remainingEnd: sg.endTS,
                 };
             } else {
                 return {
@@ -3247,17 +3288,140 @@ export class StatsProcessor extends events.EventEmitter {
                     remaining: sg.endDistance - state.eventDistance,
                     remainingMetric: 'distance',
                     remainingType: 'event',
+                    remainingEnd: sg.endDistance,
                 };
             }
-        } else if (state.routeId != null) {
+        } else if (state.routeId) {
             const route = env.getRoute(state.routeId);
-            if (route) {
-                const distance = this._getRouteDistance(route, 1, 'freeride');
-                return {
-                    remaining: distance - (state.progress * distance),
-                    remainingMetric: 'distance',
-                    remainingType: 'route',
-                };
+            if (!route) {
+                return;
+            }
+            const ad = this._athleteData.get(state.athleteId);
+            const cache = ad?._routeRemainingInfoCache;
+            const sig = `${state.routeId}-${state.roadId}-${state.reverse}-${state.routeCheckpointIndex}`;
+            // Fast path using cache when sensible...
+            if (cache && cache.sig === sig) {
+                if (cache.roadTime === state.roadTime) {
+                    return cache.entry;
+                } else {
+                    const deltaDist = state.distance - cache.distance;
+                    if (deltaDist < 200 && state.worldTime - cache.worldTime < 5000) {
+                        return {
+                            remaining: cache.entry.remaining - deltaDist,
+                            remainingMetric: 'distance',
+                            remainingType: 'route',
+                            remainingEnd: cache.entry.remainingEnd,
+                        };
+                    }
+                }
+            }
+            const meta = this._getRouteMeta(state.routeId);
+            const preludeDist = state.laps ? meta.weldDistance : meta.leadinDistance;
+            let curDist;
+            if (state.routeCheckpointIndex) {
+                // Normal route section...
+                let s = meta.checkpointSectionMap.get(state.routeCheckpointIndex);
+                let d = s ? this._getRoadSectionDistanceOffset(s, state) : null;
+                if (d == null && s) {
+                    // Sometimes the routeCheckpointIndex lags..
+                    const refIdx = meta.sections.indexOf(s);
+                    s = meta.sections[refIdx + 1];
+                    d = s ? this._getRoadSectionDistanceOffset(s, state) : null;
+                    if (d == null && s) {
+                        s = meta.sections[refIdx + 2];
+                        d = s ? this._getRoadSectionDistanceOffset(s, state) : null;
+                    }
+                }
+                if (d != null) {
+                    curDist = d + s.blockOffsetDistance + preludeDist;
+                }
+            } else {
+                const leadinDist = (route.freeRideLeadinDistanceInMeters ??
+                    route.defaultLeadinDistanceInMeters) || 0;
+                let s;
+                let d;
+                // Do use eventDistance here because in the case of teleport/join-bots leadin is bypassed
+                // and only eventDistance is jumped to the non leadin values.
+                if (state.eventDistance <= leadinDist + route.distanceInMeters / 2) {
+                    for (let i = 0; d == null && i < meta.sections.length; i++) {
+                        s = meta.sections[i];
+                        if (!s.leadin) {
+                            break;
+                        }
+                        d = this._getRoadSectionDistanceOffset(s, state);
+                    }
+                } else {
+                    for (let i = meta.sections.length - 1; d == null && i >= 0; i--) {
+                        s = meta.sections[i];
+                        if (!s.weld) {
+                            break;
+                        }
+                        d = this._getRoadSectionDistanceOffset(s, state);
+                    }
+                }
+                if (d != null) {
+                    curDist = d + s.blockOffsetDistance;
+                }
+            }
+            if (curDist === undefined) {
+                if (cache && cache.routeId === state.routeId) {
+                    // final effort, widen cache usage...
+                    const deltaDist = state.distance - cache.distance;
+                    if (deltaDist < 1000 && state.worldTime - cache.worldTime < 30_000) {
+                        return {
+                            remaining: cache.entry.remaining - deltaDist,
+                            remainingMetric: 'distance',
+                            remainingType: 'route',
+                            remainingEnd: cache.entry.remainingEnd,
+                        };
+                    }
+                }
+                return;
+            }
+            const lapDist = preludeDist + meta.lapDistance;
+            const entry = {
+                remaining: lapDist - curDist,
+                remainingMetric: 'distance',
+                remainingType: 'route',
+                remainingEnd: lapDist,
+            };
+            ad._routeRemainingInfoCache = {
+                sig,
+                routeId: state.routeId,
+                roadTime: state.roadTime,
+                distance: state.distance,  // eventDistance is unreliable at large sizes (i.e joining a bot)
+                worldTime: state.worldTime,
+                entry,
+            };
+            return entry;
+        }
+    }
+
+    _getRoadSectionDistanceOffset(roadSection, state, {outOfBoundsDistance=200}={}) {
+        if (roadSection.courseId !== state.courseId ||
+            roadSection.roadId !== state.roadId ||
+            !roadSection.reverse !== !state.reverse ||
+            !roadSection.roadCurvePath) {
+            return;
+        }
+        const {0: start, 1: end} = roadSection.roadCurvePath.rangeAsRoadTime();
+        if (state.roadTime >= start && state.roadTime <= end) {
+            const d = roadSection.roadCurvePath.distanceAtRoadTime(state.roadTime) / 100;
+            return roadSection.reverse ? roadSection.distance - d : d;
+        } else if (outOfBoundsDistance) {
+            const roadPath = env.getRoadCurvePath(state.courseId, state.roadId);
+            if (state.roadTime < start) {
+                const gap = roadPath.subpathAtRoadTimes(state.roadTime, start)
+                    .distance(roadSection.roadCurvePath.epsilon) / 100;
+                if (gap < outOfBoundsDistance) {
+                    return roadSection.reverse ? roadSection.distance + gap: -gap;
+                }
+            } else {
+                const gap = roadPath.subpathAtRoadTimes(end, state.roadTime)
+                    .distance(roadSection.roadCurvePath.epsilon) / 100;
+                if (gap < outOfBoundsDistance) {
+                    return roadSection.reverse ? -gap: roadSection.distance + gap;
+                }
             }
         }
     }
