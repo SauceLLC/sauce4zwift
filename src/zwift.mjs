@@ -261,9 +261,7 @@ export function processPlayerStateMessage(msg) {
     const latency = worldTimer.now() - wt;
     const adjRoadLoc = msg.roadTime - 5000;  // It's 5,000 -> 1,005,000
     const progress = (msg._progress >> 8 & 0xff) / 0xff;
-    // Route ID can be stale in a few situations.  This may change but so far it looks like when
-    // progress hits 100% and routeProgess rollsover to 0 the route is no longer correct.
-    const routeId = msg.portal ? undefined : msg.routeId || undefined;
+    const routeId = msg.portal ? undefined : (msg.routeId || undefined);
     return {
         ...msg,
         ...flags1,
