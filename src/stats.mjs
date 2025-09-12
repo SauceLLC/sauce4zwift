@@ -2796,10 +2796,6 @@ export class StatsProcessor extends events.EventEmitter {
                 if (rt) {
                     sg.routeDistance = this._getRouteDistance(rt, sg.laps);
                     sg.routeClimbing = this._getRouteClimbing(rt, sg.laps);
-                    sg.segmentProjections = env.projectRouteSegments(rt, {
-                        distance: sg.distanceInMeters,
-                        laps: sg.laps,
-                    });
                 }
                 if (sg.durationInSeconds) {
                     sg.endTS = sg.ts + sg.durationInSeconds * 1000;
@@ -2828,10 +2824,6 @@ export class StatsProcessor extends events.EventEmitter {
         if (rt) {
             meetup.courseId = rt.courseId;
             meetup.mapId = rt.worldId;
-            meetup.segmentProjections = env.projectRouteSegments(rt, {
-                distance: meetup.distanceInMeters,
-                laps: meetup.laps,
-            });
         } else {
             console.warn("Meetup has no decernable route", meetup);
         }

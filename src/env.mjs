@@ -53,7 +53,6 @@ try {
         }
     }
     for (const x of readRoutes()) {
-        x.segmentProjections = projectRouteSegments(x);
         _routes.set(x.id, x);
     }
 } catch(e) {
@@ -518,11 +517,7 @@ export function projectRouteSegments(route, {laps=1, distance, epsilon=routeDist
 
 
 export function getRoute(routeId) {
-    const route = _routes.get(routeId);
-    if (route && !route.segmentProjections) {
-        route.segmentProjections = projectRouteSegments(route);
-    }
-    return route;
+    return _routes.get(routeId);
 }
 
 
