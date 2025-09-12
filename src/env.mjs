@@ -14,6 +14,7 @@ const _roadsByCourse = new Map();
 const _roadCurvePaths = new Map();
 const routeDistEpsilon = 1 / 200;
 const _routeSegmentCache = new Map();
+const _coursesByWorld = new Map();
 
 export const realWorldCourseId = -2;
 export const worldMetas = {
@@ -38,10 +39,13 @@ export const worldMetas = {
         mapScale: 4096, // XXX
     }
 };
+_coursesByWorld.set(realWorldCourseId, worldMetas[realWorldCourseId]);
+
 try {
     const worldListFile = path.join(__dirname, `../shared/deps/data/worldlist.json`);
     for (const x of JSON.parse(fs.readFileSync(worldListFile))) {
         worldMetas[x.courseId] = x;
+        _coursesByWorld.set(x.worldId, x);
         const segments = readSegmentsForWorld(x.worldId);
         _segmentsByCourse.set(x.courseId, segments);
         for (const x of segments) {
@@ -64,20 +68,20 @@ export function getWorldMetas() {
 
 
 export function getCourseId(worldId) {
-    return Object.values(worldMetas).find(x => x.worldId === worldId)?.courseId;
+    return _coursesByWorld.get(worldId)?.courseId;
 }
 
 
 export function getRoadSig(courseId, roadId, reverse) {
-    return courseId << 18 | roadId << 1 | reverse;
+    return roadId << 9 | courseId << 1 | (reverse ? 1 : 0);
 }
 
 
 export function fromRoadSig(roadSig) {
     return {
-        courseId: roadSig >>> 18,
-        roadId: (roadSig >>> 1) & 0x3fff,
-        reverse: !!(roadSig & 0x1),
+        roadId: roadSig >>> 9,
+        courseId: roadSig >>> 1 & 0xff,
+        reverse: Boolean(roadSig & 0x1),
     };
 }
 
@@ -194,24 +198,21 @@ export function getRoad(courseId, roadId) {
     if (roadId >= 10000) {
         courseId = 'portal';
     }
-    const sig = `${courseId}-${roadId}`;
-    if (!_roads.has(sig)) {
-        const road = getCourseRoads(courseId).find(x => x.id === roadId);
-        if (road) {
-            _roads.set(sig, road);
-        } else {
-            _roads.set(sig, null);
-        }
+    const sig = getRoadSig(courseId, roadId);
+    let road = _roads.get(sig);
+    if (!road) {
+        road = getCourseRoads(courseId).find(x => x.id === roadId) || null;
+        _roads.set(sig, road);
     }
-    return _roads.get(sig);
+    return road;
 }
 
 
-export function getRoadCurvePath(courseId, roadId, options) {
-    const sig = `${courseId}-${roadId}`;
-    if (!_roadCurvePaths.has(sig)) {
+export function getRoadCurvePath(courseId, roadId) {
+    const sig = getRoadSig(courseId, roadId);
+    let rcp = _roadCurvePaths.get(sig);
+    if (!rcp) {
         const road = getRoad(courseId, roadId);
-        let rcp;
         if (!road) {
             rcp = null;
         } else {
@@ -219,11 +220,11 @@ export function getRoadCurvePath(courseId, roadId, options) {
                 CatmullRom: curves.catmullRomPath,
                 Bezier: curves.cubicBezierPath,
             }[road.splineType];
-            rcp = curveFunc(road.path, {loop: road.looped, road: true, ...options});
+            rcp = curveFunc(road.path, {loop: road.looped, road: true});
         }
         _roadCurvePaths.set(sig, rcp);
     }
-    return _roadCurvePaths.get(sig);
+    return rcp;
 }
 
 
@@ -268,12 +269,13 @@ function readRoutes() {
 
 export function getRouteRoadSections(route, {epsilon=routeDistEpsilon}={}) {
     const sections = route.manifest.map(x => ({
+        courseId: route.courseId,
         roadId: x.roadId,
         reverse: !!x.reverse,
         leadin: !!x.leadin,
         weld: false,
-        roadCurvePath: getRoadCurvePath(route.courseId, x.roadId, {epsilon})
-            .subpathAtRoadPercents(x.start, x.end),
+        roadCurvePath: getRoadCurvePath(route.courseId, x.roadId)
+            .subpathAtRoadPercents(x.start, x.end, {epsilon}),
         distance: 0,
         blockOffsetDistance: 0,
         marginStartDistance: 0,
@@ -316,8 +318,9 @@ export function getRouteRoadSections(route, {epsilon=routeDistEpsilon}={}) {
         if (lapStart.roadId !== lapEnd.roadId || lapStart.reverse !== lapEnd.reverse) {
             console.warn("Unable to properly weld lap together for:", route.id);
             const startNode = sections[route.manifest.indexOf(lapStart)].roadCurvePath.nodes[0].end;
-            const endNode = sections.at(-1).nodes.at(-1).roadCurvePath.end;
+            const endNode = sections.at(-1).roadCurvePath.nodes.at(-1).end;
             sections.push({
+                courseId: route.courseId,
                 roadId: null,
                 reverse: null,
                 leadin: false,
@@ -338,13 +341,14 @@ export function getRouteRoadSections(route, {epsilon=routeDistEpsilon}={}) {
                 end = lapStart.end;
             }
             if (Math.abs(start - end) > 1e-4) {
-                const road = getRoadCurvePath(route.courseId, lapStart.roadId, {epsilon});
+                const road = getRoadCurvePath(route.courseId, lapStart.roadId);
                 if (start > end) {
-                    const w1 = road.subpathAtRoadPercents(start, 1);
-                    const w2 = road.subpathAtRoadPercents(0, end);
+                    const w1 = road.subpathAtRoadPercents(start, 1, {epsilon});
+                    const w2 = road.subpathAtRoadPercents(0, end, {epsilon});
                     const w1Dist = w1.distance() / 100;
                     const w2Dist = w2.distance() / 100;
                     sections.push({
+                        courseId: route.courseId,
                         roadId: lapStart.roadId,
                         reverse: !!lapStart.reverse,
                         leadin: false,
@@ -355,6 +359,7 @@ export function getRouteRoadSections(route, {epsilon=routeDistEpsilon}={}) {
                         marginStartDistance: 0,
                         marginEndDistance: 0,
                     }, {
+                        courseId: route.courseId,
                         roadId: lapStart.roadId,
                         reverse: !!lapStart.reverse,
                         leadin: false,
@@ -366,9 +371,10 @@ export function getRouteRoadSections(route, {epsilon=routeDistEpsilon}={}) {
                         marginEndDistance: 0,
                     });
                 } else {
-                    const w = road.subpathAtRoadPercents(start, end);
+                    const w = road.subpathAtRoadPercents(start, end, {epsilon});
                     const wDist = w.distance() / 100;
                     sections.push({
+                        courseId: route.courseId,
                         roadId: lapStart.roadId,
                         reverse: !!lapStart.reverse,
                         leadin: false,
@@ -393,8 +399,8 @@ export function projectRouteSegments(route, {laps=1, distance, epsilon=routeDist
     if (!state) {
         _routeSegmentCache.set(route.id, (state = {}));
         const roadSlices = route.manifest.map(x =>
-            getRoadCurvePath(route.courseId, x.roadId).subpathAtRoadPercents(x.start, x.end));
-        const fullPath = new curves.CurvePath();
+            getRoadCurvePath(route.courseId, x.roadId).subpathAtRoadPercents(x.start, x.end, {epsilon}));
+        const fullPath = new curves.CurvePath({epsilon});
         state.routeSegments = [];
         state.leadinDist = 0;
         state.lapWeldDistance = 0;
@@ -404,7 +410,7 @@ export function projectRouteSegments(route, {laps=1, distance, epsilon=routeDist
             if (i) {
                 fullPath.extend(m.reverse ? road.slice(-1) : road.slice(0, 1));
             }
-            const distBefore = fullPath.distance(epsilon) / 100;
+            const distBefore = fullPath.distance() / 100;
             if (!state.leadinDist && hasLeadin && !m.leadin) {
                 state.leadinDist = distBefore;
             }
@@ -413,14 +419,14 @@ export function projectRouteSegments(route, {laps=1, distance, epsilon=routeDist
                 let distAfter;
                 for (const id of m.segmentIds) {
                     const segment = getSegment(id);
-                    const start = road.distanceAtRoadPercent(segment.roadStart, epsilon) / 100;
-                    const end = road.distanceAtRoadPercent(segment.roadFinish, epsilon) / 100;
+                    const start = road.distanceAtRoadPercent(segment.roadStart) / 100;
+                    const end = road.distanceAtRoadPercent(segment.roadFinish) / 100;
                     let startDistance, endDistance;
                     if (!segment.reverse) {
                         startDistance = distBefore + start;
                         endDistance = distBefore + end;
                     } else {
-                        distAfter = distAfter || fullPath.distance(epsilon) / 100;
+                        distAfter = distAfter || fullPath.distance() / 100;
                         startDistance = distAfter - start;
                         endDistance = distAfter - end;
                     }
@@ -429,7 +435,7 @@ export function projectRouteSegments(route, {laps=1, distance, epsilon=routeDist
             }
         }
         if (route.supportedLaps) {
-            state.lapDist = (fullPath.distance(epsilon) / 100) - state.leadinDist;
+            state.lapDist = (fullPath.distance() / 100) - state.leadinDist;
             /*
              * Handle cases where route data does not properly weld the lap together
              *
@@ -459,14 +465,14 @@ export function projectRouteSegments(route, {laps=1, distance, epsilon=routeDist
                     const road = getRoadCurvePath(route.courseId, lapStart.roadId);
                     let connection;
                     if (start > end) {
-                        const joiner = new curves.CurvePath();
+                        const joiner = new curves.CurvePath({epsilon});
                         joiner.extend(road.subpathAtRoadPercents(start, 1));
                         joiner.extend(road.subpathAtRoadPercents(0, end));
                         connection = joiner;
                     } else {
-                        connection = road.subpathAtRoadPercents(start, end);
+                        connection = road.subpathAtRoadPercents(start, end, {epsilon});
                     }
-                    state.lapWeldDistance = connection.distance(epsilon) / 100;
+                    state.lapWeldDistance = connection.distance() / 100;
                 }
             }
         }
