@@ -30,7 +30,6 @@
     "lossless-json": "4.1.1",
     "node-stream-zip": "1.15.0",
     "protobufjs": "7.4.0",
-    "sleep": "6.3.0",
     "xxhash-addon": "2.0.3"
   },
   "optionalDependencies": {
