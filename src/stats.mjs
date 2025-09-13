@@ -1925,17 +1925,7 @@ export class StatsProcessor extends events.EventEmitter {
         const states = new Array(this._pendingEgressStates.size);
         let i = 0;
         for (const x of this._pendingEgressStates.values()) {
-            const s = this._formatState(x);
-            if (x.eventSubgroupId || x.routeId) {
-                const o = this._getEventOrRouteInfo(x);
-                if (o) {
-                    s.remaining = o.remaining;
-                    s.remainingMetric = o.remainingMetric;
-                    s.remainingType = o.remainingType;
-                    s.remainingEnd = o.remainingEnd;
-                }
-            }
-            states[i++] = s;
+            states[i++] = this._formatState(x);
         }
         this._pendingEgressStates.clear();
         this._lastEgressStates = monotonic();
@@ -2445,6 +2435,139 @@ export class StatsProcessor extends events.EventEmitter {
             }
         } else {
             state.grade = 0;
+        }
+        if (state.routeId) {
+            const entry = this._computeRouteDistance(state, ad);
+            if (entry) {
+                state.routeDistance = entry.routeDistance;
+                state.routeEnd = entry.routeEnd;
+            }
+        }
+    }
+
+    _computeRouteDistance(state, ad) {
+        const route = env.getRoute(state.routeId);
+        if (!route) {
+            return;
+        }
+        const cache = ad._routeRemainingInfoCache;
+        const sig = `${state.routeId}-${state.roadId}-${state.reverse}-${state.routeCheckpointIndex}`;
+        // Fast path using cache when sensible...
+        if (cache && cache.sig === sig) {
+            if (cache.roadTime === state.roadTime) {
+                return cache.entry;
+            } else {
+                const deltaDist = state.distance - cache.distance;
+                if (deltaDist < 200 && state.worldTime - cache.worldTime < 5000) {
+                    return {
+                        routeDistance: cache.entry.routeDistance + deltaDist,
+                        routeEnd: cache.entry.routeEnd,
+                    };
+                }
+            }
+        }
+        const meta = this._getRouteMeta(state.routeId);
+        const preludeDist = state.laps ? meta.weldDistance : meta.leadinDistance;
+        let routeDistance;
+        if (state.routeCheckpointIndex) {
+            // Normal route section...
+            let s = meta.checkpointSectionMap.get(state.routeCheckpointIndex);
+            let d = s ? this._getRoadSectionDistanceOffset(s, state) : null;
+            if (d == null && s) {
+                // Sometimes the routeCheckpointIndex lags..
+                const refIdx = meta.sections.indexOf(s);
+                s = meta.sections[refIdx + 1];
+                d = s ? this._getRoadSectionDistanceOffset(s, state) : null;
+                if (d == null && s) {
+                    s = meta.sections[refIdx + 2];
+                    d = s ? this._getRoadSectionDistanceOffset(s, state) : null;
+                }
+            }
+            if (d != null) {
+                routeDistance = d + s.blockOffsetDistance + preludeDist;
+            }
+        } else {
+            const leadinDist = (route.freeRideLeadinDistanceInMeters ??
+                route.defaultLeadinDistanceInMeters) || 0;
+            let s;
+            let d;
+            // Do use eventDistance here because in the case of teleport/join-bots leadin is bypassed
+            // and only eventDistance is jumped to the non leadin values.
+            if (state.eventDistance <= leadinDist + route.distanceInMeters / 2) {
+                for (let i = 0; d == null && i < meta.sections.length; i++) {
+                    s = meta.sections[i];
+                    if (!s.leadin) {
+                        break;
+                    }
+                    d = this._getRoadSectionDistanceOffset(s, state);
+                }
+            } else {
+                for (let i = meta.sections.length - 1; d == null && i >= 0; i--) {
+                    s = meta.sections[i];
+                    if (!s.weld) {
+                        break;
+                    }
+                    d = this._getRoadSectionDistanceOffset(s, state);
+                }
+            }
+            if (d != null) {
+                routeDistance = d + s.blockOffsetDistance;
+            }
+        }
+        if (routeDistance === undefined) {
+            if (cache && cache.routeId === state.routeId) {
+                // last resort, widen cache usage...
+                const deltaDist = state.distance - cache.distance;
+                if (deltaDist < 1000 && state.worldTime - cache.worldTime < 30_000) {
+                    return {
+                        routeDistance: cache.entry.routeDistance + deltaDist,
+                        routeEnd: cache.entry.routeEnd,
+                    };
+                }
+            }
+        } else {
+            const entry = {
+                routeDistance,
+                routeEnd: preludeDist + meta.lapDistance,
+            };
+            ad._routeRemainingInfoCache = {
+                sig,
+                routeId: state.routeId,
+                roadTime: state.roadTime,
+                distance: state.distance,  // eventDistance is unreliable at large sizes (i.e joining a bot)
+                worldTime: state.worldTime,
+                entry,
+            };
+            return entry;
+        }
+    }
+
+    _getRoadSectionDistanceOffset(roadSection, state, {outOfBoundsDistance=200}={}) {
+        if (roadSection.courseId !== state.courseId ||
+            roadSection.roadId !== state.roadId ||
+            !roadSection.reverse !== !state.reverse ||
+            !roadSection.roadCurvePath) {
+            return;
+        }
+        const {0: start, 1: end} = roadSection.roadCurvePath.rangeAsRoadTime();
+        if (state.roadTime >= start && state.roadTime <= end) {
+            const d = roadSection.roadCurvePath.distanceAtRoadTime(state.roadTime) / 100;
+            return roadSection.reverse ? roadSection.distance - d : d;
+        } else if (outOfBoundsDistance) {
+            const roadPath = env.getRoadCurvePath(state.courseId, state.roadId);
+            if (state.roadTime < start) {
+                const gap = roadPath.subpathAtRoadTimes(state.roadTime, start)
+                    .distance(roadSection.roadCurvePath.epsilon) / 100;
+                if (gap < outOfBoundsDistance) {
+                    return roadSection.reverse ? roadSection.distance + gap: -gap;
+                }
+            } else {
+                const gap = roadPath.subpathAtRoadTimes(end, state.roadTime)
+                    .distance(roadSection.roadCurvePath.epsilon) / 100;
+                if (gap < outOfBoundsDistance) {
+                    return roadSection.reverse ? -gap: roadSection.distance + gap;
+                }
+            }
         }
     }
 
@@ -3276,138 +3399,13 @@ export class StatsProcessor extends events.EventEmitter {
                     remainingEnd: sg.endDistance,
                 };
             }
-        } else if (state.routeId) {
-            const route = env.getRoute(state.routeId);
-            if (!route) {
-                return;
-            }
-            const ad = this._athleteData.get(state.athleteId);
-            const cache = ad?._routeRemainingInfoCache;
-            const sig = `${state.routeId}-${state.roadId}-${state.reverse}-${state.routeCheckpointIndex}`;
-            // Fast path using cache when sensible...
-            if (cache && cache.sig === sig) {
-                if (cache.roadTime === state.roadTime) {
-                    return cache.entry;
-                } else {
-                    const deltaDist = state.distance - cache.distance;
-                    if (deltaDist < 200 && state.worldTime - cache.worldTime < 5000) {
-                        return {
-                            remaining: cache.entry.remaining - deltaDist,
-                            remainingMetric: 'distance',
-                            remainingType: 'route',
-                            remainingEnd: cache.entry.remainingEnd,
-                        };
-                    }
-                }
-            }
-            const meta = this._getRouteMeta(state.routeId);
-            const preludeDist = state.laps ? meta.weldDistance : meta.leadinDistance;
-            let curDist;
-            if (state.routeCheckpointIndex) {
-                // Normal route section...
-                let s = meta.checkpointSectionMap.get(state.routeCheckpointIndex);
-                let d = s ? this._getRoadSectionDistanceOffset(s, state) : null;
-                if (d == null && s) {
-                    // Sometimes the routeCheckpointIndex lags..
-                    const refIdx = meta.sections.indexOf(s);
-                    s = meta.sections[refIdx + 1];
-                    d = s ? this._getRoadSectionDistanceOffset(s, state) : null;
-                    if (d == null && s) {
-                        s = meta.sections[refIdx + 2];
-                        d = s ? this._getRoadSectionDistanceOffset(s, state) : null;
-                    }
-                }
-                if (d != null) {
-                    curDist = d + s.blockOffsetDistance + preludeDist;
-                }
-            } else {
-                const leadinDist = (route.freeRideLeadinDistanceInMeters ??
-                    route.defaultLeadinDistanceInMeters) || 0;
-                let s;
-                let d;
-                // Do use eventDistance here because in the case of teleport/join-bots leadin is bypassed
-                // and only eventDistance is jumped to the non leadin values.
-                if (state.eventDistance <= leadinDist + route.distanceInMeters / 2) {
-                    for (let i = 0; d == null && i < meta.sections.length; i++) {
-                        s = meta.sections[i];
-                        if (!s.leadin) {
-                            break;
-                        }
-                        d = this._getRoadSectionDistanceOffset(s, state);
-                    }
-                } else {
-                    for (let i = meta.sections.length - 1; d == null && i >= 0; i--) {
-                        s = meta.sections[i];
-                        if (!s.weld) {
-                            break;
-                        }
-                        d = this._getRoadSectionDistanceOffset(s, state);
-                    }
-                }
-                if (d != null) {
-                    curDist = d + s.blockOffsetDistance;
-                }
-            }
-            if (curDist === undefined) {
-                if (cache && cache.routeId === state.routeId) {
-                    // final effort, widen cache usage...
-                    const deltaDist = state.distance - cache.distance;
-                    if (deltaDist < 1000 && state.worldTime - cache.worldTime < 30_000) {
-                        return {
-                            remaining: cache.entry.remaining - deltaDist,
-                            remainingMetric: 'distance',
-                            remainingType: 'route',
-                            remainingEnd: cache.entry.remainingEnd,
-                        };
-                    }
-                }
-                return;
-            }
-            const lapDist = preludeDist + meta.lapDistance;
-            const entry = {
-                remaining: lapDist - curDist,
+        } else if (state.routeDistance !== undefined) {
+            return {
+                remaining: state.routeEnd - state.routeDistance,
                 remainingMetric: 'distance',
                 remainingType: 'route',
-                remainingEnd: lapDist,
+                remainingEnd: state.routeEnd,
             };
-            ad._routeRemainingInfoCache = {
-                sig,
-                routeId: state.routeId,
-                roadTime: state.roadTime,
-                distance: state.distance,  // eventDistance is unreliable at large sizes (i.e joining a bot)
-                worldTime: state.worldTime,
-                entry,
-            };
-            return entry;
-        }
-    }
-
-    _getRoadSectionDistanceOffset(roadSection, state, {outOfBoundsDistance=200}={}) {
-        if (roadSection.courseId !== state.courseId ||
-            roadSection.roadId !== state.roadId ||
-            !roadSection.reverse !== !state.reverse ||
-            !roadSection.roadCurvePath) {
-            return;
-        }
-        const {0: start, 1: end} = roadSection.roadCurvePath.rangeAsRoadTime();
-        if (state.roadTime >= start && state.roadTime <= end) {
-            const d = roadSection.roadCurvePath.distanceAtRoadTime(state.roadTime) / 100;
-            return roadSection.reverse ? roadSection.distance - d : d;
-        } else if (outOfBoundsDistance) {
-            const roadPath = env.getRoadCurvePath(state.courseId, state.roadId);
-            if (state.roadTime < start) {
-                const gap = roadPath.subpathAtRoadTimes(state.roadTime, start)
-                    .distance(roadSection.roadCurvePath.epsilon) / 100;
-                if (gap < outOfBoundsDistance) {
-                    return roadSection.reverse ? roadSection.distance + gap: -gap;
-                }
-            } else {
-                const gap = roadPath.subpathAtRoadTimes(end, state.roadTime)
-                    .distance(roadSection.roadCurvePath.epsilon) / 100;
-                if (gap < outOfBoundsDistance) {
-                    return roadSection.reverse ? -gap: roadSection.distance + gap;
-                }
-            }
         }
     }
 
