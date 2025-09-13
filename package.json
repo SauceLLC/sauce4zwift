@@ -119,7 +119,9 @@
       }
     ],
     "win": {
-      "certificateSubjectName": "Sauce, LLC"
+      "signtoolOptions": {
+        "certificateSubjectName": "Sauce, LLC"
+      }
     },
     "mac": {
       "target": {
