@@ -9,7 +9,7 @@ message PlayerState {
     int32 laps = 5;
     int32 _speed = 6; // mm / hour
     int32 roadPosition = 8;  // Horiz, i.e. lane.
-    int32 _cadenceUHz = 9;
+    int32 _cadence = 9;  // revolutions per second * 1e6
     int32 draft = 10;
     int32 heartrate = 11;
     int32 power = 12;
@@ -21,7 +21,7 @@ message PlayerState {
     uint32 _flags1 = 19; // Packed with info parsed in user code
     uint32 _flags2 = 20; // Packed with info parsed in user code
     uint32 _progress = 21; // 16-32 are some sort of inverse mask when set, 8-16 is pct progress, 0 is workout
-    int64 _joinTime = 22; // profile_updated_at ???
+    int64 _unknownTime = 22; // profile_updated_at?  previously called _joinTime
     bool justWatching = 23;
     int32 _mwHours = 24; // milliwatt/hours of energy
     float x = 25;

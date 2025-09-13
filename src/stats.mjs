@@ -1,8 +1,7 @@
-/* global Buffer */
+/* global setImmediate, Buffer */
 import events from 'node:events';
 import path from 'node:path';
 import {createRequire} from 'node:module';
-import sleep from 'sleep';
 import {worldTimer} from './zwift.mjs';
 import {SqliteDatabase, deleteDatabase} from './db.mjs';
 import * as rpc from './rpc.mjs';
@@ -62,36 +61,23 @@ function monotonic() {
 }
 
 
-let _hrSTOLatency = 1;
-const _hrSTOLatencyRoll = expWeightedAvg(10, _hrSTOLatency);
-let _hrUSleepLatency = 100;
-const _hrUSleepLatencyRoll = expWeightedAvg(10, _hrUSleepLatency);
-const _hrMaxMacroCompensation = 4; // ms
-const _hrMaxMicroCompensation = 200; // us
-const _hrMaxMicroSleep = 100; // us
-async function highResSleepTill(deadline, options={}) {
-    // NOTE: V8 can and does wake up early.
-    // NOTE: GC pauses can and will cause delays.
+async function noEarlySleepTill(deadline, options={}) {
+    // V8 can wake up early due to them doing their own latency compensation.
+    // This causes issues for record keeping if we wake up before the expected
+    // boundary which is typically 1000ms.
     let t = monotonic();
-    const macroDelay = Math.round((deadline - t) - _hrSTOLatency);
-    if (macroDelay > 1) {
+    const macroDelay = Math.round(deadline - t);
+    if (macroDelay > 0) {
         await new Promise(r => setTimeout(r, macroDelay));
-        const stoLatency = Math.min(_hrMaxMacroCompensation, (monotonic() - t) - macroDelay);
-        if (stoLatency > 0) {
-            _hrSTOLatency = _hrSTOLatencyRoll(stoLatency);
-        }
         t = monotonic();
     }
     while (t < deadline) {
-        const microDelay = Math.max(0, Math.min(_hrMaxMicroSleep,
-                                                Math.round((deadline - t) * 1000 - _hrUSleepLatency)));
-        sleep.usleep(microDelay);
-        const uSleepLatency = Math.min(_hrMaxMicroCompensation, (monotonic() - t) * 1000 - microDelay);
-        _hrUSleepLatency = _hrUSleepLatencyRoll(uSleepLatency);
-        //console.debug("slept", microDelay, uSleepLatency, _hrUSleepLatency);
+        // setImmediate exists between queueMicrotask and setTimeout(() => {}, 0) in terms
+        // of tight-loopedness, striking a good balance for not oversleeping and not becoming
+        // a spinlock.
+        await new Promise(setImmediate);
         t = monotonic();
     }
-    //console.debug('final', t - deadline, {_hrSTOLatency, _hrUSleepLatency});
     return t;
 }
 
@@ -545,7 +531,7 @@ class ActivityReplay extends events.EventEmitter {
             if (nextTime !== undefined) {
                 const next = (nextTime - this.streams.time[this.position - 1]) * 1000 + monotonic();
                 await Promise.race([
-                    highResSleepTill(next),
+                    noEarlySleepTill(next),
                     this._stopEvent.wait(),
                 ]);
             }
@@ -1935,10 +1921,24 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _flushPendingEgressStates() {
-        const states = Array.from(this._pendingEgressStates.values()).map(x => this._formatState(x));
+        this._timeoutEgressStates = null;
+        const states = new Array(this._pendingEgressStates.size);
+        let i = 0;
+        for (const x of this._pendingEgressStates.values()) {
+            const s = this._formatState(x);
+            if (x.eventSubgroupId || x.routeId) {
+                const o = this._getEventOrRouteInfo(x);
+                if (o) {
+                    s.remaining = o.remaining;
+                    s.remainingMetric = o.remainingMetric;
+                    s.remainingType = o.remainingType;
+                    s.remainingEnd = o.remainingEnd;
+                }
+            }
+            states[i++] = s;
+        }
         this._pendingEgressStates.clear();
         this._lastEgressStates = monotonic();
-        this._timeoutEgressStates = null;
         this.emit('states', states);
     }
 
@@ -3172,11 +3172,10 @@ export class StatsProcessor extends events.EventEmitter {
             if (skipped) {
                 console.warn("States processor skipped:", skipped);
             }
-            await highResSleepTill(target);
+            now = await noEarlySleepTill(target);
             if (this.watching == null) {
                 continue;
             }
-            now = monotonic();
             try {
                 const nearby = this._computeNearby();
                 const groups = this._computeGroups(nearby);
@@ -3196,31 +3195,25 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
-    _formatState(raw, wt) {
-        const o = {};
-        const keys = Object.keys(raw);
-        for (let i = 0; i < keys.length; i++) {
-            const k = keys[i];
-            if (k[0] !== '_') {
-                o[k] = raw[k];
-            }
-        }
-        o.ts = worldTimer.toLocalTime(raw.worldTime);
+    _formatState(raw) {
+        // This is fastest way to hide fields AND maintain JSON.stringify(o) perf.
+        // i.e. avoid `delete o.prop`
+        const o = {...raw};
+        o._flags1 = undefined;
+        o._flags2 = undefined;
+        o._progress = undefined;
+        o._cadence = undefined;
+        o._speed = undefined;
+        o._unknownTime = undefined;
+        o._eventDistance = undefined;
+        o._heading = undefined;
+        o._mwHours = undefined;
         return o;
     }
 
     _formatStateDebug(raw) {
-        // Use same method as non-debug method so benchmarking is the same..
-        const o = {};
-        const keys = Object.keys(raw);
-        for (let i = 0; i < keys.length; i++) {
-            const k = keys[i];
-            if (k[0] !== ' ') {
-                o[k] = raw[k];
-            }
-        }
-        o.ts = worldTimer.toLocalTime(raw.worldTime);
-        return o;
+        // Use similar method as non-debug method for benchmarking.
+        return {...raw};
     }
 
     getRouteDistance(routeId, laps=1, leadinType) {
@@ -3268,7 +3261,7 @@ export class StatsProcessor extends events.EventEmitter {
                 return {
                     eventLeader,
                     eventSweeper,
-                    remaining: (sg.endTS - worldTimer.serverNow()) / 1000,
+                    remaining: (sg.endTS - worldTimer.toServerTime(state.worldTime)) / 1000,
                     remainingMetric: 'time',
                     remainingType: 'event',
                     remainingEnd: sg.endTS,

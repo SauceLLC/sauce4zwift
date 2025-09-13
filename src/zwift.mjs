@@ -138,15 +138,20 @@ const pbProfilePrivacyFlags = {
 const pbProfilePrivacyFlagsInverted = {
     displayAge: 0x40,
 };
-export const sportsEnum = Object.fromEntries(Object.entries(protos.Sport).map(([k, v]) => [v, k]));
-export const powerUpsEnum = Object.fromEntries(Object.entries(protos.POWERUP_TYPE)
-    .map(([label, id]) => [id, label]));
+export const sportsEnum = new Array(Object.keys(protos.Sport).length);
+for (const [k, v] of Object.entries(protos.Sport)) {
+    sportsEnum[v] = k;
+}
+export const powerUpsEnum = new Array(0xf);
+for (const [k, v] of Object.entries(protos.POWERUP_TYPE)) {
+    powerUpsEnum[v] = k;
+}
 powerUpsEnum[0xf] = null;  // masked
-const turningEnum = {
-    0: null,
-    1: 'RIGHT',
-    2: 'LEFT',
-};
+const turningEnum = [
+    null,
+    'RIGHT',
+    'LEFT',
+];
 
 
 function decodeGroupEventUserRegistered(buf) {
@@ -190,15 +195,27 @@ function sleep(ms) {
 
 
 export function decodePlayerStateFlags1(bits) {
-    return {
-        powerMeter: !!(bits & 0b1),
-        companionApp: !!(bits & 0b10),
-        reverse: !(bits & 0b100),  // It's actually a forward bit
-        uTurn: !!(bits & 0b1000),
-        _b4_15: bits >>> 4 & 0xfff, // Client seems to send 0x1 when no-sensor and not moving
-        auxCourseId: bits >>> 16 & 0xff,
-        rideons: bits >>> 24,
-    };
+    return decodePlayerStateFlags1Into(bits, {});
+}
+
+
+export function decodePlayerStateFlags1Into(bits, obj) {
+    // micoroptimized
+    obj.powerMeter = !!(bits & 0b1);
+    obj.companionApp = !!(bits & 0b10);
+    obj.reverse = !(bits & 0b100);  // It's actually a forward bit
+    obj.uTurn = !!(bits & 0b1000);
+    obj.auxCourseId = bits >>> 16 & 0xff;
+    obj.rideons = bits >>> 24;
+    return obj;
+}
+
+
+export function decodePlayerStateFlags1IntoWithDebug(bits, obj) {
+    // micoroptimized
+    decodePlayerStateFlags1Into(bits, obj);
+    obj._b4_15 = bits >>> 4 & 0xfff;  // Client seems to send 0x1 when no-sensor/not-moving
+    return obj;
 }
 
 
@@ -222,13 +239,25 @@ export function encodePlayerStateFlags1(props) {
 
 
 export function decodePlayerStateFlags2(bits) {
-    return {
-        activePowerUp: powerUpsEnum[bits & 0xf],
-        turning: turningEnum[bits >>> 4 & 0x3],
-        turnChoice: bits >>> 6 & 0x3,
-        roadId: bits >>> 8 & 0xffff,
-        _rem: bits >>> 24, // client seems to send 0x1 or 0x2 when no-sensor and not moving
-    };
+    return decodePlayerStateFlags2Into(bits, {});
+}
+
+
+export function decodePlayerStateFlags2Into(bits, obj) {
+    // micoroptimized
+    obj.activePowerUp = powerUpsEnum[bits & 0xf];
+    obj.turning = turningEnum[bits >>> 4 & 0x3],
+    obj.turnChoice = bits >>> 6 & 0x3;
+    obj.roadId = bits >>> 8 & 0xffff;
+    return obj;
+}
+
+
+export function decodePlayerStateFlags2IntoWithDebug(bits, obj) {
+    // micoroptimized
+    decodePlayerStateFlags2Into(bits, obj);
+    obj._rem =bits >>> 24; // client seems to send 0x1 or 0x2 when no-sensor and not moving
+    return obj;
 }
 
 
@@ -254,34 +283,24 @@ export function encodePlayerStateFlags2(props) {
 }
 
 
-export function processPlayerStateMessage(msg) {
-    const flags1 = decodePlayerStateFlags1(msg._flags1);
-    const flags2 = decodePlayerStateFlags2(msg._flags2);
-    const wt = msg.worldTime.toNumber();
-    const latency = worldTimer.now() - wt;
-    const adjRoadLoc = msg.roadTime - 5000;  // It's 5,000 -> 1,005,000
-    const progress = (msg._progress >> 8 & 0xff) / 0xff;
-    const routeId = msg.portal ? undefined : (msg.routeId || undefined);
-    return {
-        ...msg,
-        ...flags1,
-        ...flags2,
-        worldTime: wt,
-        latency,
-        routeId,
-        progress,
-        workoutZone: (msg._progress & 0xF) || null,
-        kj: msg._mwHours / 1000 / (1000 / 3600),
-        heading: (((msg._heading + halfCircle) / (2 * halfCircle)) * 360) % 360,  // degrees
-        speed: msg._speed / 1e6,  // km/h
-        joinTime: msg._joinTime.toNumber(),
-        sport: sportsEnum[msg.sport],
-        cadence: (msg._cadenceUHz && msg._cadenceUHz < cadenceMax) ?
-            Math.round(msg._cadenceUHz / 1e6 * 60) : 0,  // rpm
-        eventDistance: msg._eventDistance / 100,  // meters
-        roadCompletion: flags1.reverse ? 1e6 - adjRoadLoc : adjRoadLoc,
-        coffeeStop: flags2.activePowerUp === 'COFFEE_STOP',
-    };
+export function processPlayerStateMessage(msg, now=worldTimer.now()) {
+    const o = {...msg};
+    decodePlayerStateFlags1Into(msg._flags1, o);
+    decodePlayerStateFlags2Into(msg._flags2, o);
+    o.worldTime = msg.worldTime.toNumber();
+    o.latency = now - o.worldTime;
+    o.routeId = msg.portal ? undefined : (msg.routeId || undefined);
+    o.progress = (msg._progress >> 8 & 0xff) / 0xff;
+    o.workoutZone = (msg._progress & 0xF) || null;
+    o.kj = msg._mwHours * 0.0036;
+    o.heading = (((msg._heading + halfCircle) / (2 * halfCircle)) * 360) % 360;
+    o.speed = msg._speed / 1e6;
+    o.sport = sportsEnum[msg.sport];
+    o.cadence = (msg._cadence && msg._cadence < cadenceMax) ? Math.round(msg._cadence * 6e-5) : 0;
+    o.eventDistance = msg._eventDistance / 100;
+    o.roadCompletion = o.reverse ? 1005000 - msg.roadTime : msg.roadTime - 5000,
+    o.coffeeStop = o.activePowerUp === 'COFFEE_STOP';
+    return o;
 }
 
 
@@ -2101,8 +2120,9 @@ export class GameMonitor extends events.EventEmitter {
             pb.worldUpdates = worldUpdates;
         }
         let dropList;
+        const now = worldTimer.now();
         for (let i = 0; i < pb.playerStates.length; i++) {
-            const state = pb.playerStates[i] = processPlayerStateMessage(pb.playerStates[i]);
+            const state = pb.playerStates[i] = processPlayerStateMessage(pb.playerStates[i], now);
             if (state.athleteId === this.gameAthleteId) {
                 queueMicrotask(() => this._updateGameState(state));
             } else if (state.activePowerUp === 'NINJA' || this.exclusions.has(getIDHash(state.athleteId))) {
@@ -2122,6 +2142,7 @@ export class GameMonitor extends events.EventEmitter {
         }
         queueMicrotask(() => this.emit('inPacket', pb));
     }
+
 
     _updateGameState(state) {
         if (this._lastGameState && this._lastGameState.worldTime >= state.worldTime) {
@@ -2168,7 +2189,7 @@ export class GameMonitor extends events.EventEmitter {
         this._lastWatchingStateUpdated = Date.now();
         const age = lws ? state.worldTime - lws.worldTime : 0;
         const connectTime = Date.now() - this.connectingTS;
-        const active = state._speed || state.power || state._cadenceUHz;
+        const active = state._speed || state.power || state._cadence;
         if (age > 3000 && connectTime > 30000 && active) {
             console.warn(`Slow watching state update: ${fmtTime(age)}`, state);
         }
