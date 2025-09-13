@@ -60,7 +60,7 @@ function getConsoleSymbol(name) {
 }
 
 
-const _stackFileMatch1 = /([^/\\: (]+:[0-9]+):[0-9]+\)\n.*?$/;
+const _stackFileMatch1 = /([^/\\: (]+:[0-9]+):[0-9]+\)?\n.*?$/;
 const _stackFileMatch2 = /([^/\\: (]+:[0-9]+):[0-9]+\)?$/;
 function getCurStackFrameFile() {
     const o = {};
@@ -71,10 +71,12 @@ function getCurStackFrameFile() {
     const stack = o.stack;
     let m = stack.match(_stackFileMatch1);
     if (!m || !m[1]) {
+        debugger;
         return null;
     } else if (m[1].startsWith('constructor:')) {
         m = stack.match(_stackFileMatch2);
         if (!m || !m[1]) {
+            debugger;
             return null;
         }
     }
