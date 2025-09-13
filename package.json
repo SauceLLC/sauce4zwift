@@ -27,9 +27,9 @@
     "express-ws": "5.0.2",
     "jsfit": "https://github.com/SauceLLC/jsfit.git#c55550a6ad28bff30942eafca3be18cc48f5e304",
     "keytar": "7.9.0",
-    "lossless-json": "4.1.1",
+    "lossless-json": "4.2.0",
     "node-stream-zip": "1.15.0",
-    "protobufjs": "7.4.0",
+    "protobufjs": "7.5.4",
     "xxhash-addon": "2.0.3"
   },
   "optionalDependencies": {
@@ -37,14 +37,14 @@
     "zwift-utils": "https://github.com/SauceLLC/zwift-utils.git#eef34823b6e8471568dd1651faf7625d14366dfc"
   },
   "devDependencies": {
-    "@electron/notarize": "3.0.1",
+    "@electron/notarize": "3.1.0",
     "@sentry/browser": "6.19.6",
     "echarts": "5.6.0",
-    "electron": "37.2.6",
+    "electron": "38.1.0",
     "electron-builder": "26.0.12",
     "eslint": "8.57.1",
     "eslint-plugin-html": "8.1.2",
-    "sass": "1.89.2",
+    "sass": "1.92.1",
     "saucecharts": "https://github.com/SauceLLC/saucecharts.git#60a6adc0bd420069713c513f8bb16fa588128608",
     "world_countries_lists": "2.9.0"
   },
