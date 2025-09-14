@@ -170,8 +170,8 @@ async function getModFile(mod, file, encoding) {
 
 function _initUnpacked(root) {
     try {
+        fs.mkdirSync(root, {recursive: true});
         unpackedModRoot = fs.realpathSync(root);
-        fs.mkdirSync(unpackedModRoot, {recursive: true});
     } catch(e) {
         console.warn('Mods folder uncreatable:', root, e);
         unpackedModRoot = null;
@@ -220,8 +220,8 @@ async function getUpstreamDirectory() {
 
 async function _initPacked(root) {
     try {
+        fs.mkdirSync(root, {recursive: true});
         packedModRoot = root;
-        fs.mkdirSync(packedModRoot, {recursive: true});
     } catch(e) {
         console.warn('Mods folder uncreatable:', root, e);
         packedModRoot = null;
