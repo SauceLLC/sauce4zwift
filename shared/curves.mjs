@@ -251,7 +251,7 @@ export class CurvePath {
         return new this.constructor({...this, nodes: this.nodes.slice(...args)});
     }
 
-    distance(t=this.epsilon) {
+    distance(t=this.epsilon, {predicate=Infinity}={}) {
         if (!this.nodes.length) {
             return 0;
         }
@@ -259,7 +259,7 @@ export class CurvePath {
         t = 1 / steps;
         let dist = 0;
         let prevPoint = this.nodes[0].end;
-        for (let i = 0; i < this.nodes.length - 1; i++) {
+        for (let i = 0; i < this.nodes.length - 1 && dist < predicate; i++) {
             const x = this.nodes[i];
             const next = this.nodes[i + 1];
             if (next.cp1 && next.cp2) {
