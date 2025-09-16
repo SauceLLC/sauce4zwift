@@ -91,7 +91,7 @@ class NodeSauceApp extends app.SauceApp {
 
 
 async function main() {
-    const {logEmitter, logQueue} = logging.initTTYLogging();
+    const {logEmitter, logQueue} = logging.initTTYLogging(isDEV);
     const appPath = path.join(os.homedir(), '.sauce4zwift');
     fs.mkdirSync(appPath, {recursive: true});
     storage.initialize(appPath);

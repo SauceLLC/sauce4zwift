@@ -840,7 +840,8 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     _resetElements(viewBox) {
-        this._removeRouteHighlights();
+        this.clearRoute();
+        this.roadId = null;
         Object.values(this._elements.roadLayers).forEach(x => x.replaceChildren());
         Object.values(this._elements.userLayers).forEach(x => x.replaceChildren());
         for (const ent of Array.from(this._ents.values()).filter(x => x.gc)) {
@@ -939,16 +940,16 @@ export class SauceZwiftMap extends EventTarget {
         return this.setActiveRoad(id);
     }
 
-    _removeRouteHighlights() {
+    clearRoute() {
         this._routeHighlights.forEach(x => this.removeHighlightPath(x));
         this._routeHighlights.length = 0;
+        this.routeId = null;
+        this.route = null;
     }
 
     setActiveRoad(id) {
         this.roadId = id;
-        this.routeId = null;
-        this.route = null;
-        this._removeRouteHighlights();
+        this.clearRoute();
         const surface = this._elements.roadLayers.surfacesMid;
         let r = surface.querySelector('.road.active');
         if (!r) {
@@ -963,25 +964,25 @@ export class SauceZwiftMap extends EventTarget {
             console.warn("DEPRECATED use of laps argument");
             options = {showWeld: options > 1};
         }
+        this.clearRoute();
         this.roadId = null;
         this.routeId = id;
-        const route = await common.getRoute(id);
+        this.route = await common.getRoute(id);
         const activeRoad = this._elements.roadLayers.surfacesMid.querySelector('.road.active');
         if (activeRoad) {
             activeRoad.remove();
         }
-        this._removeRouteHighlights();
         let fullPath, lapPath;
-        const path = fullPath = lapPath = route.curvePath;
-        const lapRoadIdx = route.manifest.findIndex(x => !x.leadin);
+        const path = fullPath = lapPath = this.route.curvePath;
+        const lapRoadIdx = this.route.manifest.findIndex(x => !x.leadin);
         const lapIdx = lapRoadIdx ? path.nodes.findIndex(x => x.index === lapRoadIdx) : 0;
         if (lapIdx) {
             lapPath = path.slice(lapIdx);
             this._routeHighlights.push(this.addHighlightPath(path.slice(0, lapIdx), `rt-leadin-${id}`,
                                                              {extraClass: 'route-leadin'}));
         }
-        if (options.showWeld && route.lapWeldPath) {
-            const weld = route.lapWeldPath;
+        if (options.showWeld && this.route.lapWeldPath) {
+            const weld = this.route.lapWeldPath;
             fullPath = path.slice();
             fullPath.extend(weld);
             this._routeHighlights.push(this.addHighlightPath(weld, `route-weld-${id}`,
@@ -993,8 +994,7 @@ export class SauceZwiftMap extends EventTarget {
             this.addHighlightPath(fullPath, `rt-gutters-${id}`, {layer: 'low', extraClass: 'active-gutter'})
         );
 
-        this.route = route;
-        return route;
+        return this.route;
     });
 
     _addShape(shape, attrs, options={}) {

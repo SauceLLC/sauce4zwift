@@ -321,6 +321,17 @@ test('subpath roadTime integrity - start and end clipped', () => {
     }
 });
 
+test('double subpath with float end on bundary', () => {
+    const points = [[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5]];
+    const path = curves.catmullRomPath(points, {road: true});
+    const subpath = path.subpathAtRoadPercents(0.5, 0.68);
+    assert.strictEqual(subpath.cropPercent, 0.96);
+    const subpath2 = subpath.subpathAtRoadPercents(0.5, 0.68 - 1e-6);
+    assert(subpath2.cropPercent > 0.96 && subpath2.cropPercent < 0.97);
+    assert.strictEqual(subpath.nodes.length, 3);
+    assert.strictEqual(subpath2.nodes.length, 3);
+});
+
 test('roadTimeToPercent', () => {
     assert.strictEqual(curves.roadTimeToPercent(5000), 0);
     assert.strictEqual(curves.roadTimeToPercent(1005000), 1);

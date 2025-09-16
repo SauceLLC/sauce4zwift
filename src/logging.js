@@ -60,17 +60,28 @@ function getConsoleSymbol(name) {
 }
 
 
+const _stackFileMatch1 = /([^/\\: (]+:[0-9]+):[0-9]+\)?\n.*?$/;
+const _stackFileMatch2 = /([^/\\: (]+:[0-9]+):[0-9]+\)?$/;
 function getCurStackFrameFile() {
     const o = {};
     const saveTraceLimit = Error.stackTraceLimit;
-    Error.stackTraceLimit = 4;
+    Error.stackTraceLimit = 5;
     Error.captureStackTrace(o);
     Error.stackTraceLimit = saveTraceLimit;
     const stack = o.stack;
-    const fileMatch = stack.match(/([^/\\: (]+:[0-9]+):[0-9]+\)?$/);
-    return fileMatch ? fileMatch[1] : null;
+    let m = stack.match(_stackFileMatch1);
+    if (!m || !m[1]) {
+        debugger;
+        return null;
+    } else if (m[1].startsWith('constructor:')) {
+        m = stack.match(_stackFileMatch2);
+        if (!m || !m[1]) {
+            debugger;
+            return null;
+        }
+    }
+    return m[1];
 }
-
 
 
 function ansiColorize(text, color, options={}) {
@@ -192,7 +203,7 @@ function initFileLogging(logsPath, isDev) {
 }
 
 
-function initTTYLogging(logsPath, isDev) {
+function initTTYLogging(isDev) {
     const logEmitter = monkeyPatchConsoleWithEmitter();
     const logQueue = [];
     logEmitter.on('message', o => {

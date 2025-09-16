@@ -360,21 +360,23 @@ export class RoadPath extends CurvePath {
         this.cropPercent = options.cropPercent || 0;
     }
 
-    roadTimeToOffset(rt) {
-        return this.roadPercentToOffset(roadTimeToPercent(rt));
+    roadPercentToOffsetTupleRaw(rp) {
+        const offt = roadPercentToOffset(rp, this.roadLength);
+        // Handle Infinity..
+        return [Math.trunc(offt) - this.offsetIndex, (offt % 1) || 0];
     }
 
-    roadPercentToOffset(rp) {
-        const [i, p] = this.roadPercentToOffsetTuple(rp);
-        return i + p;
+    roadPercentToOffsetRaw(rp) {
+        const t = this.roadPercentToOffsetTupleRaw(rp);
+        return t[0] + t[1];
+    }
+
+    roadTimeToOffsetRaw(rt) {
+        return this.roadPercentToOffsetRaw(roadTimeToPercent(rt));
     }
 
     roadPercentToOffsetTuple(rp) {
-        const offt = roadPercentToOffset(rp, this.roadLength);
-        // Handle +/-Infinity..
-        let index = Math.trunc(offt);
-        let percent = (offt % 1) || 0;
-        index -= this.offsetIndex;
+        let {0: index, 1: percent} = this.roadPercentToOffsetTupleRaw(rp);
         if (index < 0) {
             return [0, 0];
         } else if (index >= this.nodes.length - 1) {
@@ -383,7 +385,7 @@ export class RoadPath extends CurvePath {
             percent = Math.max(0, (percent - this.offsetPercent) / (1 - this.offsetPercent));
         }
         if (index === this.nodes.length - 2 && percent && this.cropPercent) {
-            percent /= this.cropPercent;
+            percent /= (1 - this.cropPercent);
             if (percent >= 1) {
                 index++;
                 percent = 0;
@@ -392,14 +394,40 @@ export class RoadPath extends CurvePath {
         return [index, percent];
     }
 
+    roadPercentToOffset(rp) {
+        const t = this.roadPercentToOffsetTuple(rp);
+        return t[0] + t[1];
+    }
+
+    roadTimeToOffset(rt) {
+        return this.roadPercentToOffset(roadTimeToPercent(rt));
+    }
+
+    rangeAsRoadPercent() {
+        if (!this.nodes.length) {
+            return [null, null];
+        }
+        return [
+            roadOffsetToPercent(this.offsetIndex + this.offsetPercent, this.roadLength),
+            roadOffsetToPercent(this.offsetIndex + this.nodes.length - 1 - this.cropPercent,
+                                this.roadLength)
+        ];
+    }
+
+    rangeAsRoadTime() {
+        if (!this.nodes.length) {
+            return [null, null];
+        }
+        const range = this.rangeAsRoadPercent();
+        return [roadPercentToTime(range[0]), roadPercentToTime(range[1])];
+    }
+
     includesRoadPercent(rp) {
         if (!this.nodes.length) {
             return false;
         }
-        const start = roadOffsetToPercent(this.offsetIndex + this.offsetPercent, this.roadLength);
-        const cropAdj = this.cropPercent ? 1 - this.cropPercent : 0;
-        const end = roadOffsetToPercent(this.offsetIndex + this.nodes.length - 1 - cropAdj, this.roadLength);
-        return rp >= start && rp <= end;
+        const range = this.rangeAsRoadPercent();
+        return rp >= range[0] && rp <= range[1];
     }
 
     includesRoadTime(rt) {
@@ -414,7 +442,7 @@ export class RoadPath extends CurvePath {
         if (!this.nodes.length) {
             return;
         }
-        const [index, percent] = this.roadPercentToOffsetTuple(rp);
+        const {0: index, 1: percent} = this.roadPercentToOffsetTuple(rp);
         // Always return at least one edge.
         const origin = this.nodes[index];
         const next = this.nodes[index + 1];
@@ -431,16 +459,17 @@ export class RoadPath extends CurvePath {
         return {index, percent, origin, next, point};
     }
 
-    subpathAtRoadTimes(startRoadTime, endRoadTime) {
+    subpathAtRoadTimes(startRoadTime, endRoadTime, cloneOptions) {
         const startRoadPercent = roadTimeToPercent(startRoadTime);
         const endRoadPercent = roadTimeToPercent(endRoadTime);
-        return this.subpathAtRoadPercents(startRoadPercent, endRoadPercent);
+        return this.subpathAtRoadPercents(startRoadPercent, endRoadPercent, cloneOptions);
     }
 
-    subpathAtRoadPercents(startRoadPercent=-1e6, endRoadPercent=1e6) {
+    subpathAtRoadPercents(startRoadPercent=-1e6, endRoadPercent=1e6, cloneOptions) {
         if (startRoadPercent > endRoadPercent) {
             return new this.constructor({
                 ...this,
+                ...cloneOptions,
                 offsetIndex: 0,
                 offsetPercent: 0,
                 cropPercent: 0,
@@ -463,10 +492,10 @@ export class RoadPath extends CurvePath {
                 nodes.push({end: end.point});
             }
             if (this.cropPercent && end.index === this.nodes.length - 2) {
-                // subpath is on our boundry so denormalize percent based on our trim..
-                cropPercent = end.percent * this.cropPercent;
+                // subpath is on our boundry so normalize percent to our current crop
+                cropPercent = 1 - (end.percent * (1 - this.cropPercent));
             } else {
-                cropPercent = end.percent;
+                cropPercent = 1 - end.percent;
             }
         } else if (end.index === this.nodes.length - 1) {
             cropPercent = this.cropPercent;
@@ -488,6 +517,7 @@ export class RoadPath extends CurvePath {
             start.percent * (1 - this.offsetPercent) + this.offsetPercent : start.percent;
         return new this.constructor({
             ...this,
+            ...cloneOptions,
             nodes,
             offsetIndex: start.index + this.offsetIndex,
             offsetPercent: absStartPercent,
@@ -528,7 +558,7 @@ export class RoadPath extends CurvePath {
     }
 
     distanceAtRoadPercent(rp, t=this.epsilon) {
-        const [endIndex, endPercent] = this.roadPercentToOffsetTuple(rp);
+        const {0: endIndex, 1: endPercent} = this.roadPercentToOffsetTuple(rp);
         if (endIndex < 0 || endIndex === 0 && endPercent <= 0) {
             return 0;
         }
@@ -587,6 +617,10 @@ export class RoadPath extends CurvePath {
             }
         }
         return dist;
+    }
+
+    distanceAtRoadTime(rt, t) {
+        return this.distanceAtRoadPercent(roadTimeToPercent(rt), t);
     }
 }
 
