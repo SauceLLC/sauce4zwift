@@ -57,7 +57,6 @@ try {
     }
 } catch(e) {
     console.error('World data load error:', e);
-    debugger;
 }
 
 
