@@ -2526,6 +2526,7 @@ export class StatsProcessor extends events.EventEmitter {
                 }
             }
         } else {
+            if (routeDistance < -1000) debugger;
             const entry = {
                 routeDistance,
                 routeEnd: preludeDist + meta.lapDistance,
@@ -2555,15 +2556,15 @@ export class StatsProcessor extends events.EventEmitter {
             return roadSection.reverse ? roadSection.distance - d : d;
         } else if (outOfBoundsDistance) {
             const roadPath = env.getRoadCurvePath(state.courseId, state.roadId);
+            const t = roadSection.roadCurvePath.epsilon;
+            const predicate = outOfBoundsDistance * 100 + 1;
             if (state.roadTime < start) {
-                const gap = roadPath.subpathAtRoadTimes(state.roadTime, start)
-                    .distance(roadSection.roadCurvePath.epsilon) / 100;
+                const gap = roadPath.subpathAtRoadTimes(state.roadTime, start).distance(t, {predicate}) / 100;
                 if (gap < outOfBoundsDistance) {
                     return roadSection.reverse ? roadSection.distance + gap: -gap;
                 }
             } else {
-                const gap = roadPath.subpathAtRoadTimes(end, state.roadTime)
-                    .distance(roadSection.roadCurvePath.epsilon) / 100;
+                const gap = roadPath.subpathAtRoadTimes(end, state.roadTime).distance(t, {predicate}) / 100;
                 if (gap < outOfBoundsDistance) {
                     return roadSection.reverse ? -gap: roadSection.distance + gap;
                 }
@@ -3226,7 +3227,7 @@ export class StatsProcessor extends events.EventEmitter {
         if (!roadPath) {
             return 0;
         }
-        return roadPath.subpathAtRoadPercents(start, end).distance(1/32) / 100;
+        return roadPath.subpathAtRoadPercents(start, end).distance(/*25 samples*/ 4e-2) / 100;
     }
 
     _findNearestTimelineCheckpoint(timeline, value) {
