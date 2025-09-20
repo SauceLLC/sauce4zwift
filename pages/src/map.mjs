@@ -978,12 +978,16 @@ export class SauceZwiftMap extends EventTarget {
         const lapIdx = lapRoadIdx ? path.nodes.findIndex(x => x.index === lapRoadIdx) : 0;
         if (lapIdx) {
             lapPath = path.slice(lapIdx);
-            this._routeHighlights.push(this.addHighlightPath(path.slice(0, lapIdx), `rt-leadin-${id}`,
-                                                             {extraClass: 'route-leadin'}));
+            if (!options.hideLeadin) {
+                this._routeHighlights.push(this.addHighlightPath(path.slice(0, lapIdx), `rt-leadin-${id}`,
+                                                                 {extraClass: 'route-leadin'}));
+            } else {
+                fullPath = path.slice(lapIdx);
+            }
         }
         if (options.showWeld && this.route.lapWeldPath) {
             const weld = this.route.lapWeldPath;
-            fullPath = path.slice();
+            fullPath = fullPath.slice();
             fullPath.extend(weld);
             this._routeHighlights.push(this.addHighlightPath(weld, `route-weld-${id}`,
                                                              {extraClass: 'route-weld'}));
@@ -1227,22 +1231,30 @@ export class SauceZwiftMap extends EventTarget {
                 await this.setCourse(watching.courseId);
             }
             if (this.preferRoute) {
-                if (watching.routeId) {
-                    if (this.routeId !== watching.routeId) {
-                        let sg;
-                        if (watching.eventSubgroupId) {
-                            sg = await common.getEventSubgroup(watching.eventSubgroupId);
-                        }
-                        // Note sg.routeId is sometimes out of sync with state.routeId; avoid thrash
-                        if (sg && sg.routeId === watching.routeId) {
-                            await this.setActiveRoute(sg.routeId, {showWeld: sg.laps > 1});
-                        } else {
-                            await this.setActiveRoute(watching.routeId);
-                        }
+                let routeId;
+                let showWeld;
+                let hideLeadin;
+                if (watching.eventSubgroupId) {
+                    const sg = await common.getEventSubgroup(watching.eventSubgroupId);
+                    routeId = sg?.routeId || null;
+                    showWeld = sg?.laps > 1;
+                } else {
+                    routeId = watching.routeId || null;
+                    showWeld = watching.laps || (watching.routeDistance / watching.routeEnd > 0.5);
+                    hideLeadin = showWeld;
+                }
+                if (routeId) {
+                    const rtSig = `${routeId}-${showWeld}-${hideLeadin}`;
+                    if (rtSig !== this._routeSig) {
+                        this._routeSig = rtSig;
+                        console.warn("setactive route map", {routeId, showWeld, hideLeadin});
+                        await this.setActiveRoute(routeId, {showWeld, hideLeadin});
                     }
                 } else {
-                    this.route = null;
-                    this.routeId = null;
+                    this._routeSig = null;
+                    if (this.routeId) {
+                        this.clearRoute();
+                    }
                 }
             }
             if (!this.routeId && watching.roadId !== this.roadId) {
