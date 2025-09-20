@@ -250,7 +250,7 @@ async function applyRoute() {
                     value="${x.id}">${common.stripHTML(x.name)}</option>`);
     }
     if (routeId != null) {
-        await zwiftMap.setActiveRoute(routeId, {showWeld: laps > 1});
+        await zwiftMap.setActiveRoute(routeId, {showWeld: true});
         console.debug('Route:', zwiftMap.route);
         centerMap(zwiftMap.route.curvePath.flatten(1/3));
         if (elProfile) {
