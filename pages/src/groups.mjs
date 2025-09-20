@@ -6,7 +6,7 @@ common.enableSentry();
 const L = sauce.locale;
 const H = L.human;
 const positions = new Map();
-let zoomedPosition = common.storage.get('zoomedPosition');
+let zoomedGroup = common.storage.get('zoomedGroup');
 let curGroups;
 let eventSubgroup;
 let contentEl;
@@ -32,9 +32,16 @@ common.settingsStore.setDefault({
     hideHeader: false,
     labelAngle: 50,
     horizLTR: true,
+    zoomPriority: 'position',
 });
 
 // XXX Need a migration system.
+const legacyZoomedPosition = common.storage.get('zoomedPosition');
+if (zoomedGroup == null && legacyZoomedPosition != null) {
+    common.storage.set('zoomedGroup', {position: legacyZoomedPosition});
+    common.storage.set('zoomedPosition', null);
+}
+common.settingsStore.get('zoomPriority', 'position');
 common.settingsStore.get('groupsPrimaryField', 'power');
 common.settingsStore.get('zoomedPrimaryField', 'power');
 
@@ -52,7 +59,7 @@ function getSubgroupLazy(id) {
 
 function setMaxPositions() {
     let v;
-    if (zoomedPosition != null) {
+    if (zoomedGroup != null) {
         v = settings.maxZoomed || 8;
     } else {
         v = (settings.maxAhead || 0) + (settings.maxBehind || 0) + 1;
@@ -118,10 +125,25 @@ function getOrCreatePosition(relPos) {
         };
         positions.set(relPos, nodes);
         nodes.bubble.addEventListener('click', ev => {
-            if (!ev.currentTarget.href && zoomedPosition == null) {
+            if (!ev.currentTarget.href && zoomedGroup == null) {
                 ev.preventDefault();
-                zoomedPosition = relPos;
-                common.storage.set('zoomedPosition', zoomedPosition);
+                const groupCenterIdx = curGroups.findIndex(x => x.watching);
+                const group = curGroups[groupCenterIdx + relPos];
+                if (!group) {
+                    return;
+                }
+                if (settings.zoomPriority === 'position') {
+                    zoomedGroup = {
+                        position: relPos
+                    };
+                } else {
+                    if (group.id != null) {
+                        zoomedGroup = {id: group.id};
+                    } else {
+                        zoomedGroup = {athleteId: group.athletes[0].athleteId};
+                    }
+                }
+                common.storage.set('zoomedGroup', zoomedGroup);
                 setMaxPositions();
                 render();
             }
@@ -141,7 +163,7 @@ function getOrCreatePosition(relPos) {
 
 
 function render() {
-    const zoomed = zoomedPosition != null;
+    const zoomed = zoomedGroup != null;
     contentEl.classList.toggle('zoomed', zoomed);
     if (zoomed) {
         renderZoomed(curGroups);
@@ -167,30 +189,77 @@ function renderZoomed(groups) {
         return;
     }
     const groupCenterIdx = groups.findIndex(x => x.watching);
-    const position = zoomedPosition;
-    const idx = Math.max(0, Math.min(groupCenterIdx + position, groups.length - 1));
-    const group = groups[idx];
-    if (!group) {
-        console.warn("XXX Unexpected missing group");
-        return;
+    let group;
+    let selectedBy;
+    if (settings.zoomPriority === 'position') {
+        if (zoomedGroup.position != null) {
+            const idx = Math.max(0, Math.min(groupCenterIdx + zoomedGroup.position, groups.length - 1));
+            group = groups[idx];
+            selectedBy = 'position';
+        }
+    } else {
+        if (zoomedGroup.id != null) {
+            group = groups.find(x => x.id === zoomedGroup.id);
+            if (group) {
+                selectedBy = 'id';
+            }
+        }
+        if (!group && zoomedGroup.athleteId != null) {
+            group = groups.find(x => x.athletes.some(xx => xx.athleteId === zoomedGroup.athleteId));
+            if (group) {
+                selectedBy = 'athlete';
+            }
+        }
+        if (!group && zoomedGroup.position != null) {
+            const idx = Math.max(0, Math.min(groupCenterIdx + zoomedGroup.position, groups.length - 1));
+            group = groups[idx];
+            if (group) {
+                selectedBy = 'position';
+            }
+        }
     }
+    if (!group) {
+        console.warn("Group not found: fallback to watching group");
+        group = groups[groupCenterIdx];
+        selectedBy = 'position';
+    }
+    const position = groups.indexOf(group) - groupCenterIdx;
     const groupSize = group.athletes.length;
-    const watchingCenterIdx = position === 0 ? group.athletes.findIndex(x => x.watching) : 0;
-    const ahead = Math.max(0, watchingCenterIdx - Math.ceil(settings.maxZoomed / 2));
+    const athleteCenterIdx = position === 0 ?
+        group.athletes.findIndex(x => x.watching) :
+        zoomedGroup.athleteId != null ?
+            group.athletes.findIndex(x => x.athleteId === zoomedGroup.athleteId) :
+            0;
+    const ahead = Math.max(0, athleteCenterIdx - Math.ceil(settings.maxZoomed / 2));
     const end = Math.min(group.athletes.length, ahead + settings.maxZoomed);
     const behind = group.athletes.length - end;
     const athletes = group.athletes.slice(ahead, end);
     contentEl.style.setProperty('--total-athletes', athletes.length);  // visual only
     const athletesLabel = groupSize === 1 ? 'Athlete' : 'Athletes';
-    const groupLabel = position ?
-        `${H.place(Math.abs(position))} ${position > 0 ? 'behind' : 'ahead'}` :
-        'Your Group';
+    let groupLabel;
+    if (selectedBy === 'position') {
+        groupLabel = position ?
+            `${H.place(Math.abs(position), {suffix: true})} Group ${position > 0 ? 'behind' : 'ahead'}` :
+            'Your Group';
+    } else if (selectedBy === 'athlete') {
+        const a = group.athletes.find(x => x.athleteId === zoomedGroup.athleteId);
+        if (a?.athlete) {
+            groupLabel = `Group of ${a.athlete.fLast}`;
+        } else {
+            groupLabel = `Group of <${a.athleteId}>`;
+        }
+    } else if (selectedBy === 'id') {
+        groupLabel = `Group ID: ${zoomedGroup.id}`;
+    } else {
+        console.error("Internal group label error");
+        groupLabel = `Unknown Group`;
+    }
     const primaryFmt = {
         power: ({power}) => pwrFmt(power),
         wkg: ({power, weight}) => weight ? wkgFmt(power / weight) : pwrFmt(power),
     }[settings.zoomedPrimaryField || 'power'];
-    common.softInnerHTML(metaEl, [
-        `${groupLabel}, ${groupSize} ${athletesLabel}`,
+    common.softInnerHTML(metaEl, [groupLabel,
+        `${groupSize} ${athletesLabel}`,
         `${primaryFmt(group)}, ${spdFmt(group.speed)}`,
     ].map(x => `<div class="line">${x}</div>`).join(''));
     const active = new Set();
@@ -246,7 +315,6 @@ function renderZoomed(groups) {
         for (const x of unusedLabels) {
             pos.bubbleHolder.style.removeProperty(`--subgroup-${x}`);
         }
-
         common.softInnerHTML(pos.bubble, label || `<img src="${avatar}"/>`);
         const leftLines = [];
         const attacking = isAttack(athlete.state.power, group.power);
@@ -435,7 +503,7 @@ function renderGroups(groups) {
             }
         }
         pos.el.classList.toggle('attn', attacking);
-        pos.bubble.textContent = label;
+        common.softInnerHTML(pos.bubble, label);
         rightLines.push(fmtLine(primaryFmt(group), '', 'Group average'));
         const minorField = settings.groupsSecondaryField || 'speed';
         if (minorField === 'heartrate') {
@@ -534,8 +602,8 @@ export async function main() {
     aheadEl = document.querySelector('#ahead');
     behindEl = document.querySelector('#behind');
     contentEl.querySelector('.zoom-out').addEventListener('click', ev => {
-        zoomedPosition = null;
-        common.storage.set('zoomedPosition', zoomedPosition);
+        zoomedGroup = null;
+        common.storage.set('zoomedGroup', zoomedGroup);
         setMaxPositions();
         render();
     });
