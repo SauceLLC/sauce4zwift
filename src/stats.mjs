@@ -2395,7 +2395,18 @@ export class StatsProcessor extends events.EventEmitter {
         if (roadSig !== hist.aRoad?.sig) {
             hist.aRoad = {...env.fromRoadSig(roadSig), sig: roadSig};
         }
-        hist.a.push({rpct, wt: state.worldTime});
+
+        //hist.a.push({rpct, wt: state.worldTime});
+
+        // TESTING XXX...
+        hist.a.push({rpct, wt: state.worldTime, evdist: state.eventDistance, dist: state.distance, rtdist: state.routeDistance});
+        if (hist.a.length > 1) {
+            const t = hist.a.at(-1);
+            const t_1 = hist.a.at(-2);
+            t.evdelta = t.evdist - t_1.evdist;
+            t.delta = t.dist - t_1.dist;
+            t.rtdelta = t.rtdist - t_1.rtdist;
+        }
     }
 
     _preprocessState(state, ad, now) {
@@ -2466,10 +2477,11 @@ export class StatsProcessor extends events.EventEmitter {
             cache.rci === state.routeCheckpointIndex &&
             state.worldTime - cache.worldTime < 5000) {
             const deltaDist = state[distProp] - cache.distance;
-            if (deltaDist < 200 && deltaDist >= 0) {
-                // We need to update cached route-dist to detect negative progress jitter.
-                cache.entry.routeDistance += deltaDist;
-                cache.distance = state[distProp];
+            if (deltaDist < 200 && deltaDist > -100) {
+                if (deltaDist > 0) {
+                    cache.entry.routeDistance += deltaDist;
+                    cache.distance = state[distProp];
+                }
                 return cache.entry;
             }
         }
@@ -2538,6 +2550,7 @@ export class StatsProcessor extends events.EventEmitter {
             if (routeDistance < -200) {
                 console.warn("Excessively large negative route distance", {routeDistance, state, meta});
             }
+            let stateDistance = state[distProp];
             if (!cache) {
                 cache = ad._routeRemainingInfoCache = {entry: {}};
             } else {
@@ -2558,12 +2571,16 @@ export class StatsProcessor extends events.EventEmitter {
                         }
                     }
                     routeDistance = cache.entry.routeDistance;
+                    // Important: Also skew the cache.distance so that subsequent uses of the fast
+                    // cache won't continue to overinflate our route distance.  Better that we just
+                    // stall by compensating immediately.
+                    stateDistance -= delta;  // increases
                 }
             }
             cache.routeId = state.routeId;
             cache.distProp = distProp;
             cache.rci = state.routeCheckpointIndex;
-            cache.distance = state[distProp];
+            cache.distance = stateDistance;
             cache.worldTime = state.worldTime;
             cache.entry.routeDistance = routeDistance;
             cache.entry.routeEnd = preludeDist + meta.lapDistance;
