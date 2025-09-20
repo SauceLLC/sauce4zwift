@@ -112,7 +112,6 @@ export function main() {
     if (window.isElectron && common.settingsStore.get('autoHideWindows')) {
         autoHideTimeout = setTimeout(autoHide, autoHideWait);
     }
-    let lastUpdate = 0;
     common.subscribe('athlete/watching', watching => {
         if (window.isElectron && common.settingsStore.get('autoHideWindows')) {
             if (watching.state.speed || watching.state.cadence || watching.state.power) {
