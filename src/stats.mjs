@@ -2319,7 +2319,7 @@ export class StatsProcessor extends events.EventEmitter {
                            ad.laps[ad.laps.length - 1].eventSubgroupId === sg.id &&
                            (sg.endDistance ?
                                state.eventDistance > sg.endDistance :
-                               sg.endTS && worldTimer.serverNow() > sg.endTS)) {
+                               sg.endTS && worldTimer.toServerTime(state.worldTime) > sg.endTS)) {
                     this.triggerEventEnd(ad, state, now);
                 }
             }
@@ -2415,13 +2415,17 @@ export class StatsProcessor extends events.EventEmitter {
                 ad.courseId = state.courseId;
                 ad.distanceOffset += prevState.distance;
                 ad.autoLapMark = undefined;
+                ad._routeRemainingInfoCache = undefined;
                 state.grade = 0;
+                console.debug("World change triggering lap for:", ad.athleteId);
                 this.startAthleteLap(ad, now);
             } else {
                 const elevationChange = state.altitude - prevState.altitude;
-                const distanceChange = state.eventDistance ?
-                    (state.eventDistance - prevState.eventDistance) :
-                    (state.distance - prevState.distance);
+                // Only use high res eventDistance if under 500km.  It becomes very inaccurate
+                // after joining a bot and getting inflated to the very large values.
+                const distanceChange = state.eventDistance < 500_000 ?
+                    state.eventDistance - prevState.eventDistance :
+                    state.distance - prevState.distance;
                 state.grade = ad.smoothGrade(distanceChange ?
                     (elevationChange / distanceChange) :
                     prevState.grade);
@@ -2450,20 +2454,23 @@ export class StatsProcessor extends events.EventEmitter {
         if (!route) {
             return;
         }
-        const cache = ad._routeRemainingInfoCache;
-        const sig = `${state.routeId}-${state.roadId}-${state.reverse}-${state.routeCheckpointIndex}`;
+        // Joining a bot wreaks havoc on the eventDistance property producing nonsense values for
+        // the athlete that joined them.  Testing for botId alone is not sufficient as the corruption
+        // appears to be some sort of calibration issue internally in the game.
+        const distProp = state.eventDistance > 500_000 ? 'distance' : 'eventDistance';
+        let cache = ad._routeRemainingInfoCache;
         // Fast path using cache when sensible...
-        if (cache && cache.sig === sig) {
-            if (cache.roadTime === state.roadTime) {
+        if (cache &&
+            cache.routeId === state.routeId &&
+            cache.distProp === distProp &&
+            cache.rci === state.routeCheckpointIndex &&
+            state.worldTime - cache.worldTime < 5000) {
+            const deltaDist = state[distProp] - cache.distance;
+            if (deltaDist < 200 && deltaDist >= 0) {
+                // We need to update cached route-dist to detect negative progress jitter.
+                cache.entry.routeDistance += deltaDist;
+                cache.distance = state[distProp];
                 return cache.entry;
-            } else {
-                const deltaDist = state.distance - cache.distance;
-                if (deltaDist < 200 && state.worldTime - cache.worldTime < 5000) {
-                    return {
-                        routeDistance: cache.entry.routeDistance + deltaDist,
-                        routeEnd: cache.entry.routeEnd,
-                    };
-                }
             }
         }
         const meta = this._getRouteMeta(state.routeId);
@@ -2489,9 +2496,8 @@ export class StatsProcessor extends events.EventEmitter {
         } else {
             const leadinDist = (route.freeRideLeadinDistanceInMeters ??
                 route.defaultLeadinDistanceInMeters) || 0;
-            let s;
-            let d;
-            // Do use eventDistance here because in the case of teleport/join-bots leadin is bypassed
+            let s, d;
+            // Always use eventDistance here because in the case of teleport/join-bots leadin is bypassed
             // and only eventDistance is jumped to the non leadin values.
             if (state.eventDistance <= leadinDist + route.distanceInMeters / 2) {
                 for (let i = 0; d == null && i < meta.sections.length; i++) {
@@ -2515,31 +2521,53 @@ export class StatsProcessor extends events.EventEmitter {
             }
         }
         if (routeDistance === undefined) {
-            if (cache && cache.routeId === state.routeId) {
-                // last resort, widen cache usage...
-                const deltaDist = state.distance - cache.distance;
-                if (deltaDist < 1000 && state.worldTime - cache.worldTime < 30_000) {
-                    return {
-                        routeDistance: cache.entry.routeDistance + deltaDist,
-                        routeEnd: cache.entry.routeEnd,
-                    };
+            // last resort, widen cache usage...
+            if (cache &&
+                cache.routeId === state.routeId &&
+                cache.distProp === distProp &&
+                state.worldTime - cache.worldTime < 30_000) {
+                const deltaDist = state[distProp] - cache.distance;
+                if (deltaDist < 1000 && deltaDist > 0) {
+                    // We need to update cached route-dist to detect negative progress jitter.
+                    cache.entry.routeDistance += deltaDist;
+                    cache.distance = state[distProp];
                 }
+                return cache.entry;
             }
         } else {
-            if (routeDistance < -1000) debugger;
-            const entry = {
-                routeDistance,
-                routeEnd: preludeDist + meta.lapDistance,
-            };
-            ad._routeRemainingInfoCache = {
-                sig,
-                routeId: state.routeId,
-                roadTime: state.roadTime,
-                distance: state.distance,  // eventDistance is unreliable at large sizes (i.e joining a bot)
-                worldTime: state.worldTime,
-                entry,
-            };
-            return entry;
+            if (routeDistance < -200) {
+                console.warn("Excessively large negative route distance", {routeDistance, state, meta});
+            }
+            if (!cache) {
+                cache = ad._routeRemainingInfoCache = {entry: {}};
+            } else {
+                // Negative jitter filtering.  Bouncing between state.distance and road section
+                // calcs can lead to minor differences that introduce small negative values.
+                // Fitler these out so users can depend on negative routeDistance changes as only
+                // being for lapping or route change situations.
+                const delta = routeDistance - cache.entry.routeDistance;
+                if (delta < 0 && delta > -100) {
+                    if (state.speed) {
+                        // TEST...
+                        if (delta < -10) {
+                            console.error("10+ meter negative jitter filter:", delta, state, cache);
+                        } else if (delta < -1) {
+                            console.warn("1+ meter negative jitter filter:", delta, state, cache);
+                        } else if (delta < 0) {
+                            console.debug("negative jitter filter:", delta, state, cache);
+                        }
+                    }
+                    routeDistance = cache.entry.routeDistance;
+                }
+            }
+            cache.routeId = state.routeId;
+            cache.distProp = distProp;
+            cache.rci = state.routeCheckpointIndex;
+            cache.distance = state[distProp];
+            cache.worldTime = state.worldTime;
+            cache.entry.routeDistance = routeDistance;
+            cache.entry.routeEnd = preludeDist + meta.lapDistance;
+            return cache.entry;
         }
     }
 
@@ -2862,11 +2890,19 @@ export class StatsProcessor extends events.EventEmitter {
 
     _parsePowerupPercents(powerupPercents) {
         const o = {};
-        const pp = powerupPercents.slice(1, -1).split(',').map(Number);
+        // Handle...
+        //   "1,50,2,50"
+        //   ",1,50,2,50"
+        //   1,50,2,50
+        //   “0,33,1,33,5,34"  (unicode double quote, yes this came up in 2025-09)
+        const pp = powerupPercents
+            .replaceAll(/^[^0-9]|[^0-9]$/g, '')
+            .split(',')
+            .map(Number);
         for (let i = 0; i < pp.length; i += 2) {
             const pu = zwift.powerUpsEnum[pp[i]];
             if (!pu) {
-                console.warn("Unknown PowerUp:", pp[i]);
+                console.warn("Unknown PowerUp:", pp[i], powerupPercents);
                 o[pp[i]] = pp[i + 1] / 100;
             } else {
                 o[pu] = pp[i + 1] / 100;
@@ -3219,13 +3255,16 @@ export class StatsProcessor extends events.EventEmitter {
         };
     }
 
-    _getRoadDistance({courseId, roadId}, start, end) {
-        if (end < start) {
+    _getRoadDistance({courseId, roadId, reverse}, start, end) {
+        if (end <= start) {
             return 0;
         }
         const roadPath = env.getRoadCurvePath(courseId, roadId);
         if (!roadPath) {
             return 0;
+        }
+        if (reverse) {
+            [start, end] = [1 - end, 1 - start];
         }
         return roadPath.subpathAtRoadPercents(start, end).distance(/*25 samples*/ 4e-2) / 100;
     }
