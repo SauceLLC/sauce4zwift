@@ -555,22 +555,17 @@ export async function getSegment(id) {
 }
 
 
-export async function computeRoutePath(route) {
-    const curvePath = new curves.CurvePath();
+export async function computeRoutePath(route, options={}) {
     const roadSlices = [];
     const worldList = await getWorldList();
     const worldMeta = worldList.find(x => x.courseId === route.courseId);
-    for (const [i, x] of route.manifest.entries()) {
-        const road = await getRoad(route.courseId, x.roadId);
-        const seg = road.curvePath.subpathAtRoadPercents(x.start, x.end);
-        seg.reverse = x.reverse;
-        seg.leadin = x.leadin;
-        seg.roadId = x.roadId;
-        for (const xx of seg.nodes) {
-            xx.index = i;
-        }
-        roadSlices.push(seg);
-        curvePath.extend(x.reverse ? seg.toReversed() : seg);
+    for (const m of route.manifest) {
+        const road = await getRoad(route.courseId, m.roadId);
+        const roadSlice = road.curvePath.subpathAtRoadPercents(m.start, m.end);
+        roadSlice.reverse = m.reverse;
+        roadSlice.leadin = m.leadin;
+        roadSlice.roadId = m.roadId;
+        roadSlices.push(roadSlice);
     }
     let lapWeldPath;
     let lapWeldData;
@@ -611,6 +606,18 @@ export async function computeRoutePath(route) {
             lapWeldData = supplimentPath(worldMeta, lapWeldPath);
         }
     }
+    const curvePath = new curves.CurvePath();
+    if (options.prelude === 'weld' && lapWeldPath) {
+        curvePath.extend(lapWeldPath);
+    }
+    for (const [i, roadSlice] of roadSlices.entries()) {
+        for (const x of roadSlice.nodes) {
+            x.index = i;
+        }
+        if (options.prelude !== 'weld' || !roadSlice.leadin) {
+            curvePath.extend(roadSlice.reverse ? roadSlice.toReversed() : roadSlice);
+        }
+    }
     // NOTE: No support for physicsSlopeScaleOverride of portal roads.
     // But I've not seen portal roads used in a route either.
     return {
@@ -639,35 +646,25 @@ async function addRouteSegments(route) {
 
 let _routeListPromise;
 const _routes = new Map();
-export function getRoute(id) {
-    if (!_routes.has(id)) {
-        if (_routeListPromise) {
-            // getRouteList was used, pull data from full set instead of using rpc.getRoute...
-            _routes.set(id, _routeListPromise.then(async routes => {
-                const route = routes && routes.find(x => x.id === id);
-                if (route) {
-                    await Promise.all([
-                        addRouteSegments(route),
-                        computeRoutePath(route).then(x => Object.assign(route, x)),
-                    ]);
-                }
-                _routes.set(id, route); // replace promise for non-async users
-                return route;
-            }));
-        } else {
-            _routes.set(id, rpcCall('getRoute', id).then(async route => {
-                if (route) {
-                    await Promise.all([
-                        addRouteSegments(route),
-                        computeRoutePath(route).then(x => Object.assign(route, x)),
-                    ]);
-                }
-                _routes.set(id, route); // replace promise for non-async users
-                return route;
-            }));
-        }
+export function getRoute(id, options={}) {
+    const sig = JSON.stringify({id, options});
+    if (!_routes.has(sig)) {
+        const extendAndSave = async route => {
+            let obj;
+            if (route) {
+                const p = addRouteSegments(route);
+                const extra = await computeRoutePath(route, options);
+                await p;
+                obj = {...route, ...extra};
+            }
+            _routes.set(sig, obj);
+            return obj;
+        };
+        _routes.set(sig, _routeListPromise ?
+            _routeListPromise.then(routes => extendAndSave(routes && routes.find(x => x.id === id))) :
+            rpcCall('getRoute', id).then(extendAndSave));
     }
-    return _routes.get(id);
+    return _routes.get(sig);
 }
 
 
