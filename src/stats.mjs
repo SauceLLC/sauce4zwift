@@ -2483,11 +2483,9 @@ export class StatsProcessor extends events.EventEmitter {
             let d = s ? this._getRoadSectionDistanceOffset(s, state) : null;
             if (d == null && s) {
                 // Sometimes the routeCheckpointIndex lags..
-                const refIdx = meta.sections.indexOf(s);
-                s = meta.sections[refIdx + 1];
-                d = s ? this._getRoadSectionDistanceOffset(s, state) : null;
-                if (d == null && s) {
-                    s = meta.sections[refIdx + 2];
+                const startIdx = meta.sections.indexOf(s) + 1;
+                for (let i = 0; i < 6 && startIdx + i < meta.sections.length && d == null; i++) {
+                    s = meta.sections[startIdx + i];
                     d = s ? this._getRoadSectionDistanceOffset(s, state) : null;
                 }
             }
