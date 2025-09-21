@@ -387,10 +387,15 @@ table {
         .event-subgroup {
             display: flex;
             flex-direction: column;
-            margin: 0.5em 0 2em;
-            padding: 1em;
+            margin-top: 0.5em;
+            padding: 0.68em;
+            background: #0300001f;
             border-radius: 0.3em;
             font-variant-numeric: tabular-nums;
+
+            &:not(:last-child) {
+                margin-bottom: 1em;
+            }
 
             &.collapsed {
                 padding: 0;
@@ -507,7 +512,7 @@ table {
 
         table.entrants {
             width: 100%;
-            margin-top: 1em;
+            margin-top: 0.68em;
             border-radius: 0.3em;
             overflow: hidden;
             font-size: 0.9em;
