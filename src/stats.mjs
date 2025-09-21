@@ -2395,18 +2395,7 @@ export class StatsProcessor extends events.EventEmitter {
         if (roadSig !== hist.aRoad?.sig) {
             hist.aRoad = {...env.fromRoadSig(roadSig), sig: roadSig};
         }
-
-        //hist.a.push({rpct, wt: state.worldTime});
-
-        // TESTING XXX...
-        hist.a.push({rpct, wt: state.worldTime, evdist: state.eventDistance, dist: state.distance, rtdist: state.routeDistance});
-        if (hist.a.length > 1) {
-            const t = hist.a.at(-1);
-            const t_1 = hist.a.at(-2);
-            t.evdelta = t.evdist - t_1.evdist;
-            t.delta = t.dist - t_1.dist;
-            t.rtdelta = t.rtdist - t_1.rtdist;
-        }
+        hist.a.push({rpct, wt: state.worldTime});
     }
 
     _preprocessState(state, ad, now) {
@@ -2540,7 +2529,6 @@ export class StatsProcessor extends events.EventEmitter {
                 state.worldTime - cache.worldTime < 30_000) {
                 const deltaDist = state[distProp] - cache.distance;
                 if (deltaDist < 1000 && deltaDist > 0) {
-                    // We need to update cached route-dist to detect negative progress jitter.
                     cache.entry.routeDistance += deltaDist;
                     cache.distance = state[distProp];
                 }
@@ -2563,11 +2551,9 @@ export class StatsProcessor extends events.EventEmitter {
                     if (state.speed) {
                         // TEST...
                         if (delta < -10) {
-                            console.error("10+ meter negative jitter filter:", delta, state, cache);
-                        } else if (delta < -1) {
-                            console.warn("1+ meter negative jitter filter:", delta, state, cache);
-                        } else if (delta < 0) {
-                            console.debug("negative jitter filter:", delta, state, cache);
+                            console.warn("10+ meter negative jitter filter:", delta, state, cache);
+                        } else if (delta < -2) {
+                            console.debug("2+ meter negative jitter filter:", delta, state, cache);
                         }
                     }
                     routeDistance = cache.entry.routeDistance;
@@ -3444,7 +3430,7 @@ export class StatsProcessor extends events.EventEmitter {
                     remaining: (sg.endTS - worldTimer.toServerTime(state.worldTime)) / 1000,
                     remainingMetric: 'time',
                     remainingType: 'event',
-                    remainingEnd: sg.endTS,
+                    remainingEnd: sg.durationInSeconds,
                 };
             } else {
                 return {
@@ -3719,16 +3705,12 @@ export class StatsProcessor extends events.EventEmitter {
                 if (bestScore > 0.5) {
                     grp.id = bestGroupMeta.id;
                     //const existingAthletes = identitySet.union(bestGroupMeta.identitySet);
-                    /*const newAthletes = identitySet.difference(bestGroupMeta.identitySet);
-                    for (const x of newAthletes) {
-                        console.debug(grp.id, "Athlete joined the group!", this.loadAthlete(x)?.fullname);
-                    }*/
+                    //const newAthletes = identitySet.difference(bestGroupMeta.identitySet);
                     const leftAthletes = bestGroupMeta.identitySet.difference(identitySet);
                     for (const x of leftAthletes) {
                         const ad = this._athleteData.get(x);
                         if (ad.groupId === grp.id) {
                             ad.groupId = null;
-                            //console.debug(grp.id, "Athlete LEFT the group!", this.loadAthlete(x)?.fullname);
                         }
                     }
                     bestGroupMeta.identitySet = identitySet;
@@ -3737,9 +3719,6 @@ export class StatsProcessor extends events.EventEmitter {
                 } else {
                     grp.id = groupIdCounter++;
                     grp.created = Date.now();
-                    /*for (const x of identitySet) {
-                        console.debug(grp.id, "Athlete formed a new group!", this.loadAthlete(x)?.fullname);
-                    }*/
                     newGroupMetas.push({id: grp.id, accessed: now, identitySet});
                 }
                 for (let j = 0; j < grp._athleteDatas.length; j++) {
@@ -3747,8 +3726,6 @@ export class StatsProcessor extends events.EventEmitter {
                 }
             } else if (grp._athleteDatas[0].groupId != null) {
                 const ad = grp._athleteDatas[0];
-                //console.debug(ad.groupId, "Athlete LEFT the group!",
-                //              this.loadAthlete(ad.athleteId)?.fullname);
                 ad.groupId = null;
             }
         }
