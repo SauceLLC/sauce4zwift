@@ -709,7 +709,7 @@ export const courseFields = [{
 }, {
     id: 'ev-fin',
     format: x => x.remainingMetric === 'distance' ?
-        H.distance(x.remaining) :
+        H.distance(Math.max(0, x.remaining)) :
         x.remainingMetric === 'time' ?
             fmtDur(x.remaining) :
             '-',

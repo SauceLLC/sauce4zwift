@@ -547,7 +547,7 @@ export const groupSpecs = {
             id: 'ev-finish',
             format: x => eventMetric ?
                 eventMetric === 'distance' ?
-                    fmtDistValue(x.remaining) : fmtDur(x.remaining) :
+                    fmtDistValue(Math.max(0, x.remaining)) : fmtDur(x.remaining) :
                 '-',
             label: 'finish',
             shortName: 'Finish',
