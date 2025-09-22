@@ -557,81 +557,6 @@ export async function getSegment(id) {
 
 
 export async function computeRoutePath(route, options={}) {
-    const roadSlices = [];
-    const worldList = await getWorldList();
-    const worldMeta = worldList.find(x => x.courseId === route.courseId);
-    for (const m of route.manifest) {
-        const road = await getRoad(route.courseId, m.roadId);
-        const roadSlice = road.curvePath.subpathAtRoadPercents(m.start, m.end);
-        roadSlice.reverse = m.reverse;
-        roadSlice.leadin = m.leadin;
-        roadSlice.roadId = m.roadId;
-        roadSlices.push(roadSlice);
-    }
-    let lapWeldPath;
-    let lapWeldData;
-    if (route.supportedLaps) {
-        // Handle cases where route data does not properly weld the lap together.
-        // Zwift calls this `distanceBetweenFirstLastLrCPsInMeters`
-        const lapStart = route.manifest.find(x => !x.leadin);
-        const lapEnd = route.manifest.at(-1);
-        if (lapStart.roadId !== lapEnd.roadId || lapStart.reverse !== lapEnd.reverse) {
-            // Sadly there are few cases of this, such as: 986252325, 5745690
-            console.warn("Unable to properly weld lap together for:", route.id);
-            const startPoint = roadSlices[route.manifest.indexOf(lapStart)].nodes[0].end;
-            const endPoint = roadSlices.at(-1).nodes.at(-1).end;
-            lapWeldPath = curves.catmullRomPath([endPoint, startPoint]);
-        } else {
-            let weld = (await getRoad(route.courseId, lapStart.roadId)).curvePath;
-            let start, end;
-            if (!lapStart.reverse) {
-                start = lapEnd.end;
-                end = lapStart.start;
-            } else {
-                start = lapEnd.start;
-                end = lapStart.end;
-            }
-            if (Math.abs(start - end) > 1e-4) {
-                if (start > end) {
-                    const joiner = new curves.CurvePath();
-                    joiner.extend(weld.subpathAtRoadPercents(start, 1));
-                    joiner.extend(weld.subpathAtRoadPercents(0, end));
-                    weld = joiner;
-                } else {
-                    weld = weld.subpathAtRoadPercents(start, end);
-                }
-                lapWeldPath = lapStart.reverse ? weld.toReversed() : weld;
-            }
-        }
-        if (lapWeldPath) {
-            lapWeldData = supplimentPath(worldMeta, lapWeldPath);
-        }
-    }
-    const curvePath = new curves.CurvePath();
-    if (options.prelude === 'weld' && lapWeldPath) {
-        curvePath.extend(lapWeldPath);
-    }
-    for (const [i, roadSlice] of roadSlices.entries()) {
-        for (const x of roadSlice.nodes) {
-            x.index = i;
-        }
-        if (options.prelude !== 'weld' || !roadSlice.leadin) {
-            curvePath.extend(roadSlice.reverse ? roadSlice.toReversed() : roadSlice);
-        }
-    }
-    // NOTE: No support for physicsSlopeScaleOverride of portal roads.
-    // But I've not seen portal roads used in a route either.
-    return {
-        roadSegments: roadSlices, // unfortunate public name
-        curvePath,
-        lapWeldPath,
-        lapWeldData,
-        ...supplimentPath(worldMeta, curvePath),
-    };
-}
-
-
-export async function computeRoutePath2(route, options={}) {
     const worldList = await getWorldList();
     const worldMeta = worldList.find(x => x.courseId === route.courseId);
     const roadCurvePaths = new Map();
@@ -717,13 +642,8 @@ export function getRoute(id, options={}) {
             if (route) {
                 const p = addRouteSegments(route);
                 const extra = await computeRoutePath(route, options);
-                const extra2 = await computeRoutePath2(route, options);
-                for (let i = 0; i < extra.distances.length; i++) {
-                    if (extra.distances[i] !== extra2.distances[i]) debugger;
-                }
-                console.log({extra, extra2});
                 await p;
-                obj = {...route, ...extra2};
+                obj = {...route, ...extra};
             }
             _routes.set(sig, obj);
             return obj;

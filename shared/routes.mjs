@@ -56,16 +56,17 @@ export function getRouteRoadSections(route, {roadCurvePaths, epsilon=routeDistEp
         const lapEnd = route.manifest.at(-1);
         if (lapStart.roadId !== lapEnd.roadId || lapStart.reverse !== lapEnd.reverse) {
             console.warn("Unable to properly weld lap together for:", route.id);
-            const startNode = sections[route.manifest.indexOf(lapStart)].roadCurvePath.nodes[0].end;
-            const endNode = sections.at(-1).roadCurvePath.nodes.at(-1).end;
+            const roadCurvePath = new curves.CurvePath();
+            roadCurvePath.extend(sections.at(-1).roadCurvePath.slice(-1));
+            roadCurvePath.extend(sections[route.manifest.indexOf(lapStart)].roadCurvePath.slice(0, 1));
             sections.push({
                 courseId: route.courseId,
                 roadId: null,
                 reverse: null,
                 leadin: false,
                 weld: true,
-                roadCurvePath: null,
-                distance: curves.vecDist(endNode, startNode) / 100,
+                roadCurvePath,
+                distance: roadCurvePath.distance() / 100,
                 blockOffsetDistance: 0,
                 marginStartDistance: 0,
                 marginEndDistance: 0,
