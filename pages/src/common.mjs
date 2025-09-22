@@ -5,6 +5,7 @@ import {expWeightedAvg as _expWeightedAvg} from '/shared/sauce/data.mjs';
 import * as report from '../../shared/report.mjs';
 import * as elements from './custom-elements.mjs';
 import * as curves from '/shared/curves.mjs';
+import * as routes from '/shared/routes.mjs';
 import * as color from './color.mjs';
 
 export const sleep = _sleep; // Come on ES6 modules, really!?
@@ -483,7 +484,7 @@ export function zToAltitude(worldMeta, z, {physicsSlopeScale}={}) {
 
 
 export function supplimentPath(worldMeta, curvePath, {physicsSlopeScale}={}) {
-    const balancedT = 1 / 200; // very fast but still accurate to ~20cm and matches src/env.mjs
+    const balancedT = routes.routeDistEpsilon;
     const distEpsilon = 1e-6;
     const elevations = [];
     const grades = [];
@@ -630,6 +631,68 @@ export async function computeRoutePath(route, options={}) {
 }
 
 
+export async function computeRoutePath2(route, options={}) {
+    const worldList = await getWorldList();
+    const worldMeta = worldList.find(x => x.courseId === route.courseId);
+    const roadCurvePaths = new Map();
+    for (const m of route.manifest) {
+        if (!roadCurvePaths.has(m.roadId)) {
+            const road = await getRoad(route.courseId, m.roadId);
+            roadCurvePaths.set(m.roadId, road.curvePath);
+        }
+    }
+    const {sections, ...meta} = routes.getRouteMeta(route, {roadCurvePaths});
+    let lapWeldPath;
+    let lapWeldData;
+    if (route.supportedLaps) {
+        if (sections.find(x => x.weld)) {
+            lapWeldPath = new curves.CurvePath();
+            for (const x of sections.filter(xx => xx.weld)) {
+                lapWeldPath.extend(x.reverse ? x.roadCurvePath.toReversed() : x.roadCurvePath);
+            }
+            lapWeldData = supplimentPath(worldMeta, lapWeldPath);
+        }
+    }
+    // Mostly for legacy reasons the curvePath property begins with the prelude..
+    const curvePath = new curves.CurvePath();
+    if (options.prelude === 'weld' && lapWeldPath) {
+        curvePath.extend(lapWeldPath);
+    }
+    for (const [i, section] of sections.entries()) {
+        for (const x of section.roadCurvePath.nodes) {
+            x.index = i;
+        }
+        if (!section.weld && (!section.leadin || options.prelude !== 'weld')) {
+            curvePath.extend(section.reverse ? section.roadCurvePath.toReversed() : section.roadCurvePath);
+        }
+    }
+    const ret = {
+        meta,
+        sections,
+        curvePath,
+        lapWeldPath, // try to kill.. XXX
+        lapWeldData, // try to kill.. XXX
+        ...supplimentPath(worldMeta, curvePath),
+    };
+    const deprecatedRoadSegments = sections.map(x => {
+        // Avoid polluting the existing subpaths sections..
+        const clone = x.roadCurvePath.slice();
+        clone.reverse = x.reverse;
+        clone.leadin = x.leadin;
+        clone.roadId = x.roadId;
+        return clone;
+    });
+    Object.defineProperty(ret, 'roadSegments', {
+        enumerable: true,
+        get: () => {
+            console.warn("DEPRECATED: Migrate to `.sections[]`");
+            return deprecatedRoadSegments;
+        }
+    });
+    return ret;
+}
+
+
 async function addRouteSegments(route) {
     const ids = new Set([].concat(...route.manifest.map(x => x.segmentIds || [])));
     if (!ids.size) {
@@ -654,8 +717,13 @@ export function getRoute(id, options={}) {
             if (route) {
                 const p = addRouteSegments(route);
                 const extra = await computeRoutePath(route, options);
+                const extra2 = await computeRoutePath2(route, options);
+                for (let i = 0; i < extra.distances.length; i++) {
+                    if (extra.distances[i] !== extra2.distances[i]) debugger;
+                }
+                console.log({extra, extra2});
                 await p;
-                obj = {...route, ...extra};
+                obj = {...route, ...extra2};
             }
             _routes.set(sig, obj);
             return obj;

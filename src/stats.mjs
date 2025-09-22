@@ -9,6 +9,7 @@ import * as sauce from '../shared/sauce/index.mjs';
 import * as report from '../shared/report.mjs';
 import * as zwift from './zwift.mjs';
 import * as env from './env.mjs';
+import * as routes from '../shared/routes.mjs';
 import {expWeightedAvg} from '../shared/sauce/data.mjs';
 
 const require = createRequire(import.meta.url);
@@ -689,43 +690,24 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _getRouteMeta(routeId) {
-        if (!this._routeInternalMeta.has(routeId)) {
+        let meta = this._routeInternalMeta.get(routeId);
+        if (meta == null) {
             const route = env.getRoute(routeId);
             if (!route) {
                 console.warn("Route not found:", routeId);
                 return;
             }
-            const meta = {};
-            meta.sections = env.getRouteRoadSections(route);
-            meta.checkpointSectionMap = new Map();
-            const lastLeadin = meta.sections[meta.sections.findIndex(x => !x.leadin && !x.weld) - 1];
-            if (lastLeadin) {
-                meta.leadinDistance = lastLeadin.blockOffsetDistance + lastLeadin.distance +
-                    lastLeadin.marginEndDistance;
-            } else {
-                meta.leadinDistance = 0;
-            }
-            const lastNormal = meta.sections.findLast(x => !x.weld && !x.leadin);
-            meta.lapDistance = lastNormal.blockOffsetDistance + lastNormal.distance;
-            const lastEntry = meta.sections.at(-1);
-            if (lastEntry.weld) {
-                meta.weldDistance = lastNormal.marginEndDistance +
-                    lastEntry.blockOffsetDistance +
-                    lastEntry.distance +
-                    lastEntry.marginEndDistance;
-            } else {
-                meta.weldDistance = 0;
-            }
-            for (const [i, m] of route.manifest.entries()) {
-                if (m.checkpoints) {
-                    for (let idx = m.checkpoints[0]; idx <= m.checkpoints[1]; idx++) {
-                        meta.checkpointSectionMap.set(idx, meta.sections[i]);
-                    }
+            const roadCurvePaths = new Map();
+            debugger;
+            for (const x of route.manifest) {
+                if (!roadCurvePaths.has(x.roadId)) {
+                    roadCurvePaths.set(x.roadId, env.getRoadCurvePath(route.courseId, x.roadId));
                 }
             }
+            meta = routes.getRouteMeta(route, {roadCurvePaths});
             this._routeInternalMeta.set(routeId, meta);
         }
-        return this._routeInternalMeta.get(routeId);
+        return meta;
     }
 
     async fileReplayLoad(info) {
