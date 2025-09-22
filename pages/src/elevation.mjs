@@ -51,6 +51,10 @@ function findNearestSpatialIndex(nodes, point, nearIdx, {searchSpace=0.10}={}) {
 
 
 export class SauceElevationProfile {
+
+    leadinColor = '#37f';
+    weldColor = '#fa0';
+
     constructor({el, worldList, preferRoute, showMaxLine, disableAthletePoints, refresh=1000}) {
         this.el = el;
         this.worldList = worldList;
@@ -121,14 +125,7 @@ export class SauceElevationProfile {
         this.athleteId = null;
         this.watchingId = null;
         this.roads = null;
-        this.road = null;
-        this.route = null;
-        this.routeId = null;
-        this.reverse = null;
         this.marks = new Map();
-        this._distances = null;
-        this._elevations = null;
-        this._grades = null;
         this._statesQueue = [];
         this._busy = false;
         this.onResize();
@@ -236,47 +233,62 @@ export class SauceElevationProfile {
         }
     }
 
-    clear() {
-        this.route = null;
-        this.routeId = null;
-        this.eventSubgroupId = null;
+    _resetPath() {
+        this.curvePath = null;
+        this._distances = null;
+        this._elevations = null;
+        this._grades = null;
         this.road = null;
         this.reverse = null;
-        this.curvePath = null;
+        this.route = null;
+        this.routeId = null;
+        this.routePrelude = null;
+        this.eventSubgroupId = null;
+        this.lapStartIndex = null;
+        this.routeLaps = null;
+    }
+
+    clear() {
+        this._resetPath();
         this.setData([], [], []);
     }
 
     setRoad(id, reverse=false) {
-        this.route = null;
-        this.routeId = null;
-        this.eventSubgroupId = null;
-        this.lapStartIndex = null;
+        this._resetPath();
         this.road = this.roads ? this.roads.find(x => x.id === id) : null;
-        if (this.road) {
-            this.reverse = reverse;
-            this.curvePath = this.road.curvePath;
-            this.setData(this.road.distances, this.road.elevations, this.road.grades, {reverse});
-        } else {
-            this.reverse = null;
-            this.curvePath = null;
+        if (!this.road) {
+            console.warn("Road not found:", id);
+            return;
         }
+        this.reverse = reverse;
+        this.curvePath = this.road.curvePath;
+        this.setData(this.road.distances, this.road.elevations, this.road.grades, {reverse});
     }
 
-    setRoute = common.asyncSerialize(async function(id, {laps=1, distance, eventSubgroupId, hideLaps}={}) {
-        this.road = null;
-        this.reverse = null;
-        this.eventSubgroupId = eventSubgroupId;
-        this.curvePath = null;
+    setRoute = common.asyncSerialize(async function(id, {laps=1, distance, eventSubgroupId,
+                                                         hideLaps, prelude='leadin'}={}) {
+        this._resetPath();
         let eventSubgroup;
         if (eventSubgroupId) {
             eventSubgroup = await common.getEventSubgroup(eventSubgroupId);
+            if (!eventSubgroup) {
+                console.warn('Event subgroup not found:', eventSubgroupId);
+                return;
+            }
+            this.eventSubgroupId = eventSubgroupId;
             this.routeId = eventSubgroup.routeId;
             laps = eventSubgroup.laps;
             distance = eventSubgroup.distanceInMeters;
         } else {
             this.routeId = id;
         }
-        this.route = await common.getRoute(this.routeId);
+        this.route = await common.getRoute(this.routeId, {prelude});
+        if (!this.route) {
+            console.warn("Route not found:", this.routeId);
+            this.routeId = null;
+            return;
+        }
+        this.routePrelude = prelude;
         this.curvePath = this.route.curvePath.slice();
         if (distance) {
             laps = this.route.supportedLaps ? 1e4 : 1;
@@ -288,8 +300,7 @@ export class SauceElevationProfile {
         const lapSegments = [];
         const sectors = [];
         const lapOffsets = [];
-        let leadinDist = 0;
-        this.lapStartIndex = null;
+        let preludeDist = 0;
         for (const [i, m] of this.route.manifest.entries()) {
             if (this.lapStartIndex == null && !m.leadin) {
                 this.lapStartIndex = this.curvePath.nodes.findIndex(x => x.index === i);
@@ -298,14 +309,14 @@ export class SauceElevationProfile {
                 continue;
             }
             for (const segment of m.segments) {
-                const road = this.route.roadSegments[i];
-                const i1 = Math.round(road.roadPercentToOffset(segment.roadStart));
-                const i2 = Math.round(road.roadPercentToOffset(segment.roadFinish));
+                const rcp = this.route.sections[i].roadCurvePath;
+                const i1 = Math.round(rcp.roadPercentToOffset(segment.roadStart));
+                const i2 = Math.round(rcp.roadPercentToOffset(segment.roadFinish));
                 const offt = this.route.curvePath.nodes.findIndex(x => x.index === i);
                 let start, end;
                 if (segment.reverse) {
-                    start = offt + (road.nodes.length - 1 - i1);
-                    end = offt + (road.nodes.length - 1 - i2);
+                    start = offt + (rcp.nodes.length - 1 - i1);
+                    end = offt + (rcp.nodes.length - 1 - i2);
                 } else {
                     start = offt + i1;
                     end = offt + i2;
@@ -314,46 +325,55 @@ export class SauceElevationProfile {
             }
         }
         if (this.lapStartIndex) {
-            leadinDist = distances[this.lapStartIndex];
+            preludeDist = distances[this.lapStartIndex];
             if (!hideLaps) {
-                lapOffsets.push(leadinDist);
+                lapOffsets.push(preludeDist);
             }
             sectors.push({
-                name: 'Leadin',
-                color: '#37f',
+                name: prelude === 'leadin' ? 'Leadin' : 'Interlude',
+                color: prelude === 'leadin' ? this.leadinColor : this.weldColor,
                 start: 0,
                 end: this.lapStartIndex - 1,
-                distance: leadinDist,
+                distance: preludeDist,
             });
         }
-        const appendLapWeld = () => {
-            const dOfft = distances.at(-1);
-            const weld = this.route.lapWeldData;
-            sectors.push({
-                name: 'Lap Gap Weld',
-                color: '#fa0',
-                start: distances.length,
-                end: distances.length + weld.distances.length - 1,
-                distance: weld.distances.at(-1),
-            });
-            for (let i = 0; i < weld.distances.length; i++) {
-                distances.push(dOfft + weld.distances[i]);
-                elevations.push(weld.elevations[i]);
-                grades.push(weld.grades[i]);
-            }
-            this.curvePath.extend(this.route.lapWeldPath);  // NOTE: has no nodes[].index values
-        };
+        this.routeLaps = [{
+            lap: 0,
+            index: 0,
+            offsetDistance: 0,
+            distance: distances.at(-1),
+        }];
         if (laps > 1) {
             const lapSlice = this.route.curvePath.slice(this.lapStartIndex);
-            const lapDistances = this.route.distances.slice(this.lapStartIndex).map(x => x - leadinDist);
+            const lapDistances = this.route.distances.slice(this.lapStartIndex).map(x => x - preludeDist);
             const lapElevations = this.route.elevations.slice(this.lapStartIndex);
             const lapGrades = this.route.grades.slice(this.lapStartIndex);
             for (let lap = 1; lap < laps; lap++) {
+                const lapEntry = {
+                    lap,
+                    index: distances.length,
+                    offsetDistance: distances.at(-1),
+                };
+                this.routeLaps.push(lapEntry);
                 if (!hideLaps) {
                     lapOffsets.push(distances.at(-1));
                 }
                 if (this.route.lapWeldPath) {
-                    appendLapWeld();
+                    const dOfft = distances.at(-1);
+                    const weld = this.route.lapWeldData;
+                    sectors.push({
+                        name: 'Interlude',
+                        color: this.weldColor,
+                        start: distances.length,
+                        end: distances.length + weld.distances.length - 1,
+                        distance: weld.distances.at(-1),
+                    });
+                    for (let i = 0; i < weld.distances.length; i++) {
+                        distances.push(dOfft + weld.distances[i]);
+                        elevations.push(weld.elevations[i]);
+                        grades.push(weld.grades[i]);
+                    }
+                    this.curvePath.extend(this.route.lapWeldPath);  // NOTE: has no nodes[].index values
                 }
                 for (const x of routeSegments) {
                     lapSegments.push({
@@ -369,13 +389,11 @@ export class SauceElevationProfile {
                     elevations.push(lapElevations[i]);
                     grades.push(lapGrades[i]);
                 }
+                lapEntry.distance = distances.at(-1) - lapEntry.offsetDistance;
                 if (distance && distances.at(-1) >= distance) {
                     break;
                 }
             }
-        } else if (!eventSubgroupId && this.route.lapWeldPath) {
-            // Must show weld since laps are indeterminate in non event mode..
-            appendLapWeld();
         }
         const segments = routeSegments.concat(lapSegments);
         if (distance) {
@@ -387,6 +405,8 @@ export class SauceElevationProfile {
             while (segments.at(-1).end >= distances.length) {
                 segments.pop();
             }
+            const lapEntry = this.routeLaps.at(-1);
+            lapEntry.distance = distances.at(-1) - lapEntry.offsetDistance;
         }
         const len = distances.length;
         if (this.curvePath.nodes.length !== len || elevations.length !== len || grades.length !== len) {
@@ -643,7 +663,7 @@ export class SauceElevationProfile {
                         if (!mark) {
                             return;
                         }
-                        const ad = common.getAthleteDataCacheEntry(mark.athleteId);
+                        const ad = common.getAthleteDataCacheEntry(mark.athleteId, {maxAge: 1e9});
                         const name = ad?.athlete?.fLast || `ID: ${mark.athleteId}`;
                         return `${name}, ${H.power(mark.state.power, {suffix: true})}`;
                     }
@@ -679,8 +699,13 @@ export class SauceElevationProfile {
                         await this.setRoute(null, {eventSubgroupId: watching.eventSubgroupId});
                     }
                 } else if (watching.routeId) {
-                    if (this.routeId !== watching.routeId || this.eventSubgroupId) {
-                        await this.setRoute(watching.routeId);
+                    const prelude = (watching.laps ||
+                        (watching.routeDistance &&
+                         watching.routeDistance / watching.routeEnd > 0.5)) ? 'weld' : 'leadin';
+                    if (this.routeId !== watching.routeId ||
+                        this.eventSubgroupId ||
+                        this.routePrelude !== prelude) {
+                        await this.setRoute(watching.routeId, {prelude});
                     }
                 } else {
                     this.route = null;
@@ -732,18 +757,18 @@ export class SauceElevationProfile {
         marks.sort((a, b) => a.athleteId === this.watchingId ? 1 : b.athleteId === this.watchingId ? -1 : 0);
         const data = marks.map(mark => {
             let state = mark.state;
-            let xIdxReal = this.findMarkPosition3(state);
+            let xIdxFloat = this.findMarkPosition(state);
             let ghost;
-            if (xIdxReal == null && mark.lastVisualState && now - mark.lastVisualTS < 5000) {
-                xIdxReal = this.findMarkPosition3(mark.lastVisualState);
+            if (xIdxFloat == null && mark.lastVisualState && now - mark.lastVisualTS < 5000) {
+                xIdxFloat = this.findMarkPosition(mark.lastVisualState);
                 state = mark.lastVisualState;
                 ghost = true;
             }
-            if (xIdxReal == null || isNaN(xIdxReal)) {
+            if (xIdxFloat == null || isNaN(xIdxFloat)) {
                 return;
             }
-            const xIdx = xIdxReal | 0;
-            const xRem = xIdxReal % 1;
+            const xIdx = xIdxFloat | 0;
+            const xRem = xIdxFloat % 1;
             let xCoord;
             let yCoord;
             let grade;
@@ -774,6 +799,13 @@ export class SauceElevationProfile {
                 mark.lastVisualState = state;
                 mark.lastVisualTS = now;
             }
+            if (isWatching) {
+                this._lastWatchingMeta = {
+                    state,
+                    ts: now,
+                    xIdxFloat,
+                };
+            }
             return {
                 name: state.athleteId,
                 value: [xCoord, yCoord, visualGrade, isWatching, deemphasize, ghost]
@@ -789,198 +821,85 @@ export class SauceElevationProfile {
         }
     }
 
-    getRouteLeadinDistance() {
-        if (this.route == null) {
-            return 0;
-        }
-        let d;
-        if (this.eventSubgroupId) {
-            // TODO: Handle meetups.
-            d = this.route.leadinDistanceInMeters;
-        } else {
-            d = this.route.freeRideLeadinDistanceInMeters;
-        }
-        return d ?? this.route.defaultLeadinDistanceInMeters ?? 0;
-    }
-
     findMarkPosition(state) {
-        let roadSeg;
-        let roadNodeOfft;
-        const nodes = this.curvePath.nodes;
-        if (state.athleteId !== 5052891) {
-            return;
-        }
         if (this.routeId != null) {
-            if (state.routeId === this.routeId) {
-
-                /*const distance = this.eventSubgroupId ?
-                    state.eventDistance % this._distances[this._distances.length - 1] : // XXX do not like, edge defects, shd be like circular buffer
-                    state.routeDistance;*/
-
-                // Let's explore using routeDistance by default...
-                const distance = state.routeDistance ?? (state.eventDistance % this._distances[this._distances.length - 1]);
-
-                const point = [state.x, state.y];
-                let nearIdx;
-                if (this.lapStartIndex && state.eventDistance > this.getRouteLeadinDistance() * 1.5) {
-                    console.warn("no, this seems wrong...");
-                    nearIdx = this.lapStartIndex +
-                        common.binarySearchClosest(this._distances.slice(this.lapStartIndex), distance);
-                } else {
-                    nearIdx = common.binarySearchClosest(this._distances, distance);
+            let profileDistance;
+            if (state.routeId !== this.routeId) {
+                // Not on our route but perhaps nearby..
+                if (!this._lastWatchingMeta) {
+                    return;
                 }
-                const bestIndex = findNearestSpatialIndex(nodes, point, nearIdx);
-                let rtResult;
-                const rIdx = nodes[bestIndex].index;
-                if (rIdx != null) {
-                    const road = this.route.roadSegments[rIdx];
-                    if (road.roadId === state.roadId &&
-                        !!road.reverse === !!state.reverse &&
-                        road.includesRoadTime(state.roadTime)) {
-                        roadSeg = road;
-                        const roadOfft = road.roadTimeToOffset(state.roadTime);
-                        let rno = 0;
-                        if (rIdx) {
-                            rno = bestIndex;
-                            do {
-                                rno--;
-                            } while (rno >= 0 && nodes[rno].index === rIdx);
+                const ourIdx = this._lastWatchingMeta.xIdxFloat | 0;
+                const startSectionIdx = this.route.curvePath.nodes[ourIdx].index;
+                if (startSectionIdx == null) {
+                    return;
+                }
+                const lws = this._lastWatchingMeta.state;
+                let sectionMatch;
+                // middle out search for matching road section...
+                for (let i = 0; i <= this.route.sections.length / 2; i++) {
+                    let leftIdx = startSectionIdx - i;
+                    if (leftIdx < 0) {
+                        leftIdx = this.route.sections.length + leftIdx;
+                    }
+                    const s = this.route.sections[leftIdx];
+                    if (s.roadId === state.roadId && !s.reverse === !state.reverse &&
+                        (!s.leadin || this.routePrelude === 'leadin') &&
+                        (!s.weld || this.routePrelude === 'weld') &&
+                        s.roadCurvePath.includesRoadTime(state.roadTime)) {
+                        sectionMatch = s;
+                        break;
+                    }
+                    if (i) {
+                        const rightIdx = (startSectionIdx + i) % this.route.sections.length;
+                        const s = this.route.sections[rightIdx];
+                        if (s.roadId === state.roadId && !s.reverse === !state.reverse &&
+                            (!s.leadin || this.routePrelude === 'leadin') &&
+                            (!s.weld || this.routePrelude === 'weld') &&
+                            s.roadCurvePath.includesRoadTime(state.roadTime)) {
+                            sectionMatch = s;
+                            break;
                         }
-                        rtResult = rno + 1 + (road.reverse ? road.nodes.length - 1 - roadOfft : roadOfft);
                     }
                 }
-
-                const fineStartIndex = Math.max(0, bestIndex - 3);
-                const fineSlice = this.curvePath.slice(fineStartIndex, bestIndex + 4);
-                const fineExpanded = [];
-                fineSlice.trace(x => fineExpanded.push({end: x.stepNode}), 1/1000, {expandStraights: true});
-                const fineIndex = findNearestSpatialIndex(fineExpanded, point, null, {searchSpace: 0.333});
-                const fineOfft = fineIndex / (fineExpanded.length - 1) * (fineSlice.nodes.length - 1);
-                const final = fineStartIndex + fineOfft;
-                const diff = rtResult - final;
-                if (Math.abs(diff > 1)) {
-                    console.warn("WATF", state.athleteId, state.roadId, state.roadTime, {diff});
+                if (sectionMatch) {
+                    const lapEntry = this.routeLaps[lws.laps] || this.routeLaps.at(-1);
+                    const preludeDist = this.routePrelude === 'leadin' && lapEntry.index === 0 ?
+                        this.route.meta.leadinDistance :
+                        this.route.meta.weldDistance;
+                    profileDistance = lapEntry.offsetDistance +
+                        ((!sectionMatch.leadin && !sectionMatch.weld) ? preludeDist : 0) +
+                        sectionMatch.blockOffsetDistance +
+                        sectionMatch.roadCurvePath.distanceAtRoadTime(state.roadTime, 1/20) / 100;
                 }
-                console.log({rtResult, final, diff, bestIndex, fineOfft, fineStartIndex}, );
-                return fineStartIndex + fineOfft;
+            } else if (state.routeDistance != null) {
+                // Adjust state.routeDistance prelude to match our visual prelude..
+                // Easiest way to think of this is we calculate the distance remaining
+                // in the lap and subtract that from our visual depection because the
+                // lap finish line never changes but the start line can.
+                const lapEntry = this.routeLaps[state.laps] || this.routeLaps.at(-1);
+                const adjDist = lapEntry.distance - (state.routeEnd - state.routeDistance);
+                profileDistance = lapEntry.offsetDistance + adjDist;
+            }
+            if (profileDistance == null || Number.isNaN(profileDistance)) {
+                return;
+            }
+            const nearIdx = common.binarySearchClosest(this._distances, profileDistance);
+            if (nearIdx === -1 || nearIdx == null) {
+                return;
+            }
+            const diff = profileDistance - this._distances[nearIdx];
+            let left;
+            if (diff >= 0) {
+                left = nearIdx;
             } else {
-                // Not on our route but perhaps on our roads..
-                roadSeg = this.route.roadSegments.find(x => x.roadId === state.roadId &&
-                                                       !!x.reverse === !!state.reverse &&
-                                                       x.includesRoadTime(state.roadTime));
-                if (roadSeg) {
-                    const rIdx = this.route.roadSegments.indexOf(roadSeg);
-                    // TODO: road could be in route nodes multiple times (laps, or complex routes).
-                    // Could just try to locate them close to us (watching) for best visual experience.
-                    roadNodeOfft = nodes.findIndex(x => x.index === rIdx);
-                }
+                left = nearIdx - 1;
             }
+            return left + (profileDistance - this._distances[left]) /
+                           (this._distances[left + 1] - this._distances[left]);
         } else if (this.road && this.road.id === state.roadId && !!this.reverse === !!state.reverse) {
-            roadSeg = this.road.curvePath;
-            roadNodeOfft = 0;
+            return this.road.curvePath.roadTimeToOffset(state.roadTime);
         }
-        if (!roadSeg) {
-            return;
-        }
-
-        const roadOfft = roadSeg.roadTimeToOffset(state.roadTime);
-        const verify = findNearestSpatialIndex(nodes, [state.x, state.y], null, {searchSpace: 1});
-        const fullOfft = roadNodeOfft + (roadSeg.reverse ? roadSeg.nodes.length - 1 - roadOfft : roadOfft);
-            if (Math.abs(verify - fullOfft) > 1) {
-                console.warn({verify, fullOfft, roadOfft}, roadSeg.reverse);
-                //debugger;
-            }
-        return roadNodeOfft + (roadSeg.reverse ? roadSeg.nodes.length - 1 - roadOfft : roadOfft);
-    }
-
-    findMarkPosition3(state) {
-        let roadSeg;
-        let roadNodeOfft;
-        const nodes = this.curvePath.nodes;
-        if (state.athleteId !== 5052891) {
-            return;
-        }
-        if (this.routeId != null) {
-            if (state.routeId === this.routeId) {
-
-                /*const distance = this.eventSubgroupId ?
-                    state.eventDistance % this._distances[this._distances.length - 1] : // XXX do not like, edge defects, shd be like circular buffer
-                    state.routeDistance;*/
-
-                // Let's explore using routeDistance by default...
-                const distance = state.routeDistance ?? (state.eventDistance % this._distances[this._distances.length - 1]);
-
-                const point = [state.x, state.y];
-                let nearIdx;
-                if (this.lapStartIndex && state.eventDistance > this.getRouteLeadinDistance() * 1.5) {
-                    console.warn("no, this seems wrong...");
-                    nearIdx = this.lapStartIndex +
-                        common.binarySearchClosest(this._distances.slice(this.lapStartIndex), distance);
-                } else {
-                    nearIdx = common.binarySearchClosest(this._distances, distance);
-                }
-                const bestIndex = findNearestSpatialIndex(nodes, point, nearIdx);
-                let rtResult;
-                const rIdx = nodes[bestIndex].index;
-                if (rIdx != null) {
-                    const road = this.route.roadSegments[rIdx];
-                    if (road.roadId === state.roadId &&
-                        !!road.reverse === !!state.reverse &&
-                        road.includesRoadTime(state.roadTime)) {
-                        roadSeg = road;
-                        const roadOfft = road.roadTimeToOffset(state.roadTime);
-                        let rno = 0;
-                        if (rIdx) {
-                            rno = bestIndex;
-                            do {
-                                rno--;
-                            } while (rno >= 0 && nodes[rno].index === rIdx);
-                        }
-                        rtResult = rno + 1 + (road.reverse ? road.nodes.length - 1 - roadOfft : roadOfft);
-                    }
-                }
-
-                const fineStartIndex = Math.max(0, bestIndex - 3);
-                const fineSlice = this.curvePath.slice(fineStartIndex, bestIndex + 4);
-                const fineExpanded = [];
-                fineSlice.trace(x => fineExpanded.push({end: x.stepNode}), 1/1000, {expandStraights: true});
-                const fineIndex = findNearestSpatialIndex(fineExpanded, point, null, {searchSpace: 0.333});
-                const fineOfft = fineIndex / (fineExpanded.length - 1) * (fineSlice.nodes.length - 1);
-                const final = fineStartIndex + fineOfft;
-                const diff = rtResult - final;
-                if (Math.abs(diff > 1)) {
-                    console.warn("WATF", state.athleteId, state.roadId, state.roadTime, {diff});
-                }
-                console.log({rtResult, final, diff, bestIndex, fineOfft, fineStartIndex}, );
-                return fineStartIndex + fineOfft;
-            } else {
-                // Not on our route but perhaps on our roads..
-                roadSeg = this.route.roadSegments.find(x => x.roadId === state.roadId &&
-                                                       !!x.reverse === !!state.reverse &&
-                                                       x.includesRoadTime(state.roadTime));
-                if (roadSeg) {
-                    const rIdx = this.route.roadSegments.indexOf(roadSeg);
-                    // TODO: road could be in route nodes multiple times (laps, or complex routes).
-                    // Could just try to locate them close to us (watching) for best visual experience.
-                    roadNodeOfft = nodes.findIndex(x => x.index === rIdx);
-                }
-            }
-        } else if (this.road && this.road.id === state.roadId && !!this.reverse === !!state.reverse) {
-            roadSeg = this.road.curvePath;
-            roadNodeOfft = 0;
-        }
-        if (!roadSeg) {
-            return;
-        }
-
-        const roadOfft = roadSeg.roadTimeToOffset(state.roadTime);
-        const verify = findNearestSpatialIndex(nodes, [state.x, state.y], null, {searchSpace: 1});
-        const fullOfft = roadNodeOfft + (roadSeg.reverse ? roadSeg.nodes.length - 1 - roadOfft : roadOfft);
-            if (Math.abs(verify - fullOfft) > 1) {
-                console.warn({verify, fullOfft, roadOfft}, roadSeg.reverse);
-                //debugger;
-            }
-        return roadNodeOfft + (roadSeg.reverse ? roadSeg.nodes.length - 1 - roadOfft : roadOfft);
     }
 
     onMarkEmphasisLabel(params) {
