@@ -698,7 +698,6 @@ export class StatsProcessor extends events.EventEmitter {
                 return;
             }
             const roadCurvePaths = new Map();
-            debugger;
             for (const x of route.manifest) {
                 if (!roadCurvePaths.has(x.roadId)) {
                     roadCurvePaths.set(x.roadId, env.getRoadCurvePath(route.courseId, x.roadId));
