@@ -101,13 +101,15 @@ async function fillInEvents() {
                 durations.push(sg.durationInSeconds);
                 distances.push(sg.distanceInMeters || sg.routeDistance);
                 allSubgroups.set(sg.id, {sg, event});
+                sg.displayTags = sg.allTags.filter(x => !event.allTags.includes(x)).filter(x =>
+                    !x.match(/(^timestamp=|^created_|^after_party_duration=|^powerup_percent[=:])/));
             }
         }
         const desc = (a, b) => a - b;
         event.durations = Array.from(new Set(durations.filter(x => x))).sort(desc);
         event.distances = Array.from(new Set(distances.filter(x => x))).sort(desc);
         event.displayTags = event.allTags.filter(x =>
-            !x.match(/(^timestamp=|^created_|^after_party_duration=|^powerup_percent=)/));
+            !x.match(/(^timestamp=|^created_|^after_party_duration=|^powerup_percent[=:])/));
     }
 }
 

@@ -108,6 +108,14 @@
                     <% if (!event.sameRoute) { %>
                         <div class="elevation-chart" data-sg-id="{{sg.id}}"></div>
                     <% } %>
+                    <% if (sg.displayTags.length) { %>
+                        <div class="subsection tags">
+                            <b>Tags:</b>
+                            <% for (const x of sg.displayTags) { %>
+                                <div class="badge">{{x}}</div>
+                            <% } %>
+                        </div>
+                    <% } %>
                     <div class="entrants-wrap">
                         <table class="entrants expandable"></table>
                     </div>
