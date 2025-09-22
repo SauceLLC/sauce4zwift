@@ -361,11 +361,12 @@ export class SauceElevationProfile {
                 elevations.pop();
                 grades.pop();
             }
-            while (segments.at(-1).end >= distances.length) {
+            while (segments.length && segments.at(-1).end >= distances.length) {
                 segments.pop();
             }
             const lapEntry = this.routeLaps.at(-1);
             lapEntry.distance = distances.at(-1) - lapEntry.offsetDistance;
+            this.curvePath = this.curvePath.slice(0, distances.length);
         }
         const len = distances.length;
         if (this.curvePath.nodes.length !== len || elevations.length !== len || grades.length !== len) {
