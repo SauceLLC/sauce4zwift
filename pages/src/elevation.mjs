@@ -9,47 +9,6 @@ ec.registerTheme('sauce', theme.getTheme('dynamic'));
 const H = locale.human;
 
 
-function vecDistSq(a, b) {
-    const dx = a[0] - b[0];
-    const dy = a[1] - b[1];
-    return dx * dx + dy * dy;
-}
-
-
-function findNearestSpatialIndex(nodes, point, nearIdx, {searchSpace=0.10}={}) {
-    const nodesLen = nodes.length;
-    if (nearIdx == null) {
-        nearIdx = nodesLen / 2 | 0;
-    }
-    let bestIndex = nearIdx;
-    let bestDistSq = vecDistSq(nodes[nearIdx].end, point);
-    const minSearch = nodesLen * searchSpace | 0;
-    let missCount = 0;
-    for (let i = 1; i < nodesLen && missCount < minSearch; i++) {
-        const left = nearIdx - i;
-        const right = nearIdx + i;
-        missCount++;
-        if (left >= 0) {
-            const d = vecDistSq(nodes[left].end, point);
-            if (d < bestDistSq) {
-                bestDistSq = d;
-                bestIndex = left;
-                missCount = 0;
-            }
-        }
-        if (right < nodesLen) {
-            const d = vecDistSq(nodes[right].end, point);
-            if (d < bestDistSq) {
-                bestDistSq = d;
-                bestIndex = right;
-                missCount = 0;
-            }
-        }
-    }
-    return bestIndex;
-}
-
-
 export class SauceElevationProfile {
 
     leadinColor = '#37f';

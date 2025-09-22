@@ -48,7 +48,7 @@ let zwiftMap;
 let elProfile;
 let courseId = Number(url.searchParams.get('course')) || undefined;
 let routeId = Number(url.searchParams.get('route')) || undefined;
-let laps = Number(url.searchParams.get('laps')) || undefined;
+const laps = Number(url.searchParams.get('laps')) || undefined;
 
 
 function qualityScale(raw) {
