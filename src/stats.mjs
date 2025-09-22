@@ -1399,7 +1399,7 @@ export class StatsProcessor extends events.EventEmitter {
     startSegment(ad, id, start=monotonic()) {
         const segment = this._createNewLapish(ad, start);
         segment.id = id;
-        // Indirectly lookup sgId via cur-lap to avoid after_party_duration window..
+        // Indirectly lookup sgId via cur-lap to avoid cooldown window..
         segment.eventSubgroupId = ad.laps[ad.laps.length - 1].eventSubgroupId;
         if (segment.eventSubgroupId) {
             segment.startEventDistance = ad.mostRecentState.eventDistance;
@@ -2296,8 +2296,7 @@ export class StatsProcessor extends events.EventEmitter {
                     if (state.time) {
                         this.triggerEventStart(ad, state, now);
                     }
-                } else if (sg.allTagsObject.after_party_duration &&
-                           ad.laps[ad.laps.length - 1].eventSubgroupId === sg.id &&
+                } else if (ad.laps[ad.laps.length - 1].eventSubgroupId === sg.id &&
                            (sg.endDistance ?
                                state.eventDistance > sg.endDistance :
                                sg.endTS && worldTimer.toServerTime(state.worldTime) > sg.endTS)) {
@@ -2860,14 +2859,14 @@ export class StatsProcessor extends events.EventEmitter {
                 }
                 tags[x.substr(0, kvIdx).toLowerCase()] = value;
             } else {
-                tags[x.toLowerCase()] = undefined;
+                tags[x.toLowerCase()] = true;
             }
         }
         return tags;
     }
 
     _flattenEventTags(tagsObject) {
-        return Object.entries(tagsObject).map(([k, v]) => v !== undefined ? `${k}=${v}` : k);
+        return Object.entries(tagsObject).map(([k, v]) => v !== undefined && v !== true ? `${k}=${v}` : k);
     }
 
     _parsePowerupPercents(powerupPercents) {
@@ -2928,6 +2927,7 @@ export class StatsProcessor extends events.EventEmitter {
                 sg.eventId = event.id;
                 sg.ts = +new Date(sg.eventSubgroupStart);
                 sg.startOffset = sg.ts - event.ts;
+                sg.tags = sg._tags ? sg._tags.split(';') : [];
                 sg.allTagsObject = {...event.allTagsObject, ...this._parseEventTags(sg)};
                 sg.allTags = this._flattenEventTags(sg.allTagsObject);
                 if (sg.allTagsObject.powerup_percent) {
