@@ -3,6 +3,7 @@ import * as curves from '/shared/curves.mjs';
 import * as locale from '/shared/sauce/locale.mjs';
 
 const H = locale.human;
+const timeline = document.timeline;
 
 
 function createElementSVG(name, attrs={}) {
@@ -40,10 +41,6 @@ class Transition {
         this.playing = false;
     }
 
-    now() {
-        return performance.now();
-    }
-
     incDisabled() {
         this._disabledRefCnt++;
         if (this._disabledRefCnt === 1) {
@@ -62,7 +59,7 @@ class Transition {
         if (this._disabledRefCnt === 0) {
             this.disabled = false;
             if (this.playing && this._remainingTime) {
-                const now = this.now();
+                const now = timeline.currentTime;
                 this._startTime = now;
                 this._endTime = now + this._remainingTime;
             }
@@ -76,7 +73,7 @@ class Transition {
             if (this.playing) {
                 // Prevent jitter by forwarding the current transition.
                 this._src = Array.from(this._cur);
-                this._startTime = this.now();
+                this._startTime = timeline.currentTime;
                 this._endTime += duration - this.duration;
             }
         }
@@ -86,7 +83,7 @@ class Transition {
     setValues(values) {
         if (!this.disabled) {
             if (this._dst) {
-                const now = this.now();
+                const now = timeline.currentTime;
                 if (now < this._endTime) {
                     // Start from current position (and prevent Zeno's paradaox)
                     this._recalcCurrent();
@@ -125,7 +122,7 @@ class Transition {
     }
 
     _recalcCurrent() {
-        const now = this.now();
+        const now = timeline.currentTime;
         const progress = (now - this._startTime) / (this._endTime - this._startTime);
         if (progress >= 1 || this.disabled) {
             if (this._dst) {
@@ -1415,7 +1412,7 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     _renderFrame(force) {
-        const frameTime = document.timeline.currentTime;
+        const frameTime = timeline.currentTime;
         this._frameTimeAvg = this._frameTimeWeighted(frameTime - this._lastFrameTime);
         this._lastFrameTime = frameTime;
         let affectedPins;
@@ -1476,9 +1473,9 @@ export class SauceZwiftMap extends EventTarget {
         }
     }
 
-    _transformAnimationLoop(frameTime) {
+    _transformAnimationLoop() {
         requestAnimationFrame(this._transformAnimationLoopBound);
-        const elapsed = frameTime - this._lastFrameTime;
+        const elapsed = timeline.currentTime - this._lastFrameTime;
         if (elapsed < this._msPerFrame && this._frameTimeAvg < this._msPerFrame) {
             return;
         }
