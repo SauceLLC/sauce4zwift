@@ -431,6 +431,16 @@ table {
                 }
             }
 
+            .tags {
+                font-size: 0.88em;
+                padding: 0.8em 0.4em 0.1em;
+
+                .badge {
+                    --sat: 0.2;
+                    --hue: 15deg;
+                }
+            }
+
             > header {
                 display: flex;
                 justify-content: space-between;
