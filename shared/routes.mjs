@@ -72,19 +72,38 @@ export function getRouteRoadSections(route, {roadCurvePaths, epsilon=routeDistEp
                 marginEndDistance: 0,
             });
         } else {
-            let start, end;
+            // ltr...
+            let left, right, dist, split;
             if (!lapStart.reverse) {
-                start = lapEnd.end;
-                end = lapStart.start;
+                left = lapEnd.end;
+                right = lapStart.start;
+                if (right < left && (left - right) > 0.3) {
+                    split = true;
+                    dist = (1 - left) + right;
+                } else {
+                    dist = right - left;
+                }
             } else {
-                start = lapEnd.start;
-                end = lapStart.end;
+                left = lapEnd.start;
+                right = lapStart.end;
+                if (left < right && (right - left) > 0.3) {
+                    split = true;
+                    dist = (1 - right) + left;
+                } else {
+                    dist = left - right;
+                }
             }
-            if (Math.abs(start - end) > 1e-4) {
+            if (Math.abs(dist) > 1e-4) {
                 const roadCurvePath = roadCurvePaths.get(lapStart.roadId);
-                if (start > end) {
-                    const w1 = roadCurvePath.subpathAtRoadPercents(start, 1, {epsilon});
-                    const w2 = roadCurvePath.subpathAtRoadPercents(0, end, {epsilon});
+                if (split) {
+                    let w1, w2;
+                    if (!lapStart.reverse) {
+                        w1 = roadCurvePath.subpathAtRoadPercents(left, 1, {epsilon});
+                        w2 = roadCurvePath.subpathAtRoadPercents(0, right, {epsilon});
+                    } else {
+                        w1 = roadCurvePath.subpathAtRoadPercents(0, left, {epsilon});
+                        w2 = roadCurvePath.subpathAtRoadPercents(right, 1, {epsilon});
+                    }
                     const w1Dist = w1.distance() / 100;
                     const w2Dist = w2.distance() / 100;
                     sections.push({
@@ -111,7 +130,9 @@ export function getRouteRoadSections(route, {roadCurvePaths, epsilon=routeDistEp
                         marginEndDistance: 0,
                     });
                 } else {
-                    const w = roadCurvePath.subpathAtRoadPercents(start, end, {epsilon});
+                    const w = !lapStart.reverse ?
+                        roadCurvePath.subpathAtRoadPercents(left, right, {epsilon}) :
+                        roadCurvePath.subpathAtRoadPercents(right, left, {epsilon});
                     const wDist = w.distance() / 100;
                     sections.push({
                         courseId: route.courseId,
