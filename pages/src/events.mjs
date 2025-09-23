@@ -83,7 +83,9 @@ async function fillInEvents() {
         event.sameRouteName = true;
         event.signedUp = false;
         const durations = [event.durationInSeconds];
-        const distances = [event.distanceInMeters || event.routeDistance];
+        const distances = !event.durationInSeconds ?
+            [event.distanceInMeters || event.routeDistance] :
+            [];
         if (event.eventSubgroups) {
             event.eventSubgroups.sort((a, b) =>
                 a.subgroupLabel === b.subgroupLabel ? 0 : a.subgroupLabel < b.subgroupLabel ? -1 : 1);
@@ -99,7 +101,9 @@ async function fillInEvents() {
             for (const sg of event.eventSubgroups) {
                 sg.route = allRoutes.get(sg.routeId);
                 durations.push(sg.durationInSeconds);
-                distances.push(sg.distanceInMeters || sg.routeDistance);
+                if (!sg.durationInSeconds) {
+                    distances.push(sg.distanceInMeters || sg.routeDistance);
+                }
                 allSubgroups.set(sg.id, {sg, event});
                 sg.displayTags = sg.allTags.filter(x => !event.allTags.includes(x)).filter(x =>
                     !x.match(/(^timestamp=|^created_|^after_party_duration=|^powerup_percent[=:])/));

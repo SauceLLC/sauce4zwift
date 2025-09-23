@@ -32,7 +32,7 @@
             <% if (event.durations.length > 1) { %>
                 {-fmt(event.durations[0])-}-{-fmt(event.durations.at(-1))-}{{event.durations.length ? ',' : ''}}
             <% } else { %>
-                {-fmt(event.durations[0], {short: !!event.distances.length})-}{{event.durations.length ? ',' : ''}}
+                {-fmt(event.durations[0], {short: !!event.distances.length})-}{{event.distances.length ? ',' : ''}}
             <% } %>
         <% } %>
         <% if (event.distances.length) { %>
@@ -42,7 +42,7 @@
             <% } else { %>
                 {-fmt(event.distances[0])-}
             <% } %>
-        <% } else { %>
+        <% } else if (!event.durations.length) { %>
             <b>?</b>{{console.warn("Event duration/distance bug:", event)}}
         <% } %>
     </td>
