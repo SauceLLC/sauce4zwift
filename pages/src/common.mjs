@@ -591,15 +591,19 @@ export async function computeRoutePath(route, options={}) {
             curvePath.extend(section.reverse ? section.roadCurvePath.toReversed() : section.roadCurvePath);
         }
     }
-    const ret = {
+    return {
         meta,
         sections,
         curvePath,
-        lapWeldPath, // try to kill.. XXX
-        lapWeldData, // try to kill.. XXX
+        lapWeldPath,
+        lapWeldData,
         ...supplimentPath(worldMeta, curvePath),
     };
-    const deprecatedRoadSegments = sections.map(x => {
+}
+
+
+function emplaceDeprecatedRouteRoadSegmentsField(routeData) {
+    const deprecatedRoadSegments = routeData.sections.map(x => {
         // Avoid polluting the existing subpaths sections..
         const clone = x.roadCurvePath.slice();
         clone.reverse = x.reverse;
@@ -607,14 +611,13 @@ export async function computeRoutePath(route, options={}) {
         clone.roadId = x.roadId;
         return clone;
     });
-    Object.defineProperty(ret, 'roadSegments', {
+    Object.defineProperty(routeData, 'roadSegments', {
         enumerable: true,
         get: () => {
             console.warn("DEPRECATED: Migrate to `.sections[]`");
             return deprecatedRoadSegments;
         }
     });
-    return ret;
 }
 
 
@@ -634,7 +637,7 @@ async function addRouteSegments(route) {
 
 let _routeListPromise;
 const _routes = new Map();
-export function getRoute(id, options={}) {
+export function getRoute(id, options={prelude: 'leadin'}) {
     const sig = JSON.stringify({id, options});
     if (!_routes.has(sig)) {
         const extendAndSave = async route => {
@@ -644,6 +647,7 @@ export function getRoute(id, options={}) {
                 const extra = await computeRoutePath(route, options);
                 await p;
                 obj = {...route, ...extra};
+                emplaceDeprecatedRouteRoadSegmentsField(obj);
             }
             _routes.set(sig, obj);
             return obj;
