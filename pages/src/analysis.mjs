@@ -833,6 +833,7 @@ export async function main() {
         worldList,
         zoomMin: 0.05,
         fpsLimit: 30,
+        autoCenter: false,
     });
     window.zwiftMap = zwiftMap; // debug
     zwiftMap.addEventListener('drag', () => voidAutoCenter = true);
