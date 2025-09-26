@@ -175,7 +175,9 @@ async function initialize() {
             let heading = 0;
             demoState.transitionDurationSave = zwiftMap.getTransitionDuration();
             demoState.zoomSave = zwiftMap.zoom;
+            demoState.autoCenterSave = zwiftMap.autoCenter;
             zwiftMap.setZoom(0.2, {disableEvent: true});
+            zwiftMap.setAutoCenter(false);
             await zwiftMap.setCourse(randomCourseId);
             if (demoState.intervalId === true) {  // could have been cancelled during await
                 zwiftMap.setHeading(heading += 5);
@@ -192,6 +194,7 @@ async function initialize() {
         demoState.intervalId = null;
         zwiftMap.setTransitionDuration(demoState.transitionDurationSave);
         zwiftMap.setZoom(demoState.zoomSave, {disableEvent: true});
+        zwiftMap.setAutoCenter(demoState.autoCenterSave);
     }
     zwiftMap.setAthlete(ad.athleteId);
     if (elProfile) {
@@ -350,6 +353,7 @@ export async function main() {
     if (courseId != null) {
         doc.classList.add('explore');
         doc.querySelector('#titlebar').classList.add('always-visible');
+        zwiftMap.setAutoCenter(false);
         zwiftMap.setZoom(0.2);
         zwiftMap.setTiltShift(0);
         zwiftMap.setVerticalOffset(0);
