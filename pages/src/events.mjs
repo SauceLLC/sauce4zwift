@@ -357,6 +357,7 @@ async function render() {
                 createElevationProfile(elChart, event.eventSubgroups[0] || event);
             }
         }
+        const loadingSubgroups = [];
         for (const el of eventDetailsEl.querySelectorAll('[data-event-subgroup-id]')) {
             const sg = event.eventSubgroups.find(x => x.id === Number(el.dataset.eventSubgroupId));
             const table = el.querySelector('table.entrants');
@@ -364,7 +365,7 @@ async function render() {
             if (elChart) {
                 createElevationProfile(elChart, sg);
             }
-            (async () => {
+            loadingSubgroups.push((async () => {
                 let results, entrants, fieldSize;
                 if (sg.eventSubgroupStart < (Date.now() - (300 * 1000))) {
                     const maybeResults = await common.rpc.getEventSubgroupResults(sg.id);
@@ -431,10 +432,10 @@ async function render() {
                     }
                 });
                 el.classList.remove('loading');
-            })();
+            })());
         }
-        resizeCharts();
-        eventSummaryEl.scrollIntoView({block: 'start'});
+        Promise.all(loadingSubgroups).then(resizeCharts);
+        eventSummaryEl.scrollIntoView({block: 'start', behavior: 'smooth'});
     }, (el) => {
         headingsIntersectionObserver.unobserve(el);
         const cleanups = Array.from(cleanupCallbacks);
