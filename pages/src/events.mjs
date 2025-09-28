@@ -288,12 +288,26 @@ export async function main() {
         }
     });
     await render();
-    const nearest = contentEl.querySelector('table.events > tbody > tr.summary[data-event-id]:not(.started)');
-    if (nearest) {
-        nearest.scrollIntoView({block: 'center'});
-    }
     if (eventId != null) {
         contentEl.querySelector('table.events > tbody > tr.summary').click();
+    } else {
+        const soon = contentEl.querySelector('table.events > tbody > ' +
+                                             'tr.summary[data-event-id]:not(.hidden):not(.started)');
+        if (soon) {
+            soon.classList.add('soonest');
+            soon.scrollIntoView({block: 'center'});
+        }
+        setInterval(() => {
+            const soon = contentEl.querySelector('table.events > tbody > ' +
+                                                 'tr.summary[data-event-id]:not(.hidden):not(.started)');
+            if (!soon || !soon.classList.contains('soonest')) {
+                contentEl.querySelectorAll('table.events tr.summary.soonest')
+                    .forEach(x => x.classList.remove('soonest'));
+                if (soon) {
+                    soon.classList.add('soonest');
+                }
+            }
+        }, 15000);
     }
 }
 

@@ -222,9 +222,10 @@ table {
 
             &.expanded {
                 --intersection-offset: 0px;
+                --sticky-offset: -0.1em;
                 position: sticky;
                 z-index: 2;
-                top: calc(-0.1em - var(--intersection-offset));
+                top: calc(var(--sticky-offset) - var(--intersection-offset));
             }
 
             &.started {
@@ -281,6 +282,10 @@ table {
                 + tr {
                     display: none;
                 }
+            }
+
+            &.soonest {
+                border-top: 0.22em solid #000d;
             }
 
             > td.start {
