@@ -229,7 +229,12 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
     }
     function getAthleteSegmentsHandler(res, id) {
         id = id === 'self' ? sp.athleteId : id === 'watching' ? sp.watching : Number(id);
-        const data = sp.getAthleteSegments(id);
+        const data = sp.getAthleteSegments(id, {active: true});
+        data ? res.json(data) : res.status(404).json(null);
+    }
+    function getAthleteEventsHandler(res, id) {
+        id = id === 'self' ? sp.athleteId : id === 'watching' ? sp.watching : Number(id);
+        const data = sp.getAthleteEvents(id, {active: true});
         data ? res.json(data) : res.status(404).json(null);
     }
     function getAthleteStreamsHandler(res, id) {
@@ -241,6 +246,7 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
         'athlete/v1/<id>|self|watching': '[GET] Current data for an athlete in the game',
         'athlete/laps/v1/<id>|self|watching': '[GET] Lap data for an athlete',
         'athlete/segments/v1/<id>|self|watching': '[GET] Segments data for an athlete',
+        'athlete/events/v1/<id>|self|watching': '[GET] Events data for an athlete',
         'athlete/streams/v1/<id>|self|watching': '[GET] Stream data (power, cadence, etc..) for an athlete',
         'nearby/v1': '[GET] Information for all nearby athletes',
         'groups/v1': '[GET] Information for all nearby groups',
@@ -281,6 +287,7 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
     api.get('/athlete/v1/:id', (req, res) => getAthleteDataHandler(res, req.params.id));
     api.get('/athlete/laps/v1/:id', (req, res) => getAthleteLapsHandler(res, req.params.id));
     api.get('/athlete/segments/v1/:id', (req, res) => getAthleteSegmentsHandler(res, req.params.id));
+    api.get('/athlete/events/v1/:id', (req, res) => getAthleteEventsHandler(res, req.params.id));
     api.get('/athlete/streams/v1/:id', (req, res) => getAthleteStreamsHandler(res, req.params.id));
     api.get('/nearby/v1', (req, res) =>
         res.send(sp._mostRecentNearby ? jsonCache(sp._mostRecentNearby) : '[]'));
