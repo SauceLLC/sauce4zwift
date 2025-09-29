@@ -790,7 +790,7 @@ export class SauceElevationProfile {
                     return;
                 }
                 const ourIdx = this._lastWatchingMeta.xIdxFloat | 0;
-                const startSectionIdx = this.route.curvePath.nodes[ourIdx].index;
+                const startSectionIdx = this.route.curvePath.nodes[ourIdx]?.index;
                 if (startSectionIdx == null) {
                     return;
                 }
