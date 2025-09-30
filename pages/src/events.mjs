@@ -82,10 +82,8 @@ async function fillInEvents() {
         event.sameRoute = true;
         event.sameRouteName = true;
         event.signedUp = false;
-        const durations = [event.durationInSeconds];
-        const distances = !event.durationInSeconds ?
-            [event.distanceInMeters || event.routeDistance] :
-            [];
+        const durations = [];
+        const distances = [];
         if (event.eventSubgroups) {
             event.eventSubgroups.sort((a, b) =>
                 a.subgroupLabel === b.subgroupLabel ? 0 : a.subgroupLabel < b.subgroupLabel ? -1 : 1);
@@ -107,6 +105,12 @@ async function fillInEvents() {
                 allSubgroups.set(sg.id, {sg, event});
                 sg.displayTags = sg.allTags.filter(x => !event.allTags.includes(x)).filter(x =>
                     !x.match(/(^timestamp=|^created_|^after_party_duration=|^powerup_percent[=:])/));
+            }
+        } else {
+            if (event.durationInSeconds) {
+                durations.push(event.durationInSeconds);
+            } else {
+                distances.push(event.distanceInMeters || event.routeDistance);
             }
         }
         const desc = (a, b) => a - b;

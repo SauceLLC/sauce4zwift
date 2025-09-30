@@ -17,13 +17,13 @@
     <% if (event.sameRouteName && event.route?.name) { %>
         <td class="route" title="Event route: {{event.route?.name}}"><ms>route</ms> {{event.route?.name}}</td>
     <% } else { %>
-        <td class="route">-</td>
+        <td class="route" title="Multiple routes">...</td>
     <% } %>
     <td>
         <% if (event.durations.length) { %>
             <% const fmt = (x, opts) => humanDuration(x, {html: true, separator: ' ', short: true, ...opts}); %>
             <% if (event.durations.length > 1) { %>
-                {-fmt(event.durations[0])-}-{-fmt(event.durations.at(-1))-}{{event.durations.length ? ',' : ''}}
+                {-fmt(event.durations[0])-}...{-fmt(event.durations.at(-1))-}{{event.durations.length ? ',' : ''}}
             <% } else { %>
                 {-fmt(event.durations[0], {short: !!event.distances.length})-}{{event.distances.length ? ',' : ''}}
             <% } %>
@@ -31,7 +31,7 @@
         <% if (event.distances.length) { %>
             <% const fmt = (x, opts) => humanDistance(x, {html: true, precision: 0, suffix: true, ...opts}); %>
             <% if (event.distances.length > 1) { %>
-                {-fmt(event.distances[0], {suffix: false})-}-{-fmt(event.distances.at(-1))-}
+                {-fmt(event.distances[0], {suffix: false})-}...{-fmt(event.distances.at(-1))-}
             <% } else { %>
                 {-fmt(event.distances[0])-}
             <% } %>
