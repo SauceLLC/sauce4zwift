@@ -644,8 +644,9 @@ table.selectable {
     }
 }
 
-table.segments,
-table.laps {
+table.segments-list,
+table.laps-list,
+table.events-list {
     width: 100%;
     font-size: 0.8em;
 
@@ -667,7 +668,7 @@ table.laps {
     }
 }
 
-table.segments {
+table.segments-list {
     .details .container {
         max-height: 20em;
         overflow: auto;

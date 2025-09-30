@@ -124,8 +124,10 @@
             </div>
         </section>
 
-        <section class="segments">{-embed(templates.segments, obj)-}</section>
+        <section class="segments-holder">{-embed(templates.segmentsList, obj)-}</section>
 
-        <section class="laps">{-embed(templates.laps, obj)-}</section>
+        <section class="laps-holder">{-embed(templates.lapsList, obj)-}</section>
+
+        <section class="events-holder">{-embed(templates.eventsList, obj)-}</section>
     </main>
 <% } %>

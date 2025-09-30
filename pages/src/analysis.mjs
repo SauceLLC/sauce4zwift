@@ -23,8 +23,9 @@ const refreshInterval = Number(q.get('refresh') || 2) * 1000;
 const minVAMTime = 60;
 const chartLeftPad = 50;
 
-const laps = [];
-const segments = [];
+const lapSlices = [];
+const segmentSlices = [];
+const eventSlices = [];
 const streams = {};
 const positions = [];
 const eventSubgroups = new Map();
@@ -56,9 +57,11 @@ let segmentResults;
 
 
 function resetData() {
-    laps.length = 0;
-    segments.length = 0;
+    lapSlices.length = 0;
+    segmentSlices.length = 0;
+    eventSlices.length = 0;
     positions.length = 0;
+    eventSubgroups.clear();
     for (const x of Object.values(streams)) {
         x.length = 0;
     }
@@ -109,34 +112,8 @@ async function getTemplates(basenames) {
 }
 
 
-function shallowCompareNodes(n1, n2) {
-    if (n1.nodeType !== n2.nodeType) {
-        return false;
-    }
-    if (n1.nodeType === Node.TEXT_NODE || n1.nodeType === Node.COMMENT_NODE) {
-        return n1.nodeValue === n2.nodeValue;
-    } else if (n1.nodeType !== Node.ELEMENT_NODE) {
-        console.warn("Unsupported node type:", n1.nodeType, n1.nodeName);
-        return false;
-    }
-    if (n1.nodeName !== n2.nodeName ||
-        n1.attributes.length !== n2.attributes.length) {
-        return false;
-    }
-    for (let i = 0; i < n1.attributes.length; i++) {
-        const a1 = n1.attributes[i];
-        const a2 = n2.attributes[i];
-        if (a1.name !== a2.name || a1.value !== a2.value) {
-            return false;
-        }
-    }
-    return true;
-}
-
-
-const _surgicalTemplateRoots = new Map();
-async function renderSurgicalTemplate(selector, tpl, attrs) {
-    const frag = await tpl({
+function renderSurgicalTemplate(selector, tpl, attrs) {
+    return common.renderSurgicalTemplate(selector, tpl, {
         settings,
         templates,
         common,
@@ -144,43 +121,6 @@ async function renderSurgicalTemplate(selector, tpl, attrs) {
         athleteData,
         ...attrs,
     });
-    const key = `${selector}-${tpl.id}`;
-    const beforeRoot = _surgicalTemplateRoots.get(key);
-    if (!beforeRoot) {
-        const root = document.querySelector(selector);
-        root.replaceChildren(frag);
-        _surgicalTemplateRoots.set(key, root);
-        return true;
-    }
-    // BFS for differences...
-    const q = [[frag, beforeRoot]];
-    const replacements = [];
-    while (q.length) {
-        const [now, before] = q.shift();
-        if (now.childNodes.length !== before.childNodes.length) {
-            replacements.push([now, before]);
-        } else {
-            for (let i = 0; i < now.childNodes.length; i++) {
-                const xNow = now.childNodes[i];
-                const xBefore = before.childNodes[i];
-                if (shallowCompareNodes(xNow, xBefore)) {
-                    q.push([xNow, xBefore]);
-                } else {
-                    replacements.push([xNow, xBefore]);
-                }
-            }
-        }
-    }
-    for (let i = 0; i < replacements.length; i++) {
-        const [now, before] = replacements[i];
-        if (before === beforeRoot) {
-            // Special care is required for the root to preserve attributes
-            before.replaceChildren(now);
-        } else {
-            before.replaceWith(now);
-        }
-    }
-    return replacements.length > 0;
 }
 
 
@@ -398,6 +338,11 @@ function createElevationChart(el) {
         },
     };
     chart.updateData = () => {
+        const data = streams.altitude.map((x, i) => [streams.distance[i], x]);
+        chart.yMax = Math.max(30, sauce.data.max(data.map(x => x[1])));
+        chart.yMin = Math.min(0, sauce.data.min(data.map(x => x[1])));
+        const yRange = chart.yMax - chart.yMin;
+        const xRange = streams.distance[streams.distance.length - 1] - streams.distance[0];
         let segments;
         if (geoOffset) {
             geoMaskSegment.width = streams.distance[geoOffset - 1];
@@ -405,9 +350,35 @@ function createElevationChart(el) {
         } else {
             segments = [];
         }
-        const data = streams.altitude.map((x, i) => [streams.distance[i], x]);
-        chart.yMax = Math.max(30, sauce.data.max(data.map(x => x[1])));
-        chart.yMin = Math.min(0, sauce.data.min(data.map(x => x[1])));
+        const capHeight = yRange * 0.10;
+        const capWidth = xRange * 0.01;
+        const barHeight = yRange * 0.05;
+        const barPad = yRange * 0.05;
+        for (const x of lapSlices) {
+            const startDist = streams.distance[x.startIndex];
+            const endDist = streams.distance[x.endIndex];
+            const color = x.eventSubgroupId ? '#93c' : 'white';
+            segments.push({
+                x: startDist,
+                width: capWidth,
+                y: chart.yMin + barPad + capHeight,
+                height: capHeight,
+                color,
+            }, {
+                x: startDist + capWidth,
+                width: (endDist - startDist) - capWidth * 2,
+                y: chart.yMin + barPad + (capHeight / 2) + (barHeight / 2),
+                height: barHeight,
+                color,
+            }, {
+                x: endDist - capWidth,
+                width: capWidth,
+                y: chart.yMin + barPad + capHeight,
+                height: capHeight,
+                color,
+            });
+        }
+        console.log(segments);
         chart.setSegments(segments, {render: false});
         chart.setData(data);
     };
@@ -737,7 +708,7 @@ function createPackTimeChart(el) {
             }
             subTitle = `<br/>${name}`;
         } else if (selectionSource === 'laps') {
-            subTitle = `<br/>Lap ${laps.indexOf(selectionEntry) + 1}`;
+            subTitle = `<br/>Lap ${lapSlices.indexOf(selectionEntry) + 1}`;
         }
         common.softInnerHTML(headerEl, `Pack Time${subTitle}`);
         powers = [
@@ -807,8 +778,9 @@ export async function main() {
             'selection-stats',
             'peak-efforts',
             'segment-results',
-            'segments',
-            'laps',
+            'segments-list',
+            'laps-list',
+            'events-list',
         ]),
         common.initNationFlags(),
         common.getWorldList({all: true}),
@@ -858,13 +830,11 @@ export async function main() {
         addEventListener('pointercancel', () => abrt.abort(), {signal: abrt.signal});
         addEventListener('pointerup', () => abrt.abort(), {signal: abrt.signal});
     });
-
     document.querySelector('.button.export-file').addEventListener('click', () => {
         const started = new Date(athleteData.created);
         const name = `${athlete ? athlete.fLast : athleteIdent} - ${started.toLocaleString()}`;
         exportFITActivity(name);
     });
-
     contentEl.addEventListener('click', ev => {
         const btn = ev.target.closest('header > .expander');
         if (btn) {
@@ -881,17 +851,7 @@ export async function main() {
             selectionSource = selectionEntry = null;
             setSelection();
         } else {
-            if (row.dataset.segmentIndex) {
-                selectionSource = 'segments';
-                selectionEntry = segments[Number(row.dataset.segmentIndex)];
-                row.parentElement.querySelectorAll(':scope > .expanded')
-                    .forEach(x => x.classList.remove('expanded'));
-                row.classList.add('expanded');
-                updateSegmentResults(selectionEntry); // bg okay
-            } else if (row.dataset.lapIndex) {
-                selectionSource = 'laps';
-                selectionEntry = laps[Number(row.dataset.lapIndex)];
-            } else if (row.dataset.peakSource) {
+            if (row.dataset.peakSource) {
                 const period = Number(row.dataset.peakPeriod);
                 const peak = athleteData.stats[row.dataset.peakSource].peaks[period];
                 if (peak.ts != null) {
@@ -902,6 +862,20 @@ export async function main() {
                 } else {
                     selectionSource = selectionEntry = null;
                     setSelection();
+                }
+            } else if (row.dataset.source) {
+                selectionSource = row.dataset.source;
+                const slices = {
+                    laps: lapSlices,
+                    segments: segmentSlices,
+                    events: eventSlices,
+                }[selectionSource];
+                selectionEntry = slices && slices[Number(row.dataset.index)];
+                if (selectionSource === 'segments') {
+                    row.parentElement.querySelectorAll(':scope > .expanded')
+                        .forEach(x => x.classList.remove('expanded'));
+                    row.classList.add('expanded');
+                    updateSegmentResults(selectionEntry); // bg okay
                 }
             }
             if (selectionEntry) {
@@ -1050,9 +1024,9 @@ async function updateSegmentResults(segment) {
 
 
 function renderSegments() {
-    const selected = selectionSource === 'segments' ? segments.indexOf(selectionEntry) : undefined;
-    return renderSurgicalTemplate('section.segments', templates.segments, {
-        segments,
+    const selected = selectionSource === 'segments' ? segmentSlices.indexOf(selectionEntry) : undefined;
+    return renderSurgicalTemplate('section.segments-holder', templates.segmentsList, {
+        segmentSlices,
         selected,
         results: segmentResults,
     });
@@ -1141,20 +1115,20 @@ async function updateAllData({reset}={}) {
     if (newLaps?.length) {
         changed.laps = true;
         for (const x of newLaps) {
-            const existingIdx = laps.findIndex(xx => xx.startIndex === x.startIndex);
+            const existingIdx = lapSlices.findIndex(xx => xx.startIndex === x.startIndex);
             if (existingIdx !== -1) {
                 // Maintain identity for selectionEntry
-                const lap = laps[existingIdx];
+                const lap = lapSlices[existingIdx];
                 for (const x of Object.keys(lap)) {
                     delete lap[x];
                 }
                 Object.assign(lap, x);
             } else {
-                console.debug("New lap found:", laps.length);
-                laps.push(x);
+                console.debug("New lap found:", lapSlices.length);
+                lapSlices.push(x);
             }
         }
-        lapOfft = laps.at(-1).end;
+        lapOfft = lapSlices.at(-1).end;
     }
     if (athleteData) {
         changed.athlete = JSON.stringify(athlete) !== JSON.stringify(athleteData.athlete);
@@ -1166,31 +1140,35 @@ async function updateAllData({reset}={}) {
             changed.course = true;
             courseId = athleteData.courseId;
             geoOffset = 0;
-            for (let i = laps.length - 2; i >= 0; i--) {
-                if (laps[i].courseId !== courseId) {
-                    geoOffset = laps[i + 1].startIndex;
+            for (let i = lapSlices.length - 2; i >= 0; i--) {
+                if (lapSlices[i].courseId !== courseId) {
+                    geoOffset = lapSlices[i + 1].startIndex;
                     break;
                 }
             }
             console.debug("Setting course to:", courseId);
             console.debug("Course geo offset:", geoOffset);
         }
+        // XXX all prototype...
         for (const x of athleteData.events) {
             let sg = eventSubgroups.get(x.subgroupId);
             if (!sg) {
                 console.debug("Event found:", x.id);
-                changed.events = true;
                 sg = await common.getEventSubgroup(x.subgroupId);
-                sg.entrants = await common.rpc.getEventSubgroupEntrants(x.subgroupId);
+                if (!sg) {
+                    continue;
+                }
+                changed.events = true;
+                const entrants = await common.rpc.getEventSubgroupEntrants(x.subgroupId);
+                sg = {...sg, entrants};
                 eventSubgroups.set(sg.id, sg);
             }
-            if (laps.at(-1).eventSubgroupId !== sg.id) {
-                const evLap = laps.find(x => x.eventSubgroupId === sg.id);
+            if (sg && lapSlices.at(-1).eventSubgroupId !== sg.id) {
+                const evLap = lapSlices.find(x => x.eventSubgroupId === sg.id);
                 const now = Date.now();
-                const age = evLap ? now - (athleteData.created + evLap.end * 1000) : 0;
-                console.warn({age});
-                if (!sg.results || now - sg.resultsTS > Math.min(15_000, age / 10)) {
-                    console.warn('do it');
+                const evEnded = evLap ? now - (athleteData.created + evLap.end * 1000) : 0;
+                console.info('ev lap ended seconds ago', evEnded / 1000);
+                if (!sg.results || now - sg.resultsTS > evEnded * 0.5) {
                     sg.resultsTS = now;
                     sg.results = await common.rpc.getEventSubgroupResults(x.subgroupId);
                     changed.events = true;
@@ -1226,21 +1204,21 @@ async function updateAllData({reset}={}) {
     if (newSegments?.length) {
         changed.segments = true;
         for (const x of newSegments) {
-            const existingIdx = segments.findIndex(xx =>
+            const existingIdx = segmentSlices.findIndex(xx =>
                 xx.segmentId === x.segmentId && xx.start === x.start);
             if (existingIdx !== -1) {
                 // Maintain identity for selectionEntry
-                const segment = segments[existingIdx];
+                const segment = segmentSlices[existingIdx];
                 for (const x of Object.keys(segment)) {
                     delete segment[x];
                 }
                 Object.assign(segment, x);
             } else {
                 console.debug("New segment found:", x.segment.name);
-                segments.push(x);
+                segmentSlices.push(x);
             }
         }
-        segmentOfft = Math.max(...segments.map(x => x.end).filter(x => x));
+        segmentOfft = Math.max(...segmentSlices.map(x => x.end).filter(x => x));
     }
     return changed;
 }
@@ -1311,8 +1289,8 @@ async function updateAll() {
     if (changed.segments || changed.reset) {
         let selected;
         if (selectionSource === 'segments') {
-            selected = segments.indexOf(selectionEntry);
-            if (selected >= segments.length || selected < 0) { // possible data reset
+            selected = segmentSlices.indexOf(selectionEntry);
+            if (selected >= segmentSlices.length || selected < 0) { // possible data reset
                 debugger;
                 selectionSource = selectionEntry = selected = null;
                 deselectAllSources();
@@ -1329,8 +1307,8 @@ async function updateAll() {
     if (changed.laps || changed.reset) {
         let selected;
         if (selectionSource === 'laps') {
-            selected = laps.indexOf(selectionEntry);
-            if (selected >= laps.length || selected < 0) { // possible data reset
+            selected = lapSlices.indexOf(selectionEntry);
+            if (selected >= lapSlices.length || selected < 0) { // possible data reset
                 debugger;
                 selectionSource = selectionEntry = selected = null;
                 deselectAllSources();
@@ -1339,9 +1317,28 @@ async function updateAll() {
                 setSelection(selectionEntry.startIndex, selectionEntry.endIndex);
             }
         }
-        renderSurgicalTemplate('section.laps', templates.laps, {
+        renderSurgicalTemplate('section.laps-holder', templates.lapsList, {
             streams,
-            laps,
+            lapSlices,
+            selected,
+        }); // bg okay
+    }
+    if (changed.events || changed.reset) {
+        let selected;
+        if (selectionSource === 'events') {
+            selected = eventSlices.indexOf(selectionEntry);
+            if (selected >= eventSlices.length || selected < 0) { // possible data reset
+                debugger;
+                selectionSource = selectionEntry = selected = null;
+                deselectAllSources();
+                setSelection();
+            } else {
+                setSelection(selectionEntry.startIndex, selectionEntry.endIndex);
+            }
+        }
+        renderSurgicalTemplate('section.events-holder', templates.eventsList, {
+            streams,
+            eventSlices,
             selected,
         }); // bg okay
     }

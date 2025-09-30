@@ -1,15 +1,15 @@
 <header>
-    <ms>timer</ms>
-    <div class="title">Laps</div>
+    <ms>event</ms>
+    <div class="title">Events</div>
     <div class="expander" data-id="compress" title="Collapse section"><ms>compress</ms></div>
     <div class="expander" data-id="expand" title="Expand section"><ms>expand</ms></div>
 </header>
 
-<% const hasLaps = !!(obj.laps && laps.length); %>
-<table class="laps basic {{hasLaps ? 'selectable' : ''}}">
+<% const hasEvents = !!(obj.eventSlices && eventSlices.length); %>
+<table class="events-list basic {{hasEvents ? 'selectable' : ''}}">
     <thead>
         <tr>
-            <th>Lap</th>
+            <th>Event</th>
             <th>Time</th>
             <th>Distance</th>
             <th>Power</th>
@@ -19,18 +19,15 @@
         </tr>
     </thead>
     <tbody>
-        <% if (hasLaps) { %>
-            <% const orderedLaps = settings.reverseLapsAndSegments ? laps.toReversed() : laps; %>
-            <% for (const x of orderedLaps) { %>
+        <% if (hasEvents) { %>
+            <% const ordered = settings.reverseLapsAndSegments ? eventSlices.toReversed() : eventSlices; %>
+            <% for (const x of ordered) { %>
                 <% if (!x.endIndex) continue; /* reset data, not moving */ %>
-                <% const index = laps.indexOf(x); %>
+                <% const index = eventSlices.indexOf(x); %>
                 <tr class="summary {{index === selected ? 'selected' : ''}}"
-                    <% if (x.eventSubgroupId) { %>
-                        data-event-subgroup-id="{{x.eventSubgroupId}}"
-                        title="Event Lap"
-                    <% } %>
-                    data-lap-index="{{index}}">
-                    <td class="num">{{index + 1}}</td>
+                    title="{{x.event?.name || 'Unknown Event'}}"
+                    data-index="{{index}}" data-source="events">
+                    <td class="num">{{x.event?.name || index + 1}}</td>
                     <td>{-humanTimer(x.stats.activeTime, {long: true, ms: true, html: true})-}</td>
                     <td>{-humanDistance(streams.distance[x.endIndex] - streams.distance[Math.max(0, x.startIndex - 1)], {suffix: true, html: true})-}</td>
                     <% if (settings.preferWkg && athlete.weight) { %>
@@ -47,7 +44,7 @@
             <% } %>
         <% } else { %>
             <tr>
-                <td colspan="6">No Lap Data</td>
+                <td colspan="7"><small>No Events Data</small></td>
             </tr>
         <% } %>
     </tbody>

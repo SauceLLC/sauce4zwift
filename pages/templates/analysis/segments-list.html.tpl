@@ -4,8 +4,8 @@
     <div class="expander" data-id="compress" title="Collapse section"><ms>compress</ms></div>
     <div class="expander" data-id="expand" title="Expand section"><ms>expand</ms></div>
 </header>
-<% const hasSegments = !!(obj.segments && segments.length); %>
-<table class="segments expandable {{hasSegments ? 'selectable' : ''}}">
+<% const hasSegments = !!(obj.segmentSlices && segmentSlices.length); %>
+<table class="segments-list basic expandable {{hasSegments ? 'selectable' : ''}}">
     <thead>
         <tr>
             <th>Segment</th>
@@ -18,12 +18,12 @@
     </thead>
     <tbody>
         <% if (hasSegments) { %>
-            <% const orderedSegments = settings.reverseLapsAndSegments ? segments.toReversed() : segments; %>
-            <% for (const x of orderedSegments) { %>
-                <% const index = segments.indexOf(x); %>
+            <% const ordered = settings.reverseLapsAndSegments ? segmentSlices.toReversed() : segmentSlices; %>
+            <% for (const x of ordered) { %>
+                <% const index = segmentSlices.indexOf(x); %>
                 <tr class="summary {{index === selected ? 'selected expanded' : ''}}"
                     <% if (x.eventSubgroupId) { %>data-event-subgroup-id="{{x.eventSubgroupId}}"<% } %>
-                    data-segment-index="{{index}}">
+                    data-index="{{index}}" data-source="segments">
                     <td class="name">{{x.segment.friendlyName || x.segment.name}}</td>
                     <td>{-humanTimer(x.stats.elapsedTime, {long: true, ms: true, html: true})-}</td>
                     <td>{-humanDistance(x.segment.distance, {suffix: true, html: true})-}</td>
@@ -47,7 +47,7 @@
             <% } %>
         <% } else { %>
             <tr>
-                <td colspan="6">No Segment Data</td>
+                <td colspan="6"><small>No Segment Data</small></td>
             </tr>
         <% } %>
     </tbody>
