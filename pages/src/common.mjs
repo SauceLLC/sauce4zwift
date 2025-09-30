@@ -2013,6 +2013,74 @@ export function setBackground(settings) {
 }
 
 
+function shallowCompareNodes(n1, n2) {
+    if (n1.nodeType !== n2.nodeType) {
+        return false;
+    }
+    if (n1.nodeType === Node.TEXT_NODE || n1.nodeType === Node.COMMENT_NODE) {
+        return n1.nodeValue === n2.nodeValue;
+    } else if (n1.nodeType !== Node.ELEMENT_NODE) {
+        console.warn("Unsupported node type:", n1.nodeType, n1.nodeName);
+        return false;
+    }
+    if (n1.nodeName !== n2.nodeName ||
+        n1.attributes.length !== n2.attributes.length) {
+        return false;
+    }
+    for (let i = 0; i < n1.attributes.length; i++) {
+        const a1 = n1.attributes[i];
+        const a2 = n2.attributes[i];
+        if (a1.name !== a2.name || a1.value !== a2.value) {
+            return false;
+        }
+    }
+    return true;
+}
+
+
+const _surgicalTemplateRoots = new Map();
+export async function renderSurgicalTemplate(selector, tpl, attrs) {
+    const frag = await tpl(attrs);
+    const key = `${selector}-${tpl.id}`;
+    const beforeRoot = _surgicalTemplateRoots.get(key);
+    if (!beforeRoot) {
+        const root = document.querySelector(selector);
+        root.replaceChildren(frag);
+        _surgicalTemplateRoots.set(key, root);
+        return true;
+    }
+    // BFS for differences...
+    const q = [[frag, beforeRoot]];
+    const replacements = [];
+    while (q.length) {
+        const [now, before] = q.shift();
+        if (now.childNodes.length !== before.childNodes.length) {
+            replacements.push([now, before]);
+        } else {
+            for (let i = 0; i < now.childNodes.length; i++) {
+                const xNow = now.childNodes[i];
+                const xBefore = before.childNodes[i];
+                if (shallowCompareNodes(xNow, xBefore)) {
+                    q.push([xNow, xBefore]);
+                } else {
+                    replacements.push([xNow, xBefore]);
+                }
+            }
+        }
+    }
+    for (let i = 0; i < replacements.length; i++) {
+        const [now, before] = replacements[i];
+        if (before === beforeRoot) {
+            // Special care is required for the root to preserve attributes
+            before.replaceChildren(now);
+        } else {
+            before.replaceWith(now);
+        }
+    }
+    return replacements.length > 0;
+}
+
+
 if (window.CSS && CSS.registerProperty) {
     CSS.registerProperty({
         name: '--final-bg-opacity',
