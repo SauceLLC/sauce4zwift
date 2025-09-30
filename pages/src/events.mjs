@@ -58,8 +58,8 @@ async function loadEventsWithRetry() {
 
 
 async function loadEvent(id) {
-    const data = await common.rpc.getEvent(id);
-    allEvents.set(id, data);
+    const event = await common.rpc.getEvent(id);
+    allEvents.set(id, event);
     await fillInEvents();
 }
 
@@ -165,6 +165,29 @@ async function applyEventFilters(el) {
     }
     for (const x of el.querySelectorAll('table.events > tbody > tr.summary[data-event-id]')) {
         x.classList.toggle('hidden', hide.has(x.dataset.eventId));
+    }
+}
+
+
+function updateStatefulStyles(el=contentEl) {
+    const now = Date.now();
+    for (const x of el.querySelectorAll('table.events > tbody > tr.event-row')) {
+        const event = allEvents.get(Number(x.dataset.eventId));
+        if (!event) {
+            console.error("Internal Error");
+            continue;
+        }
+        const joinable = event.ts + ((event.lateJoinInMinutes || 0) * 60 * 1000) - now;
+        x.classList.toggle('started', event.ts < now);
+        x.classList.toggle('signedup', event.signedUp);
+        const startEl = x.querySelector('td.start');
+        if (event.lateJoinInMinutes && joinable > 0) {
+            x.classList.add('joinable');
+            startEl.title = startEl.dataset.lateJoinTooltip;
+        } else {
+            x.classList.remove('joinable');
+            startEl.title = startEl.getAttribute('title') || '';
+        }
     }
 }
 
@@ -298,6 +321,7 @@ export async function main() {
             soon.scrollIntoView({block: 'center'});
         }
         setInterval(() => {
+            updateStatefulStyles();
             const soon = contentEl.querySelector('table.events > tbody > ' +
                                                  'tr.summary[data-event-id]:not(.hidden):not(.started)');
             if (!soon || !soon.classList.contains('soonest')) {
@@ -307,7 +331,25 @@ export async function main() {
                     soon.classList.add('soonest');
                 }
             }
-        }, 15000);
+        }, 5_000);
+        setInterval(async () => {
+            const data = await common.rpc.getCachedEvents();
+            let modified;
+            if (data.length) {
+                for (const x of data) {
+                    const existing = allEvents.get(x.id);
+                    const signedUp = x.eventSubgroups.some(x => x.signedUp);
+                    if (existing && existing.signedup !== signedUp) {
+                        modified = true;
+                        allEvents.set(x.id, x);
+                    }
+                }
+                if (modified) {
+                    await fillInEvents();
+                    updateStatefulStyles();
+                }
+            }
+        }, 15_000);
     }
 }
 
@@ -459,6 +501,7 @@ async function render() {
         }
     });
     applyEventFilters(frag);
+    updateStatefulStyles(frag);
     contentEl.replaceChildren(frag);
 }
 
