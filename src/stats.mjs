@@ -1293,10 +1293,11 @@ export class StatsProcessor extends events.EventEmitter {
         }
         if (endTime !== undefined) {
             slices = slices.filter(x =>
+                x.end == null ||
                 x.power.roll._times[Math.max(x.power.roll._offt, x.power.roll._length - 1)] > endTime);
         }
-        if (!active && slices.length && slices[slices.length - 1].end == null) {
-            slices = slices.slice(0, -1);
+        if (!active) {
+            slices = slices.filter(x => x.end == null);
         }
         return slices;
     }
