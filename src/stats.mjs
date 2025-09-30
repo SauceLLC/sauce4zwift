@@ -1395,6 +1395,7 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     startSegment(state, ad, id, now=monotonic()) {
+        console.debug("Starting segment:", state.athleteId, id);
         const slice = this._createNewDataSlice(ad, now);
         slice.id = id;
         // Indirectly lookup sgId via event slice to avoid cooldown window..
@@ -1410,6 +1411,7 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     stopSegment(state, ad, id, end=monotonic()) {
+        console.debug("Stopping segment:", state.athleteId, id);
         const segment = ad.activeSegments.get(id);
         segment.end = end;
         if (segment.eventSubgroupId) {
@@ -2788,7 +2790,7 @@ export class StatsProcessor extends events.EventEmitter {
                     progress = (p <= x.roadFinish && p >= x.roadStart) ?
                         1 - (x.roadFinish - p) / (x.roadFinish - x.roadStart) : null;
                 }
-                if (progress != null && isNaN(progress)) {
+                if (progress != null && !isNaN(progress)) {
                     active.add(x.id);
                     if (progress < 0.05 && !ad.activeSegments.has(x.id)) {
                         this.startSegment(state, ad, x.id, now);
