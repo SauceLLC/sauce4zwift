@@ -593,7 +593,7 @@ export class ZwiftAPI {
         Object.assign(ret, {
             id: x.id.toString(), // fix overflow
             segmentId: x._unsignedSegmentId.toSigned().toString(),
-            ts: worldTimer.toLocalTime(x.worldTime),
+            ts: worldTimer.toLocalTime(ret.worldTime),
             weight: x.weight / 1000,
             elapsed: x.elapsed / 1000,
             gender: x.male === false ? 'female' : 'male',
@@ -620,7 +620,6 @@ export class ZwiftAPI {
         const query = {
             world_id: 1,  // mislabeled realm
             segment_id: segmentId,
-            event_subgroup_id: options.eventSubgroupId,
             player_id: options.athleteId,
         };
         if (options.from) {
