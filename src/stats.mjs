@@ -2652,8 +2652,10 @@ export class StatsProcessor extends events.EventEmitter {
                     if (curEvent) {
                         curEvent.coffeeTime += elapsedTime;
                     }
-                    for (const s of ad.activeSegments.values()) {
-                        s.coffeeTime += elapsedTime;
+                    if (ad.activeSegments.size) {
+                        for (const s of ad.activeSegments.values()) {
+                            s.coffeeTime += elapsedTime;
+                        }
                     }
                 } else if (state.speed) {
                     const kj = state.power * elapsedTime / 1e6;
@@ -2667,9 +2669,11 @@ export class StatsProcessor extends events.EventEmitter {
                                 curEvent.followTime += elapsedTime;
                                 curEvent.followKj += kj;
                             }
-                            for (const s of ad.activeSegments.values()) {
-                                s.followTime += elapsedTime;
-                                s.followKj += kj;
+                            if (ad.activeSegments.size) {
+                                for (const s of ad.activeSegments.values()) {
+                                    s.followTime += elapsedTime;
+                                    s.followKj += kj;
+                                }
                             }
                         } else {
                             ad.bucket.workTime += elapsedTime;
@@ -2680,9 +2684,11 @@ export class StatsProcessor extends events.EventEmitter {
                                 curEvent.workTime += elapsedTime;
                                 curEvent.workKj += kj;
                             }
-                            for (const s of ad.activeSegments.values()) {
-                                s.workTime += elapsedTime;
-                                s.workKj += kj;
+                            if (ad.activeSegments.size) {
+                                for (const s of ad.activeSegments.values()) {
+                                    s.workTime += elapsedTime;
+                                    s.workKj += kj;
+                                }
                             }
                         }
                     } else {
@@ -2694,9 +2700,11 @@ export class StatsProcessor extends events.EventEmitter {
                             curEvent.soloTime += elapsedTime;
                             curEvent.soloKj += kj;
                         }
-                        for (const s of ad.activeSegments.values()) {
-                            s.soloTime += elapsedTime;
-                            s.soloKj += kj;
+                        if (ad.activeSegments.size) {
+                            for (const s of ad.activeSegments.values()) {
+                                s.soloTime += elapsedTime;
+                                s.soloKj += kj;
+                            }
                         }
                     }
                 }
@@ -2721,12 +2729,14 @@ export class StatsProcessor extends events.EventEmitter {
                 curEvent.draft.resize();
                 curEvent.cadence.resize();
             }
-            for (const s of ad.activeSegments.values()) {
-                s.power.resize();
-                s.speed.resize();
-                s.hr.resize();
-                s.draft.resize();
-                s.cadence.resize();
+            if (ad.activeSegments.size) {
+                for (const s of ad.activeSegments.values()) {
+                    s.power.resize();
+                    s.speed.resize();
+                    s.hr.resize();
+                    s.draft.resize();
+                    s.cadence.resize();
+                }
             }
         }
         ad.mostRecentState = state;
@@ -2765,26 +2775,32 @@ export class StatsProcessor extends events.EventEmitter {
 
     _activeSegmentCheck(state, ad, roadSig, now) {
         const segments = env.getRoadSegments(state.courseId, roadSig);
-        if (!segments || !segments.length) {
-            return;
-        }
-        const p = (state.roadTime - 5000) / 1e6;
-        for (let i = 0; i < segments.length; i++) {
-            const x = segments[i];
-            let progress;
-            if (state.reverse) {
-                progress = (p >= x.roadFinish && p <= x.roadStart) ?
-                    1 - (p - x.roadFinish) / (x.roadStart - x.roadFinish) : null;
-            } else {
-                progress = (p <= x.roadFinish && p >= x.roadStart) ?
-                    1 - (x.roadFinish - p) / (x.roadFinish - x.roadStart) : null;
-            }
-            if (ad.activeSegments.has(x.id)) {
-                if (progress == null) {
-                    this.stopSegment(state, ad, x.id, now);
+        const active = new Set();
+        if (segments && segments.length) {
+            const p = (state.roadTime - 5000) / 1e6;
+            for (let i = 0; i < segments.length; i++) {
+                const x = segments[i];
+                let progress;
+                if (state.reverse) {
+                    progress = (p >= x.roadFinish && p <= x.roadStart) ?
+                        1 - (p - x.roadFinish) / (x.roadStart - x.roadFinish) : null;
+                } else {
+                    progress = (p <= x.roadFinish && p >= x.roadStart) ?
+                        1 - (x.roadFinish - p) / (x.roadFinish - x.roadStart) : null;
                 }
-            } else if (progress != null && progress < 0.05) {
-                this.startSegment(state, ad, x.id, now);
+                if (progress != null && isNaN(progress)) {
+                    active.add(x.id);
+                    if (progress < 0.05 && !ad.activeSegments.has(x.id)) {
+                        this.startSegment(state, ad, x.id, now);
+                    }
+                }
+            }
+        }
+        if (ad.activeSegments.size) {
+            for (const id of ad.activeSegments.keys()) {
+                if (!active.has(id)) {
+                    this.stopSegment(state, ad, id, now);
+                }
             }
         }
     }
