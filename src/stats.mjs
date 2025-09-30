@@ -2225,7 +2225,6 @@ export class StatsProcessor extends events.EventEmitter {
 
     triggerEventStart(ad, state, now=monotonic()) {
         const sgId = state.eventSubgroupId;
-        console.debug("Event started:", ad.athleteId, sgId);
         ad.eventStartPending = false;
         const sg = this._recentEventSubgroups.get(sgId);
         if (sg && sg.eventId != null) {
@@ -2239,6 +2238,8 @@ export class StatsProcessor extends events.EventEmitter {
         } else if (this._autoLapEvents) {
             console.debug("Event start triggering lap for:", ad.athleteId, sgId);
             this.startAthleteLap(ad, now);
+        } else {
+            console.debug("Event start triggered:", ad.athleteId, sgId);
         }
         const prevSlice = ad.eventSlices.at(-1);
         if (prevSlice) {
@@ -2339,8 +2340,7 @@ export class StatsProcessor extends events.EventEmitter {
                 }
             }
         } else if (ad.eventSubgroup) {
-            const curEvent = ad.eventSlices[ad.eventSlices.length - 1];
-            if (curEvent.end == null) {
+            if (ad.eventSlices.length && ad.eventSlices[ad.eventSlices.length - 1].end == null) {
                 this.triggerEventEnd(ad, state, now);
             }
             ad.eventSubgroup = null;
