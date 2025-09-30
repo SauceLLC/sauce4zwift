@@ -25,9 +25,9 @@
                 <% if (!x.endIndex) continue; /* reset data, not moving */ %>
                 <% const index = eventSlices.indexOf(x); %>
                 <tr class="summary {{index === selected ? 'selected' : ''}}"
-                    title="{{x.event?.name || 'Unknown Event'}}"
+                    title="{{x.eventSubgroup?.name || 'Unknown Event'}}"
                     data-index="{{index}}" data-source="events">
-                    <td class="num">{{x.event?.name || index + 1}}</td>
+                    <td class="num">{{x.eventSubgroup?.name || index + 1}}</td>
                     <td>{-humanTimer(x.stats.activeTime, {long: true, ms: true, html: true})-}</td>
                     <td>{-humanDistance(streams.distance[x.endIndex] - streams.distance[Math.max(0, x.startIndex - 1)], {suffix: true, html: true})-}</td>
                     <% if (settings.preferWkg && athlete.weight) { %>

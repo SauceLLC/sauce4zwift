@@ -43,10 +43,8 @@ let sport;
 let powerZones;
 let worldList;
 let nationFlags;
+let lastStreamsTime;
 let geoOffset = 0;
-let timeOfft;
-let segmentOfft;
-let lapOfft;
 let selStart;
 let selEnd;
 let voidAutoCenter = false;
@@ -58,8 +56,11 @@ let segmentResults;
 
 function resetData() {
     lapSlices.length = 0;
+    lapSlices._offt = null;
     segmentSlices.length = 0;
+    segmentSlices._offt = null;
     eventSlices.length = 0;
+    eventSlices._offt = null;
     positions.length = 0;
     eventSubgroups.clear();
     for (const x of Object.values(streams)) {
@@ -68,8 +69,7 @@ function resetData() {
     rolls.power = new sauce.power.RollingPower(null, {idealGap: 1, maxGap: 15});
     geoOffset = 0;
     voidAutoCenter = false;
-    sport = timeOfft = segmentOfft = lapOfft = selStart = selEnd =
-        geoSelection = selectionSource = selectionEntry = undefined;
+    sport = lastStreamsTime = selStart = selEnd = geoSelection = selectionSource = selectionEntry = undefined;
 }
 
 
@@ -341,44 +341,11 @@ function createElevationChart(el) {
         const data = streams.altitude.map((x, i) => [streams.distance[i], x]);
         chart.yMax = Math.max(30, sauce.data.max(data.map(x => x[1])));
         chart.yMin = Math.min(0, sauce.data.min(data.map(x => x[1])));
-        const yRange = chart.yMax - chart.yMin;
-        const xRange = streams.distance[streams.distance.length - 1] - streams.distance[0];
-        let segments;
+        const segments = [];
         if (geoOffset) {
             geoMaskSegment.width = streams.distance[geoOffset - 1];
-            segments = [geoMaskSegment];
-        } else {
-            segments = [];
+            segments.push(geoMaskSegment);
         }
-        const capHeight = yRange * 0.10;
-        const capWidth = xRange * 0.01;
-        const barHeight = yRange * 0.05;
-        const barPad = yRange * 0.05;
-        for (const x of lapSlices) {
-            const startDist = streams.distance[x.startIndex];
-            const endDist = streams.distance[x.endIndex];
-            const color = x.eventSubgroupId ? '#93c' : 'white';
-            segments.push({
-                x: startDist,
-                width: capWidth,
-                y: chart.yMin + barPad + capHeight,
-                height: capHeight,
-                color,
-            }, {
-                x: startDist + capWidth,
-                width: (endDist - startDist) - capWidth * 2,
-                y: chart.yMin + barPad + (capHeight / 2) + (barHeight / 2),
-                height: barHeight,
-                color,
-            }, {
-                x: endDist - capWidth,
-                width: capWidth,
-                y: chart.yMin + barPad + capHeight,
-                height: capHeight,
-                color,
-            });
-        }
-        console.log(segments);
         chart.setSegments(segments, {render: false});
         chart.setData(data);
     };
@@ -1088,19 +1055,32 @@ async function updateLoop() {
 }
 
 
+function replaceObject(target, source) {
+    // Maintain identity of target object but replace contents with source (shallow)
+    Object.assign(target, source);
+    for (const x of Object.keys(target)) {
+        if (!Object.hasOwn(source, x)) {
+            delete target[x];
+        }
+    }
+    return target;
+}
+
+
 async function updateAllData({reset}={}) {
-    const [newAthleteData, newStreams, newSegments, newLaps] = await Promise.all([
+    const [newAthleteData, newStreams, newLaps, newSegments, newEvents] = await Promise.all([
         common.rpc.getAthleteData(athleteIdent),
-        common.rpc.getAthleteStreams(athleteIdent, {startTime: timeOfft}),
-        common.rpc.getAthleteSegments(athleteIdent, {endTime: segmentOfft, active: true}),
-        common.rpc.getAthleteLaps(athleteIdent, {endTime: lapOfft, active: true}),
+        common.rpc.getAthleteStreams(athleteIdent, {startTime: lastStreamsTime}),
+        common.rpc.getAthleteLaps(athleteIdent, {endTime: lapSlices._offt, active: true}),
+        common.rpc.getAthleteSegments(athleteIdent, {endTime: segmentSlices._offt, active: true}),
+        common.rpc.getAthleteEvents(athleteIdent, {endTime: eventSlices._offt, active: true}),
     ]);
     const changed = {
         reset,
         athleteData: athleteData?.created !== newAthleteData?.created,
         sport: sport !== newAthleteData?.state?.sport,
     };
-    if (changed.athleteData && timeOfft) {
+    if (changed.athleteData && lastStreamsTime) {
         console.debug("Data reset detected");
         resetData();
         deselectAllSources();
@@ -1117,18 +1097,13 @@ async function updateAllData({reset}={}) {
         for (const x of newLaps) {
             const existingIdx = lapSlices.findIndex(xx => xx.startIndex === x.startIndex);
             if (existingIdx !== -1) {
-                // Maintain identity for selectionEntry
-                const lap = lapSlices[existingIdx];
-                for (const x of Object.keys(lap)) {
-                    delete lap[x];
-                }
-                Object.assign(lap, x);
+                replaceObject(lapSlices[existingIdx], x);
             } else {
                 console.debug("New lap found:", lapSlices.length);
                 lapSlices.push(x);
             }
         }
-        lapOfft = lapSlices.at(-1).end;
+        lapSlices._offt = lapSlices.at(-1).end;
     }
     if (athleteData) {
         changed.athlete = JSON.stringify(athlete) !== JSON.stringify(athleteData.athlete);
@@ -1150,6 +1125,7 @@ async function updateAllData({reset}={}) {
             console.debug("Course geo offset:", geoOffset);
         }
         // XXX all prototype...
+        /*
         for (const x of athleteData.events) {
             let sg = eventSubgroups.get(x.subgroupId);
             if (!sg) {
@@ -1167,9 +1143,9 @@ async function updateAllData({reset}={}) {
                 const evLap = lapSlices.find(x => x.eventSubgroupId === sg.id);
                 const now = Date.now();
                 const evEnded = evLap ? now - (athleteData.created + evLap.end * 1000) : 0;
-                console.info('ev lap ended seconds ago', evEnded / 1000);
                 if (!sg.results || now - sg.resultsTS > evEnded * 0.5) {
                     sg.resultsTS = now;
+                    console.info('ev lap ended seconds ago', evEnded / 1000);
                     sg.results = await common.rpc.getEventSubgroupResults(x.subgroupId);
                     changed.events = true;
                 }
@@ -1182,6 +1158,7 @@ async function updateAllData({reset}={}) {
                 changed.events = true;
             }
         }
+        */
     } else if (courseId != null) {
         console.debug("Athlete data is no longer available");
         changed.course = true;
@@ -1199,7 +1176,7 @@ async function updateAllData({reset}={}) {
                 streams[k].push(x);
             }
         }
-        timeOfft = newStreams.time.at(-1) + 1e-6;
+        lastStreamsTime = newStreams.time.at(-1) + 1e-6;
     }
     if (newSegments?.length) {
         changed.segments = true;
@@ -1207,18 +1184,27 @@ async function updateAllData({reset}={}) {
             const existingIdx = segmentSlices.findIndex(xx =>
                 xx.segmentId === x.segmentId && xx.start === x.start);
             if (existingIdx !== -1) {
-                // Maintain identity for selectionEntry
-                const segment = segmentSlices[existingIdx];
-                for (const x of Object.keys(segment)) {
-                    delete segment[x];
-                }
-                Object.assign(segment, x);
+                replaceObject(segmentSlices[existingIdx], x);
             } else {
                 console.debug("New segment found:", x.segment.name);
                 segmentSlices.push(x);
             }
         }
-        segmentOfft = Math.max(...segmentSlices.map(x => x.end).filter(x => x));
+        segmentSlices._offt = Math.max(...segmentSlices.map(x => x.end).filter(x => x));
+    }
+    if (newEvents?.length) {
+        changed.events = true;
+        for (const x of newEvents) {
+            x.eventSubgroup = await common.getEventSubgroup(x.eventSubgroupId);
+            const existingIdx = eventSlices.findIndex(xx => xx.eventSubgroupId === x.eventSubgroupId);
+            if (existingIdx !== -1) {
+                replaceObject(eventSlices[existingIdx], x);
+            } else {
+                console.debug("New event found, subgroup:", x.eventSubgroup?.name || x.eventSubgroupId);
+                eventSlices.push(x);
+            }
+        }
+        eventSlices._offt = eventSlices.at(-1)?.end;
     }
     return changed;
 }

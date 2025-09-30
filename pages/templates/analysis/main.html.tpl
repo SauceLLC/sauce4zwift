@@ -103,6 +103,9 @@
     <main>
         <section class="events"></section>
 
+        <section class="events-holder">{-embed(templates.eventsList, obj)-}</section>
+        <section class="segments-holder">{-embed(templates.segmentsList, obj)-}</section>
+        <section class="laps-holder">{-embed(templates.lapsList, obj)-}</section>
         <section class="analysis">
             <div class="world" id="world-map-title"></div>
             <div id="map-wrap">
@@ -124,10 +127,5 @@
             </div>
         </section>
 
-        <section class="segments-holder">{-embed(templates.segmentsList, obj)-}</section>
-
-        <section class="laps-holder">{-embed(templates.lapsList, obj)-}</section>
-
-        <section class="events-holder">{-embed(templates.eventsList, obj)-}</section>
     </main>
 <% } %>
