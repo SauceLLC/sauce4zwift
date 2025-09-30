@@ -1389,21 +1389,19 @@ export class StatsProcessor extends events.EventEmitter {
 
     startAthleteLap(ad, now=monotonic()) {
         ad.lapSlices[ad.lapSlices.length - 1].end = now;
-        // TODO: Let's introduce the concept of freezing a slice so it's data arrays can be drained and
-        // we just retain a snapshot used for stats calls.
         const slice = this._createNewDataSlice(ad, now);
         ad.lapSlices.push(slice);
         return slice;
     }
 
-    startSegment(ad, id, now=monotonic()) {
+    startSegment(state, ad, id, now=monotonic()) {
         const slice = this._createNewDataSlice(ad, now);
         slice.id = id;
         // Indirectly lookup sgId via event slice to avoid cooldown window..
         const evSlice = ad.eventSlices.at(-1);
         if (evSlice && evSlice.end == null) {
             slice.eventSubgroupId = evSlice.eventSubgroupId;
-            slice.startEventDistance = ad.mostRecentState.eventDistance;
+            slice.startEventDistance = state.eventDistance;
             slice.endEventDistance = null;
         }
         ad.segmentSlices.push(slice);
@@ -1411,15 +1409,13 @@ export class StatsProcessor extends events.EventEmitter {
         return slice;
     }
 
-    stopSegment(ad, id, end=monotonic()) {
+    stopSegment(state, ad, id, end=monotonic()) {
         const segment = ad.activeSegments.get(id);
         segment.end = end;
         if (segment.eventSubgroupId) {
-            segment.endEventDistance = ad.mostRecentState.eventDistance;
+            segment.endEventDistance = state.eventDistance;
         }
         ad.activeSegments.delete(id);
-        // TODO: Let's introduce the concept of freezing a slice so it's data arrays can be drained and
-        // we just retain a snapshot used for stats calls.
     }
 
     resetStats() {
@@ -2785,10 +2781,10 @@ export class StatsProcessor extends events.EventEmitter {
             }
             if (ad.activeSegments.has(x.id)) {
                 if (progress == null) {
-                    this.stopSegment(ad, x.id, now);
+                    this.stopSegment(state, ad, x.id, now);
                 }
             } else if (progress != null && progress < 0.05) {
-                this.startSegment(ad, x.id, now);
+                this.startSegment(state, ad, x.id, now);
             }
         }
     }
