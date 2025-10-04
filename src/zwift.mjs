@@ -32,6 +32,38 @@ export function pbToObject(pb) {
 }
 
 
+export const eventRulesBits = {
+    0: 'NO_POWERUPS',
+    1: 'NO_DRAFTING',
+    2: 'NO_TT_BIKES',
+    3: 'LADIES_ONLY',
+    4: 'MEN_ONLY',
+    5: 'DISABLE_CONTROLLED_ROLLOUT', // likely deprecated
+    6: 'SHOW_RACE_RESULTS',
+    7: 'REVERSE_ROUTE', // likely deprecated
+    8: 'ALLOWS_LATE_JOIN',
+    9: '_UNKNOWN', // likely deprecated
+    10: 'RUBBERBANDING',
+    11: 'ENFORCE_NO_ZPOWER',
+    12: 'ONLY_ZPOWER',
+    13: 'ENFORCE_HRM',
+};
+
+const eventRulesMasks = Object.entries(eventRulesBits)
+    .map(([bit, flag]) => [1 << bit, flag]);
+
+
+export function parseEventRules(rulesId=0) {
+    const flags = [];
+    for (const {0: mask, 1: flag} of eventRulesMasks) {
+        if (rulesId & mask) {
+            flags.push(flag);
+        }
+    }
+    return flags;
+}
+
+
 // Optimized for fast path perf...
 const _idHashes = new Map();
 const _idHashTimestamps = new Map();

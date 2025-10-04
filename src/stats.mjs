@@ -2983,6 +2983,7 @@ export class StatsProcessor extends events.EventEmitter {
         if (event.allTagsObject.powerup_percent) {
             event.powerUps = this._parsePowerupPercents(event.allTagsObject.powerup_percent);
         }
+        event.rulesSet = zwift.parseEventRules(event.rulesId);
         event.ts = +new Date(event.eventStart);
         event.courseId = env.getCourseId(event.mapId);
         event.prettyType = {
@@ -3012,6 +3013,7 @@ export class StatsProcessor extends events.EventEmitter {
                 if (sg.allTagsObject.powerup_percent) {
                     sg.powerUps = this._parsePowerupPercents(sg.allTagsObject.powerup_percent);
                 }
+                sg.rulesSet = zwift.parseEventRules(sg.rulesId);
                 sg.courseId = env.getCourseId(sg.mapId);
                 const rt = env.getRoute(sg.routeId);
                 if (rt) {
@@ -3032,15 +3034,17 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _addMeetup(meetup) {
-        meetup.routeDistance = this.getRouteDistance(meetup.routeId, meetup.laps, 'meetup');
-        meetup.routeClimbing = this.getRouteClimbing(meetup.routeId, meetup.laps, 'meetup');
+        meetup.ts = +new Date(meetup.eventStart);
         meetup.eventType = 'MEETUP';
         meetup.prettyType = meetup.prettyTypeShort = 'Meetup';
         meetup.totalEntrantCount = meetup.acceptedTotalCount;
         meetup.followeeEntrantCount = meetup.acceptedFolloweeCount;
         meetup.allTagsObject = this._parseEventTags(meetup);
         meetup.allTags = this._flattenEventTags(meetup.allTagsObject);
-        meetup.ts = +new Date(meetup.eventStart);
+        meetup.rulesSet = [];
+        if (meetup.rubberbanding) {
+            meetup.rulesSet.push(zwift.eventRulesBits[10]);
+        }
         const rt = meetup.routeId && env.getRoute(meetup.routeId);
         if (rt) {
             meetup.courseId = rt.courseId;
@@ -3056,10 +3060,14 @@ export class StatsProcessor extends events.EventEmitter {
             eventId: meetup.id,
             signedUp: meetup.inviteStatus !== 'REJECTED',
         };
+        if (rt) {
+            sg.routeDistance = this._getRouteDistance(rt, meetup.laps, 'meetup');
+            sg.routeClimbing = this._getRouteClimbing(rt, meetup.laps, 'meetup');
+        }
         if (sg.durationInSeconds) {
             sg.endTS = meetup.ts + meetup.durationInSeconds * 1000;
         } else {
-            sg.endDistance = meetup.distanceInMeters || meetup.routeDistance;
+            sg.endDistance = meetup.distanceInMeters || sg.routeDistance;
         }
         meetup.eventSubgroups = [sg];
         this._recentEventSubgroups.set(meetup.eventSubgroupId, sg);
