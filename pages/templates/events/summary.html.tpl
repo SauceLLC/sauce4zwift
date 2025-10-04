@@ -12,6 +12,9 @@
         <% if (event.sport === 'running') { %>
             <ms title="Run">directions_run</ms>
         <% } %>
+        <% if (event.rulesSet?.includes('LADIES_ONLY')) { %>
+            <ms title="Ladies Only">female</ms>
+        <% } %>
     </td>
     <td class="name" title="{{event.name}}">{{event.name}}</td>
     <% if (event.sameRouteName && event.route?.name) { %>

@@ -64,6 +64,20 @@ async function loadEvent(id) {
 }
 
 
+const prettyRules = {
+    NO_POWERUPS: 'No Powerups',
+    NO_DRAFTING: 'No Drafting',
+    NO_TT_BIKES: 'No TT Bikes',
+    LADIES_ONLY: 'Ladies Only',
+    MEN_ONLY: 'Men Only',
+    SHOW_RACE_RESULTS: 'Show Results',
+    ALLOWS_LATE_JOIN: 'Allow Late Join',
+    RUBBERBANDING: 'Rubberbanding',
+    ENFORCE_NO_ZPOWER: 'Power Meter Required',
+    ONLY_ZPOWER: 'No Power Meter',
+    ENFORCE_HRM: 'HRM Required'
+};
+
 
 let _routeListPromise;
 async function fillInEvents() {
@@ -77,6 +91,7 @@ async function fillInEvents() {
             allRoutes.set(x.id, x);
         }
     }
+    const tagFilterRe = /(^timestamp=|^created_|^after_party_duration=|^powerup_percent[=:])/;
     for (const event of allEvents.values()) {
         event.route = allRoutes.get(event.routeId);
         event.sameRoute = true;
@@ -103,8 +118,12 @@ async function fillInEvents() {
                     distances.push(sg.distanceInMeters || sg.routeDistance);
                 }
                 allSubgroups.set(sg.id, {sg, event});
-                sg.displayTags = sg.allTags.filter(x => !event.allTags.includes(x)).filter(x =>
-                    !x.match(/(^timestamp=|^created_|^after_party_duration=|^powerup_percent[=:])/));
+                sg.displayTags = sg.allTags
+                    .filter(x => !event.allTags.includes(x))
+                    .filter(x => !x.match(tagFilterRe));
+                sg.displayRules = sg.rulesSet
+                    .filter(x => !event.rulesSet.includes(x))
+                    .map(x => prettyRules[x] ?? x.toLowerCase());
             }
         } else {
             if (event.durationInSeconds) {
@@ -116,8 +135,8 @@ async function fillInEvents() {
         const desc = (a, b) => a - b;
         event.durations = Array.from(new Set(durations.filter(x => x))).sort(desc);
         event.distances = Array.from(new Set(distances.filter(x => x))).sort(desc);
-        event.displayTags = event.allTags.filter(x =>
-            !x.match(/(^timestamp=|^created_|^after_party_duration=|^powerup_percent[=:])/));
+        event.displayTags = event.allTags.filter(x => !x.match(tagFilterRe));
+        event.displayRules = event.rulesSet.map(x => prettyRules[x] ?? x.toLowerCase());
     }
 }
 

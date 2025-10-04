@@ -332,6 +332,16 @@ table {
         margin-left: 0.1em;
     }
 
+    .tags .badge {
+        --sat: 0.2;
+        --hue: 15deg;
+    }
+
+    .rules .badge {
+        --sat: 0.7;
+        --hue: 8deg;
+    }
+
     .event-info {
         display: flow-root;
 
@@ -349,19 +359,12 @@ table {
 
         .subsection {
             font-size: 0.9em;
-            margin: 1rem 0.4rem;
+            margin: 0.5rem 0.4rem;
             padding: 0.5rem 0.68rem;
             border-left: 3px solid color.shade(intrinsic, 0%, 0.2);
 
             b {
                 font-weight: 500;
-            }
-        }
-
-        .tags {
-            .badge {
-                --sat: 0.2;
-                --hue: 15deg;
             }
         }
 
@@ -435,14 +438,10 @@ table {
                 }
             }
 
-            .tags {
+            .tags,
+            .rules {
                 font-size: 0.88em;
                 padding: 0.8em 0.4em 0.1em;
-
-                .badge {
-                    --sat: 0.2;
-                    --hue: 15deg;
-                }
             }
 
             > header {

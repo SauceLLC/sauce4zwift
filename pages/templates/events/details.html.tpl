@@ -44,6 +44,14 @@
                 <% } %>
             </div>
         <% } %>
+        <% if (event.displayRules.length) { %>
+            <div class="subsection rules">
+                <b>Rules:</b>
+                <% for (const x of event.displayRules) { %>
+                    <div class="badge">{{x}}</div>
+                <% } %>
+            </div>
+        <% } %>
         <% if (event.powerUps) { %>
             <div class="subsection powerups">
                 <b>PowerUps:</b>
@@ -112,6 +120,14 @@
                         <div class="subsection tags">
                             <b>Tags:</b>
                             <% for (const x of sg.displayTags) { %>
+                                <div class="badge">{{x}}</div>
+                            <% } %>
+                        </div>
+                    <% } %>
+                    <% if (sg.displayRules.length) { %>
+                        <div class="subsection rules">
+                            <b>Rules:</b>
+                            <% for (const x of sg.displayRules) { %>
                                 <div class="badge">{{x}}</div>
                             <% } %>
                         </div>
