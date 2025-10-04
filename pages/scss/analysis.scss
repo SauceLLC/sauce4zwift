@@ -218,6 +218,9 @@ abbr.unit {
 }
 
 main {
+    display: flex;
+    flex-direction: column;
+
     section {
         position: relative;
     }
@@ -263,7 +266,6 @@ main {
     }
 
     .events {
-        border-top: 1px solid #333;
         .event-summary {
             display: flex;
             align-items: center;
@@ -428,11 +430,6 @@ main > section {
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    padding: 1em;
-
-    &:not(:last-child) {
-        border-bottom: $light-border;
-    }
 
     &.compressed .expander[data-id="compress"],
     &:not(.compressed) .expander[data-id="expand"] {
@@ -440,6 +437,10 @@ main > section {
     }
 
     &.compressed {
+        > header:first-child {
+            border-radius: 0.28em;
+        }
+
         > :not(header:first-child) {
             display: none;
         }
@@ -449,8 +450,13 @@ main > section {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
-        padding: 0.2rem;
+        padding: 0.4rem 0.6rem;
+        margin: 0 -0.4rem;
         font-size: 1.2em;
+        border-radius: 0.28em 0.28em 0 0;
+        background-image: linear-gradient(to bottom,
+                                          color.shade(intrinsic, 4%),
+                                          color.shade(intrinsic, 1%));
 
         > ms {
             padding-right: 0.2em;
@@ -499,6 +505,21 @@ table {
     > .stats {
        margin-bottom: 0.6em;
     }
+}
+
+section.laps-holder,
+section.segments-holder,
+section.events-holder {
+    padding: 0.5rem 1rem;
+
+    &.compressed {
+        padding: 0 1rem;
+    }
+}
+
+section.constrain-height .overflow {
+    max-height: max(12rem, min(40rem, 50vh));
+    overflow: auto;
 }
 
 .chart-holder {
@@ -621,6 +642,10 @@ table.basic {
         }
     }
 
+    > thead > tr > th {
+        font-weight: 500;
+    }
+
     > tbody > tr {
         transition: background 100ms;
         cursor: pointer;
@@ -631,7 +656,7 @@ table.basic {
     }
 }
 
-table.selectable {
+table.selectable.basic {
     > tbody > tr {
         &.selected {
             background-color: color.shade(intrinsic-inverted, 40%) !important;
@@ -639,7 +664,8 @@ table.selectable {
         }
 
         &:not(.selected):hover {
-            background-color: color.get(intrinsic-inverted, 0.15);
+            /*background-color: color.get(intrinsic-inverted, 0.15);*/
+            background-color: #007eff42;
         }
     }
 }
@@ -647,24 +673,18 @@ table.selectable {
 table.segments-list,
 table.laps-list,
 table.events-list {
-    width: 100%;
-    font-size: 0.8em;
-
-    > thead > tr > th,
-    > tbody > tr > td {
-        padding: 0.65em 0.4em;
-        text-align: left;
-
-        &:first-child {
-            padding-left: 1.5em;
-        }
-        &:last-child {
-            padding-right: 1.5em;
-        }
-    }
+    font-size: 0.82em;
 
     tr[data-event-subgroup-id] {
         border-left: 4px solid #3399cc;
+    }
+    tr.active {
+        background-color: #f1ad0424;
+    }
+
+    > thead > tr > th {
+        padding-top: 0.3em;
+        padding-bottom: 0.3em;
     }
 }
 
@@ -674,10 +694,16 @@ table.segments-list {
         overflow: auto;
     }
 
+    .segment-results {
+        header {
+            font-weight: 500;
+            margin-bottom: 0.5em;
+        }
+    }
+
     table.results {
         background-color: color.get(intrinsic, 0.9);
         border-radius: 0.3em;
-        //color: color.shade(primary, 100%);
 
         .trophy {
             font-size: 1.4em;
@@ -700,6 +726,12 @@ table.segments-list {
             &.bronze {
                 background-color: #cd7f32;
             }
+        }
+
+        tr.viewing {
+            font-weight: 600;
+            color: color.shade(intrinsic, 0%);
+            background-color: color.shade(intrinsic-inverted, 22%);
         }
     }
 }

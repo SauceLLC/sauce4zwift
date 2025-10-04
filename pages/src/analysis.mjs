@@ -52,6 +52,8 @@ let geoSelection;
 let selectionSource;
 let selectionEntry;
 let segmentResults;
+let segmentResultsType;
+let haveRealClock;
 
 
 function resetData() {
@@ -667,11 +669,13 @@ function createPackTimeChart(el) {
         }
         totalTime = data.followTime + data.soloTime + data.workTime;
         let subTitle = '';
-        if (selectionSource === 'segments') {
-            let name = selectionEntry.segment?.name || 'Segment';
-            const max = 28;
+        if (selectionSource === 'segments' || selectionSource === 'events') {
+            let name = selectionSource === 'segments' ?
+                selectionEntry.segment?.name || 'Segment' :
+                selectionEntry.eventSubgroup?.name || 'Event';
+            const max = 24;
             if (name.length > max) {
-                name = name.substr(0, max - 1) + '…';
+                name = `<span title="${common.sanitizeAttr(name)}">${name.substr(0, max - 1)}...</span>`;
             }
             subTitle = `<br/>${name}`;
         } else if (selectionSource === 'laps') {
@@ -813,42 +817,46 @@ export async function main() {
             return;
         }
         const deselecting = row.classList.contains('selected');
-        deselectAllSources();
-        if (deselecting) {
-            selectionSource = selectionEntry = null;
-            setSelection();
-        } else {
+        let entry, source;
+        if (!deselecting) {
             if (row.dataset.peakSource) {
                 const period = Number(row.dataset.peakPeriod);
                 const peak = athleteData.stats[row.dataset.peakSource].peaks[period];
                 if (peak.ts != null) {
-                    selectionSource = 'peaks';
                     const endIndex = streams.time.indexOf(peak.time);
                     const startIndex = common.binarySearchClosest(streams.time, peak.time - period);
-                    selectionEntry = {startIndex, endIndex, period};
-                } else {
-                    selectionSource = selectionEntry = null;
-                    setSelection();
+                    entry = {startIndex, endIndex, period};
+                    source = 'peaks';
                 }
             } else if (row.dataset.source) {
-                selectionSource = row.dataset.source;
                 const slices = {
                     laps: lapSlices,
                     segments: segmentSlices,
                     events: eventSlices,
-                }[selectionSource];
-                selectionEntry = slices && slices[Number(row.dataset.index)];
-                if (selectionSource === 'segments') {
-                    row.parentElement.querySelectorAll(':scope > .expanded')
-                        .forEach(x => x.classList.remove('expanded'));
-                    row.classList.add('expanded');
-                    updateSegmentResults(selectionEntry); // bg okay
+                }[row.dataset.source];
+                entry = slices && slices[Number(row.dataset.index)];
+                if (entry) {
+                    source = row.dataset.source;
+                } else {
+                    console.error('View vs backend data mismatch', row.dataset.source, row.dataset.index);
                 }
             }
-            if (selectionEntry) {
-                row.classList.add('selected');
-                setSelection(selectionEntry.startIndex, selectionEntry.endIndex);
+        }
+        deselectAllSources();
+        if (entry) {
+            selectionEntry = entry;
+            selectionSource = source;
+            row.classList.add('selected');
+            setSelection(entry.startIndex, entry.endIndex);
+            if (source === 'segments') {
+                row.parentElement.querySelectorAll(':scope > .expanded')
+                    .forEach(x => x.classList.remove('expanded'));
+                row.classList.add('expanded');
+                updateSegmentResults(entry); // bg okay
             }
+        } else {
+            selectionSource = selectionEntry = null;
+            setSelection();
         }
     }, {capture: true});  // capture because we want to beat expander table click handler
     contentEl.addEventListener('input', async ev => {
@@ -972,19 +980,85 @@ function setSelection(startIndex, endIndex) {
 }
 
 
+function speedEstSlowdownFactor(slope) {
+    // Just a very rough estimate of speed slow down for a given slope.
+    // Slope of 0 => 1
+    // Slope of 0.07 => 2.5
+    // I.e. flat is factor 1, 7% grade is 2.5 times slower.
+    return Math.exp(13.091 * slope);
+}
+
+
+// XXX Testing out a func that will eventually live on the backend...
+async function getEventSegmentResults(segmentId, eventSubgroupId) {
+    // WARNING: this is a hack but I've worked the problem and can find no better
+    // solution. Using the Live leaderboard is invalid for events where segments
+    // are repeated (only one result per athlete).  We can't trust our own athlete-data
+    // since large events will have high sparsity.  There is no eventSubgroupId on
+    // segment results from the non-live API so we have to narrow it down using
+    // fuzzy logic..
+
+    // 1. Get every segment result that could possibly be during this event...
+    const sg = await common.getEventSubgroup(eventSubgroupId);
+    const estMetersPerSec = (30 * speedEstSlowdownFactor(sg.routeClimbing / sg.routeDistance)) / 3.6;
+    const eventDuration = sg.durationInSeconds ?
+        sg.durationInSeconds * 1000 :
+        sg.endDistance / estMetersPerSec * 1000;
+    //const eventDistance = eventDuration / 1000 * estMetersPerSec;
+    if (haveRealClock === undefined) {
+        haveRealClock = null;
+        try {
+            await sauce.time.establish();
+            haveRealClock = true;
+        } catch(e) {
+            console.error('Failed to get real clock', e);
+        }
+    }
+    const now = haveRealClock ? sauce.time.getTime() : Date.now();
+    const filter = {
+        from: sg.ts,
+        to: sg.ts + eventDuration,
+    };
+    let results = await common.rpc.getSegmentResults(segmentId, filter);
+
+    // 2. Decide which athletes are "part-of-the-event".
+    let tentative;
+    let athletes;
+    if (sg.ts + eventDuration < now) {
+        // Safe to filter by results, DNFs get pruned now..
+        tentative = false;
+        const results = await common.rpc.getEventSubgroupResults(eventSubgroupId);
+        athletes = new Set(results.map(x => x.profileId));
+    } else {
+        // Unsafe to use results yet, so use more inclusive entrants as filter set.
+        // Athletes that quit will be included until such time that the event results
+        // can be verified.
+        tentative = true;
+        const entrants = await common.rpc.getEventSubgroupEntrants(eventSubgroupId);
+        athletes = new Set(entrants.map(x => x.id));
+    }
+    results = results.filter(x => athletes.has(x.athleteId));
+    return {results, type: tentative ? 'event-tentative' : 'event'};
+}
+
+
 let _lastExpandedSegment;
 async function updateSegmentResults(segment) {
     if (segment !== _lastExpandedSegment) {
         _lastExpandedSegment = segment;
-        segmentResults = null;
-        const results = await common.rpc.getSegmentResults(segment.segmentId);
-        const resultsLive = await common.rpc.getSegmentResults(segment.segmentId, {live: true});
-        console.log(results, resultsLive);
+        if (segment.eventSubgroupId) {
+            const ret = await getEventSegmentResults(segment.segmentId, segment.eventSubgroupId);
+            segmentResults = ret.results;
+            segmentResultsType = ret.type;
+        } else {
+            segmentResults = await common.rpc.getSegmentResults(segment.segmentId, {live: true});
+            segmentResultsType = 'live';
+        }
+        console.log({segmentResults});
         // Recheck state, things may have changed during fetch/render..
         if (segment !== _lastExpandedSegment) {
             return;
         }
-        segmentResults = results;
         renderSegments();
     }
 }
@@ -993,9 +1067,11 @@ async function updateSegmentResults(segment) {
 function renderSegments() {
     const selected = selectionSource === 'segments' ? segmentSlices.indexOf(selectionEntry) : undefined;
     return renderSurgicalTemplate('section.segments-holder', templates.segmentsList, {
+        streams,
         segmentSlices,
         selected,
         results: segmentResults,
+        type: segmentResultsType,
     });
 }
 
@@ -1075,6 +1151,7 @@ async function updateAllData({reset}={}) {
         common.rpc.getAthleteSegments(athleteIdent, {endTime: segmentSlices._offt, active: true}),
         common.rpc.getAthleteEvents(athleteIdent, {endTime: eventSlices._offt, active: true}),
     ]);
+    if (!lastStreamsTime) console.log(newStreams.power);
     const changed = {
         reset,
         athleteData: athleteData?.created !== newAthleteData?.created,
@@ -1095,7 +1172,7 @@ async function updateAllData({reset}={}) {
     if (newLaps?.length) {
         changed.laps = true;
         for (const x of newLaps) {
-            const existingIdx = lapSlices.findIndex(xx => xx.startIndex === x.startIndex);
+            const existingIdx = lapSlices.findIndex(xx => xx.id === x.id);
             if (existingIdx !== -1) {
                 replaceObject(lapSlices[existingIdx], x);
             } else {
@@ -1103,10 +1180,11 @@ async function updateAllData({reset}={}) {
                 lapSlices.push(x);
             }
         }
-        lapSlices._offt = lapSlices.at(-1).end;
+        lapSlices._offt = Math.max(...lapSlices.filter(x => !x.active).map(x => x.end));
     }
     if (athleteData) {
-        changed.athlete = JSON.stringify(athlete) !== JSON.stringify(athleteData.athlete);
+        changed.athlete = JSON.stringify({...athlete, updated: null}) !==
+                          JSON.stringify({...athleteData.athlete, updated: null});
         if (changed.athlete) {
             athlete = athleteData.athlete;
             console.debug("Athlete updated:", athlete.fullname);
@@ -1166,7 +1244,6 @@ async function updateAllData({reset}={}) {
         geoOffset = 0;
     }
     if (newStreams?.time?.length) {
-        //console.debug("Streams data found:", newStreams.time.length);
         changed.streams = true;
         for (const [k, stream] of Object.entries(newStreams)) {
             if (!streams[k]) {
@@ -1181,8 +1258,7 @@ async function updateAllData({reset}={}) {
     if (newSegments?.length) {
         changed.segments = true;
         for (const x of newSegments) {
-            const existingIdx = segmentSlices.findIndex(xx =>
-                xx.segmentId === x.segmentId && xx.start === x.start);
+            const existingIdx = segmentSlices.findIndex(xx => xx.id === x.id);
             if (existingIdx !== -1) {
                 replaceObject(segmentSlices[existingIdx], x);
             } else {
@@ -1190,13 +1266,13 @@ async function updateAllData({reset}={}) {
                 segmentSlices.push(x);
             }
         }
-        segmentSlices._offt = Math.max(...segmentSlices.map(x => x.end).filter(x => x));
+        segmentSlices._offt = Math.max(...segmentSlices.filter(x => !x.active).map(x => x.end));
     }
     if (newEvents?.length) {
         changed.events = true;
         for (const x of newEvents) {
             x.eventSubgroup = await common.getEventSubgroup(x.eventSubgroupId);
-            const existingIdx = eventSlices.findIndex(xx => xx.eventSubgroupId === x.eventSubgroupId);
+            const existingIdx = eventSlices.findIndex(xx => xx.id === x.id);
             if (existingIdx !== -1) {
                 replaceObject(eventSlices[existingIdx], x);
             } else {
@@ -1204,7 +1280,7 @@ async function updateAllData({reset}={}) {
                 eventSlices.push(x);
             }
         }
-        eventSlices._offt = eventSlices.at(-1)?.end;
+        eventSlices._offt = Math.max(...eventSlices.filter(x => !x.active).map(x => x.end));
     }
     return changed;
 }
@@ -1276,11 +1352,8 @@ async function updateAll() {
         let selected;
         if (selectionSource === 'segments') {
             selected = segmentSlices.indexOf(selectionEntry);
-            if (selected >= segmentSlices.length || selected < 0) { // possible data reset
-                debugger;
-                selectionSource = selectionEntry = selected = null;
-                deselectAllSources();
-                setSelection();
+            if (selected < 0) {
+                selected = undefined; // unlikely, currently impossible
             } else {
                 setSelection(selectionEntry.startIndex, selectionEntry.endIndex);
             }
@@ -1294,11 +1367,8 @@ async function updateAll() {
         let selected;
         if (selectionSource === 'laps') {
             selected = lapSlices.indexOf(selectionEntry);
-            if (selected >= lapSlices.length || selected < 0) { // possible data reset
-                debugger;
-                selectionSource = selectionEntry = selected = null;
-                deselectAllSources();
-                setSelection();
+            if (selected < 0) {
+                selected = undefined; // unlikely, currently impossible
             } else {
                 setSelection(selectionEntry.startIndex, selectionEntry.endIndex);
             }
@@ -1313,11 +1383,8 @@ async function updateAll() {
         let selected;
         if (selectionSource === 'events') {
             selected = eventSlices.indexOf(selectionEntry);
-            if (selected >= eventSlices.length || selected < 0) { // possible data reset
-                debugger;
-                selectionSource = selectionEntry = selected = null;
-                deselectAllSources();
-                setSelection();
+            if (selected < 0) {
+                selected = undefined;
             } else {
                 setSelection(selectionEntry.startIndex, selectionEntry.endIndex);
             }
