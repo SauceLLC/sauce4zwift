@@ -186,9 +186,10 @@ async function applyEventFilters(el) {
             }
         }
     }
-    for (const x of el.querySelectorAll('table.events > tbody > tr.summary[data-event-id]')) {
+    for (const x of el.querySelectorAll('table.events > tbody > tr.event-row')) {
         x.classList.toggle('hidden', hide.has(x.dataset.eventId));
     }
+    updateStatefulStyles(el);
 }
 
 
@@ -210,6 +211,14 @@ function updateStatefulStyles(el=contentEl) {
         } else {
             x.classList.remove('joinable');
             startEl.title = startEl.getAttribute('title') || '';
+        }
+    }
+    const soon = el.querySelector('table.events > tbody > tr.event-row:not(.hidden):not(.started)');
+    if (!soon || !soon.classList.contains('soonest')) {
+        el.querySelectorAll('table.events > tbody > tr.event-row.soonest')
+            .forEach(x => x.classList.remove('soonest'));
+        if (soon) {
+            soon.classList.add('soonest');
         }
     }
 }
@@ -335,26 +344,13 @@ export async function main() {
     });
     await render();
     if (eventId != null) {
-        contentEl.querySelector('table.events > tbody > tr.summary').click();
+        contentEl.querySelector('table.events > tbody > tr.event-row').click();
     } else {
-        const soon = contentEl.querySelector('table.events > tbody > ' +
-                                             'tr.summary[data-event-id]:not(.hidden):not(.started)');
-        if (soon) {
-            soon.classList.add('soonest');
-            soon.scrollIntoView({block: 'center'});
+        const centerRow = contentEl.querySelector('table.events > tbody > ' +
+                                                  'tr.event-row:not(.hidden):not(.started)');
+        if (centerRow) {
+            centerRow.scrollIntoView({block: 'center'});
         }
-        setInterval(() => {
-            updateStatefulStyles();
-            const soon = contentEl.querySelector('table.events > tbody > ' +
-                                                 'tr.summary[data-event-id]:not(.hidden):not(.started)');
-            if (!soon || !soon.classList.contains('soonest')) {
-                contentEl.querySelectorAll('table.events tr.summary.soonest')
-                    .forEach(x => x.classList.remove('soonest'));
-                if (soon) {
-                    soon.classList.add('soonest');
-                }
-            }
-        }, 5_000);
         setInterval(async () => {
             const data = await common.rpc.getCachedEvents();
             let modified;
@@ -524,7 +520,6 @@ async function render() {
         }
     });
     applyEventFilters(frag);
-    updateStatefulStyles(frag);
     contentEl.replaceChildren(frag);
 }
 
