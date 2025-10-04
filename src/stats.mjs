@@ -1313,9 +1313,9 @@ export class StatsProcessor extends events.EventEmitter {
             stats: this._getBucketStats(slice, ad),
             active: slice.end == null,
             startIndex,
-            endIndex,
-            start: slice.power.roll._times[startIndex],
-            end: slice.power.roll._times[endIndex],
+            endIndex, // inclusive
+            start: slice.power.roll._times[startIndex], // can be undefined
+            end: slice.power.roll._times[endIndex], // can be undefined
             sport: slice.sport,
             courseId: slice.courseId,
         };
