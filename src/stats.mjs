@@ -17,6 +17,7 @@ const pkg = require('../package.json');
 
 const wPrimeDefault = 20000;
 let groupIdCounter = 1;
+let dataSliceIdCounter = (Date.now() & 0xfff_ffff) ^ (Math.random() * 0xfff_ffff | 0);
 
 
 rpc.register(env.getWorldMetas);
@@ -1303,11 +1304,12 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     _formatDataSlice(slice, ad) {
-        // TODO: Let's introduce the concept of freezing a slice so it's data arrays can be drained and
-        // we just retain a snapshot used for stats calls.
+        // TODO: Let's introduce the concept of freezing a slice so it's data arrays can
+        // be drained and we just retain a snapshot used for stats calls.
         const startIndex = slice.power.roll._offt;
         const endIndex = Math.max(startIndex, slice.power.roll._length - 1);
         return {
+            id: slice.id,
             stats: this._getBucketStats(slice, ad),
             active: slice.end == null,
             startIndex,
@@ -1390,14 +1392,14 @@ export class StatsProcessor extends events.EventEmitter {
 
     startAthleteLap(ad, now=monotonic()) {
         ad.lapSlices[ad.lapSlices.length - 1].end = now;
-        const slice = this._createNewDataSlice(ad, now);
+        const slice = this._createDataSlice(ad, now);
         ad.lapSlices.push(slice);
         return slice;
     }
 
     startSegment(state, ad, id, now=monotonic()) {
         console.debug("Starting segment:", state.athleteId, id);
-        const slice = this._createNewDataSlice(ad, now);
+        const slice = this._createDataSlice(ad, now);
         slice.id = id;
         // Indirectly lookup sgId via event slice to avoid cooldown window..
         const evSlice = ad.eventSlices.at(-1);
@@ -1730,7 +1732,7 @@ export class StatsProcessor extends events.EventEmitter {
         const athlete = this.loadAthlete(id);
         if (athlete) {
             const ad = this._athleteData.get(id);
-            const hideFTP = ad && ad.privacy.hideFTP;
+            const hideFTP = ad && ad.eventPrivacy.hideFTP;
             return hideFTP ? {...athlete, ftp: null} : athlete;
         }
     }
@@ -1993,14 +1995,14 @@ export class StatsProcessor extends events.EventEmitter {
         const np = bucket.power.roll.np({force: true});
         let wBal, timeInPowerZones; // DEPRECATED
         if (includeDeprecated) {
-            wBal = ad.privacy.hideWBal ? undefined : ad.wBal.get();
-            timeInPowerZones = ad.privacy.hideFTP ? undefined : ad.timeInPowerZones.get();
+            wBal = ad.eventPrivacy.hideWBal ? undefined : ad.wBal.get();
+            timeInPowerZones = ad.eventPrivacy.hideFTP ? undefined : ad.timeInPowerZones.get();
         }
         const activeTime = bucket.power.roll.active();
         if (!sanitizedAthlete) {
             sanitizedAthlete = this._getSanitizedAthlete(ad);
         }
-        const tss = (!ad.privacy.hideFTP && np && sanitizedAthlete && sanitizedAthlete.ftp) ?
+        const tss = (!ad.eventPrivacy.hideFTP && np && sanitizedAthlete && sanitizedAthlete.ftp) ?
             sauce.power.calcTSS(np, activeTime, sanitizedAthlete.ftp) :
             undefined;
         return {
@@ -2056,9 +2058,12 @@ export class StatsProcessor extends events.EventEmitter {
         };
     }
 
-    _createNewDataSlice(ad, start=monotonic()) {
+    _createDataSlice(ad, start=monotonic()) {
         const cloneOpts = {reset: true};
+        const id = dataSliceIdCounter;
+        dataSliceIdCounter = (dataSliceIdCounter + 1) % Number.MAX_SAFE_INTEGER;
         return {
+            id,
             start,
             coffeeTime: 0,
             workTime: 0,
@@ -2166,7 +2171,7 @@ export class StatsProcessor extends events.EventEmitter {
             stOffset: worldTimer.toServerTime(state.worldTime),
             wtOffset: state.worldTime,
             distanceOffset: 0,
-            privacy: {},
+            eventPrivacy: {},
             mostRecentState: null,
             wBal: new WBalAccumulator(),
             timeInPowerZones: new ZonesAccumulator(),
@@ -2192,7 +2197,7 @@ export class StatsProcessor extends events.EventEmitter {
             activeSegments: new Map(),
             events: new Map(),
         };
-        ad.lapSlices.push(this._createNewDataSlice(ad, now));
+        ad.lapSlices.push(this._createDataSlice(ad, now));
         const athlete = this.loadAthlete(state.athleteId);
         if (athlete) {
             this._updateAthleteDataFromDatabase(ad, athlete);
@@ -2209,7 +2214,8 @@ export class StatsProcessor extends events.EventEmitter {
         });
         // NOTE: Don't reset w'bal; it is a biometric
         ad.timeInPowerZones.reset();
-        ad.lapSlices = [this._createNewDataSlice(ad, now)];
+        this.clearAthleteEvent(ad);
+        ad.lapSlices = [this._createDataSlice(ad, now)];
         ad.segmentSlices.length = 0;
         ad.eventSlices.length = 0;
         ad.activeSegments.clear();
@@ -2231,10 +2237,11 @@ export class StatsProcessor extends events.EventEmitter {
         } else {
             console.warn("Missing event <-> subgroup mapping", sgId);
         }
-        if (this._autoResetEvents) {
+        const dataLen = ad.bucket.power.roll._length;
+        if (dataLen && this._autoResetEvents) {
             console.debug("Event start triggering reset for:", ad.athleteId, sgId);
             this._resetAthleteData(ad, state.worldTime, now);
-        } else if (this._autoLapEvents) {
+        } else if (dataLen && this._autoLapEvents) {
             console.debug("Event start triggering lap for:", ad.athleteId, sgId);
             this.startAthleteLap(ad, now);
         } else {
@@ -2251,7 +2258,7 @@ export class StatsProcessor extends events.EventEmitter {
                 prevSlice.end = now;
             }
         }
-        const slice = this._createNewDataSlice(ad, now);
+        const slice = this._createDataSlice(ad, now);
         slice.eventSubgroupId = sgId;
         ad.eventSlices.push(slice);
     }
@@ -2309,15 +2316,14 @@ export class StatsProcessor extends events.EventEmitter {
                         // unlikely based on how the game actually behaves in test, but theoretically possible
                         this.triggerEventEnd(ad, state, now);
                     }
+                    this.clearAthleteEvent(ad);
                     ad.eventSubgroup = sg;
-                    ad.privacy = {};
-                    ad.eventPosition = undefined;
-                    ad.eventParticipants = undefined;
                     if (state.athleteId !== this.athleteId) {
-                        ad.privacy.hideWBal = sg.allTags.includes('hidewbal');
-                        ad.privacy.hideFTP = sg.allTags.includes('hideftp');
+                        ad.eventPrivacy.hideWBal = sg.allTags.includes('hidewbal');
+                        ad.eventPrivacy.hideFTP = sg.allTags.includes('hideftp');
                     }
-                    ad.disabled = sg.allTags.includes('hidethehud') || sg.allTags.includes('nooverlays');
+                    ad.disabledByEvent = sg.allTags.includes('hidethehud') ||
+                                         sg.allTags.includes('nooverlays');
                     if (state.time) {
                         this.triggerEventStart(ad, state, now);
                     } else {
@@ -2342,14 +2348,9 @@ export class StatsProcessor extends events.EventEmitter {
             if (ad.eventSlices.length && ad.eventSlices[ad.eventSlices.length - 1].end == null) {
                 this.triggerEventEnd(ad, state, now);
             }
-            ad.eventSubgroup = null;
-            ad.privacy = {};
-            ad.disabled = false;
-            ad.eventStartPending = false;
-            ad.eventPosition = undefined;
-            ad.eventParticipants = undefined;
+            this.clearAthleteEvent(ad);
         }
-        if (ad.disabled) {
+        if (ad.disabledByEvent) {
             return false;
         }
         const roadSig = this._roadSig(state);
@@ -2360,6 +2361,15 @@ export class StatsProcessor extends events.EventEmitter {
         this._recordAthleteRoadHistory(state, ad, roadSig);
         this._recordAthleteStats(state, ad, now);
         this._maybeUpdateAthleteFromServer(state.athleteId, now);
+    }
+
+    clearAthleteEvent(ad) {
+        ad.eventSubgroup = null;
+        ad.eventPrivacy = {};
+        ad.disabledByEvent = false;
+        ad.eventStartPending = false;
+        ad.eventPosition = undefined;
+        ad.eventParticipants = undefined;
     }
 
     _autoLapCheck(state, ad, now) {
@@ -3520,7 +3530,7 @@ export class StatsProcessor extends events.EventEmitter {
 
     _getSanitizedAthlete(ad) {
         let athlete = this.loadAthlete(ad.athleteId);
-        if (athlete && ad.privacy.hideFTP) {
+        if (athlete && ad.eventPrivacy.hideFTP) {
             athlete = {...athlete, ftp: null};
         }
         return athlete;
@@ -3557,8 +3567,8 @@ export class StatsProcessor extends events.EventEmitter {
             gap: ad.gap,
             gapDistance: ad.gapDistance,
             isGapEst: ad.isGapEst ? true : undefined,
-            wBal: ad.privacy.hideWBal ? undefined : ad.wBal.get(),
-            timeInPowerZones: ad.privacy.hideFTP ? undefined : ad.timeInPowerZones.get(),
+            wBal: ad.eventPrivacy.hideWBal ? undefined : ad.wBal.get(),
+            timeInPowerZones: ad.eventPrivacy.hideFTP ? undefined : ad.timeInPowerZones.get(),
             ...(state && this._getEventOrRouteInfo(state)),
             ...ad.extra,
         };
@@ -3566,7 +3576,7 @@ export class StatsProcessor extends events.EventEmitter {
 
     _computeNearby() {
         const watching = this._athleteData.get(this.watching);
-        if (!watching || !watching.mostRecentState || watching.disabled) {
+        if (!watching || !watching.mostRecentState || watching.disabledByEvent) {
             for (const ad of this._athleteData.values()) {
                 ad.gap = undefined;
                 ad.gapDistance = undefined;
@@ -3584,8 +3594,7 @@ export class StatsProcessor extends events.EventEmitter {
         const behind = [];
         const now = monotonic();
         for (const ad of this._athleteData.values()) {
-            //if (ad !== watching && !this._markedIds.has(ad.athleteId)) continue;
-            if (ad.athleteId === this.watching || ad.disabled || !ad.mostRecentState ||
+            if (ad.athleteId === this.watching || ad.disabledByEvent || !ad.mostRecentState ||
                 now - ad.internalUpdated > 15000 || (filterStopped && !ad.mostRecentState.speed)) {
                 continue;
             }
