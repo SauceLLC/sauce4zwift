@@ -239,22 +239,26 @@ main {
         overflow: hidden;
     }
 
-    .elevation {
-        padding: 0.1rem 0.4rem;
+    #elevation-chart {
+        height: 4em;
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
 
-        .chart {
-            height: 7em;
+        svg.sc-root {
+            overflow: visible;
         }
     }
 
-    .elevation .chart,
+    #elevation-chart,
     .stream-stack .chart {
         --fg-color: #{color.get(intrinsic-inverted)};
         --bg-color: #{color.get(intrinsic)};
         --line-stroke-width: 1px;
     }
 
-    .elevation,
+    #elevation-chart,
     .stream-stack {
         .sc-axis {
             stroke-width: 1px;
@@ -371,7 +375,9 @@ section.analysis {
     display: flex;
     flex-direction: column;
     border-radius: 0.28em;
-    overflow: hidden;
+    overflow: visible;
+    position: relative;
+    margin-bottom: 20px;
 
     #map-resizer {
         flex: 0 0 auto;
@@ -382,15 +388,18 @@ section.analysis {
         font-size: 0.8em;
         margin: -0.1em;
         transition: background-color 150ms;
+        z-index: 2;
+        opacity: 0.4;
 
         &:hover {
             background-color: color-mix(in lch, color.get(intrinsic), color.get(bg));
             color: color.get(intrinsic-inverted);
+            opacity: 0.8;
         }
     }
 }
 
-#map {
+#map-holder {
     flex: 1 1 100%;
     background-color: color.shade(intrinsic, 5%);
 

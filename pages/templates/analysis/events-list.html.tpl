@@ -13,7 +13,7 @@
                 <th>Event</th>
                 <th>Place</th>
                 <th>Time</th>
-                <th>Distance</th>
+                <th title="Observed distance.  Actual distance may differ significantly.">Distance <ms>visibility</ms></th>
                 <th>Power</th>
                 <th>Pace</th>
                 <th>HR</th>
@@ -30,7 +30,7 @@
                         title="{{x.eventSubgroup?.name || 'Unknown Event'}}"
                         data-index="{{index}}" data-source="events">
                         <td class="name">{{x.eventSubgroup?.name || index + 1}}</td>
-                        <td class="place">{{humanPlace(x.place)}}</td>
+                        <td class="place">{-humanPlace(x.place, {suffix: true, html: true})-}</td>
                         <td>{-humanTimer(x.stats.activeTime, {long: true, ms: true, html: true})-}</td>
                         <td>
                             <% const dist = streams.distance[x.endIndex] - streams.distance[Math.max(0, x.startIndex - 1)]; %>

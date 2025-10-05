@@ -318,11 +318,14 @@ function createElevationChart(el) {
         color: '#a86',
         hidePoints: true,
         disableAnimation: true,
+        padding: [0, 0, 0, 0],
         tooltip: {
             linger: 0,
             format: ({entry}) => H.elevation(entry.y, {separator: ' ', suffix: true})
         },
         xAxis: {
+            tickLength: 6,
+            padding: 12,
             format: ({value}) => H.distance(value, {suffix: true}),
         },
         yAxis: {
@@ -767,12 +770,12 @@ export async function main() {
         return;
     }
     const contentEl = document.querySelector('#content');
-    elevationChart = createElevationChart(contentEl.querySelector('.chart-holder.elevation .chart'));
+    elevationChart = createElevationChart(contentEl.querySelector('#elevation-chart'));
     streamStackCharts = createStreamStackCharts(contentEl.querySelector('.chart-holder.stream-stack .chart'));
     powerZonesChart = createTimeInPowerZonesPie(contentEl.querySelector('nav .time-in-power-zones'));
     packTimeChart = createPackTimeChart(contentEl.querySelector('nav .pack-time'));
     zwiftMap = new map.SauceZwiftMap({
-        el: document.querySelector('#map'),
+        el: document.querySelector('#map-holder'),
         worldList,
         zoomMin: 0.05,
         fpsLimit: 30,
@@ -1272,6 +1275,17 @@ async function updateAllData({reset}={}) {
         changed.events = true;
         for (const x of newEvents) {
             x.eventSubgroup = await common.getEventSubgroup(x.eventSubgroupId);
+            if (x.active) {
+                x.place = athleteData.eventPosition;
+                x.participants = athleteData.eventParticipants;
+            } else {
+                const results = await common.rpc.getEventSubgroupResults(x.eventSubgroupId);
+                console.warn("slow/expensive fetch...", results);
+                const ourResult = results.find(x => x.profileId === athleteData.athleteId);
+                if (ourResult) {
+                    x.place = ourResult.rank;
+                }
+            }
             const existingIdx = eventSlices.findIndex(xx => xx.id === x.id);
             if (existingIdx !== -1) {
                 replaceObject(eventSlices[existingIdx], x);

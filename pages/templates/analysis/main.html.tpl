@@ -106,11 +106,11 @@
         <section class="analysis">
             <div class="world" id="world-map-title"></div>
             <div id="map-wrap">
-                <div id="map"></div>
+                <div id="map-holder"></div>
+                <div id="elevation-chart"></div>
                 <div id="map-resizer"><ms>drag_handle</ms></div>
             </div>
             <div class="selection-stats"></div>
-            <div class="chart-holder elevation"><div class="chart"></div></div>
             <div class="chart-holder stream-stack">
                 <div class="chart"></div>
                 <div class="stream-stats">
