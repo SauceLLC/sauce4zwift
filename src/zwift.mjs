@@ -661,7 +661,7 @@ export class ZwiftAPI {
             query.to = zwiftCompatDate(new Date(options.to));
         }
         // be nice...
-        if (options.from || options.to) {
+        if ((options.from || options.to) && options.athleteId == null) {
             const now = Date.now();
             const range = new Date(options.to || now) - new Date(options.from || now);
             if (range > 86400 * 1000) {
