@@ -324,8 +324,8 @@ function createElevationChart(el) {
             format: ({entry}) => H.elevation(entry.y, {separator: ' ', suffix: true})
         },
         xAxis: {
-            tickLength: 6,
-            padding: 12,
+            tickLength: 10,
+            padding: 18,
             format: ({value}) => H.distance(value, {suffix: true}),
         },
         yAxis: {
@@ -397,10 +397,9 @@ function createStreamStackCharts(el) {
         const axisLabelValue = sc.createSVG({name: 'tspan'});
         const axisLabelUnits = sc.createSVG({
             name: 'tspan',
-            attrs: {x: 62, dy: 20},
+            attrs: {x: 56, dy: 18},
             style: {
-                "font-size": '0.7em',
-                opacity: 0.8
+                "font-size": '0.76em'
             }
         });
         const axisLabelFrag = document.createDocumentFragment();

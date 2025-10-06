@@ -241,14 +241,6 @@ main {
 
     #elevation-chart {
         height: 4em;
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        width: 100%;
-
-        svg.sc-root {
-            overflow: visible;
-        }
     }
 
     #elevation-chart,
@@ -378,23 +370,36 @@ section.analysis {
     overflow: visible;
     position: relative;
     margin-bottom: 20px;
+    --resize-height: 0.62rem;
+
+    #elevation-chart {
+        position: absolute;
+        bottom: var(--resize-height);
+        left: 0;
+        width: 100%;
+
+        svg.sc-root {
+            overflow: visible;
+        }
+    }
 
     #map-resizer {
-        flex: 0 0 auto;
+        flex: 0 0 var(--resize-height);
+        overflow: hidden;
         cursor: ns-resize;
         background-color: color.shade(intrinsic, 15%);
         display: flex;
         justify-content: center;
+        align-items: center;
         font-size: 0.8em;
-        margin: -0.1em;
-        transition: background-color 150ms;
         z-index: 2;
-        opacity: 0.4;
+        opacity: 0.7;
+        transition: background-color 150ms, opacity 150ms;
 
         &:hover {
             background-color: color-mix(in lch, color.get(intrinsic), color.get(bg));
             color: color.get(intrinsic-inverted);
-            opacity: 0.8;
+            opacity: 0.9;
         }
     }
 }
@@ -545,7 +550,7 @@ section.constrain-height .overflow {
         flex: 0 0 86px;
         justify-content: end;
         margin-bottom: 2px;
-        font-size: 0.72em;
+        font-size: 0.8em;
 
         .stat {
             background-image: linear-gradient(135deg, color.get(intrinsic), color.shade(intrinsic, 3%), color.get(intrinsic));
@@ -561,10 +566,11 @@ section.constrain-height .overflow {
             abbr.unit {
                 padding: 0;
                 font-size: 0.82em;
-                font-weight: 380;
+                font-weight: 500;
+                opacity: 1;
                 /* bias the center alignment away from the units... */
-                margin-top: 0.3em;
-                line-height: 0.5;
+                margin-top: 0.12em;
+                line-height: 0.8;
             }
         }
     }
