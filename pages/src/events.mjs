@@ -416,12 +416,11 @@ async function render() {
     common.initExpanderTable(frag.querySelector('table'), async (eventDetailsEl, eventSummaryEl) => {
         eventDetailsEl.innerHTML = '<h2><i>Loading...</i></h2>';
         const event = allEvents.get(Number(eventSummaryEl.dataset.eventId));
-        const world = worldList.find(x =>
-            event.mapId ? x.worldId === event.mapId : x.stringId === event.route.world);
+        const courseIds = new Set(event.eventSubgroups.map(x => x.courseId));
         console.debug('Opening event:', event);
         headingsIntersectionObserver.observe(eventDetailsEl.closest('tr'));
         eventDetailsEl.replaceChildren(await templates.eventsDetails({
-            world: world ? world.name : '',
+            worlds: Array.from(courseIds).map(id => worldList.find(w => w.courseId === id)),
             event,
             eventBadge: common.eventBadge,
             templates,

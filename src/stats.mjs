@@ -2995,7 +2995,7 @@ export class StatsProcessor extends events.EventEmitter {
         }
         event.rulesSet = zwift.parseEventRules(event.rulesId);
         event.ts = +new Date(event.eventStart);
-        event.courseId = env.getCourseId(event.mapId);
+        event.courseId = event.mapId != null ? env.getCourseId(event.mapId) : null;
         event.prettyType = {
             EFONDO: 'Fondo',
             RACE: 'Race',
@@ -3014,6 +3014,7 @@ export class StatsProcessor extends events.EventEmitter {
         }
         if (event.eventSubgroups) {
             for (const sg of event.eventSubgroups) {
+                const rt = env.getRoute(sg.routeId);
                 sg.eventId = event.id;
                 sg.ts = +new Date(sg.eventSubgroupStart);
                 sg.startOffset = sg.ts - event.ts;
@@ -3024,8 +3025,14 @@ export class StatsProcessor extends events.EventEmitter {
                     sg.powerUps = this._parsePowerupPercents(sg.allTagsObject.powerup_percent);
                 }
                 sg.rulesSet = zwift.parseEventRules(sg.rulesId);
-                sg.courseId = env.getCourseId(sg.mapId);
-                const rt = env.getRoute(sg.routeId);
+                if (sg.mapId != null) {
+                    sg.courseId = env.getCourseId(sg.mapId);
+                } else if (rt) {
+                    console.warn("Fixing event subgroup with missing mapId", sg.id);
+                    sg.courseId = rt.courseId;
+                } else {
+                    console.error("Unfixable event subgroup (missing courseId):", sg.id);
+                }
                 if (rt) {
                     sg.routeDistance = this._getRouteDistance(rt, sg.laps);
                     sg.routeClimbing = this._getRouteClimbing(rt, sg.laps);
