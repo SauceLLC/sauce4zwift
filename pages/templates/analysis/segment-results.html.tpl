@@ -17,8 +17,7 @@
                 <th>Name</th>
                 <th>Time</th>
                 <th>Power</th>
-                <th>HR</th>
-                <th>Date</th>
+                <th>Finish</th>
             </tr>
         </thead>
         <% for (const [i, x] of results.entries()) { %>
@@ -46,8 +45,13 @@
                     <% if (x.powerType !== 'POWER_METER') { %>
                         </span>
                     <% } %>
-                <td>{-humanNumber(x.avgHR || undefined, {suffix: 'bpm', html: true})-}</td>
-                <td>{{humanRelTime(x.ts, {short: true, maxParts: 2})}}</td>
+                <td>
+                    <% if (type === 'live') { %>
+                        {-humanRelTime(x.ts, {short: true, maxParts: 1, html: true})-}
+                    <% } else { %>
+                        {-humanTimer((x.ts - x.eventSubgroup.ts) / 1000, {html: true, ms: true})-}
+                    <% } %>
+                </td>
             </tr>
         <% } %>
     </table>

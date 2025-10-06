@@ -1039,7 +1039,12 @@ async function getEventSegmentResults(segmentId, eventSubgroupId) {
         const entrants = await common.rpc.getEventSubgroupEntrants(eventSubgroupId);
         athletes = new Set(entrants.map(x => x.id));
     }
-    results = results.filter(x => athletes.has(x.athleteId));
+    results = results.filter(x => {
+        if (athletes.has(x.athleteId)) {
+            x.eventSubgroup = sg;
+            return true;
+        }
+    });
     return {results, type: tentative ? 'event-tentative' : 'event'};
 }
 
