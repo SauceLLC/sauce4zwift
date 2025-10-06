@@ -21,13 +21,12 @@
   },
   "dependencies": {
     "@sentry/node": "6.19.6",
-    "better-sqlite3": "12.2.0",
+    "better-sqlite3": "12.4.1",
     "electron-updater": "6.6.2",
     "express": "4.21.2",
     "express-ws": "5.0.2",
     "jsfit": "https://github.com/SauceLLC/jsfit.git#c55550a6ad28bff30942eafca3be18cc48f5e304",
     "keytar": "7.9.0",
-    "lossless-json": "4.2.0",
     "node-stream-zip": "1.15.0",
     "protobufjs": "7.5.4",
     "xxhash-addon": "2.0.3"
@@ -40,7 +39,7 @@
     "@electron/notarize": "3.1.0",
     "@sentry/browser": "6.19.6",
     "echarts": "5.6.0",
-    "electron": "37.5.0",
+    "electron": "38.2.1",
     "electron-builder": "26.0.12",
     "eslint": "8.57.1",
     "eslint-plugin-html": "8.1.2",
@@ -107,7 +106,6 @@
       "!node_modules/zwift-utils",
       "!node_modules/typed-emitter",
       "!node_modules/rxjs",
-      "!node_modules/lossless-json/{dist,lib/types,lib/umd}",
       "!node_modules/macos-window-control/{src,obj,test,Makefile,macos-window-control}"
     ],
     "asar": false,
