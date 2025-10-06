@@ -500,9 +500,9 @@ table {
 
 .selection-stats {
     font-size: 0.9em;
-    margin: 1.2em 0.5em 1.8em;
-    border-top: 1px solid color.shade(bg, 10%, 0.8);
-    border-bottom: 4px solid color.shade(bg, 10%, 0.7);
+    margin: 0.5em 0.5em 0.5em;
+    border-top: 2px solid color.shade(bg, 10%, 0.7);
+    border-bottom: 2px solid color.shade(bg, 10%, 0.7);
     min-height: 5em;
     display: flex;
     flex-wrap: wrap;
