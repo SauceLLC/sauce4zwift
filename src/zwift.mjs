@@ -8,7 +8,6 @@ import protobuf from 'protobufjs';
 import * as env from './env.mjs';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
-import * as losslessJSON from 'lossless-json';
 const require = createRequire(import.meta.url);
 const {XXHash32} = require('xxhash-addon');
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -678,12 +677,13 @@ export class ZwiftAPI {
 
     async getGameInfo() {
         const r = await this.fetch('/api/game_info', {accept: 'json'}, {apiVersion: '2.7'});
-        return losslessJSON.parse(await r.text(), function(key, x) {
-            if (x instanceof losslessJSON.LosslessNumber) {
-                return (key !== 'id' && !Array.isArray(this) ? Number(x.value) : x.toString());
-            }
-            return x;
-        });
+        const json = await r.text();
+        const root = JSON.parse(json);
+        const sourceRoot = JSON.parse(json, (k, v, {source}) => typeof v === 'number' ? source : v);
+        for (let i = 0; i < root.segments.length; i++) {
+            root.segments[i].id = sourceRoot.segments[i].id;
+        }
+        return root;
     }
 
     async getDropInWorldList() {
