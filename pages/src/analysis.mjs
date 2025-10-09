@@ -747,7 +747,6 @@ export async function main() {
         getTemplates([
             'main',
             'activity-summary',
-            'events-summary',
             'selection-stats',
             'peak-efforts',
             'segment-results',
@@ -1158,7 +1157,6 @@ async function updateAllData({reset}={}) {
         common.rpc.getAthleteSegments(athleteIdent, {endTime: segmentSlices._offt, active: true}),
         common.rpc.getAthleteEvents(athleteIdent, {endTime: eventSlices._offt, active: true}),
     ]);
-    if (!lastStreamsTime) console.log(newStreams.power);
     const changed = {
         reset,
         athleteData: athleteData?.created !== newAthleteData?.created,
@@ -1335,11 +1333,6 @@ async function updateAll() {
             exportBtn.setAttribute('disabled', 'disabled');
             console.debug("Athlete-data not available");
         }
-    }
-    if (changed.events) {
-        renderSurgicalTemplate('main > section.events', templates.eventsSummary, {
-            eventSubgroups,
-        }); // bg okay
     }
     if (changed.streams || changed.reset) {
         if (streams.time?.length) {

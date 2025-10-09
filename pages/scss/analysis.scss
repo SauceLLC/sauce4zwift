@@ -260,38 +260,6 @@ main {
             font-size: 0.6em;
         }
     }
-
-    .events {
-        .event-summary {
-            display: flex;
-            align-items: center;
-
-            .rank {
-                font-size: 1.5em;
-                font-weight: 700;
-                color: color.shade(intrinsic-inverted, 20%, 0.8);
-                margin-right: 0.3em;
-                margin-left: 0.3em;
-
-                .trophy {
-                    width: 1.5em;
-                    height: 1.5em;
-                    border-radius: 50%;
-                    overflow: hidden;
-
-                    &.gold {
-                        background-color: gold;
-                    }
-                    &.silver {
-                        background-color: silver;
-                    }
-                    &.bronze {
-                        background-color: bronze;
-                    }
-                }
-            }
-        }
-    }
 }
 
 section.analysis {
@@ -522,12 +490,17 @@ table {
 }
 
 section.laps-holder,
-section.segments-holder,
-section.events-holder {
+section.segments-holder {
     padding: 0.5rem 1rem;
+}
 
+section.events-holder {
     &.compressed {
-        padding: 0 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .overflow {
+        margin-bottom: 2rem;
     }
 }
 
