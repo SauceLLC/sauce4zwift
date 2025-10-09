@@ -1303,7 +1303,6 @@ export class SauceZwiftMap extends EventTarget {
                     const rtSig = `${routeId}-${showWeld}-${hideLeadin}`;
                     if (rtSig !== this._routeSig) {
                         this._routeSig = rtSig;
-                        console.warn("setactive route map", {routeId, showWeld, hideLeadin});
                         await this.setActiveRoute(routeId, {showWeld, hideLeadin});
                     }
                 } else {
