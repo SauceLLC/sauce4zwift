@@ -1298,7 +1298,7 @@ export class StatsProcessor extends events.EventEmitter {
                 x.power.roll._times[Math.max(x.power.roll._offt, x.power.roll._length - 1)] > endTime);
         }
         if (!active) {
-            slices = slices.filter(x => x.end == null);
+            slices = slices.filter(x => x.end != null);
         }
         return slices;
     }
