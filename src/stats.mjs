@@ -1269,8 +1269,8 @@ export class StatsProcessor extends events.EventEmitter {
         }
         return this._filterAthleteDataSlices(ad.segmentSlices, filterOptions).map(x => ({
             ...this._formatDataSlice(x, ad),
-            segmentId: x.id,
-            segment: env.getSegment(x.id),
+            segmentId: x.segmentId,
+            segment: env.getSegment(x.segmentId),
             eventSubgroupId: x.eventSubgroupId,
             startEventDistance: x.startEventDistance,
             endEventDistance: x.endEventDistance,
@@ -1314,6 +1314,7 @@ export class StatsProcessor extends events.EventEmitter {
             active: slice.end == null,
             startIndex,
             endIndex, // inclusive
+            startServerTime: worldTimer.toServerTime(ad.wtOffset) + (slice.start - ad.internalCreated),
             start: slice.power.roll._times[startIndex], // can be undefined
             end: slice.power.roll._times[endIndex], // can be undefined
             sport: slice.sport,
@@ -1400,7 +1401,7 @@ export class StatsProcessor extends events.EventEmitter {
     startSegment(state, ad, id, now=monotonic()) {
         console.debug("Starting segment:", state.athleteId, id);
         const slice = this._createDataSlice(ad, now);
-        slice.id = id;
+        slice.segmentId = id;
         // Indirectly lookup sgId via event slice to avoid cooldown window..
         const evSlice = ad.eventSlices.at(-1);
         if (evSlice && evSlice.end == null) {
@@ -2166,9 +2167,9 @@ export class StatsProcessor extends events.EventEmitter {
             sport: state.sport,
             created,
             updated: created,
+            internalCreated: now,
             internalUpdated: now,
             internalAccessed: now,
-            stOffset: worldTimer.toServerTime(state.worldTime),
             wtOffset: state.worldTime,
             distanceOffset: 0,
             eventPrivacy: {},
@@ -2209,7 +2210,6 @@ export class StatsProcessor extends events.EventEmitter {
         Object.assign(ad, {
             created: worldTimer.toLocalTime(wtOffset),
             wtOffset,
-            stOffset: worldTimer.toServerTime(wtOffset),
             bucket: this._makeDataBucket(now),
         });
         // NOTE: Don't reset w'bal; it is a biometric
@@ -3549,7 +3549,7 @@ export class StatsProcessor extends events.EventEmitter {
         const state = ad.mostRecentState;
         const lapCount = ad.lapSlices.length;
         return {
-            createdServerTime: ad.stOffset,
+            createdServerTime: worldTimer.toServerTime(ad.wtOffset),
             created: ad.created, // local clock
             updated: ad.updated, // local clock
             age: now - ad.internalUpdated,
