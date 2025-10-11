@@ -1046,12 +1046,17 @@ export class Renderer {
                                 option.selected = true;
                             }
                             option.value = x.id;
+                            let name;
                             try {
-                                option.textContent = stripHTML(fGet(x.longName) || fGet(x.shortName));
+                                name = stripHTML(fGet(x.longName)) || stripHTML(fGet(x.shortName));
                             } catch(e) {
-                                option.textContent = stripHTML(x.id);
+                                name = null;
                                 report.errorThrottled(e);
                             }
+                            if (!name) {
+                                console.error(`Field returned invalid 'longName' and/or 'shortName':`, x);
+                            }
+                            option.textContent = name || x.id;
                             container.append(option);
                         }
                     }
@@ -1532,14 +1537,18 @@ export function sanitize(raw) {
 
 const _stripper = new DOMParser();
 export function stripHTML(input) {
+    if (!input) {
+        return input;
+    }
     // Escaped HTML turns into HTML so we must run until all the HTML is gone...
-    while (true) {
+    for (let i = 0; i < 1000; i++) {
         const output = _stripper.parseFromString(input, 'text/html').body.textContent || '';
         if (output === input) {
             return output;
         }
         input = output;
     }
+    console.error("Possibly nefarious input given to stripHTML");
 }
 
 
