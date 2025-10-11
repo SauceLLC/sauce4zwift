@@ -45,6 +45,23 @@ function quit(retcode) {
 rpc.register(quit);
 
 
+async function quitAfterDelay(delay) {
+    const r = await Promise.race([
+        electron.dialog.showMessageBox({
+            type: 'info',
+            message: `Sauce for Zwift™ will shutdown in ${delay} seconds...`,
+            noLink: true,
+            buttons: ['Quit Now', 'Cancel']
+        }),
+        new Promise(r => setTimeout(r, delay * 1000))
+    ]);
+    if (!r || r.response !== 1) {
+        electron.app.quit();
+    }
+}
+rpc.register(quitAfterDelay);
+
+
 function restart() {
     electron.app.relaunch();
     quit();
@@ -477,6 +494,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     }
     await maybeUpdateAndRestart();
     const modPath = path.join(electron.app.getPath('documents'), 'SauceMods');
+    let enablingNewMods;
     for (const mod of await mods.init(modPath, path.join(appPath, 'mods'))) {
         if (mod.isNew) {
             const enable = await windows.confirmDialog({
@@ -494,7 +512,23 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
                 confirmClass: 'danger',
             });
             mods.setEnabled(mod.id, enable);
+            if (enable) {
+                enablingNewMods = true;
+            }
         }
+    }
+    if (enablingNewMods) {
+        await Promise.race([
+            electron.dialog.showMessageBox({
+                type: 'info',
+                title: 'Activating New Mods',
+                message: `Sauce for Zwift™ will restart in 4 seconds...`,
+                noLink: true,
+                textWidth: 400,
+            }),
+            new Promise(r => setTimeout(r, 4000))
+        ]);
+        return restart();
     }
     await sauceApp.start({...args, exclusions, zwiftAPI, zwiftMonitorAPI});
     windows.openWidgetWindows();

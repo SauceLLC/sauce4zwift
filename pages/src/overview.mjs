@@ -83,11 +83,7 @@ export function main() {
         }
     });
     if (window.isElectron) {
-        document.querySelector('.button.quit').addEventListener('click', () => {
-            if (confirm("Quit Sauce?")) {
-                common.rpc.quit();
-            }
-        });
+        document.querySelector('.button.quit').addEventListener('click', () => common.rpc.quitAfterDelay(4));
     }
 
     function autoHide() {
