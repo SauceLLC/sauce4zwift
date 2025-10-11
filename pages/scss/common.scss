@@ -1121,7 +1121,7 @@ dialog {
                 left: 0;
                 bottom: 0;
                 height: 0.15rem;
-                background-color: color.get(intrinsic, 0.80);
+                background-color: color.get(fg, 0.80);
                 pointer-events: none;
                 border-radius: 0.28em;
             }
