@@ -8,11 +8,11 @@ export const themes = [
     {id: "watermelon", name: "Watermelon"},
     {id: "light", name: "Light"},
     {id: "dark", name: "Dark"},
+    {id: "gpt-vibrant", name: "Vibrant"},
+    {id: "gpt-sunset", name: "Sunset"},
     {id: "transparent-light", name: "Light", group: "Transparent"},
     {id: "transparent-dark", name: "Dark", group: "Transparent"},
     {id: "semi-transparent-dark", name: "Semi", group: "Transparent"},
-    {id: "gpt-vibrant", name: "Vibrant", group: "AI Generated"},
-    {id: "gpt-sunset", name: "Sunset", group: "AI Generated"},
 ];
 
 class ThemeSelect extends HTMLSelectElement {
