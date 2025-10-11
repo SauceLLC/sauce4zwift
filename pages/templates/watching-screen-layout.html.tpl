@@ -20,7 +20,7 @@
         <% const baseSectionType = sectionSpecs[section.type].baseType; %>
         <% if (['large-data-fields', 'data-fields'].includes(section.type)) { %>
             <% const group = section.groups[0]; %>
-            <% const spec = groupSpecs[group.type]; %>
+            <% const spec = groupSpecs[group.type] || {}; %>
             <% const bgImg = !settings.hideBackgroundIcons ? spec.backgroundImage : null; %>
             <% let rowOffset = 1; %>
             <div class="screen-section columns {{section.type}}"
@@ -96,7 +96,7 @@
             <!-- leave section div open -->
         <% } else if (['single-data-field'].includes(section.type)) { %>
             <% const group = section.groups[0]; %>
-            <% const spec = groupSpecs[group.type]; %>
+            <% const spec = groupSpecs[group.type] || {}; %>
             <% const bgImg = !settings.hideBackgroundIcons ? spec.backgroundImage : null; %>
             <div class="screen-section {{section.type}}"
                  data-base-section-type="{{baseSectionType}}" data-section-type="{{section.type}}"
@@ -161,7 +161,7 @@
                     <% let rowOffset = 1; %>
                     <div class="sub" data-group-type="{{group.type}}" data-group-id="{{group.id}}">
                         <% if (!section.settings?.hideTitle) { %>
-                            <% const title = groupSpecs[group.type].title; %>
+                            <% const title = groupSpecs[group.type]?.title; %>
                             <heading class="group-title">{{typeof title === 'function' ? title() : title}}</heading>
                             <% rowOffset++; %>
                         <% } %>
