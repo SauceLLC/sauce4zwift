@@ -211,6 +211,8 @@ async function _start({ip, port, rpcEventEmitters, statsProc}) {
             subs.clear();
             console.info("WebSocket closed:", client);
         });
+        // IMPORTANT: Prevent main thread error handler from kicking in..
+        ws.on('error', e => console.warn('Ignore WebSocket Error:', e));
     });
     const sp = statsProc;
     function getAthleteStatsHandler(res, id) {
