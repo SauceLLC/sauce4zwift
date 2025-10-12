@@ -1,29 +1,11 @@
-@use "sass:string";
-
 @function get($key, $alpha: 100%) {
-    @if (string.index($key, "-v2") == null) {
-        @return hsl(
-            var(--theme-#{$key}-hue)
-            var(--theme-#{$key}-sat)
-            var(--theme-#{$key}-light)
-            / $alpha);
-    }
+    @return hsl(var(--theme-#{$key}-hue) var(--theme-#{$key}-sat) var(--theme-#{$key}-light) / $alpha);
 }
 
-@function shade($key, $amount, $alpha: 100%, $saturate: null) {
-    @if (string.index($key, "-v2") == null) {
-        @if $saturate != null {
-            @return hsl(
-                var(--theme-#{$key}-hue)
-                calc(var(--theme-#{$key}-sat) + #{$saturate})
-                calc(var(--theme-#{$key}-light) + (#{$amount} * var(--theme-#{$key}-shade-dir)))
-                / $alpha);
-        } @else {
-            @return hsl(
-                var(--theme-#{$key}-hue)
-                var(--theme-#{$key}-sat)
-                calc(var(--theme-#{$key}-light) + (#{$amount} * var(--theme-#{$key}-shade-dir)))
-                / $alpha);
-        }
-    }
+@function shade($key, $amount, $alpha: 100%) {
+    @return hsl(
+        var(--theme-#{$key}-hue)
+        var(--theme-#{$key}-sat)
+        calc(var(--theme-#{$key}-light) + (#{$amount} * var(--theme-#{$key}-shade-dir)))
+        / $alpha);
 }
