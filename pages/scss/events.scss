@@ -190,7 +190,7 @@ table {
             &.expanded,
             &.expanded + tr.details {
                 background-color: color.shade(primary, 3%) !important;
-                color: color.shade(primary, 100%, $saturate: -100%) !important;
+                color: color.shade(primary, 100%) !important;
             }
 
             @container root-html (max-width: 768px)  {
@@ -228,7 +228,7 @@ table {
             }
 
             &.started {
-                color: color.shade(fg, 20%, 0.9, $saturate: -50%);
+                opacity: 0.8;
 
                 &.joinable > td.start {
                     color: #ffc500;
