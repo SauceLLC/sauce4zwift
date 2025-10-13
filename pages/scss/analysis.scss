@@ -255,10 +255,14 @@ main {
     .stream-stack {
         .sc-axis {
             stroke-width: 1px;
+
+            .sc-label {
+                font-size: 0.90em;
+            }
         }
 
         .sc-title {
-            font-size: 0.6em;
+            font-size: 0.68em;
         }
     }
 }
