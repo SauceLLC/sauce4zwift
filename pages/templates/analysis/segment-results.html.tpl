@@ -21,7 +21,8 @@
             </tr>
         </thead>
         <% for (const [i, x] of results.entries()) { %>
-            <tr class="{{x.athleteId === athlete.id ? 'viewing' : ''}}">
+            <tr class="{{x.athleteId === athlete.id ? 'viewing' : ''}}
+                       {{x.lowConfidence ? 'low-confidence' : ''}}">
                 <td>
                     <% if (i < 3) { %>
                         <ms class="trophy {{!i ? 'gold' : i === 1 ? 'silver' : 'bronze'}}">trophy</ms>

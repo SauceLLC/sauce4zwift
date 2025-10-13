@@ -807,6 +807,12 @@ export async function main() {
         const name = `${athlete ? athlete.fLast : athleteIdent} - ${started.toLocaleString()}`;
         exportFITActivity(name);
     });
+    contentEl.addEventListener('dblclick', ev => {
+        if (ev.target.closest('header:has(.expander)')) {
+            getSelection().removeAllRanges(); // prevent selecting text
+            ev.target.closest('section').classList.toggle('compressed');
+        }
+    });
     contentEl.addEventListener('click', ev => {
         const btn = ev.target.closest('header > .expander');
         if (btn) {
@@ -1014,7 +1020,6 @@ async function getEventSegmentResults(segment) {
     const eventDuration = sg.durationInSeconds ?
         sg.durationInSeconds * 1000 :
         sg.endDistance / estMetersPerSec * 1000;
-    //const eventDistance = eventDuration / 1000 * estMetersPerSec;
     if (haveRealClock === undefined) {
         haveRealClock = null;
         try {
@@ -1033,79 +1038,73 @@ async function getEventSegmentResults(segment) {
 
     // 2. Decide which athletes are "part-of-the-event".
     let tentative;
-    let athletes;
+    let evAthletes;
     if (sg.ts + eventDuration < now) {
         // Safe to filter by results, DNFs get pruned now..
         tentative = false;
         const results = await common.rpc.getEventSubgroupResults(segment.eventSubgroupId);
-        athletes = new Set(results.map(x => x.profileId));
+        evAthletes = new Set(results.map(x => x.profileId));
     } else {
         // Unsafe to use results yet, so use more inclusive entrants as filter set.
         // Athletes that quit will be included until such time that the event results
         // can be verified.
         tentative = true;
         const entrants = await common.rpc.getEventSubgroupEntrants(segment.eventSubgroupId);
-        athletes = new Set(entrants.map(x => x.id));
+        evAthletes = new Set(entrants.map(x => x.id));
     }
-    const todo = new Set();
+    const resultAthletes = new Set();
     results = results.filter(x => {
-        if (athletes.has(x.athleteId)) {
-            todo.add(x.athleteId);
+        if (evAthletes.has(x.athleteId)) {
+            resultAthletes.add(x.athleteId);
             return true;
         }
     });
 
     // 3. Find the best matching segment results using highest to lowest confidence methods...
-    for (const athleteId of todo) {
+    for (const athleteId of resultAthletes) {
         const candidates = results.filter(x => x.athleteId === athleteId);
         const locals = (await common.rpc.getAthleteSegments(athleteId, {active: true}))
-            ?.filter(x => x.segmentId === segment.segmentId);
+            ?.filter(x => x.segmentId === segment.segmentId &&
+                          x.eventSubgroupId === segment.eventSubgroupId);
         if (locals && locals.length) {
             locals.sort((a, b) => Math.abs(a.endEventDistance - segment.endEventDistance) -
                                   Math.abs(b.endEventDistance - segment.endEventDistance));
             const local = locals[0];
             if (Math.abs(local.endEventDistance - segment.endEventDistance) < 100) {
-                console.info("sick", local.endEventDistance - segment.endEventDistance);
                 if (local.active) {
-                    todo.delete(athleteId);
+                    results = results.filter(x => x.athleteId !== athleteId);
                     continue;
                 }
                 const localEndTS = local.startServerTime + (local.end - local.start) * 1000;
                 candidates.sort((a, b) => Math.abs(a.ts - localEndTS) - Math.abs(b.ts - localEndTS));
                 const nearest = candidates[0];
                 if (Math.abs(nearest.ts - localEndTS) < 5000) {
-                    todo.delete(athleteId);
                     results = results.filter(x => x.athleteId !== athleteId || x === nearest);
                     continue;
                 } else {
-                    console.error("shit fuck stack");
+                    console.error("Unexpected incongruity in local segment data", nearest, local);
                     debugger;
                 }
             }
         }
-        if (todo.has(athleteId)) {
-            // LoFi guess by time..
-            const segmentEndTS = segment.startServerTime + (segment.end - segment.start) * 1000;
-            candidates.sort((a, b) => Math.abs(a.ts - segmentEndTS) - Math.abs(b.ts - segmentEndTS));
-            const nearest = candidates[0];
-            const gap = Math.abs(nearest.ts - segmentEndTS);
-            if (gap < 300_000) {
-                if (gap > 60_000) {
-                    console.warn("Suspect, but including still:", gap, athleteId);
-                }
+        // LoFi guess using time proximity..
+        const segmentEndTS = segment.startServerTime + (segment.end - segment.start) * 1000;
+        candidates.sort((a, b) => Math.abs(a.ts - segmentEndTS) - Math.abs(b.ts - segmentEndTS));
+        const nearest = candidates[0];
+        const gap = Math.abs(nearest.ts - segmentEndTS);
+        if (gap < 300_000) {
+            if (gap > 60_000) {
+                console.warn("Very low confidence result entry:", gap, nearest);
                 nearest.lowConfidence = true;
-                todo.delete(athleteId);
-                results = results.filter(x => x.athleteId !== athleteId || x === nearest);
-                continue;
-            } else {
-                console.error("Bummer have to drop a bitch:", gap, athleteId, candidates);
             }
+            results = results.filter(x => x.athleteId !== athleteId || x === nearest);
+        } else {
+            results = results.filter(x => x.athleteId !== athleteId);
         }
     }
     for (const x of results) {
         x.eventSubgroup = sg;
     }
-    console.log({results});
     return {results, type: tentative ? 'event-tentative' : 'event'};
 }
 

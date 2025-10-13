@@ -745,6 +745,10 @@ table.segments-list {
             color: color.shade(intrinsic, 0%);
             background-color: color.shade(intrinsic-inverted, 22%);
         }
+
+        tr.low-confidence {
+            background-color: color.shade(negative, 20%, 0.3);
+        }
     }
 }
 
