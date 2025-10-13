@@ -438,14 +438,14 @@ main > section {
     &.compressed {
         > header {
             border-radius: 0.28rem;
-            background-image: linear-gradient(-2deg,
-                                              color.shade(intrinsic, 10%),
-                                              color.shade(intrinsic, 2%));
+            background-image: linear-gradient(180deg,
+                                              color.shade(intrinsic, 9%),
+                                              color.shade(intrinsic, 7%));
             padding: 0.1rem 0.68rem;
         }
     }
-    &:not(.compressed) > header:last-of-type {
-        border-bottom: $light-border;
+    &:not(.compressed) {
+        margin-bottom: 1.5rem;
     }
 
     > header {
@@ -455,9 +455,10 @@ main > section {
         padding: 0.4rem 0.68rem;
         font-size: 1.08em;
         border-radius: 0.28rem 0.28rem 0 0;
-        background-image: linear-gradient(-2deg,
-                                          color.shade(intrinsic, 5%),
-                                          color.shade(intrinsic, 1%));
+        background-image: linear-gradient(180deg,
+                                          color.shade(bg, 20%),
+                                          color-mix(in hsl, color.get(intrinsic), color.shade(bg, 20%) 20%) 4px,
+                                          color.get(intrinsic));
         transition: padding 300ms;
 
         > ms {
@@ -479,10 +480,6 @@ main > section {
                 opacity: 1;
             }
         }
-    }
-
-    > article {
-        border-bottom: $highlight-border;
     }
 }
 
@@ -524,11 +521,7 @@ section.segments-holder {
 }
 
 section.events-holder {
-    margin-bottom: 1rem;
-
-    > article {
-        margin-bottom: 1rem;
-    }
+    margin-bottom: 1.2rem;
 }
 
 section.constrain-height .overflow {
@@ -705,7 +698,7 @@ table.events-list {
 
 table.segments-list {
     .details .container {
-        max-height: 20em;
+        max-height: 28rem;
         overflow: auto;
     }
 
