@@ -6,6 +6,7 @@
 
 $light-border: 1px solid color.shade(intrinsic-inverted, 0%, 0.08);
 $medium-border: 1px solid color.shade(intrinsic-inverted, 0%, 0.2);
+$highlight-border: 2px solid color.shade(bg, 10%, 0.7);
 
 ::-webkit-scrollbar {
     display: initial !important;
@@ -334,7 +335,7 @@ section.analysis {
     height: clamp(150px, 25vh, 500px);
     display: flex;
     flex-direction: column;
-    border-radius: 0.28em;
+    border-radius: 0.28rem;
     overflow: visible;
     position: relative;
     margin-bottom: 20px;
@@ -418,34 +419,54 @@ main > section {
         display: none;
     }
 
-    &.compressed {
-        > header:first-child {
-            border-radius: 0.28em;
+    &.constrain-height {
+        > article {
+            transition-property: max-height, visibility, margin;
+            transition-duration: 300ms;
         }
 
-        > :not(header:first-child) {
-            display: none;
+        &.compressed {
+            > article {
+                max-height: 0;
+                overflow: hidden;
+                visibility: hidden;
+                margin-bottom: 0;
+            }
         }
+    }
+
+    &.compressed {
+        > header {
+            border-radius: 0.28rem;
+            background-image: linear-gradient(-2deg,
+                                              color.shade(intrinsic, 10%),
+                                              color.shade(intrinsic, 2%));
+            padding: 0.1rem 0.68rem;
+        }
+    }
+    &:not(.compressed) > header:last-of-type {
+        border-bottom: $light-border;
     }
 
     > header {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
-        padding: 0.4rem 0.6rem;
-        margin: 0 -0.4rem;
-        font-size: 1.2em;
-        border-radius: 0.28em 0.28em 0 0;
-        background-image: linear-gradient(to bottom,
-                                          color.shade(intrinsic, 4%),
+        padding: 0.4rem 0.68rem;
+        font-size: 1.08em;
+        border-radius: 0.28rem 0.28rem 0 0;
+        background-image: linear-gradient(-2deg,
+                                          color.shade(intrinsic, 5%),
                                           color.shade(intrinsic, 1%));
+        transition: padding 300ms;
 
         > ms {
-            padding-right: 0.2em;
+            padding-right: 0.3em;
+            font-size: 1.2em;
+            font-weight: 200;
         }
 
         .title {
-            font-variant: all-small-caps;
             flex: 1;
         }
 
@@ -459,6 +480,10 @@ main > section {
             }
         }
     }
+
+    > article {
+        border-bottom: $highlight-border;
+    }
 }
 
 table {
@@ -469,8 +494,8 @@ table {
 .selection-stats {
     font-size: 0.9em;
     margin: 0.5em 0.5em 0.5em;
-    border-top: 2px solid color.shade(bg, 10%, 0.7);
-    border-bottom: 2px solid color.shade(bg, 10%, 0.7);
+    border-top: $highlight-border;
+    border-bottom: $highlight-border;
     min-height: 5em;
     display: flex;
     flex-wrap: wrap;
@@ -492,15 +517,17 @@ table {
 section.laps-holder,
 section.segments-holder {
     padding: 0.5rem 1rem;
+
+    > header {
+        margin: 0 -0.4rem;
+    }
 }
 
 section.events-holder {
-    &.compressed {
-        margin-bottom: 1rem;
-    }
+    margin-bottom: 1rem;
 
-    .overflow {
-        margin-bottom: 2rem;
+    > article {
+        margin-bottom: 1rem;
     }
 }
 
@@ -563,7 +590,7 @@ nav > section .echarts-chart {
 }
 
 .peak-efforts {
-    border-radius: 0.28em;
+    border-radius: 0.28rem;
     overflow: hidden;
     border: $light-border;
     white-space: nowrap;
@@ -691,7 +718,7 @@ table.segments-list {
 
     table.results {
         background-color: color.get(intrinsic, 0.9);
-        border-radius: 0.3em;
+        border-radius: 0.28rem;
 
         .trophy {
             font-size: 1.4em;

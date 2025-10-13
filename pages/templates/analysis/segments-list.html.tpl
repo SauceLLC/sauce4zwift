@@ -6,7 +6,7 @@
 </header>
 
 <% const hasSegments = !!(obj.segmentSlices && segmentSlices.length); %>
-<div class="overflow">
+<article class="overflow">
     <table class="segments-list basic expandable {{hasSegments ? 'selectable' : ''}}">
         <thead>
             <tr>
@@ -62,4 +62,4 @@
             <% } %>
         </tbody>
     </table>
-</div>
+</article>

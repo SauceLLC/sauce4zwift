@@ -7,7 +7,7 @@
         <div class="expander" data-id="expand" title="Expand section"><ms>expand</ms></div>
     </header>
 
-    <div class="overflow">
+    <article class="overflow">
         <table class="events-list basic {{hasEvents ? 'selectable' : ''}}">
             <thead>
                 <tr>
@@ -61,5 +61,5 @@
                 <% } %>
             </tbody>
         </table>
-    </div>
+    </article>
 <% } %>

@@ -991,16 +991,25 @@ function speedEstSlowdownFactor(slope) {
 
 
 // XXX Testing out a func that will eventually live on the backend...
-async function getEventSegmentResults(segmentId, eventSubgroupId) {
-    // WARNING: this is a hack but I've worked the problem and can find no better
-    // solution. Using the Live leaderboard is invalid for events where segments
-    // are repeated (only one result per athlete).  We can't trust our own athlete-data
-    // since large events will have high sparsity.  There is no eventSubgroupId on
-    // segment results from the non-live API so we have to narrow it down using
-    // fuzzy logic..
+async function getEventSegmentResults(segment) {
+    // WARNING: this is a hack but I've worked the problem and can find no better solution to the
+    // core issue with segment results.  We want to know the eventDistance for each segment result
+    // but zwift does not include this.  Our local sparse data collection does but is incomplete.
+    // Axioms:
+    //   1: Non-live segment API does not include event-subgroup-id.
+    //   2. Non-live segment API includes repeated athlete results and can be filtered by dates.
+    //   3. Live segment API only returns 1 result per athlete and has no date filters.
+    //   4. We must handle late joining.
+    //   5. We need to correlate the segment clicked on, which has a specific eventDistance, with the
+    //      competitors segment results that come from a segment API (thus lacking eventDistance).
+    //   6. Athletes may have quit the event but have stayed on course.  We will wrongly include these segment
+    //      results until it's determined that the event is over.
+    //   7. Segments can appear multiple times per route.
+    //   8. Segments can appear multiple times per event when routes lap.
+    //   9. Both #8 and #7 can be true simultainiously.
 
     // 1. Get every segment result that could possibly be during this event...
-    const sg = await common.getEventSubgroup(eventSubgroupId);
+    const sg = await common.getEventSubgroup(segment.eventSubgroupId);
     const estMetersPerSec = (30 * speedEstSlowdownFactor(sg.routeClimbing / sg.routeDistance)) / 3.6;
     const eventDuration = sg.durationInSeconds ?
         sg.durationInSeconds * 1000 :
@@ -1020,7 +1029,7 @@ async function getEventSegmentResults(segmentId, eventSubgroupId) {
         from: sg.ts,
         to: sg.ts + eventDuration,
     };
-    let results = await common.rpc.getSegmentResults(segmentId, filter);
+    let results = await common.rpc.getSegmentResults(segment.segmentId, filter);
 
     // 2. Decide which athletes are "part-of-the-event".
     let tentative;
@@ -1028,22 +1037,75 @@ async function getEventSegmentResults(segmentId, eventSubgroupId) {
     if (sg.ts + eventDuration < now) {
         // Safe to filter by results, DNFs get pruned now..
         tentative = false;
-        const results = await common.rpc.getEventSubgroupResults(eventSubgroupId);
+        const results = await common.rpc.getEventSubgroupResults(segment.eventSubgroupId);
         athletes = new Set(results.map(x => x.profileId));
     } else {
         // Unsafe to use results yet, so use more inclusive entrants as filter set.
         // Athletes that quit will be included until such time that the event results
         // can be verified.
         tentative = true;
-        const entrants = await common.rpc.getEventSubgroupEntrants(eventSubgroupId);
+        const entrants = await common.rpc.getEventSubgroupEntrants(segment.eventSubgroupId);
         athletes = new Set(entrants.map(x => x.id));
     }
+    const todo = new Set();
     results = results.filter(x => {
         if (athletes.has(x.athleteId)) {
-            x.eventSubgroup = sg;
+            todo.add(x.athleteId);
             return true;
         }
     });
+
+    // 3. Find the best matching segment results using highest to lowest confidence methods...
+    for (const athleteId of todo) {
+        const candidates = results.filter(x => x.athleteId === athleteId);
+        const locals = (await common.rpc.getAthleteSegments(athleteId, {active: true}))
+            ?.filter(x => x.segmentId === segment.segmentId);
+        if (locals && locals.length) {
+            locals.sort((a, b) => Math.abs(a.endEventDistance - segment.endEventDistance) -
+                                  Math.abs(b.endEventDistance - segment.endEventDistance));
+            const local = locals[0];
+            if (Math.abs(local.endEventDistance - segment.endEventDistance) < 100) {
+                console.info("sick", local.endEventDistance - segment.endEventDistance);
+                if (local.active) {
+                    todo.delete(athleteId);
+                    continue;
+                }
+                const localEndTS = local.startServerTime + (local.end - local.start) * 1000;
+                candidates.sort((a, b) => Math.abs(a.ts - localEndTS) - Math.abs(b.ts - localEndTS));
+                const nearest = candidates[0];
+                if (Math.abs(nearest.ts - localEndTS) < 5000) {
+                    todo.delete(athleteId);
+                    results = results.filter(x => x.athleteId !== athleteId || x === nearest);
+                    continue;
+                } else {
+                    console.error("shit fuck stack");
+                    debugger;
+                }
+            }
+        }
+        if (todo.has(athleteId)) {
+            // LoFi guess by time..
+            const segmentEndTS = segment.startServerTime + (segment.end - segment.start) * 1000;
+            candidates.sort((a, b) => Math.abs(a.ts - segmentEndTS) - Math.abs(b.ts - segmentEndTS));
+            const nearest = candidates[0];
+            const gap = Math.abs(nearest.ts - segmentEndTS);
+            if (gap < 300_000) {
+                if (gap > 60_000) {
+                    console.warn("Suspect, but including still:", gap, athleteId);
+                }
+                nearest.lowConfidence = true;
+                todo.delete(athleteId);
+                results = results.filter(x => x.athleteId !== athleteId || x === nearest);
+                continue;
+            } else {
+                console.error("Bummer have to drop a bitch:", gap, athleteId, candidates);
+            }
+        }
+    }
+    for (const x of results) {
+        x.eventSubgroup = sg;
+    }
+    console.log({results});
     return {results, type: tentative ? 'event-tentative' : 'event'};
 }
 
@@ -1053,7 +1115,7 @@ async function updateSegmentResults(segment) {
     if (segment !== _lastExpandedSegment) {
         _lastExpandedSegment = segment;
         if (segment.eventSubgroupId) {
-            const ret = await getEventSegmentResults(segment.segmentId, segment.eventSubgroupId);
+            const ret = await getEventSegmentResults(segment);
             segmentResults = ret.results;
             segmentResultsType = ret.type;
         } else {

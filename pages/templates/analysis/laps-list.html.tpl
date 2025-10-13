@@ -5,7 +5,7 @@
     <div class="expander" data-id="expand" title="Expand section"><ms>expand</ms></div>
 </header>
 
-<div class="overflow">
+<article class="overflow">
     <% const hasLaps = !!(obj.lapSlices && lapSlices.length); %>
     <table class="laps-list basic {{hasLaps ? 'selectable' : ''}}">
         <thead>
@@ -49,4 +49,4 @@
             <% } %>
         </tbody>
     </table>
-</div>
+</article>
