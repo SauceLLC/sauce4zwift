@@ -2085,6 +2085,14 @@ export async function renderSurgicalTemplate(selector, tpl, attrs) {
             before.replaceChildren(now);
         } else {
             before.replaceWith(now);
+            if (now.nodeName === 'OPTION') {
+                // Unfortunately replacing options one by one has side effects because
+                // the engine will mend the `selected` state of the options remaining
+                // in the fragment as required to ensure there is at least one selection.
+                // This mended selected state overrides the "selected" attribute, which
+                // has the unintended consequence of selecting the wrong option.
+                now.selected = now.defaultSelected;
+            }
         }
     }
     return replacements.length > 0;
