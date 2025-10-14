@@ -1,5 +1,6 @@
 /* global Sentry, electron */
 import {sleep as _sleep} from '../../shared/sauce/base.mjs';
+import * as time from '../../shared/sauce/time.mjs';
 import * as locale from '../../shared/sauce/locale.mjs';
 import {expWeightedAvg as _expWeightedAvg} from '/shared/sauce/data.mjs';
 import * as report from '../../shared/report.mjs';
@@ -2087,6 +2088,75 @@ export async function renderSurgicalTemplate(selector, tpl, attrs) {
         }
     }
     return replacements.length > 0;
+}
+
+
+let _clockSourceWeightedConfidence;
+(() => {
+    const csc = storage.get('/clock-source-confidence');
+    if (!csc) {
+        _clockSourceWeightedConfidence = expWeightedAvg(10, 1);
+    } else {
+        _clockSourceWeightedConfidence = expWeightedAvg(10, csc.value);
+        const localNow = Date.now();
+        const recheckPeriod = 6 * 3600_000;
+        if (localNow - csc.ts > recheckPeriod) {
+            for (let t = csc.ts + recheckPeriod; t < localNow; t += recheckPeriod) {
+                _clockSourceWeightedConfidence(0);
+            }
+            storage.set('/clock-source-confidence', {
+                ts: localNow,
+                value: _clockSourceWeightedConfidence.get()
+            });
+        }
+    }
+})();
+let _haveValidClock = _clockSourceWeightedConfidence.get() > 1;
+let _pendingClockSync;
+let _clockSyncError;
+export function getRealTime() {
+    if (_haveValidClock || _clockSyncError) {
+        return Date.now();
+    }
+    if (_pendingClockSync === false) {
+        return time.getTime();
+    } else if (_pendingClockSync) {
+        return _pendingClockSync.then(() => _haveValidClock || _clockSyncError ? Date.now() : time.getTime());
+    } else {
+        return _pendingClockSync = time.establish().catch(e => {
+            _clockSyncError = true;
+            console.error('Failed to get real clock', e);
+            // If we are having infra problems backoff locally...
+            _clockSourceWeightedConfidence(1.1);
+            storage.set('/clock-source-confidence', {
+                ts: Date.now(),
+                value: _clockSourceWeightedConfidence.get()
+            });
+        }).then(() => {
+            _pendingClockSync = false;
+            if (_clockSyncError) {
+                return Date.now();
+            }
+            const localTime = Date.now();
+            const drift = Math.abs(localTime - time.getTime());
+            // bin drift into good, bad, terrible..
+            const conf = drift < 100 ? 5 : drift < 1000 ? 2 : drift < 10_000 ?  0.5 : -1;
+            console.log({conf, drift});
+            _clockSourceWeightedConfidence(conf);
+            storage.set('/clock-source-confidence', {
+                ts: localTime,
+                value: _clockSourceWeightedConfidence.get()
+            });
+            if (drift < 100) {
+                // Hot wire valid clock source locally for this session only,
+                // but we may still recheck on reloads..
+                _haveValidClock = true;
+                return Date.now();
+            } else {
+                return time.getTime();
+            }
+        });
+    }
 }
 
 
