@@ -749,6 +749,15 @@ table.segments-list {
         tr.low-confidence {
             background-color: color.shade(negative, 20%, 0.3);
         }
+
+        td.name {
+            max-width: 20ch;
+            white-space: wrap;
+        }
+
+        td {
+            white-space: nowrap;
+        }
     }
 }
 
