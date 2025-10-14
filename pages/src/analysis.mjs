@@ -1270,7 +1270,7 @@ async function updateAllData({reset}={}) {
             if (existingIdx !== -1) {
                 replaceObject(lapSlices[existingIdx], x);
             } else {
-                console.debug("New lap found:", lapSlices.length);
+                console.debug("New lap found:", lapSlices.length, x.id);
                 lapSlices.push(x);
             }
         }
@@ -1321,7 +1321,7 @@ async function updateAllData({reset}={}) {
             if (existingIdx !== -1) {
                 replaceObject(segmentSlices[existingIdx], x);
             } else {
-                console.debug("New segment found:", x.segment.name);
+                console.debug("New segment found:", x.segment.name, x.id);
                 segmentSlices.push(x);
             }
         }

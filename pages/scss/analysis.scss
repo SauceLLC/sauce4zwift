@@ -670,14 +670,19 @@ table.basic {
 
 table.selectable.basic {
     > tbody > tr {
+        --select-band-width: 4px;
+
         &.selected {
-            background-color: color.shade(intrinsic-inverted, 40%) !important;
+            background-image: linear-gradient(to right,
+                color.shade(bg, 20%),
+                color.shade(bg, 5%) var(--select-band-width),
+                color.shade(intrinsic, 60%) var(--select-band-width),
+                color.shade(intrinsic, 70%));
             color: color.get(intrinsic) !important;
         }
 
         &:not(.selected):hover {
-            /*background-color: color.get(intrinsic-inverted, 0.15);*/
-            background-color: #007eff42;
+            background-color: color.shade(bg, 0%, 0.2);
         }
     }
 }
@@ -687,9 +692,6 @@ table.laps-list,
 table.events-list {
     font-size: 0.82em;
 
-    tr[data-event-subgroup-id] {
-        border-left: 4px solid #3399cc;
-    }
     tr.active {
         background-color: #f1ad0424;
     }

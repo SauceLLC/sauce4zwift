@@ -26,7 +26,10 @@
                     <tr class="summary {{index === selected ? 'selected expanded' : ''}} {{x.active ? 'active' : ''}}"
                         <% if (x.eventSubgroupId) { %>data-event-subgroup-id="{{x.eventSubgroupId}}"<% } %>
                         data-index="{{index}}" data-source="segments">
-                        <td class="name">{{x.segment.friendlyName || x.segment.name}}</td>
+                        <td class="name">
+                            {{x.segment.friendlyName || x.segment.name}}
+                            <% if (x.eventSubgroupId) { %><ms title="Event based segment">event</ms><% } %>
+                        </td>
                         <td>{-humanTimer(x.stats.elapsedTime, {long: true, ms: true, html: true})-}</td>
                         <td>
                             <% const dist = streams.distance[x.endIndex] - streams.distance[Math.max(0, x.startIndex - 1)]; %>
