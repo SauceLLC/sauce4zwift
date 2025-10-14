@@ -53,7 +53,6 @@ let selectionSource;
 let selectionEntry;
 let segmentResults;
 let segmentResultsType;
-let haveRealClock;
 
 
 function resetData() {
@@ -1020,16 +1019,7 @@ async function getEventSegmentResults(segment) {
     const eventDuration = sg.durationInSeconds ?
         sg.durationInSeconds * 1000 :
         sg.endDistance / estMetersPerSec * 1000;
-    if (haveRealClock === undefined) {
-        haveRealClock = null;
-        try {
-            await sauce.time.establish();
-            haveRealClock = true;
-        } catch(e) {
-            console.error('Failed to get real clock', e);
-        }
-    }
-    const now = haveRealClock ? sauce.time.getTime() : Date.now();
+    const now = await common.getRealTime();
     const filter = {
         from: sg.ts,
         to: sg.ts + eventDuration,
@@ -1268,41 +1258,6 @@ async function updateAllData({reset}={}) {
             console.debug("Setting course to:", courseId);
             console.debug("Course geo offset:", geoOffset);
         }
-        // XXX all prototype...
-        /*
-        for (const x of athleteData.events) {
-            let sg = eventSubgroups.get(x.subgroupId);
-            if (!sg) {
-                console.debug("Event found:", x.id);
-                sg = await common.getEventSubgroup(x.subgroupId);
-                if (!sg) {
-                    continue;
-                }
-                changed.events = true;
-                const entrants = await common.rpc.getEventSubgroupEntrants(x.subgroupId);
-                sg = {...sg, entrants};
-                eventSubgroups.set(sg.id, sg);
-            }
-            if (sg && lapSlices.at(-1).eventSubgroupId !== sg.id) {
-                const evLap = lapSlices.find(x => x.eventSubgroupId === sg.id);
-                const now = Date.now();
-                const evEnded = evLap ? now - (athleteData.created + evLap.end * 1000) : 0;
-                if (!sg.results || now - sg.resultsTS > evEnded * 0.5) {
-                    sg.resultsTS = now;
-                    console.info('ev lap ended seconds ago', evEnded / 1000);
-                    sg.results = await common.rpc.getEventSubgroupResults(x.subgroupId);
-                    changed.events = true;
-                }
-            }
-        }
-        for (const id of eventSubgroups.keys()) {
-            if (!athleteData.events.some(x => x.subgroupId === id)) {
-                console.debug("Event removed:", id);
-                eventSubgroups.delete(id);
-                changed.events = true;
-            }
-        }
-        */
     } else if (courseId != null) {
         console.debug("Athlete data is no longer available");
         changed.course = true;
