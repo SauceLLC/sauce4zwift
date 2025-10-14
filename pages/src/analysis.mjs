@@ -1156,6 +1156,7 @@ async function updateSegmentResults(segment) {
             segmentResults = await common.rpc.getSegmentResults(segment.segmentId, {live: true});
             segmentResultsType = 'live';
         }
+        segmentResults.sort((a, b) => a.elapsed - b.elapsed);
         console.log({segmentResults});
         // Recheck state, things may have changed during fetch/render..
         if (segment !== _lastExpandedSegment) {
