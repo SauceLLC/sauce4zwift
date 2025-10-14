@@ -1,14 +1,22 @@
 <div class="container segment-results">
     <header>
-        <% if (type === 'live') { %>
-            Live Results
+        <% if (type === 'recent') { %>
+            <div>Recent Results</div>
+            <select name="segment-results-period">
+                <option value="hour" {{period === 'hour' ? 'selected' : ''}}>Hour</option>
+                <option value="day" {{period === 'day' ? 'selected' : ''}}>Day</option>
+            </select>
+            <label>Limit: <input name="segment-results-limit" type="number" min="10" max="100"
+                   value="{{limit}}"/></label>
         <% } else if (type.startsWith('event')) { %>
-            Event Results
+            <div>Event Results</div>
             <% if (type.endsWith('tentative')) { %>
                 <div class="badge" style="--hue:42deg"
                      title="May include DNFs while event is in progress">Tentative</div>
             <% } %>
         <% } %>
+        <div class="spacer"></div>
+        <div class="button std icon-only xl" data-action="refresh-segment-results"><ms>refresh</ms></div>
     </header>
     <table class="results basic">
         <thead>
@@ -47,7 +55,7 @@
                         </span>
                     <% } %>
                 <td>
-                    <% if (type === 'live') { %>
+                    <% if (type === 'recent') { %>
                         {-humanRelTime(x.ts, {short: true, maxParts: 1, html: true})-}
                     <% } else { %>
                         {-humanTimer((x.ts - x.eventSubgroup.ts) / 1000, {html: true, ms: true})-}

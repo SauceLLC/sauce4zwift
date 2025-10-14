@@ -814,9 +814,14 @@ export async function main() {
         }
     });
     contentEl.addEventListener('click', ev => {
-        const btn = ev.target.closest('header > .expander');
-        if (btn) {
+        const expanderBtn = ev.target.closest('header > .expander');
+        if (expanderBtn) {
             ev.target.closest('section').classList.toggle('compressed');
+            return;
+        }
+        const actionBtn = ev.target.closest('.button[data-action]');
+        if (actionBtn) {
+            handleActionButton(actionBtn, ev);
             return;
         }
         const row = ev.target.closest('table.selectable > tbody > tr:not(.details)');
@@ -873,13 +878,35 @@ export async function main() {
             setSelection();
         }
     }, {capture: true});  // capture because we want to beat expander table click handler
+
+    let updateSegmentsTimout;
     contentEl.addEventListener('input', async ev => {
-        const peakSource = ev.target.closest('select[name="peak-effort-source"]');
-        if (!peakSource) {
+        const segResPeriod = ev.target.closest('select[name="segment-results-period"]');
+        if (segResPeriod) {
+            clearTimeout(updateSegmentsTimout);
+            common.settingsStore.set('segmentResultsPeriod', segResPeriod.value);
+            if (selectionSource === 'segments' && selectionEntry) {
+                updateSegmentResults(selectionEntry);  // bg okay
+            }
             return;
         }
-        common.settingsStore.set('peakEffortSource', peakSource.value);
-        await updatePeaksTemplate();
+        const segLimit = ev.target.closest('input[name="segment-results-limit"]');
+        if (segLimit) {
+            clearTimeout(updateSegmentsTimout);
+            common.settingsStore.set('segmentResultsLimit', Math.max(10, Math.min(100, +segLimit.value)));
+            updateSegmentsTimout = setTimeout(() => {
+                if (selectionSource === 'segments' && selectionEntry) {
+                    updateSegmentResults(selectionEntry);  // bg okay
+                }
+            }, 500);
+            return;
+        }
+        const peakSource = ev.target.closest('select[name="peak-effort-source"]');
+        if (peakSource) {
+            common.settingsStore.set('peakEffortSource', peakSource.value);
+            await updatePeaksTemplate();
+            return;
+        }
     });
 
     streamStackCharts[0].addEventListener('brush', ev => elevationChart.setBrush({
@@ -898,7 +925,7 @@ export async function main() {
                 if (!brushPath) {
                     brushPath = zwiftMap.addHighlightLine(geoSelection, 'selection', {color: '#2885ffcc'});
                 } else if (!mapHiUpdateTO) {
-                    // Expensive call with large datasets. throttle a bit...
+                    // Expensive call with large datasets.  Throttle a bit...
                     mapHiUpdateTO = setTimeout(() => {
                         mapHiUpdateTO = null;
                         zwiftMap.updateHighlightLine(brushPath, geoSelection);
@@ -962,6 +989,15 @@ export async function main() {
     });
 
     updateLoop();
+}
+
+
+function handleActionButton(btn, ev) {
+    if (btn.dataset.action === 'refresh-segment-results') {
+        if (selectionSource === 'segments' && selectionEntry) {
+            updateSegmentResults(selectionEntry);
+        }
+    }
 }
 
 
@@ -1114,21 +1150,22 @@ async function getEventSegmentResults(segment) {
                 const localEndTS = local.startServerTime + local.stats.elapsedTime * 1000;
                 candidates.sort((a, b) => Math.abs(a.ts - localEndTS) - Math.abs(b.ts - localEndTS));
                 const nearest = candidates[0];
-                if (Math.abs(nearest.ts - localEndTS) < 15000) {
+                if (Math.abs(nearest.ts - localEndTS) < 15_000) {
                     results = results.filter(x => x.athleteId !== athleteId || x === nearest);
-                    continue;
                 } else {
-                    console.error("Unexpected incongruity in local segment data", nearest, local);
-                    debugger;
+                    // In some instances the segment results API misses entries.
+                    console.warn("Unexpected incongruity in local segment data", nearest, local);
+                    results = results.filter(x => x.athleteId !== athleteId);
                 }
+                continue;
             }
         }
         // Tier 3: LoFi guess using time proximity [UGLY]..
         candidates.sort((a, b) => Math.abs(a.ts - segmentEndTS) - Math.abs(b.ts - segmentEndTS));
         const nearest = candidates[0];
         const gap = Math.abs(nearest.ts - segmentEndTS);
-        if (gap < 180_000) {
-            if (gap > 60_000) {
+        if (gap < 240_000) {
+            if (gap > 90_000) {
                 console.warn("Very low confidence result entry:", gap, nearest);
                 nearest.lowConfidence = true;
             }
@@ -1150,11 +1187,22 @@ async function updateSegmentResults(segment) {
         segmentResults = ret.results;
         segmentResultsType = ret.type;
     } else {
-        segmentResults = await common.rpc.getSegmentResults(segment.segmentId, {live: true});
-        segmentResultsType = 'live';
+        const segmentEndTS = segment.startServerTime + segment.stats.elapsedTime * 1000;
+        const filter = {
+            to: segmentEndTS + 600_000,
+            best: true,
+            limit: Math.max(10, Math.min(100, settings.segmentResultsLimit || 10)),
+        };
+        if (settings.segmentResultsPeriod === 'day') {
+            filter.from = segmentEndTS - 86400_000;
+        } else {
+            filter.from = segmentEndTS - 3600_000;
+        }
+        segmentResults = await common.rpc.getSegmentResults(segment.segmentId, filter);
+        segmentResultsType = 'recent';
     }
     segmentResults.sort((a, b) => a.elapsed - b.elapsed);
-    console.log({segmentResults});
+    console.debug('Segment results:', segmentResults);
     return await renderSegments();
 }
 
@@ -1167,6 +1215,8 @@ function renderSegments() {
         selected,
         results: segmentResults,
         type: segmentResultsType,
+        period: settings.segmentResultsPeriod || 'hour',
+        limit: settings.segmentResultsLimit || 10,
     });
 }
 

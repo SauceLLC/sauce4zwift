@@ -672,11 +672,12 @@ table.selectable.basic {
     > tbody > tr {
         --select-band-width: 4px;
 
-        &.selected {
+        &.selected,
+        &.selected + tr.details {
             background-image: linear-gradient(to right,
                 color.shade(bg, 20%),
                 color.shade(bg, 5%) var(--select-band-width),
-                color.shade(intrinsic, 60%) var(--select-band-width),
+                color.shade(intrinsic, 80%) var(--select-band-width),
                 color.shade(intrinsic, 70%));
             color: color.get(intrinsic) !important;
         }
@@ -690,7 +691,7 @@ table.selectable.basic {
 table.segments-list,
 table.laps-list,
 table.events-list {
-    font-size: 0.82em;
+    font-size: 0.84em;
 
     tr.active {
         background-color: #f1ad0424;
@@ -712,11 +713,25 @@ table.segments-list {
         header {
             font-weight: 500;
             margin-bottom: 0.5em;
+            display: flex;
+            align-items: center;
+
+            > *:not(:last-child) {
+                margin-right: 1em;
+            }
+
+            > .spacer {
+                flex: 1 1 0;
+            }
+
+            > .button[data-action] {
+                margin-right: 0.5em;
+            }
         }
     }
 
     table.results {
-        background-color: color.get(intrinsic, 0.9);
+        background-color: color.get(intrinsic, 0.1);
         border-radius: 0.28rem;
 
         .trophy {
@@ -725,7 +740,7 @@ table.segments-list {
             width: 1.5em;
             height: 1.5em;
             line-height: 1.65em;
-            color: color.shade(intrinsic-inverted, 10%, 0.8);
+            color: #333;
             text-align: center;
             box-shadow: 1px 1px 3px 0 #0002;
             margin-bottom: 0;
@@ -759,6 +774,8 @@ table.segments-list {
 
         td {
             white-space: nowrap;
+            padding-top: 0.3em;
+            padding-bottom: 0.3em;
         }
     }
 }
