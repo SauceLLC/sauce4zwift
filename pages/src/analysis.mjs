@@ -1070,7 +1070,7 @@ async function getEventSegmentResults(segment) {
     if (evResults) {
         // Tier 1: Since only finished athletes are in consideration we can safely organize
         // the results by their relative offset from the end.  I.e. Even if you late join and
-        // complete just 1 segment in a multilap race, we know it was the last segment.
+        // complete just 1 segment in a multilap race, we know it was the last segment. [GOOD]
         const ourResults = results.filter(x => x.athleteId === athleteData.athleteId);
         const ourResultsByProx = ourResults.toSorted((a, b) =>
             Math.abs(a.ts - segmentEndTS) - Math.abs(b.ts - segmentEndTS));
@@ -1096,7 +1096,7 @@ async function getEventSegmentResults(segment) {
             console.warn("Did not find this segment in the results!", segment, ourResults);
         }
     }
-    // Tier 1: look for intersection with our local athlete-data collections..
+    // Tier 2: Look for intersection with our local athlete-data collections [BAD]..
     for (const athleteId of pendingAthletes) {
         const candidates = results.filter(x => x.athleteId === athleteId);
         const locals = (await common.rpc.getAthleteSegments(athleteId, {active: true}))
@@ -1123,7 +1123,7 @@ async function getEventSegmentResults(segment) {
                 }
             }
         }
-        // Tier 3: LoFi guess using time proximity..
+        // Tier 3: LoFi guess using time proximity [UGLY]..
         candidates.sort((a, b) => Math.abs(a.ts - segmentEndTS) - Math.abs(b.ts - segmentEndTS));
         const nearest = candidates[0];
         const gap = Math.abs(nearest.ts - segmentEndTS);
