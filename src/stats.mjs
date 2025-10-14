@@ -1467,7 +1467,7 @@ export class StatsProcessor extends events.EventEmitter {
                 weight_setting: 'metric',
             });
         }
-        const {laps, streams, wtOffset, mostRecentState} = this._athleteData.get(athleteId);
+        const {lapSlices, streams, wtOffset, mostRecentState} = this._athleteData.get(athleteId);
         const tsOffset = worldTimer.toServerTime(wtOffset);
         const sport = {
             'cycling': 'cycling',
@@ -1483,7 +1483,7 @@ export class StatsProcessor extends events.EventEmitter {
         let lapNumber = 0;
         let lastTS;
         let offt = 0;
-        for (const {power, speed, cadence, hr} of laps) {
+        for (const {power, speed, cadence, hr} of lapSlices) {
             if ([speed, cadence, hr].some(x => x.roll.size() !== power.roll.size())) {
                 throw new Error("Assertion failure about roll sizes being equal");
             }
@@ -1502,7 +1502,7 @@ export class StatsProcessor extends events.EventEmitter {
             const elapsed = power.roll.lastTime() - power.roll.firstTime();
             const lap = {
                 message_index: lapNumber++,
-                lap_trigger: lapNumber === laps.length ? 'session_end' : 'manual',
+                lap_trigger: lapNumber === lapSlices.length ? 'session_end' : 'manual',
                 event: 'lap',
                 event_type: 'stop',
                 sport,
@@ -1531,7 +1531,7 @@ export class StatsProcessor extends events.EventEmitter {
             total_elapsed_time: elapsed,
             total_timer_time: elapsed,  // We don't really know
             first_lap_index: 0,
-            num_laps: laps.length,
+            num_laps: lapSlices.length,
             trigger: 'activity_end',
         });
         fitParser.addMessage('activity', {
