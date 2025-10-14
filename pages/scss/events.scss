@@ -227,14 +227,23 @@ table {
                 top: calc(var(--sticky-offset) - var(--intersection-offset));
             }
 
+            &.starts-soon > td.start {
+                animation: pulse-color 1.5s infinite;
+            }
+
             &.started {
-                opacity: 0.8;
+                color: color.shade(fg, 5%);
 
                 &.joinable > td.start {
-                    color: #ffc500;
+                    color: #ffda00;
+                    text-shadow: 0.5px 0.5px #000;
+                    font-weight: 500;
                 }
 
                 &:not(.joinable) {
+                    color: color.shade(fg, 20%);
+                    font-weight: 350;
+
                     > td.start {
                         font-size: 0.92em;
 
@@ -1015,5 +1024,19 @@ table {
                 }
             }
         }
+    }
+}
+
+@keyframes pulse-color {
+    from {
+        color: color.shade(fg, 0%);
+    }
+
+    50% {
+        color: color.shade(fg, 20%);
+    }
+
+    to {
+        color: color.shade(fg, 0%);
     }
 }

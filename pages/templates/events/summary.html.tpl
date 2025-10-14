@@ -1,7 +1,5 @@
-<% const started = event.ts < Date.now(); %>
-<% const joinable = event.ts + ((event.lateJoinInMinutes || 0) * 60 * 1000) - Date.now(); %>
 <tr class="summary event-row" data-event-id="{{event.id}}">
-    <td class="start" data-late-join-tooltip="Can late join until {{humanTime(event.ts + ((event.lateJoinInMinutes || 0) * 60 * 1000))}}">
+    <td class="start" data-late-join-tooltip="Can late join until {{humanTime(event.ts + ((event.lateJoinInMinutes || 0) * 60_000))}}">
         {-humanDateTime(event.eventStart, {html: true, concise: true, style: 'short', today_style: 'short'})-}
         <% if (event.lateJoinInMinutes) { %>
             <ms title="Allows joining late">acute</ms>

@@ -141,7 +141,7 @@ async function fillInEvents() {
 }
 
 
-async function applyEventFilters(el) {
+async function applyEventFilters(el=contentEl) {
     const hide = new Set();
     if (settings.filterType) {
         for (const x of allEvents.values()) {
@@ -157,14 +157,14 @@ async function applyEventFilters(el) {
                 hide.add('' + x);
             }
             if (!allEvents.has(id)) {
-                contentEl.classList.add('loading');
+                el.classList.add('loading');
                 try {
                     const event = await common.rpc.getEvent(id);
                     allEvents.set(id, event);
                     await fillInEvents();
                     await render();
                 } finally {
-                    contentEl.classList.remove('loading');
+                    el.classList.remove('loading');
                 }
             }
             hide.delete('' + id);
@@ -189,20 +189,22 @@ async function applyEventFilters(el) {
     for (const x of el.querySelectorAll('table.events > tbody > tr.event-row')) {
         x.classList.toggle('hidden', hide.has(x.dataset.eventId));
     }
-    updateStatefulStyles(el);
+    await updateStatefulStyles(el);
 }
 
 
-function updateStatefulStyles(el=contentEl) {
-    const now = Date.now();
+async function updateStatefulStyles(el=contentEl) {
+    const realTime = await common.getRealTime();
     for (const x of el.querySelectorAll('table.events > tbody > tr.event-row')) {
         const event = allEvents.get(Number(x.dataset.eventId));
         if (!event) {
             console.error("Internal Error");
             continue;
         }
-        const joinable = event.ts + ((event.lateJoinInMinutes || 0) * 60 * 1000) - now;
-        x.classList.toggle('started', event.ts < now);
+        const joinable = event.ts + ((event.lateJoinInMinutes || 0) * 60_000) - realTime;
+        const started = event.ts <= realTime;
+        x.classList.toggle('started', started);
+        x.classList.toggle('starts-soon', !started && (event.ts - realTime < 300_000));
         x.classList.toggle('signedup', event.signedUp);
         const startEl = x.querySelector('td.start');
         if (event.lateJoinInMinutes && joinable > 0) {
@@ -268,11 +270,11 @@ export async function main() {
         const type = ev.currentTarget.value;
         settings.filterType = type || undefined;
         common.settingsStore.set(null, settings);
-        applyEventFilters(contentEl);
+        applyEventFilters();
     });
     document.querySelector('#titlebar input[name="filter"]').addEventListener('input', ev => {
         filterText = ev.currentTarget.value || undefined;
-        applyEventFilters(contentEl);
+        applyEventFilters();
     });
     document.documentElement.addEventListener('click', async ev => {
         const loader = ev.target.closest('.events > .loader');
@@ -365,7 +367,7 @@ export async function main() {
                 }
                 if (modified) {
                     await fillInEvents();
-                    updateStatefulStyles();
+                    await updateStatefulStyles();
                 }
             }
         }, 15_000);
@@ -431,6 +433,7 @@ async function render() {
                 createElevationProfile(elChart, event.eventSubgroups[0] || event);
             }
         }
+        const realTime = await common.getRealTime();
         const loadingSubgroups = [];
         for (const el of eventDetailsEl.querySelectorAll('[data-event-subgroup-id]')) {
             const sg = event.eventSubgroups.find(x => x.id === Number(el.dataset.eventSubgroupId));
@@ -441,7 +444,7 @@ async function render() {
             }
             loadingSubgroups.push((async () => {
                 let results, entrants, fieldSize;
-                if (sg.eventSubgroupStart < (Date.now() - (300 * 1000))) {
+                if (sg.eventSubgroupStart < realTime - 300_000) {
                     const maybeResults = await common.rpc.getEventSubgroupResults(sg.id);
                     if (maybeResults && maybeResults.length) {
                         results = maybeResults;
@@ -518,7 +521,7 @@ async function render() {
             cb();
         }
     });
-    applyEventFilters(frag);
+    await applyEventFilters(frag);
     contentEl.replaceChildren(frag);
 }
 
