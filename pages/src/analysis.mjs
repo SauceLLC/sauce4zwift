@@ -1144,26 +1144,18 @@ async function getEventSegmentResults(segment) {
 }
 
 
-let _lastExpandedSegment;
 async function updateSegmentResults(segment) {
-    if (segment !== _lastExpandedSegment) {
-        _lastExpandedSegment = segment;
-        if (segment.eventSubgroupId) {
-            const ret = await getEventSegmentResults(segment);
-            segmentResults = ret.results;
-            segmentResultsType = ret.type;
-        } else {
-            segmentResults = await common.rpc.getSegmentResults(segment.segmentId, {live: true});
-            segmentResultsType = 'live';
-        }
-        segmentResults.sort((a, b) => a.elapsed - b.elapsed);
-        console.log({segmentResults});
-        // Recheck state, things may have changed during fetch/render..
-        if (segment !== _lastExpandedSegment) {
-            return;
-        }
-        return await renderSegments();
+    if (segment.eventSubgroupId) {
+        const ret = await getEventSegmentResults(segment);
+        segmentResults = ret.results;
+        segmentResultsType = ret.type;
+    } else {
+        segmentResults = await common.rpc.getSegmentResults(segment.segmentId, {live: true});
+        segmentResultsType = 'live';
     }
+    segmentResults.sort((a, b) => a.elapsed - b.elapsed);
+    console.log({segmentResults});
+    return await renderSegments();
 }
 
 
@@ -1419,30 +1411,27 @@ async function updateAll() {
         powerZonesChart.updateData();
         packTimeChart.updateData();
         schedUpdateSelectionStats();
-        updatePeaksTemplate(); // bg okay
+        updatePeaksTemplate();  // bg okay
     }
     if (changed.segments || changed.reset) {
-        let selected;
         if (selectionSource === 'segments') {
-            selected = segmentSlices.indexOf(selectionEntry);
+            const selected = segmentSlices.indexOf(selectionEntry);
             if (selected < 0) {
-                selected = undefined; // unlikely, currently impossible
+                selectionSource = selectionEntry = null;
+                setSelection();
             } else {
                 setSelection(selectionEntry.startIndex, selectionEntry.endIndex);
             }
         }
-        if (selectionSource === 'segments') {
-            updateSegmentResults(selectionEntry);  // bg okay
-        } else {
-            renderSegments();  // bg okay
-        }
+        renderSegments();  // bg okay
     }
     if (changed.laps || changed.reset) {
         let selected;
         if (selectionSource === 'laps') {
             selected = lapSlices.indexOf(selectionEntry);
             if (selected < 0) {
-                selected = undefined; // unlikely, currently impossible
+                selectionSource = selectionEntry = null;
+                setSelection();
             } else {
                 setSelection(selectionEntry.startIndex, selectionEntry.endIndex);
             }
@@ -1451,14 +1440,15 @@ async function updateAll() {
             streams,
             lapSlices,
             selected,
-        }); // bg okay
+        });  // bg okay
     }
     if (changed.events || changed.reset) {
         let selected;
         if (selectionSource === 'events') {
             selected = eventSlices.indexOf(selectionEntry);
             if (selected < 0) {
-                selected = undefined;
+                selectionSource = selectionEntry = null;
+                setSelection();
             } else {
                 setSelection(selectionEntry.startIndex, selectionEntry.endIndex);
             }
@@ -1467,9 +1457,9 @@ async function updateAll() {
             streams,
             eventSlices,
             selected,
-        }); // bg okay
+        });  // bg okay
     }
-    renderSurgicalTemplate('.activity-summary', templates.activitySummary); // bg okay
+    renderSurgicalTemplate('.activity-summary', templates.activitySummary);  // bg okay
 }
 
 

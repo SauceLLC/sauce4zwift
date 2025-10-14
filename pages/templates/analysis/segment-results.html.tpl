@@ -30,7 +30,7 @@
                         {-humanPlace(i + 1, {suffix: true, html: true})-}
                     <% } %>
                 </td>
-                <td>
+                <td class="name">
                     <a href="profile.html?id={{x.athleteId}}&windowType=profile"
                        target="profile_popup_{{x.athleteId}}">{{x.firstName}} {{x.lastName}}</a>
                     <% if (x.gender === 'female') { %>
