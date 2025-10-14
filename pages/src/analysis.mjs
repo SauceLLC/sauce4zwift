@@ -12,6 +12,7 @@ echarts.registerTheme('sauce', theme.getTheme('dynamic', {fg: 'intrinsic-inverte
 common.settingsStore.setDefault({
     preferWkg: false,
     peakEffortSource: 'power',
+    reverseLapsAndSegments: true,
 });
 
 const H = sauce.locale.human;
@@ -858,7 +859,14 @@ export async function main() {
                 row.parentElement.querySelectorAll(':scope > .expanded')
                     .forEach(x => x.classList.remove('expanded'));
                 row.classList.add('expanded');
-                updateSegmentResults(entry); // bg okay
+                row.scrollIntoView({behavior: 'smooth', container: 'nearest'});
+                updateSegmentResults(entry).then(redrawn => {
+                    // handle async resized expansion..
+                    if (redrawn) {
+                        const row = contentEl.querySelector('.segments-list > tbody > tr.selected');
+                        row.scrollIntoView({behavior: 'smooth', container: 'nearest'});
+                    }
+                });  // bg okay
             }
         } else {
             selectionSource = selectionEntry = null;
@@ -1015,43 +1023,81 @@ async function getEventSegmentResults(segment) {
 
     // 1. Get every segment result that could possibly be during this event...
     const sg = await common.getEventSubgroup(segment.eventSubgroupId);
-    const estMetersPerSec = (30 * speedEstSlowdownFactor(sg.routeClimbing / sg.routeDistance)) / 3.6;
+    const baseSpeed = 25;  // kph, maybe factor power?
+    const estMetersPerSec = baseSpeed / speedEstSlowdownFactor(sg.routeClimbing / sg.routeDistance) / 3.6;
     const eventDuration = sg.durationInSeconds ?
         sg.durationInSeconds * 1000 :
         sg.endDistance / estMetersPerSec * 1000;
     const now = await common.getRealTime();
+    const isFinished = sg.ts + eventDuration < now;
     const filter = {
         from: sg.ts,
         to: sg.ts + eventDuration,
     };
+    const segmentEndTS = segment.startServerTime + segment.stats.elapsedTime * 1000;
     let results = await common.rpc.getSegmentResults(segment.segmentId, filter);
+    results.sort((a, b) => a.ts - b.ts);
 
-    // 2. Decide which athletes are "part-of-the-event".
-    let tentative;
+    // 2. Decide which athletes are apart of the event.
+    let evResults;
     let evAthletes;
-    if (sg.ts + eventDuration < now) {
+    if (isFinished) {
         // Safe to filter by results, DNFs get pruned now..
-        tentative = false;
-        const results = await common.rpc.getEventSubgroupResults(segment.eventSubgroupId);
-        evAthletes = new Set(results.map(x => x.profileId));
+        evResults = await common.rpc.getEventSubgroupResults(segment.eventSubgroupId);
+        evAthletes = new Set(evResults.map(x => x.profileId));
+        for (const {profileId, activityData} of evResults) {
+            const endTS = new Date(activityData.endDate);
+            // Note: late join information is NOT captured by activityData.durationInMilliseconds.
+            // This value is just the event finish time and unrelated to join offset.
+            results = results.filter(x => x.athleteId !== profileId || x.ts <= endTS);
+        }
     } else {
         // Unsafe to use results yet, so use more inclusive entrants as filter set.
-        // Athletes that quit will be included until such time that the event results
+        // Athletes that quit will be included until such time that the event result
         // can be verified.
-        tentative = true;
         const entrants = await common.rpc.getEventSubgroupEntrants(segment.eventSubgroupId);
         evAthletes = new Set(entrants.map(x => x.id));
     }
-    const resultAthletes = new Set();
+    const pendingAthletes = new Set();
     results = results.filter(x => {
         if (evAthletes.has(x.athleteId)) {
-            resultAthletes.add(x.athleteId);
+            pendingAthletes.add(x.athleteId);
             return true;
         }
     });
 
     // 3. Find the best matching segment results using highest to lowest confidence methods...
-    for (const athleteId of resultAthletes) {
+    if (evResults) {
+        // Tier 1: Since only finished athletes are in consideration we can safely organize
+        // the results by their relative offset from the end.  I.e. Even if you late join and
+        // complete just 1 segment in a multilap race, we know it was the last segment.
+        const ourResults = results.filter(x => x.athleteId === athleteData.athleteId);
+        const ourResultsByProx = ourResults.toSorted((a, b) =>
+            Math.abs(a.ts - segmentEndTS) - Math.abs(b.ts - segmentEndTS));
+        const nearest = ourResultsByProx[0];
+        if (Math.abs(nearest.ts - segmentEndTS) < 15_000) {
+            const endOfft = ourResults.indexOf(nearest) - ourResults.length;
+            for (const {profileId, lateJoin} of evResults) {
+                pendingAthletes.delete(profileId);
+                const candidates = results.filter(x => x.athleteId === profileId);
+                const r = candidates.at(endOfft);
+                if (r) {
+                    results = results.filter(x => x.athleteId !== profileId || x === r);
+                } else {
+                    if (!lateJoin) {
+                        console.warn("Could not find same segment result based on end offset:",
+                                     endOfft, candidates);
+                    }
+                    results = results.filter(x => x.athleteId !== profileId);
+                }
+            }
+        } else {
+            // We may have quit.. fallthrough...
+            console.warn("Did not find this segment in the results!", segment, ourResults);
+        }
+    }
+    // Tier 1: look for intersection with our local athlete-data collections..
+    for (const athleteId of pendingAthletes) {
         const candidates = results.filter(x => x.athleteId === athleteId);
         const locals = (await common.rpc.getAthleteSegments(athleteId, {active: true}))
             ?.filter(x => x.segmentId === segment.segmentId &&
@@ -1065,10 +1111,10 @@ async function getEventSegmentResults(segment) {
                     results = results.filter(x => x.athleteId !== athleteId);
                     continue;
                 }
-                const localEndTS = local.startServerTime + (local.end - local.start) * 1000;
+                const localEndTS = local.startServerTime + local.stats.elapsedTime * 1000;
                 candidates.sort((a, b) => Math.abs(a.ts - localEndTS) - Math.abs(b.ts - localEndTS));
                 const nearest = candidates[0];
-                if (Math.abs(nearest.ts - localEndTS) < 5000) {
+                if (Math.abs(nearest.ts - localEndTS) < 15000) {
                     results = results.filter(x => x.athleteId !== athleteId || x === nearest);
                     continue;
                 } else {
@@ -1077,12 +1123,11 @@ async function getEventSegmentResults(segment) {
                 }
             }
         }
-        // LoFi guess using time proximity..
-        const segmentEndTS = segment.startServerTime + (segment.end - segment.start) * 1000;
+        // Tier 3: LoFi guess using time proximity..
         candidates.sort((a, b) => Math.abs(a.ts - segmentEndTS) - Math.abs(b.ts - segmentEndTS));
         const nearest = candidates[0];
         const gap = Math.abs(nearest.ts - segmentEndTS);
-        if (gap < 300_000) {
+        if (gap < 180_000) {
             if (gap > 60_000) {
                 console.warn("Very low confidence result entry:", gap, nearest);
                 nearest.lowConfidence = true;
@@ -1095,7 +1140,7 @@ async function getEventSegmentResults(segment) {
     for (const x of results) {
         x.eventSubgroup = sg;
     }
-    return {results, type: tentative ? 'event-tentative' : 'event'};
+    return {results, type: isFinished ? 'event' : 'event-tentative'};
 }
 
 
@@ -1116,7 +1161,7 @@ async function updateSegmentResults(segment) {
         if (segment !== _lastExpandedSegment) {
             return;
         }
-        renderSegments();
+        return await renderSegments();
     }
 }
 
@@ -1387,8 +1432,9 @@ async function updateAll() {
         }
         if (selectionSource === 'segments') {
             updateSegmentResults(selectionEntry);  // bg okay
+        } else {
+            renderSegments();  // bg okay
         }
-        renderSegments();  // bg okay
     }
     if (changed.laps || changed.reset) {
         let selected;
