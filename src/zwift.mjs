@@ -663,7 +663,7 @@ export class ZwiftAPI {
         if ((options.from || options.to) && options.athleteId == null) {
             const now = Date.now();
             const range = new Date(options.to || now) - new Date(options.from || now);
-            if (range > 86400 * 1000) {
+            if (range > 2 * 86400_000) {
                 throw new TypeError("Excessively large range");
             }
         }
@@ -672,6 +672,9 @@ export class ZwiftAPI {
         }
         const data = await this.fetchPB('/api/segment-results', {query, protobuf: 'SegmentResults'});
         data.results.sort((a, b) => a.elapsed - b.elapsed);
+        if (options.limit && data.results.length > options.limit) {
+            data.results.length = options.limit;
+        }
         return data.results.map(this.convSegmentResult);
     }
 
