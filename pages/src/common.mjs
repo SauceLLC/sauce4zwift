@@ -2091,30 +2091,38 @@ export async function renderSurgicalTemplate(selector, tpl, attrs) {
 }
 
 
-let _clockSourceWeightedConfidence;
-(() => {
+function initClockSourceConfidence() {
     const csc = storage.get('/clock-source-confidence');
+    let expWeightFn;
     if (!csc) {
-        _clockSourceWeightedConfidence = expWeightedAvg(10, 1);
+        expWeightFn = expWeightedAvg(10, 1);
     } else {
-        _clockSourceWeightedConfidence = expWeightedAvg(10, csc.value);
+        expWeightFn = expWeightedAvg(10, csc.value);
         const localNow = Date.now();
         const recheckPeriod = 6 * 3600_000;
         if (localNow - csc.ts > recheckPeriod) {
             for (let t = csc.ts + recheckPeriod; t < localNow; t += recheckPeriod) {
-                _clockSourceWeightedConfidence(0);
+                expWeightFn(0);
             }
             storage.set('/clock-source-confidence', {
                 ts: localNow,
-                value: _clockSourceWeightedConfidence.get()
+                value: expWeightFn.get()
             });
         }
     }
-})();
-let _haveValidClock = _clockSourceWeightedConfidence.get() > 1;
+    return expWeightFn;
+}
+
+
+let _clockSourceWeightedConfidence;
+let _haveValidClock;
 let _pendingClockSync;
 let _clockSyncError;
 export function getRealTime() {
+    if (_clockSourceWeightedConfidence === undefined) {
+        _clockSourceWeightedConfidence = initClockSourceConfidence();
+        _haveValidClock = _clockSourceWeightedConfidence.get() > 1;
+    }
     if (_haveValidClock || _clockSyncError) {
         return Date.now();
     }
@@ -2141,7 +2149,6 @@ export function getRealTime() {
             const drift = Math.abs(localTime - time.getTime());
             // bin drift into good, bad, terrible..
             const conf = drift < 100 ? 5 : drift < 1000 ? 2 : drift < 10_000 ?  0.5 : -1;
-            console.log({conf, drift});
             _clockSourceWeightedConfidence(conf);
             storage.set('/clock-source-confidence', {
                 ts: localTime,

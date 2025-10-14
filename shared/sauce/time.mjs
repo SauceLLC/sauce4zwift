@@ -1,5 +1,11 @@
 
 let _timeOfft;
+const _ephemeral = new Map();
+
+const sessionStorage = globalThis.sessionStorage || {
+    getItem: k => _ephemeral.get(k),
+    setItem: (k, v) => _ephemeral.set(k, '' + v),
+};
 
 (() => {
     const lastEstablish = Number(sessionStorage.getItem('sauce_time_last_establish'));
