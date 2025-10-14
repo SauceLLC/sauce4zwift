@@ -1,6 +1,16 @@
 
 let _timeOfft;
 
+(() => {
+    const lastEstablish = Number(sessionStorage.getItem('sauce_time_last_establish'));
+    if (lastEstablish && Date.now() - lastEstablish < 900_000) {
+        const offt = Number(sessionStorage.getItem('sauce_time_offset'));
+        if (offt != null && !isNaN(offt)) {
+            _timeOfft = offt;
+        }
+    }
+})();
+
 
 function timeOffsetCalc(offsets, forceAnswer) {
     // Basically emulate NTP's more macroscopic features...
@@ -86,7 +96,8 @@ export async function establish(force) {
     }
     console.debug('Clock offset:', offt);
     _timeOfft = Math.round(offt);
-    return getTime();
+    sessionStorage.setItem('sauce_time_last_establish', Date.now());
+    sessionStorage.setItem('sauce_time_offset', _timeOfft);
 }
 
 
