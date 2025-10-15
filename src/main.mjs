@@ -47,7 +47,7 @@ rpc.register(quit);
 
 async function quitAfterDelay(delay) {
     const r = await Promise.race([
-        electron.dialog.showMessageBox({
+        electron.dialog.showMessageBox(this?.getOwnerBrowserWindow() || undefined, {
             type: 'info',
             message: `Sauce for Zwift™ will shutdown in ${delay} seconds...`,
             noLink: true,
