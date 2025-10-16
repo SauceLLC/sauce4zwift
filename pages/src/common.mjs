@@ -1649,15 +1649,27 @@ export function themeInit(store) {
         doc.dataset.theme = themeOverride;
     } else if (!window.isElectron) {
         // Electron already did this in preload to avoid paint flashing.
-        const theme = store.get('/theme');
-        if (theme) {
-            doc.dataset.theme = theme;
+        const v = store.get('/theme');
+        if (v) {
+            doc.dataset.theme = v;
+        }
+    }
+    const bgTextureOverride = store.get('bgTextureOverride');
+    if (bgTextureOverride) {
+        doc.dataset.bgTexture = bgTextureOverride;
+    } else if (!window.isElectron) {
+        // Electron already did this in preload to avoid paint flashing.
+        const v = store.get('/bgTexture');
+        if (v) {
+            doc.dataset.bgTexture = v;
         }
     }
     store.addEventListener('set', ev => {
         const key = ev.data.key;
         if (key === 'themeOverride' || key === '/theme') {
             doc.dataset.theme = store.get('themeOverride') || store.get('/theme') || '';
+        } else if (key === 'bgTextureOverride' || key === '/bgTexture') {
+            doc.dataset.bgTexture = store.get('bgTextureOverride') || store.get('/bgTexture') || '';
         }
     });
 }

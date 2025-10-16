@@ -1,4 +1,7 @@
 :root {
+    --bg-texture-image: url('../images/cubism-bg-texture.webp');
+    --bg-texture-blend-mode: overlay;
+
     --theme-base-color: #000;
 
     // Used for cases were we need to decide if the theme is light or dark
@@ -79,6 +82,19 @@
 
     --theme-button-bar-top-left: #1d0050de;
     --theme-button-bar-bottom-right: #2b0078de;
+}
+
+html[data-bg-texture="none"] {
+    --bg-texture-image: none;
+}
+html[data-bg-texture="cubism"] {
+    --bg-texture-image: url('../images/cubism-bg-texture.webp');
+}
+html[data-bg-texture="checkered"] {
+    --bg-texture-image: url('../images/checkered-bg-texture.webp');
+}
+html[data-bg-texture="maze"] {
+    --bg-texture-image: url('../images/maze-bg-texture.webp');
 }
 
 html[data-theme="gpt-vibrant"] {
@@ -241,6 +257,8 @@ html[data-theme="green"] {
 }
 
 html[data-theme="light"] {
+    --bg-texture-blend-mode: normal;
+
     --theme-base-color: #fff;
 
     --theme-bookend-hue: 5;
@@ -287,8 +305,11 @@ html[data-theme="light"] {
 html[data-theme="transparent-light"] {
     &:not(.settings-mode):not(.settings-page):not(.frame) body:not(.transparent-bg):not(.alt-background) {
         --bg-opacity: 0;
+        --bg-texture-image: none;
         --outline-opacity: 0;
     }
+
+    --bg-texture-blend-mode: normal;
 
     --theme-base-color: transparent;
 
@@ -363,6 +384,7 @@ html[data-theme="dark"] {
 html[data-theme="transparent-dark"] {
     &:not(.settings-mode):not(.settings-page):not(.frame) body:not(.transparent-bg):not(.alt-background) {
         --bg-opacity: 0;
+        --bg-texture-image: none;
         --outline-opacity: 0;
     }
 

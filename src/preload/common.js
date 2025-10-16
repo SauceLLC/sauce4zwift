@@ -49,6 +49,10 @@ if (meta.internal) {
             if (theme) {
                 doc.dataset.theme = JSON.parse(theme);
             }
+            const bgTexture = localStorage.getItem('/bgTexture');
+            if (bgTexture) {
+                doc.dataset.bgTexture = JSON.parse(bgTexture);
+            }
         }
     };
     // Fires for interactive before defer scripts.

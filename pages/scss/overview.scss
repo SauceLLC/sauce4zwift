@@ -28,6 +28,7 @@ html {
         --center-gap-offt: calc(50% - (var(--center-gap-size) / 2));
         --center-gap-right: calc(50% + (var(--center-gap-size) / 2));
         background-image:
+            var(--bg-texture-image),
             linear-gradient(to right,
                 color.shade(bg, 0%, 87%),
                 transparent var(--center-gap-offt),
@@ -43,6 +44,7 @@ html {
                 transparent var(--center-gap-right),
                 var(--theme-base-color) var(--center-gap-right),
                 var(--theme-base-color));
+        background-blend-mode: var(--bg-texture-blend-mode), normal, normal, normal;
     }
 }
 

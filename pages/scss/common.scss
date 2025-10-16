@@ -128,6 +128,7 @@ html {
             body.transparent-bg {
                 --outline-opacity: 0;
                 --bg-opacity: 0;
+                --bg-texture-image: none;
             }
 
             &:focus-within,
@@ -220,15 +221,20 @@ html {
             --final-bg-opacity var(--bg-transition-duration),
             outline var(--bg-transition-duration),
             box-shadow var(--bg-transition-duration);
-        background-image: linear-gradient(135deg,
-            color.get(bg, var(--final-bg-opacity)),
-            color.get(bg2, var(--final-bg-opacity)));
+        background-image: 
+            var(--bg-texture-image),
+            linear-gradient(135deg,
+                color.get(bg, var(--final-bg-opacity)),
+                color.get(bg2, var(--final-bg-opacity)));
+        background-blend-mode: var(--bg-texture-blend-mode), normal;
 
         &.alt-background {
             color: color.get(fg-alt);
-            background-image: linear-gradient(135deg,
-                color.get(bg-alt, var(--final-bg-opacity)),
-                color.get(bg-alt2, var(--final-bg-opacity)));
+            background-image: 
+                var(--bg-texture-image),
+                linear-gradient(135deg,
+                    color.get(bg-alt, var(--final-bg-opacity)),
+                    color.get(bg-alt2, var(--final-bg-opacity)));
         }
     }
 }
