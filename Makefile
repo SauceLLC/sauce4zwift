@@ -61,10 +61,15 @@ else
 endif
 
 publish: $(BUILD)
-ifndef WINBLOWS
-	GH_TOKEN="$${GH_TOKEN_SAUCE4ZWIFT_RELEASE}" npm run publish
+ifdef LINUX
+	@echo
+	@echo Use publish-docker-linux-native for linux to avoid libc issues
+	exit 1
 else
+  ifndef WINBLOWS
+	GH_TOKEN="$${GH_TOKEN_SAUCE4ZWIFT_RELEASE}" npm run publish
 	npm run publish
+  endif
 endif
 
 publish-docker-linux-native:
