@@ -221,7 +221,7 @@ html {
             --final-bg-opacity var(--bg-transition-duration),
             outline var(--bg-transition-duration),
             box-shadow var(--bg-transition-duration);
-        background-image: 
+        background-image:
             var(--bg-texture-image),
             linear-gradient(135deg,
                 color.get(bg, var(--final-bg-opacity)),
@@ -230,7 +230,7 @@ html {
 
         &.alt-background {
             color: color.get(fg-alt);
-            background-image: 
+            background-image:
                 var(--bg-texture-image),
                 linear-gradient(135deg,
                     color.get(bg-alt, var(--final-bg-opacity)),
