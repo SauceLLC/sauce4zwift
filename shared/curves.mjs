@@ -180,7 +180,7 @@ export function roadOffsetToTime(i, length) {
 
 export class CurvePath {
 
-    static _distCache = new LRUCache(65536);
+    static _distCache = new LRUCache(4096);
 
     constructor({nodes=[], epsilon=0.001, immutable=false}={}) {
         this.nodes = nodes;
