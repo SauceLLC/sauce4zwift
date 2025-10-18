@@ -557,7 +557,7 @@ export class RoadPath extends CurvePath {
         });
     }
 
-    distanceAtRoadPercents(rpStart, rpEnd, t=this.epsilon) {
+    distanceBetweenRoadPercents(rpStart, rpEnd, t=this.epsilon, {predicate=Infinity}={}) {
         const {0: startIndex, 1: startPercent} = this.roadPercentToOffsetTuple(rpStart);
         const {0: endIndex, 1: endPercent} = this.roadPercentToOffsetTuple(rpEnd);
         if (endIndex < startIndex ||
@@ -600,7 +600,7 @@ export class RoadPath extends CurvePath {
             return dist;
         }
         prevPoint = this.nodes[nodesOfft].end;
-        for (let i = nodesOfft; i < endIndex; i++) {
+        for (let i = nodesOfft; i < endIndex && dist < predicate; i++) {
             const x = this.nodes[i];
             const next = this.nodes[i + 1];
             if (next.cp1 && next.cp2) {
@@ -715,8 +715,10 @@ export class RoadPath extends CurvePath {
         return this.distanceAtRoadPercent(roadTimeToPercent(rt), t);
     }
 
-    distanceAtRoadTimes(rtStart, rtEnd, t) {
-        return this.distanceAtRoadPercents(roadTimeToPercent(rtStart), roadTimeToPercent(rtEnd), t);
+    distanceBetweenRoadTimes(rtStart, rtEnd, t, options) {
+        const rpStart = roadTimeToPercent(rtStart);
+        const rpEnd = roadTimeToPercent(rtEnd);
+        return this.distanceBetweenRoadPercents(rpStart, rpEnd, t, options);
     }
 }
 
