@@ -4,7 +4,7 @@ export const routeDistEpsilon = 1 / 200;
 
 
 /*
- * roadCurvePaths must be a Map of the routes in-use RoadPath objects, where
+ * roadCurvePaths must be a Map of the route's in-use RoadPath objects, where
  * the key is the roadId for this route's world.
  */
 export function getRouteRoadSections(route, {roadCurvePaths, epsilon=routeDistEpsilon}) {

@@ -2788,22 +2788,22 @@ export class StatsProcessor extends events.EventEmitter {
 
     _activeSegmentCheck(state, ad, roadSig, now) {
         const segments = env.getRoadSegments(state.courseId, roadSig);
-        const active = new Set();
+        let active;
         if (segments && segments.length) {
             const p = (state.roadTime - 5000) / 1e6;
             for (let i = 0; i < segments.length; i++) {
                 const x = segments[i];
-                let progress;
-                if (state.reverse) {
-                    progress = (p >= x.roadFinish && p <= x.roadStart) ?
-                        1 - (p - x.roadFinish) / (x.roadStart - x.roadFinish) : null;
-                } else {
-                    progress = (p <= x.roadFinish && p >= x.roadStart) ?
-                        1 - (x.roadFinish - p) / (x.roadFinish - x.roadStart) : null;
-                }
-                if (progress != null && !isNaN(progress)) {
+                const progress = state.reverse ?
+                    1 - (p - x.roadFinish) / (x.roadStart - x.roadFinish) :
+                    (p - x.roadStart) / (x.roadFinish - x.roadStart);
+                if (progress > 0 && progress < 1) {
+                    if (!active) {
+                        active = new Set();
+                    }
                     active.add(x.id);
-                    if (progress < 0.05 && !ad.activeSegments.has(x.id)) {
+                    // Higher threshold for short sprint segments..
+                    if ((progress < 0.05 || progress < 150 / x.distance) &&
+                        !ad.activeSegments.has(x.id)) {
                         this.startSegment(state, ad, x.id, now);
                     }
                 }
@@ -2811,35 +2811,11 @@ export class StatsProcessor extends events.EventEmitter {
         }
         if (ad.activeSegments.size) {
             for (const id of ad.activeSegments.keys()) {
-                if (!active.has(id)) {
+                if (!active || !active.has(id)) {
                     this.stopSegment(state, ad, id, now);
                 }
             }
         }
-    }
-
-    _formatNearbySegments(ad, roadSig) {
-        const state = ad.mostRecentState;
-        const segments = env.getRoadSegments(state.courseId, roadSig);
-        if (!segments || !segments.length) {
-            return [];
-        }
-        const p = (state.roadTime - 5000) / 1e6;
-        const relSegments = segments.map(x => {
-            let progress, proximity;
-            if (state.reverse) {
-                progress = (p >= x.roadFinish && p <= x.roadStart) ?
-                    1 - (p - x.roadFinish) / (x.roadStart - x.roadFinish) : null;
-                proximity = progress !== null ? 0 : p < x.roadFinish ? p - x.roadFinish : x.roadStart - p;
-            } else {
-                progress = (p <= x.roadFinish && p >= x.roadStartForward) ?
-                    1 - (x.roadFinish - p) / (x.roadFinish - x.roadStart) : null;
-                proximity = progress !== null ? 0 : p > x.roadFinish ? p - x.roadFinish : x.roadStart - p;
-            }
-            return {...x, progress, proximity};
-        });
-        relSegments.sort((a, b) => a.proximity - b.proximity);
-        return relSegments;
     }
 
     resetAthletesDB() {
@@ -3028,7 +3004,6 @@ export class StatsProcessor extends events.EventEmitter {
                 if (sg.mapId != null) {
                     sg.courseId = env.getCourseId(sg.mapId);
                 } else if (rt) {
-                    console.warn("Fixing event subgroup with missing mapId", sg.id);
                     sg.courseId = rt.courseId;
                 } else {
                     console.error("Unfixable event subgroup (missing courseId):", sg.id);
