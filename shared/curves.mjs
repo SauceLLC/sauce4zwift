@@ -377,7 +377,7 @@ export class RoadPath extends CurvePath {
 
     roadPercentToOffsetTuple(rp) {
         let {0: index, 1: percent} = this.roadPercentToOffsetTupleRaw(rp);
-        if (index < 0) {
+        if (index < 0 || (index === 0 && percent < 0)) {
             return [0, 0];
         } else if (index >= this.nodes.length - 1) {
             return [this.nodes.length - 1, 0];
@@ -479,14 +479,14 @@ export class RoadPath extends CurvePath {
         const start = this.boundsAtRoadPercent(startRoadPercent);
         const end = this.boundsAtRoadPercent(endRoadPercent);
         const nodes = [{end: start.point}];
-        for (const x of this.nodes.slice(start.index + 1, end.index + 1)) {
-            nodes.push({...x});
+        for (let i = start.index + 1; i <= end.index; i++) {
+            nodes.push({...this.nodes[i]});
         }
         let cropPercent = 0;
         if (end.percent) {
             if (end.next.cp1) {
-                const [p] = splitBezier(end.percent, end.origin.end, end.next.cp1,
-                                        end.next.cp2, end.next.end);
+                const p = splitBezier(end.percent, end.origin.end, end.next.cp1,
+                                      end.next.cp2, end.next.end)[0];
                 nodes.push({cp1: p[1], cp2: p[2], end: p[3]});
             } else {
                 nodes.push({end: end.point});
@@ -504,11 +504,11 @@ export class RoadPath extends CurvePath {
             nodes.length = 1;
         }
         if (nodes.length > 1 && start.percent && start.next.cp1) {
-            let [, p] = splitBezier(start.percent, start.origin.end, start.next.cp1, start.next.cp2,
-                                    start.next.end);
-            if (end && start.index === end.index) {
+            let p = splitBezier(start.percent, start.origin.end, start.next.cp1, start.next.cp2,
+                                start.next.end)[1];
+            if (start.index === end.index) {
                 const percent = (end.percent - start.percent) / (1 - start.percent);
-                [p] = splitBezier(percent, start.point, p[1], p[2], end.point);
+                p = splitBezier(percent, start.point, p[1], p[2], end.point)[0];
             }
             nodes[1].cp1 = p[1];
             nodes[1].cp2 = p[2];
@@ -555,6 +555,98 @@ export class RoadPath extends CurvePath {
             offsetPercent,
             cropPercent,
         });
+    }
+
+    distanceAtRoadPercents(rpStart, rpEnd, t=this.epsilon) {
+        const {0: startIndex, 1: startPercent} = this.roadPercentToOffsetTuple(rpStart);
+        const {0: endIndex, 1: endPercent} = this.roadPercentToOffsetTuple(rpEnd);
+        if (endIndex < startIndex ||
+            startIndex >= this.nodes.length - 1 ||
+            (endIndex <= 0 && endPercent <= 0) ||
+            (endIndex === startIndex && endPercent <= startPercent)) {
+            return 0;
+        }
+        const steps = Math.round(1 / t);
+        t = 1 / steps;
+        let dist = 0;
+        let prevPoint;
+        let nodesOfft = startIndex;
+        // Avoid branches by unrolling the 3 groups we need to check:
+        //  1. starting partial curve (optional)
+        //  2. middle complete curves (heavily cached)
+        //  3. ending partial curve (optional)
+        if (startPercent > 0) {
+            const startNode = this.nodes[startIndex];
+            const next = this.nodes[startIndex + 1];
+            const localEndPercent = startIndex === endIndex ? endPercent : 1;
+            nodesOfft++;
+            if (next.cp1 && next.cp2) {
+                for (let j = steps; j >= 0; j--) {
+                    const s = Math.min(localEndPercent, 1 - j * t + startPercent);
+                    const point = computeBezier(s, startNode.end, next.cp1, next.cp2, next.end);
+                    if (prevPoint) {
+                        dist += vecDist(prevPoint, point);
+                    }
+                    if (s === localEndPercent) {
+                        break;
+                    }
+                    prevPoint = point;
+                }
+            } else {
+                dist += vecDist(startNode.end, next.end) * (localEndPercent - startPercent);
+            }
+        }
+        if (nodesOfft > endIndex) {
+            return dist;
+        }
+        prevPoint = this.nodes[nodesOfft].end;
+        for (let i = nodesOfft; i < endIndex; i++) {
+            const x = this.nodes[i];
+            const next = this.nodes[i + 1];
+            if (next.cp1 && next.cp2) {
+                const cKey = JSON.stringify([
+                    steps,
+                    x.end[0],    x.end[1],    x.end[2],
+                    next.cp1[0], next.cp1[1], next.cp1[2],
+                    next.cp2[0], next.cp2[1], next.cp2[2],
+                    next.end[0], next.end[1], next.end[2]
+                ]); // Incredibly fast with V8 13.4+
+                let d = this.constructor._distCache.get(cKey);
+                if (d !== undefined) {
+                    prevPoint = next.end;
+                } else {
+                    d = 0;
+                    for (let j = steps - 1; j >= 0; j--) {
+                        const point = computeBezier(1 - j * t, x.end, next.cp1, next.cp2, next.end);
+                        d += vecDist(prevPoint, point);
+                        prevPoint = point;
+                    }
+                    this.constructor._distCache.set(cKey, d);
+                }
+                dist += d;
+            } else {
+                dist += vecDist(prevPoint, next.end);
+                prevPoint = next.end;
+            }
+        }
+        if (endPercent > 0) {
+            const endNode = this.nodes[endIndex];
+            const next = this.nodes[endIndex + 1];
+            if (next.cp1 && next.cp2) {
+                for (let j = steps - 1; j >= 0; j--) {
+                    const s = Math.min(endPercent, 1 - j * t);
+                    const point = computeBezier(s, endNode.end, next.cp1, next.cp2, next.end);
+                    dist += vecDist(prevPoint, point);
+                    if (s === endPercent) {
+                        break;
+                    }
+                    prevPoint = point;
+                }
+            } else {
+                dist += vecDist(prevPoint, next.end) * endPercent;
+            }
+        }
+        return dist;
     }
 
     distanceAtRoadPercent(rp, t=this.epsilon) {
@@ -607,10 +699,10 @@ export class RoadPath extends CurvePath {
                     const s = Math.min(endPercent, 1 - j * t);
                     const point = computeBezier(s, endNode.end, next.cp1, next.cp2, next.end);
                     dist += vecDist(prevPoint, point);
-                    prevPoint = point;
                     if (s === endPercent) {
                         break;
                     }
+                    prevPoint = point;
                 }
             } else {
                 dist += vecDist(prevPoint, next.end) * endPercent;
