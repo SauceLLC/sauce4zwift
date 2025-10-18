@@ -3,8 +3,8 @@ import assert from 'node:assert';
 import * as curves from '../shared/curves.mjs';
 
 
-function assertCloseTo(a, b, t=0.001) {
-    assert.ok(Math.abs(a - b) < t, `${a} !~= ${b}`);
+function assertCloseTo(a, b, t=0.001, msg) {
+    assert.ok(Math.abs(a - b) < t, `${a} !~= ${b} ${msg || ''}`);
 }
 
 
@@ -475,28 +475,124 @@ test('distanceAtRoadPercent with straights', () => {
     }
 });
 
-test('distance bench', () => {
+test('subpath().distance bench', () => {
+    curves.RoadPath._distCache.clear();
     const points = [];
-    for (let i = 0; i < 400; i++) {
-        points.push([i, 0, 0, {straight: Math.random() > 0.9}]);
+    for (let i = 0; i < 100; i++) {
+        points.push([i, 0, 0, {straight: Math.random() > 0.8}]);
     }
     const path = curves.catmullRomPath(points, {road: true});
-    for (let i = 0; i < 2000; i++) {
-        const d = path.subpathAtRoadPercents(0.2, 0.2 + Math.random()).distance();
+    for (let i = 0; i < 1000; i++) {
+        const start = Math.max(0, Math.random() - 0.1);
+        const end = Math.random() + start;
+        const d = path.subpathAtRoadPercents(start, end).distance();
         assert.ok(d > 0);
     }
 });
 
 test('distanceAtRoadPercent bench', () => {
+    curves.RoadPath._distCache.clear();
     const points = [];
-    for (let i = 0; i < 200; i++) {
-        points.push([i, 0, 0, {straight: Math.random() > 0.9}]);
+    for (let i = 0; i < 100; i++) {
+        points.push([i, 0, 0, {straight: Math.random() > 0.8}]);
     }
     const path = curves.catmullRomPath(points, {road: true});
-    for (let i = 0; i < 100; i++) {
-        const d = path.distanceAtRoadPercent(0.9999);
+    for (let i = 0; i < 1000; i++) {
+        const d = path.distanceAtRoadPercent(Math.random());
         assert.ok(d > 0);
     }
+});
+
+test('distanceAtRoadPercents bench', () => {
+    curves.RoadPath._distCache.clear();
+    const points = [];
+    for (let i = 0; i < 100; i++) {
+        points.push([i, 0, 0, {straight: Math.random() > 0.8}]);
+    }
+    const path = curves.catmullRomPath(points, {road: true});
+    for (let i = 0; i < 1000; i++) {
+        const start = Math.max(0, Math.random() - 0.1);
+        const end = Math.random() + start;
+        const d = path.distanceAtRoadPercents(start, end);
+        assert.ok(d > 0);
+    }
+});
+
+test('distanceAtRoadPercents out-of-bounds args', () => {
+    const points = [];
+    for (let i = 0; i < 400; i++) {
+        points.push([i, 0, 0, {straight: Math.random() > 0.8}]);
+    }
+    const path = curves.catmullRomPath(points, {road: true});
+    let d;
+    d = path.distanceAtRoadPercents(-0.4, -0.1);
+    assert.strictEqual(d, 0);
+    d = path.distanceAtRoadPercents(-0.4, -1);
+    assert.strictEqual(d, 0);
+    d = path.distanceAtRoadPercents(1, -1);
+    assert.strictEqual(d, 0);
+    d = path.distanceAtRoadPercents(1, 1);
+    assert.strictEqual(d, 0);
+});
+
+test('subpath out-of-bounds args', () => {
+    const points = [];
+    for (let i = 0; i < 400; i++) {
+        points.push([i, 0, 0, {straight: Math.random() > 0.8}]);
+    }
+    const path = curves.catmullRomPath(points, {road: true});
+    let sp;
+    sp = path.subpathAtRoadPercents(-0.4, -0.1);
+    assert.strictEqual(sp.distance(), 0);
+    sp = path.subpathAtRoadPercents(-0.4, -1);
+    assert.strictEqual(sp.distance(), 0);
+    sp = path.subpathAtRoadPercents(1, -0.1);
+    assert.strictEqual(sp.distance(), 0);
+    sp = path.subpathAtRoadPercents(1, 1);
+    assert.strictEqual(sp.distance(), 0);
+});
+
+test('distanceAtRoadPercents vs distanceAtRoadPercent', () => {
+    // Crank the number of tests and interations in the inner loop for robust testing..
+    for (let t = 0; t < 10; t++) {
+        const points = [];
+        for (let i = 0; i < 100; i++) {
+            points.push([i + Math.random() * 10 | 0, i * 2, 0, {straight: Math.random() > 0.8}]);
+        }
+        const path = curves.catmullRomPath(points, {road: true});
+        for (let i = 0; i < 10; i++) {
+            const start = Math.max(0, Math.random() - 0.1);
+            const end = Math.random() + start;
+            const t = Math.min(0.025, 1 / (Math.random() * 1000));
+            const d = path.distanceAtRoadPercents(start, end, t);
+            const dStart = path.distanceAtRoadPercent(start, t);
+            const dEnd = path.distanceAtRoadPercent(end, t);
+            assertCloseTo(dEnd - dStart, d, 1e-3, JSON.stringify({start, end, t}));
+        }
+    }
+});
+
+test('distanceAtRoadPercents small range', () => {
+    const points = [];
+    for (let i = 0; i < 40; i++) {
+        points.push([i, 0, 0, {straight: Math.random() > 0.8}]);
+    }
+    const path = curves.catmullRomPath(points, {road: true});
+    const d = path.distanceAtRoadPercents(0.4, 0.401);
+    assert.ok(d > 0);
+});
+
+test('distanceAtRoadPercents straights', () => {
+    const points = [];
+    for (let i = 0; i < 40; i++) {
+        points.push([i, 0, 0, {straight: true}]);
+    }
+    const path = curves.catmullRomPath(points, {road: true});
+    let d;
+    d = path.distanceAtRoadPercents(0.4, 0.401);
+    assert.ok(d > 0);
+    d = path.distanceAtRoadPercents(0.0, 0.0001);
+    assert.ok(d > 0);
 });
 
 test('roadPercentToOffsetTuple boundaries', () => {
