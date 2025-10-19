@@ -15,6 +15,7 @@ export const themes = [
     {id: "transparent-light", name: "Light", group: "Transparent"},
     {id: "transparent-dark", name: "Dark", group: "Transparent"},
     {id: "semi-transparent-dark", name: "Semi", group: "Transparent"},
+    {id: "forced-background", name: "Forced Background", group: "Transparent"},
 ];
 
 export const backgroundTextures = [

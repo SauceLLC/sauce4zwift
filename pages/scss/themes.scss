@@ -1,3 +1,5 @@
+@use 'color';
+
 :root {
     --bg-texture-image: url('../images/cubism-bg-texture.webp');
     --bg-texture-blend-mode: overlay;
@@ -95,50 +97,6 @@ html[data-bg-texture="checkered"] {
 }
 html[data-bg-texture="maze"] {
     --bg-texture-image: url('../images/maze-bg-texture.webp');
-}
-
-html[data-theme="red-sun"] {
-    --theme-base-color: #401010;
-
-    --theme-bg-hue: 2;
-    --theme-bg-sat: 75%;
-    --theme-bg-light: 33%;
-    --theme-bg-shade-dir: 1;
-
-    --theme-bg2-hue: 0;
-    --theme-bg2-sat: 90%;
-    --theme-bg2-light: 20%;
-    --theme-bg2-shade-dir: 1;
-
-    --theme-primary-hue: 223;
-    --theme-primary-sat: 71%;
-    --theme-primary-light: 36%;
-    --theme-primary-shade-dir: 1;
-
-    --theme-button-bar-top-left: #01005b;
-    --theme-button-bar-bottom-right: #02193bf8;
-}
-
-html[data-theme="blue-moon"] {
-    --theme-base-color: #101050;
-
-    --theme-bg-hue: 214;
-    --theme-bg-sat: 76%;
-    --theme-bg-light: 26%;
-    --theme-bg-shade-dir: 1;
-
-    --theme-bg2-hue: 220;
-    --theme-bg2-sat: 86%;
-    --theme-bg2-light: 36%;
-    --theme-bg2-shade-dir: 1;
-
-    --theme-primary-hue: 10;
-    --theme-primary-sat: 73%;
-    --theme-primary-light: 44%;
-    --theme-primary-shade-dir: 1;
-
-    --theme-button-bar-top-left: #2c2d2de0;
-    --theme-button-bar-bottom-right: #272931;
 }
 
 html[data-theme="gpt-vibrant"] {
@@ -543,4 +501,78 @@ html[data-theme="watermelon"] {
 
     --theme-button-bar-top-left: #eb0101de;
     --theme-button-bar-bottom-right: #782f00de;
+}
+
+html[data-theme="red-sun"] {
+    --theme-base-color: #401010;
+
+    --theme-bg-hue: 2;
+    --theme-bg-sat: 75%;
+    --theme-bg-light: 33%;
+    --theme-bg-shade-dir: 1;
+
+    --theme-bg2-hue: 0;
+    --theme-bg2-sat: 90%;
+    --theme-bg2-light: 20%;
+    --theme-bg2-shade-dir: 1;
+
+    --theme-primary-hue: 223;
+    --theme-primary-sat: 71%;
+    --theme-primary-light: 36%;
+    --theme-primary-shade-dir: 1;
+
+    --theme-button-bar-top-left: #01005b;
+    --theme-button-bar-bottom-right: #02193bf8;
+}
+
+html[data-theme="blue-moon"] {
+    --theme-base-color: #101050;
+
+    --theme-bg-hue: 214;
+    --theme-bg-sat: 76%;
+    --theme-bg-light: 26%;
+    --theme-bg-shade-dir: 1;
+
+    --theme-bg2-hue: 220;
+    --theme-bg2-sat: 86%;
+    --theme-bg2-light: 36%;
+    --theme-bg2-shade-dir: 1;
+
+    --theme-primary-hue: 10;
+    --theme-primary-sat: 73%;
+    --theme-primary-light: 44%;
+    --theme-primary-shade-dir: 1;
+
+    --theme-button-bar-top-left: #2c2d2de0;
+    --theme-button-bar-bottom-right: #272931;
+}
+
+html[data-theme="forced-background"] {
+    body:not(#_#_) { /* high specificity overrides */
+        --bg-opacity: 1 !important;
+        --min-bg-opacity: 1 !important;
+        --outline-opacity: 1 !important;
+        --bg-texture-image: revert-layer;
+        background-color: color.get(bg) !important; /* fallback for windows overriding background* */
+    }
+
+    --theme-base-color: #1a2020;
+
+    --theme-bg-hue: 130;
+    --theme-bg-sat: 0%;
+    --theme-bg-light: 30%;
+    --theme-bg-shade-dir: 1;
+
+    --theme-bg2-hue: 130;
+    --theme-bg2-sat: 6%;
+    --theme-bg2-light: 18%;
+    --theme-bg2-shade-dir: 1;
+
+    --theme-primary-hue: 7;
+    --theme-primary-sat: 87%;
+    --theme-primary-light: 46%;
+    --theme-primary-shade-dir: 1;
+
+    --theme-button-bar-top-left: #01005b;
+    --theme-button-bar-bottom-right: #02193bf8;
 }
