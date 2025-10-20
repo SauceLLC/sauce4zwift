@@ -36,12 +36,9 @@ abbr.unit {
     padding-left: 0.16em;
 }
 
-html > body {
+#content {
     color: color.shade(intrinsic-inverted, 12%);
     background: color.get(intrinsic);
-}
-
-#content {
     overflow: auto;
     display: grid;
     grid-template-columns: 190px 1fr 200px;
