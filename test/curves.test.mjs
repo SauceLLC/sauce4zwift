@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert';
 import * as curves from '../shared/curves.mjs';
 
-const benchSize = 10; // 10000
+const benchSize = 10
+//const benchSize = 20000
 
 
 function assertCloseTo(a, b, t=0.001, msg) {
@@ -284,15 +285,22 @@ test('subpath small data/selection - imperfect boundary', () => {
 
 test('subpath roadTime integrity - start clipped', () => {
     const ep = 0.000001;
-    for (let i = 0; i < 1000; i++) {
+    for (let i = 0; i < benchSize; i++) {
         const points = [[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5]];
         const path = curves.catmullRomPath(points, {road: true});
-        const start = Math.random();
-        const end = 1;
+        let start = Math.max(0, Math.min(1, Math.random() * 1.5));
+        let end = Math.max(0, Math.min(1, Math.random() * 1.5));
+        if (start > end) {
+            const t = start;
+            start = end;
+            end = t;
+        } else if (end - start < ep) {
+            continue; // skip case subject to ieee754 error
+        }
         const subpath = path.subpathAtRoadPercents(start, end);
-        assert(subpath.includesRoadPercent((end - start) / 2 + start));
-        assert(subpath.includesRoadPercent(start + ep));
-        assert(subpath.includesRoadPercent(end - ep));
+        assert(subpath.includesRoadPercent(start + ep), [start, end]);
+        assert(subpath.includesRoadPercent(start + (end - start) / 2), [start, end]);
+        assert(subpath.includesRoadPercent(end - ep), [start, end]);
         assert(!subpath.includesRoadPercent(end + ep));
         assert(!subpath.includesRoadPercent(start - ep));
     }
@@ -483,6 +491,22 @@ test('distanceAtRoadPercent with straights', () => {
             const dist = path.distanceAtRoadPercent(x);
             assertCloseTo(dist, subpathDist);
         }
+    }
+});
+
+test('distanceBetweenRoadPercent vs distanceAtRoadPercent', () => {
+    const points = [
+        [0, 0, 0, {straight: false}],
+        [0, 10, 0, {straight: false}],
+        [0, 30, 0, {straight: false}],
+        [0, 40, 0, {straight: false}],
+        [0, 50, 0, {straight: false}],
+    ];
+    const path = curves.catmullRomPath(points, {road: true});
+    for (const x of [0, 1/3, 0.5, 2/3, .9, 1, 1.1, 2, -0.1, -1.1]) {
+        const dist = path.distanceBetweenRoadPercents(-1, x);
+        const dist2 = path.distanceAtRoadPercent(x);
+        assertCloseTo(dist, dist2, 1e-6);
     }
 });
 

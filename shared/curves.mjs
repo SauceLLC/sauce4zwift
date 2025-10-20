@@ -681,60 +681,8 @@ export class RoadPath extends CurvePath {
         return dist;
     }
 
-    distanceAtRoadPercent(rp, t=this.epsilon) {
-        const {0: endIndex, 1: endPercent} = this.roadPercentToOffsetTuple(rp);
-        if (endIndex < 0 || endIndex === 0 && endPercent <= 0) {
-            return 0;
-        }
-        if (endIndex >= this.nodes.length - 1) {
-            return this.distance(t);
-        }
-        const steps = Math.round(1 / t);
-        t = 1 / steps;
-        let dist = 0;
-        let prevPoint = this.nodes[0].end;
-        // Avoid a few branches with core loops, followed later by end loop..
-        for (let i = 0; i < endIndex; i++) {
-            const x = this.nodes[i];
-            const next = this.nodes[i + 1];
-            if (next.cp1 && next.cp2) {
-                const cKey = this._distanceCacheKey(x, next, steps);
-                let d = this.constructor._distCache.get(cKey);
-                if (d !== undefined) {
-                    prevPoint = next.end;
-                } else {
-                    d = 0;
-                    for (let j = steps - 1; j >= 0; j--) {
-                        const point = computeBezier(1 - j * t, x.end, next.cp1, next.cp2, next.end);
-                        d += vecDist(prevPoint, point);
-                        prevPoint = point;
-                    }
-                    this.constructor._distCache.set(cKey, d);
-                }
-                dist += d;
-            } else {
-                dist += vecDist(prevPoint, next.end);
-                prevPoint = next.end;
-            }
-        }
-        if (endPercent > 0) {
-            const endNode = this.nodes[endIndex];
-            const next = this.nodes[endIndex + 1];
-            if (next.cp1 && next.cp2) {
-                for (let j = steps - 1; j >= 0; j--) {
-                    const s = Math.min(endPercent, 1 - j * t);
-                    const point = computeBezier(s, endNode.end, next.cp1, next.cp2, next.end);
-                    dist += vecDist(prevPoint, point);
-                    if (s === endPercent) {
-                        break;
-                    }
-                    prevPoint = point;
-                }
-            } else {
-                dist += vecDist(prevPoint, next.end) * endPercent;
-            }
-        }
-        return dist;
+    distanceAtRoadPercent(rp, t) {
+        return this.distanceBetweenRoadPercents(-1, rp, t);
     }
 
     distanceAtRoadTime(rt, t) {
