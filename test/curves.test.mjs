@@ -2,9 +2,20 @@ import test from 'node:test';
 import assert from 'node:assert';
 import * as curves from '../shared/curves.mjs';
 
+const benchSize = 10; // 10000
+
 
 function assertCloseTo(a, b, t=0.001, msg) {
     assert.ok(Math.abs(a - b) < t, `${a} !~= ${b} ${msg || ''}`);
+}
+
+
+function makePath(len, {straightPct=0.2, ...options}={}) {
+    const points = [];
+    for (let i = 0; i < len; i++) {
+        points.push([i, 1e6 - i * 2, 0, {straight: Math.random() < straightPct}]);
+    }
+    return curves.catmullRomPath(points, options);
 }
 
 
@@ -475,6 +486,34 @@ test('distanceAtRoadPercent with straights', () => {
     }
 });
 
+test('slice bench', () => {
+    curves.RoadPath._distCache.clear();
+    const path = makePath(100);
+    const road = makePath(100, {road: true});
+    let s;
+    for (let i = 0; i < benchSize; i++) {
+        s = path.slice();
+        assert.strictEqual(s.nodes.length, path.nodes.length);
+        s = road.slice();
+        assert.strictEqual(s.nodes.length, road.nodes.length);
+    }
+});
+
+test('extend bench', () => {
+    for (let t = 0; t < 10; t++) {
+        curves.RoadPath._distCache.clear();
+        const dst = makePath(100);
+        const src1 = makePath(100);
+        const src2 = makePath(100, {road: true});
+        for (let i = 0; i < benchSize / 10; i++) {
+            const sz = dst.nodes.length;
+            dst.extend(src1);
+            dst.extend(src2);
+            assert.strictEqual(dst.nodes.length, sz + src1.nodes.length + src2.nodes.length);
+        }
+    }
+});
+
 test('subpath().distance bench', () => {
     curves.RoadPath._distCache.clear();
     const points = [];
@@ -482,7 +521,7 @@ test('subpath().distance bench', () => {
         points.push([i, 0, 0, {straight: Math.random() > 0.8}]);
     }
     const path = curves.catmullRomPath(points, {road: true});
-    for (let i = 0; i < 1000; i++) {
+    for (let i = 0; i < benchSize; i++) {
         const start = Math.max(0, Math.random() - 0.1);
         const end = Math.random() + start;
         const d = path.subpathAtRoadPercents(start, end).distance();
@@ -497,7 +536,7 @@ test('distanceAtRoadPercent bench', () => {
         points.push([i, 0, 0, {straight: Math.random() > 0.8}]);
     }
     const path = curves.catmullRomPath(points, {road: true});
-    for (let i = 0; i < 1000; i++) {
+    for (let i = 0; i < benchSize; i++) {
         const d = path.distanceAtRoadPercent(Math.random());
         assert.ok(d > 0);
     }
@@ -510,7 +549,7 @@ test('distanceBetweenRoadPercents bench', () => {
         points.push([i, 0, 0, {straight: Math.random() > 0.8}]);
     }
     const path = curves.catmullRomPath(points, {road: true});
-    for (let i = 0; i < 1000; i++) {
+    for (let i = 0; i < benchSize; i++) {
         const start = Math.max(0, Math.random() - 0.1);
         const end = Math.random() + start;
         const d = path.distanceBetweenRoadPercents(start, end);
@@ -604,13 +643,13 @@ test('roadPercentToOffsetTuple boundaries', () => {
         [0, 40, 0],
     ];
     let path = curves.catmullRomPath(points, {road: true});
-    assert.deepEqual(path.roadPercentToOffsetTuple(0), [1, 0]);
-    assert.deepEqual(path.roadPercentToOffsetTuple(-1), [0, 0]);
-    assert.deepEqual(path.roadPercentToOffsetTuple(-2), [0, 0]);
-    assert.deepEqual(path.roadPercentToOffsetTuple(1), [3, 0]);
-    assert.deepEqual(path.roadPercentToOffsetTuple(2), [4, 0]);
-    assert.deepEqual(path.roadPercentToOffsetTuple(-Infinity), [0, 0]);
-    assert.deepEqual(path.roadPercentToOffsetTuple(Infinity), [4, 0]);
+    assert.deepStrictEqual(path.roadPercentToOffsetTuple(0), [1, 0]);
+    assert.deepStrictEqual(path.roadPercentToOffsetTuple(-1), [0, 0]);
+    assert.deepStrictEqual(path.roadPercentToOffsetTuple(-2), [0, 0]);
+    assert.deepStrictEqual(path.roadPercentToOffsetTuple(1), [3, 0]);
+    assert.deepStrictEqual(path.roadPercentToOffsetTuple(2), [4, 0]);
+    assert.deepStrictEqual(path.roadPercentToOffsetTuple(-Infinity), [0, 0]);
+    assert.deepStrictEqual(path.roadPercentToOffsetTuple(Infinity), [4, 0]);
     points = [
         [0, 0, 0],
         [0, 10, 0],
@@ -618,11 +657,88 @@ test('roadPercentToOffsetTuple boundaries', () => {
         [0, 30, 0],
     ];
     path = curves.catmullRomPath(points, {road: true});
-    assert.deepEqual(path.roadPercentToOffsetTuple(0), [1, 0]);
-    assert.deepEqual(path.roadPercentToOffsetTuple(-1), [0, 0]);
-    assert.deepEqual(path.roadPercentToOffsetTuple(-2), [0, 0]);
-    assert.deepEqual(path.roadPercentToOffsetTuple(1), [2, 0]);
-    assert.deepEqual(path.roadPercentToOffsetTuple(2), [3, 0]);
-    assert.deepEqual(path.roadPercentToOffsetTuple(-Infinity), [0, 0]);
-    assert.deepEqual(path.roadPercentToOffsetTuple(Infinity), [3, 0]);
+    assert.deepStrictEqual(path.roadPercentToOffsetTuple(0), [1, 0]);
+    assert.deepStrictEqual(path.roadPercentToOffsetTuple(-1), [0, 0]);
+    assert.deepStrictEqual(path.roadPercentToOffsetTuple(-2), [0, 0]);
+    assert.deepStrictEqual(path.roadPercentToOffsetTuple(1), [2, 0]);
+    assert.deepStrictEqual(path.roadPercentToOffsetTuple(2), [3, 0]);
+    assert.deepStrictEqual(path.roadPercentToOffsetTuple(-Infinity), [0, 0]);
+    assert.deepStrictEqual(path.roadPercentToOffsetTuple(Infinity), [3, 0]);
+});
+
+
+test('slice path', () => {
+    const path = makePath(10);
+    let slice = path.slice();
+    assert.deepStrictEqual(path, slice);
+    slice = path.slice(0, 10);
+    assert.deepStrictEqual(path, slice);
+    slice = path.slice(0, 2);
+    assert.deepStrictEqual(path.nodes.slice(0, 2), slice.nodes);
+    slice = path.slice(-2);
+    assert.deepStrictEqual(path.nodes.slice(-2), slice.nodes);
+});
+
+test('slice road path', () => {
+    const path = makePath(10, {road: true});
+    let slice = path.slice();
+    assert.deepStrictEqual(path.nodes, slice.nodes);
+    assert.deepStrictEqual({...path, immutable: undefined}, {...slice, immutable: undefined});
+    slice = path.slice(0, 10);
+    assert.deepStrictEqual(path.nodes, slice.nodes);
+    slice = path.slice(0, 2);
+    assert.deepStrictEqual(path.nodes.slice(0, 2), slice.nodes);
+    slice = path.slice(-2);
+    assert.deepStrictEqual(path.nodes.slice(-2), slice.nodes);
+
+});
+
+test('immutable path', () => {
+    const path = makePath(10, {immutable: true});
+    const path2 = makePath(10, {immutable: false});
+    assert.ok(path.immutable);
+    assert.ok(!path2.immutable);
+    assert.throws(() => path.extend(path2));
+    path2.extend(path);
+    assert.strictEqual(path2.nodes.length, path.nodes.length * 2);
+});
+
+test('immutable road path', () => {
+    const path = makePath(10, {road: true});
+    const path2 = makePath(10, {road: false});
+    assert.ok(path.immutable);
+    assert.ok(!path2.immutable);
+    assert.throws(() => path.extend(path2));
+    path2.extend(path);
+    assert.strictEqual(path2.nodes.length, path.nodes.length * 2);
+});
+
+test('immutable slice is inherits mutablity', () => {
+    const path = makePath(10, {immutable: true});
+    const path2 = path.slice();
+    const path3 = path.slice(undefined, undefined, {immutable: false});
+    assert.ok(path.immutable);
+    assert.ok(path2.immutable);
+    assert.ok(!path3.immutable);
+    path2.nodes.push(null);
+});
+
+test('immutable road slice inherits mutablity', () => {
+    const path = makePath(10, {road: true});
+    const path2 = path.slice();
+    const path3 = path.slice(undefined, undefined, {immutable: false});
+    assert.ok(path.immutable);
+    assert.ok(path2.immutable);
+    assert.ok(!path3.immutable);
+    path2.nodes.push(null);
+});
+
+test('road path to curve path', () => {
+    const road = makePath(10, {road: true});
+    const path = road.toCurvePath();
+    assert.ok(path instanceof curves.CurvePath);
+    assert.ok(road instanceof curves.RoadPath);
+    assert.ok(road.immutable);
+    assert.ok(!path.immutable);
+    assert.deepStrictEqual(path.nodes, road.nodes);
 });
