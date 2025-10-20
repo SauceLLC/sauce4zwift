@@ -442,7 +442,7 @@ async function initWindowsPanel() {
         if (row.classList.contains('closed')) {
             await common.rpc.openWidgetWindow(id);
         } else {
-            await common.rpc.highlightWindow(id);
+            await common.rpc.highlightWidgetWindow(id);
         }
     });
     winsEl.querySelector('.add-new input[type="button"]').addEventListener('click', async ev => {
