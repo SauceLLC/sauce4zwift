@@ -584,12 +584,15 @@ export async function computeRoutePath(route, options={}) {
     if (options.prelude === 'weld' && lapWeldPath) {
         curvePath.extend(lapWeldPath);
     }
-    for (const [i, section] of sections.entries()) {
-        for (const x of section.roadCurvePath.nodes) {
-            x.index = i;
-        }
+    for (const [sectionIndex, section] of sections.entries()) {
         if (!section.weld && (!section.leadin || options.prelude !== 'weld')) {
-            curvePath.extend(section.reverse ? section.roadCurvePath.toReversed() : section.roadCurvePath);
+            const nodesOfft = curvePath.nodes.length;
+            curvePath.extend(section.reverse ?
+                section.roadCurvePath.toReversed() :
+                section.roadCurvePath);
+            for (let j = 0; j < section.roadCurvePath.nodes.length; j++) {
+                curvePath.nodes[nodesOfft + j].index = sectionIndex;
+            }
         }
     }
     return {
