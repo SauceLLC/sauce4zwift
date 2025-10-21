@@ -76,7 +76,7 @@ endif
 
 publish-docker-linux-native:
 	docker build --build-arg arch=amd64 -t linux-s4z-build -f ./build/linux.Dockerfile .
-	docker run -it -v $$HOME/.git-credentials:/root/.git-credentials \
+	docker run -it --rm -v $$HOME/.git-credentials:/root/.git-credentials \
 		-e GH_TOKEN_SAUCE4ZWIFT_RELEASE -e LINUX_SAFE_PUBLISH=true \
 		-v $(CURDIR)/dist/docker-dist:/sauce4zwift/dist linux-s4z-build make publish
 
