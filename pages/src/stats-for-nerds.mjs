@@ -217,7 +217,7 @@ const friendlyPlatforms = {
 
 
 const debugFormatters = {
-    uptime: x => H.timer(x.app.uptime),
+    uptime: x => H.timer(x.app.uptime, {html:true, long: true}),
     version: x => x.app.version,
     appCPU: x => H.number(x.cpuTotal, {suffix: '%', html: true}),
     appMem: x => H.number(x.memTotal / 1024, {suffix: 'GB', precision: 1, html: true}),
@@ -249,7 +249,7 @@ function defaultDebugFormatter(path, type) {
         return {
             number: H.number,
             string: x => x,
-            timer: x => H.timer(x / 1000, {html: true}),
+            timer: x => H.timer(x, {long: true, html: true}),
             msDuration: x => H.number(x, {suffix: 'ms', html: true}),
             time: x => H.time(x, {style: 'default'}),
         }[type || 'string'](data);

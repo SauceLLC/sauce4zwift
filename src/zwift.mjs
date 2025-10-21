@@ -1540,16 +1540,31 @@ export class GameMonitor extends events.EventEmitter {
         ].join('\n    ');
     }
 
+    getConnectionInfo() {
+        let status = 'disconnected';
+        let active = false;
+        if (this._session?.tcpChannel) {
+            active = this._udpChannels.some(x => x.active);
+            status = 'connected';
+        }
+        return {
+            status,
+            active,
+            latency: this._latency,
+            connectTime: Math.round((Date.now() - this.connectingTS) / 1000),
+            connectCount: this.connectingCount,
+        };
+    }
+
     getDebugInfo() {
+        const {status, active, ...info} = this.getConnectionInfo();
         const now = Date.now();
         const lgs = this._lastGameStateUpdated ? now - this._lastGameStateUpdated : '-';
         const lws = this._lastWatchingStateUpdated ? now - this._lastWatchingStateUpdated : '-';
         return {
-            connectionStatus: (this._session && this._session.tcpChannel) ? 'connected' : 'disconnected',
-            active: this._udpChannels.some(x => x.active),
-            latency: this._latency,
-            connectTime: now - this.connectingTS,
-            connectCount: this.connectingCount,
+            ...info,
+            connectionStatus: status,
+            active: active,
             lastGameState: lgs,
             lastWatchingState: lws,
             stateRefreshDelay: this._stateRefreshDelay,
@@ -1768,6 +1783,12 @@ export class GameMonitor extends events.EventEmitter {
             } catch(e) {
                 console.error(e); // A little extra paranoid for now.
             }
+        }
+    }
+
+    reconnect() {
+        if (!this._stopping) {
+            this._schedConnectRetry();
         }
     }
 

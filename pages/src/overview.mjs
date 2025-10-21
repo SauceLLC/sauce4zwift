@@ -518,7 +518,22 @@ export async function settingsMain() {
     const appSettingsUpdaters = Array.from(document.querySelectorAll('form.app-settings'))
         .map(common.initAppSettingsForm);
     const appSettingsUpdate = (...args) => Promise.all(appSettingsUpdaters.map(x => x(...args)));
-    const extraData = {version: await common.rpc.getVersion()};
+    const extraData = {
+        version: await common.rpc.getVersion(),
+    };
+    const zConnStatusEl = document.querySelector('[name="zwiftConnectionStatus"]');
+    const zReconnectBtn = document.querySelector('[data-action="reconnect-zwift"]');
+    const updateZwiftConnectionStatus = async () => {
+        const {status, active} = await common.rpc.getZwiftConnectionInfo();
+        const connected = status === 'connected';
+        const extStatus = connected && !active ? 'idle' : status;
+        zReconnectBtn.classList.toggle('disabled', !connected);
+        common.softInnerHTML(zConnStatusEl, extStatus);
+    };
+    updateZwiftConnectionStatus().then(() => {
+        zReconnectBtn.classList.remove('hidden');
+    });
+    setInterval(updateZwiftConnectionStatus, 1500);
     document.addEventListener('click', async ev => {
         const btn = ev.target.closest('.button[data-action]');
         if (!btn) {
@@ -537,6 +552,14 @@ export async function settingsMain() {
             btn.closest('label').classList.add('edited');
             btn.remove();
             await appSettingsUpdate(extraData);
+        } else if (btn.dataset.action === 'reconnect-zwift') {
+            btn.classList.add('active', 'disabled');  // disabled is removed by update status loop
+            try {
+                await common.rpc.reconnectZwift();
+            } finally {
+                await common.sleep(2000);
+                btn.classList.remove('active');
+            }
         }
     });
     common.subscribe('save-widget-window-specs', renderWindows, {source: 'windows'});

@@ -179,7 +179,8 @@
 }
 
 .app-settings {
-    .display-field[name="gameConnectionStatus"] {
+    .display-field[name="gameConnectionStatus"],
+    .display-field[name="zwiftConnectionStatus"] {
         margin-left: 0.2em;
         font-variant: all-small-caps;
         font-weight: 700;

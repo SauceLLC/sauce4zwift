@@ -679,6 +679,8 @@ export class StatsProcessor extends events.EventEmitter {
         rpc.register(this.getWorkoutCollections, {scope: this});
         rpc.register(this.getWorkoutSchedule, {scope: this});
         rpc.register(this.getQueue, {scope: this}); // XXX ambiguous name
+        rpc.register(this.getZwiftConnectionInfo, {scope: this});
+        rpc.register(this.reconnectZwift, {scope: this});
         if (options.gameConnection) {
             const gc = options.gameConnection;
             gc.on('status', ({connected}) => this.onGameConnectionStatusChange(connected));
@@ -955,6 +957,14 @@ export class StatsProcessor extends events.EventEmitter {
     // XXX ambiguous name
     async getQueue() {
         return await this.zwiftAPI.getQueue();
+    }
+
+    getZwiftConnectionInfo() {
+        return this.gameMonitor.getConnectionInfo();
+    }
+
+    reconnectZwift() {
+        this.gameMonitor.reconnect();
     }
 
     getPowerZones(ftp) {
