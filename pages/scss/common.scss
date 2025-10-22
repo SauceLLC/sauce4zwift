@@ -131,7 +131,6 @@ html {
                 --bg-texture-image: none;
             }
 
-            &:focus-within,
             &:hover {
                 body {
                     --outline-opacity: 1 !important;
@@ -239,11 +238,14 @@ html {
     }
 }
 
-:focus-visible {
-    outline-style: solid;
-    outline-width: 2px;
-    outline-offset: 1px;
-    outline-color: color.shade(primary, 10%, 0.92);
+input,
+select {
+    &:focus-visible {
+        outline-style: solid;
+        outline-width: 2px;
+        outline-offset: 1px;
+        outline-color: color.shade(primary, 10%, 0.92);
+    }
 }
 
 img {
