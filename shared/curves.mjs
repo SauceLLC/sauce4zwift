@@ -269,7 +269,10 @@ export class CurvePath {
             return;
         }
         const nodes = path.nodes;
-        this.nodes.push(cloneNode({end: nodes[0].end}));
+        const startNode = cloneNode(nodes[0]);
+        delete startNode.cp1;
+        delete startNode.cp2;
+        this.nodes.push(startNode);
         for (let i = 1; i < nodes.length; i++) {
             this.nodes.push(cloneNode(nodes[i]));
         }
