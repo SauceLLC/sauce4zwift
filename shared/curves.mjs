@@ -549,7 +549,8 @@ export class RoadPath extends CurvePath {
                 const percent = (end.percent - start.percent) / (1 - start.percent);
                 p = splitBezier(percent, start.point, p[1], p[2], end.point)[0];
             }
-            nodes[1] = {end: nodes[1].end, cp1: p[1], cp2: p[2]};
+            nodes[1].cp1 = p[1];
+            nodes[1].cp2 = p[2];
         }
         const absStartPercent = start.index === 0 ?
             start.percent * (1 - this.offsetPercent) + this.offsetPercent : start.percent;
