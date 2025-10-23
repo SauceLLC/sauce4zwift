@@ -260,7 +260,7 @@ function defaultDebugFormatter(path, type) {
 export async function main() {
     common.initInteractionListeners();
     const debugEl = document.querySelector('section.debug-info');
-    const graphsEl = document.querySelector('section.metrics .graphs');
+    const processesEl = document.querySelector('section.metrics .processes');
     const allCharts = new Map();
     addEventListener('resize', () => {
         for (const {charts} of allCharts.values()) {
@@ -286,7 +286,7 @@ export async function main() {
             if (!allCharts.has(metric.pid)) {
                 const el = document.createElement('div');
                 el.classList.add('chart-holder');
-                graphsEl.appendChild(el);
+                processesEl.appendChild(el);
                 allCharts.set(metric.pid, {
                     charts: await makeMetricCharts(metric, el),
                     el,
@@ -363,6 +363,13 @@ export async function main() {
             charts.line.dispose();
             charts.gauge.dispose();
             el.remove();
+        }
+
+        const byCPU = Array.from(allCharts.values()).map(x =>
+            [x.datas.cpu.slice(-5).reduce((a, x) => a + x, 0) / 5, x.el]);
+        byCPU.sort((a, b) => b[0] - a[0]);
+        for (const [i, {1: el}] of byCPU.entries()) {
+            el.style.setProperty('order', i);
         }
         if (location.search.includes('slow')) {
             await sauce.sleep(iter * 1000);

@@ -9,6 +9,11 @@ html {
     overflow: auto;
     padding: 1em;
 
+    .processes {
+        display: flex;
+        flex-direction: column;
+    }
+
     section {
         display: flex;
         flex-wrap: wrap;
