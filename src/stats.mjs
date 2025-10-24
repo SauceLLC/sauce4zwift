@@ -189,7 +189,6 @@ class DataCollector {
             const added = x.roll.resize();
             if (added && x.roll.full()) {
                 const avg = x.roll.avg();
-                // XXX this is a little heavy, save x.peak.avg()
                 if (x.peak === null || avg >= x.peak.avg()) {
                     x.peak = x.roll.clone();
                 }
@@ -626,6 +625,12 @@ export class StatsProcessor extends events.EventEmitter {
         this._gmapTileCache = new Map();
         this._athleteSubs = new Map();
         this._routeInternalMeta = new Map();
+        this._segmentResultsBuckets = {
+            liveLeaders: {},
+            liveLeaderboard: {cache: new Map()},
+            athlete: {cache: new Map()},
+            all: {cache: new Map()},
+        };
         rpc.register(this.getPowerZones, {scope: this});
         rpc.register(this.updateAthlete, {scope: this});
         rpc.register(this.startLap, {scope: this});
@@ -1366,23 +1371,180 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     async getSegmentResults(id, options={}) {
-        let segments;
+        const now = monotonic();
         if (id == null) {
-            segments = await this.zwiftAPI.getLiveSegmentLeaders();
-        } else {
-            if (options.live) {
-                // Includes eventSubgroupId.
-                // Only best result for each athlete in recent times (possibly only if in-world).
-                // Only returns first name initial.
-                segments = await this.zwiftAPI.getLiveSegmentLeaderboard(id, options);
-            } else {
-                // Never includes eventSubgroupId.
-                // Can use data range.
-                // Full name.
-                segments = await this.zwiftAPI.getSegmentResults(id, options);
+            const bucket = this._segmentResultsBuckets.liveLeaders;
+            if (!bucket.promise || now - bucket.ts > 1000) {
+                bucket.ts = now;
+                bucket.promise = this.zwiftAPI.getLiveSegmentLeaders();
             }
+            return await bucket.promise;
+        } else if (options.live) {
+            // Includes eventSubgroupId.
+            // Only best result for each athlete in recent times (possibly only if in-world).
+            // Only returns first name initial.
+            const bucket = this._segmentResultsBuckets.liveLeaderboard;
+            let c = bucket.cache.get(id);
+            if (!c || now - c.ts > 1000) {
+                while (bucket.pending) {
+                    await bucket.pending.catch(() => null);
+                }
+                c = bucket.cache.get(id); // may have updated from prior call
+                if (!c) {
+                    c = {};
+                    bucket.cache.set(id, c);
+                }
+                c.ts = now;
+                c.promise = this.zwiftAPI.getLiveSegmentLeaderboard(id);
+                bucket.pending = c.promise.finally(() => sauce.sleep(1000).then(() => bucket.pending = null));
+            }
+            return await c.promise;
+        } else {
+            // Never includes eventSubgroupId.
+            // Can use date range.
+            // Includes full name.
+            const bucket = options.athleteId != null ?
+                this._segmentResultsBuckets.athlete :
+                this._segmentResultsBuckets.all;
+            let c = bucket.cache.get(id);
+            if (!c) {
+                c = {
+                    acquiredRanges: [],
+                    entries: [],
+                };
+                bucket.cache.set(id, c);
+            }
+            while (bucket.pending) {
+                await bucket.pending.catch(() => null);
+            }
+            const serverNow = worldTimer.serverNow();
+            const fromTS = options.from != null ? +new Date(options.from) : serverNow - 3600_000;
+            const toTS = options.to != null ? +new Date(options.to) : serverNow + 10_000;
+            if (isNaN(fromTS) || isNaN(toTS)) {
+                throw new TypeError('Invalid from/to param(s)');
+            }
+            if (fromTS >= toTS) {
+                console.warn("Segment results range is zero or less:", fromTS, toTS);
+                return [];
+            }
+            // We have to expect that some segments will trickle in with a timestamp in the past.
+            // So avoid poisoning our cache by placing sane barriers on the cache range.  Using
+            // values rounded to 1 second increments helps with API abuse as well.
+            const cPoisonLimit = serverNow - 10000;
+            const cBarrier = {
+                from: Math.floor(Math.min(fromTS, cPoisonLimit) / 1000),
+                to: Math.ceil(Math.min(toTS, cPoisonLimit) / 1000)
+            };
+            const overlaps = [];
+            for (const x of c.acquiredRanges) {
+                const overlap = Math.min(cBarrier.to, x.to) - Math.max(cBarrier.from, x.from);
+                if (overlap > 0) {
+                    overlaps.push([overlap, x]);
+                }
+            }
+            let required = {from: cBarrier.from, to: cBarrier.to};
+            if (overlaps.length) {
+                overlaps.sort((a, b) => b[0] - a[0]);
+                const cacheRange = overlaps[0][1];
+                if (cBarrier.from >= cacheRange.from && cBarrier.to <= cacheRange.to) {
+                    required = null;  // fully satisfied by cache
+                } else if (cBarrier.from >= cacheRange.from && cBarrier.from <= cacheRange.to) {
+                    required.from = cacheRange.to;
+                } else if (cBarrier.to >= cacheRange.from && cBarrier.to <= cacheRange.to) {
+                    required.to = cacheRange.from;
+                }
+            }
+            if (required) {
+                let updatedRanges;
+                if (overlaps.length) {
+                    updatedRanges = Array.from(c.acquiredRanges);
+                    for (const {1: x} of overlaps) {
+                        const i = updatedRanges.indexOf(x);
+                        const existing = updatedRanges[i];
+                        updatedRanges[i] = {
+                            from: Math.min(required.from, existing.from),
+                            to: Math.max(required.to, existing.to),
+                        };
+                    }
+                    const redundant = [];
+                    for (const [i, x] of updatedRanges.entries()) {
+                        for (const xx of updatedRanges) {
+                            if (xx === x) {
+                                continue;
+                            }
+                            const overlap = Math.min(x.to, xx.to) - Math.max(x.from, xx.from);
+                            if (overlap === x.to - x.from) {
+                                redundant.push(i);
+                                break;
+                            }
+                        }
+                    }
+                    redundant.reverse();
+                    for (const i of redundant) {
+                        updatedRanges.splice(i, 1);
+                    }
+                } else {
+                    updatedRanges = c.acquiredRanges.concat([required]);
+                }
+                console.log("UPDATED RANGES", updatedRanges.map(x =>
+                    `${new Date(x.from * 1000).toLocaleString()} -> ` +
+                    `${new Date(x.to * 1000).toLocaleString()}`).join('\n'));
+                // Queue up the API request...
+                const pad = 30_000;  // prevent holes related to latency
+                console.log("Issuing API req range:", new Date(required.from * 1000 - pad).toLocaleString(),
+                            '->', new Date(required.to * 1000 + pad).toLocaleString());
+                const p = this.zwiftAPI.getSegmentResults(id, {
+                    from: required.from * 1000 - pad,
+                    to: required.to * 1000 + pad,
+                    athleteId: options.athleteId,
+                }).then(results => {
+                    c.acquiredRanges = updatedRanges;
+                    // TBD: Bench this after duration runs to make sure we don't need bin-search.
+                    const s = performance.now();
+                    let added = 0;
+                    for (const x of results) {
+                        if (!c.entries.some(xx => xx.id === x.id)) {
+                            added++;
+                            c.entries.push(x);
+                        }
+                    }
+                    c.entries.sort((a, b) => a.ts = b.ts);
+                    const e = performance.now();
+                    console.info("Added new segment results:", 'took', e - s, 'added', added, 'total',
+                                 c.entries.length);
+                });
+                // Immediately replace the deferral with our chained version + a throttle delay..
+                bucket.pending = p.finally(() => sauce.sleep(1000).then(() => bucket.pending = null));
+                await p;
+            }
+            // TBD: Are we going to need bin search here too?
+            const startIdx = c.entries.findIndex(x => x.ts >= fromTS);
+            const endIdx = c.entries.findLastIndex(x => x.ts <= toTS);
+            if (startIdx === -1) {
+                return [];
+            }
+            const results = c.entries.slice(startIdx, endIdx !== -1 ? endIdx + 1 : undefined);
+            results.sort((a, b) => a.elapsed - b.elapsed);
+            if (options.best) {
+                const athletes = new Set();
+                const remove = [];
+                for (const [i, x] of results.entries()) {
+                    if (athletes.has(x.athleteId)) {
+                        remove.push(i);
+                    } else {
+                        athletes.add(x.athleteId);
+                    }
+                }
+                remove.reverse();
+                for (const i of remove) {
+                    results.splice(i, 1);
+                }
+            }
+            if (options.limit && results.length > options.limit) {
+                results.length = options.limit;
+            }
+            return results;
         }
-        return segments || [];
     }
 
     getNearbyData() {

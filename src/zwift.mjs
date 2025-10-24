@@ -647,17 +647,22 @@ export class ZwiftAPI {
         return data.results.map(this.convSegmentResult);
     }
 
-    async getSegmentResults(segmentId, options={}) {
-        const query = {
+    async getSegmentResults(segmentIds, options={}) {
+        const query = new URLSearchParams({
             world_id: 1,  // mislabeled realm
-            segment_id: segmentId,
-            player_id: options.athleteId,
-        };
-        if (options.from) {
-            query.from = zwiftCompatDate(new Date(options.from));
+        });
+        if (options.athleteId != null) {
+            query.set('player_id', options.athleteId);
         }
-        if (options.to) {
-            query.to = zwiftCompatDate(new Date(options.to));
+        if (!segmentIds) {
+            throw new TypeError("segmentIds argument required");
+        }
+        if (Array.isArray(segmentIds)) {
+            for (const x of segmentIds) {
+                query.append('segment_id', x);
+            }
+        } else {
+            query.set('segment_id', segmentIds);
         }
         // be nice...
         if ((options.from || options.to) && options.athleteId == null) {
@@ -667,14 +672,14 @@ export class ZwiftAPI {
                 throw new TypeError("Excessively large range");
             }
         }
-        if (options.best) {
-            query['only-best'] = 'true';
+        if (options.from) {
+            query.set('from', zwiftCompatDate(new Date(options.from)));
+        }
+        if (options.to) {
+            query.set('to', zwiftCompatDate(new Date(options.to)));
         }
         const data = await this.fetchPB('/api/segment-results', {query, protobuf: 'SegmentResults'});
         data.results.sort((a, b) => a.elapsed - b.elapsed);
-        if (options.limit && data.results.length > options.limit) {
-            data.results.length = options.limit;
-        }
         return data.results.map(this.convSegmentResult);
     }
 
