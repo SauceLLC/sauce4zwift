@@ -121,7 +121,13 @@ clean:
 
 
 test:
-	npm run test
+	node --test
+
+test-debug:
+	node --test --experimental-test-isolation=none --inspect-wait
+
+test-watch:
+	node --test --watch
 
 
 .PHONY: build packed unpacked publish lint sass deps clean realclean test
