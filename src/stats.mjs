@@ -2748,10 +2748,8 @@ export class StatsProcessor extends events.EventEmitter {
                 if (delta < 0 && delta > -100) {
                     if (state.speed) {
                         // TEST...
-                        if (delta < -10) {
-                            console.warn("10+ meter negative jitter filter:", delta, state, cache);
-                        } else if (delta < -2) {
-                            console.debug("2+ meter negative jitter filter:", delta, state, cache);
+                        if (delta < -15) {
+                            console.warn("15+ meter negative jitter filter:", delta, state, cache);
                         }
                     }
                     routeDistance = cache.entry.routeDistance;
