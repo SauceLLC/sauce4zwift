@@ -1150,11 +1150,12 @@ async function getEventSegmentResults(segment) {
                 const localEndTS = local.startServerTime + local.stats.elapsedTime * 1000;
                 candidates.sort((a, b) => Math.abs(a.ts - localEndTS) - Math.abs(b.ts - localEndTS));
                 const nearest = candidates[0];
-                if (Math.abs(nearest.ts - localEndTS) < 15_000) {
+                if (Math.abs(nearest.ts - localEndTS) < 20_000) {
                     results = results.filter(x => x.athleteId !== athleteId || x === nearest);
                 } else {
                     // In some instances the segment results API misses entries.
-                    console.warn("Unexpected incongruity in local segment data", nearest, local);
+                    console.warn("Unexpected incongruity in local segment data", nearest.ts - localEndTS,
+                                 nearest, local);
                     results = results.filter(x => x.athleteId !== athleteId);
                 }
                 continue;
