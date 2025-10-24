@@ -624,12 +624,12 @@ export class ZwiftAPI {
         Object.assign(ret, {
             id: x.id.toString(), // fix overflow
             segmentId: x._unsignedSegmentId.toSigned().toString(),
-            ts: worldTimer.toLocalTime(ret.worldTime),
+            ts: worldTimer.toServerTime(ret.worldTime),
             weight: x.weight / 1000,
             elapsed: x.elapsed / 1000,
             gender: x.male === false ? 'female' : 'male',
         });
-        delete ret.finishTime; // worldTime and ts are better and always available
+        //delete ret.finishTime; // worldTime and ts are better and always available
         delete ret._unsignedSegmentId;
         delete ret.male;
         return ret;
