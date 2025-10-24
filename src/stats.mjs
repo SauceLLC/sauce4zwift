@@ -2421,7 +2421,8 @@ export class StatsProcessor extends events.EventEmitter {
         }
         const prevSlice = ad.eventSlices.at(-1);
         if (prevSlice) {
-            if (prevSlice.eventSubgroupId === sgId) {
+            // NOTE: If rejoining an event, there will be multiple entries with matching sgid.
+            if (prevSlice.eventSubgroupId === sgId && prevSlice.end != null) {
                 console.error("Attempt double start of event slice");
                 return;
             }
