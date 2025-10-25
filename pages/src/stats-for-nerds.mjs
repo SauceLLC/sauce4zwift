@@ -11,6 +11,8 @@ const H = L.human;
 const maxLen = 150;
 const MB = 1024 * 1024;
 
+let sortByCPU = true;
+
 
 async function makeMetricCharts(proc, el) {
     const decodedNames = {
@@ -268,6 +270,8 @@ export async function main() {
             charts.gauge.resize();
         }
     });
+    document.querySelector('input[name="sort-by-cpu"]')
+        .addEventListener('click', ev => sortByCPU = ev.currentTarget.checked);
     let iter = 0;
     while (true) {
         const metrics = await common.rpc.pollMetrics().catch(e =>
@@ -349,7 +353,6 @@ export async function main() {
             });
         }
         Object.assign(debugInfo, {cpuTotal, memTotal});
-        console.log({debugInfo, metrics});
         for (const el of debugEl.querySelectorAll('value[data-id]')) {
             const fmt = debugFormatters[el.dataset.id] ||
                 defaultDebugFormatter(el.dataset.id, el.dataset.type);
@@ -365,11 +368,13 @@ export async function main() {
             el.remove();
         }
 
-        const byCPU = Array.from(allCharts.values()).map(x =>
-            [x.datas.cpu.slice(-5).reduce((a, x) => a + x, 0) / 5, x.el]);
-        byCPU.sort((a, b) => b[0] - a[0]);
-        for (const [i, {1: el}] of byCPU.entries()) {
-            el.style.setProperty('order', i);
+        if (sortByCPU) {
+            const byCPU = Array.from(allCharts.values()).map(x =>
+                [x.datas.cpu.slice(-30).reduce((a, x) => a + x, 0) / Math.min(30, x.datas.cpu.length), x.el]);
+            byCPU.sort((a, b) => b[0] - a[0]);
+            for (const [i, {1: el}] of byCPU.entries()) {
+                el.style.setProperty('order', i);
+            }
         }
         if (location.search.includes('slow')) {
             await sauce.sleep(iter * 1000);
