@@ -32,7 +32,7 @@ $(PACKAGES): package.json
 
 
 $(BUILD): $(PAGES_SRC) $(PACKAGES) sass deps Makefile .git/index test
-	node tools/bin/buildenv $@
+	$(NODE) tools/bin/buildenv $@
 
 build: $(BUILD)
 
