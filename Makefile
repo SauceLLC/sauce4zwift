@@ -19,6 +19,7 @@ endif
 
 MODS := $(CURDIR)/node_modules
 NPATH := $(MODS)/.bin
+NODE := ELECTRON_RUN_AS_NODE=1 $(NPATH)/electron
 TOOLPATH := $(CURDIR)/tools/bin
 ifndef WINBLOWS
   PAGES_SRC := $(shell find pages -type f)
@@ -31,7 +32,7 @@ $(PACKAGES): package.json
 
 
 $(BUILD): $(PAGES_SRC) $(PACKAGES) sass deps Makefile .git/index test
-	node tools/bin/buildenv $@
+	$(NODE) tools/bin/buildenv $@
 
 build: $(BUILD)
 
@@ -121,13 +122,13 @@ clean:
 
 
 test:
-	node --test
+	$(NODE) --test
 
 test-debug:
-	node --test --experimental-test-isolation=none --inspect-wait
+	$(NODE) --test --experimental-test-isolation=none --inspect-wait
 
 test-watch:
-	node --test --watch
+	$(NODE) --test --watch
 
 
 .PHONY: build packed unpacked publish lint sass deps clean realclean test
