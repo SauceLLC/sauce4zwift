@@ -628,8 +628,7 @@ export class StatsProcessor extends events.EventEmitter {
         this._segmentResultsBuckets = {
             liveLeaders: {},
             liveLeaderboard: {cache: new Map()},
-            athlete: {cache: new Map()},
-            all: {cache: new Map()},
+            full: {cache: new Map()},
         };
         rpc.register(this.getPowerZones, {scope: this});
         rpc.register(this.updateAthlete, {scope: this});
@@ -1403,67 +1402,40 @@ export class StatsProcessor extends events.EventEmitter {
             // Never includes eventSubgroupId.
             // Can use date range.
             // Includes full name.
-            const bucket = options.athleteId != null ?
-                this._segmentResultsBuckets.athlete :
-                this._segmentResultsBuckets.all;
-            let c = bucket.cache.get(id);
+            const bucket = this._segmentResultsBuckets.full;
+            const key = `${id}-${options.athleteId || '*'}`;
+            let c = bucket.cache.get(key);
             if (!c) {
                 c = {
                     acquiredRanges: [],
                     entries: [],
                 };
-                bucket.cache.set(id, c);
+                bucket.cache.set(key, c);
             }
-            while (bucket.pending) {
-                await bucket.pending.catch(() => null);
-            }
-            const serverNow = worldTimer.serverNow();
-            const fromTS = options.from != null ? +new Date(options.from) : serverNow - 3600_000;
-            const toTS = options.to != null ? +new Date(options.to) : serverNow + 10_000;
-            if (isNaN(fromTS) || isNaN(toTS)) {
-                throw new TypeError('Invalid from/to param(s)');
-            }
-            if (fromTS >= toTS) {
-                console.warn("Segment results range is zero or less:", fromTS, toTS);
-                return [];
-            }
-            // We have to expect that some segments will trickle in with a timestamp in the past.
-            // So avoid poisoning our cache by placing sane barriers on the cache range.  Using
-            // values rounded to 1 second increments helps with API abuse as well.
-            const cPoisonLimit = serverNow - 10000;
-            const cBarrier = {
-                from: Math.floor(Math.min(fromTS, cPoisonLimit) / 1000),
-                to: Math.ceil(Math.min(toTS, cPoisonLimit) / 1000)
-            };
-            const overlaps = [];
-            for (const x of c.acquiredRanges) {
-                const overlap = Math.min(cBarrier.to, x.to) - Math.max(cBarrier.from, x.from);
-                if (overlap > 0) {
-                    overlaps.push([overlap, x]);
+            let ranges;
+            for (let i = 0; i < 2; i++) {
+                ranges = this._computeSegmentResultsRanges(c, options);
+                if (!ranges) {
+                    return [];
                 }
-            }
-            let required = {from: cBarrier.from, to: cBarrier.to};
-            if (overlaps.length) {
-                overlaps.sort((a, b) => b[0] - a[0]);
-                const cacheRange = overlaps[0][1];
-                if (cBarrier.from >= cacheRange.from && cBarrier.to <= cacheRange.to) {
-                    required = null;  // fully satisfied by cache
-                } else if (cBarrier.from >= cacheRange.from && cBarrier.from <= cacheRange.to) {
-                    required.from = cacheRange.to;
-                } else if (cBarrier.to >= cacheRange.from && cBarrier.to <= cacheRange.to) {
-                    required.to = cacheRange.from;
+                if (ranges.uncached && bucket.pending) {
+                    while (bucket.pending) {
+                        await bucket.pending.catch(() => null);
+                    }
+                    continue;
                 }
+                break;
             }
-            if (required) {
+            if (ranges.uncached) {
                 let updatedRanges;
-                if (overlaps.length) {
+                if (ranges.overlaps.length) {
                     updatedRanges = Array.from(c.acquiredRanges);
-                    for (const {1: x} of overlaps) {
+                    for (const {1: x} of ranges.overlaps) {
                         const i = updatedRanges.indexOf(x);
                         const existing = updatedRanges[i];
                         updatedRanges[i] = {
-                            from: Math.min(required.from, existing.from),
-                            to: Math.max(required.to, existing.to),
+                            from: Math.min(ranges.uncached.from, existing.from),
+                            to: Math.max(ranges.uncached.to, existing.to),
                         };
                     }
                     const redundant = [];
@@ -1484,18 +1456,17 @@ export class StatsProcessor extends events.EventEmitter {
                         updatedRanges.splice(i, 1);
                     }
                 } else {
-                    updatedRanges = c.acquiredRanges.concat([required]);
+                    updatedRanges = c.acquiredRanges.concat([ranges.uncached]);
                 }
-                console.log("UPDATED RANGES", updatedRanges.map(x =>
-                    `${new Date(x.from * 1000).toLocaleString()} -> ` +
-                    `${new Date(x.to * 1000).toLocaleString()}`).join('\n'));
+                //console.log("UPDATED RANGES", updatedRanges
+                //    .map(x => `${x.from * 1000} -> ${x.to * 1000}`).join('\n'));
                 // Queue up the API request...
                 const pad = 30_000;  // prevent holes related to latency
-                console.log("Issuing API req range:", new Date(required.from * 1000 - pad).toLocaleString(),
-                            '->', new Date(required.to * 1000 + pad).toLocaleString());
+                //console.log("Issuing API req range:", ranges.uncached.from * 1000 - pad,
+                //            '->', ranges.uncached.to * 1000 + pad);
                 const p = this.zwiftAPI.getSegmentResults(id, {
-                    from: required.from * 1000 - pad,
-                    to: required.to * 1000 + pad,
+                    from: ranges.uncached.from * 1000 - pad,
+                    to: ranges.uncached.to * 1000 + pad,
                     athleteId: options.athleteId,
                 }).then(results => {
                     c.acquiredRanges = updatedRanges;
@@ -1508,18 +1479,18 @@ export class StatsProcessor extends events.EventEmitter {
                             c.entries.push(x);
                         }
                     }
-                    c.entries.sort((a, b) => a.ts = b.ts);
+                    c.entries.sort((a, b) => a.ts - b.ts);
                     const e = performance.now();
-                    console.info("Added new segment results:", 'took', e - s, 'added', added, 'total',
-                                 c.entries.length);
+                    console.debug("Added new segment results:", 'took', e - s, 'added', added, 'total',
+                                  c.entries.length);
                 });
                 // Immediately replace the deferral with our chained version + a throttle delay..
                 bucket.pending = p.finally(() => sauce.sleep(1000).then(() => bucket.pending = null));
                 await p;
             }
             // TBD: Are we going to need bin search here too?
-            const startIdx = c.entries.findIndex(x => x.ts >= fromTS);
-            const endIdx = c.entries.findLastIndex(x => x.ts <= toTS);
+            const startIdx = c.entries.findIndex(x => x.ts >= ranges.fromTS);
+            const endIdx = c.entries.findLastIndex(x => x.ts <= ranges.toTS);
             if (startIdx === -1) {
                 return [];
             }
@@ -1545,6 +1516,47 @@ export class StatsProcessor extends events.EventEmitter {
             }
             return results;
         }
+    }
+
+    _computeSegmentResultsRanges(cache, {from, to}) {
+        const serverNow = worldTimer.serverNow();
+        const fromTS = from != null ? +new Date(from) : serverNow - 3600_000;
+        const toTS = to != null ? +new Date(to) : serverNow + 10_000;
+        if (isNaN(fromTS) || isNaN(toTS)) {
+            throw new TypeError('Invalid from/to param(s)');
+        }
+        if (fromTS >= toTS) {
+            console.warn("Segment results range is zero or less:", fromTS, toTS);
+            return null;
+        }
+        // We have to expect that some segments will trickle in with a timestamp in the past.
+        // So avoid poisoning our cache by placing sane barriers on the cache range.  Using
+        // values rounded to 1 second increments helps with API abuse as well.
+        const cPoisonLimit = serverNow - 10000;
+        const cBarrier = {
+            from: Math.floor(Math.min(fromTS, cPoisonLimit) / 1000),
+            to: Math.ceil(Math.min(toTS, cPoisonLimit) / 1000)
+        };
+        const overlaps = [];
+        for (const x of cache.acquiredRanges) {
+            const overlap = Math.min(cBarrier.to, x.to) - Math.max(cBarrier.from, x.from);
+            if (overlap >= 0) {
+                overlaps.push([overlap, x]);
+            }
+        }
+        let uncached = {from: cBarrier.from, to: cBarrier.to};
+        if (overlaps.length) {
+            overlaps.sort((a, b) => b[0] - a[0]);
+            const cacheRange = overlaps[0][1];
+            if (cBarrier.from >= cacheRange.from && cBarrier.to <= cacheRange.to) {
+                uncached = null;  // fully satisfied by cache
+            } else if (cBarrier.from >= cacheRange.from && cBarrier.from <= cacheRange.to) {
+                uncached.from = cacheRange.to;
+            } else if (cBarrier.to >= cacheRange.from && cBarrier.to <= cacheRange.to) {
+                uncached.to = cacheRange.from;
+            }
+        }
+        return {uncached, overlaps, fromTS, toTS};
     }
 
     getNearbyData() {
