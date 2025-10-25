@@ -228,7 +228,7 @@ table {
             }
 
             &.starts-soon > td.start {
-                animation: pulse-color 1.5s infinite;
+                animation: pulse-color 1.33s infinite steps(20);
             }
 
             &.started {
@@ -1029,14 +1029,14 @@ table {
 
 @keyframes pulse-color {
     from {
-        color: color.shade(fg, 0%);
+        filter: brightness(100%);
     }
 
     50% {
-        color: color.shade(fg, 20%);
+        filter: brightness(60%);
     }
 
     to {
-        color: color.shade(fg, 0%);
+        filter: brightness(100%);
     }
 }
