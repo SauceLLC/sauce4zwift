@@ -1,5 +1,4 @@
 /* global setImmediate */
-import * as timers from 'node:timers';
 import {test} from 'node:test';
 import assert from 'node:assert';
 import {worldTimer} from '../src/zwift.mjs';
