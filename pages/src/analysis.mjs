@@ -1039,7 +1039,6 @@ function speedEstSlowdownFactor(slope) {
 }
 
 
-// XXX Testing out a func that will eventually live on the backend...
 async function getEventSegmentResults(segment) {
     // WARNING: this is a hack but I've worked the problem and can find no better solution to the
     // core issue with segment results.  We want to know the eventDistance for each segment result
@@ -1072,6 +1071,9 @@ async function getEventSegmentResults(segment) {
     };
     const segmentEndTS = segment.startServerTime + segment.stats.elapsedTime * 1000;
     let results = await common.rpc.getSegmentResults(segment.segmentId, filter);
+    if (!results.length) {
+        return;
+    }
     results.sort((a, b) => a.ts - b.ts);
 
     // 2. Decide which athletes are apart of the event.
@@ -1082,7 +1084,8 @@ async function getEventSegmentResults(segment) {
         evResults = await common.rpc.getEventSubgroupResults(segment.eventSubgroupId);
         evAthletes = new Set(evResults.map(x => x.profileId));
         for (const {profileId, activityData} of evResults) {
-            const endTS = new Date(activityData.endDate);
+            const endOfRaceSegmentGrace = 30_000;
+            const endTS = +new Date(activityData.endDate) + endOfRaceSegmentGrace;
             // Note: late join information is NOT captured by activityData.durationInMilliseconds.
             // This value is just the event finish time and unrelated to join offset.
             results = results.filter(x => x.athleteId !== profileId || x.ts <= endTS);
@@ -1101,6 +1104,9 @@ async function getEventSegmentResults(segment) {
             return true;
         }
     });
+    if (!results.length) {
+        return;
+    }
 
     // 3. Find the best matching segment results using highest to lowest confidence methods...
     if (evResults) {
@@ -1111,7 +1117,7 @@ async function getEventSegmentResults(segment) {
         const ourResultsByProx = ourResults.toSorted((a, b) =>
             Math.abs(a.ts - segmentEndTS) - Math.abs(b.ts - segmentEndTS));
         const nearest = ourResultsByProx[0];
-        if (Math.abs(nearest.ts - segmentEndTS) < 15_000) {
+        if (nearest && Math.abs(nearest.ts - segmentEndTS) < 15_000) {
             const endOfft = ourResults.indexOf(nearest) - ourResults.length;
             for (const {profileId, lateJoin} of evResults) {
                 pendingAthletes.delete(profileId);
@@ -1154,8 +1160,8 @@ async function getEventSegmentResults(segment) {
                     results = results.filter(x => x.athleteId !== athleteId || x === nearest);
                 } else {
                     // In some instances the segment results API misses entries.
-                    console.warn("Unexpected incongruity in local segment data", nearest.ts - localEndTS,
-                                 nearest, local);
+                    console.error("Unexpected incongruity in local segment data", nearest.ts - localEndTS,
+                                  nearest, local);
                     results = results.filter(x => x.athleteId !== athleteId);
                 }
                 continue;
@@ -1185,8 +1191,13 @@ async function getEventSegmentResults(segment) {
 async function updateSegmentResults(segment) {
     if (segment.eventSubgroupId) {
         const ret = await getEventSegmentResults(segment);
-        segmentResults = ret.results;
-        segmentResultsType = ret.type;
+        if (ret) {
+            segmentResults = ret.results;
+            segmentResultsType = ret.type;
+        } else {
+            console.warn("No segment results for:", segment.name, segment.segmentId);
+            segmentResults = segmentResultsType = null;
+        }
     } else {
         const segmentEndTS = segment.startServerTime + segment.stats.elapsedTime * 1000;
         const filter = {
@@ -1202,8 +1213,10 @@ async function updateSegmentResults(segment) {
         segmentResults = await common.rpc.getSegmentResults(segment.segmentId, filter);
         segmentResultsType = 'recent';
     }
-    segmentResults.sort((a, b) => a.elapsed - b.elapsed);
-    console.debug('Segment results:', segmentResults);
+    if (segmentResults) {
+        segmentResults.sort((a, b) => a.elapsed - b.elapsed);
+        console.debug('Segment results:', segmentResults);
+    }
     return await renderSegments();
 }
 

@@ -54,6 +54,8 @@
                         <td colspan="6">
                             <% if (index === selected && obj.results) { %>
                                 {-embed(templates.segmentResults, obj)-}
+                            <% } else { %>
+                                <b>No Results</b>
                             <% } %>
                         </td>
                     </tr>
