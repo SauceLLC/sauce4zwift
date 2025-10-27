@@ -696,7 +696,7 @@ table.laps-list,
 table.events-list {
     font-size: 0.84em;
 
-    tr.active {
+    > tbody > tr.active {
         background-color: #f1ad0424;
     }
 
@@ -710,6 +710,23 @@ table.segments-list {
     .details .container {
         max-height: 28rem;
         overflow: auto;
+    }
+
+    > tbody > tr.incomplete {
+        > td.name {
+            &::before {
+                content: '⚠ ';
+                color: color.get(negative);
+                font-size: 1.3em;
+                line-height: 0.7;
+            }
+            &::after {
+                color: color.get(negative);
+                content: ' [INCOMPLETE]';
+                font-size: 0.82em;
+                font-weight: 500;
+            }
+        }
     }
 
     .segment-results {

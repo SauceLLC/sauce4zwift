@@ -23,7 +23,9 @@
                 <% const ordered = settings.reverseLapsAndSegments ? segmentSlices.toReversed() : segmentSlices; %>
                 <% for (const x of ordered) { %>
                     <% const index = segmentSlices.indexOf(x); %>
-                    <tr class="summary {{index === selected ? 'selected expanded' : ''}} {{x.active ? 'active' : ''}}"
+                    <tr class="summary {{index === selected ? 'selected expanded' : ''}}
+                               {{x.active ? 'active' : ''}}
+                               {{x.incomplete ? 'incomplete' : ''}}"
                         <% if (x.eventSubgroupId) { %>data-event-subgroup-id="{{x.eventSubgroupId}}"<% } %>
                         data-index="{{index}}" data-source="segments">
                         <td class="name">
