@@ -78,6 +78,7 @@
                 --fill: #fffa;
                 background-color: var(--fill);
                 border: $border-size solid #5a94ff;
+                outline: 4px solid var(--color, transparent);
                 opacity: 0.8;
                 width: $size;
                 height: $size;
@@ -172,6 +173,30 @@
                     &[data-power-level="z6"] {
                         --zone: 3;
                         --sparkle-color: #ae45da91;
+                    }
+
+                    &[data-category]:not(.self):not(.watching) {
+                        outline: 2px solid #222a;
+                    }
+                    &[data-category="A"] {
+                        --fill: #d93826;
+                        border-color: #fff;
+                    }
+                    &[data-category="B"] {
+                        --fill: #44d926;
+                        border-color: #fff;
+                    }
+                    &[data-category="C"] {
+                        --fill: #19e5e6;
+                        border-color: #fff;
+                    }
+                    &[data-category="D"] {
+                        --fill: #e5e619;
+                        border-color: #fff;
+                    }
+                    &[data-category="E"] {
+                        --fill: #7f19e6;
+                        border-color: #fff;
                     }
 
                     &.bot {

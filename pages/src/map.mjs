@@ -1,6 +1,7 @@
 import * as common from './common.mjs';
 import * as curves from '/shared/curves.mjs';
 import * as locale from '/shared/sauce/locale.mjs';
+import {Color} from './color.mjs';
 
 const H = locale.human;
 const timeline = document.timeline;
@@ -310,6 +311,17 @@ export class MapAthlete extends MapEntity {
         }
     }
 
+    setCategory(cat) {
+        if (cat !== this._category) {
+            if (cat) {
+                this.el.dataset.category = cat;
+            } else {
+                delete this.el.dataset.category;
+            }
+            this._category = cat;
+        }
+    }
+
     addChatMessage(chat) {
         const expires = 15000;
         this.chats.push([chat, Date.now() + expires]);
@@ -327,6 +339,15 @@ export class MapAthlete extends MapEntity {
             }
         }, expires + 10);
     }
+}
+
+
+function getSubgroupLazy(id) {
+    const sg = common.getEventSubgroup(id);
+    if (!sg || sg instanceof Promise) {
+        return null;
+    }
+    return sg;
 }
 
 
@@ -1360,6 +1381,14 @@ export class SauceZwiftMap extends EventTarget {
             ent.el.dataset.powerLevel = powerLevel;
             ent.lastSeen = now;
             ent.setPlayerState(state);
+            let category;
+            if (state.eventSubgroupId) {
+                const sg = getSubgroupLazy(state.eventSubgroupId);
+                if (sg) {
+                    category = sg.subgroupLabel;
+                }
+            }
+            ent.setCategory(category);
             if (state.athleteId === this.watchingId && !this.trackingPaused) {
                 this._autoHeadingSaved = state.heading;
                 if (this.autoHeading) {

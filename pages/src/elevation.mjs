@@ -9,6 +9,15 @@ ec.registerTheme('sauce', theme.getTheme('dynamic'));
 const H = locale.human;
 
 
+function getSubgroupLazy(id) {
+    const sg = common.getEventSubgroup(id);
+    if (!sg || sg instanceof Promise) {
+        return null;
+    }
+    return sg;
+}
+
+
 export class SauceElevationProfile {
 
     leadinColor = '#37f';
@@ -574,9 +583,21 @@ export class SauceElevationProfile {
                 type: 'custom',
                 z: 5,
                 renderItem: (param, api) => {
-                    const [distance, elevation, visualGrade, isWatching, deemphasize, ghost] =
-                        [api.value(0), api.value(1), api.value(2), api.value(3), api.value(4), api.value(5)];
-                    const size = this.em(isWatching ? 0.9 : deemphasize ? 0.28 : 0.4);
+                    const distance = api.value(0);
+                    const elevation = api.value(1);
+                    const visualGrade = api.value(2);
+                    const isWatching = api.value(3);
+                    const deemphasize = api.value(4);
+                    const ghost = api.value(5);
+                    const category = api.value(6);
+                    const size = this.em(isWatching ? 0.9 : deemphasize ? 0.26 : 0.38);
+                    const catColor = category && {
+                        'A': '#d93826',
+                        'B': '#44d926',
+                        'C': '#19e5e6',
+                        'D': '#e5e619',
+                        'E': '#7f19e6',
+                    }[category];
                     return {
                         type: 'path',
                         shape: {
@@ -612,7 +633,22 @@ export class SauceElevationProfile {
                                     offset: 0.5,
                                     color: '#e03c',
                                 }],
-                            } : deemphasize ? '#9995' : '#fffb',
+                            } : catColor ? {
+                                type: 'radial',
+                                x: 0.5,
+                                y: 0.3,
+                                r: 1.68,
+                                colorStops: [{
+                                    offset: 0,
+                                    color: deemphasize ? '#fff5' : '#fffa',
+                                }, {
+                                    offset: 0.22,
+                                    color: deemphasize ? '#eee7' : '#eeed',
+                                }, {
+                                    offset: 0.26,
+                                    color: Color.fromHex(catColor).alpha(deemphasize ? 0.7 : 0.9).toString(),
+                                }],
+                            } : '#eeeb',
                         }
                     };
                 },
@@ -752,9 +788,17 @@ export class SauceElevationProfile {
             const maxExaggeration = 30;
             const visualGrade = Math.min(chartAspectRatio, maxExaggeration) * smoothGrade * 0.5;
             const isWatching = state.athleteId === this.watchingId;
-            const deemphasize = this.routeId != null && (
-                state.routeId !== this.routeId ||
-                (this.eventSubgroupId != null && state.eventSubgroupId !== this.eventSubgroupId));
+            let category;
+            let deemphasize;
+            if (this.eventSubgroupId) {
+                deemphasize = this.eventSubgroupId !== state.eventSubgroupId;
+                if (state.eventSubgroupId) {
+                    const sg = getSubgroupLazy(state.eventSubgroupId);
+                    category = sg?.subgroupLabel;
+                }
+            } else if (this.routeId != null) {
+                deemphasize = this.routeId !== state.routeId;
+            }
             if (state !== mark.lastVisualState) {
                 mark.lastVisualState = state;
                 mark.lastVisualTS = now;
@@ -768,7 +812,7 @@ export class SauceElevationProfile {
             }
             return {
                 name: state.athleteId,
-                value: [xCoord, yCoord, visualGrade, isWatching, deemphasize, ghost]
+                value: [xCoord, yCoord, visualGrade, isWatching, deemphasize, ghost, category]
             };
         }).filter(x => x);
         // echarts merge algo is quite broken.. must reset data.
