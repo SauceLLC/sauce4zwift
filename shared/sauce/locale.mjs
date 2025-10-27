@@ -222,7 +222,7 @@ function _humanDateTimeFormat(date, format, options) {
     } else {
         return partsToHTML(formatter.formatToParts(date).map(x => ({
             ...x,
-            type: {literal: 'seperator', dayPeriod: 'unit'}[x.type] || 'value',
+            type: {literal: 'separator', dayPeriod: 'unit'}[x.type] || 'value',
             name: x.type,
         })));
     }
@@ -251,12 +251,12 @@ function humanTimer(elapsed, options={}) {
     switch (true) {
         case !!(hours || options.full):
             parts.push({type: 'value', name: 'hours', value: hours.toString()},
-                       {type: 'seperator', name: 'hours', value: ':'});
+                       {type: 'separator', name: 'hours', value: ':'});
             // falls through
         case !!(mins || options.long || options.full): {
             const value = (options.short && !hours) ? mins.toString() : mins.toString().padStart(2, '0');
             parts.push({type: 'value', name: 'minutes', value},
-                       {type: 'seperator', name: 'minutes', value: ':'});
+                       {type: 'separator', name: 'minutes', value: ':'});
             // falls through
         }
         default: {
@@ -266,12 +266,12 @@ function humanTimer(elapsed, options={}) {
     }
     if (options.ms) {
         const value = Math.round(elapsed % 1 * 1000).toString().padStart(3, '0');
-        parts.push({type: 'seperator', name: 'milliseconds', value: '.'},
+        parts.push({type: 'separator', name: 'milliseconds', value: '.'},
                    {type: 'value', name: 'milliseconds', value});
     }
     if (options.suffix) {
         if (options.separator) {
-            parts.push({type: 'seperator', name: 'suffix', value: options.separator});
+            parts.push({type: 'separator', name: 'suffix', value: options.separator});
         }
         parts.push({type: 'unit', name: 'suffix', value: options.suffix});
     }
@@ -286,7 +286,7 @@ function humanTimer(elapsed, options={}) {
 
 
 function partsToHTML(parts) {
-    const tags = {value: 'span', seperator: 'span', unit: 'abbr'};
+    const tags = {value: 'span', separator: 'span', unit: 'abbr'};
     const inner = parts.map(x =>
         `<${tags[x.type]} class="${x.type} ${x.name}">${x.value}</${tags[x.type]}>`).join('');
     return `<localized style="display: contents">${inner}</localized>`;

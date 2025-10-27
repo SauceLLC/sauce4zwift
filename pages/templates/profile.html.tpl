@@ -45,7 +45,7 @@
                     <a title="You are not following this athlete, click to follow" href
                        data-action="follow"><ms>follow_the_signs</ms></a>
                 <% } %>
-                <a title="Toggle marked state for this person.  Marked athletes will receieve extra attention and allow quick filtering.  Recommended for friends or foes in race situations."
+                <a title="Toggle marked state for this person.  Marked athletes will receive extra attention and allow quick filtering.  Recommended for friends or foes in race situations."
                    data-action="toggleMarked" class="{{athlete.marked ? 'active' : ''}}"
                    href><ms>{{athlete.marked ? 'bookmark_added' : 'bookmark_add'}}</ms></a>
                 <% if (!obj.embedded) { %>
@@ -91,7 +91,7 @@
                     </div>
                 <% } %>
                 <div class="row p2"><key>FTP</key><value>{-humanPower(athlete.ftp, {suffix: true, html: true})-}</value></div>
-                <div class="row p2" title="CP is Critical Power (often similiar to FTP) and W' (pronounced &quot;W Prime&quot;) is a the amount of energy (kJ) available when working harder than the CP value.  Think of it as a battery level." >
+                <div class="row p2" title="CP is Critical Power (often similar to FTP) and W' (pronounced &quot;W Prime&quot;) is a the amount of energy (kJ) available when working harder than the CP value.  Think of it as a battery level.">
                     <key>CP</key>
                     <value>
                         <a title="Click to edit - Press Enter to save"

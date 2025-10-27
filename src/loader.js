@@ -60,7 +60,7 @@ async function ensureSingleInstance() {
         noLink: true,
     });
     if (response === 0) {
-        console.debug("User quiting due to existing instance");
+        console.debug("User quitting due to existing instance");
         app.quit(0);
         return false;
     }
@@ -228,7 +228,7 @@ async function startNormal() {
 
 function startHeadless() {
     // NOTE: Node doesn't expose posix-like exec() or fork() calls, so read the docs before
-    // infering anything related to child_process handling.
+    // inferring anything related to child_process handling.
     const fqMod = path.join(__dirname, 'headless.mjs');
     const args = [fqMod].concat(process.argv.slice(app?.isPackaged ? 1 : 2));
     if (args.indexOf('--inspect') !== -1) {

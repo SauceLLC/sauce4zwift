@@ -93,7 +93,7 @@ export function main() {
         }
         autoHidden = true;
         doc.classList.add('windows-auto-hidden', 'windows-hidden');
-        console.debug("Auto hidding windows");
+        console.debug("Auto hiding windows");
         common.rpc.hideAllWindows({autoHide: true});
     }
 

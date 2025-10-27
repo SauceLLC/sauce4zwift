@@ -2,7 +2,7 @@ Sauce for Zwift™
 ===========
 ![Sauce](pages/images/logo_horiz_320x120.png)
 #### A collection of add-ons and replacement widgets for Zwift
-Sauce for Zwift™ extends the zwift cycling and running simulator with more stats and
+Sauce for Zwift™ extends the Zwift cycling and running simulator with more stats and
 pretty things.
 
 
@@ -87,7 +87,7 @@ Usage: ./sauce4zwift-1.1.4-dev.AppImage [--headless] --main-username USERNAME
 
 Arguments:
   --headless                      Run in headless mode.  NOTE: All settings for
-                                  headless mode are seperate from normal mode.
+                                  headless mode are separate from normal mode.
   --main-username USERNAME        The main Zwift username (email)
                                   (env variable: MAIN_USERNAME)
                                   [REQUIRED]

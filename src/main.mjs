@@ -360,7 +360,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     const args = parseArgs([
         // Do not remove headless arg.  It's informational here but handled by loader.mjs
         {arg: 'headless', type: 'switch',
-         help: 'Run in headless mode.  NOTE: All settings for headless mode are seperate from normal mode.'},
+         help: 'Run in headless mode.  NOTE: All settings for headless mode are separate from normal mode.'},
         {arg: 'disable-monitor', type: 'switch',
          help: 'Do not start the Zwift monitor (no data)'},
         {arg: 'athlete-id', type: 'num', label: 'ATHLETE_ID',

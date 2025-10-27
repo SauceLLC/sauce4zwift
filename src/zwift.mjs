@@ -20,7 +20,7 @@ protobuf.parse.defaults.keepCase = _case;
 const HOUR = 3600 * 1000;
 
 // NOTE: this options object does not contain callback functions (as it might appear).
-// A static type comparision is used by protobufjs's toObject function instead. :(
+// A static type comparison is used by protobufjs's toObject function instead. :(
 const _pbJSONOptions = {
     ...protobuf.util.toJSONOptions,
     longs: Number,
@@ -2497,7 +2497,7 @@ export class GameConnectionServer extends net.Server {
     async _start() {
         await this.listenDone;
         const {port} = this.address();
-        console.info("Registering game connnection server:", this.ip, port);
+        console.info("Registering game connection server:", this.ip, port);
         this.port = port;
         await this.api.fetch('/relay/profiles/me/phone', {
             method: 'PUT',

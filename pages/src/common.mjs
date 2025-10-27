@@ -1322,7 +1322,7 @@ export const settingsStore = doc.dataset.settingsKey && new SettingsStore(doc.da
 function parseDependsOn(dependsOn) {
     const m = dependsOn.match(/^(!)?([a-z0-9]+?)((==|!=|>|<|>=|<=)([a-z0-9]+?))?$/i);
     if (!m) {
-        throw new Error("Invalid depends-on grammer field");
+        throw new Error("Invalid depends-on grammar field");
     }
     const negate = !!m[1];
     const name = m[2];
@@ -1352,7 +1352,7 @@ function updateDependants(el) {
         try {
             ({negate, operator, value} = parseDependsOn(d));
         } catch(e) {
-            console.error("Invalid depends-on grammer field", d, e);
+            console.error("Invalid depends-on grammar field", d, e);
             continue;
         }
         const elValue = el.type === 'checkbox' ? el.checked : el.value;
@@ -1449,7 +1449,7 @@ function bindFormData(selector, storageIface, options={}) {
             try {
                 ({negate, name, operator, value} = parseDependsOn(dependsOn));
             } catch(e) {
-                console.error("Invalid depends-on grammer field", dependsOn, e);
+                console.error("Invalid depends-on grammar field", dependsOn, e);
                 continue;
             }
             const depEl = form.querySelector(`[name="${name}"]`);

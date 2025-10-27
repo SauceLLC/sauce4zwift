@@ -73,7 +73,7 @@ html {
     border-radius: 1em;
     margin-right: $content-pad;
     margin-left: $content-pad;
-    align-self: center; // Dont' fill width;
+    align-self: center;
 
     &:empty::after {
         font-size: 0.8em;

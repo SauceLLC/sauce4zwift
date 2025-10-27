@@ -1651,7 +1651,7 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     resetStats() {
-        console.debug("Reseting stats...");
+        console.debug("Resetting stats...");
         const wt = worldTimer.now();
         const now = monotonic();
         for (const ad of this._athleteData.values()) {
@@ -2144,7 +2144,7 @@ export class StatsProcessor extends events.EventEmitter {
 
     putState(state) {
         if (this.processState(state) === false) {
-            console.warn("State skipped by processer");
+            console.warn("State skipped by processor");
             return;
         }
         this._pendingEgressStates.set(state.athleteId, state);
@@ -2165,7 +2165,7 @@ export class StatsProcessor extends events.EventEmitter {
             if (x.ts === ts && x.from === payload.from) {
                 console.warn("Deduping chat message:", ts, payload.from, payload.message);
                 return;
-            } else if (x.from === payload.from && x.mesage === payload.message &&
+            } else if (x.from === payload.from && x.message === payload.message &&
                        payload.ts - x.ts < 5000) {
                 console.warn("Deduping chat message (content based):", ts, payload.from, payload.message);
                 return;
