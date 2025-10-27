@@ -93,6 +93,7 @@ function readSegmentsForWorld(worldId) {
         return [];
     }
     const segments = [];
+    const courseId = getCourseId(worldId);
     for (const x of data) {
         for (const dir of ['Forward', 'Reverse']) {
             if (!x['id' + dir]) {
@@ -102,6 +103,7 @@ function readSegmentsForWorld(worldId) {
             const segment = {
                 ...x,
                 reverse,
+                courseId,
                 id: x['id' + dir],
                 distance: x['distance' + dir],
                 name: reverse ? x.nameReverse || x.nameForward + ' Reverse' : x.nameForward,

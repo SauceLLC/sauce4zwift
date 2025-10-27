@@ -1586,6 +1586,7 @@ export class StatsProcessor extends events.EventEmitter {
         console.debug("Starting segment:", state.athleteId, id);
         const slice = this._createDataSlice(ad, now);
         slice.segmentId = id;
+        slice.startWorldTime = state.worldTime;
         // Indirectly lookup sgId via event slice to avoid cooldown window..
         const evSlice = ad.eventSlices.at(-1);
         if (evSlice && evSlice.end == null) {
@@ -1598,14 +1599,56 @@ export class StatsProcessor extends events.EventEmitter {
         return slice;
     }
 
-    stopSegment(state, ad, id, end=monotonic()) {
+    stopSegment(state, ad, id, now=monotonic()) {
         console.debug("Stopping segment:", state.athleteId, id);
-        const segment = ad.activeSegments.get(id);
-        segment.end = end;
-        if (segment.eventSubgroupId) {
-            segment.endEventDistance = state.eventDistance;
-        }
+        const segmentSlice = ad.activeSegments.get(id);
         ad.activeSegments.delete(id);
+        segmentSlice.end = now;
+        if (segmentSlice.eventSubgroupId) {
+            segmentSlice.endEventDistance = state.eventDistance;
+        }
+        // Try to determine if the segment was completed...
+        const segment = env.getSegment(id);
+        const rh = ad.roadHistory;
+        let hist, road;
+        for ({0: hist, 1: road} of [[rh.a, rh.aRoad], [rh.b, rh.bRoad], [rh.c, rh.cRoad]]) {
+            if (!road || (
+                road.roadId === segment.roadId &&
+                !!road.reverse === !!segment.reverse &&
+                road.courseId === segment.courseId)) {
+                break;
+            }
+        }
+        if (!road) {
+            console.warn("strange but no road for this, quit?");
+            segmentSlice.incomplete = true;
+            return;
+        }
+        let start = segment.roadStart;
+        let end = segment.roadFinish;
+        if (segment.reverse) {
+            start = 1 - start;
+            end = 1 - end;
+        }
+        const required = segment.distance > 1000 ? 0.90 : segment.distance > 400 ? 0.6 : 0.25;
+        for (let i = hist.length - 1; i >= 0; i--) {
+            const {rpct, wt} = hist[i];
+            if (wt < segmentSlice.startWorldTime || rpct < start) {
+                console.warn("That's a no alex: hopefully we don't hit this at all or very very rarely");
+                break;
+            }
+            if (rpct <= end) {
+                const completion = (rpct - start) / (end - start);
+                if (completion >= required) {
+                    console.log("COOL dude", completion, segment.distance);
+                    segmentSlice.incomplete = false;
+                    return;
+                }
+                break;
+            }
+        }
+        console.warn("NOT COMPLETE!", state.athleteId, segment, rh, ad);
+        segmentSlice.incomplete = true;
     }
 
     resetStats() {
