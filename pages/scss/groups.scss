@@ -311,8 +311,8 @@ html.horizontal #meta {
             position: absolute;
             width: 100%;
             height: var(--bubble-size);
-            background-color: #9999;
-            mix-blend-mode: color-burn;
+            background-color: #444;
+            mix-blend-mode: overlay;
         }
     }
 
