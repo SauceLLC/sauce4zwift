@@ -1621,7 +1621,7 @@ export class StatsProcessor extends events.EventEmitter {
             }
         }
         if (!road) {
-            console.warn("strange but no road for this, quit?");
+            console.warn("No road history for segment completion evaluation:", state.athleteId, id);
             segmentSlice.incomplete = true;
             return;
         }
@@ -1635,20 +1635,18 @@ export class StatsProcessor extends events.EventEmitter {
         for (let i = hist.length - 1; i >= 0; i--) {
             const {rpct, wt} = hist[i];
             if (wt < segmentSlice.startWorldTime || rpct < start) {
-                console.warn("That's a no alex: hopefully we don't hit this at all or very very rarely");
                 break;
             }
             if (rpct <= end) {
                 const completion = (rpct - start) / (end - start);
                 if (completion >= required) {
-                    console.log("COOL dude", completion, segment.distance);
                     segmentSlice.incomplete = false;
                     return;
                 }
                 break;
             }
         }
-        console.warn("NOT COMPLETE!", state.athleteId, segment, rh, ad);
+        console.debug("Segment incomplete:", state.athleteId, id);
         segmentSlice.incomplete = true;
     }
 
