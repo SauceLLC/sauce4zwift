@@ -1202,7 +1202,6 @@ async function updateSegmentResults(segment) {
         const segmentEndTS = segment.startServerTime + segment.stats.elapsedTime * 1000;
         const filter = {
             to: segmentEndTS + 600_000,
-            best: true,
             limit: Math.max(10, Math.min(100, settings.segmentResultsLimit || 10)),
         };
         if (settings.segmentResultsPeriod === 'day') {
