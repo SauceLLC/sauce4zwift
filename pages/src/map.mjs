@@ -1,7 +1,6 @@
 import * as common from './common.mjs';
 import * as curves from '/shared/curves.mjs';
 import * as locale from '/shared/sauce/locale.mjs';
-import {Color} from './color.mjs';
 
 const H = locale.human;
 const timeline = document.timeline;
