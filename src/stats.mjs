@@ -1288,6 +1288,7 @@ export class StatsProcessor extends events.EventEmitter {
             eventSubgroupId: x.eventSubgroupId,
             startEventDistance: x.startEventDistance,
             endEventDistance: x.endEventDistance,
+            incomplete: x.incomplete,
         }));
     }
 
