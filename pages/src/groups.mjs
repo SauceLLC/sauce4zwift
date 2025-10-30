@@ -5,7 +5,10 @@ common.enableSentry();
 
 const L = sauce.locale;
 const H = L.human;
-const positions = new Map();
+const availPositionBubbles = [];
+const availGapSpacers = [];
+const positionBubbleElementMap = new WeakMap();
+const gapSpacerElementMap = new WeakMap();
 let zoomedGroup = common.storage.get('zoomedGroup');
 let curGroups;
 let eventSubgroup;
@@ -82,12 +85,75 @@ function spdFmt(s) {
     return H.pace(s, {precision: 0, suffix: true, html: true});
 }
 
+class GapSpacer {
 
-function getOrCreatePosition(relPos) {
-    if (!positions.has(relPos)) {
+    static create(relPos) {
+        const instance = new this(relPos);
+        availGapSpacers.push(instance);
+        gapSpacerElementMap.set(instance.nodes.el, instance);
+        containerEl.append(instance.nodes.el);
+        return instance;
+    }
+
+    constructor(relPos) {
+        this.relativePosition = relPos;
         const el = document.createElement('div');
-        el.classList.add('position');
-        el.style.setProperty('--rel-pos', relPos);
+        el.style.setProperty('order', relPos * 2 + 1);
+        el.classList.add('gap', 'hidden');
+        el.innerHTML = `<div class="desc"><div class="lines"></div></div>`;
+        this.nodes = {
+            el,
+            desc: el.querySelector('.desc'),
+            lines: el.querySelector('.desc .lines'),
+        };
+    }
+
+    setSizes(inner, outer) {
+        const el = this.nodes.el;
+        el.style.setProperty('--inner-gap', inner);
+        el.style.setProperty('--outer-gap', Math.abs(outer));
+        el.style.setProperty('--gap-sign', outer > 0 ? 1 : -1);
+    }
+
+    setLines(html) {
+        common.softInnerHTML(this.nodes.lines, html);
+        this.nodes.desc.classList.toggle('empty', !html);
+    }
+
+    isHidden() {
+        return this.nodes.el.classList.contains('hidden');
+    }
+
+    toggleHidden(hidden) {
+        return this.nodes.el.classList.toggle('hidden', hidden);
+    }
+
+    remove() {
+        const regIdx = availGapSpacers.indexOf(this);
+        if (regIdx !== -1) {
+            availGapSpacers.splice(regIdx, 1);
+        }
+        this.nodes.el.remove();
+        this.nodes = null;
+    }
+}
+
+
+class PositionBubble {
+
+    static create(ident) {
+        const instance = new this(ident);
+        availPositionBubbles.push(instance);
+        positionBubbleElementMap.set(instance.nodes.el, instance);
+        containerEl.append(instance.nodes.el);
+        return instance;
+    }
+
+    constructor(ident) {
+        this.ident = ident;
+        this.watchTarget = null;
+        const el = document.createElement('div');
+        el.classList.add('position', 'hidden');
         el.innerHTML = `
             <div class="desc left empty">
                 <div class="lines"></div>
@@ -99,14 +165,7 @@ function getOrCreatePosition(relPos) {
             </div>
             <div class="desc right empty"><div class="lines"></div></div>
         `;
-        const gap = document.createElement('div');
-        gap.classList.add('gap');
-        gap.style.setProperty('--rel-pos', relPos);
-        gap.innerHTML = `<div class="desc"><div class="lines"></div></div>`;
-        containerEl.appendChild(el);
-        containerEl.appendChild(gap);
-        const nodes = {
-            watchTarget: null,
+        this.nodes = {
             el,
             bubbleHolder: el.querySelector('.bubble-holder'),
             bubble: el.querySelector('.bubble'),
@@ -114,51 +173,122 @@ function getOrCreatePosition(relPos) {
             leftLines: el.querySelector('.desc.left .lines'),
             rightDesc: el.querySelector('.desc.right'),
             rightLines: el.querySelector('.desc.right .lines'),
-            gap: {
-                el: gap,
-                desc: gap.querySelector('.desc'),
-                lines: gap.querySelector('.desc .lines'),
-            },
             actions: {
                 watch: el.querySelector('[data-action="watch"]'),
             },
         };
-        positions.set(relPos, nodes);
-        nodes.bubble.addEventListener('click', ev => {
-            if (!ev.currentTarget.href && zoomedGroup == null) {
-                ev.preventDefault();
-                const groupCenterIdx = curGroups.findIndex(x => x.watching);
-                const group = curGroups[groupCenterIdx + relPos];
-                if (!group) {
-                    return;
-                }
-                if (settings.zoomPriority === 'position') {
-                    zoomedGroup = {
-                        position: relPos
-                    };
-                } else {
-                    if (group.id != null) {
-                        zoomedGroup = {id: group.id};
-                    } else {
-                        zoomedGroup = {athleteId: group.athletes[0].athleteId};
-                    }
-                }
-                common.storage.set('zoomedGroup', zoomedGroup);
-                setMaxPositions();
-                render();
-            }
-        });
-        nodes.leftDesc.querySelector('.actions').addEventListener('click', async ev => {
-            const ms = ev.target.closest('ms[data-action]');
-            if (!ms) {
-                return;
-            }
-            if (ms.dataset.action === 'watch') {
-                await common.rpc.watch(nodes.watchTarget);
-            }
-        });
+        this.nodes.bubble.addEventListener('click', ev => this.onBubbleClick(ev));
+        this.nodes.leftDesc.querySelector('.actions')
+            .addEventListener('click', ev => this.onLeftActionsClick(ev));
     }
-    return positions.get(relPos);
+
+    isHidden() {
+        return this.nodes.el.classList.contains('hidden');
+    }
+
+    toggleHidden(hidden) {
+        return this.nodes.el.classList.toggle('hidden', hidden);
+    }
+
+    setWatchTarget(id) {
+        this.watchTarget = id;
+    }
+
+    setLeftLines(html) {
+        common.softInnerHTML(this.nodes.leftLines, html);
+        this.nodes.leftDesc.classList.toggle('empty', !html);
+    }
+
+    setRightLines(html) {
+        common.softInnerHTML(this.nodes.rightLines, html);
+        this.nodes.rightDesc.classList.toggle('empty', !html);
+    }
+
+    setRelativePosition(relPos) {
+        if (relPos !== this.relativePosition) {
+            this.nodes.el.style.setProperty('order', relPos * 2);
+            this.relativePosition = relPos;
+        }
+    }
+
+    async onLeftActionsClick(ev) {
+        const ms = ev.target.closest('ms[data-action]');
+        if (!ms) {
+            return;
+        }
+        if (ms.dataset.action === 'watch') {
+            if (this.watchTarget != null) {
+                await common.rpc.watch(this.watchTarget);
+            }
+        }
+    }
+
+    onBubbleClick(ev) {
+        if (ev.currentTarget.href || zoomedGroup != null) {
+            return;
+        }
+        ev.preventDefault();
+        const groupCenterIdx = curGroups.findIndex(x => x.watching);
+        const group = curGroups[groupCenterIdx + this.relativePosition];
+        if (!group) {
+            return;
+        }
+        if (settings.zoomPriority === 'position') {
+            zoomedGroup = {
+                position: this.relativePosition,
+            };
+        } else {
+            if (group.id != null) {
+                zoomedGroup = {id: group.id};
+            } else {
+                zoomedGroup = {athleteId: group.athletes[0].athleteId};
+            }
+        }
+        common.storage.set('zoomedGroup', zoomedGroup);
+        setMaxPositions();
+        render();
+    }
+
+    schedRemoval() {
+        if (this._cleanupTimeout) {
+            return;
+        }
+        this._cleanupTimeout = setTimeout(() => this.remove(), 6000);
+    }
+
+    cancelRemoval() {
+        if (this._cleanupTimeout) {
+            clearTimeout(this._cleanupTimeout);
+            this._cleanupTimeout = null;
+        }
+    }
+
+    remove() {
+        const regIdx = availPositionBubbles.indexOf(this);
+        if (regIdx !== -1) {
+            availPositionBubbles.splice(regIdx, 1);
+        }
+        this.nodes.el.remove();
+        this.nodes = null;
+    }
+}
+
+
+function getOrCreateGapSpacer(relPos) {
+    let gap = availGapSpacers.find(x => x.relativePosition === relPos);
+    if (!gap) {
+        gap = GapSpacer.create(relPos);
+    }
+    return gap;
+}
+
+
+function getOrCreatePositionBubble(p) {
+    let pb = availPositionBubbles.find(x => x.relativePosition === p);
+    if (!pb) {
+        pb = PositionBubble.create(p);
+    }
+    return pb;
 }
 
 
@@ -262,7 +392,8 @@ function renderZoomed(groups) {
         `${groupSize} ${athletesLabel}`,
         `${primaryFmt(group)}, ${spdFmt(group.speed)}`,
     ].map(x => `<div class="line">${x}</div>`).join(''));
-    const active = new Set();
+    const activePositions = new Set();
+    const activeGaps = new Set();
     aheadEl.classList.toggle('visible', !!ahead);
     if (ahead) {
         aheadEl.textContent = `+${ahead} ahead`;
@@ -272,14 +403,16 @@ function renderZoomed(groups) {
         behindEl.textContent = `+${behind} behind`;
     }
     for (const [i, athlete] of athletes.entries()) {
-        // NOTE: gap measurement is always to the next athlete or null.
-        const next = athletes[i + 1];
-        active.add(i);
-        const pos = getOrCreatePosition(i);
-        pos.bubble.title = `Click for athlete details`;
-        pos.bubble.href = `profile.html?id=${athlete.athleteId}&windowType=profile`;
-        pos.el.classList.toggle('watching', !!athlete.watching);
-        pos.el.style.setProperty('--athletes', 1);
+        const ident = athlete.watching ? 'watching' : `aid-${athlete.athleteId}`;
+        const pb = availPositionBubbles.find(x => x.ident === ident) || PositionBubble.create(ident);
+        const gapSpacer = getOrCreateGapSpacer(i);
+        pb.setRelativePosition(i);
+        activePositions.add(pb);
+        activeGaps.add(gapSpacer);
+        pb.nodes.bubble.title = `Click for athlete details`;
+        pb.nodes.bubble.href = `profile.html?id=${athlete.athleteId}&windowType=profile`;
+        pb.nodes.el.classList.toggle('watching', !!athlete.watching);
+        pb.nodes.el.style.setProperty('--athletes', 1);
         let label;
         let avatar = 'images/blankavatar.png';
         let fLast;
@@ -294,31 +427,31 @@ function renderZoomed(groups) {
                 label = a.initials;
             }
         }
-        const unusedLabels = pos.subgroupsInUse || new Set();
+        const unusedLabels = pb.subgroupsInUse || new Set();
         if (eventSubgroup) {
             const sg = getSubgroupLazy(athlete.state.eventSubgroupId);
             const sgLabel = sg && sg.subgroupLabel;
             if (sgLabel) {
-                pos.bubbleHolder.style.setProperty(`--subgroup-${sgLabel}`, 1);
+                pb.nodes.bubbleHolder.style.setProperty(`--subgroup-${sgLabel}`, 1);
                 unusedLabels.delete(sgLabel);
             }
-            pos.subgroupsInUse = new Set(sgLabel ? [sgLabel] : []);
-            pos.bubbleHolder.classList.toggle('subgroup-wheel', !!sgLabel);
+            pb.subgroupsInUse = new Set(sgLabel ? [sgLabel] : []);
+            pb.nodes.bubbleHolder.classList.toggle('subgroup-wheel', !!sgLabel);
         } else {
-            if (pos.subgroupsInUse) {
-                pos.subgroupsInUse.clear();
+            if (pb.subgroupsInUse) {
+                pb.subgroupsInUse.clear();
             } else {
-                pos.subgroupsInUse = new Set();
+                pb.subgroupsInUse = new Set();
             }
-            pos.bubbleHolder.classList.remove('subgroup-wheel');
+            pb.nodes.bubbleHolder.classList.remove('subgroup-wheel');
         }
         for (const x of unusedLabels) {
-            pos.bubbleHolder.style.removeProperty(`--subgroup-${x}`);
+            pb.nodes.bubbleHolder.style.removeProperty(`--subgroup-${x}`);
         }
-        common.softInnerHTML(pos.bubble, label || `<img src="${avatar}"/>`);
+        common.softInnerHTML(pb.nodes.bubble, label || `<img src="${avatar}"/>`);
         const leftLines = [];
         const attacking = isAttack(athlete.state.power, group.power);
-        pos.el.classList.toggle('attn', attacking);
+        pb.nodes.el.classList.toggle('attn', attacking);
         if (attacking) {
             leftLines.push(fmtLine('Attack!', 'major attn'));
         } else {
@@ -359,38 +492,50 @@ function renderZoomed(groups) {
                 rightLines.push(fmtLine(pwrFmt(p), 'minor', '60s smoothed power'));
             }
         }
-        const gap = next ? Math.abs(next.gap - athlete.gap) : 0;
-        let gapLine = '';
-        if (gap) {
-            let dur;
-            if (settings.zoomedGapField === 'time') {
-                dur = gap > 0.5 && (H.number(gap) + 's');
-            } else {
-                const gapDistance = Math.abs(next.gapDistance - athlete.gapDistance);
-                const units = common.imperialUnits ? 'ft' : 'm';
-                dur = gapDistance && gapDistance > 2 &&
-                    (H.number(gapDistance * (common.imperialUnits ? 3.28084 : 1)) + units);
+        pb.setLeftLines(leftLines.join(''));
+        pb.setRightLines(rightLines.join(''));
+        if (i < athletes.length - 1) {
+            const nextAthlete = athletes[i + 1];
+            const gap = Math.abs(nextAthlete.gap - athlete.gap);
+            let gapLine = '';
+            if (gap) {
+                let dur;
+                if (settings.zoomedGapField === 'time') {
+                    dur = gap > 0.5 && (H.number(gap) + 's');
+                } else {
+                    const gapDistance = Math.abs(nextAthlete.gapDistance - athlete.gapDistance);
+                    const units = common.imperialUnits ? 'ft' : 'm';
+                    dur = gapDistance && gapDistance > 2 &&
+                        (H.number(gapDistance * (common.imperialUnits ? 3.28084 : 1)) + units);
+                }
+                if (dur) {
+                    gapLine = fmtLine(dur);
+                }
             }
-            if (dur) {
-                gapLine = fmtLine(dur);
-            }
+            gapSpacer.setSizes(gap, -gap);
+            gapSpacer.setLines(gapLine);
+            gapSpacer.toggleHidden(false);
+        } else {
+            gapSpacer.setLines('');
+            gapSpacer.toggleHidden(true);
         }
-        common.softInnerHTML(pos.leftLines, leftLines.join(''));
-        common.softInnerHTML(pos.rightLines, rightLines.join(''));
-        common.softInnerHTML(pos.gap.lines, gapLine);
-        pos.leftDesc.classList.toggle('empty', !leftLines.length);
-        pos.rightDesc.classList.toggle('empty', !rightLines.length);
-        pos.gap.desc.classList.toggle('empty', !gapLine);
-        pos.gap.el.style.setProperty('--inner-gap', gap);
-        pos.gap.el.style.setProperty('--outer-gap', gap);
-        pos.gap.el.style.setProperty('--gap-sign', -1);
-        pos.actions.watch.classList.toggle('hidden', !!athlete.watching);
         if (!athlete.watching) {
-            pos.watchTarget = athlete.athleteId;
+            pb.setWatchTarget(athlete.athleteId);
         }
     }
-    for (const [i, {el}] of positions.entries()) {
-        el.classList.toggle('hidden', !active.has(i));
+    for (const x of availPositionBubbles) {
+        if (activePositions.has(x)) {
+            x.cancelRemoval();
+            x.toggleHidden(false);
+        } else {
+            x.toggleHidden(true);
+            x.schedRemoval();
+        }
+    }
+    for (const x of availGapSpacers) {
+        if (!activeGaps.has(x)) {
+            x.toggleHidden(true);
+        }
     }
 }
 
@@ -411,28 +556,72 @@ function getSubgroupDistro(group) {
 }
 
 
-function renderGroups(groups) {
-    if (!groups) {
+const quantizeGap = common.makeQuantizeBaseN(1.5); // about 25 entries for 2 hours
+
+
+function renderGroups(groups=[]) {
+    let centerIdx = groups.findIndex(x => x.watching);
+    if (centerIdx === -1) {
         return;
     }
-    let centerIdx = groups.findIndex(x => x.watching);
     const ahead = Math.max(0, centerIdx - (settings.maxAhead || 3));
     const end = Math.min(groups.length, centerIdx + (settings.maxBehind || 3) + 1);
     const behind = groups.length - end;
     groups = groups.slice(ahead, end);
     centerIdx = groups.findIndex(x => x.watching);
-    if (centerIdx === -1) {
-        return;
+    let forceLayoutRequired = false;
+    const assocGroups = new Array(groups.length);
+    const unmatched = [];
+    const activePositions = new Set();
+    const activeGaps = new Set();
+    for (const {0: i, 1: group} of groups.entries()) {
+        const ident = group.watching ? 'watching' : group.id ?? `aid-${group.athletes[0].athleteId}`;
+        const pb = availPositionBubbles.find(x => x.ident === ident);
+        if (pb) {
+            pb.athleteIds = new Set(group.athletes.map(x => x.athleteId));
+            assocGroups[i] = {pb, group};
+            activePositions.add(pb);
+        } else {
+            unmatched.push({i, ident});
+        }
     }
-    const primaryFmt = {
-        power: ({power}) => pwrFmt(power),
-        wkg: ({power, weight}) => weight ? wkgFmt(power / weight) : pwrFmt(power),
-    }[settings.groupsPrimaryField || 'power'];
+    for (const {i, ident} of unmatched) {
+        // See if it still makes sense to reuse an existing bubble for less visual turmoil
+        // Optional but helps with bouncing on busy roads.
+        const group = groups[i];
+        const athleteIds = new Set(group.athletes.map(x => x.athleteId));
+        let pb = availPositionBubbles.find(x =>
+            x.athleteIds && !activePositions.has(x) &&
+            x.athleteIds.intersection(athleteIds).size / athleteIds.size >= 0.5);
+        if (pb) {
+            pb.ident = ident;
+        } else {
+            forceLayoutRequired = true;  // force grow from zero width/height
+            pb = PositionBubble.create(ident);
+        }
+        activePositions.add(pb);
+        pb.athleteIds = athleteIds;
+        assocGroups[i] = {pb, group};
+    }
+    for (const {0: i, 1: x} of assocGroups.entries()) {
+        const relPos = i - centerIdx;
+        x.pb.setRelativePosition(relPos);
+        x.gapSpacer = getOrCreateGapSpacer(relPos);
+        if (i < groups.length - 1 && x.gapSpacer.isHidden()) {
+            x.gapSpacer.setSizes(0, 0);
+            x.gapSpacer.toggleHidden(false);
+            forceLayoutRequired = true;  // force flex-grow from zero transition
+        }
+        activeGaps.add(x.gapSpacer);
+    }
+    if (forceLayoutRequired) {
+        containerEl.offsetHeight;
+    }
+
+    // DOM writes permissible...
     const totAthletes = groups.reduce((agg, x) => agg + x.athletes.length, 0);
-    contentEl.style.setProperty('--total-athletes', totAthletes);
     const athletesLabel = totAthletes === 1 ? 'Athlete' : 'Athletes';
     common.softInnerHTML(metaEl, fmtLine(`${totAthletes} ${athletesLabel}`));
-    const active = new Set();
     if (ahead) {
         aheadEl.textContent = `+${ahead} ahead`;
     }
@@ -441,37 +630,37 @@ function renderGroups(groups) {
     }
     aheadEl.classList.toggle('visible', !!ahead);
     behindEl.classList.toggle('visible', !!behind);
-    for (const [i, group] of groups.entries()) {
-        // NOTE: gap measurement is always to the next group or null.
-        const next = groups[i + 1];
-        const relPos = i - centerIdx;
-        active.add(relPos);
-        const pos = getOrCreatePosition(relPos);
-        pos.bubble.title = `Click to switch to zoomed in view`;
-        if (pos.bubble.href) {
-            pos.bubble.removeAttribute('href');
+    contentEl.style.setProperty('--total-athletes', totAthletes);
+    const primaryFmt = {
+        power: ({power}) => pwrFmt(power),
+        wkg: ({power, weight}) => weight ? wkgFmt(power / weight) : pwrFmt(power),
+    }[settings.groupsPrimaryField || 'power'];
+    for (const {0: i, 1: {pb, group, gapSpacer}} of assocGroups.entries()) {
+        pb.nodes.bubble.title = `Click to switch to zoomed in view`;
+        if (pb.nodes.bubble.href) {
+            pb.nodes.bubble.removeAttribute('href');
         }
-        pos.el.classList.toggle('watching', !!group.watching);
-        pos.el.style.setProperty('--athletes', group.athletes.length);
-        const unusedLabels = pos.subgroupsInUse || new Set();
+        pb.nodes.el.classList.toggle('watching', !!group.watching);
+        pb.nodes.el.style.setProperty('--athletes', group.athletes.length);
+        const unusedLabels = pb.subgroupsInUse || new Set();
         if (eventSubgroup) {
             const labels = getSubgroupDistro(group);
             for (const [label, pct] of labels.entries()) {
-                pos.bubbleHolder.style.setProperty(`--subgroup-${label}`, pct.toFixed(6));
+                pb.nodes.bubbleHolder.style.setProperty(`--subgroup-${label}`, pct.toFixed(6));
                 unusedLabels.delete(label);
             }
-            pos.subgroupsInUse = new Set(labels.keys());
-            pos.bubbleHolder.classList.toggle('subgroup-wheel', labels.size > 0);
+            pb.subgroupsInUse = new Set(labels.keys());
+            pb.nodes.bubbleHolder.classList.toggle('subgroup-wheel', labels.size > 0);
         } else {
-            if (pos.subgroupsInUse) {
-                pos.subgroupsInUse.clear();
+            if (pb.subgroupsInUse) {
+                pb.subgroupsInUse.clear();
             } else {
-                pos.subgroupsInUse = new Set();
+                pb.subgroupsInUse = new Set();
             }
-            pos.bubbleHolder.classList.remove('subgroup-wheel');
+            pb.nodes.bubbleHolder.classList.remove('subgroup-wheel');
         }
         for (const x of unusedLabels) {
-            pos.bubbleHolder.style.removeProperty(`--subgroup-${x}`);
+            pb.nodes.bubbleHolder.style.removeProperty(`--subgroup-${x}`);
         }
         let label;
         let attacking = false;
@@ -490,7 +679,7 @@ function renderGroups(groups) {
             let max = -Infinity;
             let weight;
             for (const x of group.athletes) {
-                const p = x.stats.power.smooth[5];
+                const p = x.stats.power.smooth?.[5];
                 if (p > max) {
                     max = p;
                     weight = x.athlete && x.athlete.weight;
@@ -502,8 +691,8 @@ function renderGroups(groups) {
                 leftLines.push(fmtLine(primaryFmt({power: max, weight}), 'minor attn'));
             }
         }
-        pos.el.classList.toggle('attn', attacking);
-        common.softInnerHTML(pos.bubble, label);
+        pb.nodes.el.classList.toggle('attn', attacking);
+        common.softInnerHTML(pb.nodes.bubble, label);
         rightLines.push(fmtLine(primaryFmt(group), '', 'Group average'));
         const minorField = settings.groupsSecondaryField || 'speed';
         if (minorField === 'heartrate') {
@@ -537,40 +726,53 @@ function renderGroups(groups) {
                 }
             }
         }
-        const innerGap = next ? group.innerGap : 0;
-        const gap = relPos < 0 ? group.gap : next ? next.gap : 0;
-        const dur = innerGap && H.duration(Math.abs(gap), {short: true, separator: ' '});
-        const gapText = dur ? (gap > 0 ? '+' : '-') + dur : '';
-        const gapLines = [];
-        if (gapText) {
-            gapLines.push(fmtLine(gapText));
-            if (next && next.isGapEst) {
-                gapLines.push(fmtLine('(est)', 'minor', 'est'));
+        pb.setLeftLines(leftLines.join(''));
+        pb.setRightLines(rightLines.join(''));
+        pb.nodes.actions.watch.classList.toggle('hidden', !!group.watching);
+        pb.nodes.el.classList.toggle('pack-position', !!group.watching && group.athletes.length > 1);
+        if (i < assocGroups.length - 1) {
+            const nextGroup = groups[i + 1];
+            const gap = pb.relativePosition < 0 ? group.gap : nextGroup.gap;
+            const gapAbs = Math.abs(gap);
+            const dur = group.innerGap && H.duration(gapAbs, {short: true, separator: ' '});
+            const gapText = dur ? (gap > 0 ? '+' : '-') + dur : '';
+            const gapLines = [];
+            if (gapText) {
+                gapLines.push(fmtLine(gapText));
+                if (nextGroup.isGapEst) {
+                    gapLines.push(fmtLine('(est)', 'minor', 'est'));
+                }
             }
+            gapSpacer.setSizes(quantizeGap(group.innerGap), quantizeGap(gap));
+            gapSpacer.setLines(gapLines.join(''));
+            gapSpacer.toggleHidden(false);
+        } else {
+            gapSpacer.setLines('');
+            gapSpacer.toggleHidden(true);
         }
-        common.softInnerHTML(pos.leftLines, leftLines.join(''));
-        common.softInnerHTML(pos.rightLines, rightLines.join(''));
-        common.softInnerHTML(pos.gap.lines, gapLines.join(''));
-        pos.leftDesc.classList.toggle('empty', !leftLines.length);
-        pos.rightDesc.classList.toggle('empty', !rightLines.length);
-        pos.gap.desc.classList.toggle('empty', !gapLines.length);
-        pos.gap.el.style.setProperty('--inner-gap', innerGap);
-        pos.gap.el.style.setProperty('--outer-gap', Math.abs(gap));
-        pos.gap.el.style.setProperty('--gap-sign', gap > 0 ? 1 : -1);
-        pos.gap.el.classList.toggle('alone', !innerGap);
-        pos.actions.watch.classList.toggle('hidden', !!group.watching);
-        pos.el.classList.toggle('pack-position', !!group.watching && group.athletes.length > 1);
         if (group.watching) {
             if (group.athletes.length > 1) {
                 const wIdx = group.athletes.findIndex(x => x.watching);
-                pos.el.style.setProperty('--pack-position', (wIdx / (group.athletes.length - 1)).toFixed(6));
+                pb.nodes.el.style.setProperty('--pack-position',
+                                              (wIdx / (group.athletes.length - 1)).toFixed(2));
             }
         } else {
-            pos.watchTarget = group.athletes[Math.trunc(group.athletes.length / 2)].athleteId;
+            pb.setWatchTarget(group.athletes[Math.trunc(group.athletes.length / 2)].athleteId);
         }
     }
-    for (const [i, {el}] of positions.entries()) {
-        el.classList.toggle('hidden', !active.has(i));
+    for (const x of availPositionBubbles) {
+        if (activePositions.has(x)) {
+            x.cancelRemoval();
+            x.toggleHidden(false);
+        } else {
+            x.toggleHidden(true);
+            x.schedRemoval();
+        }
+    }
+    for (const x of availGapSpacers) {
+        if (!activeGaps.has(x)) {
+            x.toggleHidden(true);
+        }
     }
 }
 
