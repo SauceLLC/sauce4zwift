@@ -13,7 +13,7 @@ $hide-horiz-gap: 1.5em;
 html {
     --max-positions: 6;
     --aspect-ratio: calc(2.25 / (var(--max-positions) - 1));
-    --main-animation-duration: 3000ms;
+    --main-animation-duration: 2000ms;
     --vis-animation-duration: 500ms;
 
     &.low-perf-mode {
