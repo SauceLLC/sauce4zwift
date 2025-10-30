@@ -250,6 +250,7 @@ html.horizontal #meta {
     --subgroup-C-color: hsl(180deg 80% 50%);
     --subgroup-D-color: hsl(60deg 80% 50%);
     --subgroup-E-color: hsl(270deg 80% 50%);
+    --size: 0;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -257,7 +258,6 @@ html.horizontal #meta {
     position: relative;
     transition-property: opacity, visibility;
     transition-duration: var(--vis-animation-duration);
-    --size: calc(1.5rem + (var(--athletes) / max(10, var(--total-athletes)) * 3.5rem));
 
     &.hidden {
         opacity: 0 !important;
@@ -345,8 +345,8 @@ html.horizontal #meta {
 
     .bubble {
         position: relative;
-        width: var(--size, 0);
-        height: var(--size, 0);
+        width: calc(var(--size) * 1rem);
+        height: calc(var(--size) * 1rem);
         transition-property: color, font, margin, width, height;
         transition-duration:
             200ms,
@@ -363,9 +363,8 @@ html.horizontal #meta {
         white-space: pre-wrap;
         border-radius: 50%;
         background: radial-gradient(#fffd, #fffd, #fffb);
-        font-size: calc(0.4em + (0.20 * var(--size, 0)));
-        font-family: sans-serif;
-        color: black;
+        font-size: calc(0.4em + (var(--size) * 0.2rem));
+        color: #000;
         text-decoration: none;
 
         &:not(:empty) {
@@ -559,7 +558,7 @@ html {
     &:not(.horizontal) .position .desc {
         &.left {
             left: 0;
-            width: calc(50% - (var(--size) / 2) - $shadow-size);
+            width: calc(50% - (var(--size) * 0.5rem) - $shadow-size);
             justify-content: flex-end;
 
             .lines {
@@ -568,8 +567,8 @@ html {
         }
         &.right {
             $pad: 0.12rem;
-            left: calc(50% + (var(--size) / 2) + $shadow-size + $pad);
-            width: calc(50% - (var(--size) / 2) + $content-pad - $shadow-size - $pad);
+            left: calc(50% + (var(--size) * 0.5rem) + $shadow-size + $pad);
+            width: calc(50% - (var(--size) * 0.5rem) + $content-pad - $shadow-size - $pad);
 
             .lines {
                 align-items: flex-start;

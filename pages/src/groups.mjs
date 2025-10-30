@@ -283,15 +283,6 @@ function getOrCreateGapSpacer(relPos) {
 }
 
 
-function getOrCreatePositionBubble(p) {
-    let pb = availPositionBubbles.find(x => x.relativePosition === p);
-    if (!pb) {
-        pb = PositionBubble.create(p);
-    }
-    return pb;
-}
-
-
 function render() {
     const zoomed = zoomedGroup != null;
     contentEl.classList.toggle('zoomed', zoomed);
@@ -364,7 +355,6 @@ function renderZoomed(groups) {
     const end = Math.min(group.athletes.length, ahead + settings.maxZoomed);
     const behind = group.athletes.length - end;
     const athletes = group.athletes.slice(ahead, end);
-    contentEl.style.setProperty('--total-athletes', athletes.length);  // visual only
     const athletesLabel = groupSize === 1 ? 'Athlete' : 'Athletes';
     let groupLabel;
     if (selectedBy === 'position') {
@@ -412,7 +402,7 @@ function renderZoomed(groups) {
         pb.nodes.bubble.title = `Click for athlete details`;
         pb.nodes.bubble.href = `profile.html?id=${athlete.athleteId}&windowType=profile`;
         pb.nodes.el.classList.toggle('watching', !!athlete.watching);
-        pb.nodes.el.style.setProperty('--athletes', 1);
+        pb.nodes.el.style.setProperty('--size', quantizeSize(1, athletes.length));
         let label;
         let avatar = 'images/blankavatar.png';
         let fLast;
@@ -559,6 +549,13 @@ function getSubgroupDistro(group) {
 const quantizeGap = common.makeQuantizeBaseN(1.5); // about 25 entries for 2 hours
 
 
+function quantizeSize(size, total) {
+    const cardi = 8;
+    const growFactor = Math.round(size / Math.max(10, total) * cardi) / cardi;
+    return 1.5 + (growFactor * 3.5);
+}
+
+
 function renderGroups(groups=[]) {
     let centerIdx = groups.findIndex(x => x.watching);
     if (centerIdx === -1) {
@@ -630,7 +627,6 @@ function renderGroups(groups=[]) {
     }
     aheadEl.classList.toggle('visible', !!ahead);
     behindEl.classList.toggle('visible', !!behind);
-    contentEl.style.setProperty('--total-athletes', totAthletes);
     const primaryFmt = {
         power: ({power}) => pwrFmt(power),
         wkg: ({power, weight}) => weight ? wkgFmt(power / weight) : pwrFmt(power),
@@ -641,7 +637,7 @@ function renderGroups(groups=[]) {
             pb.nodes.bubble.removeAttribute('href');
         }
         pb.nodes.el.classList.toggle('watching', !!group.watching);
-        pb.nodes.el.style.setProperty('--athletes', group.athletes.length);
+        pb.nodes.el.style.setProperty('--size', quantizeSize(group.athletes.length, totAthletes));
         const unusedLabels = pb.subgroupsInUse || new Set();
         if (eventSubgroup) {
             const labels = getSubgroupDistro(group);
