@@ -2190,6 +2190,21 @@ export function getRealTime() {
 }
 
 
+export function makeQuantizeBaseN(base) {
+    const logBaseF = 1 / Math.log(base);
+    return n => {
+        let sign = 1;
+        if (n < 0) {
+            sign = -1;
+            n = -n;
+        }
+        const lo = base ** Math.floor(Math.log(n) * logBaseF);
+        const hi = base ** Math.ceil(Math.log(n) * logBaseF);
+        return Math.round((n - lo < hi - n ? lo : hi) * sign) || 0;
+    };
+}
+
+
 if (window.CSS && CSS.registerProperty) {
     CSS.registerProperty({
         name: '--final-bg-opacity',
