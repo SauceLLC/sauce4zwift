@@ -60,11 +60,7 @@ if (meta.internal) {
 
     if (meta.modContentScripts && meta.modContentScripts.length) {
         for (const x of meta.modContentScripts) {
-            try {
-                webFrame.executeJavaScript(x);
-            } catch(e) {
-                console.error("Mod content script error:", e);
-            }
+            webFrame.executeJavaScript(x).catch(e => console.error("Mod content script error:", e));
         }
     }
 
