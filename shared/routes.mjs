@@ -1,6 +1,6 @@
 import * as curves from './curves.mjs';
 
-export const routeDistEpsilon = 1 / 200;
+export const routeDistEpsilon = 1 / 250;  // currently matches curves.mjs default
 
 
 /*
