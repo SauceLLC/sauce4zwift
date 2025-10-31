@@ -208,7 +208,7 @@ async function makeMetricCharts(proc, el) {
     return {
         line: lineChart,
         gauge: gaugeChart,
-        filterText: titleText,
+        filterText: titleText.toLowerCase(),
     };
 }
 
@@ -275,7 +275,7 @@ export async function main() {
     document.querySelector('input[name="sort-by-cpu"]').addEventListener('click', ev =>
         sortByCPU = ev.currentTarget.checked);
     document.querySelector('input[name="filter"]').addEventListener('input', ev => {
-        filters = ev.currentTarget.value.split(/[, |]+/).filter(x => x);
+        filters = ev.currentTarget.value.split(/[, |]+/).filter(x => x).map(x => x.toLowerCase());
         console.debug("Filters:", filters);
     });
     let iter = 0;
@@ -311,7 +311,7 @@ export async function main() {
             }
             unused.delete(metric.pid);
             const {charts, datas, filterText, el} = allCharts.get(metric.pid);
-            if (filters.length && !filters.some(x => filterText.match(x, 'i'))) {
+            if (filters.length && !filters.some(x => filterText.match(x))) {
                 el.classList.add('hidden');
                 continue;
             }
