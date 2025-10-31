@@ -114,6 +114,10 @@ html {
         position: relative;
         font-size: 0.75em;
 
+        &.hidden {
+            display: none;
+        }
+
         &:not(:last-child) {
             border-bottom: 1px solid #aaa6;
         }

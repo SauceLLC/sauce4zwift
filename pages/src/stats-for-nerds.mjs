@@ -12,6 +12,7 @@ const maxLen = 150;
 const MB = 1024 * 1024;
 
 let sortByCPU = true;
+let filters = [];
 
 
 async function makeMetricCharts(proc, el) {
@@ -32,6 +33,8 @@ async function makeMetricCharts(proc, el) {
     const lineChart = echarts.init(lineEl, 'sauce', {renderer: 'svg'});
     const cpuSoftCeil = 100;
     const memSoftCeil = 2048;
+    const titleText = `${spec ? (common.stripHTML(spec.prettyName) + ' ') : ''}${subWindow ? 'Sub ' : ''}` +
+        `${decodedNames[proc.type] || proc.name || proc.type}${title ? ` (${title})` : ''}, PID: ${proc.pid}`;
     const options = {
         visualMap: [{
             show: false,
@@ -65,9 +68,7 @@ async function makeMetricCharts(proc, el) {
         },
         title: [{
             left: 'left',
-            text: `${spec ? (common.stripHTML(spec.prettyName) + ' ') : ''}${subWindow ? 'Sub ' : ''}` +
-                `${decodedNames[proc.type] || proc.name || proc.type}` +
-                `${title ? ` (${title})` : ''}, PID: ${proc.pid}`,
+            text: titleText,
         }],
         tooltip: {
             trigger: 'axis',
@@ -207,6 +208,7 @@ async function makeMetricCharts(proc, el) {
     return {
         line: lineChart,
         gauge: gaugeChart,
+        filterText: titleText,
     };
 }
 
@@ -270,8 +272,12 @@ export async function main() {
             charts.gauge.resize();
         }
     });
-    document.querySelector('input[name="sort-by-cpu"]')
-        .addEventListener('click', ev => sortByCPU = ev.currentTarget.checked);
+    document.querySelector('input[name="sort-by-cpu"]').addEventListener('click', ev =>
+        sortByCPU = ev.currentTarget.checked);
+    document.querySelector('input[name="filter"]').addEventListener('input', ev => {
+        filters = ev.currentTarget.value.split(/[, |]+/).filter(x => x);
+        console.debug("Filters:", filters);
+    });
     let iter = 0;
     while (true) {
         const metrics = await common.rpc.pollMetrics().catch(e =>
@@ -291,8 +297,10 @@ export async function main() {
                 const el = document.createElement('div');
                 el.classList.add('chart-holder');
                 processesEl.appendChild(el);
+                const {filterText, ...charts} = await makeMetricCharts(metric, el);
                 allCharts.set(metric.pid, {
-                    charts: await makeMetricCharts(metric, el),
+                    filterText,
+                    charts,
                     el,
                     datas: {
                         cpu: [],
@@ -302,7 +310,12 @@ export async function main() {
                 });
             }
             unused.delete(metric.pid);
-            const {charts, datas} = allCharts.get(metric.pid);
+            const {charts, datas, filterText, el} = allCharts.get(metric.pid);
+            if (filters.length && !filters.some(x => filterText.match(x, 'i'))) {
+                el.classList.add('hidden');
+                continue;
+            }
+            el.classList.remove('hidden');
             const cpu = metric.cpu.percentCPUUsage * cpuCount; // % of one core
             const mem = metric.memory.workingSetSize / 1024; // MB
             cpuTotal += cpu;
