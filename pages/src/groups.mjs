@@ -36,6 +36,7 @@ common.settingsStore.setDefault({
     labelAngle: 50,
     horizLTR: true,
     zoomPriority: 'position',
+    reduceOverhead: false,
 });
 
 // XXX Need a migration system.
@@ -787,6 +788,7 @@ function setStyles() {
     if (settings.labelAngle != null) {
         doc.style.setProperty('--label-angle', settings.labelAngle);
     }
+    doc.classList.toggle('reduce-overhead', !!settings.reduceOverhead);
     setMaxPositions();
 }
 

@@ -14,11 +14,15 @@ html {
     --max-positions: 6;
     --aspect-ratio: calc(2.25 / (var(--max-positions) - 1));
     --main-animation-duration: 2000ms;
+    --main-animation-function: ease-in-out;
     --vis-animation-duration: 500ms;
+    --vis-animation-function: ease;
 
-    &.low-perf-mode {
-        --main-animation-duration: 0;
-        --vis-animation-duration: 0;
+    &.reduce-overhead {
+        --main-animation-duration: 1000ms;
+        --main-animation-function: steps(24);
+        --vis-animation-duration: 500ms;
+        --vis-animation-function: steps(12);
     }
 
     &.solid-background {
@@ -121,6 +125,7 @@ html.horizontal #meta {
     line-height: 1;
     transition-property: opacity, max-height, padding, visibility;
     transition-duration: var(--vis-animation-duration);
+    transition-timing-function: var(--vis-animation-function);
     max-height: 2.5em;
 
     &:not(.visible) {
@@ -258,6 +263,7 @@ html.horizontal #meta {
     position: relative;
     transition-property: opacity, visibility;
     transition-duration: var(--vis-animation-duration);
+    transition-timing-function: var(--vis-animation-function);
 
     &.hidden {
         opacity: 0 !important;
@@ -348,12 +354,8 @@ html.horizontal #meta {
         width: calc(var(--size) * 1rem);
         height: calc(var(--size) * 1rem);
         transition-property: color, font, margin, width, height;
-        transition-duration:
-            200ms,
-            200ms,
-            200ms,
-            var(--vis-animation-duration),
-            var(--vis-animation-duration);
+        transition-duration: var(--vis-animation-duration);
+        transition-timing-function: var(--vis-animation-function);
         display: flex;
         overflow: hidden;
         cursor: pointer;
@@ -677,7 +679,7 @@ html {
         flex: calc(var(--inner-gap) / var(--flex-factor)) 1 0;
         transition-property: flex, opacity, visibility;
         transition-duration: var(--main-animation-duration), var(--vis-animation-duration), var(--vis-animation-duration);
-        transition-timing-function: ease-in-out, ease, ease;
+        transition-timing-function: var(--main-animation-function), var(--vis-animation-function), var(--vis-animation-function);
 
         &.hidden {
             flex-grow: 0;
