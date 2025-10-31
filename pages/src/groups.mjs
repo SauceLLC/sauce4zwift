@@ -36,7 +36,7 @@ common.settingsStore.setDefault({
     labelAngle: 50,
     horizLTR: true,
     zoomPriority: 'position',
-    reduceOverhead: false,
+    reduceOverhead: true,
 });
 
 // XXX Need a migration system.
@@ -48,6 +48,7 @@ if (zoomedGroup == null && legacyZoomedPosition != null) {
 common.settingsStore.get('zoomPriority', 'position');
 common.settingsStore.get('groupsPrimaryField', 'power');
 common.settingsStore.get('zoomedPrimaryField', 'power');
+common.settingsStore.get('reduceOverhead', true);
 
 const settings = common.settingsStore.get();
 

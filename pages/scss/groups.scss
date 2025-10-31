@@ -19,10 +19,10 @@ html {
     --vis-animation-function: ease;
 
     &.reduce-overhead {
-        --main-animation-duration: 1000ms;
-        --main-animation-function: steps(24);
+        --main-animation-duration: 2000ms;
+        --main-animation-function: steps(60);
         --vis-animation-duration: 500ms;
-        --vis-animation-function: steps(12);
+        --vis-animation-function: steps(15);
     }
 
     &.solid-background {
