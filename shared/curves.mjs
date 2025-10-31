@@ -11,6 +11,7 @@
 
 
 const curvePathSchemaVersion = 1;
+const defaultTraceEpsilon = 0.004;
 
 
 class LRUCache extends Map {
@@ -209,7 +210,7 @@ export class CurvePath {
 
     static _distCache = new LRUCache(4096);
 
-    constructor({nodes=[], epsilon=0.001, immutable=false}={}) {
+    constructor({nodes=[], epsilon=defaultTraceEpsilon, immutable=false}={}) {
         this.nodes = nodes;
         this.epsilon = epsilon;
         this.immutable = immutable;
