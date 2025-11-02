@@ -447,6 +447,12 @@ img.logo {
             margin-right: 0.6rem;
         }
 
+        .mod-name {
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            overflow: hidden;
+        }
+
         .spacer {
             flex: 1;
         }
