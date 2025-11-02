@@ -5,8 +5,6 @@ BUILD := build.json
 
 ifeq ($(OS),Windows_NT)
   WINBLOWS := true
-  #SHELL := powershell.exe
-  #.SHELLFLAGS := -C
 else
   T := $(shell uname -s)
   ifeq ($(T),Linux)
@@ -125,7 +123,7 @@ test:
 	$(NODE) --test
 
 test-debug:
-	$(NODE) --test --experimental-test-isolation=none --inspect-wait
+	$(NODE) --test --experimental-test-isolation=none --inspect-brk
 
 test-watch:
 	$(NODE) --test --watch
