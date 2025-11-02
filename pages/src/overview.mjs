@@ -191,7 +191,7 @@ async function renderAvailableMods() {
         return;
     }
     const html = [];
-    for (const {manifest, id, enabled, packed, restartRequired, status} of mods) {
+    for (const {manifest, id, enabled, packed, restartRequired, path} of mods) {
         if (!manifest) {
             continue;
         }
@@ -199,39 +199,42 @@ async function renderAvailableMods() {
         modSafeIds.set(safeId, id);
         const optRemove = !restartRequired ?
             packed ?
-                `<span class="button std xs danger" data-mod-action="remove">Remove</span>` :
-                `<small class="badge" style="--sat: 0"
-                        title="Mod is manually installed in the SauceMods folder">unpacked</small>` :
+                `<div class="button std danger" data-mod-action="remove">Remove</div>` :
+                `<div class="badge" style="--sat: 0"
+                      title="Mod is manually installed in the SauceMods folder">Unpacked</div>` :
             '';
         const enBox = !restartRequired ?
             `Enabled <input type="checkbox" ${enabled ? 'checked' : ''}/>` :
-            `<small class="badge" style="--sat: 0">${status}</small>`;
+            '';
         html.push(`
             <div class="mod ${restartRequired ? 'restart-required' : ''}" data-id="${safeId}">
-                <div class="header">
-                    <div>
-                        <span class="name">${common.stripHTML(manifest.name)}</span>
-                        <span class="version">(v${manifest.version})</span>
-                        ${optRemove}
-                    </div>
-                    <label data-mod-action="enable-toggle" class="enabled ${restartRequired ? 'edited' : ''}">
-                        ${enBox}
-                        <span class="restart-required"></span>
+                <header>
+                    <div class="mod-name">${common.stripHTML(manifest.name)}</div>
+                    <div class="mod-version thick-subtle">v${manifest.version}</div>
+                    <div class="spacer"></div>
+                    ${optRemove}
+                    <label data-mod-action="enable-toggle"
+                           class="mod-enabled ${restartRequired ? 'edited' : ''}">
+                        ${enBox} <span class="restart-required"></span>
                     </label>
-                </div>
-                <div class="info">${common.stripHTML(manifest.description)}</div>
-        `);
+                </header>`);
+        if (!packed && path) {
+            html.push(`<div class="mod-path thick-subtle">${common.stripHTML(path)}</div>`);
+        }
+        html.push(`<div class="mod-info">${common.stripHTML(manifest.description)}</div>`);
         if (manifest.author || manifest.website_url) {
-            html.push('<div class="pb">');
+            html.push('<footer>');
+            html.push('<div class="mod-credit">');
             if (manifest.author) {
-                html.push(`<div class="author">Author: ${common.stripHTML(manifest.author)}</div>`);
+                html.push(`<div class="mod-author">Author: ${common.stripHTML(manifest.author)}</div>`);
             }
             if (manifest.website_url) {
                 const url = common.sanitizeAttr(common.stripHTML(manifest.website_url));
-                html.push(`<div class="website"><a href="${url}"
+                html.push(`<div class="mod-website"><a href="${url}"
                     target="_blank" external>Website <ms>open_in_new</ms></a></div>`);
             }
             html.push('</div>');
+            html.push('</footer>');
         }
         html.push(`</div>`);
     }
@@ -486,7 +489,7 @@ async function initWindowsPanel() {
     document.querySelector('#mods-container').addEventListener('click', async ev => {
         const actionEl = ev.target.closest('[data-mod-action]');
         if (actionEl.dataset.modAction === 'enable-toggle') {
-            const label = ev.target.closest('label.enabled');
+            const label = ev.target.closest('label.mod-enabled');
             const enabled = label.querySelector('input').checked;
             const id = modSafeIds.get(ev.target.closest('.mod[data-id]').dataset.id);
             label.classList.add('edited');
