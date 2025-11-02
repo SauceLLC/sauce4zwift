@@ -273,7 +273,7 @@ class TimeSeriesAccumulator {
         return this._value;
     }
 
-    configure(...args) {
+    configure() {
         throw new Error("Pure Virtual");
     }
 
@@ -2032,9 +2032,9 @@ export class StatsProcessor extends events.EventEmitter {
         }
     }
 
-    onIncoming(...args) {
+    onIncoming() {
         try {
-            this._onIncoming(...args);
+            this._onIncoming.apply(this, arguments);
         } catch(e) {
             report.errorOnce(e);
         }
