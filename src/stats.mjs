@@ -18,6 +18,7 @@ const pkg = require('../package.json');
 const wPrimeDefault = 20000;
 let groupIdCounter = 1;
 let dataSliceIdCounter = (Date.now() & 0xfff_ffff) ^ (Math.random() * 0xfff_ffff | 0);
+let monotonic = () => performance.timeOrigin + performance.now();
 
 
 rpc.register(env.getWorldMetas);
@@ -58,8 +59,8 @@ rpc.register((courseId, roadId, reverse=false) => {
 }, {name: 'getSegmentsForRoad'});
 
 
-function monotonic() {
-    return performance.timeOrigin + performance.now();
+export function enableTestTimerMode() {
+    monotonic = () => Date.now();
 }
 
 
@@ -1371,10 +1372,12 @@ export class StatsProcessor extends events.EventEmitter {
     }
 
     async getSegmentResults(id, options={}) {
-        const now = monotonic();
+        const cacheValidFor = 2000;
+        const throttleFor = 800;
         if (id == null) {
+            const now = monotonic();
             const bucket = this._segmentResultsBuckets.liveLeaders;
-            if (!bucket.promise || now - bucket.ts > 1000) {
+            if (!bucket.promise || now - bucket.ts > cacheValidFor) {
                 bucket.ts = now;
                 bucket.promise = this.zwiftAPI.getLiveSegmentLeaders();
             }
@@ -1384,19 +1387,26 @@ export class StatsProcessor extends events.EventEmitter {
             // Only best result for each athlete in recent times (possibly only if in-world).
             // Only returns first name initial.
             const bucket = this._segmentResultsBuckets.liveLeaderboard;
-            let c = bucket.cache.get(id);
-            if (!c || now - c.ts > 1000) {
-                while (bucket.pending) {
-                    await bucket.pending.catch(() => null);
-                }
-                c = bucket.cache.get(id); // may have updated from prior call
+            let c;
+            let cacheUsable;
+            do {
+                c = bucket.cache.get(id);
                 if (!c) {
-                    c = {};
+                    c = {ts: -Infinity};
                     bucket.cache.set(id, c);
                 }
-                c.ts = now;
+                cacheUsable = monotonic() - c.ts < cacheValidFor;
+                if (cacheUsable || !bucket.pending) {
+                    break;
+                }
+                await bucket.pending.catch(() => null);
+            } while(true);
+            if (!cacheUsable) {
+                c.ts = monotonic();
                 c.promise = this.zwiftAPI.getLiveSegmentLeaderboard(id);
-                bucket.pending = c.promise.finally(() => sauce.sleep(1000).then(() => bucket.pending = null));
+                if (bucket.pending) { throw new Error("bad"); }
+                bucket.pending = c.promise.finally(() =>
+                    sauce.sleep(throttleFor).then(() => bucket.pending = null));
             }
             return await c.promise;
         } else {
@@ -1414,19 +1424,16 @@ export class StatsProcessor extends events.EventEmitter {
                 bucket.cache.set(key, c);
             }
             let ranges;
-            for (let i = 0; i < 2; i++) {
+            do {
                 ranges = this._computeSegmentResultsRanges(c, options);
                 if (!ranges) {
                     return [];
                 }
-                if (ranges.uncached && bucket.pending) {
-                    while (bucket.pending) {
-                        await bucket.pending.catch(() => null);
-                    }
-                    continue;
+                if (ranges.uncached === null || !bucket.pending) {
+                    break;
                 }
-                break;
-            }
+                await bucket.pending.catch(() => null);
+            } while(true);
             if (ranges.uncached) {
                 let updatedRanges;
                 if (ranges.overlaps.length) {
@@ -1486,7 +1493,7 @@ export class StatsProcessor extends events.EventEmitter {
                                   c.entries.length);
                 });
                 // Immediately replace the deferral with our chained version + a throttle delay..
-                bucket.pending = p.finally(() => sauce.sleep(1000).then(() => bucket.pending = null));
+                bucket.pending = p.finally(() => sauce.sleep(throttleFor).then(() => bucket.pending = null));
                 await p;
             }
             // TBD: Are we going to need bin search here too?
