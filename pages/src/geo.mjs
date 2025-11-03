@@ -35,7 +35,7 @@ common.settingsStore.setDefault({
 });
 
 const settings = common.settingsStore.get();
-const url = new URL(location);
+const url = new URL(window.location);
 const courseSelect = document.querySelector('#titlebar select[name="course"]');
 const routeSelect = document.querySelector('#titlebar select[name="route"]');
 const demoState = {};
@@ -238,7 +238,7 @@ async function applyRoute() {
     } else {
         url.searchParams.delete('route');
     }
-    history.replaceState({}, '', url);
+    window.history.replaceState({}, '', url);
     routeSelect.replaceChildren();
     routeSelect.insertAdjacentHTML('beforeend', `<option value disabled selected>Route</option>`);
     if (!routesList) {
@@ -276,7 +276,7 @@ async function applyCourse() {
     } else {
         url.searchParams.delete('course');
     }
-    history.replaceState({}, '', url);
+    window.history.replaceState({}, '', url);
     courseSelect.replaceChildren();
     for (const x of worldList) {
         courseSelect.insertAdjacentHTML('beforeend', `
@@ -443,7 +443,7 @@ export async function main() {
                 elProfile.chart.resize();
             }
         } else if (['profileOverlay', 'fields', 'routeProfile', 'showElevationMaxLine'].includes(key)) {
-            location.reload();
+            window.location.reload();
         }
     });
 }

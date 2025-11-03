@@ -70,7 +70,7 @@ class ThemeSelect extends HTMLSelectElement {
         this.render();
     }
 }
-customElements.define('sauce-theme', ThemeSelect, {extends: 'select'});
+window.customElements.define('sauce-theme', ThemeSelect, {extends: 'select'});
 
 
 class BackgroundTextureSelect extends HTMLSelectElement {
@@ -117,4 +117,4 @@ class BackgroundTextureSelect extends HTMLSelectElement {
         this.render();
     }
 }
-customElements.define('sauce-background-texture', BackgroundTextureSelect, {extends: 'select'});
+window.customElements.define('sauce-background-texture', BackgroundTextureSelect, {extends: 'select'});

@@ -47,7 +47,7 @@ export function main() {
         if (key === '/imperialUnits') {
             renderer.render();
         } else if (key === 'autoHideWindows') {
-            location.reload();  // Avoid state machine complications.
+            window.location.reload();  // Avoid state machine complications.
         } else if (key === 'centerGapSize') {
             doc.style.setProperty('--center-gap-size', `${value}px`);
             renderer.render({force: true});
@@ -351,16 +351,18 @@ async function initWindowsPanel() {
             await renderProfiles();
             await renderWindows();
         } else if (link.classList.contains('win-delete')) {
-            if (confirm('Delete this window and its settings?')) {
+            if (window.confirm('Delete this window and its settings?')) {
                 await common.rpc.removeWidgetWindow(id);
             }
         } else if (link.classList.contains('profile-delete')) {
-            if (confirm('Delete this profile and all its windows?')) {
-                await common.rpc.removeProfile(id).catch(e => alert(`Remove Error...\n\n${e.message}`));
+            if (window.confirm('Delete this profile and all its windows?')) {
+                await common.rpc.removeProfile(id).catch(e =>
+                    window.alert(`Remove Error...\n\n${e.message}`));
                 await renderProfiles();
             }
         } else if (link.classList.contains('profile-clone')) {
-            await common.rpc.cloneProfile(id).catch(e => alert(`Clone Error...\n\n${e.message}`));
+            await common.rpc.cloneProfile(id).catch(e =>
+                window.alert(`Clone Error...\n\n${e.message}`));
             await renderProfiles();
         } else if (link.classList.contains('profile-export')) {
             const data = await common.rpc.exportProfile(id);
@@ -476,9 +478,9 @@ async function initWindowsPanel() {
                     const data = JSON.parse(await f.text());
                     await common.rpc.importProfile(data);
                     await renderProfiles();
-                    alert(`Successfully Imported: \n\n${data.profile.name}`);
+                    window.alert(`Successfully Imported: \n\n${data.profile.name}`);
                 } catch(e) {
-                    alert(`Import Error\n\n${e.message}`);
+                    window.alert(`Import Error\n\n${e.message}`);
                     throw e;
                 }
             });

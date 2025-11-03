@@ -218,7 +218,7 @@ export async function main() {
     }
     common.subscribe('chat', onChatMessage, {persistent: true});
 
-    if (location.search.includes('test')) {
+    if (window.location.search.includes('test')) {
         const wordsURL = 'https://raw.githubusercontent.com/mayfield/mad-libs-json/master/words.json';
         const w = await (await fetch(wordsURL)).json();
         const _ = arr => arr[Math.floor(Math.random() * arr.length)];

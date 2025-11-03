@@ -1,9 +1,14 @@
 {
     "plugins": ["eslint-plugin-html"],
     "env": {
-        "browser": true,
-        "commonjs": true,
-        "es2021": true
+        "es2023": true
+    },
+    "globals": {
+        "console": "readonly",
+        "setInterval": "readonly",
+        "setTimeout": "readonly",
+        "queueMicrotask": "readonly",
+        "console": "readonly"
     },
     "extends": [
         "eslint:recommended"

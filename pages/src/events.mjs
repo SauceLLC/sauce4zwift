@@ -17,7 +17,7 @@ let gcs;
 let selfAthlete;
 let allRoutes;
 
-const q = new URLSearchParams(location.search);
+const q = new URLSearchParams(window.location.search);
 const chartRefs = new Set();
 const allEvents = new Map();
 const allSubgroups = new Map();
@@ -319,7 +319,7 @@ export async function main() {
                 }
                 if (!accepted) {
                     el.classList.remove('can-signup');
-                    alert("Event subgroup rejected");
+                    window.alert("Event subgroup rejected");
                 } else {
                     sg.signedUp = event.signedUp = true;
                     el.parentElement.querySelectorAll(':scope > [data-event-subgroup-id]').forEach(x =>

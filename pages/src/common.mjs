@@ -13,7 +13,7 @@ export const sleep = _sleep; // Come on ES6 modules, really!?
 export const expWeightedAvg = _expWeightedAvg;
 export let idle;
 if (window.requestIdleCallback) {
-    idle = options => new Promise(resolve => requestIdleCallback(resolve, options));
+    idle = options => new Promise(resolve => window.requestIdleCallback(resolve, options));
 } else {
     idle = () => new Promise(resolve => setTimeout(resolve, 1));
 }
@@ -242,7 +242,7 @@ if (window.isElectron) {
         storageFlushTimeout = setTimeout(() => rpcCall('flushSessionStorage'), 500);
     };
 } else {
-    const q = new URLSearchParams(location.search);
+    const q = new URLSearchParams(window.location.search);
     windowID = q.get('windowId') || q.get('windowid') || 'browser-def-id';
     const respHandlers = new Map();
     const subs = [];
@@ -280,8 +280,8 @@ if (window.isElectron) {
         await p;
     };
     const connectWebSocket = async function() {
-        const schema = location.protocol === 'https:' ? 'wss' : 'ws';
-        const ws = new WebSocket(`${schema}://${location.host}/api/ws/events`);
+        const schema = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        const ws = new WebSocket(`${schema}://${window.location.host}/api/ws/events`);
         ws.addEventListener('message', ev => {
             const env = JSON.parse(ev.data);
             const handler = respHandlers.get(env.uid);
@@ -751,7 +751,7 @@ export function initInteractionListeners() {
                 doc.classList.remove('settings-mode');
             }
         });
-        const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+        const isSafari = /^((?!chrome|android).)*safari/i.test(window.navigator.userAgent);
         if (isSafari) {
             let touching;
             window.addEventListener("touchstart", ev => {
@@ -764,8 +764,9 @@ export function initInteractionListeners() {
     }
     if (!window.isElectron) {
         addOpenSettingsParam('windowId', windowID);
-        const isFirefoxIFrame = location !== parent.location && navigator.userAgent.match(/ Firefox/);
-        if (isFirefoxIFrame || navigator.userAgent.match(/ OBS\//)) {
+        const isFirefoxIFrame = window.location !== window.parent.location &&
+                                window.navigator.userAgent.match(/ Firefox/);
+        if (isFirefoxIFrame || window.navigator.userAgent.match(/ OBS\//)) {
             console.info("Enabling hack to avoid broken tabs handling");
             for (const x of document.querySelectorAll('a[target]')) {
                 x.removeAttribute('target');
@@ -797,7 +798,7 @@ export function initInteractionListeners() {
         // XXX I think I can remove these, but just check first...
         console.error("DEPRECATED");
         debugger;
-        el.addEventListener('click', ev => location.assign(el.dataset.url));
+        el.addEventListener('click', ev => window.location.assign(el.dataset.url));
     }
     for (const el of document.querySelectorAll('.button[data-ext-url]')) {
         // XXX I think I can remove these, but just check first...
@@ -841,16 +842,16 @@ export function initInteractionListeners() {
             dialog.innerHTML = attributions[attr.getAttribute('for')];
             const pos = attr.getBoundingClientRect(attr);
             if (pos.left || pos.top) {
-                if (pos.left < innerWidth / 2) {
+                if (pos.left < window.innerWidth / 2) {
                     dialog.style.setProperty('left', pos.left + 'px');
                 } else {
-                    dialog.style.setProperty('right', innerWidth - pos.right + 'px');
+                    dialog.style.setProperty('right', window.innerWidth - pos.right + 'px');
                     dialog.style.setProperty('left', 'unset');
                 }
-                if (pos.top < innerHeight / 2) {
+                if (pos.top < window.innerHeight / 2) {
                     dialog.style.setProperty('top', pos.bottom + 'px');
                 } else {
-                    dialog.style.setProperty('bottom', innerHeight - pos.top + 'px');
+                    dialog.style.setProperty('bottom', window.innerHeight - pos.top + 'px');
                     dialog.style.setProperty('top', 'unset');
                 }
                 dialog.classList.add('anchored');
@@ -900,7 +901,7 @@ export class Renderer {
         contentEl.classList.toggle('unlocked', !this.locked);
         this.stopping = false;
         this.fps = options.fps || null,
-        this.id = options.id || location.pathname.split('/').at(-1);
+        this.id = options.id || window.location.pathname.split('/').at(-1);
         this.fields = new Map();
         this.onKeyDownBound = this.onKeyDown.bind(this);
         // Avoid circular refs so fields.mjs has immediate access..
@@ -1962,7 +1963,7 @@ export async function getAthleteDataCached(id, {maxAge=60000}={}) {
 
 let _sentryEnabled;
 export async function enableSentry() {
-    if (location.pathname.startsWith('/mods/')) {
+    if (window.location.pathname.startsWith('/mods/')) {
         throw new Error("Please don't use sentry error logging in a mod");
     }
     if (_sentryEnabled) {

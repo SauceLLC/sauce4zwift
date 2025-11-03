@@ -389,7 +389,7 @@ export async function main() {
                 el.style.setProperty('order', i);
             }
         }
-        if (location.search.includes('slow')) {
+        if (window.location.search.includes('slow')) {
             await sauce.sleep(iter * 1000);
         }
     }

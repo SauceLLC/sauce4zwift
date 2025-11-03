@@ -1,4 +1,3 @@
-/* global setImmediate, Buffer */
 import events from 'node:events';
 import path from 'node:path';
 import {createRequire} from 'node:module';

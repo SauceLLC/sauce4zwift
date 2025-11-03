@@ -7,8 +7,8 @@ common.enableSentry();
 echarts.registerTheme('sauce', getTheme('dynamic'));
 
 const doc = document.documentElement;
-const page = location.pathname.split('/').at(-1).split('.')[0];
-const type = (new URLSearchParams(location.search)).get('t') || page || 'power';
+const page = window.location.pathname.split('/').at(-1).split('.')[0];
+const type = (new URLSearchParams(window.location.search)).get('t') || page || 'power';
 const L = sauce.locale;
 const H = L.human;
 let settings; // eslint-disable-line prefer-const

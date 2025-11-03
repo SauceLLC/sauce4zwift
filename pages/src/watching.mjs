@@ -7,7 +7,7 @@ import * as fieldsMod from './fields.mjs';
 
 common.enableSentry();
 
-const q = new URLSearchParams(location.search);
+const q = new URLSearchParams(window.location.search);
 const customIdent = q.get('id');
 const athleteIdent = customIdent || 'watching';
 
@@ -1530,7 +1530,7 @@ export async function main() {
                 requestAnimationFrame(resizeCharts);
             }
         } else if (!['/theme', '/imperialUnits', 'themeOverride'].includes(key)) {
-            location.reload();
+            window.location.reload();
         }
     });
     let athleteId;

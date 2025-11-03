@@ -1,4 +1,3 @@
-/* global Buffer */
 import express from 'express';
 import * as rpc from './rpc.mjs';
 import * as mods from './mods.mjs';

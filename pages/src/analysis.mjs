@@ -17,7 +17,7 @@ common.settingsStore.setDefault({
 
 const H = sauce.locale.human;
 const settings = common.settingsStore.get();
-const q = new URLSearchParams(location.search);
+const q = new URLSearchParams(window.location.search);
 const athleteIdent = q.get('id') || 'self';
 const refreshInterval = Number(q.get('refresh') || 2) * 1000;
 
@@ -809,7 +809,7 @@ export async function main() {
     });
     contentEl.addEventListener('dblclick', ev => {
         if (ev.target.closest('header:has(.expander)')) {
-            getSelection().removeAllRanges(); // prevent selecting text
+            window.getSelection().removeAllRanges(); // prevent selecting text
             ev.target.closest('section').classList.toggle('compressed');
         }
     });

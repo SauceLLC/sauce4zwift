@@ -1,5 +1,3 @@
-/* global __dirname */
-
 Error.stackTraceLimit = 25;
 
 const os = require('node:os');

@@ -1,4 +1,3 @@
-/* global Buffer */
 import path from 'node:path';
 import net from 'node:net';
 import dgram from 'node:dgram';
