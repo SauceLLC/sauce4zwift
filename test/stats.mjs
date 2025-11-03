@@ -75,19 +75,19 @@ const zwiftAPI = {
     getLiveSegmentLeadersCnt: 0,
     getLiveSegmentLeaders: async () => {
         zwiftAPI.getLiveSegmentLeadersCnt++;
-        await (isTimeReal() ? sleep(1) : sleep(networkLatency));
+        await (isTimeReal() ? null : sleep(networkLatency));
         return [];
     },
     getLiveSegmentLeaderboardCnt: 0,
     getLiveSegmentLeaderboard: async id => {
         zwiftAPI.getLiveSegmentLeaderboardCnt++;
-        await (isTimeReal() ? sleep(1) : sleep(networkLatency));
+        await (isTimeReal() ? null : sleep(networkLatency));
         return segmentResults.filter(x => x.segmentId === id);
     },
     getSegmentResultsCnt: 0,
     getSegmentResults: async (id, {from, to, athleteId}={}) => {
         zwiftAPI.getSegmentResultsCnt++;
-        await (isTimeReal() ? sleep(1) : sleep(networkLatency));
+        await (isTimeReal() ? null : sleep(networkLatency));
         return segmentResults.filter(x => x.segmentId === id && x.ts >= from &&
                                           (to == null || x.ts <= to) &&
                                           (athleteId == null || x.athleteId === athleteId));
@@ -132,7 +132,6 @@ test.suite('stats', () => {
         worldTimerTick(3600_000);
     });
 
-/*
     test('stats StatsProcessor instantiate', () => {
         assert.ok(new StatsProcessor({app, zwiftAPI}));
     });
@@ -167,7 +166,6 @@ test.suite('stats', () => {
         assert.ok(await cachehit);
         assert.ok(await cachehit2);
     });
-*/
 
     test('stats getSegmentResults(id, {live}) - cache stale concurrent', async ({mock}) => {
         const sp = new StatsProcessor({app, zwiftAPI});
@@ -200,11 +198,11 @@ test.suite('stats', () => {
         assert.strictEqual(done, 0);
         await advanceEventLoop(1);
         assert.strictEqual(done, 1);
-        await advanceEventLoop(throttleFor + networkLatency - 1);
+        await advanceEventLoop(throttleFor - 1);
         assert.strictEqual(done, 1);
         await advanceEventLoop(1);
         assert.strictEqual(done, 2);
-        await advanceEventLoop(throttleFor + networkLatency - 1);
+        await advanceEventLoop(throttleFor - 1);
         assert.strictEqual(done, 2);
         await advanceEventLoop(1);
         assert.strictEqual(done, 3);
@@ -284,7 +282,7 @@ test.suite('stats', () => {
         let done;
         p2.then(() => done = true);
         assert.ok(!done);
-        await advanceEventLoop(throttleFor + networkLatency - 1);
+        await advanceEventLoop(throttleFor - 1);
         assert.ok(!done);
         await advanceEventLoop(1);
         assert.ok(done);
@@ -298,7 +296,7 @@ test.suite('stats', () => {
         const r1 = await r1p;
         const ranges1 = Array.from(sp._segmentResultsBuckets.full.cache.get('222-*').acquiredRanges);
         const r2p = sp.getSegmentResults(222, {from: 900_000, to: 1620_000});
-        await advanceEventLoop(networkLatency + throttleFor + 200);
+        await advanceEventLoop(throttleFor);
         const r2 = await r2p;
         const ranges2 = Array.from(sp._segmentResultsBuckets.full.cache.get('222-*').acquiredRanges);
         assert.strictEqual(r1.length, 42);
@@ -343,7 +341,7 @@ test.suite('stats', () => {
         const r1 = await r1p;
         const ranges1 = Array.from(sp._segmentResultsBuckets.full.cache.get('222-*').acquiredRanges);
         const r2p = sp.getSegmentResults(222, {from: 900_000, to: 1800_000});
-        await advanceEventLoop(throttleFor + networkLatency);
+        await advanceEventLoop(throttleFor);
         const r2 = await r2p;
         const ranges2 = Array.from(sp._segmentResultsBuckets.full.cache.get('222-*').acquiredRanges);
         assert.strictEqual(r1.length, 52);
