@@ -1403,9 +1403,10 @@ export class StatsProcessor extends events.EventEmitter {
             if (!cacheUsable) {
                 c.ts = monotonic();
                 c.promise = this.zwiftAPI.getLiveSegmentLeaderboard(id);
-                if (bucket.pending) { throw new Error("bad"); }
-                bucket.pending = c.promise.finally(() =>
-                    sauce.sleep(throttleFor).then(() => bucket.pending = null));
+                if (bucket.pending) {
+                    throw new Error("Internal Error");
+                }
+                bucket.pending = sauce.sleep(throttleFor).then(() => bucket.pending = null);
             }
             return await c.promise;
         } else {
@@ -1491,8 +1492,13 @@ export class StatsProcessor extends events.EventEmitter {
                     console.debug("Added new segment results:", 'took', e - s, 'added', added, 'total',
                                   c.entries.length);
                 });
-                // Immediately replace the deferral with our chained version + a throttle delay..
-                bucket.pending = p.finally(() => sauce.sleep(throttleFor).then(() => bucket.pending = null));
+                if (bucket.pending) {
+                    throw new Error("Internal Error");
+                }
+                const now = monotonic();
+                bucket.pending = p.finally(() =>
+                    sauce.sleep(throttleFor - (monotonic() - now)).then(() =>
+                        bucket.pending = null));
                 await p;
             }
             // TBD: Are we going to need bin search here too?
