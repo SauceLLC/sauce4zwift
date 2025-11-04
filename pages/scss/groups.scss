@@ -19,10 +19,11 @@ html {
     --vis-animation-function: ease;
 
     &.reduce-overhead {
+        --fps: 24;
         --main-animation-duration: 2000ms;
-        --main-animation-function: steps(60);
+        --main-animation-function: steps(calc(var(--main-animation-duration) / 1s * var(--fps)));
         --vis-animation-duration: 500ms;
-        --vis-animation-function: steps(15);
+        --vis-animation-function: steps(calc(var(--vis-animation-duration) / 1s * var(--fps)));
     }
 
     &.solid-background {
@@ -550,8 +551,8 @@ html.horizontal .zoom-out {
 html {
     .position .desc {
         transition-property: left, width;
-        transition-duration: 1s;
-        transition-timing-function: ease-in-out;
+        transition-duration: var(--vis-animation-duration);
+        transition-timing-function: var(--vis-animation-function);
 
         &::after {
             padding: 0 0.2em;
