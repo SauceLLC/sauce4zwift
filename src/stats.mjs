@@ -1372,7 +1372,7 @@ export class StatsProcessor extends events.EventEmitter {
 
     async getSegmentResults(id, options={}) {
         const cacheValidFor = 2000;
-        const throttleFor = 800;
+        const throttleFor = 400;
         if (id == null) {
             const now = monotonic();
             const bucket = this._segmentResultsBuckets.liveLeaders;

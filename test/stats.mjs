@@ -96,7 +96,7 @@ const zwiftAPI = {
 
 test.suite('stats', () => {
 
-    const throttleFor = 800; // match internal impl of getSegmentResults
+    const throttleFor = 400; // match internal impl of getSegmentResults
     const cacheValidFor = 2000; // match internal impl of getSegmentResults
     let curMock;
 
