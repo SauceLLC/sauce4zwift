@@ -193,6 +193,8 @@ async function startNormal() {
         app.commandLine.appendSwitch('disable-gpu-compositing');
     }
     app.commandLine.appendSwitch('force-gpu-mem-available-mb', '1024');
+    // Not working yet, but maybe with upcoming chromium (when we can upgrade). XXX
+    //app.commandLine.appendSwitch('throttle-main-thread-to-60hz'); // XXX
     // Fix audio playback of all things...
     // By calling protocol.handle on file: we reset it's privs.
     protocol.registerSchemesAsPrivileged([{
