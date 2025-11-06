@@ -2233,7 +2233,7 @@ export function winsorizedMean(values, clip=0.2) {
 
 
 const _rafInitial = window.requestAnimationFrame;
-export async function checkFrameRate({raf=_rafInitial, mean=false, ticks=10}={}) {
+export async function testFrameRate({raf=_rafInitial, mean=false, ticks=10}={}) {
     const times = [];
     let i = 0;
     let pts;
@@ -2298,20 +2298,20 @@ export class RAFThrottlePatcher {
         const ratio = this.rafTime / this.throttledTime;
         if (ratio > 0.95) {
             if (this.runner !== this.runners.native) {
-                console.info(`Using native RAF: ${nativeFps} -> ${fps} fps`);
+                console.debug(`Using native RAF: ${nativeFps} -> ${fps} fps`);
                 this.runner = this.runners.native;
             }
         } else if (this.throttledTime - this.rafTime < 10) {
             this._dropRate = ratio;
             this._dropAccum = 0;
             if (this.runner !== this.runners.drop) {
-                console.info(`Using RAF-drop-frames throttle: ${nativeFps} -> ${fps} fps`);
+                console.debug(`Using RAF-drop-frames throttle: ${nativeFps} -> ${fps} fps`);
                 this.runner = this.runners.drop;
             }
         } else {
             this._schedDelay = Math.round(this.throttledTime - this.rafTime / 2) - 1;
             if (this.runner !== this.runners.sched) {
-                console.info(`Using scheduled RAF throttle: ${nativeFps} -> ${fps} fps`);
+                console.debug(`Using scheduled RAF throttle: ${nativeFps} -> ${fps} fps`);
                 this.runner = this.runners.sched;
             }
         }
@@ -2323,7 +2323,7 @@ export class RAFThrottlePatcher {
         }
         this.calibrating = true;
         try {
-            const fps = await checkFrameRate();
+            const fps = await testFrameRate();
             this.rafTime = 1000 / fps;
             this.setFPSLimit();
         } finally {

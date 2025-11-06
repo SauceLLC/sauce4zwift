@@ -394,6 +394,7 @@ export class SauceZwiftMap extends EventTarget {
         this._lastFrameTime = 0;
         this._frameTimeAvg = 0;
         this._frameTimeWeighted = common.expWeightedAvg(30, 1000 / 60);
+        this._nativeFrameTime = 1000 / 60;
         this._perspective = 800;
         this._wheelState = {
             nextAnimFrame: null,
@@ -409,6 +410,7 @@ export class SauceZwiftMap extends EventTarget {
         };
         this._renderLoopActive = false;
         this._renderLoopBound = this._renderLoop.bind(this);
+        this._rafForRenderLoopBound = requestAnimationFrame.bind(window, this._renderLoopBound);
         this._onPointerMoveBound = this._onPointerMove.bind(this);
         this._onPointerDoneBound = this._onPointerDone.bind(this);
         this._mapTransition = new Transition({duration: 500});
@@ -461,9 +463,17 @@ export class SauceZwiftMap extends EventTarget {
                 }, this._msPerFrame);
             }
         }, {passive: true, capture: true});
+        setTimeout(() => this._updateNativeFrameTime(), 1000);
+        setInterval(() => this._updateNativeFrameTime(), 30_000);
         this._updateContainerLayout();
         this._pauseRefCnt--;
         this._gcLoop();
+    }
+
+    async _updateNativeFrameTime() {
+        const fps = await common.testFrameRate();
+        this._nativeFrameTime = 1000 / fps;
+        this.setFPSLimit(this.fpsLimit);
     }
 
     _updateContainerLayout() {
@@ -474,6 +484,7 @@ export class SauceZwiftMap extends EventTarget {
     setFPSLimit(fps) {
         this.fpsLimit = fps;
         this._msPerFrame = 1000 / fps | 0;
+        this._schedNextFrameDelay = Math.round((1000 / fps) - (this._nativeFrameTime / 2)) - 1;
     }
 
     async setStyle(style='default') {
@@ -879,7 +890,7 @@ export class SauceZwiftMap extends EventTarget {
         }
         if (!this._renderLoopActive) {
             this._renderLoopActive = true;
-            requestAnimationFrame(this._renderLoopBound);
+            this._rafForRenderLoopBound();
         }
     });
 
@@ -1562,12 +1573,17 @@ export class SauceZwiftMap extends EventTarget {
     }
 
     _renderLoop(frameTime) {
-        requestAnimationFrame(this._renderLoopBound);
         const elapsed = frameTime - this._lastFrameTime;
-        if (elapsed < this._msPerFrame && this._frameTimeAvg < this._msPerFrame) {
-            return;
+        if (this._msPerFrame < elapsed || this._msPerFrame < this._frameTimeAvg) {
+            if (this._schedNextFrameDelay > 8) {
+                setTimeout(this._rafForRenderLoopBound, this._schedNextFrameDelay);
+            } else {
+                this._rafForRenderLoopBound();
+            }
+            this._renderFrame(false, frameTime);
+        } else {
+            this._rafForRenderLoopBound();
         }
-        this._renderFrame(false, frameTime);
     }
 
     _updateEntityAthleteData(ent, ad) {
