@@ -3,6 +3,7 @@ import * as common from './common.mjs';
 import {cssColor, getTheme} from './echarts-sauce-theme.mjs';
 
 common.enableSentry();
+common.RAFThrottlePatcher.singleton().setFPSLimit(12);
 
 const doc = document.documentElement;
 const page = window.location.pathname.split('/').at(-1).split('.')[0];
@@ -14,125 +15,6 @@ let powerZones;
 let sport = 'cycling';
 
 const defaultAxisColorBands = [[1, cssColor('fg', 1, 0.2)]];
-
-
-class RAFThrottlePatcher {
-    static requestAnimationFrameInitial = window.requestAnimationFrame;
-    static cancelAnimationFrameInitial = window.cancelAnimationFrame;
-    static idCounter = -1;
-    static instance;
-
-    static singleton() {
-        return this.instance || (this.instance = new this());
-    }
-
-    constructor() {
-        if (this.instance) {
-            throw new Error("Illegal Instantiation");
-        }
-        this.queue = [];
-        this.queueSwap = [];
-        const fps = 60;
-        this.rafTime = 1000 / fps;
-        this._pts = 0;
-        this.setFps(60);
-        this.calibrate();
-        setInterval(this.calibrate.bind(this), 4_000);
-        this.runner = this._runner.bind(this);
-        this.constructor.requestAnimationFrameInitial.call(window, this.runner);
-        window.requestAnimationFrame = this.requestAnimationFrame.bind(this);
-        window.cancelAnimationFrame = this.cancelAnimationFrame.bind(this);
-    }
-
-    setFps(fps) {
-        this.throttledTime = 1000 / fps;
-        const nativeFps = Math.round(1000 / this.rafTime);
-        const r = this.rafTime / this.throttledTime;
-        const d = Math.abs(this.throttledTime - this.rafTime);
-        if (r > 0.8 || d < 2) {
-            if (this.strategy) {
-                console.info(`Using native RAF: ${nativeFps} -> ${fps} fps`);
-                this.strategy = null;
-            }
-        } else if (r >= 0.5 && d < 20) {
-            if (this.strategy !== 'drop') {
-                console.info(`Using RAF-drop-frames throttle: ${nativeFps} -> ${fps} fps`);
-                this.strategy = 'drop';
-            }
-        } else if (this.strategy !== 'sched') {
-            console.info(`Using scheduled RAF throttle: ${nativeFps} -> ${fps} fps`);
-            this.strategy = 'sched';
-        }
-    }
-
-    calibrate() {
-        if (document.isHidden) {
-            return;
-        }
-        const times = [];
-        let ticks = 0;
-        let pts;
-        const onRaf = ts => {
-            if (++ticks > 10) {
-                times.sort((a, b) => a - b);
-                this.rafTime = times[0];
-                this.setFps(1000 / this.throttledTime);
-                return;
-            }
-            if (pts) {
-                times.push(ts - pts);
-            }
-            pts = ts;
-            this.constructor.requestAnimationFrameInitial.call(window, onRaf);
-        };
-        this.constructor.requestAnimationFrameInitial.call(window, onRaf);
-    }
-
-    requestAnimationFrame(cb) {
-        const id = this.constructor.idCounter--;
-        this.queue.push({cb, id});
-        return id;
-    }
-
-    cancelAnimationFrame(id) {
-        debugger;
-        if (id != null) {
-            for (let i = 0; i < this.queue.length; i++) {
-                if (this.queue[i].id === id) {
-                    this.queue.splice(i, 1);
-                    break;
-                }
-            }
-        }
-    }
-
-    _runner(ts) {
-        if (!this.strategy || this.strategy === 'sched' || ts - this._pts >= this.throttledTime) {
-            const batch = this.queue;
-            this.queue = this.queueSwap;
-            this.queueSwap = batch;
-            for (let i = 0; i < batch.length; i++) {
-                try {
-                    batch[i].cb(ts);
-                } catch(e) {
-                    queueMicrotask(() => {
-                        throw e;
-                    });
-                }
-            }
-            batch.length = 0;
-            this._pts = ts;
-        }
-        if (this.strategy === 'sched') {
-            setTimeout(() =>
-                this.constructor.requestAnimationFrameInitial.call(window, this.runner), this.throttledTime);
-        } else {
-            this.constructor.requestAnimationFrameInitial.call(window, this.runner);
-        }
-    }
-}
-
-RAFThrottlePatcher.singleton().setFps(12);
 
 
 let _wPrime;

@@ -393,7 +393,7 @@ export class SauceZwiftMap extends EventTarget {
         this._mapScale = null;
         this._lastFrameTime = 0;
         this._frameTimeAvg = 0;
-        this._frameTimeWeighted = common.expWeightedAvg(10);
+        this._frameTimeWeighted = common.expWeightedAvg(30, 1000 / 60);
         this._perspective = 800;
         this._wheelState = {
             nextAnimFrame: null,

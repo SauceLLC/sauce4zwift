@@ -2206,6 +2206,194 @@ export function makeQuantizeBaseN(base) {
 }
 
 
+export function stddev(values) {
+    values = values.toSorted((a, b) => a - b);
+    const mean = values.reduce((a, x) => a + x, 0) / values.length;
+    const variance = values.reduce((a, x) => a + (mean - x) * (mean - x), 0) / values.length;
+    return Math.sqrt(variance);
+}
+
+
+export function winsorizedMean(values, clip=0.2) {
+    if (values.length > 3) {
+        values = values.toSorted((a, b) => a - b);
+        const clipLen = Math.round(values.length * clip) || 1;
+        const min = values[clipLen];
+        const max = values[values.length - 1 - clipLen];
+        for (let i = 0; i < clipLen; i++) {
+            values[i] = min;
+            values[values.length - 1 - i] = max;
+        }
+    } else if (values.length === 3) {
+        values = values.toSorted((a, b) => a - b);
+        return values[1];
+    }
+    return values.reduce((a, x) => a + x, 0) / values.length;
+}
+
+
+const _rafInitial = window.requestAnimationFrame;
+export async function checkFrameRate({raf=_rafInitial, mean=false, ticks=10}={}) {
+    const times = [];
+    let i = 0;
+    let pts;
+    return await new Promise(resolve => {
+        const onRaf = ts => {
+            if (pts) {
+                times.push(ts - pts);
+            }
+            pts = ts;
+            if (times.length && ++i >= ticks) {
+                const msPerFrame = mean ?
+                    times.reduce((a, x) => a + x, 0) / times.length :
+                    winsorizedMean(times, 0.2);
+                resolve(1000 / msPerFrame);
+            } else {
+                raf(onRaf);
+            }
+        };
+        raf(onRaf);
+    });
+}
+
+
+export class RAFThrottlePatcher {
+
+    static requestAnimationFrameInitial = window.requestAnimationFrame;
+    static cancelAnimationFrameInitial = window.cancelAnimationFrame;
+    static idCounter = -1;
+    static instance;
+
+    static singleton() {
+        return this.instance || (this.instance = new this());
+    }
+
+    constructor() {
+        if (this.instance) {
+            throw new Error("Illegal Instantiation");
+        }
+        const raf = this.constructor.requestAnimationFrameInitial;
+        this.runners = {
+            native: this._runnerNative.bind(this, raf),
+            drop: this._runnerDrop.bind(this, raf),
+            sched: this._runnerSched.bind(this, raf),
+        };
+        this.calibrating = false;
+        this.queue = [];
+        this.queueSwap = [];
+        this.fps = 60;
+        this.rafTime = 1000 / this.fps;
+        this.setFPSLimit();
+        this._pts = 0;
+        window.requestAnimationFrame = this.requestAnimationFrame.bind(this);
+        window.cancelAnimationFrame = this.cancelAnimationFrame.bind(this);
+        this._stayCalibratedTask();
+        this.constructor.requestAnimationFrameInitial.call(window, this.runner);
+    }
+
+    setFPSLimit(fps=this.fps) {
+        this.throttledTime = 1000 / fps;
+        this.fps = fps;
+        const nativeFps = Math.round(1000 / this.rafTime);
+        const ratio = this.rafTime / this.throttledTime;
+        if (ratio > 0.95) {
+            if (this.runner !== this.runners.native) {
+                console.info(`Using native RAF: ${nativeFps} -> ${fps} fps`);
+                this.runner = this.runners.native;
+            }
+        } else if (this.throttledTime - this.rafTime < 10) {
+            this._dropRate = ratio;
+            this._dropAccum = 0;
+            if (this.runner !== this.runners.drop) {
+                console.info(`Using RAF-drop-frames throttle: ${nativeFps} -> ${fps} fps`);
+                this.runner = this.runners.drop;
+            }
+        } else {
+            this._schedDelay = Math.round(this.throttledTime - this.rafTime / 2) - 1;
+            if (this.runner !== this.runners.sched) {
+                console.info(`Using scheduled RAF throttle: ${nativeFps} -> ${fps} fps`);
+                this.runner = this.runners.sched;
+            }
+        }
+    }
+
+    async calibrate() {
+        if (document.hidden || this.calibrating) {
+            return;
+        }
+        this.calibrating = true;
+        try {
+            const fps = await checkFrameRate();
+            this.rafTime = 1000 / fps;
+            this.setFPSLimit();
+        } finally {
+            this.calibrating = false;
+        }
+    }
+
+    requestAnimationFrame(cb) {
+        const id = this.constructor.idCounter--;
+        this.queue.push({cb, id});
+        return id;
+    }
+
+    cancelAnimationFrame(id) {
+        if (id != null) {
+            for (let i = 0; i < this.queue.length; i++) {
+                if (this.queue[i].id === id) {
+                    this.queue.splice(i, 1);
+                    break;
+                }
+            }
+        }
+    }
+
+    _flush(ts) {
+        const batch = this.queue;
+        this.queue = this.queueSwap;
+        this.queueSwap = batch;
+        for (let i = 0; i < batch.length; i++) {
+            try {
+                batch[i].cb(ts);
+            } catch(e) {
+                queueMicrotask(() => {
+                    throw e;
+                });
+            }
+        }
+        batch.length = 0;
+        this._pts = ts;
+    }
+
+    _runnerNative(_raf, ts) {
+        this._flush(ts);
+        _raf.call(window, this.runner);
+    }
+
+    _runnerDrop(_raf, ts) {
+        if ((this._dropAccum += this._dropRate) >= 1) {
+            this._dropAccum -= 1;
+            this._flush(ts);
+        }
+        _raf.call(window, this.runner);
+    }
+
+    _runnerSched(_raf, ts) {
+        this._flush(ts);
+        setTimeout(() => _raf.call(window, this.runner), this._schedDelay);
+    }
+
+    async _stayCalibratedTask() {
+        let backoff = 1000;
+        await sleep(200);
+        while(true) {
+            await this.calibrate();
+            await sleep(Math.min(120_000, backoff *= 1.5));
+        }
+    }
+}
+
+
 if (window.CSS && CSS.registerProperty) {
     CSS.registerProperty({
         name: '--final-bg-opacity',
