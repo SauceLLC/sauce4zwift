@@ -113,13 +113,10 @@ html {
         justify-content: center;
         position: relative;
         font-size: 0.75em;
+        border-bottom: 1px solid #aaa6;
 
         &.hidden {
             display: none;
-        }
-
-        &:not(:last-child) {
-            border-bottom: 1px solid #aaa6;
         }
 
         &:hover {
