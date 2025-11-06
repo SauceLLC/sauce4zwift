@@ -33,7 +33,7 @@
   },
   "optionalDependencies": {
     "macos-window-control": "https://github.com/mayfield/macos-window-control.git#4882bd7bf06597779a1d2f1e17fcf4ece5815fe3",
-    "zwift-utils": "https://github.com/SauceLLC/zwift-utils.git#373de5d7776e8213a69f67f4b13413acd8d5d8bc"
+    "zwift-utils": "https://github.com/SauceLLC/zwift-utils.git#b78cf2e2da5375489c2a2a4514418ae625924e68"
   },
   "devDependencies": {
     "@electron/notarize": "3.1.0",
