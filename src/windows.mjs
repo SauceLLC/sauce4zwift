@@ -1358,7 +1358,11 @@ function _openSpecWindow(spec) {
     let boundsSaveTimeout;
     const onBoundsUpdate = () => {
         clearTimeout(boundsSaveTimeout);
-        boundsSaveTimeout = setTimeout(() => updateWidgetWindowSpec(id, {bounds: win.getBounds()}), 200);
+        boundsSaveTimeout = setTimeout(() => {
+            if (!win.isDestroyed()) {
+                updateWidgetWindowSpec(id, {bounds: win.getBounds()});
+            }
+        }, 200);
     };
     if (!spec.ephemeral) {
         win.on('move', onBoundsUpdate);
