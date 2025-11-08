@@ -5,7 +5,7 @@ import * as windows from './windows.mjs';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
 const require = createRequire(import.meta.url);
-const {Menu, app, shell, nativeImage, Tray} = require('electron');
+const {Menu, app, shell, nativeImage, Tray, BaseWindow} = require('electron');
 const pkg = require('../package.json');
 
 const appPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -73,6 +73,14 @@ if (process.platform === 'darwin') {
 
 export function setAppMenu() {
     Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+
+export function updateAppMenuOnAllWindows() {
+    const menu = Menu.getApplicationMenu();
+    for (const x of BaseWindow.getAllWindows()) {
+        x.setMenu(menu);
+    }
 }
 
 

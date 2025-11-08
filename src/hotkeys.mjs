@@ -1,6 +1,7 @@
 import * as storageMod from './storage.mjs';
 import * as rpc from './rpc.mjs';
-import {globalShortcut} from 'electron';
+import {updateAppMenuOnAllWindows} from './menu.mjs';
+import {globalShortcut, Menu, MenuItem} from 'electron';
 
 let hotkeys;
 const storageKey = 'hotkeys';
@@ -170,20 +171,40 @@ rpc.register(removeHotkey);
 
 function updateMapping() {
     globalShortcut.unregisterAll();
+    let miHolder = Menu.getApplicationMenu().getMenuItemById('hotkeys');
+    if (!miHolder) {
+        miHolder = new MenuItem({id: 'hotkeys', visible: false, submenu: []});
+        Menu.getApplicationMenu().append(miHolder);
+    } else {
+        miHolder.submenu.clear();
+    }
+    if (!hotkeys.length) {
+        return;
+    }
     for (const x of hotkeys) {
-        if (x.invalid || !x.global) {
+        if (x.invalid) {
             continue;
         }
-        const accel = x.keys.join('+');
+        const accelerator = x.keys.join('+');
         const action = availableActions.get(x.action);
-        globalShortcut.register(accel, async () => {
-            console.debug("Hotkey pressed:", accel, '->', action.name);
+        const handler = async () => {
+            console.debug("Hotkey pressed:", accelerator, '->', action.name);
             try {
                 await action.callback();
             } catch(e) {
                 console.error("Hotkey callback error:", e);
                 throw e;
             }
-        });
+        };
+        if (x.global) {
+            globalShortcut.register(accelerator, handler);
+        } else {
+            miHolder.submenu.append(new MenuItem({
+                accelerator,
+                click: handler,
+                visible: false,
+            }));
+        }
     }
+    updateAppMenuOnAllWindows();
 }
