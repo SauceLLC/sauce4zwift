@@ -5,43 +5,20 @@
     padding: 1.4em;
 }
 
-#windows {
-    font-size: 16px;
 
-    .active-windows-wrap {
+#settings .custom-entries-wrap {
+    width: 100%;
+    overflow: auto;
+    position: relative;
+    border-radius: 0.28em;
+
+    table.custom-entries {
         width: 100%;
-        min-height: 12em;
-        max-height: 40vh;
-        overflow: auto;
-        margin-bottom: 1em;
-        position: relative;
-        border-radius: 0.28em;
-
-        table {
-            border-radius: 0;
-            overflow: inherit;
-
-            thead tr {
-                position: sticky;
-                top: 0;
-                z-index: 1;
-            }
-        }
-    }
-
-    .add-new {
-        margin-bottom: 1em;
-    }
-
-    table {
-        width: 100%;
-        border-radius: 0.28em;
         background-color: color.shade(fg, 100%, 15%);
         border-collapse: collapse;
         font-size: 0.9em;
-        overflow: hidden;
 
-        thead tr {
+        > thead > tr {
             position: sticky;
             top: 0;
             z-index: 1;
@@ -57,29 +34,15 @@
             }
         }
 
-        tbody tr:nth-child(odd) {
+        > tbody > tr:nth-child(odd) {
             background-color: color.shade(fg, 100%, 10%);
         }
 
-        tbody tr {
+        > tbody > tr {
             &.active {
                 font-weight: bold;
                 background-color: color.get(primary, 80%) !important;
                 color: color.shade(primary, 100%) !important;
-            }
-
-            &.closed {
-                opacity: 0.75;
-            }
-
-            &:not(.closed) {
-                .link.win-restore {
-                    display: none;
-                }
-
-                td.state {
-                    font-weight: 800;
-                }
             }
 
             &:hover {
@@ -87,7 +50,8 @@
             }
         }
 
-        td, th {
+        > thead > tr > th,
+        > tbody > tr > td {
             padding: 0.3em 1em;
 
             &.btn {
@@ -123,6 +87,62 @@
                 }
             }
         }
+    }
+}
+
+#settings .custom-entries-create {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+
+    > * {
+        margin-left: 0;
+    }
+    > *:not(:last-child) {
+        margin-right: 0.2rem;
+    }
+
+    > label {
+        margin-bottom: 0;
+    }
+
+    > .spacer {
+        flex: 1 1 100%;
+    }
+}
+
+#windows {
+    .custom-entries-wrap {
+        max-height: 33vh;
+
+        &.active-windows {
+            min-height: 10em;
+        }
+
+        &.profiles {
+            overflow: clip;
+            max-height: none;
+        }
+    }
+
+    .custom-entries-create {
+        margin-bottom: 1em;
+    }
+
+    .active-windows > table {
+        &.closed {
+            opacity: 0.75;
+        }
+
+        &:not(.closed) {
+            .link.win-restore {
+                display: none;
+            }
+
+            td.state {
+                font-weight: 800;
+            }
+        }
 
         td.state {
             font-variant: all-small-caps;
@@ -133,10 +153,23 @@
         }
     }
 
-    .add-new {
-        input[type="button"] {
-            padding-left: 2em;
-            padding-right: 2em;
+    .action-buttons {
+        margin-top: 0.6em;
+    }
+}
+
+#hotkeys {
+    .custom-entries-create {
+        font-size: 0.9em;
+
+        key {
+            min-width: 6ch;
+            font-weight: 600;
+        }
+
+        [name="action"],
+        .button {
+            margin-top: 0.4em;
         }
     }
 }

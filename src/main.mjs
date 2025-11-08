@@ -12,6 +12,7 @@ import * as windows from './windows.mjs';
 import * as mods from './mods.mjs';
 import {parseArgs} from './argparse.mjs';
 import * as app from './app.mjs';
+import * as hotkeys from './hotkeys.mjs';
 
 events.defaultMaxListeners = 100;
 
@@ -534,6 +535,7 @@ export async function main({logEmitter, logFile, logQueue, sentryAnonId,
     windows.openWidgetWindows();
     menu.setWebServerURL(sauceApp.getWebServerURL());
     menu.updateTrayMenu();
+    hotkeys.initHotkeys();
     electron.powerMonitor.on('thermal-state-change', state =>
         console.warn("Power thermal state change:", state));
     electron.powerMonitor.on('speed-limit-change', limit =>

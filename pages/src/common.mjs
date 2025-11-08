@@ -710,9 +710,9 @@ export function addOpenSettingsParam(key, value) {
 }
 
 
-export function softInnerHTML(el, html) {
+export function softInnerHTML(el, html, {force}={}) {
     const h = hash(html);
-    if (el._softInnerHTMLHash !== h) {
+    if (el._softInnerHTMLHash !== h || force) {
         el.innerHTML = html;
         el._softInnerHTMLHash = h;
         return true;
