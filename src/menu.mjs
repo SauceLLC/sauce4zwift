@@ -33,7 +33,6 @@ const template = [{
         {type: 'separator'},
         {role: 'toggleDevTools'},
         {
-            // Universal F12 for me.
             role: 'toggleDevTools',
             accelerator: 'F12',
             visible: false,
